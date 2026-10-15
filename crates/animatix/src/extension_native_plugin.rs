@@ -751,6 +751,8 @@ impl NativePrimitiveAdapter {
             shape: None,
             text: None,
             stroke_path: false,
+            doc: "",
+            default_stub: None,
         };
         Some(Self {
             type_name,

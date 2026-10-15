@@ -172,6 +172,10 @@ pub struct PrimitiveSpec {
     pub type_name: String,
     /// Display name for GUI palettes.
     pub display_name: String,
+    /// Author-facing documentation for completions and hover info.
+    pub doc: String,
+    /// Default syntax stub when inserting or creating this primitive.
+    pub default_stub: Option<String>,
     /// UI category.
     pub category: PrimitiveCategory,
     /// Opaque icon id.
@@ -216,6 +220,8 @@ pub fn builtin_primitive_specs() -> Vec<PrimitiveSpec> {
         .map(|info| PrimitiveSpec {
             type_name: info.type_name.to_string(),
             display_name: info.display_name.to_string(),
+            doc: info.doc.to_string(),
+            default_stub: info.default_stub.map(|s| s.to_string()),
             category: match info.category {
                 ActorCategory::Shape => PrimitiveCategory::Shape,
                 ActorCategory::Text => PrimitiveCategory::Text,
@@ -780,6 +786,8 @@ mod tests {
         let rect = PrimitiveSpec {
             type_name: "Rect".to_string(),
             display_name: "Rectangle".to_string(),
+            doc: "Rectangle shape with fill and stroke.".to_string(),
+            default_stub: Some("size: (100, 100)".to_string()),
             category: PrimitiveCategory::Shape,
             icon_id: "rect".to_string(),
             advanced: false,

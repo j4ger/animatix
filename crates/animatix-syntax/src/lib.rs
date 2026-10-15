@@ -18,6 +18,8 @@ pub mod formatter;
 pub mod highlight;
 /// Icon glyph constants for UI primitives.
 pub use animatix_core::icon_glyphs;
+/// Built-in primitive and effect catalog.
+pub use animatix_std;
 pub mod module;
 pub mod occurrence;
 pub mod parser;

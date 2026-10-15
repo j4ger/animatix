@@ -136,6 +136,8 @@ impl PrimitiveRegistry {
             .map(|(primitive, info)| animatix_syntax::schema::PrimitiveSpec {
                 type_name: primitive.type_name().to_string(),
                 display_name: info.display_name.to_string(),
+                doc: info.doc.to_string(),
+                default_stub: info.default_stub.map(|s| s.to_string()),
                 category: super::actor_category_to_primitive_category(info.category),
                 icon_id: info.icon_id.to_string(),
                 advanced: info.advanced,
@@ -219,6 +221,8 @@ mod tests {
             shape: None,
             text: None,
             stroke_path: false,
+            doc: "",
+            default_stub: None,
         }
     }
 
@@ -295,6 +299,8 @@ mod tests {
                     shape: None,
                     text: None,
                     stroke_path: false,
+                    doc: "",
+                    default_stub: None,
                 },
             )
             .expect("register Gauge");

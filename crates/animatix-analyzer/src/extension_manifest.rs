@@ -919,6 +919,8 @@ type = "Enum(left, right, top)"
         let primitive = PrimitiveSpec {
             type_name: "Pulse".to_string(),
             display_name: "Pulse".to_string(),
+            doc: "Pulse animation primitive.".to_string(),
+            default_stub: None,
             category: PrimitiveCategory::Shape,
             icon_id: "extension:pulse".to_string(),
             advanced: false,

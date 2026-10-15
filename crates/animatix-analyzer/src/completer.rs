@@ -327,10 +327,7 @@ fn type_completions(symbols: &SymbolTable, manifest: &ExtensionManifest) -> Vec<
                     )
                 })
                 .unwrap_or_else(|| {
-                    (
-                        "Type".to_string(),
-                        animatix_syntax::builtins::type_documentation(ty).to_string(),
-                    )
+                    ("Type".to_string(), symbols.doc_of(ty).unwrap_or("Unknown type.").to_string())
                 });
             CompletionItem {
                 label: ty.clone(),

@@ -180,21 +180,15 @@ pub fn named_color_rgba(name: &str) -> Option<[f64; 4]> {
 
 /// Documentation for a built-in type.
 pub fn type_documentation(name: &str) -> &'static str {
-    match name {
-        "Text" => "Text element with content and styling properties.",
-        "Code" => "Code block with syntax highlighting.",
-        "Svg" => "SVG image element.",
-        "Image" => "Raster image element.",
-        "Rect" => "Rectangle shape with fill and stroke.",
-        "Ellipse" => "Ellipse, circle, arc, or dot shape.",
-        "Line" => "Line segment or arrow with optional head.",
-        "Polygon" => "Polygon or regular polygon shape.",
-        "Path" => "SVG path element.",
-        "Graph" => "Function graph.",
-        "PlotCurve" => "Plot curve with configurable sampling kind.",
-        "Button" => "Interactive button element.",
-        _ => "Unknown type.",
+    if let Some(info) = animatix_std::catalog_lookup(name) {
+        if !info.doc.is_empty() {
+            return info.doc;
+        }
     }
+    if name == "Button" {
+        return "Interactive button element.";
+    }
+    "Unknown type."
 }
 
 /// Documentation for a built-in action.

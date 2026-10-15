@@ -28,8 +28,9 @@ fn is_plot_runtime_param(ty: &str, prop_name: &str, props: &[crate::ast::Propert
 /// analyzer's unresolved-variable check) so assignment targets and bare
 /// references resolve against the same set.
 pub fn plot_runtime_params(ty: &str, props: &[crate::ast::Property]) -> Vec<String> {
-    const PLOT_HOSTS: [&str; 4] = ["PlotCurve", "VectorField", "Heatmap", "ContourSet"];
-    if !PLOT_HOSTS.contains(&ty) {
+    let is_plot_host =
+        animatix_std::caps_for_type(ty).is_some_and(|caps| caps.plot_geometry || caps.plot_host);
+    if !is_plot_host {
         return Vec::new();
     }
     let Some(func_prop) = props.iter().find(|p| p.name == "func") else {
@@ -46,9 +47,10 @@ pub fn plot_runtime_params(ty: &str, props: &[crate::ast::Property]) -> Vec<Stri
         .collect()
 }
 
-/// Built-in container types whose label may be purely structural.
-const STRUCTURAL_CONTAINER_TYPES: &[&str] =
-    &["Row", "Col", "Grid", "Stack", "Group", "Filter", "Mask"];
+/// True for container types whose label may be purely structural.
+fn is_structural_container_type(ty: &str) -> bool {
+    animatix_std::caps_for_type(ty).is_some_and(|caps| caps.is_container || caps.is_effect_scope())
+}
 
 /// Collect semantic diagnostics for a parsed program.
 ///
@@ -222,7 +224,7 @@ fn collect_structural_container_labels(stmts: &[Stmt]) -> HashSet<String> {
             ..
         } = stmt
         {
-            if !children.is_empty() && STRUCTURAL_CONTAINER_TYPES.contains(&ty.as_str()) {
+            if !children.is_empty() && is_structural_container_type(ty) {
                 structural.insert(label.clone());
             }
             crate::walk::walk_inline_items(children, &mut |item| {
@@ -233,7 +235,7 @@ fn collect_structural_container_labels(stmts: &[Stmt]) -> HashSet<String> {
                     ..
                 } = item
                 {
-                    if !children.is_empty() && STRUCTURAL_CONTAINER_TYPES.contains(&ty.as_str()) {
+                    if !children.is_empty() && is_structural_container_type(ty) {
                         structural.insert(label.clone());
                     }
                 }

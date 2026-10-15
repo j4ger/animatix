@@ -167,6 +167,32 @@ impl SymbolTable {
     pub fn inline_child_type(&self, label: &str) -> Option<&str> {
         self.inline_child_types.get(label).map(String::as_str)
     }
+
+    /// Get the capability flags for an actor type (built-in or extension).
+    pub fn caps_of(&self, ty: &str) -> Option<animatix_core::caps::ActorCaps> {
+        animatix_std::caps_for_type(ty)
+    }
+
+    /// True when `ty` is a container or effect compositing scope.
+    pub fn is_container_type(&self, ty: &str) -> bool {
+        self.caps_of(ty).is_some_and(|c| c.is_container || c.is_effect_scope())
+    }
+
+    /// True when `ty` hosts plot geometry or runtime math closures.
+    pub fn is_plot_host_type(&self, ty: &str) -> bool {
+        self.caps_of(ty).is_some_and(|c| c.plot_geometry || c.plot_host)
+    }
+
+    /// Retrieve author-facing documentation for this type.
+    pub fn doc_of(&self, ty: &str) -> Option<&str> {
+        animatix_std::catalog_lookup(ty).and_then(|info| {
+            if info.doc.is_empty() {
+                None
+            } else {
+                Some(info.doc)
+            }
+        })
+    }
 }
 
 impl SymbolTable {

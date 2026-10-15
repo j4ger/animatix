@@ -44,6 +44,10 @@ pub struct PrimitiveInfo {
     pub text: Option<TextKind>,
     /// Renders as a stroke-based path (shapes and `PlotCurve`).
     pub stroke_path: bool,
+    /// Author-facing documentation for completions, tooltips, and hover info.
+    pub doc: &'static str,
+    /// Default snippet / property stub when inserting or stubbing this primitive.
+    pub default_stub: Option<&'static str>,
 }
 
 const fn caps(
@@ -132,6 +136,8 @@ impl PrimitiveInfo {
             shape: None,
             text: None,
             stroke_path: false,
+            doc: "",
+            default_stub: None,
         }
     }
 
@@ -157,6 +163,8 @@ impl PrimitiveInfo {
             shape: Some(kind),
             text: None,
             stroke_path: true,
+            doc: "",
+            default_stub: None,
         }
     }
 
@@ -178,7 +186,21 @@ impl PrimitiveInfo {
             shape: None,
             text: Some(kind),
             stroke_path: false,
+            doc: "",
+            default_stub: None,
         }
+    }
+
+    /// Attach author-facing documentation to this primitive card.
+    pub const fn with_doc(mut self, doc: &'static str) -> Self {
+        self.doc = doc;
+        self
+    }
+
+    /// Attach a default snippet/stub to this primitive card.
+    pub const fn with_stub(mut self, stub: &'static str) -> Self {
+        self.default_stub = Some(stub);
+        self
     }
 
     /// Move the card into the palette's "advanced" submenu.
@@ -230,44 +252,77 @@ impl PrimitiveInfo {
 
 // Shapes
 pub static RECT: PrimitiveInfo =
-    PrimitiveInfo::shape("Rect", "Rectangle", icon_glyphs::SQUARE, ShapeKind::Rect);
+    PrimitiveInfo::shape("Rect", "Rectangle", icon_glyphs::SQUARE, ShapeKind::Rect)
+        .with_doc("Rectangle shape with fill and stroke.")
+        .with_stub("size: (100, 100)");
 pub static ELLIPSE: PrimitiveInfo =
-    PrimitiveInfo::shape("Ellipse", "Ellipse", icon_glyphs::CIRCLE_NOTCH, ShapeKind::Ellipse);
+    PrimitiveInfo::shape("Ellipse", "Ellipse", icon_glyphs::CIRCLE_NOTCH, ShapeKind::Ellipse)
+        .with_doc("Ellipse, circle, arc, or dot shape.")
+        .with_stub("size: (100, 100)");
 pub static LINE: PrimitiveInfo =
-    PrimitiveInfo::shape("Line", "Line", icon_glyphs::MINUS, ShapeKind::Line);
+    PrimitiveInfo::shape("Line", "Line", icon_glyphs::MINUS, ShapeKind::Line)
+        .with_doc("Line segment or arrow with optional head.")
+        .with_stub("from: (0, 0), to: (100, 0)");
 pub static ARROW: PrimitiveInfo =
-    PrimitiveInfo::shape("Arrow", "Arrow", icon_glyphs::ARROW_RIGHT, ShapeKind::Arrow);
+    PrimitiveInfo::shape("Arrow", "Arrow", icon_glyphs::ARROW_RIGHT, ShapeKind::Arrow)
+        .with_doc("Directional arrow with customizable head and shaft.")
+        .with_stub("from: (0, 0), to: (100, 0)");
 pub static POLYGON: PrimitiveInfo =
-    PrimitiveInfo::shape("Polygon", "Polygon", icon_glyphs::POLYGON, ShapeKind::Polygon);
+    PrimitiveInfo::shape("Polygon", "Polygon", icon_glyphs::POLYGON, ShapeKind::Polygon)
+        .with_doc("Polygon or regular polygon shape.")
+        .with_stub("points: {(0, 0), (100, 0), (50, 80)}");
 pub static PATH: PrimitiveInfo =
-    PrimitiveInfo::shape("Path", "Path", icon_glyphs::PEN, ShapeKind::Path);
+    PrimitiveInfo::shape("Path", "Path", icon_glyphs::PEN, ShapeKind::Path)
+        .with_doc("SVG path element.")
+        .with_stub("commands: \"M 0 0 L 100 0\"");
 
 // Text
 pub static TEXT: PrimitiveInfo =
-    PrimitiveInfo::text("Text", "Text", icon_glyphs::TEXT_T, TextKind::Text);
+    PrimitiveInfo::text("Text", "Text", icon_glyphs::TEXT_T, TextKind::Text)
+        .with_doc("Text element with content and styling properties.")
+        .with_stub("text: \"Hello\"");
 pub static CODE: PrimitiveInfo =
-    PrimitiveInfo::text("Code", "Code", icon_glyphs::CODE, TextKind::Code).advanced();
+    PrimitiveInfo::text("Code", "Code", icon_glyphs::CODE, TextKind::Code)
+        .advanced()
+        .with_doc("Code block with syntax highlighting.")
+        .with_stub("code: \"let x = 1;\", language: \"rust\"");
 pub static MATH: PrimitiveInfo =
-    PrimitiveInfo::text("Math", "Math", icon_glyphs::FUNCTION, TextKind::Math).advanced();
+    PrimitiveInfo::text("Math", "Math", icon_glyphs::FUNCTION, TextKind::Math)
+        .advanced()
+        .with_doc("Mathematical formula notation using Typst math.")
+        .with_stub("text: \"E = m c^2\"");
 pub static TYPST: PrimitiveInfo =
-    PrimitiveInfo::text("Typst", "Typst", icon_glyphs::ARTICLE, TextKind::Typst).advanced();
+    PrimitiveInfo::text("Typst", "Typst", icon_glyphs::ARTICLE, TextKind::Typst)
+        .advanced()
+        .with_doc("Typst markup and mathematical document fragment.")
+        .with_stub("content: \"x^2 + y^2 = r^2\"");
 pub static COUNTER: PrimitiveInfo =
-    PrimitiveInfo::text("Counter", "Counter", icon_glyphs::HASH, TextKind::Text);
+    PrimitiveInfo::text("Counter", "Counter", icon_glyphs::HASH, TextKind::Text)
+        .with_doc("Animated numerical counter with formatting and decimals.")
+        .with_stub("value: 100");
 
 // Media
 pub static IMAGE: PrimitiveInfo =
-    PrimitiveInfo::new("Image", "Image", icon_glyphs::IMAGE, ActorCategory::Media, IMAGE_CAPS);
+    PrimitiveInfo::new("Image", "Image", icon_glyphs::IMAGE, ActorCategory::Media, IMAGE_CAPS)
+        .with_doc("Raster image element.")
+        .with_stub("url: \"image.png\"");
 pub static SVG: PrimitiveInfo =
     PrimitiveInfo::new("Svg", "SVG", icon_glyphs::VECTOR_THREE, ActorCategory::Media, SVG_CAPS)
-        .advanced();
+        .advanced()
+        .with_doc("SVG image element.")
+        .with_stub("url: \"graphic.svg\"");
 pub static AUDIO: PrimitiveInfo =
     PrimitiveInfo::new("Audio", "Audio", icon_glyphs::SPEAKER_HIGH, ActorCategory::Media, NO_CAPS)
-        .advanced();
+        .advanced()
+        .with_doc("Audio track playback and synchronization element.")
+        .with_stub("source: \"sound.mp3\"");
 
 // Plots
 pub static GRAPH: PrimitiveInfo =
     PrimitiveInfo::new("Graph", "Graph", icon_glyphs::CHART_BAR, ActorCategory::Plot, GRAPH_CAPS)
-        .stroked();
+        .stroked()
+        .with_doc("2D coordinate host with customizable axis domains and ticks.")
+        .with_stub("x_domain: (0, 10), y_domain: (0, 10)");
 pub static PLOT_CURVE: PrimitiveInfo = PrimitiveInfo::new(
     "PlotCurve",
     "Plot Curve",
@@ -277,7 +332,9 @@ pub static PLOT_CURVE: PrimitiveInfo = PrimitiveInfo::new(
 )
 .advanced()
 .stroked()
-.stroke_primary();
+.stroke_primary()
+.with_doc("Plot curve with configurable sampling kind.")
+.with_stub("func: (x) => sin(x)");
 pub static VECTOR_FIELD: PrimitiveInfo = PrimitiveInfo::new(
     "VectorField",
     "Vector Field",
@@ -287,11 +344,15 @@ pub static VECTOR_FIELD: PrimitiveInfo = PrimitiveInfo::new(
 )
 .advanced()
 .stroked()
-.stroke_primary();
+.stroke_primary()
+.with_doc("2D vector direction field visualization.")
+.with_stub("func: (x, y) => (y, -x)");
 pub static HEATMAP: PrimitiveInfo =
     PrimitiveInfo::new("Heatmap", "Heatmap", icon_glyphs::GRADIENT, ActorCategory::Plot, PLOT_CAPS)
         .advanced()
-        .stroked();
+        .stroked()
+        .with_doc("2D scalar density heatmap plot.")
+        .with_stub("func: (x, y) => sin(x) * cos(y)");
 pub static CONTOUR_SET: PrimitiveInfo = PrimitiveInfo::new(
     "ContourSet",
     "Contour Set",
@@ -301,7 +362,9 @@ pub static CONTOUR_SET: PrimitiveInfo = PrimitiveInfo::new(
 )
 .advanced()
 .stroked()
-.stroke_primary();
+.stroke_primary()
+.with_doc("2D isocontour line plot.")
+.with_stub("func: (x, y) => x^2 + y^2");
 pub static NUMBER_PLANE: PrimitiveInfo = PrimitiveInfo::new(
     "NumberPlane",
     "Number Plane",
@@ -309,41 +372,53 @@ pub static NUMBER_PLANE: PrimitiveInfo = PrimitiveInfo::new(
     ActorCategory::Plot,
     PLOT_CAPS,
 )
-.stroked();
+.stroked()
+.with_doc("Cartesian coordinate plane with grid lines and axes.")
+.with_stub("x_range: (-5, 5), y_range: (-5, 5)");
 pub static BAR_CHART: PrimitiveInfo = PrimitiveInfo::new(
     "BarChart",
     "Bar Chart",
     icon_glyphs::CHART_BAR,
     ActorCategory::Plot,
     PLOT_CAPS,
-);
+)
+.with_doc("Categorical bar chart visualization.")
+.with_stub("data: {(\"A\", 10), (\"B\", 20)}");
 
 // Containers
 pub static ROW: PrimitiveInfo =
-    PrimitiveInfo::new("Row", "Row", icon_glyphs::ROWS, ActorCategory::Container, CONTAINER_CAPS);
+    PrimitiveInfo::new("Row", "Row", icon_glyphs::ROWS, ActorCategory::Container, CONTAINER_CAPS)
+        .with_doc("Horizontal flex-like container for child actors.")
+        .with_stub("gap: 10");
 pub static COL: PrimitiveInfo = PrimitiveInfo::new(
     "Col",
     "Column",
     icon_glyphs::COLUMNS,
     ActorCategory::Container,
     CONTAINER_CAPS,
-);
+)
+.with_doc("Vertical flex-like container for child actors.")
+.with_stub("gap: 10");
 pub static GRID: PrimitiveInfo = PrimitiveInfo::new(
     "Grid",
     "Grid",
     icon_glyphs::SQUARES_FOUR,
     ActorCategory::Container,
     CONTAINER_CAPS,
-);
+)
+.with_doc("2D grid container with configurable columns and spacing.")
+.with_stub("cols: 3, gap: 10");
 pub static STACK: PrimitiveInfo = PrimitiveInfo::new(
     "Stack",
     "Stack",
     icon_glyphs::STACK,
     ActorCategory::Container,
     CONTAINER_CAPS,
-);
+)
+.with_doc("Z-ordered overlapping layout container.");
 pub static GROUP: PrimitiveInfo =
-    PrimitiveInfo::new("Group", "Group", icon_glyphs::FOLDER, ActorCategory::Container, GROUP_CAPS);
+    PrimitiveInfo::new("Group", "Group", icon_glyphs::FOLDER, ActorCategory::Container, GROUP_CAPS)
+        .with_doc("Hierarchical grouping container without layout constraints.");
 pub static MASK: PrimitiveInfo = PrimitiveInfo::new(
     "Mask",
     "Mask",
@@ -352,7 +427,8 @@ pub static MASK: PrimitiveInfo = PrimitiveInfo::new(
     GROUP_CAPS,
 )
 .advanced()
-.with_child_processing(ChildProcessingKind::Mask);
+.with_child_processing(ChildProcessingKind::Mask)
+.with_doc("Masking container that clips children to a shape.");
 pub static FILTER: PrimitiveInfo = PrimitiveInfo::new(
     "Filter",
     "Filter",
@@ -360,7 +436,8 @@ pub static FILTER: PrimitiveInfo = PrimitiveInfo::new(
     ActorCategory::Container,
     CONTAINER_CAPS,
 )
-.with_child_processing(ChildProcessingKind::Filter);
+.with_child_processing(ChildProcessingKind::Filter)
+.with_doc("Compositing scope that applies GPU shader effect chains.");
 /// A backdrop-blur scope: whatever the frame holds behind its rect is blurred
 /// and the scope's children composite above that blur. It draws no surface of
 /// its own — the frost samples the finished frame, so a fill or border on the
@@ -373,7 +450,9 @@ pub static GLASS: PrimitiveInfo = PrimitiveInfo::new(
     ActorCategory::Container,
     GLASS_CAPS,
 )
-.with_child_processing(ChildProcessingKind::Glass);
+.with_child_processing(ChildProcessingKind::Glass)
+.with_doc("Frost/blur glass container that blurs content behind it.")
+.with_stub("corner_radius: 8");
 pub static EQUATION: PrimitiveInfo = PrimitiveInfo::new(
     "Equation",
     "Equation",
@@ -381,7 +460,8 @@ pub static EQUATION: PrimitiveInfo = PrimitiveInfo::new(
     ActorCategory::Container,
     EQUATION_CAPS,
 )
-.with_child_processing(ChildProcessingKind::Equation);
+.with_child_processing(ChildProcessingKind::Equation)
+.with_doc("Aggregates Typst equation fragments with animation support.");
 
 // Equation fragment sub-item (text-like caps, but no single TextKind engine)
 pub static FRAGMENT: PrimitiveInfo = PrimitiveInfo::new(
@@ -390,7 +470,9 @@ pub static FRAGMENT: PrimitiveInfo = PrimitiveInfo::new(
     icon_glyphs::HIGHLIGHTER,
     ActorCategory::Text,
     TEXT_CAPS,
-);
+)
+.with_doc("Sub-equation fragment within an Equation container.")
+.with_stub("text: \"x\"");
 
 // Annotations
 pub static CALLOUT: PrimitiveInfo = PrimitiveInfo::new(
@@ -402,7 +484,9 @@ pub static CALLOUT: PrimitiveInfo = PrimitiveInfo::new(
 )
 .stroked()
 .stroke_primary()
-.callout();
+.callout()
+.with_doc("Targeted leader line and annotation callout.")
+.with_stub("to: (100, 100)");
 pub static LEGEND: PrimitiveInfo = PrimitiveInfo::new(
     "Legend",
     "Legend",
@@ -410,7 +494,8 @@ pub static LEGEND: PrimitiveInfo = PrimitiveInfo::new(
     ActorCategory::Annotation,
     ANNOTATION_CAPS,
 )
-.legend_host();
+.legend_host()
+.with_doc("Color and series legend for plot and chart elements.");
 pub static CONNECTOR: PrimitiveInfo = PrimitiveInfo::new(
     "Connector",
     "Connector",
@@ -419,7 +504,8 @@ pub static CONNECTOR: PrimitiveInfo = PrimitiveInfo::new(
     ANNOTATION_CAPS,
 )
 .stroked()
-.stroke_primary();
+.stroke_primary()
+.with_doc("Connecting line or curve between two actor anchors.");
 
 /// The built-in primitive catalog.
 ///
@@ -490,6 +576,8 @@ impl PrimitiveInfo {
             shape: None,
             text: None,
             stroke_path: false,
+            doc: "",
+            default_stub: None,
         }
     }
 }

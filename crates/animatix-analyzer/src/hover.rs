@@ -72,17 +72,7 @@ pub fn hover_at(
                 range,
             });
         }
-        let doc = animatix_syntax::builtins::type_documentation(text);
-        let doc = if doc == "Unknown type." {
-            let specs = animatix_syntax::schema::builtin_primitive_specs();
-            specs
-                .iter()
-                .find(|spec| spec.type_name == text)
-                .map(|spec| spec.display_name.clone())
-                .unwrap_or_else(|| doc.to_string())
-        } else {
-            doc.to_string()
-        };
+        let doc = symbols.doc_of(text).unwrap_or("Unknown type.");
         return Some(HoverInfo {
             contents: format!("**Type** `{}`\n\n{}", text, doc),
             range,

@@ -302,7 +302,10 @@ fn is_keyframe_marker(trimmed: &str) -> bool {
 /// `Rect` with an explicit size renders visibly and accepts every common
 /// action as a target, which is what the author was trying to reference.
 pub fn missing_actor_statement(name: &str) -> String {
-    format!("{name}: Rect, size: (100, 100)\n")
+    let rect_info = animatix_std::catalog_lookup("Rect");
+    let type_name = rect_info.map(|info| info.type_name.as_ref()).unwrap_or("Rect");
+    let stub = rect_info.and_then(|info| info.default_stub).unwrap_or("size: (100, 100)");
+    format!("{name}: {type_name}, {stub}\n")
 }
 
 /// Removal ranges for every top-level declaration of the given names.

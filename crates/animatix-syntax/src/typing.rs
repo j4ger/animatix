@@ -576,17 +576,9 @@ pub fn property_type(actor_type: &str, property: &str) -> Option<Type> {
         "opacity" | "scale" | "rotation" | "font_size" | "stroke_width" | "line_height"
         | "letter_spacing" | "word_spacing" | "head_size" | "standoff" => Some(Type::Num),
         "text" | "content" | "code" | "label" | "url" | "place" => Some(Type::Str),
-        _ => match actor_type {
-            "Graph" | "PlotCurve" => match property {
-                "x_domain" | "y_domain" | "t_domain" => Some(Type::Vec2),
-                "func" => Some(Type::Function {
-                    params: vec![],
-                    ret: Box::new(Type::Num),
-                }),
-                _ => None,
-            },
-            _ => None,
-        },
+        _ => known_property_types()
+            .get(&(actor_type.to_string(), property.to_string()))
+            .cloned(),
     }
 }
 

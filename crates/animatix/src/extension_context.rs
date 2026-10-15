@@ -711,6 +711,8 @@ mod tests {
                 shape: None,
                 text: Some(TextKind::Text),
                 stroke_path: false,
+                doc: "",
+                default_stub: None,
             },
         )
         .expect("register primitive");
@@ -843,6 +845,8 @@ mod tests {
                 shape: None,
                 text: Some(TextKind::Text),
                 stroke_path: false,
+                doc: "",
+                default_stub: None,
             },
         )
         .expect("register primitive");
@@ -1020,6 +1024,8 @@ mod tests {
                 shape: None,
                 text: Some(TextKind::Text),
                 stroke_path: false,
+                doc: "",
+                default_stub: None,
             },
         )
         .expect("register Gauge");
@@ -1127,6 +1133,8 @@ mod tests {
                 shape: None,
                 text: Some(TextKind::Text),
                 stroke_path: false,
+                doc: "",
+                default_stub: None,
             },
         )
         .expect("register Gauge");
