@@ -732,11 +732,10 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
                 )
                 .selectable(false),
             );
-            let response = ui.add(
-                egui::TextEdit::singleline(&mut buf)
-                    .hint_text("New name")
-                    .desired_width(f32::INFINITY),
-            );
+            let response = TextField::new(&mut buf)
+                .placeholder("New name")
+                .desired_width(ui.available_width())
+                .show(ui);
             response.request_focus();
             if response.lost_focus() {
                 ui.data_mut(|d| d.remove::<String>(rename_id));

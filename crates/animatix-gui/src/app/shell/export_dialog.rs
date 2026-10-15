@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use egui::{Color32, RichText, Stroke, Vec2};
-use eparts::{Button, Checkbox, NumberField, ProgressBar};
+use eparts::{Button, Checkbox, NumberField, ProgressBar, TextField};
 
 use crate::app::GuiShell;
 use crate::app::components::{TabBar, Tag, layout};
@@ -663,9 +663,10 @@ impl GuiShell {
             // ── Output path ──
             Self::settings_row(ui, "Output", |ui| {
                 let path_width = ui.available_width();
-                layout::field_sized(ui, Some(path_width), |ui| {
-                    ui.add(egui::TextEdit::singleline(output_path).hint_text("output filename…"));
-                });
+                TextField::new(output_path)
+                    .placeholder("output filename…")
+                    .desired_width(path_width)
+                    .show(ui);
             });
         }
 

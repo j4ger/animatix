@@ -3,7 +3,7 @@
 //! Supports case-sensitive, whole-word and regular-expression search. Literal
 //! queries are escaped so a replacement never interprets `$`.
 
-use eparts::Checkbox;
+use eparts::{Checkbox, TextField};
 
 use crate::app::GuiShell;
 use crate::app::commands::UndoLabel;
@@ -51,13 +51,13 @@ impl GuiShell {
                     .size(TextRole::BodyS.size())
                     .color(theme.palette.text.secondary),
             );
-            let find_resp = ui.add(
-                egui::TextEdit::singleline(&mut self.ui_store.find_query)
-                    .desired_width(f32::INFINITY)
-                    .hint_text("Search term…"),
-            );
+            let find_resp = TextField::new(&mut self.ui_store.find_query)
+                .desired_width(ui.available_width())
+                .placeholder("Search term…")
+                .cleanable(true)
+                .show(ui);
             // Reset the cursor-relative position whenever the query changes.
-            if find_resp.changed() {
+            if find_resp.changed {
                 self.ui_store.find_last_match = None;
             }
 
@@ -109,11 +109,11 @@ impl GuiShell {
                     .size(TextRole::BodyS.size())
                     .color(theme.palette.text.secondary),
             );
-            ui.add(
-                egui::TextEdit::singleline(&mut self.ui_store.replace_query)
-                    .desired_width(f32::INFINITY)
-                    .hint_text("Replacement…"),
-            );
+            TextField::new(&mut self.ui_store.replace_query)
+                .desired_width(ui.available_width())
+                .placeholder("Replacement…")
+                .cleanable(true)
+                .show(ui);
             ui.add_space(sp.base.space_3);
 
             ui.horizontal(|ui| {

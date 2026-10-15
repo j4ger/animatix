@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use animatix::timeline::{AnimationTrack, Timeline, collect_all_keyframe_times};
 use egui::{Color32, Pos2, RichText, ScrollArea, Vec2};
 use eparts::widget::UiExt;
-use eparts::{Button, NumberField};
+use eparts::{Button, NumberField, TextField};
 
 use crate::app::PreviewPaneState;
 use crate::app::commands::{
@@ -140,7 +140,7 @@ fn render_scene_inspector(
                     .desired_width(INSPECTOR_INPUT_WIDTH_FLOAT)
                     .show(ui);
                 let tooltip = if is_explicit {
-                    "Explicit duration (click ⨯ to revert to auto)"
+                    "Explicit duration (click to revert to auto)"
                 } else {
                     "Auto-detected from keyframes (drag to set explicit)"
                 };
@@ -148,7 +148,7 @@ fn render_scene_inspector(
                 text_tooltip(ui, ui.id().with("scene_duration_tooltip"), &drag, tooltip);
                 if is_explicit {
                     // Small button to remove explicit duration
-                    let revert = ui.add(Button::ghost("⨯"));
+                    let revert = ui.add(Button::ghost("").with_icon(egui_phosphor::regular::X));
                     text_tooltip(
                         ui,
                         ui.id().with("scene_duration_revert_tooltip"),
@@ -1059,12 +1059,7 @@ fn render_actor_header(
                     .unwrap_or_else(|| track.label.clone());
 
                 if is_editing {
-                    let response = ui.add(
-                        egui::TextEdit::singleline(&mut edit_buffer)
-                            .font(TextRole::Heading.font_id())
-                            .text_color(theme.palette.text.primary)
-                            .desired_width(120.0),
-                    );
+                    let response = TextField::new(&mut edit_buffer).desired_width(120.0).show(ui);
                     response.request_focus();
                     if response.lost_focus() {
                         ui.data_mut(|d| d.insert_temp(edit_id, false));

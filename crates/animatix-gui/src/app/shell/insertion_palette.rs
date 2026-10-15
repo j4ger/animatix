@@ -574,14 +574,12 @@ impl GuiShell {
         }
 
         // Query input
-        let query_id = ui.id().with("insertion_query");
-        let query_response = content.add(
-            egui::TextEdit::singleline(&mut self.insertion_palette.query)
-                .id(query_id)
-                .desired_width(f32::INFINITY)
-                .hint_text("Type to filter..."),
-        );
-        if query_response.changed() {
+        let query_response = TextField::new(&mut self.insertion_palette.query)
+            .placeholder("Type to filter…")
+            .cleanable(true)
+            .desired_width(content.available_width())
+            .show(&mut content);
+        if query_response.changed {
             self.insertion_palette.rebuild_filter();
         }
         content.add_space(sp.base.space_3);

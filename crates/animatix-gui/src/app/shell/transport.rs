@@ -105,12 +105,7 @@ pub(crate) fn transport_ui(
     toolbar_separator(ui);
 
     // Speed
-    const SPEEDS: [(f32, &str); 4] = [
-        (0.5, "\u{BD}\u{D7}"),
-        (1.0, "1\u{D7}"),
-        (2.0, "2\u{D7}"),
-        (4.0, "4\u{D7}"),
-    ];
+    const SPEEDS: [(f32, &str); 4] = [(0.5, "0.5x"), (1.0, "1x"), (2.0, "2x"), (4.0, "4x")];
     let si = SPEEDS
         .iter()
         .position(|(v, _)| (*v - preview.playback.playback_speed).abs() < f32::EPSILON)

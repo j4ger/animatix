@@ -1,5 +1,7 @@
 //! Command palette: Cmd+Shift+P searchable list of all commands.
 
+use eparts::TextField;
+
 use crate::app::GuiShell;
 use crate::app::commands::{
     ActorCommand, DocumentCommand, PlaybackCommand, ShellAction, ViewAction, ViewCommand,
@@ -33,13 +35,11 @@ impl GuiShell {
             ui.add_space(sp.base.space_3);
 
             // Search input
-            let search_resp = ui.add(
-                egui::TextEdit::singleline(&mut self.ui_store.command_palette_query)
-                    .hint_text("Type a command…")
-                    .font(TextRole::Body.font_id())
-                    .desired_width(f32::INFINITY)
-                    .id_source("cmd_palette_search"),
-            );
+            let search_resp = TextField::new(&mut self.ui_store.command_palette_query)
+                .placeholder("Type a command…")
+                .cleanable(true)
+                .desired_width(ui.available_width())
+                .show(ui);
             search_resp.request_focus();
             ui.add_space(sp.base.space_3);
             ui.separator();
