@@ -4,6 +4,7 @@ use animatix_syntax::diagnostics::Diagnostic;
 use egui::Vec2;
 
 use crate::app::commands::{ActionQueue, PlaybackCommand};
+use crate::app::design_tokens::spatial::{STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::panels::panel_frame;
 use crate::editor::EditorBuffer;
@@ -18,11 +19,12 @@ pub(crate) struct EditorContext<'a> {
 
 pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
     let theme = eparts::theme(ui);
+    let sp = spatial(ui);
 
     panel_frame().show(ui, |ui| {
         // ── Toolbar Header ──
         ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing = Vec2::new(8.0, 0.0);
+            ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_4, 0.0);
 
             // Title
             ui.label(
@@ -99,7 +101,7 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
 
             // Right-aligned actions: Format, Expand all, Collapse all
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+                ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
 
                 if ui
                     .add(
@@ -139,14 +141,15 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
         });
 
         // Horizontal divider under toolbar
-        ui.add_space(4.0);
+        ui.add_space(sp.base.space_2);
         let avail_w = ui.available_width();
-        let (sep_rect, _) = ui.allocate_exact_size(Vec2::new(avail_w, 1.0), egui::Sense::hover());
+        let (sep_rect, _) =
+            ui.allocate_exact_size(Vec2::new(avail_w, STROKE_WIDTH), egui::Sense::hover());
         ui.painter().line_segment(
             [sep_rect.left_top(), sep_rect.right_top()],
-            egui::Stroke::new(1.0, theme.palette.border.subtle),
+            egui::Stroke::new(STROKE_WIDTH, theme.palette.border.subtle),
         );
-        ui.add_space(4.0);
+        ui.add_space(sp.base.space_2);
 
         ctx.editor.set_diagnostics(ctx.diagnostics);
         let response = ctx.editor.show(ui);

@@ -53,6 +53,8 @@ pub struct Spatial {
     pub welcome: WelcomeSpatial,
     /// Dialog chrome dimensions.
     pub dialog: DialogSpatial,
+    /// Code editor and notebook cell chrome dimensions.
+    pub editor: EditorSpatial,
 }
 
 impl Spatial {
@@ -66,6 +68,7 @@ impl Spatial {
             inspector: InspectorSpatial::for_density(d),
             welcome: WelcomeSpatial::for_density(d),
             dialog: DialogSpatial::for_density(d),
+            editor: EditorSpatial::for_density(d),
         }
     }
 }
@@ -191,6 +194,39 @@ impl DialogSpatial {
     }
 }
 
+/// Editor / notebook cell chrome dimensions.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EditorSpatial {
+    /// Height of the cell divider drop zone between cells (36 px base).
+    pub divider_height: f32,
+    /// Size of the add button inside the divider (24 px base).
+    pub divider_btn_size: f32,
+    /// Divider line inset from cell edges (48 px base).
+    pub divider_line_inset: f32,
+    /// Gutter horizontal padding beside line numbers (8 px base).
+    pub gutter_padding: f32,
+    /// Inset between gutter divider line and text (6 px base).
+    pub gutter_divider_inset: f32,
+    /// Spacing between cells and append buttons (12 px base).
+    pub append_spacing: f32,
+    /// Bottom margin inside the editor scroll area (16 px base).
+    pub bottom_margin: f32,
+}
+
+impl EditorSpatial {
+    pub fn for_density(d: Density) -> Self {
+        Self {
+            divider_height: d.scale(editor::DIVIDER_HEIGHT),
+            divider_btn_size: d.scale(editor::DIVIDER_BTN_SIZE),
+            divider_line_inset: d.scale(editor::DIVIDER_LINE_INSET),
+            gutter_padding: d.scale(editor::GUTTER_PADDING),
+            gutter_divider_inset: d.scale(editor::GUTTER_DIVIDER_INSET),
+            append_spacing: d.scale(editor::APPEND_SPACING),
+            bottom_margin: d.scale(editor::BOTTOM_MARGIN),
+        }
+    }
+}
+
 // ── App-specific submodules — defined locally ────────────────────────────────
 
 // ── Preview canvas ──
@@ -294,6 +330,30 @@ pub mod inspector {
     pub const LABEL_WIDTH_FRAC: f32 = 0.32;
 }
 
+// ── Editor / Cell notebook layout ──
+pub mod editor {
+    use eparts::tokens::spatial::{ROW_M, SPACE_3, SPACE_4, SPACE_5, SPACE_6};
+
+    /// Height of the cell divider drop zone between cells (scaling chrome, 36 px base).
+    pub const DIVIDER_HEIGHT: f32 = 36.0;
+    /// Size of the add button inside the divider (scaling chrome, 24 px base, equals ROW_M).
+    pub const DIVIDER_BTN_SIZE: f32 = ROW_M;
+    /// Divider line inset from cell edges (scaling chrome, 48 px base).
+    pub const DIVIDER_LINE_INSET: f32 = 48.0;
+    /// Gutter horizontal padding beside line numbers (scaling chrome, 8 px base).
+    pub const GUTTER_PADDING: f32 = SPACE_4;
+    /// Inset between gutter divider line and text (scaling chrome, 6 px base).
+    pub const GUTTER_DIVIDER_INSET: f32 = SPACE_3;
+    /// Spacing between cells and append buttons (scaling chrome, 12 px base).
+    pub const APPEND_SPACING: f32 = SPACE_5;
+    /// Bottom margin inside the editor scroll area (scaling chrome, 16 px base).
+    pub const BOTTOM_MARGIN: f32 = SPACE_6;
+    /// Default width for singleline timestamp editor (100 px base).
+    pub const TIMESTAMP_EDIT_WIDTH: f32 = 100.0;
+    /// Minimum width for timestamp popup / popover (120 px base).
+    pub const TIMESTAMP_POPUP_WIDTH: f32 = 120.0;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Unit tests — Wave 3
 // ═══════════════════════════════════════════════════════════════════════════
@@ -345,6 +405,15 @@ mod tests {
         assert_eq!(s.dialog.inner_margin, dialog::INNER_MARGIN);
         assert_eq!(s.dialog.screen_margin, dialog::SCREEN_MARGIN);
         assert_eq!(s.dialog.col_gap, dialog::COL_GAP);
+
+        // editor
+        assert_eq!(s.editor.divider_height, editor::DIVIDER_HEIGHT);
+        assert_eq!(s.editor.divider_btn_size, editor::DIVIDER_BTN_SIZE);
+        assert_eq!(s.editor.divider_line_inset, editor::DIVIDER_LINE_INSET);
+        assert_eq!(s.editor.gutter_padding, editor::GUTTER_PADDING);
+        assert_eq!(s.editor.gutter_divider_inset, editor::GUTTER_DIVIDER_INSET);
+        assert_eq!(s.editor.append_spacing, editor::APPEND_SPACING);
+        assert_eq!(s.editor.bottom_margin, editor::BOTTOM_MARGIN);
     }
 
     #[test]
@@ -377,6 +446,12 @@ mod tests {
         assert!(s.dialog.inner_margin < dialog::INNER_MARGIN);
         assert!(s.dialog.screen_margin < dialog::SCREEN_MARGIN);
         assert_eq!(s.dialog.col_gap, (dialog::COL_GAP * 0.875).round());
+
+        // editor chrome must shrink
+        assert!(s.editor.divider_height < editor::DIVIDER_HEIGHT);
+        assert_eq!(s.editor.divider_height, (editor::DIVIDER_HEIGHT * 0.875).round());
+        assert_eq!(s.editor.divider_btn_size, (editor::DIVIDER_BTN_SIZE * 0.875).round());
+        assert_eq!(s.editor.divider_line_inset, (editor::DIVIDER_LINE_INSET * 0.875).round());
     }
 
     #[test]
@@ -395,5 +470,12 @@ mod tests {
         assert_eq!(s.dialog.inner_margin, 12.0); // == SPACE_5
         assert_eq!(s.dialog.screen_margin, 24.0); // == SPACE_7
         assert_eq!(s.dialog.col_gap, 8.0); // == SPACE_4
+        assert_eq!(s.editor.divider_height, 36.0);
+        assert_eq!(s.editor.divider_btn_size, 24.0);
+        assert_eq!(s.editor.divider_line_inset, 48.0);
+        assert_eq!(s.editor.gutter_padding, 8.0);
+        assert_eq!(s.editor.gutter_divider_inset, 6.0);
+        assert_eq!(s.editor.append_spacing, 12.0);
+        assert_eq!(s.editor.bottom_margin, 16.0);
     }
 }

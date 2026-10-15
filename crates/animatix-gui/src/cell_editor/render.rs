@@ -2,7 +2,9 @@ use egui::{Color32, Frame, Margin, Pos2, RichText, ScrollArea, Stroke, Vec2};
 
 use crate::app::components::{anim, text_tooltip};
 use crate::app::design_tokens::motion;
-use crate::app::design_tokens::spatial::ROW_S;
+use crate::app::design_tokens::spatial::{
+    RADIUS_M, RADIUS_S, ROW_S, STROKE_WIDTH, Spatial, editor, spatial,
+};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::design_tokens::util::lerp_color;
 use crate::cell_editor::{Cell, CellDiagnostic, CellEditorState};
@@ -228,9 +230,10 @@ pub fn render_cell_editor(
         }
 
         // ── End of document append buttons ──
-        ui.add_space(12.0);
+        let sp = spatial(ui);
+        ui.add_space(sp.editor.append_spacing);
         ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 8.0;
+            ui.spacing_mut().item_spacing.x = sp.base.space_4;
             if ui
                 .add(eparts::Button::secondary("+ Keyframe").with_size(eparts::Size::Sm))
                 .clicked()
@@ -244,7 +247,7 @@ pub fn render_cell_editor(
                 state.pending_append_at_end = Some(crate::cell_editor::CellType::Code);
             }
         });
-        ui.add_space(16.0);
+        ui.add_space(sp.editor.bottom_margin);
     });
 
     if source_changed {
@@ -286,7 +289,7 @@ fn header_btn(ui: &mut egui::Ui, icon: &'static str, tooltip: &'static str) -> b
     };
 
     if bg != Color32::TRANSPARENT {
-        ui.painter().rect_filled(rect, 4.0, bg);
+        ui.painter().rect_filled(rect, RADIUS_S, bg);
     }
 
     ui.painter().text(
@@ -390,16 +393,17 @@ fn render_cell_body(
     let line_height = ui.fonts_mut(|f| f.row_height(&font_id));
     let char_width = ui.fonts_mut(|f| f.glyph_width(&font_id, '0'));
 
+    let sp = spatial(ui);
     let line_count = body.split('\n').count().max(1);
     let max_line = body_start_line + line_count;
     let digits = format!("{max_line}").len().max(2);
-    let gutter_w = digits as f32 * char_width + 8.0;
+    let gutter_w = digits as f32 * char_width + sp.editor.gutter_padding;
 
     let text_edit_id = ui.id().with(("cell_body", index));
 
     let edit_response = ui
         .horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 8.0;
+            ui.spacing_mut().item_spacing.x = sp.base.space_4;
             // Reserve space for the gutter on the left
             let _ = ui.allocate_exact_size(Vec2::new(gutter_w, 0.0), egui::Sense::hover());
             ui.add(
@@ -426,14 +430,15 @@ fn render_cell_body(
 
     // Gutter line numbers and subtle divider
     let text_rect = edit_response.rect;
-    let gutter_right = text_rect.left() - 6.0;
+    let gutter_right = text_rect.left() - sp.editor.gutter_divider_inset;
+    let gutter_divider_x = gutter_right + sp.editor.gutter_divider_inset * 0.5;
 
     ui.painter().line_segment(
         [
-            Pos2::new(gutter_right + 3.0, text_rect.top()),
-            Pos2::new(gutter_right + 3.0, text_rect.bottom()),
+            Pos2::new(gutter_divider_x, text_rect.top()),
+            Pos2::new(gutter_divider_x, text_rect.bottom()),
         ],
-        Stroke::new(1.0, theme.palette.border.subtle),
+        Stroke::new(STROKE_WIDTH, theme.palette.border.subtle),
     );
 
     for i in 0..line_count {
@@ -461,9 +466,119 @@ fn render_cell_body(
     }
 }
 
-// ── Code cell ────────────────────────────────────────────────────────────
+// ── Cell card components ─────────────────────────────────────────────────
 
-fn render_code_cell(
+pub(crate) fn cell_card_frame(bg: Color32, border_color: Color32) -> Frame {
+    Frame::new()
+        .fill(bg)
+        .corner_radius(egui::CornerRadius::same(RADIUS_M as u8))
+        .stroke(Stroke::new(STROKE_WIDTH, border_color))
+        .inner_margin(Margin::same(0))
+}
+
+pub(crate) fn cell_header_frame(theme: eparts::Theme, expanded: bool, sp: &Spatial) -> Frame {
+    let r = RADIUS_M as u8;
+    Frame::new()
+        .fill(theme.palette.surface.base)
+        .corner_radius(egui::CornerRadius {
+            nw: r,
+            ne: r,
+            sw: if expanded { 0 } else { r },
+            se: if expanded { 0 } else { r },
+        })
+        .inner_margin(Margin::symmetric(sp.base.space_4 as i8, (sp.base.space_1 + 1.0) as i8))
+}
+
+pub(crate) fn cell_body_frame(bg: Color32, sp: &Spatial) -> Frame {
+    let r = RADIUS_M as u8;
+    Frame::new()
+        .fill(bg)
+        .corner_radius(egui::CornerRadius {
+            nw: 0,
+            ne: 0,
+            sw: r,
+            se: r,
+        })
+        .inner_margin(Margin {
+            left: sp.base.space_4 as i8,
+            right: sp.base.space_4 as i8,
+            top: sp.base.space_2 as i8,
+            bottom: sp.base.space_3 as i8,
+        })
+}
+
+fn toggle_cell_expansion(
+    cell: &mut Cell,
+    index: usize,
+    expanded: bool,
+    state: &mut CellEditorState,
+) {
+    match cell {
+        Cell::Code { .. } => cell.set_expanded(!expanded),
+        Cell::Keyframe { .. } => {
+            if expanded {
+                state.collapsed_cells.insert(index);
+            } else {
+                state.collapsed_cells.remove(&index);
+            }
+        },
+    }
+}
+
+pub(crate) fn render_line_range_badge(
+    ui: &mut egui::Ui,
+    start_line: usize,
+    end_line: usize,
+    theme: eparts::Theme,
+) {
+    let line_range_text = if start_line + 1 >= end_line {
+        format!("Ln {}", start_line + 1)
+    } else {
+        format!("Ln {}–{}", start_line + 1, end_line)
+    };
+    ui.label(
+        RichText::new(line_range_text)
+            .size(TextRole::Micro.size())
+            .color(theme.palette.text.muted),
+    );
+}
+
+pub(crate) fn render_cell_header_actions(
+    ui: &mut egui::Ui,
+    index: usize,
+    item_type_label: &str,
+    state: &mut CellEditorState,
+    sp: &Spatial,
+) {
+    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_1, 0.0);
+        let del_tip = if item_type_label == "keyframe" {
+            "Delete keyframe"
+        } else {
+            "Delete code block"
+        };
+        if header_btn(ui, egui_phosphor::regular::TRASH, del_tip) {
+            state.pending_delete_cell = Some(index);
+        }
+        let dup_tip = if item_type_label == "keyframe" {
+            "Duplicate keyframe"
+        } else {
+            "Duplicate code block"
+        };
+        if header_btn(ui, egui_phosphor::regular::COPY, dup_tip) {
+            state.pending_duplicate_cell = Some(index);
+        }
+        if header_btn(ui, egui_phosphor::regular::ARROW_DOWN, "Move down") {
+            state.pending_move_down = Some(index);
+        }
+        if header_btn(ui, egui_phosphor::regular::ARROW_UP, "Move up") {
+            state.pending_move_up = Some(index);
+        }
+    });
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn render_cell_shell(
     ui: &mut egui::Ui,
     index: usize,
     cell: &mut Cell,
@@ -471,10 +586,21 @@ fn render_code_cell(
     highlighted: bool,
     state: &mut CellEditorState,
     source_changed: &mut bool,
+    body_start_line: usize,
     start_line: usize,
     end_line: usize,
+    item_type_label: &'static str,
+    render_header_middle: impl FnOnce(
+        &mut egui::Ui,
+        &mut Cell,
+        &mut CellEditorState,
+        &mut bool,
+        eparts::Theme,
+        &Spatial,
+    ),
 ) -> egui::Response {
     let theme = eparts::theme(ui);
+    let sp = spatial(ui);
     let expanded = cell.is_expanded(index, &state.collapsed_cells);
     let bg = if highlighted {
         theme.palette.surface.surface
@@ -490,126 +616,88 @@ fn render_code_cell(
     };
     let cell_diags = cell_analyzer_diagnostics(index, state);
 
-    let card_frame = Frame::new()
-        .fill(bg)
-        .corner_radius(egui::CornerRadius::same(6))
-        .stroke(Stroke::new(1.0, border_color))
-        .inner_margin(Margin::same(0));
-
-    card_frame
+    cell_card_frame(bg, border_color)
         .show(ui, |ui| {
             ui.vertical(|ui| {
-                // Header row
-                Frame::new()
-                    .fill(theme.palette.surface.base)
-                    .corner_radius(egui::CornerRadius {
-                        nw: 6,
-                        ne: 6,
-                        sw: if expanded { 0 } else { 6 },
-                        se: if expanded { 0 } else { 6 },
-                    })
-                    .inner_margin(Margin::symmetric(8, 3))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+                cell_header_frame(theme, expanded, &sp).show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
 
-                            let toggle = if expanded {
-                                egui_phosphor::regular::CARET_DOWN
-                            } else {
-                                egui_phosphor::regular::CARET_RIGHT
-                            };
-                            if header_btn(ui, toggle, if expanded { "Collapse" } else { "Expand" })
-                            {
-                                cell.set_expanded(!expanded);
-                            }
+                        let toggle = if expanded {
+                            egui_phosphor::regular::CARET_DOWN
+                        } else {
+                            egui_phosphor::regular::CARET_RIGHT
+                        };
+                        if header_btn(ui, toggle, if expanded { "Collapse" } else { "Expand" }) {
+                            toggle_cell_expansion(cell, index, expanded, state);
+                        }
 
-                            ui.label(
-                                RichText::new(egui_phosphor::regular::CODE)
-                                    .size(TextRole::BodyS.size())
-                                    .color(theme.palette.text.muted),
-                            );
-                            ui.label(
-                                RichText::new(format!("Code {index}"))
-                                    .size(TextRole::BodyS.size())
-                                    .color(theme.palette.text.secondary),
-                            );
+                        render_header_middle(ui, cell, state, source_changed, theme, &sp);
 
-                            let line_range_text = if start_line + 1 >= end_line {
-                                format!("Ln {}", start_line + 1)
-                            } else {
-                                format!("Ln {}–{}", start_line + 1, end_line)
-                            };
-                            ui.label(
-                                RichText::new(line_range_text)
-                                    .size(TextRole::Micro.size())
-                                    .color(theme.palette.text.muted),
-                            );
+                        render_line_range_badge(ui, start_line, end_line, theme);
 
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| {
-                                    ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
-                                    if header_btn(
-                                        ui,
-                                        egui_phosphor::regular::TRASH,
-                                        "Delete code block",
-                                    ) {
-                                        state.pending_delete_cell = Some(index);
-                                    }
-                                    if header_btn(
-                                        ui,
-                                        egui_phosphor::regular::COPY,
-                                        "Duplicate code block",
-                                    ) {
-                                        state.pending_duplicate_cell = Some(index);
-                                    }
-                                    if header_btn(
-                                        ui,
-                                        egui_phosphor::regular::ARROW_DOWN,
-                                        "Move down",
-                                    ) {
-                                        state.pending_move_down = Some(index);
-                                    }
-                                    if header_btn(ui, egui_phosphor::regular::ARROW_UP, "Move up") {
-                                        state.pending_move_up = Some(index);
-                                    }
-                                },
-                            );
-                        });
+                        render_cell_header_actions(ui, index, item_type_label, state, &sp);
                     });
+                });
 
                 if expanded {
-                    Frame::new()
-                        .fill(bg)
-                        .corner_radius(egui::CornerRadius {
-                            nw: 0,
-                            ne: 0,
-                            sw: 6,
-                            se: 6,
-                        })
-                        .inner_margin(Margin {
-                            left: 8,
-                            right: 8,
-                            top: 4,
-                            bottom: 6,
-                        })
-                        .show(ui, |ui| {
-                            render_cell_body(
-                                ui,
-                                index,
-                                cell.body_mut(),
-                                start_line,
-                                state,
-                                source_changed,
-                                theme,
-                                style,
-                                &cell_diags,
-                            );
-                        });
+                    cell_body_frame(bg, &sp).show(ui, |ui| {
+                        render_cell_body(
+                            ui,
+                            index,
+                            cell.body_mut(),
+                            body_start_line,
+                            state,
+                            source_changed,
+                            theme,
+                            style,
+                            &cell_diags,
+                        );
+                    });
                 }
             });
         })
         .response
+}
+
+// ── Code cell ────────────────────────────────────────────────────────────
+
+fn render_code_cell(
+    ui: &mut egui::Ui,
+    index: usize,
+    cell: &mut Cell,
+    style: &egui::Style,
+    highlighted: bool,
+    state: &mut CellEditorState,
+    source_changed: &mut bool,
+    start_line: usize,
+    end_line: usize,
+) -> egui::Response {
+    render_cell_shell(
+        ui,
+        index,
+        cell,
+        style,
+        highlighted,
+        state,
+        source_changed,
+        start_line,
+        start_line,
+        end_line,
+        "code block",
+        |ui, _cell, _state, _source_changed, theme, _sp| {
+            ui.label(
+                RichText::new(egui_phosphor::regular::CODE)
+                    .size(TextRole::BodyS.size())
+                    .color(theme.palette.text.muted),
+            );
+            ui.label(
+                RichText::new(format!("Code {index}"))
+                    .size(TextRole::BodyS.size())
+                    .color(theme.palette.text.secondary),
+            );
+        },
+    )
 }
 
 // ── Keyframe cell ────────────────────────────────────────────────────────
@@ -626,169 +714,44 @@ fn render_keyframe_cell(
     start_line: usize,
     end_line: usize,
 ) -> egui::Response {
-    let theme = eparts::theme(ui);
     let time_s = cell.time_s().unwrap_or(0.0);
-    let expanded = cell.is_expanded(index, &state.collapsed_cells);
-    let bg = if highlighted {
-        theme.palette.surface.surface
-    } else {
-        theme.palette.surface.panel
-    };
-    let border_color = if state.focused_cell == Some(index) {
-        theme.palette.accent.primary
-    } else if let Some(diag_color) = diagnostic_border_color(index, state, theme) {
-        diag_color
-    } else {
-        theme.palette.border.subtle
-    };
-    let cell_diags = cell_analyzer_diagnostics(index, state);
-
     let header_lines = match cell {
         Cell::Keyframe {
             attached_comment, ..
-        } => {
-            let c_lines = attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0);
-            c_lines + 1
-        },
+        } => attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0) + 1,
         _ => 0,
     };
     let body_start_line = start_line + header_lines;
 
-    let card_frame = Frame::new()
-        .fill(bg)
-        .corner_radius(egui::CornerRadius::same(6))
-        .stroke(Stroke::new(1.0, border_color))
-        .inner_margin(Margin::same(0));
+    render_cell_shell(
+        ui,
+        index,
+        cell,
+        style,
+        highlighted,
+        state,
+        source_changed,
+        body_start_line,
+        start_line,
+        end_line,
+        "keyframe",
+        |ui, cell, state, source_changed, theme, _sp| {
+            // Keyframe type icon
+            ui.label(
+                RichText::new(egui_phosphor::regular::FILM_STRIP)
+                    .size(TextRole::BodyS.size())
+                    .color(theme.palette.accent.primary),
+            );
 
-    card_frame
-        .show(ui, |ui| {
-            ui.vertical(|ui| {
-                // Header bar
-                Frame::new()
-                    .fill(theme.palette.surface.base)
-                    .corner_radius(egui::CornerRadius {
-                        nw: 6,
-                        ne: 6,
-                        sw: if expanded { 0 } else { 6 },
-                        se: if expanded { 0 } else { 6 },
-                    })
-                    .inner_margin(Margin::symmetric(8, 3))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.spacing_mut().item_spacing = Vec2::new(4.0, 0.0);
+            // Editable timestamp
+            render_timestamp_editor(ui, cell, source_changed, state, index);
 
-                            let toggle = if expanded {
-                                egui_phosphor::regular::CARET_DOWN
-                            } else {
-                                egui_phosphor::regular::CARET_RIGHT
-                            };
-                            if header_btn(ui, toggle, if expanded { "Collapse" } else { "Expand" })
-                            {
-                                if expanded {
-                                    state.collapsed_cells.insert(index);
-                                } else {
-                                    state.collapsed_cells.remove(&index);
-                                }
-                            }
-
-                            // Keyframe type icon
-                            ui.label(
-                                RichText::new(egui_phosphor::regular::FILM_STRIP)
-                                    .size(TextRole::BodyS.size())
-                                    .color(theme.palette.accent.primary),
-                            );
-
-                            // Editable timestamp
-                            render_timestamp_editor(ui, cell, source_changed, state, index);
-
-                            // Play
-                            if header_btn(
-                                ui,
-                                egui_phosphor::regular::PLAY,
-                                "Play from this keyframe",
-                            ) {
-                                on_scrub_to_time(time_s);
-                            }
-
-                            // Line range badge
-                            let line_range_text = if start_line + 1 >= end_line {
-                                format!("Ln {}", start_line + 1)
-                            } else {
-                                format!("Ln {}–{}", start_line + 1, end_line)
-                            };
-                            ui.label(
-                                RichText::new(line_range_text)
-                                    .size(TextRole::Micro.size())
-                                    .color(theme.palette.text.muted),
-                            );
-
-                            // Right-aligned actions
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| {
-                                    ui.spacing_mut().item_spacing = Vec2::new(2.0, 0.0);
-                                    if header_btn(
-                                        ui,
-                                        egui_phosphor::regular::TRASH,
-                                        "Delete keyframe",
-                                    ) {
-                                        state.pending_delete_cell = Some(index);
-                                    }
-                                    if header_btn(
-                                        ui,
-                                        egui_phosphor::regular::COPY,
-                                        "Duplicate keyframe",
-                                    ) {
-                                        state.pending_duplicate_cell = Some(index);
-                                    }
-                                    if header_btn(
-                                        ui,
-                                        egui_phosphor::regular::ARROW_DOWN,
-                                        "Move down",
-                                    ) {
-                                        state.pending_move_down = Some(index);
-                                    }
-                                    if header_btn(ui, egui_phosphor::regular::ARROW_UP, "Move up") {
-                                        state.pending_move_up = Some(index);
-                                    }
-                                },
-                            );
-                        });
-                    });
-
-                // Body editor
-                if expanded {
-                    Frame::new()
-                        .fill(bg)
-                        .corner_radius(egui::CornerRadius {
-                            nw: 0,
-                            ne: 0,
-                            sw: 6,
-                            se: 6,
-                        })
-                        .inner_margin(Margin {
-                            left: 8,
-                            right: 8,
-                            top: 4,
-                            bottom: 6,
-                        })
-                        .show(ui, |ui| {
-                            render_cell_body(
-                                ui,
-                                index,
-                                cell.body_mut(),
-                                body_start_line,
-                                state,
-                                source_changed,
-                                theme,
-                                style,
-                                &cell_diags,
-                            );
-                        });
-                }
-            });
-        })
-        .response
+            // Play
+            if header_btn(ui, egui_phosphor::regular::PLAY, "Play from this keyframe") {
+                on_scrub_to_time(time_s);
+            }
+        },
+    )
 }
 
 // ── Timestamp inline editor ──────────────────────────────────────────────
@@ -817,7 +780,7 @@ fn render_timestamp_editor(
         let ts_response = ui.add(
             egui::TextEdit::singleline(&mut edited)
                 .font(TextRole::Mono.font_id())
-                .desired_width(100.0)
+                .desired_width(editor::TIMESTAMP_EDIT_WIDTH)
                 .frame(Frame::NONE)
                 .text_color(theme.palette.accent.primary),
         );
@@ -899,6 +862,7 @@ fn draw_wavy_underlines(
     text_rect: egui::Rect,
     theme: eparts::Theme,
 ) {
+    let sp = spatial(ui);
     let painter = ui.painter();
     let font_id = TextRole::Mono.font_id();
 
@@ -917,7 +881,7 @@ fn draw_wavy_underlines(
         };
 
         // Y position: baseline below the diagnostic line
-        let y = text_rect.top() + (d.rel_line as f32 + 1.0) * line_height - 2.0;
+        let y = text_rect.top() + (d.rel_line as f32 + 1.0) * line_height - sp.base.space_1;
 
         // X positions
         let x_start = text_rect.left() + d.rel_col as f32 * char_width;
@@ -932,7 +896,7 @@ fn draw_wavy_underlines(
 
         // Draw wavy line: series of small zigzag segments
         let width = x_end - x_start;
-        let wave_len = 4.0; // pixels per half-wave
+        let wave_len = sp.base.space_2; // pixels per half-wave
         let wave_amp = 1.5; // amplitude in pixels
         let num_segments = (width / wave_len).ceil() as usize;
         let actual_seg_width = width / num_segments.max(1) as f32;
@@ -952,15 +916,16 @@ fn draw_wavy_underlines(
 
 fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
     let theme = eparts::theme(ui);
+    let sp = spatial(ui);
     let available = ui.available_width();
-    let height = 36.0; // taller for breathing room
+    let height = sp.editor.divider_height;
     let (rect, response) =
         ui.allocate_exact_size(Vec2::new(available, height), egui::Sense::click());
 
     let center = rect.center();
     let y = center.y;
-    let left = rect.left() + 48.0;
-    let right = rect.right() - 48.0;
+    let left = rect.left() + sp.editor.divider_line_inset;
+    let right = rect.right() - sp.editor.divider_line_inset;
 
     // Smooth hover transition for the divider line
     let t = anim::animate_toward(
@@ -993,7 +958,7 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
     }
 
     // ── Center "add" button — ALWAYS visible ──
-    let btn_size = Vec2::splat(24.0);
+    let btn_size = Vec2::splat(sp.editor.divider_btn_size);
     let btn_rect = egui::Rect::from_center_size(center, btn_size);
 
     // Animate the button independently so it has smooth transitions even though
@@ -1037,9 +1002,13 @@ fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEditorState) {
         theme.palette.text.secondary
     };
 
-    ui.painter().rect_filled(btn_rect, 6.0, bg);
-    ui.painter()
-        .rect_stroke(btn_rect, 6.0, Stroke::new(1.0, border), egui::StrokeKind::Inside);
+    ui.painter().rect_filled(btn_rect, RADIUS_M, bg);
+    ui.painter().rect_stroke(
+        btn_rect,
+        RADIUS_M,
+        Stroke::new(STROKE_WIDTH, border),
+        egui::StrokeKind::Inside,
+    );
 
     ui.painter().text(
         center,
