@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use animatix::timeline::{AnimationTrack, Timeline, collect_all_keyframe_times};
 use egui::{Color32, Pos2, RichText, ScrollArea, Vec2};
-use eparts::widget::UiExt;
+use eparts::widget::Select;
 use eparts::{Button, NumberField, TextField};
 
 use crate::app::PreviewPaneState;
@@ -234,35 +234,32 @@ fn render_scene_inspector(
             let other_scenes: Vec<&String> =
                 composition.declaration_order.iter().filter(|s| *s != active_scene).collect();
             layout::labeled_row(ui, "Next scene", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                egui::ComboBox::from_id_salt(ui.id().with("play_edge_target"))
-                    .selected_text(current_target.as_deref().unwrap_or("\u{2014} None"))
-                    .width(ui.available_width())
-                    .show_ui(ui, |ui| {
-                        if ui
-                            .stable_selectable_label(current_target.is_none(), "\u{2014} None")
-                            .clicked()
-                        {
-                            commands.push_back(
-                                SceneCommand::SetPlayTarget {
-                                    from_scene: active_scene.to_string(),
-                                    target: None,
-                                }
-                                .into(),
-                            );
-                        }
-                        for scene_name in &other_scenes {
-                            let selected = current_target.as_deref() == Some(scene_name.as_str());
-                            if ui.stable_selectable_label(selected, *scene_name).clicked() {
-                                commands.push_back(
-                                    SceneCommand::SetPlayTarget {
-                                        from_scene: active_scene.to_string(),
-                                        target: Some((*scene_name).clone()),
-                                    }
-                                    .into(),
-                                );
+                let mut options = vec!["\u{2014} None".to_string()];
+                options.extend(other_scenes.iter().map(|s| (*s).clone()));
+                let mut sel_idx = match current_target.as_ref() {
+                    Some(t) => other_scenes.iter().position(|s| *s == t).map(|i| i + 1),
+                    None => Some(0),
+                };
+                ui.add(
+                    Select::new(ui.id().with("play_edge_target"), &mut sel_idx, &options)
+                        .placeholder("Select target…"),
+                );
+                if let Some(idx) = sel_idx {
+                    let chosen = if idx == 0 {
+                        None
+                    } else {
+                        Some(other_scenes[idx - 1].clone())
+                    };
+                    if chosen != current_target {
+                        commands.push_back(
+                            SceneCommand::SetPlayTarget {
+                                from_scene: active_scene.to_string(),
+                                target: chosen,
                             }
-                        }
-                    });
+                            .into(),
+                        );
+                    }
+                }
             });
         });
 
@@ -277,35 +274,28 @@ fn render_scene_inspector(
                     // Transition type dropdown
                     let registry = animatix_syntax::transition_registry::REGISTRY;
                     layout::labeled_row(ui, "Type", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                        egui::ComboBox::from_id_salt(ui.id().with("transition_type"))
-                            .selected_text(animatix_syntax::transition_registry::display_name(
-                                &edge.transition.id,
-                            ))
-                            .width(ui.available_width())
-                            .show_ui(ui, |ui| {
-                                for def in registry {
-                                    if ui
-                                        .stable_selectable_label(
-                                            def.id == edge.transition.id,
-                                            def.display_name,
-                                        )
-                                        .clicked()
-                                        && def.id != edge.transition.id
-                                    {
-                                        commands.push_back(
-                                            SceneCommand::SetTransition {
-                                                from_scene: active_scene.to_string(),
-                                                transition: animatix_syntax::ast::Transition {
-                                                    id: def.id.to_string(),
-                                                    duration_ms: edge.transition.duration_ms,
-                                                    easing: edge.transition.easing,
-                                                },
-                                            }
-                                            .into(),
-                                        );
+                        let names: Vec<&str> = registry.iter().map(|d| d.display_name).collect();
+                        let mut sel_idx = registry.iter().position(|d| d.id == edge.transition.id);
+                        ui.add(
+                            Select::new(ui.id().with("transition_type"), &mut sel_idx, &names)
+                                .placeholder("Select transition…"),
+                        );
+                        if let Some(idx) = sel_idx {
+                            let chosen_id = registry[idx].id;
+                            if chosen_id != edge.transition.id {
+                                commands.push_back(
+                                    SceneCommand::SetTransition {
+                                        from_scene: active_scene.to_string(),
+                                        transition: animatix_syntax::ast::Transition {
+                                            id: chosen_id.to_string(),
+                                            duration_ms: edge.transition.duration_ms,
+                                            easing: edge.transition.easing,
+                                        },
                                     }
-                                }
-                            });
+                                    .into(),
+                                );
+                            }
+                        }
                     });
 
                     // Duration
@@ -336,37 +326,28 @@ fn render_scene_inspector(
                     let mut new_custom_easing: Option<animatix_syntax::easing::Easing> = None;
                     layout::labeled_row(ui, "Easing", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
                         let current_easing = edge.transition.easing;
-                        let current_name = animatix_syntax::easing::EASING_REGISTRY
+                        let names: Vec<&str> = animatix_syntax::easing::EASING_REGISTRY
                             .iter()
-                            .find(|(id, _)| {
+                            .map(|(_, name)| *name)
+                            .collect();
+                        let mut sel_idx =
+                            animatix_syntax::easing::EASING_REGISTRY.iter().position(|(id, _)| {
                                 animatix_syntax::easing::parse_easing_name(id)
                                     .unwrap_or(animatix_syntax::easing::Easing::Linear)
                                     == current_easing
-                            })
-                            .map(|(_, name)| *name)
-                            .unwrap_or("Linear");
-                        egui::ComboBox::from_id_salt(ui.id().with("transition_easing"))
-                            .selected_text(current_name)
-                            .width(ui.available_width())
-                            .show_ui(ui, |ui| {
-                                for &(id_str, display_name) in
-                                    animatix_syntax::easing::EASING_REGISTRY
-                                {
-                                    let variant =
-                                        animatix_syntax::easing::parse_easing_name(id_str)
-                                            .unwrap_or(animatix_syntax::easing::Easing::Linear);
-                                    if ui
-                                        .stable_selectable_label(
-                                            variant == current_easing,
-                                            display_name,
-                                        )
-                                        .clicked()
-                                        && variant != current_easing
-                                    {
-                                        new_custom_easing = Some(variant);
-                                    }
-                                }
                             });
+                        ui.add(
+                            Select::new(ui.id().with("transition_easing"), &mut sel_idx, &names)
+                                .placeholder("Select easing…"),
+                        );
+                        if let Some(idx) = sel_idx {
+                            let (id_str, _) = animatix_syntax::easing::EASING_REGISTRY[idx];
+                            let variant = animatix_syntax::easing::parse_easing_name(id_str)
+                                .unwrap_or(animatix_syntax::easing::Easing::Linear);
+                            if variant != current_easing {
+                                new_custom_easing = Some(variant);
+                            }
+                        }
                     });
                     if let Some(variant) = new_custom_easing {
                         commands.push_back(
@@ -1159,36 +1140,33 @@ fn render_parent_card(
             let all_labels: Vec<String> =
                 timeline.tracks().keys().filter(|&label| label != actor).cloned().collect();
 
-            let current_display = current_parent.as_deref().unwrap_or("None (root)");
-            egui::ComboBox::from_id_salt(ui.id().with("parent_dropdown"))
-                .selected_text(current_display)
-                .width(ui.available_width())
-                .show_ui(ui, |ui| {
-                    if ui.stable_selectable_label(current_parent.is_none(), "None (root)").clicked()
-                        && current_parent.is_some()
-                    {
-                        commands.push_back(
-                            ActorCommand::ReparentActor {
-                                actor: actor.to_string(),
-                                new_parent: None,
-                            }
-                            .into(),
-                        );
-                    }
-                    for label in &all_labels {
-                        let is_selected = current_parent.as_deref() == Some(label.as_str());
-                        if ui.stable_selectable_label(is_selected, label).clicked() && !is_selected
-                        {
-                            commands.push_back(
-                                ActorCommand::ReparentActor {
-                                    actor: actor.to_string(),
-                                    new_parent: Some(label.clone()),
-                                }
-                                .into(),
-                            );
+            let mut options = vec!["None (root)".to_string()];
+            options.extend(all_labels.clone());
+            let mut sel_idx = match current_parent.as_ref() {
+                Some(p) => all_labels.iter().position(|l| l == p).map(|i| i + 1),
+                None => Some(0),
+            };
+
+            ui.add(
+                Select::new(ui.id().with("parent_dropdown"), &mut sel_idx, &options)
+                    .placeholder("Select parent…"),
+            );
+            if let Some(idx) = sel_idx {
+                let chosen = if idx == 0 {
+                    None
+                } else {
+                    Some(all_labels[idx - 1].clone())
+                };
+                if chosen != current_parent {
+                    commands.push_back(
+                        ActorCommand::ReparentActor {
+                            actor: actor.to_string(),
+                            new_parent: chosen,
                         }
-                    }
-                });
+                        .into(),
+                    );
+                }
+            }
         });
     });
 }

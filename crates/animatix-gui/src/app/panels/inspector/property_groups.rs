@@ -1468,31 +1468,32 @@ pub(crate) fn render_property_row(
                             } else if entry.name == "font_family" {
                                 let font_ctx = crate::fonts::system_font_context();
                                 let families = animatix_text::available_font_families(font_ctx);
-                                egui::ComboBox::from_id_salt(
-                                    ui.id().with(("font", entry.name.as_str())),
-                                )
-                                .selected_text(text.as_str())
-                                .width(ui.available_width())
-                                .show_ui(ui, |ui| {
-                                    for family in families {
-                                        let label = format!("Aa   {}", family);
-                                        if ui
-                                            .stable_selectable_label(family == *text, label)
-                                            .clicked()
-                                        {
-                                            commands.push_back(
-                                                DocumentCommand::PropertyEdit(PropertyEdit {
-                                                    time_s: None,
-                                                    actor: actor_label.to_string(),
-                                                    property: entry.name.to_string(),
-                                                    value: GuiPropertyValue::String(family),
-                                                    create_keyframe: keyframe_mode,
-                                                })
-                                                .into(),
-                                            );
-                                        }
+                                let mut sel_idx = families.iter().position(|f| f == text);
+                                ui.add_sized(
+                                    Vec2::new(ui.available_width(), row_height - sp.base.space_2),
+                                    Select::new(
+                                        ui.id().with(("font", entry.name.as_str())),
+                                        &mut sel_idx,
+                                        &families[..],
+                                    )
+                                    .placeholder("Select font…")
+                                    .searchable(true),
+                                );
+                                if let Some(idx) = sel_idx {
+                                    let chosen = &families[idx];
+                                    if chosen != text {
+                                        commands.push_back(
+                                            DocumentCommand::PropertyEdit(PropertyEdit {
+                                                time_s: None,
+                                                actor: actor_label.to_string(),
+                                                property: entry.name.to_string(),
+                                                value: GuiPropertyValue::String(chosen.clone()),
+                                                create_keyframe: keyframe_mode,
+                                            })
+                                            .into(),
+                                        );
                                     }
-                                });
+                                }
                             } else if entry.name == "text_content"
                                 || entry.name == "text"
                                 || entry.name == "source"

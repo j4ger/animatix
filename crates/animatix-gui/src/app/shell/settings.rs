@@ -2,8 +2,7 @@
 use std::path::PathBuf;
 
 use egui::RichText;
-use eparts::Checkbox;
-use eparts::widget::UiExt;
+use eparts::{Button, Checkbox};
 
 use crate::app::components::layout;
 use crate::app::design_tokens::typography::TextRole;
@@ -212,75 +211,77 @@ impl GuiShell {
                 ("paper", "Paper"),
                 ("neon-night", "Neon Night"),
             ];
-            layout::labeled_row(
-                ui,
-                RichText::new("Theme")
-                    .size(TextRole::BodyS.size())
-                    .color(theme.palette.text.secondary),
-                SETTINGS_INPUT_WIDTH,
-                |ui| {
-                    egui::ComboBox::from_id_salt(ui.id().with("colorscheme"))
-                        .selected_text(
-                            schemes
-                                .iter()
-                                .find(|(id, _)| *id == current_scheme)
-                                .map(|(_, name)| *name)
-                                .unwrap_or(&current_scheme),
-                        )
-                        .width(ui.available_width())
-                        .show_ui(ui, |ui| {
-                            for (id, name) in schemes {
-                                if ui.stable_selectable_label(id == current_scheme, name).clicked()
-                                    && id != current_scheme
-                                    && self.document_store.source.document.raw_statements.is_some()
-                                {
-                                    let ui_before =
-                                        self.ui_store.snapshot_with_preview(&self.preview_store);
-                                    self.document_store.snapshot(
-                                        crate::app::commands::UndoLabel::SetConfigProperty,
-                                        ui_before,
-                                    );
-                                    let edit = crate::source_edit::SourceEdit::SetConfigProperty {
-                                        key: "colorscheme".into(),
-                                        value: animatix_syntax::ast::Expr::Str(id.into()),
-                                    };
-                                    if let Some(ref mut stmts) =
-                                        self.document_store.source.document.raw_statements
-                                    {
-                                        if crate::source_edit::apply_edit(stmts, edit).is_ok() {
-                                            let (new_source, source_index) = (
-                                                animatix_syntax::to_source::stmts_to_source(stmts),
-                                                animatix_syntax::source_index::SourceIndex::build(
-                                                    stmts,
-                                                ),
-                                            );
-                                            let ui_after = self
-                                                .ui_store
-                                                .snapshot_with_preview(&self.preview_store);
-                                            self.document_store.commit_source(
-                                                new_source,
-                                                source_index,
-                                                ui_after,
-                                            );
-                                            self.preview_store.pending_rebuild_at = Some(
-                                                std::time::Instant::now()
-                                                    + std::time::Duration::from_millis(
-                                                        self.ui_store.rebuild_debounce_ms,
-                                                    ),
-                                            );
-                                            self.preview_store.preview.status =
-                                                format!("Colorscheme changed to {}", name);
-                                        } else {
-                                            self.document_store.abort_snapshot();
-                                        }
-                                    } else {
-                                        self.document_store.abort_snapshot();
-                                    }
-                                }
-                            }
-                        });
-                },
-            );
+            let scheme_names = [
+                "Default Dark",
+                "Default Light",
+                "Editorial Dark",
+                "Vivid",
+                "Paper",
+                "Neon Night",
+            ];
+            let scheme_ids = [
+                "default-dark",
+                "default-light",
+                "editorial-dark",
+                "vivid",
+                "paper",
+                "neon-night",
+            ];
+            let mut selected_idx = schemes.iter().position(|(id, _)| *id == current_scheme);
+
+            eparts::widget::Form::new("colorscheme_form")
+                .label_width(SETTINGS_INPUT_WIDTH)
+                .show(ui, |f| {
+                    f.field("Theme", |ui| {
+                        ui.add(
+                            eparts::widget::Select::new(
+                                "colorscheme_select",
+                                &mut selected_idx,
+                                &scheme_names,
+                            )
+                            .placeholder("Select colorscheme"),
+                        );
+                    });
+                });
+
+            if let Some(idx) = selected_idx {
+                let id = scheme_ids[idx];
+                let name = scheme_names[idx];
+                if id != current_scheme
+                    && self.document_store.source.document.raw_statements.is_some()
+                {
+                    let ui_before = self.ui_store.snapshot_with_preview(&self.preview_store);
+                    self.document_store
+                        .snapshot(crate::app::commands::UndoLabel::SetConfigProperty, ui_before);
+                    let edit = crate::source_edit::SourceEdit::SetConfigProperty {
+                        key: "colorscheme".into(),
+                        value: animatix_syntax::ast::Expr::Str(id.into()),
+                    };
+                    if let Some(ref mut stmts) = self.document_store.source.document.raw_statements
+                    {
+                        if crate::source_edit::apply_edit(stmts, edit).is_ok() {
+                            let (new_source, source_index) = (
+                                animatix_syntax::to_source::stmts_to_source(stmts),
+                                animatix_syntax::source_index::SourceIndex::build(stmts),
+                            );
+                            let ui_after = self.ui_store.snapshot_with_preview(&self.preview_store);
+                            self.document_store.commit_source(new_source, source_index, ui_after);
+                            self.preview_store.pending_rebuild_at = Some(
+                                std::time::Instant::now()
+                                    + std::time::Duration::from_millis(
+                                        self.ui_store.rebuild_debounce_ms,
+                                    ),
+                            );
+                            self.preview_store.preview.status =
+                                format!("Colorscheme changed to {}", name);
+                        } else {
+                            self.document_store.abort_snapshot();
+                        }
+                    } else {
+                        self.document_store.abort_snapshot();
+                    }
+                }
+            }
             ui.add_space(sp.base.space_3);
 
             // ── Input ──
@@ -456,14 +457,14 @@ impl GuiShell {
                             ),
                         );
                         if is_recording {
-                            if ui.small_button("Cancel").clicked() {
+                            if ui.add(Button::ghost("Cancel")).clicked() {
                                 self.ui_store.recording_shortcut = None;
                             }
-                        } else if ui.small_button("Record").clicked() {
+                        } else if ui.add(Button::ghost("Record")).clicked() {
                             self.ui_store.recording_shortcut = Some(name.clone());
                         }
                         let has_override = self.ui_store.shortcut_overrides.contains_key(&name);
-                        if has_override && ui.small_button("Reset").clicked() {
+                        if has_override && ui.add(Button::ghost("Reset")).clicked() {
                             self.ui_store.shortcut_overrides.remove(&name);
                             match ShortcutRegistry::with_overrides(
                                 &self.ui_store.shortcut_overrides,

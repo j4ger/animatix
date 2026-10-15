@@ -630,29 +630,43 @@ impl GuiShell {
                         Self::settings_row(ui, "Encoder", |ui| {
                             // Added right-to-left: preset first so it lands on
                             // the right of the codec selector.
-                            egui::ComboBox::from_id_salt("export_h264_preset")
-                                .selected_text(
-                                    RichText::new(h264_preset.as_str())
-                                        .size(TextRole::Micro.size()),
+                            const PRESETS: &[animatix_render::encode::H264Preset] =
+                                animatix_render::encode::H264Preset::ALL;
+                            let preset_names: Vec<&str> =
+                                PRESETS.iter().map(|p| p.as_str()).collect();
+                            let mut preset_idx = PRESETS.iter().position(|p| p == h264_preset);
+                            ui.add_sized(
+                                Vec2::new(96.0, sp.base.row_s),
+                                eparts::widget::Select::new(
+                                    "export_h264_preset",
+                                    &mut preset_idx,
+                                    &preset_names,
                                 )
-                                .width(96.0)
-                                .show_ui(ui, |ui| {
-                                    for preset in animatix_render::encode::H264Preset::ALL {
-                                        ui.selectable_value(h264_preset, *preset, preset.as_str());
-                                    }
-                                });
+                                .placeholder("Preset"),
+                            );
+                            if let Some(idx) = preset_idx {
+                                *h264_preset = PRESETS[idx];
+                            }
+
                             ui.add_space(sp.base.space_2);
-                            egui::ComboBox::from_id_salt("export_video_codec")
-                                .selected_text(
-                                    RichText::new(video_codec.to_string())
-                                        .size(TextRole::Micro.size()),
+
+                            const CODECS: &[animatix_render::encode::VideoCodec] =
+                                animatix_render::encode::VideoCodec::ALL;
+                            let codec_names: Vec<String> =
+                                CODECS.iter().map(|c| c.to_string()).collect();
+                            let mut codec_idx = CODECS.iter().position(|c| c == video_codec);
+                            ui.add_sized(
+                                Vec2::new(120.0, sp.base.row_s),
+                                eparts::widget::Select::new(
+                                    "export_video_codec",
+                                    &mut codec_idx,
+                                    &codec_names,
                                 )
-                                .width(120.0)
-                                .show_ui(ui, |ui| {
-                                    for codec in animatix_render::encode::VideoCodec::ALL {
-                                        ui.selectable_value(video_codec, *codec, codec.to_string());
-                                    }
-                                });
+                                .placeholder("Codec"),
+                            );
+                            if let Some(idx) = codec_idx {
+                                *video_codec = CODECS[idx];
+                            }
                         });
                     }
                 },
@@ -789,7 +803,7 @@ impl GuiShell {
                         ui.label(RichText::new(err).size(TextRole::BodyS.size()));
                         ui.add_space(sp.base.space_1);
                         if ui
-                            .small_button(format!("{} Copy", egui_phosphor::regular::COPY))
+                            .add(Button::ghost("Copy").with_icon(egui_phosphor::regular::COPY))
                             .clicked()
                         {
                             ui.ctx().copy_text(err.clone());
