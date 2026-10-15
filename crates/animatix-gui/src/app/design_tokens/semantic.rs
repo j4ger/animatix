@@ -38,6 +38,9 @@ pub mod canvas {
     pub fn hatch_line() -> Color32 {
         Color32::from_rgba_unmultiplied(255, 255, 255, 30)
     }
+    pub fn hatch_line_light() -> Color32 {
+        Color32::from_rgba_unmultiplied(10, 12, 16, 25)
+    }
     pub fn ghost_prev() -> Color32 {
         Color32::from_rgba_unmultiplied(80, 220, 120, 77)
     }
@@ -49,6 +52,9 @@ pub mod canvas {
     }
     pub fn snap_guide_label_bg() -> Color32 {
         Color32::from_rgba_unmultiplied(30, 30, 35, 200)
+    }
+    pub fn snap_guide_label_bg_light() -> Color32 {
+        Color32::from_rgba_unmultiplied(255, 255, 255, 235)
     }
 }
 
@@ -98,6 +104,9 @@ pub mod timeline {
 
     pub fn row_alt() -> Color32 {
         Color32::from_rgba_unmultiplied(255, 255, 255, 4)
+    }
+    pub fn row_alt_light() -> Color32 {
+        Color32::from_rgba_unmultiplied(0, 0, 0, 8)
     }
 }
 

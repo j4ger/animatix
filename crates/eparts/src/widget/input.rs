@@ -141,6 +141,8 @@ impl<'a> TextField<'a> {
 
         let mut cleared = false;
         let mut had_focus = false;
+        let mut te_changed = false;
+        let mut te_resp_opt = None;
 
         child_ui.add_enabled_ui(self.enabled, |ui| {
             ui.horizontal(|ui| {
@@ -166,6 +168,7 @@ impl<'a> TextField<'a> {
 
                 let te_resp = ui.add(te);
                 had_focus = te_resp.has_focus();
+                te_changed = te_resp.changed();
 
                 if let Some(ref suf) = self.suffix {
                     ui.label(egui::RichText::new(suf).color(t.palette.text.muted));
@@ -180,6 +183,8 @@ impl<'a> TextField<'a> {
                         cleared = true;
                     }
                 }
+
+                te_resp_opt = Some(te_resp);
             });
         });
 
@@ -211,33 +216,42 @@ impl<'a> TextField<'a> {
             ),
         );
 
+        let response = te_resp_opt.unwrap_or(outer_resp);
         TextFieldResponse {
-            response: outer_resp,
-            changed: cleared,
+            response,
+            changed: te_changed || cleared,
         }
     }
 }
 
 /// Return value from [`TextField::show`].
 pub struct TextFieldResponse {
-    /// The egui response for the outer frame allocation.
+    /// The inner egui response for the text edit widget.
     pub response: Response,
-    /// Whether the buffer was changed this frame (clear button was clicked).
+    /// Whether the buffer was changed this frame (typed or clear button clicked).
     pub changed: bool,
+}
+
+impl std::ops::Deref for TextFieldResponse {
+    type Target = Response;
+    fn deref(&self) -> &Self::Target {
+        &self.response
+    }
 }
 
 // ── NumberField (C3) ───────────────────────────────────────────────
 
 /// A themed numeric input backed by [`egui::DragValue`].
 ///
-/// Supports drag-to-change, typing, clamping via `.range()`, step size, and a
-/// suffix label (e.g. `" px"`, `" s"`). The frame matches `theme.components.input.*` slots,
+/// Supports drag-to-change, typing, clamping via `.range()`, step size, prefix and
+/// suffix labels (e.g. `"X"`, `" px"`, `" s"`). The frame matches `theme.components.input.*` slots,
 /// keeping visual consistency with [`TextField`].
 pub struct NumberField<'a> {
     value: &'a mut f64,
     range: Option<std::ops::RangeInclusive<f64>>,
     step: Option<f64>,
     speed: Option<f32>,
+    prefix: Option<String>,
     suffix: Option<String>,
     desired_width: Option<f32>,
     enabled: bool,
@@ -250,6 +264,7 @@ impl<'a> NumberField<'a> {
             range: None,
             step: None,
             speed: None,
+            prefix: None,
             suffix: None,
             desired_width: None,
             enabled: true,
@@ -268,6 +283,11 @@ impl<'a> NumberField<'a> {
 
     pub fn speed(mut self, s: f32) -> Self {
         self.speed = Some(s);
+        self
+    }
+
+    pub fn prefix(mut self, p: &str) -> Self {
+        self.prefix = Some(p.to_owned());
         self
     }
 
@@ -320,6 +340,9 @@ impl<'a> NumberField<'a> {
         }
         if let Some(s) = self.step {
             dv = dv.speed(s);
+        }
+        if let Some(ref pre) = self.prefix {
+            dv = dv.prefix(pre.clone());
         }
         if let Some(ref suf) = self.suffix {
             dv = dv.suffix(suf.clone());

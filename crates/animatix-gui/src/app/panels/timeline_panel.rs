@@ -323,12 +323,7 @@ fn render_timeline_zoom_bar(
         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
             ui.add_space(sp.base.space_2);
             let zoom_text = format!("{:.0}%", preview.timeline_zoom * 100.0);
-            let zoom_btn = ui.button(
-                egui::RichText::new(zoom_text)
-                    .monospace()
-                    .size(TextRole::BodyS.size())
-                    .color(theme.palette.text.secondary),
-            );
+            let zoom_btn = ui.add(Button::ghost(zoom_text).with_size(eparts::Size::Sm));
             text_tooltip(ui, zoom_btn.id.with("reset_zoom_tip"), &zoom_btn, "Reset timeline zoom");
             if zoom_btn.clicked() {
                 preview.timeline_zoom = 1.0;
@@ -1084,7 +1079,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
 
             // Alternating row background
             if track_idx % 2 == 0 {
-                painter.rect_filled(track_rect, 0.0, timeline::row_alt());
+                painter.rect_filled(track_rect, 0.0, theme.components.list.odd.bg);
             }
 
             // Selection highlight
@@ -1926,7 +1921,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
 
                             // Alternating row (offset from main track)
                             if track_idx % 2 == 1 {
-                                painter.rect_filled(prop_rect, 0.0, timeline::row_alt());
+                                painter.rect_filled(prop_rect, 0.0, theme.components.list.odd.bg);
                             }
 
                             // Label column background

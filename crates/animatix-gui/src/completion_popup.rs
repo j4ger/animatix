@@ -1,7 +1,7 @@
 //! Completion popup widget for the code editor.
 
 use animatix_analyzer::{CompletionItem, CompletionKind};
-use egui::{self, Color32, CornerRadius, Key, Pos2, Rect, Stroke, Vec2};
+use egui::{self, CornerRadius, Key, Pos2, Rect, Stroke, Vec2};
 
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, ROW_M};
 use crate::app::design_tokens::typography::TextRole;
@@ -181,6 +181,7 @@ impl CompletionPopup {
         let bg_color = t.palette.surface.surface;
         let border_color = t.palette.border.default;
 
+        ui.painter().add(t.elevation.raised.as_shape(popup_rect, RADIUS_M));
         ui.painter()
             .rect_filled(popup_rect, CornerRadius::same(RADIUS_M as u8), bg_color);
         ui.painter().rect_stroke(
@@ -224,13 +225,13 @@ impl CompletionPopup {
                     CompletionKind::Snippet => egui_phosphor::regular::CODE,
                 };
                 let icon_color = match item.kind {
-                    CompletionKind::Keyword => Color32::from_rgb(251, 73, 106),
-                    CompletionKind::Type => Color32::from_rgb(250, 189, 47),
-                    CompletionKind::Property => Color32::from_rgb(131, 165, 152),
-                    CompletionKind::Label => Color32::from_rgb(142, 192, 124),
-                    CompletionKind::Action => Color32::from_rgb(254, 128, 25),
-                    CompletionKind::Value => Color32::from_rgb(215, 153, 33),
-                    CompletionKind::Snippet => Color32::from_rgb(108, 153, 187),
+                    CompletionKind::Keyword => t.palette.status.warning,
+                    CompletionKind::Type => t.palette.accent.cyan,
+                    CompletionKind::Property => t.palette.accent.primary,
+                    CompletionKind::Label => t.palette.status.success,
+                    CompletionKind::Action => t.palette.status.info,
+                    CompletionKind::Value => t.palette.text.secondary,
+                    CompletionKind::Snippet => t.palette.accent.primary_hover,
                 };
 
                 let icon_pos = item_rect.left_center() + Vec2::new(8.0, -6.0);

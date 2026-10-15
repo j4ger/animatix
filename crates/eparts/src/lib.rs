@@ -39,6 +39,7 @@ pub use widget::list::{List, ListAction, ListResponse, SearchableList, Searchabl
 pub use widget::popover::Popover;
 pub use widget::row::Row;
 pub use widget::select::Select;
+pub use widget::slider::Slider;
 pub use widget::spinner::Spinner;
 pub use widget::tabs::TabBar;
 pub use widget::toast::ToastQueue;

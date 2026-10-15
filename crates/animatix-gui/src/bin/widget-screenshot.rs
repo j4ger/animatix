@@ -187,7 +187,8 @@ fn main() {
     if let Err(e) = eframe::run_native(
         "Widget Screenshot",
         options,
-        Box::new(|_cc| {
+        Box::new(|cc| {
+            animatix_gui::fonts::install_fonts(&cc.egui_ctx);
             let app = ScreenshotApp::new(args.widget.clone(), args.output.clone(), args.dark);
             Ok(Box::new(app))
         }),

@@ -28,6 +28,7 @@ pub struct Slider<'a> {
     logarithmic: bool,
     suffix: String,
     show_value: bool,
+    trailing_fill: Option<bool>,
 }
 
 impl<'a> Slider<'a> {
@@ -40,6 +41,7 @@ impl<'a> Slider<'a> {
             logarithmic: false,
             suffix: String::new(),
             show_value: false,
+            trailing_fill: None,
         }
     }
 
@@ -66,6 +68,12 @@ impl<'a> Slider<'a> {
         self.show_value = show_value;
         self
     }
+
+    /// Enable/disable the trailing fill on the slider track.
+    pub fn trailing_fill(mut self, trailing_fill: bool) -> Self {
+        self.trailing_fill = Some(trailing_fill);
+        self
+    }
 }
 
 impl Widget for Slider<'_> {
@@ -80,6 +88,10 @@ impl Widget for Slider<'_> {
 
         if let Some(step) = self.step {
             slider = slider.step_by(step);
+        }
+
+        if let Some(trailing_fill) = self.trailing_fill {
+            slider = slider.trailing_fill(trailing_fill);
         }
 
         slider.ui(ui)

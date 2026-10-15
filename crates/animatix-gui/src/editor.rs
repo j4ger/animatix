@@ -9,6 +9,7 @@ use egui::text::LayoutJob;
 
 use crate::cell_editor::{Cell, CellEditorState, CellType, parse_cells, render_cell_editor};
 use crate::completion_popup::CompletionPopup;
+use eparts::{Button, Size};
 
 mod completion;
 mod diagnostics;
@@ -371,10 +372,10 @@ impl EditorBuffer {
         }
 
         ui.horizontal(|ui| {
-            if ui.button("+ Keyframe").clicked() {
+            if ui.add(Button::secondary("+ Keyframe").with_size(Size::Sm)).clicked() {
                 self.cell_state.pending_append_at_end = Some(CellType::Keyframe);
             }
-            if ui.button("+ Code").clicked() {
+            if ui.add(Button::secondary("+ Code").with_size(Size::Sm)).clicked() {
                 self.cell_state.pending_append_at_end = Some(CellType::Code);
             }
         });

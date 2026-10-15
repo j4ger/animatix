@@ -1,4 +1,5 @@
 use egui::{Align, RichText, Stroke, Vec2};
+use eparts::Checkbox;
 
 use crate::app::GuiShell;
 use crate::app::commands::{
@@ -337,21 +338,27 @@ impl GuiShell {
                                 .color(t.palette.text.secondary),
                             |ui| {
                                 let mut bounds = self.ui_store.view.debug_bounds;
-                                if ui.checkbox(&mut bounds, "Bounds").clicked() {
+                                if ui.add(Checkbox::new(&mut bounds).label("Bounds")).clicked() {
                                     self.ui_store.view.debug_bounds = bounds;
                                 }
                                 let mut layout_debug = self.ui_store.view.debug_layout;
-                                if ui.checkbox(&mut layout_debug, "Layout").clicked() {
+                                if ui
+                                    .add(Checkbox::new(&mut layout_debug).label("Layout"))
+                                    .clicked()
+                                {
                                     self.ui_store.view.debug_layout = layout_debug;
                                 }
                                 let mut spacing = self.ui_store.view.debug_spacing;
-                                if ui.checkbox(&mut spacing, "Spacing").clicked() {
+                                if ui.add(Checkbox::new(&mut spacing).label("Spacing")).clicked() {
                                     self.ui_store.view.debug_spacing = spacing;
                                 }
                                 ui.separator();
                                 let mut perf =
                                     self.preview_store.preview.overlay.show_performance_hud;
-                                if ui.checkbox(&mut perf, "Performance HUD").clicked() {
+                                if ui
+                                    .add(Checkbox::new(&mut perf).label("Performance HUD"))
+                                    .clicked()
+                                {
                                     self.preview_store.preview.overlay.show_performance_hud = perf;
                                 }
                             },

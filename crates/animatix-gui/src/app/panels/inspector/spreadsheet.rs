@@ -15,6 +15,8 @@ use animatix::timeline::{
 };
 use egui::{Color32, Pos2, RichText, Vec2};
 
+use eparts::{Button, Size};
+
 use super::PropertyViewMode;
 use crate::app::commands::{
     ActionQueue, ActorCommand, DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue,
@@ -109,11 +111,8 @@ pub(crate) fn render_property_spreadsheet(
     };
 
     // Add Actor button
-    let add_btn = ui.button(
-        RichText::new(format!("{} Add", egui_phosphor::regular::PLUS))
-            .size(TextRole::Micro.size())
-            .color(theme.palette.accent.primary),
-    );
+    let add_btn =
+        ui.add(Button::ghost("Add").with_icon(egui_phosphor::regular::PLUS).with_size(Size::Sm));
     text_tooltip(ui, add_btn.id.with("add_actor_tip"), &add_btn, "Add a new actor");
     if add_btn.clicked() {
         let ty = crate::app::panels::default_actor_type();

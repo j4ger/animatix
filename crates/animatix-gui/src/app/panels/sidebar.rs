@@ -20,6 +20,7 @@ use crate::app::design_tokens::typography::TextRole;
 use crate::app::panels::{CompactDrawer, SIDEBAR_TABS, SidebarTab};
 use crate::app::{FileTreeEntry, PreviewPaneState};
 use crate::editor::EditorBuffer;
+use eparts::TextField;
 
 /// Id used to persist the explorer filter string in egui's data store.
 const EXPLORER_FILTER_ID: &str = "explorer_filter";
@@ -308,12 +309,13 @@ fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::Ui) {
 
     ui.horizontal(|ui| {
         ui.add_space(sp.base.space_2);
-        let response = ui.add(
-            egui::TextEdit::singleline(&mut filter)
-                .hint_text("Filter files…")
-                .desired_width(f32::INFINITY),
-        );
-        if response.changed() {
+        let field_w = (ui.available_width() - sp.base.space_2).max(40.0);
+        let response = TextField::new(&mut filter)
+            .placeholder("Filter files…")
+            .cleanable(true)
+            .desired_width(field_w)
+            .show(ui);
+        if response.changed {
             ui.data_mut(|d| d.insert_temp(filter_id, filter.clone()));
         }
         // If the field was cleared interactively, persist the empty string so
@@ -700,12 +702,13 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
 
     ui.horizontal(|ui| {
         ui.add_space(sp.base.space_2);
-        let response = ui.add(
-            egui::TextEdit::singleline(&mut filter)
-                .hint_text("Filter layers…")
-                .desired_width(f32::INFINITY),
-        );
-        if response.changed() {
+        let field_w = (ui.available_width() - sp.base.space_2).max(40.0);
+        let response = TextField::new(&mut filter)
+            .placeholder("Filter layers…")
+            .cleanable(true)
+            .desired_width(field_w)
+            .show(ui);
+        if response.changed {
             ui.data_mut(|d| d.insert_temp(filter_id, filter.clone()));
         }
         if filter.is_empty() && response.lost_focus() {

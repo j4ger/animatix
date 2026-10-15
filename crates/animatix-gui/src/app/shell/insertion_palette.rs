@@ -1,6 +1,7 @@
 //! Unified insertion palette — fuzzy-searchable overlay for primitives, actions, and snippets.
 
 use egui::{Color32, Pos2, Rect, RichText, Stroke, Vec2};
+use eparts::{Button, Checkbox, NumberField, TextField};
 
 use crate::app::GuiShell;
 use crate::app::commands::UndoLabel;
@@ -349,7 +350,8 @@ impl GuiShell {
         );
         let palette_rect = Rect::from_min_size(palette_pos, Vec2::new(palette_w, palette_h));
 
-        // Background
+        // Elevation overlay shadow & background
+        ui.painter().add(theme.elevation.overlay.as_shape(palette_rect, RADIUS_XL));
         ui.painter()
             .rect_filled(palette_rect, RADIUS_XL as u8, theme.palette.surface.base);
         ui.painter().rect_stroke(
@@ -373,7 +375,7 @@ impl GuiShell {
                     .strong(),
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let close_btn = ui.button(egui_phosphor::regular::X);
+                let close_btn = ui.add(Button::ghost("").with_icon(egui_phosphor::regular::X));
                 text_tooltip(ui, close_btn.id.with("close_tip"), &close_btn, "Close (Esc)");
                 if close_btn.clicked() {
                     self.insertion_palette.close();
@@ -410,18 +412,15 @@ impl GuiShell {
                     match param_type.as_deref() {
                         Some("Num") => {
                             let mut val = param_value.parse::<f64>().unwrap_or(0.0);
-                            let resp = ui.add(
-                                egui::DragValue::new(&mut val)
-                                    .speed(1.0)
-                                    .range(f64::NEG_INFINITY..=f64::INFINITY),
-                            );
+                            let resp =
+                                NumberField::new(&mut val).speed(1.0).desired_width(120.0).show(ui);
                             if resp.changed() || resp.lost_focus() {
                                 *param_value = format_num(val);
                             }
                         },
                         Some("Bool") => {
                             let mut bool_val = param_value == "true" || param_value == "1";
-                            if ui.checkbox(&mut bool_val, "").changed() {
+                            if ui.add(Checkbox::new(&mut bool_val)).changed() {
                                 *param_value = if bool_val {
                                     "true".to_string()
                                 } else {
@@ -433,20 +432,24 @@ impl GuiShell {
                             // Parse existing value or show field pair
                             let (mut x, mut y) = parse_vec2_value(param_value);
                             ui.add_space(2.0);
-                            ui.label("x:");
-                            let rx = ui.add(egui::DragValue::new(&mut x).speed(1.0));
-                            ui.label("y:");
-                            let ry = ui.add(egui::DragValue::new(&mut y).speed(1.0));
+                            let rx = NumberField::new(&mut x)
+                                .prefix("X")
+                                .speed(1.0)
+                                .desired_width(70.0)
+                                .show(ui);
+                            let ry = NumberField::new(&mut y)
+                                .prefix("Y")
+                                .speed(1.0)
+                                .desired_width(70.0)
+                                .show(ui);
                             if rx.changed() || rx.lost_focus() || ry.changed() || ry.lost_focus() {
                                 *param_value = format!("({}, {})", format_num(x), format_num(y));
                             }
                         },
                         _ => {
                             // Default: text field
-                            ui.add(
-                                egui::TextEdit::singleline(param_value)
-                                    .desired_width(f32::INFINITY),
-                            );
+                            let field_w = ui.available_width().max(60.0);
+                            TextField::new(param_value).desired_width(field_w).show(ui);
                         },
                     }
                 });
@@ -456,10 +459,10 @@ impl GuiShell {
             let mut should_insert = false;
             let mut should_back = false;
             content.horizontal(|ui| {
-                if ui.button("Insert").clicked() {
+                if ui.add(Button::primary("Insert")).clicked() {
                     should_insert = true;
                 }
-                if ui.button("Back").clicked() {
+                if ui.add(Button::secondary("Back")).clicked() {
                     should_back = true;
                 }
             });

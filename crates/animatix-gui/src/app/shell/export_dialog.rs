@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use egui::{Color32, RichText, Stroke, Vec2};
+use eparts::{Button, Checkbox, NumberField, ProgressBar};
 
 use crate::app::GuiShell;
 use crate::app::components::{TabBar, Tag, layout};
@@ -123,7 +124,8 @@ impl GuiShell {
         let dialog_rect =
             egui::Rect::from_center_size(screen_rect.center(), Vec2::new(dialog_w, dialog_h));
 
-        // Dialog background
+        // Dialog elevation shadow & background
+        ui.painter().add(theme.elevation.overlay.as_shape(dialog_rect, RADIUS_XL));
         ui.painter().rect_filled(dialog_rect, RADIUS_XL, theme.palette.surface.base);
         ui.painter().rect_stroke(
             dialog_rect,
@@ -160,21 +162,13 @@ impl GuiShell {
                 egui::pos2(content_rect.right() - close_size.x, cursor_y),
                 close_size,
             );
-            let close_resp =
-                ui.interact(close_rect, ui.id().with("export_close"), egui::Sense::click());
-            let close_color = if close_resp.hovered() {
-                theme.palette.text.primary
-            } else {
-                theme.palette.text.muted
-            };
-            ui.painter().text(
-                close_rect.center(),
-                egui::Align2::CENTER_CENTER,
-                egui_phosphor::regular::X,
-                TextRole::Body.font_id(),
-                close_color,
-            );
-            if close_resp.clicked() {
+            let close_clicked = ui
+                .scope_builder(egui::UiBuilder::new().max_rect(close_rect), |ui| {
+                    ui.add(Button::icon(egui_phosphor::regular::X).with_tooltip("Close (Esc)"))
+                        .clicked()
+                })
+                .inner;
+            if close_clicked {
                 self.export_store.export_dialog_open = false;
             }
 
@@ -320,19 +314,14 @@ impl GuiShell {
         let pct = (progress as f32 / total as f32).clamp(0.0, 1.0);
 
         let bar_w = content_rect.width().min(280.0);
-        let bar_h = 6.0;
         let bar_y = center_y + 50.0;
         let bar_rect = egui::Rect::from_center_size(
             egui::pos2(content_rect.center().x, bar_y),
-            Vec2::new(bar_w, bar_h),
+            Vec2::new(bar_w, 20.0),
         );
-        // Track
-        ui.painter().rect_filled(bar_rect, bar_h * 0.5, theme.palette.surface.widget);
-        // Fill
-        if pct > 0.0 {
-            let fill_rect = egui::Rect::from_min_size(bar_rect.min, Vec2::new(bar_w * pct, bar_h));
-            ui.painter().rect_filled(fill_rect, bar_h * 0.5, theme.palette.status.warning);
-        }
+        ui.scope_builder(egui::UiBuilder::new().max_rect(bar_rect), |ui| {
+            ui.add(ProgressBar::new(pct));
+        });
 
         // Frame count / percentage text
         let progress_text = if matches!(
@@ -372,31 +361,12 @@ impl GuiShell {
             egui::pos2(content_rect.center().x, content_rect.bottom() - 20.0),
             btn_size,
         );
-        let btn_resp = ui.interact(btn_rect, ui.id().with("export_cancel"), egui::Sense::click());
-        let btn_bg = if btn_resp.hovered() {
-            theme.palette.surface.hover
-        } else {
-            theme.palette.surface.widget
-        };
-        ui.painter().rect_filled(btn_rect, RADIUS_M, btn_bg);
-        ui.painter().rect_stroke(
-            btn_rect,
-            RADIUS_M,
-            Stroke::new(STROKE_WIDTH, theme.palette.border.default),
-            egui::StrokeKind::Inside,
-        );
-        ui.painter().text(
-            btn_rect.center(),
-            egui::Align2::CENTER_CENTER,
-            "Cancel",
-            TextRole::Body.font_id(),
-            if btn_resp.hovered() {
-                theme.palette.text.primary
-            } else {
-                theme.palette.text.secondary
-            },
-        );
-        if btn_resp.clicked() {
+        let cancel_clicked = ui
+            .scope_builder(egui::UiBuilder::new().max_rect(btn_rect), |ui| {
+                ui.add(Button::secondary("Cancel")).clicked()
+            })
+            .inner;
+        if cancel_clicked {
             self.export_store
                 .export_cancelled
                 .store(true, std::sync::atomic::Ordering::Relaxed);
@@ -442,29 +412,29 @@ impl GuiShell {
 
             // ── Resolution row ──
             Self::settings_row(ui, "Resolution", |ui| {
-                let mut w_f32 = *width as f32;
+                let mut w_f64 = *width as f64;
                 layout::field_sized(ui, Some(78.0), |ui| {
-                    ui.add(
-                        egui::DragValue::new(&mut w_f32)
-                            .speed(10.0)
-                            .range(1.0..=8192.0)
-                            .prefix("W: "),
-                    );
+                    NumberField::new(&mut w_f64)
+                        .speed(10.0)
+                        .range(1.0..=8192.0)
+                        .prefix("W: ")
+                        .desired_width(78.0)
+                        .show(ui);
                 });
-                *width = w_f32 as u32;
+                *width = w_f64 as u32;
 
                 ui.add_space(sp.base.space_2);
 
-                let mut h_f32 = *height as f32;
+                let mut h_f64 = *height as f64;
                 layout::field_sized(ui, Some(78.0), |ui| {
-                    ui.add(
-                        egui::DragValue::new(&mut h_f32)
-                            .speed(10.0)
-                            .range(1.0..=8192.0)
-                            .prefix("H: "),
-                    );
+                    NumberField::new(&mut h_f64)
+                        .speed(10.0)
+                        .range(1.0..=8192.0)
+                        .prefix("H: ")
+                        .desired_width(78.0)
+                        .show(ui);
                 });
-                *height = h_f32 as u32;
+                *height = h_f64 as u32;
 
                 ui.add_space(sp.base.space_2);
 
@@ -545,16 +515,16 @@ impl GuiShell {
             match format {
                 ExportFormat::Image | ExportFormat::WebP => {
                     Self::settings_row(ui, "Time", |ui| {
-                        let mut t = *time_s;
+                        let mut t = *time_s as f64;
                         layout::field_sized(ui, Some(100.0), |ui| {
-                            ui.add(
-                                egui::DragValue::new(&mut t)
-                                    .speed(0.1)
-                                    .range(0.0..=max_time)
-                                    .suffix(" s"),
-                            );
+                            NumberField::new(&mut t)
+                                .speed(0.1)
+                                .range(0.0..=max_time as f64)
+                                .suffix(" s")
+                                .desired_width(100.0)
+                                .show(ui);
                         });
-                        *time_s = t;
+                        *time_s = t as f32;
 
                         ui.add_space(sp.base.space_2);
 
@@ -577,25 +547,22 @@ impl GuiShell {
                 | ExportFormat::Mov => {
                     // FPS
                     Self::settings_row(ui, "FPS", |ui| {
-                        let mut fps_f32 = *fps as f32;
+                        let mut fps_f64 = *fps as f64;
                         layout::field_sized(ui, Some(70.0), |ui| {
-                            ui.add(
-                                egui::DragValue::new(&mut fps_f32)
-                                    .speed(1.0)
-                                    .range(1.0..=120.0)
-                                    .suffix(" fps"),
-                            );
+                            NumberField::new(&mut fps_f64)
+                                .speed(1.0)
+                                .range(1.0..=120.0)
+                                .suffix(" fps")
+                                .desired_width(70.0)
+                                .show(ui);
                         });
-                        *fps = fps_f32 as u32;
+                        *fps = fps_f64 as u32;
                     });
 
                     // Duration mode
                     let auto_prev = *auto_duration;
                     Self::settings_row(ui, "Duration", |ui| {
-                        ui.checkbox(
-                            auto_duration,
-                            RichText::new("Auto").size(TextRole::BodyS.size()),
-                        );
+                        ui.add(Checkbox::new(auto_duration).label("Auto"));
 
                         if *auto_duration {
                             ui.add_space(sp.base.space_2);
@@ -605,29 +572,29 @@ impl GuiShell {
                                     .color(theme.palette.text.secondary),
                             );
 
-                            let mut hold = *hold_s;
+                            let mut hold = *hold_s as f64;
                             layout::field_sized(ui, Some(80.0), |ui| {
-                                ui.add(
-                                    egui::DragValue::new(&mut hold)
-                                        .speed(0.1)
-                                        .range(0.0..=10.0)
-                                        .suffix(" s"),
-                                );
+                                NumberField::new(&mut hold)
+                                    .speed(0.1)
+                                    .range(0.0..=10.0)
+                                    .suffix(" s")
+                                    .desired_width(80.0)
+                                    .show(ui);
                             });
-                            *hold_s = hold;
+                            *hold_s = hold as f32;
                         } else {
                             ui.add_space(sp.base.space_2);
 
-                            let mut dur = *duration_s;
+                            let mut dur = *duration_s as f64;
                             layout::field_sized(ui, Some(80.0), |ui| {
-                                ui.add(
-                                    egui::DragValue::new(&mut dur)
-                                        .speed(0.5)
-                                        .range(0.1..=3600.0)
-                                        .suffix(" s"),
-                                );
+                                NumberField::new(&mut dur)
+                                    .speed(0.5)
+                                    .range(0.1..=3600.0)
+                                    .suffix(" s")
+                                    .desired_width(80.0)
+                                    .show(ui);
                             });
-                            *duration_s = dur;
+                            *duration_s = dur as f32;
                         }
                     });
 

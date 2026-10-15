@@ -6,7 +6,7 @@ use animatix::timeline::{
 };
 use egui::{Color32, Stroke, Vec2};
 use eparts::widget::{Select, UiExt, color_to_hex_rgba};
-use eparts::{NumberField, TextField};
+use eparts::{Checkbox, NumberField, Slider, TextField};
 
 use crate::app::commands::{
     ActionQueue, DocumentCommand, DragEvent, KeyframeCommand, PropertyEdit,
@@ -926,36 +926,18 @@ pub(crate) fn render_property_row(
                         egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                         |ui| {
                             ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
-                            let half_w = (ui.available_width() - 3.0 * sp.base.space_2) / 2.0;
-                            // Axis label for first component
-                            ui.add_sized(
-                                Vec2::new(16.0, row_height - sp.base.space_2),
-                                egui::Label::new(
-                                    egui::RichText::new(a_label)
-                                        .size(TextRole::Micro.size())
-                                        .color(theme.palette.text.muted),
-                                )
-                                .selectable(false),
-                            );
+                            let half_w = (ui.available_width() - sp.base.space_2) / 2.0;
                             let mut nfx = nx as f64;
                             let rx = NumberField::new(&mut nfx)
+                                .prefix(a_label)
                                 .speed(0.5)
-                                .desired_width((half_w - 16.0).max(20.0))
+                                .desired_width(half_w.max(20.0))
                                 .show(ui);
-                            // Axis label for second component
-                            ui.add_sized(
-                                Vec2::new(16.0, row_height - sp.base.space_2),
-                                egui::Label::new(
-                                    egui::RichText::new(b_label)
-                                        .size(TextRole::Micro.size())
-                                        .color(theme.palette.text.muted),
-                                )
-                                .selectable(false),
-                            );
                             let mut nfy = ny as f64;
                             let ry = NumberField::new(&mut nfy)
+                                .prefix(b_label)
                                 .speed(0.5)
-                                .desired_width((half_w - 16.0).max(20.0))
+                                .desired_width(half_w.max(20.0))
                                 .show(ui);
                             let nx_out = nfx as f32;
                             let ny_out = nfy as f32;
@@ -995,6 +977,7 @@ pub(crate) fn render_property_row(
             let is_angle = entry.name == "rotation" || entry.name == "hue_rotate";
             let unit = unit_suffix(&entry.name);
             if is_01 {
+                let mut nv_f64 = nv as f64;
                 ui.scope_builder(
                     egui::UiBuilder::new()
                         .max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
@@ -1007,10 +990,11 @@ pub(crate) fn render_property_row(
                                 let slider_w = ui.available_width() * 0.55;
                                 let slider = ui.add_sized(
                                     Vec2::new(slider_w.max(40.0), row_height - sp.base.space_2),
-                                    egui::Slider::new(&mut nv, 0.0..=1.0)
+                                    Slider::new(&mut nv_f64, 0.0..=1.0)
                                         .show_value(false)
                                         .trailing_fill(true),
                                 );
+                                nv = nv_f64 as f32;
                                 ui.add(
                                     egui::Label::new(
                                         egui::RichText::new(format!("{:.2}", nv))
@@ -1142,7 +1126,7 @@ pub(crate) fn render_property_row(
                     ui.with_layout(
                         egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                         |ui| {
-                            if ui.checkbox(&mut checked, "").changed() {
+                            if ui.add(Checkbox::new(&mut checked)).changed() {
                                 commands.push_back(
                                     DocumentCommand::PropertyEdit(PropertyEdit {
                                         time_s: None,

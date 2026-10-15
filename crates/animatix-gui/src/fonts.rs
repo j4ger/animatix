@@ -30,7 +30,7 @@ const JB_MONO_REGULAR: &[u8] = include_bytes!("../assets/fonts/JetBrainsMono-Reg
 const JB_MONO_MEDIUM: &[u8] = include_bytes!("../assets/fonts/JetBrainsMono-Medium.ttf");
 
 /// Install Geist Sans, JetBrains Mono, Phosphor icons, and system fallback fonts.
-pub(crate) fn install_fonts(ctx: &egui::Context) {
+pub fn install_fonts(ctx: &egui::Context) {
     let mut fonts = FontDefinitions::default();
 
     // 1. Install Geist Sans and JetBrains Mono font faces
@@ -62,6 +62,33 @@ pub(crate) fn install_fonts(ctx: &egui::Context) {
     // 3. Register Phosphor icons and system fallback glyphs
     egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
     add_system_fallbacks(&mut fonts, system_fallbacks());
+
+    // 4. Inherit fallbacks for named families
+    let prop_fallbacks: Vec<String> = fonts
+        .families
+        .get(&FontFamily::Proportional)
+        .map(|f| f.iter().skip(1).cloned().collect())
+        .unwrap_or_default();
+    let mono_fallbacks: Vec<String> = fonts
+        .families
+        .get(&FontFamily::Monospace)
+        .map(|f| f.iter().skip(1).cloned().collect())
+        .unwrap_or_default();
+
+    let medium = fonts.families.entry(FontFamily::Name("GeistMedium".into())).or_default();
+    medium.push("GeistMedium".to_owned());
+    medium.extend(prop_fallbacks.clone());
+
+    let semibold = fonts.families.entry(FontFamily::Name("GeistSemiBold".into())).or_default();
+    semibold.push("GeistSemiBold".to_owned());
+    semibold.extend(prop_fallbacks);
+
+    let mono_medium = fonts
+        .families
+        .entry(FontFamily::Name("JetBrainsMonoMedium".into()))
+        .or_default();
+    mono_medium.push("JetBrainsMonoMedium".to_owned());
+    mono_medium.extend(mono_fallbacks);
 
     ctx.set_fonts(fonts);
 }

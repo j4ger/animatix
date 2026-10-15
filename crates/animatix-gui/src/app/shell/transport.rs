@@ -73,8 +73,7 @@ pub(crate) fn transport_ui(
     // Frame step back / forward
     if ui
         .add(
-            Button::ghost("")
-                .with_icon("\u{23EA}")
+            Button::icon(egui_phosphor::regular::CARET_DOUBLE_LEFT)
                 .with_tooltip("Step back one frame (Shift+,)"),
         )
         .clicked()
@@ -83,8 +82,7 @@ pub(crate) fn transport_ui(
     }
     if ui
         .add(
-            Button::ghost("")
-                .with_icon("\u{23E9}")
+            Button::icon(egui_phosphor::regular::CARET_DOUBLE_RIGHT)
                 .with_tooltip("Step forward one frame (Shift+.)"),
         )
         .clicked()

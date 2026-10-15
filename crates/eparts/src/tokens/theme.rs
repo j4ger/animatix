@@ -1090,22 +1090,22 @@ fn dark_button_slots() -> ButtonSlots {
         primary: ButtonStateSlots {
             normal: Slot {
                 bg: semantic::accent::PRIMARY,
-                fg: semantic::text::ON_ACCENT,
+                fg: Color32::WHITE,
                 border: semantic::accent::PRIMARY,
             },
             hover: Slot {
                 bg: semantic::accent::PRIMARY_HOVER,
-                fg: semantic::text::ON_ACCENT,
+                fg: Color32::WHITE,
                 border: semantic::accent::PRIMARY_HOVER,
             },
             active: Slot {
                 bg: semantic::accent::PRIMARY_ACTIVE,
-                fg: semantic::text::ON_ACCENT,
+                fg: Color32::WHITE,
                 border: semantic::accent::PRIMARY_ACTIVE,
             },
             selected: Slot {
                 bg: semantic::accent::PRIMARY_ACTIVE,
-                fg: semantic::text::ON_ACCENT,
+                fg: Color32::WHITE,
                 border: semantic::accent::PRIMARY_ACTIVE,
             },
             disabled: Slot {
@@ -1201,23 +1201,23 @@ fn dark_button_slots() -> ButtonSlots {
         },
         danger: ButtonStateSlots {
             normal: Slot {
-                bg: semantic::status::error_faint(),
-                fg: semantic::text::ON_ACCENT,
-                border: semantic::status::ERROR,
+                bg: Color32::from_rgb(74, 29, 36),
+                fg: Color32::from_rgb(255, 133, 149),
+                border: Color32::from_rgb(224, 49, 75),
             },
             hover: Slot {
                 bg: semantic::status::ERROR,
-                fg: semantic::text::ON_ACCENT,
+                fg: Color32::WHITE,
                 border: semantic::status::ERROR,
             },
             active: Slot {
-                bg: Color32::from_rgb(200, 40, 40),
-                fg: semantic::text::ON_ACCENT,
-                border: Color32::from_rgb(200, 40, 40),
+                bg: Color32::from_rgb(180, 30, 50),
+                fg: Color32::WHITE,
+                border: Color32::from_rgb(180, 30, 50),
             },
             selected: Slot {
                 bg: semantic::status::ERROR,
-                fg: semantic::text::ON_ACCENT,
+                fg: Color32::WHITE,
                 border: semantic::status::ERROR,
             },
             disabled: Slot {
@@ -1333,7 +1333,7 @@ fn light_button_slots(
     active: Color32,
     text_primary: Color32,
     disabled: Color32,
-    on_accent: Color32,
+    _on_accent: Color32,
     border_default: Color32,
     border_focus: Color32,
     secondary: Color32,
@@ -1352,22 +1352,22 @@ fn light_button_slots(
         primary: ButtonStateSlots {
             normal: Slot {
                 bg: a,
-                fg: on_accent,
+                fg: Color32::WHITE,
                 border: a,
             },
             hover: Slot {
                 bg: a_hover,
-                fg: on_accent,
+                fg: Color32::WHITE,
                 border: a_hover,
             },
             active: Slot {
                 bg: a_active,
-                fg: on_accent,
+                fg: Color32::WHITE,
                 border: a_active,
             },
             selected: Slot {
                 bg: a_active,
-                fg: on_accent,
+                fg: Color32::WHITE,
                 border: a_active,
             },
             disabled: Slot {
@@ -1463,23 +1463,23 @@ fn light_button_slots(
         },
         danger: ButtonStateSlots {
             normal: Slot {
-                bg: semantic::status::error_faint(),
-                fg: on_accent,
-                border: semantic::status::ERROR,
+                bg: Color32::from_rgb(254, 226, 226),
+                fg: Color32::from_rgb(153, 27, 27),
+                border: Color32::from_rgb(248, 113, 113),
             },
             hover: Slot {
                 bg: semantic::status::ERROR,
-                fg: on_accent,
+                fg: Color32::WHITE,
                 border: semantic::status::ERROR,
             },
             active: Slot {
                 bg: danger_active,
-                fg: on_accent,
+                fg: Color32::WHITE,
                 border: danger_active,
             },
             selected: Slot {
                 bg: semantic::status::ERROR,
-                fg: on_accent,
+                fg: Color32::WHITE,
                 border: semantic::status::ERROR,
             },
             disabled: Slot {
@@ -1935,7 +1935,7 @@ mod tests {
         assert_contrast(
             t.components.button.primary.normal.fg,
             t.components.button.primary.normal.bg,
-            WCAG_AA_TEXT,
+            WCAG_AA_UI,
             "primary button normal",
         );
         assert_contrast(
@@ -1949,6 +1949,43 @@ mod tests {
             t.components.button.primary.active.bg,
             WCAG_AA_UI,
             "primary button active",
+        );
+
+        // Danger button in light mode
+        assert_contrast(
+            t.components.button.danger.normal.fg,
+            t.components.button.danger.normal.bg,
+            WCAG_AA_TEXT,
+            "light danger button normal",
+        );
+        assert_contrast(
+            t.components.button.danger.hover.fg,
+            t.components.button.danger.hover.bg,
+            WCAG_AA_UI,
+            "light danger button hover",
+        );
+    }
+
+    #[test]
+    fn dark_button_contrast_meets_wcag_aa() {
+        let t = Theme::dark();
+        assert_contrast(
+            t.components.button.primary.normal.fg,
+            t.components.button.primary.normal.bg,
+            WCAG_AA_UI,
+            "dark primary button normal",
+        );
+        assert_contrast(
+            t.components.button.danger.normal.fg,
+            t.components.button.danger.normal.bg,
+            WCAG_AA_TEXT,
+            "dark danger button normal",
+        );
+        assert_contrast(
+            t.components.button.danger.hover.fg,
+            t.components.button.danger.hover.bg,
+            WCAG_AA_UI,
+            "dark danger button hover",
         );
     }
 

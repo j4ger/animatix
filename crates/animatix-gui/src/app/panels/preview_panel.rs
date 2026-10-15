@@ -220,21 +220,21 @@ fn preview_floating_hud_ui(
 
             // View toggles
             let grid = ctx.preview.overlay.show_grid;
-            let grid_resp = ui.stable_selectable_label(grid, "Grid");
+            let grid_resp = ui.add(Button::ghost("").with_icon(icons::GRID_FOUR).active(grid));
             text_tooltip(ui, grid_resp.id.with("grid_tip"), &grid_resp, "Toggle grid");
             if grid_resp.clicked() {
                 ctx.preview.overlay.show_grid = !grid;
             }
 
             let guides = ctx.preview.overlay.show_guides;
-            let guides_resp = ui.stable_selectable_label(guides, "Guides");
+            let guides_resp = ui.add(Button::ghost("").with_icon(icons::RULER).active(guides));
             text_tooltip(ui, guides_resp.id.with("guides_tip"), &guides_resp, "Toggle guides");
             if guides_resp.clicked() {
                 ctx.preview.overlay.show_guides = !guides;
             }
 
             let labels = ctx.preview.overlay.show_actor_labels;
-            let labels_resp = ui.stable_selectable_label(labels, "Labels");
+            let labels_resp = ui.add(Button::ghost("").with_icon(icons::TEXT_T).active(labels));
             text_tooltip(
                 ui,
                 labels_resp.id.with("labels_tip"),

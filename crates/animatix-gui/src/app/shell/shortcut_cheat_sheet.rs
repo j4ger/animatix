@@ -1,4 +1,5 @@
 use egui::{RichText, Vec2};
+use eparts::Kbd;
 
 use crate::app::GuiShell;
 use crate::app::components::{self};
@@ -326,15 +327,12 @@ fn shortcut_row_inner(ui: &mut egui::Ui, key: &str, desc: &str, col_w: f32, row_
     let key_w = (col_w * dialog_token::KEY_COL_FRAC).min(dialog_token::KEY_COL_MAX);
 
     ui.horizontal(|ui| {
-        ui.add_sized(
-            [key_w, row_height],
-            egui::Label::new(
-                RichText::new(key)
-                    .monospace()
-                    .size(TextRole::BodyS.size())
-                    .color(theme.palette.text.secondary),
-            )
-            .truncate(),
+        ui.allocate_ui_with_layout(
+            egui::vec2(key_w, row_height),
+            egui::Layout::left_to_right(egui::Align::Center),
+            |ui| {
+                ui.add(Kbd::new(key));
+            },
         );
         ui.label(
             RichText::new(desc)

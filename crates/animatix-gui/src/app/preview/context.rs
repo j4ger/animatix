@@ -875,11 +875,7 @@ impl PreviewContext<'_> {
                     );
                     let padding = Vec2::new(8.0, 4.0);
                     let bg_rect = egui::Rect::from_min_size(hud_pos, galley.size() + padding * 2.0);
-                    ui.painter().rect_filled(
-                        bg_rect,
-                        3.0,
-                        crate::app::design_tokens::semantic::canvas::snap_guide_label_bg(),
-                    );
+                    ui.painter().rect_filled(bg_rect, 3.0, theme.palette.overlay.tooltip_bg);
                     ui.painter().rect_stroke(
                         bg_rect,
                         3.0,

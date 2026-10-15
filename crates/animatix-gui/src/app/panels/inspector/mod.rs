@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use animatix::timeline::{AnimationTrack, Timeline, collect_all_keyframe_times};
 use egui::{Color32, Pos2, RichText, ScrollArea, Vec2};
 use eparts::widget::UiExt;
+use eparts::{Button, NumberField};
 
 use crate::app::PreviewPaneState;
 use crate::app::commands::{
@@ -132,13 +133,12 @@ fn render_scene_inspector(
             layout::labeled_row(ui, "Duration", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
                 let is_explicit = scene.explicit_duration_s.is_some();
                 let mut duration_val = scene.duration_s;
-                let drag = ui.add(
-                    egui::DragValue::new(&mut duration_val)
-                        .speed(0.1)
-                        .suffix(" s")
-                        .max_decimals(2)
-                        .range(0.01..=600.0),
-                );
+                let drag = NumberField::new(&mut duration_val)
+                    .speed(0.1)
+                    .suffix(" s")
+                    .range(0.01..=600.0)
+                    .desired_width(INSPECTOR_INPUT_WIDTH_FLOAT)
+                    .show(ui);
                 let tooltip = if is_explicit {
                     "Explicit duration (click ⨯ to revert to auto)"
                 } else {
@@ -148,7 +148,7 @@ fn render_scene_inspector(
                 text_tooltip(ui, ui.id().with("scene_duration_tooltip"), &drag, tooltip);
                 if is_explicit {
                     // Small button to remove explicit duration
-                    let revert = ui.small_button("⨯");
+                    let revert = ui.add(Button::ghost("⨯"));
                     text_tooltip(
                         ui,
                         ui.id().with("scene_duration_revert_tooltip"),
@@ -311,12 +311,11 @@ fn render_scene_inspector(
                     // Duration
                     let mut duration_ms = edge.transition.duration_ms as f64;
                     layout::labeled_row(ui, "Duration", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                        ui.add(
-                            egui::DragValue::new(&mut duration_ms)
-                                .speed(10.0)
-                                .suffix(" ms")
-                                .max_decimals(0),
-                        );
+                        NumberField::new(&mut duration_ms)
+                            .speed(10.0)
+                            .suffix(" ms")
+                            .desired_width(INSPECTOR_INPUT_WIDTH_FLOAT)
+                            .show(ui);
                     });
                     let new_duration_ms = duration_ms.round() as u64;
                     if new_duration_ms != edge.transition.duration_ms {
@@ -538,11 +537,8 @@ pub(super) fn inspector_ui(
                 .selectable(false),
             );
             ui.add_space(sp.base.space_4);
-            let add_actor_btn = ui.button(
-                RichText::new(format!("{} Add Actor", egui_phosphor::regular::PLUS))
-                    .size(TextRole::Title.size())
-                    .color(theme.palette.accent.primary),
-            );
+            let add_actor_btn =
+                ui.add(Button::primary("Add Actor").with_icon(egui_phosphor::regular::PLUS));
             text_tooltip(
                 ui,
                 add_actor_btn.id.with("add_actor_tip"),
@@ -759,16 +755,30 @@ pub(super) fn inspector_ui(
                     |ui| {
                         let pivot = pivot_offsets.entry(sel.clone()).or_insert([0.0, 0.0]);
                         layout::labeled_row(ui, "X", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                            ui.add(egui::DragValue::new(&mut pivot[0]).speed(1.0).suffix(" px"));
+                            let mut px = pivot[0] as f64;
+                            if NumberField::new(&mut px)
+                                .speed(1.0)
+                                .suffix(" px")
+                                .desired_width(INSPECTOR_INPUT_WIDTH_FLOAT)
+                                .show(ui)
+                                .changed()
+                            {
+                                pivot[0] = px as f32;
+                            }
                         });
                         layout::labeled_row(ui, "Y", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
-                            ui.add(egui::DragValue::new(&mut pivot[1]).speed(1.0).suffix(" px"));
+                            let mut py = pivot[1] as f64;
+                            if NumberField::new(&mut py)
+                                .speed(1.0)
+                                .suffix(" px")
+                                .desired_width(INSPECTOR_INPUT_WIDTH_FLOAT)
+                                .show(ui)
+                                .changed()
+                            {
+                                pivot[1] = py as f32;
+                            }
                         });
-                        let reset_pivot = ui.button(
-                            RichText::new("Reset")
-                                .size(TextRole::BodyS.size())
-                                .color(theme.palette.text.muted),
-                        );
+                        let reset_pivot = ui.add(Button::ghost("Reset"));
                         text_tooltip(
                             ui,
                             ui.id().with(("reset_pivot_tooltip", sel)),

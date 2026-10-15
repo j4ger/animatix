@@ -112,6 +112,7 @@ mod tests {
     #[test]
     fn kbd_allocates_below_prior_content() {
         let ctx = egui::Context::default();
+        crate::tokens::typography::register_font_families(&ctx);
         let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(320.0, 120.0));
         let mut prior_bottom = 0.0;
         let mut kbd_rect = None;

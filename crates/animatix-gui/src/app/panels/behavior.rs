@@ -4,8 +4,8 @@ use egui::{Color32, Rect, Stroke, Visuals};
 use egui_tiles::{Behavior, SimplificationOptions, TileId, UiResponse};
 
 use crate::app::commands::ActionQueue;
+use crate::app::design_tokens::spatial::STROKE_WIDTH;
 use crate::app::design_tokens::spatial::timeline::RULER_HEIGHT as TIMELINE_RULER_HEIGHT;
-use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::app::panels::{curves_panel, editor, inspector, preview_panel, sidebar, timeline_panel};
 use crate::app::preview::selection;
 use crate::app::stores::{DocumentStore, PreviewStore, WorkspaceStore};
@@ -326,10 +326,10 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
         _tile_id: TileId,
         rect: Rect,
     ) {
-        // Subtle 1px border around each tile for definition
+        // Subtle 1px border around each tile for definition (sharp 0.0 radius for rectangular dock tiles)
         painter.rect_stroke(
             rect,
-            RADIUS_M,
+            0.0,
             Stroke::new(STROKE_WIDTH, style.visuals.widgets.noninteractive.bg_stroke.color),
             egui::StrokeKind::Inside,
         );

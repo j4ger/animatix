@@ -2,6 +2,7 @@
 use std::path::PathBuf;
 
 use egui::RichText;
+use eparts::Checkbox;
 use eparts::widget::UiExt;
 
 use crate::app::components::layout;
@@ -150,7 +151,10 @@ impl GuiShell {
                     ui,
                     |f| {
                         f.field("Reduce motion", |ui| {
-                            ui.checkbox(&mut self.ui_store.view.reduce_motion, "Snap animations");
+                            ui.add(
+                                Checkbox::new(&mut self.ui_store.view.reduce_motion)
+                                    .label("Snap animations"),
+                            );
                         });
                     },
                 );
@@ -356,7 +360,10 @@ impl GuiShell {
                     .label_width(SETTINGS_INPUT_WIDTH)
                     .show(ui, |f| {
                         f.field("Autosave", |ui| {
-                            ui.checkbox(&mut enabled, "Write recovery file while dirty");
+                            ui.add(
+                                Checkbox::new(&mut enabled)
+                                    .label("Write recovery file while dirty"),
+                            );
                         });
                         f.field("Interval", |ui| {
                             ui.add_enabled_ui(enabled, |ui| {

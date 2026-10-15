@@ -3,6 +3,8 @@
 //! Supports case-sensitive, whole-word and regular-expression search. Literal
 //! queries are escaped so a replacement never interprets `$`.
 
+use eparts::Checkbox;
+
 use crate::app::GuiShell;
 use crate::app::commands::UndoLabel;
 use crate::app::components::button::Button;
@@ -62,9 +64,9 @@ impl GuiShell {
             // Options
             ui.add_space(sp.base.space_2);
             ui.horizontal(|ui| {
-                ui.checkbox(&mut self.ui_store.find_case_sensitive, "Case");
-                ui.checkbox(&mut self.ui_store.find_whole_word, "Word");
-                ui.checkbox(&mut self.ui_store.find_regex, "Regex");
+                ui.add(Checkbox::new(&mut self.ui_store.find_case_sensitive).label("Case"));
+                ui.add(Checkbox::new(&mut self.ui_store.find_whole_word).label("Word"));
+                ui.add(Checkbox::new(&mut self.ui_store.find_regex).label("Regex"));
 
                 // Live match count / pattern error, right-aligned.
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {

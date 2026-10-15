@@ -650,6 +650,7 @@ mod tests {
         use crate::tokens::theme::{Theme, set_theme};
 
         let ctx = egui::Context::default();
+        crate::tokens::typography::register_font_families(&ctx);
         for t in [Theme::dark(), Theme::light()] {
             set_theme(&ctx, t);
             let _ = ctx.run_ui(base_input(), |ui| {

@@ -203,8 +203,6 @@ fn render_unknown_widget(ui: &mut egui::Ui, theme: eparts::Theme, name: &str) {
 pub fn install_theme(ctx: &egui::Context, theme: eparts::Theme, dark: bool) {
     eparts::set_theme(ctx, theme);
 
-    crate::fonts::install_fonts(ctx);
-
     let mut style = (*ctx.global_style()).clone();
     style.spacing.item_spacing = egui::vec2(4.0, 4.0);
     style.spacing.button_padding = egui::vec2(8.0, 4.0);
