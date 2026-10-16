@@ -72,6 +72,8 @@ pub enum BuiltinFn {
     CurveAt,
     /// Analytically smooth a curve with exponential filter kernel tau.
     CurveSmooth,
+    /// Seeded deterministic pseudo-random float in [0, 1).
+    SeededRand,
 }
 
 /// A compiled expression in the modifier IR.

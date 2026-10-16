@@ -128,7 +128,7 @@ macro_rules! register_num3 {
 /// Deterministic splitmix64 hash — the base for every seeded stochastic
 /// builtin (`seeded_rand`, the noise family), so `always` blocks stay pure
 /// functions of `t` and the expression cache stays valid.
-fn splitmix64(x: u64) -> u64 {
+pub(crate) fn splitmix64(x: u64) -> u64 {
     let z = x.wrapping_add(0x9e3779b97f4a7c15);
     let z = z ^ (z >> 30);
     let z = z.wrapping_mul(0xbf58476d1ce4e5b9);

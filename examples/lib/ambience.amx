@@ -45,31 +45,39 @@ pub component Ambience(tint: Color = rgb(0.96, 0.72, 0.26), base_opacity: Num = 
     let sx = curve_smooth(scene.stats.spread_x, t, tau * 1.2)
     let sy = curve_smooth(scene.stats.spread_y, t, tau * 1.2)
 
-    // Automatic scene-hash seed derived from the scene's unique initial geometry and footprint
-    let s_init = curve_at(scene.stats.focus_x, 0.0) * 1.731 + curve_at(scene.stats.focus_y, 0.0) * 2.317 + curve_at(scene.stats.spread_x, 0.0) * 3.179 + curve_at(scene.stats.spread_y, 0.0) * 4.123 + curve_at(scene.stats.cast, 0.0) * 23.41 + curve_at(scene.stats.ink, 0.0) * 11.19
-    let s = if seed != 0 { seed } else { s_init }
+    // Automatic scene-hash seed derived lazily from the scene's unique initial geometry
+    let s = if seed != 0 {
+      seed
+    } else {
+      curve_at(scene.stats.focus_x, 0.0) * 1.731 + curve_at(scene.stats.focus_y, 0.0) * 2.317 + curve_at(scene.stats.spread_x, 0.0) * 3.179 + curve_at(scene.stats.spread_y, 0.0) * 4.123 + curve_at(scene.stats.cast, 0.0) * 23.41 + curve_at(scene.stats.ink, 0.0) * 11.19
+    }
 
-    // Seed-derived distinct harmonic frequencies, phase offsets, and orbital radii
-    let p1 = seeded_rand(s + 11.0) * 6.283
-    let p2 = seeded_rand(s + 29.0) * 6.283
-    let p3 = seeded_rand(s + 47.0) * 6.283
-    let p4 = seeded_rand(s + 71.0) * 6.283
+    // Seed-derived base random streams and decorrelated harmonic parameters
+    let r1 = seeded_rand(s + 11.0)
+    let r2 = seeded_rand(s + 29.0)
+    let r3 = seeded_rand(s + 47.0)
+    let r4 = seeded_rand(s + 71.0)
 
-    let f1 = 0.20 + 0.22 * seeded_rand(s + 101.0)
-    let f2 = 0.16 + 0.24 * seeded_rand(s + 211.0)
-    let f3 = 0.14 + 0.20 * seeded_rand(s + 331.0)
-    let f4 = 0.12 + 0.18 * seeded_rand(s + 443.0)
+    let p1 = r1 * 6.283
+    let p2 = r2 * 6.283
+    let p3 = r3 * 6.283
+    let p4 = r4 * 6.283
 
-    let amp1_x = 55 + 45 * seeded_rand(s + 557.0)
-    let amp1_y = 25 + 25 * seeded_rand(s + 673.0)
-    let amp2_x = 65 + 50 * seeded_rand(s + 787.0)
-    let amp2_y = 30 + 30 * seeded_rand(s + 907.0)
-    let amp3_x = 50 + 40 * seeded_rand(s + 997.0)
-    let amp3_y = 25 + 25 * seeded_rand(s + 1069.0)
+    let f1 = 0.20 + 0.22 * fract(r1 * 7.919)
+    let f2 = 0.16 + 0.24 * fract(r2 * 11.273)
+    let f3 = 0.14 + 0.20 * fract(r3 * 13.619)
+    let f4 = 0.12 + 0.18 * fract(r4 * 17.851)
 
-    let base_rot1 = -0.55 + 0.40 * seeded_rand(s + 1151.0)
-    let base_rot2 = 0.35 + 0.45 * seeded_rand(s + 1277.0)
-    let base_rot3 = -0.20 + 0.40 * seeded_rand(s + 1381.0)
+    let amp1_x = 55 + 45 * fract(r1 * 23.417)
+    let amp1_y = 25 + 25 * fract(r2 * 31.907)
+    let amp2_x = 65 + 50 * fract(r3 * 37.781)
+    let amp2_y = 30 + 30 * fract(r4 * 41.519)
+    let amp3_x = 50 + 40 * fract(r1 * 47.129)
+    let amp3_y = 25 + 25 * fract(r2 * 53.681)
+
+    let base_rot1 = -0.55 + 0.40 * fract(r3 * 59.917)
+    let base_rot2 = 0.35 + 0.45 * fract(r4 * 67.231)
+    let base_rot3 = -0.20 + 0.40 * fract(r1 * 71.509)
 
     // Dynamic fluid drift (decorrelated Lissajous orbits)
     let drift1_x = amp1_x * sin(t * f1 + p1)

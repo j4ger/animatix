@@ -328,6 +328,7 @@ fn builtin_for_name(name: &str) -> Option<BuiltinFn> {
         "sum" => Some(BuiltinFn::SumList),
         "curve_at" => Some(BuiltinFn::CurveAt),
         "curve_smooth" => Some(BuiltinFn::CurveSmooth),
+        "seeded_rand" => Some(BuiltinFn::SeededRand),
         _ => None,
     }
 }

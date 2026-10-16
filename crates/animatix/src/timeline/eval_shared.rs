@@ -423,33 +423,98 @@ pub fn eval_builtin_fn(name: &str, args: &[Value]) -> Result<Value, EvalError> {
         },
         "curve_at" => eval_curve_at(args),
         "curve_smooth" => eval_curve_smooth(args),
+        "seeded_rand" => {
+            let seed = single_num_arg(name, args)?;
+            let hash = crate::timeline::builtins::splitmix64(seed.to_bits());
+            Ok(Value::Num(hash as f64 / u64::MAX as f64))
+        },
         _ => Err(EvalError::UndefinedVariable(name.to_string())),
     }
 }
 
 // ─── Curve functions (STAT-1) ────────────────────────────────────────────────
 
-fn extract_curve_pairs(value: &Value) -> Result<Vec<(f64, f64)>, EvalError> {
-    match value {
-        Value::List(items) => {
-            if items.len() % 2 != 0 {
-                return Err(EvalError::TypeMismatch(format!(
-                    "Curve list must have an even number of elements [t0, v0, t1, v1, ...], got length {}",
-                    items.len()
-                )));
+/// Zero-allocation view over a piecewise-linear curve stored in a Value::List.
+#[derive(Clone, Copy)]
+pub(crate) struct CurveSlice<'a> {
+    items: &'a [Value],
+}
+
+impl<'a> CurveSlice<'a> {
+    pub(crate) fn new(value: &'a Value) -> Result<Self, EvalError> {
+        match value {
+            Value::List(items) => {
+                if items.len() % 2 != 0 {
+                    return Err(EvalError::TypeMismatch(format!(
+                        "Curve list must have an even number of elements [t0, v0, t1, v1, ...], got length {}",
+                        items.len()
+                    )));
+                }
+                for item in items.iter() {
+                    if !matches!(item, Value::Num(_)) {
+                        return Err(EvalError::TypeMismatch(format!(
+                            "Curve expects numerical elements, got {:?}",
+                            item
+                        )));
+                    }
+                }
+                Ok(CurveSlice { items })
+            },
+            other => Err(EvalError::TypeMismatch(format!(
+                "Curve expects a List<Num> as first argument, got {:?}",
+                other
+            ))),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
+    #[inline]
+    pub(crate) fn len(&self) -> usize {
+        self.items.len() / 2
+    }
+
+    #[inline]
+    pub(crate) fn get(&self, idx: usize) -> (f64, f64) {
+        match (&self.items[idx * 2], &self.items[idx * 2 + 1]) {
+            (Value::Num(t), Value::Num(v)) => (*t, *v),
+            _ => (0.0, 0.0),
+        }
+    }
+
+    #[inline]
+    pub(crate) fn first(&self) -> Option<(f64, f64)> {
+        if self.is_empty() {
+            None
+        } else {
+            Some(self.get(0))
+        }
+    }
+
+    #[inline]
+    pub(crate) fn last(&self) -> Option<(f64, f64)> {
+        let n = self.len();
+        if n == 0 { None } else { Some(self.get(n - 1)) }
+    }
+
+    pub(crate) fn binary_search_by_t(&self, t: f64) -> Result<usize, usize> {
+        let mut low = 0;
+        let mut high = self.len();
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let (pt, _) = self.get(mid);
+            if pt < t {
+                low = mid + 1;
+            } else if pt > t {
+                high = mid;
+            } else {
+                return Ok(mid);
             }
-            let mut pairs = Vec::with_capacity(items.len() / 2);
-            for chunk in items.chunks_exact(2) {
-                let t = value_to_f64(&chunk[0])?;
-                let v = value_to_f64(&chunk[1])?;
-                pairs.push((t, v));
-            }
-            Ok(pairs)
-        },
-        other => Err(EvalError::TypeMismatch(format!(
-            "Curve expects a List<Num> as first argument, got {:?}",
-            other
-        ))),
+        }
+        Err(low)
     }
 }
 
@@ -460,37 +525,36 @@ fn eval_curve_at(args: &[Value]) -> Result<Value, EvalError> {
             args.len()
         )));
     }
-    let pairs = extract_curve_pairs(&args[0])?;
+    let curve = CurveSlice::new(&args[0])?;
     let t = value_to_f64(&args[1])?;
-    Ok(Value::Num(curve_at_pairs(&pairs, t)))
+    Ok(Value::Num(curve_at_slice(curve, t)))
 }
 
-pub(crate) fn curve_at_pairs(pairs: &[(f64, f64)], t: f64) -> f64 {
-    if pairs.is_empty() {
+pub(crate) fn curve_at_slice(curve: CurveSlice, t: f64) -> f64 {
+    if curve.is_empty() {
         return 0.0;
     }
-    if pairs.len() == 1 {
-        return pairs[0].1;
+    if curve.len() == 1 {
+        return curve.get(0).1;
     }
-    let first = pairs.first().unwrap();
+    let first = curve.first().unwrap();
     if t <= first.0 {
         return first.1;
     }
-    let last = pairs.last().unwrap();
+    let last = curve.last().unwrap();
     if t >= last.0 {
         return last.1;
     }
-    match pairs.binary_search_by(|(pt, _)| pt.partial_cmp(&t).unwrap_or(std::cmp::Ordering::Equal))
-    {
-        Ok(idx) => pairs[idx].1,
+    match curve.binary_search_by_t(t) {
+        Ok(idx) => curve.get(idx).1,
         Err(idx) => {
             if idx == 0 {
-                pairs[0].1
-            } else if idx >= pairs.len() {
-                pairs.last().unwrap().1
+                curve.get(0).1
+            } else if idx >= curve.len() {
+                curve.last().unwrap().1
             } else {
-                let (t0, v0) = pairs[idx - 1];
-                let (t1, v1) = pairs[idx];
+                let (t0, v0) = curve.get(idx - 1);
+                let (t1, v1) = curve.get(idx);
                 let dt = t1 - t0;
                 if dt <= 1e-12 {
                     v0
@@ -510,29 +574,29 @@ fn eval_curve_smooth(args: &[Value]) -> Result<Value, EvalError> {
             args.len()
         )));
     }
-    let pairs = extract_curve_pairs(&args[0])?;
+    let curve = CurveSlice::new(&args[0])?;
     let t = value_to_f64(&args[1])?;
     let tau = value_to_f64(&args[2])?;
-    Ok(Value::Num(curve_smooth_pairs(&pairs, t, tau)))
+    Ok(Value::Num(curve_smooth_slice(curve, t, tau)))
 }
 
-pub(crate) fn curve_smooth_pairs(pairs: &[(f64, f64)], t: f64, tau: f64) -> f64 {
-    if pairs.is_empty() {
+pub(crate) fn curve_smooth_slice(curve: CurveSlice, t: f64, tau: f64) -> f64 {
+    if curve.is_empty() {
         return 0.0;
     }
-    if pairs.len() == 1 || tau <= 0.0 {
-        return curve_at_pairs(pairs, t);
+    if curve.len() == 1 || tau <= 0.0 {
+        return curve_at_slice(curve, t);
     }
 
-    let t0 = pairs.first().unwrap().0;
-    let t_last = pairs.last().unwrap().0;
+    let t0 = curve.first().unwrap().0;
+    let t_last = curve.last().unwrap().0;
     let duration = t_last - t0;
 
     let w = 5.0 * tau;
     let u_start = t - w;
 
     let is_loop =
-        duration > 0.0 && (pairs.first().unwrap().1 - pairs.last().unwrap().1).abs() < 1e-4;
+        duration > 0.0 && (curve.first().unwrap().1 - curve.last().unwrap().1).abs() < 1e-4;
 
     let integrate_segment = |u1: f64, u2: f64, v1: f64, v2: f64, target_t: f64| -> f64 {
         if u2 <= u1 {
@@ -561,15 +625,22 @@ pub(crate) fn curve_smooth_pairs(pairs: &[(f64, f64)], t: f64, tau: f64) -> f64 
         }
         if win_start < t0 {
             let clamp_end = win_end.min(t0);
-            let v0 = pairs.first().unwrap().1;
+            let v0 = curve.first().unwrap().1;
             total_integral += integrate_segment(win_start, clamp_end, v0, v0, target_t);
         }
         let seg_start = win_start.max(t0);
         let seg_end = win_end.min(t_last);
         if seg_end > seg_start {
-            for i in 0..pairs.len() - 1 {
-                let (pt1, pv1) = pairs[i];
-                let (pt2, pv2) = pairs[i + 1];
+            let start_idx = match curve.binary_search_by_t(seg_start) {
+                Ok(idx) => idx.saturating_sub(1),
+                Err(idx) => idx.saturating_sub(1),
+            };
+            for i in start_idx..curve.len() - 1 {
+                let (pt1, pv1) = curve.get(i);
+                if pt1 >= seg_end {
+                    break;
+                }
+                let (pt2, pv2) = curve.get(i + 1);
                 let overlap_start = seg_start.max(pt1);
                 let overlap_end = seg_end.min(pt2);
                 if overlap_end > overlap_start {
@@ -590,7 +661,7 @@ pub(crate) fn curve_smooth_pairs(pairs: &[(f64, f64)], t: f64, tau: f64) -> f64 
         }
         if win_end > t_last {
             let clamp_start = win_start.max(t_last);
-            let v_last = pairs.last().unwrap().1;
+            let v_last = curve.last().unwrap().1;
             total_integral += integrate_segment(clamp_start, win_end, v_last, v_last, target_t);
         }
     };

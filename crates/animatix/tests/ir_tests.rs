@@ -235,6 +235,7 @@ fn ir_matches_ast_for_extended_builtins() {
         Expr::Call("rem".to_string(), vec![Expr::Num(7.0), Expr::Num(4.0)]),
         Expr::Call("step".to_string(), vec![Expr::Num(1.0), Expr::Num(0.5)]),
         Expr::Call("round".to_string(), vec![Expr::Num(2.6)]),
+        Expr::Call("seeded_rand".to_string(), vec![Expr::Num(42.0)]),
         Expr::Call("factorial".to_string(), vec![Expr::Num(5.0)]),
         Expr::Call(
             "sum".to_string(),

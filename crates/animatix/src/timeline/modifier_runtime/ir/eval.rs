@@ -93,6 +93,7 @@ pub(crate) fn evaluate_compiled_expr(
                 BuiltinFn::SumList => "sum",
                 BuiltinFn::CurveAt => "curve_at",
                 BuiltinFn::CurveSmooth => "curve_smooth",
+                BuiltinFn::SeededRand => "seeded_rand",
             };
             crate::timeline::eval_shared::eval_builtin_fn(name, &args)
         },
@@ -309,6 +310,7 @@ pub(crate) enum FastScalarExpr {
     Hypot(Box<FastScalarExpr>, Box<FastScalarExpr>),
     Step(Box<FastScalarExpr>, Box<FastScalarExpr>),
     Atan2(Box<FastScalarExpr>, Box<FastScalarExpr>),
+    SeededRand(Box<FastScalarExpr>),
 }
 
 impl FastScalarExpr {
@@ -429,6 +431,11 @@ impl FastScalarExpr {
                 }
             },
             Self::Atan2(y, x_val) => y.eval(x, slots).atan2(x_val.eval(x, slots)),
+            Self::SeededRand(inner) => {
+                let seed = inner.eval(x, slots);
+                let hash = crate::timeline::builtins::splitmix64(seed.to_bits());
+                hash as f64 / u64::MAX as f64
+            },
         }
     }
 }
@@ -569,6 +576,9 @@ pub(crate) fn compile_fast_scalar<'a>(
                 Box::new(compile_fast_scalar(&args[0], arg_name, slot_names)?),
                 Box::new(compile_fast_scalar(&args[1], arg_name, slot_names)?),
             )),
+            BuiltinFn::SeededRand if args.len() == 1 => Some(FastScalarExpr::SeededRand(Box::new(
+                compile_fast_scalar(&args[0], arg_name, slot_names)?,
+            ))),
             _ => None,
         },
         _ => None,
