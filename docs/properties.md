@@ -63,10 +63,10 @@
 | `dash_pattern` | F32List | ✓ | ✓ | All stroke paths |
 | `dash_offset` | F32 | ✓ | ✓ | All stroke paths |
 | `blend` | Str | ✓ | ✓ | Everything |
-| `fill_gradient` | Gradient | ✓ | ✓ | All shapes except Line |
+| `fill_gradient` | Gradient | ✓ | ✓ | All shapes except Line, text-like actors |
 | `stroke_gradient` | Gradient | ✓ | ✓ | All stroke paths |
-| `gradient_extend` | Str | ✓ | ✓ | Shapes and stroke paths |
-| `gradient_space` | Str | ✓ | ✓ | Shapes and stroke paths |
+| `gradient_extend` | Str | ✓ | ✓ | Shapes, text-like actors, and stroke paths |
+| `gradient_space` | Str | ✓ | ✓ | Shapes, text-like actors, and stroke paths |
 
 `dash_pattern` takes a brace list of alternating segment and gap lengths in scene
 pixels (`dash_pattern: {8, 6}`); animating `dash_offset` gives marching ants.
@@ -88,6 +88,8 @@ value is a call naming the ramp shape, its geometry, and its stops:
 ```amx
 bar: Rect, size: (400, 70),
   fill_gradient: linear(90, {"#ff2d55", "#ff9f0a"})
+heading: Text, text: "Delightful", font_size: 48, font_weight: "bold",
+  fill_gradient: linear(135, {"#ffd60a", "#f5b942"})
 spot: Ellipse, size: (300, 300),
   fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#5e5ce6"), (100%, "#5e5ce600")})
 arc: Path, commands: {…}, stroke_width: 10, fill_opacity: 0.0,
@@ -95,7 +97,8 @@ arc: Path, commands: {…}, stroke_width: 10, fill_opacity: 0.0,
 ```
 
 - `linear(angle, stops)` — `angle` in degrees, CSS convention (`0` points up,
-  `90` to the right). The ramp spans the shape's bounding box along that axis.
+  `90` to the right). The ramp spans the actor's bounding box along that axis
+  (for text, the combined bounding box of all glyphs).
 - `radial(center, radius, stops)` — `center` in normalized bounding-box
   coordinates, `radius` relative to the box's larger side. Both are optional:
   `radial(stops)` is centered with radius `0.5`.

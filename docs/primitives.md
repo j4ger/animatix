@@ -576,14 +576,14 @@ rows):
 | `dash_pattern` | stroke paths | Brace list of alternating segment/gap lengths in scene pixels — `dash_pattern: {8, 6}` |
 | `dash_offset` | stroke paths | Phase into the pattern; animating it is the marching-ants idiom |
 | `blend` | everything | CSS mix-blend mode name (`"screen"`, `"multiply"`, …); composites the actor's whole subtree against what is behind it |
-| `fill_gradient` | shapes except `Line` | Ramp replacing the solid fill: `linear(angle, stops)`, `radial(center, radius, stops)`, `sweep(angle, stops)` |
+| `fill_gradient` | shapes except `Line`, and text-like actors (`Text`, `Math`, `Typst`, `Code`, `Counter`) | Ramp replacing the solid fill: `linear(angle, stops)`, `radial(center, radius, stops)`, `sweep(angle, stops)` |
 | `stroke_gradient` | stroke paths | Same, on the stroke |
-| `gradient_extend` | shapes and stroke paths | `"pad"` (default), `"repeat"`, `"reflect"` |
-| `gradient_space` | shapes and stroke paths | `"oklab"` (default — no dark band across saturated hue ramps) or `"srgb"` |
+| `gradient_extend` | shapes, text-like actors, and stroke paths | `"pad"` (default), `"repeat"`, `"reflect"` |
+| `gradient_space` | shapes, text-like actors, and stroke paths | `"oklab"` (default — no dark band across saturated hue ramps) or `"srgb"` |
 
-Gradient geometry is normalized to the painted shape's bounding box, so a ramp
-follows an actor that resizes. Ramps interpolate between keyframes when the two
-values share a kind and stop count, so a gradient can turn or stretch over time.
+Gradient geometry is normalized to the painted actor's bounding box (for text,
+the combined bounding box across all glyphs), so a ramp follows an actor that
+resizes. Ramps interpolate between keyframes when the two values share a kind and
 Both dash and gradient ride *outside* the shape-command memo — an animated dash
 offset or ramp would otherwise be served stale from a cached encoding, which is
 why a scene that uses neither pays nothing for them.
