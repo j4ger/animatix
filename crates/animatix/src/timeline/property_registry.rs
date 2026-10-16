@@ -710,6 +710,13 @@ pub static PROPERTY_REGISTRY: std::sync::LazyLock<Vec<PropertySchema>> =
 /// [`animatix_core::property::PROPERTY_DESCRIPTORS`] and are joined in by
 /// [`PROPERTY_REGISTRY`].
 static BINDINGS: &[PropertyBinding] = &[
+    binding!(
+        "active_color",
+        ValueType::Color,
+        F::ASSIGNABLE_AI,
+        ActorField::Tagged("active_color"),
+        |_| super::property_engine::PropertyValue::Color([1.0, 0.8, 0.0, 1.0])
+    ),
     binding!("align", ValueType::String, F::empty(), ActorField::ContainerLayoutGroup, |_| {
         super::property_engine::PropertyValue::String("center".to_string())
     }),
@@ -734,6 +741,34 @@ static BINDINGS: &[PropertyBinding] = &[
         ActorField::PositionBindingGroup,
         |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0]),
         ReadSource::Alias(ActorField::Position)
+    ),
+    binding!(
+        "backdrop",
+        ValueType::Bool,
+        F::ASSIGNABLE_AI,
+        ActorField::Tagged("backdrop"),
+        |_| super::property_engine::PropertyValue::Bool(false)
+    ),
+    binding!(
+        "backdrop_color",
+        ValueType::Color,
+        F::ASSIGNABLE_AI,
+        ActorField::Tagged("backdrop_color"),
+        |_| super::property_engine::PropertyValue::Color([0.0, 0.0, 0.0, 0.65])
+    ),
+    binding!(
+        "backdrop_padding",
+        ValueType::Vec2,
+        F::ASSIGNABLE_AI,
+        ActorField::Tagged("backdrop_padding"),
+        |_| super::property_engine::PropertyValue::Vec2([16.0, 8.0])
+    ),
+    binding!(
+        "backdrop_radius",
+        ValueType::F32,
+        F::ASSIGNABLE_AI,
+        ActorField::Tagged("backdrop_radius"),
+        |_| super::property_engine::PropertyValue::F32(8.0)
     ),
     binding!(
         "background_color",
@@ -776,6 +811,13 @@ static BINDINGS: &[PropertyBinding] = &[
         F::empty(),
         ActorField::NoStorage,
         |_| super::property_engine::PropertyValue::Bool(true)
+    ),
+    binding!(
+        "caption_mode",
+        ValueType::String,
+        F::ASSIGNABLE_AI,
+        ActorField::Tagged("caption_mode"),
+        |_| super::property_engine::PropertyValue::String("block".to_string())
     ),
     binding!(
         "char_progress",
@@ -838,6 +880,9 @@ static BINDINGS: &[PropertyBinding] = &[
     }),
     binding!("direction", ValueType::String, F::empty(), ActorField::NoStorage, |_| {
         super::property_engine::PropertyValue::String("vertical".to_string())
+    }),
+    binding!("end", ValueType::F32, F::ASSIGNABLE_AI, ActorField::Tagged("end"), |_| {
+        super::property_engine::PropertyValue::F32(0.0)
     }),
     binding!(
         "fill_gradient",
@@ -967,6 +1012,13 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("idle", ValueType::String, F::ASSIGNABLE_AI, ActorField::Tagged("idle"), |_| {
         super::property_engine::PropertyValue::String(String::new())
     }),
+    binding!(
+        "inactive_color",
+        ValueType::Color,
+        F::ASSIGNABLE_AI,
+        ActorField::Tagged("inactive_color"),
+        |_| super::property_engine::PropertyValue::Color([0.6, 0.6, 0.6, 0.8])
+    ),
     binding!("kind", ValueType::String, F::empty(), ActorField::PlotDomainGroup, |_| {
         super::property_engine::PropertyValue::String("cartesian".to_string())
     }),
@@ -1018,6 +1070,13 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("max_height", ValueType::F32, F::SPATIAL_AI, ActorField::MaxHeight, |_| {
         super::property_engine::PropertyValue::F32(f32::INFINITY)
     }),
+    binding!(
+        "max_lines",
+        ValueType::U32,
+        F::ASSIGNABLE_AI,
+        ActorField::Tagged("max_lines"),
+        |_| super::property_engine::PropertyValue::U32(2)
+    ),
     binding!("max_value", ValueType::F32, F::empty(), ActorField::NoStorage, |_| {
         super::property_engine::PropertyValue::F32(0.0)
     }),
@@ -1070,6 +1129,13 @@ static BINDINGS: &[PropertyBinding] = &[
         F::ASSIGNABLE_A.union(F::SPATIAL).union(F::PATH_AFFECTING),
         ActorField::Points,
         |_| super::property_engine::PropertyValue::PointList(Vec::new())
+    ),
+    binding!(
+        "pop_scale",
+        ValueType::F32,
+        F::ASSIGNABLE_AI,
+        ActorField::Tagged("pop_scale"),
+        |_| super::property_engine::PropertyValue::F32(1.15)
     ),
     binding!("position", ValueType::Vec2, F::SPATIAL_AI, ActorField::Position, |_| {
         super::property_engine::PropertyValue::Vec2([0.0, 0.0])
@@ -1217,6 +1283,9 @@ static BINDINGS: &[PropertyBinding] = &[
         ActorField::CalloutStandoff,
         |_| super::property_engine::PropertyValue::F32(40.0)
     ),
+    binding!("start", ValueType::F32, F::ASSIGNABLE_AI, ActorField::Tagged("start"), |_| {
+        super::property_engine::PropertyValue::F32(0.0)
+    }),
     binding!("stroke", ValueType::Color, F::ASSIGNABLE_AI, ActorField::StrokeColor, |_| {
         super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])
     }),
@@ -1308,9 +1377,23 @@ static BINDINGS: &[PropertyBinding] = &[
     binding!("tolerance", ValueType::F32, F::empty(), ActorField::PlotDomainGroup, |_| {
         super::property_engine::PropertyValue::F32(2.0)
     }),
+    binding!(
+        "transcript",
+        ValueType::String,
+        F::ASSIGNABLE,
+        ActorField::Tagged("transcript"),
+        |_| super::property_engine::PropertyValue::String(String::new())
+    ),
     binding!("transform", ValueType::Transform, F::SPATIAL_AI, ActorField::Transform, |_| {
         super::property_engine::PropertyValue::Transform([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
     }),
+    binding!(
+        "transition_time",
+        ValueType::F32,
+        F::ASSIGNABLE_AI,
+        ActorField::Tagged("transition_time"),
+        |_| super::property_engine::PropertyValue::F32(0.15)
+    ),
     binding!("url", ValueType::String, F::ASSIGNABLE, ActorField::ImageData, |_| {
         super::property_engine::PropertyValue::String(String::new())
     }),

@@ -732,6 +732,10 @@ impl Composition {
                         crate::ast::Time::Beats(b) => {
                             b * crate::ast::beat_seconds(crate::ast::DEFAULT_BPM)
                         },
+                        crate::ast::Time::SpeechMarker { offset_ms, .. }
+                        | crate::ast::Time::SpeechWord { offset_ms, .. } => {
+                            *offset_ms as f64 / 1000.0
+                        },
                     };
                 },
                 Stmt::Play {

@@ -1160,6 +1160,7 @@ impl Primitive for NativePrimitiveAdapter {
             ChildProcessing::Glass => timeline.render_glass_children_ctx(ctx),
             ChildProcessing::Mask => timeline.render_mask_children_ctx(ctx),
             ChildProcessing::Equation => timeline.render_equation_children_ctx(ctx),
+            ChildProcessing::Captions => timeline.render_captions_children_ctx(ctx),
             ChildProcessing::Generic => ctx.render_children_default(children),
         }
         Ok(())

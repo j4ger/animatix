@@ -657,6 +657,8 @@ pub struct Timeline {
     /// Audio segments collected from Audio actor declarations.
     /// These are muxed into the output during video export.
     pub(crate) audio_segments: Vec<AudioSegment>,
+    /// Speech transcripts parsed from audio/captions declarations, keyed by actor label.
+    pub transcripts: std::collections::HashMap<String, animatix_text::transcript::SpeechTranscript>,
     /// Action events collected during build, for GUI timeline visualization.
     pub action_events: Vec<crate::timeline::animation_track::ActionEvent>,
     /// Cache for static plot paths keyed by parameter hash (Phase 6.4).
@@ -930,6 +932,7 @@ impl Timeline {
             wildcard_actors: std::collections::HashSet::new(),
             referenced_properties: std::collections::HashMap::new(),
             audio_segments: Vec::new(),
+            transcripts: std::collections::HashMap::new(),
             action_events: Vec::new(),
             plot_path_cache: std::collections::HashMap::new(),
             modifier_hash: 0,
@@ -1356,6 +1359,13 @@ impl Timeline {
     /// Returns a reference to all tracks.
     pub fn tracks(&self) -> &BTreeMap<String, AnimationTrack> {
         &self.tracks
+    }
+
+    /// Returns a reference to all parsed speech transcripts, keyed by actor label.
+    pub fn transcripts(
+        &self,
+    ) -> &std::collections::HashMap<String, animatix_text::transcript::SpeechTranscript> {
+        &self.transcripts
     }
 
     /// Returns a mutable reference to all tracks.

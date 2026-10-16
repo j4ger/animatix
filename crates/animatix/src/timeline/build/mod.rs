@@ -38,6 +38,7 @@ mod process;
 mod property;
 pub(crate) mod referenced_roots;
 mod shape;
+pub(crate) mod speech;
 pub(crate) mod utils;
 
 /// Extracted actor properties parsed from an actor declaration's props.

@@ -276,6 +276,11 @@ pub fn shift_keyframe_times(stmts: &mut [Stmt], offset_s: f64) {
                     animatix_syntax::ast::Time::Beats(b) => {
                         *b * animatix_syntax::ast::beat_seconds(animatix_syntax::ast::DEFAULT_BPM)
                     },
+                    animatix_syntax::ast::Time::SpeechMarker { offset_ms, .. }
+                    | animatix_syntax::ast::Time::SpeechWord { offset_ms, .. } => {
+                        *offset_ms += (offset_s * 1000.0) as i64;
+                        continue;
+                    },
                 };
                 let new_t = t + offset_s;
                 *time = animatix_syntax::ast::Time::Seconds(new_t);

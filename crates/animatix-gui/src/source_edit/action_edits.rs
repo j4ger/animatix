@@ -179,6 +179,9 @@ fn time_to_seconds(time: &Time) -> f64 {
         // Editor-side positioning only: a beat stamp reads at the default
         // tempo, the same convention the outline and analyzer use.
         Time::Beats(b) => b * animatix_syntax::ast::beat_seconds(animatix_syntax::ast::DEFAULT_BPM),
+        Time::SpeechMarker { offset_ms, .. } | Time::SpeechWord { offset_ms, .. } => {
+            *offset_ms as f64 / 1000.0
+        },
     }
 }
 

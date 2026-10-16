@@ -279,6 +279,7 @@ pub(crate) fn modifier<'src>(
                     Time::Seconds(s) => Expr::Ident(format!("{s}s")),
                     Time::Milliseconds(ms) => Expr::Ident(format!("{ms}ms")),
                     Time::Beats(b) => Expr::Ident(format!("{b}b")),
+                    other => Expr::Ident(crate::format_core::format_time(&other)),
                 }),
                 keyword_ident().or(expr.clone()),
             )))
@@ -292,6 +293,7 @@ pub(crate) fn modifier<'src>(
                 Time::Seconds(s) => Expr::Ident(format!("{s}s")),
                 Time::Milliseconds(ms) => Expr::Ident(format!("{ms}ms")),
                 Time::Beats(b) => Expr::Ident(format!("{b}b")),
+                other => Expr::Ident(crate::format_core::format_time(&other)),
             },
         }),
         expr.clone().map(|value| Modifier { name: None, value }),

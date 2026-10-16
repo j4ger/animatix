@@ -392,6 +392,26 @@ pub enum Time {
     Milliseconds(u64),
     /// Time in beats (e.g. `2b`), resolved by the scene's `config { bpm: … }`.
     Beats(f64),
+    /// Speech cue/marker reference: `#track@marker + offset`
+    SpeechMarker {
+        /// Audio track label (e.g. `voice`).
+        track: String,
+        /// Named marker identifier within the transcript.
+        marker: String,
+        /// Relative time offset in milliseconds.
+        offset_ms: i64,
+    },
+    /// Speech word reference: `#track["word", occurrence] + offset`
+    SpeechWord {
+        /// Audio track label (e.g. `voice`).
+        track: String,
+        /// Spoken word to search for in the transcript.
+        word: String,
+        /// 1-indexed occurrence count for duplicate words.
+        occurrence: usize,
+        /// Relative time offset in milliseconds.
+        offset_ms: i64,
+    },
 }
 
 /// Tempo assumed where a beat stamp has to be resolved without a scene config

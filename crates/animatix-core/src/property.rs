@@ -131,7 +131,9 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
         // `font_size` off its props (`primitives/legend.rs`), so the row has to
         // include it or the applicability lint reports a working property as
         // dropped.
-        Applicable::Actors(&["Code", "Equation", "Legend", "Math", "Text", "Typst"]),
+        Applicable::Actors(&[
+            "Captions", "Code", "Cue", "Equation", "Legend", "Math", "Text", "Typst",
+        ]),
         PropertyValueKind::F32,
     ),
     PropertyDescriptor::new("font_style", Applicable::TextLike, PropertyValueKind::String),
@@ -417,6 +419,64 @@ pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
     PropertyDescriptor::new("perspective", Applicable::Everything, PropertyValueKind::F32),
     // Cross-scene shared element transition identifier.
     PropertyDescriptor::new("shared_id", Applicable::Everything, PropertyValueKind::String),
+    // Display mode for captions ("block", "karaoke", "pop", "roll").
+    PropertyDescriptor::new(
+        "caption_mode",
+        Applicable::Actors(&["Captions"]),
+        PropertyValueKind::String,
+    ),
+    // Highlight color for current active word in captions.
+    PropertyDescriptor::new(
+        "active_color",
+        Applicable::Actors(&["Captions", "Cue"]),
+        PropertyValueKind::Vec4,
+    ),
+    // Color for inactive or dimmed words in captions.
+    PropertyDescriptor::new(
+        "inactive_color",
+        Applicable::Actors(&["Captions"]),
+        PropertyValueKind::Vec4,
+    ),
+    // Whether to render a backdrop pill/box behind captions.
+    PropertyDescriptor::new("backdrop", Applicable::Actors(&["Captions"]), PropertyValueKind::Bool),
+    // Color of the backdrop box behind captions.
+    PropertyDescriptor::new(
+        "backdrop_color",
+        Applicable::Actors(&["Captions"]),
+        PropertyValueKind::Vec4,
+    ),
+    // Corner radius of the backdrop box.
+    PropertyDescriptor::new(
+        "backdrop_radius",
+        Applicable::Actors(&["Captions"]),
+        PropertyValueKind::F32,
+    ),
+    // Padding (horizontal, vertical) around text inside the backdrop box.
+    PropertyDescriptor::new(
+        "backdrop_padding",
+        Applicable::Actors(&["Captions"]),
+        PropertyValueKind::Vec2,
+    ),
+    // Scale multiplier for active word spring pop in "pop" caption mode.
+    PropertyDescriptor::new("pop_scale", Applicable::Actors(&["Captions"]), PropertyValueKind::F32),
+    // Maximum number of visible lines per caption cue before line-breaking.
+    PropertyDescriptor::new("max_lines", Applicable::Actors(&["Captions"]), PropertyValueKind::U32),
+    // Fade/slide transition duration for captions in seconds.
+    PropertyDescriptor::new(
+        "transition_time",
+        Applicable::Actors(&["Captions"]),
+        PropertyValueKind::F32,
+    ),
+    // Path to speech transcript file (.json, .vtt, .srt) for Audio or Captions actor.
+    PropertyDescriptor::new(
+        "transcript",
+        Applicable::Actors(&["Audio", "Captions"]),
+        PropertyValueKind::String,
+    ),
+    // Start time of a caption cue in seconds.
+    PropertyDescriptor::new("start", Applicable::Actors(&["Cue"]), PropertyValueKind::F32),
+    // End time of a caption cue in seconds.
+    PropertyDescriptor::new("end", Applicable::Actors(&["Cue"]), PropertyValueKind::F32),
 ];
 
 /// The descriptor for `name`, when it is a built-in property.

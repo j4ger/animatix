@@ -69,6 +69,7 @@ pub(crate) fn parser<'src>(
     let keyframe = hash()
         .ignore_then(plus().or_not())
         .then(time)
+        .then_ignore(colon().or_not())
         .then(common::scoped(stmt.clone().repeated().collect::<Vec<_>>()))
         .map(|((is_relative, t), body)| {
             if is_relative.is_some() {

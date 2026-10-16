@@ -15,6 +15,8 @@ use std::sync::Arc;
 use animatix_core::error::RenderError;
 use kurbo::{Affine, BezPath, Point, Shape};
 
+pub mod transcript;
+
 /// A glyph path extracted from text, with color and opacity.
 #[derive(Debug, Clone)]
 pub struct TextPath {

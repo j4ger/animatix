@@ -79,13 +79,56 @@ pub fn bool_lit<'a>() -> impl Parser<'a, TokInput<'a>, bool, TokErr<'a>> + Clone
     select! { TokenKind::Bool(b) => b }
 }
 
-/// A time literal, returned as an AST `Time`.
+/// A time literal or speech-cue timestamp, returned as an AST `Time`.
 pub fn time<'a>() -> impl Parser<'a, TokInput<'a>, crate::ast::Time, TokErr<'a>> + Clone {
-    select! {
+    let standard_time = select! {
         TokenKind::Time { value, ms } if ms => crate::ast::Time::Milliseconds(value as u64),
         TokenKind::Time { value, ms: false } => crate::ast::Time::Seconds(value),
         TokenKind::BeatTime { value } => crate::ast::Time::Beats(value),
-    }
+    };
+
+    let offset_time = choice((
+        plus().ignore_then(standard_time).map(|t| match t {
+            crate::ast::Time::Milliseconds(ms) => ms as i64,
+            crate::ast::Time::Seconds(s) => (s * 1000.0) as i64,
+            _ => 0,
+        }),
+        minus().ignore_then(standard_time).map(|t| match t {
+            crate::ast::Time::Milliseconds(ms) => -(ms as i64),
+            crate::ast::Time::Seconds(s) => -(s * 1000.0) as i64,
+            _ => 0,
+        }),
+    ))
+    .or_not();
+
+    let marker_target = at().ignore_then(ident()).map(|m| (m, None));
+
+    let word_target = lbracket()
+        .ignore_then(string())
+        .then(comma().ignore_then(number()).or_not())
+        .then_ignore(rbracket())
+        .map(|(w, occ)| (w, Some(occ.map(|n| n as usize).unwrap_or(1))));
+
+    let speech_time = ident().then(choice((marker_target, word_target))).then(offset_time).map(
+        |((track, target), offset)| {
+            let offset_ms = offset.unwrap_or(0);
+            match target {
+                (marker, None) => crate::ast::Time::SpeechMarker {
+                    track,
+                    marker,
+                    offset_ms,
+                },
+                (word, Some(occurrence)) => crate::ast::Time::SpeechWord {
+                    track,
+                    word,
+                    occurrence,
+                    offset_ms,
+                },
+            }
+        },
+    );
+
+    choice((standard_time, speech_time))
 }
 
 /// A percentage literal.
@@ -205,5 +248,62 @@ mod tests {
         let (((t, p), _), _) = parser.parse(input).into_result().unwrap();
         assert_eq!(t, crate::ast::Time::Seconds(2.0));
         assert_eq!(p, 50.0);
+    }
+
+    #[test]
+    fn parses_speech_cue_times() {
+        let tokens = crate::token::tokenize("voice@intro");
+        let spanned_toks = spanned(&tokens);
+        let input = as_input(&spanned_toks);
+        let t = time().parse(input).into_result().unwrap();
+        assert_eq!(
+            t,
+            crate::ast::Time::SpeechMarker {
+                track: "voice".to_string(),
+                marker: "intro".to_string(),
+                offset_ms: 0,
+            }
+        );
+
+        let tokens = crate::token::tokenize("voice@step1 + 250ms");
+        let spanned_toks = spanned(&tokens);
+        let input = as_input(&spanned_toks);
+        let t = time().parse(input).into_result().unwrap();
+        assert_eq!(
+            t,
+            crate::ast::Time::SpeechMarker {
+                track: "voice".to_string(),
+                marker: "step1".to_string(),
+                offset_ms: 250,
+            }
+        );
+
+        let tokens = crate::token::tokenize("voice[\"attention\"]");
+        let spanned_toks = spanned(&tokens);
+        let input = as_input(&spanned_toks);
+        let t = time().parse(input).into_result().unwrap();
+        assert_eq!(
+            t,
+            crate::ast::Time::SpeechWord {
+                track: "voice".to_string(),
+                word: "attention".to_string(),
+                occurrence: 1,
+                offset_ms: 0,
+            }
+        );
+
+        let tokens = crate::token::tokenize("voice[\"network\", 2] - 100ms");
+        let spanned_toks = spanned(&tokens);
+        let input = as_input(&spanned_toks);
+        let t = time().parse(input).into_result().unwrap();
+        assert_eq!(
+            t,
+            crate::ast::Time::SpeechWord {
+                track: "voice".to_string(),
+                word: "network".to_string(),
+                occurrence: 2,
+                offset_ms: -100,
+            }
+        );
     }
 }

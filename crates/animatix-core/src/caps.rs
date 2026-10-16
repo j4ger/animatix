@@ -56,6 +56,8 @@ pub enum ChildProcessingKind {
     Mask,
     /// Aggregate typst fragments with highlight ranges.
     Equation,
+    /// Aggregate Cue children and speech-synced text rendering.
+    Captions,
 }
 
 /// Specific shape geometry variant.

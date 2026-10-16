@@ -337,6 +337,26 @@ impl Timeline {
                     .unwrap_or(Value::Num(1.0))
                     .as_num() as f32;
                 },
+                "transcript" => {
+                    let path = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map(|v| v.as_str().to_string())
+                    .unwrap_or_default();
+                    if !path.is_empty() {
+                        let normalized = self.asset_cache.normalize_asset_url(&path);
+                        if let Ok(content) = std::fs::read_to_string(&normalized) {
+                            if let Ok(t) =
+                                animatix_text::transcript::parse_transcript_auto(&content)
+                            {
+                                self.transcripts.insert(label.to_string(), t);
+                            }
+                        }
+                    }
+                },
                 _ => {},
             }
         }

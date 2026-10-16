@@ -786,6 +786,7 @@ fn output_child_processing(kind: ChildProcessingKind) -> Option<&'static str> {
         ChildProcessingKind::Glass => Some("Glass"),
         ChildProcessingKind::Mask => Some("Mask"),
         ChildProcessingKind::Equation => Some("Equation"),
+        ChildProcessingKind::Captions => Some("Captions"),
     }
 }
 

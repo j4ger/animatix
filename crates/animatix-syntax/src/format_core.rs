@@ -115,6 +115,38 @@ pub fn format_time(t: &Time) -> String {
         },
         Time::Milliseconds(ms) => format!("{}ms", ms),
         Time::Beats(b) => format!("{b}b"),
+        Time::SpeechMarker {
+            track,
+            marker,
+            offset_ms,
+        } => {
+            if *offset_ms > 0 {
+                format!("{track}@{marker} + {}ms", offset_ms)
+            } else if *offset_ms < 0 {
+                format!("{track}@{marker} - {}ms", -offset_ms)
+            } else {
+                format!("{track}@{marker}")
+            }
+        },
+        Time::SpeechWord {
+            track,
+            word,
+            occurrence,
+            offset_ms,
+        } => {
+            let occ_str = if *occurrence > 1 {
+                format!(", {occurrence}")
+            } else {
+                String::new()
+            };
+            if *offset_ms > 0 {
+                format!("{track}[\"{word}\"{occ_str}] + {}ms", offset_ms)
+            } else if *offset_ms < 0 {
+                format!("{track}[\"{word}\"{occ_str}] - {}ms", -offset_ms)
+            } else {
+                format!("{track}[\"{word}\"{occ_str}]")
+            }
+        },
     }
 }
 

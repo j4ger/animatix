@@ -876,6 +876,9 @@ pub fn time_to_ms_at_beat(time: &Time, beat_ms: f64) -> f64 {
         Time::Seconds(s) => *s * 1000.0,
         Time::Milliseconds(ms) => *ms as f64,
         Time::Beats(b) => *b * beat_ms,
+        Time::SpeechMarker { offset_ms, .. } | Time::SpeechWord { offset_ms, .. } => {
+            *offset_ms as f64
+        },
     }
 }
 

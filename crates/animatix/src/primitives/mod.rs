@@ -831,6 +831,10 @@ mod equation;
 pub use equation::EQUATION;
 mod fragment;
 pub use fragment::FRAGMENT;
+mod captions;
+pub use captions::CAPTIONS;
+mod cue;
+pub use cue::CUE;
 mod callout;
 pub use callout::CALLOUT;
 mod legend;
@@ -1589,6 +1593,20 @@ pub struct EquationFragment {
     pub highlight_blend: vello::peniko::Mix,
 }
 
+/// Returned by [`Primitive::caption_cue`]; the Captions container collects
+/// every child whose primitive returns `Some`, in source order.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CaptionCue {
+    /// Cue subtitle text.
+    pub text: String,
+    /// Cue start time in milliseconds.
+    pub start_ms: u64,
+    /// Cue end time in milliseconds.
+    pub end_ms: u64,
+    /// Optional active word highlight color override for this cue.
+    pub active_color: Option<[f32; 4]>,
+}
+
 /// Concatenate every vector path emitted by `commands` into one clip geometry.
 ///
 /// All `Paths` commands and all subpaths contribute: a multi-path shape (e.g. an
@@ -1681,6 +1699,12 @@ pub trait Primitive: Send + Sync {
     /// Data this primitive contributes to a parent `Equation`'s document, or
     /// `None` when it is not an equation fragment.
     fn equation_fragment(&self, _ctx: &EvaluateCtx) -> Option<EquationFragment> {
+        None
+    }
+
+    /// Data this primitive contributes as a subtitle cue to a parent
+    /// `Captions` container, or `None` when it is not a cue.
+    fn caption_cue(&self, _ctx: &EvaluateCtx) -> Option<CaptionCue> {
         None
     }
 
@@ -1889,6 +1913,9 @@ pub static BUILT_INS: &[BuiltIn] = &[
     BuiltIn::new(&animatix_std::catalog::EQUATION, &EQUATION),
     // Equation / Fragment
     BuiltIn::new(&animatix_std::catalog::FRAGMENT, &FRAGMENT),
+    // Captions container & Cue sub-item
+    BuiltIn::new(&animatix_std::catalog::CAPTIONS, &CAPTIONS),
+    BuiltIn::new(&animatix_std::catalog::CUE, &CUE),
     // Annotations
     BuiltIn::new(&animatix_std::catalog::CALLOUT, &CALLOUT),
     BuiltIn::new(&animatix_std::catalog::LEGEND, &LEGEND),

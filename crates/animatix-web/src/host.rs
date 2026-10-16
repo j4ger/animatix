@@ -374,6 +374,10 @@ fn collect_keyframe_stmt_times(stmts: &[Stmt], base: f64, out: &mut Vec<f64>) {
                     animatix_syntax::ast::Time::Beats(b) => {
                         b * animatix_syntax::ast::beat_seconds(animatix_syntax::ast::DEFAULT_BPM)
                     },
+                    animatix_syntax::ast::Time::SpeechMarker { offset_ms, .. }
+                    | animatix_syntax::ast::Time::SpeechWord { offset_ms, .. } => {
+                        *offset_ms as f64 / 1000.0
+                    },
                 };
                 out.push(base + t);
                 collect_keyframe_stmt_times(body, base, out);

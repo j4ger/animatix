@@ -10,7 +10,7 @@ Use these rules when generating `.amx` files:
 
 - Start with `config { colorscheme: "editorial-dark", resolution: (1280, 720) }` unless the user asks otherwise.
 - Declare actors as `label: Type, prop: value`; animate later with keyframes (`#1s`) and assignments (`label.prop = value [800ms, ease: ease-out]`).
-- Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Typst`, `Code`, `Math`, `Svg`, `Image`, `Audio`, `Equation`, `Fragment`, `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Glass`, `Mask`, `Callout`, `Legend`, `Connector`, `Counter`.
+- Use supported primitives only: `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Text`, `Typst`, `Code`, `Math`, `Svg`, `Image`, `Audio`, `Equation`, `Fragment`, `Graph`, `PlotCurve`, `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Glass`, `Mask`, `Callout`, `Legend`, `Connector`, `Counter`, `Captions`, `Cue`.
 - Avoid common hallucinations: `Circle` (use `Ellipse`), `Triangle` (use `Polygon`), `Chart`/`Diagram` (use `Graph`/`PlotCurve`), and any 3D primitives.
 - Colors are RGBA tuples `(r, g, b, a)`, hex strings (`"#ff2d55"`, `"#f55"`, `"#5e5ce600"` with alpha), scheme tokens (`accent.primary`, `text.primary`, etc.), `auto`, or named colors (`RED`/`red`, `GREEN`/`green`, `BLUE`/`blue`, `BLACK`/`black`, `WHITE`/`white`, `YELLOW`/`yellow`, `ORANGE`/`orange`).
 - Timing modifiers use positional duration: `[1s]`, `[800ms, ease: ease-in-out]`, `[delay: 250ms, 0s]`. Do not write `duration: 1s`. Omitting `ease:` on an *action* is usually right — the default is chosen by the verb's role (entrances decelerate, exits accelerate, repositions ease both ways). A plain assignment still defaults to linear; write `ease:` on it when you want a settle.
@@ -75,7 +75,7 @@ Use these rules when generating `.amx` files:
 |--------|-----|---------|
 | `let` | Variable/actor declaration | `let x = 0` |
 | `:` | Actor binding + scene placement | `label: Text, text: "OK"` |
-| `#` | Keyframe (absolute `#0s` or relative `#+1s`) or scene declaration (`# SceneName`) | `#2.5s`, `#+1s`, `# Intro` |
+| `#` | Keyframe (`#0s`, `#+1s`, `#2b`, `#voice@marker`, `#voice["word"]`) or scene declaration (`# SceneName`) | `#2.5s`, `#+1s`, `#voice@intro`, `# Intro` |
 | `play` | Scene transition statement | `play Diagram [fade, 300ms]` |
 | `{ }` | Container children, arrays, block scopes | `Row { Item1, Item2 }` |
 | `@` | Slot marker / slot fill prefix | `@slot` (definition), `@header { ... }` (fill) |
@@ -185,6 +185,26 @@ Actions under the same keyframe execute **simultaneously**:
 #2s
 fade-in A [1s]
 color B to red [2s]
+```
+
+**Speech & Voiceover Synchronization:**
+Keyframes can be anchored to spoken markers or word timestamps from an `Audio` track transcript (Universal JSON, Whisper JSON, WebVTT, or SRT):
+- Named marker: `#track@marker`, with optional offset: `#track@marker + 250ms`, `#track@marker - 100ms`
+- Spoken word: `#track["word"]` (matches first occurrence), or `#track["word", 2]` (matches 2nd occurrence)
+- Speech anchors lower statically to absolute milliseconds at build time, with zero runtime evaluation overhead.
+
+```animatix
+voice: Audio, source: "voiceover.mp3", transcript: "voiceover.speech.json"
+card: Rect, at: (960, 540), size: (400, 300)
+
+#voice@intro:
+    fade-in card [300ms]
+
+#voice["attention"]:
+    color card to accent.primary [200ms]
+
+#voice@outro + 500ms:
+    fade-out card [400ms]
 ```
 
 The timeline maintains a hierarchical `scene_graph`; transforms/opacities cascade via depth-first search.

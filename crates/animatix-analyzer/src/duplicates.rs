@@ -236,6 +236,32 @@ fn absolute_time_key(time: &Time) -> u64 {
         Time::Beats(b) => {
             (b * animatix_syntax::ast::beat_seconds(animatix_syntax::ast::DEFAULT_BPM)).to_bits()
         },
+        Time::SpeechMarker {
+            track,
+            marker,
+            offset_ms,
+        } => {
+            use std::hash::{Hash, Hasher};
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            track.hash(&mut hasher);
+            marker.hash(&mut hasher);
+            offset_ms.hash(&mut hasher);
+            hasher.finish()
+        },
+        Time::SpeechWord {
+            track,
+            word,
+            occurrence,
+            offset_ms,
+        } => {
+            use std::hash::{Hash, Hasher};
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            track.hash(&mut hasher);
+            word.hash(&mut hasher);
+            occurrence.hash(&mut hasher);
+            offset_ms.hash(&mut hasher);
+            hasher.finish()
+        },
     }
 }
 

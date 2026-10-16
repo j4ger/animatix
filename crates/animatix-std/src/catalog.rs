@@ -90,6 +90,8 @@ const CONTAINER_CAPS: PrimitiveCapabilities =
     caps(false, false, false, true, false, false, true, false, false, false, false, false);
 const EQUATION_CAPS: PrimitiveCapabilities =
     caps(false, false, false, true, false, false, true, false, true, false, false, false);
+const CAPTIONS_CAPS: PrimitiveCapabilities =
+    caps(true, false, false, true, false, false, true, false, true, false, false, false);
 /// `Glass` is a container with a rectangular *region*, not a surface. It carries
 /// no `ShapeKind` — the same choice `Filter` and `Mask` make — so the shape
 /// predicates (`fill_opacity`, the gradient paints) key off `caps.shape.is_some()`
@@ -474,6 +476,22 @@ pub static FRAGMENT: PrimitiveInfo = PrimitiveInfo::new(
 .with_doc("Sub-equation fragment within an Equation container.")
 .with_stub("text: \"x\"");
 
+// Captions container & Cue sub-item
+pub static CAPTIONS: PrimitiveInfo = PrimitiveInfo::new(
+    "Captions",
+    "Captions",
+    icon_glyphs::ARTICLE,
+    ActorCategory::Container,
+    CAPTIONS_CAPS,
+)
+.with_child_processing(ChildProcessingKind::Captions)
+.with_doc("Aggregates speech-synced subtitle cues with karaoke and kinetic styling.");
+
+pub static CUE: PrimitiveInfo =
+    PrimitiveInfo::new("Cue", "Cue", icon_glyphs::TEXT_T, ActorCategory::Text, TEXT_CAPS)
+        .with_doc("Individual timed subtitle cue inside a Captions container.")
+        .with_stub("text: \"\"");
+
 // Annotations
 pub static CALLOUT: PrimitiveInfo = PrimitiveInfo::new(
     "Callout",
@@ -552,6 +570,9 @@ pub static CATALOG: &[&PrimitiveInfo] = &[
     &EQUATION,
     // Equation fragment sub-item
     &FRAGMENT,
+    // Captions container & Cue sub-item
+    &CAPTIONS,
+    &CUE,
     // Annotations
     &CALLOUT,
     &LEGEND,

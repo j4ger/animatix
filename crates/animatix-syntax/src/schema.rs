@@ -561,6 +561,19 @@ fn raw_property_types() -> Vec<(&'static str, Type)> {
         ("rotate_y", Type::Num),
         ("perspective", Type::Num),
         ("shared_id", Type::Str),
+        ("caption_mode", Type::Str),
+        ("active_color", Type::Color),
+        ("inactive_color", Type::Color),
+        ("backdrop", Type::Bool),
+        ("backdrop_color", Type::Color),
+        ("backdrop_radius", Type::Num),
+        ("backdrop_padding", Type::Vec2),
+        ("pop_scale", Type::Num),
+        ("max_lines", Type::Num),
+        ("transition_time", Type::Num),
+        ("transcript", Type::Str),
+        ("start", Type::Num),
+        ("end", Type::Num),
     ]
 }
 
@@ -610,7 +623,7 @@ mod tests {
         let specs = property_specs();
         assert_eq!(
             specs.len(),
-            125,
+            138,
             "the built-in property count changed; update this pin deliberately (ids are persisted)"
         );
         // Dense, unique ids starting at zero — no gaps for a join to fall into.
@@ -814,6 +827,7 @@ mod tests {
         assert_eq!(child_processing_of("Filter"), Some(ChildProcessingKind::Filter));
         assert_eq!(child_processing_of("Mask"), Some(ChildProcessingKind::Mask));
         assert_eq!(child_processing_of("Equation"), Some(ChildProcessingKind::Equation));
+        assert_eq!(child_processing_of("Captions"), Some(ChildProcessingKind::Captions));
         assert_eq!(child_processing_of("Rect"), Some(ChildProcessingKind::Generic));
     }
 }

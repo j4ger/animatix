@@ -482,6 +482,19 @@ impl Timeline {
             }
         }
 
+        // Pre-pass: collect speech transcripts from Audio/Captions declarations
+        super::speech::collect_transcripts_from_ast(
+            ast,
+            &timeline.asset_cache,
+            &mut timeline.transcripts,
+            &mut diagnostics,
+        );
+
+        // Pre-pass: lower any speech-anchored keyframe times in the AST
+        let lowered_ast =
+            super::speech::lower_speech_keyframes(ast, &timeline.transcripts, &mut diagnostics);
+        let ast = &lowered_ast;
+
         let mut has_seen_keyframe = false;
         for stmt in ast {
             match stmt {

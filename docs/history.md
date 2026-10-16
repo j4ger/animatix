@@ -14,6 +14,23 @@ mixed history and open work).
 Historical tracks are kept as evidence. New implementation work is tracked in
 [Backlog & Prioritization](#backlog--prioritization).
 
+### Speech/Voiceover Progress Synchronization & First-Class Captions (2026-10-17)
+
+Implemented first-class captions and audio speech progress synchronization across the pipeline, maintaining Animatix's "perfect primitive abstraction" and zero runtime allocation:
+1. **Speech Anchored Keyframes**:
+   - Extended `.amx` keyframe syntax to anchor to audio speech markers and spoken words: `#track@marker`, `#track@marker + offset`, `#track@marker - offset`, and `#track["word", occurrence]`.
+   - Compile-time static lowering (`crates/animatix/src/timeline/build/speech.rs`): Ingests transcript metadata during AST pre-pass, resolves marker and word timestamps to absolute milliseconds, and substitutes numeric `Time::Milliseconds(u64)` before main timeline evaluation. Per-frame evaluation remains 100% numeric, non-blocking, and allocation-free.
+2. **First-Class Captions & Cue Primitives**:
+   - Added container primitive `Captions` and leaf child primitive `Cue` to standard catalog (`crates/animatix-std`).
+   - `Captions` supports multi-mode kinetic subtitle rendering: `"word"` (discrete highlight), `"karaoke"` (word-by-word color fill transition), `"pop"` (spring scale emphasis on active word), and `"line"` (traditional block subtitles).
+   - Backdrop pill styling (`backdrop: true`, `backdrop_color`, `backdrop_radius`, `backdrop_padding`) automatically wraps active subtitle lines.
+   - Declarative `Cue` children or transcript ingestion (`transcript: "narration.speech.json"`).
+3. **Multi-Format Transcript Parser (`crates/animatix-text`)**:
+   - Built lossless transcript parser supporting Universal Speech JSON (`.speech.json`), raw OpenAI/Faster-Whisper JSON (word-level timestamps and segments), WebVTT (`.vtt`), and SubRip (`.srt`).
+4. **Tooling & IDE Parity**:
+   - Updated `animatix-syntax`, `animatix-analyzer`, `animatix-gui` source edits (`action_edits`, `ast_utils`), and `animatix-web` with exhaustive pattern matching and semantic tokenization for speech keyframe times.
+
+
 ### CI Wall-Clock Runtime Optimization (2026-10-13)
 
 Profiled GitHub Actions run logs and eliminated critical sequential bottlenecks that kept PR runs at ~30 minutes:
