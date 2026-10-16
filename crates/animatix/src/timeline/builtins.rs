@@ -535,7 +535,12 @@ pub fn load_standard_library(env: &mut Environment) {
             expect_arg_count("rgb", args, 3)?;
             match (&args[0], &args[1], &args[2]) {
                 (Value::Num(r), Value::Num(g), Value::Num(b)) => {
-                    Ok(Value::Color([*r / 255.0, *g / 255.0, *b / 255.0, 1.0]))
+                    let divisor = if *r > 1.0 || *g > 1.0 || *b > 1.0 {
+                        255.0
+                    } else {
+                        1.0
+                    };
+                    Ok(Value::Color([*r / divisor, *g / divisor, *b / divisor, 1.0]))
                 },
                 _ => Err(EvalError::TypeMismatch("rgb expects 3 numbers".to_string())),
             }
@@ -548,7 +553,12 @@ pub fn load_standard_library(env: &mut Environment) {
             expect_arg_count("rgba", args, 4)?;
             match (&args[0], &args[1], &args[2], &args[3]) {
                 (Value::Num(r), Value::Num(g), Value::Num(b), Value::Num(a)) => {
-                    Ok(Value::Color([*r, *g, *b, *a]))
+                    let divisor = if *r > 1.0 || *g > 1.0 || *b > 1.0 {
+                        255.0
+                    } else {
+                        1.0
+                    };
+                    Ok(Value::Color([*r / divisor, *g / divisor, *b / divisor, *a]))
                 },
                 _ => Err(EvalError::TypeMismatch("rgba expects 4 numbers".to_string())),
             }

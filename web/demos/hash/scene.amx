@@ -10,6 +10,7 @@
 
 import "../../demos/lib/theme.amx"
 import "../../demos/lib/components.amx"
+import "../../demos/lib/ambience.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720) }
 
@@ -18,37 +19,49 @@ config { colorscheme: "ink", resolution: (1280, 720) }
 # Buckets
 config { colorscheme: "ink", duration: 8 }
 
-bk_title: Text, text: "Where keys live", font_size: 38,
-  color: text.primary, anchor: scene.top, offset: (0, 52)
-bk_sub: Text, text: "hash(key) = add the letter positions, then mod 8",
-  font_size: 17, color: text.secondary, anchor: scene.top, offset: (0, 104)
+bg1: Ambience, tint: accent.primary
 
-b0: LabeledBox, label: "0", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (164, 500)
-b1: LabeledBox, label: "1", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (300, 500)
-b2: LabeledBox, label: "2", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (436, 500)
-b3: LabeledBox, label: "3", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (572, 500)
-b4: LabeledBox, label: "4", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (708, 500)
-b5: LabeledBox, label: "5", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (844, 500)
-b6: LabeledBox, label: "6", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (980, 500)
-b7: LabeledBox, label: "7", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (1116, 500)
+bk_title: Text, text: "Where Keys Live", font_size: 38, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 44)
+bk_sub: Text, text: "hash(key) = sum of letter positions mod 8",
+  font_size: 15, color: text.secondary, anchor: scene.top, offset: (0, 88)
 
-f_cat: Text, text: "cat: 3+1+20 = 24   24 mod 8 = 0", font_size: 21,
-  color: text.secondary, anchor: scene.center, offset: (0, -120), opacity: 0.0
-f_dog: Text, text: "dog: 4+15+7 = 26   26 mod 8 = 2", font_size: 21,
-  color: text.secondary, anchor: scene.center, offset: (0, -120), opacity: 0.0
-f_sun: Text, text: "sun: 19+21+14 = 54   54 mod 8 = 6", font_size: 21,
-  color: text.secondary, anchor: scene.center, offset: (0, -120), opacity: 0.0
+chassis_lbl: Text, text: "MODULO 8 BUCKET ARRAY", font_size: 11, font_weight: 600,
+  color: text.muted, at: (220, 440)
+table_chassis: Rect, size: (1120, 84), at: (640, 500), corner_radius: 12,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1
 
-chip_cat: LabeledBox, label: "cat", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (164, 250)
-chip_dog: LabeledBox, label: "dog", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (300, 250)
-chip_sun: LabeledBox, label: "sun", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (980, 250)
+b0: LabeledBox, label: "0", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (164, 500)
+b1: LabeledBox, label: "1", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (300, 500)
+b2: LabeledBox, label: "2", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (436, 500)
+b3: LabeledBox, label: "3", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (572, 500)
+b4: LabeledBox, label: "4", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (708, 500)
+b5: LabeledBox, label: "5", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (844, 500)
+b6: LabeledBox, label: "6", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (980, 500)
+b7: LabeledBox, label: "7", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (1116, 500)
+
+formula_box: Rect, size: (480, 48), at: (640, 240), corner_radius: 10,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1, opacity: 0.0
+
+f_cat: Text, text: "cat: 3+1+20 = 24   24 mod 8 = 0", font_size: 18, font_weight: 600,
+  color: text.secondary, at: (640, 240), opacity: 0.0
+f_dog: Text, text: "dog: 4+15+7 = 26   26 mod 8 = 2", font_size: 18, font_weight: 600,
+  color: text.secondary, at: (640, 240), opacity: 0.0
+f_sun: Text, text: "sun: 19+21+14 = 54   54 mod 8 = 6", font_size: 18, font_weight: 600,
+  color: text.secondary, at: (640, 240), opacity: 0.0
+
+chip_cat: LabeledBox, label: "cat", width: 110, height: 52, text_size: 20, fill: accent.primary, at: (164, 240)
+chip_dog: LabeledBox, label: "dog", width: 110, height: 52, text_size: 20, fill: accent.primary, at: (300, 240)
+chip_sun: LabeledBox, label: "sun", width: 110, height: 52, text_size: 20, fill: accent.primary, at: (980, 240)
 
 bk_cap: Text, text: "the hash picks the bucket — the key never chooses where it lives",
-  font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -40), opacity: 0.0
+  font_size: 15, color: text.muted, anchor: scene.bottom, offset: (0, -40), opacity: 0.0
 
 #0.0s
 fade-in bk_title [500ms, ease: expo-out]
-fade-in bk_sub [400ms, delay: 150ms, ease: expo-out]
+fade-in bk_sub [500ms, delay: 100ms, ease: expo-out]
+fade-in table_chassis [400ms, ease: expo-out]
+fade-in chassis_lbl [400ms, ease: expo-out]
 stagger [60ms] {
   fade-in b0 [300ms, ease: expo-out]
   fade-in b1 [300ms, ease: expo-out]
@@ -62,30 +75,32 @@ stagger [60ms] {
 
 // cat → bucket 0
 #1.6s
-fade-in chip_cat [300ms, ease: expo-out]
+fade-in formula_box [260ms, ease: expo-out]
 fade-in f_cat [260ms, ease: expo-out]
 #2.1s
-shift chip_cat [by: (0, 250), 520ms, ease: ease-in]
-#2.7s
+fade-in chip_cat [260ms, ease: expo-out]
+#2.5s
+shift chip_cat [by: (0, 260), 520ms, ease: ease-in]
 fade-out f_cat [220ms, ease: ease-in]
 
 // dog → bucket 2
 #3.4s
-fade-in chip_dog [300ms, ease: expo-out]
 fade-in f_dog [260ms, ease: expo-out]
 #3.9s
-shift chip_dog [by: (0, 250), 520ms, ease: ease-in]
-#4.5s
+fade-in chip_dog [260ms, ease: expo-out]
+#4.3s
+shift chip_dog [by: (0, 260), 520ms, ease: ease-in]
 fade-out f_dog [220ms, ease: ease-in]
 
 // sun → bucket 6
 #5.2s
-fade-in chip_sun [300ms, ease: expo-out]
 fade-in f_sun [260ms, ease: expo-out]
 #5.7s
-shift chip_sun [by: (0, 250), 520ms, ease: ease-in]
-#6.3s
+fade-in chip_sun [260ms, ease: expo-out]
+#6.1s
+shift chip_sun [by: (0, 260), 520ms, ease: ease-in]
 fade-out f_sun [220ms, ease: ease-in]
+fade-out formula_box [220ms, ease: ease-in]
 fade-in bk_cap [300ms, ease: expo-out]
 
 play Collision [wipe-left, 500ms]
@@ -95,32 +110,47 @@ play Collision [wipe-left, 500ms]
 # Collision
 config { colorscheme: "ink", duration: 5 }
 
-col_title: Text, text: "Two keys, one bucket", font_size: 38,
-  color: text.primary, anchor: scene.top, offset: (0, 52)
+bg2: Ambience, tint: accent.warning
 
-b0c: LabeledBox, label: "0", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (164, 500)
-b1c: LabeledBox, label: "1", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (300, 500)
-b2c: LabeledBox, label: "2", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (436, 500)
-b3c: LabeledBox, label: "3", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (572, 500)
-b4c: LabeledBox, label: "4", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (708, 500)
-b5c: LabeledBox, label: "5", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (844, 500)
-b6c: LabeledBox, label: "6", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (980, 500)
-b7c: LabeledBox, label: "7", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (1116, 500)
+col_title: Text, text: "Two Keys, One Bucket", font_size: 38, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 44)
+col_sub: Text, text: "Separate chaining resolves hash conflicts",
+  font_size: 15, color: text.secondary, anchor: scene.top, offset: (0, 88)
+
+chassis_lbl_c: Text, text: "MODULO 8 BUCKET ARRAY", font_size: 11, font_weight: 600,
+  color: text.muted, at: (220, 440)
+table_chassis_c: Rect, size: (1120, 84), at: (640, 500), corner_radius: 12,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1
+
+b0c: LabeledBox, label: "0", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (164, 500)
+b1c: LabeledBox, label: "1", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (300, 500)
+b2c: LabeledBox, label: "2", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (436, 500)
+b3c: LabeledBox, label: "3", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (572, 500)
+b4c: LabeledBox, label: "4", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (708, 500)
+b5c: LabeledBox, label: "5", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (844, 500)
+b6c: LabeledBox, label: "6", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (980, 500)
+b7c: LabeledBox, label: "7", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (1116, 500)
 
 // dog already lives in bucket 2.
-resident: LabeledBox, label: "dog", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (436, 500)
+resident: LabeledBox, label: "dog", width: 110, height: 52, text_size: 20, fill: accent.primary, at: (436, 500)
 
-col_f: Text, text: "owl: 15+23+12 = 50   50 mod 8 = 2 — taken", font_size: 21,
-  color: text.secondary, anchor: scene.center, offset: (160, -120), opacity: 0.0
+formula_box_c: Rect, size: (460, 48), at: (760, 250), corner_radius: 10,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1, opacity: 0.0
 
-chip_owl: LabeledBox, label: "owl", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (436, 250)
+col_f: Text, text: "owl: 15+23+12 = 50   50 mod 8 = 2 — taken", font_size: 17, font_weight: 600,
+  color: text.secondary, at: (760, 250), opacity: 0.0
+
+chip_owl: LabeledBox, label: "owl", width: 110, height: 52, text_size: 20, fill: accent.warning, at: (436, 250)
 
 chain: Line, from: (436, 528), to: (436, 560), stroke: accent.warning, stroke_width: 2, opacity: 0.0
-col_note: Text, text: "collision: owl chains below dog", font_size: 20,
-  color: accent.warning, anchor: scene.bottom, offset: (0, -120), opacity: 0.0
+col_note: Text, text: "collision: owl chains below resident key dog at index 2", font_size: 15,
+  color: accent.warning, anchor: scene.bottom, offset: (0, -40), opacity: 0.0
 
 #0.0s
 fade-in col_title [500ms, ease: expo-out]
+fade-in col_sub [500ms, delay: 100ms, ease: expo-out]
+fade-in table_chassis_c [400ms, ease: expo-out]
+fade-in chassis_lbl_c [400ms, ease: expo-out]
 stagger [60ms] {
   fade-in b0c [300ms, ease: expo-out]
   fade-in b1c [300ms, ease: expo-out]
@@ -135,6 +165,7 @@ fade-in resident [300ms, delay: 400ms, ease: expo-out]
 
 #1.4s
 fade-in chip_owl [300ms, ease: expo-out]
+fade-in formula_box_c [260ms, ease: expo-out]
 fade-in col_f [260ms, ease: expo-out]
 #2.0s
 shift chip_owl [by: (0, 250), 520ms, ease: ease-in]
@@ -142,6 +173,7 @@ shift chip_owl [by: (0, 250), 520ms, ease: ease-in]
 shift chip_owl [by: (0, 84), 320ms, ease: spring]
 fade-in chain [240ms, ease: expo-out]
 fade-out col_f [200ms, ease: ease-in]
+fade-out formula_box_c [200ms, ease: ease-in]
 fade-in col_note [300ms, ease: expo-out]
 
 play Lookup [wipe-left, 500ms]
@@ -151,42 +183,59 @@ play Lookup [wipe-left, 500ms]
 # Lookup
 config { colorscheme: "ink", duration: 12.6 }
 
-lk_title: Text, text: "Lookup: hash first, compare after", font_size: 38,
-  color: text.primary, anchor: scene.top, offset: (0, 52)
+bg3: Ambience, tint: accent.success
 
-b0l: LabeledBox, label: "0", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (164, 500)
-b1l: LabeledBox, label: "1", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (300, 500)
-b2l: LabeledBox, label: "2", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (436, 500)
-b3l: LabeledBox, label: "3", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (572, 500)
-b4l: LabeledBox, label: "4", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (708, 500)
-b5l: LabeledBox, label: "5", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (844, 500)
-b6l: LabeledBox, label: "6", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (980, 500)
-b7l: LabeledBox, label: "7", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (1116, 500)
+lk_title: Text, text: "Lookup Theatre", font_size: 38, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 44)
+lk_sub: Text, text: "Hash first to find bucket, then traverse chain",
+  font_size: 15, color: text.secondary, anchor: scene.top, offset: (0, 88)
+
+chassis_lbl_l: Text, text: "MODULO 8 BUCKET ARRAY", font_size: 11, font_weight: 600,
+  color: text.muted, at: (220, 440)
+table_chassis_l: Rect, size: (1120, 84), at: (640, 500), corner_radius: 12,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1
+
+b0l: LabeledBox, label: "0", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (164, 500)
+b1l: LabeledBox, label: "1", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (300, 500)
+b2l: LabeledBox, label: "2", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (436, 500)
+b3l: LabeledBox, label: "3", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (572, 500)
+b4l: LabeledBox, label: "4", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (708, 500)
+b5l: LabeledBox, label: "5", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (844, 500)
+b6l: LabeledBox, label: "6", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (980, 500)
+b7l: LabeledBox, label: "7", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (1116, 500)
 
 // residents: sun in 6; dog + owl chained in 2.
-r_sun: LabeledBox, label: "sun", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (980, 500)
-r_dog: LabeledBox, label: "dog", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (436, 500)
-r_owl: LabeledBox, label: "owl", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (436, 585)
+r_sun: LabeledBox, label: "sun", width: 110, height: 52, text_size: 20, fill: accent.primary, at: (980, 500)
+r_dog: LabeledBox, label: "dog", width: 110, height: 52, text_size: 20, fill: accent.primary, at: (436, 500)
+r_owl: LabeledBox, label: "owl", width: 110, height: 52, text_size: 20, fill: accent.warning, at: (436, 585)
 r_chain: Line, from: (436, 528), to: (436, 560), stroke: accent.warning, stroke_width: 2
 
-// One Text actor per query line: a static text-assignment leaves the
-// declared string and the assigned one BOTH drawn before the first change
-// (verified overprint) — never re-title an actor mid-scene.
-q_f1: Text, text: "sun: 54 mod 8 = 6", font_size: 21,
-  color: text.secondary, anchor: scene.center, offset: (160, -120), opacity: 0.0
-q_f2: Text, text: "owl: 50 mod 8 = 2", font_size: 21,
-  color: text.secondary, anchor: scene.center, offset: (160, -120), opacity: 0.0
-q_f3: Text, text: "cow: 41 mod 8 = 1", font_size: 21,
-  color: text.secondary, anchor: scene.center, offset: (160, -120), opacity: 0.0
-q_chip: LabeledBox, label: "sun?", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (980, 250)
+formula_box_l: Rect, size: (360, 44), at: (640, 160), corner_radius: 10,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1, opacity: 0.0
 
-v_hit1: Text, text: "found", font_size: 18, color: accent.success,
-  anchor: scene.bottom, offset: (-260, -160), opacity: 0.0
-v_hit2: Text, text: "found — after one compare", font_size: 18, color: accent.success,
-  anchor: scene.bottom, offset: (-260, -160), opacity: 0.0
+q_f1: Text, text: "sun: 54 mod 8 = 6", font_size: 17, font_weight: 600,
+  color: text.secondary, at: (640, 160), opacity: 0.0
+q_f2: Text, text: "owl: 50 mod 8 = 2", font_size: 17, font_weight: 600,
+  color: text.secondary, at: (640, 160), opacity: 0.0
+q_f3: Text, text: "cow: 41 mod 8 = 1", font_size: 17, font_weight: 600,
+  color: text.secondary, at: (640, 160), opacity: 0.0
+
+q_chip: LabeledBox, label: "sun?", width: 110, height: 52, text_size: 20, fill: accent.warning, at: (980, 250)
+q2: LabeledBox, label: "owl?", width: 110, height: 52, text_size: 20, fill: accent.warning, at: (436, 250)
+q3: LabeledBox, label: "cow?", width: 110, height: 52, text_size: 20, fill: accent.warning, at: (300, 250)
+
+v_hit1: Text, text: "FOUND: O(1) direct hit in bucket 6", font_size: 16, font_weight: 600,
+  color: accent.success, anchor: scene.bottom, offset: (0, -40), opacity: 0.0
+v_hit2: Text, text: "FOUND: traversed chain in bucket 2", font_size: 16, font_weight: 600,
+  color: accent.success, anchor: scene.bottom, offset: (0, -40), opacity: 0.0
+verdict_miss: Text, text: "NOT FOUND: bucket 1 is empty", font_size: 16, font_weight: 600,
+  color: accent.danger, anchor: scene.bottom, offset: (0, -40), opacity: 0.0
 
 #0.0s
 fade-in lk_title [500ms, ease: expo-out]
+fade-in lk_sub [500ms, delay: 100ms, ease: expo-out]
+fade-in table_chassis_l [400ms, ease: expo-out]
+fade-in chassis_lbl_l [400ms, ease: expo-out]
 stagger [60ms] {
   fade-in b0l [300ms, ease: expo-out]
   fade-in b1l [300ms, ease: expo-out]
@@ -205,27 +254,30 @@ fade-in r_chain [240ms, delay: 700ms, ease: expo-out]
 // query 1: sun → bucket 6 → found
 #2.0s
 fade-in q_chip [300ms, ease: expo-out]
+fade-in formula_box_l [260ms, ease: expo-out]
 fade-in q_f1 [260ms, ease: expo-out]
 #2.6s
-shift q_chip [by: (0, 190), 520ms, ease: ease-in]
+shift q_chip [by: (0, 250), 520ms, ease: ease-in]
 #3.3s
 fade-out q_f1 [200ms, ease: ease-in]
+fade-out formula_box_l [200ms, ease: ease-in]
 fade-in v_hit1 [260ms, ease: expo-out]
 #4.4s
 fade-out q_chip [300ms, ease: ease-in]
 fade-out v_hit1 [240ms, ease: ease-in]
 
 // query 2: owl → bucket 2 → compare dog ≠ owl → down the chain → found
-q2: LabeledBox, label: "owl?", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (436, 250)
 #5.2s
 fade-in q2 [300ms, ease: expo-out]
+fade-in formula_box_l [260ms, ease: expo-out]
 fade-in q_f2 [260ms, ease: expo-out]
 #5.9s
 shift q2 [by: (0, 250), 520ms, ease: ease-in]
 #6.6s
 fade-out q_f2 [200ms, ease: ease-in]
+fade-out formula_box_l [200ms, ease: ease-in]
 #7.2s
-shift q2 [by: (120, 85), 300ms, ease: spring]
+shift q2 [by: (0, 85), 300ms, ease: spring]
 #8.3s
 fade-out q2 [260ms, ease: ease-in]
 fade-in v_hit2 [260ms, ease: expo-out]
@@ -233,18 +285,13 @@ fade-in v_hit2 [260ms, ease: expo-out]
 fade-out v_hit2 [240ms, ease: ease-in]
 
 // query 3: cow → bucket 1 → empty → not found
-q3: LabeledBox, label: "cow?", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (300, 250)
-verdict_miss: Text, text: "not found", font_size: 18, color: accent.danger,
-  anchor: scene.bottom, offset: (-530, -160), opacity: 0.0
 #9.9s
 fade-in q3 [300ms, ease: expo-out]
+fade-in formula_box_l [260ms, ease: expo-out]
 fade-in q_f3 [260ms, ease: expo-out]
 #10.5s
 shift q3 [by: (0, 250), 520ms, ease: ease-in]
 #11.2s
 fade-out q_f3 [200ms, ease: ease-in]
+fade-out formula_box_l [200ms, ease: ease-in]
 fade-in verdict_miss [260ms, ease: expo-out]
-
-// No erase cascade: the embed dissolves the finished frame into the next cycle
-// itself, so clearing the plate only blanked the figure through the `hold` at the
-// end of the loop. The composition now rests complete.

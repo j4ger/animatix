@@ -1,40 +1,61 @@
 import "../../demos/lib/theme.amx"
-import "../../demos/lib/theme.amx" as theme
+import "../../demos/lib/ambience.amx"
+import "../../demos/lib/ui.amx"
 config { resolution: (1280, 720) }
 
 pub component Bars(values: List<Num>, color: Color, at: Vec2 = (640, 400), bar_w: Num = 84, scale: Num = 3.0, gap: Num = 24) {
   row: Row, at: at, gap: gap, align: "end" {
     for v, i in values {
-      bar[i]: Rect, size: (bar_w, v * scale), color: color
+      bar[i]: Rect, size: (bar_w, v * scale), corner_radius: 8,
+        fill_gradient: linear(0, {"#0a0e16", color})
     }
   }
 }
 
 # Finale
-config { colorscheme: "ink", dynamic_layout: true, duration: 10 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 8 }
 
-finale_title: Text, text: "Sorted", font_size: 48, font_weight: "bold",
-  color: text.primary, anchor: scene.top, offset: (0, 64)
+bg: Ambience, tint: accent.warning
+
+tick_mark: Path, icon: "check", stroke: accent.success, stroke_width: 3,
+  fill_opacity: 0.0, anchor: scene.top, offset: (-90, 52), scale: 2.2
+
+finale_title: Text, text: "Sorted", font_size: 42, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (28, 56)
+
+finale_sub: Text, text: "Monotonic ascending order achieved in 28 comparisons and 15 swaps",
+  font_size: 15, color: text.secondary, anchor: scene.top, offset: (0, 104)
+
+// The baseline floor for the bars
+floor: Path,
+  commands: {move_to(160, 545), line_to(1120, 545)},
+  stroke: stroke.default, stroke_width: 2, fill_opacity: 0.0,
+  dash_pattern: {9, 7}
 
 finale_bars: Bars, values: {5, 12, 17, 31, 42, 68, 76, 93}, color: accent.primary
 
-footnote: Text, text: "insertion sort: O(n^2) comparisons, O(1) extra memory",
-  font_size: 22, color: accent.primary, anchor: scene.center, offset: (0, 235)
+metrics_card: Rect, size: (860, 54), at: (640, 638), corner_radius: 12,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1
 
-endnote: Text, text: "one timeline function emitted every beat you just watched",
-  font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -48)
+metric_row: Row, at: (640, 638), gap: 20, align: "center" {
+  chip_time: Chip, label: "Time: O(n²)", width: 130, height: 32, color: surface.secondary, text_color: accent.warning
+  chip_space: Chip, label: "Space: O(1)", width: 130, height: 32, color: surface.secondary, text_color: accent.success
+  chip_comps: Chip, label: "Comparisons: 28", width: 160, height: 32, color: surface.secondary, text_color: accent.info
+  chip_swaps: Chip, label: "Swaps: 15", width: 120, height: 32, color: surface.secondary, text_color: accent.primary
+}
 
 #0s
 fade-in finale_title [500ms, ease: expo-out]
+fade-in finale_sub [500ms, delay: 100ms, ease: expo-out]
+fade-in floor [500ms, ease: expo-out]
 fade-in finale_bars [600ms, ease: expo-out]
+fade-in metrics_card [500ms, delay: 200ms, ease: expo-out]
+stagger [80ms] {
+  fade-in chip_time [400ms, ease: expo-out]
+  fade-in chip_space [400ms, ease: expo-out]
+  fade-in chip_comps [400ms, ease: expo-out]
+  fade-in chip_swaps [400ms, ease: expo-out]
+}
 
-// No celebration beat here on purpose: a color-wave over these bars (via
-// nested component-child assignments) does not survive composition
-// evaluation, and `pulse` overshoots (docs/roadmap.md). The sorted row and
-// the footnote close the scene.
-
-#2.2s
-fade-in footnote [700ms, ease: expo-out]
-
-#3.2s
-fade-in endnote [600ms, ease: expo-out]
+#0.6s
+draw-in tick_mark [600ms, ease: expo-out]

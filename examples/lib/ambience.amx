@@ -28,12 +28,20 @@
 pub component Ambience(tint: Color = rgb(0.96, 0.72, 0.26), base_opacity: Num = 0.18, tau: Num = 0.7) {
   plate: Rect, size: (fill, fill), color: scene.background, anchor: scene.center, opacity: 1.0, legend: false
 
-  wash: Ellipse, size: (900, 900), opacity: base_opacity, blend: "screen",
-    fill_gradient: radial((0.5, 0.5), 0.5, {(0%, tint), (100%, (0, 0, 0, 0))}),
+  veil: Ellipse, size: (1600, 950), opacity: base_opacity * 0.70, blend: "screen",
+    fill_gradient: radial((0.5, 0.5), 0.28, {(0%, tint), (40%, tint), (100%, (0, 0, 0, 0))}),
     anchor: scene.center, legend: false
 
-  aura: Ellipse, size: (650, 650), opacity: base_opacity * 0.6, blend: "screen",
-    fill_gradient: radial((0.5, 0.5), 0.5, {(0%, tint), (70%, (0, 0, 0, 0))}),
+  wash: Ellipse, size: (1150, 720), opacity: base_opacity * 1.20, blend: "screen",
+    fill_gradient: radial((0.5, 0.5), 0.28, {(0%, tint), (30%, tint), (70%, tint * 0.4), (100%, (0, 0, 0, 0))}),
+    anchor: scene.center, legend: false
+
+  aura: Ellipse, size: (980, 620), opacity: base_opacity * 0.90, blend: "screen",
+    fill_gradient: radial((0.5, 0.5), 0.28, {(0%, tint), (35%, tint), (75%, tint * 0.35), (100%, (0, 0, 0, 0))}),
+    anchor: scene.center, legend: false
+
+  swathe: Ellipse, size: (1080, 600), opacity: base_opacity * 0.80, blend: "screen",
+    fill_gradient: radial((0.5, 0.5), 0.26, {(0%, tint), (25%, tint), (65%, tint * 0.4), (100%, (0, 0, 0, 0))}),
     anchor: scene.center, legend: false
 
   always {
@@ -41,15 +49,50 @@ pub component Ambience(tint: Color = rgb(0.96, 0.72, 0.26), base_opacity: Num = 
     let fx = curve_smooth(scene.stats.focus_x, t, tau * 1.5)
     let fy = curve_smooth(scene.stats.focus_y, t, tau * 1.5)
     let sx = curve_smooth(scene.stats.spread_x, t, tau * 1.2)
-    let drift_x = 35 * sin(t * 1.1)
-    let drift_y = 20 * cos(t * 0.85)
-    let breathe = 0.03 * sin(t * 1.4)
-    self.wash.at = (fx + drift_x, fy + drift_y)
-    self.wash.size = (620 + 580 * sx, 620 + 580 * sx)
-    self.wash.opacity = clamp(base_opacity * (0.6 + 1.4 * e) + breathe, 0.02, 0.45)
+    let sy = curve_smooth(scene.stats.spread_y, t, tau * 1.2)
 
-    self.aura.at = (fx - drift_x * 0.7, fy - drift_y * 0.7)
-    self.aura.size = (500 + 400 * sx, 500 + 400 * sx)
-    self.aura.opacity = clamp(base_opacity * 0.6 * (0.7 + 1.2 * e) - breathe * 0.5, 0.01, 0.35)
+    // Dynamic fluid drift (Lissajous orbits with distinct harmonic phases)
+    let drift1_x = 65 * sin(t * 0.75)
+    let drift1_y = 38 * cos(t * 0.60)
+    let drift2_x = -75 * sin(t * 0.65 + 0.8)
+    let drift2_y = 45 * cos(t * 0.80 + 0.4)
+    let drift3_x = 85 * cos(t * 0.50 + 1.4)
+    let drift3_y = -48 * sin(t * 0.70 + 0.9)
+
+    // Breathing and aspect morphing waves (preserving fluid area while morphing shape)
+    let morph_w1 = 1.0 + 0.16 * sin(t * 0.85)
+    let morph_h1 = 1.0 - 0.14 * cos(t * 0.70)
+    let morph_w2 = 1.0 - 0.18 * cos(t * 0.75)
+    let morph_h2 = 1.0 + 0.15 * sin(t * 0.90)
+    let morph_w3 = 1.0 + 0.20 * cos(t * 0.60 + 0.5)
+    let morph_h3 = 1.0 - 0.16 * sin(t * 0.80 + 0.7)
+
+    let breathe1 = 0.025 * sin(t * 1.1)
+    let breathe2 = 0.020 * cos(t * 0.85 + 0.7)
+    let breathe3 = 0.018 * sin(t * 0.95 + 1.5)
+
+    // 1. Broad atmospheric veil: gently bathes the entire frame in ambient tint
+    self.veil.at = (fx * 0.35 + scene_width * 0.325 + 35 * sin(t * 0.4), fy * 0.35 + scene_height * 0.325 + 25 * cos(t * 0.3))
+    self.veil.size = (1350 + 450 * sx + 60 * sin(t * 0.45), 800 + 350 * sy + 40 * cos(t * 0.35))
+    self.veil.rotation = 0.12 * sin(t * 0.3)
+    self.veil.opacity = clamp(base_opacity * 0.70 * (0.75 + 0.8 * e) + 0.02 * sin(t * 0.5), 0.02, 0.45)
+
+    // 2. Primary focal wash: tracks density center, morphs aspect ratio, sweeps with rotation
+    self.wash.at = (fx + drift1_x, fy + drift1_y)
+    self.wash.size = ((920 + 640 * sx) * morph_w1, (580 + 420 * sy) * morph_h1)
+    self.wash.rotation = 0.28 * sin(t * 0.55) + 0.12 * cos(t * 0.90)
+    self.wash.opacity = clamp(base_opacity * 1.20 * (0.65 + 1.35 * e) + breathe1, 0.03, 0.65)
+
+    // 3. Counter-orbiting aura ribbon: creates asymmetric amorphous contour
+    self.aura.at = (fx + drift2_x, fy + drift2_y)
+    self.aura.size = ((780 + 520 * sx) * morph_w2, (480 + 360 * sy) * morph_h2)
+    self.aura.rotation = -0.38 * cos(t * 0.45) + 0.16 * sin(t * 0.80)
+    self.aura.opacity = clamp(base_opacity * 0.90 * (0.70 + 1.15 * e) + breathe2, 0.02, 0.55)
+
+    // 4. Undulating atmospheric swathe: third crossing lobe breaking any radial symmetry
+    self.swathe.at = (fx + drift3_x, fy + drift3_y)
+    self.swathe.size = ((860 + 560 * sx) * morph_w3, (460 + 340 * sy) * morph_h3)
+    self.swathe.rotation = 0.48 * sin(t * 0.40 + 1.2) - 0.15 * cos(t * 0.75)
+    self.swathe.opacity = clamp(base_opacity * 0.80 * (0.65 + 1.25 * e) + breathe3, 0.02, 0.50)
   }
 }

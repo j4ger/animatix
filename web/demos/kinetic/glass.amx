@@ -1,13 +1,20 @@
 // 2.5D Perspective Projection & Frosted Glass — Scene 2 of Kinetic Studio
 import "../../demos/lib/theme.amx"
 import "../../demos/lib/ui.amx"
+import "../../demos/lib/ambience.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 6.0 }
 
-bg: Rect, size: (1280, 720), color: surface.secondary, at: (640, 360), opacity: 1
-ambient: Ellipse, size: (720, 720), color: (0.54, 0.71, 0.97, 0.15), at: (640, 360), opacity: 0.8
+bg: Ambience, tint: accent.info
 
-pattern: Group, at: (640, 360) {
+h_kicker: Text, text: "KINETIC STUDIO", font_size: 11, font_weight: 600, color: accent.info,
+  anchor: scene.top, offset: (0, 36)
+h_title: Text, text: "Frosted Glass & 2.5D Projection", font_size: 32, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 68)
+h_sub: Text, text: "Dynamic pitch and yaw transforms with real-time GPU backdrop blur",
+  font_size: 14, color: text.secondary, anchor: scene.top, offset: (0, 98)
+
+pattern: Group, at: (640, 380) {
   for (dx, h, dy, col), i in {
     (-220, 260, 10, accent.primary),
     (-110, 320, -20, accent.warning),
@@ -19,7 +26,7 @@ pattern: Group, at: (640, 360) {
   }
 }
 
-glass: Glass, at: (640, 360), size: (580, 280), corner_radius: 20 {
+glass: Glass, at: (640, 380), size: (580, 280), corner_radius: 20 {
   frost: Blur, radius: 24
   surface: Rect, size: (580, 280), corner_radius: 20, color: "#ffffff14", stroke: "#ffffff40", stroke_width: 1.5,
     shadow: (0, 20, 40, 0), shadow_color: (0, 0, 0, 0.4)
@@ -31,6 +38,9 @@ glass: Glass, at: (640, 360), size: (580, 280), corner_radius: 20 {
 }
 
 #0.0s
+fade-in h_kicker [400ms, ease: expo-out]
+fade-in h_title [500ms, delay: 50ms, ease: expo-out]
+fade-in h_sub [500ms, delay: 100ms, ease: expo-out]
 fade-in pattern [400ms]
 fade-in glass [400ms]
 
@@ -45,8 +55,3 @@ glass.rotate_x = 0.08 [1.6s, ease: ease-in-out]
 #5.2s
 glass.rotate_y = 0.0 [800ms, ease: ease-out]
 glass.rotate_x = 0.0 [800ms, ease: ease-out]
-
-always {
-  ambient.at = (640 + 40 * sin(t * 1.1), 360 + 25 * cos(t * 0.95))
-  ambient.opacity = 0.5 + 0.3 * sin(t * 1.3)
-}

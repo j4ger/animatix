@@ -1,13 +1,12 @@
 import "../../demos/lib/theme.amx"
+import "../../demos/lib/ambience.amx"
 
 config { resolution: (1280, 720) }
 
 # Rotation
 config { colorscheme: "ink", duration: 7.8 }
 
-wash_rot: Ellipse, size: (840, 840), at: (760, 400),
-  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94220"), (55%, "#38bdf80e"), (100%, "#38bdf800")}),
-  blend: "screen"
+bg: Ambience, tint: accent.info
 
 mat_card: Rect, size: (220, 190), at: (236, 226), corner_radius: 12,
   color: surface.primary, stroke: stroke.default, stroke_width: 1
@@ -29,7 +28,6 @@ sq_top: Line, from: (760, 290), to: (870, 290), stroke: accent.warning, stroke_w
 sq_right: Line, from: (870, 400), to: (870, 290), stroke: accent.warning, stroke_width: 2.0
 
 #0.3s
-fade-in wash_rot [500ms, ease: expo-out]
 fade-in mat_card [300ms, ease: expo-out]
 fade-in rv__0 [260ms, ease: expo-out]
 fade-in rv__1 [260ms, ease: expo-out]

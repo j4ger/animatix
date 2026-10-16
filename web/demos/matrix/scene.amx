@@ -1,4 +1,5 @@
 import "../../demos/lib/theme.amx"
+import "../../demos/lib/ambience.amx"
 // matrix.amx — "A matrix is a machine" — a 2×2 matrix animated as three
 // transformations of the plane: shear, rotation, and the collapse/flip that
 // happens as the determinant crosses zero.
@@ -15,10 +16,15 @@ config { colorscheme: "ink", resolution: (1280, 720) }
 # Shear
 config { colorscheme: "ink", duration: 8 }
 
+bg1: Ambience, tint: accent.warning
+
 shear_title: Text, text: "A matrix is a machine", font_size: 38,
   color: text.primary, anchor: scene.top, offset: (0, 52)
 shear_sub: Text, text: "M = [[1, k], [0, 1]] — a shear. Every point slides; no area changes.",
   font_size: 17, color: text.secondary, anchor: scene.top, offset: (0, 104)
+
+mat_card1: Rect, size: (220, 190), at: (236, 226), corner_radius: 12,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1
 
 // The four matrix entries, live.
 a_t: Text, text: "1.0", font_size: 26, color: accent.primary, at: (196, 170)
@@ -26,7 +32,7 @@ b_t: Text, text: "0.0", font_size: 26, color: accent.success, at: (276, 170)
 c_t: Text, text: "0.0", font_size: 26, color: accent.primary, at: (196, 226)
 d_t: Text, text: "1.0", font_size: 26, color: accent.success, at: (276, 226)
 m_brace: Line, from: (170, 152), to: (170, 248), stroke_width: 2, color: text.muted
-det_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (170, 282)
+det_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (236, 286)
 
 // The grid: five vertical and five horizontal lines, both ends driven.
 for x, i in {-2, -1, 0, 1, 2} {
@@ -43,6 +49,7 @@ shear_cap: Text, text: "the unit square leans into a parallelogram — same base
   font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -40)
 
 #0.0s
+fade-in mat_card1 [300ms, ease: expo-out]
 fade-in shear_cap [300ms, delay: 600ms, ease: expo-out]
 stagger [60ms] {
   fade-in vl__0 [300ms, ease: expo-out]
@@ -129,17 +136,22 @@ play Rotation [wipe-left, 500ms]
 # Rotation
 config { colorscheme: "ink", duration: 8 }
 
+bg2: Ambience, tint: accent.info
+
 rot_title: Text, text: "Rotation: read it off the columns", font_size: 38,
   color: text.primary, anchor: scene.top, offset: (0, 52)
 rot_sub: Text, text: "column 1 is where i lands; column 2 is where j lands",
   font_size: 17, color: text.secondary, anchor: scene.top, offset: (0, 104)
+
+mat_card2: Rect, size: (220, 190), at: (236, 226), corner_radius: 12,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1
 
 a2_t: Text, text: "1.0", font_size: 26, color: accent.primary, at: (196, 170)
 b2_t: Text, text: "0.0", font_size: 26, color: accent.success, at: (276, 170)
 c2_t: Text, text: "0.0", font_size: 26, color: accent.primary, at: (196, 226)
 d2_t: Text, text: "1.0", font_size: 26, color: accent.success, at: (276, 226)
 m2_brace: Line, from: (170, 152), to: (170, 248), stroke_width: 2, color: text.muted
-det2_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (170, 282)
+det2_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (236, 286)
 
 for x, i in {-2, -1, 0, 1, 2} {
   rv[i]: Line, from: (760, 400), to: (760, 400), stroke: stroke.default, stroke_width: 1.5
@@ -152,6 +164,7 @@ rot_cap: Text, text: "a quarter turn, tracked the whole way by the numbers", opa
   font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -40)
 
 #0.0s
+fade-in mat_card2 [300ms, ease: expo-out]
 fade-in rot_cap [300ms, delay: 600ms, ease: expo-out]
 fade-in rv__0 [260ms, ease: expo-out]
 fade-in rv__1 [260ms, ease: expo-out]
@@ -225,17 +238,22 @@ play Collapse [wipe-left, 500ms]
 # Collapse
 config { colorscheme: "ink", duration: 10 }
 
+bg3: Ambience, tint: accent.danger
+
 col_title: Text, text: "When det crosses zero, the plane folds", font_size: 38,
   color: text.primary, anchor: scene.top, offset: (0, 52)
 col_sub: Text, text: "d shrinks through 0 — the grid flattens onto a line, then comes out flipped",
   font_size: 17, color: text.secondary, anchor: scene.top, offset: (0, 104)
+
+mat_card3: Rect, size: (220, 190), at: (236, 226), corner_radius: 12,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1
 
 a3_t: Text, text: "1.0", font_size: 26, color: text.secondary, at: (196, 170)
 b3_t: Text, text: "0.0", font_size: 26, color: text.secondary, at: (276, 170)
 c3_t: Text, text: "0.0", font_size: 26, color: text.secondary, at: (196, 226)
 d3_t: Text, text: "1.0", font_size: 26, color: accent.primary, at: (276, 226)
 m3_brace: Line, from: (170, 152), to: (170, 248), stroke_width: 2, color: text.muted
-det3_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (170, 282)
+det3_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (236, 286)
 
 for x, i in {-2, -1, 0, 1, 2} {
   cv[i]: Line, from: (760, 400), to: (760, 400), stroke: stroke.default, stroke_width: 1.5
@@ -248,6 +266,7 @@ col_cap: Text, text: "negative determinant = the plane came out mirror-flipped",
   font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -40)
 
 #0.0s
+fade-in mat_card3 [300ms, ease: expo-out]
 fade-in col_cap [300ms, delay: 600ms, ease: expo-out]
 fade-in cv__0 [260ms, ease: expo-out]
 fade-in cv__1 [260ms, ease: expo-out]

@@ -1,22 +1,24 @@
 import "../../demos/lib/theme.amx"
+import "../../demos/lib/ambience.amx"
 
 config { resolution: (1280, 720) }
 
 # Descent
 config { colorscheme: "ink", duration: 8.0 }
 
-step3_title: Text, text: "3. Roll to the Minimum", font_size: 40,
-  color: text.primary, anchor: scene.top, offset: (0, 60)
+bg: Ambience, tint: accent.success
+
+step3_title: Text, text: "3. Roll to the Minimum", font_size: 38, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 48)
 
 // Dimmed contour backdrop
 contours_dim: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
+  x_domain: (-4, 4), y_domain: (-4, 4), size: (500, 500), at: (420, 380),
   resolution: 96, color: stroke.default, stroke_width: 2.0
 
-// Graph with the parametric descent trail. For f(x, y) = x² + y² the
-// gradient is radial, so steepest descent stays on a constant-angle ray.
+// Graph with the parametric descent trail.
 descent_graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4),
-  size: (560, 560), at: (400, 380) {
+  size: (500, 500), at: (420, 380) {
   trail: PlotCurve, kind: "parametric",
     func: (s) => (3.84 * exp(-0.55 * s) * cos(0.676),
                   3.84 * exp(-0.55 * s) * sin(0.676)),
@@ -24,16 +26,31 @@ descent_graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4),
     stroke_progress: 0
 }
 
-// Ball driven by the always block (math coords → screen coords)
-ball: Ellipse, size: (16, 16), color: text.primary, at: (610, 212)
+heat: Ellipse, size: (560, 560), at: (420, 380),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#30d1581a"), (26%, "#ffd60a0e"), (62%, "#ff866622"), (86%, "#ff2d552e"), (100%, "#ff2d5500")}),
+  blend: "screen"
 
-// Live loss readout
-live_loss: Text, text: "loss = 14.75", font_size: 18,
-  color: accent.success, at: (650, 130)
+// Ball driven by the always block
+ball: Ellipse, size: (20, 20), at: (608, 230),
+  fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffffff"), (45%, "#ece7db"), (100%, "#6e6a62")})
+ball_glow: Ellipse, size: (120, 120), at: (608, 230), opacity: 0.0,
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#8fc7a33d"), (60%, "#8fc7a314"), (100%, "#8fc7a300")}),
+  blend: "screen"
 
-// Takeaway text
-takeaway: Text, text: "Step against the gradient, reach the minimum", font_size: 22,
-  color: text.secondary, anchor: scene.center, offset: (330, 180)
+// Telemetry card on the right
+telemetry_card: Rect, size: (280, 220), at: (980, 380), corner_radius: 12,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1
+card_kicker: Text, text: "LIVE CONVERGENCE METRIC", font_size: 11, font_weight: 600,
+  color: accent.success, at: (980, 305)
+live_loss: Text, text: "L = 14.75", font_size: 34, font_weight: "bold",
+  color: accent.success, at: (980, 355)
+card_status: Text, text: "OPTIMIZING: -grad L trajectory", font_size: 12, font_weight: 600,
+  color: text.secondary, at: (980, 405)
+card_target: Text, text: "Target: global minimum L = 0.00", font_size: 11,
+  color: text.muted, at: (980, 435)
+
+takeaway: Text, text: "Step against the gradient to smoothly descend to the basin",
+  font_size: 15, color: text.secondary, anchor: scene.bottom, offset: (0, -40)
 
 always {
   let s = clamp(t - 1.0, 0.0, 4.5)
@@ -41,22 +58,27 @@ always {
   let th = 0.676
   let mx = r * cos(th)
   let my = r * sin(th)
-  // graph.map() runs at half the px/unit of the plotted curve — double
-  // the math coords to land the ball on the drawn stroke
   let bx = 2.0 * mx
   let by = 2.0 * my
   ball.at = descent_graph.map(bx, by)
+  ball_glow.at = ball.at
   let loss = r * r
-  live_loss.text = format("loss = {:.2}", loss)
+  live_loss.text = format("L = {:.2}", loss)
 }
 
-#0.5s
+#0.0s
+fade-in heat [700ms, ease: expo-out]
 fade-in step3_title [500ms, ease: expo-out]
 fade-in contours_dim [600ms, ease: expo-out]
 fade-in descent_graph [600ms, ease: expo-out]
+fade-in telemetry_card [500ms, ease: expo-out]
+fade-in card_kicker [400ms, ease: expo-out]
+fade-in card_status [400ms, ease: expo-out]
+fade-in card_target [400ms, ease: expo-out]
 
 #1.0s
-fade-in ball [400ms, ease: expo-out]
+fade-in ball_glow [400ms, ease: expo-out]
+pop-in ball [450ms, ease: expo-out]
 fade-in live_loss [400ms, ease: expo-out]
 fade-in trail [400ms, ease: expo-out]
 trail.stroke_progress = 1.0 [4.5s, ease: ease-out]
@@ -66,8 +88,3 @@ pulse ball [500ms]
 
 #6.5s
 fade-in takeaway [600ms, ease: expo-out]
-
-// Scene 5: Compare three step sizes — too small, just right, too big
-
-// Cut point: this divider belongs to the plate (./scene.amx). The section it names
-// is a later figure in its own file — nothing is missing from the scene above.

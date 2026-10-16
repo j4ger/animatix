@@ -1,24 +1,28 @@
 import "../../demos/lib/theme.amx"
+import "../../demos/lib/ambience.amx"
 
 config { resolution: (1280, 720) }
 
 # LearningRate
 config { colorscheme: "ink", duration: 6.8 }
 
-step4_title: Text, text: "4. Step Size Matters", font_size: 40,
-  color: text.primary, anchor: scene.top, offset: (0, 60)
+bg: Ambience, tint: accent.info
+
+step4_title: Text, text: "4. Step Size Matters", font_size: 38, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 48)
+
+heat: Ellipse, size: (560, 560), at: (420, 380),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#30d1581a"), (26%, "#ffd60a0e"), (62%, "#ff866622"), (86%, "#ff2d552e"), (100%, "#ff2d5500")}),
+  blend: "screen"
 
 // Dimmed contour backdrop
 contours_lr: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 350),
+  x_domain: (-4, 4), y_domain: (-4, 4), size: (500, 500), at: (420, 380),
   resolution: 96, color: stroke.default, stroke_width: 2.0
 
 // Graph with three parametric curves showing different decay rates.
-// Each rides its own radial ray (0.95 / 0.676 / 0.40) so all three stay
-// visible side by side; only the rate changes, matching the radial
-// gradient of x² + y².
 lr_graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4),
-  size: (560, 560), at: (400, 350) {
+  size: (500, 500), at: (420, 380) {
   too_small: PlotCurve, kind: "parametric",
     func: (s) => (3.84 * exp(-0.12 * s) * cos(0.95),
                   3.84 * exp(-0.12 * s) * sin(0.95)),
@@ -33,23 +37,38 @@ lr_graph: Graph, x_domain: (-4, 4), y_domain: (-4, 4),
     t_domain: (0, 2.5), color: accent.danger, stroke_width: 2, opacity: 0.0
 }
 
-// Labels for each curve
-label_small: Text, text: "Too small: slow", font_size: 14,
-  color: text.muted, at: (1000, 200)
-label_right: Text, text: "Just right: converges", font_size: 14,
-  color: accent.success, at: (1000, 230)
-label_big: Text, text: "Too big: diverges", font_size: 14,
-  color: accent.danger, at: (1000, 260)
+// Side comparison card
+lr_card: Rect, size: (280, 240), at: (980, 380), corner_radius: 12,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1
+card_kicker: Text, text: "STEP SIZE COMPARISON (α)", font_size: 11, font_weight: 600,
+  color: accent.info, at: (980, 290)
 
-// Lesson text
-lesson: Text,
-  text: "Pick a learning rate that converges — not too small, not too large",
-  font_size: 20, color: text.secondary, anchor: scene.center, offset: (0, 300)
+dot_small: Ellipse, size: (8, 8), color: text.muted, at: (870, 335)
+label_small: Text, text: "Too small: slow decay", font_size: 13, font_weight: 500,
+  color: text.muted, at: (975, 335)
 
-#0.5s
+dot_right: Ellipse, size: (8, 8), color: accent.success, at: (870, 380)
+label_right: Text, text: "Just right: converges", font_size: 13, font_weight: 600,
+  color: accent.success, at: (975, 380)
+
+dot_big: Ellipse, size: (8, 8), color: accent.danger, at: (870, 425)
+label_big: Text, text: "Too big: diverges / explodes", font_size: 13, font_weight: 500,
+  color: accent.danger, at: (980, 425)
+
+card_note: Text, text: "Optimal α balances stability & speed", font_size: 11,
+  color: text.muted, at: (980, 465)
+
+lesson: Text, text: "Pick a learning rate that converges — not too small, not too large",
+  font_size: 15, color: text.secondary, anchor: scene.bottom, offset: (0, -40)
+
+#0.0s
+fade-in heat [700ms, ease: expo-out]
 fade-in step4_title [500ms, ease: expo-out]
 fade-in contours_lr [600ms, ease: expo-out]
 fade-in lr_graph [600ms, ease: expo-out]
+fade-in lr_card [500ms, ease: expo-out]
+fade-in card_kicker [400ms, ease: expo-out]
+fade-in card_note [400ms, ease: expo-out]
 
 #1.0s
 stagger [400ms] {
@@ -58,15 +77,15 @@ stagger [400ms] {
   fade-in too_big [600ms, ease: expo-out]
 }
 
-#3.5s
-fade-in label_small [400ms, ease: expo-out]
-fade-in label_right [400ms, ease: expo-out]
-fade-in label_big [400ms, ease: expo-out]
+#2.5s
+stagger [150ms] {
+  fade-in dot_small [300ms, ease: expo-out]
+  fade-in label_small [300ms, ease: expo-out]
+  fade-in dot_right [300ms, ease: expo-out]
+  fade-in label_right [300ms, ease: expo-out]
+  fade-in dot_big [300ms, ease: expo-out]
+  fade-in label_big [300ms, ease: expo-out]
+}
 
-#5.0s
+#4.5s
 fade-in lesson [600ms, ease: expo-out]
-
-// Scene 6: Outro — the goal of gradient descent
-
-// Cut point: this divider belongs to the plate (./scene.amx). The section it names
-// is a later figure in its own file — nothing is missing from the scene above.

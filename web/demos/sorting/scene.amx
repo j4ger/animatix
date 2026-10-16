@@ -1,5 +1,6 @@
 import "../../demos/lib/theme.amx"
-import "../../demos/lib/theme.amx" as theme
+import "../../demos/lib/ambience.amx"
+import "../../demos/lib/ui.amx"
 
 config {
   colorscheme: "ink",
@@ -60,38 +61,48 @@ pub component Bars(values: List<Num>, color: Color, at: Vec2 = (640, 400), bar_w
 // ── Scene 1: Overture ───────────────────────────────────────────────────────
 
 # Overture
-config { colorscheme: "ink", dynamic_layout: true, duration: 3 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 4 }
 
-wash: Ellipse, size: (760, 760), at: (640, 330),
-  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b9421c"), (55%, "#8ab4f60b"), (100%, "#8ab4f600")}),
-  blend: "screen"
+bg1: Ambience, tint: accent.primary
 
-title: Text, text: "Sorting Theatre", font_size: 64, font_weight: "bold",
-  color: text.primary, anchor: scene.center, offset: (0, -70)
+hero: TitleCard,
+  title: "Sorting Theatre",
+  kicker: "ALGORITHMIC STAGE · INSERTION SORT",
+  sub: "Eight bars directed entirely by a single build-time timeline algorithm",
+  at: (640, 180)
 
-subtitle: Text, text: "insertion sort · eight bars · one timeline function",
-  font_size: 24, color: text.secondary, anchor: scene.center, offset: (0, 10)
+floor1: Path,
+  commands: {move_to(180, 570), line_to(1100, 570)},
+  stroke: stroke.default, stroke_width: 1.5, fill_opacity: 0.0,
+  dash_pattern: {8, 6}
 
-hint: Text, text: "every comparison and swap below is emitted at build time",
-  font_size: 20, color: text.muted, anchor: scene.center, offset: (0, 70)
-
-#0s
-fade-in wash [900ms, ease: expo-out]
-fade-in title [700ms, ease: expo-out]
-fade-in subtitle [600ms, delay: 250ms, ease: expo-out]
-fade-in hint [500ms, delay: 450ms, ease: expo-out]
-
-// The overture's centred text sits exactly where the bars grow, so clear it
-// before the crossfade rather than letting both draw at half opacity.
-#2.1s
-stagger [60ms] {
-  fade-out title [280ms, ease: ease-in]
-  fade-out subtitle [280ms, ease: ease-in]
-  fade-out hint [280ms, ease: ease-in]
-  fade-out wash [280ms, ease: ease-in]
+for v, i in {42, 17, 93, 5, 68, 31, 76, 12} {
+  ghost[i]: Rect, size: (84, v * 1.5), corner_radius: 8,
+    stroke: stroke.default, stroke_width: 1.2, fill_opacity: 0.05, color: accent.primary,
+    at: (260 + i * 108, 570 - (v * 0.75))
 }
 
-#2.5s
+#0s
+fade-in floor1 [500ms, ease: expo-out]
+fade-in hero [800ms, ease: expo-out]
+stagger [50ms] {
+  fade-in ghost__0 [400ms, ease: expo-out]
+  fade-in ghost__1 [400ms, ease: expo-out]
+  fade-in ghost__2 [400ms, ease: expo-out]
+  fade-in ghost__3 [400ms, ease: expo-out]
+  fade-in ghost__4 [400ms, ease: expo-out]
+  fade-in ghost__5 [400ms, ease: expo-out]
+  fade-in ghost__6 [400ms, ease: expo-out]
+  fade-in ghost__7 [400ms, ease: expo-out]
+}
+
+#3.1s
+stagger [60ms] {
+  fade-out hero [300ms, ease: ease-in]
+  fade-out floor1 [300ms, ease: ease-in]
+}
+
+#3.5s
 play TheSort [fade, 500ms]
 
 // ── Scene 2: The Sort ───────────────────────────────────────────────────────
@@ -99,18 +110,15 @@ play TheSort [fade, 500ms]
 # TheSort
 config { colorscheme: "ink", dynamic_layout: true, duration: 19.5 }
 
-sort_title: Text, text: "Insertion Sort", font_size: 40, font_weight: "bold",
-  color: text.primary, anchor: scene.top, offset: (0, 52)
+bg2: Ambience, tint: accent.info
 
-wash: Ellipse, size: (900, 900), at: (640, 420),
-  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#8ab4f61a"), (55%, "#8ab4f609"), (100%, "#8ab4f600")}),
-  blend: "screen"
+sort_title: Text, text: "Insertion Sort", font_size: 38, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 44)
+sort_sub: Text, text: "The key slides left past every larger neighbor — O(n²) comparisons · O(1) extra memory",
+  font_size: 15, color: text.secondary, anchor: scene.top, offset: (0, 88)
 
-// The floor. The bars are `align: "end"` on a Row, so this rule is the line
-// they actually grow out of; without it the columns float. Its ants march for
-// the whole sort, which is also the scene's clock.
 floor: Path,
-  commands: {move_to(200, 545), line_to(1080, 545)},
+  commands: {move_to(160, 545), line_to(1120, 545)},
   stroke: stroke.default, stroke_width: 2, fill_opacity: 0.0,
   dash_pattern: {9, 7}
 
@@ -126,18 +134,16 @@ key_note: Callout {
   color: accent.warning
 }
 
-// Labels end at x~163 (left-anchored column), strips start at x=223 — the
-// rows never share pixels.
-comp_label: Text, text: "comparisons", font_size: 20,
-  color: text.secondary, anchor: scene.center, offset: (-520, 235)
-comp_ticks: Ticks, count: {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28}, anchor: scene.center, offset: (-140, 243)
+telemetry_card: Rect, size: (1120, 92), at: (640, 638), corner_radius: 12,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1
 
-swap_label: Text, text: "swaps", font_size: 20,
-  color: text.secondary, anchor: scene.center, offset: (-520, 285)
-swap_ticks: Ticks, count: {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, anchor: scene.center, offset: (-270, 293)
+comp_label: Text, text: "COMPARISONS", font_size: 12, font_weight: 600,
+  color: text.muted, at: (160, 622)
+comp_ticks: Ticks, count: {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28}, at: (560, 622)
 
-sort_caption: Text, text: "the key slides left past every larger neighbor",
-  font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -44)
+swap_label: Text, text: "SWAPS", font_size: 12, font_weight: 600,
+  color: text.muted, at: (160, 654)
+swap_ticks: Ticks, count: {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, at: (430, 654)
 
 #0s
 floor.dash_offset = 0
@@ -145,16 +151,16 @@ floor.dash_offset = 320 [19s, ease: linear]
 
 #0s
 fade-in sort_title [500ms, ease: expo-out]
-fade-in wash [800ms, ease: expo-out]
-fade-in floor [600ms, ease: expo-out]
+fade-in sort_sub [500ms, delay: 100ms, ease: expo-out]
+fade-in floor [500ms, ease: expo-out]
 fade-in bars [600ms, ease: expo-out]
 fade-in key_note [400ms, delay: 300ms, ease: expo-out]
+fade-in telemetry_card [400ms, ease: expo-out]
 stagger [80ms] {
   fade-in comp_label [300ms, ease: expo-out]
   fade-in swap_label [300ms, ease: expo-out]
   fade-in comp_ticks [300ms, ease: expo-out]
   fade-in swap_ticks [300ms, ease: expo-out]
-  fade-in sort_caption [300ms, ease: expo-out]
 }
 
 // The whole sort runs here — one call, zero hand-written swaps.
@@ -167,47 +173,48 @@ play Finale [fade, 500ms]
 // ── Scene 3: Finale ─────────────────────────────────────────────────────────
 
 # Finale
-config { colorscheme: "ink", dynamic_layout: true, duration: 5.5 }
+config { colorscheme: "ink", dynamic_layout: true, duration: 6.5 }
 
-finale_title: Text, text: "Sorted", font_size: 48, font_weight: "bold",
-  color: text.primary, anchor: scene.top, offset: (34, 120)
+bg3: Ambience, tint: accent.warning
 
-// The payoff beat. `draw-in` on a bundled Lucide stroke icon trims the path
-// by arc length, so the tick is traced rather than faded — the one
-// celebration that does not need a colour wave over the component children.
 tick_mark: Path, icon: "check", stroke: accent.success, stroke_width: 3,
-  fill_opacity: 0.0, anchor: scene.top, offset: (-150, 116), scale: 2.6
+  fill_opacity: 0.0, anchor: scene.top, offset: (-90, 52), scale: 2.2
 
-finale_wash: Ellipse, size: (820, 820), at: (640, 400),
-  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b9421e"), (55%, "#8fc7a30b"), (100%, "#8fc7a300")}),
-  blend: "screen"
+finale_title: Text, text: "Sorted", font_size: 42, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (28, 56)
+
+finale_sub: Text, text: "Monotonic ascending order achieved in 28 comparisons and 15 swaps",
+  font_size: 15, color: text.secondary, anchor: scene.top, offset: (0, 104)
+
+floor_fin: Path,
+  commands: {move_to(160, 545), line_to(1120, 545)},
+  stroke: stroke.default, stroke_width: 2, fill_opacity: 0.0,
+  dash_pattern: {9, 7}
 
 finale_bars: Bars, values: {5, 12, 17, 31, 42, 68, 76, 93}, color: accent.primary
 
-footnote: Text, text: "insertion sort: O(n^2) comparisons, O(1) extra memory",
-  font_size: 22, color: accent.primary, anchor: scene.center, offset: (0, 235)
+metrics_card: Rect, size: (860, 54), at: (640, 638), corner_radius: 12,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1
 
-endnote: Text, text: "one timeline function emitted every beat you just watched",
-  font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -48)
+metric_row: Row, at: (640, 638), gap: 20, align: "center" {
+  chip_time: Chip, label: "Time: O(n²)", width: 130, height: 32, color: surface.secondary, text_color: accent.warning
+  chip_space: Chip, label: "Space: O(1)", width: 130, height: 32, color: surface.secondary, text_color: accent.success
+  chip_comps: Chip, label: "Comparisons: 28", width: 160, height: 32, color: surface.secondary, text_color: accent.info
+  chip_swaps: Chip, label: "Swaps: 15", width: 120, height: 32, color: surface.secondary, text_color: accent.primary
+}
 
 #0s
-fade-in finale_wash [800ms, ease: expo-out]
 fade-in finale_title [500ms, ease: expo-out]
+fade-in finale_sub [500ms, delay: 100ms, ease: expo-out]
+fade-in floor_fin [500ms, ease: expo-out]
 fade-in finale_bars [600ms, ease: expo-out]
+fade-in metrics_card [500ms, delay: 200ms, ease: expo-out]
+stagger [80ms] {
+  fade-in chip_time [400ms, ease: expo-out]
+  fade-in chip_space [400ms, ease: expo-out]
+  fade-in chip_comps [400ms, ease: expo-out]
+  fade-in chip_swaps [400ms, ease: expo-out]
+}
 
-// The colour-wave idea is still out (a nested component-child assignment does
-// not survive composition evaluation, and `pulse` overshoots —
-// docs/roadmap.md). The stroke draw replaces it with a beat that does.
-
-#1.1s
+#0.6s
 draw-in tick_mark [600ms, ease: expo-out]
-
-#2.2s
-fade-in footnote [700ms, ease: expo-out]
-
-#3.2s
-fade-in endnote [600ms, ease: expo-out]
-
-// No erase cascade: the embed dissolves the finished frame into the next cycle
-// itself, so clearing the plate only blanked the figure through the `hold` at the
-// end of the loop. The composition now rests complete.

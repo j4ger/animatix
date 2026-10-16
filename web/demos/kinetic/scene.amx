@@ -7,25 +7,23 @@
 
 import "../../demos/lib/theme.amx"
 import "../../demos/lib/ui.amx"
+import "../../demos/lib/ambience.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 8.0 }
 
-// ── Background Canvas & Atmosphere ─────────────────────────────────────────
-bg: Rect, size: (1280, 720), color: surface.secondary, at: (640, 360), opacity: 1
-ambient_l: Ellipse, size: (720, 720), at: (280, 240),
-  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94228"), (50%, "#f5b9420c"), (100%, "#f5b94200")}),
-  blend: "screen"
-ambient_r: Ellipse, size: (760, 760), at: (1000, 460),
-  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#fb718526"), (50%, "#c084fc0e"), (100%, "#c084fc00")}),
-  blend: "screen"
+// ── Background Ambience ───────────────────────────────────────────────────
+bg: Ambience, tint: accent.primary
 
-always {
-  ambient_l.at = (280 + 30 * sin(t * 1.2), 240 + 20 * cos(t * 0.9))
-  ambient_r.at = (1000 + 25 * cos(t * 1.0), 460 + 22 * sin(t * 1.1))
-}
+// ── Architecture Header ────────────────────────────────────────────────────
+h_kicker: Text, text: "KINETIC STUDIO", font_size: 11, font_weight: 600, color: accent.primary,
+  anchor: scene.top, offset: (0, 36)
+h_title: Text, text: "Tactile Digital Physics & Glass", font_size: 32, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 68)
+h_sub: Text, text: "Hardware-accelerated frosted blur, 2.5D perspective projection, and spring kinematics",
+  font_size: 14, color: text.secondary, anchor: scene.top, offset: (0, 98)
 
 // ── Backdrop Geometry Plate (Provides texture for Glass blur) ──────────────
-plate: Group, at: (640, 360) {
+plate: Group, at: (640, 390) {
   for (dx, h, dy, col), i in {
     (-280, 260, 20, accent.primary),
     (-180, 340, -20, accent.warning),
@@ -39,7 +37,7 @@ plate: Group, at: (640, 360) {
 }
 
 // ── Floating 2.5D Glass Card with Shadow & Tilt ─────────────────────────────
-glass_card: Glass, at: (640, 360), size: (620, 280), corner_radius: 20 {
+glass_card: Glass, at: (640, 390), size: (620, 280), corner_radius: 20 {
   frost: Blur, radius: 24
   surface: Rect, size: (620, 280), corner_radius: 20,
     color: "#ffffff16", stroke: "#ffffff55", stroke_width: 1.5,
@@ -59,8 +57,9 @@ glass_card: Glass, at: (640, 360), size: (620, 280), corner_radius: 20 {
 
 // ── Timeline Choreography ──────────────────────────────────────────────────
 #0.0s
-fade-in ambient_l [500ms]
-fade-in ambient_r [500ms]
+fade-in h_kicker [400ms, ease: expo-out]
+fade-in h_title [500ms, delay: 50ms, ease: expo-out]
+fade-in h_sub [500ms, delay: 100ms, ease: expo-out]
 fade-in plate [400ms]
 fade-in glass_card [400ms]
 

@@ -7,38 +7,41 @@
 
 import "../../demos/lib/theme.amx"
 import "../../demos/lib/ui.amx"
+import "../../demos/lib/ambience.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 8.0 }
 
-// ── Background & Ambient Lighting ──────────────────────────────────────────
-bg: Rect, size: (1280, 720), color: surface.secondary, at: (640, 360), opacity: 1
-wash_core: Ellipse, size: (720, 520), at: (600, 380),
-  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94218"), (50%, "#f5b94206"), (100%, "#f5b94200")}),
-  blend: "screen"
-wash_edge: Ellipse, size: (540, 540), at: (230, 380),
-  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#38bdf815"), (50%, "#38bdf805"), (100%, "#38bdf800")}),
-  blend: "screen"
-wash_raft: Ellipse, size: (540, 540), at: (920, 380),
-  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#34d39912"), (50%, "#34d39904"), (100%, "#34d39900")}),
-  blend: "screen"
-always {
-  wash_core.at = (600 + 24 * sin(t * 1.1), 380 + 14 * cos(t * 0.9))
-  wash_edge.at = (230 + 16 * cos(t * 1.0), 380 + 12 * sin(t * 1.2))
-  wash_raft.at = (920 + 20 * sin(t * 0.85), 380 + 16 * cos(t * 1.05))
-}
+// ── Background Ambience ───────────────────────────────────────────────────
+bg: Ambience, tint: accent.primary
+
+// ── Architecture Header ────────────────────────────────────────────────────
+h_kicker: Text, text: "ARCHITECTURE REFERENCE", font_size: 11, font_weight: 600,
+  color: accent.primary, anchor: scene.top, offset: (0, 36)
+h_title: Text, text: "Distributed Event Fabric", font_size: 32, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 68)
+h_sub: Text, text: "Partitioned event log with Raft consensus, 3x replication and tiered cold storage",
+  font_size: 14, color: text.secondary, anchor: scene.top, offset: (0, 98)
 
 // ── Architecture Boundaries ────────────────────────────────────────────────
-vpc_edge: Rect, size: (290, 320), at: (230, 380), corner_radius: 8, stroke: stroke.default, stroke_width: 1.5, color: (0, 0, 0, 0), dash_pattern: {6, 6}
-lbl_edge: Text, text: "EDGE INGRESS LAYER", font_size: 11, font_weight: 600, color: text.secondary, at: (230, 236)
+vpc_edge: Rect, size: (290, 330), at: (230, 375), corner_radius: 12,
+  stroke: stroke.default, stroke_width: 1.5, color: (0.08, 0.11, 0.16, 0.4), dash_pattern: {6, 6}
+lbl_edge: Text, text: "EDGE INGRESS LAYER", font_size: 11, font_weight: 600,
+  color: text.secondary, at: (230, 226)
 
-vpc_core: Rect, size: (680, 320), at: (760, 380), corner_radius: 8, stroke: stroke.default, stroke_width: 1.5, color: (0, 0, 0, 0), dash_pattern: {6, 6}
-lbl_core: Text, text: "EVENT STREAMING & CONSENSUS FABRIC", font_size: 11, font_weight: 600, color: text.secondary, at: (760, 236)
+vpc_core: Rect, size: (680, 330), at: (760, 375), corner_radius: 12,
+  stroke: stroke.default, stroke_width: 1.5, color: (0.08, 0.11, 0.16, 0.4), dash_pattern: {6, 6}
+lbl_core: Text, text: "EVENT STREAMING & CONSENSUS FABRIC", font_size: 11, font_weight: 600,
+  color: text.secondary, at: (760, 226)
 
 // ── Service Node Cards ─────────────────────────────────────────────────────
-gateway: CardNode, title: "Envoy Gateway", eyebrow: "INGRESS", sub: "TLS Termination · Auth", at: (230, 380), width: 220, height: 95
-stream: CardNode, title: "Event Log", eyebrow: "KAFKA / REDPANDA", sub: "Partitioned Buffer (3x Rep)", at: (560, 380), width: 230, height: 95, focal: true
-raft: CardNode, title: "Raft Workers", eyebrow: "CONSENSUS", sub: "Leader Election · FSM", at: (880, 310), width: 210, height: 90
-lake: CardNode, title: "Storage Lake", eyebrow: "PERSISTENCE", sub: "LSM Tree · Columnar", at: (880, 450), width: 210, height: 90
+gateway: CardNode, title: "Envoy Gateway", eyebrow: "INGRESS", sub: "TLS Termination · Auth",
+  at: (230, 375), width: 220, height: 95
+stream: CardNode, title: "Event Log", eyebrow: "KAFKA / REDPANDA", sub: "Partitioned Buffer (3x Rep)",
+  at: (560, 375), width: 230, height: 95, focal: true
+raft: CardNode, title: "Raft Workers", eyebrow: "CONSENSUS", sub: "Leader Election · FSM",
+  at: (880, 305), width: 210, height: 90
+lake: CardNode, title: "Storage Lake", eyebrow: "PERSISTENCE", sub: "LSM Tree · Columnar",
+  at: (880, 445), width: 210, height: 90
 
 // ── Smart Connectors ───────────────────────────────────────────────────────
 conn_ing: Connector,
@@ -76,7 +79,8 @@ conn_sync: Connector,
   stroke_width: 1.5
 
 // ── Telemetry HUD Strip ────────────────────────────────────────────────────
-hud_panel: Rect, size: (1160, 52), color: surface.primary, corner_radius: 8, stroke: stroke.default, stroke_width: 1, anchor: scene.bottom, offset: (0, -28)
+hud_panel: Rect, size: (1160, 52), color: surface.primary, corner_radius: 10,
+  stroke: stroke.default, stroke_width: 1, anchor: scene.bottom, offset: (0, -28)
 
 hud: Row, anchor: scene.bottom, offset: (0, -32), gap: 60, align: "center" {
   kpi_tps: Row, gap: 12, align: "center" {
@@ -95,9 +99,9 @@ hud: Row, anchor: scene.bottom, offset: (0, -32), gap: 60, align: "center" {
 
 // ── Timeline Choreography ──────────────────────────────────────────────────
 #0.0s
-fade-in wash_core [600ms]
-fade-in wash_edge [600ms]
-fade-in wash_raft [600ms]
+fade-in h_kicker [400ms, ease: expo-out]
+fade-in h_title [500ms, delay: 50ms, ease: expo-out]
+fade-in h_sub [500ms, delay: 100ms, ease: expo-out]
 fade-in vpc_edge [400ms]
 fade-in lbl_edge [400ms]
 fade-in vpc_core [400ms]

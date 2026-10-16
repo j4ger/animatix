@@ -8,6 +8,16 @@ config { colorscheme: "ink", duration: 11.5 }
 
 bg: Ambience, tint: accent.success
 
+lk_title: Text, text: "Lookup Theatre", font_size: 38, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 44)
+lk_sub: Text, text: "Hash first to find bucket, then traverse chain",
+  font_size: 15, color: text.secondary, anchor: scene.top, offset: (0, 88)
+
+chassis_lbl: Text, text: "MODULO 8 BUCKET ARRAY", font_size: 11, font_weight: 600,
+  color: text.muted, at: (220, 440)
+table_chassis: Rect, size: (1120, 84), at: (640, 500), corner_radius: 12,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1
+
 b0l: LabeledBox, label: "0", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (164, 500)
 b1l: LabeledBox, label: "1", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (300, 500)
 b2l: LabeledBox, label: "2", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (436, 500)
@@ -18,23 +28,37 @@ b6l: LabeledBox, label: "6", width: 120, height: 56, text_size: 17, fill: surfac
 b7l: LabeledBox, label: "7", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (1116, 500)
 
 // residents: sun in 6; dog + owl chained in 2.
-r_sun: LabeledBox, label: "sun", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (980, 500)
-r_dog: LabeledBox, label: "dog", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (436, 500)
-r_owl: LabeledBox, label: "owl", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (436, 585)
+r_sun: LabeledBox, label: "sun", width: 110, height: 52, text_size: 20, fill: accent.primary, at: (980, 500)
+r_dog: LabeledBox, label: "dog", width: 110, height: 52, text_size: 20, fill: accent.primary, at: (436, 500)
+r_owl: LabeledBox, label: "owl", width: 110, height: 52, text_size: 20, fill: accent.warning, at: (436, 585)
 r_chain: Line, from: (436, 528), to: (436, 560), stroke: accent.warning, stroke_width: 2
 
-q_formula: Text, text: "sun: 54 mod 8 = 6", font_size: 21,
-  color: text.secondary, anchor: scene.center, offset: (0, -120), opacity: 0.0
-q_chip: LabeledBox, label: "sun?", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (980, 250)
-q2: LabeledBox, label: "owl?", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (436, 250)
-q3: LabeledBox, label: "cow?", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (300, 250)
+formula_box: Rect, size: (360, 44), at: (640, 160), corner_radius: 10,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1, opacity: 0.0
 
-// The verdict row runs under the buckets: the old offset (-260, -160) put it
-// at (380, 560), straight through the "owl" resident chip and its chain line.
-verdict_hit: Text, text: "found", font_size: 18, color: accent.success,
-  anchor: scene.bottom, offset: (0, -56), opacity: 0.0
+q_f1: Text, text: "sun: 54 mod 8 = 6", font_size: 17, font_weight: 600,
+  color: text.secondary, at: (640, 160), opacity: 0.0
+q_f2: Text, text: "owl: 50 mod 8 = 2", font_size: 17, font_weight: 600,
+  color: text.secondary, at: (640, 160), opacity: 0.0
+q_f3: Text, text: "cow: 41 mod 8 = 1", font_size: 17, font_weight: 600,
+  color: text.secondary, at: (640, 160), opacity: 0.0
+
+q_chip: LabeledBox, label: "sun?", width: 110, height: 52, text_size: 20, fill: accent.warning, at: (980, 250)
+q2: LabeledBox, label: "owl?", width: 110, height: 52, text_size: 20, fill: accent.warning, at: (436, 250)
+q3: LabeledBox, label: "cow?", width: 110, height: 52, text_size: 20, fill: accent.warning, at: (300, 250)
+
+v_hit1: Text, text: "FOUND: O(1) direct hit in bucket 6", font_size: 16, font_weight: 600,
+  color: accent.success, anchor: scene.bottom, offset: (0, -40), opacity: 0.0
+v_hit2: Text, text: "FOUND: traversed chain in bucket 2", font_size: 16, font_weight: 600,
+  color: accent.success, anchor: scene.bottom, offset: (0, -40), opacity: 0.0
+verdict_miss: Text, text: "NOT FOUND: bucket 1 is empty", font_size: 16, font_weight: 600,
+  color: accent.danger, anchor: scene.bottom, offset: (0, -40), opacity: 0.0
 
 #0.3s
+fade-in lk_title [500ms, ease: expo-out]
+fade-in lk_sub [500ms, delay: 100ms, ease: expo-out]
+fade-in table_chassis [400ms, ease: expo-out]
+fade-in chassis_lbl [400ms, ease: expo-out]
 stagger [60ms] {
   fade-in b0l [300ms, ease: expo-out]
   fade-in b1l [300ms, ease: expo-out]
@@ -53,43 +77,44 @@ fade-in r_chain [240ms, delay: 700ms, ease: expo-out]
 // query 1: sun → bucket 6 → found
 #2.0s
 fade-in q_chip [300ms, ease: expo-out]
-fade-in q_formula [260ms, ease: expo-out]
+fade-in formula_box [260ms, ease: expo-out]
+fade-in q_f1 [260ms, ease: expo-out]
 #2.6s
 shift q_chip [by: (0, 250), 520ms, ease: ease-in]
 #3.3s
-fade-out q_formula [200ms, ease: ease-in]
-fade-in verdict_hit [260ms, ease: expo-out]
+fade-out q_f1 [200ms, ease: ease-in]
+fade-out formula_box [200ms, ease: ease-in]
+fade-in v_hit1 [260ms, ease: expo-out]
 #4.4s
 fade-out q_chip [300ms, ease: ease-in]
-fade-out verdict_hit [240ms, ease: ease-in]
+fade-out v_hit1 [240ms, ease: ease-in]
 
 // query 2: owl → bucket 2 → compare dog ≠ owl → down the chain → found
 #5.2s
 fade-in q2 [300ms, ease: expo-out]
-q_formula.text = "owl: 50 mod 8 = 2"
-fade-in q_formula [260ms, ease: expo-out]
+fade-in formula_box [260ms, ease: expo-out]
+fade-in q_f2 [260ms, ease: expo-out]
 #5.9s
 shift q2 [by: (0, 250), 520ms, ease: ease-in]
 #6.6s
-fade-out q_formula [200ms, ease: ease-in]
+fade-out q_f2 [200ms, ease: ease-in]
+fade-out formula_box [200ms, ease: ease-in]
 #7.2s
 shift q2 [by: (0, 85), 300ms, ease: spring]
 #8.3s
 fade-out q2 [260ms, ease: ease-in]
-verdict_hit.text = "found — after one compare"
-fade-in verdict_hit [260ms, ease: expo-out]
+fade-in v_hit2 [260ms, ease: expo-out]
 #9.2s
-fade-out verdict_hit [240ms, ease: ease-in]
+fade-out v_hit2 [240ms, ease: ease-in]
 
 // query 3: cow → bucket 1 → empty → not found
-verdict_miss: Text, text: "not found", font_size: 18, color: accent.danger,
-  anchor: scene.bottom, offset: (0, -56), opacity: 0.0
 #9.9s
 fade-in q3 [300ms, ease: expo-out]
-q_formula.text = "cow: 41 mod 8 = 1"
-fade-in q_formula [260ms, ease: expo-out]
+fade-in formula_box [260ms, ease: expo-out]
+fade-in q_f3 [260ms, ease: expo-out]
 #10.5s
 shift q3 [by: (0, 250), 520ms, ease: ease-in]
 #11.2s
-fade-out q_formula [200ms, ease: ease-in]
+fade-out q_f3 [200ms, ease: ease-in]
+fade-out formula_box [200ms, ease: ease-in]
 fade-in verdict_miss [260ms, ease: expo-out]

@@ -8,26 +8,45 @@ config { colorscheme: "ink", duration: 5 }
 
 bg: Ambience, tint: accent.warning
 
-b0c: LabeledBox, label: "0", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (164, 500)
-b1c: LabeledBox, label: "1", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (300, 500)
-b2c: LabeledBox, label: "2", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (436, 500)
-b3c: LabeledBox, label: "3", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (572, 500)
-b4c: LabeledBox, label: "4", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (708, 500)
-b5c: LabeledBox, label: "5", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (844, 500)
-b6c: LabeledBox, label: "6", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (980, 500)
-b7c: LabeledBox, label: "7", width: 120, height: 56, text_size: 20, fill: surface.secondary, at: (1116, 500)
+col_title: Text, text: "Two Keys, One Bucket", font_size: 38, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 44)
+col_sub: Text, text: "Separate chaining resolves hash conflicts",
+  font_size: 15, color: text.secondary, anchor: scene.top, offset: (0, 88)
+
+chassis_lbl: Text, text: "MODULO 8 BUCKET ARRAY", font_size: 11, font_weight: 600,
+  color: text.muted, at: (220, 440)
+table_chassis: Rect, size: (1120, 84), at: (640, 500), corner_radius: 12,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1
+
+b0c: LabeledBox, label: "0", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (164, 500)
+b1c: LabeledBox, label: "1", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (300, 500)
+b2c: LabeledBox, label: "2", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (436, 500)
+b3c: LabeledBox, label: "3", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (572, 500)
+b4c: LabeledBox, label: "4", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (708, 500)
+b5c: LabeledBox, label: "5", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (844, 500)
+b6c: LabeledBox, label: "6", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (980, 500)
+b7c: LabeledBox, label: "7", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (1116, 500)
 
 // dog already lives in bucket 2.
-resident: LabeledBox, label: "dog", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (436, 500)
+resident: LabeledBox, label: "dog", width: 110, height: 52, text_size: 20, fill: accent.primary, at: (436, 500)
 
-col_f: Text, text: "owl: 15+23+12 = 50   50 mod 8 = 2 — taken", font_size: 21,
-  color: text.secondary, anchor: scene.center, offset: (160, -120), opacity: 0.0
+formula_box: Rect, size: (460, 48), at: (760, 250), corner_radius: 10,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1, opacity: 0.0
 
-chip_owl: LabeledBox, label: "owl", width: 110, height: 52, text_size: 22, fill: accent.warning, at: (436, 250)
+col_f: Text, text: "owl: 15+23+12 = 50   50 mod 8 = 2 — taken", font_size: 17, font_weight: 600,
+  color: text.secondary, at: (760, 250), opacity: 0.0
+
+chip_owl: LabeledBox, label: "owl", width: 110, height: 52, text_size: 20, fill: accent.warning, at: (436, 250)
 
 chain: Line, from: (436, 528), to: (436, 560), stroke: accent.warning, stroke_width: 2, opacity: 0.0
+col_note: Text, text: "collision: owl chains below resident key dog at index 2", font_size: 15,
+  color: accent.warning, anchor: scene.bottom, offset: (0, -40), opacity: 0.0
 
 #0.3s
+fade-in col_title [500ms, ease: expo-out]
+fade-in col_sub [500ms, delay: 100ms, ease: expo-out]
+fade-in table_chassis [400ms, ease: expo-out]
+fade-in chassis_lbl [400ms, ease: expo-out]
 stagger [60ms] {
   fade-in b0c [300ms, ease: expo-out]
   fade-in b1c [300ms, ease: expo-out]
@@ -42,6 +61,7 @@ fade-in resident [300ms, delay: 400ms, ease: expo-out]
 
 #1.4s
 fade-in chip_owl [300ms, ease: expo-out]
+fade-in formula_box [260ms, ease: expo-out]
 fade-in col_f [260ms, ease: expo-out]
 #2.0s
 shift chip_owl [by: (0, 250), 520ms, ease: ease-in]
@@ -49,12 +69,5 @@ shift chip_owl [by: (0, 250), 520ms, ease: ease-in]
 shift chip_owl [by: (0, 84), 320ms, ease: spring]
 fade-in chain [240ms, ease: expo-out]
 fade-out col_f [200ms, ease: ease-in]
-
-// ── Scene 3: Lookup — hits and misses ────────────────────────────────────────
-
-// Cut point: this divider belongs to the plate (./scene.amx). The section it names
-// is a later figure in its own file — nothing is missing from the scene above.
-
-// No erase cascade: the embed dissolves the finished frame into the next cycle
-// itself, so clearing the plate only blanked the figure through the `hold` at the
-// end of the loop. The composition now rests complete.
+fade-out formula_box [200ms, ease: ease-in]
+fade-in col_note [300ms, ease: expo-out]

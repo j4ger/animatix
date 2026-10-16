@@ -1,59 +1,72 @@
 import "../../demos/lib/theme.amx"
+import "../../demos/lib/ambience.amx"
+
 config { resolution: (1280, 720) }
 
 # GradientDirection
 config { colorscheme: "ink", duration: 4.6 }
 
-step2_title: Text, text: "2. Go Against the Gradient", font_size: 40,
-  color: text.primary, anchor: scene.top, offset: (0, 60)
+bg: Ambience, tint: accent.warning
+
+step2_title: Text, text: "2. Go Against the Gradient", font_size: 38, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 48)
 
 // Dimmed backdrop of the same contour map and field
 contours_bg: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
+  x_domain: (-4, 4), y_domain: (-4, 4), size: (500, 500), at: (420, 380),
   resolution: 96, color: stroke.default, stroke_width: 2.0
 
 field_bg: VectorField, func: (x, y) => (x, y), density: 8,
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (400, 380),
+  x_domain: (-4, 4), y_domain: (-4, 4), size: (500, 500), at: (420, 380),
   color: text.muted
 
-// Ball at starting point (math: (3, 2.4), screen: 400+3*70, 380-2.4*70)
-ball: Ellipse, size: (16, 16), color: text.primary, at: (610, 212)
+heat: Ellipse, size: (560, 560), at: (420, 380),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#30d1581a"), (26%, "#ffd60a0e"), (62%, "#ff866622"), (86%, "#ff2d552e"), (100%, "#ff2d5500")}),
+  blend: "screen"
+
+// Ball at starting point
+ball: Ellipse, size: (20, 20), at: (608, 230),
+  fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffffff"), (45%, "#ece7db"), (100%, "#6e6a62")})
 
 // Arrow pointing uphill along +∇f
-up_arrow: Arrow, from: (610, 212), to: (715, 128),
+up_arrow: Arrow, from: (608, 230), to: (702, 155),
   stroke: accent.danger, stroke_width: 3
 
 // Arrow pointing downhill along −∇f
-down_arrow: Arrow, from: (610, 212), to: (505, 296),
+down_arrow: Arrow, from: (608, 230), to: (514, 305),
   stroke: accent.success, stroke_width: 3
 
 // Labels near arrow tips
-up_label: Text, text: "grad f (uphill)", font_size: 16,
-  color: accent.danger, at: (730, 110)
+up_label: Text, text: "grad f (uphill)", font_size: 15, font_weight: 600,
+  color: accent.danger, at: (716, 138)
 
-down_label: Text, text: "-grad f (descend)", font_size: 16,
-  color: accent.success, at: (480, 300)
+down_label: Text, text: "-grad f (descend)", font_size: 15, font_weight: 600,
+  color: accent.success, at: (490, 312)
 
-// Gradient equation
-gradient_eq: Text,
-  text: "grad f = (dL/dx, dL/dy)",
-  font_size: 22, color: text.secondary, anchor: scene.center, offset: (330, -170)
+// Side panel framing update equation
+eq_card: Rect, size: (300, 200), at: (980, 380), corner_radius: 12,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1
+card_kicker: Text, text: "GRADIENT UPDATE RULE", font_size: 11, font_weight: 600,
+  color: accent.warning, at: (980, 315)
+card_eq: Text, text: "theta = theta - alpha * grad L", font_size: 18, font_weight: "bold",
+  color: text.primary, at: (980, 360)
+card_sub: Text, text: "Step opposite to gradient vector to minimize loss", font_size: 12,
+  color: text.secondary, at: (980, 410)
 
-#0.5s
-// The backdrop the declaration promises: `scene.amx` fades both in here, and the
-// slice lost that beat, so `never-revealed` was right — the contours and the field
-// were declared, styled and never drawn.
+#0.0s
+fade-in step2_title [500ms, ease: expo-out]
+fade-in heat [700ms, ease: expo-out]
 fade-in contours_bg [600ms, ease: expo-out]
 fade-in field_bg [600ms, ease: expo-out]
-fade-in step2_title [500ms, ease: expo-out]
-fade-in ball [400ms, ease: expo-out]
+fade-in eq_card [500ms, ease: expo-out]
+fade-in card_kicker [400ms, ease: expo-out]
+fade-in card_eq [400ms, ease: expo-out]
+fade-in card_sub [400ms, ease: expo-out]
+pop-in ball [450ms, ease: expo-out]
 
 #1.5s
 fade-in up_arrow [800ms, ease: expo-out]
 fade-in up_label [800ms, ease: expo-out]
-
-#2.0s
-fade-in gradient_eq [600ms, ease: expo-out]
 
 #3.2s
 fade-in down_arrow [800ms, ease: expo-out]
@@ -61,8 +74,3 @@ fade-in down_label [800ms, ease: expo-out]
 
 #3.5s
 pulse ball [500ms]
-
-// Scene 4: Roll the ball to the minimum along the descent trail
-
-// Cut point: this divider belongs to the plate (./scene.amx). The section it names
-// is a later figure in its own file — nothing is missing from the scene above.

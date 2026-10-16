@@ -8,12 +8,15 @@ config { colorscheme: "ink", duration: 10 }
 
 bg: Ambience, tint: accent.danger
 
+mat_card: Rect, size: (220, 190), at: (236, 226), corner_radius: 12,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1
+
 a3_t: Text, text: "1.0", font_size: 26, color: text.secondary, at: (196, 170)
 b3_t: Text, text: "0.0", font_size: 26, color: text.secondary, at: (276, 170)
 c3_t: Text, text: "0.0", font_size: 26, color: text.secondary, at: (196, 226)
 d3_t: Text, text: "1.0", font_size: 26, color: accent.warning, at: (276, 226)
 m3_brace: Line, from: (170, 152), to: (170, 248), stroke_width: 2, color: text.muted
-det3_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (170, 282)
+det3_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (236, 286)
 
 for x, i in {-2, -1, 0, 1, 2} {
   cv[i]: Line, from: (760, 400), to: (760, 400), stroke: stroke.default, stroke_width: 1.5
@@ -23,6 +26,7 @@ ci_hat: Line, from: (760, 400), to: (870, 400), stroke: accent.danger, stroke_wi
 cj_hat: Line, from: (760, 400), to: (760, 290), stroke: accent.success, stroke_width: 3.5
 
 #0.3s
+fade-in mat_card [300ms, ease: expo-out]
 fade-in cv__0 [260ms, ease: expo-out]
 fade-in cv__1 [260ms, ease: expo-out]
 fade-in cv__2 [260ms, ease: expo-out]

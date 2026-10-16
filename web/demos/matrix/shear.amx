@@ -7,13 +7,16 @@ config { colorscheme: "ink", duration: 8 }
 
 bg: Ambience, tint: accent.warning
 
+mat_card: Rect, size: (220, 190), at: (236, 226), corner_radius: 12,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1
+
 // The four matrix entries, live.
 a_t: Text, text: "1.0", font_size: 26, color: text.secondary, at: (196, 170)
 b_t: Text, text: "0.0", font_size: 26, color: text.secondary, at: (276, 170)
 c_t: Text, text: "0.0", font_size: 26, color: accent.warning, at: (196, 226)
 d_t: Text, text: "1.0", font_size: 26, color: text.secondary, at: (276, 226)
 m_brace: Line, from: (170, 152), to: (170, 248), stroke_width: 2, color: text.muted
-det_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (170, 282)
+det_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (236, 286)
 
 // The grid: five vertical and five horizontal lines, both ends driven.
 for x, i in {-2, -1, 0, 1, 2} {
@@ -27,6 +30,7 @@ i_t: Text, text: "i", font_size: 19, color: accent.danger, at: (886, 386)
 j_t: Text, text: "j", font_size: 19, color: accent.success, at: (748, 276)
 
 #0.3s
+fade-in mat_card [300ms, ease: expo-out]
 stagger [60ms] {
   fade-in vl__0 [300ms, ease: expo-out]
   fade-in vl__1 [300ms, ease: expo-out]

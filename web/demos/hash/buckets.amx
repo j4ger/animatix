@@ -8,6 +8,17 @@ config { colorscheme: "ink", duration: 12 }
 
 bg: Ambience, tint: accent.primary
 
+bk_title: Text, text: "Where Keys Live", font_size: 38, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 44)
+bk_sub: Text, text: "hash(key) = sum of letter positions mod 8",
+  font_size: 15, color: text.secondary, anchor: scene.top, offset: (0, 88)
+
+// Table chassis holding the 8 bucket slots
+chassis_lbl: Text, text: "MODULO 8 BUCKET ARRAY", font_size: 11, font_weight: 600,
+  color: text.muted, at: (220, 440)
+table_chassis: Rect, size: (1120, 84), at: (640, 500), corner_radius: 12,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1
+
 b0: LabeledBox, label: "0", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (164, 500)
 b1: LabeledBox, label: "1", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (300, 500)
 b2: LabeledBox, label: "2", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (436, 500)
@@ -17,18 +28,28 @@ b5: LabeledBox, label: "5", width: 120, height: 56, text_size: 17, fill: surface
 b6: LabeledBox, label: "6", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (980, 500)
 b7: LabeledBox, label: "7", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (1116, 500)
 
-f_cat: Text, text: "cat: 3+1+20 = 24   24 mod 8 = 0", font_size: 21,
-  color: text.secondary, anchor: scene.center, offset: (0, -120), opacity: 0.0
-f_dog: Text, text: "dog: 4+15+7 = 26   26 mod 8 = 2", font_size: 21,
-  color: text.secondary, anchor: scene.center, offset: (0, -120), opacity: 0.0
-f_sun: Text, text: "sun: 19+21+14 = 54   54 mod 8 = 6", font_size: 21,
-  color: text.secondary, anchor: scene.center, offset: (0, -120), opacity: 0.0
+formula_box: Rect, size: (480, 48), at: (640, 240), corner_radius: 10,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1, opacity: 0.0
 
-chip_cat: LabeledBox, label: "cat", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (164, 250)
-chip_dog: LabeledBox, label: "dog", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (300, 250)
-chip_sun: LabeledBox, label: "sun", width: 110, height: 52, text_size: 22, fill: accent.primary, at: (980, 250)
+f_cat: Text, text: "cat: 3+1+20 = 24   24 mod 8 = 0", font_size: 18, font_weight: 600,
+  color: text.secondary, at: (640, 240), opacity: 0.0
+f_dog: Text, text: "dog: 4+15+7 = 26   26 mod 8 = 2", font_size: 18, font_weight: 600,
+  color: text.secondary, at: (640, 240), opacity: 0.0
+f_sun: Text, text: "sun: 19+21+14 = 54   54 mod 8 = 6", font_size: 18, font_weight: 600,
+  color: text.secondary, at: (640, 240), opacity: 0.0
 
-#0.3s
+chip_cat: LabeledBox, label: "cat", width: 110, height: 52, text_size: 20, fill: accent.primary, at: (164, 240)
+chip_dog: LabeledBox, label: "dog", width: 110, height: 52, text_size: 20, fill: accent.primary, at: (300, 240)
+chip_sun: LabeledBox, label: "sun", width: 110, height: 52, text_size: 20, fill: accent.primary, at: (980, 240)
+
+bk_cap: Text, text: "the hash picks the bucket — the key never chooses where it lives",
+  font_size: 15, color: text.muted, anchor: scene.bottom, offset: (0, -40), opacity: 0.0
+
+#0.0s
+fade-in bk_title [500ms, ease: expo-out]
+fade-in bk_sub [500ms, delay: 100ms, ease: expo-out]
+fade-in table_chassis [400ms, ease: expo-out]
+fade-in chassis_lbl [400ms, ease: expo-out]
 stagger [60ms] {
   fade-in b0 [300ms, ease: expo-out]
   fade-in b1 [300ms, ease: expo-out]
@@ -42,33 +63,33 @@ stagger [60ms] {
 
 // cat → bucket 0
 #1.6s
-fade-in chip_cat [300ms, ease: expo-out]
+fade-in formula_box [260ms, ease: expo-out]
 fade-in f_cat [260ms, ease: expo-out]
-#2.1s
-shift chip_cat [by: (0, 250), 520ms, ease: ease-in]
-#2.7s
+#2.2s
+fade-in chip_cat [260ms, ease: expo-out]
+#2.6s
+shift chip_cat [by: (0, 260), 520ms, ease: ease-in]
 fade-out f_cat [220ms, ease: ease-in]
 
 // dog → bucket 2
-#3.4s
-fade-in chip_dog [300ms, ease: expo-out]
+#3.6s
 fade-in f_dog [260ms, ease: expo-out]
-#3.9s
-shift chip_dog [by: (0, 250), 520ms, ease: ease-in]
-#4.5s
+#4.2s
+fade-in chip_dog [260ms, ease: expo-out]
+#4.6s
+shift chip_dog [by: (0, 260), 520ms, ease: ease-in]
 fade-out f_dog [220ms, ease: ease-in]
 
 // sun → bucket 6
-#5.2s
-fade-in chip_sun [300ms, ease: expo-out]
+#5.6s
 fade-in f_sun [260ms, ease: expo-out]
-#5.7s
-shift chip_sun [by: (0, 250), 520ms, ease: ease-in]
-#6.3s
+#6.2s
+fade-in chip_sun [260ms, ease: expo-out]
+#6.6s
+shift chip_sun [by: (0, 260), 520ms, ease: ease-in]
 fade-out f_sun [220ms, ease: ease-in]
-
-bk_cap: Text, text: "the hash picks the bucket — the key never chooses where it lives",
-  font_size: 16, color: text.muted, anchor: scene.bottom, offset: (0, -40), opacity: 1.0
+fade-out formula_box [220ms, ease: ease-in]
+fade-in bk_cap [400ms, ease: expo-out]
 
 // ── Scene 2: Collision — two keys, one bucket ────────────────────────────────
 

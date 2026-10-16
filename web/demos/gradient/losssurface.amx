@@ -1,33 +1,69 @@
 import "../../demos/lib/theme.amx"
+import "../../demos/lib/ambience.amx"
+
 config { resolution: (1280, 720) }
 
 # LossSurface
 config { colorscheme: "ink", duration: 5.0 }
 
-step_title: Text, text: "The Loss Surface", font_size: 40,
-  color: text.primary, anchor: scene.top, offset: (0, 60)
+bg: Ambience, tint: accent.primary
+
+step_title: Text, text: "1. The Loss Surface", font_size: 38, font_weight: "bold",
+  color: text.primary, anchor: scene.top, offset: (0, 48)
+
+// Heatmap wash
+heat: Ellipse, size: (560, 560), at: (420, 380),
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#30d15820"), (26%, "#ffd60a12"), (62%, "#ff86662a"), (86%, "#ff2d5538"), (100%, "#ff2d5500")}),
+  blend: "screen"
 
 // Contour map of the loss function f(x, y) = x² + y²
 contours: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (640, 372),
+  x_domain: (-4, 4), y_domain: (-4, 4), size: (500, 500), at: (420, 380),
   resolution: 96, color: accent.primary, stroke_width: 2.0
 
 // Gradient vector field: ∇f = (2x, 2y) pointing radially outward (uphill)
 field: VectorField, func: (x, y) => (x, y), density: 8,
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (560, 560), at: (640, 372),
+  x_domain: (-4, 4), y_domain: (-4, 4), size: (500, 500), at: (420, 380),
   color: text.muted
 
 // Global minimum at (0, 0)
-min_dot: Ellipse, size: (12, 12), color: accent.success, at: (640, 372)
+min_dot: Ellipse, size: (16, 16), at: (420, 380),
+  fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#d8f0dc"), (45%, "#30d158"), (100%, "#0d5c2e")})
 
-caption: Text,
-  text: "Contours = equal loss; arrows = gradient (uphill)",
-  font_size: 20, color: text.muted, anchor: scene.bottom, offset: (0, -40)
+// Side panel framing the objective & color legend
+side_card: Rect, size: (280, 320), at: (980, 380), corner_radius: 12,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1
+card_kicker: Text, text: "OBJECTIVE SURFACE", font_size: 11, font_weight: 600,
+  color: accent.primary, at: (980, 250)
+card_fn: Text, text: "L(x, y) = x² + y²", font_size: 20, font_weight: "bold",
+  color: text.primary, at: (980, 280)
+card_opt: Text, text: "Minimum: (0, 0)  ·  L = 0", font_size: 13,
+  color: accent.success, at: (980, 310)
+
+legend_bar: Rect, size: (180, 14), at: (980, 370), corner_radius: 7,
+  fill_gradient: linear(90, {"#30d158", "#ffd60a", "#ff8666", "#ff2d55"})
+legend_lo: Text, text: "low loss", font_size: 12, color: text.muted, at: (910, 396)
+legend_hi: Text, text: "high loss", font_size: 12, color: text.muted, at: (1050, 396)
+
+card_field: Text, text: "Arrows: grad L (steepest ascent)", font_size: 12,
+  color: text.secondary, at: (980, 440)
+
+caption: Text, text: "Contours denote equal loss; vector arrows point uphill",
+  font_size: 15, color: text.muted, anchor: scene.bottom, offset: (0, -40)
 
 #0.5s
 fade-in step_title [500ms, ease: expo-out]
+fade-in side_card [500ms, ease: expo-out]
+fade-in card_kicker [400ms, ease: expo-out]
+fade-in card_fn [400ms, ease: expo-out]
+fade-in card_opt [400ms, ease: expo-out]
+fade-in legend_bar [400ms, ease: expo-out]
+fade-in legend_lo [400ms, ease: expo-out]
+fade-in legend_hi [400ms, ease: expo-out]
+fade-in card_field [400ms, ease: expo-out]
 
 #1.0s
+fade-in heat [700ms, ease: expo-out]
 stagger [150ms] {
   fade-in contours [600ms, ease: expo-out]
   fade-in field [600ms, ease: expo-out]
@@ -36,12 +72,3 @@ stagger [150ms] {
 
 #3.5s
 fade-in caption [500ms, ease: expo-out]
-
-// Scene 3: Show which direction to step — against the gradient
-
-// Cut point: this divider belongs to the plate (./scene.amx). The section it names
-// is a later figure in its own file — nothing is missing from the scene above.
-
-// No erase cascade: the embed dissolves the finished frame into the next cycle
-// itself, so clearing the plate only blanked the figure through the `hold` at the
-// end of the loop. The composition now rests complete.

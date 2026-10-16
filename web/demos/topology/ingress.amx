@@ -1,20 +1,24 @@
 import "../../demos/lib/theme.amx"
 import "../../demos/lib/ui.amx"
+import "../../demos/lib/ambience.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 6.0 }
 
-bg: Rect, size: (1280, 720), color: surface.secondary, at: (640, 360), opacity: 1
-bg_glow: Ellipse, size: (720, 420), color: (0.09, 0.12, 0.18, 0.5), at: (640, 350), opacity: 0.6
+bg: Ambience, tint: accent.primary
 
-client_box: CardNode, title: "Public Internet", eyebrow: "CLIENTS", sub: "Global Anycast DNS", at: (300, 350), width: 230, height: 110
-envoy_box: CardNode, title: "Envoy Edge", eyebrow: "PROXY POOL", sub: "mTLS · Rate Limit · WAF", at: (660, 350), width: 240, height: 110, focal: true
-internal_box: CardNode, title: "Internal Mesh", eyebrow: "VPC TRANSIT", sub: "WireGuard Overlay", at: (1020, 350), width: 220, height: 110
+h_kicker: Text, text: "EDGE TOPOLOGY", font_size: 11, font_weight: 600, color: accent.primary, anchor: scene.top, offset: (0, 40)
+h_title: Text, text: "Public Ingress & Transit Mesh", font_size: 32, font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 72)
+h_sub: Text, text: "Global Anycast DNS to Envoy Edge proxy pool and internal VPC transit", font_size: 14, color: text.secondary, anchor: scene.top, offset: (0, 102)
+
+client_box: CardNode, title: "Public Internet", eyebrow: "CLIENTS", sub: "Global Anycast DNS", at: (300, 360), width: 230, height: 110
+envoy_box: CardNode, title: "Envoy Edge", eyebrow: "PROXY POOL", sub: "mTLS · Rate Limit · WAF", at: (660, 360), width: 240, height: 110, focal: true
+internal_box: CardNode, title: "Internal Mesh", eyebrow: "VPC TRANSIT", sub: "WireGuard Overlay", at: (1020, 360), width: 220, height: 110
 
 wire1: Connector, from: client_box.east, to: envoy_box.west, routing: "straight", arrow: true, stroke: accent.primary, stroke_width: 2.5
 wire2: Connector, from: envoy_box.east, to: internal_box.west, routing: "straight", arrow: true, stroke: accent.success, stroke_width: 2.0
 
-stat_panel: Rect, size: (820, 52), color: surface.primary, corner_radius: 10, stroke: stroke.default, anchor: scene.bottom, offset: (0, -48)
-stat_row: Row, anchor: scene.bottom, offset: (0, -51), gap: 40, align: "center" {
+stat_panel: Rect, size: (860, 52), color: surface.primary, corner_radius: 10, stroke: stroke.default, stroke_width: 1, anchor: scene.bottom, offset: (0, -44)
+stat_row: Row, anchor: scene.bottom, offset: (0, -47), gap: 40, align: "center" {
   c_label: Text, text: "ACTIVE TLS SESSIONS:", font_size: 11, font_weight: 600, color: text.muted
   c_val: Text, text: "12,000 conns", font_size: 13, font_weight: 600, color: accent.primary
   s_label: Text, text: "HANDSHAKE DURATION:", font_size: 11, font_weight: 600, color: text.muted
@@ -22,6 +26,9 @@ stat_row: Row, anchor: scene.bottom, offset: (0, -51), gap: 40, align: "center" 
 }
 
 #0.0s
+fade-in h_kicker [400ms, ease: expo-out]
+fade-in h_title [500ms, delay: 50ms, ease: expo-out]
+fade-in h_sub [500ms, delay: 100ms, ease: expo-out]
 fade-in client_box [400ms]
 fade-in envoy_box [400ms]
 fade-in internal_box [400ms]
@@ -36,8 +43,3 @@ stagger [150ms] {
 
 #1.4s
 c_val.text = "84,500 conns" [2.5s, ease: ease-out]
-
-always {
-  bg_glow.at = (640 + 35 * sin(t * 1.3), 350 + 20 * cos(t * 0.95))
-  bg_glow.opacity = 0.45 + 0.25 * sin(t * 1.6)
-}
