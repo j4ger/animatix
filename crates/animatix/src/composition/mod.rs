@@ -245,6 +245,11 @@ impl BuildTarget {
         defines: &[(String, String)],
     ) -> BuildReport<Self> {
         let font_context = std::sync::Arc::new(crate::renderer::text::FontContext::new());
+        let asset_cache = source_path.and_then(|p| p.parent()).map(|dir| {
+            let mut cache = crate::timeline::assets::AssetCache::new();
+            cache.set_base_dirs(Some(dir), None);
+            std::sync::Arc::new(cache)
+        });
         let has_scenes = statements.iter().any(|s| matches!(s, Stmt::Scene { .. }));
         if has_scenes && !defines.is_empty() {
             tracing::warn!(
@@ -257,7 +262,7 @@ impl BuildTarget {
                 namespaces,
                 font_context,
                 crate::timeline::BuildQuality::Production,
-                None,
+                asset_cache.clone(),
                 context.clone(),
             );
             BuildReport {
@@ -271,7 +276,7 @@ impl BuildTarget {
                     namespaces,
                     font_context,
                     crate::timeline::BuildQuality::Production,
-                    None,
+                    asset_cache,
                     context,
                 )
             } else {

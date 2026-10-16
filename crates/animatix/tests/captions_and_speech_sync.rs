@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use animatix::timeline::{SceneDimensions, Timeline};
+use animatix::timeline::{SceneDimensions, Timeline, TrackAccessor};
 use animatix_syntax::module::ModuleGraph;
 
 const DIMS: SceneDimensions = SceneDimensions {
@@ -215,4 +215,45 @@ box: Rect, at: (100, 100)
     );
     let msg = &report.diagnostics[0].message;
     assert!(msg.contains("nonexistent"), "diagnostic should mention missing marker: {msg}");
+}
+
+#[test]
+fn test_demo_scene_captions_evaluation() {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let amx_path = manifest_dir.join("../../examples/animation/41_speech_sync_captions.amx");
+    if !amx_path.exists() {
+        return;
+    }
+    let ast = ModuleGraph::new()
+        .load_program(&amx_path)
+        .expect("load program")
+        .expand_components(&mut Vec::new());
+
+    let ext_ctx = std::sync::Arc::new(animatix::extension_context::ExtensionContext::new());
+    let namespaces = std::collections::HashMap::new();
+    let report = animatix::composition::BuildTarget::from_ast_with_context_and_defines(
+        &ast,
+        &namespaces,
+        Some(&amx_path),
+        ext_ctx,
+        &[],
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .all(|d| d.severity != animatix_syntax::diagnostics::DiagnosticSeverity::Error)
+    );
+
+    let tl = match report.output {
+        animatix::composition::BuildTarget::SingleScene(tl) => tl,
+        animatix::composition::BuildTarget::MultiScene(_) => panic!("Expected single scene"),
+    };
+    assert!(tl.transcripts().contains_key("voice"));
+    assert!(tl.transcripts().contains_key("subs"));
+    let subs_track = tl.tracks().get("subs").expect("subs track must exist");
+    assert_eq!(subs_track.actor_type, "Captions");
+    assert_eq!(subs_track.style.opacity.get(2000, 0.0), 1.0);
+
+    let _scene_at_2s = tl.evaluate(2.0, DIMS);
 }

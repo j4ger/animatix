@@ -1,0 +1,143 @@
+{
+  "duration": 10.325,
+  "markers": {
+    "intro": 0.113,
+    "feature": 1.9,
+    "captions": 6.2,
+    "outro": 9.825
+  },
+  "segments": [
+    {
+      "id": 0,
+      "start": 0.113,
+      "end": 1.488,
+      "text": "Welcome to Animatix.",
+      "words": [
+        {
+          "word": "Welcome",
+          "start": 0.113,
+          "end": 0.513,
+          "confidence": 1.0
+        },
+        {
+          "word": "to",
+          "start": 0.625,
+          "end": 0.712,
+          "confidence": 1.0
+        },
+        {
+          "word": "Animatix",
+          "start": 0.713,
+          "end": 1.488,
+          "confidence": 1.0
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "start": 1.9,
+      "end": 5.8,
+      "text": "The layout-first animation DSL for technical storytelling.",
+      "words": [
+        {
+          "word": "The",
+          "start": 1.9,
+          "end": 1.975,
+          "confidence": 1.0
+        },
+        {
+          "word": "layout-first",
+          "start": 1.975,
+          "end": 2.85,
+          "confidence": 1.0
+        },
+        {
+          "word": "animation",
+          "start": 2.913,
+          "end": 3.438,
+          "confidence": 1.0
+        },
+        {
+          "word": "DSL",
+          "start": 3.45,
+          "end": 4.15,
+          "confidence": 1.0
+        },
+        {
+          "word": "for",
+          "start": 4.45,
+          "end": 4.625,
+          "confidence": 1.0
+        },
+        {
+          "word": "technical",
+          "start": 4.625,
+          "end": 5.125,
+          "confidence": 1.0
+        },
+        {
+          "word": "storytelling",
+          "start": 5.125,
+          "end": 5.8,
+          "confidence": 1.0
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "start": 6.2,
+      "end": 10.025,
+      "text": "Watch captions synchronize perfectly with every spoken word.",
+      "words": [
+        {
+          "word": "Watch",
+          "start": 6.2,
+          "end": 6.463,
+          "confidence": 1.0
+        },
+        {
+          "word": "captions",
+          "start": 6.463,
+          "end": 6.95,
+          "confidence": 1.0
+        },
+        {
+          "word": "synchronize",
+          "start": 6.963,
+          "end": 7.676,
+          "confidence": 1.0
+        },
+        {
+          "word": "perfectly",
+          "start": 7.8,
+          "end": 8.45,
+          "confidence": 1.0
+        },
+        {
+          "word": "with",
+          "start": 8.637,
+          "end": 8.825,
+          "confidence": 1.0
+        },
+        {
+          "word": "every",
+          "start": 8.975,
+          "end": 9.25,
+          "confidence": 1.0
+        },
+        {
+          "word": "spoken",
+          "start": 9.262,
+          "end": 9.687,
+          "confidence": 1.0
+        },
+        {
+          "word": "word",
+          "start": 9.7,
+          "end": 10.025,
+          "confidence": 1.0
+        }
+      ]
+    }
+  ]
+}

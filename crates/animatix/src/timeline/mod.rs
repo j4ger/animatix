@@ -1629,7 +1629,10 @@ impl Timeline {
         let Some(track) = self.tracks.get(label) else {
             return true;
         };
-        if track.has_any_keyframes()
+        if track.actor_type == "Captions"
+            || track.actor_type == "Cue"
+            || self.transcripts.contains_key(label)
+            || track.has_any_keyframes()
             || track.procedural_plot.is_some()
             || track.shape.from_anchor.is_some()
             || track.shape.to_anchor.is_some()

@@ -1,0 +1,96 @@
+// 41 — Speech Progress Synchronization & First-Class Captions
+// Showcases:
+//   - Speech-anchored keyframes: #voice@marker and #voice["word"]
+//   - First-class Captions container with karaoke highlighting
+//   - Dynamic backdrop pill rendering behind spoken text
+//   - Kinetic UI cards synchronized to voiceover narration beats
+
+import "../lib/theme.amx"
+import "../lib/ui.amx"
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+// Audio track binding with accompanying speech transcript
+voice: Audio, source: "../assets/narration.mp3", transcript: "../assets/narration.speech.json"
+
+#0s
+// Background canvas
+bg: Rect, size: (1280, 720), color: surface.secondary, at: (640, 360)
+
+// Top category badge
+badge: Chip, label: "VOICEOVER SYNCHRONIZATION", width: 220, height: 28, color: surface.primary, text_color: accent.primary, at: (640, 90)
+
+// Hero Title
+title: Text,
+  text: "Speech-Anchored Kinetic Timeline",
+  font_size: 42,
+  font_weight: "bold",
+  at: (640, 140),
+  text_align: "center",
+  color: text.primary
+
+// Three synchronized story cards
+card_intro: CardNode,
+  title: "1. Speech Anchors",
+  eyebrow: "SYNTAX",
+  sub: "#voice@marker & #voice[\"word\"]",
+  at: (300, 320)
+
+card_feature: CardNode,
+  title: "2. Zero Overhead",
+  eyebrow: "COMPILER",
+  sub: "Compile-time static lowering",
+  at: (640, 320),
+  focal: true
+
+card_captions: CardNode,
+  title: "3. Kinetic Captions",
+  eyebrow: "RENDERING",
+  sub: "Word pop & karaoke fill",
+  at: (980, 320)
+
+// First-class Subtitle / Caption container
+subs: Captions,
+  at: (640, 580),
+  transcript: "../assets/narration.speech.json",
+  caption_mode: "karaoke",
+  active_color: accent.primary,
+  inactive_color: text.muted,
+  font_size: 28,
+  backdrop: true,
+  backdrop_color: (0.05, 0.08, 0.14, 0.92),
+  backdrop_radius: 14,
+  backdrop_padding: (28, 14),
+  pop_scale: 1.15
+
+// Initial entrance at t=0
+fade-in badge [300ms]
+fade-in title [400ms]
+
+// ─────────────────────────────────────────────────────────────
+// Speech-Synchronized Cue Points
+// ─────────────────────────────────────────────────────────────
+
+// "Welcome to Animatix."
+#voice@intro:
+    fade-in card_intro [400ms]
+
+#voice["Animatix"]:
+    title.color = accent.primary [300ms]
+
+// "The layout-first animation DSL for technical storytelling."
+#voice@feature:
+    fade-in card_feature [400ms]
+
+#voice["DSL"]:
+    card_feature.card_bg.stroke = accent.primary [200ms]
+
+// "Watch captions synchronize perfectly with every spoken word."
+#voice@captions:
+    fade-in card_captions [400ms]
+
+#voice["perfectly"]:
+    card_captions.card_bg.stroke = accent.secondary [200ms]
+
+#voice@outro:
+    title.color = text.primary [400ms]
