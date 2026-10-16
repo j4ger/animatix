@@ -16,7 +16,7 @@ config { colorscheme: "ink", resolution: (1280, 720) }
 # Shear
 config { colorscheme: "ink", duration: 8 }
 
-bg1: Ambience, tint: accent.warning
+bg1: Ambience, tint: accent.warning, seed: 404
 
 shear_title: Text, text: "A matrix is a machine", font_size: 38,
   color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -136,7 +136,7 @@ play Rotation [wipe-left, 500ms]
 # Rotation
 config { colorscheme: "ink", duration: 8 }
 
-bg2: Ambience, tint: accent.info
+bg2: Ambience, tint: accent.info, seed: 505
 
 rot_title: Text, text: "Rotation: read it off the columns", font_size: 38,
   color: text.primary, anchor: scene.top, offset: (0, 52)
@@ -238,7 +238,7 @@ play Collapse [wipe-left, 500ms]
 # Collapse
 config { colorscheme: "ink", duration: 10 }
 
-bg3: Ambience, tint: accent.danger
+bg3: Ambience, tint: accent.danger, seed: 606
 
 col_title: Text, text: "When det crosses zero, the plane folds", font_size: 38,
   color: text.primary, anchor: scene.top, offset: (0, 52)

@@ -6,7 +6,7 @@ config { resolution: (1280, 720) }
 # Lookup
 config { colorscheme: "ink", duration: 11.5 }
 
-bg: Ambience, tint: accent.success
+bg: Ambience, tint: accent.success, seed: 909
 
 lk_title: Text, text: "Lookup Theatre", font_size: 38, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 44)

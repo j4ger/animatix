@@ -6,7 +6,7 @@ config { resolution: (1280, 720) }
 # Collision
 config { colorscheme: "ink", duration: 5 }
 
-bg: Ambience, tint: accent.warning
+bg: Ambience, tint: accent.warning, seed: 808
 
 col_title: Text, text: "Two Keys, One Bucket", font_size: 38, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 44)

@@ -12,7 +12,7 @@ import "../../demos/lib/ambience.amx"
 config { colorscheme: "ink", resolution: (1280, 720), duration: 8.0 }
 
 // ── Background Ambience ───────────────────────────────────────────────────
-bg: Ambience, tint: accent.primary
+bg: Ambience, tint: accent.primary, seed: 333
 
 // ── Architecture Header ────────────────────────────────────────────────────
 h_kicker: Text, text: "ARCHITECTURE REFERENCE", font_size: 11, font_weight: 600,

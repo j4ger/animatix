@@ -6,7 +6,7 @@ config { resolution: (1280, 720) }
 # LossSurface
 config { colorscheme: "ink", duration: 5.0 }
 
-bg: Ambience, tint: accent.primary
+bg: Ambience, tint: accent.primary, seed: 444
 
 step_title: Text, text: "1. The Loss Surface", font_size: 38, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 48)

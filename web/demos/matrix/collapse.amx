@@ -6,7 +6,7 @@ config { resolution: (1280, 720) }
 # Collapse
 config { colorscheme: "ink", duration: 10 }
 
-bg: Ambience, tint: accent.danger
+bg: Ambience, tint: accent.danger, seed: 606
 
 mat_card: Rect, size: (220, 190), at: (236, 226), corner_radius: 12,
   color: surface.primary, stroke: stroke.default, stroke_width: 1

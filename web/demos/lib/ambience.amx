@@ -7,41 +7,35 @@
 // evaluating smoothed responses analytically via `curve_smooth` with zero GPU readback
 // and zero per-frame CPU allocation overhead.
 //
+// Ambience creates a fluid, amorphous, boundary-free atmospheric illumination
+// using rotated anamorphic caustic ribbons and diffused atmospheric veils.
+// Movement patterns are uniquely seeded per-scene using deterministic RNG.
+//
 // Usage as an imported component:
 //   import "lib/ambience.amx" as amb
-//   bg: amb.Ambience(tint: rgb(0.37, 0.36, 0.90), base_opacity: 0.18, tau: 0.7)
-//
-// Usage as a standalone inline recipe:
-//   plate: Rect, size: (fill, fill), color: scene.background, anchor: scene.center, opacity: 1.0
-//   wash: Ellipse, size: (900, 900), opacity: 0.18, blend: "screen",
-//     fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#f5b94233"), (100%, "#f5b94200")}),
-//     anchor: scene.center
-//   always {
-//     let e = curve_smooth(scene.stats.motion, t, 0.7)
-//     let fx = curve_smooth(scene.stats.focus_x, t, 1.2)
-//     let sx = curve_smooth(scene.stats.spread_x, t, 1.0)
-//     wash.at = (fx, scene_height * 0.5)
-//     wash.size = (600 + 600 * sx, 600 + 600 * sx)
-//     wash.opacity = clamp(0.06 + 0.5 * e, 0.02, 0.30)
-//   }
+//   bg: amb.Ambience(tint: rgb(0.37, 0.36, 0.90), base_opacity: 0.15, tau: 0.7, seed: 42)
 
-pub component Ambience(tint: Color = rgb(0.96, 0.72, 0.26), base_opacity: Num = 0.18, tau: Num = 0.7) {
+pub component Ambience(tint: Color = rgb(0.96, 0.72, 0.26), base_opacity: Num = 0.18, tau: Num = 0.7, seed: Num = 0) {
   plate: Rect, size: (fill, fill), color: scene.background, anchor: scene.center, opacity: 1.0, legend: false
 
-  veil: Ellipse, size: (1600, 950), opacity: base_opacity * 0.70, blend: "screen",
-    fill_gradient: radial((0.5, 0.5), 0.28, {(0%, tint), (40%, tint), (100%, (0, 0, 0, 0))}),
+  // 1. Broad atmospheric veil: seamless canvas-scale illumination with cubic inverse-square falloff
+  veil: Ellipse, size: (2200, 1400), opacity: base_opacity * 0.65, blend: "screen",
+    fill_gradient: radial((0.5, 0.5), 0.65, {(0%, tint * 0.26), (25%, tint * 0.18), (55%, tint * 0.08), (80%, tint * 0.02), (100%, (0, 0, 0, 0))}),
     anchor: scene.center, legend: false
 
-  wash: Ellipse, size: (1150, 720), opacity: base_opacity * 1.20, blend: "screen",
-    fill_gradient: radial((0.5, 0.5), 0.28, {(0%, tint), (30%, tint), (70%, tint * 0.4), (100%, (0, 0, 0, 0))}),
+  // 2. Primary diagonal caustic ribbon: elongated anamorphic light sweep (aspect ratio ~4:1)
+  wash: Ellipse, size: (1800, 460), opacity: base_opacity * 0.85, blend: "screen",
+    fill_gradient: radial((0.5, 0.5), 0.55, {(0%, tint * 0.36), (30%, tint * 0.24), (65%, tint * 0.08), (100%, (0, 0, 0, 0))}),
     anchor: scene.center, legend: false
 
-  aura: Ellipse, size: (980, 620), opacity: base_opacity * 0.90, blend: "screen",
-    fill_gradient: radial((0.5, 0.5), 0.28, {(0%, tint), (35%, tint), (75%, tint * 0.35), (100%, (0, 0, 0, 0))}),
+  // 3. Counter-angled caustic ribbon: opposing diagonal creating an amorphous, morphing rhombus caustic
+  aura: Ellipse, size: (1650, 420), opacity: base_opacity * 0.75, blend: "screen",
+    fill_gradient: radial((0.5, 0.5), 0.55, {(0%, tint * 0.30), (30%, tint * 0.18), (65%, tint * 0.06), (100%, (0, 0, 0, 0))}),
     anchor: scene.center, legend: false
 
-  swathe: Ellipse, size: (1080, 600), opacity: base_opacity * 0.80, blend: "screen",
-    fill_gradient: radial((0.5, 0.5), 0.26, {(0%, tint), (25%, tint), (65%, tint * 0.4), (100%, (0, 0, 0, 0))}),
+  // 4. Undulating amorphous focus cloud: gentle off-center organic density tracking active elements
+  swathe: Ellipse, size: (1350, 680), opacity: base_opacity * 0.70, blend: "screen",
+    fill_gradient: radial((0.46, 0.54), 0.55, {(0%, tint * 0.28), (28%, tint * 0.18), (60%, tint * 0.06), (100%, (0, 0, 0, 0))}),
     anchor: scene.center, legend: false
 
   always {
@@ -51,48 +45,74 @@ pub component Ambience(tint: Color = rgb(0.96, 0.72, 0.26), base_opacity: Num = 
     let sx = curve_smooth(scene.stats.spread_x, t, tau * 1.2)
     let sy = curve_smooth(scene.stats.spread_y, t, tau * 1.2)
 
-    // Dynamic fluid drift (Lissajous orbits with distinct harmonic phases)
-    let drift1_x = 65 * sin(t * 0.75)
-    let drift1_y = 38 * cos(t * 0.60)
-    let drift2_x = -75 * sin(t * 0.65 + 0.8)
-    let drift2_y = 45 * cos(t * 0.80 + 0.4)
-    let drift3_x = 85 * cos(t * 0.50 + 1.4)
-    let drift3_y = -48 * sin(t * 0.70 + 0.9)
+    // Automatic scene-hash seed derived from the scene's unique initial geometry and footprint
+    let s_init = curve_at(scene.stats.focus_x, 0.0) * 1.731 + curve_at(scene.stats.focus_y, 0.0) * 2.317 + curve_at(scene.stats.spread_x, 0.0) * 3.179 + curve_at(scene.stats.spread_y, 0.0) * 4.123 + curve_at(scene.stats.cast, 0.0) * 23.41 + curve_at(scene.stats.ink, 0.0) * 11.19
+    let s = if seed != 0 { seed } else { s_init }
 
-    // Breathing and aspect morphing waves (preserving fluid area while morphing shape)
-    let morph_w1 = 1.0 + 0.16 * sin(t * 0.85)
-    let morph_h1 = 1.0 - 0.14 * cos(t * 0.70)
-    let morph_w2 = 1.0 - 0.18 * cos(t * 0.75)
-    let morph_h2 = 1.0 + 0.15 * sin(t * 0.90)
-    let morph_w3 = 1.0 + 0.20 * cos(t * 0.60 + 0.5)
-    let morph_h3 = 1.0 - 0.16 * sin(t * 0.80 + 0.7)
+    // Seed-derived distinct harmonic frequencies, phase offsets, and orbital radii
+    let p1 = seeded_rand(s + 11.0) * 6.283
+    let p2 = seeded_rand(s + 29.0) * 6.283
+    let p3 = seeded_rand(s + 47.0) * 6.283
+    let p4 = seeded_rand(s + 71.0) * 6.283
 
-    let breathe1 = 0.025 * sin(t * 1.1)
-    let breathe2 = 0.020 * cos(t * 0.85 + 0.7)
-    let breathe3 = 0.018 * sin(t * 0.95 + 1.5)
+    let f1 = 0.20 + 0.22 * seeded_rand(s + 101.0)
+    let f2 = 0.16 + 0.24 * seeded_rand(s + 211.0)
+    let f3 = 0.14 + 0.20 * seeded_rand(s + 331.0)
+    let f4 = 0.12 + 0.18 * seeded_rand(s + 443.0)
 
-    // 1. Broad atmospheric veil: gently bathes the entire frame in ambient tint
-    self.veil.at = (fx * 0.35 + scene_width * 0.325 + 35 * sin(t * 0.4), fy * 0.35 + scene_height * 0.325 + 25 * cos(t * 0.3))
-    self.veil.size = (1350 + 450 * sx + 60 * sin(t * 0.45), 800 + 350 * sy + 40 * cos(t * 0.35))
-    self.veil.rotation = 0.12 * sin(t * 0.3)
-    self.veil.opacity = clamp(base_opacity * 0.70 * (0.75 + 0.8 * e) + 0.02 * sin(t * 0.5), 0.02, 0.45)
+    let amp1_x = 55 + 45 * seeded_rand(s + 557.0)
+    let amp1_y = 25 + 25 * seeded_rand(s + 673.0)
+    let amp2_x = 65 + 50 * seeded_rand(s + 787.0)
+    let amp2_y = 30 + 30 * seeded_rand(s + 907.0)
+    let amp3_x = 50 + 40 * seeded_rand(s + 997.0)
+    let amp3_y = 25 + 25 * seeded_rand(s + 1069.0)
 
-    // 2. Primary focal wash: tracks density center, morphs aspect ratio, sweeps with rotation
+    let base_rot1 = -0.55 + 0.40 * seeded_rand(s + 1151.0)
+    let base_rot2 = 0.35 + 0.45 * seeded_rand(s + 1277.0)
+    let base_rot3 = -0.20 + 0.40 * seeded_rand(s + 1381.0)
+
+    // Dynamic fluid drift (decorrelated Lissajous orbits)
+    let drift1_x = amp1_x * sin(t * f1 + p1)
+    let drift1_y = amp1_y * cos(t * (f1 * 0.85) + p2)
+    let drift2_x = -amp2_x * cos(t * f2 + p3)
+    let drift2_y = amp2_y * sin(t * (f2 * 0.90) + p4)
+    let drift3_x = amp3_x * sin(t * f3 + p2)
+    let drift3_y = -amp3_y * cos(t * (f3 * 0.80) + p1)
+
+    // Breathing and aspect morphing waves
+    let morph_w1 = 1.0 + 0.14 * sin(t * f2 + p1)
+    let morph_h1 = 1.0 - 0.12 * cos(t * f3 + p2)
+    let morph_w2 = 1.0 - 0.15 * cos(t * f1 + p3)
+    let morph_h2 = 1.0 + 0.13 * sin(t * f4 + p4)
+    let morph_w3 = 1.0 + 0.16 * cos(t * f3 + p4)
+    let morph_h3 = 1.0 - 0.14 * sin(t * f2 + p3)
+
+    let breathe1 = 0.022 * sin(t * f1 + p2)
+    let breathe2 = 0.018 * cos(t * f2 + p3)
+    let breathe3 = 0.015 * sin(t * f3 + p4)
+
+    // 1. Broad atmospheric veil: soft dispersed illumination bathing the stage
+    self.veil.at = (fx * 0.25 + scene_width * 0.375 + 25 * sin(t * f4 + p1), fy * 0.25 + scene_height * 0.375 + 20 * cos(t * f4 + p2))
+    self.veil.size = (1800 + 400 * sx + 50 * sin(t * f3 + p3), 1100 + 300 * sy + 35 * cos(t * f3 + p4))
+    self.veil.rotation = 0.08 * sin(t * f4 + p1)
+    self.veil.opacity = clamp(base_opacity * 0.70 * (0.75 + 0.85 * e) + 0.02 * sin(t * f4), 0.02, 0.45)
+
+    // 2. Primary diagonal caustic ribbon: elongated anamorphic light sweep
     self.wash.at = (fx + drift1_x, fy + drift1_y)
-    self.wash.size = ((920 + 640 * sx) * morph_w1, (580 + 420 * sy) * morph_h1)
-    self.wash.rotation = 0.28 * sin(t * 0.55) + 0.12 * cos(t * 0.90)
-    self.wash.opacity = clamp(base_opacity * 1.20 * (0.65 + 1.35 * e) + breathe1, 0.03, 0.65)
+    self.wash.size = ((1550 + 450 * sx) * morph_w1, (420 + 260 * sy) * morph_h1)
+    self.wash.rotation = base_rot1 + 0.12 * sin(t * f1 + p1)
+    self.wash.opacity = clamp(base_opacity * 1.10 * (0.65 + 1.35 * e) + breathe1, 0.02, 0.55)
 
-    // 3. Counter-orbiting aura ribbon: creates asymmetric amorphous contour
+    // 3. Counter-angled caustic ribbon: opposing diagonal creating morphing rhombus caustic
     self.aura.at = (fx + drift2_x, fy + drift2_y)
-    self.aura.size = ((780 + 520 * sx) * morph_w2, (480 + 360 * sy) * morph_h2)
-    self.aura.rotation = -0.38 * cos(t * 0.45) + 0.16 * sin(t * 0.80)
-    self.aura.opacity = clamp(base_opacity * 0.90 * (0.70 + 1.15 * e) + breathe2, 0.02, 0.55)
+    self.aura.size = ((1450 + 400 * sx) * morph_w2, (380 + 240 * sy) * morph_h2)
+    self.aura.rotation = base_rot2 + 0.14 * cos(t * f2 + p2)
+    self.aura.opacity = clamp(base_opacity * 0.85 * (0.70 + 1.15 * e) + breathe2, 0.02, 0.48)
 
-    // 4. Undulating atmospheric swathe: third crossing lobe breaking any radial symmetry
+    // 4. Undulating amorphous focus cloud: gentle off-center organic density
     self.swathe.at = (fx + drift3_x, fy + drift3_y)
-    self.swathe.size = ((860 + 560 * sx) * morph_w3, (460 + 340 * sy) * morph_h3)
-    self.swathe.rotation = 0.48 * sin(t * 0.40 + 1.2) - 0.15 * cos(t * 0.75)
-    self.swathe.opacity = clamp(base_opacity * 0.80 * (0.65 + 1.25 * e) + breathe3, 0.02, 0.50)
+    self.swathe.size = ((1250 + 420 * sx) * morph_w3, (520 + 300 * sy) * morph_h3)
+    self.swathe.rotation = base_rot3 + 0.18 * sin(t * f3 + p3)
+    self.swathe.opacity = clamp(base_opacity * 0.75 * (0.70 + 1.10 * e) + breathe3, 0.02, 0.42)
   }
 }

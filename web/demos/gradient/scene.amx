@@ -14,7 +14,7 @@ config { colorscheme: "ink", resolution: (1280, 720) }
 # TitleCard
 config { colorscheme: "ink", duration: 2.6 }
 
-bg1: Ambience, tint: accent.primary
+bg1: Ambience, tint: accent.primary, seed: 444
 
 hero: TitleCard,
   title: "Gradient Descent",
@@ -33,7 +33,7 @@ play LossSurface [fade, 400ms]
 # LossSurface
 config { colorscheme: "ink", duration: 5.0 }
 
-bg2: Ambience, tint: accent.primary
+bg2: Ambience, tint: accent.primary, seed: 454
 
 step_title: Text, text: "1. The Loss Surface", font_size: 38, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 48)
@@ -109,7 +109,7 @@ play GradientDirection [wipe-left, 400ms]
 # GradientDirection
 config { colorscheme: "ink", duration: 4.6 }
 
-bg3: Ambience, tint: accent.warning
+bg3: Ambience, tint: accent.warning, seed: 555
 
 step2_title: Text, text: "2. Go Against the Gradient", font_size: 38, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 48)
@@ -186,7 +186,7 @@ play Descent [fade, 400ms]
 # Descent
 config { colorscheme: "ink", duration: 8.0 }
 
-bg4: Ambience, tint: accent.success
+bg4: Ambience, tint: accent.success, seed: 666
 
 step3_title: Text, text: "3. Roll to the Minimum", font_size: 38, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 48)
@@ -277,7 +277,7 @@ play LearningRate [fade, 400ms]
 # LearningRate
 config { colorscheme: "ink", duration: 6.8 }
 
-bg5: Ambience, tint: accent.info
+bg5: Ambience, tint: accent.info, seed: 777
 
 step4_title: Text, text: "4. Step Size Matters", font_size: 38, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 48)
@@ -369,7 +369,7 @@ play Outro [fade, 400ms]
 # Outro
 config { colorscheme: "ink" }
 
-bg6: Ambience, tint: accent.success
+bg6: Ambience, tint: accent.success, seed: 686
 
 thanks: Text, text: "theta* = argmin L(theta)",
   font_size: 42, font_weight: "bold", color: text.primary, anchor: scene.center, offset: (0, -26)

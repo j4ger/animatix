@@ -36,7 +36,7 @@ let g7 = 0.0
 
 import "../../demos/lib/ambience.amx"
 
-bg: Ambience, tint: accent.info
+bg: Ambience, tint: accent.info, seed: 80
 
 hero_hub: Ellipse, size: (9, 9), color: text.muted, at: (geo.pivot_x, geo.cy)
 

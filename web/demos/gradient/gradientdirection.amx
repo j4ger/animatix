@@ -6,7 +6,7 @@ config { resolution: (1280, 720) }
 # GradientDirection
 config { colorscheme: "ink", duration: 4.6 }
 
-bg: Ambience, tint: accent.warning
+bg: Ambience, tint: accent.warning, seed: 555
 
 step2_title: Text, text: "2. Go Against the Gradient", font_size: 38, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 48)

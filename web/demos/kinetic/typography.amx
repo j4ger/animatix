@@ -5,7 +5,7 @@ import "../../demos/lib/ambience.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 6.0 }
 
-bg: Ambience, tint: accent.primary
+bg: Ambience, tint: accent.primary, seed: 999
 
 h_kicker: Text, text: "KINETIC STUDIO", font_size: 11, font_weight: 600, color: accent.primary,
   anchor: scene.top, offset: (0, 36)

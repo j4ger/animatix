@@ -6,7 +6,7 @@ config { resolution: (1280, 720) }
 # Overture
 config { colorscheme: "ink", dynamic_layout: true, duration: 6 }
 
-bg: Ambience, tint: accent.primary
+bg: Ambience, tint: accent.primary, seed: 101
 
 hero: TitleCard,
   title: "Sorting Theatre",

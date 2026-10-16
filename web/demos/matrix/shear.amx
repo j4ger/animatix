@@ -5,7 +5,7 @@ config { resolution: (1280, 720) }
 # Shear
 config { colorscheme: "ink", duration: 8 }
 
-bg: Ambience, tint: accent.warning
+bg: Ambience, tint: accent.warning, seed: 404
 
 mat_card: Rect, size: (220, 190), at: (236, 226), corner_radius: 12,
   color: surface.primary, stroke: stroke.default, stroke_width: 1

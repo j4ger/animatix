@@ -15,7 +15,7 @@ import "../lib/components.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 8.4 }
 
-bg: Ambience, tint: accent.primary, base_opacity: 0.14
+bg: Ambience, tint: accent.primary, base_opacity: 0.14, seed: 30
 
 // ── header / narration (top-left) ───────────────────────────────────
 head_eyebrow: Text, text: "FIG 03 // SCALED DOT-PRODUCT ATTENTION", font_size: 13,

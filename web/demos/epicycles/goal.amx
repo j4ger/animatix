@@ -19,7 +19,7 @@ import "../../demos/lib/ambience.amx"
 # Goal
 config { colorscheme: "ink", dynamic_layout: true, duration: 6.8 }
 
-bg: Ambience, tint: accent.primary
+bg: Ambience, tint: accent.primary, seed: 90
 
 goal_graph: Graph, at: (640, geo.cy), size: (1000, 2 * geo.y_hi * pi * geo.R / 4),
   x_domain: (0, geo.span), y_domain: (geo.y_lo, geo.y_hi), tick_labels: "y" {

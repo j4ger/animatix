@@ -15,7 +15,7 @@ pub component Bars(values: List<Num>, color: Color, at: Vec2 = (640, 400), bar_w
 # Finale
 config { colorscheme: "ink", dynamic_layout: true, duration: 8 }
 
-bg: Ambience, tint: accent.warning
+bg: Ambience, tint: accent.warning, seed: 303
 
 tick_mark: Path, icon: "check", stroke: accent.success, stroke_width: 3,
   fill_opacity: 0.0, anchor: scene.top, offset: (-90, 52), scale: 2.2

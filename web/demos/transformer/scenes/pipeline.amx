@@ -13,7 +13,7 @@ import "../lib/components.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 8.2 }
 
-bg: Ambience, tint: accent.danger, base_opacity: 0.14
+bg: Ambience, tint: accent.danger, base_opacity: 0.14, seed: 60
 
 // ── Header / Narration (top-left) ───────────────────────────────────
 head_eyebrow: Text, text: "FIG 06 // DEEP LAYER STACK & LOGIT PROJECTION", font_size: 13,

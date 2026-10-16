@@ -19,7 +19,7 @@ config { colorscheme: "ink", resolution: (1280, 720) }
 # Buckets
 config { colorscheme: "ink", duration: 8 }
 
-bg1: Ambience, tint: accent.primary
+bg1: Ambience, tint: accent.primary, seed: 707
 
 bk_title: Text, text: "Where Keys Live", font_size: 38, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 44)
@@ -110,7 +110,7 @@ play Collision [wipe-left, 500ms]
 # Collision
 config { colorscheme: "ink", duration: 5 }
 
-bg2: Ambience, tint: accent.warning
+bg2: Ambience, tint: accent.warning, seed: 808
 
 col_title: Text, text: "Two Keys, One Bucket", font_size: 38, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 44)
@@ -183,7 +183,7 @@ play Lookup [wipe-left, 500ms]
 # Lookup
 config { colorscheme: "ink", duration: 12.6 }
 
-bg3: Ambience, tint: accent.success
+bg3: Ambience, tint: accent.success, seed: 909
 
 lk_title: Text, text: "Lookup Theatre", font_size: 38, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 44)

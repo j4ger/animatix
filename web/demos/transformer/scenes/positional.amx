@@ -16,7 +16,7 @@ import "../lib/components.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 7.4 }
 
-bg: Ambience, tint: accent.info, base_opacity: 0.14
+bg: Ambience, tint: accent.info, base_opacity: 0.14, seed: 20
 
 // ── Header / Narration (top-left) ───────────────────────────────────
 head_eyebrow: Text, text: "FIG 02 // HARMONIC POSITIONAL SPECTRUM", font_size: 13,

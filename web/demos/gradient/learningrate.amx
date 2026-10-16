@@ -6,7 +6,7 @@ config { resolution: (1280, 720) }
 # LearningRate
 config { colorscheme: "ink", duration: 6.8 }
 
-bg: Ambience, tint: accent.info
+bg: Ambience, tint: accent.info, seed: 777
 
 step4_title: Text, text: "4. Step Size Matters", font_size: 38, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 48)

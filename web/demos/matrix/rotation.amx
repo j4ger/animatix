@@ -6,7 +6,7 @@ config { resolution: (1280, 720) }
 # Rotation
 config { colorscheme: "ink", duration: 7.8 }
 
-bg: Ambience, tint: accent.info
+bg: Ambience, tint: accent.info, seed: 505
 
 mat_card: Rect, size: (220, 190), at: (236, 226), corner_radius: 12,
   color: surface.primary, stroke: stroke.default, stroke_width: 1

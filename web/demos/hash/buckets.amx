@@ -6,7 +6,7 @@ config { resolution: (1280, 720) }
 # Buckets
 config { colorscheme: "ink", duration: 12 }
 
-bg: Ambience, tint: accent.primary
+bg: Ambience, tint: accent.primary, seed: 707
 
 bk_title: Text, text: "Where Keys Live", font_size: 38, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 44)

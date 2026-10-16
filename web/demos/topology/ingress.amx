@@ -4,7 +4,7 @@ import "../../demos/lib/ambience.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 6.0 }
 
-bg: Ambience, tint: accent.primary
+bg: Ambience, tint: accent.primary, seed: 111
 
 h_kicker: Text, text: "EDGE TOPOLOGY", font_size: 11, font_weight: 600, color: accent.primary, anchor: scene.top, offset: (0, 40)
 h_title: Text, text: "Public Ingress & Transit Mesh", font_size: 32, font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 72)

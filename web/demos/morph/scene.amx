@@ -11,7 +11,7 @@ import "../../demos/lib/ambience.amx"
 config { colorscheme: "ink", resolution: (1280, 720), duration: 8.5 }
 
 // Ambient dynamic lighting
-bg: Ambience, tint: accent.primary
+bg: Ambience, tint: accent.primary, seed: 456
 
 // Architecture Header
 h_kicker: Text, text: "MORPH LAB", font_size: 11, font_weight: 600, color: accent.primary,

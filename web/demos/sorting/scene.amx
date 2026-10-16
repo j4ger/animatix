@@ -63,7 +63,7 @@ pub component Bars(values: List<Num>, color: Color, at: Vec2 = (640, 400), bar_w
 # Overture
 config { colorscheme: "ink", dynamic_layout: true, duration: 4 }
 
-bg1: Ambience, tint: accent.primary
+bg1: Ambience, tint: accent.primary, seed: 101
 
 hero: TitleCard,
   title: "Sorting Theatre",
@@ -110,7 +110,7 @@ play TheSort [fade, 500ms]
 # TheSort
 config { colorscheme: "ink", dynamic_layout: true, duration: 19.5 }
 
-bg2: Ambience, tint: accent.info
+bg2: Ambience, tint: accent.info, seed: 202
 
 sort_title: Text, text: "Insertion Sort", font_size: 38, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 44)
@@ -175,7 +175,7 @@ play Finale [fade, 500ms]
 # Finale
 config { colorscheme: "ink", dynamic_layout: true, duration: 6.5 }
 
-bg3: Ambience, tint: accent.warning
+bg3: Ambience, tint: accent.warning, seed: 303
 
 tick_mark: Path, icon: "check", stroke: accent.success, stroke_width: 3,
   fill_opacity: 0.0, anchor: scene.top, offset: (-90, 52), scale: 2.2

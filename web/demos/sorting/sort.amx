@@ -49,7 +49,7 @@ import "../../demos/lib/ui.amx"
 # TheSort
 config { colorscheme: "ink", dynamic_layout: true, duration: 18.9 }
 
-bg: Ambience, tint: accent.info
+bg: Ambience, tint: accent.info, seed: 202
 
 sort_title: Text, text: "Insertion Sort", font_size: 38, font_weight: "bold",
   color: text.primary, anchor: scene.top, offset: (0, 44)

@@ -3,7 +3,7 @@ import "lib/ambience.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 6, seamless_loop: true }
 
-bg: Ambience, tint: accent.primary, base_opacity: 0.22, tau: 0.5
+bg: Ambience, tint: accent.primary, base_opacity: 0.22, tau: 0.5, seed: 42
 
 hero: Ellipse, size: (120, 120), color: accent.primary, at: (320, 360), opacity: 1.0
 satellite: Rect, size: (70, 70), corner_radius: 12, color: accent.secondary, at: (960, 360), opacity: 1.0
