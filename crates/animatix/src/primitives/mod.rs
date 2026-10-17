@@ -818,6 +818,8 @@ mod filter;
 pub use filter::FILTER;
 mod glass;
 pub use glass::GLASS;
+pub mod payload;
+pub use payload::*;
 mod registry;
 pub use registry::{PrimitiveRegistrationError, PrimitiveRegistry};
 

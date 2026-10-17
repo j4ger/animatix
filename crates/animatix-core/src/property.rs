@@ -78,6 +78,28 @@ impl PropertyDescriptor {
     }
 }
 
+/// Declarative macro for defining canonical built-in property descriptor tables.
+///
+/// Ensures descriptor name, applicability, and value kind are declared together
+/// with single-point maintenance.
+#[macro_export]
+macro_rules! declare_property_descriptors {
+    ($(
+        $(#[$doc:meta])*
+        $name:literal => ($applicable:expr, $val_kind:ident)
+    ),* $(,)?) => {
+        pub static PROPERTY_DESCRIPTORS: &[$crate::property::PropertyDescriptor] = &[
+            $(
+                $crate::property::PropertyDescriptor::new(
+                    $name,
+                    $applicable,
+                    $crate::property::PropertyValueKind::$val_kind,
+                ),
+            )*
+        ];
+    };
+}
+
 /// Every built-in property, in declaration order.
 ///
 /// **The order is the ABI.** [`PropertyId`] is the row index and serialized
@@ -490,4 +512,27 @@ pub fn descriptor_id(name: &str) -> Option<PropertyId> {
         .iter()
         .position(|d| d.name == name)
         .map(|index| PropertyId(index as u32))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod macro_test {
+        use super::*;
+
+        declare_property_descriptors! {
+            "test_prop" => (Applicable::Everything, F32),
+            "test_color" => (Applicable::AllDrawables, Vec4),
+        }
+
+        #[test]
+        fn test_declare_property_descriptors_macro() {
+            assert_eq!(PROPERTY_DESCRIPTORS.len(), 2);
+            assert_eq!(PROPERTY_DESCRIPTORS[0].name, "test_prop");
+            assert_eq!(PROPERTY_DESCRIPTORS[0].value_kind, PropertyValueKind::F32);
+            assert_eq!(PROPERTY_DESCRIPTORS[1].name, "test_color");
+            assert_eq!(PROPERTY_DESCRIPTORS[1].value_kind, PropertyValueKind::Vec4);
+        }
+    }
 }

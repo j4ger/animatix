@@ -1021,6 +1021,7 @@ impl Timeline {
             timeline.tracks.values().any(|track| track.caps.is_effect_scope());
         timeline.refresh_blend_used();
         timeline.refresh_camera_used();
+        timeline.compute_dfs_order();
 
         BuildReport::new(timeline, diagnostics)
     }

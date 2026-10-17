@@ -2255,6 +2255,42 @@ impl Timeline {
             filter_backend,
             false,
             &[],
+            &std::collections::HashMap::new(),
+        )
+        .scene
+    }
+
+    /// Evaluate the timeline with optional debug overlays and transient property overrides.
+    pub fn evaluate_with_transient_overrides(
+        &self,
+        time_s: f64,
+        scene_dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
+        transient_overrides: &std::collections::HashMap<
+            String,
+            std::collections::HashMap<String, Value>,
+        >,
+    ) -> vello::Scene {
+        if transient_overrides.is_empty() {
+            if let Some(program) = self.restore_frame_cache(
+                time_s,
+                scene_dimensions,
+                debug_options,
+                filter_backend,
+                false,
+            ) {
+                return program.scene;
+            }
+        }
+        self.evaluate_program_inner(
+            time_s,
+            scene_dimensions,
+            debug_options,
+            filter_backend,
+            false,
+            &[],
+            transient_overrides,
         )
         .scene
     }
@@ -2380,6 +2416,7 @@ impl Timeline {
             filter_backend,
             true,
             &[],
+            &std::collections::HashMap::new(),
         )
     }
 
@@ -2400,6 +2437,30 @@ impl Timeline {
             filter_backend,
             true,
             suppressed_actors,
+            &std::collections::HashMap::new(),
+        )
+    }
+
+    /// Evaluates scene program with transient property overrides (e.g. interactive inspector sliders).
+    pub fn evaluate_program_with_transient_overrides(
+        &self,
+        time_s: f64,
+        scene_dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
+        transient_overrides: &std::collections::HashMap<
+            String,
+            std::collections::HashMap<String, Value>,
+        >,
+    ) -> crate::timeline::scene_program::SceneProgram {
+        self.evaluate_program_inner(
+            time_s,
+            scene_dimensions,
+            debug_options,
+            filter_backend,
+            true,
+            &[],
+            transient_overrides,
         )
     }
 
@@ -2411,8 +2472,12 @@ impl Timeline {
         filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
         collect_items: bool,
         suppressed_actors: &[String],
+        transient_overrides: &std::collections::HashMap<
+            String,
+            std::collections::HashMap<String, Value>,
+        >,
     ) -> crate::timeline::scene_program::SceneProgram {
-        if suppressed_actors.is_empty() {
+        if suppressed_actors.is_empty() && transient_overrides.is_empty() {
             if let Some(program) = self.restore_frame_cache(
                 time_s,
                 scene_dimensions,
@@ -2437,8 +2502,9 @@ impl Timeline {
         // scene is moved out — no clone — and becomes this frame's encode
         // buffer. Filter/debug frames bypass the frame cache (its entry stays
         // valid), so they recycle via scene_buffer instead.
-        let debug_or_filter =
-            self.backend_can_run(filter_backend) || debug_options != DebugRenderOptions::default();
+        let debug_or_filter = self.backend_can_run(filter_backend)
+            || debug_options != DebugRenderOptions::default()
+            || !transient_overrides.is_empty();
         let mut scene = if debug_or_filter {
             self.eval_caches.scene_buffer.borrow_mut().take().unwrap_or_default()
         } else {
@@ -2485,6 +2551,12 @@ impl Timeline {
                 .or_default()
                 .insert("opacity".to_string(), Value::Num(0.0));
         }
+        for (label, props) in transient_overrides {
+            let entry = overrides.entry(label.clone()).or_default();
+            for (prop, val) in props {
+                entry.insert(prop.clone(), val.clone());
+            }
+        }
 
         // P2.16: Skip frame environment creation when no modifiers or procedural plots exist.
         // For static scenes, this eliminates ~95% of evaluation overhead.
@@ -2517,6 +2589,16 @@ impl Timeline {
                 "No lowered modifier IR is available for {} modifier statement(s); skipping modifier execution",
                 self.modifiers.len()
             );
+        }
+
+        // Re-apply transient overrides so user interaction wins over modifier execution.
+        if !transient_overrides.is_empty() {
+            for (label, props) in transient_overrides {
+                let entry = overrides.entry(label.clone()).or_default();
+                for (prop, val) in props {
+                    entry.insert(prop.clone(), val.clone());
+                }
+            }
         }
 
         // Collect modifier evaluation errors as runtime diagnostics.
@@ -2631,6 +2713,7 @@ impl Timeline {
                 if !self.backend_can_run(out.filter_backend)
                     && !self.camera_used.get()
                     && suppressed_actors.is_empty()
+                    && transient_overrides.is_empty()
                     && self.is_static_subtree(root)
                 {
                     let cache_key = (root.clone(), scene_dimensions, collect_items, debug_options);
@@ -2777,7 +2860,10 @@ impl Timeline {
             precise_bounds: program_bounds,
             diagnostics: self.eval_caches.runtime_diagnostics.borrow().clone(),
         };
-        if !self.backend_can_run(filter_backend) && debug_options == DebugRenderOptions::default() {
+        if !self.backend_can_run(filter_backend)
+            && debug_options == DebugRenderOptions::default()
+            && transient_overrides.is_empty()
+        {
             *self.eval_caches.frame_cache.borrow_mut() = Some(super::FrameCacheEntry {
                 time_ms,
                 dimensions: scene_dimensions,

@@ -412,169 +412,48 @@ pub fn common_property_names() -> &'static [&'static str] {
 /// or moved here without the matching core change fails
 /// `property_types_line_up_with_descriptors` instead of silently mis-typing a
 /// property.
-fn raw_property_types() -> Vec<(&'static str, Type)> {
-    vec![
-        // A color may be written as text (`color: "#ff2d55"`, `stroke: "red"`)
-        // since batch 2 taught `utils::color_from_text` to every color site, so
-        // the five color rows accept `Str` as well. Without this the type
-        // checker warns on source the engine renders correctly.
-        ("align", Type::Str),
-        ("anchor", Type::Any),
-        ("ascent", Type::Num),
-        ("at", Type::Vec2),
-        ("background_color", Type::Union(vec![Type::Color, Type::Str])),
-        ("bar_colors", Type::Any),
-        // Both spellings of "auto" are read by the BarChart builder
-        // (`Expr::Ident` or `Expr::Str`), and the docs say so; a bare `auto`
-        // already type-checked because an unresolved identifier is not a Str.
-        ("bar_width", Type::Union(vec![Type::Num, Type::Str])),
-        ("baseline", Type::Num),
-        ("bounds", Type::Vec4),
-        ("char_progress", Type::Num),
-        ("code", Type::Str),
-        ("color", Type::Union(vec![Type::Color, Type::Str])),
-        ("cols", Type::Num),
-        ("commands", Type::Any),
-        ("data", Type::Any),
-        ("density", Type::Num),
-        ("descent", Type::Num),
-        ("direction", Type::Str),
-        ("fill_opacity", Type::Num),
-        ("font_family", Type::Str),
-        ("font_size", Type::Num),
-        ("font_style", Type::Str),
-        ("font_weight", Type::Union(vec![Type::Num, Type::Str])),
-        ("from", Type::Vec2),
-        ("func", Type::Any),
-        // Two consumers, one row: BarChart reads it as bar spacing and accepts
-        // "auto" (`build/plot.rs`), the layout containers read it as a number.
-        // Widening this to allow a string is safe only because every container
-        // now reports the value it cannot read (`Primitive::...`'s
-        // `unreadable_layout_value`) instead of dropping it silently.
-        ("gap", Type::Union(vec![Type::Num, Type::Str])),
-        ("grid", Type::Str),
-        ("head_size", Type::Num),
-        ("height", Type::Num),
-        ("highlight_color", Type::Union(vec![Type::Color, Type::Str])),
-        ("highlight_opacity", Type::Num),
-        ("highlight_padding", Type::Num),
-        ("highlight_radius", Type::Num),
-        ("kind", Type::Str),
-        ("label", Type::Str),
-        ("label_at", Type::Vec2),
-        ("label_color", Type::Union(vec![Type::Color, Type::Str])),
-        ("legend", Type::Str),
-        ("letter_spacing", Type::Num),
-        ("levels", Type::Any),
-        ("line_cap", Type::Num),
-        ("line_height", Type::Num),
-        ("line_join", Type::Num),
-        ("max_depth", Type::Num),
-        ("max_height", Type::Num),
-        ("max_value", Type::Union(vec![Type::Num, Type::Str])),
-        ("max_width", Type::Num),
-        ("min_height", Type::Num),
-        ("min_width", Type::Num),
-        ("offset", Type::Vec2),
-        ("opacity", Type::Num),
-        ("overflow", Type::Str),
-        ("padding", Type::Num),
-        ("place", Type::Str),
-        ("points", Type::List(Box::new(Type::Vec2))),
-        ("position", Type::Vec2),
-        ("radius_x", Type::Num),
-        ("radius_y", Type::Num),
-        ("resolution", Type::Num),
-        ("rotation", Type::Num),
-        ("scale", Type::Num),
-        ("shift", Type::Vec2),
-        // The BarChart builder reads `Value::Bool` or `Value::Str` ("true"/"1").
-        ("show_axis", Type::Union(vec![Type::Bool, Type::Str])),
-        ("show_labels", Type::Union(vec![Type::Bool, Type::Str])),
-        ("size", Type::Vec2),
-        // Authored solo flag: hides every non-solo subtree (recursively).
-        ("solo", Type::Bool),
-        ("source", Type::Str),
-        ("standoff", Type::Num),
-        ("stroke", Type::Union(vec![Type::Color, Type::Str])),
-        ("stroke_progress", Type::Num),
-        ("stroke_width", Type::Num),
-        ("swatch_size", Type::Num),
-        ("t_domain", Type::Vec2),
-        ("target", Type::Any),
-        ("text", Type::Str),
-        ("text_align", Type::Str),
-        ("text_max_width", Type::Num),
-        ("tick_labels", Type::Str),
-        ("ticks", Type::Str),
-        ("title", Type::Str),
-        ("to", Type::Vec2),
-        ("to_offset", Type::Vec2),
-        ("tolerance", Type::Num),
-        ("transform", transform_type()),
-        ("url", Type::Str),
-        ("vertical_align", Type::Str),
-        ("volume", Type::Num),
-        ("width", Type::Num),
-        ("word_spacing", Type::Num),
-        ("x_domain", Type::Vec2),
-        ("x_range", Type::Any),
-        ("x_scale", Type::Str),
-        ("y_domain", Type::Vec2),
-        ("y_range", Type::Any),
-        ("y_scale", Type::Str),
-        // Appended with the descriptor row: the two tables are index aligned,
-        // and new descriptors go at the end (the row index is `PropertyId`).
-        ("corner_radius", Type::Num),
-        ("language", Type::Str),
-        ("dash_offset", Type::Num),
-        ("dash_pattern", Type::List(Box::new(Type::Num))),
-        ("blend", Type::Str),
-        ("fill_gradient", Type::Any),
-        ("stroke_gradient", Type::Any),
-        ("gradient_extend", Type::Str),
-        ("gradient_space", Type::Str),
-        // Build-time icon name for `Path` (expands to `commands`); stores as
-        // `Generic` via the `BuildTimeOnly` engine binding, so the declared
-        // expression type only guides the analyzer (a string literal).
-        ("icon", Type::Str),
-        // The scene camera's per-actor opt-out (`hud: Text, camera_follow:
-        // false`). Build-time only, stored on a plain track field; the declared
-        // type guides the analyzer and the assignment path, which rejects it.
-        ("camera_follow", Type::Bool),
-        ("parallax", Type::Num),
-        ("routing", Type::Str),
-        ("arrow", Type::Bool),
-        ("split_by", Type::Str),
-        ("split_stagger", Type::Num),
-        ("split_offset_y", Type::Num),
-        ("split_mask", Type::Bool),
-        ("value", Type::Num),
-        ("prefix", Type::Str),
-        ("suffix", Type::Str),
-        ("decimals", Type::Num),
-        ("comma", Type::Bool),
-        ("idle", Type::Str),
-        ("shadow", Type::Vec4),
-        ("shadow_color", Type::Color),
-        ("rotate_x", Type::Num),
-        ("rotate_y", Type::Num),
-        ("perspective", Type::Num),
-        ("shared_id", Type::Str),
-        ("caption_mode", Type::Str),
-        ("active_color", Type::Color),
-        ("inactive_color", Type::Color),
-        ("backdrop", Type::Bool),
-        ("backdrop_color", Type::Color),
-        ("backdrop_radius", Type::Num),
-        ("backdrop_padding", Type::Vec2),
-        ("pop_scale", Type::Num),
-        ("max_lines", Type::Num),
-        ("transition_time", Type::Num),
-        ("transcript", Type::Str),
-        ("start", Type::Num),
-        ("end", Type::Num),
-    ]
+fn property_type_for_descriptor(desc: &animatix_core::property::PropertyDescriptor) -> Type {
+    match desc.name {
+        "align" | "code" | "direction" | "font_family" | "font_style" | "grid" | "kind"
+        | "label" | "legend" | "overflow" | "place" | "source" | "text" | "text_align"
+        | "tick_labels" | "ticks" | "title" | "url" | "vertical_align" | "x_scale" | "y_scale"
+        | "language" | "blend" | "gradient_extend" | "gradient_space" | "icon" | "routing"
+        | "split_by" | "prefix" | "suffix" | "idle" | "shared_id" | "caption_mode"
+        | "transcript" => Type::Str,
+
+        "background_color" | "color" | "highlight_color" | "label_color" | "stroke" => {
+            Type::Union(vec![Type::Color, Type::Str])
+        },
+        "active_color" | "inactive_color" | "backdrop_color" | "shadow_color" => Type::Color,
+
+        "bar_width" | "font_weight" | "gap" | "max_value" => {
+            Type::Union(vec![Type::Num, Type::Str])
+        },
+        "show_axis" | "show_labels" => Type::Union(vec![Type::Bool, Type::Str]),
+
+        "points" => Type::List(Box::new(Type::Vec2)),
+        "dash_pattern" => Type::List(Box::new(Type::Num)),
+        "transform" => transform_type(),
+        "bounds" | "shadow" => Type::Vec4,
+        "anchor" | "bar_colors" | "commands" | "data" | "func" | "levels" | "target"
+        | "x_range" | "y_range" | "fill_gradient" | "stroke_gradient" => Type::Any,
+
+        _ => match desc.value_kind {
+            PropertyValueKind::F32 | PropertyValueKind::U32 => Type::Num,
+            PropertyValueKind::Bool => Type::Bool,
+            PropertyValueKind::Vec2 => Type::Vec2,
+            PropertyValueKind::Vec4 => Type::Union(vec![Type::Color, Type::Str]),
+            PropertyValueKind::String => Type::Str,
+            PropertyValueKind::PointList | PropertyValueKind::Generic => Type::Any,
+        },
+    }
+}
+
+pub(crate) fn raw_property_types() -> Vec<(&'static str, Type)> {
+    animatix_core::property::PROPERTY_DESCRIPTORS
+        .iter()
+        .map(|desc| (desc.name, property_type_for_descriptor(desc)))
+        .collect()
 }
 
 #[cfg(test)]

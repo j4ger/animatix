@@ -66,8 +66,8 @@ pub(crate) mod modifier_runtime;
 pub mod morph;
 pub mod path_progress;
 pub mod plan;
-mod plot;
-pub(crate) use build::plot::parse_bar_chart_data_expr;
+pub(crate) mod plot;
+pub(crate) use build::plot::{BarChartLayout, parse_bar_chart_data_expr};
 pub(crate) use plot::BarDataTransition;
 mod position;
 pub(crate) mod property_engine;
@@ -521,6 +521,8 @@ pub struct Timeline {
     pub(crate) tracks: BTreeMap<String, AnimationTrack>,
     pub(crate) background_color: PropertyTrack<[f32; 4]>,
     pub(crate) root_nodes: Vec<String>,
+    /// Pre-computed depth-first execution order of actors in the scene tree.
+    pub(crate) dfs_order: Vec<String>,
     pub(crate) env: Environment,
     /// Scope stack for `Stmt::Block` (function-call expansion). Each entry
     /// records the `let` names bound inside that block so they can be removed
@@ -887,6 +889,7 @@ impl Timeline {
             tracks: BTreeMap::new(),
             background_color: bg_track,
             root_nodes: Vec::new(),
+            dfs_order: Vec::new(),
             env: Environment::new(),
             block_scope: Vec::new(),
             primitive_registry: std::sync::Arc::new(crate::primitives::PrimitiveRegistry::new()),
@@ -1316,6 +1319,33 @@ impl Timeline {
     /// Returns the list of root actor labels (actors with no parent).
     pub fn root_actor_labels(&self) -> &[String] {
         &self.root_nodes
+    }
+
+    /// Returns the pre-computed depth-first execution order of actors in the scene tree.
+    pub fn dfs_execution_order(&self) -> &[String] {
+        &self.dfs_order
+    }
+
+    /// Compute the depth-first execution order of actors in the scene tree.
+    pub(crate) fn compute_dfs_order(&mut self) {
+        let mut order = Vec::with_capacity(self.tracks.len());
+        for root in &self.root_nodes {
+            Self::collect_dfs_order_recursive(root, &self.tracks, &mut order);
+        }
+        self.dfs_order = order;
+    }
+
+    fn collect_dfs_order_recursive(
+        label: &str,
+        tracks: &BTreeMap<String, AnimationTrack>,
+        order: &mut Vec<String>,
+    ) {
+        order.push(label.to_string());
+        if let Some(track) = tracks.get(label) {
+            for child in &track.children {
+                Self::collect_dfs_order_recursive(child, tracks, order);
+            }
+        }
     }
 
     /// Returns the hit regions from the last evaluate call.

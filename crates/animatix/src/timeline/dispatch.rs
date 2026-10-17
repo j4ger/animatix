@@ -141,6 +141,10 @@ pub struct AnimationTrack {
     /// Effect chain for compositing scopes; empty for non-scope actors.
     pub effects: crate::timeline::effects::EffectChainTrack,
 
+    // ── Primitive-specific payload ──
+    /// Modular primitive payload (plots, SVG assets, raster images, custom plugin extensions).
+    pub payload: crate::primitives::PrimitivePayload,
+
     // ── Shape tier (sub-struct) ──
     /// Shape property tracks (shape_type, line_from, line_to, etc.).
     pub shape: ShapeTracks,
@@ -283,6 +287,7 @@ impl AnimationTrack {
             style: StyleTracks::default(),
 
             effects: crate::timeline::effects::EffectChainTrack::default(),
+            payload: crate::primitives::PrimitivePayload::None,
 
             // Shape tier (sub-struct)
             shape: ShapeTracks::default(),
@@ -314,6 +319,51 @@ impl AnimationTrack {
             // Legend tier
             legend: super::legend::LegendTracks::default(),
         }
+    }
+
+    /// Return a reference to the plot payload if present.
+    pub fn plot_payload(&self) -> Option<&crate::primitives::PlotPayload> {
+        self.payload.as_plot()
+    }
+
+    /// Return a mutable reference to the plot payload if present.
+    pub fn plot_payload_mut(&mut self) -> Option<&mut crate::primitives::PlotPayload> {
+        self.payload.as_plot_mut()
+    }
+
+    /// Ensure the track has an initialized plot payload and return a mutable reference.
+    pub fn ensure_plot_payload(&mut self) -> &mut crate::primitives::PlotPayload {
+        self.payload.ensure_plot()
+    }
+
+    /// Return a reference to the SVG payload if present.
+    pub fn svg_payload(&self) -> Option<&crate::primitives::SvgPayload> {
+        self.payload.as_svg()
+    }
+
+    /// Return a mutable reference to the SVG payload if present.
+    pub fn svg_payload_mut(&mut self) -> Option<&mut crate::primitives::SvgPayload> {
+        self.payload.as_svg_mut()
+    }
+
+    /// Ensure the track has an initialized SVG payload and return a mutable reference.
+    pub fn ensure_svg_payload(&mut self) -> &mut crate::primitives::SvgPayload {
+        self.payload.ensure_svg()
+    }
+
+    /// Return a reference to the image payload if present.
+    pub fn image_payload(&self) -> Option<&crate::primitives::ImagePayload> {
+        self.payload.as_image()
+    }
+
+    /// Return a mutable reference to the image payload if present.
+    pub fn image_payload_mut(&mut self) -> Option<&mut crate::primitives::ImagePayload> {
+        self.payload.as_image_mut()
+    }
+
+    /// Ensure the track has an initialized image payload and return a mutable reference.
+    pub fn ensure_image_payload(&mut self) -> &mut crate::primitives::ImagePayload {
+        self.payload.ensure_image()
     }
 
     /// Test-fixture constructor: a track with a placeholder `Rect` identity.

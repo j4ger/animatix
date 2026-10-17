@@ -805,3 +805,82 @@ fn time_dependent_caps_prevent_static_subtree_caching() {
     assert!(cue.caps.time_dependent, "Cue must have time_dependent capability");
     assert!(!timeline.is_static_subtree("c1"), "Cue must not be a static subtree");
 }
+
+#[test]
+fn precomputed_dfs_execution_order_traverses_hierarchy_in_topological_order() {
+    let source = r#"
+        root1: Group {
+            child1: Rect, size: (10, 10)
+            child2: Group {
+                grandchild1: Circle
+            }
+        }
+        root2: Rect, size: (20, 20)
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+
+    let order = timeline.dfs_execution_order();
+    assert_eq!(
+        order,
+        &["root1", "child1", "child2", "grandchild1", "root2"],
+        "DFS order must visit parents before children and finish subtrees in order"
+    );
+}
+
+#[test]
+fn transient_property_overrides_bypass_cache_and_override_evaluation() {
+    let source = r##"
+        r: Rect, size: (100, 100), color: "#ff0000", opacity: 0.5
+    "##;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+
+    let dims = SceneDimensions {
+        width: 800,
+        height: 600,
+    };
+    let debug_opts = DebugRenderOptions::default();
+
+    // 1. Initial evaluation with no overrides
+    let mut fb = None;
+    let p1 = timeline.evaluate_program_with_debug(0.0, dims, debug_opts, &mut fb);
+    assert_eq!(p1.items.len(), 1);
+    assert_eq!(p1.items[0].label, "r");
+    assert!((p1.items[0].opacity - 0.5).abs() < 1e-4);
+
+    // 2. Evaluation with transient override: opacity -> 0.95
+    let mut transient = std::collections::HashMap::new();
+    let mut r_overrides = std::collections::HashMap::new();
+    r_overrides.insert("opacity".to_string(), Value::Num(0.95));
+    transient.insert("r".to_string(), r_overrides);
+
+    let mut fb = None;
+    let p2 = timeline
+        .evaluate_program_with_transient_overrides(0.0, dims, debug_opts, &mut fb, &transient);
+    assert_eq!(p2.items.len(), 1);
+    assert_eq!(p2.items[0].label, "r");
+    assert!(
+        (p2.items[0].opacity - 0.95).abs() < 1e-4,
+        "Transient override must take effect: expected 0.95, got {}",
+        p2.items[0].opacity
+    );
+
+    // 3. Evaluation after transient override is cleared: must return original 0.5,
+    // not stale cache from transient evaluation.
+    let mut fb = None;
+    let p3 = timeline.evaluate_program_with_debug(0.0, dims, debug_opts, &mut fb);
+    assert_eq!(p3.items.len(), 1);
+    assert_eq!(p3.items[0].label, "r");
+    assert!(
+        (p3.items[0].opacity - 0.5).abs() < 1e-4,
+        "Restoring to no overrides must yield base track value 0.5, got {}",
+        p3.items[0].opacity
+    );
+}
