@@ -68,7 +68,7 @@ impl Timeline {
                     modifiers,
                     children,
                     is_anonymous,
-                    ..
+                    span,
                 } => {
                     // Validate that user labels don't use the reserved `__` prefix.
                     // Anonymous actors carry engine-generated `__anon_*` labels —
@@ -116,6 +116,7 @@ impl Timeline {
                         time_ms,
                         parent_label,
                         diagnostics,
+                        *span,
                     );
                     // Every actor family passes through here with its props still
                     // in hand, including the ones whose `process_*_decl` returns

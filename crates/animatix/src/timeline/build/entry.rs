@@ -684,7 +684,10 @@ impl Timeline {
             if !track.hidden_by_default {
                 continue;
             }
-            if is_generated_sub(label) || revealed_via_ancestor(label) {
+            if is_generated_sub(label)
+                || revealed_via_ancestor(label)
+                || track.style.opacity.as_ref().is_some_and(opacity_reveals)
+            {
                 continue;
             }
             diagnostics.push(
@@ -692,12 +695,15 @@ impl Timeline {
                     DiagnosticCode::NeverRevealed,
                     DiagnosticPhase::Build,
                     format!(
-                        "Actor `{label}` is declared before any keyframe (hidden by default) and \
-                         no entrance action ever reveals it, so it will never be visible. Add a \
-                         `fade-in` (or another entrance action) targeting it."
+                        "Actor `{label}` is declared before any keyframe (implicit `opacity: 0.0`) and \
+                         is never revealed by an entrance action or opacity assignment, so it will \
+                         remain invisible throughout playback. Add an entrance action (e.g. \
+                         `fade-in {label}`), declare it inside a keyframe block, or set `opacity: 1.0` \
+                         explicitly on its declaration."
                     ),
                 )
-                .with_subject(label),
+                .with_subject(label)
+                .with_ast_span(track.decl_span),
             );
         }
 

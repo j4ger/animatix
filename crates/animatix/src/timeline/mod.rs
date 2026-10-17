@@ -1629,8 +1629,7 @@ impl Timeline {
         let Some(track) = self.tracks.get(label) else {
             return true;
         };
-        if track.actor_type == "Captions"
-            || track.actor_type == "Cue"
+        if track.caps.time_dependent
             || self.transcripts.contains_key(label)
             || track.has_any_keyframes()
             || track.procedural_plot.is_some()

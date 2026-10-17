@@ -382,6 +382,7 @@ impl Timeline {
         time_ms: f64,
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
+        decl_span: Option<crate::ast::Span>,
     ) {
         self.add_node(label.to_string(), parent_label);
 
@@ -397,6 +398,11 @@ impl Timeline {
                 parent_label,
                 diagnostics,
             );
+            if let Some(track) = self.tracks.get_mut(label) {
+                if track.decl_span.is_none() {
+                    track.decl_span = decl_span;
+                }
+            }
             return;
         }
 
@@ -416,6 +422,9 @@ impl Timeline {
                     diagnostics.append(&mut diags);
                 }
                 if let Some(track) = self.tracks.get_mut(label) {
+                    if track.decl_span.is_none() {
+                        track.decl_span = decl_span;
+                    }
                     // Capabilities come from the registration info, not the
                     // built-in catalog: an in-process extension can be a
                     // text-like or shape-like primitive and must get the full
@@ -913,6 +922,9 @@ impl Timeline {
             .or_insert_with(|| AnimationTrack::new(label.to_string(), ty));
         track.set_identity(ty);
         track.rebuild_property_plan();
+        if track.decl_span.is_none() {
+            track.decl_span = decl_span;
+        }
         if track.first_seen_ms == u64::MAX {
             track.first_seen_ms = t_start_ms;
         }

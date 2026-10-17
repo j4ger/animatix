@@ -634,6 +634,7 @@ impl ExtensionManifest {
                         stroke_primary: false,
                         callout: false,
                         legend_host: false,
+                        time_dependent: false,
                     },
                     child_processing: primitive
                         .child_processing

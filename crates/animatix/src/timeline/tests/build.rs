@@ -3794,3 +3794,63 @@ draw-in line [4s{extra}]
         progress_at(&chars, 200)
     );
 }
+
+#[test]
+fn pre_keyframe_actor_declaration_has_decl_span_and_explicit_warning() {
+    let source = "box: Rect, size: (100, 100)\n\n#1s\nbox.at = (200, 200)\n";
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let mut ast = ast.expect("parsed AST");
+    if let crate::ast::Stmt::ActorDecl { span, .. } = &mut ast[0] {
+        *span = Some(animatix_syntax::ast::Span::new(1, 1, 1, 27));
+    }
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+
+    let track = report.output.tracks.get("box").expect("box track must exist");
+    assert!(track.decl_span.is_some(), "track must preserve its declaration span");
+    let span = track.decl_span.unwrap();
+    assert_eq!(span.start_line, 1, "declaration starts on line 1");
+
+    let diag = report
+        .diagnostics
+        .iter()
+        .find(|d| {
+            d.code == crate::diagnostics::DiagnosticCode::NeverRevealed
+                && d.location.subject.as_deref() == Some("box")
+        })
+        .expect("must emit NeverRevealed for pre-keyframe actor without entrance action");
+
+    assert_eq!(diag.location.line, Some(1), "diagnostic must carry the declaration line");
+    assert_eq!(diag.location.column, Some(1), "diagnostic must carry the declaration column");
+    assert!(
+        diag.message.contains("implicit `opacity: 0.0`"),
+        "diagnostic message must explain the implicit opacity default: {}",
+        diag.message
+    );
+    assert!(
+        diag.message.contains("opacity: 1.0"),
+        "diagnostic message must advise how to make it visible from the start: {}",
+        diag.message
+    );
+}
+
+#[test]
+fn pre_keyframe_actor_with_explicit_opacity_assignment_does_not_warn_never_revealed() {
+    let source = "box: Rect, size: (100, 100)\n\n#1s\nbox.opacity = 1.0\n";
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report =
+        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+
+    assert!(
+        !report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == crate::diagnostics::DiagnosticCode::NeverRevealed
+                && d.location.subject.as_deref() == Some("box")),
+        "subsequent opacity assignment must count as a reveal: {:?}",
+        report.diagnostics
+    );
+}

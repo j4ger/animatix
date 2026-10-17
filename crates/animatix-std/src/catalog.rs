@@ -63,6 +63,7 @@ const fn caps(
     stroke_primary: bool,
     callout: bool,
     legend_host: bool,
+    time_dependent: bool,
 ) -> PrimitiveCapabilities {
     PrimitiveCapabilities {
         text_paths,
@@ -77,43 +78,58 @@ const fn caps(
         stroke_primary,
         callout,
         legend_host,
+        time_dependent,
     }
 }
 
-const SHAPE_CAPS: PrimitiveCapabilities =
-    caps(false, true, false, false, false, false, false, true, true, false, false, false);
-const TEXT_CAPS: PrimitiveCapabilities =
-    caps(true, false, false, false, false, false, false, false, true, false, false, false);
-const PLOT_CAPS: PrimitiveCapabilities =
-    caps(false, true, false, false, true, false, false, false, true, false, false, false);
-const CONTAINER_CAPS: PrimitiveCapabilities =
-    caps(false, false, false, true, false, false, true, false, false, false, false, false);
-const EQUATION_CAPS: PrimitiveCapabilities =
-    caps(false, false, false, true, false, false, true, false, true, false, false, false);
-const CAPTIONS_CAPS: PrimitiveCapabilities =
-    caps(true, false, false, true, false, false, true, false, true, false, false, false);
+const SHAPE_CAPS: PrimitiveCapabilities = caps(
+    false, true, false, false, false, false, false, true, true, false, false, false, false,
+);
+const TEXT_CAPS: PrimitiveCapabilities = caps(
+    true, false, false, false, false, false, false, false, true, false, false, false, false,
+);
+const PLOT_CAPS: PrimitiveCapabilities = caps(
+    false, true, false, false, true, false, false, false, true, false, false, false, false,
+);
+const CONTAINER_CAPS: PrimitiveCapabilities = caps(
+    false, false, false, true, false, false, true, false, false, false, false, false, false,
+);
+const EQUATION_CAPS: PrimitiveCapabilities = caps(
+    false, false, false, true, false, false, true, false, true, false, false, false, false,
+);
+const CAPTIONS_CAPS: PrimitiveCapabilities = caps(
+    true, false, false, true, false, false, true, false, true, false, false, false, true,
+);
+const CUE_CAPS: PrimitiveCapabilities = caps(
+    true, false, false, false, false, false, false, false, true, false, false, false, true,
+);
 /// `Glass` is a container with a rectangular *region*, not a surface. It carries
 /// no `ShapeKind` — the same choice `Filter` and `Mask` make — so the shape
 /// predicates (`fill_opacity`, the gradient paints) key off `caps.shape.is_some()`
 /// and do not invite a scope that paints nothing; `corner_radius` stays applicable
 /// through its own actor list because it is the frost's clip, and `is_shape` stays
 /// set because the region and its anchors need a bounded actor.
-const GLASS_CAPS: PrimitiveCapabilities =
-    caps(false, false, false, true, false, false, true, true, false, false, false, false);
+const GLASS_CAPS: PrimitiveCapabilities = caps(
+    false, false, false, true, false, false, true, true, false, false, false, false, false,
+);
 const GROUP_CAPS: PrimitiveCapabilities = caps(
-    false, false, false, false, false, false, true, false, false, false, false, false,
+    false, false, false, false, false, false, true, false, false, false, false, false, false,
 );
 const NO_CAPS: PrimitiveCapabilities = caps(
-    false, false, false, false, false, false, false, false, false, false, false, false,
+    false, false, false, false, false, false, false, false, false, false, false, false, false,
 );
-const IMAGE_CAPS: PrimitiveCapabilities =
-    caps(false, false, true, false, false, false, false, false, true, false, false, false);
-const SVG_CAPS: PrimitiveCapabilities =
-    caps(false, true, false, false, false, false, false, false, true, false, false, false);
-const GRAPH_CAPS: PrimitiveCapabilities =
-    caps(false, true, false, false, true, true, false, false, true, false, false, false);
-const ANNOTATION_CAPS: PrimitiveCapabilities =
-    caps(false, true, false, false, false, false, false, false, true, false, false, false);
+const IMAGE_CAPS: PrimitiveCapabilities = caps(
+    false, false, true, false, false, false, false, false, true, false, false, false, false,
+);
+const SVG_CAPS: PrimitiveCapabilities = caps(
+    false, true, false, false, false, false, false, false, true, false, false, false, false,
+);
+const GRAPH_CAPS: PrimitiveCapabilities = caps(
+    false, true, false, false, true, true, false, false, true, false, false, false, false,
+);
+const ANNOTATION_CAPS: PrimitiveCapabilities = caps(
+    false, true, false, false, false, false, false, false, true, false, false, false, false,
+);
 
 impl PrimitiveInfo {
     /// A built-in card in `category` with `capabilities`: `Generic` child
@@ -233,6 +249,12 @@ impl PrimitiveInfo {
     /// Mark the card as hosting a series legend.
     pub const fn legend_host(mut self) -> Self {
         self.capabilities.legend_host = true;
+        self
+    }
+
+    /// Mark the card as intrinsically time-dependent (evaluation varies over time without keyframes).
+    pub const fn time_dependent(mut self) -> Self {
+        self.capabilities.time_dependent = true;
         self
     }
 
@@ -488,7 +510,7 @@ pub static CAPTIONS: PrimitiveInfo = PrimitiveInfo::new(
 .with_doc("Aggregates speech-synced subtitle cues with karaoke and kinetic styling.");
 
 pub static CUE: PrimitiveInfo =
-    PrimitiveInfo::new("Cue", "Cue", icon_glyphs::TEXT_T, ActorCategory::Text, TEXT_CAPS)
+    PrimitiveInfo::new("Cue", "Cue", icon_glyphs::TEXT_T, ActorCategory::Text, CUE_CAPS)
         .with_doc("Individual timed subtitle cue inside a Captions container.")
         .with_stub("text: \"\"");
 
@@ -650,6 +672,7 @@ pub fn caps_from_info(info: &PrimitiveInfo) -> ActorCaps {
         is_container: info.capabilities.is_container,
         plot_geometry: info.capabilities.plot_geometry,
         plot_host: info.capabilities.plot_host,
+        time_dependent: info.capabilities.time_dependent,
         has_visual_content: info.capabilities.has_visual_content
             || (!info.capabilities.is_container
                 && (info.capabilities.is_shape

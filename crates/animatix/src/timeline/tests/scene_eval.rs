@@ -783,3 +783,25 @@ fn static_subtree_cache_works_alongside_modifiers() {
         "dynamic_box must not be in static subtree cache"
     );
 }
+
+#[test]
+fn time_dependent_caps_prevent_static_subtree_caching() {
+    let source = r#"
+        subs: Captions, style: "karaoke", at: (640, 600) {
+            c1: Cue, start: 0.5, end: 1.5, text: "Hello"
+        }
+    "#;
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
+    let ast = ast.expect("parsed AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+
+    let subs = timeline.tracks.get("subs").expect("subs track must exist");
+    assert!(subs.caps.time_dependent, "Captions must have time_dependent capability");
+    assert!(!timeline.is_static_subtree("subs"), "Captions must not be a static subtree");
+
+    let cue = timeline.tracks.get("c1").expect("c1 cue track must exist");
+    assert!(cue.caps.time_dependent, "Cue must have time_dependent capability");
+    assert!(!timeline.is_static_subtree("c1"), "Cue must not be a static subtree");
+}

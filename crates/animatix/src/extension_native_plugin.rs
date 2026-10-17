@@ -2190,6 +2190,7 @@ fn native_capabilities(flags: u32) -> animatix_syntax::schema::PrimitiveCapabili
         stroke_primary: false,
         callout: false,
         legend_host: false,
+        time_dependent: false,
     }
 }
 

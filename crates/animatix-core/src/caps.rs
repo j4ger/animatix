@@ -37,6 +37,8 @@ pub struct PrimitiveCapabilities {
     pub callout: bool,
     /// Manages and displays a series legend.
     pub legend_host: bool,
+    /// Intrinsically time-dependent evaluation (e.g. Captions, Cue).
+    pub time_dependent: bool,
 }
 
 /// Child-rendering strategy selected by a primitive.
@@ -187,6 +189,8 @@ pub struct ActorCaps {
     pub callout: bool,
     /// Manages and displays a series legend.
     pub legend_host: bool,
+    /// Intrinsically time-dependent evaluation (e.g. Captions, Cue).
+    pub time_dependent: bool,
 }
 
 impl ActorCaps {
