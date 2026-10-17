@@ -956,11 +956,7 @@ impl eframe::App for AnimatixApp {
         // Sync audio with playback state
         if let Some(audio_engine) = &mut self.audio_engine {
             let playing = self.shell.preview_store.preview.playback.is_playing;
-            let segments = if playing {
-                self.shell.document_store.source.document.all_audio_segments()
-            } else {
-                Vec::new()
-            };
+            let segments = self.shell.document_store.source.document.all_audio_segments();
             let time_s = self.shell.preview_store.preview.playback.current_time_s();
             let playback_speed = self.shell.preview_store.preview.playback.playback_speed;
             audio_engine.sync(&segments, time_s, playing, playback_speed);

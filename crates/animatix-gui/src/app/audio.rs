@@ -186,10 +186,14 @@ impl AudioEngine {
         self.poll_loaded();
 
         if !playing {
+            let time_diff = (time_s - self.last_sync_time_s).abs();
             if self.last_playing {
                 self.stop_all();
+            } else if time_diff > 0.001 {
+                self.scrub_at(segments, time_s);
             }
             self.last_playing = false;
+            self.last_sync_time_s = time_s;
             return;
         }
 
@@ -228,6 +232,78 @@ impl AudioEngine {
     pub fn stop_all(&mut self) {
         for active in self.active.drain(..) {
             active.sink.stop();
+        }
+    }
+
+    /// Play a short slice of audio (~45ms) at `time_s` when scrubbing while paused.
+    pub fn scrub_at(&mut self, segments: &[AudioSegment], time_s: f64) {
+        self.stop_all();
+        self.poll_loaded();
+
+        // Queue any uncached audio files
+        for seg in segments {
+            self.ensure_loaded(&seg.source);
+        }
+
+        let slice_duration_s = 0.045; // 45ms preview slice
+
+        for (i, seg) in segments.iter().enumerate() {
+            let Some(audio) = self.cache.get(&seg.source) else {
+                continue;
+            };
+
+            let seg_end = if let Some(dur) = seg.duration_s {
+                seg.start_time_s + dur
+            } else {
+                seg.start_time_s + audio.duration_s
+            };
+
+            if time_s < seg.start_time_s || time_s >= seg_end {
+                continue;
+            }
+
+            let offset_s = time_s - seg.start_time_s;
+            let available_s = (seg_end - time_s).min(audio.duration_s - offset_s);
+            if available_s <= 0.0 {
+                continue;
+            }
+
+            let slice_s = available_s.min(slice_duration_s);
+            let channels = audio.channels as usize;
+            let sample_rate = audio.sample_rate as usize;
+            let start_sample = (offset_s * sample_rate as f64 * channels as f64) as usize;
+            let num_samples = (slice_s * sample_rate as f64 * channels as f64) as usize;
+            let start_sample = start_sample.min(audio.samples.len());
+            let end_sample = (start_sample + num_samples).min(audio.samples.len());
+
+            if end_sample <= start_sample {
+                continue;
+            }
+
+            let mut segment_data = audio.samples[start_sample..end_sample].to_vec();
+
+            // Smooth 3ms linear ramp-in and ramp-out to avoid click/pop
+            let fade_len =
+                ((sample_rate as f64 * 0.003) as usize * channels).min(segment_data.len() / 2);
+            if fade_len > 0 {
+                for f in 0..fade_len {
+                    let frac = f as f32 / fade_len as f32;
+                    segment_data[f] *= frac;
+                    let end_idx = segment_data.len() - 1 - f;
+                    segment_data[end_idx] *= frac;
+                }
+            }
+
+            let source = SamplesBuffer::new(audio.channels, audio.sample_rate, segment_data);
+            if let Ok(sink) = Sink::try_new(&self.stream_handle) {
+                sink.set_volume(seg.volume);
+                sink.append(source);
+                self.active.push(ActiveSegment {
+                    segment_index: i,
+                    source: seg.source.clone(),
+                    sink,
+                });
+            }
         }
     }
 

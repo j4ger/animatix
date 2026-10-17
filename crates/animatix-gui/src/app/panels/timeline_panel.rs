@@ -125,6 +125,33 @@ fn emit_keyframe_moves(commands: &mut ActionQueue, drag: Option<&KfDrag>) {
     commands.push_back(ShellAction::Command(Command::MoveKeyframes(specs)));
 }
 
+/// Helper to snap a time `nt` to nearby speech words or markers if within tolerance (~0.06s),
+/// otherwise falling back to snapping to the standard FPS grid.
+fn snap_to_speech_or_fps(
+    nt: f64,
+    snap_fps: f32,
+    speech_targets: &[(f64, String)],
+) -> (f64, Option<String>) {
+    let tolerance = 0.06; // ~3.5 frames at 60fps
+    let mut closest_match: Option<(f64, &str, f64)> = None;
+
+    for (target_t, label) in speech_targets {
+        let diff = (nt - target_t).abs();
+        if diff <= tolerance
+            && closest_match.map(|(_, _, best_diff)| diff < best_diff).unwrap_or(true)
+        {
+            closest_match = Some((*target_t, label.as_str(), diff));
+        }
+    }
+
+    if let Some((target_t, label, _)) = closest_match {
+        (target_t, Some(label.to_string()))
+    } else {
+        let fps_snapped = (nt * snap_fps as f64).round() / snap_fps as f64;
+        (fps_snapped, None)
+    }
+}
+
 /// Group an actor's keyframes by time, preserving every property keyed at that
 /// time.
 ///
@@ -442,6 +469,23 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
     let mut multi_selected: Vec<KeyframeId> =
         ui.data(|d| d.get_temp(kf_multi_select_id)).unwrap_or_default();
     let shift_held = ui.input(|i| i.modifiers.shift);
+    let speech_snap_targets: Vec<(f64, String)> = timeline
+        .map(|tl| {
+            let mut targets = Vec::new();
+            for transcript in tl.transcripts().values() {
+                for (marker, &time_s) in &transcript.markers {
+                    targets.push((time_s, format!("@{}", marker)));
+                }
+                for seg in &transcript.segments {
+                    for w in &seg.words {
+                        targets.push((w.start_s, format!("\"{}\"", w.word)));
+                        targets.push((w.end_s, format!("\"{}\" end", w.word)));
+                    }
+                }
+            }
+            targets
+        })
+        .unwrap_or_default();
     // Scene-qualified identity of the active document, used for selection
     // comparisons and the mirror into the shared store.
     let active_scene = ctx.active_scene;
@@ -698,6 +742,13 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         let scene_track_bot = scene_track_top + sp.timeline.track_row_height;
         if composition.is_some() {
             content_y = scene_track_bot;
+        }
+
+        let has_transcripts = timeline.map(|tl| !tl.transcripts().is_empty()).unwrap_or(false);
+        let speech_track_top = content_y;
+        let speech_track_bot = speech_track_top + sp.timeline.track_row_height;
+        if has_transcripts {
+            content_y = speech_track_bot;
         }
 
         // Build actor tree from timeline (all actors, not just roots)
@@ -1059,6 +1110,223 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                 [
                     Pos2::new(scroll_rect.left(), st_bot),
                     Pos2::new(scroll_rect.right(), st_bot),
+                ],
+                Stroke::new(STROKE_WIDTH, theme.palette.border.default),
+            );
+        }
+
+        // ── Speech / audio transcript track ──
+        if has_transcripts {
+            let sp_top = speech_track_top;
+            let sp_bot = speech_track_bot;
+
+            let label_rect = Rect::from_min_max(
+                Pos2::new(scroll_rect.left(), sp_top),
+                Pos2::new(bar_origin_x, sp_bot),
+            );
+            painter.rect_filled(label_rect, 0.0, theme.palette.surface.base);
+            painter.text(
+                Pos2::new(scroll_rect.left() + sp.base.space_2, (sp_top + sp_bot) / 2.0),
+                Align2::LEFT_CENTER,
+                format!("{} Speech", egui_phosphor::regular::TEXT_ALIGN_CENTER),
+                TextRole::BodyS.font_id(),
+                theme.palette.text.muted,
+            );
+
+            let bar_area = Rect::from_min_max(
+                Pos2::new(bar_origin_x, sp_top),
+                Pos2::new(scroll_rect.right(), sp_bot),
+            );
+            painter.rect_filled(bar_area, 0.0, theme.components.list.odd.bg);
+
+            let current_time_s = preview.playback.current_time_s();
+
+            // Background click to seek
+            let speech_resp =
+                ui.interact(bar_area, panel_id.with("speech_track_bar"), Sense::click_and_drag());
+            if speech_resp.clicked() || speech_resp.dragged() {
+                if let Some(pos) = speech_resp.interact_pointer_pos() {
+                    let t = x_to_time(pos.x);
+                    commands.push_back(PlaybackCommand::ScrubTo(t).into());
+                }
+            }
+
+            if let Some(tl) = timeline {
+                for (actor_label, transcript) in tl.transcripts() {
+                    // Draw words
+                    for seg in &transcript.segments {
+                        if !seg.words.is_empty() {
+                            for w in &seg.words {
+                                let x0 = time_to_x(w.start_s);
+                                let x1 = time_to_x(w.end_s);
+                                if x1 < bar_origin_x || x0 > scroll_rect.right() {
+                                    continue;
+                                }
+                                let pill_min_x = x0.max(bar_origin_x);
+                                let pill_max_x = x1.min(scroll_rect.right()).max(pill_min_x + 4.0);
+                                let pill_rect = Rect::from_min_max(
+                                    Pos2::new(pill_min_x, sp_top + 3.0),
+                                    Pos2::new(pill_max_x, sp_bot - 3.0),
+                                );
+
+                                let is_active = current_time_s >= w.start_s && current_time_s < w.end_s;
+                                let (bg_color, text_color, border_stroke) = if is_active {
+                                    (
+                                        theme.palette.accent.primary,
+                                        theme.palette.text.primary,
+                                        Stroke::new(1.0, theme.palette.accent.primary),
+                                    )
+                                } else {
+                                    (
+                                        theme.palette.surface.widget,
+                                        theme.palette.text.secondary,
+                                        Stroke::new(1.0, theme.palette.border.subtle),
+                                    )
+                                };
+
+                                painter.rect_filled(pill_rect, 3.0, bg_color);
+                                painter.rect_stroke(
+                                    pill_rect,
+                                    3.0,
+                                    border_stroke,
+                                    egui::StrokeKind::Inside,
+                                );
+
+                                if pill_rect.width() > 14.0 {
+                                    let galley = painter.layout_no_wrap(
+                                        w.word.clone(),
+                                        FontId::monospace(9.0),
+                                        text_color,
+                                    );
+                                    if galley.size().x <= pill_rect.width() - 4.0 {
+                                        painter.galley(
+                                            Pos2::new(
+                                                pill_rect.center().x - galley.size().x / 2.0,
+                                                pill_rect.center().y - galley.size().y / 2.0,
+                                            ),
+                                            galley,
+                                            text_color,
+                                        );
+                                    } else if pill_rect.width() > 18.0 {
+                                        painter.text(
+                                            pill_rect.center(),
+                                            Align2::CENTER_CENTER,
+                                            "…",
+                                            FontId::monospace(9.0),
+                                            text_color,
+                                        );
+                                    }
+                                }
+
+                                let word_id = panel_id.with((
+                                    "speech_word",
+                                    actor_label.as_str(),
+                                    w.word.as_str(),
+                                    w.start_s.to_bits(),
+                                ));
+                                let w_resp = ui.interact(pill_rect, word_id, Sense::click());
+                                if w_resp.clicked() {
+                                    commands.push_back(PlaybackCommand::ScrubTo(w.start_s).into());
+                                }
+                                text_tooltip(
+                                    ui,
+                                    word_id.with("tip"),
+                                    &w_resp,
+                                    &format!("\"{}\"  ({:.2}s – {:.2}s)", w.word, w.start_s, w.end_s),
+                                );
+                            }
+                        } else {
+                            // Line-level cue fallback
+                            let x0 = time_to_x(seg.start_s);
+                            let x1 = time_to_x(seg.end_s);
+                            if x1 >= bar_origin_x && x0 <= scroll_rect.right() {
+                                let seg_min_x = x0.max(bar_origin_x);
+                                let seg_max_x = x1.min(scroll_rect.right()).max(seg_min_x + 8.0);
+                                let seg_rect = Rect::from_min_max(
+                                    Pos2::new(seg_min_x, sp_top + 4.0),
+                                    Pos2::new(seg_max_x, sp_bot - 4.0),
+                                );
+                                painter.rect_filled(seg_rect, 2.0, theme.palette.surface.widget);
+                                painter.rect_stroke(
+                                    seg_rect,
+                                    2.0,
+                                    Stroke::new(1.0, theme.palette.border.subtle),
+                                    egui::StrokeKind::Inside,
+                                );
+                                let galley = painter.layout_no_wrap(
+                                    seg.text.clone(),
+                                    FontId::monospace(9.0),
+                                    theme.palette.text.secondary,
+                                );
+                                if galley.size().x <= seg_rect.width() - 4.0 {
+                                    painter.galley(
+                                        Pos2::new(
+                                            seg_rect.min.x + 3.0,
+                                            seg_rect.center().y - galley.size().y / 2.0,
+                                        ),
+                                        galley,
+                                        theme.palette.text.secondary,
+                                    );
+                                }
+                            }
+                        }
+                    }
+
+                    // Draw markers (@intro, @feature, etc.)
+                    for (marker_name, &marker_time) in &transcript.markers {
+                        let mx = time_to_x(marker_time);
+                        if mx < bar_origin_x || mx > scroll_rect.right() {
+                            continue;
+                        }
+                        let marker_color = theme.palette.status.warning;
+                        painter.line_segment(
+                            [Pos2::new(mx, sp_top + 10.0), Pos2::new(mx, sp_bot)],
+                            Stroke::new(1.0, marker_color.linear_multiply(0.7)),
+                        );
+                        let pts = vec![
+                            Pos2::new(mx, sp_top + 1.0),
+                            Pos2::new(mx + 4.0, sp_top + 5.5),
+                            Pos2::new(mx, sp_top + 10.0),
+                            Pos2::new(mx - 4.0, sp_top + 5.5),
+                        ];
+                        painter.add(egui::Shape::convex_polygon(pts, marker_color, Stroke::NONE));
+
+                        let marker_id = panel_id.with((
+                            "speech_marker",
+                            actor_label.as_str(),
+                            marker_name.as_str(),
+                        ));
+                        let m_rect = Rect::from_min_max(
+                            Pos2::new(mx - 5.0, sp_top),
+                            Pos2::new(mx + 5.0, sp_bot),
+                        );
+                        let m_resp = ui.interact(m_rect, marker_id, Sense::click());
+                        if m_resp.clicked() {
+                            commands.push_back(PlaybackCommand::ScrubTo(marker_time).into());
+                        }
+                        text_tooltip(
+                            ui,
+                            marker_id.with("tip"),
+                            &m_resp,
+                            &format!("@{}  ({:.2}s)", marker_name, marker_time),
+                        );
+                    }
+                }
+            }
+
+            // Playhead tick
+            painter.line_segment(
+                [
+                    Pos2::new(playhead_x, sp_top),
+                    Pos2::new(playhead_x, sp_bot),
+                ],
+                Stroke::new(1.5, theme.palette.text.primary),
+            );
+            // Border bottom
+            painter.line_segment(
+                [
+                    Pos2::new(scroll_rect.left(), sp_bot),
+                    Pos2::new(scroll_rect.right(), sp_bot),
                 ],
                 Stroke::new(STROKE_WIDTH, theme.palette.border.default),
             );
@@ -1799,11 +2067,11 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                         if is_drag {
                             if let Some(pos) = dresp.interact_pointer_pos() {
                                 let nt = x_to_time(pos.x);
-                                // 60 fps snap by default; hold Shift for free drag
-                                let snapped = if shift_held {
-                                    nt
+                                // 60 fps snap by default; snap to speech/marker if nearby; hold Shift for free drag
+                                let (snapped, snap_label) = if shift_held {
+                                    (nt, None)
                                 } else {
-                                    (nt * ctx.snap_fps as f64).round() / ctx.snap_fps as f64
+                                    snap_to_speech_or_fps(nt, ctx.snap_fps, &speech_snap_targets)
                                 };
                                 if let Some(drag) = new_kf_drag.as_mut() {
                                     drag.target_s = snapped;
@@ -1819,8 +2087,13 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                         theme.palette.status.warning.linear_multiply(0.5),
                                     ),
                                 );
+                                let label_text = if let Some(ref label) = snap_label {
+                                    format!("🧲 {} ({:.2}s)", label, snapped)
+                                } else {
+                                    format!("{:.2}s → {:.2}s", kf_s, snapped)
+                                };
                                 let g = painter.layout_no_wrap(
-                                    format!("{:.2}s → {:.2}s", kf_s, snapped),
+                                    label_text,
                                     FontId::monospace(10.0), // 10px mono: no TextRole
                                     theme.palette.text.primary,
                                 );
@@ -2217,10 +2490,10 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                 if is_drag {
                                     if let Some(pos) = dresp.interact_pointer_pos() {
                                         let nt = x_to_time(pos.x);
-                                        let snapped = if shift_held {
-                                            nt
+                                        let (snapped, _) = if shift_held {
+                                            (nt, None)
                                         } else {
-                                            (nt * snap_fps as f64).round() / snap_fps as f64
+                                            snap_to_speech_or_fps(nt, snap_fps, &speech_snap_targets)
                                         };
                                         if let Some(drag) = new_kf_drag.as_mut() {
                                             drag.target_s = snapped;
@@ -2446,4 +2719,33 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
             egui::StrokeKind::Inside,
         );
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_snap_to_speech_or_fps() {
+        let targets = vec![
+            (1.50, "@intro".to_string()),
+            (2.25, "\"hello\"".to_string()),
+        ];
+
+        // Close to @intro (within 0.06s tolerance) -> snaps to @intro
+        let (snapped, label) = snap_to_speech_or_fps(1.52, 60.0, &targets);
+        assert!((snapped - 1.50).abs() < 1e-4);
+        assert_eq!(label.as_deref(), Some("@intro"));
+
+        // Close to "hello" -> snaps to "hello"
+        let (snapped, label) = snap_to_speech_or_fps(2.22, 60.0, &targets);
+        assert!((snapped - 2.25).abs() < 1e-4);
+        assert_eq!(label.as_deref(), Some("\"hello\""));
+
+        // Far from speech targets -> falls back to FPS grid snap
+        let (snapped, label) = snap_to_speech_or_fps(3.821, 60.0, &targets);
+        let expected_fps_snap = (3.821 * 60.0_f64).round() / 60.0_f64;
+        assert!((snapped - expected_fps_snap).abs() < 1e-4);
+        assert_eq!(label, None);
+    }
 }

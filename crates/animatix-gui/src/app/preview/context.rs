@@ -9,8 +9,8 @@ use animatix::timeline::{SceneDimensions, Timeline};
 use egui::{Pos2, Stroke, Vec2};
 
 use crate::app::commands::{
-    ActionQueue, ActorCommand, DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue,
-    SceneCommand,
+    ActionQueue, ActorCommand, Command, DocumentCommand, PropertyEdit,
+    PropertyValue as GuiPropertyValue, SceneCommand, ShellAction, ViewAction,
 };
 use crate::app::design_tokens::spatial::preview::{
     HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS, MIN_ZOOM as PREVIEW_MIN_ZOOM,
@@ -52,6 +52,8 @@ pub(crate) struct PreviewContext<'a> {
     pub rebuild_in_progress: bool,
     /// True when there is an active non-empty scene to preview.
     pub has_scene: bool,
+    /// Current source text of the document for editor jumps.
+    pub source_text: Option<&'a str>,
 }
 
 // ─── Helper methods ─────────────────────────────────────────────────────────
@@ -593,6 +595,27 @@ impl PreviewContext<'_> {
                                     );
                                     break;
                                 }
+                            }
+                        }
+                    }
+                }
+
+                // Alt+Click on canvas actor jumps to its declaration in the code editor
+                if modifiers.alt {
+                    if let Some(actor) = self.selected_actors.iter().next() {
+                        if let Some(src) = self.source_text {
+                            let target_colon = format!("{}:", actor);
+                            let target_space_colon = format!("{} :", actor);
+                            let found_line = src.lines().position(|l| {
+                                let trimmed = l.trim_start();
+                                trimmed.starts_with(&target_colon)
+                                    || trimmed.starts_with(&target_space_colon)
+                            });
+                            if let Some(line) = found_line {
+                                self.commands.push_back(ShellAction::Command(
+                                    Command::ScrollToLine(line, 0),
+                                ));
+                                self.commands.push_back(ShellAction::View(ViewAction::ShowCode));
                             }
                         }
                     }

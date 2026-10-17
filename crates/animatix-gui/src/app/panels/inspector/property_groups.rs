@@ -85,6 +85,7 @@ pub(crate) fn build_property_groups(
     let mut annotation = Vec::new();
     let mut media = Vec::new();
     let mut audio = Vec::new();
+    let mut captions = Vec::new();
     let mut legend_props = Vec::new();
 
     for &idx in &indices {
@@ -231,6 +232,10 @@ pub(crate) fn build_property_groups(
                 | "split_by" | "split_mask" | "split_offset_y" | "split_stagger" => {
                     text.push(entry)
                 },
+                "transcript" if track.actor_type == "Audio" => audio.push(entry),
+                "caption_mode" | "active_color" | "inactive_color" | "backdrop"
+                | "backdrop_color" | "backdrop_radius" | "backdrop_padding" | "pop_scale"
+                | "max_lines" | "transition_time" | "transcript" => captions.push(entry),
                 s if s.starts_with("legend_") => {
                     legend_props.push(entry);
                 },
@@ -302,6 +307,13 @@ pub(crate) fn build_property_groups(
             name: "Audio",
             icon: egui_phosphor::regular::SPEAKER_HIGH,
             properties: audio,
+        });
+    }
+    if !captions.is_empty() {
+        groups.push(PropertyGroup {
+            name: "Captions",
+            icon: egui_phosphor::regular::TEXT_ALIGN_CENTER,
+            properties: captions,
         });
     }
 
@@ -584,6 +596,17 @@ fn convert_for_display(value: PropertyValue, name: &str) -> PropertyValue {
 }
 
 fn value_to_kind(value: PropertyValue, ty: ValueType, name: &str) -> PropertyKind {
+    if name == "caption_mode" {
+        static CAPTION_MODES: &[&str] = &["word", "karaoke", "pop", "line", "block"];
+        let current_val = match &value {
+            PropertyValue::String(s) | PropertyValue::Enum(s) => s.clone(),
+            other => format!("{other:?}"),
+        };
+        return PropertyKind::Enum {
+            variants: CAPTION_MODES,
+            value: current_val,
+        };
+    }
     match (value, ty) {
         (PropertyValue::Vec2(v), _) => PropertyKind::Vec2 { x: v[0], y: v[1] },
         (PropertyValue::F32(v), _) => {
@@ -596,9 +619,9 @@ fn value_to_kind(value: PropertyValue, ty: ValueType, name: &str) -> PropertyKin
         (PropertyValue::Color(v), _) => PropertyKind::Color(v),
         (PropertyValue::String(v), _) => PropertyKind::Text(v),
         (PropertyValue::Enum(v), _) => PropertyKind::Text(v),
-        (PropertyValue::Bool(v), _) => PropertyKind::Text(v.to_string()),
+        (PropertyValue::Bool(v), _) => PropertyKind::Bool(v),
         (PropertyValue::Variant { value, .. }, _) => match value.as_ref() {
-            PropertyValue::Bool(v) => PropertyKind::Text(v.to_string()),
+            PropertyValue::Bool(v) => PropertyKind::Bool(*v),
             PropertyValue::String(v) => PropertyKind::Text(v.clone()),
             other => PropertyKind::Text(format!("{other:?}")),
         },
@@ -1690,5 +1713,27 @@ mod tests {
         let groups = build_property_groups(&timeline, &track, 0);
         let annotation_group = groups.iter().find(|g| g.name == "Annotation");
         assert!(annotation_group.is_some(), "Callout should have an Annotation group");
+    }
+
+    #[test]
+    fn build_property_groups_for_captions_actor() {
+        let timeline = animatix::timeline::Timeline::new();
+        let track = AnimationTrack::new("subs".into(), "Captions");
+        let groups = build_property_groups(&timeline, &track, 0);
+        let cap_group = groups.iter().find(|g| g.name == "Captions");
+        assert!(cap_group.is_some(), "Captions should have a Captions group");
+        let cap_group = cap_group.unwrap();
+        let caption_mode = cap_group.properties.iter().find(|p| p.name == "caption_mode");
+        assert!(caption_mode.is_some(), "Captions group should have caption_mode");
+        assert!(
+            matches!(caption_mode.unwrap().kind, PropertyKind::Enum { .. }),
+            "caption_mode should be Enum dropdown"
+        );
+        let backdrop = cap_group.properties.iter().find(|p| p.name == "backdrop");
+        assert!(backdrop.is_some(), "Captions group should have backdrop");
+        assert!(
+            matches!(backdrop.unwrap().kind, PropertyKind::Bool(_)),
+            "backdrop should be Bool kind"
+        );
     }
 }

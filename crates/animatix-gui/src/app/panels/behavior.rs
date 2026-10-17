@@ -113,6 +113,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     debug_spacing: self.debug_spacing,
                     rebuild_in_progress: self.preview_store.rebuild_in_progress,
                     has_scene,
+                    source_text: Some(self.document_store.source.document.source_text.as_str()),
                 };
                 preview_panel::preview_panel_ui(&mut ctx, ui);
             },
