@@ -113,7 +113,7 @@ impl BuiltinAction for Swap {
         // keyframe exactly at `t_start_ms` is that swap's end boundary, so
         // back-to-back swaps (`step`-sequenced loops) are allowed.
         if let Some(track) = timeline.child_orders.get(&parent) {
-            if let Some((&pending_time, _)) = track.keyframes.range(t_start_ms + 1..).next() {
+            if let Some((&pending_time, _)) = track.keyframes.next_keyframe(t_start_ms + 1) {
                 diagnostics.push(
                     Diagnostic::warning(
                         DiagnosticCode::ConflictingModifierKey,
@@ -336,7 +336,7 @@ impl BuiltinAction for Reorder {
 
         // Check for overlapping reorder on same container
         if let Some(track) = timeline.child_orders.get(container) {
-            if let Some((&pending_time, _)) = track.keyframes.range(t_start_ms..).next() {
+            if let Some((&pending_time, _)) = track.keyframes.next_keyframe(t_start_ms) {
                 diagnostics.push(
                     Diagnostic::warning(
                         DiagnosticCode::ConflictingModifierKey,

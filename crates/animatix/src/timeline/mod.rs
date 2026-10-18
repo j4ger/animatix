@@ -56,6 +56,7 @@ pub(crate) mod fn_eval;
 pub mod frame_signature;
 /// Image loading utilities.
 pub mod image;
+pub mod inline_keyframes;
 pub mod kurbo_shapes;
 pub(crate) mod layout;
 mod media;
@@ -1253,8 +1254,8 @@ impl Timeline {
 
         // Check for child_orders track
         if let Some(track) = self.child_orders.get(container_label) {
-            let prev = track.keyframes.range(..=time_ms).next_back();
-            let next = track.keyframes.range(time_ms..).next();
+            let prev = track.keyframes.prev_keyframe(time_ms);
+            let next = track.keyframes.next_keyframe(time_ms);
 
             match (prev, next) {
                 (Some((&t1, (order1, easing1))), Some((&t2, (order2, _)))) if t1 != t2 => {

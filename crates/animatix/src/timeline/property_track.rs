@@ -6,12 +6,11 @@
 //! - [`TrackAccessor`] extension trait for ergonomic access
 //! - Re-exports of [`Easing`] and [`apply_easing`] from `crate::easing`
 
-use std::collections::BTreeMap;
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 // Re-export easing types so track.rs and other modules can get them from here.
+pub use super::inline_keyframes::{KeyframeEntry, Keyframes};
 pub use crate::easing::{Easing, apply_easing};
 use crate::renderer::types::{GradientShape, GradientSpec, GradientStop};
 use crate::timeline::morph::MorphOptions;
@@ -242,11 +241,11 @@ impl Interpolate for Vec<[f32; 2]> {
 #[cfg_attr(
     feature = "serde",
     derive(Serialize, Deserialize),
-    serde(bound = "T: Serialize + for<'de2> Deserialize<'de2>")
+    serde(bound = "T: Serialize + for<'de2> Deserialize<'de2> + Clone")
 )]
 pub struct PropertyTrack<T> {
-    /// Map from timestamp (ms) to `(value, easing)` pairs.
-    pub(crate) keyframes: BTreeMap<u64, (T, Easing)>,
+    /// Zero-heap compact keyframe storage.
+    pub(crate) keyframes: Keyframes<T>,
     /// Value used when no keyframes are defined.
     pub(crate) default_value: T,
     /// P2.20: Memoization cache for repeated time queries.
@@ -268,7 +267,7 @@ impl<T: Interpolate> PropertyTrack<T> {
     /// Create a new track with the given default value.
     pub fn new(default_value: T) -> Self {
         Self {
-            keyframes: BTreeMap::new(),
+            keyframes: Keyframes::new(),
             default_value,
             last_evaluated: std::cell::RefCell::new(None),
         }
@@ -294,10 +293,12 @@ impl<T: Interpolate> PropertyTrack<T> {
     /// interpolation segment - there exists both a previous keyframe at
     /// `time <= time_ms` AND a next keyframe at `time > time_ms`.
     pub fn is_currently_animating(&self, time_ms: u64) -> bool {
-        use std::ops::Bound;
-        let next = self.keyframes.range((Bound::Excluded(time_ms), Bound::Unbounded)).next();
-        let prev = self.keyframes.range(..=time_ms).next_back();
-        matches!((prev, next), (Some(_), Some(_)))
+        let slice = self.keyframes.as_slice();
+        if slice.len() < 2 {
+            false
+        } else {
+            time_ms >= slice[0].time_ms && time_ms < slice.last().unwrap().time_ms
+        }
     }
     /// Returns the interpolation segment for `time_ms`, if one exists between
     /// two keyframes. Returns `(found_time, prev_val, found_val, progress, found_easing)`
@@ -306,24 +307,7 @@ impl<T: Interpolate> PropertyTrack<T> {
         &self,
         time_ms: u64,
     ) -> Option<(u64, &T, &T, f32, &Easing)> {
-        let found = self.keyframes.range(time_ms..).next()?;
-        let (&found_time, (found_val, found_easing)) = found;
-
-        // Before or at first keyframe: no interior segment
-        if let Some((&first_time, _)) = self.keyframes.iter().next() {
-            if time_ms <= first_time {
-                return None;
-            }
-        }
-
-        // Find the previous keyframe before time_ms
-        let (prev_time, (prev_val, _)) = self.keyframes.range(..time_ms).next_back()?;
-
-        let duration = (found_time - prev_time) as f32;
-        let elapsed = (time_ms - prev_time) as f32;
-        let progress = elapsed / duration;
-
-        Some((found_time, prev_val, found_val, progress, found_easing))
+        self.keyframes.interpolation_segment(time_ms)
     }
 
     /// Returns the interpolation segment along with the segment duration.
@@ -331,21 +315,7 @@ impl<T: Interpolate> PropertyTrack<T> {
         &self,
         time_ms: u64,
     ) -> Option<(u64, &T, &T, f32, f32, &Easing)> {
-        let found = self.keyframes.range(time_ms..).next()?;
-        let (&found_time, (found_val, found_easing)) = found;
-
-        if let Some((&first_time, _)) = self.keyframes.iter().next() {
-            if time_ms <= first_time {
-                return None;
-            }
-        }
-
-        let (prev_time, (prev_val, _)) = self.keyframes.range(..time_ms).next_back()?;
-        let duration = (found_time - prev_time) as f32;
-        let elapsed = (time_ms - prev_time) as f32;
-        let progress = elapsed / duration;
-
-        Some((found_time, prev_val, found_val, progress, duration, found_easing))
+        self.keyframes.interpolation_segment_with_duration(time_ms)
     }
 
     /// Prune any keyframes strictly after `time_ms`.
@@ -371,9 +341,9 @@ impl<T: Interpolate> PropertyTrack<T> {
             // No interior segment - use default or boundary value
             if self.keyframes.is_empty() {
                 clone_val(&self.default_value)
-            } else if let Some((&first_time, (val, _))) = self.keyframes.iter().next() {
-                if time_ms <= first_time {
-                    clone_val(val)
+            } else if let Some(first) = self.keyframes.as_slice().first() {
+                if time_ms <= first.time_ms {
+                    clone_val(&first.payload.0)
                 } else {
                     let val = self.last_value_with(&clone_val);
                     *self.last_evaluated.borrow_mut() = Some((time_ms, clone_val(&val)));
@@ -394,21 +364,21 @@ impl<T: Interpolate> PropertyTrack<T> {
     /// Return the value of the most recent keyframe, or the default, using a custom clone strategy.
     fn last_value_with(&self, clone_val: impl Fn(&T) -> T) -> T {
         self.keyframes
-            .iter()
-            .next_back()
-            .map(|(_, (val, _))| clone_val(val))
+            .as_slice()
+            .last()
+            .map(|k| clone_val(&k.payload.0))
             .unwrap_or_else(|| clone_val(&self.default_value))
     }
     /// Return the timestamp of the most recent keyframe, if any.
     pub fn last_keyframe_time(&self) -> Option<u64> {
-        self.keyframes.keys().next_back().copied()
+        self.keyframes.last_keyframe_time()
     }
     /// Returns true if this track has keyframes that could change value over time.
     /// A track with 0 keyframes or 1 keyframe at time 0 is effectively static.
     pub fn is_effectively_static(&self) -> bool {
         match self.keyframes.len() {
             0 => true,
-            1 => self.keyframes.keys().next() == Some(&0),
+            1 => self.keyframes.as_slice().first().map(|k| k.time_ms) == Some(0),
             _ => false,
         }
     }
@@ -424,13 +394,13 @@ impl<T: Interpolate> PropertyTrack<T> {
         &self.default_value
     }
 
-    /// Returns a reference to the keyframes map.
-    pub fn keyframes(&self) -> &BTreeMap<u64, (T, Easing)> {
+    /// Returns a reference to the keyframes container.
+    pub fn keyframes(&self) -> &Keyframes<T> {
         self.keyframes_raw()
     }
 
-    /// Returns a mutable reference to the keyframes map and invalidates the cache.
-    pub fn keyframes_mut(&mut self) -> &mut BTreeMap<u64, (T, Easing)> {
+    /// Returns a mutable reference to the keyframes container and invalidates the cache.
+    pub fn keyframes_mut(&mut self) -> &mut Keyframes<T> {
         *self.last_evaluated.borrow_mut() = None;
         &mut self.keyframes
     }
@@ -443,7 +413,7 @@ impl<T> PropertyTrack<T> {
     /// when you don't need interpolation (e.g., displaying keyframe times
     /// in a GUI). Prefer [`keyframes`](Self::keyframes) when `T` implements
     /// [`crate::timeline::Interpolate`], as it makes the trait bound explicit at the call site.
-    pub fn keyframes_raw(&self) -> &BTreeMap<u64, (T, Easing)> {
+    pub fn keyframes_raw(&self) -> &Keyframes<T> {
         &self.keyframes
     }
 }
@@ -486,16 +456,16 @@ mod tests {
 
     /// A type that does not implement `Interpolate`.
     /// Verifies that `keyframes_raw()` works without the trait bound.
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     struct NonInterpolatable(u64);
 
     #[test]
     fn keyframes_raw_works_without_interpolate() {
+        let mut keyframes = Keyframes::new();
+        keyframes.insert(100, (NonInterpolatable(10), Easing::Linear));
+        keyframes.insert(200, (NonInterpolatable(20), Easing::EaseInOut));
         let track: PropertyTrack<NonInterpolatable> = PropertyTrack {
-            keyframes: BTreeMap::from([
-                (100, (NonInterpolatable(10), Easing::Linear)),
-                (200, (NonInterpolatable(20), Easing::EaseInOut)),
-            ]),
+            keyframes,
             default_value: NonInterpolatable(0),
             last_evaluated: std::cell::RefCell::new(None),
         };
