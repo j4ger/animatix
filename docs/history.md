@@ -14,6 +14,33 @@ mixed history and open work).
 Historical tracks are kept as evidence. New implementation work is tracked in
 [Backlog & Prioritization](#backlog--prioritization).
 
+### Non-Text Scene Evaluation & Viewport Culling Optimization (2026-10-18)
+
+Optimized hot frame-evaluation, visibility culling, and static subtree caching across the engine:
+1. **Zero-Allocation Primitive Arithmetic Viewport Culling**:
+   - Replaced Kurbo `Rect` allocations, matrix affine multiplications, and polygon area calculations (`.intersect().area() > 0.0`) in `render_actor_node` with direct float bounding tests against transform translation components (`coeffs[4]`, `coeffs[5]`).
+   - Short-circuited off-screen and hidden actors prior to curve sampling, procedural plot closures, and dataset generation.
+   - Criterion microbenchmarks: `offscreen_100_actors` improved by 42.85% (4.09 µs vs 7.16 µs baseline), `mixed_50visible_50offscreen` improved by 38.99% (4.88 µs vs 7.99 µs baseline).
+2. **Dense `EntityId` Static Subtree Caching**:
+   - Replaced string-keyed `(String, SceneDimensions, ...)` hash map with `(EntityId, ...)`, eliminating per-frame heap string allocations during static subtree lookups.
+   - Replaced `static_subtree_flags` with flat indexed `Vec<Option<bool>>`.
+   - Pre-computed `root_ids` slice traversal in `evaluate_program_inner` with hoisted loop-invariant guards and reserved capacity for program items.
+   - Criterion microbenchmarks: `static_50_actors` -36.70% (2.83 µs), `static_100_actors` -37.14% (5.39 µs), `static_200_actors` -40.43% (10.20 µs).
+3. **Off-screen Filter Scope Early Return**:
+   - Short-circuited invisible (`opacity <= 0.0001`) and entirely off-screen filter regions in `render_filter_children`, avoiding redundant layer push/pop and GPU pass execution.
+4. **Build-Time Shape Bounds Memo Handoff**:
+   - Cached local bounds directly on initial shape build via `offer_shape_command_bounds`, enabling immediate bounds hit on cold/initial frames without unioning BezPath bounding boxes.
+
+### GUI UX Redesign (2026-09-14)
+
+Completed comprehensive GUI design language and information architecture overhaul (`docs/gui_design_language.md` §12):
+- **Track Solo (`solo: true`)**: Authored solo property recursively isolating subtrees in preview and export; timeline header solo button edits source via property-edit pipeline.
+- **Multi-Actor Curves**: Overlays all selected actors in Curves panel with qualified labels (`actor · property.X`), deterministic channel colors, and multi-keyframe dragging.
+- **Diagnostics Peek**: Status-bar chip transient overlay (single click peeks, double click pins docked panel).
+- **Layout Presets**: Right-hand tab group sharing Inspector and Code; Animate / Code / Inspect / Focus presets; 3 labeled sidebar tabs (Project / Outline / Library).
+- **Interactive F-Curve Editor**: Bottom tab group with dual Timeline / Curves views supporting batched `MoveKeyframes`, exact `SetKeyframeValue`, easing selection, and ruler scrubbing.
+- **Platform Polish & Autosave**: Auto-key indicator, keyframe diamonds, autosave sidecar (`.amx.autosave`) with recovery prompt, and virtualized `eparts` scrolling list/tree widgets.
+
 ### GPU Pipeline & Compute Pass Modernization (2026-10-18)
 
 Overhauled GPU rendering pipelines across `animatix-render` and engine interfaces, resolving structural GPU draw submission bottlenecks and eliminating per-frame texture allocation churn:

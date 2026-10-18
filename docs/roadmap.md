@@ -7,75 +7,6 @@ closed work lives in [`history.md`](history.md) — do not re-add it here.
 
 ## Backlog & Prioritization
 
-### GUI UX Redesign (active)
-
-Source of truth: `docs/gui_design_language.md` §12 (diagnosis, target
-information architecture, per-surface redesign, open decisions). The
-2026-09-11 phases shipped directly on `main`; the remaining items below are
-small enough to land there too.
-
-Track solo shipped 2026-09-14 as an authored property rather than an
-ephemeral view toggle: `solo: true` hides every other subtree recursively in
-preview and export alike (see `docs/spec.md`), and the timeline track header
-gained a solo button that edits the source through the normal property-edit
-pipeline, so it is undoable and persists in the `.amx`.
-
-Multi-actor curves shipped 2026-09-14: the Curves panel overlays every selected
-actor, qualifying labels as `actor · property.X` so legend keys and widget ids
-stay unique, shading later actors' canonical channel colours deterministically,
-and committing each drag against the track that owns the keyframe. The value
-window already derives from the visible curves, so it fits whatever the legend
-leaves on. The Inspector's read-only graph editor still shows one actor.
-
-Export/settings polish shipped 2026-09-14: the failure tag keeps its short
-label but reveals the full encoder message on hover with a copy action, the
-dialog gained explicit `Encoder` (codec + libx264 preset) selectors for the
-formats that honour them, and a reset control restores the default settings
-while keeping the output path. CRF/bitrate controls remain unscheduled — they
-need encoder-parameter plumbing in `animatix-render`, not just dialog state.
-
-Diagnostics peek shipped 2026-09-14: the status-bar chip raises a transient
-overlay anchored above itself (single click peeks, double click pins the docked
-panel; Escape, a click outside, or picking a diagnostic closes it).
-
-Phase 0 shipped 2026-09-11: visible auto-key (default off), caret-anchored
-completion, click-latched Delete scope, layout-preserving Inspector toggle,
-explicit keyframe-diamond model, labeled scene inspector, platform-aware
-shortcut display, action-identified Layers menu, remapped tool keys
-(`V/A/R/S/G/P`), and real group scale/rotate.
-
-Layout phase shipped 2026-09-11 (screenshot-verified): Inspector and Code
-share one right-hand tab group; region sizes are `clamp(ratio × available,
-min, max)` with a per-frame pixel-bound pass and a 120px tile floor; Animate /
-Code / Inspect / Focus presets plus Reset layout; sidebar merged 6 → 3 labeled
-tabs (Project / Outline / Library) with the editor promoted into the detail
-region; `pill_tab_bar` degrades label-first.
-
-Bottom tab group shipped 2026-09-11: Timeline and Curves share one bottom tab
-group (Timeline active by default). The Curves tab is an interactive F-curve
-editor over the selected actor — horizontal drag retimes through the batched
-`MoveKeyframes`, vertical drag rewrites a keyframe value through the new exact
-`SetKeyframeValue` command, right-click sets easing, click/Shift+click selects
-(the selection is shared with the timeline), and a ruler scrubs the playhead.
-Reachable from the toolbar, command palette, and `ViewAction::ShowCurves` /
-`ShowTimeline`.
-
-Later phases shipped 2026-09-11: timeline keyframe model (property-granular
-`KeyframeId` selection, multi-keyframe drag with a single undo step via batched
-`MoveKeyframes`, empty property lanes from the animatable-property registry,
-actor track header eye/lock); autosave to a `<file>.amx.autosave` sidecar with
-a Recover/Discard prompt on startup; in-editor find-match highlighting; Library
-drag-to-place onto the canvas; narrow-window compact mode (48px sidebar icon
-rail + overlay drawers). The `eparts` library got a batch of fixes (scrolling
-virtualized `List`/`Tree`, themed `Select` with keyboard nav and a focus ring,
-overlay-aware `Dialog`, dead slots wired, new per-component slot groups, a
-macro-generated partial theme layer, and `Theme` grouped into
-`palette`/`components`/`elevation`).
-
-Remaining:
-
-| Item | Scope | Status |
-|---|---|---|
 
 ### Web playback performance (active)
 
@@ -212,8 +143,6 @@ What that means for the fix: it cannot be a renderer tweak. **DECIDED 2026-10-03
 | Percentage and `fill` child sizes collapse in a `Row` | `examples/layout/27_layout_text.amx`'s PercentSizing scene is the reference for `size: (25%, 80)` / `(50%, 80)` / `(fill, 80)` inside `row: Row, size: (900, 120)`, and it renders two ~2px slivers and one ~100px square instead of 225/450/fill — verified identical at HEAD and after the `min_width` correction, and unchanged by adding `dynamic_layout: true`. `timeline/layout.rs:946` hardcodes `let parent_content_size = [0.0f32, 0.0f32];` on the path the comment labels "If the container has no layout_size", so percentages resolve against zero and `min_width` does not lift the result either. Needs the container's declared `size` to reach the child constraint pass. | Not started |
 | Layout has no `max_width` constraint, and the name is already taken | `animation_track.rs` gives geometry `min_width`, `min_height` and `max_height` — and no `max_width`; `timeline/layout.rs:952` hardcodes `let max_w = f32::INFINITY;` where the child cap would be read. So a Row/Col item can be given a floor but never a ceiling. It cannot be fixed by adding the property, because `max_width` is bound to the text wrap width (`ActorField::TextMaxWidth`), which is why `27_layout_text.amx` could carry `b: Rect, max_width: 400` with a comment claiming a cap for as long as it has existed. Needs a distinct name (`max_item_width`?) plus the geometry field and the taffy constraint. | Not started |
 | `Applicable::Everything` rows hide the drop class this lint exists for | `color`, `opacity`, `at`, `offset`, `transform`, `solo` and friends are declared applicable to every actor, so `inapplicable-property` passes them unconditionally — and the two silent drops found and fixed this round (the plot family discarding `opacity`, `Arrow` discarding `color`) are both in that set. The rows are also what the inspector offers and what plan slots are filtered by, so a wrong `Everything` is a wrong editor too. Durable fix is to narrow each such row to the primitives that read it, which is the same audit `applicability_table_agrees_with_reads.rs` does for the `Actors(&[…])` rows — that test cannot see these because they are not name lists. | Not started |
-| Static keyframe `.text =` assignments overprint | **Fixed 2026-10-03** — the text path is now fenced, so an undated swap holds the declared string until its own stamp (`an_undated_text_swap_holds_the_old_string_until_its_own_stamp`; `web/demos/hash/lookup.amx` draws one formula before `#5.2s` instead of two overlapping). The one-actor-per-string workaround in `web/demos/hash/scene.amx` is no longer needed and can be folded back. The same fence now covers numbers and colours. | Resolved |
-| ~~A bare assignment animates from the previous keyframe~~ **Resolved 2026-10-03**: `docs/spec.md` wins. `write_property_plan_slot` now fences an undated change one millisecond before its stamp, so `r.opacity = 0.0` at `#2s` holds until 2s instead of easing there from the previous keyframe. Two extension tests had encoded the ramping reading and were rewritten to assert the step. Verified by **positive control, not pixels**: on the pinned probe scene at 1 s the fenced build leaves 2725 lit pixels (still opaque) and the unfenced one 2125 (already half-ramped). A whole-corpus A/B — 149 `.amx` × 2 times = 298 frames, two binaries differing only in the fence — found 280 byte-identical and 18 differing by 1–44 raw RGBA bytes out of 3.7 MB, which is *below* the same-binary control on the very same scenes, so the change has no measurable visual effect: every scene that wanted a ramp already wrote a `[duration]`. (The numbers first shipped with this commit — "288 identical, the other 16 at PSNR ≥107 dB" — compared a build with itself and were wrong; a later "18 of 304 frames change" repeated that mistake by counting PNG-byte drift as a change.) | Resolved |
 | Pixel A/B has no noise floor yet | The render-either-side-and-`cmp` method this round used for content checks cannot resolve a small change: **the same binary is not byte-stable across processes.** Measured 2026-10-03 on `dogfood/probes/008-render-correctness/text.amx` at 1 s — three renders of one binary differ from each other by 20, 36 and 46 raw RGBA bytes (of 3 686 400), while that binary's two builds (which really do differ) are 12 and 24 bytes apart. PNG file sizes drift as well, so comparing files is noisier still, and `web/demos/transformer/scenes/pipeline.amx @ 4` came out *identical* between builds but 8 bytes apart between two runs of one build. Text/glyph scenes show it and `web/demos/matrix/scene.amx` does not, so the suspect is glyph rasterization or shaping order. Until that is pinned down: any engine A/B claim needs (a) a same-binary control and (b) a positive control proving the change is live — the track-level probe above is the shape to copy. | Not started |
 
 ## Easing pass — what else it turned up (2026-10-02)
@@ -922,21 +851,24 @@ Also open by choice: `docs/scene_stats.md` is a design note with no roadmap row 
 and `.zcodeignore` is an editor-generated mirror of `.gitignore` that should not be
 tracked.
 
-## GPU Rendering & Pipeline Optimization (from Architecture Audit)
+## Performance & Pipeline Optimization (Remaining Backlog)
 
-Two performance-limiting rendering bottlenecks identified during the architectural audit:
+### 1. Text System Compilation & Layout Performance Overhaul
 
-### 1. GPU Compute Pass Batching & Command Submission Pipeline
-
-- **Location**: `crates/animatix-render/src/filter_backend.rs` (`GpuFilterBackend::apply_effect_chain`)
-- **Current behaviour**: Each compute pass in an effect chain is submitted inside its own `wgpu::CommandEncoder` with an immediate `queue.submit()`. This was originally introduced to work around driver race conditions across ping-pong textures on certain mobile/integrated drivers (probe 009). On scenes with nested filter scopes, blur chains, and glass composites, this triggers dozens of queue submissions per frame, introducing host CPU driver overhead and GPU pipeline stalls.
-- **Target**: On drivers supporting texture barriers within an encoder, batch non-conflicting compute passes in the same chain into a single command encoder and single `queue.submit()`. Maintain explicit submission boundaries only where strict inter-pass memory barriers across ping-pong targets are required.
-- **Verification**: Measure with `scripts/perf-bench.sh compare` and `ANIMATIX_FILTER_TIMING` across multi-filter demo scenes.
+- **Scope**: `crates/animatix-text`, `crates/animatix/src/primitives/text.rs`
+- **Current behaviour**: Rich text and math formulas rely on Typst/FontDB compilation. In animations with spatial changes or nested inside moving containers, text shaping and layout can trigger redundant font parsing and BezPath tessellation on the CPU rendering thread.
+- **Target**:
+  1. **Shaped Glyph Run Memoization**: Decouple font shaping from per-frame evaluation; cache shaped glyph runs keyed by content and style signature `(ContentHash, FontSize, FontFamily, Weight, Style)`.
+  2. **Static/Dynamic Transform Separation**: Avoid recompiling text runs when text geometry undergoes purely spatial transformations (translation, rotation, scale, opacity); transform pre-shaped BezPath / glyph buffers directly via local transform.
+  3. **FontDB Multi-Family Fallback Path Optimization**: Memoize family lookup resolution and fallback candidate chains to avoid redundant FontDB queries on font switches.
+  4. **Incremental Split-Text Optimization**: Optimize `SplitText` primitive so that word-level / character-level kinetic effects reuse parent layout metrics rather than recompiling individual glyph fragments independently.
+- **Verification**: Benchmark with `scripts/perf-bench.sh compare text_rebuild` and `scrub_text_scene_100frames`.
 
 ### 2. GPU-Accelerated Procedural Curves & Chart Strips
 
-- **Location**: `crates/animatix/src/timeline/plot.rs` & `crates/animatix-render`
+- **Scope**: `crates/animatix/src/timeline/plot.rs` & `crates/animatix-render/src/instanced_line.rs`
 - **Current behaviour**: Mathematical curves (`ProceduralPlot`), parametric functions, and bar chart transitions currently resample hundreds of evaluation points and construct Kurbo/Vello vector paths on the CPU every frame, occupying the CPU rendering thread.
-- **Target**: Offload parametric curve evaluation and line-strip generation to GPU compute shaders or instanced vertex line strips, generating geometry directly on the GPU without round-tripping through Kurbo CPU tessellation.
+- **Target**: Offload parametric curve evaluation and line-strip generation to the `InstancedLinePipeline` on GPU shaders, generating anti-aliased geometry directly on the GPU without round-tripping through Kurbo CPU tessellation.
 - **Verification**: Compare CPU frame time on dense curve scenes (`30_effects_catalog`, complex epicycles) before and after offload.
+
 

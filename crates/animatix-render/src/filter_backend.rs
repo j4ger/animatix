@@ -761,22 +761,6 @@ impl GpuFilterBackend {
     /// ordered, and each pass reads its own context through a dynamic offset,
     /// so the batch is correct and the chain costs one submit instead of one
     /// per stage.
-    ///
-    /// Shared by the scene-rendered path and the `Glass` backdrop path: what a
-    /// chain sees is always "a texture that has been seeded", and only the
-    /// caller knows whether that texture came from vello or from the render
-    /// target behind a panel.
-    fn run_chain_passes(
-        &mut self,
-        seed: ChainSeed,
-        dispatch_dims: SceneDimensions,
-        chain: &EffectChain,
-        region_scoped: bool,
-    ) -> Result<wgpu::TextureView, String> {
-        self.run_chain_passes_fused(seed, dispatch_dims, chain, region_scoped, None)
-            .map(|(v, _)| v)
-    }
-
     fn run_chain_passes_fused(
         &mut self,
         seed: ChainSeed,
@@ -1527,13 +1511,16 @@ impl FilterBackend for GpuFilterBackend {
         self.last_effect_dims = region.size;
         self.last_region = Some(region);
         self.last_region_pp = None;
-        let view = self.run_chain_passes(seed, dispatch, &backdrop.chain, true)?;
-
-        let (source, source_view) = self
-            .last_region_pp
-            .clone()
-            .ok_or_else(|| "backdrop chain produced no region result".to_string())?;
-        let _ = view;
+        let harvest_req = PendingHarvestReq {
+            dimensions: region.size,
+            alpha: backdrop.alpha,
+            origin: backdrop.clip.origin,
+            source_origin: wgpu::Origin3d::ZERO,
+        };
+        let (_view, composite_opt) =
+            self.run_chain_passes_fused(seed, dispatch, &backdrop.chain, true, Some(harvest_req))?;
+        let mut composite =
+            composite_opt.ok_or_else(|| "backdrop chain produced no composite".to_string())?;
 
         // The panel rect lives *inside* the padded result: the composite samples
         // just that window and paints it back where it came from, shaped by the
@@ -1542,13 +1529,6 @@ impl FilterBackend for GpuFilterBackend {
         let py0 = (backdrop.clip.origin[1] - region.origin[1]).max(0.0);
         let px1 = px0 + backdrop.clip.size.width as f32;
         let py1 = py0 + backdrop.clip.size.height as f32;
-        let mut composite = self.copy_last_filtered_to_pending(
-            region.size,
-            backdrop.alpha,
-            backdrop.clip.origin,
-            &source,
-            wgpu::Origin3d::ZERO,
-        )?;
         composite.src_rect = Some([px0, py0, px1, py1]);
         composite.clip_rect = Some([
             backdrop.clip.origin[0],
@@ -1557,7 +1537,6 @@ impl FilterBackend for GpuFilterBackend {
             backdrop.clip.origin[1] + backdrop.clip.size.height as f32,
         ]);
         composite.corner_radius = backdrop.corner_radius;
-        let _ = source_view;
         Ok(composite)
     }
 }
