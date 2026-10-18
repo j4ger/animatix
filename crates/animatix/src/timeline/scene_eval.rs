@@ -614,14 +614,17 @@ impl Timeline {
             let hit = if node_overrides.is_some() {
                 None
             } else {
+                let id_idx = track.id.index();
                 self.eval_caches
                     .transform_cache
                     .borrow()
-                    .get(node_label)
+                    .get(id_idx)
+                    .copied()
+                    .flatten()
                     .filter(|(cached_time, cached_parent, _)| {
                         *cached_time == time_ms && *cached_parent == parent_coeffs
                     })
-                    .map(|(_, _, cached_transform)| *cached_transform)
+                    .map(|(_, _, cached_transform)| cached_transform)
             };
             if let Some(transform) = hit {
                 transform
@@ -637,13 +640,11 @@ impl Timeline {
                 );
                 if node_overrides.is_none() {
                     let mut cache = self.eval_caches.transform_cache.borrow_mut();
-                    // Labels are stable across frames, so refresh the existing slot
-                    // in place rather than re-inserting an owned key.
-                    if let Some(slot) = cache.get_mut(node_label) {
-                        *slot = (time_ms, parent_coeffs, t);
-                    } else {
-                        cache.insert(node_label.to_string(), (time_ms, parent_coeffs, t));
+                    let id_idx = track.id.index();
+                    if id_idx >= cache.len() {
+                        cache.resize(id_idx + 1, None);
                     }
+                    cache[id_idx] = Some((time_ms, parent_coeffs, t));
                 }
                 t
             }

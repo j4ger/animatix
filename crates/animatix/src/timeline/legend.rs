@@ -123,7 +123,7 @@ pub(crate) fn is_full_viewport_background(track: &super::AnimationTrack) -> bool
 }
 
 fn source_order(
-    tracks: &std::collections::BTreeMap<String, super::AnimationTrack>,
+    tracks: &super::TrackStore,
     roots: &[String],
 ) -> std::collections::HashMap<String, usize> {
     let mut order = std::collections::HashMap::new();
@@ -131,7 +131,7 @@ fn source_order(
     let mut next = 0usize;
     fn visit(
         label: &str,
-        tracks: &std::collections::BTreeMap<String, super::AnimationTrack>,
+        tracks: &super::TrackStore,
         _roots: &[String],
         order: &mut std::collections::HashMap<String, usize>,
         visited: &mut std::collections::HashSet<String>,
@@ -160,7 +160,7 @@ fn source_order(
 /// actors are visible. Structural actors are excluded by kind, and actors can
 /// opt out or supply an explicit label via `legend`.
 pub fn scan_legend_entries(
-    tracks: &std::collections::BTreeMap<String, super::AnimationTrack>,
+    tracks: &super::TrackStore,
     roots: &[String],
 ) -> Vec<(String, [f32; 4])> {
     let order = source_order(tracks, roots);

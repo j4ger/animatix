@@ -25,8 +25,6 @@
 //! 6. **No sampled relayout**: When layout-size or `position` tracks animate later, layout does not
 //!    re-evaluate. This is a deliberate trade-off for predictability.
 
-use std::collections::BTreeMap;
-
 use tracing::warn;
 
 use super::taffy_layout::{
@@ -34,10 +32,7 @@ use super::taffy_layout::{
     compute_taffy_grid_layout_with_specs, compute_taffy_linear_layout,
     compute_taffy_linear_layout_with_baselines, compute_taffy_linear_layout_with_specs,
 };
-use super::{
-    AnimationTrack, ContainerLayoutChild, Diagnostic, Easing, PlacementMode, Timeline,
-    TrackAccessor,
-};
+use super::{ContainerLayoutChild, Diagnostic, Easing, PlacementMode, Timeline, TrackAccessor};
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
 use crate::renderer::text::TextKind;
 
@@ -456,7 +451,7 @@ impl LayoutEngine {
         metadata: &ContainerMetadata,
         layout_children: &[super::ContainerLayoutChild],
         time_ms: u64,
-        tracks: &BTreeMap<String, AnimationTrack>,
+        tracks: &super::TrackStore,
     ) -> std::sync::Arc<LayoutPositions> {
         // PF-4: sample the per-frame dynamic inputs WITHOUT owning labels —
         // the hit path needs no child labels at all, so no `String` is

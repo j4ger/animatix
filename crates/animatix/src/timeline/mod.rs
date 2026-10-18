@@ -46,6 +46,9 @@ mod declarations_text;
 /// Built-in post-processing effects, chain storage, and the compositing
 /// backend boundary.
 pub mod effects;
+/// Strongly-typed entity IDs and contiguous track storage.
+pub mod entity;
+pub use entity::{EntityId, TrackEntry, TrackStore};
 /// Evaluation environment for expressions.
 pub mod env;
 pub(crate) mod env_keys;
@@ -363,10 +366,7 @@ pub fn padding_uniform(v: f32) -> [f32; 4] {
 
 impl ContainerMetadata {
     /// Compute layout-admitted children on demand from `child_order` + tracks.
-    pub fn layout_children(
-        &self,
-        tracks: &BTreeMap<String, AnimationTrack>,
-    ) -> Vec<ContainerLayoutChild> {
+    pub fn layout_children(&self, tracks: &TrackStore) -> Vec<ContainerLayoutChild> {
         self.child_order
             .iter()
             .filter_map(|child_label| {
@@ -519,11 +519,13 @@ pub struct Timeline {
     /// cache, so post-build code goes through [`Self::get_track_mut`] or
     /// [`Self::tracks_mut`] (both invalidate). Direct access to this field is
     /// for the build phase, which runs before any cached frame exists.
-    pub(crate) tracks: BTreeMap<String, AnimationTrack>,
+    pub(crate) tracks: TrackStore,
     pub(crate) background_color: PropertyTrack<[f32; 4]>,
     pub(crate) root_nodes: Vec<String>,
+    pub(crate) root_ids: Vec<EntityId>,
     /// Pre-computed depth-first execution order of actors in the scene tree.
     pub(crate) dfs_order: Vec<String>,
+    pub(crate) dfs_order_ids: Vec<EntityId>,
     pub(crate) env: Environment,
     /// Scope stack for `Stmt::Block` (function-call expansion). Each entry
     /// records the `let` names bound inside that block so they can be removed
@@ -708,7 +710,7 @@ pub(crate) struct EvalCaches {
     /// driver can put "has the document changed under this time?" into its
     /// frame signature (`frame_signature`).
     content_epoch: std::cell::Cell<u64>,
-    transform_cache: std::cell::RefCell<std::collections::HashMap<String, TransformCacheEntry>>,
+    transform_cache: std::cell::RefCell<Vec<Option<TransformCacheEntry>>>,
     static_subtree_cache: std::cell::RefCell<
         std::collections::HashMap<
             (String, SceneDimensions, bool, DebugRenderOptions),
@@ -850,7 +852,7 @@ impl EvalCaches {
     /// label registry. Cheap no-op while the registry is valid; invalidated by
     /// `invalidate_frame_cache` (the single track-mutation funnel) and by
     /// `Clone` (EvalCaches reset to `Default`).
-    fn ensure_bounds_registry(&self, tracks: &std::collections::BTreeMap<String, AnimationTrack>) {
+    fn ensure_bounds_registry(&self, tracks: &TrackStore) {
         if self.bounds_registry.borrow().is_some() {
             return;
         }
@@ -887,10 +889,12 @@ impl Timeline {
         let mut bg_track = PropertyTrack::new([0.0, 0.0, 0.0, 1.0]);
         bg_track.add_keyframe(0, [0.0, 0.0, 0.0, 1.0], Easing::Linear);
         Self {
-            tracks: BTreeMap::new(),
+            tracks: TrackStore::new(),
             background_color: bg_track,
             root_nodes: Vec::new(),
+            root_ids: Vec::new(),
             dfs_order: Vec::new(),
+            dfs_order_ids: Vec::new(),
             env: Environment::new(),
             block_scope: Vec::new(),
             primitive_registry: std::sync::Arc::new(crate::primitives::PrimitiveRegistry::new()),
@@ -1327,24 +1331,62 @@ impl Timeline {
         &self.dfs_order
     }
 
-    /// Compute the depth-first execution order of actors in the scene tree.
+    /// Returns the pre-computed depth-first execution order of entity IDs in the scene tree.
+    pub fn dfs_execution_order_ids(&self) -> &[EntityId] {
+        &self.dfs_order_ids
+    }
+
+    /// Returns the pre-computed root node entity IDs in the scene tree.
+    pub fn root_node_ids(&self) -> &[EntityId] {
+        &self.root_ids
+    }
+
+    /// Compute the depth-first execution order of actors in the scene tree and resolve entity hierarchy.
     pub(crate) fn compute_dfs_order(&mut self) {
-        let mut order = Vec::with_capacity(self.tracks.len());
-        for root in &self.root_nodes {
-            Self::collect_dfs_order_recursive(root, &self.tracks, &mut order);
+        let track_count = self.tracks.len();
+        // Resolve parent_id and children_ids for every entity
+        for i in 0..track_count {
+            let parent_label = self.tracks.dense[i].parent.clone();
+            self.tracks.dense[i].parent_id =
+                parent_label.as_ref().and_then(|p| self.tracks.get_id(p));
+            let children_labels = self.tracks.dense[i].children.clone();
+            self.tracks.dense[i].children_ids =
+                children_labels.iter().filter_map(|c| self.tracks.get_id(c)).collect();
         }
-        self.dfs_order = order;
+
+        let mut order_labels = Vec::with_capacity(track_count);
+        let mut order_ids = Vec::with_capacity(track_count);
+        let mut root_ids = Vec::with_capacity(self.root_nodes.len());
+
+        for root in &self.root_nodes {
+            if let Some(root_id) = self.tracks.get_id(root) {
+                root_ids.push(root_id);
+            }
+            Self::collect_dfs_order_recursive(
+                root,
+                &self.tracks,
+                &mut order_labels,
+                &mut order_ids,
+            );
+        }
+        self.root_ids = root_ids;
+        self.dfs_order = order_labels;
+        self.dfs_order_ids = order_ids;
     }
 
     fn collect_dfs_order_recursive(
         label: &str,
-        tracks: &BTreeMap<String, AnimationTrack>,
-        order: &mut Vec<String>,
+        tracks: &TrackStore,
+        order_labels: &mut Vec<String>,
+        order_ids: &mut Vec<EntityId>,
     ) {
-        order.push(label.to_string());
+        order_labels.push(label.to_string());
+        if let Some(id) = tracks.get_id(label) {
+            order_ids.push(id);
+        }
         if let Some(track) = tracks.get(label) {
             for child in &track.children {
-                Self::collect_dfs_order_recursive(child, tracks, order);
+                Self::collect_dfs_order_recursive(child, tracks, order_labels, order_ids);
             }
         }
     }
@@ -1369,6 +1411,31 @@ impl Timeline {
         self.tracks.get_mut(label)
     }
 
+    /// Return the entity ID corresponding to the given actor label.
+    #[inline(always)]
+    pub fn get_entity_id(&self, label: &str) -> Option<EntityId> {
+        self.tracks.get_id(label)
+    }
+
+    /// Return the actor label corresponding to the given entity ID.
+    #[inline(always)]
+    pub fn get_entity_label(&self, id: EntityId) -> Option<&str> {
+        self.tracks.get_label(id)
+    }
+
+    /// Returns a reference to the track for the given entity ID.
+    #[inline(always)]
+    pub fn get_track_by_id(&self, id: EntityId) -> Option<&AnimationTrack> {
+        self.tracks.get_by_id(id)
+    }
+
+    /// Returns a mutable reference to the track for the given entity ID.
+    #[inline(always)]
+    pub fn get_track_by_id_mut(&mut self, id: EntityId) -> Option<&mut AnimationTrack> {
+        self.invalidate_frame_cache();
+        self.tracks.get_by_id_mut(id)
+    }
+
     /// Check if a keyframe exists for the given actor and property at `time_ms`.
     pub fn has_keyframe_at(&self, actor: &str, property: &str, time_ms: u64) -> bool {
         self.tracks
@@ -1388,8 +1455,14 @@ impl Timeline {
     }
 
     /// Returns a reference to all tracks.
-    pub fn tracks(&self) -> &BTreeMap<String, AnimationTrack> {
+    pub fn tracks(&self) -> &TrackStore {
         &self.tracks
+    }
+
+    /// Returns a mutable reference to all tracks.
+    pub fn tracks_mut(&mut self) -> &mut TrackStore {
+        self.invalidate_frame_cache();
+        &mut self.tracks
     }
 
     /// Returns a reference to all parsed speech transcripts, keyed by actor label.
@@ -1397,15 +1470,6 @@ impl Timeline {
         &self,
     ) -> &std::collections::HashMap<String, animatix_text::transcript::SpeechTranscript> {
         &self.transcripts
-    }
-
-    /// Returns a mutable reference to all tracks.
-    ///
-    /// Invalidates the frame cache before returning, because the caller can
-    /// mutate any track through this map.
-    pub fn tracks_mut(&mut self) -> &mut BTreeMap<String, AnimationTrack> {
-        self.invalidate_frame_cache();
-        &mut self.tracks
     }
 
     /// Map each child label to its parent label, derived from the
@@ -1702,7 +1766,7 @@ impl Timeline {
         self.eval_caches.solo_scan_needed.set(None);
         *self.eval_caches.static_subtree_cache.borrow_mut() = std::collections::HashMap::new();
         *self.eval_caches.static_subtree_flags.borrow_mut() = std::collections::HashMap::new();
-        *self.eval_caches.transform_cache.borrow_mut() = std::collections::HashMap::new();
+        self.eval_caches.transform_cache.borrow_mut().clear();
         self.eval_caches.overrides_buffer.borrow_mut().clear();
         {
             // Flat-vec clear: no string keys to recycle (PF-6 slot-id table).
