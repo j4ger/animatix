@@ -1094,6 +1094,9 @@ impl GpuFilterBackend {
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
+        let copy_width = dimensions.width.min(source.width().saturating_sub(source_origin.x));
+        let copy_height = dimensions.height.min(source.height().saturating_sub(source_origin.y));
+
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Animatix Pending Filter Composite Copy Encoder"),
         });
@@ -1111,8 +1114,8 @@ impl GpuFilterBackend {
                 aspect: wgpu::TextureAspect::All,
             },
             wgpu::Extent3d {
-                width: dimensions.width,
-                height: dimensions.height,
+                width: copy_width,
+                height: copy_height,
                 depth_or_array_layers: 1,
             },
         );
@@ -1134,6 +1137,11 @@ impl GpuFilterBackend {
 /// Texel count for a scene-pixel extent at raster scale `s`, never zero.
 fn scaled_texels(extent: u32, s: f32) -> u32 {
     ((extent as f32 * s).round() as u32).max(1)
+}
+
+/// Texel coordinate for a scene-pixel origin at raster scale `s` (can be zero).
+fn scaled_origin(coord: f32, s: f32) -> u32 {
+    (coord.max(0.0) * s).round() as u32
 }
 
 /// Multiply every `Pixel`-unit `f32` lane in a packed author uniform by `scale`.
@@ -1195,8 +1203,8 @@ impl FilterBackend for GpuFilterBackend {
         let (origin, dims) = match self.last_region {
             Some(region) => (
                 wgpu::Origin3d {
-                    x: scaled_texels(region.origin[0].max(0.0) as u32, self.raster_scale),
-                    y: scaled_texels(region.origin[1].max(0.0) as u32, self.raster_scale),
+                    x: scaled_origin(region.origin[0], self.raster_scale),
+                    y: scaled_origin(region.origin[1], self.raster_scale),
                     z: 0,
                 },
                 self.last_effect_dims,
@@ -1238,15 +1246,15 @@ impl FilterBackend for GpuFilterBackend {
                 FilteredSource::TexA => &self.tex_a,
                 FilteredSource::TexB => &self.tex_b,
             };
-            let harvest_origin = self.last_region.map_or([0.0, 0.0], |region| region.origin);
-            (
-                texture,
-                wgpu::Origin3d {
-                    x: scaled_texels(harvest_origin[0].max(0.0) as u32, self.raster_scale),
-                    y: scaled_texels(harvest_origin[1].max(0.0) as u32, self.raster_scale),
+            let source_origin = match self.last_region {
+                Some(region) => wgpu::Origin3d {
+                    x: scaled_origin(region.origin[0], self.raster_scale),
+                    y: scaled_origin(region.origin[1], self.raster_scale),
                     z: 0,
                 },
-            )
+                None => wgpu::Origin3d::ZERO,
+            };
+            (texture, source_origin)
         };
         let composite =
             self.copy_last_filtered_to_pending(harvest, alpha, origin, source, source_origin)?;
