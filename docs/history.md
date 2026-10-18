@@ -14,6 +14,22 @@ mixed history and open work).
 Historical tracks are kept as evidence. New implementation work is tracked in
 [Backlog & Prioritization](#backlog--prioritization).
 
+### GPU Pipeline & Compute Pass Modernization (2026-10-18)
+
+Overhauled GPU rendering pipelines across `animatix-render` and engine interfaces, resolving structural GPU draw submission bottlenecks and eliminating per-frame texture allocation churn:
+1. **Batched Layer Blit Pipeline (`BatchedBlitPipeline` / `blit_batch`)**:
+   - Replaced sequential $N$-pass blitting in `drain_pending_layers` with dynamic uniform offset batching (`BATCH_BLIT_STRIDE = 256`, strictly aligned to WebGPU `min_uniform_buffer_offset_alignment`).
+   - Batches consecutive layer blits into a single render pass and a single queue submission with per-layer bind groups, collapsing multiple GPU encoder boundaries into one.
+2. **Fused Filter Scope Submission & Texture Pooling (`GpuFilterBackend`)**:
+   - Fused multi-pass compute chains and intermediate pending composite texture harvests into a single `wgpu::CommandEncoder` / single `queue.submit()` (`run_chain_passes_fused`, `render_and_filter_scene_fused`).
+   - Integrated dynamic `TexturePool` (`pending_texture_pool`) and engine trait recycling hook (`FilterBackend::recycle_pending_composite`), completely eliminating per-frame `device.create_texture` churn for composite scopes.
+3. **GPU Instanced Line Strip Pipeline (`crates/animatix-render/src/instanced_line.rs`)**:
+   - Built a dedicated GPU instanced polyline and parametric curve pipeline using analytical sub-pixel SDF smoothing (`smoothstep`) and vertex quad expansion.
+   - Computes segment vectors, orthogonal quad normals, and anti-aliased edge feathering directly on GPU shaders, bypassing CPU-bound Bezier curve subdivision and Kurbo path triangulation.
+4. **RendererCore & Timeline API Convergence**:
+   - Exposed `render_line_segments`, `render_line_strip`, and `render_parametric_curve` on `RendererCore`.
+   - Comprehensive test verification added to `crates/animatix-render/tests/offscreen_render.rs` covering polyline sub-pixel anti-aliasing, multi-layer batched blits, texture pool recycling across frame evaluations, and parametric curves.
+
 ### Core Architecture & Evaluation Modernization (2026-10-18)
 
 Implemented comprehensive architectural modernization eliminating core design bottlenecks, reducing memory footprint, and unifying expression evaluation:

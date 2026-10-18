@@ -735,3 +735,422 @@ fade-out box [500ms]
     let _ = std::fs::remove_file(&out_path);
     let _ = std::fs::remove_dir(&tmp_dir);
 }
+
+#[test]
+fn instanced_gpu_lines_render_smooth_polyline() {
+    let Some(renderer) = new_renderer() else {
+        return;
+    };
+    let device = renderer.device();
+    let queue = renderer.queue();
+    let core = renderer.core();
+
+    const SIZE: u32 = 64;
+    let target = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("line target"),
+        size: wgpu::Extent3d {
+            width: SIZE,
+            height: SIZE,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
+    let target_view = target.create_view(&wgpu::TextureViewDescriptor::default());
+
+    // Clear target to transparent black
+    let mut clear_encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("line target clear"),
+    });
+    {
+        let _pass = clear_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("clear pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &target_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    store: wgpu::StoreOp::Store,
+                },
+                depth_slice: None,
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+    }
+    queue.submit(std::iter::once(clear_encoder.finish()));
+
+    // Draw a horizontal line strip across the center: (10, 32) -> (54, 32)
+    let points = [[10.0, 32.0], [54.0, 32.0]];
+    let width = 6.0;
+    let feather = 1.0;
+    let color = [1.0, 0.0, 0.0, 1.0]; // pure red
+    core.render_line_strip(
+        device,
+        queue,
+        &target_view,
+        [SIZE as f32, SIZE as f32],
+        &points,
+        width,
+        feather,
+        color,
+    );
+
+    // Read back and verify line center vs edge vs exterior
+    let bytes_per_row = SIZE * 4;
+    let readback_buf = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("line readback"),
+        size: (bytes_per_row * SIZE) as u64,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+
+    let mut copy_encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("line copy encoder"),
+    });
+    copy_encoder.copy_texture_to_buffer(
+        wgpu::TexelCopyTextureInfo {
+            texture: &target,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::TexelCopyBufferInfo {
+            buffer: &readback_buf,
+            layout: wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(bytes_per_row),
+                rows_per_image: Some(SIZE),
+            },
+        },
+        wgpu::Extent3d {
+            width: SIZE,
+            height: SIZE,
+            depth_or_array_layers: 1,
+        },
+    );
+    queue.submit(std::iter::once(copy_encoder.finish()));
+
+    let slice = readback_buf.slice(..);
+    let (tx, rx) = std::sync::mpsc::channel();
+    slice.map_async(wgpu::MapMode::Read, move |r: Result<(), wgpu::BufferAsyncError>| {
+        tx.send(r).ok();
+    });
+    match device.poll(wgpu::PollType::Wait {
+        submission_index: None,
+        timeout: None,
+    }) {
+        Ok(_) => {},
+        Err(e) => panic!("poll failed: {e:?}"),
+    }
+    rx.recv().unwrap().expect("map failed");
+
+    let data = slice.get_mapped_range();
+    let get_pixel = |x: u32, y: u32| {
+        let base = (y * bytes_per_row + x * 4) as usize;
+        [data[base], data[base + 1], data[base + 2], data[base + 3]]
+    };
+
+    // Center of the line: (32, 32) must be fully opaque red
+    let center = get_pixel(32, 32);
+    assert!(center[0] > 240, "line center must be red: {center:?}");
+    assert_eq!(center[3], 255, "line center must be fully opaque: {center:?}");
+
+    // Exterior of the line: (32, 5) must be empty/transparent
+    let exterior = get_pixel(32, 5);
+    assert_eq!(exterior, [0, 0, 0, 0], "exterior must be empty: {exterior:?}");
+
+    // Feathered edge (radius=3.0, feather=1.0): y=35 should have partial alpha anti-aliasing
+    let edge = get_pixel(32, 35);
+    assert!(edge[3] > 0 && edge[3] < 255, "edge must be anti-aliased: {edge:?}");
+}
+
+#[test]
+fn batched_blit_pipeline_multiple_layers() {
+    let Some(renderer) = new_renderer() else {
+        return;
+    };
+    let device = renderer.device();
+    let queue = renderer.queue();
+    let core = renderer.core();
+
+    const SIZE: u32 = 64;
+    // Create source 1: green 32x32
+    let src1 = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("src1"),
+        size: wgpu::Extent3d {
+            width: 32,
+            height: 32,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
+        view_formats: &[],
+    });
+    let green_bytes = [0u8, 255, 0, 255].repeat(32 * 32);
+    queue.write_texture(
+        wgpu::TexelCopyTextureInfo {
+            texture: &src1,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        &green_bytes,
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(32 * 4),
+            rows_per_image: Some(32),
+        },
+        wgpu::Extent3d {
+            width: 32,
+            height: 32,
+            depth_or_array_layers: 1,
+        },
+    );
+
+    // Create source 2: blue 32x32
+    let src2 = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("src2"),
+        size: wgpu::Extent3d {
+            width: 32,
+            height: 32,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
+        view_formats: &[],
+    });
+    let blue_bytes = [0u8, 0, 255, 255].repeat(32 * 32);
+    queue.write_texture(
+        wgpu::TexelCopyTextureInfo {
+            texture: &src2,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        &blue_bytes,
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(32 * 4),
+            rows_per_image: Some(32),
+        },
+        wgpu::Extent3d {
+            width: 32,
+            height: 32,
+            depth_or_array_layers: 1,
+        },
+    );
+
+    // Destination target
+    let dst = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("dst"),
+        size: wgpu::Extent3d {
+            width: SIZE,
+            height: SIZE,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
+    let dst_view = dst.create_view(&wgpu::TextureViewDescriptor::default());
+
+    // Clear destination
+    let mut clear_encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("dst clear"),
+    });
+    {
+        let _pass = clear_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("clear pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &dst_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    store: wgpu::StoreOp::Store,
+                },
+                depth_slice: None,
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+    }
+    queue.submit(std::iter::once(clear_encoder.finish()));
+
+    let src1_view = src1.create_view(&wgpu::TextureViewDescriptor::default());
+    let src2_view = src2.create_view(&wgpu::TextureViewDescriptor::default());
+
+    let batch = [
+        animatix_render::fullscreen_blit::BatchedBlitItem {
+            src_view: &src1_view,
+            dst_origin: [0.0, 0.0],
+            dst_size: [32, 32],
+            alpha: 1.0,
+            corner_radius: None,
+            src_rect: None,
+        },
+        animatix_render::fullscreen_blit::BatchedBlitItem {
+            src_view: &src2_view,
+            dst_origin: [32.0, 32.0],
+            dst_size: [32, 32],
+            alpha: 1.0,
+            corner_radius: None,
+            src_rect: None,
+        },
+    ];
+
+    // Blit both layers in one batch!
+    core.blit_texture_rect_masked_batch(device, queue, &dst_view, &batch);
+
+    // Read back and verify both layers rendered in their respective quadrants
+    let bytes_per_row = SIZE * 4;
+    let readback_buf = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("batch readback"),
+        size: (bytes_per_row * SIZE) as u64,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+
+    let mut copy_encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("batch copy encoder"),
+    });
+    copy_encoder.copy_texture_to_buffer(
+        wgpu::TexelCopyTextureInfo {
+            texture: &dst,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::TexelCopyBufferInfo {
+            buffer: &readback_buf,
+            layout: wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(bytes_per_row),
+                rows_per_image: Some(SIZE),
+            },
+        },
+        wgpu::Extent3d {
+            width: SIZE,
+            height: SIZE,
+            depth_or_array_layers: 1,
+        },
+    );
+    queue.submit(std::iter::once(copy_encoder.finish()));
+
+    let slice = readback_buf.slice(..);
+    let (tx, rx) = std::sync::mpsc::channel();
+    slice.map_async(wgpu::MapMode::Read, move |r: Result<(), wgpu::BufferAsyncError>| {
+        tx.send(r).ok();
+    });
+    match device.poll(wgpu::PollType::Wait {
+        submission_index: None,
+        timeout: None,
+    }) {
+        Ok(_) => {},
+        Err(e) => panic!("poll failed: {e:?}"),
+    }
+    rx.recv().unwrap().expect("map failed");
+
+    let data = slice.get_mapped_range();
+    let get_pixel = |x: u32, y: u32| {
+        let base = (y * bytes_per_row + x * 4) as usize;
+        [data[base], data[base + 1], data[base + 2], data[base + 3]]
+    };
+
+    // (16, 16) is in the top-left quadrant (src1, green)
+    assert_eq!(get_pixel(16, 16), [0, 255, 0, 255]);
+    // (48, 48) is in the bottom-right quadrant (src2, blue)
+    assert_eq!(get_pixel(48, 48), [0, 0, 255, 255]);
+    // (48, 16) is untouched (transparent black)
+    assert_eq!(get_pixel(48, 16), [0, 0, 0, 0]);
+}
+
+#[test]
+fn filter_backend_texture_pool_recycles_allocations() {
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let source = r#"
+#0s
+card: Rect, at: (20, 20), size: (40, 40), color: (1, 0, 0, 1)
+
+#1s
+card.at = (30, 30)
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let ast = ast.expect("AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let timeline = report.output;
+
+    let dims = SceneDimensions {
+        width: 80,
+        height: 80,
+    };
+
+    // Render 3 consecutive frames to exercise texture pooling and recycling across frames
+    for t in [0.0, 0.5, 1.0] {
+        let frame =
+            renderer.render_timeline(&timeline, t, dims).expect("frame render must succeed");
+        assert_eq!(frame.width, 80);
+        assert_eq!(frame.height, 80);
+    }
+}
+
+#[test]
+fn instanced_gpu_parametric_curves() {
+    let Some(renderer) = new_renderer() else {
+        return;
+    };
+    let device = renderer.device();
+    let queue = renderer.queue();
+    let core = renderer.core();
+
+    const SIZE: u32 = 64;
+    let target = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("curve target"),
+        size: wgpu::Extent3d {
+            width: SIZE,
+            height: SIZE,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
+    let target_view = target.create_view(&wgpu::TextureViewDescriptor::default());
+
+    // Render a sine wave curve y = 32 + 16 * sin(t * 0.1) across x from 0 to 64
+    core.render_parametric_curve(
+        device,
+        queue,
+        &target_view,
+        [SIZE as f32, SIZE as f32],
+        |t| [t, 32.0 + 16.0 * (t * 0.1).sin()],
+        [0.0, 64.0],
+        32,
+        4.0,
+        1.0,
+        [0.0, 1.0, 1.0, 1.0],
+    );
+}

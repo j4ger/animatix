@@ -104,10 +104,11 @@ See [§16 Multi-Scene Composition](#16-multi-scene-composition) below.
 
 ```rust
 Timeline {
-    tracks: BTreeMap<String, AnimationTrack>,
+    tracks: TrackStore, // Dense Vec<AnimationTrack> indexed by EntityId(u32), with label mapping
     nodes: BTreeMap<String, SceneNode>,
     root_nodes: Vec<String>,
     modifiers: Vec<Stmt>,
+    dfs_order_ids: Vec<EntityId>, // Precomputed linear evaluation order
 }
 ```
 
@@ -125,7 +126,7 @@ Per-actor storage is organized into three tiers:
 
 ```rust
 struct PropertyTrack<T> {
-    keyframes: BTreeMap<u64, (T, Easing)>,  // time_ms → (value, easing)
+    keyframes: InlineKeyframes<T>,  // Zero-heap stack container for 0-2 keyframes, spilling to SmallVec
     default_value: T,
 }
 ```
@@ -301,10 +302,10 @@ Evaluate content children → vello::Scene (sub-scene)
 GpuFilterBackend::render_scene_to_image_gpu_filtered()  (or …_to_pending_composite)
   → GPU render the sub-scene to texture A
   → per effect, per declared pass, ping-pong A ↔ B
-    (one submitted encoder per pass — probe 009 synchronisation)
-  → readback, or park a PendingComposite for a viewport-scoped blit
+    (compute passes fused into a single CommandEncoder & queue submit)
+  → readback, or park a PendingComposite from the dynamic TexturePool for a viewport-scoped blit
   ↓
-Composite at the region origin (readback path) or blit (zero-readback path)
+Composite at region origin (readback path) or batched blit with dynamic uniform offsets (zero-readback path)
 ```
 
 **Key properties:**
@@ -318,6 +319,17 @@ Composite at the region origin (readback path) or blit (zero-readback path)
   and clamped to the scene — or an authored `bounds: (x, y, w, h)`. GPU textures
   stay at full scene capacity, so a region that grows or shrinks between frames
   never reallocates.
+- **Command fusion & Texture Pooling.** In `GpuFilterBackend`, back-to-back compute
+  passes and intermediate layer copies are fused into a single `CommandEncoder` /
+  `queue.submit()`. Intermediate textures are drawn from an internal `TexturePool`
+  recycled per-frame by the engine's `drain_pending_layers` via `FilterBackend::recycle_pending_composite`.
+- **Batched Blit Pipeline.** Multiple pending composite layers are drawn in a single
+  batched render pass using 256-byte aligned dynamic uniform offsets (`BatchedBlitPipeline`),
+  collapsing $N$ blits into 1 GPU draw pass.
+- **Direct GPU Instanced Polyline / Curves.** Mathematical curves and polylines can be
+  drawn directly via `InstancedLinePipeline` on `RendererCore`, evaluating vertex quad
+  expansions and analytical sub-pixel SDF smoothing (`smoothstep`) with custom edge
+  feathering directly on the GPU without CPU Bezier flattening or path tessellation.
 - **Renderer-agnostic timeline.** `scene_eval` receives a
   `&mut Option<&mut dyn FilterBackend>`. With no backend installed, the children
   render unfiltered and a `RenderFailure` diagnostic is recorded; there is no CPU

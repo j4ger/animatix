@@ -220,4 +220,10 @@ pub trait FilterBackend: Send {
     fn take_pending_composites(&mut self) -> Vec<PendingLayer> {
         Vec::new()
     }
+
+    /// Recycle a pending composite texture that has finished blitting.
+    ///
+    /// The default implementation drops the composite. Backends with texture pools
+    /// can reuse the GPU texture allocations across frames to eliminate allocation churn.
+    fn recycle_pending_composite(&mut self, _composite: PendingComposite) {}
 }

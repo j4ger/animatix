@@ -132,6 +132,21 @@ impl OffscreenRenderer {
         })
     }
 
+    /// Reference to the underlying WGPU device.
+    pub fn device(&self) -> &wgpu::Device {
+        &self.device
+    }
+
+    /// Reference to the underlying WGPU queue.
+    pub fn queue(&self) -> &wgpu::Queue {
+        &self.queue
+    }
+
+    /// Reference to the inner [`RendererCore`].
+    pub fn core(&self) -> &RendererCore {
+        &self.core
+    }
+
     /// Render a single frame of `timeline` at `time_s` with the given dimensions.
     pub fn render_timeline(
         &mut self,
@@ -943,7 +958,7 @@ pub fn drain_pending_layers(
     view: &wgpu::TextureView,
     scale: f32,
 ) {
-    use animatix::timeline::effects::{EffectRegion, PendingLayer};
+    use animatix::timeline::effects::{EffectRegion, PendingComposite, PendingLayer};
     let scale_region = |r: EffectRegion, s: f32| EffectRegion {
         origin: [r.origin[0] * s, r.origin[1] * s],
         size: SceneDimensions {
@@ -951,6 +966,39 @@ pub fn drain_pending_layers(
             height: ((r.size.height as f32 * s).round() as u32).max(1),
         },
     };
+
+    struct PreparedComposite {
+        composite: PendingComposite,
+        origin: [f32; 2],
+        size: [u32; 2],
+        corner_radius: Option<f32>,
+        src_rect: Option<[f32; 4]>,
+    }
+
+    let mut batch: Vec<PreparedComposite> = Vec::new();
+    let flush_batch =
+        |batch: &mut Vec<PreparedComposite>,
+         backend: &mut dyn animatix::timeline::effects::FilterBackend| {
+            if batch.is_empty() {
+                return;
+            }
+            let items: Vec<crate::fullscreen_blit::BatchedBlitItem<'_>> = batch
+                .iter()
+                .map(|p| crate::fullscreen_blit::BatchedBlitItem {
+                    src_view: &p.composite.view,
+                    dst_origin: p.origin,
+                    dst_size: p.size,
+                    alpha: p.composite.alpha,
+                    corner_radius: p.corner_radius,
+                    src_rect: p.src_rect,
+                })
+                .collect();
+            core.blit_texture_rect_masked_batch(device, queue, view, &items);
+            for item in batch.drain(..) {
+                backend.recycle_pending_composite(item.composite);
+            }
+        };
+
     for layer in layers {
         // `s` is the factor still to apply when the composite is blitted. A
         // backdrop is scaled *before* its pass runs — the region is read out of
@@ -959,6 +1007,9 @@ pub fn drain_pending_layers(
         let (composite, layer_scale) = match layer {
             PendingLayer::Composite(composite) => (composite, scale),
             PendingLayer::Backdrop(backdrop) => {
+                // Flush prior composites so the target is up-to-date before the backdrop reads it.
+                flush_batch(&mut batch, backend);
+
                 let Some(target) = target else {
                     tracing::warn!("backdrop queued with no render target to read");
                     continue;
@@ -1014,18 +1065,16 @@ pub fn drain_pending_layers(
         };
         let src_rect = composite.src_rect.map(|[x0, y0, x1, y1]| [x0 * s, y0 * s, x1 * s, y1 * s]);
         let radius = composite.corner_radius * s;
-        core.blit_texture_rect_masked(
-            device,
-            queue,
-            &composite.view,
-            view,
+        batch.push(PreparedComposite {
+            composite,
             origin,
             size,
-            composite.alpha,
-            (radius > 0.0).then_some(radius),
+            corner_radius: (radius > 0.0).then_some(radius),
             src_rect,
-        );
+        });
     }
+
+    flush_batch(&mut batch, backend);
 }
 
 #[allow(clippy::too_many_arguments)]

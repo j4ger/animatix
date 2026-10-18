@@ -12,6 +12,7 @@
 //! driver (probe 009), and a submit boundary is a portable synchronisation
 //! point.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 use animatix::timeline::SceneDimensions;
@@ -153,6 +154,20 @@ pub struct GpuFilterBackend {
     /// Ping-pong texture of the most recent *region-scoped* run, when one was
     /// used. Its contents cover `last_effect_dims` starting at (0, 0).
     last_region_pp: Option<(wgpu::Texture, wgpu::TextureView)>,
+    /// Texture pool for pending zero-readback composites to avoid per-frame texture allocation churn.
+    pending_texture_pool: RefCell<TexturePool>,
+}
+
+type PooledTexture = (wgpu::Texture, wgpu::TextureView);
+type TexturePool = HashMap<(u32, u32), Vec<PooledTexture>>;
+
+/// Request to fuse texture copying directly into a filter chain's command encoder.
+#[derive(Clone, Copy, Debug)]
+struct PendingHarvestReq {
+    dimensions: SceneDimensions,
+    alpha: f32,
+    origin: [f32; 2],
+    source_origin: wgpu::Origin3d,
 }
 
 /// Region-scoped scratch targets for one quantized ROI size.
@@ -441,6 +456,7 @@ impl GpuFilterBackend {
             pending_composites: Vec::new(),
             region_scratch: HashMap::new(),
             last_region_pp: None,
+            pending_texture_pool: RefCell::new(HashMap::new()),
         })
     }
 
@@ -576,6 +592,18 @@ impl GpuFilterBackend {
         region: Option<EffectRegion>,
         chain: &EffectChain,
     ) -> Result<wgpu::TextureView, String> {
+        self.render_and_filter_scene_fused(scene, dimensions, region, chain, None)
+            .map(|(v, _)| v)
+    }
+
+    fn render_and_filter_scene_fused(
+        &mut self,
+        scene: &vello::Scene,
+        dimensions: SceneDimensions,
+        region: Option<EffectRegion>,
+        chain: &EffectChain,
+        harvest_req: Option<PendingHarvestReq>,
+    ) -> Result<(wgpu::TextureView, Option<PendingComposite>), String> {
         // The chain follows the raster it is being drawn into. A radius is a
         // distance in scene pixels, so the dispatch extent, the encode of the
         // scope's own sub-scene and every `Pixel` parameter (see
@@ -693,7 +721,7 @@ impl GpuFilterBackend {
                 // The unfiltered result lives in the region render target.
                 self.last_region_pp = Some((seed_texture.clone(), render_view.clone()));
             }
-            return Ok(render_view);
+            return Ok((render_view, None));
         }
 
         let seed = ChainSeed {
@@ -708,7 +736,13 @@ impl GpuFilterBackend {
         // "Region scoped" means "the result is in the scratch we were handed",
         // which a reduced raster also is — the full-frame textures are not what
         // the chain just wrote.
-        let view = self.run_chain_passes(seed, dispatch_dims, chain, scratch.is_some())?;
+        let (view, composite) = self.run_chain_passes_fused(
+            seed,
+            dispatch_dims,
+            chain,
+            scratch.is_some(),
+            harvest_req,
+        )?;
         if t_all.is_some() {
             eprintln!(
                 "[filter-timing] dims={}x{} stages={} render={:.2}ms seed+passes={:.2}ms",
@@ -719,7 +753,7 @@ impl GpuFilterBackend {
                 probe_ms(t_all) - t_render_ms,
             );
         }
-        Ok(view)
+        Ok((view, composite))
     }
 
     /// Copy the rendered seed into the ping-pong and run every chain pass —
@@ -739,6 +773,18 @@ impl GpuFilterBackend {
         chain: &EffectChain,
         region_scoped: bool,
     ) -> Result<wgpu::TextureView, String> {
+        self.run_chain_passes_fused(seed, dispatch_dims, chain, region_scoped, None)
+            .map(|(v, _)| v)
+    }
+
+    fn run_chain_passes_fused(
+        &mut self,
+        seed: ChainSeed,
+        dispatch_dims: SceneDimensions,
+        chain: &EffectChain,
+        region_scoped: bool,
+        harvest_req: Option<PendingHarvestReq>,
+    ) -> Result<(wgpu::TextureView, Option<PendingComposite>), String> {
         let ChainSeed {
             seed_texture,
             pp_a,
@@ -883,14 +929,24 @@ impl GpuFilterBackend {
                 _ => FilteredSource::TexA,
             };
         }
-        self.queue.write_buffer(&self.context_buffer, 0, &context_bytes);
-        self.queue.submit(std::iter::once(encoder.finish()));
-
         let (result_texture, result_view) = match current {
             FilteredSource::TexA => (pp_a, pp_a_view),
             FilteredSource::TexB => (pp_b, pp_b_view),
             FilteredSource::Render => unreachable!("effects always write a ping-pong texture"),
         };
+        let pending_composite = harvest_req.map(|req| {
+            self.copy_texture_to_pending_composite(
+                &mut encoder,
+                &result_texture,
+                req.source_origin,
+                req.dimensions,
+                req.alpha,
+                req.origin,
+            )
+        });
+        self.queue.write_buffer(&self.context_buffer, 0, &context_bytes);
+        self.queue.submit(std::iter::once(encoder.finish()));
+
         self.dump_stage("tex_b_fx", &result_texture, dispatch_dims);
 
         self.last_filtered_source = current;
@@ -899,7 +955,7 @@ impl GpuFilterBackend {
             // `last_effect_dims` from (0, 0).
             self.last_region_pp = Some((result_texture, result_view.clone()));
         }
-        Ok(result_view)
+        Ok((result_view, pending_composite))
     }
 
     /// Quantize a region size up to 64-px steps (clamped to the canvas) so a
@@ -1068,38 +1124,50 @@ impl GpuFilterBackend {
         })
     }
 
-    /// Copy the most recent filtered result to a dedicated texture for
-    /// deferred compositing.
-    fn copy_last_filtered_to_pending(
+    /// Acquire a pending composite texture from the pool or allocate a new one.
+    fn acquire_pending_texture(
         &self,
+        dimensions: SceneDimensions,
+    ) -> (wgpu::Texture, wgpu::TextureView) {
+        let key = (dimensions.width, dimensions.height);
+        if let Some(entry) =
+            self.pending_texture_pool.borrow_mut().get_mut(&key).and_then(|v| v.pop())
+        {
+            entry
+        } else {
+            let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+                size: wgpu::Extent3d {
+                    width: dimensions.width,
+                    height: dimensions.height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
+                label: Some("Animatix Pending Filter Composite Texture"),
+                view_formats: &[],
+            });
+            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+            (texture, view)
+        }
+    }
+
+    /// Record a copy from `source` into a pooled pending composite texture inside `encoder`.
+    fn copy_texture_to_pending_composite(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        source: &wgpu::Texture,
+        source_origin: wgpu::Origin3d,
         dimensions: SceneDimensions,
         alpha: f32,
         origin: [f32; 2],
-        source: &wgpu::Texture,
-        source_origin: wgpu::Origin3d,
-    ) -> Result<PendingComposite, String> {
-        let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-            size: wgpu::Extent3d {
-                width: dimensions.width,
-                height: dimensions.height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
-            label: Some("Animatix Pending Filter Composite Texture"),
-            view_formats: &[],
-        });
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-
+    ) -> PendingComposite {
+        let (texture, view) = self.acquire_pending_texture(dimensions);
         let copy_width = dimensions.width.min(source.width().saturating_sub(source_origin.x));
         let copy_height = dimensions.height.min(source.height().saturating_sub(source_origin.y));
 
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Animatix Pending Filter Composite Copy Encoder"),
-        });
         encoder.copy_texture_to_texture(
             wgpu::TexelCopyTextureInfo {
                 texture: source,
@@ -1119,9 +1187,8 @@ impl GpuFilterBackend {
                 depth_or_array_layers: 1,
             },
         );
-        self.queue.submit(std::iter::once(encoder.finish()));
 
-        Ok(PendingComposite {
+        PendingComposite {
             texture,
             view,
             alpha,
@@ -1130,7 +1197,33 @@ impl GpuFilterBackend {
             corner_radius: 0.0,
             src_rect: None,
             clip_rect: None,
-        })
+        }
+    }
+
+    /// Copy the most recent filtered result to a dedicated texture for
+    /// deferred compositing.
+    fn copy_last_filtered_to_pending(
+        &self,
+        dimensions: SceneDimensions,
+        alpha: f32,
+        origin: [f32; 2],
+        source: &wgpu::Texture,
+        source_origin: wgpu::Origin3d,
+    ) -> Result<PendingComposite, String> {
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Animatix Pending Filter Composite Copy Encoder"),
+        });
+        let composite = self.copy_texture_to_pending_composite(
+            &mut encoder,
+            source,
+            source_origin,
+            dimensions,
+            alpha,
+            origin,
+        );
+        self.queue.submit(std::iter::once(encoder.finish()));
+
+        Ok(composite)
     }
 }
 
@@ -1233,46 +1326,84 @@ impl FilterBackend for GpuFilterBackend {
             ]
         });
         let t_copy = timing_probe();
-        self.render_and_filter_scene_to_view(scene, dimensions, region, chain)?;
-        let t_after_render_ms = probe_ms(t_copy);
-        let harvest = self.last_effect_dims;
-        let (source, source_origin) = if let Some((texture, _)) = &self.last_region_pp {
-            // Region-scoped result: the scratch ping-pong covers
-            // `last_effect_dims` from (0, 0).
-            (texture, wgpu::Origin3d::ZERO)
-        } else {
-            let texture = match self.last_filtered_source {
-                FilteredSource::Render => &self.render_texture,
-                FilteredSource::TexA => &self.tex_a,
-                FilteredSource::TexB => &self.tex_b,
+
+        if chain.is_empty() {
+            self.render_and_filter_scene_to_view(scene, dimensions, region, chain)?;
+            let harvest = self.last_effect_dims;
+            let (source, source_origin) = if let Some((texture, _)) = &self.last_region_pp {
+                (texture, wgpu::Origin3d::ZERO)
+            } else {
+                let texture = match self.last_filtered_source {
+                    FilteredSource::Render => &self.render_texture,
+                    FilteredSource::TexA => &self.tex_a,
+                    FilteredSource::TexB => &self.tex_b,
+                };
+                let source_origin = match self.last_region {
+                    Some(region) => wgpu::Origin3d {
+                        x: scaled_origin(region.origin[0], self.raster_scale),
+                        y: scaled_origin(region.origin[1], self.raster_scale),
+                        z: 0,
+                    },
+                    None => wgpu::Origin3d::ZERO,
+                };
+                (texture, source_origin)
             };
-            let source_origin = match self.last_region {
-                Some(region) => wgpu::Origin3d {
-                    x: scaled_origin(region.origin[0], self.raster_scale),
-                    y: scaled_origin(region.origin[1], self.raster_scale),
-                    z: 0,
-                },
-                None => wgpu::Origin3d::ZERO,
-            };
-            (texture, source_origin)
+            let composite =
+                self.copy_last_filtered_to_pending(harvest, alpha, origin, source, source_origin)?;
+            self.pending_composites.push(PendingLayer::Composite(composite));
+            return Ok(());
+        }
+
+        // When chain has effect passes, fuse compute pass encoding and pending composite copying:
+        let harvest = match region {
+            Some(r) => SceneDimensions {
+                width: scaled_texels(r.size.width, self.raster_scale),
+                height: scaled_texels(r.size.height, self.raster_scale),
+            },
+            None => SceneDimensions {
+                width: scaled_texels(dimensions.width, self.raster_scale),
+                height: scaled_texels(dimensions.height, self.raster_scale),
+            },
         };
-        let composite =
-            self.copy_last_filtered_to_pending(harvest, alpha, origin, source, source_origin)?;
+        let harvest_req = PendingHarvestReq {
+            dimensions: harvest,
+            alpha,
+            origin,
+            source_origin: wgpu::Origin3d::ZERO,
+        };
+        let (_view, composite) = self.render_and_filter_scene_fused(
+            scene,
+            dimensions,
+            region,
+            chain,
+            Some(harvest_req),
+        )?;
+        if let Some(comp) = composite {
+            self.pending_composites.push(PendingLayer::Composite(comp));
+        }
         if t_copy.is_some() {
             eprintln!(
-                "[filter-timing] pending dims={}x{} render+chain={:.2}ms copy_alloc={:.2}ms",
+                "[filter-timing] pending dims={}x{} render+chain+fused_copy={:.2}ms",
                 harvest.width,
                 harvest.height,
-                t_after_render_ms,
-                probe_ms(t_copy) - t_after_render_ms,
+                probe_ms(t_copy),
             );
         }
-        self.pending_composites.push(PendingLayer::Composite(composite));
         Ok(())
     }
 
     fn take_pending_composites(&mut self) -> Vec<PendingLayer> {
         std::mem::take(&mut self.pending_composites)
+    }
+
+    fn recycle_pending_composite(&mut self, composite: PendingComposite) {
+        let size = composite.texture.size();
+        let key = (size.width, size.height);
+        let mut pool = self.pending_texture_pool.borrow_mut();
+        let list = pool.entry(key).or_default();
+        if list.len() < 8 {
+            list.push((composite.texture, composite.view));
+        }
     }
 
     /// Queue the panel's own children as a plain composite: the scene renders

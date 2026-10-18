@@ -72,6 +72,24 @@ fn fs_main(@location(0) tex_coord: vec2<f32>) -> @location(0) vec4<f32> {
 }
 "#;
 
+/// Dynamic offset stride matching WebGPU uniform alignment (256 bytes).
+pub const BATCH_BLIT_STRIDE: u64 = 256;
+/// Maximum number of blit layers that can be batched in a single draw pass.
+pub const MAX_BATCH_LAYERS: usize = 64;
+/// Size of `BlitParams` in uniform buffer (48 bytes).
+pub const BLIT_PARAMS_SIZE: u64 = 48;
+
+/// Item descriptor for batched blit execution.
+#[derive(Clone, Copy, Debug)]
+pub struct BatchedBlitItem<'a> {
+    pub src_view: &'a wgpu::TextureView,
+    pub dst_origin: [f32; 2],
+    pub dst_size: [u32; 2],
+    pub alpha: f32,
+    pub corner_radius: Option<f32>,
+    pub src_rect: Option<[f32; 4]>,
+}
+
 /// How a composite is clipped and which part of its texture it samples.
 ///
 /// Both halves exist for the backdrop pass: the blurred texture covers a region
@@ -93,7 +111,7 @@ pub struct FullscreenBlitPipeline {
     pub bind_group_layout: wgpu::BindGroupLayout,
     /// Sampler used for texture sampling during blit.
     pub sampler: wgpu::Sampler,
-    /// Pre-allocated uniform buffer for the alpha value.
+    /// Pre-allocated uniform buffer for the alpha / blit params values.
     alpha_buffer: wgpu::Buffer,
     /// Cached bind groups keyed by source texture view to avoid per-frame allocations.
     bind_group_cache: RefCell<HashMap<wgpu::TextureView, wgpu::BindGroup>>,
@@ -140,8 +158,10 @@ impl FullscreenBlitPipeline {
                     visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: Some(std::num::NonZero::new(48).unwrap()),
+                        has_dynamic_offset: true,
+                        min_binding_size: Some(
+                            std::num::NonZero::new(BLIT_PARAMS_SIZE).expect("nonzero"),
+                        ),
                     },
                     count: None,
                 },
@@ -199,7 +219,7 @@ impl FullscreenBlitPipeline {
 
         let alpha_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Animatix Blit Alpha Uniform"),
-            size: 48, // sizeof(BlitParams), padded to the uniform alignment
+            size: BATCH_BLIT_STRIDE * (MAX_BATCH_LAYERS as u64),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -287,6 +307,47 @@ impl FullscreenBlitPipeline {
         );
     }
 
+    fn get_or_create_bind_group(
+        &self,
+        device: &wgpu::Device,
+        src_view: &wgpu::TextureView,
+    ) -> wgpu::BindGroup {
+        let mut cache = self.bind_group_cache.borrow_mut();
+        if let Some(bg) = cache.get(src_view) {
+            bg.clone()
+        } else {
+            if cache.len() >= 64 {
+                cache.clear();
+            }
+            let bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Animatix Fullscreen Blit Bind Group"),
+                layout: &self.bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::Sampler(&self.sampler),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(src_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                            buffer: &self.alpha_buffer,
+                            offset: 0,
+                            size: Some(
+                                std::num::NonZeroU64::new(BLIT_PARAMS_SIZE).expect("nonzero"),
+                            ),
+                        }),
+                    },
+                ],
+            });
+            cache.insert(src_view.clone(), bg.clone());
+            bg
+        }
+    }
+
     /// Like [`Self::blit_rect_with_encoder`], with an optional rounded-rect
     /// clip and a sub-rectangle of the source texture to sample. A `Glass`
     /// backdrop uses both: its texture covers a padded region while only the
@@ -305,37 +366,7 @@ impl FullscreenBlitPipeline {
         mask: Option<&BlitMask>,
     ) {
         self.write_params(queue, alpha, mask, dst_size);
-
-        let bind_group = {
-            let mut cache = self.bind_group_cache.borrow_mut();
-            if let Some(bg) = cache.get(src_view) {
-                bg.clone()
-            } else {
-                if cache.len() >= 16 {
-                    cache.clear();
-                }
-                let bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("Animatix Fullscreen Blit Bind Group"),
-                    layout: &self.bind_group_layout,
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::Sampler(&self.sampler),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 1,
-                            resource: wgpu::BindingResource::TextureView(src_view),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 2,
-                            resource: self.alpha_buffer.as_entire_binding(),
-                        },
-                    ],
-                });
-                cache.insert(src_view.clone(), bg.clone());
-                bg
-            }
-        };
+        let bind_group = self.get_or_create_bind_group(device, src_view);
 
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -359,8 +390,101 @@ impl FullscreenBlitPipeline {
                 pass.set_viewport(dst_origin[0], dst_origin[1], w as f32, h as f32, 0.0, 1.0);
             }
             pass.set_pipeline(&self.pipeline);
-            pass.set_bind_group(0, &bind_group, &[]);
+            pass.set_bind_group(0, &bind_group, &[0]);
             pass.draw(0..4, 0..1);
+        }
+    }
+
+    /// Blit a chunk of layers (up to [`MAX_BATCH_LAYERS`]) in a single render pass
+    /// with dynamic uniform offsets.
+    pub fn blit_batch_chunk_with_encoder(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        dst_view: &wgpu::TextureView,
+        chunk: &[BatchedBlitItem<'_>],
+    ) {
+        if chunk.is_empty() {
+            return;
+        }
+        let count = chunk.len().min(MAX_BATCH_LAYERS);
+        let mut params_bytes = vec![0u8; count * BATCH_BLIT_STRIDE as usize];
+        for (i, item) in chunk[..count].iter().enumerate() {
+            let offset = i * BATCH_BLIT_STRIDE as usize;
+            let mut p = [0f32; 12];
+            p[0] = item.alpha;
+            if let Some(r) = item.corner_radius {
+                p[1] = r;
+            }
+            p[2] = item.dst_size[0] as f32;
+            p[3] = item.dst_size[1] as f32;
+            if let Some(sr) = item.src_rect {
+                p[4] = sr[0];
+                p[5] = sr[1];
+                p[6] = sr[2];
+                p[7] = sr[3];
+                p[8] = 1.0;
+            } else {
+                p[8] = 0.0;
+            }
+            params_bytes[offset..offset + BLIT_PARAMS_SIZE as usize]
+                .copy_from_slice(bytemuck::cast_slice(&p));
+        }
+        queue.write_buffer(&self.alpha_buffer, 0, &params_bytes);
+
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Animatix Batched Fullscreen Blit Pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: dst_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+                depth_slice: None,
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+
+        pass.set_pipeline(&self.pipeline);
+        for (i, item) in chunk[..count].iter().enumerate() {
+            let bind_group = self.get_or_create_bind_group(device, item.src_view);
+            let dynamic_offset = (i as u32) * (BATCH_BLIT_STRIDE as u32);
+            pass.set_viewport(
+                item.dst_origin[0],
+                item.dst_origin[1],
+                item.dst_size[0] as f32,
+                item.dst_size[1] as f32,
+                0.0,
+                1.0,
+            );
+            pass.set_bind_group(0, &bind_group, &[dynamic_offset]);
+            pass.draw(0..4, 0..1);
+        }
+    }
+
+    /// Blit multiple layers into `dst_view` using dynamic uniform offset batching.
+    /// Consecutive layers are grouped and executed in single queue submissions.
+    pub fn blit_batch(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        dst_view: &wgpu::TextureView,
+        items: &[BatchedBlitItem<'_>],
+    ) {
+        if items.is_empty() {
+            return;
+        }
+        for chunk in items.chunks(MAX_BATCH_LAYERS) {
+            let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Animatix Batched Fullscreen Blit Encoder"),
+            });
+            self.blit_batch_chunk_with_encoder(device, queue, &mut encoder, dst_view, chunk);
+            queue.submit(std::iter::once(encoder.finish()));
         }
     }
 

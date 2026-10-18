@@ -38,6 +38,8 @@ pub struct RendererCore {
     /// for `Rgba8Unorm` — the format of every internal target (offscreen
     /// frames, filter scratch, GUI preview).
     pub blit: Option<FullscreenBlitPipeline>,
+    /// Hardware line strip pipeline for fast vector paths / curves without CPU triangulation.
+    pub line_pipeline: Option<crate::instanced_line::InstancedLinePipeline>,
     /// Blit pipelines typed for other target formats, compiled on demand.
     /// The one consumer is the web player presenting to a browser canvas
     /// surface: the surface's format comes from the browser's backend
@@ -62,10 +64,15 @@ impl RendererCore {
         .map_err(|e| RenderError::VelloInit(format!("{e:?}")))?;
 
         let blit = FullscreenBlitPipeline::new(device, wgpu::TextureFormat::Rgba8Unorm);
+        let line_pipeline = crate::instanced_line::InstancedLinePipeline::new(
+            device,
+            wgpu::TextureFormat::Rgba8Unorm,
+        );
 
         Ok(Self {
             renderer,
             blit: Some(blit),
+            line_pipeline: Some(line_pipeline),
             blit_variants: std::cell::RefCell::new(std::collections::HashMap::new()),
         })
     }
@@ -140,6 +147,77 @@ impl RendererCore {
                 alpha,
                 mask.as_ref(),
             );
+        }
+    }
+
+    /// Batched variant of [`Self::blit_texture_rect_masked`]. All items are
+    /// executed in a single render pass with dynamic uniform offsets, minimizing
+    /// draw call overhead and GPU queue submissions.
+    pub fn blit_texture_rect_masked_batch(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        dst_view: &wgpu::TextureView,
+        items: &[crate::fullscreen_blit::BatchedBlitItem<'_>],
+    ) {
+        if let Some(ref blit) = self.blit {
+            blit.blit_batch(device, queue, dst_view, items);
+        }
+    }
+
+    /// Render hardware-accelerated anti-aliased line segments into `target_view`.
+    pub fn render_line_segments(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        target_view: &wgpu::TextureView,
+        viewport_size: [f32; 2],
+        instances: &[crate::instanced_line::LineSegmentInstance],
+    ) {
+        if let Some(ref lines) = self.line_pipeline {
+            lines.render_lines(device, queue, target_view, viewport_size, instances);
+        }
+    }
+
+    /// Render hardware-accelerated anti-aliased polyline strip into `target_view`.
+    pub fn render_line_strip(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        target_view: &wgpu::TextureView,
+        viewport_size: [f32; 2],
+        points: &[[f32; 2]],
+        width: f32,
+        feather: f32,
+        color: [f32; 4],
+    ) {
+        if let Some(ref lines) = self.line_pipeline {
+            let instances = crate::instanced_line::InstancedLinePipeline::segments_from_strip(
+                points, width, feather, color,
+            );
+            lines.render_lines(device, queue, target_view, viewport_size, &instances);
+        }
+    }
+
+    /// Render a hardware-accelerated parametric curve `f(t)` into `target_view`.
+    pub fn render_parametric_curve<F: FnMut(f32) -> [f32; 2]>(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        target_view: &wgpu::TextureView,
+        viewport_size: [f32; 2],
+        f: F,
+        t_range: [f32; 2],
+        steps: usize,
+        width: f32,
+        feather: f32,
+        color: [f32; 4],
+    ) {
+        if let Some(ref lines) = self.line_pipeline {
+            let instances = crate::instanced_line::InstancedLinePipeline::segments_from_fn(
+                f, t_range, steps, width, feather, color,
+            );
+            lines.render_lines(device, queue, target_view, viewport_size, &instances);
         }
     }
 

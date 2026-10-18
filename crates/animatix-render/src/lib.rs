@@ -12,6 +12,7 @@ pub mod core;
 pub mod encode;
 pub mod filter_backend;
 pub mod fullscreen_blit;
+pub mod instanced_line;
 pub mod instanced_shadow;
 pub mod offscreen;
 pub mod perspective_blit;
