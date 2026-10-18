@@ -713,13 +713,13 @@ pub(crate) struct EvalCaches {
     transform_cache: std::cell::RefCell<Vec<Option<TransformCacheEntry>>>,
     static_subtree_cache: std::cell::RefCell<
         std::collections::HashMap<
-            (String, SceneDimensions, bool, DebugRenderOptions),
+            (EntityId, SceneDimensions, bool, DebugRenderOptions),
             StaticSubtreeEntry,
         >,
     >,
     /// Memoized `is_static_subtree` answers, cleared whenever the timeline is
-    /// mutated. Keyed by subtree root label.
-    static_subtree_flags: std::cell::RefCell<std::collections::HashMap<String, bool>>,
+    /// mutated. Indexed by `EntityId.index()`.
+    static_subtree_flags: std::cell::RefCell<Vec<Option<bool>>>,
     scene_buffer: std::cell::RefCell<Option<vello::Scene>>,
     hit_regions: std::cell::RefCell<Vec<(String, kurbo::Rect)>>,
     overrides_buffer: std::cell::RefCell<crate::timeline::modifier_runtime::ir::ModifierOverrides>,
@@ -1677,18 +1677,27 @@ impl Timeline {
     }
 
     pub(crate) fn is_static_subtree(&self, label: &str) -> bool {
-        // Memoized: `compute_static_subtree` walks the property registry and the
-        // whole subtree, and the frame path asks once per root *per frame*. That
-        // scan measured ~78% of a scrub frame, so the answer is cached until the
-        // timeline is mutated (see `invalidate_frame_cache`).
-        if let Some(cached) = self.eval_caches.static_subtree_flags.borrow().get(label).copied() {
+        if let Some(id) = self.tracks.get_entity_id(label) {
+            self.is_static_subtree_id(id)
+        } else {
+            self.compute_static_subtree(label)
+        }
+    }
+
+    pub(crate) fn is_static_subtree_id(&self, id: EntityId) -> bool {
+        let idx = id.index();
+        if let Some(&Some(cached)) = self.eval_caches.static_subtree_flags.borrow().get(idx) {
             return cached;
         }
-        let is_static = self.compute_static_subtree(label);
-        self.eval_caches
-            .static_subtree_flags
-            .borrow_mut()
-            .insert(label.to_string(), is_static);
+        let Some(track) = self.tracks.get_by_id(id) else {
+            return true;
+        };
+        let is_static = self.compute_static_subtree(&track.label);
+        let mut flags = self.eval_caches.static_subtree_flags.borrow_mut();
+        if idx >= flags.len() {
+            flags.resize(idx + 1, None);
+        }
+        flags[idx] = Some(is_static);
         is_static
     }
 
@@ -1734,11 +1743,31 @@ impl Timeline {
             return false;
         }
         track.children.iter().all(|child| {
-            // Release the memo borrow before recursing: `is_static_subtree`
-            // writes to the same RefCell.
-            let memo = self.eval_caches.static_subtree_flags.borrow().get(child.as_str()).copied();
-            memo.unwrap_or_else(|| self.is_static_subtree(child))
+            if let Some(child_id) = self.tracks.get_entity_id(child) {
+                self.is_static_subtree_id(child_id)
+            } else {
+                self.compute_static_subtree(child)
+            }
         })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn has_static_subtree_cached(
+        &self,
+        label: &str,
+        dimensions: SceneDimensions,
+        collect_items: bool,
+        debug_options: DebugRenderOptions,
+    ) -> bool {
+        let Some(id) = self.tracks.get_entity_id(label) else {
+            return false;
+        };
+        self.eval_caches.static_subtree_cache.borrow().contains_key(&(
+            id,
+            dimensions,
+            collect_items,
+            debug_options,
+        ))
     }
 
     /// Invalidate the frame evaluation cache.
@@ -1764,8 +1793,8 @@ impl Timeline {
         // Mutations can add or remove `solo` (and add modifiers), so the
         // cached "does solo need a scan" answer is no longer trustworthy.
         self.eval_caches.solo_scan_needed.set(None);
-        *self.eval_caches.static_subtree_cache.borrow_mut() = std::collections::HashMap::new();
-        *self.eval_caches.static_subtree_flags.borrow_mut() = std::collections::HashMap::new();
+        self.eval_caches.static_subtree_cache.borrow_mut().clear();
+        self.eval_caches.static_subtree_flags.borrow_mut().clear();
         self.eval_caches.transform_cache.borrow_mut().clear();
         self.eval_caches.overrides_buffer.borrow_mut().clear();
         {

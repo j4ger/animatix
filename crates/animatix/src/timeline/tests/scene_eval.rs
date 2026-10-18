@@ -68,7 +68,7 @@ fn static_scene_cache_populated_after_first_evaluate() {
         "static subtree cache should be populated after first evaluate"
     );
     assert!(
-        cache.contains_key(&("box1".to_string(), dims, false, DebugRenderOptions::default())),
+        timeline.has_static_subtree_cached("box1", dims, false, DebugRenderOptions::default()),
         "cache should contain box1"
     );
     drop(cache);
@@ -139,8 +139,9 @@ fn static_scene_cache_is_keyed_by_debug_options() {
     let _debug = timeline.evaluate_with_debug(0.0, dims, debug_opts, &mut None);
 
     let cache = timeline.eval_caches.static_subtree_cache.borrow();
-    assert!(cache.contains_key(&("box1".to_string(), dims, false, DebugRenderOptions::default())));
-    assert!(cache.contains_key(&("box1".to_string(), dims, false, debug_opts)));
+    let box1_id = timeline.tracks.get_entity_id("box1").expect("box1 id");
+    assert!(cache.contains_key(&(box1_id, dims, false, DebugRenderOptions::default())));
+    assert!(cache.contains_key(&(box1_id, dims, false, debug_opts)));
     assert_eq!(cache.len(), 2, "debug options must not reuse the default scene");
 }
 
@@ -247,12 +248,13 @@ fn static_scene_only_cache_does_not_collect_items() {
 
     let _scene = timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default(), &mut None);
     let cache = timeline.eval_caches.static_subtree_cache.borrow();
-    let scene_only_key = ("box1".to_string(), dims, false, DebugRenderOptions::default());
+    let box1_id = timeline.tracks.get_entity_id("box1").expect("box1 id");
+    let scene_only_key = (box1_id, dims, false, DebugRenderOptions::default());
     let (_, _, items, _) =
         cache.get(&scene_only_key).expect("scene-only static subtree should be cached");
     assert!(items.is_empty(), "scene-only evaluation must not collect SceneItems");
     assert!(
-        !cache.contains_key(&("box1".to_string(), dims, true, DebugRenderOptions::default())),
+        !cache.contains_key(&(box1_id, dims, true, DebugRenderOptions::default())),
         "scene-only evaluation must not populate the program cache entry"
     );
 }
@@ -304,7 +306,8 @@ fn static_program_after_scene_only_still_collects_items() {
     );
 
     let cache = timeline.eval_caches.static_subtree_cache.borrow();
-    let program_key = ("box1".to_string(), dims, true, DebugRenderOptions::default());
+    let box1_id = timeline.tracks.get_entity_id("box1").expect("box1 id");
+    let program_key = (box1_id, dims, true, DebugRenderOptions::default());
     let (_, _, items, _) = cache
         .get(&program_key)
         .expect("program static subtree should be cached separately");
@@ -406,18 +409,9 @@ fn static_scene_cache_is_keyed_by_dimensions() {
         timeline.evaluate_with_debug(0.0, dims_2, DebugRenderOptions::default(), &mut None);
 
     let cache = timeline.eval_caches.static_subtree_cache.borrow();
-    assert!(cache.contains_key(&(
-        "box1".to_string(),
-        dims_1,
-        false,
-        DebugRenderOptions::default()
-    )));
-    assert!(cache.contains_key(&(
-        "box1".to_string(),
-        dims_2,
-        false,
-        DebugRenderOptions::default()
-    )));
+    let box1_id = timeline.tracks.get_entity_id("box1").expect("box1 id");
+    assert!(cache.contains_key(&(box1_id, dims_1, false, DebugRenderOptions::default())));
+    assert!(cache.contains_key(&(box1_id, dims_2, false, DebugRenderOptions::default())));
     assert_eq!(cache.len(), 2, "dimensions must not reuse a static subtree scene");
 }
 
@@ -769,17 +763,14 @@ fn static_subtree_cache_works_alongside_modifiers() {
 
     let _scene1 = timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default(), &mut None);
     let cache = timeline.eval_caches.static_subtree_cache.borrow();
+    let static_id = timeline.tracks.get_entity_id("static_box").expect("static_box id");
+    let dynamic_id = timeline.tracks.get_entity_id("dynamic_box").expect("dynamic_box id");
     assert!(
-        cache.contains_key(&("static_box".to_string(), dims, false, DebugRenderOptions::default())),
+        cache.contains_key(&(static_id, dims, false, DebugRenderOptions::default())),
         "static_box should be cached despite modifiers existing in scene"
     );
     assert!(
-        !cache.contains_key(&(
-            "dynamic_box".to_string(),
-            dims,
-            false,
-            DebugRenderOptions::default()
-        )),
+        !cache.contains_key(&(dynamic_id, dims, false, DebugRenderOptions::default())),
         "dynamic_box must not be in static subtree cache"
     );
 }

@@ -516,6 +516,8 @@ impl crate::timeline::AnimationTrack {
                 .filter_map(|cmd| cmd.local_bounds(None))
                 .reduce(|acc, rect| acc.union(rect));
             memo.store(epoch, style, state, commands.clone(), bounds);
+            drop(memo);
+            self.offer_shape_command_bounds(bounds);
         }
         Ok(commands)
     }

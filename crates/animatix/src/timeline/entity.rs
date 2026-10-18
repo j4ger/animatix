@@ -109,6 +109,12 @@ impl TrackStore {
         self.label_to_id.get(label).copied()
     }
 
+    /// Alias for [`Self::get_id`].
+    #[inline(always)]
+    pub fn get_entity_id(&self, label: &str) -> Option<EntityId> {
+        self.get_id(label)
+    }
+
     /// Resolve an `EntityId` to its actor label.
     #[inline(always)]
     pub fn get_label(&self, id: EntityId) -> Option<&str> {

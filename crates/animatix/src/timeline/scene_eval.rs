@@ -663,22 +663,16 @@ impl Timeline {
         // Compute a conservative world-space bounding box and check intersection
         // with the viewport. Children are still evaluated since they may extend
         // back into view even when the parent is off-screen.
-        let viewport = kurbo::Rect::new(
-            0.0,
-            0.0,
-            scene_dimensions.width as f64,
-            scene_dimensions.height as f64,
-        );
-        let max_extent = half_size[0].max(half_size[1]) as f64 * node_transform.scale.abs();
-        let margin = 100.0; // margin for effects and small children
-        let world_pos = local_transform * kurbo::Point::new(0.0, 0.0);
-        let actor_bounds = kurbo::Rect::new(
-            world_pos.x - max_extent - margin,
-            world_pos.y - max_extent - margin,
-            world_pos.x + max_extent + margin,
-            world_pos.y + max_extent + margin,
-        );
-        let is_visible = viewport.intersect(actor_bounds).area() > 0.0;
+        let half_extent =
+            (half_size[0].max(half_size[1]) as f64 * node_transform.scale.abs()) + 100.0;
+        let coeffs = local_transform.as_coeffs();
+        let is_visible = coeffs[4] + half_extent > 0.0
+            && coeffs[4] - half_extent < scene_dimensions.width as f64
+            && coeffs[5] + half_extent > 0.0
+            && coeffs[5] - half_extent < scene_dimensions.height as f64;
+        if !is_visible || !draws_self {
+            return (local_transform, opacity);
+        }
 
         // PF-6: shared Arc — the common static-track case returns a refcount
         // bump instead of a full path-list clone per node per frame.
@@ -795,148 +789,143 @@ impl Timeline {
             }
         }
 
-        // P2.19: Only sample properties and render if actor is visible on screen.
-        // For off-screen actors we still return transform/opacity so children
-        // (which may extend back into view) are correctly evaluated.
-        if is_visible && draws_self {
-            // ── Phase 10b.3: Trait-dispatch scene evaluation ──
-            // The primitive's evaluate() is the only render path (no per-type
-            // dispatch table). `Some(commands)`
-            // draws the commands and records a hit region; `None` means
-            // "no drawable content" — nothing is drawn and no hit region or
-            // precise bounds are recorded for it.
-            let primitive_dispatch = {
-                let primitive = self.track_primitive_at(track, time_ms);
-                if let Some(primitive) = primitive {
-                    // Clear the shape-memo bounds handoff: a non-shape
-                    // primitive must never observe the previous node's data.
-                    track.begin_shape_commands();
-                    let ctx = crate::primitives::EvaluateCtx {
-                        track,
-                        time_ms,
-                        local_transform,
-                        opacity,
-                        scene_dimensions,
-                        background_color: self.eval_caches.background_color.get(),
-                        overrides: node_overrides,
-                        vector_paths: &vector_paths,
-                        asset_cache: &self.asset_cache,
-                        target_resolver: Some(self),
-                    };
-                    let mut text_ctx = crate::primitives::TextCompileCtx {
-                        text_compiler: &mut self.text_compiler.borrow_mut(),
-                        font_context: self.font_context.as_ref(),
-                    };
-                    match primitive.evaluate(&ctx, Some(&mut text_ctx)) {
-                        Ok(commands) => commands,
-                        Err(e) => {
-                            self.eval_caches.runtime_diagnostics.borrow_mut().push(
-                                crate::diagnostics::Diagnostic::error(
-                                    crate::diagnostics::DiagnosticCode::RenderFailure,
-                                    crate::diagnostics::DiagnosticPhase::Render,
-                                    format!(
-                                        "failed to evaluate '{}' at t={time_ms}ms: {e}",
-                                        node_label
-                                    ),
+        // ── Phase 10b.3: Trait-dispatch scene evaluation ──
+        // The primitive's evaluate() is the only render path (no per-type
+        // dispatch table). `Some(commands)`
+        // draws the commands and records a hit region; `None` means
+        // "no drawable content" — nothing is drawn and no hit region or
+        // precise bounds are recorded for it.
+        let primitive_dispatch = {
+            let primitive = self.track_primitive_at(track, time_ms);
+            if let Some(primitive) = primitive {
+                // Clear the shape-memo bounds handoff: a non-shape
+                // primitive must never observe the previous node's data.
+                track.begin_shape_commands();
+                let ctx = crate::primitives::EvaluateCtx {
+                    track,
+                    time_ms,
+                    local_transform,
+                    opacity,
+                    scene_dimensions,
+                    background_color: self.eval_caches.background_color.get(),
+                    overrides: node_overrides,
+                    vector_paths: &vector_paths,
+                    asset_cache: &self.asset_cache,
+                    target_resolver: Some(self),
+                };
+                let mut text_ctx = crate::primitives::TextCompileCtx {
+                    text_compiler: &mut self.text_compiler.borrow_mut(),
+                    font_context: self.font_context.as_ref(),
+                };
+                match primitive.evaluate(&ctx, Some(&mut text_ctx)) {
+                    Ok(commands) => commands,
+                    Err(e) => {
+                        self.eval_caches.runtime_diagnostics.borrow_mut().push(
+                            crate::diagnostics::Diagnostic::error(
+                                crate::diagnostics::DiagnosticCode::RenderFailure,
+                                crate::diagnostics::DiagnosticPhase::Render,
+                                format!(
+                                    "failed to evaluate '{}' at t={time_ms}ms: {e}",
+                                    node_label
                                 ),
-                            );
-                            None
-                        },
-                    }
-                } else {
-                    None
-                }
-            };
-            // Record the hit region for this actor (used by GUI picking and
-            // precise-bounds consumers). Command-derived bounds when commands
-            // exist; otherwise the actor's layout half-size box — this keeps
-            // container shells (which return `Some(vec![])`) clickable at the
-            // box they occupy. Actors whose `evaluate()` returned `None` have
-            // no drawable content (e.g. empty text), so they intentionally
-            // record nothing (semantics pinned by
-            // `runtime_empty_text_override_clears_stale_glyphs`).
-            let mut record_hit_region = |local_bounds: Option<kurbo::Rect>| {
-                let world_bounds = if let Some(lb) = local_bounds {
-                    transform_rect_bbox(&local_transform, lb)
-                } else {
-                    let default_bounds = kurbo::Rect::new(
-                        (-half_size[0]) as f64,
-                        (-half_size[1]) as f64,
-                        half_size[0] as f64,
-                        half_size[1] as f64,
-                    );
-                    transform_rect_bbox(&local_transform, default_bounds)
-                };
-                // `hit_regions` is only read back when picking was requested
-                // (`evaluate_program_inner` discards it otherwise), so building
-                // the owned label per node per frame is wasted allocation.
-                if debug_options.compute_hit_regions {
-                    hit_regions.push((node_label.to_string(), world_bounds));
-                }
-                // PF-6 slot-id bounds: the frame start stamped every track's
-                // slot, so the write is a `Vec` store — no string key, no hash.
-                let slot = track.bounds_slot.get();
-                self.record_precise_bounds(slot, node_label, world_bounds);
-            };
-            if let Some(commands) = primitive_dispatch {
-                for cmd in &commands {
-                    cmd.execute(scene, &local_transform, opacity);
-                }
-                if let Some(items) = program_items.as_mut() {
-                    items.push(crate::timeline::scene_program::SceneItem {
-                        label: node_label.to_string(),
-                        transform: local_transform,
-                        opacity,
-                        commands: commands.clone(),
-                    });
-                }
-                // Hit region — compute from commands, not stale vector_paths.
-                // PF-4 scoped item: a shape-command memo hit hands over the
-                // build-time-computed bounds (image_size is irrelevant —
-                // shape commands never carry images), skipping the per-node
-                // bezpath `bounding_box` unions entirely.
-                let memo_bounds = track.take_shape_command_bounds();
-                let image_size = track.image.get(time_ms, None).is_some().then_some(half_size);
-                let local_bounds: Option<kurbo::Rect> = match memo_bounds {
-                    Some(bounds) => bounds,
-                    None => {
-                        let mut bounds: Option<kurbo::Rect> = None;
-                        for cmd in &commands {
-                            if let Some(cmd_bounds) = cmd.local_bounds(image_size) {
-                                bounds = Some(match bounds {
-                                    Some(existing) => existing.union(cmd_bounds),
-                                    None => cmd_bounds,
-                                });
-                            }
-                        }
-                        bounds
+                            ),
+                        );
+                        None
                     },
-                };
-                // Shape-primitive commands came from the track's command
-                // memo on a hit — hand the buffers back so the next frame
-                // can take them again (PF-6 round 8; `take_shape_commands`
-                // returns `None` for non-memo actors, so a recycle of a
-                // foreign `Vec` is simply dropped by the memo).
-                track.recycle_shape_commands(commands);
-                record_hit_region(local_bounds);
-
-                // Debug overlays
-                if debug_options.draw_bounds {
-                    let svg_paths = track.svg_paths_at(time_ms).unwrap_or_default();
-                    let text_paths = track.evaluate_text_paths(time_ms);
-                    let _ = self.add_node_debug_overlays(
-                        &svg_paths,
-                        half_size,
-                        &local_transform,
-                        scene,
-                        &vector_paths,
-                        &text_paths,
-                        image_size.is_some(),
-                    );
                 }
-
-                return (local_transform, opacity);
+            } else {
+                None
             }
+        };
+        // Record the hit region for this actor (used by GUI picking and
+        // precise-bounds consumers). Command-derived bounds when commands
+        // exist; otherwise the actor's layout half-size box — this keeps
+        // container shells (which return `Some(vec![])`) clickable at the
+        // box they occupy. Actors whose `evaluate()` returned `None` have
+        // no drawable content (e.g. empty text), so they intentionally
+        // record nothing (semantics pinned by
+        // `runtime_empty_text_override_clears_stale_glyphs`).
+        let mut record_hit_region = |local_bounds: Option<kurbo::Rect>| {
+            let world_bounds = if let Some(lb) = local_bounds {
+                transform_rect_bbox(&local_transform, lb)
+            } else {
+                let default_bounds = kurbo::Rect::new(
+                    (-half_size[0]) as f64,
+                    (-half_size[1]) as f64,
+                    half_size[0] as f64,
+                    half_size[1] as f64,
+                );
+                transform_rect_bbox(&local_transform, default_bounds)
+            };
+            // `hit_regions` is only read back when picking was requested
+            // (`evaluate_program_inner` discards it otherwise), so building
+            // the owned label per node per frame is wasted allocation.
+            if debug_options.compute_hit_regions {
+                hit_regions.push((node_label.to_string(), world_bounds));
+            }
+            // PF-6 slot-id bounds: the frame start stamped every track's
+            // slot, so the write is a `Vec` store — no string key, no hash.
+            let slot = track.bounds_slot.get();
+            self.record_precise_bounds(slot, node_label, world_bounds);
+        };
+        if let Some(commands) = primitive_dispatch {
+            for cmd in &commands {
+                cmd.execute(scene, &local_transform, opacity);
+            }
+            if let Some(items) = program_items.as_mut() {
+                items.push(crate::timeline::scene_program::SceneItem {
+                    label: node_label.to_string(),
+                    transform: local_transform,
+                    opacity,
+                    commands: commands.clone(),
+                });
+            }
+            // Hit region — compute from commands, not stale vector_paths.
+            // PF-4 scoped item: a shape-command memo hit hands over the
+            // build-time-computed bounds (image_size is irrelevant —
+            // shape commands never carry images), skipping the per-node
+            // bezpath `bounding_box` unions entirely.
+            let memo_bounds = track.take_shape_command_bounds();
+            let image_size = track.image.get(time_ms, None).is_some().then_some(half_size);
+            let local_bounds: Option<kurbo::Rect> = match memo_bounds {
+                Some(bounds) => bounds,
+                None => {
+                    let mut bounds: Option<kurbo::Rect> = None;
+                    for cmd in &commands {
+                        if let Some(cmd_bounds) = cmd.local_bounds(image_size) {
+                            bounds = Some(match bounds {
+                                Some(existing) => existing.union(cmd_bounds),
+                                None => cmd_bounds,
+                            });
+                        }
+                    }
+                    bounds
+                },
+            };
+            // Shape-primitive commands came from the track's command
+            // memo on a hit — hand the buffers back so the next frame
+            // can take them again (PF-6 round 8; `take_shape_commands`
+            // returns `None` for non-memo actors, so a recycle of a
+            // foreign `Vec` is simply dropped by the memo).
+            track.recycle_shape_commands(commands);
+            record_hit_region(local_bounds);
+
+            // Debug overlays
+            if debug_options.draw_bounds {
+                let svg_paths = track.svg_paths_at(time_ms).unwrap_or_default();
+                let text_paths = track.evaluate_text_paths(time_ms);
+                let _ = self.add_node_debug_overlays(
+                    &svg_paths,
+                    half_size,
+                    &local_transform,
+                    scene,
+                    &vector_paths,
+                    &text_paths,
+                    image_size.is_some(),
+                );
+            }
+
+            return (local_transform, opacity);
         }
 
         (local_transform, opacity)
@@ -1087,7 +1076,7 @@ impl Timeline {
             std::sync::Arc::new(crate::timeline::layout::LayoutPositions::new())
         };
         let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
-        if children.is_empty() {
+        if children.is_empty() || global_opacity <= 0.0001 {
             return;
         }
 
@@ -1183,6 +1172,17 @@ impl Timeline {
                 })
             },
         };
+
+        if let Some(r) = region {
+            if r.origin[0] >= scene_dimensions.width as f32
+                || r.origin[1] >= scene_dimensions.height as f32
+                || r.origin[0] + r.size.width as f32 <= 0.0
+                || r.origin[1] + r.size.height as f32 <= 0.0
+            {
+                // The effect scope's region of interest is entirely off-screen.
+                return;
+            }
+        }
 
         // Always take the zero-readback path when a backend exists: the
         // pending composites are blitted after the main scene render in
@@ -2668,7 +2668,17 @@ impl Timeline {
                 kurbo::Affine::IDENTITY
             };
             let camera_exempt = self.camera_used.get() && self.camera_exempt_present.get();
-            for root in &self.root_nodes {
+            let allow_static = !self.backend_can_run(out.filter_backend)
+                && !self.camera_used.get()
+                && suppressed_actors.is_empty()
+                && transient_overrides.is_empty();
+            let has_all_root_ids = self.root_ids.len() == self.root_nodes.len();
+            for (idx, root) in self.root_nodes.iter().enumerate() {
+                let root_id = if has_all_root_ids {
+                    Some(self.root_ids[idx])
+                } else {
+                    self.root_ids.get(idx).copied().or_else(|| self.tracks.get_id(root))
+                };
                 // `camera_follow: false` keeps a root subtree out of the camera
                 // entirely — the HUD that must not move while the scene pushes
                 // in. Only roots are consulted: the camera is applied here, once,
@@ -2677,7 +2687,10 @@ impl Timeline {
                 // reported at build). Short-circuited on `camera_exempt` so a
                 // scene that never uses the flag does no track lookup per root.
                 let root_affine = if camera_exempt {
-                    if let Some(t) = self.tracks.get(root) {
+                    let track = root_id
+                        .and_then(|id| self.tracks.get_by_id(id))
+                        .or_else(|| self.tracks.get(root));
+                    if let Some(t) = track {
                         if !t.camera_follow || t.parallax == 0.0 {
                             kurbo::Affine::IDENTITY
                         } else if (t.parallax - 1.0).abs() < f32::EPSILON {
@@ -2711,13 +2724,13 @@ impl Timeline {
                 // A camera move invalidates it: the cached encoding is appended
                 // verbatim and cannot be re-transformed, so the frame must
                 // re-evaluate the subtree instead.
-                if !self.backend_can_run(out.filter_backend)
-                    && !self.camera_used.get()
-                    && suppressed_actors.is_empty()
-                    && transient_overrides.is_empty()
-                    && self.is_static_subtree(root)
-                {
-                    let cache_key = (root.clone(), scene_dimensions, collect_items, debug_options);
+                let is_static = allow_static
+                    && root_id
+                        .map(|id| self.is_static_subtree_id(id))
+                        .unwrap_or_else(|| self.is_static_subtree(root));
+                if is_static {
+                    let cached_id = root_id.unwrap();
+                    let cache_key = (cached_id, scene_dimensions, collect_items, debug_options);
                     let cache = self.eval_caches.static_subtree_cache.borrow_mut();
                     if let Some((cached_scene, cached_bounds, cached_items, cached_hit_regions)) =
                         cache.get(&cache_key)
@@ -2725,17 +2738,20 @@ impl Timeline {
                         // Fast path: append cached encoding directly and restore the
                         // precise bounds that were computed for this subtree.
                         out.scene.encoding_mut().append(cached_scene.encoding(), &None);
-                        {
+                        if !cached_bounds.is_empty() {
                             let mut table = self.eval_caches.precise_bounds.borrow_mut();
                             for &(slot, rect) in cached_bounds {
                                 table.write(slot, rect);
                             }
                         }
-                        if debug_options.compute_hit_regions {
+                        if debug_options.compute_hit_regions && !cached_hit_regions.is_empty() {
                             out.hit_regions.extend(cached_hit_regions.iter().cloned());
                         }
                         if let Some(items) = out.program_items.as_mut() {
-                            items.extend(cached_items.iter().cloned());
+                            if !cached_items.is_empty() {
+                                items.reserve(cached_items.len());
+                                items.extend(cached_items.iter().cloned());
+                            }
                         }
                     } else {
                         drop(cache);
