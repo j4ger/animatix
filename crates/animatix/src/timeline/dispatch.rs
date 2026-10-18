@@ -1644,7 +1644,7 @@ impl AnimationTrack {
     /// declaration seeding produces — the seeder writes the *declared* value, not
     /// the registry default, so even `size: (100, 60)` lands as one keyframe at a
     /// value no default matches. Telling the two apart needs keyframe provenance,
-    /// which tracks do not carry (the storage is `BTreeMap<u64, (T, Easing)>`).
+    /// which tracks do not carry (the storage is `InlineKeyframes<T>`).
     /// A constant value costs nothing to override, so the false positives cost
     /// more than the case is worth.
     pub(crate) fn is_property_animated(&self, property: &str) -> bool {

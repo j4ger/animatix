@@ -263,7 +263,7 @@ This checks relative Markdown links under `docs/`, rejects completed-status rows
 Every new expression form (operator, literal shape, call convention) must be
 implemented in **all** of the following places. The compiler's non-exhaustive
 match errors catch the typed arms, but the *semantic* ones (recursion in the
-two visitor methods, tree-walker parity) are silent if missed:
+two visitor methods, lowering parity) are silent if missed:
 
 1. **AST variant** — `crates/animatix-syntax/src/ast.rs` (`Expr` enum);
    extend `references_ident` in the same file (plot dynamic-gating and
@@ -275,14 +275,14 @@ two visitor methods, tree-walker parity) are silent if missed:
    visitors: `collect_prop_refs` and `references_ident`.
 5. **IR evaluation** — `.../ir/eval.rs` (`evaluate_compiled_expr`) and
    `.../ir/display.rs` (debug rendering).
-6. **Tree-walker** — `crates/animatix/src/timeline/utils.rs`
-   (`evaluate_expr_inner`) — build-time semantics must match the IR.
+6. **Unified build-time evaluation** — `crates/animatix/src/timeline/utils.rs`
+   (`evaluate_expr_inner`) automatically delegates to `compile_expr` and
+   `evaluate_compiled_expr`, sharing the same IR VM.
 7. **Cache key** — if the form reads mutable environment state, check whether
    `utils::evaluate_expr`'s cache key (`expr_hash`, `stamp`, `let_epoch`)
    needs a new component.
-8. **Round-trip & parity** — `crates/animatix/src/timeline/value_parser.rs`
-   (`value_to_expr`) and a case in `crates/animatix/tests/ir_tests.rs`
-   asserting IR result == tree-walker result.
+8. **Round-trip & tests** — `crates/animatix/src/timeline/value_parser.rs`
+   (`value_to_expr`) and test cases in `crates/animatix/tests/ir_tests.rs`.
 
 Precedents to copy: `LetChain` (block bodies, 13 touch points),
 `PropRef` (references, 9), `MakeList` (list/tuple split, 7).

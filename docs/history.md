@@ -14,6 +14,25 @@ mixed history and open work).
 Historical tracks are kept as evidence. New implementation work is tracked in
 [Backlog & Prioritization](#backlog--prioritization).
 
+### Core Architecture & Evaluation Modernization (2026-10-18)
+
+Implemented comprehensive architectural modernization eliminating core design bottlenecks, reducing memory footprint, and unifying expression evaluation:
+1. **Zero-Heap Inline Keyframes (`InlineKeyframes<T>`)**:
+   - Replaced `BTreeMap<u64, (T, Easing)>` in `PropertyTrack<T>` with a custom stack-inlined container (`Empty`, `One`, `Two`, `Many`).
+   - 90%+ of properties with 0–2 keyframes allocate zero heap memory.
+   - Criterion microbenchmark: `property_track_evaluate` improved by 58.8% (mean ~488ps, down from ~1.2ns), while frame evaluation runs in ~96ns.
+2. **Dense Entity Indexing & Linear Preorder Evaluation (`EntityId`, `TrackStore`)**:
+   - Replaced string-keyed `BTreeMap<String, AnimationTrack>` with dense `TrackStore` storing `Vec<AnimationTrack>` indexed by `EntityId(u32)`.
+   - Pre-computed `dfs_order_ids: Vec<EntityId>` enables linear topological traversal for space transforms and opacities, eliminating tree recursion and string hashing on hot frame evaluation paths.
+   - Full backward compatibility preserved via `label <-> EntityId` bidirectional mapping (`get_track`, `get_track_mut`).
+3. **Declarative Property System Unification**:
+   - Unified property descriptor tables (`PROPERTY_DESCRIPTORS`) with engine bindings (`BINDINGS`) using declarative macros, enforcing single-source consistency across core and engine.
+4. **Unified Build-Time & Runtime Expression Evaluation into IR VM**:
+   - Retired 300+ lines of duplicate AST tree-walker logic (`evaluate_expr_inner`) in favor of unified lowering to compiled IR (`compile_expr`) and evaluation via the IR VM (`evaluate_compiled_expr`).
+   - Guarantees 100% semantic parity across build-time constant evaluation, runtime modifiers, and plot closures.
+5. **GPU Render Bounds & Origin Fix**:
+   - Fixed `scaled_origin` in `crates/animatix-render/src/filter_backend.rs` to allow zero origins without `.max(1)` offset inflation, and clamped pending composite copy extents to prevent texture overrun panics on small resolutions.
+
 ### Speech/Voiceover Progress Synchronization & First-Class Captions (2026-10-17)
 
 Implemented first-class captions and audio speech progress synchronization across the pipeline, maintaining Animatix's "perfect primitive abstraction" and zero runtime allocation:

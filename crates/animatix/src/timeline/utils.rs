@@ -239,8 +239,8 @@ fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalErro
 
 /// Invoke a named function with already-evaluated arguments.
 ///
-/// Shared by the tree-walker and IR evaluator so that calls to `NativeFn`
-/// values and closures follow one semantic path.
+/// Shared function invocation logic so that calls to `NativeFn`
+/// values, user functions, and closures follow one unified semantic path.
 pub(crate) fn evaluate_call_value(
     func: &str,
     arg_values: Vec<Value>,
@@ -342,8 +342,8 @@ pub(crate) fn invoke_closure_value(
 
 /// Evaluate a method call on a receiver value.
 /// Shared method dispatch logic that operates on already-evaluated argument values.
-/// This is called by both the tree-walker and IR/VM (eval_method)
-/// to avoid code duplication.
+/// This is used by the unified IR/VM expression engine (eval_method)
+/// and function call dispatcher to avoid code duplication.
 pub(crate) fn eval_method_dispatch(
     receiver: Value,
     name: &str,
