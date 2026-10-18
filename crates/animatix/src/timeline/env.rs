@@ -45,6 +45,12 @@ impl fmt::Display for EvalError {
 
 impl std::error::Error for EvalError {}
 
+impl From<crate::timeline::modifier_runtime::ir::IrLowerError> for EvalError {
+    fn from(err: crate::timeline::modifier_runtime::ir::IrLowerError) -> Self {
+        EvalError::UnsupportedConstruct(err.to_string())
+    }
+}
+
 /// Captured variable environment snapshot taken at closure creation time.
 ///
 /// # Capture semantics

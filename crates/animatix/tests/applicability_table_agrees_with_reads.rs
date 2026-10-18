@@ -21,55 +21,14 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 /// `property name -> the type list its `Actors` row declares`.
-fn actor_rows(property_rs: &str) -> BTreeMap<String, Vec<String>> {
+fn actor_rows() -> BTreeMap<String, Vec<String>> {
     let mut rows = BTreeMap::new();
-    for chunk in property_rs.split("PropertyDescriptor::new(").skip(1) {
-        let Some(name) = first_quoted(chunk) else {
-            continue;
-        };
-        let Some(start) = chunk.find("Applicable::Actors(&[") else {
-            continue;
-        };
-        let list = &chunk[start + "Applicable::Actors(&[".len()..];
-        let Some(end) = list.find("]") else { continue };
-        let types = quoted_in(&list[..end]);
-        if !types.is_empty() {
-            rows.insert(name, types);
+    for desc in animatix_core::property::PROPERTY_DESCRIPTORS {
+        if let animatix_core::caps::Applicable::Actors(actors) = desc.applicable {
+            rows.insert(desc.name.to_string(), actors.iter().map(|s| s.to_string()).collect());
         }
     }
     rows
-}
-
-/// The first quoted string in a slice — the row's property name, which contains
-/// underscores and so cannot share [`quoted_in`]'s identifier filter.
-fn first_quoted(text: &str) -> Option<String> {
-    let start = text.find('"')?;
-    let rest = &text[start + 1..];
-    let end = rest.find('"')?;
-    Some(rest[..end].to_string())
-}
-
-fn quoted_in(text: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let bytes = text.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'"' {
-            let mut j = i + 1;
-            let mut word = String::new();
-            while j < bytes.len() && bytes[j] != b'"' {
-                word.push(bytes[j] as char);
-                j += 1;
-            }
-            if word.chars().all(|c| c.is_ascii_alphabetic()) && !word.is_empty() {
-                out.push(word);
-            }
-            i = j + 1;
-        } else {
-            i += 1;
-        }
-    }
-    out
 }
 
 /// Property names a primitive file matches on: `"name" =>` arms and
@@ -112,9 +71,7 @@ fn bar_chart_gap_is_applicable_to_bar_chart() {
     // `unknown-property` for a property that works and documented, and the
     // inspector left it off BarChart's property list.
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let property_rs =
-        std::fs::read_to_string(manifest.join("../animatix-core/src/property.rs")).expect("table");
-    let rows = actor_rows(&property_rs);
+    let rows = actor_rows();
     let gap_types = rows
         .get("gap")
         .expect("the table has no `gap` row — the row was renamed or removed");
@@ -134,9 +91,7 @@ fn bar_chart_gap_is_applicable_to_bar_chart() {
 #[test]
 fn every_actor_row_covers_the_type_that_reads_it() {
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let property_rs =
-        std::fs::read_to_string(manifest.join("../animatix-core/src/property.rs")).expect("table");
-    let rows = actor_rows(&property_rs);
+    let rows = actor_rows();
     assert!(
         rows.len() >= 35,
         "expected to parse the Actors-shaped rows, got {} — the parser and the table have drifted",

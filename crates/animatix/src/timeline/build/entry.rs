@@ -661,8 +661,7 @@ impl Timeline {
         let revealed_via_ancestor = |label: &str| -> bool {
             let mut current = parent_of.get(&label.to_string());
             while let Some(parent) = current {
-                if let Some(pt) =
-                    timeline.tracks.get(*parent).and_then(|t| t.style.opacity.as_ref())
+                if let Some(pt) = timeline.tracks.get(parent).and_then(|t| t.style.opacity.as_ref())
                 {
                     if opacity_reveals(pt) {
                         return true;

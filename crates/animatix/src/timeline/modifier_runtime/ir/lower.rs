@@ -261,25 +261,22 @@ pub fn compile_expr(expr: &Expr) -> Result<CompiledExpr, IrLowerError> {
         Expr::Match(scrutinee, arms) => {
             // Lower to nested Select expressions
             let scrutinee_compiled = compile_expr(scrutinee)?;
-            // Build from the last arm backwards
-            let default = arms
-                .last()
-                .map(|(_pat, arm_expr)| compile_expr(arm_expr))
-                .unwrap_or(Ok(CompiledExpr::Const(Value::Num(0.0))))?;
+            let has_wildcard_last =
+                arms.last().map(|(p, _)| matches!(p, MatchPattern::Wildcard)).unwrap_or(false);
+
+            let (default, iter_slice) = if has_wildcard_last {
+                let (_, wildcard_expr) = arms.last().unwrap();
+                (compile_expr(wildcard_expr)?, &arms[..arms.len() - 1])
+            } else {
+                (CompiledExpr::Const(Value::Num(0.0)), &arms[..])
+            };
+
             let mut result = default;
-            for (pat, arm_expr) in arms.iter().rev().skip(
-                if arms.last().map(|(p, _)| matches!(p, MatchPattern::Wildcard)).unwrap_or(false) {
-                    1
-                } else {
-                    0
-                },
-            ) {
+            for (pat, arm_expr) in iter_slice.iter().rev() {
                 let arm = compile_expr(arm_expr)?;
                 let condition = pattern_to_compiled_condition(&scrutinee_compiled, pat);
                 result = CompiledExpr::Select(Box::new(condition), Box::new(arm), Box::new(result));
             }
-            // If the last arm is wildcard, it's already the default; no extra select needed.
-            // If not, wrap with a final wildcard check (treat as default anyway).
             Ok(result)
         },
         Expr::Construct(name, properties) => {

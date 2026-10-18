@@ -9,8 +9,6 @@ use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 
 use crate::ast::{Expr, Time};
-use crate::timeline::animation_track::SceneAnchor;
-use crate::timeline::callout_geometry::env_anchor_point;
 use crate::timeline::env::{CapturedEnv, Environment, EvalError, Value};
 
 // Thread-local expression evaluation cache.
@@ -233,268 +231,10 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
     Ok(result)
 }
 
-/// Inner evaluation function (the actual logic, moved from the original evaluate_expr).
+/// Inner evaluation function delegating to compiled IR VM.
 fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalError> {
-    match expr {
-        Expr::Num(n) => Ok(Value::Num(*n)),
-        Expr::Percent(n) => Ok(Value::Num(*n / 100.0)),
-        Expr::Str(s) => Ok(Value::Str(s.clone())),
-        Expr::Bool(b) => Ok(Value::Bool(*b)),
-        Expr::Null => Ok(Value::Num(0.0)),
-
-        Expr::Ident(name) => {
-            env.get(name).ok_or_else(|| EvalError::UndefinedVariable(name.clone()))
-        },
-
-        Expr::Tuple(items) => {
-            if items.len() == 2 {
-                let x = evaluate_expr(&items[0], env)?.as_num();
-                let y = evaluate_expr(&items[1], env)?.as_num();
-                Ok(Value::Vec2([x, y]))
-            } else if items.len() == 3 {
-                let x = evaluate_expr(&items[0], env)?.as_num();
-                let y = evaluate_expr(&items[1], env)?.as_num();
-                let z = evaluate_expr(&items[2], env)?.as_num();
-                Ok(Value::Vec3([x, y, z]))
-            } else if items.len() == 4 {
-                let x = evaluate_expr(&items[0], env)?.as_num();
-                let y = evaluate_expr(&items[1], env)?.as_num();
-                let z = evaluate_expr(&items[2], env)?.as_num();
-                let w = evaluate_expr(&items[3], env)?.as_num();
-                Ok(Value::Vec4([x, y, z, w]))
-            } else {
-                // Arbitrary-length tuples become lists
-                let values: Result<Vec<Value>, EvalError> =
-                    items.iter().map(|item| evaluate_expr(item, env)).collect();
-                Ok(Value::List(values?.into()))
-            }
-        },
-
-        Expr::List(items) => {
-            let vals: Vec<Value> =
-                items.iter().map(|i| evaluate_expr(i, env)).collect::<Result<Vec<Value>, _>>()?;
-            Ok(Value::List(vals.into()))
-        },
-        Expr::Call(func, args) => evaluate_call(func, args, env),
-
-        Expr::Binary(left, op, right) => {
-            let l_val = evaluate_expr(left, env)?;
-            let r_val = evaluate_expr(right, env)?;
-            super::eval_shared::eval_binary_op(l_val, op, r_val)
-        },
-
-        Expr::Unary(op, inner) => {
-            if *op == crate::ast::UnaryOp::Ref {
-                // `&label.prop` packages the slot; the operand is guaranteed
-                // a two-segment path by the parser.
-                if let Expr::Path(parts) = inner.as_ref() {
-                    if let [label, prop] = parts.as_slice() {
-                        return Ok(Value::PropRef {
-                            label: label.clone(),
-                            prop: prop.clone(),
-                        });
-                    }
-                }
-                return Err(EvalError::TypeMismatch(
-                    "& expects a two-segment path: &actor.prop".to_string(),
-                ));
-            }
-            let value = evaluate_expr(inner, env)?;
-            Ok(match op {
-                crate::ast::UnaryOp::Neg => Value::Num(-value.as_num()),
-                crate::ast::UnaryOp::Not => Value::Num(if value.is_truthy() { 0.0 } else { 1.0 }),
-                crate::ast::UnaryOp::Ref => unreachable!("handled above"),
-            })
-        },
-
-        Expr::Conditional(cond, then_branch, else_branch) => {
-            if evaluate_expr(cond, env)?.is_truthy() {
-                evaluate_expr(then_branch, env)
-            } else {
-                evaluate_expr(else_branch, env)
-            }
-        },
-
-        // Closures capture the current override environment at creation time (lexical scope).
-        Expr::Closure(args, body) => {
-            let compiled = crate::timeline::modifier_runtime::ir::compile_expr(body)
-                .map_err(|e| EvalError::UnsupportedConstruct(format!("closure body: {e}")))?;
-            Ok(Value::Closure(args.clone(), Box::new(compiled), CapturedEnv::snapshot(env)))
-        },
-
-        // Block-bodied closure body: evaluate bindings in order (later ones
-        // see earlier ones), each pushed as a let-scope, then the tail. The
-        // let-scopes restore on pop, so the caller's environment is untouched
-        // — closures may share one env across invocations (plot samplers),
-        // and a leaked `let` would corrupt subsequent samples
-        // (see docs/series_construction.md).
-        Expr::LetChain(bindings, tail) => {
-            let mut pushed = 0;
-            let mut result = Ok(Value::Num(0.0));
-            for (name, value) in bindings {
-                match evaluate_expr(value, env) {
-                    Ok(v) => {
-                        env.push_let_scope(vec![(name.clone(), v)]);
-                        pushed += 1;
-                    },
-                    Err(e) => {
-                        result = Err(e);
-                        break;
-                    },
-                }
-            }
-            if result.is_ok() {
-                result = evaluate_expr(tail, env);
-            }
-            for _ in 0..pushed {
-                env.pop_let_scope();
-            }
-            result
-        },
-
-        Expr::Match(scrutinee, arms) => {
-            let value = evaluate_expr(scrutinee, env)?;
-            for (_pat, arm_expr) in arms {
-                if crate::timeline::build::pattern_matches(_pat, &value) {
-                    return evaluate_expr(arm_expr, env);
-                }
-            }
-            // No arm matched; emit a warning and return null (0.0)
-            tracing::warn!(
-                "match scrutinee evaluated to {:?} but no arm matched and no `_` wildcard arm was provided",
-                value
-            );
-            Ok(Value::Num(0.0))
-        },
-
-        Expr::Path(parts) => {
-            let dotted = parts.join(".");
-            // Lazy anchor-point resolution before plain env lookup.
-            // This makes `actor.right` reflect `always`-block position
-            // overrides because it reads `{actor}.at` and `{actor}.size`
-            // from the env (which includes override values).
-            if parts.len() == 2 && parts[0] != "scene" {
-                if let Some(anchor) = SceneAnchor::from_str(&parts[1]) {
-                    if let Some(point) = env_anchor_point(env, &parts[0], anchor) {
-                        return Ok(Value::Vec2(point));
-                    }
-                    // Fall through to plain env lookup — the actor may not
-                    // exist in the env yet (build-time), so return normal error.
-                }
-            }
-            // First try direct lookup (backward compatible with injected
-            // compound sub-keys like "node.position.x").
-            if let Some(val) = env.get(&dotted) {
-                return Ok(val);
-            }
-            // Multi-part path: try walking through object fields.
-            if parts.len() > 1 {
-                // Report the FULL dotted path as the undefined variable so
-                // lookup diagnostics can suggest alternatives (reporting only
-                // the base segment made `theme.text_md` failures — base not
-                // seeded — look like a dotless key and slip through silently).
-                let base =
-                    env.get(&parts[0]).ok_or(EvalError::UndefinedVariable(dotted.clone()))?;
-                let mut current = base;
-                for segment in &parts[1..] {
-                    match current {
-                        Value::Object(_, fields) => {
-                            current = fields
-                                .get(segment.as_str())
-                                .ok_or_else(|| EvalError::UndefinedVariable(dotted.clone()))?
-                                .clone();
-                        },
-                        _ => return Err(EvalError::UndefinedVariable(dotted)),
-                    }
-                }
-                return Ok(current);
-            }
-            Err(EvalError::UndefinedVariable(dotted))
-        },
-
-        Expr::Method(receiver, name, args) => {
-            let receiver_val = evaluate_expr(receiver, env)?;
-            evaluate_method(receiver_val, name, args, env)
-        },
-
-        Expr::Index(container, index) => {
-            let container_val = evaluate_expr(container, env)?;
-            let index_val = evaluate_expr(index, env)?;
-            let idx = index_val.as_num() as usize;
-            match container_val {
-                Value::List(items) => items.get(idx).cloned().ok_or_else(|| {
-                    EvalError::TypeMismatch(format!(
-                        "Index {} out of bounds for list of length {}",
-                        idx,
-                        items.len()
-                    ))
-                }),
-                Value::Str(s) => {
-                    s.chars().nth(idx).map(|c| Value::Str(c.to_string())).ok_or_else(|| {
-                        EvalError::TypeMismatch(format!(
-                            "Index {} out of bounds for string of length {}",
-                            idx,
-                            s.len()
-                        ))
-                    })
-                },
-                Value::Vec2(v) => match idx {
-                    0 => Ok(Value::Num(v[0])),
-                    1 => Ok(Value::Num(v[1])),
-                    _ => Err(EvalError::TypeMismatch(format!(
-                        "Index {} out of bounds for Vec2",
-                        idx
-                    ))),
-                },
-                Value::Vec3(v) => match idx {
-                    0 => Ok(Value::Num(v[0])),
-                    1 => Ok(Value::Num(v[1])),
-                    2 => Ok(Value::Num(v[2])),
-                    _ => Err(EvalError::TypeMismatch(format!(
-                        "Index {} out of bounds for Vec3",
-                        idx
-                    ))),
-                },
-                Value::Vec4(v) => match idx {
-                    0 => Ok(Value::Num(v[0])),
-                    1 => Ok(Value::Num(v[1])),
-                    2 => Ok(Value::Num(v[2])),
-                    3 => Ok(Value::Num(v[3])),
-                    _ => Err(EvalError::TypeMismatch(format!(
-                        "Index {} out of bounds for Vec4",
-                        idx
-                    ))),
-                },
-                Value::Color(c) => match idx {
-                    0 => Ok(Value::Num(c[0])),
-                    1 => Ok(Value::Num(c[1])),
-                    2 => Ok(Value::Num(c[2])),
-                    3 => Ok(Value::Num(c[3])),
-                    _ => Err(EvalError::TypeMismatch(format!(
-                        "Index {} out of bounds for Color",
-                        idx
-                    ))),
-                },
-                other => Err(EvalError::TypeMismatch(format!("Cannot index into {:?}", other))),
-            }
-        },
-
-        Expr::Construct(name, properties) => {
-            let mut fields = std::collections::HashMap::new();
-            for prop in properties {
-                let value = evaluate_expr(&prop.value, env)?;
-                fields.insert(prop.name.clone(), value);
-            }
-            Ok(Value::Object(name.clone(), fields))
-        },
-    }
-}
-
-/// Evaluate a function call.
-fn evaluate_call(func: &str, args: &[Expr], env: &Environment) -> Result<Value, EvalError> {
-    let arg_values: Vec<Value> =
-        args.iter().map(|arg| evaluate_expr(arg, env)).collect::<Result<Vec<_>, _>>()?;
-    evaluate_call_value(func, arg_values, env)
+    let compiled = crate::timeline::modifier_runtime::ir::compile_expr(expr)?;
+    crate::timeline::modifier_runtime::ir::evaluate_compiled_expr(&compiled, env)
 }
 
 /// Invoke a named function with already-evaluated arguments.
@@ -506,18 +246,10 @@ pub(crate) fn evaluate_call_value(
     arg_values: Vec<Value>,
     env: &Environment,
 ) -> Result<Value, EvalError> {
-    // Fast-path: known builtins go through eval_shared
-    if let Ok(val) = super::eval_shared::eval_builtin_fn(func, &arg_values) {
-        return Ok(val);
-    }
-
-    // Look up the function in the environment
+    // 1. If an environment binding exists for this function, it takes precedence (e.g. shadowed builtins)
     if let Some(val) = env.get(func) {
-        match val {
+        return match val {
             Value::NativeFn(native_func) => native_func(&arg_values, env),
-            // Closures evaluate against the captured (lexical) environment,
-            // then bind parameters on top. Free variables resolve to their
-            // values at creation time, not call time.
             Value::UserFn {
                 name, params, body, ..
             } => super::fn_eval::evaluate_user_fn(&name, &params, &body, &arg_values, env),
@@ -525,6 +257,22 @@ pub(crate) fn evaluate_call_value(
                 invoke_closure_value(&params, &body, captures, arg_values, func, env)
             },
             _ => Err(EvalError::NotCallable(func.to_string())),
+        };
+    }
+
+    // 2. Known builtins go through eval_shared
+    match super::eval_shared::eval_builtin_fn(func, &arg_values) {
+        Ok(val) => return Ok(val),
+        Err(EvalError::UndefinedVariable(_)) => {},
+        Err(e) => return Err(e),
+    }
+
+    // 3. Dotted method call on a value in the environment (e.g. `text.length()` or `items.length()`)
+    if let Some((target, method)) = func.rsplit_once('.') {
+        if let Some(receiver) = env.get_path(target) {
+            eval_method_dispatch(receiver, method, &arg_values, env)
+        } else {
+            Err(EvalError::UndefinedVariable(func.to_string()))
         }
     } else {
         Err(EvalError::UndefinedVariable(func.to_string()))
@@ -594,7 +342,7 @@ pub(crate) fn invoke_closure_value(
 
 /// Evaluate a method call on a receiver value.
 /// Shared method dispatch logic that operates on already-evaluated argument values.
-/// This is called by both the tree-walker (evaluate_method) and IR/VM (eval_method)
+/// This is called by both the tree-walker and IR/VM (eval_method)
 /// to avoid code duplication.
 pub(crate) fn eval_method_dispatch(
     receiver: Value,
@@ -605,6 +353,15 @@ pub(crate) fn eval_method_dispatch(
     // Dispatch to NativeFn if receiver is a NativeFn (e.g. graph.map)
     if let Value::NativeFn(f) = &receiver {
         return f(args, _env);
+    }
+
+    // Object field access support: obj.field() or obj.field
+    if let Value::Object(_type_name, fields) = &receiver {
+        if args.is_empty() {
+            if let Some(field_value) = fields.get(name) {
+                return Ok(field_value.clone());
+            }
+        }
     }
 
     match (receiver, name) {
@@ -721,37 +478,6 @@ pub(crate) fn eval_method_dispatch(
         (receiver, name) => {
             Err(EvalError::UnsupportedMethod(format!("{}.{}()", format_value(&receiver), name)))
         },
-    }
-}
-
-/// Evaluate a method call on a receiver value (tree-walker version).
-/// Evaluates Expr arguments to Values, then delegates to eval_method_dispatch.
-fn evaluate_method(
-    receiver: Value,
-    name: &str,
-    args: &[Expr],
-    env: &Environment,
-) -> Result<Value, EvalError> {
-    // Evaluate arguments first
-    let arg_values: Vec<Value> =
-        args.iter().map(|arg| evaluate_expr(arg, env)).collect::<Result<Vec<_>, _>>()?;
-
-    // Call shared dispatch
-    match eval_method_dispatch(receiver.clone(), name, &arg_values, env) {
-        Ok(value) => Ok(value),
-        Err(EvalError::UnsupportedMethod(msg)) => {
-            // Tree-walker has additional Object field access support
-            if let Value::Object(_type_name, fields) = &receiver {
-                if arg_values.is_empty() {
-                    if let Some(field_value) = fields.get(name) {
-                        return Ok(field_value.clone());
-                    }
-                }
-            }
-            // Not an Object field access, return the original error
-            Err(EvalError::UnsupportedMethod(msg))
-        },
-        Err(e) => Err(e),
     }
 }
 

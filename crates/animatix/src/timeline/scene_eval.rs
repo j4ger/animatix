@@ -1653,7 +1653,7 @@ impl Timeline {
         }
         let mut frags: Vec<FragInfo> = Vec::new();
         for child_label in &children {
-            let Some(child_track) = self.tracks.get(*child_label) else {
+            let Some(child_track) = self.tracks.get(child_label) else {
                 continue;
             };
             // A fragment is any child whose primitive opts into
@@ -1995,7 +1995,7 @@ impl Timeline {
         let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
 
         for child_label in &children {
-            let Some(child_track) = self.tracks.get(*child_label) else {
+            let Some(child_track) = self.tracks.get(child_label) else {
                 continue;
             };
             let Some(primitive) = self.track_primitive_at(child_track, time_ms) else {

@@ -95,6 +95,9 @@ pub(crate) fn evaluate_compiled_expr(
                 BuiltinFn::CurveSmooth => "curve_smooth",
                 BuiltinFn::SeededRand => "seeded_rand",
             };
+            if env.get(name).is_some() {
+                return crate::timeline::utils::evaluate_call_value(name, args, env);
+            }
             crate::timeline::eval_shared::eval_builtin_fn(name, &args)
         },
         CompiledExpr::CallEnv(name, args) => {
@@ -215,9 +218,14 @@ pub(crate) fn evaluate_compiled_expr(
             }
             Ok(Value::Object(name.clone(), map))
         },
-        CompiledExpr::AnchorLookup { actor, anchor } => env_anchor_point(env, actor, *anchor)
-            .map(Value::Vec2)
-            .ok_or_else(|| EvalError::UndefinedVariable(format!("{actor}.{}", anchor.as_str()))),
+        CompiledExpr::AnchorLookup { actor, anchor } => {
+            if let Some(point) = env_anchor_point(env, actor, *anchor) {
+                Ok(Value::Vec2(point))
+            } else {
+                let name = format!("{actor}.{}", anchor.as_str());
+                env.get_path(&name).ok_or(EvalError::UndefinedVariable(name))
+            }
+        },
     }
 }
 
@@ -240,28 +248,23 @@ pub(crate) fn apply_binary_op(
 }
 
 pub(crate) fn make_vec_value(values: Vec<Value>) -> Result<Value, EvalError> {
-    // Elements must be numeric: a non-Num element is a type error, never a
-    // silent 0.0 coercion (the tree-walker keeps heterogeneous lists as
-    // `Value::List` and errors identically).
-    for (i, v) in values.iter().enumerate() {
-        if !matches!(v, Value::Num(_)) {
-            return Err(EvalError::TypeMismatch(format!(
-                "vector/list elements must be numbers, element {i} is {:?}",
-                v
-            )));
+    let all_num = values.iter().all(|v| matches!(v, Value::Num(_)));
+    if all_num {
+        match values.len() {
+            2 => Ok(Value::Vec2([values[0].as_num(), values[1].as_num()])),
+            3 => Ok(Value::Vec3([values[0].as_num(), values[1].as_num(), values[2].as_num()])),
+            4 => Ok(Value::Vec4([
+                values[0].as_num(),
+                values[1].as_num(),
+                values[2].as_num(),
+                values[3].as_num(),
+            ])),
+            _ => Ok(Value::List(values.into())),
         }
+    } else {
+        // Heterogeneous or non-numeric tuple (e.g. tuple of colors, strings, or nested tuples) becomes a List
+        Ok(Value::List(values.into()))
     }
-    Ok(match values.len() {
-        2 => Value::Vec2([values[0].as_num(), values[1].as_num()]),
-        3 => Value::Vec3([values[0].as_num(), values[1].as_num(), values[2].as_num()]),
-        4 => Value::Vec4([
-            values[0].as_num(),
-            values[1].as_num(),
-            values[2].as_num(),
-            values[3].as_num(),
-        ]),
-        _ => Value::List(values.into()),
-    })
 }
 
 /// Pre-indexed compiled expression for high-throughput scalar math evaluation (curve plot

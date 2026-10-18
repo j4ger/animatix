@@ -19,9 +19,10 @@ pub struct KeyframeEntry<T> {
 /// - `One`: 1 keyframe (covers static / declaration-only properties)
 /// - `Two`: 2 keyframes (covers standard A->B animations without heap allocation)
 /// - `Many`: 3+ keyframes, kept strictly sorted by timestamp in a flat vector
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub enum Keyframes<T> {
     /// Zero keyframes; track defaults to its initial value.
+    #[default]
     Empty,
     /// Exactly one keyframe (zero-heap inline storage).
     One(KeyframeEntry<T>),
@@ -29,12 +30,6 @@ pub enum Keyframes<T> {
     Two([KeyframeEntry<T>; 2]),
     /// Three or more keyframes allocated in a sorted vector.
     Many(Vec<KeyframeEntry<T>>),
-}
-
-impl<T> Default for Keyframes<T> {
-    fn default() -> Self {
-        Self::Empty
-    }
 }
 
 impl<T> Keyframes<T> {
@@ -427,7 +422,7 @@ impl<'a, T> IntoIterator for &'a Keyframes<T> {
     >;
 
     fn into_iter(self) -> Self::IntoIter {
-        fn mapper<'a, T>(k: &'a KeyframeEntry<T>) -> (&'a u64, &'a (T, Easing)) {
+        fn mapper<T>(k: &KeyframeEntry<T>) -> (&u64, &(T, Easing)) {
             (&k.time_ms, &k.payload)
         }
         self.as_slice().iter().map(mapper)
