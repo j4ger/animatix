@@ -626,16 +626,82 @@ impl PropertySchema {
 /// **Must be sorted by `.name`** for `lookup_property()` binary search.
 /// A `#[test]` below verifies this invariant.
 use PropertyFlags as F;
+use ValueType as V;
 
-macro_rules! binding {
-    ($name:expr, $ty:expr, $flags:expr, $field:expr, $default:expr $(, $read:expr)?) => {
+macro_rules! val {
+    (f32 $v:expr) => {
+        |_| super::property_engine::PropertyValue::F32($v)
+    };
+    (u32 $v:expr) => {
+        |_| super::property_engine::PropertyValue::U32($v)
+    };
+    (bool $v:expr) => {
+        |_| super::property_engine::PropertyValue::Bool($v)
+    };
+    (str $v:expr) => {
+        |_| super::property_engine::PropertyValue::String($v.to_string())
+    };
+    (vec2 $x:expr, $y:expr) => {
+        |_| super::property_engine::PropertyValue::Vec2([$x, $y])
+    };
+    (vec4 $r:expr, $g:expr, $b:expr, $a:expr) => {
+        |_| super::property_engine::PropertyValue::Vec4([$r, $g, $b, $a])
+    };
+    (color $r:expr, $g:expr, $b:expr, $a:expr) => {
+        |_| super::property_engine::PropertyValue::Color([$r, $g, $b, $a])
+    };
+    (gradient) => {
+        |_| super::property_engine::PropertyValue::Gradient(Default::default())
+    };
+    (point_list) => {
+        |_| super::property_engine::PropertyValue::PointList(Vec::new())
+    };
+    (f32_list) => {
+        |_| super::property_engine::PropertyValue::F32List(Vec::new())
+    };
+    (commands) => {
+        |_| super::property_engine::PropertyValue::CommandList(String::new())
+    };
+    (transform) => {
+        |_| super::property_engine::PropertyValue::Transform([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
+    };
+    (enum $v:expr) => {
+        |_| super::property_engine::PropertyValue::Enum($v.to_string())
+    };
+    (caps $c:expr) => {
+        $c
+    };
+}
+
+macro_rules! b {
+    ($name:literal, $ty:expr, $flags:expr, Tagged, $val:expr $(, $read:expr)?) => {
         PropertyBinding {
             name: $name,
             value_type: $ty,
             flags: $flags,
-            field: $field,
-            default_value: $default,
-            read_source: binding!(@read $field $(, $read)?),
+            field: ActorField::Tagged($name),
+            default_value: $val,
+            read_source: b!(@read ActorField::Tagged($name) $(, $read)?),
+        }
+    };
+    ($name:literal, $ty:expr, $flags:expr, Tagged($tagged_name:literal), $val:expr $(, $read:expr)?) => {
+        PropertyBinding {
+            name: $name,
+            value_type: $ty,
+            flags: $flags,
+            field: ActorField::Tagged($tagged_name),
+            default_value: $val,
+            read_source: b!(@read ActorField::Tagged($tagged_name) $(, $read)?),
+        }
+    };
+    ($name:literal, $ty:expr, $flags:expr, $field:ident, $val:expr $(, $read:expr)?) => {
+        PropertyBinding {
+            name: $name,
+            value_type: $ty,
+            flags: $flags,
+            field: ActorField::$field,
+            default_value: $val,
+            read_source: b!(@read ActorField::$field $(, $read)?),
         }
     };
     (@read $field:expr) => {
@@ -710,735 +776,334 @@ pub static PROPERTY_REGISTRY: std::sync::LazyLock<Vec<PropertySchema>> =
 /// [`animatix_core::property::PROPERTY_DESCRIPTORS`] and are joined in by
 /// [`PROPERTY_REGISTRY`].
 static BINDINGS: &[PropertyBinding] = &[
-    binding!(
+    b!(
         "active_color",
-        ValueType::Color,
+        V::Color,
         F::ASSIGNABLE_AI,
-        ActorField::Tagged("active_color"),
-        |_| super::property_engine::PropertyValue::Color([1.0, 0.8, 0.0, 1.0])
+        Tagged,
+        val!(color 1.0, 0.8, 0.0, 1.0)
     ),
-    binding!("align", ValueType::String, F::empty(), ActorField::ContainerLayoutGroup, |_| {
-        super::property_engine::PropertyValue::String("center".to_string())
-    }),
-    binding!(
+    b!("align", V::String, F::empty(), ContainerLayoutGroup, val!(str "center")),
+    b!(
         "anchor",
-        ValueType::SceneAnchor,
+        V::SceneAnchor,
         F::ASSIGNABLE_AI,
-        ActorField::PositionBindingGroup,
-        |_| super::property_engine::PropertyValue::String("center".to_string()),
+        PositionBindingGroup,
+        val!(str "center"),
         ReadSource::None_
     ),
-    binding!("arrow", ValueType::Bool, F::ASSIGNABLE_AI, ActorField::Tagged("arrow"), |_| {
-        super::property_engine::PropertyValue::Bool(true)
-    }),
-    binding!("ascent", ValueType::F32, F::ANIMATED, ActorField::Ascent, |_| {
-        super::property_engine::PropertyValue::F32(0.0)
-    }),
-    binding!(
+    b!("arrow", V::Bool, F::ASSIGNABLE_AI, Tagged, val!(bool true)),
+    b!("ascent", V::F32, F::ANIMATED, Ascent, val!(f32 0.0)),
+    b!(
         "at",
-        ValueType::Vec2,
+        V::Vec2,
         F::SPATIAL_AI,
-        ActorField::PositionBindingGroup,
-        |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0]),
+        PositionBindingGroup,
+        val!(vec2 0.0, 0.0),
         ReadSource::Alias(ActorField::Position)
     ),
-    binding!(
-        "backdrop",
-        ValueType::Bool,
-        F::ASSIGNABLE_AI,
-        ActorField::Tagged("backdrop"),
-        |_| super::property_engine::PropertyValue::Bool(false)
-    ),
-    binding!(
+    b!("backdrop", V::Bool, F::ASSIGNABLE_AI, Tagged, val!(bool false)),
+    b!(
         "backdrop_color",
-        ValueType::Color,
+        V::Color,
         F::ASSIGNABLE_AI,
-        ActorField::Tagged("backdrop_color"),
-        |_| super::property_engine::PropertyValue::Color([0.0, 0.0, 0.0, 0.65])
+        Tagged,
+        val!(color 0.0, 0.0, 0.0, 0.65)
     ),
-    binding!(
-        "backdrop_padding",
-        ValueType::Vec2,
-        F::ASSIGNABLE_AI,
-        ActorField::Tagged("backdrop_padding"),
-        |_| super::property_engine::PropertyValue::Vec2([16.0, 8.0])
-    ),
-    binding!(
-        "backdrop_radius",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::Tagged("backdrop_radius"),
-        |_| super::property_engine::PropertyValue::F32(8.0)
-    ),
-    binding!(
+    b!("backdrop_padding", V::Vec2, F::ASSIGNABLE_AI, Tagged, val!(vec2 16.0, 8.0)),
+    b!("backdrop_radius", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 8.0)),
+    b!(
         "background_color",
-        ValueType::Color,
+        V::Color,
         F::ASSIGNABLE_AI,
-        ActorField::Color,
-        |_| super::property_engine::PropertyValue::Color([0.0, 0.0, 0.0, 1.0]),
+        Color,
+        val!(color 0.0, 0.0, 0.0, 1.0),
         ReadSource::None_
     ),
-    binding!(
-        "bar_colors",
-        ValueType::BuildTimeOnly,
-        F::empty(),
-        ActorField::NoStorage,
-        |_| super::property_engine::PropertyValue::String("auto".to_string())
-    ),
-    binding!("bar_width", ValueType::F32, F::empty(), ActorField::NoStorage, |_| {
-        super::property_engine::PropertyValue::F32(0.0)
-    }),
-    binding!("baseline", ValueType::F32, F::ANIMATED, ActorField::Baseline, |_| {
-        super::property_engine::PropertyValue::F32(0.0)
-    }),
+    b!("bar_colors", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "auto")),
+    b!("bar_width", V::F32, F::empty(), NoStorage, val!(f32 0.0)),
+    b!("baseline", V::F32, F::ANIMATED, Baseline, val!(f32 0.0)),
     // `blend` and `dash_pattern` are deliberately not INJECTABLE: the frame
     // environment injects every INJECTABLE row of every actor every frame, and a
     // blend name / dash list is written and stamped, never read back. See the note
     // on `fill_gradient`.
-    binding!("blend", ValueType::String, F::ASSIGNABLE_A, ActorField::Blend, |_| {
-        super::property_engine::PropertyValue::String("normal".to_string())
-    }),
-    binding!(
+    b!("blend", V::String, F::ASSIGNABLE_A, Blend, val!(str "normal")),
+    b!(
         "bounds",
-        ValueType::Vec4,
+        V::Vec4,
         F::ASSIGNABLE_AI,
-        ActorField::Tagged("filter_bounds"),
-        |_| super::property_engine::PropertyValue::Vec4([0.0, 0.0, 0.0, 0.0])
+        Tagged("filter_bounds"),
+        val!(vec4 0.0, 0.0, 0.0, 0.0)
     ),
-    binding!(
-        "camera_follow",
-        ValueType::BuildTimeOnly,
-        F::empty(),
-        ActorField::NoStorage,
-        |_| super::property_engine::PropertyValue::Bool(true)
-    ),
-    binding!(
-        "caption_mode",
-        ValueType::String,
-        F::ASSIGNABLE_AI,
-        ActorField::Tagged("caption_mode"),
-        |_| super::property_engine::PropertyValue::String("block".to_string())
-    ),
-    binding!(
-        "char_progress",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::CharProgress,
-        |_| super::property_engine::PropertyValue::F32(1.0)
-    ),
-    binding!("code", ValueType::String, F::ANIMATED, ActorField::TextContent, |_| {
-        super::property_engine::PropertyValue::String(String::new())
-    }),
-    binding!("color", ValueType::Color, F::ASSIGNABLE_AI, ActorField::Color, |_| {
-        super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])
-    }),
-    binding!("cols", ValueType::U32, F::empty(), ActorField::ContainerLayoutGroup, |_| {
-        super::property_engine::PropertyValue::U32(2)
-    }),
-    binding!("comma", ValueType::Bool, F::ASSIGNABLE_AI, ActorField::Tagged("comma"), |_| {
-        super::property_engine::PropertyValue::Bool(false)
-    }),
-    binding!(
+    b!("camera_follow", V::BuildTimeOnly, F::empty(), NoStorage, val!(bool true)),
+    b!("caption_mode", V::String, F::ASSIGNABLE_AI, Tagged, val!(str "block")),
+    b!("char_progress", V::F32, F::ASSIGNABLE_AI, CharProgress, val!(f32 1.0)),
+    b!("code", V::String, F::ANIMATED, TextContent, val!(str "")),
+    b!("color", V::Color, F::ASSIGNABLE_AI, Color, val!(color 1.0, 1.0, 1.0, 1.0)),
+    b!("cols", V::U32, F::empty(), ContainerLayoutGroup, val!(u32 2)),
+    b!("comma", V::Bool, F::ASSIGNABLE_AI, Tagged, val!(bool false)),
+    b!(
         "commands",
-        ValueType::CommandList,
+        V::CommandList,
         F::ASSIGNABLE_A.union(F::SPATIAL).union(F::PATH_AFFECTING),
-        ActorField::Commands,
-        |_| super::property_engine::PropertyValue::CommandList(String::new())
+        Commands,
+        val!(commands)
     ),
-    binding!("corner_radius", ValueType::F32, F::PATH_AI, ActorField::CornerRadius, |_| {
-        super::property_engine::PropertyValue::F32(0.0)
-    }),
-    binding!("dash_offset", ValueType::F32, F::ASSIGNABLE_AI, ActorField::DashOffset, |_| {
-        super::property_engine::PropertyValue::F32(0.0)
-    }),
-    binding!(
-        "dash_pattern",
-        ValueType::F32List,
-        // Not INJECTABLE: see the note on `blend`. The stamp reads the track
-        // directly, so injection only ever cost a `Vec` clone per actor per
-        // frame. `dash_offset` stays injectable — `(r.dash_offset + 0.4) % 17`
-        // is how marching ants are written.
-        F::ASSIGNABLE_A,
-        ActorField::DashPattern,
-        |_| super::property_engine::PropertyValue::F32List(Vec::new())
-    ),
-    binding!("data", ValueType::BuildTimeOnly, F::empty(), ActorField::NoStorage, |_| {
-        super::property_engine::PropertyValue::String("auto".to_string())
-    }),
-    binding!(
-        "decimals",
-        ValueType::U32,
-        F::ASSIGNABLE_AI,
-        ActorField::Tagged("decimals"),
-        |_| { super::property_engine::PropertyValue::U32(0) }
-    ),
-    binding!("density", ValueType::F32, F::empty(), ActorField::PlotDomainGroup, |_| {
-        super::property_engine::PropertyValue::F32(16.0)
-    }),
-    binding!("descent", ValueType::F32, F::ANIMATED, ActorField::Descent, |_| {
-        super::property_engine::PropertyValue::F32(0.0)
-    }),
-    binding!("direction", ValueType::String, F::empty(), ActorField::NoStorage, |_| {
-        super::property_engine::PropertyValue::String("vertical".to_string())
-    }),
-    binding!("end", ValueType::F32, F::ASSIGNABLE_AI, ActorField::Tagged("end"), |_| {
-        super::property_engine::PropertyValue::F32(0.0)
-    }),
-    binding!(
-        "fill_gradient",
-        ValueType::Gradient,
-        // Deliberately not INJECTABLE (also `stroke_gradient`, `gradient_extend`,
-        // `gradient_space`): the frame environment injects every INJECTABLE
-        // property of every actor every frame, so four more rows cost ~15% on
-        // `reactive_evaluate_100frames` for a value no scene reads back. A ramp
-        // is written, sampled by the shape stamp and never referenced — and
-        // `&r.fill_gradient` says so with `unknown-target-path` rather than
-        // silently reading nothing.
-        F::ASSIGNABLE_A,
-        ActorField::FillGradient,
-        |_| super::property_engine::PropertyValue::Gradient(Default::default())
-    ),
-    binding!(
-        "fill_opacity",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::FillOpacity,
-        |_| super::property_engine::PropertyValue::F32(1.0)
-    ),
-    binding!(
+    b!("corner_radius", V::F32, F::PATH_AI, CornerRadius, val!(f32 0.0)),
+    b!("dash_offset", V::F32, F::ASSIGNABLE_AI, DashOffset, val!(f32 0.0)),
+    b!("dash_pattern", V::F32List, F::ASSIGNABLE_A, DashPattern, val!(f32_list)),
+    b!("data", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "auto")),
+    b!("decimals", V::U32, F::ASSIGNABLE_AI, Tagged, val!(u32 0)),
+    b!("density", V::F32, F::empty(), PlotDomainGroup, val!(f32 16.0)),
+    b!("descent", V::F32, F::ANIMATED, Descent, val!(f32 0.0)),
+    b!("direction", V::String, F::empty(), NoStorage, val!(str "vertical")),
+    b!("end", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
+    b!("fill_gradient", V::Gradient, F::ASSIGNABLE_A, FillGradient, val!(gradient)),
+    b!("fill_opacity", V::F32, F::ASSIGNABLE_AI, FillOpacity, val!(f32 1.0)),
+    b!(
         "font_family",
-        ValueType::String,
+        V::String,
         F::ASSIGNABLE_A,
-        ActorField::FontFamily,
-        |_| {
-            super::property_engine::PropertyValue::String(
-                crate::renderer::text::DEFAULT_FONT_FAMILY.to_string(),
-            )
-        }
+        FontFamily,
+        val!(str crate::renderer::text::DEFAULT_FONT_FAMILY)
     ),
-    binding!("font_size", ValueType::F32, F::ASSIGNABLE_A, ActorField::FontSize, |caps| {
-        match caps.text {
-            Some(crate::timeline::actor_caps::TextKind::Text) => {
-                super::property_engine::PropertyValue::F32(48.0)
-            },
-            Some(crate::timeline::actor_caps::TextKind::Typst) => {
-                super::property_engine::PropertyValue::F32(36.0)
-            },
-            _ => super::property_engine::PropertyValue::F32(24.0),
-        }
-    }),
-    binding!("font_style", ValueType::String, F::ASSIGNABLE_A, ActorField::FontStyle, |_| {
-        super::property_engine::PropertyValue::String("normal".to_string())
-    }),
-    binding!("font_weight", ValueType::F32, F::ASSIGNABLE_A, ActorField::FontWeight, |_| {
-        super::property_engine::PropertyValue::F32(400.0)
-    }),
-    binding!("from", ValueType::Vec2, F::SPATIAL_PATH_AI, ActorField::LineFrom, |_| {
-        super::property_engine::PropertyValue::Vec2([0.0, 0.0])
-    }),
-    binding!(
-        "func",
-        ValueType::BuildTimeOnly,
-        F::empty(),
-        ActorField::PlotDomainGroup,
-        |_| super::property_engine::PropertyValue::String(String::new())
-    ),
-    binding!("gap", ValueType::F32, F::empty(), ActorField::ContainerLayoutGroup, |_| {
-        super::property_engine::PropertyValue::F32(0.0)
-    }),
-    binding!(
-        "gradient_extend",
-        ValueType::String,
+    b!(
+        "font_size",
+        V::F32,
         F::ASSIGNABLE_A,
-        ActorField::GradientExtend,
-        |_| super::property_engine::PropertyValue::String("pad".to_string())
+        FontSize,
+        val!(
+            caps | caps | {
+                match caps.text {
+                    Some(crate::timeline::actor_caps::TextKind::Text) => {
+                        super::property_engine::PropertyValue::F32(48.0)
+                    },
+                    Some(crate::timeline::actor_caps::TextKind::Typst) => {
+                        super::property_engine::PropertyValue::F32(36.0)
+                    },
+                    _ => super::property_engine::PropertyValue::F32(24.0),
+                }
+            }
+        )
     ),
-    binding!(
-        "gradient_space",
-        ValueType::String,
-        F::ASSIGNABLE_A,
-        ActorField::GradientSpace,
-        |_| super::property_engine::PropertyValue::String("oklab".to_string())
-    ),
-    binding!("grid", ValueType::String, F::empty(), ActorField::PlotDomainGroup, |_| {
-        super::property_engine::PropertyValue::String("auto".to_string())
-    }),
-    binding!("head_size", ValueType::F32, F::PATH_AI, ActorField::HeadSize, |_| {
-        super::property_engine::PropertyValue::F32(10.0)
-    }),
-    binding!(
+    b!("font_style", V::String, F::ASSIGNABLE_A, FontStyle, val!(str "normal")),
+    b!("font_weight", V::F32, F::ASSIGNABLE_A, FontWeight, val!(f32 400.0)),
+    b!("from", V::Vec2, F::SPATIAL_PATH_AI, LineFrom, val!(vec2 0.0, 0.0)),
+    b!("func", V::BuildTimeOnly, F::empty(), PlotDomainGroup, val!(str "")),
+    b!("gap", V::F32, F::empty(), ContainerLayoutGroup, val!(f32 0.0)),
+    b!("gradient_extend", V::String, F::ASSIGNABLE_A, GradientExtend, val!(str "pad")),
+    b!("gradient_space", V::String, F::ASSIGNABLE_A, GradientSpace, val!(str "oklab")),
+    b!("grid", V::String, F::empty(), PlotDomainGroup, val!(str "auto")),
+    b!("head_size", V::F32, F::PATH_AI, HeadSize, val!(f32 10.0)),
+    b!(
         "height",
-        ValueType::F32,
+        V::F32,
         F::ANIMATED_I.union(F::SPATIAL).union(F::PATH_AFFECTING),
-        ActorField::Size,
-        |_| super::property_engine::PropertyValue::F32(100.0),
+        Size,
+        val!(f32 100.0),
         ReadSource::Component {
             field: ActorField::Size,
             index: 1,
             scale: 2.0
         }
     ),
-    binding!(
+    b!(
         "highlight_color",
-        ValueType::Color,
+        V::Color,
         F::ANIMATED,
-        ActorField::HighlightColor,
-        |_| super::property_engine::PropertyValue::Vec4([0.3, 0.5, 1.0, 1.0])
+        HighlightColor,
+        val!(vec4 0.3, 0.5, 1.0, 1.0)
     ),
-    binding!(
-        "highlight_opacity",
-        ValueType::F32,
-        F::ANIMATED,
-        ActorField::HighlightOpacity,
-        |_| super::property_engine::PropertyValue::F32(0.0)
-    ),
-    binding!(
-        "highlight_padding",
-        ValueType::F32,
-        F::ANIMATED,
-        ActorField::HighlightPadding,
-        |_| super::property_engine::PropertyValue::F32(4.0)
-    ),
-    binding!(
-        "highlight_radius",
-        ValueType::F32,
-        F::ANIMATED,
-        ActorField::HighlightRadius,
-        |_| super::property_engine::PropertyValue::F32(3.0)
-    ),
-    binding!("icon", ValueType::BuildTimeOnly, F::empty(), ActorField::NoStorage, |_| {
-        super::property_engine::PropertyValue::String(String::new())
-    }),
-    binding!("idle", ValueType::String, F::ASSIGNABLE_AI, ActorField::Tagged("idle"), |_| {
-        super::property_engine::PropertyValue::String(String::new())
-    }),
-    binding!(
+    b!("highlight_opacity", V::F32, F::ANIMATED, HighlightOpacity, val!(f32 0.0)),
+    b!("highlight_padding", V::F32, F::ANIMATED, HighlightPadding, val!(f32 4.0)),
+    b!("highlight_radius", V::F32, F::ANIMATED, HighlightRadius, val!(f32 3.0)),
+    b!("icon", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "")),
+    b!("idle", V::String, F::ASSIGNABLE_AI, Tagged, val!(str "")),
+    b!(
         "inactive_color",
-        ValueType::Color,
+        V::Color,
         F::ASSIGNABLE_AI,
-        ActorField::Tagged("inactive_color"),
-        |_| super::property_engine::PropertyValue::Color([0.6, 0.6, 0.6, 0.8])
+        Tagged,
+        val!(color 0.6, 0.6, 0.6, 0.8)
     ),
-    binding!("kind", ValueType::String, F::empty(), ActorField::PlotDomainGroup, |_| {
-        super::property_engine::PropertyValue::String("cartesian".to_string())
-    }),
-    binding!("label", ValueType::String, F::ASSIGNABLE_A, ActorField::TextContent, |_| {
-        super::property_engine::PropertyValue::String(String::new())
-    }),
-    binding!("label_at", ValueType::Vec2, F::ASSIGNABLE_AI, ActorField::LabelAt, |_| {
-        super::property_engine::PropertyValue::Vec2([0.0, 0.0])
-    }),
-    binding!(
+    b!("kind", V::String, F::empty(), PlotDomainGroup, val!(str "cartesian")),
+    b!("label", V::String, F::ASSIGNABLE_A, TextContent, val!(str "")),
+    b!("label_at", V::Vec2, F::ASSIGNABLE_AI, LabelAt, val!(vec2 0.0, 0.0)),
+    b!(
         "label_color",
-        ValueType::Color,
+        V::Color,
         F::ASSIGNABLE_A,
-        ActorField::Tagged("legend_label_color"),
-        |_| super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])
+        Tagged("legend_label_color"),
+        val!(color 1.0, 1.0, 1.0, 1.0)
     ),
-    binding!("language", ValueType::String, F::ASSIGNABLE_A, ActorField::Language, |_| {
-        super::property_engine::PropertyValue::String(String::new())
-    }),
-    binding!(
-        "legend",
-        ValueType::Sum(LEGEND_SUM_VARIANTS),
-        F::ASSIGNABLE_A,
-        ActorField::Tagged("legend"),
-        |_| super::property_engine::PropertyValue::Bool(true)
-    ),
-    binding!(
-        "letter_spacing",
-        ValueType::F32,
-        F::ASSIGNABLE_A,
-        ActorField::LetterSpacing,
-        |_| super::property_engine::PropertyValue::F32(0.0)
-    ),
-    binding!("levels", ValueType::Vec2, F::empty(), ActorField::PlotDomainGroup, |_| {
-        super::property_engine::PropertyValue::Vec2([0.0, 1.0])
-    }),
-    binding!("line_cap", ValueType::U32, F::ASSIGNABLE_AI, ActorField::LineCap, |_| {
-        super::property_engine::PropertyValue::U32(0)
-    }),
-    binding!("line_height", ValueType::F32, F::ASSIGNABLE_A, ActorField::LineHeight, |_| {
-        super::property_engine::PropertyValue::F32(1.2)
-    }),
-    binding!("line_join", ValueType::U32, F::ASSIGNABLE_AI, ActorField::LineJoin, |_| {
-        super::property_engine::PropertyValue::U32(0)
-    }),
-    binding!("max_depth", ValueType::F32, F::empty(), ActorField::PlotDomainGroup, |_| {
-        super::property_engine::PropertyValue::F32(12.0)
-    }),
-    binding!("max_height", ValueType::F32, F::SPATIAL_AI, ActorField::MaxHeight, |_| {
-        super::property_engine::PropertyValue::F32(f32::INFINITY)
-    }),
-    binding!(
-        "max_lines",
-        ValueType::U32,
-        F::ASSIGNABLE_AI,
-        ActorField::Tagged("max_lines"),
-        |_| super::property_engine::PropertyValue::U32(2)
-    ),
-    binding!("max_value", ValueType::F32, F::empty(), ActorField::NoStorage, |_| {
-        super::property_engine::PropertyValue::F32(0.0)
-    }),
-    binding!("max_width", ValueType::F32, F::ASSIGNABLE_A, ActorField::TextMaxWidth, |_| {
-        super::property_engine::PropertyValue::F32(0.0)
-    }),
-    binding!("min_height", ValueType::F32, F::SPATIAL_AI, ActorField::MinHeight, |_| {
-        super::property_engine::PropertyValue::F32(0.0)
-    }),
-    binding!("min_width", ValueType::F32, F::SPATIAL_AI, ActorField::MinWidth, |_| {
-        super::property_engine::PropertyValue::F32(0.0)
-    }),
-    binding!(
+    b!("language", V::String, F::ASSIGNABLE_A, Language, val!(str "")),
+    b!("legend", V::Sum(LEGEND_SUM_VARIANTS), F::ASSIGNABLE_A, Tagged, val!(bool true)),
+    b!("letter_spacing", V::F32, F::ASSIGNABLE_A, LetterSpacing, val!(f32 0.0)),
+    b!("levels", V::Vec2, F::empty(), PlotDomainGroup, val!(vec2 0.0, 1.0)),
+    b!("line_cap", V::U32, F::ASSIGNABLE_AI, LineCap, val!(u32 0)),
+    b!("line_height", V::F32, F::ASSIGNABLE_A, LineHeight, val!(f32 1.2)),
+    b!("line_join", V::U32, F::ASSIGNABLE_AI, LineJoin, val!(u32 0)),
+    b!("max_depth", V::F32, F::empty(), PlotDomainGroup, val!(f32 12.0)),
+    b!("max_height", V::F32, F::SPATIAL_AI, MaxHeight, val!(f32 f32::INFINITY)),
+    b!("max_lines", V::U32, F::ASSIGNABLE_AI, Tagged, val!(u32 2)),
+    b!("max_value", V::F32, F::empty(), NoStorage, val!(f32 0.0)),
+    b!("max_width", V::F32, F::ASSIGNABLE_A, TextMaxWidth, val!(f32 0.0)),
+    b!("min_height", V::F32, F::SPATIAL_AI, MinHeight, val!(f32 0.0)),
+    b!("min_width", V::F32, F::SPATIAL_AI, MinWidth, val!(f32 0.0)),
+    b!(
         "offset",
-        ValueType::Vec2,
+        V::Vec2,
         F::SPATIAL_AI,
-        ActorField::PositionBindingGroup,
-        |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0]),
+        PositionBindingGroup,
+        val!(vec2 0.0, 0.0),
         ReadSource::None_
     ),
-    binding!("opacity", ValueType::F32, F::PRESENCE_AI, ActorField::Opacity, |_| {
-        super::property_engine::PropertyValue::F32(1.0)
-    }),
-    binding!("overflow", ValueType::String, F::ASSIGNABLE_A, ActorField::Overflow, |_| {
-        super::property_engine::PropertyValue::String("visible".to_string())
-    }),
-    binding!("padding", ValueType::F32, F::empty(), ActorField::ContainerLayoutGroup, |_| {
-        super::property_engine::PropertyValue::F32(0.0)
-    }),
-    binding!("parallax", ValueType::F32, F::empty(), ActorField::NoStorage, |_| {
-        super::property_engine::PropertyValue::F32(1.0)
-    }),
-    binding!(
+    b!("opacity", V::F32, F::PRESENCE_AI, Opacity, val!(f32 1.0)),
+    b!("overflow", V::String, F::ASSIGNABLE_A, Overflow, val!(str "visible")),
+    b!("padding", V::F32, F::empty(), ContainerLayoutGroup, val!(f32 0.0)),
+    b!("parallax", V::F32, F::empty(), NoStorage, val!(f32 1.0)),
+    b!(
         "perspective",
-        ValueType::F32,
+        V::F32,
         F::ASSIGNABLE_AI.union(F::SPATIAL),
-        ActorField::Tagged("perspective"),
-        |_| super::property_engine::PropertyValue::F32(800.0)
+        Tagged,
+        val!(f32 800.0)
     ),
-    binding!(
+    b!(
         "place",
-        ValueType::Enum(&["auto", "top", "bottom", "left", "right", "above", "below"]),
+        V::Enum(&["auto", "top", "bottom", "left", "right", "above", "below"]),
         F::ASSIGNABLE,
-        ActorField::Tagged("callout_place"),
-        |_| super::property_engine::PropertyValue::Enum("right".to_string())
+        Tagged("callout_place"),
+        val!(enum "right")
     ),
-    binding!(
+    b!(
         "points",
-        ValueType::PointList,
+        V::PointList,
         F::ASSIGNABLE_A.union(F::SPATIAL).union(F::PATH_AFFECTING),
-        ActorField::Points,
-        |_| super::property_engine::PropertyValue::PointList(Vec::new())
+        Points,
+        val!(point_list)
     ),
-    binding!(
-        "pop_scale",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::Tagged("pop_scale"),
-        |_| super::property_engine::PropertyValue::F32(1.15)
-    ),
-    binding!("position", ValueType::Vec2, F::SPATIAL_AI, ActorField::Position, |_| {
-        super::property_engine::PropertyValue::Vec2([0.0, 0.0])
-    }),
-    binding!(
-        "prefix",
-        ValueType::String,
-        F::ASSIGNABLE_AI,
-        ActorField::Tagged("prefix"),
-        |_| { super::property_engine::PropertyValue::String(String::new()) }
-    ),
-    binding!(
+    b!("pop_scale", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 1.15)),
+    b!("position", V::Vec2, F::SPATIAL_AI, Position, val!(vec2 0.0, 0.0)),
+    b!("prefix", V::String, F::ASSIGNABLE_AI, Tagged, val!(str "")),
+    b!(
         "radius_x",
-        ValueType::F32,
+        V::F32,
         F::SPATIAL_PATH_AI,
-        ActorField::Size,
-        |_| super::property_engine::PropertyValue::F32(50.0),
+        Size,
+        val!(f32 50.0),
         ReadSource::Component {
             field: ActorField::Size,
             index: 0,
             scale: 1.0
         }
     ),
-    binding!(
+    b!(
         "radius_y",
-        ValueType::F32,
+        V::F32,
         F::SPATIAL_PATH_AI,
-        ActorField::Size,
-        |_| super::property_engine::PropertyValue::F32(50.0),
+        Size,
+        val!(f32 50.0),
         ReadSource::Component {
             field: ActorField::Size,
             index: 1,
             scale: 1.0
         }
     ),
-    binding!("resolution", ValueType::F32, F::empty(), ActorField::PlotDomainGroup, |_| {
-        super::property_engine::PropertyValue::F32(48.0)
-    }),
-    binding!(
-        "rotate_x",
-        ValueType::F32,
-        F::ASSIGNABLE_AI.union(F::SPATIAL),
-        ActorField::Tagged("rotate_x"),
-        |_| super::property_engine::PropertyValue::F32(0.0)
-    ),
-    binding!(
-        "rotate_y",
-        ValueType::F32,
-        F::ASSIGNABLE_AI.union(F::SPATIAL),
-        ActorField::Tagged("rotate_y"),
-        |_| super::property_engine::PropertyValue::F32(0.0)
-    ),
-    binding!("rotation", ValueType::F32, F::SPATIAL_AI, ActorField::Rotation, |_| {
-        super::property_engine::PropertyValue::F32(0.0)
-    }),
-    binding!(
-        "routing",
-        ValueType::String,
-        F::ASSIGNABLE_AI,
-        ActorField::Tagged("routing"),
-        |_| { super::property_engine::PropertyValue::String("elbow".to_string()) }
-    ),
-    binding!("scale", ValueType::F32, F::SPATIAL_AI, ActorField::Scale, |_| {
-        super::property_engine::PropertyValue::F32(1.0)
-    }),
-    binding!(
-        "shadow",
-        ValueType::Vec4,
-        F::ASSIGNABLE_AI,
-        ActorField::Tagged("shadow"),
-        |_| super::property_engine::PropertyValue::Vec4([0.0, 4.0, 12.0, 0.0])
-    ),
-    binding!(
+    b!("resolution", V::F32, F::empty(), PlotDomainGroup, val!(f32 48.0)),
+    b!("rotate_x", V::F32, F::ASSIGNABLE_AI.union(F::SPATIAL), Tagged, val!(f32 0.0)),
+    b!("rotate_y", V::F32, F::ASSIGNABLE_AI.union(F::SPATIAL), Tagged, val!(f32 0.0)),
+    b!("rotation", V::F32, F::SPATIAL_AI, Rotation, val!(f32 0.0)),
+    b!("routing", V::String, F::ASSIGNABLE_AI, Tagged, val!(str "elbow")),
+    b!("scale", V::F32, F::SPATIAL_AI, Scale, val!(f32 1.0)),
+    b!("shadow", V::Vec4, F::ASSIGNABLE_AI, Tagged, val!(vec4 0.0, 4.0, 12.0, 0.0)),
+    b!(
         "shadow_color",
-        ValueType::Color,
+        V::Color,
         F::ASSIGNABLE_AI,
-        ActorField::Tagged("shadow_color"),
-        |_| super::property_engine::PropertyValue::Color([0.0, 0.0, 0.0, 0.25])
+        Tagged,
+        val!(color 0.0, 0.0, 0.0, 0.25)
     ),
-    binding!(
-        "shared_id",
-        ValueType::String,
-        F::ASSIGNABLE,
-        ActorField::Tagged("shared_id"),
-        |_| super::property_engine::PropertyValue::String(String::new())
-    ),
-    binding!("shift", ValueType::Vec2, F::SPATIAL_AI, ActorField::MotionOffset, |_| {
-        super::property_engine::PropertyValue::Vec2([0.0, 0.0])
-    }),
-    binding!("show_axis", ValueType::BuildTimeOnly, F::empty(), ActorField::NoStorage, |_| {
-        super::property_engine::PropertyValue::String("true".to_string())
-    }),
-    binding!(
-        "show_labels",
-        ValueType::BuildTimeOnly,
-        F::empty(),
-        ActorField::NoStorage,
-        |_| super::property_engine::PropertyValue::String("true".to_string())
-    ),
-    binding!(
+    b!("shared_id", V::String, F::ASSIGNABLE, Tagged, val!(str "")),
+    b!("shift", V::Vec2, F::SPATIAL_AI, MotionOffset, val!(vec2 0.0, 0.0)),
+    b!("show_axis", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "true")),
+    b!("show_labels", V::BuildTimeOnly, F::empty(), NoStorage, val!(str "true")),
+    b!(
         "size",
-        ValueType::Vec2,
+        V::Vec2,
         F::ALL.union(F::SPATIAL).union(F::PATH_AFFECTING),
-        ActorField::Size,
-        |_| super::property_engine::PropertyValue::Vec2([50.0, 50.0])
+        Size,
+        val!(vec2 50.0, 50.0)
     ),
-    binding!("solo", ValueType::Bool, F::ASSIGNABLE, ActorField::Tagged("solo"), |_| {
-        super::property_engine::PropertyValue::Bool(false)
-    }),
-    binding!("source", ValueType::String, F::ASSIGNABLE, ActorField::AudioSource, |_| {
-        super::property_engine::PropertyValue::String(String::new())
-    }),
-    binding!(
-        "split_by",
-        ValueType::String,
-        F::ASSIGNABLE_A,
-        ActorField::Tagged("split_by"),
-        |_| super::property_engine::PropertyValue::String("char".to_string())
-    ),
-    binding!(
-        "split_mask",
-        ValueType::Bool,
-        F::ASSIGNABLE_A,
-        ActorField::Tagged("split_mask"),
-        |_| super::property_engine::PropertyValue::Bool(false)
-    ),
-    binding!(
-        "split_offset_y",
-        ValueType::F32,
-        F::ASSIGNABLE_A,
-        ActorField::Tagged("split_offset_y"),
-        |_| super::property_engine::PropertyValue::F32(0.0)
-    ),
-    binding!(
-        "split_stagger",
-        ValueType::F32,
-        F::ASSIGNABLE_A,
-        ActorField::Tagged("split_stagger"),
-        |_| super::property_engine::PropertyValue::F32(0.0)
-    ),
-    binding!(
-        "standoff",
-        ValueType::F32,
+    b!("solo", V::Bool, F::ASSIGNABLE, Tagged, val!(bool false)),
+    b!("source", V::String, F::ASSIGNABLE, AudioSource, val!(str "")),
+    b!("split_by", V::String, F::ASSIGNABLE_A, Tagged, val!(str "char")),
+    b!("split_mask", V::Bool, F::ASSIGNABLE_A, Tagged, val!(bool false)),
+    b!("split_offset_y", V::F32, F::ASSIGNABLE_A, Tagged, val!(f32 0.0)),
+    b!("split_stagger", V::F32, F::ASSIGNABLE_A, Tagged, val!(f32 0.0)),
+    b!("standoff", V::F32, F::ASSIGNABLE_AI, CalloutStandoff, val!(f32 40.0)),
+    b!("start", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
+    b!(
+        "stroke",
+        V::Color,
         F::ASSIGNABLE_AI,
-        ActorField::CalloutStandoff,
-        |_| super::property_engine::PropertyValue::F32(40.0)
+        StrokeColor,
+        val!(color 1.0, 1.0, 1.0, 1.0)
     ),
-    binding!("start", ValueType::F32, F::ASSIGNABLE_AI, ActorField::Tagged("start"), |_| {
-        super::property_engine::PropertyValue::F32(0.0)
-    }),
-    binding!("stroke", ValueType::Color, F::ASSIGNABLE_AI, ActorField::StrokeColor, |_| {
-        super::property_engine::PropertyValue::Color([1.0, 1.0, 1.0, 1.0])
-    }),
-    binding!(
-        "stroke_gradient",
-        ValueType::Gradient,
-        F::ASSIGNABLE_A,
-        ActorField::StrokeGradient,
-        |_| super::property_engine::PropertyValue::Gradient(Default::default())
-    ),
-    binding!(
-        "stroke_progress",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::StrokeProgress,
-        |_| super::property_engine::PropertyValue::F32(1.0)
-    ),
-    binding!(
-        "stroke_width",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::StrokeWidth,
-        |_| super::property_engine::PropertyValue::F32(1.0)
-    ),
-    binding!(
-        "suffix",
-        ValueType::String,
-        F::ASSIGNABLE_AI,
-        ActorField::Tagged("suffix"),
-        |_| { super::property_engine::PropertyValue::String(String::new()) }
-    ),
-    binding!(
+    b!("stroke_gradient", V::Gradient, F::ASSIGNABLE_A, StrokeGradient, val!(gradient)),
+    b!("stroke_progress", V::F32, F::ASSIGNABLE_AI, StrokeProgress, val!(f32 1.0)),
+    b!("stroke_width", V::F32, F::ASSIGNABLE_AI, StrokeWidth, val!(f32 1.0)),
+    b!("suffix", V::String, F::ASSIGNABLE_AI, Tagged, val!(str "")),
+    b!(
         "swatch_size",
-        ValueType::F32,
+        V::F32,
         F::ASSIGNABLE_A,
-        ActorField::Tagged("legend_swatch_size"),
-        |_| super::property_engine::PropertyValue::F32(16.0)
+        Tagged("legend_swatch_size"),
+        val!(f32 16.0)
     ),
-    binding!("t_domain", ValueType::Vec2, F::empty(), ActorField::PlotDomainGroup, |_| {
-        super::property_engine::PropertyValue::Vec2([0.0, 1.0])
-    }),
-    binding!(
-        "target",
-        ValueType::BuildTimeOnly,
-        F::ASSIGNABLE,
-        ActorField::CalloutTarget,
-        |_| super::property_engine::PropertyValue::String(String::new())
-    ),
-    binding!("text", ValueType::String, F::ASSIGNABLE_A, ActorField::TextContent, |_| {
-        super::property_engine::PropertyValue::String(String::new())
-    }),
-    binding!("text_align", ValueType::String, F::ASSIGNABLE_A, ActorField::TextAlign, |_| {
-        super::property_engine::PropertyValue::String("left".to_string())
-    }),
-    binding!(
+    b!("t_domain", V::Vec2, F::empty(), PlotDomainGroup, val!(vec2 0.0, 1.0)),
+    b!("target", V::BuildTimeOnly, F::ASSIGNABLE, CalloutTarget, val!(str "")),
+    b!("text", V::String, F::ASSIGNABLE_A, TextContent, val!(str "")),
+    b!("text_align", V::String, F::ASSIGNABLE_A, TextAlign, val!(str "left")),
+    b!(
         "text_max_width",
-        ValueType::F32,
+        V::F32,
         F::ASSIGNABLE_A,
-        ActorField::Tagged("legend_text_max_width"),
-        |_| super::property_engine::PropertyValue::F32(240.0)
+        Tagged("legend_text_max_width"),
+        val!(f32 240.0)
     ),
-    binding!(
-        "tick_labels",
-        ValueType::String,
-        F::empty(),
-        ActorField::PlotDomainGroup,
-        |_| super::property_engine::PropertyValue::String("auto".to_string())
-    ),
-    binding!("ticks", ValueType::String, F::empty(), ActorField::PlotDomainGroup, |_| {
-        super::property_engine::PropertyValue::String("auto".to_string())
-    }),
-    binding!(
-        "title",
-        ValueType::String,
-        F::ASSIGNABLE_A,
-        ActorField::Tagged("legend_title"),
-        |_| super::property_engine::PropertyValue::String(String::new())
-    ),
-    binding!("to", ValueType::Vec2, F::SPATIAL_PATH_AI, ActorField::LineTo, |_| {
-        super::property_engine::PropertyValue::Vec2([100.0, 0.0])
-    }),
-    binding!(
-        "to_offset",
-        ValueType::Vec2,
-        F::ASSIGNABLE_AI,
-        ActorField::CalloutToOffset,
-        |_| super::property_engine::PropertyValue::Vec2([0.0, 0.0])
-    ),
-    binding!("tolerance", ValueType::F32, F::empty(), ActorField::PlotDomainGroup, |_| {
-        super::property_engine::PropertyValue::F32(2.0)
-    }),
-    binding!(
-        "transcript",
-        ValueType::String,
-        F::ASSIGNABLE,
-        ActorField::Tagged("transcript"),
-        |_| super::property_engine::PropertyValue::String(String::new())
-    ),
-    binding!("transform", ValueType::Transform, F::SPATIAL_AI, ActorField::Transform, |_| {
-        super::property_engine::PropertyValue::Transform([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
-    }),
-    binding!(
-        "transition_time",
-        ValueType::F32,
-        F::ASSIGNABLE_AI,
-        ActorField::Tagged("transition_time"),
-        |_| super::property_engine::PropertyValue::F32(0.15)
-    ),
-    binding!("url", ValueType::String, F::ASSIGNABLE, ActorField::ImageData, |_| {
-        super::property_engine::PropertyValue::String(String::new())
-    }),
-    binding!("value", ValueType::F32, F::ASSIGNABLE_AI, ActorField::Tagged("value"), |_| {
-        super::property_engine::PropertyValue::F32(0.0)
-    }),
-    binding!("vertical_align", ValueType::String, F::empty(), ActorField::NoStorage, |_| {
-        super::property_engine::PropertyValue::String("center".to_string())
-    }),
-    binding!("volume", ValueType::F32, F::ASSIGNABLE_AI, ActorField::AudioVolume, |_| {
-        super::property_engine::PropertyValue::F32(1.0)
-    }),
-    binding!(
+    b!("tick_labels", V::String, F::empty(), PlotDomainGroup, val!(str "auto")),
+    b!("ticks", V::String, F::empty(), PlotDomainGroup, val!(str "auto")),
+    b!("title", V::String, F::ASSIGNABLE_A, Tagged("legend_title"), val!(str "")),
+    b!("to", V::Vec2, F::SPATIAL_PATH_AI, LineTo, val!(vec2 100.0, 0.0)),
+    b!("to_offset", V::Vec2, F::ASSIGNABLE_AI, CalloutToOffset, val!(vec2 0.0, 0.0)),
+    b!("tolerance", V::F32, F::empty(), PlotDomainGroup, val!(f32 2.0)),
+    b!("transcript", V::String, F::ASSIGNABLE, Tagged, val!(str "")),
+    b!("transform", V::Transform, F::SPATIAL_AI, Transform, val!(transform)),
+    b!("transition_time", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.15)),
+    b!("url", V::String, F::ASSIGNABLE, ImageData, val!(str "")),
+    b!("value", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
+    b!("vertical_align", V::String, F::empty(), NoStorage, val!(str "center")),
+    b!("volume", V::F32, F::ASSIGNABLE_AI, AudioVolume, val!(f32 1.0)),
+    b!(
         "width",
-        ValueType::F32,
+        V::F32,
         F::ANIMATED_I.union(F::SPATIAL).union(F::PATH_AFFECTING),
-        ActorField::Size,
-        |_| super::property_engine::PropertyValue::F32(100.0),
+        Size,
+        val!(f32 100.0),
         ReadSource::Component {
             field: ActorField::Size,
             index: 0,
             scale: 2.0
         }
     ),
-    binding!("word_spacing", ValueType::F32, F::ASSIGNABLE_A, ActorField::WordSpacing, |_| {
-        super::property_engine::PropertyValue::F32(0.0)
-    }),
-    binding!("x_domain", ValueType::Vec2, F::empty(), ActorField::PlotDomainGroup, |_| {
-        super::property_engine::PropertyValue::Vec2([-5.0, 5.0])
-    }),
-    binding!("x_range", ValueType::Vec2, F::empty(), ActorField::PlotDomainGroup, |_| {
-        super::property_engine::PropertyValue::Vec2([-10.0, 10.0])
-    }),
-    binding!("x_scale", ValueType::String, F::empty(), ActorField::NoStorage, |_| {
-        super::property_engine::PropertyValue::String("linear".to_string())
-    }),
-    binding!("y_domain", ValueType::Vec2, F::empty(), ActorField::PlotDomainGroup, |_| {
-        super::property_engine::PropertyValue::Vec2([-5.0, 5.0])
-    }),
-    binding!("y_range", ValueType::Vec2, F::empty(), ActorField::PlotDomainGroup, |_| {
-        super::property_engine::PropertyValue::Vec2([-10.0, 10.0])
-    }),
-    binding!("y_scale", ValueType::String, F::empty(), ActorField::NoStorage, |_| {
-        super::property_engine::PropertyValue::String("linear".to_string())
-    }),
+    b!("word_spacing", V::F32, F::ASSIGNABLE_A, WordSpacing, val!(f32 0.0)),
+    b!("x_domain", V::Vec2, F::empty(), PlotDomainGroup, val!(vec2 - 5.0, 5.0)),
+    b!("x_range", V::Vec2, F::empty(), PlotDomainGroup, val!(vec2 - 10.0, 10.0)),
+    b!("x_scale", V::String, F::empty(), NoStorage, val!(str "linear")),
+    b!("y_domain", V::Vec2, F::empty(), PlotDomainGroup, val!(vec2 - 5.0, 5.0)),
+    b!("y_range", V::Vec2, F::empty(), PlotDomainGroup, val!(vec2 - 10.0, 10.0)),
+    b!("y_scale", V::String, F::empty(), NoStorage, val!(str "linear")),
 ];
 
 // ─────────────────────────────────────────────────────────────

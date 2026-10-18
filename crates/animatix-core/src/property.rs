@@ -88,6 +88,12 @@ macro_rules! declare_property_descriptors {
         $(#[$doc:meta])*
         $name:literal => ($applicable:expr, $val_kind:ident)
     ),* $(,)?) => {
+        /// Every built-in property, in declaration order.
+        ///
+        /// **The order is the ABI.** [`PropertyId`] is the row index and serialized
+        /// plans (`PropertyPlan` slots, `persistence.rs`) store those ids, so appending
+        /// a row is safe but reordering or removing one invalidates saved files. The
+        /// `property_id_order_is_pinned` test guards it.
         pub static PROPERTY_DESCRIPTORS: &[$crate::property::PropertyDescriptor] = &[
             $(
                 $crate::property::PropertyDescriptor::new(
@@ -100,406 +106,224 @@ macro_rules! declare_property_descriptors {
     };
 }
 
-/// Every built-in property, in declaration order.
-///
-/// **The order is the ABI.** [`PropertyId`] is the row index and serialized
-/// plans (`PropertyPlan` slots, `persistence.rs`) store those ids, so appending
-/// a row is safe but reordering or removing one invalidates saved files. The
-/// `property_id_order_is_pinned` test guards it.
-pub static PROPERTY_DESCRIPTORS: &[PropertyDescriptor] = &[
-    PropertyDescriptor::new("align", Applicable::LayoutContainers, PropertyValueKind::String),
-    PropertyDescriptor::new("anchor", Applicable::Everything, PropertyValueKind::Generic),
-    PropertyDescriptor::new("ascent", Applicable::Never, PropertyValueKind::F32),
-    PropertyDescriptor::new("at", Applicable::Everything, PropertyValueKind::Vec2),
-    PropertyDescriptor::new("background_color", Applicable::Never, PropertyValueKind::Vec4),
-    PropertyDescriptor::new(
-        "bar_colors",
-        Applicable::Actors(&["BarChart"]),
-        PropertyValueKind::Generic,
-    ),
-    PropertyDescriptor::new("bar_width", Applicable::Actors(&["BarChart"]), PropertyValueKind::F32),
-    PropertyDescriptor::new("baseline", Applicable::Never, PropertyValueKind::F32),
-    PropertyDescriptor::new("bounds", Applicable::Actors(&["Filter"]), PropertyValueKind::Vec4),
-    PropertyDescriptor::new("char_progress", Applicable::TextLike, PropertyValueKind::F32),
-    PropertyDescriptor::new("code", Applicable::Actors(&["Code"]), PropertyValueKind::String),
+declare_property_descriptors! {
+    "align" => (Applicable::LayoutContainers, String),
+    "anchor" => (Applicable::Everything, Generic),
+    "ascent" => (Applicable::Never, F32),
+    "at" => (Applicable::Everything, Vec2),
+    "background_color" => (Applicable::Never, Vec4),
+    "bar_colors" => (Applicable::Actors(&["BarChart"]), Generic),
+    "bar_width" => (Applicable::Actors(&["BarChart"]), F32),
+    "baseline" => (Applicable::Never, F32),
+    "bounds" => (Applicable::Actors(&["Filter"]), Vec4),
+    "char_progress" => (Applicable::TextLike, F32),
+    "code" => (Applicable::Actors(&["Code"]), String),
     // Not `Everything`: `Glass`, `Filter` and `Mask` draw no surface of their
     // own, so a scope-level `color:` had nowhere to go — the value was dropped in
     // silence, which is what the "never silently drop" rule is for. Verified
     // against the primitives: none of the three reads a style colour.
-    PropertyDescriptor::new("color", Applicable::AllDrawables, PropertyValueKind::Vec4),
-    PropertyDescriptor::new("cols", Applicable::Actors(&["Grid"]), PropertyValueKind::U32),
-    PropertyDescriptor::new("commands", Applicable::Actors(&["Path"]), PropertyValueKind::Generic),
-    PropertyDescriptor::new("data", Applicable::Actors(&["BarChart"]), PropertyValueKind::Generic),
-    PropertyDescriptor::new(
-        "density",
-        Applicable::Actors(&["VectorField"]),
-        PropertyValueKind::F32,
-    ),
-    PropertyDescriptor::new("descent", Applicable::Never, PropertyValueKind::F32),
-    PropertyDescriptor::new(
-        "direction",
-        Applicable::Actors(&["BarChart"]),
-        PropertyValueKind::String,
-    ),
-    PropertyDescriptor::new(
-        "fill_opacity",
-        Applicable::AllShapesExceptLine,
-        PropertyValueKind::F32,
-    ),
-    PropertyDescriptor::new("font_family", Applicable::TextLike, PropertyValueKind::String),
-    PropertyDescriptor::new(
-        "font_size",
-        // `Legend` draws its own labels through the text engine and reads
+    "color" => (Applicable::AllDrawables, Vec4),
+    "cols" => (Applicable::Actors(&["Grid"]), U32),
+    "commands" => (Applicable::Actors(&["Path"]), Generic),
+    "data" => (Applicable::Actors(&["BarChart"]), Generic),
+    "density" => (Applicable::Actors(&["VectorField"]), F32),
+    "descent" => (Applicable::Never, F32),
+    "direction" => (Applicable::Actors(&["BarChart"]), String),
+    "fill_opacity" => (Applicable::AllShapesExceptLine, F32),
+    "font_family" => (Applicable::TextLike, String),
+    "font_size" => (// `Legend` draws its own labels through the text engine and reads
         // `font_size` off its props (`primitives/legend.rs`), so the row has to
         // include it or the applicability lint reports a working property as
         // dropped.
         Applicable::Actors(&[
             "Captions", "Code", "Cue", "Equation", "Legend", "Math", "Text", "Typst",
-        ]),
-        PropertyValueKind::F32,
-    ),
-    PropertyDescriptor::new("font_style", Applicable::TextLike, PropertyValueKind::String),
-    PropertyDescriptor::new("font_weight", Applicable::TextLike, PropertyValueKind::F32),
-    PropertyDescriptor::new(
-        "from",
-        Applicable::Actors(&["Arrow", "Callout", "Connector", "Line"]),
-        PropertyValueKind::Vec2,
-    ),
-    PropertyDescriptor::new(
-        "func",
-        Applicable::Actors(&["ContourSet", "Heatmap", "PlotCurve", "VectorField"]),
-        PropertyValueKind::Generic,
-    ),
-    PropertyDescriptor::new(
-        "gap",
-        // `BarChart` reads the same name as the bar spacing; for containers it is
+        ]), F32),
+    "font_style" => (Applicable::TextLike, String),
+    "font_weight" => (Applicable::TextLike, F32),
+    "from" => (Applicable::Actors(&["Arrow", "Callout", "Connector", "Line"]), Vec2),
+    "func" => (Applicable::Actors(&["ContourSet", "Heatmap", "PlotCurve", "VectorField"]), Generic),
+    "gap" => (// `BarChart` reads the same name as the bar spacing; for containers it is
         // the child gap. One row, two consumers — see `build/plot.rs`.
         Applicable::Actors(&[
             "BarChart", "Col", "Grid", "Group", "Legend", "Mask", "Row", "Stack",
-        ]),
-        PropertyValueKind::F32,
-    ),
-    PropertyDescriptor::new("grid", Applicable::PlotHost, PropertyValueKind::String),
-    PropertyDescriptor::new(
-        "head_size",
-        Applicable::Any(&[
+        ]), F32),
+    "grid" => (Applicable::PlotHost, String),
+    "head_size" => (Applicable::Any(&[
             Applicable::ShapeKinds(&[ShapeKind::Arrow]),
             Applicable::Callout,
-        ]),
-        PropertyValueKind::F32,
-    ),
-    PropertyDescriptor::new("height", Applicable::SizedActors, PropertyValueKind::F32),
-    PropertyDescriptor::new(
-        "highlight_color",
-        Applicable::Actors(&["Equation", "Fragment"]),
-        PropertyValueKind::Vec4,
-    ),
-    PropertyDescriptor::new(
-        "highlight_opacity",
-        Applicable::Actors(&["Equation", "Fragment"]),
-        PropertyValueKind::F32,
-    ),
-    PropertyDescriptor::new(
-        "highlight_padding",
-        Applicable::Actors(&["Equation", "Fragment"]),
-        PropertyValueKind::F32,
-    ),
-    PropertyDescriptor::new(
-        "highlight_radius",
-        Applicable::Actors(&["Equation", "Fragment"]),
-        PropertyValueKind::F32,
-    ),
-    PropertyDescriptor::new("kind", Applicable::Actors(&["PlotCurve"]), PropertyValueKind::String),
-    PropertyDescriptor::new("label", Applicable::Callout, PropertyValueKind::String),
-    PropertyDescriptor::new("label_at", Applicable::Callout, PropertyValueKind::Vec2),
-    PropertyDescriptor::new("label_color", Applicable::LegendHost, PropertyValueKind::Vec4),
-    PropertyDescriptor::new("legend", Applicable::Everything, PropertyValueKind::Generic),
-    PropertyDescriptor::new(
-        "letter_spacing",
-        Applicable::Actors(&[
+        ]), F32),
+    "height" => (Applicable::SizedActors, F32),
+    "highlight_color" => (Applicable::Actors(&["Equation", "Fragment"]), Vec4),
+    "highlight_opacity" => (Applicable::Actors(&["Equation", "Fragment"]), F32),
+    "highlight_padding" => (Applicable::Actors(&["Equation", "Fragment"]), F32),
+    "highlight_radius" => (Applicable::Actors(&["Equation", "Fragment"]), F32),
+    "kind" => (Applicable::Actors(&["PlotCurve"]), String),
+    "label" => (Applicable::Callout, String),
+    "label_at" => (Applicable::Callout, Vec2),
+    "label_color" => (Applicable::LegendHost, Vec4),
+    "legend" => (Applicable::Everything, Generic),
+    "letter_spacing" => (Applicable::Actors(&[
             "Code", "Col", "Grid", "Math", "Row", "Stack", "Text", "Typst",
-        ]),
-        PropertyValueKind::F32,
-    ),
-    PropertyDescriptor::new("levels", Applicable::Actors(&["ContourSet"]), PropertyValueKind::Vec2),
-    PropertyDescriptor::new("line_cap", Applicable::AllShapes, PropertyValueKind::U32),
-    PropertyDescriptor::new("line_height", Applicable::TextLike, PropertyValueKind::F32),
-    PropertyDescriptor::new("line_join", Applicable::AllShapes, PropertyValueKind::U32),
-    PropertyDescriptor::new(
-        "max_depth",
-        Applicable::Actors(&["ContourSet", "PlotCurve"]),
-        PropertyValueKind::F32,
-    ),
-    PropertyDescriptor::new("max_height", Applicable::SizedActors, PropertyValueKind::F32),
-    PropertyDescriptor::new("max_value", Applicable::Actors(&["BarChart"]), PropertyValueKind::F32),
-    PropertyDescriptor::new(
-        "max_width",
-        Applicable::Actors(&[
+        ]), F32),
+    "levels" => (Applicable::Actors(&["ContourSet"]), Vec2),
+    "line_cap" => (Applicable::AllShapes, U32),
+    "line_height" => (Applicable::TextLike, F32),
+    "line_join" => (Applicable::AllShapes, U32),
+    "max_depth" => (Applicable::Actors(&["ContourSet", "PlotCurve"]), F32),
+    "max_height" => (Applicable::SizedActors, F32),
+    "max_value" => (Applicable::Actors(&["BarChart"]), F32),
+    "max_width" => (Applicable::Actors(&[
             "Code", "Col", "Grid", "Math", "Row", "Stack", "Text", "Typst",
-        ]),
-        PropertyValueKind::F32,
-    ),
-    PropertyDescriptor::new("min_height", Applicable::SizedActors, PropertyValueKind::F32),
-    PropertyDescriptor::new("min_width", Applicable::SizedActors, PropertyValueKind::F32),
-    PropertyDescriptor::new("offset", Applicable::Everything, PropertyValueKind::Vec2),
-    PropertyDescriptor::new("opacity", Applicable::Everything, PropertyValueKind::F32),
-    PropertyDescriptor::new("overflow", Applicable::TextLike, PropertyValueKind::String),
-    PropertyDescriptor::new(
-        "padding",
-        Applicable::Actors(&["Col", "Graph", "Grid", "Row", "Stack"]),
-        PropertyValueKind::F32,
-    ),
-    PropertyDescriptor::new("place", Applicable::Callout, PropertyValueKind::Generic),
-    PropertyDescriptor::new(
-        "points",
-        Applicable::Actors(&["Polygon"]),
-        PropertyValueKind::PointList,
-    ),
-    PropertyDescriptor::new("position", Applicable::Everything, PropertyValueKind::Vec2),
-    PropertyDescriptor::new("radius_x", Applicable::Actors(&["Ellipse"]), PropertyValueKind::F32),
-    PropertyDescriptor::new("radius_y", Applicable::Actors(&["Ellipse"]), PropertyValueKind::F32),
-    PropertyDescriptor::new(
-        "resolution",
-        Applicable::Actors(&["ContourSet", "Heatmap", "PlotCurve"]),
-        PropertyValueKind::F32,
-    ),
-    PropertyDescriptor::new("rotation", Applicable::Everything, PropertyValueKind::F32),
-    PropertyDescriptor::new("scale", Applicable::Everything, PropertyValueKind::F32),
-    PropertyDescriptor::new("shift", Applicable::Everything, PropertyValueKind::Vec2),
-    PropertyDescriptor::new(
-        "show_axis",
-        Applicable::Actors(&["BarChart"]),
-        PropertyValueKind::Generic,
-    ),
-    PropertyDescriptor::new(
-        "show_labels",
-        Applicable::Actors(&["BarChart"]),
-        PropertyValueKind::Generic,
-    ),
-    PropertyDescriptor::new("size", Applicable::ExceptTextLike, PropertyValueKind::Vec2),
+        ]), F32),
+    "min_height" => (Applicable::SizedActors, F32),
+    "min_width" => (Applicable::SizedActors, F32),
+    "offset" => (Applicable::Everything, Vec2),
+    "opacity" => (Applicable::Everything, F32),
+    "overflow" => (Applicable::TextLike, String),
+    "padding" => (Applicable::Actors(&["Col", "Graph", "Grid", "Row", "Stack"]), F32),
+    "place" => (Applicable::Callout, Generic),
+    "points" => (Applicable::Actors(&["Polygon"]), PointList),
+    "position" => (Applicable::Everything, Vec2),
+    "radius_x" => (Applicable::Actors(&["Ellipse"]), F32),
+    "radius_y" => (Applicable::Actors(&["Ellipse"]), F32),
+    "resolution" => (Applicable::Actors(&["ContourSet", "Heatmap", "PlotCurve"]), F32),
+    "rotation" => (Applicable::Everything, F32),
+    "scale" => (Applicable::Everything, F32),
+    "shift" => (Applicable::Everything, Vec2),
+    "show_axis" => (Applicable::Actors(&["BarChart"]), Generic),
+    "show_labels" => (Applicable::Actors(&["BarChart"]), Generic),
+    "size" => (Applicable::ExceptTextLike, Vec2),
     // Authored solo flag: while any actor declares `solo: true`, every
     // non-solo subtree is hidden (recursively) in preview and export alike.
-    PropertyDescriptor::new("solo", Applicable::Everything, PropertyValueKind::Bool),
-    PropertyDescriptor::new("source", Applicable::Actors(&["Audio"]), PropertyValueKind::String),
-    PropertyDescriptor::new("standoff", Applicable::Callout, PropertyValueKind::F32),
-    PropertyDescriptor::new("stroke", Applicable::AllStrokePaths, PropertyValueKind::Vec4),
-    PropertyDescriptor::new("stroke_progress", Applicable::AllStrokePaths, PropertyValueKind::F32),
-    PropertyDescriptor::new("stroke_width", Applicable::AllStrokePaths, PropertyValueKind::F32),
-    PropertyDescriptor::new("swatch_size", Applicable::LegendHost, PropertyValueKind::F32),
-    PropertyDescriptor::new(
-        "t_domain",
-        Applicable::Actors(&["PlotCurve"]),
-        PropertyValueKind::Vec2,
-    ),
-    PropertyDescriptor::new("target", Applicable::Callout, PropertyValueKind::Generic),
+    "solo" => (Applicable::Everything, Bool),
+    "source" => (Applicable::Actors(&["Audio"]), String),
+    "standoff" => (Applicable::Callout, F32),
+    "stroke" => (Applicable::AllStrokePaths, Vec4),
+    "stroke_progress" => (Applicable::AllStrokePaths, F32),
+    "stroke_width" => (Applicable::AllStrokePaths, F32),
+    "swatch_size" => (Applicable::LegendHost, F32),
+    "t_domain" => (Applicable::Actors(&["PlotCurve"]), Vec2),
+    "target" => (Applicable::Callout, Generic),
     // The uniform body property for every text-like actor (`Text`, `Typst`,
     // `Code`, `Math`); `code` remains the `Code` spelling. It used to list only
     // Text and Math, which left `Typst` with no body property the analyzer
     // recognised once the redundant `content` alias was removed.
-    PropertyDescriptor::new("text", Applicable::TextLike, PropertyValueKind::String),
-    PropertyDescriptor::new("text_align", Applicable::TextLike, PropertyValueKind::String),
-    PropertyDescriptor::new(
-        "text_max_width",
-        // `Legend` has its own legend label wrapping, and the text engine reads
+    "text" => (Applicable::TextLike, String),
+    "text_align" => (Applicable::TextLike, String),
+    "text_max_width" => (// `Legend` has its own legend label wrapping, and the text engine reads
         // this as the canonical wrap width (`declarations_text.rs`: "Canonical
         // name per spec; `max_width` kept as a legacy alias"). The row used to
         // list only `Legend`, which is why 94 site scenes could set a wrap width
         // on a `Text` that the table claimed did not take one.
-        Applicable::Any(&[Applicable::LegendHost, Applicable::TextLike]),
-        PropertyValueKind::F32,
-    ),
-    PropertyDescriptor::new("tick_labels", Applicable::PlotHost, PropertyValueKind::String),
-    PropertyDescriptor::new("ticks", Applicable::PlotHost, PropertyValueKind::String),
-    PropertyDescriptor::new("title", Applicable::LegendHost, PropertyValueKind::String),
-    PropertyDescriptor::new(
-        "to",
-        Applicable::Actors(&["Arrow", "Callout", "Connector", "Line"]),
-        PropertyValueKind::Vec2,
-    ),
-    PropertyDescriptor::new("to_offset", Applicable::Callout, PropertyValueKind::Vec2),
-    PropertyDescriptor::new(
-        "tolerance",
-        Applicable::Actors(&["PlotCurve"]),
-        PropertyValueKind::F32,
-    ),
-    PropertyDescriptor::new("transform", Applicable::Everything, PropertyValueKind::Generic),
-    PropertyDescriptor::new(
-        "url",
-        Applicable::Actors(&["Image", "Svg"]),
-        PropertyValueKind::String,
-    ),
-    PropertyDescriptor::new(
-        "vertical_align",
-        Applicable::Actors(&["Col", "Row"]),
-        PropertyValueKind::String,
-    ),
-    PropertyDescriptor::new("volume", Applicable::Actors(&["Audio"]), PropertyValueKind::F32),
-    PropertyDescriptor::new("width", Applicable::SizedActors, PropertyValueKind::F32),
-    PropertyDescriptor::new("word_spacing", Applicable::TextLike, PropertyValueKind::F32),
-    PropertyDescriptor::new("x_domain", Applicable::PlotGeometry, PropertyValueKind::Vec2),
-    PropertyDescriptor::new(
-        "x_range",
-        Applicable::Actors(&["Graph", "NumberPlane", "PlotCurve"]),
-        PropertyValueKind::Vec2,
-    ),
-    PropertyDescriptor::new("x_scale", Applicable::PlotHost, PropertyValueKind::String),
-    PropertyDescriptor::new("y_domain", Applicable::PlotGeometry, PropertyValueKind::Vec2),
-    PropertyDescriptor::new(
-        "y_range",
-        Applicable::Actors(&["Graph", "NumberPlane", "PlotCurve"]),
-        PropertyValueKind::Vec2,
-    ),
-    PropertyDescriptor::new("y_scale", Applicable::PlotHost, PropertyValueKind::String),
+        Applicable::Any(&[Applicable::LegendHost, Applicable::TextLike]), F32),
+    "tick_labels" => (Applicable::PlotHost, String),
+    "ticks" => (Applicable::PlotHost, String),
+    "title" => (Applicable::LegendHost, String),
+    "to" => (Applicable::Actors(&["Arrow", "Callout", "Connector", "Line"]), Vec2),
+    "to_offset" => (Applicable::Callout, Vec2),
+    "tolerance" => (Applicable::Actors(&["PlotCurve"]), F32),
+    "transform" => (Applicable::Everything, Generic),
+    "url" => (Applicable::Actors(&["Image", "Svg"]), String),
+    "vertical_align" => (Applicable::Actors(&["Col", "Row"]), String),
+    "volume" => (Applicable::Actors(&["Audio"]), F32),
+    "width" => (Applicable::SizedActors, F32),
+    "word_spacing" => (Applicable::TextLike, F32),
+    "x_domain" => (Applicable::PlotGeometry, Vec2),
+    "x_range" => (Applicable::Actors(&["Graph", "NumberPlane", "PlotCurve"]), Vec2),
+    "x_scale" => (Applicable::PlotHost, String),
+    "y_domain" => (Applicable::PlotGeometry, Vec2),
+    "y_range" => (Applicable::Actors(&["Graph", "NumberPlane", "PlotCurve"]), Vec2),
+    "y_scale" => (Applicable::PlotHost, String),
     // Appended last on purpose: `PropertyId` is the row index, so new rows go
     // at the end rather than into name order.
     // `Glass` paints no surface, but its radius is not decorative: it is the
     // rounded clip the backdrop is blitted through.
-    PropertyDescriptor::new(
-        "corner_radius",
-        Applicable::Actors(&["Rect", "Glass", "Connector"]),
-        PropertyValueKind::F32,
-    ),
-    PropertyDescriptor::new("language", Applicable::Actors(&["Code"]), PropertyValueKind::String),
-    PropertyDescriptor::new("dash_offset", Applicable::AllStrokePaths, PropertyValueKind::F32),
-    PropertyDescriptor::new("dash_pattern", Applicable::AllStrokePaths, PropertyValueKind::Generic),
-    PropertyDescriptor::new("blend", Applicable::Everything, PropertyValueKind::String),
-    PropertyDescriptor::new(
-        "fill_gradient",
-        Applicable::Any(&[Applicable::AllShapesExceptLine, Applicable::TextLike]),
-        PropertyValueKind::Generic,
-    ),
-    PropertyDescriptor::new(
-        "stroke_gradient",
-        Applicable::AllStrokePaths,
-        PropertyValueKind::Generic,
-    ),
-    PropertyDescriptor::new(
-        "gradient_extend",
-        Applicable::Any(&[Applicable::AllShapes, Applicable::AllStrokePaths]),
-        PropertyValueKind::String,
-    ),
-    PropertyDescriptor::new(
-        "gradient_space",
-        Applicable::Any(&[Applicable::AllShapes, Applicable::AllStrokePaths]),
-        PropertyValueKind::String,
-    ),
+    "corner_radius" => (Applicable::Actors(&["Rect", "Glass", "Connector"]), F32),
+    "language" => (Applicable::Actors(&["Code"]), String),
+    "dash_offset" => (Applicable::AllStrokePaths, F32),
+    "dash_pattern" => (Applicable::AllStrokePaths, Generic),
+    "blend" => (Applicable::Everything, String),
+    "fill_gradient" => (Applicable::Any(&[Applicable::AllShapesExceptLine, Applicable::TextLike]), Generic),
+    "stroke_gradient" => (Applicable::AllStrokePaths, Generic),
+    "gradient_extend" => (Applicable::Any(&[Applicable::AllShapes, Applicable::AllStrokePaths]), String),
+    "gradient_space" => (Applicable::Any(&[Applicable::AllShapes, Applicable::AllStrokePaths]), String),
     // Bundled stroke-icon name (`icon: "check"`). Build-time only: the engine
     // expands the name into `Path` command geometry and stores nothing on a
     // track, so it is declared `Generic` to match its `BuildTimeOnly` runtime
     // binding (mirrors how `data`/`bar_width` are handled).
-    PropertyDescriptor::new("icon", Applicable::Actors(&["Path"]), PropertyValueKind::Generic),
+    "icon" => (Applicable::Actors(&["Path"]), Generic),
     // The scene camera's per-actor opt-out. `Applicable::Everything` because the
     // camera wraps every root subtree, so any actor may need to sit outside it
     // (a HUD, a watermark, a caption pinned to the viewport). Declared `Generic`
     // to match its `BuildTimeOnly` runtime binding, exactly as `icon` does: the
     // value is read once at build into a plain track field and never keyframed.
-    PropertyDescriptor::new("camera_follow", Applicable::Everything, PropertyValueKind::Generic),
+    "camera_follow" => (Applicable::Everything, Generic),
     // Continuous parallax multiplier for camera movement on root actors (1.0 = normal, 0.0 =
     // static HUD).
-    PropertyDescriptor::new("parallax", Applicable::Everything, PropertyValueKind::F32),
+    "parallax" => (Applicable::Everything, F32),
     // Connector routing algorithm ("elbow", "l-bend", "straight").
-    PropertyDescriptor::new(
-        "routing",
-        Applicable::Actors(&["Connector"]),
-        PropertyValueKind::String,
-    ),
+    "routing" => (Applicable::Actors(&["Connector"]), String),
     // Whether a connector draws an arrowhead at its destination.
-    PropertyDescriptor::new("arrow", Applicable::Actors(&["Connector"]), PropertyValueKind::Bool),
+    "arrow" => (Applicable::Actors(&["Connector"]), Bool),
     // Split-text reveal granularity: "char" (default), "word", or "line".
-    PropertyDescriptor::new("split_by", Applicable::TextLike, PropertyValueKind::String),
+    "split_by" => (Applicable::TextLike, String),
     // Split-text stagger between units as a duration fraction (0.0–1.0).
-    PropertyDescriptor::new("split_stagger", Applicable::TextLike, PropertyValueKind::F32),
+    "split_stagger" => (Applicable::TextLike, F32),
     // Vertical offset in scene points from which split text units emerge.
-    PropertyDescriptor::new("split_offset_y", Applicable::TextLike, PropertyValueKind::F32),
+    "split_offset_y" => (Applicable::TextLike, F32),
     // Whether split text units are clipped at the line baseline.
-    PropertyDescriptor::new("split_mask", Applicable::TextLike, PropertyValueKind::Bool),
+    "split_mask" => (Applicable::TextLike, Bool),
     // Rolling counter target numeric value.
-    PropertyDescriptor::new("value", Applicable::Actors(&["Counter"]), PropertyValueKind::F32),
+    "value" => (Applicable::Actors(&["Counter"]), F32),
     // Optional prefix text prepended to the rolling counter.
-    PropertyDescriptor::new("prefix", Applicable::Actors(&["Counter"]), PropertyValueKind::String),
+    "prefix" => (Applicable::Actors(&["Counter"]), String),
     // Optional suffix text appended to the rolling counter.
-    PropertyDescriptor::new("suffix", Applicable::Actors(&["Counter"]), PropertyValueKind::String),
+    "suffix" => (Applicable::Actors(&["Counter"]), String),
     // Number of decimal places to display in the rolling counter.
-    PropertyDescriptor::new("decimals", Applicable::Actors(&["Counter"]), PropertyValueKind::U32),
+    "decimals" => (Applicable::Actors(&["Counter"]), U32),
     // Whether to insert thousands grouping commas in the rolling counter.
-    PropertyDescriptor::new("comma", Applicable::Actors(&["Counter"]), PropertyValueKind::Bool),
+    "comma" => (Applicable::Actors(&["Counter"]), Bool),
     // Declarative idle ambient motion ("float" or "breath").
-    PropertyDescriptor::new("idle", Applicable::Everything, PropertyValueKind::String),
+    "idle" => (Applicable::Everything, String),
     // Instanced Gaussian shadow [offset_x, offset_y, blur, spread].
-    PropertyDescriptor::new("shadow", Applicable::AllShapesExceptLine, PropertyValueKind::Vec4),
+    "shadow" => (Applicable::AllShapesExceptLine, Vec4),
     // Shadow color in RGBA.
-    PropertyDescriptor::new(
-        "shadow_color",
-        Applicable::AllShapesExceptLine,
-        PropertyValueKind::Vec4,
-    ),
+    "shadow_color" => (Applicable::AllShapesExceptLine, Vec4),
     // 2.5D X-axis rotation angle in radians.
-    PropertyDescriptor::new("rotate_x", Applicable::Everything, PropertyValueKind::F32),
+    "rotate_x" => (Applicable::Everything, F32),
     // 2.5D Y-axis rotation angle in radians.
-    PropertyDescriptor::new("rotate_y", Applicable::Everything, PropertyValueKind::F32),
+    "rotate_y" => (Applicable::Everything, F32),
     // 2.5D perspective projection camera distance in points.
-    PropertyDescriptor::new("perspective", Applicable::Everything, PropertyValueKind::F32),
+    "perspective" => (Applicable::Everything, F32),
     // Cross-scene shared element transition identifier.
-    PropertyDescriptor::new("shared_id", Applicable::Everything, PropertyValueKind::String),
+    "shared_id" => (Applicable::Everything, String),
     // Display mode for captions ("block", "karaoke", "pop", "roll").
-    PropertyDescriptor::new(
-        "caption_mode",
-        Applicable::Actors(&["Captions"]),
-        PropertyValueKind::String,
-    ),
+    "caption_mode" => (Applicable::Actors(&["Captions"]), String),
     // Highlight color for current active word in captions.
-    PropertyDescriptor::new(
-        "active_color",
-        Applicable::Actors(&["Captions", "Cue"]),
-        PropertyValueKind::Vec4,
-    ),
+    "active_color" => (Applicable::Actors(&["Captions", "Cue"]), Vec4),
     // Color for inactive or dimmed words in captions.
-    PropertyDescriptor::new(
-        "inactive_color",
-        Applicable::Actors(&["Captions"]),
-        PropertyValueKind::Vec4,
-    ),
+    "inactive_color" => (Applicable::Actors(&["Captions"]), Vec4),
     // Whether to render a backdrop pill/box behind captions.
-    PropertyDescriptor::new("backdrop", Applicable::Actors(&["Captions"]), PropertyValueKind::Bool),
+    "backdrop" => (Applicable::Actors(&["Captions"]), Bool),
     // Color of the backdrop box behind captions.
-    PropertyDescriptor::new(
-        "backdrop_color",
-        Applicable::Actors(&["Captions"]),
-        PropertyValueKind::Vec4,
-    ),
+    "backdrop_color" => (Applicable::Actors(&["Captions"]), Vec4),
     // Corner radius of the backdrop box.
-    PropertyDescriptor::new(
-        "backdrop_radius",
-        Applicable::Actors(&["Captions"]),
-        PropertyValueKind::F32,
-    ),
+    "backdrop_radius" => (Applicable::Actors(&["Captions"]), F32),
     // Padding (horizontal, vertical) around text inside the backdrop box.
-    PropertyDescriptor::new(
-        "backdrop_padding",
-        Applicable::Actors(&["Captions"]),
-        PropertyValueKind::Vec2,
-    ),
+    "backdrop_padding" => (Applicable::Actors(&["Captions"]), Vec2),
     // Scale multiplier for active word spring pop in "pop" caption mode.
-    PropertyDescriptor::new("pop_scale", Applicable::Actors(&["Captions"]), PropertyValueKind::F32),
+    "pop_scale" => (Applicable::Actors(&["Captions"]), F32),
     // Maximum number of visible lines per caption cue before line-breaking.
-    PropertyDescriptor::new("max_lines", Applicable::Actors(&["Captions"]), PropertyValueKind::U32),
+    "max_lines" => (Applicable::Actors(&["Captions"]), U32),
     // Fade/slide transition duration for captions in seconds.
-    PropertyDescriptor::new(
-        "transition_time",
-        Applicable::Actors(&["Captions"]),
-        PropertyValueKind::F32,
-    ),
+    "transition_time" => (Applicable::Actors(&["Captions"]), F32),
     // Path to speech transcript file (.json, .vtt, .srt) for Audio or Captions actor.
-    PropertyDescriptor::new(
-        "transcript",
-        Applicable::Actors(&["Audio", "Captions"]),
-        PropertyValueKind::String,
-    ),
+    "transcript" => (Applicable::Actors(&["Audio", "Captions"]), String),
     // Start time of a caption cue in seconds.
-    PropertyDescriptor::new("start", Applicable::Actors(&["Cue"]), PropertyValueKind::F32),
+    "start" => (Applicable::Actors(&["Cue"]), F32),
     // End time of a caption cue in seconds.
-    PropertyDescriptor::new("end", Applicable::Actors(&["Cue"]), PropertyValueKind::F32),
-];
+    "end" => (Applicable::Actors(&["Cue"]), F32),
+}
 
 /// The descriptor for `name`, when it is a built-in property.
 pub fn descriptor(name: &str) -> Option<&'static PropertyDescriptor> {
