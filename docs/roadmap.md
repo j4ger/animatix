@@ -142,6 +142,8 @@ a per-test scope or make that test own its cache generation.
 | Delightful Animation & Kinetic Design ([`docs/delightful_animation_plan.md`](delightful_animation_plan.md)) | Comprehensive architecture plan for kinetic typography (split-text, text gradient, rolling counters), continuous physics (spring handoff, spatial stagger, lead-follow), native erf Gaussian shadows, 2.5D perspective tilt, smart camera target-tracking, and feathered/FLIP transitions. Phased across Waves 1–4. | Planning / Wave 1 scoped |
 | `Code` custom highlighting theme | Token colours now follow the active colorscheme via a role→named-token palette (`ResolvedColorscheme::highlight_palette`, resolved at build). A fully custom palette (arbitrary per-role colours, or a user-supplied `.tmTheme`) is not exposed as an authoring surface; deferred until a real content need. | Not started |
 | Re-declaration morphs sharing one keyframe stamp | When two actor re-declarations share a single `#t` stamp, the actors render their **target** geometry on every frame before the morph starts (an `Ellipse`→`Rect` re-declaration shows a square on pre-morph frames; a size-less `Polygon` leaked as a default-size `Ellipse`). One re-declaration per stamp is safe — `web/tour/scenes/morph.amx` exercises the full sequence leak-free. Found while frame-auditing `web/scenes/hero.amx` (probes in the 2026-10-01 site session); the hero now choreographs its trio with rotations/resizes instead. Fix direction: a morph track's pre-start evaluation must hold the *previous* declaration, not the target. | Not started |
+| GPU Compute Pass Batching & Submission Pipeline | In `filter_backend.rs`, batch back-to-back non-conflicting compute passes in an effect chain into a single `CommandEncoder` / single `queue.submit()` where supported by the driver/wgpu backend, avoiding redundant per-pass encoder boundaries and queue stalls on complex multi-scope filter scenes. | Planned |
+| GPU-Accelerated Procedural Curves & Chart Strips | Offload mathematical curves (`ProceduralPlot`), parametric function sampling, and bar-chart data transitions from CPU Kurbo path rebuilding to GPU compute shaders or instanced vertex line strips, freeing the CPU render thread during heavy math/data animations. | Planned |
 
 ## Dependency & Verification Constraints
 
@@ -921,3 +923,22 @@ Five claims in the same work are **not** yet evidence, and each needs a real run
 Also open by choice: `docs/scene_stats.md` is a design note with no roadmap row yet,
 and `.zcodeignore` is an editor-generated mirror of `.gitignore` that should not be
 tracked.
+
+## GPU Rendering & Pipeline Optimization (from Architecture Audit)
+
+Two performance-limiting rendering bottlenecks identified during the architectural audit:
+
+### 1. GPU Compute Pass Batching & Command Submission Pipeline
+
+- **Location**: `crates/animatix-render/src/filter_backend.rs` (`GpuFilterBackend::apply_effect_chain`)
+- **Current behaviour**: Each compute pass in an effect chain is submitted inside its own `wgpu::CommandEncoder` with an immediate `queue.submit()`. This was originally introduced to work around driver race conditions across ping-pong textures on certain mobile/integrated drivers (probe 009). On scenes with nested filter scopes, blur chains, and glass composites, this triggers dozens of queue submissions per frame, introducing host CPU driver overhead and GPU pipeline stalls.
+- **Target**: On drivers supporting texture barriers within an encoder, batch non-conflicting compute passes in the same chain into a single command encoder and single `queue.submit()`. Maintain explicit submission boundaries only where strict inter-pass memory barriers across ping-pong targets are required.
+- **Verification**: Measure with `scripts/perf-bench.sh compare` and `ANIMATIX_FILTER_TIMING` across multi-filter demo scenes.
+
+### 2. GPU-Accelerated Procedural Curves & Chart Strips
+
+- **Location**: `crates/animatix/src/timeline/plot.rs` & `crates/animatix-render`
+- **Current behaviour**: Mathematical curves (`ProceduralPlot`), parametric functions, and bar chart transitions currently resample hundreds of evaluation points and construct Kurbo/Vello vector paths on the CPU every frame, occupying the CPU rendering thread.
+- **Target**: Offload parametric curve evaluation and line-strip generation to GPU compute shaders or instanced vertex line strips, generating geometry directly on the GPU without round-tripping through Kurbo CPU tessellation.
+- **Verification**: Compare CPU frame time on dense curve scenes (`30_effects_catalog`, complex epicycles) before and after offload.
+
