@@ -643,6 +643,7 @@ impl Timeline {
             word_spacing,
             color_rgba,
             max_width,
+            None,
             &text_align,
             &overflow,
             false,

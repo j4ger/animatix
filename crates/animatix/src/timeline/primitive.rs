@@ -20,6 +20,13 @@ pub struct PrimitiveFamilyDescriptor {
     pub family: PrimitiveFamily,
     pub capabilities: PrimitiveCapabilities,
     pub child_processing: ChildProcessing,
+    /// Which plot family this primitive is, carried from the catalog card so the
+    /// plot builder never has to compare `ty == "VectorField"`.
+    pub plot: Option<animatix_core::caps::PlotKind>,
+    /// Whether the generic actor-declaration body owns this primitive's
+    /// connector geometry lanes (see `PrimitiveInfo::connector`). Carried here so
+    /// the build path does not have to re-run a catalog lookup.
+    pub connector: bool,
 }
 
 impl Default for PrimitiveFamilyDescriptor {
@@ -32,6 +39,8 @@ impl Default for PrimitiveFamilyDescriptor {
                 ..PrimitiveCapabilities::default()
             },
             child_processing: ChildProcessing::Generic,
+            plot: None,
+            connector: false,
         }
     }
 }
@@ -89,6 +98,8 @@ impl PrimitiveFamilyDescriptor {
             family,
             capabilities,
             child_processing: info.child_processing,
+            plot: info.plot,
+            connector: info.connector,
         }
     }
 

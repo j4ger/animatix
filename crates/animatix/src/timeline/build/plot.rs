@@ -655,7 +655,7 @@ impl Timeline {
         let mut y_scale = super::utils::ScaleType::Linear;
         let mut x_range = [-10.0, 10.0, 2.0];
         let mut y_range = [-10.0, 10.0, 2.0];
-        let is_number_plane = ty == "NumberPlane";
+        let is_number_plane = primitive.plot == Some(animatix_core::caps::PlotKind::NumberPlane);
         let initial_eval_env = self.build_eval_env(time_ms as u64);
 
         // Graph plot-area padding [left, right, top, bottom] in pixels.
@@ -994,10 +994,11 @@ impl Timeline {
         }
 
         // Validate plot func signature if present (BarChart does not take func).
-        let is_vector_field = ty == "VectorField";
-        let is_heatmap = ty == "Heatmap";
-        let is_contour_set = ty == "ContourSet";
-        let is_bar_chart = ty == "BarChart";
+        use animatix_core::caps::PlotKind;
+        let is_vector_field = primitive.plot == Some(PlotKind::VectorField);
+        let is_heatmap = primitive.plot == Some(PlotKind::Heatmap);
+        let is_contour_set = primitive.plot == Some(PlotKind::ContourSet);
+        let is_bar_chart = primitive.plot == Some(PlotKind::BarChart);
         if let Some((ref args, ref body, _)) = func {
             if !is_bar_chart {
                 let (expected_arity, expected_ty) = if is_vector_field {
@@ -1557,7 +1558,8 @@ impl Timeline {
             procedural_plot,
             bar_layout,
             bar_data,
-            tick_label_data: if (primitive.is_graph_host() || ty == "BarChart")
+            tick_label_data: if (primitive.is_graph_host()
+                || primitive.plot == Some(animatix_core::caps::PlotKind::BarChart))
                 && (!tick_label_data.x_labels.is_empty()
                     || !tick_label_data.y_labels.is_empty()
                     || !tick_label_data.bar_labels.is_empty())

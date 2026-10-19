@@ -711,6 +711,8 @@ mod tests {
                 shape: None,
                 text: Some(TextKind::Text),
                 stroke_path: false,
+                connector: false,
+                plot: None,
                 doc: "",
                 default_stub: None,
             },
@@ -845,6 +847,8 @@ mod tests {
                 shape: None,
                 text: Some(TextKind::Text),
                 stroke_path: false,
+                connector: false,
+                plot: None,
                 doc: "",
                 default_stub: None,
             },
@@ -1024,6 +1028,8 @@ mod tests {
                 shape: None,
                 text: Some(TextKind::Text),
                 stroke_path: false,
+                connector: false,
+                plot: None,
                 doc: "",
                 default_stub: None,
             },
@@ -1114,8 +1120,14 @@ mod tests {
     fn extension_property_survives_carry_bag_serde() {
         use animatix_syntax::schema::PropertyValueKind;
 
+        // The assignment needs a duration to interpolate: `#1s g.level = 80`
+        // without one is an *instant* change (see the sibling
+        // `extension_property_*` tests), so a carry at 500 ms would still read
+        // the declared 42. A ramp from the declaration at 0 to 80 over 1 s
+        // samples 61 at the halfway carry point, which is what makes this a
+        // round-trip check rather than a "still 42" check.
         let (ast, errors) =
-            animatix_syntax::parser::parse_source("g: Gauge, level: 42\n#1s\n g.level = 80");
+            animatix_syntax::parser::parse_source("g: Gauge, level: 42\n#0s\n g.level = 80 [1s]");
         assert!(errors.is_empty(), "parse errors: {errors:?}");
         let ast = ast.expect("parsed AST");
 
@@ -1133,6 +1145,8 @@ mod tests {
                 shape: None,
                 text: Some(TextKind::Text),
                 stroke_path: false,
+                connector: false,
+                plot: None,
                 doc: "",
                 default_stub: None,
             },

@@ -94,12 +94,6 @@ pub struct AnimationTrack {
     /// Label of the parent actor in the scene hierarchy, if any.
     /// `None` for root-level actors.
     pub parent: Option<String>,
-    /// Strongly-typed entity ID of the parent actor, if any.
-    #[cfg_attr(feature = "serde", serde(default))]
-    pub parent_id: Option<EntityId>,
-    /// Strongly-typed entity IDs of child actors in the scene hierarchy.
-    #[cfg_attr(feature = "serde", serde(default))]
-    pub children_ids: Vec<EntityId>,
     /// Whether the actor is visible in the preview and export.
     pub visible: bool,
     /// Whether the actor is locked (preventing selection and drag in the GUI).
@@ -209,8 +203,6 @@ impl AnimationTrack {
             first_seen_ms: u64::MAX,
             children: Vec::new(),
             parent: None,
-            parent_id: None,
-            children_ids: Vec::new(),
             visible: true,
             locked: false,
             camera_follow: true,

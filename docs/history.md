@@ -14,6 +14,83 @@ mixed history and open work).
 Historical tracks are kept as evidence. New implementation work is tracked in
 [Backlog & Prioritization](#backlog--prioritization).
 
+### Follow-Up Audit: Dead Bindings, Silent Drops, Dispatch Cleanup (2026-10-19)
+
+A review pass over the `PrimitivePayload` migration found four *declared but never
+read* properties, three of them user-visible, and one inaccurate history claim.
+
+1. **`max_lines` / `transition_time` were silent no-ops.** Both sat in
+   `PROPERTY_REGISTRY` and the inspector's Captions group, and neither the
+   captions renderer nor the text compiler read them.
+   - `max_lines` is now a real wrapped-line cap. `compile_text_cached` gained a
+     `max_lines: Option<usize>` parameter (part of the cache key), honoured by
+     `compile_text_fast_wrapped` in place of its hardcoded `Some(100)`. The
+     captions renderer passes the container's `text_max_width` as the wrap width
+     and `max_lines` as the cap, so a cue wraps and truncates instead of running
+     off screen on one line.
+   - `transition_time` now fades a cue in from its own start
+     (`primitives::captions::cue_transition_alpha`). Its binding default was
+     **changed 0.15 → 0.0** so the fade is opt-in: the old default was never
+     honoured, so keeping it would have silently changed every existing caption.
+   - `text_max_width` was equally ignored by Captions, and `font_family` /
+     `font_style` / `font_weight` / `line_height` / `letter_spacing` /
+     `word_spacing` were read off the container while the descriptor table
+     declared them `TextLike` only. Captions is not `TextLike` (it has no
+     `TextKind`), so those rows now list it explicitly.
+2. **A `Cue` with no `start`/`end` was silently invisible.** Both default to 0,
+   so the cue's `[start, end)` window was empty and nothing ever showed. The
+   build now warns (`never-revealed`) naming the cue and the fix.
+3. **`perspective` was never read.** `rotate_x`/`rotate_y` apply an *orthographic*
+   tilt — there is no focal length and no `1/w` division — so the declared
+   `perspective` (default 800, applicable to `Everything`, shown in the
+   inspector) did nothing. It is now reported as `unimplemented-property` when
+   authored; the real 2.5D projection is the `PerspectiveBlitPipeline` item in
+   `docs/roadmap.md`. (The site copy advertising "perspective distortion" is
+   ahead of the code.)
+4. **Audio `volume`/`source` assignments were dropped silently.**
+   `write_property_field` returned early for `AudioVolume`/`AudioSource`, so
+   `voice.volume = 0.3` vanished without a word. Both now report
+   `unimplemented-property`; automating them needs a gain envelope on the
+   segment plus matching export and GUI changes (roadmap: "Audio volume
+   automation").
+5. **One direction of the applicability contract was unchecked.**
+   `applicability_table_agrees_with_reads.rs` verified "a read must be declared"
+   but nothing verified "a declared, bound property must have a reader" — which
+   is how the four dead bindings above survived. A new
+   `every_bound_property_has_a_reader` test closes that direction, with an
+   explicit exemption list naming the typed lane that reads each exempt property.
+
+**Deleted as genuinely dead** (a new `resolve_root_ids` replaces it): the
+pre-computed DFS execution order (`dfs_order`, `dfs_order_ids`, the
+`dfs_execution_order*` and `root_node_ids` accessors) and the per-entity
+`parent_id` / `children_ids` resolved for every entity on every build. Nothing
+read any of them; the frame path walks `root_nodes` plus each node's `children`
+labels. `root_ids` is the only live product and is kept. The 2026-10-18 entry
+claiming the DFS order eliminated hot-path string hashing never matched the code
+and is corrected above.
+
+**Dispatch strings replaced with catalog data.** `find_actor_kind`'s
+`ty == "Connector"` and the generic body's `track.actor_type == "Connector"`
+became `PrimitiveInfo::connector` (set on the Connector card, pinned by a test),
+and the plot builder's `ty == "VectorField"`-family compares became
+`PrimitiveInfo::plot: Option<PlotKind>`, threaded through
+`PrimitiveFamilyDescriptor`. No behaviour change; the pinning tests fail if a
+new card forgets to declare its kind.
+
+> **Perf note (measured).** The first cut of the Connector change looked the flag
+> up at the use site with `animatix_std::catalog_lookup(ty)` — semantically
+> identical to the string compare it replaced, and build-time only. It still cost
+> `scene_costs::many_actors_evaluate` **+41%** (314.8 → 443.6 ns, combined-noise
+> limit 6.4%), reproducibly: with the whole round stashed the bench was 312.5 ns,
+> and reverting only `build/actor.rs` restored it to 304.6 ns. Nothing on that
+> bench's path changed — the cached-evaluate path only reads `needs_frame_env`
+> and copies bounds — so the cause was code layout inside a 1200-line build
+> function, not logic. Carrying `connector` on the `PrimitiveFamilyDescriptor`
+> that `process_actor_decl` **already computes** removed both the redundant
+> `catalog_lookup` linear scan and the artifact (309.6 ns). Lesson: on engine
+> micro-benches a "free" build-path edit can move a hot neighbour; measure, and
+> prefer reusing a value already in scope over a fresh call.
+
 ### Primitives → `PrimitivePayload` Migration Follow-Up (2026-10-19)
 
 Completed the residue of the flat-field → typed-payload migration:
@@ -92,10 +169,11 @@ Implemented comprehensive architectural modernization eliminating core design bo
    - Replaced `BTreeMap<u64, (T, Easing)>` in `PropertyTrack<T>` with a custom stack-inlined container (`Empty`, `One`, `Two`, `Many`).
    - 90%+ of properties with 0–2 keyframes allocate zero heap memory.
    - Criterion microbenchmark: `property_track_evaluate` improved by 58.8% (mean ~488ps, down from ~1.2ns), while frame evaluation runs in ~96ns.
-2. **Dense Entity Indexing & Linear Preorder Evaluation (`EntityId`, `TrackStore`)**:
+2. **Dense Entity Indexing (`EntityId`, `TrackStore`)**:
    - Replaced string-keyed `BTreeMap<String, AnimationTrack>` with dense `TrackStore` storing `Vec<AnimationTrack>` indexed by `EntityId(u32)`.
-   - Pre-computed `dfs_order_ids: Vec<EntityId>` enables linear topological traversal for space transforms and opacities, eliminating tree recursion and string hashing on hot frame evaluation paths.
+   - Pre-computed `root_ids: Vec<EntityId>` skips one label lookup per root per frame in `evaluate_program_inner`.
    - Full backward compatibility preserved via `label <-> EntityId` bidirectional mapping (`get_track`, `get_track_mut`).
+   - **Corrected 2026-10-19:** this entry originally claimed a pre-computed `dfs_order_ids` gave "linear topological traversal … eliminating tree recursion and string hashing on hot frame evaluation paths". That was never true — the frame path walks `root_nodes` and each node's `children` labels, and the DFS order plus per-entity `parent_id` / `children_ids` were written and never read. They were removed (see the 2026-10-19 follow-up entry); `root_ids` is the only live product.
 3. **Declarative Property System Unification**:
    - Unified property descriptor tables (`PROPERTY_DESCRIPTORS`) with engine bindings (`BINDINGS`) using declarative macros, enforcing single-source consistency across core and engine.
 4. **Unified Build-Time & Runtime Expression Evaluation into IR VM**:

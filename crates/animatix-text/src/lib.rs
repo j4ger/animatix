@@ -2237,6 +2237,7 @@ pub fn compile_text_fast_wrapped(
     word_spacing: f32,
     font_ctx: &FontContext,
     max_width: f32,
+    max_lines: Option<usize>,
     text_align: &str,
     overflow: &str,
 ) -> Result<CompiledText, RenderError> {
@@ -2415,16 +2416,18 @@ pub fn compile_text_fast_wrapped(
         lines.push(current_line);
     }
 
-    // Handle overflow
-    let max_lines = if overflow == "ellipsis" || overflow == "clip" {
+    // Handle overflow. An explicit `max_lines` (the `max_lines` property) wins;
+    // otherwise ellipsis/clip keeps the old "one page worth" guard so unbounded
+    // growth is still prevented.
+    let line_limit = max_lines.or(if overflow == "ellipsis" || overflow == "clip" {
         // Limit to roughly the visible area: one page worth (no explicit height limit yet)
         // For now, just prevent unbounded growth
         Some(100usize)
     } else {
         None
-    };
+    });
 
-    let truncated_lines: &[LineInfo] = if let Some(limit) = max_lines {
+    let truncated_lines: &[LineInfo] = if let Some(limit) = line_limit {
         if lines.len() > limit {
             &lines[..limit]
         } else {
@@ -2618,6 +2621,9 @@ struct TextCacheKey {
     color: [u8; 4],
     kind: TextKind,
     max_width_bits: u32,
+    /// Wrapped-line cap (`max_lines`). Part of the key: the same text capped at
+    /// two lines must not share a cache entry with the uncapped compile.
+    max_lines: Option<usize>,
     text_align: String,
     overflow: String,
     fast_path: bool,
@@ -2762,6 +2768,7 @@ pub fn compile_text_cached(
     word_spacing: f32,
     color: [f32; 4],
     max_width: f32,
+    max_lines: Option<usize>,
     text_align: &str,
     overflow: &str,
     allow_fast_path: bool,
@@ -2786,6 +2793,7 @@ pub fn compile_text_cached(
         ],
         kind,
         max_width_bits: max_width.to_bits(),
+        max_lines,
         text_align: text_align.to_string(),
         overflow: overflow.to_string(),
         fast_path: allow_fast_path,
@@ -2828,6 +2836,7 @@ pub fn compile_text_cached(
                 word_spacing,
                 font_ctx,
                 max_width,
+                max_lines,
                 text_align,
                 overflow,
             )?
@@ -2853,6 +2862,18 @@ pub fn compile_text_cached(
                 kind,
                 max_width
             );
+            // `max_lines` is implemented on the fast text path, which is the
+            // route plain Latin `Text` takes. Say so when a caller asks for a
+            // line cap on the Typst route rather than dropping it silently —
+            // but only when it could bite: with no wrap width the text is a
+            // single line, so the cap is vacuous, not dropped.
+            if max_lines.is_some() && max_width > 0.0 {
+                tracing::warn!(
+                    "max_lines is not applied on the Typst text path (kind={:?}); \
+                     the request is dropped for this content",
+                    kind
+                );
+            }
             let typst_color = typst::visualize::Color::from_u8(
                 key.color[0],
                 key.color[1],
@@ -2940,6 +2961,7 @@ pub fn compile_text_cached(
                     word_spacing,
                     font_ctx,
                     max_width,
+                    max_lines,
                     text_align,
                     overflow,
                 )?
@@ -3021,6 +3043,7 @@ pub fn compile_typst_grouped_cached(
         kind: TextKind::Typst,
         // The Equation path always compiles unwrapped, left-aligned, visible.
         max_width_bits: 0.0f32.to_bits(),
+        max_lines: None,
         text_align: "left".to_string(),
         overflow: "visible".to_string(),
         fast_path: false,
@@ -3083,6 +3106,7 @@ pub fn compile_typst_grouped_cached(
             word_spacing,
             font_ctx,
             0.0,
+            None,
             "left",
             "visible",
         )?;
@@ -3175,6 +3199,7 @@ impl TextCompiler {
             word_spacing,
             color,
             max_width,
+            None,
             text_align,
             overflow,
             self.text_fast_path,
@@ -3409,6 +3434,52 @@ mod tests {
         CACHE_TEST_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
+    /// `max_lines` must cap the number of wrapped lines the fast text path
+    /// emits, and must be part of the cache key (so a capped compile is not
+    /// served the uncapped entry).
+    #[test]
+    fn max_lines_caps_wrapped_lines() {
+        let _guard = cache_test_guard();
+        let font_ctx = test_font_ctx();
+        let text = "the quick brown fox jumps over the lazy dog and keeps running";
+
+        let line_count = |max_lines: Option<usize>| {
+            let compiled = compile_text_cached(
+                TextKind::Text,
+                text,
+                "",
+                None,
+                "Open Sans",
+                24.0,
+                400.0,
+                "normal",
+                1.2,
+                0.0,
+                0.0,
+                [1.0, 1.0, 1.0, 1.0],
+                120.0,
+                max_lines,
+                "left",
+                "visible",
+                true,
+                &font_ctx,
+            )
+            .expect("wrapped text compiles");
+            let mut lines: Vec<u32> =
+                compiled.paths.iter().map(|p| u32::from(p.line_idx)).collect();
+            lines.sort_unstable();
+            lines.dedup();
+            lines.len()
+        };
+
+        let uncapped = line_count(None);
+        assert!(uncapped > 1, "the fixture must wrap to several lines, got {uncapped}");
+        assert_eq!(line_count(Some(1)), 1, "max_lines: 1 must keep exactly one line");
+        assert_eq!(line_count(Some(2)), 2, "max_lines: 2 must keep exactly two lines");
+        // The cache must not alias the capped and uncapped compiles.
+        assert_eq!(line_count(None), uncapped);
+    }
+
     #[cfg(feature = "rich-text")]
     #[test]
     fn emphasis_faces_load_bold_when_family_has_it() {
@@ -3491,6 +3562,7 @@ mod tests {
             0.0,
             [1.0, 1.0, 1.0, 1.0],
             0.0,
+            None,
             "left",
             "visible",
             false,
@@ -3545,6 +3617,7 @@ mod tests {
                 0.0,
                 [1.0, 1.0, 1.0, 1.0],
                 0.0,
+                None,
                 "left",
                 "visible",
                 false,
@@ -3584,6 +3657,7 @@ mod tests {
                 0.0,
                 [1.0, 1.0, 1.0, 1.0],
                 0.0,
+                None,
                 "left",
                 "visible",
                 false,
@@ -3637,6 +3711,7 @@ mod tests {
             0.0,
             [1.0, 1.0, 1.0, 1.0],
             0.0,
+            None,
             "left",
             "visible",
             false,
@@ -4047,6 +4122,7 @@ mod tests {
                 0.0,
                 [1.0, 1.0, 1.0, 1.0],
                 max_width,
+                None,
                 "left",
                 "visible",
                 false,
@@ -4188,6 +4264,7 @@ mod tests {
                 0.0,
                 [1.0, 1.0, 1.0, 1.0],
                 0.0,
+                None,
                 "left",
                 "visible",
                 false,
@@ -4364,6 +4441,7 @@ mod tests {
             0.0,
             &font_ctx,
             50.0,
+            None,
             "left",
             "visible",
         )
@@ -4494,6 +4572,7 @@ mod tests {
             0.0,
             &font_ctx,
             200.0,
+            None,
             "left",
             "visible",
         )
@@ -4512,6 +4591,7 @@ mod tests {
             0.0,
             &font_ctx,
             200.0,
+            None,
             "center",
             "visible",
         )
@@ -4530,6 +4610,7 @@ mod tests {
             0.0,
             &font_ctx,
             200.0,
+            None,
             "right",
             "visible",
         )
@@ -4586,6 +4667,7 @@ mod tests {
             0.0,
             &font_ctx,
             10000.0,
+            None,
             "left",
             "visible",
         )

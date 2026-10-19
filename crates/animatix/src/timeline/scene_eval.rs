@@ -1995,6 +1995,14 @@ impl Timeline {
         }
 
         let mut all_cues: Vec<ActiveCue> = Vec::new();
+        // Declared caption caps, read from the container. `text_max_width` is
+        // the canonical wrap width (so a long cue wraps instead of running off
+        // screen), `max_lines` caps how many wrapped lines the cue may occupy
+        // (`0` = unlimited), and `transition_time` fades a cue in from its own
+        // start (0 by default, so captions snap unless asked to transition).
+        let text_max_width = track.sample_f32_prop("text_max_width", time_ms, 0.0).max(0.0);
+        let max_lines = track.sample_u32_prop("max_lines", time_ms, 2);
+        let transition_s = track.sample_f32_prop("transition_time", time_ms, 0.0).max(0.0) as f64;
         let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
 
         for child_label in &children {
@@ -2088,6 +2096,14 @@ impl Timeline {
         let active_cue = all_cues.iter().find(|c| c.start_s <= time_s && time_s < c.end_s);
 
         if let Some(cue) = active_cue {
+            // `transition_time` fades a cue in from its own start. It is 0 by
+            // default, so captions snap unless an author asks for a transition.
+            let caption_opacity = global_opacity
+                * crate::primitives::captions::cue_transition_alpha(
+                    time_s,
+                    cue.start_s,
+                    transition_s,
+                );
             let font_size = track.text.font_size.get(time_ms, 32.0);
             let font_family = track.text.font_family.get(time_ms, String::new());
             let font_style = track.text.font_style.get(time_ms, "normal".to_string());
@@ -2125,7 +2141,8 @@ impl Timeline {
                 letter_spacing,
                 word_spacing,
                 base_color,
-                0.0,
+                text_max_width,
+                (max_lines > 0).then_some(max_lines as usize),
                 "center",
                 "visible",
                 true,
@@ -2152,7 +2169,7 @@ impl Timeline {
                             b.y1 + pad_y,
                             backdrop_radius as f64,
                         );
-                        let bg_alpha = backdrop_color[3] * global_opacity;
+                        let bg_alpha = backdrop_color[3] * caption_opacity;
                         let bg_col = vello::peniko::Color::from_rgba8(
                             (backdrop_color[0] * 255.0).clamp(0.0, 255.0) as u8,
                             (backdrop_color[1] * 255.0).clamp(0.0, 255.0) as u8,
@@ -2198,7 +2215,7 @@ impl Timeline {
                             },
                         };
 
-                        let alpha = color[3] * global_opacity * g.opacity;
+                        let alpha = color[3] * caption_opacity * g.opacity;
                         if alpha <= 0.0 {
                             continue;
                         }

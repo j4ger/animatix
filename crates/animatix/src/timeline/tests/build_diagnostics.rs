@@ -490,3 +490,78 @@ arrow: Arrow, from: pen.right, to: dot.left
         "Line and Arrow dynamic actor anchor refs must not emit unknown-lookup-path: {lookup_errors:?}"
     );
 }
+
+/// `perspective` is accepted and stored but has no consumer (the tilt is
+/// orthographic), so authoring it must warn rather than silently do nothing.
+#[test]
+fn perspective_warns_as_unimplemented() {
+    let source = r#"
+config { resolution: (320, 180) }
+card: Rect, size: (100, 60), at: (160, 90), perspective: 800.0
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report =
+        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+
+    let warning = report
+        .diagnostics
+        .iter()
+        .find(|d| d.code == crate::diagnostics::DiagnosticCode::UnimplementedProperty);
+    let warning = warning.unwrap_or_else(|| {
+        panic!("expected an unimplemented-property warning, got {:?}", report.diagnostics)
+    });
+    assert!(
+        warning.message.contains("card.perspective"),
+        "the warning should name the actor and property, got: {}",
+        warning.message
+    );
+
+    // A scene that never authors it stays quiet.
+    let quiet_source = r#"
+config { resolution: (320, 180) }
+card: Rect, size: (100, 60), at: (160, 90)
+"#;
+    let (quiet_ast, _) = animatix_syntax::parser::parse_source(quiet_source);
+    let quiet = Timeline::build_with_diagnostics(
+        &quiet_ast.expect("AST"),
+        &std::collections::HashMap::new(),
+    );
+    assert!(
+        quiet
+            .diagnostics
+            .iter()
+            .all(|d| d.code != crate::diagnostics::DiagnosticCode::UnimplementedProperty),
+        "an unauthored `perspective` must not warn: {:?}",
+        quiet.diagnostics
+    );
+}
+
+/// Audio `source`/`volume` are snapshotted from the declaration, so an
+/// assignment to either used to vanish. It must be reported instead.
+#[test]
+fn audio_volume_assignment_warns_as_unimplemented() {
+    let source = r#"
+config { resolution: (320, 180) }
+voice: Audio, source: "voice.wav"
+#1s
+voice.volume = 0.3 [1s]
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report =
+        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+
+    let warning = report
+        .diagnostics
+        .iter()
+        .find(|d| d.code == crate::diagnostics::DiagnosticCode::UnimplementedProperty);
+    let warning = warning.unwrap_or_else(|| {
+        panic!("expected an unimplemented-property warning, got {:?}", report.diagnostics)
+    });
+    assert!(
+        warning.message.contains("voice.volume"),
+        "the warning should name the actor and property, got: {}",
+        warning.message
+    );
+}

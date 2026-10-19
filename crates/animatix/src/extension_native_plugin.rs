@@ -751,6 +751,8 @@ impl NativePrimitiveAdapter {
             shape: None,
             text: None,
             stroke_path: false,
+            connector: false,
+            plot: None,
             doc: "",
             default_stub: None,
         };

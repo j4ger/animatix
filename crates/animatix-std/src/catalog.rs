@@ -13,7 +13,8 @@
 use std::borrow::Cow;
 
 use animatix_core::caps::{
-    ActorCaps, ActorCategory, ChildProcessingKind, PrimitiveCapabilities, ShapeKind, TextKind,
+    ActorCaps, ActorCategory, ChildProcessingKind, PlotKind, PrimitiveCapabilities, ShapeKind,
+    TextKind,
 };
 use animatix_core::icon_glyphs;
 
@@ -42,8 +43,18 @@ pub struct PrimitiveInfo {
     pub shape: Option<ShapeKind>,
     /// The text engine backing this actor, for text-like primitives.
     pub text: Option<TextKind>,
+    /// Which plot family this actor belongs to, for plot primitives. Carried to
+    /// the engine through `PrimitiveFamilyDescriptor`, replacing the plot
+    /// builder's `ty == "VectorField"`-style string compares.
+    pub plot: Option<PlotKind>,
     /// Renders as a stroke-based path (shapes and `PlotCurve`).
     pub stroke_path: bool,
+    /// The generic actor-declaration body writes this primitive's declaration
+    /// properties into the connector geometry lanes (`from` / `to` / `routing` /
+    /// `arrow`), so the primitive is deliberately *not* dispatched to
+    /// [`crate::PrimitiveInfo`]'s `Primitive::build` path. Catalog data rather
+    /// than a `ty == "Connector"` compare at each dispatch site.
+    pub connector: bool,
     /// Author-facing documentation for completions, tooltips, and hover info.
     pub doc: &'static str,
     /// Default snippet / property stub when inserting or stubbing this primitive.
@@ -153,7 +164,9 @@ impl PrimitiveInfo {
             child_processing: ChildProcessingKind::Generic,
             shape: None,
             text: None,
+            plot: None,
             stroke_path: false,
+            connector: false,
             doc: "",
             default_stub: None,
         }
@@ -180,7 +193,9 @@ impl PrimitiveInfo {
             child_processing: ChildProcessingKind::Generic,
             shape: Some(kind),
             text: None,
+            plot: None,
             stroke_path: true,
+            connector: false,
             doc: "",
             default_stub: None,
         }
@@ -203,7 +218,9 @@ impl PrimitiveInfo {
             child_processing: ChildProcessingKind::Generic,
             shape: None,
             text: Some(kind),
+            plot: None,
             stroke_path: false,
+            connector: false,
             doc: "",
             default_stub: None,
         }
@@ -230,6 +247,19 @@ impl PrimitiveInfo {
     /// Mark the card stroke-based.
     pub const fn stroked(mut self) -> Self {
         self.stroke_path = true;
+        self
+    }
+
+    /// Mark the card as one whose declaration properties the generic actor body
+    /// writes into the connector geometry lanes (see [`Self::connector`]).
+    pub const fn connector_geometry(mut self) -> Self {
+        self.connector = true;
+        self
+    }
+
+    /// Declare which plot family this card is (see [`Self::plot`]).
+    pub const fn plot_kind(mut self, kind: PlotKind) -> Self {
+        self.plot = Some(kind);
         self
     }
 
@@ -354,6 +384,7 @@ pub static PLOT_CURVE: PrimitiveInfo = PrimitiveInfo::new(
     ActorCategory::Plot,
     PLOT_CAPS,
 )
+.plot_kind(PlotKind::Curve)
 .advanced()
 .stroked()
 .stroke_primary()
@@ -366,6 +397,7 @@ pub static VECTOR_FIELD: PrimitiveInfo = PrimitiveInfo::new(
     ActorCategory::Plot,
     PLOT_CAPS,
 )
+.plot_kind(PlotKind::VectorField)
 .advanced()
 .stroked()
 .stroke_primary()
@@ -373,6 +405,7 @@ pub static VECTOR_FIELD: PrimitiveInfo = PrimitiveInfo::new(
 .with_stub("func: (x, y) => (y, -x)");
 pub static HEATMAP: PrimitiveInfo =
     PrimitiveInfo::new("Heatmap", "Heatmap", icon_glyphs::GRADIENT, ActorCategory::Plot, PLOT_CAPS)
+        .plot_kind(PlotKind::Heatmap)
         .advanced()
         .stroked()
         .with_doc("2D scalar density heatmap plot.")
@@ -384,6 +417,7 @@ pub static CONTOUR_SET: PrimitiveInfo = PrimitiveInfo::new(
     ActorCategory::Plot,
     PLOT_CAPS,
 )
+.plot_kind(PlotKind::ContourSet)
 .advanced()
 .stroked()
 .stroke_primary()
@@ -396,6 +430,7 @@ pub static NUMBER_PLANE: PrimitiveInfo = PrimitiveInfo::new(
     ActorCategory::Plot,
     PLOT_CAPS,
 )
+.plot_kind(PlotKind::NumberPlane)
 .stroked()
 .with_doc("Cartesian coordinate plane with grid lines and axes.")
 .with_stub("x_range: (-5, 5), y_range: (-5, 5)");
@@ -406,6 +441,7 @@ pub static BAR_CHART: PrimitiveInfo = PrimitiveInfo::new(
     ActorCategory::Plot,
     PLOT_CAPS,
 )
+.plot_kind(PlotKind::BarChart)
 .with_doc("Categorical bar chart visualization.")
 .with_stub("data: {(\"A\", 10), (\"B\", 20)}");
 
@@ -545,6 +581,7 @@ pub static CONNECTOR: PrimitiveInfo = PrimitiveInfo::new(
 )
 .stroked()
 .stroke_primary()
+.connector_geometry()
 .with_doc("Connecting line or curve between two actor anchors.");
 
 /// The built-in primitive catalog.
@@ -618,7 +655,9 @@ impl PrimitiveInfo {
             child_processing: ChildProcessingKind::Generic,
             shape: None,
             text: None,
+            plot: None,
             stroke_path: false,
+            connector: false,
             doc: "",
             default_stub: None,
         }
@@ -726,4 +765,58 @@ mod tests {
             "docs/spec.md LLM checklist out of sync with CATALOG: missing {missing:?}, extra {extra:?}"
         );
     }
+}
+
+/// `connector` is the catalog datum that keeps Connector out of the
+/// `Primitive::build` dispatch: its declaration properties are written into
+/// the connector geometry lanes by the generic actor body. Exactly one card
+/// may set it, so a new annotation primitive cannot silently inherit the
+/// inline path (or lose Connector's) without this failing first.
+#[test]
+fn exactly_one_card_declares_connector_geometry() {
+    let flagged: Vec<&str> = CATALOG
+        .iter()
+        .filter(|info| info.connector)
+        .map(|info| &*info.type_name)
+        .collect();
+    assert_eq!(
+        flagged,
+        vec!["Connector"],
+        "the connector-geometry card set changed; update `find_actor_kind` and the \
+             generic body's connector block together"
+    );
+}
+
+/// Every plot card declares its `PlotKind`, and no non-plot card does. The
+/// plot builder reads this instead of comparing type-name strings, so a new
+/// plot primitive that forgets `plot_kind(...)` would silently fall through
+/// to the `Curve` path.
+#[test]
+fn plot_cards_declare_their_plot_kind() {
+    use animatix_core::caps::PlotKind;
+    let mut declared: Vec<(&str, PlotKind)> = CATALOG
+        .iter()
+        .filter_map(|info| info.plot.map(|kind| (&*info.type_name, kind)))
+        .collect();
+    declared.sort_by_key(|(name, _)| *name);
+    assert_eq!(
+        declared,
+        vec![
+            ("BarChart", PlotKind::BarChart),
+            ("ContourSet", PlotKind::ContourSet),
+            ("Heatmap", PlotKind::Heatmap),
+            ("NumberPlane", PlotKind::NumberPlane),
+            ("PlotCurve", PlotKind::Curve),
+            ("VectorField", PlotKind::VectorField),
+        ],
+        "the plot-family catalog data drifted from the six plot primitives"
+    );
+    // `Graph` is a plot *host*, not a family member.
+    assert!(
+        CATALOG
+            .iter()
+            .find(|i| &*i.type_name == "Graph")
+            .is_some_and(|i| i.plot.is_none()),
+        "Graph hosts plot children and must not declare a PlotKind"
+    );
 }

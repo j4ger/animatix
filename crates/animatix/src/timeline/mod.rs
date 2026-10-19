@@ -525,9 +525,6 @@ pub struct Timeline {
     pub(crate) background_color: PropertyTrack<[f32; 4]>,
     pub(crate) root_nodes: Vec<String>,
     pub(crate) root_ids: Vec<EntityId>,
-    /// Pre-computed depth-first execution order of actors in the scene tree.
-    pub(crate) dfs_order: Vec<String>,
-    pub(crate) dfs_order_ids: Vec<EntityId>,
     pub(crate) env: Environment,
     /// Scope stack for `Stmt::Block` (function-call expansion). Each entry
     /// records the `let` names bound inside that block so they can be removed
@@ -895,8 +892,6 @@ impl Timeline {
             background_color: bg_track,
             root_nodes: Vec::new(),
             root_ids: Vec::new(),
-            dfs_order: Vec::new(),
-            dfs_order_ids: Vec::new(),
             env: Environment::new(),
             block_scope: Vec::new(),
             primitive_registry: std::sync::Arc::new(crate::primitives::PrimitiveRegistry::new()),
@@ -1330,69 +1325,23 @@ impl Timeline {
         &self.root_nodes
     }
 
-    /// Returns the pre-computed depth-first execution order of actors in the scene tree.
-    pub fn dfs_execution_order(&self) -> &[String] {
-        &self.dfs_order
-    }
-
-    /// Returns the pre-computed depth-first execution order of entity IDs in the scene tree.
-    pub fn dfs_execution_order_ids(&self) -> &[EntityId] {
-        &self.dfs_order_ids
-    }
-
-    /// Returns the pre-computed root node entity IDs in the scene tree.
-    pub fn root_node_ids(&self) -> &[EntityId] {
-        &self.root_ids
-    }
-
-    /// Compute the depth-first execution order of actors in the scene tree and resolve entity hierarchy.
-    pub(crate) fn compute_dfs_order(&mut self) {
-        let track_count = self.tracks.len();
-        // Resolve parent_id and children_ids for every entity
-        for i in 0..track_count {
-            let parent_label = self.tracks.dense[i].parent.clone();
-            self.tracks.dense[i].parent_id =
-                parent_label.as_ref().and_then(|p| self.tracks.get_id(p));
-            let children_labels = self.tracks.dense[i].children.clone();
-            self.tracks.dense[i].children_ids =
-                children_labels.iter().filter_map(|c| self.tracks.get_id(c)).collect();
-        }
-
-        let mut order_labels = Vec::with_capacity(track_count);
-        let mut order_ids = Vec::with_capacity(track_count);
+    /// Resolve the dense [`EntityId`] of every root actor, in `root_nodes`
+    /// order.
+    ///
+    /// This used to also build a depth-first execution order and per-entity
+    /// `parent_id` / `children_ids`, but nothing ever read them: the frame path
+    /// walks `root_nodes` and each node's `children` labels, and the frame
+    /// cache keys on labels. They were removed rather than left as per-build
+    /// allocations. `root_ids` is live — `evaluate_program_inner` uses it to
+    /// skip a label lookup per root per frame.
+    pub(crate) fn resolve_root_ids(&mut self) {
         let mut root_ids = Vec::with_capacity(self.root_nodes.len());
-
         for root in &self.root_nodes {
             if let Some(root_id) = self.tracks.get_id(root) {
                 root_ids.push(root_id);
             }
-            Self::collect_dfs_order_recursive(
-                root,
-                &self.tracks,
-                &mut order_labels,
-                &mut order_ids,
-            );
         }
         self.root_ids = root_ids;
-        self.dfs_order = order_labels;
-        self.dfs_order_ids = order_ids;
-    }
-
-    fn collect_dfs_order_recursive(
-        label: &str,
-        tracks: &TrackStore,
-        order_labels: &mut Vec<String>,
-        order_ids: &mut Vec<EntityId>,
-    ) {
-        order_labels.push(label.to_string());
-        if let Some(id) = tracks.get_id(label) {
-            order_ids.push(id);
-        }
-        if let Some(track) = tracks.get(label) {
-            for child in &track.children {
-                Self::collect_dfs_order_recursive(child, tracks, order_labels, order_ids);
-            }
-        }
     }
 
     /// Returns the hit regions from the last evaluate call.

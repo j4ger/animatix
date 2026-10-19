@@ -1095,6 +1095,7 @@ pub(crate) fn recompile_text_at_assignment(
         word_spacing,
         color,
         0.0,
+        None,
         "left",
         "visible",
         text_compiler.text_fast_path,

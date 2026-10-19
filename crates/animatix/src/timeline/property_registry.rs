@@ -1080,7 +1080,7 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("tolerance", V::F32, F::empty(), PlotDomainGroup, val!(f32 2.0)),
     b!("transcript", V::String, F::ASSIGNABLE, Tagged, val!(str "")),
     b!("transform", V::Transform, F::SPATIAL_AI, Transform, val!(transform)),
-    b!("transition_time", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.15)),
+    b!("transition_time", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
     b!("url", V::String, F::ASSIGNABLE, ImageData, val!(str "")),
     b!("value", V::F32, F::ASSIGNABLE_AI, Tagged, val!(f32 0.0)),
     b!("vertical_align", V::String, F::empty(), NoStorage, val!(str "center")),

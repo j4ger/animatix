@@ -130,7 +130,7 @@ declare_property_descriptors! {
     "descent" => (Applicable::Never, F32),
     "direction" => (Applicable::Actors(&["BarChart"]), String),
     "fill_opacity" => (Applicable::AllShapesExceptLine, F32),
-    "font_family" => (Applicable::TextLike, String),
+    "font_family" => (Applicable::Any(&[Applicable::TextLike, Applicable::Actors(&["Captions"])]), String),
     "font_size" => (// `Legend` draws its own labels through the text engine and reads
         // `font_size` off its props (`primitives/legend.rs`), so the row has to
         // include it or the applicability lint reports a working property as
@@ -142,8 +142,8 @@ declare_property_descriptors! {
         Applicable::Actors(&[
             "Captions", "Code", "Counter", "Cue", "Equation", "Legend", "Math", "Text", "Typst",
         ]), F32),
-    "font_style" => (Applicable::TextLike, String),
-    "font_weight" => (Applicable::TextLike, F32),
+    "font_style" => (Applicable::Any(&[Applicable::TextLike, Applicable::Actors(&["Captions"])]), String),
+    "font_weight" => (Applicable::Any(&[Applicable::TextLike, Applicable::Actors(&["Captions"])]), F32),
     "from" => (Applicable::Actors(&["Arrow", "Callout", "Connector", "Line"]), Vec2),
     "func" => (Applicable::Actors(&["ContourSet", "Heatmap", "PlotCurve", "VectorField"]), Generic),
     "gap" => (// `BarChart` reads the same name as the bar spacing; for containers it is
@@ -171,11 +171,11 @@ declare_property_descriptors! {
     // and the text engine do — so the row silently accepted a value nothing
     // consumed.
     "letter_spacing" => (Applicable::Actors(&[
-            "Code", "Math", "Text", "Typst",
+            "Captions", "Code", "Math", "Text", "Typst",
         ]), F32),
     "levels" => (Applicable::Actors(&["ContourSet"]), Vec2),
     "line_cap" => (Applicable::AllShapes, U32),
-    "line_height" => (Applicable::TextLike, F32),
+    "line_height" => (Applicable::Any(&[Applicable::TextLike, Applicable::Actors(&["Captions"])]), F32),
     "line_join" => (Applicable::AllShapes, U32),
     "max_depth" => (Applicable::Actors(&["ContourSet", "PlotCurve"]), F32),
     "max_height" => (Applicable::SizedActors, F32),
@@ -224,7 +224,11 @@ declare_property_descriptors! {
         // name per spec; `max_width` kept as a legacy alias"). The row used to
         // list only `Legend`, which is why 94 site scenes could set a wrap width
         // on a `Text` that the table claimed did not take one.
-        Applicable::Any(&[Applicable::LegendHost, Applicable::TextLike]), F32),
+        Applicable::Any(&[
+            Applicable::LegendHost,
+            Applicable::TextLike,
+            Applicable::Actors(&["Captions"]),
+        ]), F32),
     "tick_labels" => (Applicable::PlotHost, String),
     "ticks" => (Applicable::PlotHost, String),
     "title" => (Applicable::LegendHost, String),
@@ -236,7 +240,7 @@ declare_property_descriptors! {
     "vertical_align" => (Applicable::Actors(&["Col", "Row"]), String),
     "volume" => (Applicable::Actors(&["Audio"]), F32),
     "width" => (Applicable::SizedActors, F32),
-    "word_spacing" => (Applicable::TextLike, F32),
+    "word_spacing" => (Applicable::Any(&[Applicable::TextLike, Applicable::Actors(&["Captions"])]), F32),
     "x_domain" => (Applicable::PlotGeometry, Vec2),
     "x_range" => (Applicable::Actors(&["Graph", "NumberPlane", "PlotCurve"]), Vec2),
     "x_scale" => (Applicable::PlotHost, String),

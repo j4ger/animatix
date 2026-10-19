@@ -979,7 +979,12 @@ impl Timeline {
             }
         }
 
-        if track.actor_type == "Connector" {
+        // Connector declaration properties are written into the connector
+        // geometry lanes here, in the generic body, so the actor keeps the whole
+        // generic declaration tail (style, transforms, opacity, gradients).
+        // Catalog data decides this (via the descriptor already built above),
+        // not a `ty == "Connector"` compare.
+        if primitive.connector {
             track
                 .geometry
                 .connector_arrow
@@ -1074,6 +1079,24 @@ impl Timeline {
                     _ => {},
                 }
             }
+        }
+
+        // `perspective` is declared for every actor (default 800) as the focal
+        // length of the planned 2.5D perspective tilt, but only `rotate_x` /
+        // `rotate_y` are implemented and they apply an *orthographic* tilt — no
+        // focal length, no `1/w` foreshortening. So an authored `perspective`
+        // is stored and never read. Say so instead of accepting a value that
+        // does nothing; the property lands with `PerspectiveBlitPipeline`.
+        if props.iter().any(|p| p.name == "perspective") {
+            diagnostics.push(Diagnostic::warning(
+                crate::diagnostics::DiagnosticCode::UnimplementedProperty,
+                crate::diagnostics::DiagnosticPhase::Build,
+                format!(
+                    "`{label}.perspective` is not implemented yet: `rotate_x`/`rotate_y` apply an \
+                     orthographic tilt, so the focal length has no effect. Tracked in \
+                     docs/roadmap.md (2.5D perspective tilt)."
+                ),
+            ));
         }
 
         // Registry-backed properties that the legacy per-primitive build loop

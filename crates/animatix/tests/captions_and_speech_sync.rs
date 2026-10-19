@@ -257,3 +257,40 @@ fn test_demo_scene_captions_evaluation() {
 
     let _scene_at_2s = tl.evaluate(2.0, DIMS);
 }
+
+/// A `Cue` with no `start`/`end` has an empty window and is never shown; the
+/// build must say so instead of rendering nothing silently.
+#[test]
+fn test_cue_without_a_window_warns() {
+    let dir = setup_temp_workspace("cue_no_window");
+    let amx_path = dir.join("main.amx");
+    let source = r#"
+subs: Captions, opacity: 1.0, at: (960, 900) {
+    implicit: Cue, text: "no window"
+}
+"#;
+    fs::write(&amx_path, source).unwrap();
+    let ast = ModuleGraph::new()
+        .load_program(&amx_path)
+        .expect("load program")
+        .expand_components(&mut Vec::new());
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+
+    let warned = report.diagnostics.iter().any(|d| {
+        d.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Warning
+            && d.message.contains("Cue `implicit`")
+            && d.message.contains("never shown")
+    });
+    assert!(
+        warned,
+        "expected a never-shown warning for a cue with no window, got: {:?}",
+        report.diagnostics
+    );
+
+    // The explicit-window cue in the other fixture must stay warning-free.
+    assert!(
+        report.diagnostics.iter().all(|d| !d.message.contains("Cue `c1`")),
+        "a cue with an explicit window must not warn: {:?}",
+        report.diagnostics
+    );
+}

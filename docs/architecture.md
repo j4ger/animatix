@@ -107,8 +107,8 @@ Timeline {
     tracks: TrackStore, // Dense Vec<AnimationTrack> indexed by EntityId(u32), with label mapping
     nodes: BTreeMap<String, SceneNode>,
     root_nodes: Vec<String>,
+    root_ids: Vec<EntityId>, // Dense id per root, in `root_nodes` order
     modifiers: Vec<Stmt>,
-    dfs_order_ids: Vec<EntityId>, // Precomputed linear evaluation order
 }
 ```
 

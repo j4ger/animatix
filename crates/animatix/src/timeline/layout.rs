@@ -710,6 +710,7 @@ impl Timeline {
             props.word_spacing,
             props.color,
             effective_max_width,
+            None,
             &props.text_align,
             &props.overflow,
             false,

@@ -183,6 +183,12 @@ pub enum DiagnosticCode {
     /// A property name the build knows, but which this actor's primitive never
     /// reads, so the authored value is dropped.
     InapplicableProperty,
+    /// A property the build accepts and stores, but whose effect is not
+    /// implemented yet, so authoring it does nothing. Distinct from
+    /// `InapplicableProperty` (wrong actor for the property) and
+    /// `UnknownProperty` (typo): the value is understood, it just has no
+    /// consumer.
+    UnimplementedProperty,
     /// An actor type name is not recognized.
     UnknownType,
     /// Text content contains characters the shaping path has no glyph for; they
@@ -277,6 +283,7 @@ impl fmt::Display for DiagnosticCode {
             DiagnosticCode::UndefinedLabel => write!(f, "undefined-label"),
             DiagnosticCode::UnknownProperty => write!(f, "unknown-property"),
             DiagnosticCode::InapplicableProperty => write!(f, "inapplicable-property"),
+            DiagnosticCode::UnimplementedProperty => write!(f, "unimplemented-property"),
             DiagnosticCode::MissingGlyph => write!(f, "missing-glyph"),
             DiagnosticCode::UnknownType => write!(f, "unknown-type"),
         }

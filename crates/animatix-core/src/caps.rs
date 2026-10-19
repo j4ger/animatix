@@ -94,6 +94,29 @@ impl ShapeKind {
     }
 }
 
+/// Which plot family a plot primitive belongs to.
+///
+/// The plot builder used to decide this with `ty == "VectorField"`-style string
+/// compares. The family is a property of the primitive, so it lives on the
+/// catalog card and is carried to the engine through
+/// `PrimitiveFamilyDescriptor`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum PlotKind {
+    /// A sampled function curve (cartesian/polar/parametric/implicit).
+    Curve,
+    /// A 2-argument vector field `(x, y) => (u, v)`.
+    VectorField,
+    /// A 2-argument scalar field drawn as a density map.
+    Heatmap,
+    /// A 2-argument scalar field drawn as iso-contour lines.
+    ContourSet,
+    /// A Cartesian coordinate plane with grid lines and axes.
+    NumberPlane,
+    /// A categorical bar chart driven by a `data` dataset.
+    BarChart,
+}
+
 /// The text engine backing a text-like actor.
 ///
 /// Mirrors the renderer's compile-time text kinds (which are

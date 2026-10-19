@@ -221,6 +221,8 @@ mod tests {
             shape: None,
             text: None,
             stroke_path: false,
+            connector: false,
+            plot: None,
             doc: "",
             default_stub: None,
         }
@@ -299,6 +301,8 @@ mod tests {
                     shape: None,
                     text: None,
                     stroke_path: false,
+                    connector: false,
+                    plot: None,
                     doc: "",
                     default_stub: None,
                 },

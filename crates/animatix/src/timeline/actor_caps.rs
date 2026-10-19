@@ -64,7 +64,11 @@ pub fn find_actor_kind(ty: &str) -> Option<Box<dyn ActorKind + Send + Sync>> {
         .expect("find_actor_kind only dispatches catalog-registered built-ins");
     match info.category {
         ActorCategory::Shape | ActorCategory::Container => None,
-        _ if info.capabilities.callout || ty == "Connector" => None,
+        // `Callout` and `Connector` declare properties that the generic actor
+        // body writes into their own lanes (callout geometry / connector
+        // geometry), so they are not dispatched to `Primitive::build`. This is
+        // catalog data rather than a per-site `ty == "…"` compare.
+        _ if info.capabilities.callout || info.connector => None,
         _ => Some(Box::new(PrimitiveActorKind(primitive)) as Box<dyn ActorKind + Send + Sync>),
     }
 }

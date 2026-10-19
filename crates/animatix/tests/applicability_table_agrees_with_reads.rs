@@ -189,3 +189,130 @@ fn every_actor_row_covers_the_type_that_reads_it() {
         disagreements.join("\n")
     );
 }
+
+/// Properties that are genuinely consumed but not by their *name string* in the
+/// engine, with the typed field that reads them. This list is the whole point of
+/// the test below: adding an entry is an assertion that something reads the
+/// property, so a new entry needs a reason, not a shrug.
+///
+/// Reasons that appear here:
+/// - `Applicable::Never`: engine-derived values the renderer writes and reads
+///   through a typed lane (`Ascent` / `Descent`), never author-facing.
+/// - Read through a **renamed tag**: the binding's `ActorField::Tagged("…")`
+///   names a different string than the property, so the reader never mentions
+///   the property name (`bounds` → `filter_bounds`, `place` → `callout_place`).
+/// - Read through typed storage: `track.text.char_progress`, and the Taffy
+///   `constraints.*` the layout builder fills from `min_width` / `min_height` /
+///   `max_height`.
+/// - Deferred with a diagnostic: `perspective` has no consumer yet, so the
+///   build warns `unimplemented-property` when it is authored.
+const READ_WITHOUT_A_NAME_STRING: &[(&str, &str)] = &[
+    (
+        "ascent",
+        "Applicable::Never; written and read as the `Ascent` lane by font metrics",
+    ),
+    (
+        "descent",
+        "Applicable::Never; written and read as the `Descent` lane by font metrics",
+    ),
+    ("char_progress", "read as `track.text.char_progress` (typewriter reveal)"),
+    (
+        "min_width",
+        "read as the Taffy `constraints.min_width` the layout builder fills",
+    ),
+    (
+        "min_height",
+        "read as the Taffy `constraints.min_height` the layout builder fills",
+    ),
+    (
+        "max_height",
+        "read as the Taffy `constraints.max_height` the layout builder fills",
+    ),
+    ("standoff", "read as `track.geometry.callout_standoff`"),
+    ("to_offset", "read as `track.geometry.callout_to_offset`"),
+    ("bounds", "binding tag is `filter_bounds`, read as `Tagged(\"filter_bounds\")`"),
+    ("place", "binding tag is `callout_place`, read as `Tagged(\"callout_place\")`"),
+    (
+        "perspective",
+        "deferred: focal length for the planned 2.5D perspective tilt (roadmap); no consumer \
+         yet, so `build/actor.rs` warns `unimplemented-property` when it is authored",
+    ),
+];
+
+/// Every bound property must have a reader.
+///
+/// `every_actor_row_covers_the_type_that_reads_it` checks one direction: a read
+/// must be declared in the table. Nothing checked the other direction — that a
+/// declared *and bound* property is read at all — which is how `max_lines` and
+/// `transition_time` sat in `BINDINGS`, showed up in the inspector, and did
+/// nothing for as long as they did.
+///
+/// A reader here means the property name appears as a string literal anywhere in
+/// the engine or text crates outside `property_registry.rs` (which is where the
+/// bindings themselves live) — `sample_*_prop("name", …)`, a `"name" =>` arm, or
+/// a `== "name"` test all count. Reads that go through a typed lane instead are
+/// listed in [`READ_WITHOUT_A_NAME_STRING`].
+///
+/// Scope, stated honestly: a property whose name is a common word (`value`,
+/// `color`, `size`) matches an unrelated literal somewhere and is treated as
+/// read. This is a floor that catches distinctly-named dead bindings, not a
+/// proof of liveness for every row.
+#[test]
+fn every_bound_property_has_a_reader() {
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let workspace = manifest.parent().expect("crates/ directory");
+
+    let mut sources: Vec<String> = Vec::new();
+    for root in [manifest.join("src"), workspace.join("animatix-text/src")] {
+        collect_rust_sources(&root, &mut sources);
+    }
+    assert!(sources.len() > 50, "expected to scan the engine sources, got {}", sources.len());
+
+    let mut unread: Vec<&str> = Vec::new();
+    for schema in animatix::timeline::PROPERTY_REGISTRY.iter() {
+        let name = schema.name;
+        if READ_WITHOUT_A_NAME_STRING.iter().any(|(exempt, _)| *exempt == name) {
+            continue;
+        }
+        let needle = format!("\"{name}\"");
+        if !sources.iter().any(|src| src.contains(&needle)) {
+            unread.push(name);
+        }
+    }
+
+    assert!(
+        unread.is_empty(),
+        "these bound properties have no reader in the engine, so authoring them does nothing:\n  \
+         {}\n\
+         Either give each one a real consumer, remove its binding, or add it to \
+         READ_WITHOUT_A_NAME_STRING with the typed field that reads it.",
+        unread.join("\n  ")
+    );
+}
+
+/// Collect `.rs` sources under `dir`, skipping test modules and the binding table
+/// itself (a binding mentioning its own name must not count as a reader).
+fn collect_rust_sources(dir: &Path, out: &mut Vec<String>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            if path.file_name().and_then(|n| n.to_str()) == Some("tests") {
+                continue;
+            }
+            collect_rust_sources(&path, out);
+            continue;
+        }
+        if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+            continue;
+        }
+        if path.file_name().and_then(|n| n.to_str()) == Some("property_registry.rs") {
+            continue;
+        }
+        if let Ok(source) = std::fs::read_to_string(&path) {
+            out.push(source);
+        }
+    }
+}

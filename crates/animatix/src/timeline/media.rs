@@ -315,9 +315,14 @@ impl Timeline {
         let mut source = String::new();
         let mut volume = 1.0f32;
 
-        // TODO: Eventually sample `source` and `volume` from the property track,
-        //       via the property engine, to support keyframe-based animation.
-        //       Currently these are read directly from the declaration props.
+        // `source` and `volume` are read from the declaration props and frozen
+        // into the `AudioSegment` the GUI player and the export mux consume.
+        // Assignments and keyframes on them cannot be honoured by that snapshot
+        // model, so `write_property_field` reports `unimplemented-property`
+        // instead of dropping them silently. Automating them needs a sampled
+        // gain envelope on the segment plus a matching per-frame ffmpeg
+        // expression and GUI `set_volume` tick — see docs/roadmap.md,
+        // "Audio volume automation".
         for prop in props {
             let prop_subject = format!("{}.{}", label, prop.name);
             match prop.name.as_str() {

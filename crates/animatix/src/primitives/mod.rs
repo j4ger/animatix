@@ -835,7 +835,7 @@ mod equation;
 pub use equation::EQUATION;
 mod fragment;
 pub use fragment::FRAGMENT;
-mod captions;
+pub(crate) mod captions;
 pub use captions::CAPTIONS;
 mod cue;
 pub use cue::CUE;

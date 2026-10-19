@@ -797,8 +797,11 @@ fn time_dependent_caps_prevent_static_subtree_caching() {
     assert!(!timeline.is_static_subtree("c1"), "Cue must not be a static subtree");
 }
 
+/// `root_ids` is the one product of the (former) DFS precomputation the frame
+/// path actually reads, so it must line up with `root_nodes` positionally and
+/// resolve to the same tracks the labels do.
 #[test]
-fn precomputed_dfs_execution_order_traverses_hierarchy_in_topological_order() {
+fn root_ids_line_up_with_root_nodes() {
     let source = r#"
         root1: Group {
             child1: Rect, size: (10, 10)
@@ -814,12 +817,17 @@ fn precomputed_dfs_execution_order_traverses_hierarchy_in_topological_order() {
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
 
-    let order = timeline.dfs_execution_order();
+    assert_eq!(timeline.root_actor_labels(), &["root1", "root2"]);
+    let root_ids = &timeline.root_ids;
     assert_eq!(
-        order,
-        &["root1", "child1", "child2", "grandchild1", "root2"],
-        "DFS order must visit parents before children and finish subtrees in order"
+        root_ids.len(),
+        timeline.root_actor_labels().len(),
+        "every root must have a resolved EntityId, or the frame path falls back to a label lookup"
     );
+    for (label, id) in timeline.root_actor_labels().iter().zip(root_ids) {
+        let by_id = timeline.get_track_by_id(*id).expect("root id resolves");
+        assert_eq!(&by_id.label, label, "root_ids must track root_nodes order");
+    }
 }
 
 #[test]

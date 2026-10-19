@@ -76,6 +76,24 @@ impl Primitive for CuePrimitive {
             }
         }
 
+        // A cue is only shown while `start <= t < end`. Both default to 0, so a
+        // cue that declares neither has an empty window and is invisible for the
+        // whole scene. Nothing else reports that, so say it here rather than
+        // letting the author wonder why their captions never appear.
+        let has_start = props.iter().any(|p| p.name == "start");
+        let has_end = props.iter().any(|p| p.name == "end");
+        if !has_start && !has_end {
+            ctx.diagnostics.push(crate::diagnostics::Diagnostic::warning(
+                crate::diagnostics::DiagnosticCode::NeverRevealed,
+                crate::diagnostics::DiagnosticPhase::Build,
+                format!(
+                    "Cue `{label}` declares no `start`/`end`, which default to 0, so its time \
+                     window is empty and it is never shown. Give it a window, e.g. \
+                     `{label}: Cue, text: \"…\", start: 0.0, end: 2.0`."
+                ),
+            ));
+        }
+
         Ok(())
     }
 
