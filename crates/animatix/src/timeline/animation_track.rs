@@ -473,6 +473,8 @@ pub struct TextTracks {
     pub text_max_width: Option<PropertyTrack<f32>>,
     /// Text alignment ("left", "center", "right", "justify").
     pub text_align: Option<PropertyTrack<String>>,
+    /// Text anchor placement relative to 'at' ("left", "center", "right").
+    pub text_anchor: Option<PropertyTrack<String>>,
     /// Overflow behavior ("visible", "clip", "ellipsis").
     pub overflow: Option<PropertyTrack<String>>,
     /// Syntax-highlighting language tag for `Code` actors (Typst raw fence
@@ -501,6 +503,9 @@ pub struct TextTracks {
     /// Prebaked data for rolling Counter primitive.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub counter_data: Option<crate::primitives::counter::CounterData>,
+    /// Cached static text paths for O(1) frame evaluation when not animated.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub static_paths: Option<std::sync::Arc<[TextPath]>>,
 }
 
 // ─────────────────────────────────────────────────────────────

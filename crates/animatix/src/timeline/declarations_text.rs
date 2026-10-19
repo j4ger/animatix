@@ -146,6 +146,7 @@ impl Timeline {
         let mut word_spacing = 0.0f32;
         let mut max_width = 0.0f32;
         let mut text_align = "left".to_string();
+        let mut text_anchor = "center".to_string();
         let mut overflow = "visible".to_string();
         let mut color_rgba: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
         let mut initial_track_color: Option<[f32; 4]> = None;
@@ -267,6 +268,16 @@ impl Timeline {
                     )
                     .map(|v| v.as_str())
                     .unwrap_or_else(|| "left".to_string());
+                },
+                "text_anchor" => {
+                    text_anchor = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        &eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map(|v| v.as_str())
+                    .unwrap_or_else(|| "center".to_string());
                 },
                 "overflow" => {
                     overflow = evaluate_expr_with_lookup_diagnostic(
@@ -431,8 +442,8 @@ impl Timeline {
             let already_handled = match prop.name.as_str() {
                 name if kind.content_matches(name) => true,
                 "font_family" | "font_size" | "font_weight" | "font_style" | "line_height"
-                | "letter_spacing" | "word_spacing" | "max_width" | "text_align" | "overflow"
-                | "color" | "at" | "anchor" | "offset" => true,
+                | "letter_spacing" | "word_spacing" | "max_width" | "text_align"
+                | "text_anchor" | "overflow" | "color" | "at" | "anchor" | "offset" => true,
                 _ => false,
             };
             if already_handled {
@@ -499,6 +510,11 @@ impl Timeline {
         track.text.text_align.ensure("left".to_string()).add_keyframe(
             t_end_ms,
             text_align.clone(),
+            easing,
+        );
+        track.text.text_anchor.ensure("center".to_string()).add_keyframe(
+            t_end_ms,
+            text_anchor.clone(),
             easing,
         );
         track.text.overflow.ensure("visible".to_string()).add_keyframe(
@@ -646,7 +662,7 @@ impl Timeline {
             None,
             &text_align,
             &overflow,
-            false,
+            self.text_compiler.borrow().text_fast_path,
             self.font_context.as_ref(),
         )?;
 
@@ -685,8 +701,20 @@ impl Timeline {
             );
         }
 
-        let new_paths = compiled.paths.to_vec();
+        let mut new_paths = compiled.paths.to_vec();
         let new_half_size = compiled.half_size;
+        let anchor_offset_x = match text_anchor.as_str() {
+            "left" => new_half_size[0],
+            "right" => -new_half_size[0],
+            _ => 0.0,
+        };
+        if anchor_offset_x != 0.0 {
+            let affine = kurbo::Affine::translate((anchor_offset_x as f64, 0.0));
+            for p in &mut new_paths {
+                p.path.apply_affine(affine);
+                p.glyph_center[0] += anchor_offset_x;
+            }
+        }
 
         // Store font metrics on the track for baseline alignment
         // Metrics are set at t_end_ms (when new text appears).
@@ -725,6 +753,11 @@ impl Timeline {
                 Easing::Linear,
             );
         }
+        track.text.static_paths = if duration_ms == 0.0 {
+            Some(std::sync::Arc::from(new_paths.clone()))
+        } else {
+            None
+        };
         track
             .text
             .text_paths

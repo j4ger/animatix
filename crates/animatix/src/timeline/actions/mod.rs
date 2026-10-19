@@ -394,6 +394,37 @@ fn get_builtin_actions() -> Vec<Box<dyn BuiltinAction>> {
     ]
 }
 
+/// Recursively lifts hidden-by-default and authored-zero opacity for containers
+/// and intermediate containers when an entrance action targets them.
+fn lift_container_and_intermediate_containers(
+    timeline: &mut Timeline,
+    label: &str,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+) {
+    use crate::timeline::property_track::TrackAccessor;
+    let resolved = resolve_action_target(timeline, label).unwrap_or_else(|| label.to_string());
+    let children = timeline.tracks.get(&resolved).map(|t| t.children.clone()).unwrap_or_default();
+    if !children.is_empty() {
+        if let Some(track) = timeline.tracks.get_mut(&resolved) {
+            let was_hidden = track.hidden_by_default;
+            lift_hidden_by_default(track, t_start_ms, t_end_ms, easing);
+            if !was_hidden {
+                let authored = track.style.opacity.get(t_start_ms, 1.0);
+                if authored == 0.0 {
+                    reveal_authored_zero_opacity(track, t_start_ms, t_end_ms, easing);
+                }
+            }
+        }
+        for child in children {
+            lift_container_and_intermediate_containers(
+                timeline, &child, t_start_ms, t_end_ms, easing,
+            );
+        }
+    }
+}
+
 /// Run one resolved action handler after group-target expansion.
 fn execute_action(
     action: &Action,
@@ -414,6 +445,50 @@ fn execute_action(
     let signature = handler.signature();
     validate_action_modifiers(&expanded_action, &signature, diagnostics);
     handler.execute(&expanded_action, time_ms, timeline, diagnostics);
+
+    if signature.category == "Entrance" {
+        use crate::timeline::property_track::TrackAccessor;
+        let parsed = crate::timeline::parse_timing_modifiers(
+            &action.modifiers,
+            crate::timeline::ModifierHost::Action,
+            Some(&action.verb),
+            diagnostics,
+        );
+        let t_start_ms = (time_ms + parsed.delay_ms) as u64;
+        let t_end_ms = (time_ms + parsed.delay_ms + parsed.duration_ms) as u64;
+        let easing = parsed.easing;
+
+        for orig_target in &action.targets {
+            lift_container_and_intermediate_containers(
+                timeline,
+                orig_target,
+                t_start_ms,
+                t_end_ms,
+                easing,
+            );
+        }
+
+        // Warn when an entrance targets an actor whose opacity remains 0.0
+        // after entrance (e.g. an unlifted opacity track or an ancestor holding it invisible).
+        for target in &expanded_action.targets {
+            let target_opacity =
+                timeline.tracks.get(target).map_or(1.0, |t| t.style.opacity.get(t_end_ms, 1.0));
+            if target_opacity <= 0.0 {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        crate::diagnostics::DiagnosticCode::NeverRevealed,
+                        crate::diagnostics::DiagnosticPhase::Build,
+                        format!(
+                            "Entrance action '{}' targets '{}', but its opacity remains 0.0 after entrance.",
+                            action.verb, target
+                        ),
+                    )
+                    .with_subject(target)
+                    .with_byte_span(action.byte_span),
+                );
+            }
+        }
+    }
 }
 
 /// Named modifier keys must be declared by the action's signature (or be

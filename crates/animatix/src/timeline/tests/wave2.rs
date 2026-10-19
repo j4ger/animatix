@@ -191,3 +191,86 @@ cnt.value = 100 [1s]
         other => panic!("Expected RenderCommand::Text, got {other:?}"),
     }
 }
+
+#[test]
+fn test_text_color_animation_tint_and_cache() {
+    let source = r#"
+#0s
+label: Text, text: "Dynamic Color Text", color: (1.0, 0.0, 0.0, 1.0), at: (100, 100)
+
+#1s
+label.color = (0.0, 1.0, 0.0, 1.0) [1s]
+"#;
+    let (stmts, errors) = parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let timeline = Timeline::build(&stmts.expect("parsed AST"));
+    let track = timeline.tracks.get("label").expect("label track");
+    assert!(track.text.static_paths.is_some(), "Static text paths should be pre-cached");
+
+    use crate::primitives::Primitive;
+    let primitive = crate::primitives::TEXT;
+    let asset_cache = crate::timeline::assets::AssetCache::default();
+    let make_ctx = |time_ms: u64| crate::primitives::EvaluateCtx {
+        track,
+        time_ms,
+        local_transform: kurbo::Affine::IDENTITY,
+        opacity: 1.0,
+        scene_dimensions: SceneDimensions {
+            width: 1920,
+            height: 1080,
+        },
+        background_color: [0.0, 0.0, 0.0, 1.0],
+        overrides: None,
+        vector_paths: &[],
+        asset_cache: &asset_cache,
+        target_resolver: None,
+    };
+
+    // Evaluate at t=0 (red)
+    let ctx_t0 = make_ctx(0);
+    let cmds_t0 = primitive.evaluate(&ctx_t0, None).unwrap().unwrap();
+    match &cmds_t0[0] {
+        crate::primitives::RenderCommand::Text { tint_color, .. } => {
+            assert_eq!(tint_color, &Some([255, 0, 0, 255]), "t=0 should tint red");
+        },
+        other => panic!("Expected RenderCommand::Text, got {other:?}"),
+    }
+
+    // Evaluate at t=2000 (green)
+    let ctx_t2 = make_ctx(2000);
+    let cmds_t2 = primitive.evaluate(&ctx_t2, None).unwrap().unwrap();
+    match &cmds_t2[0] {
+        crate::primitives::RenderCommand::Text { tint_color, .. } => {
+            assert_eq!(tint_color, &Some([0, 255, 0, 255]), "t=2000 should tint green");
+        },
+        other => panic!("Expected RenderCommand::Text, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_split_text_cjk_word_reveal() {
+    let source = r#"
+#0s
+title: Text, text: "你好 世界 动效", at: (200, 200)
+
+#1s
+draw-in title [1s, by: word, offset_y: 30, mask: baseline, stagger: 0.1s]
+"#;
+    let (stmts, errors) = parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let timeline = Timeline::build(&stmts.expect("parsed AST"));
+    let track = timeline.tracks.get("title").expect("title track");
+
+    let (paths_mid, clip_mid) = track.evaluate_text_paths_and_clip(1500);
+    assert!(!paths_mid.is_empty(), "CJK glyphs should be generated");
+    assert!(clip_mid.is_some(), "Mask should be generated for CJK");
+
+    // Word indices should span across CJK words
+    let distinct_words: std::collections::HashSet<u16> =
+        paths_mid.iter().map(|p| p.word_idx).collect();
+    assert!(
+        distinct_words.len() >= 2,
+        "CJK text with spaces should produce multiple words, got {:?}",
+        distinct_words
+    );
+}

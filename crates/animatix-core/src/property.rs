@@ -336,6 +336,8 @@ declare_property_descriptors! {
     "start" => (Applicable::Actors(&["Cue"]), F32),
     // End time of a caption cue in seconds.
     "end" => (Applicable::Actors(&["Cue"]), F32),
+    // Horizontal text anchor placement relative to 'at' ("left", "center", "right").
+    "text_anchor" => (Applicable::TextLike, String),
 }
 
 /// The descriptor for `name`, when it is a built-in property.

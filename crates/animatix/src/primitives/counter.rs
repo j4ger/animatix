@@ -411,21 +411,18 @@ impl Primitive for CounterPrimitive {
             _ => data.use_comma,
         };
 
-        let (mut paths, clip_rect) = render_counter_columns(data, value, decimals, use_comma);
+        let (paths, clip_rect) = render_counter_columns(data, value, decimals, use_comma);
 
         // Apply animated color if present on the track
-        if let Some(color_track) = &ctx.track.style.color {
+        let tint_color = ctx.track.style.color.as_ref().map(|color_track| {
             let col = color_track.evaluate(ctx.time_ms);
-            let rgba = [
+            [
                 (col[0] * 255.0) as u8,
                 (col[1] * 255.0) as u8,
                 (col[2] * 255.0) as u8,
                 (col[3] * 255.0) as u8,
-            ];
-            for p in &mut paths {
-                p.color = rgba;
-            }
-        }
+            ]
+        });
 
         let fill_gradient = if ctx.track.style.fill_gradient.is_some() {
             Some(Box::new(
@@ -441,6 +438,7 @@ impl Primitive for CounterPrimitive {
             paths: Arc::from(paths),
             fill_gradient,
             clip_path,
+            tint_color,
         }]))
     }
 

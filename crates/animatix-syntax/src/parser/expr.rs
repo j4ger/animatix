@@ -126,10 +126,6 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
             variable_ident.clone().map(Expr::Ident),
         ));
 
-        let atom = prefix_op.repeated().collect::<Vec<_>>().then(base_atom).map(|(ops, expr)| {
-            ops.into_iter().fold(expr, |acc, op| Expr::Unary(op, Box::new(acc)))
-        });
-
         #[derive(Clone)]
         enum PostfixStep {
             Field(String, Option<Vec<Expr>>),
@@ -144,7 +140,7 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
             dot()
                 .ignore_then(field_segment)
                 .then(
-                    atom.clone()
+                    expr.clone()
                         .separated_by(comma())
                         .allow_trailing()
                         .collect::<Vec<_>>()
@@ -169,7 +165,7 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
                 .map(PostfixStep::Index),
         ));
 
-        let access = atom.clone().foldl(postfix_step.repeated(), |base, step| match step {
+        let access = base_atom.clone().foldl(postfix_step.repeated(), |base, step| match step {
             PostfixStep::Field(segment, args) => {
                 if let Some(args) = args {
                     Expr::Method(Box::new(base), segment, args)
@@ -187,8 +183,12 @@ pub(crate) fn parser<'src>() -> ExprParser<'src> {
             PostfixStep::Index(index_expr) => Expr::Index(Box::new(base), Box::new(index_expr)),
         });
 
+        let unary = prefix_op.repeated().collect::<Vec<_>>().then(access).map(|(ops, expr)| {
+            ops.into_iter().rev().fold(expr, |acc, op| Expr::Unary(op, Box::new(acc)))
+        });
+
         let pow = recursive(|pow| {
-            access
+            unary
                 .clone()
                 .then(caret().to(BinaryOp::Pow).then(pow).or_not())
                 .map(|(lhs, rhs)| {

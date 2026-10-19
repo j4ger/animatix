@@ -359,6 +359,8 @@ pub enum ActorField {
     TextMaxWidth,
     /// Text alignment ("left", "center", "right", "justify").
     TextAlign,
+    /// Text anchor placement relative to 'at' ("left", "center", "right").
+    TextAnchor,
     /// Overflow behavior ("visible", "clip", "ellipsis").
     Overflow,
     /// Syntax-highlighting language tag for `Code` actors (Typst raw fence
@@ -499,6 +501,7 @@ impl ActorField {
             ActorField::LetterSpacing => PropertyValue::F32(0.0),
             ActorField::TextMaxWidth => PropertyValue::F32(0.0),
             ActorField::TextAlign => PropertyValue::String("left".to_string()),
+            ActorField::TextAnchor => PropertyValue::String("center".to_string()),
             ActorField::Overflow => PropertyValue::String("visible".to_string()),
             ActorField::Language => PropertyValue::String(String::new()),
             ActorField::WordSpacing => PropertyValue::F32(0.0),
@@ -1065,6 +1068,7 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("target", V::BuildTimeOnly, F::ASSIGNABLE, CalloutTarget, val!(str "")),
     b!("text", V::String, F::ASSIGNABLE_A, TextContent, val!(str "")),
     b!("text_align", V::String, F::ASSIGNABLE_A, TextAlign, val!(str "left")),
+    b!("text_anchor", V::String, F::ASSIGNABLE_A, TextAnchor, val!(str "center")),
     b!(
         "text_max_width",
         V::F32,
@@ -1383,6 +1387,7 @@ mod tests {
             "text_max_width",
             "max_width",
             "text_align",
+            "text_anchor",
             "overflow",
             "color",
             "stroke",

@@ -417,7 +417,7 @@ fn property_type_for_descriptor(desc: &animatix_core::property::PropertyDescript
         | "tick_labels" | "ticks" | "title" | "url" | "vertical_align" | "x_scale" | "y_scale"
         | "language" | "blend" | "gradient_extend" | "gradient_space" | "icon" | "routing"
         | "split_by" | "prefix" | "suffix" | "idle" | "shared_id" | "caption_mode"
-        | "transcript" => Type::Str,
+        | "transcript" | "text_anchor" => Type::Str,
 
         "background_color" | "color" | "highlight_color" | "label_color" | "stroke" => {
             Type::Union(vec![Type::Color, Type::Str])
@@ -500,7 +500,7 @@ mod tests {
         let specs = property_specs();
         assert_eq!(
             specs.len(),
-            138,
+            139,
             "the built-in property count changed; update this pin deliberately (ids are persisted)"
         );
         // Dense, unique ids starting at zero — no gaps for a join to fall into.

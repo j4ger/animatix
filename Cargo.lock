@@ -298,6 +298,7 @@ dependencies = [
  "animatix-core",
  "fontdb",
  "kurbo",
+ "rustybuzz",
  "serde",
  "serde_json",
  "syntect",

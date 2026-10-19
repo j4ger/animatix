@@ -57,15 +57,6 @@ Done (recorded so they are not re-litigated):
 | Canvas backing store at the displayed size | Done (embed `_applyRenderScale`). Worth ~0.14 ms where `display px × dpr` is below the scene resolution, and a no-op above it. |
 | Foreground-window measurement | Done 2026-09-30. The gap is **real**, not background-tab throttling: 3.42 ms/frame at display size vs native 1.63 ms at a larger raster. |
 
-## Test-suite flake worth fixing
-
-`cargo test -p animatix-text` fails `fast_path_caches_results` when run with
-default parallelism (it passes with `--test-threads=1`). The text cache is a
-process-global memo, so tests that exercise it are order-dependent. The repo
-workflow already runs the suite serially, which hides it — but a contributor
-typing the obvious command gets a red build for no reason. Either give the cache
-a per-test scope or make that test own its cache generation.
-
 ## Planned Features
 
 | Feature | Notes | Status |
@@ -132,13 +123,6 @@ list at the end of the easing-pass section); what is left is below.
 
 | Item | What it is | Status |
 |---|---|---|
-| Single-line `text_align` / `text_max_width` do not move the anchor | A one-line `Text` is always centred on `at:` regardless of `text_align` (probe: left/right/plain identical), so right-aligned label columns overlap their bars and left-aligned captions jitter when swapped. The alignment should apply to the line box's anchor, or the combination should warn. Worked around by hand-computing `at:` x per label. | Not started — attempted 2026-10-03 and reverted; see below |
-| `text_align` cannot be fixed without deciding what it means | An implementation was written and measured, then reverted. Two findings from it, both needing a decision before anyone tries again:
-
-1. **The property default is `"left"` but the renderer has always centred.** `property_registry.rs` seeds `text_align` with `"left"`, while `compile_text_*` centred the measured ink regardless of the value — so the default has been lying for as long as it has existed, and `"left"` / `"center"` / `"right"` were indistinguishable (the roadmap's original probe). Any real implementation has to pick: either the default becomes `"center"` to match observed behaviour, or `"left"` starts meaning left and every un-aligned caption in the language re-anchors.
-2. **Making alignment real moves a large part of the corpus.** Measured with two binaries differing *only* in the alignment work (box-centring for bounded blocks + an anchor shift for unbounded ones, default set to `"center"` so untouched scenes should have been stable): about two thirds of the corpus frames differed (`examples/basics/00_hello.amx` at PSNR 40, i.e. genuinely visible). So the shift is not confined to scenes that ask for alignment — it reaches ordinary centred text everywhere, most likely through the bounded path where the declared box is wider than the drawn line. The earlier count of "200 of 304" is not noise-controlled and should be re-derived if it ever matters; see the noise-floor row below.
-
-What that means for the fix: it cannot be a renderer tweak. **DECIDED 2026-10-03 — split the two meanings into two properties.** `text_anchor: "left"|"center"|"right"` places the *whole text block* relative to `at:`; `text_align` keeps its existing meaning of how lines sit *inside* a wrapped box. Both default to what the engine actually does today (block centred on the anchor), so nothing moves until an author asks. `text_anchor` must be **appended** to `PROPERTY_DESCRIPTORS` (`property_id_order_is_pinned` forbids reordering) and needs both derivations to follow — `schema::raw_property_types()` and `property_registry::BINDINGS` — plus the content pass over `examples/`/`web/` that deletes the site's hand-computed `at:` x for right-aligned label columns, which is the workaround this lands on top of. | Not started — design decided |
 | Plot actors' axes render pure white under `dynamic_layout` | `Graph`/`BarChart` axes come from `DEFAULT_WHITE` — the brightest pixels on the ink page, out-shining the amber lead. Outside `dynamic_layout` the scenes dim them with `stroke: stroke.default` (verified in `web/tour/scenes/plots.amx`); inside a `dynamic_layout` scene that same property blanks the whole graph, so the epicycles/spectrum axes stay white. Needs the plot axis style to read the colorscheme's `stroke.default` by default. (Its companion finding — `Graph.map()` returning screen coords at half the px/unit the curve uses — is fixed; see below.) | Not started |
 | `pulse intensity` is additive | `intensity: 1.04` means 2.04× scale (peak = start × (1 + N)) — three demo diagrams were destroyed at their thesis beat before the semantics were spotted. Now documented in `docs/spec.md`; a gentler authoring story (percentage semantics or a lint for `intensity > 1`) is open. | Documented |
 | Native `FontContext::new()` does not register `BUNDLED_FONTS` into its fontdb | The premise needs correcting: the **plain fast path never needed it** — `compile_text_fast` consults `BUNDLED_FONTS` by family before the database, which is how bundled faces reach text on a machine that has no Open Sans installed at all (`fc-match "Open Sans"` → Noto Sans CJK, measured 2026-10-05). What the native context *does* miss is the database entry, so (a) `resolve_font_family`/system-fallback questions and (b) the typst world's face list still depend on `with_fonts_and_fallback` being the embed-only path. The remaining question is narrower than written and worth re-asking before anyone bundle-registers into every native context. | Opened narrower |
@@ -408,21 +392,6 @@ Measured by A/B rendering (same scene with and without one beat) and counting
 changed pixels, so each item below is a reproduced dead end rather than a
 reading of the code.
 
-- **An authored `opacity: 0.0` on a component *instance* makes every entrance on
-  it a no-op.** Two identical `LabeledBox` declarations, one with `opacity: 0.0`
-  and one without, both with `fade-in` then `shift`: the plain one reveals and
-  travels (11 168 px changed across the shift), the authored-zero one contributes
-  **0 pixels in its whole band** — it never appears, so nothing can move.
-  `AGENTS.md` ("Entrance opacity and declared duration") documents the opposite
-  rule for built-in primitives: an explicit `0` is a seed any entrance lifts to
-  1.0. Component instances do not get that lift. `web/demos/hash/lookup.amx` hit
-  this: query chips 2 and 3 were invisible for the whole figure, which the sweep
-  could only report as two "dead beats". Worked around in content by hoisting the
-  declarations above the first keyframe (where the automatic seed already hides
-  them) and dropping the authored `0.0`; the real fix is to make the instance path
-  honour the same entrance-opacity rule as the primitives, and then to warn when an
-  entrance targets an actor whose opacity track it cannot lift — nothing in
-  `animatix check` said a word about a chip that never rendered.
 - **`highlight` / `unhighlight` paint on nothing but a `Typst` actor, and the
   per-fragment path is unreachable in practice.** `Highlight` writes
   `track.highlight.*` for any target and the signature promises a rectangle
@@ -567,17 +536,6 @@ off a software raster (composition is the site's own, absolute ms are inflated):
 Each of these was reproduced by rendering a minimal scene, and each is worked
 around in `web/demos/epicycles/` rather than fixed in the engine.
 
-- **A unary minus on a dotted module path evaluates to nothing, and the
-  property silently takes its default.** `y_domain: (-geo.y_hi, geo.y_hi)` on a
-  `Graph` whose `pub let y_hi = 1.75` renders the y-axis labelled ±10 —
-  `Graph`'s fallback domain — with no diagnostic from `animatix check`. The
-  positive half of the same tuple works, and so does `0 - geo.y_hi`. This is
-  exactly the class `AGENTS.md` ("Never silently drop values") says must either
-  log or fall back loudly: a plot whose scale is wrong by 6× is not a
-  degradation, it is a different figure. Content-side fix: export the negated
-  bound as its own literal (`y_lo`/`y_hi`). Engine-side, find where a
-  `Unary(Neg)` over `Expr::Path` loses its operand at build time and either
-  resolve it or report `invalid-property-value`.
 - **`BarChart` inside a `Graph` does not inherit the host's coordinates.**
   `docs/primitives.md` ("Inside a Graph") shows exactly this usage; a minimal
   chart of four bars in a `x_domain: (0, 8), y_domain: (0, 1.18)` graph draws
@@ -587,12 +545,6 @@ around in `web/demos/epicycles/` rather than fixed in the engine.
   coordinates) modes" — only the first one renders. `web/demos/epicycles/spectrum.amx`
   therefore stays standalone and loses the 1/k envelope curve that was the
   point of nesting it.
-- **A method call rejects binary operators in its arguments.** `g.map(1.0 + 1.0,
-  2.0)` is `parse-error: unexpected '+'` while `max(1.0 + 1.0, 2.0)` and
-  `g.map(1.0, 2.0)` both parse, so the restriction is on path-call argument
-  position, not on the expression grammar. Worked around by `let`-binding the
-  arguments, which reads fine but is invisible tax on every `Graph.map()` call
-  site — and `map()` is the documented way to place a marker on a plot.
 - **The `#Xs` stamp in front of a `play` is parsed, threaded through the
   builder, and thrown away.** `extract_play_stmt` returns
   `(target, transition, Some(current_time))` and `composition/build.rs:443`
@@ -863,7 +815,9 @@ tracked.
   1. **Shaped Glyph Run Memoization**: Decouple font shaping from per-frame evaluation; cache shaped glyph runs keyed by content and style signature `(ContentHash, FontSize, FontFamily, Weight, Style)`.
   2. **Static/Dynamic Transform Separation**: Avoid recompiling text runs when text geometry undergoes purely spatial transformations (translation, rotation, scale, opacity); transform pre-shaped BezPath / glyph buffers directly via local transform.
   3. **FontDB Multi-Family Fallback Path Optimization**: Memoize family lookup resolution and fallback candidate chains to avoid redundant FontDB queries on font switches.
-  4. **Incremental Split-Text Optimization**: Optimize `SplitText` primitive so that word-level / character-level kinetic effects reuse parent layout metrics rather than recompiling individual glyph fragments independently.
+  4. **Incremental Split-Text Optimization & AOT Baseline Masking**: Precompute static line clip rectangles at build time so kinetic typography baseline reveals avoid per-frame line boundary traversal.
+  5. **Vello Hardware Glyph Run Pipeline**: Move from extracting CPU `kurbo::BezPath` outlines to submitting structured `GlyphRun` streams directly to Vello GPU instancing/atlas for non-morphing text.
+  6. **Typst Math & Code Pre-warming**: Cache persistent Typst standard library/document contexts for inline math formulas, and bypass Typst for standalone syntect code block highlighting directly on the fast-path grid.
 - **Verification**: Benchmark with `scripts/perf-bench.sh compare text_rebuild` and `scrub_text_scene_100frames`.
 
 ### 2. GPU-Accelerated Procedural Curves & Chart Strips

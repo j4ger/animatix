@@ -488,6 +488,9 @@ pub fn property_documentation(name: &str) -> Option<&str> {
         "word_spacing" => Some("Word spacing in points (default 0)"),
         "max_width" => Some("Max width for text wrapping (0 = no wrap)"),
         "text_align" => Some("Text alignment (left, center, right, justify)"),
+        "text_anchor" => Some(
+            "Text anchor placement relative to 'at': 'left', 'center', 'right' (default 'center')",
+        ),
         "overflow" => Some("Overflow behavior (visible, clip, ellipsis)"),
         "fill" => Some("Fill color"),
         "stroke" => Some("Stroke color"),
@@ -767,6 +770,15 @@ fn value_for_property(
                             documentation: None,
                             insert_text: Some(format!("\"{}\"", v)),
                         }
+                    }));
+                },
+                "text_anchor" => {
+                    items.extend(["left", "center", "right"].iter().map(|v| CompletionItem {
+                        label: v.to_string(),
+                        kind: CompletionKind::Value,
+                        detail: Some("Anchor".to_string()),
+                        documentation: None,
+                        insert_text: Some(format!("\"{}\"", v)),
                     }));
                 },
                 "anchor" => {

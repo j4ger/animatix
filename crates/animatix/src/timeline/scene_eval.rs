@@ -1783,6 +1783,7 @@ impl Timeline {
                             paths: std::sync::Arc::clone(&compiled.glyphs),
                             fill_gradient: None,
                             clip_path: None,
+                            tint_color: None,
                         };
                         cmd.execute(out.scene, &global_transform, global_opacity);
                     }

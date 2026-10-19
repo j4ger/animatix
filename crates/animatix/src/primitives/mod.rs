@@ -100,6 +100,7 @@ pub fn evaluate_text_paths(
     let mut word_spacing = ctx.track.text.word_spacing.get(ctx.time_ms, 0.0);
     let mut max_width = ctx.track.text.text_max_width.get(ctx.time_ms, 0.0);
     let mut text_align = ctx.track.text.text_align.get(ctx.time_ms, "left".to_string());
+    let mut text_anchor = ctx.track.text.text_anchor.get(ctx.time_ms, "center".to_string());
     let mut overflow = ctx.track.text.overflow.get(ctx.time_ms, "visible".to_string());
     let mut color = ctx.track.style.color.get(ctx.time_ms, DEFAULT_WHITE);
     let mut language = ctx.track.text.language.get(ctx.time_ms, String::new());
@@ -141,6 +142,9 @@ pub fn evaluate_text_paths(
         }
         if let Some(Value::Str(s)) = ov.get("text_align") {
             text_align = s.clone();
+        }
+        if let Some(Value::Str(s)) = ov.get("text_anchor") {
+            text_anchor = s.clone();
         }
         if let Some(Value::Str(s)) = ov.get("overflow") {
             overflow = s.clone();
@@ -205,9 +209,43 @@ pub fn evaluate_text_paths(
                     &text_align,
                     &overflow,
                 )?;
+                let source_half = crate::renderer::text::measure_text_paths(&source_paths);
+                let source_offset = match text_anchor.as_str() {
+                    "left" => source_half[0],
+                    "right" => -source_half[0],
+                    _ => 0.0,
+                };
+                let mut source_vec = source_paths.to_vec();
+                if source_offset != 0.0 {
+                    let affine = kurbo::Affine::translate((source_offset as f64, 0.0));
+                    let offset_vec = kurbo::Vec2::new(source_offset as f64, 0.0);
+                    for p in &mut source_vec {
+                        p.path.apply_affine(affine);
+                        p.glyph_center[0] += source_offset;
+                        p.bounds = p.bounds + offset_vec;
+                    }
+                }
+
+                let target_half = crate::renderer::text::measure_text_paths(&target_paths);
+                let target_offset = match text_anchor.as_str() {
+                    "left" => target_half[0],
+                    "right" => -target_half[0],
+                    _ => 0.0,
+                };
+                let mut target_vec = target_paths.to_vec();
+                if target_offset != 0.0 {
+                    let affine = kurbo::Affine::translate((target_offset as f64, 0.0));
+                    let offset_vec = kurbo::Vec2::new(target_offset as f64, 0.0);
+                    for p in &mut target_vec {
+                        p.path.apply_affine(affine);
+                        p.glyph_center[0] += target_offset;
+                        p.bounds = p.bounds + offset_vec;
+                    }
+                }
+
                 let mut crossfaded = crate::timeline::interpolate_text_paths(
-                    &source_paths.to_vec(),
-                    &target_paths.to_vec(),
+                    &source_vec,
+                    &target_vec,
                     progress,
                     crate::timeline::MorphOptions {
                         strategy: crate::timeline::MorphStrategy::Fade,
@@ -223,8 +261,42 @@ pub fn evaluate_text_paths(
             }
         }
     }
+    if content_override.is_none() && ctx.track.text.char_progress.is_none() {
+        if let Some(static_paths) = &ctx.track.text.static_paths {
+            let track_anchor = ctx.track.text.text_anchor.get(ctx.time_ms, "center".to_string());
+            if text_anchor == track_anchor {
+                return Ok((std::sync::Arc::clone(static_paths), None));
+            }
+        }
+    }
     if content_override.is_none() && ctx.track.text.text_paths.is_some() {
         let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(ctx.time_ms);
+        let track_anchor = ctx.track.text.text_anchor.get(ctx.time_ms, "center".to_string());
+        if text_anchor != track_anchor && !paths.is_empty() {
+            let half_size = crate::renderer::text::measure_text_paths(&paths);
+            let old_offset = match track_anchor.as_str() {
+                "left" => half_size[0],
+                "right" => -half_size[0],
+                _ => 0.0,
+            };
+            let new_offset = match text_anchor.as_str() {
+                "left" => half_size[0],
+                "right" => -half_size[0],
+                _ => 0.0,
+            };
+            let delta_x = new_offset - old_offset;
+            if delta_x != 0.0 {
+                let affine = kurbo::Affine::translate((delta_x as f64, 0.0));
+                let offset_vec = kurbo::Vec2::new(delta_x as f64, 0.0);
+                let mut shifted = paths.clone();
+                for p in &mut shifted {
+                    p.path.apply_affine(affine);
+                    p.glyph_center[0] += delta_x;
+                    p.bounds = p.bounds + offset_vec;
+                }
+                return Ok((std::sync::Arc::from(shifted), clip));
+            }
+        }
         Ok((std::sync::Arc::from(paths), clip))
     } else if content_override.is_some() || !content.is_empty() {
         let compiled = text_ctx.text_compiler.compile(
@@ -245,6 +317,21 @@ pub fn evaluate_text_paths(
             &overflow,
         )?;
         let mut paths_vec = compiled.to_vec();
+        let half_size = crate::renderer::text::measure_text_paths(&paths_vec);
+        let anchor_offset_x = match text_anchor.as_str() {
+            "left" => half_size[0],
+            "right" => -half_size[0],
+            _ => 0.0,
+        };
+        if anchor_offset_x != 0.0 {
+            let affine = kurbo::Affine::translate((anchor_offset_x as f64, 0.0));
+            let offset_vec = kurbo::Vec2::new(anchor_offset_x as f64, 0.0);
+            for p in &mut paths_vec {
+                p.path.apply_affine(affine);
+                p.glyph_center[0] += anchor_offset_x;
+                p.bounds = p.bounds + offset_vec;
+            }
+        }
         let clip = crate::timeline::dispatch::apply_split_text_animation(
             &mut paths_vec,
             ctx.track,
@@ -1177,6 +1264,8 @@ pub enum RenderCommand {
         fill_gradient: Option<Box<crate::renderer::types::GradientSpec>>,
         /// Optional clip bounds (e.g. for split-text baseline reveal).
         clip_path: Option<kurbo::BezPath>,
+        /// Optional uniform tint color override (for Text and Counter primitives).
+        tint_color: Option<[u8; 4]>,
     },
     /// Draw an image.
     Image {
@@ -1327,6 +1416,7 @@ impl RenderCommand {
                 paths,
                 fill_gradient,
                 clip_path,
+                tint_color,
             } => {
                 if let Some(clip) = clip_path {
                     scene.push_layer(
@@ -1337,11 +1427,10 @@ impl RenderCommand {
                         clip,
                     );
                 }
-                use kurbo::Shape as _;
                 let bounds = if fill_gradient.is_some() {
                     let mut b: Option<kurbo::Rect> = None;
                     for tp in paths.iter() {
-                        let tp_b = tp.path.bounding_box();
+                        let tp_b = tp.bounds;
                         b = Some(match b {
                             Some(existing) => existing.union(tp_b),
                             None => tp_b,
@@ -1367,7 +1456,11 @@ impl RenderCommand {
                             &text_path.path,
                         );
                     } else {
-                        let [r, g, b, a] = text_path.color;
+                        let [r, g, b, a] = if let Some(tc) = tint_color {
+                            *tc
+                        } else {
+                            text_path.color
+                        };
                         let color = vello::peniko::Color::from_rgba8(
                             r,
                             g,
@@ -1529,7 +1622,7 @@ impl RenderCommand {
             },
             RenderCommand::Text { paths, .. } => {
                 for text_path in paths.iter() {
-                    bounds = union(bounds, text_path.path.bounding_box());
+                    bounds = union(bounds, text_path.bounds);
                 }
             },
             RenderCommand::Image { .. } => {

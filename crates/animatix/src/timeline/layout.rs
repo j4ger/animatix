@@ -746,12 +746,27 @@ impl Timeline {
             Easing::Linear,
         );
 
+        let text_anchor = track.text.text_anchor.get(time_ms, "center".to_string());
+        let mut paths_vec = compiled.paths.to_vec();
+        let anchor_offset_x = match text_anchor.as_str() {
+            "left" => new_half_size[0],
+            "right" => -new_half_size[0],
+            _ => 0.0,
+        };
+        if anchor_offset_x != 0.0 {
+            let affine = kurbo::Affine::translate((anchor_offset_x as f64, 0.0));
+            for p in &mut paths_vec {
+                p.path.apply_affine(affine);
+                p.glyph_center[0] += anchor_offset_x;
+            }
+        }
+
         // Update text_paths, size, layout_size, and metrics tracks
-        track.text.text_paths.ensure(Vec::new()).add_keyframe(
-            time_ms,
-            compiled.paths.to_vec(),
-            Easing::Linear,
-        );
+        track
+            .text
+            .text_paths
+            .ensure(Vec::new())
+            .add_keyframe(time_ms, paths_vec, Easing::Linear);
         track
             .geometry
             .size

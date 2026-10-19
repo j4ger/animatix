@@ -766,6 +766,7 @@ pub fn interpolate_text_paths(
                 word_idx: path.word_idx,
                 char_idx: path.char_idx,
                 glyph_center: path.glyph_center,
+                bounds: path.bounds,
             });
         }
         for path in target {
@@ -777,6 +778,7 @@ pub fn interpolate_text_paths(
                 word_idx: path.word_idx,
                 char_idx: path.char_idx,
                 glyph_center: path.glyph_center,
+                bounds: path.bounds,
             });
         }
         return result;
@@ -790,13 +792,16 @@ pub fn interpolate_text_paths(
         .into_iter()
         .enumerate()
         .map(|(index, (source_path, target_path))| {
+            use kurbo::Shape as _;
             let ref_path = if t < 0.5 {
                 source.get(index)
             } else {
                 target.get(index)
             };
+            let morphed = morph_paths_with_options(&source_path, &target_path, t as f64, options);
+            let b = morphed.bounding_box();
             TextPath {
-                path: morph_paths_with_options(&source_path, &target_path, t as f64, options),
+                path: morphed,
                 color: if t < 0.5 {
                     source.get(index).map(|path| path.color).unwrap_or_else(|| {
                         target.get(index).map(|path| path.color).unwrap_or_else(|| [0, 0, 0, 255])
@@ -811,6 +816,7 @@ pub fn interpolate_text_paths(
                 word_idx: ref_path.map(|p| p.word_idx).unwrap_or(0),
                 char_idx: ref_path.map(|p| p.char_idx).unwrap_or(index as u16),
                 glyph_center: ref_path.map(|p| p.glyph_center).unwrap_or([0.0, 0.0]),
+                bounds: b,
             }
         })
         .collect()

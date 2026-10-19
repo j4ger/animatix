@@ -222,6 +222,7 @@ impl Primitive for CalloutPrimitive {
                         paths: std::sync::Arc::from(translated_paths.into_boxed_slice()),
                         fill_gradient: None,
                         clip_path: None,
+                        tint_color: None,
                     });
                 }
             }

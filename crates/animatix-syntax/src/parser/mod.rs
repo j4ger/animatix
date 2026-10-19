@@ -1644,4 +1644,44 @@ mod tests {
             other => panic!("expected inline for loop, got: {:?}", other),
         }
     }
+
+    #[test]
+    fn parse_unary_minus_on_dotted_path() {
+        let src = "let y = -geo.y_hi";
+        let (ast, errors) = crate::parser::parse_source(src);
+        assert!(errors.is_empty(), "parse errors: {:?}", errors);
+        let stmts = ast.expect("parsed AST");
+        let Stmt::LetDecl { value, .. } = &stmts[0] else {
+            panic!("expected let declaration");
+        };
+        match value {
+            Expr::Unary(UnaryOp::Neg, inner) => match inner.as_ref() {
+                Expr::Path(parts) => {
+                    assert_eq!(parts, &["geo", "y_hi"]);
+                },
+                other => panic!("expected Expr::Path inside Unary(Neg), got: {:?}", other),
+            },
+            other => panic!("expected Expr::Unary(Neg, ...), got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn parse_method_call_with_binary_expression_argument() {
+        let src = "let pt = g.map(1.0 + 1.0, 2.0)";
+        let (ast, errors) = crate::parser::parse_source(src);
+        assert!(errors.is_empty(), "parse errors: {:?}", errors);
+        let stmts = ast.expect("parsed AST");
+        let Stmt::LetDecl { value, .. } = &stmts[0] else {
+            panic!("expected let declaration");
+        };
+        match value {
+            Expr::Method(receiver, method, args) => {
+                assert!(matches!(receiver.as_ref(), Expr::Ident(name) if name == "g"));
+                assert_eq!(method, "map");
+                assert_eq!(args.len(), 2);
+                assert!(matches!(&args[0], Expr::Binary(_, BinaryOp::Add, _)));
+            },
+            other => panic!("expected Expr::Method, got: {:?}", other),
+        }
+    }
 }

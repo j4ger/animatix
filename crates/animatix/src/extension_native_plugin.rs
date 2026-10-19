@@ -1747,6 +1747,7 @@ unsafe extern "C" fn native_append_text(host: *mut c_void, command: NativeTextCo
         paths,
         fill_gradient: None,
         clip_path: None,
+        tint_color: None,
     });
     NATIVE_STATUS_OK
 }

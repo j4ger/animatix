@@ -18,7 +18,6 @@
 
 use std::collections::HashMap;
 
-use kurbo::Shape as _;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -717,30 +716,35 @@ pub fn apply_split_text_animation(
 
     // Calculate baseline clip rectangles if split_mask is true
     let clip_path = if split_mask {
-        let mut line_bounds: HashMap<u16, (f64, f64, f64, f64)> = HashMap::new();
+        let mut line_bounds: Vec<(f64, f64, f64, f64)> = Vec::new();
         for g in paths.iter() {
-            let b = g.path.bounding_box();
-            line_bounds
-                .entry(g.line_idx)
-                .and_modify(|e| {
-                    e.0 = e.0.min(b.x0);
-                    e.1 = e.1.min(b.y0);
-                    e.2 = e.2.max(b.x1);
-                    e.3 = e.3.max(b.y1);
-                })
-                .or_insert((b.x0, b.y0, b.x1, b.y1));
+            let idx = g.line_idx as usize;
+            if idx >= line_bounds.len() {
+                line_bounds.resize(
+                    idx + 1,
+                    (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
+                );
+            }
+            let b = g.bounds;
+            let e = &mut line_bounds[idx];
+            e.0 = e.0.min(b.x0);
+            e.1 = e.1.min(b.y0);
+            e.2 = e.2.max(b.x1);
+            e.3 = e.3.max(b.y1);
         }
         let mut bez = kurbo::BezPath::new();
-        for (_, (x0, y0, x1, y1)) in line_bounds {
-            let rx0 = x0 - 50.0;
-            let ry0 = y0 - 1000.0;
-            let rx1 = x1 + 50.0;
-            let ry1 = y1;
-            bez.move_to((rx0, ry0));
-            bez.line_to((rx1, ry0));
-            bez.line_to((rx1, ry1));
-            bez.line_to((rx0, ry1));
-            bez.close_path();
+        for (x0, y0, x1, y1) in line_bounds {
+            if x0.is_finite() && y0.is_finite() && x1.is_finite() && y1.is_finite() {
+                let rx0 = x0 - 10.0;
+                let ry0 = y0 - 1000.0;
+                let rx1 = x1 + 10.0;
+                let ry1 = y1 + 4.0;
+                bez.move_to((rx0, ry0));
+                bez.line_to((rx1, ry0));
+                bez.line_to((rx1, ry1));
+                bez.line_to((rx0, ry1));
+                bez.close_path();
+            }
         }
         Some(bez)
     } else {
@@ -764,6 +768,7 @@ pub fn apply_split_text_animation(
         if dy != 0.0 {
             g.path = kurbo::Affine::translate((0.0, dy as f64)) * g.path.clone();
             g.glyph_center[1] += dy;
+            g.bounds = g.bounds + kurbo::Vec2::new(0.0, dy as f64);
         }
 
         if split_mask {
@@ -1339,6 +1344,7 @@ impl AnimationTrack {
             TextContent => TrackFieldRef::String(&self.text.text_content),
             TextMaxWidth => TrackFieldRef::F32(&self.text.text_max_width),
             TextAlign => TrackFieldRef::String(&self.text.text_align),
+            TextAnchor => TrackFieldRef::String(&self.text.text_anchor),
             Overflow => TrackFieldRef::String(&self.text.overflow),
             Language => TrackFieldRef::String(&self.text.language),
             FontFamily => TrackFieldRef::String(&self.text.font_family),
@@ -1427,6 +1433,7 @@ impl AnimationTrack {
             TextContent => TrackFieldMut::String(&mut self.text.text_content),
             TextMaxWidth => TrackFieldMut::F32(&mut self.text.text_max_width),
             TextAlign => TrackFieldMut::String(&mut self.text.text_align),
+            TextAnchor => TrackFieldMut::String(&mut self.text.text_anchor),
             Overflow => TrackFieldMut::String(&mut self.text.overflow),
             Language => TrackFieldMut::String(&mut self.text.language),
             FontFamily => TrackFieldMut::String(&mut self.text.font_family),
@@ -1580,6 +1587,7 @@ impl AnimationTrack {
             "word_spacing" => WordSpacing,
             "max_width" => TextMaxWidth,
             "text_align" => TextAlign,
+            "text_anchor" => TextAnchor,
             "overflow" => Overflow,
             "language" => Language,
             "placement_mode" => PlacementMode,

@@ -17,6 +17,7 @@ rich-text = ["dep:typst", "dep:typst-layout", "dep:syntect"]
 animatix-core = { path = "../animatix-core" }
 fontdb = { version = "0.23", default-features = false, features = ["fs", "memmap", "fontconfig"] }
 kurbo = { workspace = true }
+rustybuzz = "0.20.1"
 ttf-parser = "0.25.1"
 tracing = { workspace = true }
 thiserror = { workspace = true }

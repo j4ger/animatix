@@ -462,6 +462,7 @@ fn collapse_text_tracks(tracks: &mut TextTracks, time_ms: u64) {
     collapse_optional_track(&mut tracks.word_spacing, time_ms);
     collapse_optional_track(&mut tracks.text_max_width, time_ms);
     collapse_optional_track(&mut tracks.text_align, time_ms);
+    collapse_optional_track(&mut tracks.text_anchor, time_ms);
     collapse_optional_track(&mut tracks.overflow, time_ms);
     // text_paths is preserved unchanged per spec
     collapse_optional_track(&mut tracks.ascent, time_ms);

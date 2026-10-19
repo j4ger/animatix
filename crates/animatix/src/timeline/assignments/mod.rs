@@ -1032,6 +1032,20 @@ pub(crate) fn recompile_text_at_assignment(
         "visible",
     )?;
     let new_half_size = crate::renderer::text::measure_text_paths(&new_paths);
+    let text_anchor = track.text.text_anchor.get(t_end_ms, "center".to_string());
+    let mut new_paths_vec = new_paths.to_vec();
+    let anchor_offset_x = match text_anchor.as_str() {
+        "left" => new_half_size[0],
+        "right" => -new_half_size[0],
+        _ => 0.0,
+    };
+    if anchor_offset_x != 0.0 {
+        let affine = kurbo::Affine::translate((anchor_offset_x as f64, 0.0));
+        for p in &mut new_paths_vec {
+            p.path.apply_affine(affine);
+            p.glyph_center[0] += anchor_offset_x;
+        }
+    }
 
     if duration_ms > 0.0 {
         let start_val = track.evaluate_text_paths(t_start_ms);
@@ -1111,7 +1125,7 @@ pub(crate) fn recompile_text_at_assignment(
         .text
         .text_paths
         .ensure(Vec::new())
-        .add_keyframe(t_end_ms, new_paths.to_vec(), easing);
+        .add_keyframe(t_end_ms, new_paths_vec, easing);
     track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
         t_end_ms,
         new_half_size,

@@ -340,6 +340,7 @@ impl Primitive for LegendPrimitive {
                             paths: std::sync::Arc::from(translated_paths.into_boxed_slice()),
                             fill_gradient: None,
                             clip_path: None,
+                            tint_color: None,
                         });
                         y_offset += title_height + gap;
                     }
@@ -412,6 +413,7 @@ impl Primitive for LegendPrimitive {
                     paths: std::sync::Arc::from(translated_paths.into_boxed_slice()),
                     fill_gradient: None,
                     clip_path: None,
+                    tint_color: None,
                 });
             } else {
                 let fallback_width = 80.0f64;

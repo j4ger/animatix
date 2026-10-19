@@ -4,7 +4,7 @@ use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{AssignmentCtx, BuildCtx, Primitive};
 use crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic;
-use crate::timeline::{AnimationTrack, Environment, SceneDimensions, Value};
+use crate::timeline::{AnimationTrack, Environment, SceneDimensions, TrackAccessor, Value};
 
 /// The `Math` primitive.
 pub struct MathPrimitive;
@@ -56,13 +56,26 @@ impl Primitive for MathPrimitive {
         diagnostics: &mut Vec<Diagnostic>,
         subject: &str,
     ) -> bool {
-        if !matches!(property, "text") {
+        if !matches!(property, "text" | "text_anchor") {
             return false;
         }
-        let target = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-            .unwrap_or(Value::Str(String::new()))
-            .as_str()
-            .to_string();
+        let target = if property == "text_anchor" {
+            let anchor = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+                .unwrap_or(Value::Str("center".to_string()))
+                .as_str()
+                .to_string();
+            track.text.text_anchor.ensure("center".to_string()).add_keyframe(
+                ctx.t_end_ms,
+                anchor,
+                ctx.easing,
+            );
+            track.text.text_content.get(ctx.t_end_ms, String::new())
+        } else {
+            evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
+                .unwrap_or(Value::Str(String::new()))
+                .as_str()
+                .to_string()
+        };
         if let Err(e) = crate::timeline::recompile_text_at_assignment(
             track,
             target,
@@ -124,6 +137,7 @@ impl Primitive for MathPrimitive {
                 paths,
                 fill_gradient,
                 clip_path,
+                tint_color: None,
             }]))
         }
     }
