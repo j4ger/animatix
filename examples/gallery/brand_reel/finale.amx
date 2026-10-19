@@ -8,7 +8,7 @@ config { colorscheme: "gallery", dynamic_layout: true, duration: 13 }
 
 # Finale
 // Audio bed: mixed during export; the pulses below are timed to its beats.
-bed: Audio, source: "examples/assets/pulse.wav", volume: 1.0 [delay: 0s, 4s]
+bed: Audio, source: "../../assets/pulse.wav", volume: 1.0 [delay: 0s, 4s]
 
 beat_row: Row, gap: 26, anchor: scene.center, align: "center" {
   beat0: Ellipse, size: (26, 26), color: accent.primary

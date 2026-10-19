@@ -63,20 +63,22 @@ impl Primitive for ImagePrimitive {
 
         match ctx.asset_cache.load_image_for(&target_url, &track.label) {
             Ok(target_image) => {
+                let payload = track.ensure_image_payload();
                 if ctx.duration_ms > 0.0 {
-                    let start_val = track.image.get(ctx.t_start_ms, None);
-                    track.image.ensure(None).add_keyframe(
+                    let start_val = payload.image.get(ctx.t_start_ms, None);
+                    payload.image.ensure(None).add_keyframe(
                         ctx.t_start_ms,
                         start_val,
                         Easing::Linear,
                     );
                 } else if ctx.instant_delayed {
-                    preserve_instant_delayed_value(&mut track.image, ctx.t_start_ms);
+                    preserve_instant_delayed_value(&mut payload.image, ctx.t_start_ms);
                 }
-                track
-                    .image
-                    .ensure(None)
-                    .add_keyframe(ctx.t_end_ms, Some(target_image), ctx.easing);
+                payload.image.ensure(None).add_keyframe(
+                    ctx.t_end_ms,
+                    Some(target_image),
+                    ctx.easing,
+                );
             },
             Err(error) => {
                 diagnostics.push(
@@ -102,7 +104,7 @@ impl Primitive for ImagePrimitive {
         use crate::primitives::RenderCommand;
         use crate::timeline::DEFAULT_LAYOUT_HALF_SIZE;
 
-        if let Some(image) = ctx.track.image.get(ctx.time_ms, None) {
+        if let Some(image) = ctx.track.image_track().and_then(|t| t.evaluate(ctx.time_ms)) {
             let half_size = crate::primitives::resolve_half_size(
                 ctx.track.geometry.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE),
                 ctx.overrides,

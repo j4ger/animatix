@@ -571,6 +571,38 @@ fn apply_property_edit_to_track(
         }
     }
 
+    /// Normalise an inspector value to the kind its plan slot accepts.
+    ///
+    /// The inspector emits `F32` for every numeric field, including `U32`
+    /// properties (`decimals`, `max_lines`), and colours as `Color` even though
+    /// the plan stores every `Color`/`Vec4` descriptor in a `Vec4` slot. A plan
+    /// slot rejects a value of another kind, so an uncoerced write would fall
+    /// back to the legacy map and be shadowed by the plan the engine reads.
+    fn coerce_for_value_type(
+        pv: animatix::timeline::PropertyValue,
+        value_type: animatix::timeline::ValueType,
+    ) -> animatix::timeline::PropertyValue {
+        use animatix::timeline::{PropertyValue, ValueType};
+        match (value_type, pv) {
+            (ValueType::U32, PropertyValue::F32(v)) => {
+                PropertyValue::U32(v.max(0.0).round() as u32)
+            },
+            (ValueType::U32, PropertyValue::U32(v)) => PropertyValue::U32(v),
+            (ValueType::Color | ValueType::Vec4, PropertyValue::Color(c)) => PropertyValue::Vec4(c),
+            (ValueType::Color | ValueType::Vec4, PropertyValue::Vec4(c)) => PropertyValue::Vec4(c),
+            (_, pv) => pv,
+        }
+    }
+
+    /// Write one tagged property value.
+    ///
+    /// Registry-backed tagged properties go through the engine's
+    /// `write_property_field`, which stores them in the actor's `PropertyPlan`
+    /// — the same store `read_property_value` and the renderer consult first.
+    /// Writing only `tagged_tracks` would leave the edit invisible behind the
+    /// plan (the reported `solo`/`shadow` drift). Keys with no descriptor
+    /// (`legend_title`, `legend_gap`, ...) keep the legacy map, which is where
+    /// their readers look.
     fn write_tagged_value(
         track: &mut animatix::timeline::AnimationTrack,
         key: &str,
@@ -578,6 +610,24 @@ fn apply_property_edit_to_track(
         time_ms: u64,
         linear: animatix_syntax::easing::Easing,
     ) {
+        use animatix::timeline::{ActorField, lookup_property, write_property_field};
+
+        if let Some(schema) = lookup_property(key)
+            && let ActorField::Tagged(tag) = schema.field
+        {
+            let pv = coerce_for_value_type(pv, schema.value_type);
+            write_property_field(
+                track,
+                ActorField::Tagged(tag),
+                pv,
+                time_ms,
+                time_ms,
+                linear,
+                &mut Vec::new(),
+            );
+            return;
+        }
+
         let tagged = track
             .tagged_tracks
             .entry(key.to_string())
@@ -857,6 +907,13 @@ fn apply_property_edit_to_track(
 
     // ── Registry-driven dispatch for standard properties ──
     if let Some(schema) = animatix::timeline::property_registry::lookup_property(property) {
+        // Tagged properties have no `TrackFieldMut` arm below — `field_mut`
+        // hands back the legacy map entry, which nothing here used to write.
+        // Route them through the one tagged writer instead.
+        if let animatix::timeline::ActorField::Tagged(tag) = schema.field {
+            write_tagged_value(track, tag, value.clone(), time_ms, linear);
+            return;
+        }
         if let Some(field_mut) = track.field_mut(schema.field) {
             match (field_mut, value) {
                 (TrackFieldMut::Vec2(f), PV::Vec2(v)) => {
@@ -943,4 +1000,33 @@ pub(crate) fn track_is_group_like(
     track: &animatix::timeline::AnimationTrack,
 ) -> bool {
     track.is_group_like()
+}
+
+#[cfg(test)]
+mod tests {
+    use animatix::timeline::{ActorField, AnimationTrack, PropertyValue, read_property_value};
+
+    use crate::app::panels::PropertyValue as PV;
+
+    use super::apply_property_edit_to_track;
+
+    /// A GUI edit of a registry-backed tagged property must land in the store
+    /// the engine reads (`property_plan`), not only in `tagged_tracks`.
+    #[test]
+    fn gui_tagged_edit_is_visible_through_property_plan() {
+        let mut track = AnimationTrack::new("box".into(), "Rect");
+        apply_property_edit_to_track(&mut track, "solo", &PV::Bool(true), 1000);
+
+        assert_eq!(
+            read_property_value(&track, ActorField::Tagged("solo"), 1000),
+            Some(PropertyValue::Bool(true)),
+            "solo edit should be readable at the edited time"
+        );
+        // An instant write is fenced, so it holds for every later time too.
+        assert_eq!(
+            read_property_value(&track, ActorField::Tagged("solo"), 5000),
+            Some(PropertyValue::Bool(true)),
+            "solo edit should still be visible after the edited time"
+        );
+    }
 }

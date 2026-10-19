@@ -1723,11 +1723,20 @@ impl Timeline {
                 .or_insert_with(|| AnimationTrack::new(label.to_string(), ty));
             track.set_identity(ty);
             track.rebuild_property_plan();
-            track.procedural_plot = procedural_plot;
-            // The bar chart's side channel: a `data = {…}` assignment needs the
-            // layout to rebuild paths per frame, and the dataset it replaces.
-            track.bar_layout = bar_layout;
-            track.bar_data = bar_data;
+            // Plot-family build path only (this dispatch serves Graph,
+            // PlotCurve, VectorField, Heatmap, ContourSet, NumberPlane and
+            // BarChart), so it owns the plot payload outright: assigning all
+            // three fields mirrors the old flat-field overwrite, including the
+            // clear on a re-declaration that resolves no plot.
+            {
+                let payload = track.ensure_plot_payload();
+                payload.procedural_plot = procedural_plot;
+                // The bar chart's side channel: a `data = {…}` assignment needs
+                // the layout to rebuild paths per frame, and the dataset it
+                // replaces.
+                payload.bar_layout = bar_layout;
+                payload.bar_data = bar_data;
+            }
             if let Some(pl) = parent_label {
                 track.parent = Some(pl.to_string());
             }
@@ -1735,11 +1744,14 @@ impl Timeline {
             // Seed plot_param_tracks with initial declaration values.
             // Only create tracks that don't already exist so re-declarations
             // preserve existing keyframes.
-            if let Some(ref plot) = track.procedural_plot {
-                for (name, default_val) in &plot.params {
-                    track.plot_param_tracks.entry(name.clone()).or_insert_with(|| {
-                        let mut t = super::PropertyTrack::new(*default_val);
-                        t.add_keyframe(0, *default_val, super::Easing::Linear);
+            if let Some(plot) = track.procedural_plot() {
+                let param_names: Vec<(String, f64)> =
+                    plot.params.iter().map(|(n, v)| (n.clone(), *v)).collect();
+                let param_tracks = &mut track.ensure_plot_payload().plot_param_tracks;
+                for (name, default_val) in param_names {
+                    param_tracks.entry(name).or_insert_with(|| {
+                        let mut t = super::PropertyTrack::new(default_val);
+                        t.add_keyframe(0, default_val, super::Easing::Linear);
                         t
                     });
                 }

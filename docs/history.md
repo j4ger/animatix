@@ -14,6 +14,34 @@ mixed history and open work).
 Historical tracks are kept as evidence. New implementation work is tracked in
 [Backlog & Prioritization](#backlog--prioritization).
 
+### Primitives → `PrimitivePayload` Migration Follow-Up (2026-10-19)
+
+Completed the residue of the flat-field → typed-payload migration:
+1. **`AnimationTrack` payload accessors** (`crates/animatix/src/timeline/dispatch.rs`):
+   `plot_payload`/`plot_payload_mut`, `ensure_plot/svg/image_payload`, `procedural_plot`,
+   `plot_param_tracks`, `func_transitions`, `bar_data`, `bar_data_transitions`,
+   `bar_layout`, `svg_paths`, `image_track`. The per-primitive build/evaluate/test paths
+   that still reached into the payload variant directly now go through these.
+2. **Audio assets are document-relative now.** `process_audio_actor_decl` resolves
+   `source:` through `AssetCache::normalize_asset_url` (declaring directory, then
+   workspace root) before recording usage and storing the `AudioSegment`, matching
+   Image/Svg. The audio examples were rewritten to `../assets/...` /
+   `../../assets/...`, and the engine + ffmpeg mux both receive the normalized path.
+3. **`primitive::typing::property_type` is a pure derived-table lookup** in
+   `known_property_types()`, and descriptor `Applicable` predicates now encode the
+   categorical `ShapeKinds(...)`/`PlotKind(...)` instead of hand lists
+   (`crates/animatix-core/src/property.rs`). GUI inspector grouping and the plot
+   applicability table read the same tables.
+4. **Removed dead `PrimitivePayload::Custom` scaffolding** (C3) and orphaned serde
+   imports/instructions that had lined up with it.
+5. **Test migration final pass**: `timeline::tests/{plot_transitions,bar_chart,build,
+   keyframe_times}`, `persistence` test mod, `composition::tests`, and the
+   `plot_params_tests` integration test now use the accessor API.
+
+Note (deliberate): the per-frame child lookup in `scene_eval.rs` still resolves children
+by label string and routes connector/plot kind through `ty == "..."` compares; that
+stays label-keyed for now and is tracked in `docs/roadmap.md`.
+
 ### Non-Text Scene Evaluation & Viewport Culling Optimization (2026-10-18)
 
 Optimized hot frame-evaluation, visibility culling, and static subtree caching across the engine:

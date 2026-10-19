@@ -6,7 +6,7 @@ import "../lib/theme.amx" as theme
 
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 
-bg_mark: Svg, url: "examples/assets/animatix-mark.svg", size: (500, 500), anchor: scene.center, opacity: 0.08
+bg_mark: Svg, url: "../assets/animatix-mark.svg", size: (500, 500), anchor: scene.center, opacity: 0.08
 
 // Effects are declared as labelled children of a Filter scope, in application order.
 bg: Filter, anchor: scene.center {
@@ -15,7 +15,7 @@ bg: Filter, anchor: scene.center {
   bg_vignette: Vignette, amount: 0, radius: 0.5, softness: 0.75
   bg_grain: Grain, amount: 0, monochrome: true
   bg_levels: Levels, gamma: 1
-  grid: Image, url: "examples/assets/checker.png", size: (500, 500), anchor: scene.center
+  grid: Image, url: "../assets/checker.png", size: (500, 500), anchor: scene.center
 }
 
 // Foreground card on top of blurred background (wrapped in Filter for sepia effect)

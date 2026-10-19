@@ -1002,7 +1002,7 @@ fn test_plot_curve_carry() {
         "carried PlotCurve track must retain PlotCurve kind"
     );
     assert!(
-        curve_track.procedural_plot.is_some(),
+        curve_track.procedural_plot().is_some(),
         "carried PlotCurve track must retain procedural_plot"
     );
 }

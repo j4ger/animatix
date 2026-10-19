@@ -7,8 +7,6 @@
 
 pub use animatix_core::caps::Applicable;
 pub use animatix_core::property::{PropertyId, PropertyValueKind};
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
 
 use crate::typing::{Type, transform_type};
 

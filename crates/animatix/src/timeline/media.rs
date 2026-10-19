@@ -57,7 +57,7 @@ fn seed_svg_track(
                 measured_half_size,
                 Easing::Linear,
             );
-            track.svg_paths = parsed_paths;
+            track.ensure_svg_payload().svg_paths = parsed_paths;
         },
         Err(error) => push_media_load_failure_diagnostic(
             diagnostics,
@@ -95,7 +95,11 @@ fn seed_image_track(
                 display_size,
                 Easing::Linear,
             );
-            track.image.ensure(None).add_keyframe(time_ms, Some(image), Easing::Linear);
+            track.ensure_image_payload().image.ensure(None).add_keyframe(
+                time_ms,
+                Some(image),
+                Easing::Linear,
+            );
         },
         Err(error) => push_media_load_failure_diagnostic(
             diagnostics,
@@ -397,10 +401,14 @@ impl Timeline {
             None
         };
 
-        std::sync::Arc::make_mut(&mut self.asset_cache).record_usage(&source, label);
+        // Resolve the source against the declaring document's directory (same
+        // rule as Image/Svg assets) so a relative `../assets/...` path reaches
+        // the file the GUI and the ffmpeg muxer resolve it against.
+        let normalized_source = self.asset_cache.normalize_asset_url(&source);
+        std::sync::Arc::make_mut(&mut self.asset_cache).record_usage(&normalized_source, label);
         self.warn_unknown_declaration_properties(label, "Audio", props, diagnostics);
         self.audio_segments.push(AudioSegment {
-            source,
+            source: normalized_source,
             start_time_s,
             duration_s,
             volume: volume.clamp(0.0, 1.0),

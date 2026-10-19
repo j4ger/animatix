@@ -81,27 +81,30 @@ impl Primitive for SvgPrimitive {
         };
 
         let current_paths = track
-            .svg_paths_track
-            .as_ref()
+            .svg_payload()
+            .and_then(|payload| payload.svg_paths_track.as_ref())
             .and_then(|track| track.evaluate(ctx.t_start_ms))
             .or_else(|| {
-                if track.svg_paths.is_empty() {
+                if track.svg_paths().is_empty() {
                     None
                 } else {
-                    Some(track.svg_paths.clone())
+                    Some(track.svg_paths().to_vec())
                 }
             });
 
         if ctx.duration_ms > 0.0 {
-            track.svg_paths_track.ensure(None).add_keyframe(
+            track.ensure_svg_payload().svg_paths_track.ensure(None).add_keyframe(
                 ctx.t_start_ms,
                 current_paths,
                 Easing::Linear,
             );
         } else if ctx.instant_delayed {
-            preserve_instant_delayed_value(&mut track.svg_paths_track, ctx.t_start_ms);
+            preserve_instant_delayed_value(
+                &mut track.ensure_svg_payload().svg_paths_track,
+                ctx.t_start_ms,
+            );
         }
-        track.svg_paths_track.ensure(None).add_keyframe(
+        track.ensure_svg_payload().svg_paths_track.ensure(None).add_keyframe(
             ctx.t_end_ms,
             Some(parsed_paths.clone()),
             ctx.easing,

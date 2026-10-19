@@ -568,26 +568,25 @@ pub(crate) fn transform_type() -> Type {
 }
 
 /// Resolve a property type for a primitive actor type.
+///
+/// This is a pure lookup in [`known_property_types`], the derived per-actor-type
+/// table built from the descriptor rows in `animatix-core` (via
+/// `schema::property_specs`). Resolving per actor type is the point: a property
+/// that exists on some other actor is not a property of this one, so
+/// `rect.code` or `rect.standoff` must not type-check. It also keeps the type
+/// the table declares — `color` and `stroke` are `Union[Color, Str]`, not a bare
+/// `Color`.
 pub fn property_type(actor_type: &str, property: &str) -> Option<Type> {
-    match property {
-        "color" | "fill" | "stroke" => Some(Type::Color),
-        "at" | "anchor" | "position" | "offset" | "size" => Some(Type::Vec2),
-        "transform" => Some(transform_type()),
-        "opacity" | "scale" | "rotation" | "font_size" | "stroke_width" | "line_height"
-        | "letter_spacing" | "word_spacing" | "head_size" | "standoff" => Some(Type::Num),
-        "text" | "content" | "code" | "label" | "url" | "place" => Some(Type::Str),
-        _ => known_property_types()
-            .get(&(actor_type.to_string(), property.to_string()))
-            .cloned(),
-    }
+    known_property_types()
+        .get(&(actor_type.to_string(), property.to_string()))
+        .cloned()
 }
 
 /// Known property types per `(actor_type, property)` pair.
 ///
 /// This is the shared source for the syntax typechecker, analyzer-level
-/// property diagnostics, and property completions. It intentionally remains
-/// additive relative to [`property_type`], which covers the generic schema used
-/// by actor processing.
+/// property diagnostics, property completions, and [`property_type`] itself:
+/// there is one property table, derived from the descriptor rows.
 pub fn known_property_types() -> &'static HashMap<(String, String), Type> {
     static CACHE: std::sync::OnceLock<HashMap<(String, String), Type>> = std::sync::OnceLock::new();
     CACHE.get_or_init(|| {
@@ -914,7 +913,29 @@ mod tests {
         let mut env = std_env();
         env.declare_actor("box", "Rect");
         let path = Expr::Path(vec!["box".to_string(), "color".to_string()]);
-        assert_eq!(infer_expr_type(&path, &env), Type::Color);
+        // `color` is declared `Union[Color, Str]` (a colour or a named/gradient
+        // string) by the descriptor table, so a bare `Color` is a subtype of the
+        // property's type rather than the whole of it.
+        let expected = Type::Union(vec![Type::Color, Type::Str]);
+        assert_eq!(infer_expr_type(&path, &env), expected);
+        assert!(is_subtype(&Type::Color, &expected));
+    }
+
+    #[test]
+    fn property_type_is_resolved_per_actor_type() {
+        // The table is per `(actor_type, property)`: a property that exists on
+        // some other actor is not a property of this one.
+        assert_eq!(property_type("Rect", "transform"), Some(transform_type()));
+        assert_eq!(property_type("Rect", "color"), Some(Type::Union(vec![Type::Color, Type::Str])));
+        assert_eq!(property_type("Code", "code"), Some(Type::Str));
+        assert_eq!(property_type("Rect", "code"), None);
+        assert_eq!(property_type("Rect", "standoff"), None);
+        assert_eq!(property_type("Rect", "url"), None);
+        assert_eq!(property_type("Rect", "label"), None);
+        // `fill`/`content` were removed from the descriptor table; they must not
+        // resolve through a leftover name-only fallback.
+        assert_eq!(property_type("Rect", "fill"), None);
+        assert_eq!(property_type("Text", "content"), None);
     }
 
     #[test]

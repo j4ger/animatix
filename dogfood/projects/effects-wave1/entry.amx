@@ -8,7 +8,7 @@ backdrop: Filter, anchor: scene.center {
   film: Vignette, amount: 0.55, radius: 0.45, softness: 0.7
   noise: Grain, amount: 0.0, monochrome: true
   grade: Levels, in_black: 0.0, gamma: 1.0
-  panel: Image, url: "examples/assets/checker.png", size: (1280, 720), anchor: scene.center
+  panel: Image, url: "../../../examples/assets/checker.png", size: (1280, 720), anchor: scene.center
 }
 
 // Children without `anchor: scene.*` ride the scope's placement; a scene

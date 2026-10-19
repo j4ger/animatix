@@ -27,12 +27,12 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 // Cache the checker texture so the native `append_image` command can resolve
 // it from the asset cache (see `image_url` on `dot`).
 // lint-disable: unused-label
-checker: Image, url: "examples/assets/checker.png", opacity: 0
+checker: Image, url: "../assets/checker.png", opacity: 0
 
 title: Text, text: "Native Plugin: Pulse", font_size: 40, color: text.primary, anchor: scene.top, offset: (0, 56)
 subtitle: Text, text: "enum property · keyframed glow · throb action · scale() function", font_size: 16, color: text.muted, anchor: scene.top, offset: (0, 100)
 
-dot:   Pulse, glow: 0.25, mode: "dot",   caption: "dot",   at: (380, 400), origin: (0, 0), image_url: "examples/assets/checker.png"
+dot:   Pulse, glow: 0.25, mode: "dot",   caption: "dot",   at: (380, 400), origin: (0, 0), image_url: "../assets/checker.png"
 ring:  Pulse, glow: 0.4,  mode: "ring",  caption: "ring",  at: (640, 400), origin: (0, 0)
 cross: Pulse, glow: 0.35, mode: "cross", caption: "cross", at: (900, 400), origin: (0, 0)
 

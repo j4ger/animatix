@@ -34,8 +34,10 @@ use super::property_track::{PropertyTrack, TrackAccessor};
 use super::shapes::ShapeType;
 use crate::easing::Easing;
 use crate::renderer::types::{GradientSpec, TextPath, VelloPath};
+use crate::timeline::BarChartLayout;
+use crate::timeline::image::SceneImage;
 use crate::timeline::morph::MorphOptions;
-use crate::timeline::plot::{FuncTransition, ProceduralPlot};
+use crate::timeline::plot::{BarDataTransition, FuncTransition, ProceduralPlot};
 use crate::timeline::property_engine::EnumPropertyValue;
 pub use crate::timeline::property_engine::PropertyValue;
 use crate::timeline::property_registry::{ActorField, PropertySchema};
@@ -50,6 +52,17 @@ use crate::timeline::property_registry::{ActorField, PropertySchema};
 /// stores typed optional property tracks (geometry, style, filter, shape, text,
 /// highlight tiers), along with metadata such as the derived capability
 /// projection `caps`, `children` (scene-graph hierarchy), and `visible`.
+///
+/// Primitive-specific state lives in exactly one place: [`Self::payload`]. An
+/// actor carries at most one payload variant — a plot actor has a
+/// [`crate::primitives::PlotPayload`], an `Svg` actor an
+/// [`crate::primitives::SvgPayload`], an `Image` actor an
+/// [`crate::primitives::ImagePayload`], and everything else
+/// [`crate::primitives::PrimitivePayload::None`]. Read through the accessors
+/// ([`Self::procedural_plot`], [`Self::func_transitions`],
+/// [`Self::svg_paths`], [`Self::image_track`], …) rather than matching the enum,
+/// and write through the `ensure_*_payload` forms — but only from the primitive
+/// family that owns that variant, because `ensure_*` *replaces* the variant.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct AnimationTrack {
@@ -162,93 +175,10 @@ pub struct AnimationTrack {
     // ── Text tier (sub-struct) ──
     /// Text property tracks (text_content, font_family, font_size, etc.).
     pub text: TextTracks,
-    /// Static SVG paths from declarations.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    pub svg_paths: Vec<crate::timeline::VelloPath>,
-    /// Keyframed SVG paths from timed `Svg.url` assignments.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    pub svg_paths_track: Option<PropertyTrack<Option<Vec<crate::timeline::VelloPath>>>>,
-    /// Raster image data.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    pub image: Option<PropertyTrack<Option<crate::timeline::image::SceneImage>>>,
-
-    // ── Procedural plot (re-sampled at frame time) ──
-    /// Procedural plot generator, re-sampled each frame.
-    pub procedural_plot: Option<ProceduralPlot>,
-
-    // ── Plot parameter keyframe tracks ──
-    /// Per-parameter keyframe tracks for procedural plot actors.
-    /// Maps parameter name (e.g. "freq") to an f64 property track.
-    pub plot_param_tracks: HashMap<String, PropertyTrack<f64>>,
 
     // ── Tagged union tracks ──
     /// Generic tagged union property tracks, keyed by canonical property name.
     pub tagged_tracks: HashMap<String, Option<PropertyTrack<PropertyValue>>>,
-
-    // ── Func transition tracks (side-channel) ──
-    /// Parallel transition storage for the `func` property on plot actors.
-    ///
-    /// ## Why a side-channel?
-    ///
-    /// Most animatable properties (f32, Vec2, Color, etc.) implement the
-    /// [`crate::timeline::Interpolate`] trait, which allows the standard `PropertyTrack<T>`
-    /// keyframe system to compute in-between values automatically. Closures
-    /// (function sources like `(x) => sin(x * freq)`) **cannot** implement
-    /// [`crate::timeline::Interpolate`] — there is no meaningful way to "lerp" two closures.
-    ///
-    /// Instead of forcing closures into the `Interpolate` model, we store
-    /// function transitions as a **parallel side-channel** alongside the
-    /// normal property tracks. Each `FuncTransition` records a start time,
-    /// end time, easing, blend mode, and the `from` / `to` `FuncSource`
-    /// closures. At frame evaluation time,
-    /// `sample_procedural_plot_at` checks for active
-    /// transitions and combines the two sources by the eased progress value.
-    ///
-    /// ## How it works
-    ///
-    /// 1. Parsing discovers `func = <expr> [easing, duration]` and appends a `FuncTransition` to
-    ///    this vector (not to a `PropertyTrack`).
-    /// 2. At each frame, `sample_procedural_plot_at` finds the active transition (if any),
-    ///    evaluates both `from` and `to` closure outputs at each sample point, and lerps the
-    ///    outputs.
-    /// 3. Completed transitions are detected via `FuncTransition::is_complete_at` and the last
-    ///    completed `to` source is used as the new baseline.
-    ///
-    /// ## When to use this pattern
-    ///
-    /// Any property whose type cannot implement [`crate::timeline::Interpolate`] should use a
-    /// side-channel. Candidates include:
-    ///
-    /// - **Closures / AST function bodies** (the current case)
-    /// - **Arbitrary AST nodes** that are structural rather than numeric
-    /// - **External resource handles** (e.g., image URLs that need loading)
-    ///
-    /// If the type *can* implement [`crate::timeline::Interpolate`], prefer the standard
-    /// `PropertyTrack<T>` approach instead.
-    ///
-    /// ## Implementation checklist for new non-interpolatable properties
-    ///
-    /// 1. Define a transition struct (like `FuncTransition`) with `start_ms`, `end_ms`, `easing`,
-    ///    `from`, `to`.
-    /// 2. Define the source type (like `FuncSource`) with variants for raw values and
-    ///    mid-transition blends.
-    /// 3. Add a `Vec<YourTransition>` field to [`AnimationTrack`].
-    /// 4. Include the transition end times in `max_keyframe_time`.
-    /// 5. Include non-empty transitions in `has_any_keyframes`.
-    /// 6. At frame evaluation, find the active transition and blend the *outputs* of `from` and
-    ///    `to` by eased progress.
-    pub func_transitions: Vec<FuncTransition>,
-
-    // ── BarChart data transitions (a side channel, like `func_transitions`) ──
-    /// The layout resolved from the declaration, kept so a frame-time `data`
-    /// transition can rebuild the bars without re-parsing properties.
-    pub(crate) bar_layout: Option<super::build::plot::BarChartLayout>,
-    /// The dataset the declaration carries — the base the first transition
-    /// blends from.
-    pub(crate) bar_data: Vec<(String, f32)>,
-    /// `data = {…}` assignments in stamp order, each carrying the dataset it
-    /// replaces. See the `func_transitions` checklist above.
-    pub(crate) bar_data_transitions: Vec<super::plot::BarDataTransition>,
 
     // ── Highlight tier (sub-struct) ──
     /// Highlight property tracks (color, opacity, padding, radius, blend).
@@ -307,24 +237,9 @@ impl AnimationTrack {
 
             // Text tier (sub-struct)
             text: TextTracks::default(),
-            svg_paths: Vec::new(),
-            svg_paths_track: None,
-            image: None,
-
-            // Procedural plot
-            procedural_plot: None,
-
-            // Plot parameter tracks
-            plot_param_tracks: HashMap::new(),
 
             // Tagged union tracks
             tagged_tracks: HashMap::new(),
-
-            // Func transition tracks
-            func_transitions: Vec::new(),
-            bar_layout: None,
-            bar_data: Vec::new(),
-            bar_data_transitions: Vec::new(),
 
             // Highlight tier (sub-struct)
             highlight: HighlightTracks::default(),
@@ -377,6 +292,85 @@ impl AnimationTrack {
     /// Ensure the track has an initialized image payload and return a mutable reference.
     pub fn ensure_image_payload(&mut self) -> &mut crate::primitives::ImagePayload {
         self.payload.ensure_image()
+    }
+
+    // ── Plot payload readers ──
+    //
+    // These are `Option`-returning on the read side: an actor that never built a
+    // plot payload has no plot state at all, which is exactly what the old
+    // `None` / empty-`Vec` flat fields meant.
+
+    /// Return the procedural plot generator, if this actor is one.
+    pub fn procedural_plot(&self) -> Option<&ProceduralPlot> {
+        self.plot_payload().and_then(|p| p.procedural_plot.as_ref())
+    }
+
+    /// Return the per-parameter keyframe tracks, if this actor has a plot payload.
+    pub fn plot_param_tracks(&self) -> Option<&HashMap<String, PropertyTrack<f64>>> {
+        self.plot_payload().map(|p| &p.plot_param_tracks)
+    }
+
+    /// Return one plot parameter's keyframe track, if it exists.
+    pub fn plot_param_track(&self, name: &str) -> Option<&PropertyTrack<f64>> {
+        self.plot_payload().and_then(|p| p.plot_param_tracks.get(name))
+    }
+
+    /// Return the `func` transitions in stamp order; empty when no plot payload.
+    pub fn func_transitions(&self) -> &[FuncTransition] {
+        self.plot_payload().map_or(&[], |p| &p.func_transitions)
+    }
+
+    /// Return the `func` transitions for writing, initializing the plot payload.
+    pub fn func_transitions_mut(&mut self) -> &mut Vec<FuncTransition> {
+        &mut self.ensure_plot_payload().func_transitions
+    }
+
+    /// Return the declaration's bar dataset; empty when no plot payload.
+    pub fn bar_data(&self) -> &[(String, f32)] {
+        self.plot_payload().map_or(&[], |p| &p.bar_data)
+    }
+
+    /// Return the declaration's bar dataset for writing, initializing the plot
+    /// payload.
+    pub fn bar_data_mut(&mut self) -> &mut Vec<(String, f32)> {
+        &mut self.ensure_plot_payload().bar_data
+    }
+
+    /// Return the `data = {…}` transitions in stamp order; empty when no plot
+    /// payload.
+    pub fn bar_data_transitions(&self) -> &[BarDataTransition] {
+        self.plot_payload().map_or(&[], |p| &p.bar_data_transitions)
+    }
+
+    /// Return the `data = {…}` transitions for writing, initializing the plot
+    /// payload.
+    pub fn bar_data_transitions_mut(&mut self) -> &mut Vec<BarDataTransition> {
+        &mut self.ensure_plot_payload().bar_data_transitions
+    }
+
+    /// Return the bar layout resolved at build time, if this actor is a bar chart.
+    ///
+    /// `pub(crate)` because [`BarChartLayout`] is a build-internal type; the
+    /// flat field this replaces was `pub(crate)` for the same reason. Read-only
+    /// on purpose: the layout is resolved once at build and never created or
+    /// replaced at frame time, so a caller that gets `None` has the wrong actor.
+    pub(crate) fn bar_layout(&self) -> Option<&BarChartLayout> {
+        self.plot_payload().and_then(|p| p.bar_layout.as_ref())
+    }
+
+    // ── SVG payload readers ──
+
+    /// Return the declaration-level SVG paths; empty when this actor has no SVG
+    /// payload.
+    pub fn svg_paths(&self) -> &[VelloPath] {
+        self.svg_payload().map_or(&[], |p| &p.svg_paths)
+    }
+
+    // ── Image payload readers ──
+
+    /// Return the raster image data track, if this actor carries one.
+    pub fn image_track(&self) -> Option<&PropertyTrack<Option<SceneImage>>> {
+        self.image_payload().and_then(|p| p.image.as_ref())
     }
 
     /// Test-fixture constructor: a track with a placeholder `Rect` identity.
@@ -799,25 +793,28 @@ impl AnimationTrack {
     /// Evaluate SVG paths at `time_ms`, preferring timed assignments over the
     /// declaration-level static path set.
     pub fn svg_paths_at(&self, time_ms: u64) -> Option<Vec<VelloPath>> {
-        self.svg_paths_track
+        let payload = self.svg_payload()?;
+        payload
+            .svg_paths_track
             .as_ref()
             .and_then(|track| track.evaluate(time_ms))
             .or_else(|| {
-                if self.svg_paths.is_empty() {
+                if payload.svg_paths.is_empty() {
                     None
                 } else {
-                    Some(self.svg_paths.clone())
+                    Some(payload.svg_paths.clone())
                 }
             })
     }
 
     /// Whether this actor has any declaration or assignment SVG path content.
     pub fn has_svg_path_content(&self) -> bool {
-        !self.svg_paths.is_empty()
-            || self
-                .svg_paths_track
-                .as_ref()
-                .is_some_and(|track| track.default_value.is_some() || !track.keyframes.is_empty())
+        self.svg_payload().is_some_and(|payload| {
+            !payload.svg_paths.is_empty()
+                || payload.svg_paths_track.as_ref().is_some_and(|track| {
+                    track.default_value.is_some() || !track.keyframes.is_empty()
+                })
+        })
     }
 
     /// Evaluate vector paths at `time_ms`, applying morphing if configured.
@@ -914,9 +911,11 @@ impl AnimationTrack {
             }
         }
         // Dynamic plot parameter tracks (not registry-representable)
-        for pt in self.plot_param_tracks.values() {
-            if let Some(t) = pt.last_keyframe_time() {
-                max = Some(max.map_or(t, |m| m.max(t)));
+        if let Some(tracks) = self.plot_param_tracks() {
+            for pt in tracks.values() {
+                if let Some(t) = pt.last_keyframe_time() {
+                    max = Some(max.map_or(t, |m| m.max(t)));
+                }
             }
         }
         // Tagged union tracks (also registry-representable when a schema exists).
@@ -930,11 +929,11 @@ impl AnimationTrack {
             max = Some(max.map_or(t, |m| m.max(t)));
         }
         // Func transitions: include the end time of each transition.
-        for ft in &self.func_transitions {
+        for ft in self.func_transitions() {
             max = Some(max.map_or(ft.end_ms, |m| m.max(ft.end_ms)));
         }
         // BarChart data transitions: the same reasoning as func transitions.
-        for bt in &self.bar_data_transitions {
+        for bt in self.bar_data_transitions() {
             max = Some(max.map_or(bt.end_ms, |m| m.max(bt.end_ms)));
         }
         // Effect chain parameters.
@@ -954,11 +953,12 @@ impl AnimationTrack {
                 return true;
             }
         }
-        self.plot_param_tracks.values().any(|t| !t.is_effectively_static())
+        self.plot_param_tracks()
+            .is_some_and(|tracks| tracks.values().any(|t| !t.is_effectively_static()))
             || self.tagged_tracks.values().flatten().any(|t| !t.is_effectively_static())
             || self.property_plan.has_any_keyframes()
-            || !self.func_transitions.is_empty()
-            || !self.bar_data_transitions.is_empty()
+            || !self.func_transitions().is_empty()
+            || !self.bar_data_transitions().is_empty()
             || self.effects.has_any_keyframes()
     }
 }
@@ -1376,7 +1376,9 @@ impl AnimationTrack {
             CalloutToOffset => TrackFieldRef::Vec2(&self.geometry.callout_to_offset),
             VectorPaths => TrackFieldRef::VectorPaths(&self.shape.vector_paths),
             TextPaths => TrackFieldRef::TextPaths(&self.text.text_paths),
-            ImageData => TrackFieldRef::Image(&self.image),
+            // The image payload owns the raster track; an actor without that
+            // payload has no image data, which reads as `None`.
+            ImageData => return self.image_payload().map(|p| TrackFieldRef::Image(&p.image)),
             PositionBinding => TrackFieldRef::PositionBinding(&self.geometry.position_binding),
             ActorField::Tagged(name) => {
                 return self
@@ -1462,7 +1464,9 @@ impl AnimationTrack {
             CalloutToOffset => TrackFieldMut::Vec2(&mut self.geometry.callout_to_offset),
             VectorPaths => TrackFieldMut::VectorPaths(&mut self.shape.vector_paths),
             TextPaths => TrackFieldMut::TextPaths(&mut self.text.text_paths),
-            ImageData => TrackFieldMut::Image(&mut self.image),
+            // Image data is written through the media/image paths (which hold
+            // the asset cache), never through generic property dispatch.
+            ImageData => return None,
             PositionBinding => TrackFieldMut::PositionBinding(&mut self.geometry.position_binding),
             _ => return None,
         })
@@ -1604,8 +1608,8 @@ impl AnimationTrack {
 
         if field == ImageData && self.caps.vector_paths {
             return self
-                .svg_paths_track
-                .as_ref()
+                .svg_payload()
+                .and_then(|p| p.svg_paths_track.as_ref())
                 .is_some_and(|track| track.keyframes.contains_key(&time_ms));
         }
 
@@ -1621,7 +1625,10 @@ impl AnimationTrack {
         };
 
         if field == ImageData && self.caps.vector_paths {
-            return self.svg_paths_track.as_ref().is_some_and(|track| !track.keyframes.is_empty());
+            return self
+                .svg_payload()
+                .and_then(|p| p.svg_paths_track.as_ref())
+                .is_some_and(|track| !track.keyframes.is_empty());
         }
 
         self.field_ref(field).is_some_and(|f| f.keyframe_count() > 0)
@@ -1678,8 +1685,8 @@ impl AnimationTrack {
         };
 
         let mut times: Vec<u64> = if field == ImageData && self.caps.vector_paths {
-            self.svg_paths_track
-                .as_ref()
+            self.svg_payload()
+                .and_then(|p| p.svg_paths_track.as_ref())
                 .map_or(Vec::new(), |track| track.keyframes.keys().copied().collect())
         } else {
             self.field_ref(field).map(|f| f.keyframe_times()).unwrap_or_default()
@@ -1699,7 +1706,7 @@ fn svg_paths_track_for(
     field: ActorField,
 ) -> Option<&PropertyTrack<Option<Vec<VelloPath>>>> {
     if track.caps.vector_paths && field == ActorField::ImageData {
-        track.svg_paths_track.as_ref()
+        track.svg_payload().and_then(|p| p.svg_paths_track.as_ref())
     } else {
         None
     }
@@ -1806,5 +1813,44 @@ fn plan_id_for_tagged_field(field: &ActorField) -> Option<animatix_syntax::schem
             crate::timeline::property_registry::property_id(name)
         },
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod payload_tests {
+    use super::AnimationTrack;
+    use crate::primitives::PrimitivePayload;
+
+    #[test]
+    fn rect_track_carries_no_payload() {
+        let track = AnimationTrack::new("box".to_string(), "Rect");
+        assert!(matches!(track.payload, PrimitivePayload::None));
+    }
+
+    #[test]
+    fn ensure_plot_payload_switches_variant() {
+        let mut track = AnimationTrack::new("curve".to_string(), "PlotCurve");
+        assert!(matches!(track.payload, PrimitivePayload::None));
+
+        track
+            .ensure_plot_payload()
+            .plot_param_tracks
+            .insert("freq".to_string(), super::PropertyTrack::new(2.0));
+        assert!(matches!(track.payload, PrimitivePayload::Plot(_)));
+        assert_eq!(track.plot_param_track("freq").map(|t| t.default_value), Some(2.0));
+
+        // A second `ensure` must hand back the same payload, not reset it.
+        assert_eq!(track.ensure_plot_payload().plot_param_tracks.len(), 1);
+        assert_eq!(track.plot_param_track("freq").map(|t| t.default_value), Some(2.0));
+    }
+
+    #[test]
+    fn svg_and_image_payloads_are_distinct() {
+        let mut track = AnimationTrack::new("icon".to_string(), "Svg");
+        track.ensure_svg_payload().svg_paths.push(crate::timeline::VelloPath::default());
+        assert!(matches!(track.payload, PrimitivePayload::Svg(_)));
+        assert!(track.image_payload().is_none());
+        assert!(track.image_track().is_none());
+        assert_eq!(track.svg_paths().len(), 1);
     }
 }

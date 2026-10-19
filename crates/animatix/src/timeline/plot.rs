@@ -223,6 +223,7 @@ impl FuncTransition {
 /// This follows [`FuncTransition`]'s pattern (see this module's header) because a
 /// dataset is not an `Interpolate` value: bars are matched by label, so the blend
 /// happens on the *outputs* — each bar's height — rather than on the property.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct BarDataTransition {
     pub start_ms: u64,

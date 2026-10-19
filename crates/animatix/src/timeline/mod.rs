@@ -89,7 +89,9 @@ pub use dispatch::{
 };
 pub use plan::{DynTrack, PropertyKind, PropertyPlan, PropertySlot};
 pub(crate) use property_engine::values_wrap;
-pub use property_engine::{PropertyValue, read_property_plan_slot, write_property_plan_slot};
+pub use property_engine::{
+    PropertyValue, read_property_plan_slot, write_property_field, write_property_plan_slot,
+};
 // Re-export property registry types for the GUI
 pub use property_registry::{
     ActorField, LEGEND_SUM_VARIANTS, PROPERTY_REGISTRY, PropertyFlags, PropertySchema, SumVariant,
@@ -1102,8 +1104,10 @@ impl Timeline {
                 times_ms.insert(ms);
             }
             // D4 exception: dynamic plot parameter tracks (not statically representable)
-            for pt in track.plot_param_tracks.values() {
-                times_ms.extend(pt.keyframes.keys().copied());
+            if let Some(param_tracks) = track.plot_param_tracks() {
+                for pt in param_tracks.values() {
+                    times_ms.extend(pt.keyframes.keys().copied());
+                }
             }
             // Tagged union tracks are registry-representable, but include them
             // directly as a defensive catch for properties without a schema.
@@ -1579,10 +1583,8 @@ impl Timeline {
     /// frame environment to be constructed.
     pub(crate) fn has_procedural_plots(&self) -> bool {
         self.tracks.values().any(|t| {
-            t.procedural_plot
-                .as_ref()
-                .is_some_and(|pp| pp.is_dynamic(&self.frame_written_vars))
-                || !t.func_transitions.is_empty()
+            t.procedural_plot().is_some_and(|pp| pp.is_dynamic(&self.frame_written_vars))
+                || !t.func_transitions().is_empty()
         })
     }
 
@@ -1736,7 +1738,7 @@ impl Timeline {
         if track.caps.time_dependent
             || self.transcripts.contains_key(label)
             || track.has_any_keyframes()
-            || track.procedural_plot.is_some()
+            || track.procedural_plot().is_some()
             || track.shape.from_anchor.is_some()
             || track.shape.to_anchor.is_some()
         {

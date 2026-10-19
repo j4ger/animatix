@@ -297,7 +297,7 @@ pub(crate) fn parse_property_value(
 /// The dispatch works in two tiers:
 /// 1. Special cases that need custom extraction/conversion (ShapeType, no-ops, group diagnostics)
 /// 2. Uniform dispatch via `ActorField::default_value()` + `TrackFieldMut` for standard fields
-pub(crate) fn write_property_field(
+pub fn write_property_field(
     track: &mut AnimationTrack,
     field: ActorField,
     value: PropertyValue,

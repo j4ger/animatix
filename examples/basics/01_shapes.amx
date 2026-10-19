@@ -15,8 +15,8 @@ gallery: Grid, cols: 4, gap: 24, padding: 60, anchor: scene.center {
   polygon: Polygon, points: {(0, -40), (40, 0), (0, 40), (-40, 0)}, color: accent.success
   path: Path, commands: {move_to(-30, 20), line_to(0, -30), line_to(30, 20), close()}, color: accent.warning
   line: Line, from: (-40, 0), to: (40, 0), stroke: accent.danger, stroke_width: 4
-  image: Image, url: "examples/assets/checker.png", size: (80, 80)
-  mark: Svg, url: "examples/assets/animatix-mark.svg", size: (80, 80)
+  image: Image, url: "../assets/checker.png", size: (80, 80)
+  mark: Svg, url: "../assets/animatix-mark.svg", size: (80, 80)
   arrow: Arrow, from: (-40, 20), to: (40, -20), stroke: accent.primary, stroke_width: 4, head_size: 16
 }
 

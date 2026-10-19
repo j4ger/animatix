@@ -122,6 +122,7 @@ fn test_keyframe_times_s_includes_plot_param_tracks() {
     let mut timeline = keyframe_times_s_timeline();
     let mut track = AnimationTrack::placeholder("test".to_string());
     track
+        .ensure_plot_payload()
         .plot_param_tracks
         .entry("freq".to_string())
         .or_insert_with(|| PropertyTrack::new(1.0))

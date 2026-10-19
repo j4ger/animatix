@@ -1,7 +1,8 @@
 //! Primitive-specific payload definitions.
 //!
-//! Decouples primitive-specific storage (plots, charts, SVG vector paths, raster images)
-//! from the common [`AnimationTrack`] host struct.
+//! Decouples primitive-specific storage (plots, charts, SVG vector paths, raster
+//! images) from the common `AnimationTrack` host struct, so an actor carries at
+//! most one kind of primitive state rather than a flat field per primitive.
 
 use std::collections::HashMap;
 
@@ -13,6 +14,39 @@ use crate::timeline::plot::{BarDataTransition, FuncTransition, ProceduralPlot};
 use crate::timeline::{BarChartLayout, PropertyTrack, VelloPath};
 
 /// Payload for procedural plots, mathematical curves, and bar charts.
+///
+/// ## Why the transition side-channels live here
+///
+/// Most animatable properties (f32, Vec2, Color, etc.) implement
+/// [`crate::timeline::Interpolate`], which lets the standard
+/// [`PropertyTrack<T>`] keyframe system compute in-between values. Two plot
+/// properties cannot: closures (`func`) and bar datasets (`data`). There is no
+/// meaningful way to "lerp" two closures, and a dataset is matched *by label*
+/// rather than interpolated element-wise, so the blend has to happen on the
+/// **outputs** — each sample point's value, each bar's height.
+///
+/// Both therefore ride as parallel side-channels on this payload instead of in
+/// a `PropertyTrack`:
+///
+/// 1. Parsing appends a transition (not a keyframe) to `func_transitions` /
+///    `bar_data_transitions`.
+/// 2. At each frame, `sample_procedural_plot_at` / `bar_data_at` finds the
+///    active transition, evaluates both endpoints, and blends by eased
+///    progress.
+/// 3. Completed transitions are detected via `is_complete_at`; the last
+///    completed `to` becomes the new baseline.
+///
+/// ## Checklist for a new non-interpolatable plot property
+///
+/// 1. Define a transition struct (like `FuncTransition`) with `start_ms`,
+///    `end_ms`, `easing`, `from`, `to`.
+/// 2. Define the source type (like `FuncSource`) with variants for raw values
+///    and mid-transition blends.
+/// 3. Add a `Vec<YourTransition>` field to this payload.
+/// 4. Include the transition end times in `AnimationTrack::max_keyframe_time`.
+/// 5. Include non-empty transitions in `AnimationTrack::has_any_keyframes`.
+/// 6. At frame evaluation, find the active transition and blend the *outputs*
+///    of `from` and `to` by eased progress.
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PlotPayload {
@@ -23,9 +57,6 @@ pub struct PlotPayload {
     /// Function transitions (side-channel for non-interpolatable closures).
     pub func_transitions: Vec<FuncTransition>,
     /// Layout resolved from the declaration for bar charts.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    // Reserved for full migration of BarChartLayout from AnimationTrack to modular PlotPayload
-    #[allow(dead_code)]
     pub(crate) bar_layout: Option<BarChartLayout>,
     /// Base dataset for bar charts.
     pub bar_data: Vec<(String, f32)>,
@@ -54,18 +85,6 @@ pub struct ImagePayload {
     pub image: Option<PropertyTrack<Option<SceneImage>>>,
 }
 
-/// Dynamic payload interface for native or third-party extension primitives.
-pub trait CustomPrimitivePayload: std::fmt::Debug + Send + Sync {
-    /// Clone the boxed custom payload.
-    fn clone_box(&self) -> Box<dyn CustomPrimitivePayload>;
-}
-
-impl Clone for Box<dyn CustomPrimitivePayload> {
-    fn clone(&self) -> Self {
-        self.clone_box()
-    }
-}
-
 /// Polymorphic payload holding primitive-specific state on an actor track.
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -79,9 +98,6 @@ pub enum PrimitivePayload {
     Svg(Box<SvgPayload>),
     /// Raster image payload.
     Image(Box<ImagePayload>),
-    /// Custom extension payload.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    Custom(Box<dyn CustomPrimitivePayload>),
 }
 
 impl PrimitivePayload {

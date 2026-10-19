@@ -82,9 +82,9 @@ impl Primitive for BarChartPrimitive {
         // Chain like `func` does: the value in effect is the previous
         // transition's target, or the declaration when there is none.
         let from = track
-            .bar_data_transitions
+            .bar_data_transitions()
             .last()
-            .map_or_else(|| track.bar_data.clone(), |previous| previous.to.clone());
+            .map_or_else(|| track.bar_data().to_vec(), |previous| previous.to.clone());
         // Bar *captions* are compiled once at build, into the slots the
         // declaration's dataset laid out, so the two things a transition can get
         // wrong about them are both worth saying out loud. Note the actor's own
@@ -94,7 +94,7 @@ impl Primitive for BarChartPrimitive {
             from.len() == to.len() && from.iter().zip(&to).all(|(left, right)| left.0 == right.0);
         // Both guards are about captions, so a chart that asks for none
         // (`show_labels: false`) is free to re-order or start empty.
-        let captions_expected = track.bar_layout.as_ref().is_some_and(|l| l.has_captions());
+        let captions_expected = track.bar_layout().is_some_and(|l| l.has_captions());
         if captions_expected && from.is_empty() {
             diagnostics.push(
                 Diagnostic::warning(
@@ -125,7 +125,7 @@ impl Primitive for BarChartPrimitive {
                 .with_subject(subject),
             );
         }
-        track.bar_data_transitions.push(BarDataTransition {
+        track.bar_data_transitions_mut().push(BarDataTransition {
             start_ms: ctx.t_start_ms,
             end_ms: ctx.t_end_ms,
             easing: ctx.easing,

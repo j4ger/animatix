@@ -367,14 +367,15 @@ pub fn snapshot_track_at(track: &AnimationTrack, time_ms: u64) -> AnimationTrack
     collapse_text_tracks(&mut snapshot.text, time_ms);
     collapse_highlight_tracks(&mut snapshot.highlight, time_ms);
 
-    // Collapse plot parameter tracks.
-    for pt in snapshot.plot_param_tracks.values_mut() {
-        collapse_property_track_inner(pt, time_ms);
+    // Collapse the plot payload's parameter tracks and drop its live
+    // transitions: they represent animation, not static snapshot state. A
+    // track with no plot payload has neither, so nothing is created here.
+    if let Some(plot) = snapshot.plot_payload_mut() {
+        for pt in plot.plot_param_tracks.values_mut() {
+            collapse_property_track_inner(pt, time_ms);
+        }
+        plot.func_transitions.clear();
     }
-
-    // Clear func transitions — they represent live animation transitions,
-    // not static snapshot state.
-    snapshot.func_transitions.clear();
 
     // Collapse registry-driven extension slots to the same snapshot semantics
     // as built-in property tracks.
@@ -600,15 +601,15 @@ mod tests {
     fn snapshot_preserves_svg_paths() {
         use crate::timeline::VelloPath;
         let mut track = AnimationTrack::placeholder("test".to_string());
-        track.svg_paths.push(VelloPath::default());
+        track.ensure_svg_payload().svg_paths.push(VelloPath::default());
         let snapshot = snapshot_track_at(&track, 0);
-        assert_eq!(snapshot.svg_paths.len(), 1);
+        assert_eq!(snapshot.svg_paths().len(), 1);
     }
 
     #[test]
     fn snapshot_clears_func_transitions() {
         let mut track = AnimationTrack::placeholder("test".to_string());
-        track.func_transitions.push(crate::timeline::plot::FuncTransition {
+        track.func_transitions_mut().push(crate::timeline::plot::FuncTransition {
             start_ms: 0,
             end_ms: 1000,
             easing: Easing::Linear,
@@ -629,14 +630,14 @@ mod tests {
             blend_mode: crate::timeline::plot::FuncBlendMode::Output,
         });
         let snapshot = snapshot_track_at(&track, 0);
-        assert!(snapshot.func_transitions.is_empty());
+        assert!(snapshot.func_transitions().is_empty());
     }
 
     #[test]
     fn snapshot_preserves_procedural_plot() {
         use crate::ast::Expr;
         let mut track = AnimationTrack::placeholder("test".to_string());
-        track.procedural_plot = Some(crate::timeline::plot::ProceduralPlot {
+        track.ensure_plot_payload().procedural_plot = Some(crate::timeline::plot::ProceduralPlot {
             plot_type: crate::timeline::plot::ProceduralPlotKind::Curve(
                 crate::timeline::plot::PlotCurveKind::Cartesian,
             ),
@@ -665,7 +666,7 @@ mod tests {
             extra_captures: CapturedEnv::default(),
         });
         let snapshot = snapshot_track_at(&track, 0);
-        assert!(snapshot.procedural_plot.is_some());
+        assert!(snapshot.procedural_plot().is_some());
     }
 
     #[test]
@@ -811,11 +812,11 @@ mod tests {
     fn snapshot_preserves_svg_actor_kind() {
         let mut track = AnimationTrack::placeholder("icon".to_string());
         track.set_identity("Svg");
-        track.svg_paths.push(crate::timeline::VelloPath::default());
+        track.ensure_svg_payload().svg_paths.push(crate::timeline::VelloPath::default());
 
         let snapshot = snapshot_track_at(&track, 0);
         assert_eq!(snapshot.actor_type, "Svg");
-        assert_eq!(snapshot.svg_paths.len(), 1, "svg_paths must survive snapshot");
+        assert_eq!(snapshot.svg_paths().len(), 1, "svg_paths must survive snapshot");
     }
 
     #[test]
@@ -834,8 +835,8 @@ mod tests {
         let mut source = Timeline::new();
         let mut actor = AnimationTrack::placeholder("icon".to_string());
         actor.set_identity("Svg");
-        actor.svg_paths.push(VelloPath::default());
-        actor.svg_paths.push(VelloPath::default());
+        actor.ensure_svg_payload().svg_paths.push(VelloPath::default());
+        actor.ensure_svg_payload().svg_paths.push(VelloPath::default());
         source.tracks.insert("icon".to_string(), actor);
         source.persistence_flags.insert("icon".to_string(), true);
 
@@ -846,7 +847,7 @@ mod tests {
 
         let icon = dest.tracks.get("icon").expect("icon must be carried");
         assert_eq!(icon.actor_type, "Svg");
-        assert_eq!(icon.svg_paths.len(), 2, "svg_paths must survive carry");
+        assert_eq!(icon.svg_paths().len(), 2, "svg_paths must survive carry");
     }
 
     #[test]
@@ -857,7 +858,7 @@ mod tests {
         let mut source = Timeline::new();
         let mut actor = AnimationTrack::placeholder("curve".to_string());
         actor.set_identity("PlotCurve");
-        actor.procedural_plot = Some(ProceduralPlot {
+        actor.ensure_plot_payload().procedural_plot = Some(ProceduralPlot {
             plot_type: crate::timeline::plot::ProceduralPlotKind::Curve(PlotCurveKind::Cartesian),
             kind: PlotCurveKind::Cartesian,
             func_args: vec!["x".to_string()],
@@ -892,7 +893,7 @@ mod tests {
 
         let carried = dest.tracks.get("curve").expect("curve must be carried");
         assert_eq!(carried.actor_type, "PlotCurve");
-        assert!(carried.procedural_plot.is_some(), "procedural_plot must survive carry");
+        assert!(carried.procedural_plot().is_some(), "procedural_plot must survive carry");
     }
 
     #[test]

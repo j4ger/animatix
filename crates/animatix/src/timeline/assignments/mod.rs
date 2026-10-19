@@ -646,7 +646,7 @@ impl Timeline {
             // Determine "from" source:
             //   - If there's an active transition, record-and-chain: freeze current blend
             //   - Else use last completed transition's `to`, or the declaration func
-            let from_source = if let Some(active) = track.func_transitions.last() {
+            let from_source = if let Some(active) = track.func_transitions().last() {
                 if time_ms as u64 >= active.start_ms && time_ms as u64 <= active.end_ms {
                     // Record-and-chain: freeze current blend state
                     let progress = if active.end_ms > active.start_ms {
@@ -665,7 +665,7 @@ impl Timeline {
                     // Last transition completed, use its `to`
                     active.to.clone()
                 }
-            } else if let Some(plot) = track.procedural_plot.as_ref() {
+            } else if let Some(plot) = track.procedural_plot() {
                 // No prior transitions, use declaration func
                 FuncSource::Compiled(
                     plot.func_args.clone(),
@@ -701,7 +701,7 @@ impl Timeline {
             }
 
             // Push FuncTransition
-            track.func_transitions.push(crate::timeline::plot::FuncTransition {
+            track.func_transitions_mut().push(crate::timeline::plot::FuncTransition {
                 start_ms: t_start_ms,
                 end_ms: t_end_ms,
                 easing,
@@ -892,8 +892,7 @@ impl Timeline {
 
             // Check if this is a plot parameter assignment
             let is_plot_param = track
-                .procedural_plot
-                .as_ref()
+                .procedural_plot()
                 .map(|p| p.param_names.iter().any(|n| n == property))
                 .unwrap_or(false);
 
@@ -933,6 +932,7 @@ impl Timeline {
                 let has_duration = t_end_ms > t_start_ms;
                 let prop_name = property.to_string();
                 let param_track = track
+                    .ensure_plot_payload()
                     .plot_param_tracks
                     .entry(prop_name)
                     .or_insert_with(|| super::PropertyTrack::new(target_val));

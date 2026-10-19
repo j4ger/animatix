@@ -86,6 +86,7 @@ pub(crate) fn build_property_groups(
     let mut media = Vec::new();
     let mut audio = Vec::new();
     let mut captions = Vec::new();
+    let mut visibility = Vec::new();
     let mut legend_props = Vec::new();
 
     for &idx in &indices {
@@ -103,20 +104,13 @@ pub(crate) fn build_property_groups(
         }
 
         let value = read_inspector_property_value(track, schema, time_ms);
-        let (has_kf, has_kf_now, kf_count) =
-            if let Some(Some(tagged)) = track.tagged_tracks.get(schema.name) {
-                (
-                    !tagged.keyframes().is_empty(),
-                    tagged.keyframes().contains_key(&time_ms),
-                    tagged.keyframes().len(),
-                )
-            } else {
-                (
-                    property_has_keyframes(track, schema.field),
-                    animatix::timeline::property_has_keyframe_at(track, schema.field, time_ms),
-                    animatix::timeline::property_keyframe_count(track, schema.field),
-                )
-            };
+        // One store: the registry-driven plan is authoritative for tagged
+        // properties, and these helpers already consult it before the legacy
+        // `tagged_tracks` map. Reading the map first here would show stale or
+        // absent keyframe state for anything the engine wrote into the plan.
+        let has_kf = property_has_keyframes(track, schema.field);
+        let has_kf_now = animatix::timeline::property_has_keyframe_at(track, schema.field, time_ms);
+        let kf_count = animatix::timeline::property_keyframe_count(track, schema.field);
 
         let value = convert_for_display(value, schema.name);
         let kind = match schema.value_type {
@@ -227,11 +221,10 @@ pub(crate) fn build_property_groups(
                 "arrow" | "routing" => shape.push(entry),
                 "callout_place" => annotation.push(entry),
                 "shadow" | "shadow_color" => style.push(entry),
-                "rotate_x" | "rotate_y" | "perspective" => geometry.push(entry),
-                "comma" | "decimals" | "prefix" | "suffix" | "value" | "idle" | "solo"
-                | "split_by" | "split_mask" | "split_offset_y" | "split_stagger" => {
-                    text.push(entry)
-                },
+                "rotate_x" | "rotate_y" | "perspective" | "idle" => geometry.push(entry),
+                "solo" => visibility.push(entry),
+                "comma" | "decimals" | "prefix" | "suffix" | "value" | "split_by"
+                | "split_mask" | "split_offset_y" | "split_stagger" => text.push(entry),
                 "transcript" if track.actor_type == "Audio" => audio.push(entry),
                 "caption_mode" | "active_color" | "inactive_color" | "backdrop"
                 | "backdrop_color" | "backdrop_radius" | "backdrop_padding" | "pop_scale"
@@ -314,6 +307,16 @@ pub(crate) fn build_property_groups(
             name: "Captions",
             icon: egui_phosphor::regular::TEXT_ALIGN_CENTER,
             properties: captions,
+        });
+    }
+    // `solo` is a scene-visibility switch, not a text/counter knob: every actor
+    // type carries it (`Applicable::Everything`), so it gets its own group
+    // instead of growing a bogus "Text" group on shapes.
+    if !visibility.is_empty() {
+        groups.push(PropertyGroup {
+            name: "Visibility",
+            icon: egui_phosphor::regular::EYE,
+            properties: visibility,
         });
     }
 
@@ -406,7 +409,9 @@ fn read_inspector_property_value(
     schema: &animatix::timeline::PropertySchema,
     time_ms: u64,
 ) -> PropertyValue {
-    if let Some(plot) = &track.procedural_plot {
+    // Plot domains live on the plot payload's generator, not on a property
+    // track, so they are read before the plan/legacy fallback below.
+    if let Some(plot) = track.procedural_plot() {
         match schema.name {
             "x_domain" => {
                 return PropertyValue::Vec2([plot.p_x_domain[0] as f32, plot.p_x_domain[1] as f32]);
@@ -419,9 +424,6 @@ fn read_inspector_property_value(
             },
             _ => {},
         }
-    }
-    if let Some(Some(tagged)) = track.tagged_tracks.get(schema.name) {
-        return tagged.evaluate(time_ms);
     }
     read_property_value_or_default(track, schema, time_ms)
 }
@@ -1734,6 +1736,43 @@ mod tests {
         assert!(
             matches!(backdrop.unwrap().kind, PropertyKind::Bool(_)),
             "backdrop should be Bool kind"
+        );
+    }
+
+    #[test]
+    fn rect_has_no_text_group() {
+        let timeline = animatix::timeline::Timeline::new();
+        let track = AnimationTrack::new("box".into(), "Rect");
+        let groups = build_property_groups(&timeline, &track, 0);
+        assert!(
+            !groups.iter().any(|g| g.name == "Text"),
+            "a Rect has no text properties; `solo`/`idle` must not create a Text group"
+        );
+    }
+
+    #[test]
+    fn solo_lands_in_visibility() {
+        let timeline = animatix::timeline::Timeline::new();
+        let track = AnimationTrack::new("box".into(), "Rect");
+        let groups = build_property_groups(&timeline, &track, 0);
+        let visibility = groups.iter().find(|g| g.name == "Visibility");
+        assert!(visibility.is_some(), "Rect should have a Visibility group for `solo`");
+        assert!(
+            visibility.unwrap().properties.iter().any(|p| p.name == "solo"),
+            "Visibility group should contain `solo`"
+        );
+    }
+
+    #[test]
+    fn idle_lands_in_geometry() {
+        let timeline = animatix::timeline::Timeline::new();
+        let track = AnimationTrack::new("box".into(), "Rect");
+        let groups = build_property_groups(&timeline, &track, 0);
+        let transform = groups.iter().find(|g| g.name == "Transform");
+        assert!(transform.is_some(), "Rect should have a Transform group");
+        assert!(
+            transform.unwrap().properties.iter().any(|p| p.name == "idle"),
+            "Transform (motion) group should contain `idle`"
         );
     }
 }

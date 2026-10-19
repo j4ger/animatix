@@ -124,7 +124,7 @@ declare_property_descriptors! {
     // against the primitives: none of the three reads a style colour.
     "color" => (Applicable::AllDrawables, Vec4),
     "cols" => (Applicable::Actors(&["Grid"]), U32),
-    "commands" => (Applicable::Actors(&["Path"]), Generic),
+    "commands" => (Applicable::ShapeKinds(&[ShapeKind::Path]), Generic),
     "data" => (Applicable::Actors(&["BarChart"]), Generic),
     "density" => (Applicable::Actors(&["VectorField"]), F32),
     "descent" => (Applicable::Never, F32),
@@ -134,9 +134,13 @@ declare_property_descriptors! {
     "font_size" => (// `Legend` draws its own labels through the text engine and reads
         // `font_size` off its props (`primitives/legend.rs`), so the row has to
         // include it or the applicability lint reports a working property as
-        // dropped.
+        // dropped. `Counter` renders through the text path too: its declaration
+        // goes `Timeline::process_text_actor_decl` ->
+        // `process_text_declaration` (`declarations_text.rs`), which reads
+        // `font_size` for every `TextDeclarationKind`, so omitting it made
+        // `Counter, font_size: 30` warn `inapplicable-property`.
         Applicable::Actors(&[
-            "Captions", "Code", "Cue", "Equation", "Legend", "Math", "Text", "Typst",
+            "Captions", "Code", "Counter", "Cue", "Equation", "Legend", "Math", "Text", "Typst",
         ]), F32),
     "font_style" => (Applicable::TextLike, String),
     "font_weight" => (Applicable::TextLike, F32),
@@ -162,8 +166,12 @@ declare_property_descriptors! {
     "label_at" => (Applicable::Callout, Vec2),
     "label_color" => (Applicable::LegendHost, Vec4),
     "legend" => (Applicable::Everything, Generic),
+    // Text-engine only. The layout containers (`Col`, `Grid`, `Row`, `Stack`)
+    // were listed here but none of them reads it — only `declarations_text.rs`
+    // and the text engine do — so the row silently accepted a value nothing
+    // consumed.
     "letter_spacing" => (Applicable::Actors(&[
-            "Code", "Col", "Grid", "Math", "Row", "Stack", "Text", "Typst",
+            "Code", "Math", "Text", "Typst",
         ]), F32),
     "levels" => (Applicable::Actors(&["ContourSet"]), Vec2),
     "line_cap" => (Applicable::AllShapes, U32),
@@ -172,8 +180,9 @@ declare_property_descriptors! {
     "max_depth" => (Applicable::Actors(&["ContourSet", "PlotCurve"]), F32),
     "max_height" => (Applicable::SizedActors, F32),
     "max_value" => (Applicable::Actors(&["BarChart"]), F32),
+    // Text-engine only, like `letter_spacing`: no container primitive reads it.
     "max_width" => (Applicable::Actors(&[
-            "Code", "Col", "Grid", "Math", "Row", "Stack", "Text", "Typst",
+            "Code", "Math", "Text", "Typst",
         ]), F32),
     "min_height" => (Applicable::SizedActors, F32),
     "min_width" => (Applicable::SizedActors, F32),
@@ -182,10 +191,10 @@ declare_property_descriptors! {
     "overflow" => (Applicable::TextLike, String),
     "padding" => (Applicable::Actors(&["Col", "Graph", "Grid", "Row", "Stack"]), F32),
     "place" => (Applicable::Callout, Generic),
-    "points" => (Applicable::Actors(&["Polygon"]), PointList),
+    "points" => (Applicable::ShapeKinds(&[ShapeKind::Polygon]), PointList),
     "position" => (Applicable::Everything, Vec2),
-    "radius_x" => (Applicable::Actors(&["Ellipse"]), F32),
-    "radius_y" => (Applicable::Actors(&["Ellipse"]), F32),
+    "radius_x" => (Applicable::ShapeKinds(&[ShapeKind::Ellipse]), F32),
+    "radius_y" => (Applicable::ShapeKinds(&[ShapeKind::Ellipse]), F32),
     "resolution" => (Applicable::Actors(&["ContourSet", "Heatmap", "PlotCurve"]), F32),
     "rotation" => (Applicable::Everything, F32),
     "scale" => (Applicable::Everything, F32),

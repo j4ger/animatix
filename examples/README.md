@@ -149,6 +149,8 @@ Reusable modules imported by examples and available for dogfood projects.
 
 ## Assets (`assets/`)
 
+Scenes reference these as paths relative to the scene file itself — `../assets/checker.png` from `examples/basics/`.
+
 | File | Used By |
 |------|---------|
 | `assets/checker.png` | Image primitive and grid backgrounds |

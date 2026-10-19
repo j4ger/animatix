@@ -7,6 +7,9 @@
 
 use std::collections::HashMap;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use super::*;
 use crate::ast::{InlineItem, Property};
 use crate::timeline::modifier_runtime::ir::evaluate_compiled_expr;
@@ -2175,6 +2178,7 @@ fn format_float(n: f64) -> String {
 /// `resolve_bar_chart_layout`); `paths_for` is the pure geometry half, so a
 /// frame-time caller can rebuild the bars for a different dataset without
 /// re-parsing properties or re-evaluating expressions.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug)]
 pub(crate) struct BarChartLayout {
     /// Half-extents, the same convention every shape actor carries.

@@ -1756,7 +1756,7 @@ unsafe extern "C" fn native_append_image(host: *mut c_void, command: NativeImage
     let requested_url = unsafe { read_c_string(command.url) };
     let image = match requested_url.as_deref() {
         Some(url) => host.ctx.asset_cache.get_image(url),
-        None => host.ctx.track.image.get(host.ctx.time_ms, None),
+        None => host.ctx.track.image_track().and_then(|t| t.evaluate(host.ctx.time_ms)),
     };
     let Some(image) = image else {
         // Explicit URLs must be resolved from the document asset cache; silently
@@ -3357,10 +3357,11 @@ mod tests {
             },
             natural_size: [1.0, 1.0],
         };
-        track
-            .image
-            .ensure(None)
-            .add_keyframe(0, Some(image), crate::easing::Easing::Linear);
+        track.ensure_image_payload().image.ensure(None).add_keyframe(
+            0,
+            Some(image),
+            crate::easing::Easing::Linear,
+        );
         let asset_cache = crate::timeline::assets::AssetCache::new();
         let eval_ctx = sample_evaluate_ctx(&track, &asset_cache);
         let property_ids = HashMap::new();
@@ -3408,10 +3409,11 @@ mod tests {
             },
             natural_size: [1.0, 1.0],
         };
-        track
-            .image
-            .ensure(None)
-            .add_keyframe(0, Some(image), crate::easing::Easing::Linear);
+        track.ensure_image_payload().image.ensure(None).add_keyframe(
+            0,
+            Some(image),
+            crate::easing::Easing::Linear,
+        );
         let asset_cache = crate::timeline::assets::AssetCache::new();
         let eval_ctx = sample_evaluate_ctx(&track, &asset_cache);
         let property_ids = HashMap::new();

@@ -10,9 +10,13 @@
 //! and `font_size` omitted `Legend`, which reads it for its own labels.
 //!
 //! Scope, stated honestly:
-//! - Only `Actors(&[…])` rows are cross-checked — 59 of the table's rows. The capability-shaped
-//!   rows (`TextLike`, `SizedActors`, …) need an `ActorCaps` to evaluate, which this test
-//!   deliberately does not reconstruct.
+//! - `Actors(&[…])` and `ShapeKinds(&[…])` rows are cross-checked — 58 + 4 of the table's rows.
+//!   A `ShapeKinds` row declares a shape capability rather than a name list, so its type list is
+//!   reconstructed from the catalog (`animatix_std::caps_for_type` / `CATALOG`): every catalog
+//!   type whose `caps.shape` is one of the listed kinds. That keeps the coverage these rows had
+//!   when they were written as `Actors(&["Ellipse"])`-style name lists. The remaining
+//!   capability-shaped rows (`TextLike`, `SizedActors`, …) need an `ActorCaps` predicate
+//!   evaluation this test deliberately does not reconstruct.
 //! - A read is recognised as a `"name" =>` match arm or a `== "name"` test inside the primitive's
 //!   own file. Reads that live in shared helpers are not attributed to a type, so the test can
 //!   under-report, never invent.
@@ -26,6 +30,32 @@ fn actor_rows() -> BTreeMap<String, Vec<String>> {
     for desc in animatix_core::property::PROPERTY_DESCRIPTORS {
         if let animatix_core::caps::Applicable::Actors(actors) = desc.applicable {
             rows.insert(desc.name.to_string(), actors.iter().map(|s| s.to_string()).collect());
+        }
+    }
+    rows
+}
+
+/// `property name -> the type list its `ShapeKinds` row declares`, expanded
+/// through the catalog.
+///
+/// A `ShapeKinds(&[ShapeKind::Ellipse])` row means "every actor that *is* an
+/// ellipse", not one hand-written name, so the declared list has to be rebuilt
+/// from `caps.shape`. Without this the four shape rows would fall out of the
+/// cross-check entirely when they were converted from name lists.
+fn shape_kind_rows() -> BTreeMap<String, Vec<String>> {
+    let mut rows = BTreeMap::new();
+    for desc in animatix_core::property::PROPERTY_DESCRIPTORS {
+        if let animatix_core::caps::Applicable::ShapeKinds(kinds) = desc.applicable {
+            let mut types: Vec<String> = animatix_std::CATALOG
+                .iter()
+                .filter_map(|info| {
+                    let ty = info.static_type_name()?;
+                    let caps = animatix_std::caps_from_info(info);
+                    caps.shape.is_some_and(|shape| kinds.contains(&shape)).then(|| ty.to_string())
+                })
+                .collect();
+            types.sort();
+            rows.insert(desc.name.to_string(), types);
         }
     }
     rows
@@ -91,10 +121,26 @@ fn bar_chart_gap_is_applicable_to_bar_chart() {
 #[test]
 fn every_actor_row_covers_the_type_that_reads_it() {
     let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let rows = actor_rows();
+    let mut rows = actor_rows();
+    let shape_rows = shape_kind_rows();
+    assert_eq!(
+        shape_rows.len(),
+        4,
+        "expected four `ShapeKinds` rows (`commands`, `points`, `radius_x`, `radius_y`), got {:?} \
+         — a row changed shape and lost this coverage",
+        shape_rows.keys().collect::<Vec<_>>()
+    );
+    for (property, types) in &shape_rows {
+        assert!(
+            !types.is_empty(),
+            "`{property}` is declared for a shape kind no catalog actor has"
+        );
+    }
+    rows.extend(shape_rows);
     assert!(
-        rows.len() >= 35,
-        "expected to parse the Actors-shaped rows, got {} — the parser and the table have drifted",
+        rows.len() >= 39,
+        "expected to parse the Actors- and ShapeKinds-shaped rows, got {} — the parser and the \
+         table have drifted",
         rows.len()
     );
 

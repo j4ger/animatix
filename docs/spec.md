@@ -15,7 +15,8 @@ Use these rules when generating `.amx` files:
 - Colors are RGBA tuples `(r, g, b, a)`, hex strings (`"#ff2d55"`, `"#f55"`, `"#5e5ce600"` with alpha), scheme tokens (`accent.primary`, `text.primary`, etc.), `auto`, or named colors (`RED`/`red`, `GREEN`/`green`, `BLUE`/`blue`, `BLACK`/`black`, `WHITE`/`white`, `YELLOW`/`yellow`, `ORANGE`/`orange`).
 - Timing modifiers use positional duration: `[1s]`, `[800ms, ease: ease-in-out]`, `[delay: 250ms, 0s]`. Do not write `duration: 1s`. Omitting `ease:` on an *action* is usually right — the default is chosen by the verb's role (entrances decelerate, exits accelerate, repositions ease both ways). A plain assignment still defaults to linear; write `ease:` on it when you want a settle.
 - `sequence`/`stagger` may contain actions, assignments, `let`, and nested `sequence`/`stagger`; actor declarations inside them are rejected.
-- Asset paths in examples should point to files that exist under `examples/assets/`.
+- A relative `url:` / `source:` / `transcript:` path resolves against the directory of the file that declares it, then the workspace root — from `examples/basics/`, `examples/assets/checker.png` is written `../assets/checker.png`.
+- Absolute paths and `http(s)://` / `data:` URLs are used verbatim.
 
 ---
 

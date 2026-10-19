@@ -141,7 +141,7 @@ grade: Filter, anchor: scene.center, offset: (0, 110) {
   grade_color: ColorGrade, brightness: 0.75
   window: Mask, size: (660, 340) {
     clip_shape: Rect, size: (660, 340)
-    photo: Image, url: "examples/assets/checker.png", size: (760, 420), at: (-380, -210)
+    photo: Image, url: "../assets/checker.png", size: (760, 420), at: (-380, -210)
   }
 }
 

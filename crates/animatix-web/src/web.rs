@@ -818,7 +818,7 @@ impl AmxPlayer {
             .iter()
             .map(|(label, track)| SvgTrackEntry {
                 label: label.clone(),
-                paths: track.svg_paths.len(),
+                paths: track.svg_paths().len(),
                 paths_at_t: track.svg_paths_at(time_ms).map(|paths| paths.len()),
                 opacity_at_t: animatix::timeline::TrackAccessor::get(
                     &track.style.opacity,
