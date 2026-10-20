@@ -136,11 +136,19 @@ impl Primitive for TextPrimitive {
             use crate::timeline::TrackAccessor;
             let col = ctx.track.style.color.get(ctx.time_ms, [1.0, 1.0, 1.0, 1.0]);
             let tint_color = Some(crate::renderer::text::f32_color_to_rgba8(&col));
+            let hardware_layout = if ctx.track.text.char_progress.is_none()
+                && ctx.track.text.text_anchor.get(ctx.time_ms, "center".to_string()) == "center"
+            {
+                ctx.track.text.hardware_layout.clone()
+            } else {
+                None
+            };
             Ok(Some(vec![RenderCommand::Text {
                 paths,
                 fill_gradient,
                 clip_path,
                 tint_color,
+                hardware_layout,
             }]))
         }
     }

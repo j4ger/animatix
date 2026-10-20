@@ -1266,6 +1266,8 @@ pub enum RenderCommand {
         clip_path: Option<kurbo::BezPath>,
         /// Optional uniform tint color override (for Text and Counter primitives).
         tint_color: Option<[u8; 4]>,
+        /// Optional direct hardware glyph layout for Vello GPU draw_glyphs streaming.
+        hardware_layout: Option<std::sync::Arc<animatix_text::HardwareTextLayout>>,
     },
     /// Draw an image.
     Image {
@@ -1417,6 +1419,7 @@ impl RenderCommand {
                 fill_gradient,
                 clip_path,
                 tint_color,
+                hardware_layout,
             } => {
                 if let Some(clip) = clip_path {
                     scene.push_layer(
@@ -1427,6 +1430,45 @@ impl RenderCommand {
                         clip,
                     );
                 }
+
+                if fill_gradient.is_none() && opacity > 0.0 {
+                    if let Some(hw) = hardware_layout {
+                        let [r, g, b, a] = if let Some(tc) = tint_color {
+                            *tc
+                        } else if let Some(first) = paths.first() {
+                            first.color
+                        } else {
+                            [255, 255, 255, 255]
+                        };
+                        let brush = vello::peniko::Brush::Solid(vello::peniko::Color::from_rgba8(
+                            r, g, b, a,
+                        ));
+
+                        for run in &hw.runs {
+                            let font_data = vello::peniko::FontData {
+                                data: vello::peniko::Blob::new(std::sync::Arc::new(run.font_data)),
+                                index: run.font_index,
+                            };
+                            let glyphs_iter = run.glyphs.iter().map(|g| vello::Glyph {
+                                id: g.id,
+                                x: g.x,
+                                y: g.y,
+                            });
+                            let draw = scene.draw_glyphs(&font_data);
+                            draw.font_size(run.font_size)
+                                .transform(*transform)
+                                .brush(&brush)
+                                .brush_alpha(opacity)
+                                .draw(vello::peniko::Fill::NonZero, glyphs_iter);
+                        }
+
+                        if clip_path.is_some() {
+                            scene.pop_layer();
+                        }
+                        return;
+                    }
+                }
+
                 let bounds = if fill_gradient.is_some() {
                     let mut b: Option<kurbo::Rect> = None;
                     for tp in paths.iter() {

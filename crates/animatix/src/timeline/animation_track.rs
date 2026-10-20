@@ -506,6 +506,9 @@ pub struct TextTracks {
     /// Cached static text paths for O(1) frame evaluation when not animated.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub static_paths: Option<std::sync::Arc<[TextPath]>>,
+    /// Precomputed hardware glyph layout for direct Vello draw_glyphs hardware execution.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub hardware_layout: Option<std::sync::Arc<animatix_text::HardwareTextLayout>>,
 }
 
 // ─────────────────────────────────────────────────────────────

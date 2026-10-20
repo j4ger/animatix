@@ -758,6 +758,11 @@ impl Timeline {
         } else {
             None
         };
+        track.text.hardware_layout = if duration_ms == 0.0 && anchor_offset_x == 0.0 {
+            compiled.hardware_layout.clone()
+        } else {
+            None
+        };
         track
             .text
             .text_paths

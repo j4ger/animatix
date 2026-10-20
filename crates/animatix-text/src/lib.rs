@@ -118,6 +118,8 @@ pub struct CompiledText {
     /// Offset of the baseline from the text's center (0, 0) after centering.
     /// A positive value means the baseline is above the center.
     pub baseline_offset: f32,
+    /// Optional hardware glyph layout for direct Vello draw_glyphs execution.
+    pub hardware_layout: Option<HardwareTextLayout>,
 }
 
 #[cfg(feature = "rich-text")]
@@ -1618,6 +1620,7 @@ pub fn extract_glyphs_with_metrics(frame: &Frame) -> CompiledText {
         ascent,
         descent,
         baseline_offset,
+        hardware_layout: None,
     }
 }
 #[cfg(feature = "rich-text")]
@@ -2134,14 +2137,60 @@ pub struct FastPathFace {
     pub ttf: ttf_parser::Face<'static>,
     pub rb: rustybuzz::Face<'static>,
     pub family: String,
+    pub font_data: &'static [u8],
+    pub font_index: u32,
 }
 
 impl FastPathFace {
     pub fn from_data(data: &'static [u8], index: u32, family: String) -> Option<Self> {
         let ttf = ttf_parser::Face::parse(data, index).ok()?;
         let rb = rustybuzz::Face::from_slice(data, index)?;
-        Some(Self { ttf, rb, family })
+        Some(Self {
+            ttf,
+            rb,
+            family,
+            font_data: data,
+            font_index: index,
+        })
     }
+}
+
+/// A compact hardware glyph descriptor for direct Vello hardware glyph run rendering.
+#[derive(Debug, Clone, PartialEq)]
+pub struct HardwareGlyph {
+    /// Font glyph ID.
+    pub id: u32,
+    /// X position in local scene coordinates (points) relative to text center.
+    pub x: f32,
+    /// Y position in local scene coordinates (points) relative to text center.
+    pub y: f32,
+}
+
+/// A contiguous run of glyphs sharing the same font face and font size.
+#[derive(Debug, Clone)]
+pub struct HardwareGlyphRun {
+    /// Pointer to static font bytes.
+    pub font_data: &'static [u8],
+    /// Font index inside font collection (ttc).
+    pub font_index: u32,
+    /// Font size in points.
+    pub font_size: f32,
+    /// Stream of positioned glyphs.
+    pub glyphs: Vec<HardwareGlyph>,
+}
+
+/// A complete hardware glyph layout comprised of one or more runs (supporting font fallback).
+#[derive(Debug, Clone, Default)]
+pub struct HardwareTextLayout {
+    /// Sequence of runs in draw order.
+    pub runs: Vec<HardwareGlyphRun>,
+}
+
+struct HardwarePendingGlyph {
+    face_idx: usize,
+    id: u32,
+    x: f32,
+    y: f32,
 }
 
 struct ShapedGlyph {
@@ -2246,6 +2295,7 @@ pub fn compile_text_fast(
             ascent: 0.0,
             descent: 0.0,
             baseline_offset: 0.0,
+            hardware_layout: None,
         });
     }
 
@@ -2345,6 +2395,14 @@ pub fn compile_text_fast(
     let mut glyphs: Vec<TextPath> = Vec::new();
     let mut x_curr: f64 = 0.0;
 
+    struct HardwarePendingGlyph {
+        face_idx: usize,
+        id: u32,
+        x: f32,
+        y: f32,
+    }
+    let mut pending_hardware: Vec<HardwarePendingGlyph> = Vec::new();
+
     for (wi_idx, (w, space_before)) in raw_tokens.into_iter().enumerate() {
         if wi_idx > 0 && space_before {
             x_curr += space_advance;
@@ -2353,6 +2411,13 @@ pub fn compile_text_fast(
         for g in shaped_glyphs {
             let face = &faces[g.face_idx];
             let glyph_scale = size / (face.ttf.units_per_em() as f32);
+
+            pending_hardware.push(HardwarePendingGlyph {
+                face_idx: g.face_idx,
+                id: g.glyph_id as u32,
+                x: (x_curr + g.x_offset) as f32,
+                y: g.y_offset as f32,
+            });
 
             let mut builder = PathBuilder(BezPath::new());
             if face.ttf.outline_glyph(ttf_parser::GlyphId(g.glyph_id), &mut builder).is_some() {
@@ -2382,6 +2447,30 @@ pub fn compile_text_fast(
         x_curr += token_width;
     }
 
+    // Compute bounding box BEFORE centering to find center_x and center_y
+    let mut min_x = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+    for path in glyphs.iter() {
+        let b = path.bounds;
+        min_x = min_x.min(b.x0);
+        max_x = max_x.max(b.x1);
+        min_y = min_y.min(b.y0);
+        max_y = max_y.max(b.y1);
+    }
+
+    let center_x = if min_x.is_finite() && max_x.is_finite() {
+        (min_x + max_x) / 2.0
+    } else {
+        0.0
+    };
+    let center_y = if min_y.is_finite() && max_y.is_finite() {
+        (min_y + max_y) / 2.0
+    } else {
+        0.0
+    };
+
     // Center paths around origin (same as center_text_paths)
     // capture baseline offset: was at Y=0 before centering
     let baseline_offset = center_text_paths(&mut glyphs);
@@ -2389,11 +2478,46 @@ pub fn compile_text_fast(
     let ascent_scaled = ascent * font_scale;
     let descent_scaled = descent * font_scale;
 
+    let hardware_layout = if !pending_hardware.is_empty() {
+        let mut runs: Vec<HardwareGlyphRun> = Vec::new();
+        for pg in pending_hardware {
+            let face = &faces[pg.face_idx];
+            let centered_x = pg.x - center_x as f32;
+            let centered_y = pg.y - center_y as f32;
+            if let Some(last_run) = runs.last_mut() {
+                if std::ptr::eq(last_run.font_data, face.font_data)
+                    && last_run.font_index == face.font_index
+                {
+                    last_run.glyphs.push(HardwareGlyph {
+                        id: pg.id,
+                        x: centered_x,
+                        y: centered_y,
+                    });
+                    continue;
+                }
+            }
+            runs.push(HardwareGlyphRun {
+                font_data: face.font_data,
+                font_index: face.font_index,
+                font_size: size,
+                glyphs: vec![HardwareGlyph {
+                    id: pg.id,
+                    x: centered_x,
+                    y: centered_y,
+                }],
+            });
+        }
+        Some(HardwareTextLayout { runs })
+    } else {
+        None
+    };
+
     Ok(CompiledText {
         glyphs,
         ascent: ascent_scaled,
         descent: descent_scaled,
         baseline_offset,
+        hardware_layout,
     })
 }
 
@@ -2474,6 +2598,7 @@ pub fn compile_text_fast_wrapped(
             ascent: ascent * font_scale,
             descent: descent * font_scale,
             baseline_offset: 0.0,
+            hardware_layout: None,
         });
     }
 
@@ -2599,6 +2724,7 @@ pub fn compile_text_fast_wrapped(
             ascent: ascent * font_scale,
             descent: descent * font_scale,
             baseline_offset: 0.0,
+            hardware_layout: None,
         });
     }
 
@@ -2625,6 +2751,7 @@ pub fn compile_text_fast_wrapped(
 
     let mut glyphs: Vec<TextPath> = Vec::new();
     let mut y_curr: f64 = -(truncated_lines.len() as f64 * line_height_pts as f64) / 2.0; // start at top, centered vertically
+    let mut pending_hardware: Vec<HardwarePendingGlyph> = Vec::new();
 
     for (line_idx, line) in truncated_lines.iter().enumerate() {
         let mut x_curr: f64 = 0.0;
@@ -2664,6 +2791,13 @@ pub fn compile_text_fast_wrapped(
             for g in &wi.glyphs {
                 let face = &faces[g.face_idx];
                 let glyph_scale = size / (face.ttf.units_per_em() as f32);
+
+                pending_hardware.push(HardwarePendingGlyph {
+                    face_idx: g.face_idx,
+                    id: g.glyph_id as u32,
+                    x: (x_curr + x_offset + g.x_offset) as f32,
+                    y: (y_curr + g.y_offset) as f32,
+                });
 
                 let mut builder = PathBuilder(BezPath::new());
                 if face.ttf.outline_glyph(ttf_parser::GlyphId(g.glyph_id), &mut builder).is_some() {
@@ -2711,6 +2845,14 @@ pub fn compile_text_fast_wrapped(
             for g in ell_glyphs {
                 let face = &faces[g.face_idx];
                 let glyph_scale = size / (face.ttf.units_per_em() as f32);
+
+                pending_hardware.push(HardwarePendingGlyph {
+                    face_idx: g.face_idx,
+                    id: g.glyph_id as u32,
+                    x: (x_curr + x_offset + g.x_offset) as f32,
+                    y: (y_curr + g.y_offset) as f32,
+                });
+
                 let mut builder = PathBuilder(BezPath::new());
                 if face.ttf.outline_glyph(ttf_parser::GlyphId(g.glyph_id), &mut builder).is_some() {
                     let path = builder.0;
@@ -2743,17 +2885,76 @@ pub fn compile_text_fast_wrapped(
         y_curr += line_height_pts as f64;
     }
 
+    // Compute bounding box BEFORE centering to find center_x and center_y
+    let mut min_x = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+    for path in glyphs.iter() {
+        let b = path.bounds;
+        min_x = min_x.min(b.x0);
+        max_x = max_x.max(b.x1);
+        min_y = min_y.min(b.y0);
+        max_y = max_y.max(b.y1);
+    }
+
+    let center_x = if min_x.is_finite() && max_x.is_finite() {
+        (min_x + max_x) / 2.0
+    } else {
+        0.0
+    };
+    let center_y = if min_y.is_finite() && max_y.is_finite() {
+        (min_y + max_y) / 2.0
+    } else {
+        0.0
+    };
+
     // Center all paths around origin
     let baseline_offset = center_text_paths(&mut glyphs);
 
     let ascent_scaled = ascent * font_scale;
     let descent_scaled = descent * font_scale;
 
+    let hardware_layout = if !pending_hardware.is_empty() {
+        let mut runs: Vec<HardwareGlyphRun> = Vec::new();
+        for pg in pending_hardware {
+            let face = &faces[pg.face_idx];
+            let centered_x = pg.x - center_x as f32;
+            let centered_y = pg.y - center_y as f32;
+            if let Some(last_run) = runs.last_mut() {
+                if std::ptr::eq(last_run.font_data, face.font_data)
+                    && last_run.font_index == face.font_index
+                {
+                    last_run.glyphs.push(HardwareGlyph {
+                        id: pg.id,
+                        x: centered_x,
+                        y: centered_y,
+                    });
+                    continue;
+                }
+            }
+            runs.push(HardwareGlyphRun {
+                font_data: face.font_data,
+                font_index: face.font_index,
+                font_size: size,
+                glyphs: vec![HardwareGlyph {
+                    id: pg.id,
+                    x: centered_x,
+                    y: centered_y,
+                }],
+            });
+        }
+        Some(HardwareTextLayout { runs })
+    } else {
+        None
+    };
+
     Ok(CompiledText {
         glyphs,
         ascent: ascent_scaled,
         descent: descent_scaled,
         baseline_offset,
+        hardware_layout,
     })
 }
 
@@ -2840,6 +3041,8 @@ pub struct CachedText {
     pub baseline_offset: f32,
     /// Half size `[w/2, h/2]` as returned by [`measure_text_paths`].
     pub half_size: [f32; 2],
+    /// Optional hardware glyph layout for direct Vello draw_glyphs execution.
+    pub hardware_layout: Option<std::sync::Arc<HardwareTextLayout>>,
 }
 
 /// Memoized output of one *grouped* Typst compilation (the `Equation` path).
@@ -3196,6 +3399,7 @@ pub fn compile_text_cached(
         descent: compiled.descent,
         baseline_offset: compiled.baseline_offset,
         half_size,
+        hardware_layout: compiled.hardware_layout.map(std::sync::Arc::new),
     });
 
     {

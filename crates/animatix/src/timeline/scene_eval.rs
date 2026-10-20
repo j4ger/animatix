@@ -1784,6 +1784,7 @@ impl Timeline {
                             fill_gradient: None,
                             clip_path: None,
                             tint_color: None,
+                            hardware_layout: None,
                         };
                         cmd.execute(out.scene, &global_transform, global_opacity);
                     }

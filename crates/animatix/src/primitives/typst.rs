@@ -180,6 +180,7 @@ impl Primitive for TypstPrimitive {
                             fill_gradient,
                             clip_path,
                             tint_color: None,
+                            hardware_layout: None,
                         },
                     ]));
                 }
@@ -200,6 +201,7 @@ impl Primitive for TypstPrimitive {
                 fill_gradient,
                 clip_path,
                 tint_color: None,
+                hardware_layout: None,
             }]))
         }
     }

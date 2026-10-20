@@ -341,6 +341,7 @@ impl Primitive for LegendPrimitive {
                             fill_gradient: None,
                             clip_path: None,
                             tint_color: None,
+                            hardware_layout: None,
                         });
                         y_offset += title_height + gap;
                     }
@@ -414,6 +415,7 @@ impl Primitive for LegendPrimitive {
                     fill_gradient: None,
                     clip_path: None,
                     tint_color: None,
+                    hardware_layout: None,
                 });
             } else {
                 let fallback_width = 80.0f64;

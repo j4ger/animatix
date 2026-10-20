@@ -223,6 +223,7 @@ impl Primitive for CalloutPrimitive {
                         fill_gradient: None,
                         clip_path: None,
                         tint_color: None,
+                        hardware_layout: None,
                     });
                 }
             }

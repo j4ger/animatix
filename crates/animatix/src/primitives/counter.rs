@@ -439,6 +439,7 @@ impl Primitive for CounterPrimitive {
             fill_gradient,
             clip_path,
             tint_color,
+            hardware_layout: None,
         }]))
     }
 

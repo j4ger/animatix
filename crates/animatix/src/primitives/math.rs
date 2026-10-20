@@ -138,6 +138,7 @@ impl Primitive for MathPrimitive {
                 fill_gradient,
                 clip_path,
                 tint_color: None,
+                hardware_layout: None,
             }]))
         }
     }

@@ -138,6 +138,7 @@ impl Primitive for CodePrimitive {
                 fill_gradient,
                 clip_path,
                 tint_color: None,
+                hardware_layout: None,
             }]))
         }
     }

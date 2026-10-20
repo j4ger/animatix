@@ -274,3 +274,55 @@ draw-in title [1s, by: word, offset_y: 30, mask: baseline, stagger: 0.1s]
         distinct_words
     );
 }
+
+#[test]
+fn test_hardware_glyph_run_execution() {
+    let source = r#"
+#0s
+t: Text, text: "Hardware Stream", at: (300, 200), font_size: 32
+"#;
+    let (stmts, errors) = parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let timeline = Timeline::build(&stmts.expect("parsed AST"));
+    let track = timeline.tracks.get("t").expect("track t exists");
+
+    assert!(track.text.hardware_layout.is_some(), "Hardware text layout should be populated");
+    let hw = track.text.hardware_layout.as_ref().unwrap();
+    assert!(!hw.runs.is_empty(), "Should contain at least one glyph run");
+    assert!(!hw.runs[0].glyphs.is_empty(), "Glyph run should contain positioned glyphs");
+
+    use crate::primitives::Primitive;
+    let primitive = crate::primitives::TEXT;
+    let asset_cache = crate::timeline::assets::AssetCache::default();
+    let ctx = crate::primitives::EvaluateCtx {
+        track,
+        time_ms: 0,
+        local_transform: kurbo::Affine::IDENTITY,
+        opacity: 1.0,
+        scene_dimensions: SceneDimensions {
+            width: 1920,
+            height: 1080,
+        },
+        background_color: [0.0, 0.0, 0.0, 1.0],
+        overrides: None,
+        vector_paths: &[],
+        asset_cache: &asset_cache,
+        target_resolver: None,
+    };
+
+    let cmds = primitive.evaluate(&ctx, None).unwrap().unwrap();
+    let crate::primitives::RenderCommand::Text {
+        hardware_layout, ..
+    } = &cmds[0]
+    else {
+        panic!("expected RenderCommand::Text");
+    };
+    assert!(
+        hardware_layout.is_some(),
+        "Hardware layout should be attached to RenderCommand::Text"
+    );
+
+    // Execute into a vello Scene
+    let mut scene = vello::Scene::new();
+    cmds[0].execute(&mut scene, &kurbo::Affine::IDENTITY, 1.0);
+}
