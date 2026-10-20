@@ -1147,6 +1147,23 @@ impl Timeline {
         } // end func validation guard
 
         if primitive.is_graph_host() {
+            // ECS Component registration: record CoordinateFrameComponent for this host
+            if let Some(host_id) = self.tracks.get_id(label) {
+                self.coordinate_frames.insert(
+                    host_id,
+                    crate::timeline::CoordinateFrameComponent {
+                        x_domain,
+                        y_domain,
+                        x_scale,
+                        y_scale,
+                        padding: graph_padding,
+                        grid,
+                        ticks,
+                        tick_labels: tick_labels.clone(),
+                    },
+                );
+            }
+
             self.env.set(&format!("{}_x_domain", label), Value::Vec2(x_domain));
             self.env.set(&format!("{}_y_domain", label), Value::Vec2(y_domain));
             // Store the DECLARED (full-pixel) size. Every consumer of this env
@@ -1415,18 +1432,23 @@ impl Timeline {
             } else {
                 None
             };
-            let p_x_domain =
+            let mut p_x_domain = x_domain;
+            let mut p_y_domain = y_domain;
+
+            // Prefer strongly-typed CoordinateFrameComponent
+            if let Some(host_id) = self.tracks.get_id(&p_label) {
+                if let Some(frame) = self.coordinate_frames.get(&host_id) {
+                    p_x_domain = frame.x_domain;
+                    p_y_domain = frame.y_domain;
+                }
+            } else {
                 if let Some(Value::Vec2(xd)) = self.env.get(&format!("{}_x_domain", p_label)) {
-                    xd
-                } else {
-                    x_domain
-                };
-            let p_y_domain =
+                    p_x_domain = xd;
+                }
                 if let Some(Value::Vec2(yd)) = self.env.get(&format!("{}_y_domain", p_label)) {
-                    yd
-                } else {
-                    y_domain
-                };
+                    p_y_domain = yd;
+                }
+            }
 
             let (layout, data) = resolve_bar_chart_layout(
                 props,
@@ -1451,13 +1473,25 @@ impl Timeline {
             let mut p_x_domain = [-10.0, 10.0];
             let mut p_y_domain = [-10.0, 10.0];
             let mut p_size = [500.0, 500.0];
+            let mut p_padding = [0.0; 4];
 
-            if let Some(Value::Vec2(xd)) = self.env.get(&format!("{}_x_domain", p_label)) {
+            // Resolve coordinate context: prefer strongly-typed ECS CoordinateFrameComponent
+            if let Some(host_id) = self.tracks.get_id(&p_label) {
+                if let Some(frame) = self.coordinate_frames.get(&host_id) {
+                    p_x_domain = frame.x_domain;
+                    p_y_domain = frame.y_domain;
+                    p_padding = frame.padding;
+                }
+            } else if let Some(Value::Vec2(xd)) = self.env.get(&format!("{}_x_domain", p_label)) {
                 p_x_domain = xd;
+                if let Some(Value::Vec2(yd)) = self.env.get(&format!("{}_y_domain", p_label)) {
+                    p_y_domain = yd;
+                }
+                if let Some(Value::Vec4(pad)) = self.env.get(&format!("{}_padding", p_label)) {
+                    p_padding = pad;
+                }
             }
-            if let Some(Value::Vec2(yd)) = self.env.get(&format!("{}_y_domain", p_label)) {
-                p_y_domain = yd;
-            }
+
             let size_key = crate::timeline::env_keys::side_channel(&p_label, "size");
             if let Some(Value::Vec2(sz)) = self.env.get(size_key.as_str()) {
                 p_size = sz;
@@ -1487,18 +1521,6 @@ impl Timeline {
             } else {
                 None
             };
-
-            let p_padding = self
-                .env
-                .get(&format!("{}_padding", p_label))
-                .and_then(|v| {
-                    if let Value::Vec4(p) = v {
-                        Some(p)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or([0.0; 4]);
 
             let param_names: Vec<String> = plot_params.iter().map(|(n, _)| n.clone()).collect();
 

@@ -1293,6 +1293,23 @@ fn graph_map_inverse_round_trip_with_non_zero_at() {
     }
 }
 
+/// Verify that CoordinateFrameComponent is registered in timeline.coordinate_frames.
+#[test]
+fn graph_registers_coordinate_frame_component() {
+    let source = "g: Graph, size: (800, 600), x_domain: (-8, 8), y_domain: (-4, 4), padding: (10, 20, 30, 40)";
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+    let ast = ast.expect("AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+
+    let timeline = report.output;
+    let g_id = timeline.tracks().get_id("g").expect("g entity id");
+    let frame = timeline.coordinate_frames.get(&g_id).expect("CoordinateFrameComponent");
+    assert_eq!(frame.x_domain, [-8.0, 8.0]);
+    assert_eq!(frame.y_domain, [-4.0, 4.0]);
+    assert_eq!(frame.padding, [10.0, 20.0, 30.0, 40.0]);
+}
+
 /// `map()` must scale at the same px/unit the curve is drawn with: a point at
 /// the +x domain edge lands on the right half-width, not a quarter of it.
 #[test]

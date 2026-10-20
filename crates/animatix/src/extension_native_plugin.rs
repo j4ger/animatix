@@ -889,6 +889,7 @@ impl Primitive for NativePrimitiveAdapter {
             time_ms,
             parent_label,
             diagnostics,
+            coordinate_context: _,
         } = ctx;
         let time_ms = *time_ms;
         let parent_label = *parent_label;

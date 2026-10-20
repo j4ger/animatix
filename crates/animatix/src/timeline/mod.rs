@@ -42,6 +42,8 @@ mod builtins;
 pub mod callout_geometry;
 pub(crate) mod camera;
 pub mod colorscheme;
+pub mod components;
+pub use components::{CoordinateContext, CoordinateFrameComponent};
 mod declarations_text;
 /// Built-in post-processing effects, chain storage, and the compositing
 /// backend boundary.
@@ -614,6 +616,8 @@ pub struct Timeline {
     pub(crate) auto_color_assignments: BTreeMap<String, usize>,
     pub(crate) next_auto_color_index: usize,
     pub(crate) container_metadata: BTreeMap<String, ContainerMetadata>,
+    /// Component store for mathematical coordinate frames keyed by host EntityId.
+    pub(crate) coordinate_frames: BTreeMap<EntityId, CoordinateFrameComponent>,
     /// Memoized layout-admitted children per container (see
     /// `Timeline::layout_children_for`). Cleared by `invalidate_frame_cache`
     /// alongside the layout engine cache, whose admission contract it shares.
@@ -944,6 +948,7 @@ impl Timeline {
             auto_color_assignments: BTreeMap::new(),
             next_auto_color_index: 0,
             container_metadata: BTreeMap::new(),
+            coordinate_frames: BTreeMap::new(),
             layout_children_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
             layout_engine: LayoutEngine::new(),
             dynamic_layout: false,

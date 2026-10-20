@@ -93,6 +93,7 @@ impl ActorKind for PrimitiveActorKind {
             time_ms,
             parent_label,
             diagnostics,
+            coordinate_context: None,
         };
         if let Err(mut diags) = self.0.build(&mut ctx, label, props, modifiers, children) {
             diagnostics.append(&mut diags);

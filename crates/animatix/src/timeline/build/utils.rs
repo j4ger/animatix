@@ -4,9 +4,12 @@
 
 /// Axis scale type: parsed once at build boundary, used for all coordinate math.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub(crate) enum ScaleType {
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ScaleType {
+    /// Linear arithmetic scale.
     #[default]
     Linear,
+    /// Base-10 logarithmic scale.
     Log,
 }
 

@@ -416,6 +416,7 @@ impl Timeline {
                     time_ms,
                     parent_label,
                     diagnostics,
+                    coordinate_context: None,
                 };
                 if let Err(mut diags) = primitive.build(&mut ctx, label, props, modifiers, children)
                 {
@@ -466,6 +467,7 @@ impl Timeline {
                     time_ms,
                     parent_label,
                     diagnostics,
+                    coordinate_context: None,
                 };
                 if let Err(mut diags) = primitive.finalize_container_build(&mut ctx, label, props) {
                     diagnostics.append(&mut diags);
@@ -520,6 +522,21 @@ impl Timeline {
         );
 
         if primitive.is_graph_host() {
+            if let Some(host_id) = self.tracks.get_id(label) {
+                self.coordinate_frames.insert(
+                    host_id,
+                    crate::timeline::CoordinateFrameComponent {
+                        x_domain: extracted.x_domain,
+                        y_domain: extracted.y_domain,
+                        x_scale: extracted.x_scale,
+                        y_scale: extracted.y_scale,
+                        padding: extracted.graph_padding,
+                        grid: false,
+                        ticks: false,
+                        tick_labels: "auto".to_string(),
+                    },
+                );
+            }
             self.env.set(&format!("{}_x_domain", label), Value::Vec2(extracted.x_domain));
             self.env.set(&format!("{}_y_domain", label), Value::Vec2(extracted.y_domain));
             self.env.set(
@@ -1355,6 +1372,7 @@ impl Timeline {
                 time_ms,
                 parent_label,
                 diagnostics,
+                coordinate_context: None,
             };
             if let Err(mut diags) = p.finalize_container_build(&mut ctx, label, props) {
                 diagnostics.append(&mut diags);

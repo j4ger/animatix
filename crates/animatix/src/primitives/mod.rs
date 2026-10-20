@@ -960,6 +960,8 @@ pub struct BuildCtx<'a> {
     pub parent_label: Option<&'a str>,
     /// Build diagnostics collector.
     pub diagnostics: &'a mut Vec<Diagnostic>,
+    /// Optional active coordinate context from parent host (e.g. `Graph`).
+    pub coordinate_context: Option<crate::timeline::CoordinateContext>,
 }
 
 /// Timing and resource context for `Primitive::handle_assignment()`.
