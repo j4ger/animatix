@@ -9,6 +9,26 @@ use crate::timeline::plot::PlotCurveKind;
 use crate::timeline::vello_path::VelloPath;
 
 impl Timeline {
+    /// Resolve an active CoordinateContext if the given parent label refers to a coordinate host.
+    pub(crate) fn resolve_coordinate_context(
+        &self,
+        parent_label: Option<&str>,
+    ) -> Option<crate::timeline::CoordinateContext> {
+        let p_label = parent_label?;
+        let host_id = self.tracks.get_id(p_label)?;
+        let frame = self.coordinate_frames.get(&host_id)?;
+        let p_size = self
+            .env
+            .get(crate::timeline::env_keys::side_channel(p_label, "size").as_str())
+            .or_else(|| self.env.get(&format!("{}_size", p_label)))
+            .and_then(|v| match v {
+                Value::Vec2(sz) => Some(sz),
+                _ => None,
+            })
+            .unwrap_or([500.0, 500.0]);
+        Some(crate::timeline::CoordinateContext::new(host_id, frame, p_size))
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn generate_actor_paths(
         &self,
@@ -60,28 +80,32 @@ impl Timeline {
             let mut p_x_domain = [-10.0, 10.0];
             let mut p_y_domain = [-10.0, 10.0];
             let mut p_size = [500.0, 500.0];
+            let mut p_padding = [0.0; 4];
 
-            if let Some(Value::Vec2(xd)) = self.env.get(&format!("{}_x_domain", p_label)) {
-                p_x_domain = xd;
+            if let Some(host_id) = self.tracks.get_id(&p_label) {
+                if let Some(frame) = self.coordinate_frames.get(&host_id) {
+                    p_x_domain = frame.x_domain;
+                    p_y_domain = frame.y_domain;
+                    p_padding = frame.padding;
+                }
+            } else {
+                if let Some(Value::Vec2(xd)) = self.env.get(&format!("{}_x_domain", p_label)) {
+                    p_x_domain = xd;
+                }
+                if let Some(Value::Vec2(yd)) = self.env.get(&format!("{}_y_domain", p_label)) {
+                    p_y_domain = yd;
+                }
+                if let Some(Value::Vec4(p)) = self.env.get(&format!("{}_padding", p_label)) {
+                    p_padding = p;
+                }
             }
-            if let Some(Value::Vec2(yd)) = self.env.get(&format!("{}_y_domain", p_label)) {
-                p_y_domain = yd;
-            }
-            if let Some(Value::Vec2(sz)) = self.env.get(&format!("{}_size", p_label)) {
+            if let Some(Value::Vec2(sz)) =
+                self.env.get(&format!("{}_size", p_label)).or_else(|| {
+                    self.env.get(crate::timeline::env_keys::side_channel(&p_label, "size").as_str())
+                })
+            {
                 p_size = sz;
             }
-
-            let p_padding = self
-                .env
-                .get(&format!("{}_padding", p_label))
-                .and_then(|v| {
-                    if let Value::Vec4(p) = v {
-                        Some(p)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or([0.0; 4]);
 
             let kind = extracted.kind.unwrap_or(PlotCurveKind::Cartesian);
             // This generic fallback path has no diagnostics channel; eval
@@ -411,12 +435,13 @@ impl Timeline {
         let registry = self.primitive_registry.clone();
         if let Some(primitive) = registry.find(ty) {
             if !registry.is_builtin(ty) {
+                let coordinate_context = self.resolve_coordinate_context(parent_label);
                 let mut ctx = crate::primitives::BuildCtx {
                     timeline: self,
                     time_ms,
                     parent_label,
                     diagnostics,
-                    coordinate_context: None,
+                    coordinate_context,
                 };
                 if let Err(mut diags) = primitive.build(&mut ctx, label, props, modifiers, children)
                 {
@@ -462,12 +487,13 @@ impl Timeline {
                     diagnostics,
                 );
                 self.warn_unknown_declaration_properties(label, ty, props, diagnostics);
+                let coordinate_context = self.resolve_coordinate_context(parent_label);
                 let mut ctx = crate::primitives::BuildCtx {
                     timeline: self,
                     time_ms,
                     parent_label,
                     diagnostics,
-                    coordinate_context: None,
+                    coordinate_context,
                 };
                 if let Err(mut diags) = primitive.finalize_container_build(&mut ctx, label, props) {
                     diagnostics.append(&mut diags);
@@ -502,7 +528,13 @@ impl Timeline {
         // Math coordinate auto-mapping: if parent is a Graph, map child positions
         // from math coordinates to screen pixels.
         let mapped_props = if let Some(p_label) = parent_label {
-            if self.env.get(&format!("{}_x_domain", p_label)).is_some() {
+            let is_graph = self
+                .tracks
+                .get_id(p_label)
+                .and_then(|id| self.coordinate_frames.get(&id).map(|_| ()))
+                .is_some()
+                || self.env.get(&format!("{}_x_domain", p_label)).is_some();
+            if is_graph {
                 self.map_props_to_graph_parent(p_label, props, time_ms, diagnostics)
             } else {
                 props.to_vec()
@@ -1367,12 +1399,13 @@ impl Timeline {
 
         let primitive_registry = std::sync::Arc::clone(&self.primitive_registry);
         if let Some(p) = primitive_registry.find(ty) {
+            let coordinate_context = self.resolve_coordinate_context(parent_label);
             let mut ctx = crate::primitives::BuildCtx {
                 timeline: self,
                 time_ms,
                 parent_label,
                 diagnostics,
-                coordinate_context: None,
+                coordinate_context,
             };
             if let Err(mut diags) = p.finalize_container_build(&mut ctx, label, props) {
                 diagnostics.append(&mut diags);

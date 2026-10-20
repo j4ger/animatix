@@ -88,12 +88,13 @@ impl ActorKind for PrimitiveActorKind {
         parent_label: Option<&str>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
+        let coordinate_context = timeline.resolve_coordinate_context(parent_label);
         let mut ctx = crate::primitives::BuildCtx {
             timeline,
             time_ms,
             parent_label,
             diagnostics,
-            coordinate_context: None,
+            coordinate_context,
         };
         if let Err(mut diags) = self.0.build(&mut ctx, label, props, modifiers, children) {
             diagnostics.append(&mut diags);

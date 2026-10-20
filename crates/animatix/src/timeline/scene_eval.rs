@@ -1180,16 +1180,30 @@ impl Timeline {
                 ),
             );
             // Fallback: render children directly (no filtering)
-            for child in &children {
-                self.evaluate_node(
-                    child,
-                    global_transform,
-                    global_opacity,
-                    &child_layout_positions,
-                    allow_pending_composites,
-                    frame,
-                    out,
-                );
+            if !track.children_ids.is_empty() {
+                for &child_id in &track.children_ids {
+                    self.evaluate_node_by_id(
+                        child_id,
+                        global_transform,
+                        global_opacity,
+                        &child_layout_positions,
+                        allow_pending_composites,
+                        frame,
+                        out,
+                    );
+                }
+            } else {
+                for child in &children {
+                    self.evaluate_node(
+                        child,
+                        global_transform,
+                        global_opacity,
+                        &child_layout_positions,
+                        allow_pending_composites,
+                        frame,
+                        out,
+                    );
+                }
             }
             return;
         }
@@ -1197,16 +1211,30 @@ impl Timeline {
         // Build sub-scene with children rendered at their world positions
         let mut sub_scene = vello::Scene::new();
         out.with_scene(&mut sub_scene, |out| {
-            for child in &children {
-                self.evaluate_node(
-                    child,
-                    global_transform,
-                    global_opacity,
-                    &child_layout_positions,
-                    false,
-                    frame,
-                    out,
-                );
+            if !track.children_ids.is_empty() {
+                for &child_id in &track.children_ids {
+                    self.evaluate_node_by_id(
+                        child_id,
+                        global_transform,
+                        global_opacity,
+                        &child_layout_positions,
+                        false,
+                        frame,
+                        out,
+                    );
+                }
+            } else {
+                for child in &children {
+                    self.evaluate_node(
+                        child,
+                        global_transform,
+                        global_opacity,
+                        &child_layout_positions,
+                        false,
+                        frame,
+                        out,
+                    );
+                }
             }
         });
 
@@ -1502,16 +1530,30 @@ impl Timeline {
                     ),
                 );
             }
-            for child in &children {
-                self.evaluate_node(
-                    child,
-                    global_transform,
-                    global_opacity,
-                    &child_layout_positions,
-                    allow_pending_composites,
-                    frame,
-                    out,
-                );
+            if !track.children_ids.is_empty() {
+                for &child_id in &track.children_ids {
+                    self.evaluate_node_by_id(
+                        child_id,
+                        global_transform,
+                        global_opacity,
+                        &child_layout_positions,
+                        allow_pending_composites,
+                        frame,
+                        out,
+                    );
+                }
+            } else {
+                for child in &children {
+                    self.evaluate_node(
+                        child,
+                        global_transform,
+                        global_opacity,
+                        &child_layout_positions,
+                        allow_pending_composites,
+                        frame,
+                        out,
+                    );
+                }
             }
             return;
         }
@@ -1562,16 +1604,30 @@ impl Timeline {
 
         let mut sub_scene = vello::Scene::new();
         out.with_scene(&mut sub_scene, |out| {
-            for child in &children {
-                self.evaluate_node(
-                    child,
-                    global_transform,
-                    global_opacity,
-                    &child_layout_positions,
-                    false,
-                    frame,
-                    out,
-                );
+            if !track.children_ids.is_empty() {
+                for &child_id in &track.children_ids {
+                    self.evaluate_node_by_id(
+                        child_id,
+                        global_transform,
+                        global_opacity,
+                        &child_layout_positions,
+                        false,
+                        frame,
+                        out,
+                    );
+                }
+            } else {
+                for child in &children {
+                    self.evaluate_node(
+                        child,
+                        global_transform,
+                        global_opacity,
+                        &child_layout_positions,
+                        false,
+                        frame,
+                        out,
+                    );
+                }
             }
         });
 
@@ -1631,10 +1687,17 @@ impl Timeline {
         // geometry — the clip falls back to a rect covering the Mask's own
         // size; the latter case warns instead of silently clipping wrong.
         let clip_shape_track = track
-            .children
+            .children_ids
             .iter()
-            .filter_map(|c| self.tracks.get(c))
-            .find(|c| c.label == "clip_shape");
+            .filter_map(|id| self.tracks.get_by_id(*id))
+            .find(|c| c.label == "clip_shape")
+            .or_else(|| {
+                track
+                    .children
+                    .iter()
+                    .filter_map(|c| self.tracks.get(c))
+                    .find(|c| c.label == "clip_shape")
+            });
         let fallback_clip = || {
             let w = half_size[0] as f64;
             let h = half_size[1] as f64;
@@ -1678,22 +1741,39 @@ impl Timeline {
         );
 
         // Render all children normally inside the clip
-        let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
-        for child in children {
-            if clip_child_label == Some(child) {
-                // The clip shape defines the clip geometry; it does not
-                // render itself.
-                continue;
+        if !track.children_ids.is_empty() {
+            for &child_id in &track.children_ids {
+                if let Some(child_track) = self.tracks.get_by_id(child_id) {
+                    if clip_child_label == Some(child_track.label.as_str()) {
+                        continue;
+                    }
+                    self.evaluate_node_by_id(
+                        child_id,
+                        global_transform,
+                        global_opacity,
+                        &child_layout_positions,
+                        allow_pending_composites,
+                        frame,
+                        out,
+                    );
+                }
             }
-            self.evaluate_node(
-                child,
-                global_transform,
-                global_opacity,
-                &child_layout_positions,
-                allow_pending_composites,
-                frame,
-                out,
-            );
+        } else {
+            let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
+            for child in children {
+                if clip_child_label == Some(child) {
+                    continue;
+                }
+                self.evaluate_node(
+                    child,
+                    global_transform,
+                    global_opacity,
+                    &child_layout_positions,
+                    allow_pending_composites,
+                    frame,
+                    out,
+                );
+            }
         }
 
         // Pop clip layer
@@ -1723,9 +1803,6 @@ impl Timeline {
         } else {
             std::sync::Arc::new(crate::timeline::layout::LayoutPositions::new())
         };
-        // ── Equation: compile all child Fragments as one Typst document ──
-        let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
-
         // Collect Fragment children with their content and highlight state.
         struct FragInfo {
             content: String,
@@ -1736,10 +1813,14 @@ impl Timeline {
             hl_blend: vello::peniko::Mix,
         }
         let mut frags: Vec<FragInfo> = Vec::new();
-        for child_label in &children {
-            let Some(child_track) = self.tracks.get(child_label) else {
-                continue;
-            };
+
+        let child_tracks: Vec<&AnimationTrack> = if !track.children_ids.is_empty() {
+            track.children_ids.iter().filter_map(|id| self.tracks.get_by_id(*id)).collect()
+        } else {
+            track.children.iter().filter_map(|c| self.tracks.get(c)).collect()
+        };
+
+        for child_track in child_tracks {
             // A fragment is any child whose primitive opts into
             // `equation_fragment` — never a hard-coded type name.
             let Some(primitive) = self.track_primitive_at(child_track, time_ms) else {
@@ -1885,16 +1966,30 @@ impl Timeline {
         // visual output of their own), so they draw nothing here and
         // record no hit region; the parent Equation aggregates their
         // content into one document.
-        for child in children {
-            self.evaluate_node(
-                child,
-                global_transform,
-                global_opacity,
-                &child_layout_positions,
-                allow_pending_composites,
-                frame,
-                out,
-            );
+        if !track.children_ids.is_empty() {
+            for &child_id in &track.children_ids {
+                self.evaluate_node_by_id(
+                    child_id,
+                    global_transform,
+                    global_opacity,
+                    &child_layout_positions,
+                    allow_pending_composites,
+                    frame,
+                    out,
+                );
+            }
+        } else {
+            for child in &track.children {
+                self.evaluate_node(
+                    child,
+                    global_transform,
+                    global_opacity,
+                    &child_layout_positions,
+                    allow_pending_composites,
+                    frame,
+                    out,
+                );
+            }
         }
     }
 
@@ -2086,12 +2181,13 @@ impl Timeline {
         let text_max_width = track.sample_f32_prop("text_max_width", time_ms, 0.0).max(0.0);
         let max_lines = track.sample_u32_prop("max_lines", time_ms, 2);
         let transition_s = track.sample_f32_prop("transition_time", time_ms, 0.0).max(0.0) as f64;
-        let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
+        let child_tracks: Vec<&AnimationTrack> = if !track.children_ids.is_empty() {
+            track.children_ids.iter().filter_map(|id| self.tracks.get_by_id(*id)).collect()
+        } else {
+            track.children.iter().filter_map(|c| self.tracks.get(c)).collect()
+        };
 
-        for child_label in &children {
-            let Some(child_track) = self.tracks.get(child_label) else {
-                continue;
-            };
+        for child_track in child_tracks {
             let Some(primitive) = self.track_primitive_at(child_track, time_ms) else {
                 continue;
             };
@@ -2163,16 +2259,30 @@ impl Timeline {
         }
 
         // Render children so state is evaluated
-        for child in &children {
-            self.evaluate_node(
-                child,
-                global_transform,
-                global_opacity,
-                &child_layout_positions,
-                allow_pending_composites,
-                frame,
-                out,
-            );
+        if !track.children_ids.is_empty() {
+            for &child_id in &track.children_ids {
+                self.evaluate_node_by_id(
+                    child_id,
+                    global_transform,
+                    global_opacity,
+                    &child_layout_positions,
+                    allow_pending_composites,
+                    frame,
+                    out,
+                );
+            }
+        } else {
+            for child in &track.children {
+                self.evaluate_node(
+                    child,
+                    global_transform,
+                    global_opacity,
+                    &child_layout_positions,
+                    allow_pending_composites,
+                    frame,
+                    out,
+                );
+            }
         }
 
         let time_s = time_ms as f64 / 1000.0;
