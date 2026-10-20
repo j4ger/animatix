@@ -1115,6 +1115,10 @@ impl Timeline {
                         | crate::timeline::ActorField::GradientExtend
                         | crate::timeline::ActorField::GradientSpace
                         | crate::timeline::ActorField::Scale
+                        | crate::timeline::ActorField::MinWidth
+                        | crate::timeline::ActorField::MinHeight
+                        | crate::timeline::ActorField::MaxHeight
+                        | crate::timeline::ActorField::AudioVolume
                 )
             {
                 let prop_subject = format!("{label}.{}", prop.name);

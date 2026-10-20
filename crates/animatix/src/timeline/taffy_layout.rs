@@ -109,6 +109,7 @@ pub fn parse_dimension_spec(expr: &crate::ast::Expr) -> SizeSpec {
     use crate::ast::Expr;
     match expr {
         Expr::Num(n) => SizeSpec::Fixed(*n as f32),
+        Expr::Percent(pct) => SizeSpec::Percent(*pct as f32 / 100.0),
         Expr::Str(s) => {
             if let Some(pct_str) = s.strip_suffix('%') {
                 if let Ok(pct) = pct_str.parse::<f32>() {
@@ -141,6 +142,9 @@ pub fn parse_size_spec(expr: &crate::ast::Expr) -> ChildSizeSpec {
             parse_dimension_spec(&items[0]),
             parse_dimension_spec(&items[1]),
         ),
+        Expr::Percent(pct) => {
+            ChildSizeSpec::from_parts(SizeSpec::Percent(*pct as f32 / 100.0), SizeSpec::Auto)
+        },
         // Single value: `size: fill`, `size: auto`, `size: fit`
         Expr::Str(s) => match s.as_str() {
             "fill" => ChildSizeSpec::from_parts(SizeSpec::Fill, SizeSpec::Auto),
@@ -184,7 +188,18 @@ fn build_child_style(
         Dimension::auto()
     } else if parent_content_size[0] > 0.0 {
         // Pre-resolve against parent width so Taffy doesn't need to know about percentages
-        Dimension::length(spec.width.resolve_absolute(parent_content_size[0]))
+        let abs = spec.width.resolve_absolute(parent_content_size[0]);
+        let clamped = if let Some(min_w) = constraints.min_width {
+            abs.max(min_w)
+        } else {
+            abs
+        };
+        let clamped = if let Some(max_w) = constraints.max_width {
+            clamped.min(max_w)
+        } else {
+            clamped
+        };
+        Dimension::length(clamped)
     } else {
         spec.width.resolve(parent_content_size[0])
     };
@@ -194,7 +209,18 @@ fn build_child_style(
     let height_dim = if height_is_fill {
         Dimension::auto()
     } else if parent_content_size[1] > 0.0 {
-        Dimension::length(spec.height.resolve_absolute(parent_content_size[1]))
+        let abs = spec.height.resolve_absolute(parent_content_size[1]);
+        let clamped = if let Some(min_h) = constraints.min_height {
+            abs.max(min_h)
+        } else {
+            abs
+        };
+        let clamped = if let Some(max_h) = constraints.max_height {
+            clamped.min(max_h)
+        } else {
+            clamped
+        };
+        Dimension::length(clamped)
     } else {
         spec.height.resolve(parent_content_size[1])
     };
@@ -263,10 +289,12 @@ fn center_relative_position(container: &Layout, child: &Layout) -> [f32; 2] {
 }
 
 /// Computed layout result for a single child.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TaffyLayoutResult {
     /// The center-relative position [x, y] of the child
     pub position: [f32; 2],
+    /// The computed layout size [width, height] of the child
+    pub size: [f32; 2],
 }
 
 /// Compute layout using Taffy for Row/Col containers.
@@ -380,6 +408,7 @@ pub fn compute_taffy_linear_layout_with_baselines(
                 taffy.layout(node).expect("taffy layout should exist for computed child node");
             TaffyLayoutResult {
                 position: center_relative_position(container_layout, child_layout),
+                size: [child_layout.size.width, child_layout.size.height],
             }
         })
         .collect();
@@ -532,6 +561,7 @@ pub fn compute_taffy_linear_layout_with_specs(
             let child_layout = taffy.layout(node).expect("taffy layout should exist");
             TaffyLayoutResult {
                 position: center_relative_position(container_layout, child_layout),
+                size: [child_layout.size.width, child_layout.size.height],
             }
         })
         .collect();
@@ -662,6 +692,7 @@ pub fn compute_taffy_grid_layout(
 
         results.push(TaffyLayoutResult {
             position: center_relative_position(container_layout, child_layout),
+            size: [child_layout.size.width, child_layout.size.height],
         });
     }
 
@@ -763,6 +794,7 @@ pub fn compute_taffy_grid_layout_with_specs(
         let child_layout = taffy.layout(child_nodes[i]).expect("taffy layout should exist");
         results.push(TaffyLayoutResult {
             position: center_relative_position(container_layout, child_layout),
+            size: [child_layout.size.width, child_layout.size.height],
         });
     }
 

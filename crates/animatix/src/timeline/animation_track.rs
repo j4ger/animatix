@@ -509,6 +509,9 @@ pub struct TextTracks {
     /// Precomputed hardware glyph layout for direct Vello draw_glyphs hardware execution.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub hardware_layout: Option<std::sync::Arc<animatix_text::HardwareTextLayout>>,
+    /// Precomputed resting baseline clip path for split-text masking.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    pub static_split_clip: Option<kurbo::BezPath>,
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -606,6 +609,8 @@ pub struct GeometryTracks {
     pub connector_routing: Option<PropertyTrack<ConnectorRouting>>,
     /// Connector arrowhead toggle.
     pub connector_arrow: Option<PropertyTrack<bool>>,
+    /// Audio playback volume track.
+    pub volume: Option<PropertyTrack<f32>>,
 }
 
 /// Endpoint of a smart connector (either an explicit point or a target actor anchor).

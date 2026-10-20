@@ -447,8 +447,37 @@ pub fn mux_audio_segments(
             chain.push_str(&format!("atrim=end={:.3},", dur));
         }
 
-        // Apply per-segment volume.
-        chain.push_str(&format!("volume={:.3},", seg.volume));
+        // Apply per-segment volume: if an animated envelope exists, render an ffmpeg volume expression
+        if let Some(env) = &seg.volume_envelope {
+            if env.len() >= 2 {
+                // ffmpeg volume filter supports expression: 'volume=...:eval=frame'
+                // where 't' is time in seconds relative to the audio stream.
+                // We construct an if(between(t,...), ...) linear interpolation expression.
+                let mut expr = format!("{:.3}", env.last().map(|(_, v)| *v).unwrap_or(seg.volume));
+                for i in (0..env.len() - 1).rev() {
+                    let (t0_glob, v0) = env[i];
+                    let (t1_glob, v1) = env[i + 1];
+                    let t0 = (t0_glob - seg.start_time_s).max(0.0);
+                    let t1 = (t1_glob - seg.start_time_s).max(0.0);
+                    if (t1 - t0) > 1e-4 {
+                        let lerp = format!(
+                            "({:.3}+({:.3}-{:.3})*(t-{:.3})/{:.3})",
+                            v0,
+                            v1,
+                            v0,
+                            t0,
+                            t1 - t0
+                        );
+                        expr = format!("if(between(t,{:.3},{:.3}),{},{})", t0, t1, lerp, expr);
+                    }
+                }
+                chain.push_str(&format!("volume='{}':eval=frame,", expr));
+            } else {
+                chain.push_str(&format!("volume={:.3},", seg.volume));
+            }
+        } else {
+            chain.push_str(&format!("volume={:.3},", seg.volume));
+        }
 
         // Delay to global timeline position.
         chain.push_str(&format!("adelay=delays={delay_ms}"));

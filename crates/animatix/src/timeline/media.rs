@@ -417,6 +417,7 @@ impl Timeline {
             start_time_s,
             duration_s,
             volume: volume.clamp(0.0, 1.0),
+            volume_envelope: None,
         });
     }
 }

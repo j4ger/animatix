@@ -537,15 +537,14 @@ card: Rect, size: (100, 60), at: (160, 90)
     );
 }
 
-/// Audio `source`/`volume` are snapshotted from the declaration, so an
-/// assignment to either used to vanish. It must be reported instead.
+/// Audio `source` cannot be animated, so an assignment to it must be reported.
 #[test]
-fn audio_volume_assignment_warns_as_unimplemented() {
+fn audio_source_assignment_warns_as_unimplemented() {
     let source = r#"
 config { resolution: (320, 180) }
 voice: Audio, source: "voice.wav"
 #1s
-voice.volume = 0.3 [1s]
+voice.source = "voice2.wav" [1s]
 "#;
     let (ast, errors) = animatix_syntax::parser::parse_source(source);
     assert!(errors.is_empty(), "parse errors: {errors:?}");
@@ -560,8 +559,31 @@ voice.volume = 0.3 [1s]
         panic!("expected an unimplemented-property warning, got {:?}", report.diagnostics)
     });
     assert!(
-        warning.message.contains("voice.volume"),
+        warning.message.contains("voice.source"),
         "the warning should name the actor and property, got: {}",
         warning.message
     );
+}
+
+#[test]
+fn audio_volume_animation_creates_envelope() {
+    let source = r#"
+config { resolution: (320, 180) }
+voice: Audio, source: "voice.wav", volume: 1.0
+#1s
+voice.volume = 0.2 [1s]
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let timeline = Timeline::build(&ast.expect("AST"));
+    let segs = timeline.audio_segments();
+    assert_eq!(segs.len(), 1);
+    let seg = &segs[0];
+    assert!(seg.volume_envelope.is_some(), "volume envelope should be generated");
+    let env = seg.volume_envelope.as_ref().unwrap();
+    assert!(env.len() >= 2);
+    // At t=0s volume is 1.0, at t=2s volume is 0.2
+    assert!((seg.volume_at(0.0) - 1.0).abs() < 1e-3);
+    assert!((seg.volume_at(2.0) - 0.2).abs() < 1e-3);
+    assert!((seg.volume_at(1.5) - 0.6).abs() < 0.1);
 }

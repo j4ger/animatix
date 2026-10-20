@@ -340,22 +340,14 @@ pub fn write_property_field(
         | ActorField::TextPaths
         | ActorField::ImageData
         | ActorField::SvgPaths => return,
-        // Audio has no animated storage: the engine snapshots `source` and
-        // `volume` off the declaration into a static `AudioSegment`, which is
-        // what the GUI player and the export mux consume. So an assignment or
-        // keyframe on either is dropped — say so rather than losing it
-        // silently (see docs/roadmap.md, "Audio volume automation").
-        ActorField::AudioSource | ActorField::AudioVolume => {
-            let name = match field {
-                ActorField::AudioSource => "source",
-                _ => "volume",
-            };
+        // Audio source cannot be animated; volume can be animated via the volume track.
+        ActorField::AudioSource => {
             diagnostics.push(Diagnostic::warning(
                 DiagnosticCode::UnimplementedProperty,
                 DiagnosticPhase::Build,
                 format!(
-                    "`{}.{name}` cannot be animated yet: audio `source`/`volume` are snapshotted \
-                     from the declaration, so this write is dropped. Set `{name}: …` on the Audio \
+                    "`{}.source` cannot be animated yet: audio `source` is snapshotted \
+                     from the declaration, so this write is dropped. Set `source: …` on the Audio \
                      declaration instead.",
                     track.label
                 ),

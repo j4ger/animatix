@@ -1167,8 +1167,35 @@ impl<'a, 'b, 'c> RenderChildrenCtx<'a, 'b, 'c> {
     }
 
     /// Render one child into this context's scene, preserving the caller's
+    /// Render one child by its label into this context's scene, forwarding the
     /// `allow_pending_composites` flag.
     pub fn render_child(&mut self, child: &str) {
+        if let Some(child_id) = self.timeline.tracks.get_id(child) {
+            self.render_child_by_id(child_id);
+        } else {
+            let frame = self.render_frame();
+            let allow_pending_composites = self.allow_pending_composites;
+            let mut out = RenderOutputs {
+                scene: &mut *self.scene,
+                hit_regions: &mut *self.hit_regions,
+                program_items: &mut *self.program_items,
+                filter_backend: &mut *self.filter_backend,
+            };
+            self.timeline.evaluate_node(
+                child,
+                self.global_transform,
+                self.global_opacity,
+                &self.layout_positions,
+                allow_pending_composites,
+                &frame,
+                &mut out,
+            );
+        }
+    }
+
+    /// Render one child directly by its `EntityId` into this context's scene,
+    /// avoiding string hashing overhead on the hot render path.
+    pub fn render_child_by_id(&mut self, child_id: crate::timeline::EntityId) {
         let frame = self.render_frame();
         let allow_pending_composites = self.allow_pending_composites;
         let mut out = RenderOutputs {
@@ -1177,8 +1204,8 @@ impl<'a, 'b, 'c> RenderChildrenCtx<'a, 'b, 'c> {
             program_items: &mut *self.program_items,
             filter_backend: &mut *self.filter_backend,
         };
-        self.timeline.evaluate_node(
-            child,
+        self.timeline.evaluate_node_by_id(
+            child_id,
             self.global_transform,
             self.global_opacity,
             &self.layout_positions,
@@ -1191,6 +1218,34 @@ impl<'a, 'b, 'c> RenderChildrenCtx<'a, 'b, 'c> {
     /// Render one child into a caller-provided scene (the Filter strategy
     /// renders into an offscreen sub-scene, which never parks composites).
     pub fn render_child_into(&mut self, scene: &mut vello::Scene, child: &str) {
+        if let Some(child_id) = self.timeline.tracks.get_id(child) {
+            self.render_child_into_by_id(scene, child_id);
+        } else {
+            let frame = self.render_frame();
+            let mut out = RenderOutputs {
+                scene,
+                hit_regions: &mut *self.hit_regions,
+                program_items: &mut *self.program_items,
+                filter_backend: &mut *self.filter_backend,
+            };
+            self.timeline.evaluate_node(
+                child,
+                self.global_transform,
+                self.global_opacity,
+                &self.layout_positions,
+                false,
+                &frame,
+                &mut out,
+            );
+        }
+    }
+
+    /// Render one child directly by its `EntityId` into a caller-provided scene.
+    pub fn render_child_into_by_id(
+        &mut self,
+        scene: &mut vello::Scene,
+        child_id: crate::timeline::EntityId,
+    ) {
         let frame = self.render_frame();
         let mut out = RenderOutputs {
             scene,
@@ -1198,8 +1253,8 @@ impl<'a, 'b, 'c> RenderChildrenCtx<'a, 'b, 'c> {
             program_items: &mut *self.program_items,
             filter_backend: &mut *self.filter_backend,
         };
-        self.timeline.evaluate_node(
-            child,
+        self.timeline.evaluate_node_by_id(
+            child_id,
             self.global_transform,
             self.global_opacity,
             &self.layout_positions,

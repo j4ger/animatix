@@ -1823,6 +1823,46 @@ pub fn measure_text_paths(paths: &[TextPath]) -> [f32; 2] {
         [0.0, 0.0]
     }
 }
+
+/// Compute resting baseline clip rectangles for Split-Text baseline reveal masking.
+///
+/// Precomputed once at build time to avoid scanning glyph boundaries per frame.
+pub fn compute_split_mask_clip(paths: &[TextPath]) -> Option<BezPath> {
+    if paths.is_empty() {
+        return None;
+    }
+    let mut line_bounds: Vec<(f64, f64, f64, f64)> = Vec::new();
+    for g in paths.iter() {
+        let idx = g.line_idx as usize;
+        if idx >= line_bounds.len() {
+            line_bounds.resize(
+                idx + 1,
+                (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
+            );
+        }
+        let b = g.bounds;
+        let e = &mut line_bounds[idx];
+        e.0 = e.0.min(b.x0);
+        e.1 = e.1.min(b.y0);
+        e.2 = e.2.max(b.x1);
+        e.3 = e.3.max(b.y1);
+    }
+    let mut bez = BezPath::new();
+    for (x0, y0, x1, y1) in line_bounds {
+        if x0.is_finite() && y0.is_finite() && x1.is_finite() && y1.is_finite() {
+            let rx0 = x0 - 10.0;
+            let ry0 = y0 - 1000.0;
+            let rx1 = x1 + 10.0;
+            let ry1 = y1 + 4.0;
+            bez.move_to((rx0, ry0));
+            bez.line_to((rx1, ry0));
+            bez.line_to((rx1, ry1));
+            bez.line_to((rx0, ry1));
+            bez.close_path();
+        }
+    }
+    Some(bez)
+}
 #[derive(Default)]
 #[cfg(feature = "rich-text")]
 struct GlyphLayoutState {

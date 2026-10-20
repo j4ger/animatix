@@ -753,6 +753,7 @@ impl Timeline {
                 Easing::Linear,
             );
         }
+        track.text.static_split_clip = crate::renderer::text::compute_split_mask_clip(&new_paths);
         track.text.static_paths = if duration_ms == 0.0 {
             Some(std::sync::Arc::from(new_paths.clone()))
         } else {

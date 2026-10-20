@@ -1,9 +1,9 @@
 use kurbo::Shape;
 
 use super::{
-    AnimationTrack, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, DebugRenderOptions, EvalError,
-    PlacementMode, PositionBinding, SceneDimensions, Timeline, TrackAccessor, Value, VelloPath,
-    resolve_bound_position,
+    AnimationTrack, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, DebugRenderOptions, EntityId,
+    EvalError, PlacementMode, PositionBinding, SceneDimensions, Timeline, TrackAccessor, Value,
+    VelloPath, resolve_bound_position,
 };
 use crate::renderer::types::TextPath;
 
@@ -447,9 +447,9 @@ impl Timeline {
         true
     }
 
-    pub(crate) fn evaluate_node(
+    pub(crate) fn evaluate_node_by_id(
         &self,
-        node_label: &str,
+        node_id: EntityId,
         parent_transform: kurbo::Affine,
         parent_opacity: f32,
         layout_positions: &crate::timeline::layout::LayoutPositions,
@@ -457,12 +457,10 @@ impl Timeline {
         frame: &crate::primitives::RenderFrame<'_>,
         out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) {
-        // A non-"normal" `blend:` composites the node's whole subtree (own
-        // commands and children alike) into a full-surface layer with the
-        // requested mix, so `screen` on a Group blends the *composited* group
-        // against what is behind it — the semantics that make light effects
-        // (glows, light sweeps, color washes) one-liners.
-        let blend = self.node_blend_mode(node_label, frame.time_ms);
+        let Some(track) = self.tracks.get_by_id(node_id) else {
+            return;
+        };
+        let blend = self.track_blend_mode(track, frame.time_ms);
         if let Some(mix) = blend {
             let unbounded = kurbo::Rect::new(-1.0e9, -1.0e9, 1.0e9, 1.0e9);
             out.scene.push_layer(
@@ -474,8 +472,8 @@ impl Timeline {
             );
         }
 
-        let (global_transform, global_opacity) = self.render_actor_node(
-            node_label,
+        let (global_transform, global_opacity) = self.render_actor_node_by_id(
+            node_id,
             parent_transform,
             parent_opacity,
             layout_positions,
@@ -484,8 +482,8 @@ impl Timeline {
             out,
         );
 
-        self.render_node_children(
-            node_label,
+        self.render_node_children_by_id(
+            node_id,
             global_transform,
             global_opacity,
             allow_pending_composites,
@@ -498,15 +496,37 @@ impl Timeline {
         }
     }
 
+    pub(crate) fn evaluate_node(
+        &self,
+        node_label: &str,
+        parent_transform: kurbo::Affine,
+        parent_opacity: f32,
+        layout_positions: &crate::timeline::layout::LayoutPositions,
+        allow_pending_composites: bool,
+        frame: &crate::primitives::RenderFrame<'_>,
+        out: &mut crate::primitives::RenderOutputs<'_, '_>,
+    ) {
+        if let Some(id) = self.tracks.get_id(node_label) {
+            self.evaluate_node_by_id(
+                id,
+                parent_transform,
+                parent_opacity,
+                layout_positions,
+                allow_pending_composites,
+                frame,
+                out,
+            );
+        }
+    }
+
     /// Sample the node's `blend:` track; `None` when it is absent or
     /// "normal" (the source-over default, no layer).
-    fn node_blend_mode(&self, node_label: &str, time_ms: u64) -> Option<vello::peniko::Mix> {
+    fn track_blend_mode(&self, track: &AnimationTrack, time_ms: u64) -> Option<vello::peniko::Mix> {
         use crate::timeline::TrackAccessor;
 
         if !self.blend_used.get() {
             return None;
         }
-        let track = self.tracks.get(node_label)?;
         let mode = track.style.blend.get(time_ms, "normal".to_string());
         match mode.as_str() {
             "normal" | "" => None,
@@ -527,18 +547,23 @@ impl Timeline {
             "luminosity" => Some(vello::peniko::Mix::Luminosity),
             other => {
                 tracing::warn!(
-                    "{node_label}: unknown blend mode '{other}' (expected a CSS mix-mode name); treating as normal"
+                    "{}: unknown blend mode '{other}' (expected a CSS mix-mode name); treating as normal",
+                    track.label
                 );
                 None
             },
         }
     }
 
-    /// Evaluate a single actor node and render it to the scene.
-    /// Returns the (transform, opacity) to use for child rendering.
-    fn render_actor_node(
+    #[allow(dead_code)] // Fallback when label is used directly
+    fn node_blend_mode(&self, node_label: &str, time_ms: u64) -> Option<vello::peniko::Mix> {
+        let track = self.tracks.get(node_label)?;
+        self.track_blend_mode(track, time_ms)
+    }
+
+    fn render_actor_node_by_id(
         &self,
-        node_label: &str,
+        node_id: EntityId,
         parent_transform: kurbo::Affine,
         parent_opacity: f32,
         layout_positions: &crate::timeline::layout::LayoutPositions,
@@ -546,6 +571,31 @@ impl Timeline {
         frame: &crate::primitives::RenderFrame<'_>,
         out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) -> (kurbo::Affine, f32) {
+        let Some(track) = self.tracks.get_by_id(node_id) else {
+            return (parent_transform, parent_opacity);
+        };
+        self.render_actor_node_impl(
+            track,
+            parent_transform,
+            parent_opacity,
+            layout_positions,
+            allow_pending_composites,
+            frame,
+            out,
+        )
+    }
+
+    fn render_actor_node_impl(
+        &self,
+        track: &AnimationTrack,
+        parent_transform: kurbo::Affine,
+        parent_opacity: f32,
+        layout_positions: &crate::timeline::layout::LayoutPositions,
+        allow_pending_composites: bool,
+        frame: &crate::primitives::RenderFrame<'_>,
+        out: &mut crate::primitives::RenderOutputs<'_, '_>,
+    ) -> (kurbo::Affine, f32) {
+        let node_label = &track.label;
         let time_ms = frame.time_ms;
         let scene_dimensions = frame.scene_dimensions;
         let debug_options = frame.debug_options;
@@ -554,9 +604,6 @@ impl Timeline {
         let scene = &mut *out.scene;
         let hit_regions = &mut *out.hit_regions;
         let program_items = &mut *out.program_items;
-        let Some(track) = self.tracks.get(node_label) else {
-            return (parent_transform, parent_opacity);
-        };
 
         // Authored solo: while any actor is soloed, a subtree that contains no
         // soloed actor is pruned whole — unlike `visible`, which hides only the
@@ -577,17 +624,31 @@ impl Timeline {
         // selection is still possible via the layers / inspector tab.
         if time_ms < track.first_seen_ms {
             // Still recurse into children so they are also hidden
-            let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
-            for child_label in children {
-                self.evaluate_node(
-                    child_label,
-                    parent_transform,
-                    parent_opacity,
-                    layout_positions,
-                    allow_pending_composites,
-                    frame,
-                    out,
-                );
+            if track.children_ids.len() == track.children.len() && !track.children_ids.is_empty() {
+                for &child_id in &track.children_ids {
+                    self.evaluate_node_by_id(
+                        child_id,
+                        parent_transform,
+                        parent_opacity,
+                        layout_positions,
+                        allow_pending_composites,
+                        frame,
+                        out,
+                    );
+                }
+            } else {
+                let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
+                for child_label in children {
+                    self.evaluate_node(
+                        child_label,
+                        parent_transform,
+                        parent_opacity,
+                        layout_positions,
+                        allow_pending_composites,
+                        frame,
+                        out,
+                    );
+                }
             }
             return (parent_transform, parent_opacity);
         }
@@ -994,24 +1055,44 @@ impl Timeline {
         })
     }
 
-    /// Recursively render child nodes using the primitive capability hook.
-    pub(crate) fn render_node_children(
+    /// Recursively render child nodes using the primitive capability hook by EntityId.
+    pub(crate) fn render_node_children_by_id(
         &self,
-        node_label: &str,
+        node_id: EntityId,
         global_transform: kurbo::Affine,
         global_opacity: f32,
         allow_pending_composites: bool,
         frame: &crate::primitives::RenderFrame<'_>,
         out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) {
+        let Some(track) = self.tracks.get_by_id(node_id) else {
+            return;
+        };
+        self.render_node_children_impl(
+            track,
+            global_transform,
+            global_opacity,
+            allow_pending_composites,
+            frame,
+            out,
+        );
+    }
+
+    fn render_node_children_impl(
+        &self,
+        track: &AnimationTrack,
+        global_transform: kurbo::Affine,
+        global_opacity: f32,
+        allow_pending_composites: bool,
+        frame: &crate::primitives::RenderFrame<'_>,
+        out: &mut crate::primitives::RenderOutputs<'_, '_>,
+    ) {
+        let node_label = &track.label;
         let time_ms = frame.time_ms;
         let scene_dimensions = frame.scene_dimensions;
         let debug_options = frame.debug_options;
         let overrides = frame.overrides;
         let frame_env = frame.frame_env;
-        let Some(track) = self.tracks.get(node_label) else {
-            return;
-        };
         // The primitive is the single child-rendering entry point; the pipeline
         // no longer branches on the child-processing strategy. A primitive
         // without a registered type renders nothing (validated at build time).
@@ -2799,15 +2880,27 @@ impl Timeline {
                             &mut temp_scene,
                             &mut subtree_items_slot,
                             |temp_out| {
-                                self.evaluate_node(
-                                    root,
-                                    root_affine,
-                                    1.0,
-                                    &crate::timeline::layout::LayoutPositions::new(),
-                                    true,
-                                    &frame,
-                                    temp_out,
-                                );
+                                if let Some(id) = root_id {
+                                    self.evaluate_node_by_id(
+                                        id,
+                                        root_affine,
+                                        1.0,
+                                        &crate::timeline::layout::LayoutPositions::new(),
+                                        true,
+                                        &frame,
+                                        temp_out,
+                                    );
+                                } else {
+                                    self.evaluate_node(
+                                        root,
+                                        root_affine,
+                                        1.0,
+                                        &crate::timeline::layout::LayoutPositions::new(),
+                                        true,
+                                        &frame,
+                                        temp_out,
+                                    );
+                                }
                             },
                         );
                         let subtree_items = subtree_items_slot.take().unwrap_or_default();
@@ -2840,15 +2933,27 @@ impl Timeline {
                     // otherwise its post-render blit would cover later siblings.
                     // Mid-out.scene filters fall back to the inline readback path.
                     let allow_pending = self.can_post_composite_filter(root);
-                    self.evaluate_node(
-                        root,
-                        root_affine,
-                        1.0,
-                        &crate::timeline::layout::LayoutPositions::new(), // empty for roots
-                        allow_pending,
-                        &frame,
-                        &mut out,
-                    );
+                    if let Some(id) = root_id {
+                        self.evaluate_node_by_id(
+                            id,
+                            root_affine,
+                            1.0,
+                            &crate::timeline::layout::LayoutPositions::new(), // empty for roots
+                            allow_pending,
+                            &frame,
+                            &mut out,
+                        );
+                    } else {
+                        self.evaluate_node(
+                            root,
+                            root_affine,
+                            1.0,
+                            &crate::timeline::layout::LayoutPositions::new(), // empty for roots
+                            allow_pending,
+                            &frame,
+                            &mut out,
+                        );
+                    }
                 }
             }
         }

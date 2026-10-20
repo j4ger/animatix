@@ -47,7 +47,18 @@ pub struct ChildExtent {
 /// Pure layout computation for a Stack container.
 /// Stack places all children at origin (0, 0) on the main axis,
 /// but honors `align` for cross-axis positioning.
+#[allow(dead_code)] // Used by unit tests in tests/layout.rs
 pub(crate) fn compute_stack_layout(children: &[ChildExtent], align: &str) -> Vec<[f32; 2]> {
+    compute_stack_layout_results(children, align)
+        .into_iter()
+        .map(|r| r.position)
+        .collect()
+}
+
+pub(crate) fn compute_stack_layout_results(
+    children: &[ChildExtent],
+    align: &str,
+) -> Vec<super::taffy_layout::TaffyLayoutResult> {
     // Stack is an overlap container — all children share the same origin,
     // creating a layered visual effect. The `align` property controls
     // cross-axis positioning within the stack's conceptual extent.
@@ -63,42 +74,20 @@ pub(crate) fn compute_stack_layout(children: &[ChildExtent], align: &str) -> Vec
         .map(|child| {
             // Use the child's own half-size to position relative to origin
             // "start" aligns to top-left, "center" at origin, "end" aligns to bottom-right
-            match align {
+            let position = match align {
                 "start" => [-child.half_size[0], -child.half_size[1]],
                 "end" => [child.half_size[0], child.half_size[1]],
                 _ => [0.0, 0.0], // center
+            };
+            super::taffy_layout::TaffyLayoutResult {
+                position,
+                size: [child.half_size[0] * 2.0, child.half_size[1] * 2.0],
             }
         })
         .collect()
 }
 
-/// Pure layout computation for Row/Col containers using Taffy.
-/// Returns the positions of each child relative to the container center.
-fn compute_linear_layout(
-    children: &[ChildExtent],
-    is_row: bool,
-    gap: [f32; 2],
-    padding: [f32; 4],
-    align: &str,
-    metadata: &ContainerMetadata,
-    child_baselines: &[f32],
-) -> Vec<[f32; 2]> {
-    compute_linear_layout_with_specs_inner(
-        children,
-        is_row,
-        gap,
-        padding,
-        align,
-        metadata,
-        child_baselines,
-        &[],
-        &[],
-        [0.0, 0.0],
-    )
-}
-
-/// Like `compute_linear_layout` but supports size specs and constraints.
-fn compute_linear_layout_with_specs_inner(
+fn compute_linear_layout_results_with_specs(
     children: &[ChildExtent],
     is_row: bool,
     gap: [f32; 2],
@@ -109,7 +98,7 @@ fn compute_linear_layout_with_specs_inner(
     size_specs: &[Option<super::taffy_layout::ChildSizeSpec>],
     constraints: &[super::taffy_layout::SizeConstraints],
     parent_content_size: [f32; 2],
-) -> Vec<[f32; 2]> {
+) -> Vec<super::taffy_layout::TaffyLayoutResult> {
     let layout_type = if is_row {
         super::LayoutType::Row
     } else {
@@ -141,22 +130,10 @@ fn compute_linear_layout_with_specs_inner(
             parent_content_size,
         )
     };
-    output.positions.into_iter().map(|r| r.position).collect()
+    output.positions
 }
 
-/// Pure layout computation for Grid containers using Taffy.
-/// Returns the positions of each child relative to the container center.
-fn compute_grid_layout(
-    children: &[ChildExtent],
-    gap: [f32; 2],
-    padding: [f32; 4],
-    cols: usize,
-) -> Vec<[f32; 2]> {
-    compute_grid_layout_with_specs_inner(children, gap, padding, cols, &[], &[], [0.0, 0.0])
-}
-
-/// Like `compute_grid_layout` but supports size specs and constraints.
-fn compute_grid_layout_with_specs_inner(
+fn compute_grid_layout_results_with_specs(
     children: &[ChildExtent],
     gap: [f32; 2],
     padding: [f32; 4],
@@ -164,7 +141,7 @@ fn compute_grid_layout_with_specs_inner(
     size_specs: &[Option<super::taffy_layout::ChildSizeSpec>],
     constraints: &[super::taffy_layout::SizeConstraints],
     parent_content_size: [f32; 2],
-) -> Vec<[f32; 2]> {
+) -> Vec<super::taffy_layout::TaffyLayoutResult> {
     let output = if size_specs.is_empty() && constraints.is_empty() {
         compute_taffy_grid_layout(children, gap, padding, cols)
     } else {
@@ -178,10 +155,10 @@ fn compute_grid_layout_with_specs_inner(
             parent_content_size,
         )
     };
-    output.positions.into_iter().map(|r| r.position).collect()
+    output.positions
 }
 
-/// Compute the container's total size [width, height] from Taffy layout.
+#[allow(dead_code)] // Used by unit tests in taffy_layout.rs
 pub(crate) fn compute_container_size(
     children: &[ChildExtent],
     metadata: &ContainerMetadata,
@@ -381,6 +358,28 @@ impl LayoutEngine {
         constraints: &[super::taffy_layout::SizeConstraints],
         parent_content_size: [f32; 2],
     ) -> Vec<[f32; 2]> {
+        Self::compute_layout_with_specs(
+            metadata,
+            children,
+            child_baselines,
+            size_specs,
+            constraints,
+            parent_content_size,
+        )
+        .into_iter()
+        .map(|r| r.position)
+        .collect()
+    }
+
+    /// Computes both positions and resolved sizes with size specs and constraints.
+    pub(crate) fn compute_layout_with_specs(
+        metadata: &ContainerMetadata,
+        children: &[ChildExtent],
+        child_baselines: &[f32],
+        size_specs: &[Option<super::taffy_layout::ChildSizeSpec>],
+        constraints: &[super::taffy_layout::SizeConstraints],
+        parent_content_size: [f32; 2],
+    ) -> Vec<super::taffy_layout::TaffyLayoutResult> {
         let is_row = metadata.layout_type == super::LayoutType::Row;
         let is_col = metadata.layout_type == super::LayoutType::Col;
         let is_stack = metadata.layout_type == super::LayoutType::Stack;
@@ -391,51 +390,30 @@ impl LayoutEngine {
         }
 
         if is_stack {
-            compute_stack_layout(children, &metadata.align)
+            compute_stack_layout_results(children, &metadata.align)
         } else if is_grid {
-            if size_specs.is_empty() && constraints.is_empty() {
-                compute_grid_layout(
-                    children,
-                    metadata.gap,
-                    metadata.padding,
-                    metadata.cols.unwrap_or(1).max(1),
-                )
-            } else {
-                compute_grid_layout_with_specs_inner(
-                    children,
-                    metadata.gap,
-                    metadata.padding,
-                    metadata.cols.unwrap_or(1).max(1),
-                    size_specs,
-                    constraints,
-                    parent_content_size,
-                )
-            }
+            compute_grid_layout_results_with_specs(
+                children,
+                metadata.gap,
+                metadata.padding,
+                metadata.cols.unwrap_or(1).max(1),
+                size_specs,
+                constraints,
+                parent_content_size,
+            )
         } else {
-            if size_specs.is_empty() && constraints.is_empty() {
-                compute_linear_layout(
-                    children,
-                    is_row,
-                    metadata.gap,
-                    metadata.padding,
-                    &metadata.align,
-                    metadata,
-                    child_baselines,
-                )
-            } else {
-                compute_linear_layout_with_specs_inner(
-                    children,
-                    is_row,
-                    metadata.gap,
-                    metadata.padding,
-                    &metadata.align,
-                    metadata,
-                    child_baselines,
-                    size_specs,
-                    constraints,
-                    parent_content_size,
-                )
-            }
+            compute_linear_layout_results_with_specs(
+                children,
+                is_row,
+                metadata.gap,
+                metadata.padding,
+                &metadata.align,
+                metadata,
+                child_baselines,
+                size_specs,
+                constraints,
+                parent_content_size,
+            )
         }
     }
 
@@ -521,8 +499,53 @@ impl LayoutEngine {
             })
             .collect();
 
-        let positions =
-            Self::compute_positions_with_baselines(metadata, &child_extents, &baselines);
+        let (size_specs, constraints, parent_content_size) = {
+            let p_size = tracks
+                .get(container_label)
+                .and_then(|t| {
+                    t.layout_size_get(time_ms)
+                        .or_else(|| t.layout_size_last())
+                        .or_else(|| t.geometry.size.get_or_default(time_ms))
+                        .or_else(|| {
+                            t.geometry.size.last_time().map(|_| t.geometry.size.last([0.0, 0.0]))
+                        })
+                })
+                .map(|s| [s[0] * 2.0, s[1] * 2.0])
+                .unwrap_or([0.0, 0.0]);
+            let mut specs = Vec::with_capacity(layout_children.len());
+            let mut cons = Vec::with_capacity(layout_children.len());
+            for child in layout_children {
+                if let Some(t) = tracks.get(&child.label) {
+                    specs.push(t.geometry.size_spec);
+                    let min_w = t.geometry.min_width.get(time_ms, 0.0);
+                    let min_h = t.geometry.min_height.get(time_ms, 0.0);
+                    let max_h = t.geometry.max_height.get(time_ms, f32::INFINITY);
+                    cons.push(super::taffy_layout::SizeConstraints {
+                        min_width: if min_w > 0.0 { Some(min_w) } else { None },
+                        max_width: None,
+                        min_height: if min_h > 0.0 { Some(min_h) } else { None },
+                        max_height: if !max_h.is_infinite() && !max_h.is_nan() {
+                            Some(max_h)
+                        } else {
+                            None
+                        },
+                    });
+                } else {
+                    specs.push(None);
+                    cons.push(super::taffy_layout::SizeConstraints::default());
+                }
+            }
+            (specs, cons, p_size)
+        };
+
+        let positions = Self::compute_positions_with_specs(
+            metadata,
+            &child_extents,
+            &baselines,
+            &size_specs,
+            &constraints,
+            parent_content_size,
+        );
 
         // Build result map, only including LayoutManaged children
         let mut result = LayoutPositions::new();
@@ -944,17 +967,28 @@ impl Timeline {
     }
 
     /// Collect size specs and constraints for a container's children from tracks.
-    fn collect_child_layout_specs(
+    pub(crate) fn collect_child_layout_specs(
         &self,
+        container_label: &str,
         children: &[ContainerLayoutChild],
         time_ms: u64,
     ) -> (Vec<Option<ChildSizeSpec>>, Vec<SizeConstraints>, [f32; 2]) {
         let mut size_specs: Vec<Option<ChildSizeSpec>> = Vec::with_capacity(children.len());
         let mut constraints: Vec<SizeConstraints> = Vec::with_capacity(children.len());
 
-        // Compute parent content size first (from container's own layout_size)
-        // If the container has no layout_size, use a default
-        let parent_content_size = [0.0f32, 0.0f32];
+        let parent_content_size = self
+            .tracks
+            .get(container_label)
+            .and_then(|t| {
+                t.layout_size_get(time_ms)
+                    .or_else(|| t.layout_size_last())
+                    .or_else(|| t.geometry.size.get_or_default(time_ms))
+                    .or_else(|| {
+                        t.geometry.size.last_time().map(|_| t.geometry.size.last([0.0, 0.0]))
+                    })
+            })
+            .map(|s| [s[0] * 2.0, s[1] * 2.0])
+            .unwrap_or([0.0, 0.0]);
 
         for cl in children {
             if let Some(track) = self.tracks.get(&cl.label) {
@@ -1024,20 +1058,10 @@ impl Timeline {
             .collect();
 
         // Collect size specs and constraints for phase 7
-        let (size_specs, constraints, _parent_content_size) =
-            self.collect_child_layout_specs(&children, t_ms);
+        let (size_specs, constraints, parent_content_size) =
+            self.collect_child_layout_specs(container_label, &children, t_ms);
 
-        // Use the parent container's own layout_size as the content box for percentage resolution.
-        // For the container itself, we may need to do a two-pass: first compute the container size
-        // without percentage children, then resolve percentages against it.
-        let parent_content_size = self
-            .tracks
-            .get(container_label)
-            .and_then(|t| t.layout_size_last())
-            .map(|s| [s[0] * 2.0, s[1] * 2.0])
-            .unwrap_or([0.0, 0.0]);
-
-        let positions = LayoutEngine::compute_positions_with_specs(
+        let layout_results = LayoutEngine::compute_layout_with_specs(
             &metadata,
             &child_extents,
             &child_baselines,
@@ -1046,15 +1070,37 @@ impl Timeline {
             parent_content_size,
         );
 
-        // Write positions to tracks, only for LayoutManaged children
+        // Write positions and resolved sizes to tracks, only for LayoutManaged children
         for (i, child) in children.iter().enumerate() {
             if child.placement_mode == PlacementMode::LayoutManaged {
                 if let Some(track) = self.tracks.get_mut(&child.label) {
                     track.geometry.position.ensure([0.0, 0.0]).add_keyframe(
                         t_ms,
-                        positions[i],
+                        layout_results[i].position,
                         Easing::Linear,
                     );
+
+                    let resolved_half_size = [
+                        layout_results[i].size[0] / 2.0,
+                        layout_results[i].size[1] / 2.0,
+                    ];
+                    let has_dynamic_sizing =
+                        size_specs.get(i).copied().flatten().is_some_and(|spec| !spec.is_fixed());
+                    if has_dynamic_sizing
+                        && resolved_half_size[0] > 0.0
+                        && resolved_half_size[1] > 0.0
+                    {
+                        track.ensure_layout_size(resolved_half_size).add_keyframe(
+                            t_ms,
+                            resolved_half_size,
+                            Easing::Linear,
+                        );
+                        track.geometry.size.ensure(resolved_half_size).add_keyframe(
+                            t_ms,
+                            resolved_half_size,
+                            Easing::Linear,
+                        );
+                    }
                 }
             }
         }

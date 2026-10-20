@@ -211,10 +211,14 @@ impl AudioEngine {
             return;
         }
 
-        // Keep already-playing segments in sync with playback speed changes.
+        // Keep already-playing segments in sync with playback speed and volume automation changes.
         let speed = playback_speed.max(0.01);
         for active in &self.active {
             active.sink.set_speed(speed);
+            if let Some(seg) = segments.get(active.segment_index) {
+                let vol = seg.volume_at(time_s);
+                active.sink.set_volume(vol.clamp(0.0, 1.0));
+            }
         }
 
         // During smooth playback, start any new segments that should be active

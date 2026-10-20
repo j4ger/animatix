@@ -63,8 +63,16 @@ impl Timeline {
             })
             .collect();
 
-        let container_size =
-            crate::timeline::layout::compute_container_size(&child_extents, &metadata);
+        let (size_specs, constraints, parent_content_size) =
+            self.collect_child_layout_specs(label, &self.layout_children_for(label), time_ms);
+
+        let container_size = crate::timeline::layout::compute_container_size_with_specs(
+            &child_extents,
+            &metadata,
+            &size_specs,
+            &constraints,
+            parent_content_size,
+        );
 
         tracing::debug!(
             "Width propagation: {} '{}' container_size={:?}, {} children",
@@ -1021,6 +1029,7 @@ impl Timeline {
         timeline.refresh_blend_used();
         timeline.refresh_camera_used();
         timeline.resolve_root_ids();
+        timeline.resolve_audio_volume_envelopes();
 
         BuildReport::new(timeline, diagnostics)
     }

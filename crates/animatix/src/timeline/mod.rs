@@ -452,6 +452,39 @@ pub struct AudioSegment {
     pub duration_s: Option<f64>,
     /// Playback volume multiplier (1.0 = full volume).
     pub volume: f32,
+    /// Optional animated volume envelope (sample_time_s, gain 0.0..1.0).
+    pub volume_envelope: Option<Vec<(f64, f32)>>,
+}
+
+impl AudioSegment {
+    /// Evaluate the volume gain at a given timeline time in seconds.
+    pub fn volume_at(&self, time_s: f64) -> f32 {
+        if let Some(env) = &self.volume_envelope {
+            if env.is_empty() {
+                return self.volume;
+            }
+            if time_s <= env[0].0 {
+                return env[0].1;
+            }
+            if time_s >= env.last().unwrap().0 {
+                return env.last().unwrap().1;
+            }
+            for i in 0..env.len() - 1 {
+                let (t0, v0) = env[i];
+                let (t1, v1) = env[i + 1];
+                if time_s >= t0 && time_s <= t1 {
+                    if (t1 - t0).abs() < 1e-6 {
+                        return v1;
+                    }
+                    let factor = ((time_s - t0) / (t1 - t0)) as f32;
+                    return v0 + (v1 - v0) * factor;
+                }
+            }
+            self.volume
+        } else {
+            self.volume
+        }
+    }
 }
 
 /// A piecewise-constant variable track defined by `let` declarations in keyframes.
@@ -1342,6 +1375,65 @@ impl Timeline {
             }
         }
         self.root_ids = root_ids;
+
+        for i in 0..self.tracks.len() {
+            let child_labels = self.tracks.dense[i].children.clone();
+            let parent_label = self.tracks.dense[i].parent.clone();
+            let mut children_ids = Vec::with_capacity(child_labels.len());
+            for child_label in &child_labels {
+                if let Some(child_id) = self.tracks.get_id(child_label) {
+                    children_ids.push(child_id);
+                }
+            }
+            self.tracks.dense[i].children_ids = children_ids;
+            self.tracks.dense[i].parent_id =
+                parent_label.as_deref().and_then(|p| self.tracks.get_id(p));
+        }
+    }
+
+    /// Resolve animated volume envelopes for all audio segments from their tracks.
+    pub(crate) fn resolve_audio_volume_envelopes(&mut self) {
+        for seg in &mut self.audio_segments {
+            // Find track with matching normalized source or Audio actor type
+            let matching_track = self
+                .tracks
+                .dense
+                .iter()
+                .find(|t| t.actor_type == "Audio" && t.geometry.volume.is_some());
+            if let Some(track) = matching_track {
+                if let Some(vol_track) = &track.geometry.volume {
+                    let mut envelope = Vec::new();
+                    let t_start_ms = (seg.start_time_s * 1000.0).round() as u64;
+                    let dur_ms =
+                        seg.duration_s.map(|d| (d * 1000.0).round() as u64).unwrap_or(30_000);
+                    let t_end_ms = t_start_ms + dur_ms;
+
+                    // Sample keyframes that fall in or near the segment span
+                    for (time_ms, _) in vol_track.keyframes() {
+                        let t_s = *time_ms as f64 / 1000.0;
+                        let val = vol_track.evaluate(*time_ms);
+                        envelope.push((t_s, val));
+                    }
+                    if envelope.is_empty() {
+                        let v = vol_track.evaluate(t_start_ms);
+                        envelope.push((seg.start_time_s, v));
+                    }
+                    if !envelope.iter().any(|(t, _)| (*t - seg.start_time_s).abs() < 1e-4) {
+                        let v = vol_track.evaluate(t_start_ms);
+                        envelope.insert(0, (seg.start_time_s, v));
+                    }
+                    let seg_end_s = t_end_ms as f64 / 1000.0;
+                    if !envelope.iter().any(|(t, _)| (*t - seg_end_s).abs() < 1e-4) {
+                        let v = vol_track.evaluate(t_end_ms);
+                        envelope.push((seg_end_s, v));
+                    }
+                    envelope.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+                    envelope.dedup_by(|a, b| (a.0 - b.0).abs() < 1e-4);
+                    seg.volume = vol_track.evaluate(t_start_ms);
+                    seg.volume_envelope = Some(envelope);
+                }
+            }
+        }
     }
 
     /// Returns the hit regions from the last evaluate call.

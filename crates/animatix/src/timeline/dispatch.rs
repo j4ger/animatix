@@ -90,9 +90,15 @@ pub struct AnimationTrack {
     pub first_seen_ms: u64,
     /// Labels of child actors in the scene hierarchy.
     pub children: Vec<String>,
+    /// Entity IDs of child actors in the scene hierarchy.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub children_ids: Vec<EntityId>,
     /// Label of the parent actor in the scene hierarchy, if any.
     /// `None` for root-level actors.
     pub parent: Option<String>,
+    /// Entity ID of the parent actor in the scene hierarchy, if any.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub parent_id: Option<EntityId>,
     /// Whether the actor is visible in the preview and export.
     pub visible: bool,
     /// Whether the actor is locked (preventing selection and drag in the GUI).
@@ -201,7 +207,9 @@ impl AnimationTrack {
             property_plan: super::plan::PropertyPlan::default(),
             first_seen_ms: u64::MAX,
             children: Vec::new(),
+            children_ids: Vec::new(),
             parent: None,
+            parent_id: None,
             visible: true,
             locked: false,
             camera_follow: true,
@@ -716,37 +724,11 @@ pub fn apply_split_text_animation(
 
     // Calculate baseline clip rectangles if split_mask is true
     let clip_path = if split_mask {
-        let mut line_bounds: Vec<(f64, f64, f64, f64)> = Vec::new();
-        for g in paths.iter() {
-            let idx = g.line_idx as usize;
-            if idx >= line_bounds.len() {
-                line_bounds.resize(
-                    idx + 1,
-                    (f64::INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY),
-                );
-            }
-            let b = g.bounds;
-            let e = &mut line_bounds[idx];
-            e.0 = e.0.min(b.x0);
-            e.1 = e.1.min(b.y0);
-            e.2 = e.2.max(b.x1);
-            e.3 = e.3.max(b.y1);
+        if let Some(static_clip) = &track.text.static_split_clip {
+            Some(static_clip.clone())
+        } else {
+            crate::renderer::text::compute_split_mask_clip(paths)
         }
-        let mut bez = kurbo::BezPath::new();
-        for (x0, y0, x1, y1) in line_bounds {
-            if x0.is_finite() && y0.is_finite() && x1.is_finite() && y1.is_finite() {
-                let rx0 = x0 - 10.0;
-                let ry0 = y0 - 1000.0;
-                let rx1 = x1 + 10.0;
-                let ry1 = y1 + 4.0;
-                bez.move_to((rx0, ry0));
-                bez.line_to((rx1, ry0));
-                bez.line_to((rx1, ry1));
-                bez.line_to((rx0, ry1));
-                bez.close_path();
-            }
-        }
-        Some(bez)
     } else {
         None
     };
@@ -1384,9 +1366,10 @@ impl AnimationTrack {
                     .get(name)
                     .map(|track| TrackFieldRef::Tagged(name, track));
             },
+            AudioVolume => TrackFieldRef::F32(&self.geometry.volume),
             // Remaining variants without track storage
-            SvgPaths | AudioSource | AudioVolume | PositionBindingGroup | VectorShapeGroup
-            | PlotDomainGroup | ContainerLayoutGroup | NoStorage => return None,
+            SvgPaths | AudioSource | PositionBindingGroup | VectorShapeGroup | PlotDomainGroup
+            | ContainerLayoutGroup | NoStorage => return None,
         })
     }
 
@@ -1463,6 +1446,7 @@ impl AnimationTrack {
             CalloutToOffset => TrackFieldMut::Vec2(&mut self.geometry.callout_to_offset),
             VectorPaths => TrackFieldMut::VectorPaths(&mut self.shape.vector_paths),
             TextPaths => TrackFieldMut::TextPaths(&mut self.text.text_paths),
+            AudioVolume => TrackFieldMut::F32(&mut self.geometry.volume),
             // Image data is written through the media/image paths (which hold
             // the asset cache), never through generic property dispatch.
             ImageData => return None,
