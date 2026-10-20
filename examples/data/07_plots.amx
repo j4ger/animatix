@@ -10,7 +10,7 @@ title: Text, text: "One Question, Three Views", font_size: 36, color: text.prima
 sub: Text, text: "f(x, y) = sin(x)·cos(y) — curve · gradient field · heatmap", font_size: 18, color: text.secondary, anchor: scene.top, offset: (0, 95)
 
 // View 1 — a cartesian cross-section of the same field (f(x, 0) = sin(x))
-main: Graph, x_domain: (-6, 6), y_domain: (-3, 3), size: (520, 400), at: (640, 360) {
+main: Graph, x_domain: (-6, 6), y_domain: (-3, 3), size: (520, 400), at: (640, 360), grid: "true", ticks: "true", tick_labels: "both" {
   sine: PlotCurve, kind: "cartesian", func: (x) => sin(x), color: accent.primary, stroke_width: 3
 }
 

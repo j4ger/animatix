@@ -1256,6 +1256,43 @@ fn graph_map_inverse_round_trip() {
     }
 }
 
+/// Round-trip with non-zero Graph position `at: (400, 300)`.
+#[test]
+fn graph_map_inverse_round_trip_with_non_zero_at() {
+    let source =
+        "g: Graph, at: (400, 300), size: (800, 600), x_domain: (-10, 10), y_domain: (-5, 5)";
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
+    let ast = ast.expect("AST");
+    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+
+    let env = report.output.env();
+    let map_fn = match env.get("g.map") {
+        Some(Value::NativeFn(f)) => f,
+        other => panic!("g.map not a NativeFn: {other:?}"),
+    };
+    let map_inv_fn = match env.get("g.map_inverse") {
+        Some(Value::NativeFn(f)) => f,
+        other => panic!("g.map_inverse not a NativeFn: {other:?}"),
+    };
+
+    for (mx, my) in [(-5.0_f64, 3.0_f64), (0.0, 0.0), (7.5, -4.0)] {
+        let screen = map_fn(&[Value::Num(mx), Value::Num(my)], env).expect("map call");
+        let (sx, sy) = match screen {
+            Value::Vec2([sx, sy]) => (sx, sy),
+            other => panic!("map returned {other:?}"),
+        };
+        let math = map_inv_fn(&[Value::Num(sx), Value::Num(sy)], env).expect("map_inverse call");
+        match math {
+            Value::Vec2([rx, ry]) => {
+                assert!((rx - mx).abs() < 1e-6, "x round-trip with offset: {mx} -> {sx} -> {rx}");
+                assert!((ry - my).abs() < 1e-6, "y round-trip with offset: {my} -> {sy} -> {ry}");
+            },
+            other => panic!("map_inverse returned {other:?}"),
+        }
+    }
+}
+
 /// `map()` must scale at the same px/unit the curve is drawn with: a point at
 /// the +x domain edge lands on the right half-width, not a quarter of it.
 #[test]

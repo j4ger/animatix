@@ -397,10 +397,39 @@ fn normalize_axis(v: f64, min: f64, max: f64, scale: super::utils::ScaleType) ->
     }
 }
 
+/// Helper to compute "nice numbers" for linear axis tick intervals (Wilkinson/Heckbert style).
+fn nice_number(val: f64, round: bool) -> f64 {
+    if val <= 0.0 || !val.is_finite() {
+        return 1.0;
+    }
+    let exponent = val.log10().floor();
+    let fraction = val / 10.0_f64.powf(exponent);
+    let nice_fraction = if round {
+        if fraction < 1.5 {
+            1.0
+        } else if fraction < 3.0 {
+            2.0
+        } else if fraction < 7.0 {
+            5.0
+        } else {
+            10.0
+        }
+    } else if fraction <= 1.0 {
+        1.0
+    } else if fraction <= 2.0 {
+        2.0
+    } else if fraction <= 5.0 {
+        5.0
+    } else {
+        10.0
+    };
+    nice_fraction * 10.0_f64.powf(exponent)
+}
+
 /// Generate tick positions for an axis.
 ///
 /// For `Log` scale, returns powers-of-10 and their multiples (1–9).
-/// For linear, returns ~10 evenly spaced values.
+/// For linear, returns clean "nice number" ticks based on domain span.
 fn generate_axis_ticks(min: f64, max: f64, scale: super::utils::ScaleType) -> Vec<f64> {
     if scale.is_log() {
         if min <= 0.0 || max <= 0.0 {
@@ -420,12 +449,27 @@ fn generate_axis_ticks(min: f64, max: f64, scale: super::utils::ScaleType) -> Ve
         }
         ticks
     } else {
-        let step = ((max - min).abs() / 10.0).max(0.5);
+        let span = (max - min).abs();
+        if span <= f64::EPSILON {
+            return vec![min];
+        }
+        let target_ticks = 8.0;
+        let raw_step = span / target_ticks;
+        let step = nice_number(raw_step, true);
+        if step <= 0.0 || !step.is_finite() {
+            return vec![];
+        }
+
         let mut ticks = vec![];
-        let mut v = (min / step).ceil() * step;
-        while v <= max {
-            ticks.push(v);
-            v += step;
+        let start_idx = (min / step).ceil() as i64;
+        let end_idx = (max / step).floor() as i64;
+        for i in start_idx..=end_idx {
+            let v = i as f64 * step;
+            // Clean up precision artifacts near 0
+            let v = if v.abs() < step * 1e-6 { 0.0 } else { v };
+            if v >= min - 1e-9 && v <= max + 1e-9 {
+                ticks.push(v);
+            }
         }
         ticks
     }
@@ -473,24 +517,50 @@ pub(crate) fn build_graph_axis_paths(
     let math_y_to_screen =
         |my: f64| norm_to_screen_y(normalize_axis(my, y_domain[0], y_domain[1], y_scale));
 
-    // X-axis: drawn only when y=0 is inside the y_domain (only valid for linear scale)
+    // X-axis: drawn at y=0 when inside y_domain (linear scale), or clamped to bottom/top
     let x_axis_y = if !y_scale.is_log() && y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
         let y = math_y_to_screen(0.0);
         axis_path.move_to((left_edge, y));
         axis_path.line_to((right_edge, y));
+        // X-axis arrow at positive end (right_edge)
+        let arrow_sz = 6.0;
+        axis_path.move_to((right_edge - arrow_sz, y - arrow_sz * 0.6));
+        axis_path.line_to((right_edge, y));
+        axis_path.line_to((right_edge - arrow_sz, y + arrow_sz * 0.6));
         Some(y)
     } else {
-        None
+        // Fallback to bottom edge (min y in standard plot coords)
+        let y = bot_edge;
+        axis_path.move_to((left_edge, y));
+        axis_path.line_to((right_edge, y));
+        let arrow_sz = 6.0;
+        axis_path.move_to((right_edge - arrow_sz, y - arrow_sz * 0.6));
+        axis_path.line_to((right_edge, y));
+        axis_path.line_to((right_edge - arrow_sz, y + arrow_sz * 0.6));
+        Some(y)
     };
 
-    // Y-axis: drawn only when x=0 is inside the x_domain (only valid for linear scale)
+    // Y-axis: drawn at x=0 when inside x_domain (linear scale), or clamped to left edge
     let y_axis_x = if !x_scale.is_log() && x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
         let x = math_x_to_screen(0.0);
-        axis_path.move_to((x, top_edge));
-        axis_path.line_to((x, bot_edge));
+        axis_path.move_to((x, bot_edge));
+        axis_path.line_to((x, top_edge));
+        // Y-axis arrow at positive end (top_edge in screen coords, which is math top)
+        let arrow_sz = 6.0;
+        axis_path.move_to((x - arrow_sz * 0.6, top_edge + arrow_sz));
+        axis_path.line_to((x, top_edge));
+        axis_path.line_to((x + arrow_sz * 0.6, top_edge + arrow_sz));
         Some(x)
     } else {
-        None
+        // Fallback to left edge (min x in standard plot coords)
+        let x = left_edge;
+        axis_path.move_to((x, bot_edge));
+        axis_path.line_to((x, top_edge));
+        let arrow_sz = 6.0;
+        axis_path.move_to((x - arrow_sz * 0.6, top_edge + arrow_sz));
+        axis_path.line_to((x, top_edge));
+        axis_path.line_to((x + arrow_sz * 0.6, top_edge + arrow_sz));
+        Some(x)
     };
 
     if !axis_path.elements().is_empty() {
@@ -523,20 +593,16 @@ pub(crate) fn build_graph_axis_paths(
 
         // Vertical grid lines (constant x)
         for x in &x_grid_ticks {
-            if *x != 0.0 {
-                let screen_x = math_x_to_screen(*x);
-                grid_path.move_to((screen_x, top_edge));
-                grid_path.line_to((screen_x, bot_edge));
-            }
+            let screen_x = math_x_to_screen(*x);
+            grid_path.move_to((screen_x, top_edge));
+            grid_path.line_to((screen_x, bot_edge));
         }
 
         // Horizontal grid lines (constant y)
         for y in &y_grid_ticks {
-            if *y != 0.0 {
-                let screen_y = math_y_to_screen(*y);
-                grid_path.move_to((left_edge, screen_y));
-                grid_path.line_to((right_edge, screen_y));
-            }
+            let screen_y = math_y_to_screen(*y);
+            grid_path.move_to((left_edge, screen_y));
+            grid_path.line_to((right_edge, screen_y));
         }
 
         if !grid_path.elements().is_empty() {
@@ -571,21 +637,17 @@ pub(crate) fn build_graph_axis_paths(
 
         if let Some(y) = x_axis_y {
             for x in &x_tick_vals {
-                if *x != 0.0 {
-                    let screen_x = math_x_to_screen(*x);
-                    tick_path.move_to((screen_x, y - tick_len));
-                    tick_path.line_to((screen_x, y + tick_len));
-                }
+                let screen_x = math_x_to_screen(*x);
+                tick_path.move_to((screen_x, y - tick_len));
+                tick_path.line_to((screen_x, y + tick_len));
             }
         }
 
         if let Some(x) = y_axis_x {
             for y in &y_tick_vals {
-                if *y != 0.0 {
-                    let screen_y = math_y_to_screen(*y);
-                    tick_path.move_to((x - tick_len, screen_y));
-                    tick_path.line_to((x + tick_len, screen_y));
-                }
+                let screen_y = math_y_to_screen(*y);
+                tick_path.move_to((x - tick_len, screen_y));
+                tick_path.line_to((x + tick_len, screen_y));
             }
         }
 
@@ -682,6 +744,17 @@ impl Timeline {
         let mut stroke_width = existing_track.style.stroke_width.last(default_stroke);
         let mut stroke_color = existing_track.style.stroke_color.last(DEFAULT_WHITE);
         let mut stroke_progress = existing_track.style.stroke_progress.last(1.0);
+
+        // If stroke_color was not explicitly set on track, check colorscheme's default stroke
+        if stroke_color == DEFAULT_WHITE {
+            if let Some(primitive_info) = self.primitive_registry.find(ty) {
+                if let Some(scheme_stroke) =
+                    self.get_default_color(primitive_info, &existing_track.caps, "stroke")
+                {
+                    stroke_color = scheme_stroke;
+                }
+            }
+        }
 
         for prop in props {
             let prop_subject = format!("{}.{}", label, prop.name);
@@ -1209,39 +1282,41 @@ impl Timeline {
                 shift_y + (0.5 - norm) * plot_fh
             };
 
-            // X-axis at y=0 screen position
+            // X-axis screen position (at y=0 or bottom edge)
             let x_ticks = generate_axis_ticks(x_domain[0], x_domain[1], x_scale);
-            if y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
-                let axis_y = tick_math_y_to_screen(0.0);
-                if label_x {
-                    for &x in &x_ticks {
-                        if x != 0.0 {
-                            let screen_x = tick_math_x_to_screen(x);
-                            tick_label_data.x_labels.push((
-                                screen_x,
-                                axis_y + tick_label_offset,
-                                x,
-                            ));
-                        }
+            let axis_y = if !y_scale.is_log() && y_domain[0] <= 0.0 && y_domain[1] >= 0.0 {
+                tick_math_y_to_screen(0.0)
+            } else {
+                let hh = size[1] as f64;
+                hh - graph_padding[3]
+            };
+            if label_x {
+                for &x in &x_ticks {
+                    // Suppress x=0 label to prevent overlapping with y-axis or origin
+                    if x.abs() < 1e-6 {
+                        continue;
                     }
+                    let screen_x = tick_math_x_to_screen(x);
+                    tick_label_data.x_labels.push((screen_x, axis_y + tick_label_offset, x));
                 }
             }
 
-            // Y-axis at x=0 screen position
+            // Y-axis screen position (at x=0 or left edge)
             let y_ticks = generate_axis_ticks(y_domain[0], y_domain[1], y_scale);
-            if x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
-                let axis_x = tick_math_x_to_screen(0.0);
-                if label_y {
-                    for &y in &y_ticks {
-                        if y != 0.0 {
-                            let screen_y = tick_math_y_to_screen(y);
-                            tick_label_data.y_labels.push((
-                                axis_x - tick_label_offset,
-                                screen_y,
-                                y,
-                            ));
-                        }
+            let axis_x = if !x_scale.is_log() && x_domain[0] <= 0.0 && x_domain[1] >= 0.0 {
+                tick_math_x_to_screen(0.0)
+            } else {
+                let hw = size[0] as f64;
+                -hw + graph_padding[0]
+            };
+            if label_y {
+                for &y in &y_ticks {
+                    // Suppress y=0 label to prevent collision with x-axis or origin
+                    if y.abs() < 1e-6 {
+                        continue;
                     }
+                    let screen_y = tick_math_y_to_screen(y);
+                    tick_label_data.y_labels.push((axis_x - tick_label_offset, screen_y, y));
                 }
             }
         } else if is_vector_field {
@@ -1875,16 +1950,42 @@ pub(crate) fn build_vector_field_paths(
 
             let (sx, sy) = math_to_screen(math_x, math_y, x_domain, y_domain, full_size);
 
-            // Scale so the arrow fits within a cell (clamp denominator >= 1)
+            let mag = (dx * dx + dy * dy).sqrt();
+
+            // Scale so the vector fits within a cell
             let denom = dx.abs().max(dy.abs()).max(1.0);
             let scale = base_scale / denom;
 
-            // dy is inverted because screen Y points down
-            let ex = sx + dx * scale;
-            let ey = sy - dy * scale;
+            // Screen direction: dy is inverted because screen Y points down
+            let vx = dx * scale;
+            let vy = -dy * scale;
+            let len = (vx * vx + vy * vy).sqrt();
 
+            // Shaft
+            let end_x = sx + vx;
+            let end_y = sy + vy;
             path.move_to((sx, sy));
-            path.line_to((ex, ey));
+            path.line_to((end_x, end_y));
+
+            // Arrowhead tips (drawn when vector has noticeable magnitude)
+            if len > 2.0 && mag > 1e-4 {
+                let arrow_len = (len * 0.35).min(base_scale * 0.35).max(2.5);
+                let u_x = vx / len;
+                let u_y = vy / len;
+                let perp_x = -u_y;
+                let perp_y = u_x;
+
+                let arrow_w = arrow_len * 0.5;
+                let left_x = end_x - u_x * arrow_len + perp_x * arrow_w;
+                let left_y = end_y - u_y * arrow_len + perp_y * arrow_w;
+                let right_x = end_x - u_x * arrow_len - perp_x * arrow_w;
+                let right_y = end_y - u_y * arrow_len - perp_y * arrow_w;
+
+                path.move_to((end_x, end_y));
+                path.line_to((left_x, left_y));
+                path.move_to((end_x, end_y));
+                path.line_to((right_x, right_y));
+            }
         }
     }
 
@@ -2154,10 +2255,22 @@ pub(crate) fn parse_bar_chart_data_expr(
 
 /// Format a number for use as a bar label (strip trailing zeros).
 fn format_float(n: f64) -> String {
-    if n == n.floor() && n.is_finite() {
-        format!("{}", n as i64)
+    format_axis_tick_label(n)
+}
+
+/// Format an axis tick number cleanly (e.g. 1 instead of 1.0, 0.5 instead of 0.500000).
+pub(crate) fn format_axis_tick_label(n: f64) -> String {
+    if !n.is_finite() {
+        return format!("{}", n);
+    }
+    let rounded = (n * 1e6).round() / 1e6;
+    if rounded == rounded.floor() {
+        format!("{}", rounded as i64)
     } else {
-        format!("{:.2}", n)
+        // Strip trailing zeros after decimal point
+        let s = format!("{:.4}", rounded);
+        let trimmed = s.trim_end_matches('0').trim_end_matches('.');
+        trimmed.to_string()
     }
 }
 
@@ -2232,16 +2345,19 @@ impl BarChartLayout {
         // Graph child mode: use parent domain/self.size for math→screen mapping
         let (use_math_coords, plot_w, plot_h, math_x0, math_x1, _math_y0, math_y1, baseline_y) =
             if let Some(p_size) = self.parent_size {
-                // Inside a Graph — map math coordinates to pixels
+                // Inside a Graph — map math coordinates to pixels relative to actor center
                 let pw = p_size[0];
                 let ph = p_size[1];
-                let baseline = if self.y_domain[0] <= 0.0 && self.y_domain[1] >= 0.0 {
-                    // Baseline at y=0 in math coords → screen
-                    ph * (1.0 - (0.0 - self.y_domain[0]) / (self.y_domain[1] - self.y_domain[0]))
+                let baseline_norm = if self.y_domain[0] <= 0.0 && self.y_domain[1] >= 0.0 {
+                    // Baseline at y=0 in math coords
+                    (0.0 - self.y_domain[0]) / (self.y_domain[1] - self.y_domain[0])
                 } else {
                     // Baseline at min y
-                    ph * (1.0 - (0.0 - self.y_domain[0]) / (self.y_domain[1] - self.y_domain[0]))
+                    0.0
                 };
+                // In local coordinates centered at (0, 0), Y points down,
+                // so normalized y=0 is at +ph/2 (bottom) and y=1 is at -ph/2 (top).
+                let baseline = (0.5 - baseline_norm) * ph;
                 (
                     true,
                     pw,
@@ -2326,8 +2442,8 @@ impl BarChartLayout {
             if use_math_coords {
                 let ax0 = -(plot_w / 2.0);
                 let ax1 = plot_w / 2.0;
-                axis.move_to((ax0, baseline_y - plot_h / 2.0));
-                axis.line_to((ax1, baseline_y - plot_h / 2.0));
+                axis.move_to((ax0, baseline_y));
+                axis.line_to((ax1, baseline_y));
             } else {
                 axis.move_to((plot_w / 2.0, baseline_y));
                 axis.line_to((-plot_w / 2.0, baseline_y));
@@ -2763,7 +2879,7 @@ fn make_graph_map_inverse_fn(
                 })
                 .unwrap_or([500.0, 500.0]);
             let at = env
-                .get(&format!("{}_at", label))
+                .get(&format!("{}.at", label))
                 .and_then(|v| match v {
                     Value::Vec2(a) => Some(a),
                     _ => None,

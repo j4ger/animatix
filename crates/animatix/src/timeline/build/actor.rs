@@ -1854,8 +1854,9 @@ impl Timeline {
                 // X-axis tick labels (positioned below the axis line)
                 for (i, &(sx, sy, val)) in tick_data.x_labels.iter().enumerate() {
                     let child_label = format!("{}_tick_x_{}", label, i);
+                    let label_str = crate::timeline::build::plot::format_axis_tick_label(val);
                     let tick_props = vec![
-                        Property::new("text", Expr::Str(format!("{:.1}", val))),
+                        Property::new("text", Expr::Str(label_str)),
                         Property::new("at", Expr::Tuple(vec![Expr::Num(sx), Expr::Num(sy)])),
                         Property::new("font_size", Expr::Num(10.0)),
                         Property::new(
@@ -1878,8 +1879,9 @@ impl Timeline {
                 // Y-axis tick labels (positioned to the left of the axis line)
                 for (i, &(sx, sy, val)) in tick_data.y_labels.iter().enumerate() {
                     let child_label = format!("{}_tick_y_{}", label, i);
+                    let label_str = crate::timeline::build::plot::format_axis_tick_label(val);
                     let tick_props = vec![
-                        Property::new("text", Expr::Str(format!("{:.1}", val))),
+                        Property::new("text", Expr::Str(label_str)),
                         Property::new("at", Expr::Tuple(vec![Expr::Num(sx), Expr::Num(sy)])),
                         Property::new("font_size", Expr::Num(10.0)),
                         Property::new(

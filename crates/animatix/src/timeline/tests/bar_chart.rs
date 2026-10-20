@@ -409,6 +409,19 @@ fn hosted_bar_chart_spans_graph_axis() {
         width > 600.0,
         "hosted bars should span most of the 800px graph, got width {width}"
     );
+
+    // Baseline assertion: with y_domain: (0, 50), baseline is at bottom (y=180 in half-height 180)
+    // and bars should grow upward (negative local y).
+    // Note: the first path when show_axis is true is the axis line itself (at baseline_y=180).
+    for path in paths.iter() {
+        let bbox = path.path.bounding_box();
+        assert!(
+            (bbox.y1 - 180.0).abs() < 1e-3,
+            "hosted bar baseline should sit exactly on the bottom graph axis at y=180.0, got y1={}",
+            bbox.y1
+        );
+        assert!(bbox.y0 <= bbox.y1, "bar top y0 should be <= baseline y1");
+    }
 }
 
 /// A cross-file `@slot` fill must reach the expanded component even when
