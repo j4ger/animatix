@@ -51,12 +51,18 @@ use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
 use crate::renderer::error::RenderError;
-use crate::renderer::types::TextPath;
 use crate::timeline::callout_geometry::TargetResolver;
 use crate::timeline::{
     ActorCaps, ActorCategory, AnimationTrack, DEFAULT_WHITE, Environment, SceneDimensions,
-    Timeline, TrackAccessor, Value, VectorShapeState, VectorShapeStyle, VelloPath,
+    Timeline, Value, VectorShapeState, VectorShapeStyle, VelloPath,
 };
+
+pub mod commands;
+pub mod styling;
+
+pub use commands::{RenderCommand, image_display_transform, translate_text_paths};
+pub use styling::sample_shape_style;
+pub(crate) use styling::{ShapeCommandMemo, evaluate_shape_render, stamp_stroke_decoration};
 
 /// Map the runtime UI category onto the schema category used by tooling.
 pub(crate) fn actor_category_to_primitive_category(
@@ -344,31 +350,6 @@ pub fn evaluate_text_paths(
     }
 }
 
-/// Read a color from an `always`-block override map.
-///
-/// A color written as text (`stroke = "#ff2d55"`) is as valid as one written as
-/// a tuple: hex and named colors are accepted everywhere a color is, overrides
-/// included.
-fn override_color(
-    overrides: &std::collections::HashMap<String, Value>,
-    key: &str,
-) -> Option<[f32; 4]> {
-    match overrides.get(key) {
-        Some(Value::Color(c) | Value::Vec4(c)) => {
-            Some([c[0] as f32, c[1] as f32, c[2] as f32, c[3] as f32])
-        },
-        Some(Value::Str(text)) => crate::timeline::utils::color_from_text(text),
-        // A non-color under a color key is an authoring error, but this runs for
-        // every shape every frame, so `warn!` here would flood the log. The key-
-        // framed value stands, which is what the old silent drop did as well.
-        Some(other) => {
-            tracing::debug!("`{key}` override is not a color: {other:?}; keeping keyframed value");
-            None
-        },
-        None => None,
-    }
-}
-
 /// Read a `size` override written by an `always` block.
 ///
 /// The authored value is a full width/height, but every geometry track stores
@@ -416,449 +397,6 @@ pub(crate) fn resolve_half_size(
         half[1] = *r as f32;
     }
     half
-}
-
-/// Sample shape style (color, stroke_width, stroke_color, fill_opacity) from a track
-/// at the given time, applying property overrides when present.
-pub fn sample_shape_style(
-    track: &AnimationTrack,
-    time_ms: u64,
-    overrides: Option<&std::collections::HashMap<String, Value>>,
-) -> VectorShapeStyle {
-    let mut color = track.style.color.get(time_ms, DEFAULT_WHITE);
-    let mut stroke_width = track.style.stroke_width.get(time_ms, track.caps.default_stroke_width());
-    let mut stroke_color = track.style.stroke_color.get(time_ms, DEFAULT_WHITE);
-    let mut fill_opacity = track.style.fill_opacity.get(time_ms, 1.0);
-    let mut line_cap = track.style.line_cap.get(time_ms, 0);
-    let mut line_join = track.style.line_join.get(time_ms, 0);
-
-    if let Some(node_overrides) = overrides {
-        if let Some(c) = override_color(node_overrides, "color") {
-            color = c;
-        }
-        if let Some(c) = override_color(node_overrides, "stroke") {
-            stroke_color = c;
-        }
-        if let Some(Value::Num(width)) =
-            node_overrides.get("stroke_width").or_else(|| node_overrides.get("width"))
-        {
-            stroke_width = *width as f32;
-        }
-        if let Some(Value::Num(opacity)) = node_overrides.get("fill_opacity") {
-            fill_opacity = *opacity as f32;
-        }
-        if let Some(Value::Num(cap)) = node_overrides.get("line_cap") {
-            line_cap = *cap as u32;
-        }
-        if let Some(Value::Num(join)) = node_overrides.get("line_join") {
-            line_join = *join as u32;
-        }
-    }
-
-    VectorShapeStyle {
-        color,
-        stroke_width,
-        stroke_color,
-        fill_opacity,
-        line_cap,
-        line_join,
-    }
-}
-
-/// Memoized single-command output for the six vector-shape primitives.
-///
-/// The primitive `evaluate()` signature returns an owned `Vec<RenderCommand>`
-/// (extension ABI — not changeable), so the steady-state frame paid two heap
-/// allocations per static shape actor per frame (the command `Vec` plus the
-/// inner paths `Vec`) even though every input is identical frame-to-frame.
-/// The memo caches that `Vec` on the track, keyed by the *complete* render
-/// input: every shape primitive's `render()` is a pure function of
-/// `(style, state)` — anchor references and `always` overrides are resolved
-/// into the state by the `evaluate()` wrappers *before* this function is
-/// called (audited 2026-09-05; `PartialEq` on the state enums pins that
-/// contract for future variants). The borrow protocol ("single master, take
-/// and return") makes a memo hit fully allocation-free:
-///
-/// - **hit** (inputs equal): `take_shape_commands` hands the cached `Vec` to the caller, which
-///   encodes it into the frame's vello scene, clones it for the observable `SceneItem` when item
-///   collection is requested, and hands it back via `recycle_shape_commands` — the next frame's hit
-///   reuses the same buffers.
-/// - **miss** (inputs changed): the caller builds a fresh `Vec`, clones it once into the memo slot,
-///   and still returns the fresh one.
-///
-/// `epoch` is `vector_paths_epoch` — the same invalidation funnel as the
-/// PF-6 path memo (`invalidate_frame_cache`), which every track mutation
-/// goes through; a stale epoch fails the key match and forces a rebuild.
-/// Deliberately not part of the frame cache or `static_subtree_cache`: those
-/// replay cached encodings and never re-run `evaluate()`, so they cannot
-/// observe a stale memo.
-#[derive(Default, Clone, Debug)]
-pub(crate) struct ShapeCommandMemo {
-    epoch: u64,
-    style: Option<crate::timeline::VectorShapeStyle>,
-    state: Option<crate::timeline::VectorShapeState>,
-    commands: Option<Vec<RenderCommand>>,
-    /// Local-space bounds of `commands`, computed once at build time — the
-    /// frame path unions `cmd.local_bounds` per node per frame, and for a
-    /// memo hit the answer is identical every frame (PF-4's scoped item).
-    cached_bounds: Option<Option<kurbo::Rect>>,
-}
-
-impl ShapeCommandMemo {
-    /// True when the memo holds commands built from exactly
-    /// `(epoch, style, state)`.
-    fn matches(
-        &self,
-        epoch: u64,
-        style: &crate::timeline::VectorShapeStyle,
-        state: &crate::timeline::VectorShapeState,
-    ) -> bool {
-        self.commands.is_some()
-            && self.epoch == epoch
-            && self.style.as_ref() == Some(style)
-            && self.state.as_ref() == Some(state)
-    }
-
-    fn store(
-        &mut self,
-        epoch: u64,
-        style: crate::timeline::VectorShapeStyle,
-        state: &crate::timeline::VectorShapeState,
-        commands: Vec<RenderCommand>,
-        bounds: Option<kurbo::Rect>,
-    ) {
-        self.epoch = epoch;
-        self.style = Some(style);
-        self.state = Some(state.clone());
-        self.commands = Some(commands);
-        self.cached_bounds = Some(bounds);
-    }
-}
-
-impl crate::timeline::AnimationTrack {
-    /// Take the memoized command `Vec` out of the slot for reuse by the
-    /// caller (see [`ShapeCommandMemo`]). `None` when the inputs changed;
-    /// a stale epoch also drops the stale payload so it can never be served.
-    pub(crate) fn take_shape_commands(
-        &self,
-        epoch: u64,
-        style: &crate::timeline::VectorShapeStyle,
-        state: &crate::timeline::VectorShapeState,
-    ) -> Option<(Vec<RenderCommand>, Option<kurbo::Rect>)> {
-        let mut memo = self.shape_command_memo.borrow_mut();
-        if memo.matches(epoch, style, state) {
-            let commands = memo.commands.take();
-            return commands.map(|c| (c, memo.cached_bounds.unwrap_or(None)));
-        }
-        if memo.epoch != epoch {
-            // Stale epoch: drop the payload AND the key, so a recycle of a
-            // post-bump build can never later match against the pre-bump key.
-            memo.epoch = epoch;
-            memo.commands = None;
-            memo.style = None;
-            memo.state = None;
-            memo.cached_bounds = None;
-        }
-        None
-    }
-
-    /// Build the fresh command `Vec` for this shape actor and stash a clone
-    /// in the memo slot (see [`ShapeCommandMemo`]).
-    pub(crate) fn build_shape_commands(
-        &self,
-        epoch: u64,
-        style: crate::timeline::VectorShapeStyle,
-        state: &crate::timeline::VectorShapeState,
-        primitive: &dyn Primitive,
-        time_ms: u64,
-    ) -> Result<Vec<RenderCommand>, crate::renderer::error::RenderError> {
-        let paths = primitive
-            .render(&RenderCtx {
-                state,
-                style,
-                time_ms,
-                track: self,
-            })
-            .unwrap_or_default();
-        if paths.is_empty() {
-            // A shape producing no paths means "nothing to draw" — not an
-            // error. Log at debug so a silently invisible shape is observable
-            // in trace output without spamming per-frame warn logs.
-            tracing::debug!(
-                "shape primitive '{}' produced no paths at t={time_ms}ms",
-                primitive.type_name()
-            );
-        }
-        let commands = vec![RenderCommand::Paths { paths }];
-        // Stash only when the slot is empty: a full slot means the previous
-        // frame's payload was never taken (dynamic inputs) — keeping the
-        // older valid payload avoids a clone per frame on dynamic actors
-        // (the key match still guards staleness).
-        let mut memo = self.shape_command_memo.borrow_mut();
-        if memo.commands.is_none() {
-            // Shape commands never carry images, so `display_size` is
-            // irrelevant here (None).
-            let bounds = commands
-                .iter()
-                .filter_map(|cmd| cmd.local_bounds(None))
-                .reduce(|acc, rect| acc.union(rect));
-            memo.store(epoch, style, state, commands.clone(), bounds);
-            drop(memo);
-            self.offer_shape_command_bounds(bounds);
-        }
-        Ok(commands)
-    }
-
-    /// Return a consumed command `Vec` to the memo slot so the next frame's
-    /// hit can take it again (see [`ShapeCommandMemo`]). A `Vec` that did not
-    /// come from the slot (double recycle, foreign build) is dropped.
-    pub(crate) fn recycle_shape_commands(&self, commands: Vec<RenderCommand>) {
-        let mut memo = self.shape_command_memo.borrow_mut();
-        if memo.commands.is_none() {
-            memo.commands = Some(commands);
-        }
-    }
-
-    /// Clear the memo-bounds handoff slot (call before primitive evaluation —
-    /// a non-shape primitive must never observe the previous node's bounds).
-    pub(crate) fn begin_shape_commands(&self) {
-        self.pending_shape_command_bounds.set(None);
-    }
-
-    /// Memo hit: publish the build-time-computed local bounds.
-    pub(crate) fn offer_shape_command_bounds(&self, bounds: Option<kurbo::Rect>) {
-        self.pending_shape_command_bounds.set(Some(bounds));
-    }
-
-    /// Consume the memo-bounds handoff slot. `None` = no memo data this node;
-    /// compute the bounds from the commands as before.
-    pub(crate) fn take_shape_command_bounds(&self) -> Option<Option<kurbo::Rect>> {
-        self.pending_shape_command_bounds.take()
-    }
-}
-
-/// Helper: sample style, render shape, wrap in RenderCommand::Paths.
-///
-/// Static-shape actors hit [`ShapeCommandMemo`] and get the cached command
-/// `Vec` back allocation-free (take / encode / recycle); only a changed
-/// `(style, state)` rebuilds.
-pub(crate) fn evaluate_shape_render(
-    primitive: &dyn Primitive,
-    ctx: &EvaluateCtx,
-    state: &VectorShapeState,
-) -> Result<Option<Vec<RenderCommand>>, crate::renderer::error::RenderError> {
-    use crate::timeline::TrackAccessor;
-
-    let style = sample_shape_style(ctx.track, ctx.time_ms, ctx.overrides);
-    let epoch = ctx.track.shape.vector_paths_epoch.get();
-
-    // `draw-in` cuts stroke-only geometry while its `stroke_progress` track is
-    // between 0 and 1. The trim deliberately bypasses the shape-command memo
-    // in both directions: keying the memo on progress would leave the slot
-    // holding the last animated key forever (a permanent miss once the draw
-    // settles), and trimming a taken payload would poison the recycle
-    // protocol with cut geometry. Skipping the take keeps the untouched
-    // full-length payload valid in the slot — it serves again at
-    // progress == 1 — and build_shape_commands' only-store-when-empty guard
-    // keeps the mid-draw clones out of it.
-    let progress = f64::from(ctx.track.style.stroke_progress.get(ctx.time_ms, 1.0)).clamp(0.0, 1.0);
-    let has_dash = !ctx.track.style.dash_pattern.get(ctx.time_ms, Vec::new()).is_empty();
-    let has_gradient = shape_has_gradient(ctx);
-    let mut commands = if progress < 1.0 {
-        let built = ctx.track.build_shape_commands(epoch, style, state, primitive, ctx.time_ms)?;
-        let mut trimmed = trim_shape_stroke_progress(&built, progress);
-        stamp_shape_dash(&mut trimmed, ctx);
-        stamp_shape_gradient(&mut trimmed, ctx);
-        trimmed
-    } else if has_dash || has_gradient {
-        let mut built =
-            ctx.track.build_shape_commands(epoch, style, state, primitive, ctx.time_ms)?;
-        if has_dash {
-            stamp_shape_dash(&mut built, ctx);
-        }
-        if has_gradient {
-            stamp_shape_gradient(&mut built, ctx);
-        }
-        built
-    } else if let Some((commands, bounds)) = ctx.track.take_shape_commands(epoch, &style, state) {
-        ctx.track.offer_shape_command_bounds(bounds);
-        commands
-    } else {
-        ctx.track.build_shape_commands(epoch, style, state, primitive, ctx.time_ms)?
-    };
-
-    attach_shape_shadow(&mut commands, ctx, state);
-    Ok(Some(commands))
-}
-
-fn attach_shape_shadow(
-    commands: &mut Vec<RenderCommand>,
-    ctx: &EvaluateCtx,
-    state: &VectorShapeState,
-) {
-    use crate::timeline::ActorField;
-    use crate::timeline::property_engine::PropertyValue;
-    let shadow_val =
-        crate::timeline::read_property_value(ctx.track, ActorField::Tagged("shadow"), ctx.time_ms);
-    if let Some(PropertyValue::Vec4(params)) = shadow_val {
-        if params[2] > 0.0 || params[3] != 0.0 || params[0] != 0.0 || params[1] != 0.0 {
-            let color = match crate::timeline::read_property_value(
-                ctx.track,
-                ActorField::Tagged("shadow_color"),
-                ctx.time_ms,
-            ) {
-                Some(PropertyValue::Vec4(c)) | Some(PropertyValue::Color(c)) => c,
-                _ => [0.0, 0.0, 0.0, 0.25],
-            };
-            let (size, corner_radius) = match state {
-                VectorShapeState::Rect(r) => (r.size, r.corner_radius),
-                _ => ([50.0, 50.0], 0.0),
-            };
-            commands.insert(
-                0,
-                RenderCommand::Shadow {
-                    size,
-                    corner_radius,
-                    params,
-                    color,
-                },
-            );
-        }
-    }
-}
-
-/// Stamp the shared stroke decorations (dash, gradient) onto a plot's commands.
-///
-/// `PlotCurve` assembles its own `RenderCommand` instead of going through
-/// `evaluate_shape_render`, so it has to ask for the decorations the vector
-/// shapes get by hand: `dash_pattern:` and `stroke_gradient:` are declared
-/// `Applicable::AllStrokePaths`, which includes `PlotCurve`.
-pub(crate) fn stamp_stroke_decoration(commands: &mut [RenderCommand], ctx: &EvaluateCtx) {
-    stamp_shape_dash(commands, ctx);
-    stamp_shape_gradient(commands, ctx);
-}
-
-/// Stamp the sampled dash pattern/offset onto every path in `commands`.
-///
-/// Called only while a dash pattern is authored. During a `draw-in` the trim
-/// is applied first, so a dashed stroke draws in with its (fixed-length)
-/// dashes appearing as the path grows.
-fn stamp_shape_dash(commands: &mut [RenderCommand], ctx: &EvaluateCtx) {
-    use crate::timeline::TrackAccessor;
-
-    let pattern = ctx.track.style.dash_pattern.get(ctx.time_ms, Vec::new());
-    if pattern.is_empty() {
-        return;
-    }
-    let offset = ctx.track.style.dash_offset.get(ctx.time_ms, 0.0);
-    for cmd in commands.iter_mut() {
-        if let RenderCommand::Paths { paths } = cmd {
-            for vp in paths.iter_mut() {
-                vp.dash_pattern = Some(pattern.clone());
-                vp.dash_offset = offset;
-            }
-        }
-    }
-}
-
-/// True when either gradient track was authored.
-///
-/// A `is_some` probe, not a sample: unlike `dash_pattern`, the gradient tracks
-/// are only created by an authored `fill_gradient:` / `stroke_gradient:`, and
-/// sampling one per frame would clone its stop `Vec` on the way to deciding
-/// whether to clone it.
-fn shape_has_gradient(ctx: &EvaluateCtx) -> bool {
-    ctx.track.style.fill_gradient.is_some() || ctx.track.style.stroke_gradient.is_some()
-}
-
-/// Stamp the sampled `fill_gradient:` / `stroke_gradient:` paints onto every
-/// path in `commands`, applying the shared `gradient_extend:` /
-/// `gradient_space:` settings.
-fn stamp_shape_gradient(commands: &mut [RenderCommand], ctx: &EvaluateCtx) {
-    use crate::renderer::types::{GradientExtend, GradientSpace, GradientSpec};
-    use crate::timeline::TrackAccessor;
-
-    let fill = ctx.track.style.fill_gradient.get(ctx.time_ms, GradientSpec::default());
-    let stroke = ctx.track.style.stroke_gradient.get(ctx.time_ms, GradientSpec::default());
-    if fill.stops.is_empty() && stroke.stops.is_empty() {
-        return;
-    }
-
-    let extend = match ctx.track.style.gradient_extend.get(ctx.time_ms, "pad".to_string()).as_str()
-    {
-        "repeat" => GradientExtend::Repeat,
-        "reflect" => GradientExtend::Reflect,
-        "pad" | "" => GradientExtend::Pad,
-        other => {
-            tracing::warn!(
-                "gradient_extend: unknown extend '{other}' (expected pad, repeat or reflect); using pad"
-            );
-            GradientExtend::Pad
-        },
-    };
-    let space = match ctx.track.style.gradient_space.get(ctx.time_ms, "oklab".to_string()).as_str()
-    {
-        "srgb" => GradientSpace::Srgb,
-        "oklab" | "" => GradientSpace::Oklab,
-        other => {
-            tracing::warn!(
-                "gradient_space: unknown color space '{other}' (expected oklab or srgb); using oklab"
-            );
-            GradientSpace::Oklab
-        },
-    };
-
-    for cmd in commands.iter_mut() {
-        if let RenderCommand::Paths { paths } = cmd {
-            for vp in paths.iter_mut() {
-                if !fill.stops.is_empty() {
-                    let mut g = fill.clone();
-                    g.extend = extend;
-                    g.space = space;
-                    vp.fill_gradient = Some(Box::new(g));
-                }
-                if !stroke.stops.is_empty() {
-                    let mut g = stroke.clone();
-                    g.extend = extend;
-                    g.space = space;
-                    vp.stroke_gradient = Some(Box::new(g));
-                }
-            }
-        }
-    }
-}
-
-/// Apply `draw-in`'s stroke trim to built shape commands: stroke-only paths
-/// (the `fill: None` + `stroke: Some` combination `build_vello_path` produces
-/// for `fill_opacity: 0` shapes) are cut to the leading `progress` fraction of
-/// their segments, matching the plot primitive's consumption of the same
-/// track. Filled paths pass through untouched so a fill keeps the
-/// reveal-to-authored-opacity semantics (commit `8e244595`).
-fn trim_shape_stroke_progress(commands: &[RenderCommand], progress: f64) -> Vec<RenderCommand> {
-    use crate::timeline::path_progress::trim_path_by_progress;
-
-    commands
-        .iter()
-        .map(|cmd| match cmd {
-            RenderCommand::Paths { paths } => RenderCommand::Paths {
-                paths: paths
-                    .iter()
-                    .map(|vp| {
-                        let mut trimmed = vp.clone();
-                        if trimmed.fill.is_none() && trimmed.stroke.is_some() {
-                            trimmed.path =
-                                std::sync::Arc::new(trim_path_by_progress(&vp.path, progress));
-                            if progress <= 0.0 {
-                                trimmed.stroke = None;
-                            }
-                        }
-                        trimmed
-                    })
-                    .collect(),
-            },
-            other => other.clone(),
-        })
-        .collect()
 }
 
 // ── Re-export all primitive modules ──────────────────────────────────────
@@ -1117,6 +655,8 @@ impl RenderOutputs<'_, '_> {
 pub struct RenderChildrenCtx<'a, 'b, 'c> {
     /// The timeline being rendered.
     pub timeline: &'a Timeline,
+    /// Entity ID of the container whose children are being rendered.
+    pub host_id: crate::timeline::EntityId,
     /// Label of the container whose children are being rendered.
     pub node_label: &'a str,
     /// Current time in milliseconds.
@@ -1151,7 +691,10 @@ pub struct RenderChildrenCtx<'a, 'b, 'c> {
 impl<'a, 'b, 'c> RenderChildrenCtx<'a, 'b, 'c> {
     /// The container track these children belong to.
     pub fn track(&self) -> Option<&AnimationTrack> {
-        self.timeline.tracks.get(self.node_label)
+        self.timeline
+            .tracks
+            .get_by_id(self.host_id)
+            .or_else(|| self.timeline.tracks.get(self.node_label))
     }
 
     /// This context's read-only frame state, for the render recursion.
@@ -1273,6 +816,30 @@ impl<'a, 'b, 'c> RenderChildrenCtx<'a, 'b, 'c> {
         }
     }
 
+    /// Render children directly by `EntityId` into this context's scene,
+    /// avoiding string lookups on the hot render path.
+    pub fn render_children_ids(&mut self, children_ids: &[crate::timeline::EntityId]) {
+        for &child_id in children_ids {
+            self.render_child_by_id(child_id);
+        }
+    }
+
+    /// Alias for `render_children_ids`.
+    pub fn render_children_by_id(&mut self, children_ids: &[crate::timeline::EntityId]) {
+        self.render_children_ids(children_ids);
+    }
+
+    /// Render children directly by `EntityId` into a caller-provided scene.
+    pub fn render_children_into_by_id(
+        &mut self,
+        scene: &mut vello::Scene,
+        children_ids: &[crate::timeline::EntityId],
+    ) {
+        for &child_id in children_ids {
+            self.render_child_into_by_id(scene, child_id);
+        }
+    }
+
     /// Push a runtime render diagnostic (surfaced through the frame's
     /// diagnostics, e.g. for a filter fallback).
     pub fn push_diagnostic(&self, diagnostic: Diagnostic) {
@@ -1289,478 +856,6 @@ pub struct TextCompileCtx<'a> {
     pub text_compiler: &'a mut crate::renderer::text::TextCompiler,
     /// Font context for text rendering.
     pub font_context: &'a crate::renderer::text::FontContext,
-}
-
-/// A single render command produced by `Primitive::evaluate()`.
-///
-/// These commands are executed by `scene_eval.rs` into a Vello scene.
-/// Separating command generation from execution lets primitives stay
-/// independent of the scene evaluation loop.
-///
-/// # Extension boundary
-///
-/// The set of commands a plugin can emit is currently fixed to the four
-/// variants below (the plugin ABI exposes one `append_*` callback per
-/// variant). Adding a new variant requires updating the ABI
-/// (`animatix-plugin-api`), [`RenderCommand::execute`], and
-/// [`RenderCommand::local_bounds`] together. The enum is `#[non_exhaustive]`
-/// so external code must already handle unknown variants.
-#[derive(Clone, Debug)]
-#[non_exhaustive]
-pub enum RenderCommand {
-    /// Draw a set of vector paths, each with its own fill and stroke.
-    Paths {
-        /// The vector paths to draw.
-        paths: Vec<VelloPath>,
-    },
-    /// Draw text glyphs.
-    Text {
-        /// Text glyph paths with per-glyph color and opacity.
-        paths: std::sync::Arc<[TextPath]>,
-        /// Optional paint that ramps across the text fill.
-        fill_gradient: Option<Box<crate::renderer::types::GradientSpec>>,
-        /// Optional clip bounds (e.g. for split-text baseline reveal).
-        clip_path: Option<kurbo::BezPath>,
-        /// Optional uniform tint color override (for Text and Counter primitives).
-        tint_color: Option<[u8; 4]>,
-        /// Optional direct hardware glyph layout for Vello GPU draw_glyphs streaming.
-        hardware_layout: Option<std::sync::Arc<animatix_text::HardwareTextLayout>>,
-    },
-    /// Draw an image.
-    Image {
-        /// The image data.
-        image: crate::timeline::image::SceneImage,
-        /// Natural (display) width and height in scene units.
-        natural_size: [f32; 2],
-        /// Local-space placement offset.
-        offset: [f64; 2],
-    },
-    /// A highlight layer drawn with a specific blend mode (for equation fragment highlights).
-    HighlightLayer {
-        /// The rounded rectangle geometry.
-        rect: kurbo::Rect,
-        /// Fill color.
-        color: vello::peniko::Color,
-        /// Blend mode (e.g. Difference, Multiply).
-        blend: vello::peniko::Mix,
-        /// Layer alpha (0.0–1.0).
-        alpha: f32,
-        /// Corner radius.
-        corner_radius: f64,
-    },
-    /// Analytical erf Gaussian drop shadow for cards and shapes.
-    Shadow {
-        /// Half size [w/2, h/2] of the base shape.
-        size: [f32; 2],
-        /// Corner radius.
-        corner_radius: f32,
-        /// [offset_x, offset_y, blur, spread].
-        params: [f32; 4],
-        /// Shadow color RGBA.
-        color: [f32; 4],
-    },
-}
-
-/// Translate text glyph paths by a local-space offset.
-pub fn translate_text_paths(
-    paths: std::sync::Arc<[crate::renderer::types::TextPath]>,
-    x: f64,
-    y: f64,
-) -> std::sync::Arc<[crate::renderer::types::TextPath]> {
-    if x == 0.0 && y == 0.0 {
-        return paths;
-    }
-    let translate = kurbo::Affine::translate((x, y));
-    paths
-        .iter()
-        .map(|tp| {
-            let mut p = tp.clone();
-            p.path.apply_affine(translate);
-            p
-        })
-        .collect::<Vec<_>>()
-        .into()
-}
-
-/// Compute the transform that maps a texture's pixel rect onto its display box.
-///
-/// `vello::Scene::draw_image` fills a rect of `image_width × image_height`
-/// scene units (1 texture pixel = 1 unit), so a texture of `pixels` pixels
-/// needs a scale of `display / pixels` to appear at its requested display
-/// size. `display` is the command's `natural_size` (full actor size in scene
-/// units), `offset` shifts the box in local space before the actor transform.
-pub fn image_display_transform(
-    display: [f32; 2],
-    pixels: [f32; 2],
-    offset: [f64; 2],
-) -> kurbo::Affine {
-    let sx = (display[0] / pixels[0].max(1.0)) as f64;
-    let sy = (display[1] / pixels[1].max(1.0)) as f64;
-    kurbo::Affine::translate((offset[0], offset[1])) * kurbo::Affine::scale_non_uniform(sx, sy)
-}
-
-impl RenderCommand {
-    /// Execute this command into a Vello scene with the given transform and opacity.
-    pub fn execute(&self, scene: &mut vello::Scene, transform: &kurbo::Affine, opacity: f32) {
-        match self {
-            RenderCommand::Paths { paths } => {
-                use kurbo::Shape as _;
-                for path in paths {
-                    match (&path.fill, &path.fill_gradient) {
-                        (Some(fc), Some(grad)) => {
-                            let g = grad
-                                .to_peniko(path.path.bounding_box(), fc.components[3] * opacity);
-                            scene.fill(
-                                vello::peniko::Fill::NonZero,
-                                *transform,
-                                &g,
-                                None,
-                                path.path.as_ref(),
-                            );
-                        },
-                        (Some(fc), None) => {
-                            let fc = fc.with_alpha(fc.components[3] * opacity);
-                            scene.fill(
-                                vello::peniko::Fill::NonZero,
-                                *transform,
-                                fc,
-                                None,
-                                path.path.as_ref(),
-                            );
-                        },
-                        // A ramp authored on a stroke-only shape paints no fill.
-                        (None, Some(_)) => {},
-                        (None, None) => {},
-                    }
-                    if let Some((mut sc, sw)) = path.stroke {
-                        sc = sc.with_alpha(sc.components[3] * opacity);
-                        let cap = match path.line_cap {
-                            1 => vello::kurbo::Cap::Round,
-                            2 => vello::kurbo::Cap::Square,
-                            _ => vello::kurbo::Cap::Butt,
-                        };
-                        let join = match path.line_join {
-                            1 => vello::kurbo::Join::Round,
-                            2 => vello::kurbo::Join::Bevel,
-                            _ => vello::kurbo::Join::Miter,
-                        };
-                        let dash: vello::kurbo::Dashes = path
-                            .dash_pattern
-                            .as_ref()
-                            .map(|p| p.iter().map(|f| f64::from(*f)).collect())
-                            .unwrap_or_default();
-                        let stroke = vello::kurbo::Stroke {
-                            width: sw as f64,
-                            join,
-                            miter_limit: 10.0,
-                            start_cap: cap,
-                            end_cap: cap,
-                            dash_pattern: dash,
-                            dash_offset: f64::from(path.dash_offset),
-                        };
-                        match &path.stroke_gradient {
-                            Some(grad) => {
-                                let g = grad.to_peniko(
-                                    path.path.bounding_box(),
-                                    sc.components[3] * opacity,
-                                );
-                                scene.stroke(&stroke, *transform, &g, None, path.path.as_ref());
-                            },
-                            None => scene.stroke(&stroke, *transform, sc, None, path.path.as_ref()),
-                        }
-                    }
-                }
-            },
-            RenderCommand::Text {
-                paths,
-                fill_gradient,
-                clip_path,
-                tint_color,
-                hardware_layout,
-            } => {
-                if let Some(clip) = clip_path {
-                    scene.push_layer(
-                        vello::peniko::Fill::NonZero,
-                        vello::peniko::BlendMode::default(),
-                        1.0,
-                        *transform,
-                        clip,
-                    );
-                }
-
-                if fill_gradient.is_none() && opacity > 0.0 {
-                    if let Some(hw) = hardware_layout {
-                        let [r, g, b, a] = if let Some(tc) = tint_color {
-                            *tc
-                        } else if let Some(first) = paths.first() {
-                            first.color
-                        } else {
-                            [255, 255, 255, 255]
-                        };
-                        let brush = vello::peniko::Brush::Solid(vello::peniko::Color::from_rgba8(
-                            r, g, b, a,
-                        ));
-
-                        for run in &hw.runs {
-                            let font_data = vello::peniko::FontData {
-                                data: vello::peniko::Blob::new(std::sync::Arc::new(run.font_data)),
-                                index: run.font_index,
-                            };
-                            let glyphs_iter = run.glyphs.iter().map(|g| vello::Glyph {
-                                id: g.id,
-                                x: g.x,
-                                y: g.y,
-                            });
-                            let draw = scene.draw_glyphs(&font_data);
-                            draw.font_size(run.font_size)
-                                .transform(*transform)
-                                .brush(&brush)
-                                .brush_alpha(opacity)
-                                .draw(vello::peniko::Fill::NonZero, glyphs_iter);
-                        }
-
-                        if clip_path.is_some() {
-                            scene.pop_layer();
-                        }
-                        return;
-                    }
-                }
-
-                let bounds = if fill_gradient.is_some() {
-                    let mut b: Option<kurbo::Rect> = None;
-                    for tp in paths.iter() {
-                        let tp_b = tp.bounds;
-                        b = Some(match b {
-                            Some(existing) => existing.union(tp_b),
-                            None => tp_b,
-                        });
-                    }
-                    b.unwrap_or_else(|| kurbo::Rect::new(0.0, 0.0, 1.0, 1.0))
-                } else {
-                    kurbo::Rect::ZERO
-                };
-
-                for text_path in paths.iter() {
-                    let glyph_alpha = opacity * text_path.opacity;
-                    if glyph_alpha <= 0.0 {
-                        continue;
-                    }
-                    if let Some(grad) = fill_gradient {
-                        let g = grad.to_peniko(bounds, glyph_alpha);
-                        scene.fill(
-                            vello::peniko::Fill::NonZero,
-                            *transform,
-                            &g,
-                            None,
-                            &text_path.path,
-                        );
-                    } else {
-                        let [r, g, b, a] = if let Some(tc) = tint_color {
-                            *tc
-                        } else {
-                            text_path.color
-                        };
-                        let color = vello::peniko::Color::from_rgba8(
-                            r,
-                            g,
-                            b,
-                            (a as f32 * glyph_alpha) as u8,
-                        );
-                        scene.fill(
-                            vello::peniko::Fill::NonZero,
-                            *transform,
-                            color,
-                            None,
-                            &text_path.path,
-                        );
-                    }
-                }
-
-                if clip_path.is_some() {
-                    scene.pop_layer();
-                }
-            },
-            RenderCommand::Image {
-                image,
-                natural_size,
-                offset,
-            } => {
-                let image_transform = *transform
-                    * image_display_transform(*natural_size, image.natural_size, *offset);
-                let brush = vello::peniko::ImageBrush::new(image.data.clone())
-                    .with_extend(vello::peniko::Extend::Pad)
-                    .with_quality(vello::peniko::ImageQuality::Medium)
-                    .with_alpha(opacity);
-                scene.draw_image(&brush, image_transform);
-            },
-            RenderCommand::HighlightLayer {
-                rect,
-                color,
-                blend,
-                alpha,
-                corner_radius,
-            } => {
-                let rounded = kurbo::RoundedRect::from_rect(*rect, *corner_radius);
-                scene.push_layer(
-                    vello::peniko::Fill::NonZero,
-                    vello::peniko::BlendMode::new(*blend, vello::peniko::Compose::SrcOver),
-                    *alpha * opacity,
-                    *transform,
-                    &rounded,
-                );
-                scene.fill(
-                    vello::peniko::Fill::NonZero,
-                    kurbo::Affine::IDENTITY,
-                    *color,
-                    None,
-                    &rounded,
-                );
-                scene.pop_layer();
-            },
-            RenderCommand::Shadow {
-                size,
-                corner_radius,
-                params,
-                color,
-            } => {
-                let [dx, dy, blur, spread] = *params;
-                let [r, g, b, a] = *color;
-                let final_alpha = a * opacity;
-                if final_alpha <= 0.001 {
-                    return;
-                }
-                let half_w = size[0] + spread;
-                let half_h = size[1] + spread;
-                if blur <= 0.5 {
-                    let shadow_rect = kurbo::Rect::new(
-                        (dx - half_w) as f64,
-                        (dy - half_h) as f64,
-                        (dx + half_w) as f64,
-                        (dy + half_h) as f64,
-                    );
-                    let peniko_color = vello::peniko::Color::from_rgba8(
-                        (r * 255.0) as u8,
-                        (g * 255.0) as u8,
-                        (b * 255.0) as u8,
-                        (final_alpha * 255.0) as u8,
-                    );
-                    if *corner_radius > 0.0 {
-                        let rounded =
-                            kurbo::RoundedRect::from_rect(shadow_rect, *corner_radius as f64);
-                        scene.fill(
-                            vello::peniko::Fill::NonZero,
-                            *transform,
-                            peniko_color,
-                            None,
-                            &rounded,
-                        );
-                    } else {
-                        scene.fill(
-                            vello::peniko::Fill::NonZero,
-                            *transform,
-                            peniko_color,
-                            None,
-                            &shadow_rect,
-                        );
-                    }
-                } else {
-                    let sigma = blur * 0.5;
-                    let steps = 6;
-                    for i in 0..steps {
-                        let t0 = i as f32 / steps as f32;
-                        let t1 = (i + 1) as f32 / steps as f32;
-                        let erf0 = (1.2 * (t0 * 3.0)).tanh();
-                        let erf1 = (1.2 * (t1 * 3.0)).tanh();
-                        let slice_alpha = (erf1 - erf0) * final_alpha;
-                        let pad = t1 * 3.0 * sigma;
-                        let shadow_rect = kurbo::Rect::new(
-                            (dx - half_w - pad) as f64,
-                            (dy - half_h - pad) as f64,
-                            (dx + half_w + pad) as f64,
-                            (dy + half_h + pad) as f64,
-                        );
-                        let peniko_color = vello::peniko::Color::from_rgba8(
-                            (r * 255.0) as u8,
-                            (g * 255.0) as u8,
-                            (b * 255.0) as u8,
-                            (slice_alpha * 255.0).clamp(0.0, 255.0) as u8,
-                        );
-                        let cr = (*corner_radius + pad) as f64;
-                        let rounded = kurbo::RoundedRect::from_rect(shadow_rect, cr);
-                        scene.fill(
-                            vello::peniko::Fill::NonZero,
-                            *transform,
-                            peniko_color,
-                            None,
-                            &rounded,
-                        );
-                    }
-                }
-            },
-        }
-    }
-
-    /// Compute the local-space bounding box of this command's geometry.
-    ///
-    /// Returns `None` if the command has no drawable content.
-    /// The bounding box is in local coordinates (before transform).
-    pub fn local_bounds(&self, display_size: Option<[f32; 2]>) -> Option<kurbo::Rect> {
-        use kurbo::Shape;
-        let mut bounds: Option<kurbo::Rect> = None;
-        let union = |acc: Option<kurbo::Rect>, rect: kurbo::Rect| -> Option<kurbo::Rect> {
-            Some(match acc {
-                Some(existing) => existing.union(rect),
-                None => rect,
-            })
-        };
-        match self {
-            RenderCommand::Paths { paths } => {
-                for path in paths {
-                    bounds = union(bounds, path.path.bounding_box());
-                }
-            },
-            RenderCommand::Text { paths, .. } => {
-                for text_path in paths.iter() {
-                    bounds = union(bounds, text_path.bounds);
-                }
-            },
-            RenderCommand::Image { .. } => {
-                if let Some([half_w, half_h]) = display_size {
-                    // Centered on the local origin, matching the box the
-                    // command actually draws.
-                    bounds = union(
-                        bounds,
-                        kurbo::Rect::new(
-                            (-half_w) as f64,
-                            (-half_h) as f64,
-                            half_w as f64,
-                            half_h as f64,
-                        ),
-                    );
-                }
-            },
-            RenderCommand::HighlightLayer { rect, .. } => {
-                bounds = union(bounds, *rect);
-            },
-            RenderCommand::Shadow { size, params, .. } => {
-                let (half_w, half_h) =
-                    (size[0] as f64 + params[3] as f64, size[1] as f64 + params[3] as f64);
-                let blur_pad = params[2] as f64 * 3.0;
-                let ox = params[0] as f64;
-                let oy = params[1] as f64;
-                bounds = union(
-                    bounds,
-                    kurbo::Rect::new(
-                        ox - half_w - blur_pad,
-                        oy - half_h - blur_pad,
-                        ox + half_w + blur_pad,
-                        oy + half_h + blur_pad,
-                    ),
-                );
-            },
-        }
-        bounds
-    }
 }
 
 /// Child-rendering strategy selected by a primitive.
@@ -1908,16 +1003,25 @@ pub trait Primitive: Send + Sync {
 
     /// Render this primitive's children.
     ///
-    /// This is the single entry point the scene renderer calls — it never
-    /// branches on the child-processing strategy. The default renders children
-    /// through the normal scene-graph recursion; container primitives that need
-    /// a dedicated pipeline (`Filter`, `Mask`, `Equation`) override it.
+    /// This is the legacy entry point; callers with `EntityId` handles should
+    /// call [`Primitive::render_children_by_id`].
     fn render_children(
         &self,
         ctx: &mut RenderChildrenCtx<'_, '_, '_>,
         children: &[&str],
     ) -> Result<(), RenderError> {
         ctx.render_children_default(children);
+        Ok(())
+    }
+
+    /// Render this primitive's children directly by `EntityId`, avoiding string
+    /// lookups on the hot render path.
+    fn render_children_by_id(
+        &self,
+        ctx: &mut RenderChildrenCtx<'_, '_, '_>,
+        children_ids: &[crate::timeline::EntityId],
+    ) -> Result<(), RenderError> {
+        ctx.render_children_ids(children_ids);
         Ok(())
     }
 

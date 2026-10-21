@@ -11,6 +11,7 @@ use std::collections::HashMap;
 
 use crate::diagnostics::Diagnostic;
 use crate::primitives::RenderCommand;
+pub use crate::timeline::DebugRenderOptions;
 use crate::timeline::SceneDimensions;
 
 /// A structured frame produced by timeline evaluation.

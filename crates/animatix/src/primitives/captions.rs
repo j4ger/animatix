@@ -44,6 +44,15 @@ impl Primitive for CaptionsPrimitive {
         Ok(())
     }
 
+    fn render_children_by_id(
+        &self,
+        ctx: &mut RenderChildrenCtx<'_, '_, '_>,
+        _children_ids: &[crate::timeline::EntityId],
+    ) -> Result<(), crate::renderer::error::RenderError> {
+        ctx.timeline.render_captions_children_ctx(ctx);
+        Ok(())
+    }
+
     fn build(
         &self,
         ctx: &mut BuildCtx,

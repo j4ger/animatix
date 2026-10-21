@@ -1271,7 +1271,11 @@ impl Timeline {
         let mut result = layout::LayoutPositions::new();
         for (i, child) in child_extents.iter().enumerate() {
             if child.placement_mode == PlacementMode::LayoutManaged {
-                result.insert(child.label.clone(), positions[i]);
+                if let Some(id) = self.tracks.get_id(&child.label) {
+                    result.insert_with_id(id, child.label.clone(), positions[i]);
+                } else {
+                    result.insert(child.label.clone(), positions[i]);
+                }
             }
         }
         result
@@ -1311,7 +1315,12 @@ impl Timeline {
                     for label in order1.iter().chain(order2.iter()) {
                         let p1 = pos1.get(label).copied().unwrap_or([0.0, 0.0]);
                         let p2 = pos2.get(label).copied().unwrap_or([0.0, 0.0]);
-                        result.insert(label.clone(), p1.interpolate(&p2, eased_t));
+                        let pos = p1.interpolate(&p2, eased_t);
+                        if let Some(id) = self.tracks.get_id(label) {
+                            result.insert_with_id(id, label.clone(), pos);
+                        } else {
+                            result.insert(label.clone(), pos);
+                        }
                     }
                     return Arc::new(result);
                 },
@@ -1337,7 +1346,12 @@ impl Timeline {
                     for label in track.default_value.iter().chain(order.iter()) {
                         let p1 = pos1.get(label).copied().unwrap_or([0.0, 0.0]);
                         let p2 = pos2.get(label).copied().unwrap_or([0.0, 0.0]);
-                        result.insert(label.clone(), p1.interpolate(&p2, eased_t));
+                        let pos = p1.interpolate(&p2, eased_t);
+                        if let Some(id) = self.tracks.get_id(label) {
+                            result.insert_with_id(id, label.clone(), pos);
+                        } else {
+                            result.insert(label.clone(), pos);
+                        }
                     }
                     return Arc::new(result);
                 },
@@ -1952,7 +1966,10 @@ impl Timeline {
             let mut base_position = track.geometry.position.get(time_ms, [0.0, 0.0]);
 
             if self.dynamic_layout {
-                if let Some(layout_pos) = current_layout_positions.get(node_label.as_str()) {
+                if let Some(layout_pos) = current_layout_positions
+                    .get_by_id(track.id)
+                    .or_else(|| current_layout_positions.get(node_label.as_str()))
+                {
                     if placement_mode == PlacementMode::LayoutManaged {
                         base_position = *layout_pos;
                     }

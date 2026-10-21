@@ -749,6 +749,7 @@ impl Timeline {
                     easing,
                     instant_delayed,
                     diagnostics,
+                    Some(&self.coordinate_frames),
                 );
 
                 // For Graph actors, also rebuild PlotCurve children whose
@@ -857,6 +858,7 @@ impl Timeline {
                         easing,
                         diagnostics,
                         Some(&eval_env),
+                        Some(&self.coordinate_frames),
                     );
                 }
             }

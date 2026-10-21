@@ -237,11 +237,58 @@ use super::{ContainerMetadata, LayoutEngine};
 
 /// Resolved child positions for one container, keyed by child label.
 ///
-/// A `HashMap`, not a `BTreeMap`: consumers only ever do point lookups — one
-/// per child per frame on the evaluation path — and never ordered iteration.
-/// Hashing a short label beats the O(log n) string comparisons a sorted map
-/// needs, which measured ~5% of the `sample` stage for a 60-child container.
-pub type LayoutPositions = std::collections::HashMap<String, [f32; 2]>;
+/// Layout positions calculated for container children, indexed by either `EntityId`
+/// (for hot per-frame rendering without string lookups) or actor label string.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LayoutPositions {
+    by_id: std::collections::HashMap<crate::timeline::EntityId, [f32; 2]>,
+    by_label: std::collections::HashMap<String, [f32; 2]>,
+}
+
+impl LayoutPositions {
+    pub fn new() -> Self {
+        Self {
+            by_id: std::collections::HashMap::new(),
+            by_label: std::collections::HashMap::new(),
+        }
+    }
+
+    #[inline(always)]
+    pub fn insert(&mut self, label: String, pos: [f32; 2]) {
+        self.by_label.insert(label, pos);
+    }
+
+    #[inline(always)]
+    pub fn insert_id(&mut self, id: crate::timeline::EntityId, pos: [f32; 2]) {
+        self.by_id.insert(id, pos);
+    }
+
+    #[inline(always)]
+    pub fn insert_with_id(&mut self, id: crate::timeline::EntityId, label: String, pos: [f32; 2]) {
+        self.by_id.insert(id, pos);
+        self.by_label.insert(label, pos);
+    }
+
+    #[inline(always)]
+    pub fn get(&self, label: &str) -> Option<&[f32; 2]> {
+        self.by_label.get(label)
+    }
+
+    #[inline(always)]
+    pub fn get_by_id(&self, id: crate::timeline::EntityId) -> Option<&[f32; 2]> {
+        self.by_id.get(&id)
+    }
+
+    #[inline(always)]
+    pub fn is_empty(&self) -> bool {
+        self.by_label.is_empty() && self.by_id.is_empty()
+    }
+
+    #[inline(always)]
+    pub fn len(&self) -> usize {
+        self.by_label.len().max(self.by_id.len())
+    }
+}
 
 /// One shared empty `Arc<LayoutPositions>`.
 ///
@@ -551,7 +598,11 @@ impl LayoutEngine {
         let mut result = LayoutPositions::new();
         for (i, child) in child_extents.iter().enumerate() {
             if child.placement_mode == PlacementMode::LayoutManaged {
-                result.insert(child.label.clone(), positions[i]);
+                if let Some(id) = tracks.get_id(&child.label) {
+                    result.insert_with_id(id, child.label.clone(), positions[i]);
+                } else {
+                    result.insert(child.label.clone(), positions[i]);
+                }
             }
         }
         let positions = std::sync::Arc::new(result);

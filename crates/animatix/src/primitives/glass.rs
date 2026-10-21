@@ -41,6 +41,16 @@ impl Primitive for GlassPrimitive {
         Ok(())
     }
 
+    fn render_children_by_id(
+        &self,
+        ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,
+        _children_ids: &[crate::timeline::EntityId],
+    ) -> Result<(), RenderError> {
+        let timeline = ctx.timeline;
+        timeline.render_glass_children_ctx(ctx);
+        Ok(())
+    }
+
     fn build(
         &self,
         _ctx: &mut BuildCtx,

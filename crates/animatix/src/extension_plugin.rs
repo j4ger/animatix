@@ -1,7 +1,7 @@
 //! Plugin loader for extension contexts.
 
 #[cfg(feature = "plugin-loading")]
-#[path = "extension_native_plugin.rs"]
+#[path = "extension_native_plugin/mod.rs"]
 mod extension_native_plugin;
 use std::sync::Arc;
 
