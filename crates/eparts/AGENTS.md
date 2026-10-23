@@ -14,7 +14,7 @@ See the canonical work list at `docs/roadmap.md` for the eparts widget-adoption 
   - `spatial.rs` — spacing scale, row heights, radii, strokes, component/menu/dialog dims.
   - `typography.rs` — `TextRole` (8-level type scale).
   - `motion.rs` — `CubicBezier`, `Transition`, named durations/curves.
-  - `theme.rs` — runtime `Theme` struct + `eparts::theme(ui)` / `eparts::set_theme(ctx, ..)` accessors.
+  - `theme/` — runtime `Theme` struct (`model.rs`, `dark.rs`, `light.rs`, `slots.rs`) + `eparts::theme(ui)` / `eparts::set_theme(ctx, ..)` accessors (`accessors.rs`).
   - `util.rs` — `lerp_color`, `multiply_alpha`.
 - `src/widget/` — domain-agnostic widgets (button, row, layout, dialog, context_menu, toast, anim,
   text, timeline, easing_curve_editor, diagnostics). Plus shared `traits.rs`.
@@ -25,7 +25,7 @@ See the canonical work list at `docs/roadmap.md` for the eparts widget-adoption 
    `Theme` struct; never `Color32::from_rgb(...)` inline in a widget. Whether a role resolves at compile
    time (const) or runtime (`Theme`) is an implementation detail behind the role name. Raw color literals
    (`Color32::from_rgb`, `from_gray`, etc.) are allowed only inside the token definition layer
-   (`crates/eparts/src/tokens/primitive.rs`, `crates/eparts/src/tokens/theme.rs` — e.g. `Theme::light()`/`dark()`
+   (`crates/eparts/src/tokens/primitive.rs`, `crates/eparts/src/tokens/theme/` — e.g. `Theme::light()`/`dark()`
    and `*_slots()` builders). Widgets must never contain color literals; they read semantic roles or
    `theme(ui)` slots.
 2. **Builder pattern mandatory + builder tests.** Every widget is `Widget::new(...)` + chained `.with_x()`
