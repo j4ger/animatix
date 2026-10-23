@@ -13,7 +13,6 @@ crates/animatix-gui/src/app/shell/insertion_palette.rs	988	legacy oversized file
 crates/animatix-gui/src/source_edit/scene_edits.rs	921	legacy oversized file	P6
 crates/animatix-render/src/offscreen/mod.rs	853	legacy oversized file	P2
 crates/animatix/src/composition/build.rs	910	legacy oversized file	P6
-crates/animatix/src/extension_context.rs	1197	legacy oversized file	P6
 crates/animatix/src/timeline/actions/motion.rs	1131	legacy oversized file	P6
 crates/animatix/src/timeline/assignments/mod.rs	1232	legacy oversized file	P6
 crates/animatix/src/timeline/build/actor.rs	1981	legacy oversized file	P6
