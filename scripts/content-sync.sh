@@ -10,7 +10,7 @@
 #   - `web/demos/epicycles/scene.amx` is generated from five act files. A hand edit
 #     or an edited act leaves a deployed plate that no source produces.
 #   - `examples/lib/*.amx` are embedded into the wasm engine by name in
-#     `crates/animatix-web/src/host.rs`. A library added to the directory and not
+#     `crates/animatix-web/src/host/library.rs`. A library added to the directory and not
 #     to that list builds in the desktop app and 404s in the browser.
 #   - The font SHA-256 table exists twice (`scripts/refresh-fonts.sh` and the
 #     vendored-assets README). Two tables means the integrity check verifies
@@ -42,7 +42,7 @@ fi
 # The wasm player has no filesystem: `bundled_library()` is how an example's
 # `import "../lib/theme.amx"` resolves in a browser. Files in the directory but
 # not in the list are invisible to the embed only.
-HOST_RS=crates/animatix-web/src/host.rs
+HOST_RS=crates/animatix-web/src/host/library.rs
 bundled_keys=$(grep -oE '"\.\./lib/[A-Za-z0-9_.-]+\.amx"' "$HOST_RS" | sed 's|"\.\./lib/||; s/"$//' | sort -u)
 dir_libs=$(ls examples/lib/*.amx 2>/dev/null | xargs -n1 basename | sort -u)
 missing=$(comm -23 <(printf '%s\n' "$dir_libs") <(printf '%s\n' "$bundled_keys") | grep . || true)
