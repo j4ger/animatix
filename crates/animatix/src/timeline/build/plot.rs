@@ -1147,25 +1147,27 @@ impl Timeline {
         } // end func validation guard
 
         if primitive.is_graph_host() {
-            // ECS Component registration: record CoordinateFrameComponent for this host
+            // ECS registration: the frame component is the only source for the
+            // hosted children's coordinate resolution below.
+            let frame = crate::timeline::CoordinateFrameComponent {
+                x_domain,
+                y_domain,
+                x_scale,
+                y_scale,
+                padding: graph_padding,
+                grid,
+                ticks,
+                tick_labels: tick_labels.clone(),
+            };
             if let Some(host_id) = self.world.tracks.get_id(label) {
-                self.coordinate_frames.insert(
-                    host_id,
-                    crate::timeline::CoordinateFrameComponent {
-                        x_domain,
-                        y_domain,
-                        x_scale,
-                        y_scale,
-                        padding: graph_padding,
-                        grid,
-                        ticks,
-                        tick_labels: tick_labels.clone(),
-                    },
-                );
+                self.set_coordinate_frame(host_id, frame.clone());
             }
 
-            self.env.set(&format!("{}_x_domain", label), Value::Vec2(x_domain));
-            self.env.set(&format!("{}_y_domain", label), Value::Vec2(y_domain));
+            // The `{label}_*` env entries are authored expression variables
+            // (e.g. `g_x_domain` in an `at:` expression). They are derived from
+            // the registered frame, never a second source of truth.
+            self.env.set(&format!("{}_x_domain", label), Value::Vec2(frame.x_domain));
+            self.env.set(&format!("{}_y_domain", label), Value::Vec2(frame.y_domain));
             // Store the DECLARED (full-pixel) size. Every consumer of this env
             // key (math_to_screen_padded, hosted BarChart math mode,
             // .map()/.map_inverse via GraphGeometry) treats it as full size;
@@ -1178,14 +1180,22 @@ impl Timeline {
                     (initial_size[1] * 2.0) as f64,
                 ]),
             );
-            // Store graph axis settings so they survive size-assignment rebuilds
-            self.env.set(&format!("{}_grid", label), Value::Bool(grid));
-            self.env.set(&format!("{}_ticks", label), Value::Bool(ticks));
-            self.env.set(&format!("{}_tick_labels", label), Value::Str(tick_labels.clone()));
-            self.env.set(&format!("{}_padding", label), Value::Vec4(graph_padding));
-            // Store scale in env as strings so assignments.rs rebuild can read them.
-            let x_scale_str = if x_scale.is_log() { "log" } else { "linear" };
-            let y_scale_str = if y_scale.is_log() { "log" } else { "linear" };
+            // Store graph axis settings for authored expressions.
+            self.env.set(&format!("{}_grid", label), Value::Bool(frame.grid));
+            self.env.set(&format!("{}_ticks", label), Value::Bool(frame.ticks));
+            self.env
+                .set(&format!("{}_tick_labels", label), Value::Str(frame.tick_labels.clone()));
+            self.env.set(&format!("{}_padding", label), Value::Vec4(frame.padding));
+            let x_scale_str = if frame.x_scale.is_log() {
+                "log"
+            } else {
+                "linear"
+            };
+            let y_scale_str = if frame.y_scale.is_log() {
+                "log"
+            } else {
+                "linear"
+            };
             self.env.set(&format!("{}_x_scale", label), Value::Str(x_scale_str.to_string()));
             self.env.set(&format!("{}_y_scale", label), Value::Str(y_scale_str.to_string()));
 
@@ -1204,7 +1214,14 @@ impl Timeline {
             self.env.set(&crate::timeline::env_keys::native_fn(label, "map"), nf);
 
             // Inject {label}.map_inverse as a NativeFn that converts screen coords to math coords.
-            let nf_inv = make_graph_map_inverse_fn(map_label, x_domain, y_domain, x_scale, y_scale);
+            let nf_inv = make_graph_map_inverse_fn(
+                map_label,
+                x_domain,
+                y_domain,
+                graph_padding,
+                x_scale,
+                y_scale,
+            );
             self.env
                 .set(&crate::timeline::env_keys::native_fn(label, "map_inverse"), nf_inv);
         }
@@ -1435,19 +1452,11 @@ impl Timeline {
             let mut p_x_domain = x_domain;
             let mut p_y_domain = y_domain;
 
-            // Prefer strongly-typed CoordinateFrameComponent
-            if let Some(host_id) = self.world.tracks.get_id(&p_label) {
-                if let Some(frame) = self.coordinate_frames.get(&host_id) {
-                    p_x_domain = frame.x_domain;
-                    p_y_domain = frame.y_domain;
-                }
-            } else {
-                if let Some(Value::Vec2(xd)) = self.env.get(&format!("{}_x_domain", p_label)) {
-                    p_x_domain = xd;
-                }
-                if let Some(Value::Vec2(yd)) = self.env.get(&format!("{}_y_domain", p_label)) {
-                    p_y_domain = yd;
-                }
+            // The parent's coordinate frame is the only source for a hosted
+            // BarChart's math domain.
+            if let Some(frame) = self.coordinate_frame_for(&p_label) {
+                p_x_domain = frame.x_domain;
+                p_y_domain = frame.y_domain;
             }
 
             let (layout, data) = resolve_bar_chart_layout(
@@ -1475,21 +1484,11 @@ impl Timeline {
             let mut p_size = [500.0, 500.0];
             let mut p_padding = [0.0; 4];
 
-            // Resolve coordinate context: prefer strongly-typed ECS CoordinateFrameComponent
-            if let Some(host_id) = self.world.tracks.get_id(&p_label) {
-                if let Some(frame) = self.coordinate_frames.get(&host_id) {
-                    p_x_domain = frame.x_domain;
-                    p_y_domain = frame.y_domain;
-                    p_padding = frame.padding;
-                }
-            } else if let Some(Value::Vec2(xd)) = self.env.get(&format!("{}_x_domain", p_label)) {
-                p_x_domain = xd;
-                if let Some(Value::Vec2(yd)) = self.env.get(&format!("{}_y_domain", p_label)) {
-                    p_y_domain = yd;
-                }
-                if let Some(Value::Vec4(pad)) = self.env.get(&format!("{}_padding", p_label)) {
-                    p_padding = pad;
-                }
+            // Resolve coordinate context from the parent host's frame component.
+            if let Some(frame) = self.coordinate_frame_for(&p_label) {
+                p_x_domain = frame.x_domain;
+                p_y_domain = frame.y_domain;
+                p_padding = frame.padding;
             }
 
             let size_key = crate::timeline::env_keys::side_channel(&p_label, "size");
@@ -2855,12 +2854,14 @@ pub(crate) fn resolve_bar_chart_layout(
 
 /// Create a `Value::NativeFn` for `{label}.map_inverse(screen_x, screen_y)` → math coords.
 ///
-/// Captures `x_domain`/`y_domain`/`x_scale`/`y_scale` (static), reads `size`, `at`, and
-/// `padding` from the runtime environment to support animation of graph size/position.
+/// Captures the host's domain, padding and scales from the coordinate frame
+/// component (static), and reads `size` and `at` from the runtime environment
+/// to support animation of graph size/position.
 fn make_graph_map_inverse_fn(
     label: String,
     x_domain: [f64; 2],
     y_domain: [f64; 2],
+    padding: [f64; 4],
     x_scale: super::utils::ScaleType,
     y_scale: super::utils::ScaleType,
 ) -> Value {
@@ -2891,8 +2892,8 @@ fn make_graph_map_inverse_fn(
                 },
             };
 
-            // Read size, at, padding from runtime env for animation support.
-            // These are set during build with underscore-prefixed keys.
+            // Read size and at from the runtime environment for animation
+            // support; padding is fixed at declaration time and captured above.
             let size = env
                 .get(crate::timeline::env_keys::side_channel(&label, "size").as_str())
                 .and_then(|v| match v {
@@ -2907,13 +2908,6 @@ fn make_graph_map_inverse_fn(
                     _ => None,
                 })
                 .unwrap_or([0.0, 0.0]);
-            let padding = env
-                .get(&format!("{}_padding", label))
-                .and_then(|v| match v {
-                    Value::Vec4(p) => Some(p),
-                    _ => None,
-                })
-                .unwrap_or([0.0; 4]);
 
             let scale = super::utils::GraphScaleConfig::new(x_domain, y_domain, x_scale, y_scale);
             let geo = super::utils::GraphGeometry::new(size, at, padding);

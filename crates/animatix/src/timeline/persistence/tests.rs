@@ -2,7 +2,9 @@ use super::*;
 use crate::easing::Easing;
 use crate::timeline::dispatch::AnimationTrack;
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::{CapturedEnv, ContainerMetadata, EntityId, LayoutType, Timeline};
+use crate::timeline::{
+    CapturedEnv, ContainerMetadata, CoordinateFrameComponent, EntityId, LayoutType, Timeline,
+};
 
 fn make_timeline_with_persistent_actors() -> Timeline {
     let mut timeline = Timeline::new();
@@ -391,6 +393,51 @@ fn carry_bag_preserves_container_layout() {
             round_tripped.entries["row"].container_layout,
             Some(metadata.clone()),
             "container layout must survive the carry-bag serde round-trip"
+        );
+    }
+}
+
+#[test]
+fn carry_bag_preserves_coordinate_frame() {
+    let mut source = Timeline::new();
+    let mut actor = AnimationTrack::placeholder("g".to_string());
+    actor.set_identity("Graph");
+    source.world.spawn_with_track("g", actor);
+    let frame = CoordinateFrameComponent {
+        x_domain: [0.0, 4.0],
+        y_domain: [0.0, 2.0],
+        padding: [4.0, 4.0, 2.0, 2.0],
+        ..CoordinateFrameComponent::default()
+    };
+    assert!(source.set_coordinate_frame("g", frame.clone()));
+    source.set_persistence_flag("g", true);
+
+    let bag = source.compute_carry_bag(0, true);
+    assert_eq!(
+        bag.entries.get("g").and_then(|entry| entry.coordinate_frame.clone()),
+        Some(frame.clone()),
+        "the carry bag must snapshot the plot host's coordinate frame"
+    );
+
+    let mut dest = Timeline::new();
+    dest.inject_carry_bag(&bag, &source, 0, [1280.0, 720.0], &mut Vec::new());
+    assert_eq!(
+        dest.coordinate_frame_for("g"),
+        Some(&frame),
+        "the injected entity must carry the coordinate frame component"
+    );
+
+    // New payload state must survive a serde carry-bag trip; older bags must
+    // default it to `None`.
+    #[cfg(feature = "serde")]
+    {
+        let json = serde_json::to_string(&bag).expect("CarryBag should serialize");
+        let round_tripped: CarryBag =
+            serde_json::from_str(&json).expect("CarryBag should deserialize");
+        assert_eq!(
+            round_tripped.entries["g"].coordinate_frame,
+            Some(frame),
+            "coordinate frame must survive the carry-bag serde round-trip"
         );
     }
 }

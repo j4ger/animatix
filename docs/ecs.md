@@ -128,7 +128,7 @@ Rules:
 | `EffectChainTrack` | effect stages for Filter/Mask/Glass scopes | optional |
 | `PrimitivePayload` | Plot/Svg/Image payload | optional |
 | `ContainerMetadata` | layout type/gap/padding/align/cols/child order (`EntityId`s) | optional containers |
-| `CoordinateFrameComponent` | domain/scale/padding/grid/ticks/tick labels | optional (plot hosts) |
+| `CoordinateFrameComponent` | domain/scale/padding/grid/ticks/tick labels | optional (plot hosts; sole source for hosted-child coordinate resolution) |
 | `PersistenceComponent` | `persistent: bool` | optional |
 | `AutoColorComponent` | auto-color slot | optional |
 | `ChildOrderComponent` | `PropertyTrack<Vec<EntityId>>` | optional |
@@ -202,6 +202,10 @@ cross-scene carry, not for runtime storage.
 - The container-layout component rides the carry bag as a whole
   (`CarryEntry::container_layout`) rather than through the per-property
   snapshot, so a re-rooted container keeps its layout in the successor scene.
+- The same holds for a plot host's coordinate frame
+  (`CarryEntry::coordinate_frame`): a persistent `Graph` keeps its domains,
+  scales and padding in the successor scene, so its child plots resolve there.
+  Domain values are scene-relative, so carry needs no `EntityId` remap.
 - `restore_entity` is two-pass: create every entity and component first, then
   link hierarchy / child order by label so ids are resolved once.
 - `CarryBag` stays label-keyed on the wire; `EntityId` is an in-memory handle
@@ -218,7 +222,7 @@ cross-scene carry, not for runtime storage.
 | P2 | hierarchy + roots (bounds slots deferred to P5h) | done |
 | P3a | persistence / auto-color / transcript stores + `EntityId` hit regions | done |
 | P3b | container-layout + child-order stores | done |
-| P4 | coordinate-frame closure (no env fallback, carry across scenes) | pending |
+| P4 | coordinate-frame store, no env fallback, carry across scenes | done |
 | P5 | tier components (effects/payload/legend/highlight/text/shape/style/geometry/plan) | pending |
 | P6 | delete `AnimationTrack`/`TrackStore`, migrate GUI, snapshot DTO | pending |
 | P7 | perf + full gate matrix + docs close-out | pending |

@@ -265,38 +265,20 @@ impl Timeline {
     ) -> Vec<Property> {
         let eval_env = self.build_eval_env(time_ms as u64);
 
-        // Look up parent's coordinate system, preferring strongly-typed CoordinateFrameComponent.
+        // The host's coordinate frame component is the only source for the
+        // domain, padding and scales used to map child positions.
         let mut x_domain = [-10.0, 10.0];
         let mut y_domain = [-10.0, 10.0];
         let mut p_padding = [0.0; 4];
         let mut p_x_scale = super::utils::ScaleType::Linear;
         let mut p_y_scale = super::utils::ScaleType::Linear;
 
-        let host_id = self.world.tracks.get_id(parent_label);
-        if let Some(id) = host_id {
-            if let Some(frame) = self.coordinate_frames.get(&id) {
-                x_domain = frame.x_domain;
-                y_domain = frame.y_domain;
-                p_padding = frame.padding;
-                p_x_scale = frame.x_scale;
-                p_y_scale = frame.y_scale;
-            }
-        } else {
-            if let Some(Value::Vec2(d)) = self.env.get(&format!("{}_x_domain", parent_label)) {
-                x_domain = d;
-            }
-            if let Some(Value::Vec2(d)) = self.env.get(&format!("{}_y_domain", parent_label)) {
-                y_domain = d;
-            }
-            if let Some(Value::Vec4(p)) = self.env.get(&format!("{}_padding", parent_label)) {
-                p_padding = p;
-            }
-            if let Some(Value::Str(s)) = self.env.get(&format!("{}_x_scale", parent_label)) {
-                p_x_scale = super::utils::ScaleType::from_str(&s);
-            }
-            if let Some(Value::Str(s)) = self.env.get(&format!("{}_y_scale", parent_label)) {
-                p_y_scale = super::utils::ScaleType::from_str(&s);
-            }
+        if let Some(frame) = self.coordinate_frame_for(parent_label) {
+            x_domain = frame.x_domain;
+            y_domain = frame.y_domain;
+            p_padding = frame.padding;
+            p_x_scale = frame.x_scale;
+            p_y_scale = frame.y_scale;
         }
 
         let p_size = self

@@ -30,7 +30,8 @@ use crate::timeline::animation_track::{
 };
 use crate::timeline::property_track::{PropertyTrack, TrackAccessor};
 use crate::timeline::{
-    AnimationTrack, ContainerMetadata, PlacementMode, PositionBinding, SceneDimensions, Timeline,
+    AnimationTrack, ContainerMetadata, CoordinateFrameComponent, PlacementMode, PositionBinding,
+    SceneDimensions, Timeline,
 };
 
 // ---------------------------------------------------------------------------
@@ -88,6 +89,14 @@ pub struct CarryEntry {
     /// actor keeps word timings that its destination scene never declares.
     #[cfg_attr(feature = "serde", serde(default))]
     pub transcript: Option<SpeechTranscript>,
+    /// Coordinate frame of a plot host (a `Graph` and any `plot_host`
+    /// primitive), if the actor has one.
+    ///
+    /// Carried so a persistent `Graph` keeps its domains/scales/padding in the
+    /// successor scene, where its child plots resolve coordinates from it.
+    /// Domain values are scene-relative, so no entity-id remap is needed.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub coordinate_frame: Option<CoordinateFrameComponent>,
 }
 
 // ---------------------------------------------------------------------------
@@ -136,6 +145,7 @@ fn collect_persistent_entries(
             auto_color_slot: timeline.auto_color_slot(label),
             container_layout: timeline.container_layout(label).cloned(),
             transcript: timeline.transcript(label).cloned(),
+            coordinate_frame: timeline.coordinate_frame_for(label).cloned(),
         },
     );
 }
@@ -310,6 +320,13 @@ fn inject_entry(
     // word timings in the destination scene.
     if let Some(transcript) = &entry.transcript {
         dest.set_transcript(label, transcript.clone());
+    }
+
+    // Carry the coordinate frame so a persistent `Graph` keeps its domain and
+    // hosted children resolve against it in the destination scene. The domain
+    // values are scene-relative, so there is no id remap to do.
+    if let Some(frame) = &entry.coordinate_frame {
+        dest.set_coordinate_frame(label, frame.clone());
     }
 
     // Carry the container layout so a re-parented container still lays out in

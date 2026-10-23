@@ -452,11 +452,19 @@ impl Timeline {
         // The target was resolved above, so its track must exist; never create
         // one with no primitive identity. Child labels are collected before the
         // mutable borrow because the Graph size path rewrites child tracks.
-        let child_labels: Vec<String> = if matches!(property, "size" | "radius_x" | "radius_y") {
+        let is_size_property = matches!(property, "size" | "radius_x" | "radius_y");
+        let child_labels: Vec<String> = if is_size_property {
             self.child_labels(&target_key).map(str::to_string).collect()
         } else {
             Vec::new()
         };
+        // Path rebuilds need the host's coordinate frame, and both it and the
+        // track live in `World`. Resolve the immutable frame (a small clone)
+        // before the mutable track borrow instead of fighting the borrow
+        // checker with a second `&World`/`&Timeline`.
+        let coordinate_frame = (is_size_property || affects_shape_geometry(property))
+            .then(|| self.coordinate_frame_for(&target_key).cloned())
+            .flatten();
         let Some(track) = self.world.tracks.get_mut(&target_key) else {
             tracing::warn!("assignment target '{target_key}' has no track; skipping");
             return;
@@ -724,9 +732,6 @@ impl Timeline {
 
         let _track_label = &track.label.clone();
 
-        // Special handling for size-like properties (also write to layout_size)
-        let is_size_property = matches!(property, "size" | "radius_x" | "radius_y");
-
         let schema = lookup_property(property);
 
         if let Some(schema) = schema {
@@ -757,7 +762,7 @@ impl Timeline {
                     easing,
                     instant_delayed,
                     diagnostics,
-                    Some(&self.coordinate_frames),
+                    coordinate_frame.as_ref(),
                 );
 
                 // For Graph actors, also rebuild PlotCurve children whose
@@ -864,8 +869,7 @@ impl Timeline {
                         t_end_ms,
                         easing,
                         diagnostics,
-                        Some(&eval_env),
-                        Some(&self.coordinate_frames),
+                        coordinate_frame.as_ref(),
                     );
                 }
             }

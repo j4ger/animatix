@@ -139,6 +139,11 @@ Per-actor keyframed data is split into the component domains listed above. The
 old monolithic `AnimationTrack` survives only as the serializable
 `EntitySnapshot` DTO used by `CarryBag`; see `docs/ecs.md` §5.
 
+The plot host's `CoordinateFrameComponent` is the sole source for a hosted
+child's coordinate resolution. The `{label}_x_domain` / `_y_domain` / `_padding`
+env entries are derived from it at build time and exist only as authored
+expression variables; build and rebuild paths never fall back to them.
+
 ### PropertyTrack
 
 ```rust
@@ -872,6 +877,8 @@ A `CarryBag` (`timeline/persistence.rs`) is a collection of `CarryEntry` objects
 - The persistence flag (sticky — propagates automatically until `remove`)
 - Optional auto-color slot index (for `color: auto` actors)
 - Optional speech transcript (for `Audio`/`Captions` actors)
+- Optional container layout metadata (for `Row`/`Col`/`Grid`/`Stack` actors)
+- Optional coordinate frame (for `Graph`/plot-host actors)
 
 ### Build Process
 
@@ -881,7 +888,7 @@ A `CarryBag` (`timeline/persistence.rs`) is a collection of `CarryEntry` objects
 4. **Walk-order carry loop** (`Composition::build`, step 3.5): For each scene (index ≥ 1):
    - Compute carry bag from predecessor timeline at its exit time.
    - If bag is non-empty, rebuild the scene's timeline with `build_with_carry`, which calls `inject_carry_bag` before processing statements.
-5. **Carry injection** (`inject_carry_bag`): Inserts carried tracks into `timeline.world`, adds to the root set, restores the `ContainerMetadata`, `PersistenceComponent`, `AutoColorComponent`, and `TranscriptComponent` components on each carried entity.
+5. **Carry injection** (`inject_carry_bag`): Inserts carried tracks into `timeline.world`, adds to the root set, restores the `ContainerMetadata`, `PersistenceComponent`, `AutoColorComponent`, `TranscriptComponent`, and `CoordinateFrameComponent` components on each carried entity.
 
 ### Snapshot Semantics
 
@@ -894,6 +901,12 @@ When a layout-managed child is carried, its position binding is rewritten to `Ab
 ### Auto-Color Preservation
 
 Actors declared with `color: auto` receive an integer slot in their `AutoColorComponent`. When carried, the slot is stored in `CarryEntry.auto_color_slot` and re-injected into the destination entity's component, ensuring the actor keeps the same auto-cycle color across scenes. `Timeline::next_auto_color_index` is bumped to `max(existing, slot + 1)` to prevent slot collisions with newly declared actors in the destination scene.
+
+### Coordinate Frame Preservation
+
+A plot host keeps its `CoordinateFrameComponent` (domains, scales, padding, grid/ticks settings) on the entity. `CarryEntry.coordinate_frame` snapshots it, and `inject_carry_bag` restores it through `Timeline::set_coordinate_frame`, so a persistent `Graph` still resolves its child plots' coordinates in the successor scene. Domain values are scene-relative, so carry does not remap entity ids.
+
+Hosted plot children read the host's frame through `Timeline::coordinate_frame_for` / `resolve_coordinate_context`; there is no `_x_domain` fallback. The `{label}_*` env entries are derived from the component at build time for authored expressions only.
 
 ### Transition Rendering
 

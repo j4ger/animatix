@@ -16,7 +16,7 @@ impl Timeline {
     ) -> Option<crate::timeline::CoordinateContext> {
         let p_label = parent_label?;
         let host_id = self.world.tracks.get_id(p_label)?;
-        let frame = self.coordinate_frames.get(&host_id)?;
+        let frame = self.coordinate_frame(host_id)?;
         let p_size = self
             .env
             .get(crate::timeline::env_keys::side_channel(p_label, "size").as_str())
@@ -82,22 +82,11 @@ impl Timeline {
             let mut p_size = [500.0, 500.0];
             let mut p_padding = [0.0; 4];
 
-            if let Some(host_id) = self.world.tracks.get_id(&p_label) {
-                if let Some(frame) = self.coordinate_frames.get(&host_id) {
-                    p_x_domain = frame.x_domain;
-                    p_y_domain = frame.y_domain;
-                    p_padding = frame.padding;
-                }
-            } else {
-                if let Some(Value::Vec2(xd)) = self.env.get(&format!("{}_x_domain", p_label)) {
-                    p_x_domain = xd;
-                }
-                if let Some(Value::Vec2(yd)) = self.env.get(&format!("{}_y_domain", p_label)) {
-                    p_y_domain = yd;
-                }
-                if let Some(Value::Vec4(p)) = self.env.get(&format!("{}_padding", p_label)) {
-                    p_padding = p;
-                }
+            // The parent host's frame component is the only coordinate source.
+            if let Some(frame) = self.coordinate_frame_for(&p_label) {
+                p_x_domain = frame.x_domain;
+                p_y_domain = frame.y_domain;
+                p_padding = frame.padding;
             }
             if let Some(Value::Vec2(sz)) =
                 self.env.get(&format!("{}_size", p_label)).or_else(|| {
@@ -526,17 +515,11 @@ impl Timeline {
             .cloned()
             .unwrap_or_else(|| AnimationTrack::new(label.to_string(), ty));
 
-        // Math coordinate auto-mapping: if parent is a Graph, map child positions
-        // from math coordinates to screen pixels.
+        // Math coordinate auto-mapping: if the parent carries a coordinate
+        // frame component, map child positions from math coordinates to screen
+        // pixels.
         let mapped_props = if let Some(p_label) = parent_label {
-            let is_graph = self
-                .world
-                .tracks
-                .get_id(p_label)
-                .and_then(|id| self.coordinate_frames.get(&id).map(|_| ()))
-                .is_some()
-                || self.env.get(&format!("{}_x_domain", p_label)).is_some();
-            if is_graph {
+            if self.coordinate_frame_for(p_label).is_some() {
                 self.map_props_to_graph_parent(p_label, props, time_ms, diagnostics)
             } else {
                 props.to_vec()
@@ -556,23 +539,22 @@ impl Timeline {
         );
 
         if primitive.is_graph_host() {
+            let frame = crate::timeline::CoordinateFrameComponent {
+                x_domain: extracted.x_domain,
+                y_domain: extracted.y_domain,
+                x_scale: extracted.x_scale,
+                y_scale: extracted.y_scale,
+                padding: extracted.graph_padding,
+                grid: false,
+                ticks: false,
+                tick_labels: "auto".to_string(),
+            };
             if let Some(host_id) = self.world.tracks.get_id(label) {
-                self.coordinate_frames.insert(
-                    host_id,
-                    crate::timeline::CoordinateFrameComponent {
-                        x_domain: extracted.x_domain,
-                        y_domain: extracted.y_domain,
-                        x_scale: extracted.x_scale,
-                        y_scale: extracted.y_scale,
-                        padding: extracted.graph_padding,
-                        grid: false,
-                        ticks: false,
-                        tick_labels: "auto".to_string(),
-                    },
-                );
+                self.set_coordinate_frame(host_id, frame.clone());
             }
-            self.env.set(&format!("{}_x_domain", label), Value::Vec2(extracted.x_domain));
-            self.env.set(&format!("{}_y_domain", label), Value::Vec2(extracted.y_domain));
+            // Derived env entries for authored expressions, never a source.
+            self.env.set(&format!("{}_x_domain", label), Value::Vec2(frame.x_domain));
+            self.env.set(&format!("{}_y_domain", label), Value::Vec2(frame.y_domain));
             self.env.set(
                 &format!("{}_size", label),
                 Value::Vec2([

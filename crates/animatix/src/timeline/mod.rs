@@ -45,7 +45,7 @@ pub mod colorscheme;
 pub mod components;
 pub use components::{
     AutoColorComponent, ChildOrderComponent, CoordinateContext, CoordinateFrameComponent,
-    PersistenceComponent, TranscriptComponent,
+    CoordinateFrameTarget, PersistenceComponent, TranscriptComponent,
 };
 mod declarations_text;
 /// Built-in post-processing effects, chain storage, and the compositing
@@ -113,6 +113,8 @@ pub use property_registry::{
     ValueType, allowed_property_indices, lookup_property, property_id, property_name,
     property_schema_by_id,
 };
+/// Plot-host coordinate frame access surface.
+mod coordinate_frame;
 /// Frame evaluation environment construction and modifier execution.
 ///
 /// Provides [`Timeline::build_frame_env`] which assembles the per-frame
@@ -362,8 +364,6 @@ pub struct Timeline {
     /// not per-entity state. The assigned slot itself lives in the entity's
     /// [`AutoColorComponent`].
     pub(crate) next_auto_color_index: usize,
-    /// Component store for mathematical coordinate frames keyed by host EntityId.
-    pub(crate) coordinate_frames: BTreeMap<EntityId, CoordinateFrameComponent>,
     /// Memoized layout-admitted children per container (see
     /// `Timeline::layout_children_for`). Cleared by `invalidate_frame_cache`
     /// alongside the layout engine cache, whose admission contract it shares.
@@ -690,7 +690,6 @@ impl Timeline {
             resolution: None,
             declared_duration_s: None,
             next_auto_color_index: 0,
-            coordinate_frames: BTreeMap::new(),
             layout_children_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
             layout_engine: LayoutEngine::new(),
             dynamic_layout: false,

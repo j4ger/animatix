@@ -4,7 +4,8 @@ use crate::ast::LoopPattern;
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{Environment, Timeline, Value};
 
-/// Verify that CoordinateFrameComponent is registered in timeline.coordinate_frames.
+/// Verify that CoordinateFrameComponent is registered on the plot host entity
+/// and readable through both the id and label accessors.
 #[test]
 fn graph_registers_coordinate_frame_component() {
     let source = "g: Graph, size: (800, 600), x_domain: (-8, 8), y_domain: (-4, 4), padding: (10, 20, 30, 40)";
@@ -15,10 +16,13 @@ fn graph_registers_coordinate_frame_component() {
 
     let timeline = report.output;
     let g_id = timeline.tracks().get_id("g").expect("g entity id");
-    let frame = timeline.coordinate_frames.get(&g_id).expect("CoordinateFrameComponent");
+    let frame = timeline.coordinate_frame(g_id).expect("CoordinateFrameComponent");
     assert_eq!(frame.x_domain, [-8.0, 8.0]);
     assert_eq!(frame.y_domain, [-4.0, 4.0]);
     assert_eq!(frame.padding, [10.0, 20.0, 30.0, 40.0]);
+    // The label boundary resolves to the same component, and EntityRef exposes it.
+    assert_eq!(timeline.coordinate_frame_for("g"), Some(frame));
+    assert_eq!(timeline.entity("g").expect("g entity").coordinate_frame(), Some(frame));
 }
 
 /// `map()` must scale at the same px/unit the curve is drawn with: a point at

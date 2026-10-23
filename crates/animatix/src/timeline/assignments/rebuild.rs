@@ -16,12 +16,7 @@ pub(super) fn handle_size_assignment(
     easing: Easing,
     instant_delayed: bool,
     diagnostics: &mut Vec<Diagnostic>,
-    coordinate_frames: Option<
-        &std::collections::BTreeMap<
-            crate::timeline::EntityId,
-            crate::timeline::components::CoordinateFrameComponent,
-        >,
-    >,
+    coordinate_frame: Option<&crate::timeline::CoordinateFrameComponent>,
 ) -> [f32; 2] {
     let default_size = DEFAULT_LAYOUT_HALF_SIZE;
     let has_duration = t_end_ms > t_start_ms;
@@ -93,15 +88,7 @@ pub(super) fn handle_size_assignment(
         .add_keyframe(t_end_ms, target_size, easing);
 
     // Rebuild vector paths after size change
-    rebuild_vector_paths(
-        track,
-        t_start_ms,
-        t_end_ms,
-        easing,
-        diagnostics,
-        Some(env),
-        coordinate_frames,
-    );
+    rebuild_vector_paths(track, t_start_ms, t_end_ms, easing, diagnostics, coordinate_frame);
 
     target_size
 }
@@ -112,13 +99,7 @@ pub(super) fn rebuild_vector_paths(
     t_end_ms: u64,
     easing: Easing,
     _diagnostics: &mut Vec<Diagnostic>,
-    env: Option<&Environment>,
-    coordinate_frames: Option<
-        &std::collections::BTreeMap<
-            crate::timeline::EntityId,
-            crate::timeline::components::CoordinateFrameComponent,
-        >,
-    >,
+    coordinate_frame: Option<&crate::timeline::CoordinateFrameComponent>,
 ) {
     let default_size = DEFAULT_LAYOUT_HALF_SIZE;
     let default_arc = [0.0, 0.0];
@@ -128,144 +109,40 @@ pub(super) fn rebuild_vector_paths(
 
     // ── Special case: Graph actors rebuild axis/grid/tick paths ──
     if shape_type == ShapeType::Graph {
-        let frame = coordinate_frames.and_then(|cf| cf.get(&track.id));
-        if frame.is_some() || env.is_some() {
-            let label = &track.label;
-            let x_domain = frame.map(|f| f.x_domain).unwrap_or_else(|| {
-                env.and_then(|e| {
-                    e.get(&format!("{}_x_domain", label)).and_then(|v| {
-                        if let Value::Vec2(d) = v {
-                            Some([d[0], d[1]])
-                        } else {
-                            None
-                        }
-                    })
-                })
-                .unwrap_or([-10.0, 10.0])
-            });
-            let y_domain = frame.map(|f| f.y_domain).unwrap_or_else(|| {
-                env.and_then(|e| {
-                    e.get(&format!("{}_y_domain", label)).and_then(|v| {
-                        if let Value::Vec2(d) = v {
-                            Some([d[0], d[1]])
-                        } else {
-                            None
-                        }
-                    })
-                })
-                .unwrap_or([-10.0, 10.0])
-            });
-            let stroke_color = track.style.stroke_color.last(DEFAULT_WHITE);
+        // The host's coordinate frame component is the only source for the
+        // rebuilt axes. An absent frame degrades to the component defaults
+        // (linear scales, [-10, 10] domains), never to an env fallback.
+        let frame = coordinate_frame.cloned().unwrap_or_default();
+        let stroke_color = track.style.stroke_color.last(DEFAULT_WHITE);
+        let new_paths = build_graph_axis_paths(
+            size,
+            frame.x_domain,
+            frame.y_domain,
+            stroke_color,
+            frame.grid,
+            frame.ticks,
+            matches!(frame.tick_labels.as_str(), "auto" | "true" | "both"),
+            frame.padding,
+            frame.x_scale,
+            frame.y_scale,
+        );
 
-            // Read graph axis settings from coordinate frame or env fallback
-            let grid = frame.map(|f| f.grid).unwrap_or_else(|| {
-                env.and_then(|e| {
-                    e.get(&format!("{}_grid", label)).and_then(|v| {
-                        if let Value::Bool(b) = v {
-                            Some(b)
-                        } else {
-                            None
-                        }
-                    })
-                })
-                .unwrap_or(false)
-            });
-            let ticks = frame.map(|f| f.ticks).unwrap_or_else(|| {
-                env.and_then(|e| {
-                    e.get(&format!("{}_ticks", label)).and_then(|v| {
-                        if let Value::Bool(b) = v {
-                            Some(b)
-                        } else {
-                            None
-                        }
-                    })
-                })
-                .unwrap_or(false)
-            });
-            let has_labels = frame
-                .map(|f| matches!(f.tick_labels.as_str(), "auto" | "true" | "both"))
-                .unwrap_or_else(|| {
-                    let tick_labels_str = env
-                        .and_then(|e| {
-                            e.get(&format!("{}_tick_labels", label)).and_then(|v| {
-                                if let Value::Str(s) = v {
-                                    Some(s.clone())
-                                } else {
-                                    None
-                                }
-                            })
-                        })
-                        .unwrap_or_else(|| "auto".to_string());
-                    matches!(tick_labels_str.as_str(), "auto" | "true" | "both")
-                });
-
-            let padding = frame.map(|f| f.padding).unwrap_or_else(|| {
-                env.and_then(|e| {
-                    e.get(&format!("{}_padding", label)).and_then(|v| {
-                        if let Value::Vec4(p) = v {
-                            Some([p[0], p[1], p[2], p[3]])
-                        } else {
-                            None
-                        }
-                    })
-                })
-                .unwrap_or([0.0; 4])
-            });
-            let x_scale = frame.map(|f| f.x_scale).unwrap_or_else(|| {
-                env.and_then(|e| {
-                    e.get(&format!("{}_x_scale", label)).and_then(|v| {
-                        if let Value::Str(s) = v {
-                            Some(crate::timeline::build::utils::ScaleType::from_str(&s))
-                        } else {
-                            None
-                        }
-                    })
-                })
-                .unwrap_or(crate::timeline::build::utils::ScaleType::Linear)
-            });
-            let y_scale = frame.map(|f| f.y_scale).unwrap_or_else(|| {
-                env.and_then(|e| {
-                    e.get(&format!("{}_y_scale", label)).and_then(|v| {
-                        if let Value::Str(s) = v {
-                            Some(crate::timeline::build::utils::ScaleType::from_str(&s))
-                        } else {
-                            None
-                        }
-                    })
-                })
-                .unwrap_or(crate::timeline::build::utils::ScaleType::Linear)
-            });
-
-            let new_paths = build_graph_axis_paths(
-                size,
-                x_domain,
-                y_domain,
-                stroke_color,
-                grid,
-                ticks,
-                has_labels,
-                padding,
-                x_scale,
-                y_scale,
+        if has_duration {
+            let start_paths = track.evaluate_vector_paths_value(t_start_ms);
+            track.shape.vector_paths.ensure(Vec::new()).add_keyframe(
+                t_start_ms,
+                start_paths,
+                Easing::Linear,
             );
-
-            if has_duration {
-                let start_paths = track.evaluate_vector_paths_value(t_start_ms);
-                track.shape.vector_paths.ensure(Vec::new()).add_keyframe(
-                    t_start_ms,
-                    start_paths,
-                    Easing::Linear,
-                );
-            } else if t_end_ms > 0 {
-                preserve_instant_delayed_value(&mut track.shape.vector_paths, t_end_ms);
-            }
-            track
-                .shape
-                .vector_paths
-                .ensure(Vec::new())
-                .add_keyframe(t_end_ms, new_paths, easing);
-            return;
+        } else if t_end_ms > 0 {
+            preserve_instant_delayed_value(&mut track.shape.vector_paths, t_end_ms);
         }
+        track
+            .shape
+            .vector_paths
+            .ensure(Vec::new())
+            .add_keyframe(t_end_ms, new_paths, easing);
+        return;
     }
 
     let line_from = track.shape.line_from.last([-50.0, 0.0]);

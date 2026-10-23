@@ -53,6 +53,33 @@ impl Default for CoordinateFrameComponent {
     }
 }
 
+/// A target accepted by [`crate::timeline::Timeline::set_coordinate_frame`].
+///
+/// Build code already holds the [`EntityId`]; the action / carry / test
+/// boundary holds the actor label. Resolving the label happens once, at the
+/// boundary, so the component store itself is only ever keyed by id.
+#[derive(Clone, Copy, Debug)]
+pub enum CoordinateFrameTarget<'a> {
+    /// Stable entity handle (no label lookup).
+    Id(EntityId),
+    /// Actor label, resolved through the entity store.
+    Label(&'a str),
+}
+
+impl From<EntityId> for CoordinateFrameTarget<'_> {
+    #[inline(always)]
+    fn from(id: EntityId) -> Self {
+        Self::Id(id)
+    }
+}
+
+impl<'a> From<&'a str> for CoordinateFrameTarget<'a> {
+    #[inline(always)]
+    fn from(label: &'a str) -> Self {
+        Self::Label(label)
+    }
+}
+
 /// Resolved Coordinate Context passed to child plot entities during building/sampling.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CoordinateContext {

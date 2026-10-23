@@ -21,7 +21,8 @@ pub use view::{EntityMut, EntityRef};
 use std::collections::HashMap;
 
 use super::components::{
-    AutoColorComponent, ChildOrderComponent, PersistenceComponent, TranscriptComponent,
+    AutoColorComponent, ChildOrderComponent, CoordinateFrameComponent, PersistenceComponent,
+    TranscriptComponent,
 };
 use super::dispatch::AnimationTrack;
 use super::entity::{EntityId, TrackStore};
@@ -44,6 +45,13 @@ pub struct World {
     pub(crate) container_layout: ComponentStore<ContainerMetadata>,
     /// Animated child order for containers targeted by `swap` / `reorder`.
     pub(crate) child_order: ComponentStore<ChildOrderComponent>,
+    /// Mathematical coordinate frame for plot hosts (`Graph` and any primitive
+    /// with the `plot_host` capability).
+    ///
+    /// This is the sole source for a hosted child's coordinate resolution. The
+    /// `{label}_x_domain` / `_y_domain` / `_padding` env entries are derived
+    /// build-time expression variables, never a fallback.
+    pub(crate) coordinate_frame: ComponentStore<CoordinateFrameComponent>,
     /// `persist` / `remove` state for actors that were targeted by an action.
     pub(crate) persistence: ComponentStore<PersistenceComponent>,
     /// `color: auto` slot for actors declared with automatic coloring.
@@ -206,6 +214,7 @@ impl World {
         self.hierarchy.reset_at(id);
         self.container_layout.reset_at(id);
         self.child_order.reset_at(id);
+        self.coordinate_frame.reset_at(id);
         self.persistence.reset_at(id);
         self.auto_color.reset_at(id);
         self.transcript.reset_at(id);
@@ -224,6 +233,12 @@ impl World {
     #[inline(always)]
     pub fn hierarchy_mut(&mut self, id: EntityId) -> &mut SceneHierarchyComponent {
         self.hierarchy.get_mut(id)
+    }
+
+    /// Borrow an entity's coordinate frame, when it is a plot host.
+    #[inline(always)]
+    pub fn coordinate_frame(&self, id: EntityId) -> Option<&CoordinateFrameComponent> {
+        self.coordinate_frame.get(id)
     }
 
     /// Inputs of the child-order cache flag: true when any container carries an
@@ -407,6 +422,7 @@ impl World {
         self.hierarchy.ensure_len(len);
         self.container_layout.ensure_len(len);
         self.child_order.ensure_len(len);
+        self.coordinate_frame.ensure_len(len);
         self.persistence.ensure_len(len);
         self.auto_color.ensure_len(len);
         self.transcript.ensure_len(len);
@@ -418,6 +434,7 @@ impl World {
         self.hierarchy.clear();
         self.container_layout.clear();
         self.child_order.clear();
+        self.coordinate_frame.clear();
         self.persistence.clear();
         self.auto_color.clear();
         self.transcript.clear();
@@ -442,6 +459,7 @@ mod tests {
         assert_eq!(world.len(), 2);
         assert_eq!(world.hierarchy.len(), 2);
         assert_eq!(world.container_layout.len(), 2);
+        assert_eq!(world.coordinate_frame.len(), 2, "every store stays slot-aligned");
         assert_eq!(world.label(a), Some("a"));
         assert_eq!(world.get_id("b"), Some(b));
 
@@ -470,6 +488,27 @@ mod tests {
     }
 
     #[test]
+    fn spawn_replacing_clears_the_coordinate_frame() {
+        let mut world = World::new();
+        let id = world.spawn("g", "Graph");
+        world.coordinate_frame.insert(
+            id,
+            CoordinateFrameComponent {
+                x_domain: [0.0, 4.0],
+                ..CoordinateFrameComponent::default()
+            },
+        );
+        assert!(world.coordinate_frame(id).is_some());
+
+        let replacement = world.spawn_replacing("g", AnimationTrack::new("g".to_string(), "Graph"));
+        assert_eq!(replacement, id, "replacement keeps the entity id");
+        assert!(
+            world.coordinate_frame(id).is_none(),
+            "spawn_replacing must not inherit the previous scene's frame"
+        );
+    }
+
+    #[test]
     fn views_resolve_by_label_and_id() {
         let world = {
             let mut world = World::new();
@@ -492,5 +531,6 @@ mod tests {
         assert!(world.is_empty());
         assert!(world.hierarchy.is_empty());
         assert!(world.container_layout.is_empty());
+        assert!(world.coordinate_frame.is_empty());
     }
 }
