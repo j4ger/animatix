@@ -26,6 +26,7 @@ use super::components::{
 };
 use super::dispatch::AnimationTrack;
 use super::effects::EffectChainTrack;
+use crate::primitives::PrimitivePayload;
 use super::entity::{EntityId, TrackStore};
 use super::legend::LegendTracks;
 use super::types::ContainerMetadata;
@@ -69,6 +70,8 @@ pub struct World {
     pub(crate) legend: ComponentStore<LegendTracks>,
     /// Post-processing effect chain for a compositing scope.
     pub(crate) effects: ComponentStore<EffectChainTrack>,
+    /// Primitive-specific payload (plots, SVG assets, raster images).
+    pub(crate) payload: ComponentStore<PrimitivePayload>,
     /// Root entities in authored/insertion order.
     pub(crate) roots: Vec<EntityId>,
     /// Build-time command buffer: a child label whose track has not been
@@ -300,6 +303,23 @@ impl World {
     #[inline(always)]
     pub fn effects_mut(&mut self, id: EntityId) -> Option<&mut EffectChainTrack> {
         self.effects.get_mut(id)
+    }
+
+    /// Borrow an entity's primitive payload, when present.
+    #[inline(always)]
+    pub fn payload(&self, id: EntityId) -> Option<&PrimitivePayload> {
+        self.payload.get(id)
+    }
+
+    /// Mutably borrow an entity's primitive payload.
+    #[inline(always)]
+    pub fn payload_mut(&mut self, id: EntityId) -> Option<&mut PrimitivePayload> {
+        self.payload.get_mut(id)
+    }
+
+    /// Insert a default payload when absent and borrow it.
+    pub fn ensure_payload(&mut self, id: EntityId) -> &mut PrimitivePayload {
+        self.payload.get_or_insert_with(id, PrimitivePayload::default)
     }
 
     /// Insert a default effect chain when absent and borrow it.

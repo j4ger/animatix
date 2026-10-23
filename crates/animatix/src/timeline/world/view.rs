@@ -109,6 +109,12 @@ impl<'w> EntityRef<'w> {
     pub fn effects(self) -> Option<&'w EffectChainTrack> {
         self.world.effects.get(self.id)
     }
+
+    /// The entity's primitive payload (plot/SVG/image), when present.
+    #[inline(always)]
+    pub fn payload(self) -> Option<&'w crate::primitives::PrimitivePayload> {
+        self.world.payload.get(self.id)
+    }
 }
 
 /// Borrowed mutable view of one entity.
@@ -222,5 +228,11 @@ impl<'w> EntityMut<'w> {
     #[inline(always)]
     pub fn effects_mut(&mut self) -> Option<&mut EffectChainTrack> {
         self.world.effects.get_mut(self.id)
+    }
+
+    /// Mutably borrow the entity's primitive payload, if present.
+    #[inline(always)]
+    pub fn payload_mut(&mut self) -> Option<&mut crate::primitives::PrimitivePayload> {
+        self.world.payload.get_mut(self.id)
     }
 }
