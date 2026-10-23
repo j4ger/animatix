@@ -236,6 +236,14 @@ component context (or a `World` + `EntityId`). `legend`, `effects` and `payload`
 are outside that table and migrate first; `payload` still needs a render/evaluate
 context field for the image/SVG/plot primitives.
 
+Direction for unlocking the rest: introduce a borrowed `TrackFields<'a>` bundle
+(geometry/style/shape/text/highlight/tagged refs) assembled by
+`World::fields(id)` and `World::fields_mut(id)`, then move
+`TrackFieldRef`/`TrackFieldMut` construction and
+`read_property_value`/`write_property_field` onto that bundle. The existing
+`AnimationTrack` accessors can forward to it during the transition, so call
+sites migrate per domain instead of in one rewrite.
+
 ## 7. Adding a component
 
 1. Define `pub struct XComponent` in `timeline/components/<domain>.rs`
