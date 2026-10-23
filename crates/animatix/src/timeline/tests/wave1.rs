@@ -99,8 +99,8 @@ heading: Text, text: "Delightful", fill_gradient: linear(135, {"#ff0000", "#0000
         &stmts.expect("parsed AST"),
         &std::collections::HashMap::new(),
     );
-    assert!(!report.output.tracks.is_empty());
-    let track = report.output.tracks.get("heading").expect("heading track");
+    assert!(!report.output.world.tracks.is_empty());
+    let track = report.output.world.tracks.get("heading").expect("heading track");
     assert!(track.style.fill_gradient.is_some(), "Text actor should accept fill_gradient");
 }
 
@@ -117,8 +117,8 @@ fg: Rect, size: (100, 100), parallax: 1.0, at: (50, 50)
         &stmts.expect("parsed AST"),
         &std::collections::HashMap::new(),
     );
-    let bg_track = report.output.tracks.get("bg").expect("bg track");
-    let fg_track = report.output.tracks.get("fg").expect("fg track");
+    let bg_track = report.output.world.tracks.get("bg").expect("bg track");
+    let fg_track = report.output.world.tracks.get("fg").expect("fg track");
     assert_eq!(bg_track.parallax, 0.3);
     assert_eq!(fg_track.parallax, 1.0);
 }

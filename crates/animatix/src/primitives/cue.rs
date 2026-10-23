@@ -50,11 +50,7 @@ impl Primitive for CuePrimitive {
     ) -> Result<(), Vec<Diagnostic>> {
         let env = ctx.timeline.env().clone();
         ctx.timeline.add_node(label.to_string(), ctx.parent_label);
-        let track = ctx
-            .timeline
-            .tracks
-            .entry(label.to_string())
-            .or_insert_with(|| crate::timeline::AnimationTrack::new(label.to_string(), "Cue"));
+        let track = ctx.timeline.world.ensure_track(label, "Cue");
         track.set_identity("Cue");
         if track.first_seen_ms == u64::MAX {
             track.first_seen_ms = ctx.time_ms as u64;

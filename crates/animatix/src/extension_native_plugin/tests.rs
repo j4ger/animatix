@@ -184,7 +184,7 @@ fn native_action_context_writes_extension_keyframe() {
     let mut timeline = crate::timeline::Timeline::new();
     let mut track = crate::timeline::AnimationTrack::placeholder("p".to_string());
     track.actor_type = "Pulse".to_string();
-    timeline.tracks.insert("p".to_string(), track);
+    timeline.world.tracks.insert("p".to_string(), track);
 
     let adapter = NativeActionAdapter {
         signature: ActionSignature {
@@ -213,7 +213,7 @@ fn native_action_context_writes_extension_keyframe() {
     assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
     assert_eq!(
         crate::timeline::property_engine::read_property_plan_slot(
-            timeline.tracks.get("p").expect("track"),
+            timeline.world.tracks.get("p").expect("track"),
             id,
             500,
         ),
@@ -452,7 +452,6 @@ fn native_host_callbacks_install_and_dispose_capabilities() {
         services,
         ..
     } = host;
-
     assert_eq!(properties, vec![("Rect".to_string(), "glow".to_string())]);
     assert_eq!(functions, vec!["double".to_string()]);
     assert_eq!(primitives, vec!["Pulse".to_string()]);
@@ -1267,8 +1266,9 @@ fn native_build_through_timeline_processes_children() {
         "unexpected diagnostics: {:?}",
         report.diagnostics
     );
-    let track = report.output.tracks.get("p").expect("pulse track");
-    assert_eq!(track.children, vec!["kid".to_string()]);
+    let p_id = report.output.get_entity_id("p").expect("pulse track");
+    let children: Vec<&str> = report.output.world.child_labels(p_id).collect();
+    assert_eq!(children, vec!["kid"]);
     assert_eq!(BUILD_CHILD_COUNT.load(std::sync::atomic::Ordering::SeqCst), 1);
 }
 
@@ -1664,7 +1664,7 @@ fn native_declared_builtin_properties_use_generic_writer() {
         "unexpected diagnostics: {:?}",
         report.diagnostics
     );
-    let track = report.output.tracks.get("p").expect("pulse track");
+    let track = report.output.world.tracks.get("p").expect("pulse track");
     assert_eq!(
         track.geometry.position.get(0, [0.0, 0.0]),
         [10.0, 20.0],
@@ -1731,7 +1731,7 @@ fn extension_actor_is_visible_from_declaration_time() {
         "unexpected diagnostics: {:?}",
         report.diagnostics
     );
-    let track = report.output.tracks.get("p").expect("pulse track");
+    let track = report.output.world.tracks.get("p").expect("pulse track");
     assert_eq!(
         track.first_seen_ms, 0,
         "extension actors must be visible from their declaration time"
@@ -1767,7 +1767,7 @@ fn enum_extension_property_bare_identifier_roundtrips() {
         &std::collections::HashMap::new(),
         Arc::new(ctx),
     );
-    let track = report.output.tracks.get("p").expect("pulse track");
+    let track = report.output.world.tracks.get("p").expect("pulse track");
     let slot = track.property_plan.get(PropertyId(1_000_000));
     let t0 = slot.and_then(|s| s.track.sample(0));
     let t1500 = slot.and_then(|s| s.track.sample(1500));

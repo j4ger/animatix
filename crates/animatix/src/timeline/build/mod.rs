@@ -14,6 +14,7 @@
 //! | `actor.rs` | Actor declaration processing, VelloPath generation, keyframes |
 //! | `process.rs` | Main `process_body` AST statement dispatcher |
 //! | `plot.rs` | Plot curve/axis path building (pre-existing) |
+//! | `post.rs` | Post-build passes: idle tracks, namespace exports |
 //! | `keyframe_utils.rs` | Keyframe insertion helpers (pre-existing) |
 
 pub(super) use keyframe_utils::{
@@ -34,6 +35,7 @@ mod entry;
 mod keyframe_utils;
 mod node;
 pub(crate) mod plot;
+mod post;
 mod process;
 mod property;
 pub(crate) mod referenced_roots;

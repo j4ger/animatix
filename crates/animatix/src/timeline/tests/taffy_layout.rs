@@ -161,19 +161,22 @@ row: Row, gap: 16, padding: 20, size: (900, 120), at: (640, 380) {
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
 
     let track_a = timeline
+        .world
         .tracks
         .get("row.a")
-        .or_else(|| timeline.tracks.get("a"))
+        .or_else(|| timeline.world.tracks.get("a"))
         .expect("track a");
     let track_b = timeline
+        .world
         .tracks
         .get("row.b")
-        .or_else(|| timeline.tracks.get("b"))
+        .or_else(|| timeline.world.tracks.get("b"))
         .expect("track b");
     let track_c = timeline
+        .world
         .tracks
         .get("row.c")
-        .or_else(|| timeline.tracks.get("c"))
+        .or_else(|| timeline.world.tracks.get("c"))
         .expect("track c");
 
     let size_a = track_a.geometry.size.get(0, [0.0, 0.0]);

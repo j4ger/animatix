@@ -122,34 +122,30 @@ pub(crate) fn is_full_viewport_background(track: &super::AnimationTrack) -> bool
     matches!(track.geometry.size_spec, Some(spec) if full(spec.width) && full(spec.height))
 }
 
-fn source_order(
-    tracks: &super::TrackStore,
-    roots: &[String],
-) -> std::collections::HashMap<String, usize> {
+fn source_order(world: &super::World) -> std::collections::HashMap<String, usize> {
     let mut order = std::collections::HashMap::new();
     let mut visited = std::collections::HashSet::new();
     let mut next = 0usize;
     fn visit(
-        label: &str,
-        tracks: &super::TrackStore,
-        _roots: &[String],
+        id: super::EntityId,
+        world: &super::World,
         order: &mut std::collections::HashMap<String, usize>,
-        visited: &mut std::collections::HashSet<String>,
+        visited: &mut std::collections::HashSet<super::EntityId>,
         next: &mut usize,
     ) {
-        if !visited.insert(label.to_string()) {
+        if !visited.insert(id) {
             return;
         }
-        order.insert(label.to_string(), *next);
+        if let Some(label) = world.label(id) {
+            order.insert(label.to_string(), *next);
+        }
         *next += 1;
-        if let Some(track) = tracks.get(label) {
-            for child in &track.children {
-                visit(child, tracks, _roots, order, visited, next);
-            }
+        for &child in &world.hierarchy(id).children {
+            visit(child, world, order, visited, next);
         }
     }
-    for root in roots {
-        visit(root, tracks, roots, &mut order, &mut visited, &mut next);
+    for &root in world.root_entities() {
+        visit(root, world, &mut order, &mut visited, &mut next);
     }
     order
 }
@@ -159,13 +155,10 @@ fn source_order(
 /// Runs after the full timeline is built so forward declarations and generated
 /// actors are visible. Structural actors are excluded by kind, and actors can
 /// opt out or supply an explicit label via `legend`.
-pub fn scan_legend_entries(
-    tracks: &super::TrackStore,
-    roots: &[String],
-) -> Vec<(String, [f32; 4])> {
-    let order = source_order(tracks, roots);
+pub fn scan_legend_entries(world: &super::World) -> Vec<(String, [f32; 4])> {
+    let order = source_order(world);
     let mut candidates = Vec::new();
-    for (label, track) in tracks {
+    for (label, track) in &world.tracks {
         let mode = legend_mode_for_track(track);
         if !legend_eligible(&track.caps)
             || mode == LegendMode::Hidden

@@ -21,8 +21,10 @@ use crate::timeline::property_engine::{parse_property_value, write_property_fiel
 use crate::timeline::property_registry::{PropertyFlags, lookup_property};
 use crate::timeline::property_track::TrackAccessor;
 
+mod effects;
 mod rebuild;
 
+use effects::write_effect_stage_param;
 use rebuild::{
     affects_shape_geometry, handle_size_assignment,
     push_unsupported_assignment_property_diagnostic, rebuild_vector_paths, scale_plot_curve_paths,
@@ -42,7 +44,7 @@ impl Timeline {
         }
 
         let direct_key = assignment_target_key(target);
-        if self.tracks.contains_key(&direct_key) {
+        if self.world.tracks.contains_key(&direct_key) {
             return Some(direct_key);
         }
 
@@ -54,12 +56,9 @@ impl Timeline {
         let mut current = target[0].label_str().to_string();
         for segment in &target[1..] {
             let seg_str = segment.label_str();
-            let track = self.tracks.get(&current)?;
-            if track.children.contains(&seg_str.to_string()) {
-                current = seg_str.to_string();
-            } else {
-                return None;
-            }
+            let current_id = self.world.get_id(&current)?;
+            let next = self.world.child_labels(current_id).find(|child| *child == seg_str)?;
+            current = next.to_string();
         }
 
         Some(current)
@@ -157,6 +156,7 @@ impl Timeline {
             // and reported instead of guessed.
             let stage_label = target[0].label_str();
             let mut owners: Vec<String> = self
+                .world
                 .tracks
                 .iter()
                 .filter(|(_, track)| track.caps.is_effect_scope())
@@ -180,6 +180,7 @@ impl Timeline {
             }
             if let Some(scope_label) = owners.pop() {
                 let stage_kind = self
+                    .world
                     .tracks
                     .get(&scope_label)
                     .and_then(|track| track.effects.stage(stage_label))
@@ -208,6 +209,7 @@ impl Timeline {
             let scope_label = target[0].label_str();
             let stage_label = target[1].label_str();
             let stage_kind = self
+                .world
                 .tracks
                 .get(scope_label)
                 .filter(|track| track.caps.is_effect_scope())
@@ -345,7 +347,7 @@ impl Timeline {
                     })
                     .unwrap_or(40.0);
 
-                if let Some(track) = self.tracks.get(&label) {
+                if let Some(track) = self.world.tracks.get(&label) {
                     let pos = track.geometry.position.get(t_start_ms, [0.0, 0.0]);
                     let half_size = track.geometry.size.get(t_start_ms, [50.0, 50.0]);
                     let w = (half_size[0] * 2.0).max(1.0);
@@ -435,7 +437,7 @@ impl Timeline {
             None => {
                 let suggestion = best_path_suggestion(
                     &assignment_target_key(&target),
-                    self.tracks.keys().map(String::as_str),
+                    self.world.tracks.keys().map(String::as_str),
                 );
                 push_unknown_target_path_diagnostic(
                     diagnostics,
@@ -448,8 +450,14 @@ impl Timeline {
         };
 
         // The target was resolved above, so its track must exist; never create
-        // one with no primitive identity.
-        let Some(track) = self.tracks.get_mut(&target_key) else {
+        // one with no primitive identity. Child labels are collected before the
+        // mutable borrow because the Graph size path rewrites child tracks.
+        let child_labels: Vec<String> = if matches!(property, "size" | "radius_x" | "radius_y") {
+            self.child_labels(&target_key).map(str::to_string).collect()
+        } else {
+            Vec::new()
+        };
+        let Some(track) = self.world.tracks.get_mut(&target_key) else {
             tracing::warn!("assignment target '{target_key}' has no track; skipping");
             return;
         };
@@ -759,9 +767,8 @@ impl Timeline {
                 if shape_type == ShapeType::Graph && old_half_size != new_half_size {
                     let scale_x = new_half_size[0] / old_half_size[0];
                     let scale_y = new_half_size[1] / old_half_size[1];
-                    let children: Vec<String> = track.children.clone();
-                    for child_label in &children {
-                        if let Some(child_track) = self.tracks.get_mut(child_label) {
+                    for child_label in &child_labels {
+                        if let Some(child_track) = self.world.tracks.get_mut(child_label) {
                             // Scale PlotCurve paths
                             if child_track.caps.plot_geometry {
                                 scale_plot_curve_paths(
@@ -1140,93 +1147,4 @@ pub(crate) fn recompile_text_at_assignment(
     );
     track.set_metrics(t_end_ms, ascent, descent, baseline_offset);
     Ok(())
-}
-
-// ─────────────────────────────────────────────────────────────
-// Helper: rebuild vector paths
-// ─────────────────────────────────────────────────────────────
-
-/// Write a keyframed assignment for an effect stage parameter
-/// (`scope.stage.param = value`).
-///
-/// Reports a diagnostic (never silently drops) when the property is not a
-/// declared parameter of the stage's effect.
-#[allow(clippy::too_many_arguments)]
-fn write_effect_stage_param(
-    timeline: &mut Timeline,
-    scope_label: &str,
-    stage_label: &str,
-    kind: crate::timeline::effects::EffectId,
-    property: &str,
-    value: &super::Expr,
-    eval_env: &Environment,
-    t_start_ms: u64,
-    t_end_ms: u64,
-    duration_ms: f64,
-    easing: Easing,
-    diagnostics: &mut Vec<Diagnostic>,
-    subject: &str,
-) {
-    use crate::timeline::effects::{EffectParamKind, effect};
-    use crate::timeline::property_engine::PropertyValue;
-
-    let Some(effect) = effect(&kind) else {
-        tracing::warn!("effect stage '{scope_label}.{stage_label}' has no registered descriptor");
-        return;
-    };
-    let (is_enabled, param_kind, identity) = if property == "enabled" {
-        (true, EffectParamKind::Bool, PropertyValue::Bool(true))
-    } else if let Some(spec) = effect.params().iter().find(|param| param.name == property) {
-        (false, spec.kind, crate::timeline::effects::identity_to_property(spec.identity))
-    } else {
-        diagnostics.push(
-            Diagnostic::warning(
-                DiagnosticCode::InvalidPropertyValue,
-                DiagnosticPhase::Build,
-                format!("Effect '{}' has no parameter '{}'", effect.type_name(), property),
-            )
-            .with_subject(subject),
-        );
-        return;
-    };
-
-    let Some(evaluated) = crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic(
-        value,
-        eval_env,
-        diagnostics,
-        subject,
-    ) else {
-        return;
-    };
-    let parsed = if is_enabled {
-        match evaluated {
-            Value::Bool(enabled) => PropertyValue::Bool(enabled),
-            other => {
-                tracing::warn!("{subject}: 'enabled' expects a bool, got {other:?}; ignoring");
-                return;
-            },
-        }
-    } else {
-        match crate::timeline::effects::value_to_property(param_kind, evaluated, subject) {
-            Some(v) => v,
-            None => return,
-        }
-    };
-
-    let Some(scope) = timeline.tracks.get_mut(scope_label) else {
-        return;
-    };
-    let Some(stage) = scope.effects.stage_mut(stage_label) else {
-        return;
-    };
-    let track = if is_enabled {
-        &mut stage.enabled
-    } else {
-        stage.param_track_mut(property, param_kind)
-    };
-    if duration_ms > 0.0 {
-        let start = track.sample(t_start_ms).unwrap_or(identity);
-        track.add_keyframe_eased(t_start_ms, start, Easing::Linear);
-    }
-    track.add_keyframe_eased(t_end_ms, parsed, easing);
 }

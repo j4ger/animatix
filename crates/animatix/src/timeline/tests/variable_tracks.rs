@@ -411,7 +411,7 @@ for j in {0, 2} {
     );
     let timeline = report.output;
     for key in ["b__0", "b__2"] {
-        let track = timeline.tracks.get(key).unwrap_or_else(|| panic!("{key} track"));
+        let track = timeline.world.tracks.get(key).unwrap_or_else(|| panic!("{key} track"));
         assert_eq!(
             track.style.color.get(200, [1.0, 1.0, 1.0, 1.0]),
             [1.0, 0.0, 0.0, 1.0],
@@ -609,7 +609,7 @@ pulse btn [strength: 1.5]
     );
     // The scale keyframe written through the fn body targets the actor;
     // scale is stored in the transform track as [s,0,0,s,0,0].
-    let track = timeline.tracks.get("btn").expect("btn track");
+    let track = timeline.world.tracks.get("btn").expect("btn track");
     assert_eq!(
         track.geometry.scale.get(1100, 1.0),
         3.0,
@@ -796,7 +796,7 @@ bubble_sort(bars, vals)
     );
     eprintln!(
         "[dotted-fn] tracks sample: {:?}",
-        timeline.tracks.keys().take(8).collect::<Vec<_>>()
+        timeline.world.tracks.keys().take(8).collect::<Vec<_>>()
     );
     // The component instance's row track receives the swaps.
     let row_key = timeline.child_orders.keys().next().expect("row child_orders").clone();
@@ -993,7 +993,7 @@ fn extension_actor_at_position_regression() {
             _children: &[animatix_syntax::ast::InlineItem],
         ) -> Result<(), Vec<animatix_syntax::diagnostics::Diagnostic>> {
             let track =
-                ctx.timeline.tracks.entry(label.to_string()).or_insert_with(|| {
+                ctx.timeline.world.tracks.entry(label.to_string()).or_insert_with(|| {
                     crate::timeline::AnimationTrack::placeholder(label.to_string())
                 });
             track.actor_type = "StubPulse".to_string();
@@ -1026,7 +1026,7 @@ p: StubPulse, at: (100, 100), size: (50, 50)
     let crate::composition::BuildTarget::SingleScene(timeline) = report.output else {
         panic!("expected single scene");
     };
-    let track = timeline.tracks.get("p").expect("p track");
+    let track = timeline.world.tracks.get("p").expect("p track");
     // Regression: extension actors must honor the common `at` property like
     // built-ins (previously the position stayed [0,0], so native text and
     // image commands rendered at the scene origin).

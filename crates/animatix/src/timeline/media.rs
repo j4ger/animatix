@@ -136,16 +136,13 @@ impl Timeline {
         );
         // Pre-seed opacity for pre-keyframe first declarations without explicit opacity.
         let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
-        let is_first_decl = !self.tracks.contains_key(label);
+        let is_first_decl = !self.world.tracks.contains_key(label);
 
         // Before the track borrow: purely a name-level check, so placement
         // ahead of the mutation below is purely for the borrow checker.
         self.warn_unknown_declaration_properties(label, actor_type, props, diagnostics);
 
-        let track = self
-            .tracks
-            .entry(label.to_string())
-            .or_insert_with(|| AnimationTrack::new(label.to_string(), actor_type));
+        let track = self.world.ensure_track(label, actor_type);
 
         // Ensure the track identity matches the declaration type (single funnel,
         // so `kind` cannot drift from `actor_type`).
@@ -301,10 +298,7 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         self.add_node(label.to_string(), parent_label);
-        let track = self
-            .tracks
-            .entry(label.to_string())
-            .or_insert_with(|| AnimationTrack::new(label.to_string(), "Audio"));
+        let track = self.world.ensure_track(label, "Audio");
         track.set_identity("Audio");
 
         if track.first_seen_ms == u64::MAX {

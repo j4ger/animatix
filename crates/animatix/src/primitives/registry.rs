@@ -192,7 +192,7 @@ mod tests {
             _children: &[InlineItem],
         ) -> Result<(), Vec<Diagnostic>> {
             let track =
-                ctx.timeline.tracks.entry(label.to_string()).or_insert_with(|| {
+                ctx.timeline.world.tracks.entry(label.to_string()).or_insert_with(|| {
                     crate::timeline::AnimationTrack::placeholder(label.to_string())
                 });
             track.set_identity("Text");
@@ -318,7 +318,7 @@ mod tests {
             "unexpected diagnostics: {:?}",
             report.diagnostics
         );
-        let track = report.output.tracks.get("g").expect("custom actor track");
+        let track = report.output.world.tracks.get("g").expect("custom actor track");
         assert_eq!(track.actor_type, "Gauge");
         assert_eq!(track.actor_type, "Gauge");
 

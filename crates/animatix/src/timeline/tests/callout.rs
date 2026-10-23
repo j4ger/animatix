@@ -1004,12 +1004,10 @@ fn test_callout_target_translated_world_bounds() {
     // place=right → attach = (240, 100).
     let mut timeline = Timeline::new();
     let target = make_target_track("box", [200.0, 100.0], [40.0, 20.0]);
-    timeline.tracks.insert("box".to_string(), target);
-    timeline.root_nodes.push("box".to_string());
+    timeline.world.spawn_with_track("box", target);
 
     let callout = make_callout_track("note", "box");
-    timeline.tracks.insert("note".to_string(), callout);
-    timeline.root_nodes.push("note".to_string());
+    timeline.world.spawn_with_track("note", callout);
 
     let dims = SceneDimensions {
         width: 1920,
@@ -1035,12 +1033,10 @@ fn test_callout_target_scaled_world_bounds() {
         t.add_keyframe(0, 2.0, Easing::Linear);
         t
     });
-    timeline.tracks.insert("box".to_string(), target);
-    timeline.root_nodes.push("box".to_string());
+    timeline.world.spawn_with_track("box", target);
 
     let callout = make_callout_track("note", "box");
-    timeline.tracks.insert("note".to_string(), callout);
-    timeline.root_nodes.push("note".to_string());
+    timeline.world.spawn_with_track("note", callout);
 
     let dims = SceneDimensions {
         width: 1920,
@@ -1071,12 +1067,10 @@ fn test_callout_target_rotated_aabb() {
         t.add_keyframe(0, angle_rad, Easing::Linear);
         t
     });
-    timeline.tracks.insert("box".to_string(), target);
-    timeline.root_nodes.push("box".to_string());
+    timeline.world.spawn_with_track("box", target);
 
     let callout = make_callout_track("note", "box");
-    timeline.tracks.insert("note".to_string(), callout);
-    timeline.root_nodes.push("note".to_string());
+    timeline.world.spawn_with_track("note", callout);
 
     let dims = SceneDimensions {
         width: 1920,
@@ -1107,18 +1101,15 @@ fn test_callout_target_nested_child_world_bounds() {
     let mut timeline = Timeline::new();
 
     let parent = make_target_track("parent", [100.0, 0.0], [50.0, 50.0]);
-    timeline.tracks.insert("parent".to_string(), parent);
-    timeline.root_nodes.push("parent".to_string());
+    let parent_id = timeline.world.spawn_with_track("parent", parent);
 
-    let mut child = make_target_track("child", [100.0, 0.0], [40.0, 20.0]);
-    child.parent = Some("parent".to_string());
-    timeline.tracks.insert("child".to_string(), child);
+    let child = make_target_track("child", [100.0, 0.0], [40.0, 20.0]);
+    let child_id = timeline.world.spawn_with_track("child", child);
     // Register child under parent
-    timeline.tracks.get_mut("parent").unwrap().children.push("child".to_string());
+    timeline.world.link(parent_id, child_id);
 
     let callout = make_callout_track("note", "child");
-    timeline.tracks.insert("note".to_string(), callout);
-    timeline.root_nodes.push("note".to_string());
+    timeline.world.spawn_with_track("note", callout);
 
     let dims = SceneDimensions {
         width: 1920,

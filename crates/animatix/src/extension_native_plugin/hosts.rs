@@ -659,7 +659,7 @@ pub(crate) unsafe extern "C" fn native_action_write_keyframe(
     let Some(name) = (unsafe { read_c_string(name) }) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
-    let Some(track) = host.timeline.tracks.get_mut(&target) else {
+    let Some(track) = host.timeline.world.tracks.get_mut(&target) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
     let Some(id) = host.property_ids.get(&name) else {

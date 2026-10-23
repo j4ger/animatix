@@ -252,7 +252,7 @@ impl BuiltinAction for Move {
                 continue;
             }
 
-            let track = match timeline.tracks.get_mut(target) {
+            let track = match timeline.world.tracks.get_mut(target) {
                 Some(t) => t,
                 None => continue,
             };
@@ -403,7 +403,7 @@ fn run_move_along(
             continue;
         }
 
-        let track = match timeline.tracks.get_mut(target) {
+        let track = match timeline.world.tracks.get_mut(target) {
             Some(t) => t,
             None => continue,
         };
@@ -564,7 +564,7 @@ impl BuiltinAction for Shift {
                 continue;
             }
 
-            let track = match timeline.tracks.get_mut(target) {
+            let track = match timeline.world.tracks.get_mut(target) {
                 Some(t) => t,
                 None => continue,
             };
@@ -690,7 +690,7 @@ impl BuiltinAction for Rotate {
                 continue;
             }
 
-            let track = match timeline.tracks.get_mut(target) {
+            let track = match timeline.world.tracks.get_mut(target) {
                 Some(t) => t,
                 None => continue,
             };
@@ -778,7 +778,7 @@ impl BuiltinAction for Scale {
                 continue;
             }
 
-            let track = match timeline.tracks.get_mut(target) {
+            let track = match timeline.world.tracks.get_mut(target) {
                 Some(t) => t,
                 None => continue,
             };
@@ -943,7 +943,7 @@ mod tests {
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.tracks.get("badge").expect("badge track");
+        let track = report.output.world.tracks.get("badge").expect("badge track");
 
         assert_eq!(track.geometry.motion_offset.get(0, [0.0, 0.0]), [0.0, 0.0]);
         assert_eq!(track.geometry.motion_offset.get(1000, [0.0, 0.0]), [120.0, -30.0]);
@@ -980,7 +980,7 @@ mod tests {
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.tracks.get("badge").expect("badge track");
+        let track = report.output.world.tracks.get("badge").expect("badge track");
 
         assert!((track.geometry.rotation.get(0, 0.0) - 0.0).abs() < f32::EPSILON);
         assert!(
@@ -1019,7 +1019,7 @@ mod tests {
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.tracks.get("badge").expect("badge track");
+        let track = report.output.world.tracks.get("badge").expect("badge track");
 
         assert!((track.geometry.scale.get(0, 1.0) - 1.0).abs() < f32::EPSILON);
         assert!((track.geometry.scale.get(1000, 1.0) - 1.5).abs() < 0.0001);
@@ -1056,7 +1056,7 @@ mod tests {
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.tracks.get("badge").expect("badge track");
+        let track = report.output.world.tracks.get("badge").expect("badge track");
 
         assert_eq!(track.geometry.motion_offset.get(0, [0.0, 0.0]), [0.0, 0.0]);
         assert_eq!(track.geometry.motion_offset.get(1000, [0.0, 0.0]), [40.0, -24.0]);
@@ -1120,7 +1120,7 @@ mod tests {
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.tracks.get("child").expect("child track");
+        let track = report.output.world.tracks.get("child").expect("child track");
 
         assert_eq!(
             track.geometry.placement_mode.get(0, PlacementMode::LayoutManaged),

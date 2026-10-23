@@ -28,8 +28,7 @@ fn make_minimal_timeline() -> Timeline {
         t
     });
 
-    timeline.tracks.insert("test_box".to_string(), track);
-    timeline.root_nodes.push("test_box".to_string());
+    timeline.world.spawn_with_track("test_box", track);
     timeline
 }
 
@@ -345,7 +344,7 @@ fn hit_regions_cover_actors_without_draw_commands() {
         t.add_keyframe(0, [40.0, 30.0], Easing::Linear);
         Some(t)
     };
-    timeline.tracks.insert("grp".to_string(), group);
+    timeline.world.spawn_with_track("grp", group);
 
     // An empty Text actor: evaluate() -> Ok(None), no content glyphs.
     let mut empty_text = AnimationTrack::placeholder("empty".to_string());
@@ -357,10 +356,7 @@ fn hit_regions_cover_actors_without_draw_commands() {
         t.add_keyframe(0, [60.0, 20.0], Easing::Linear);
         Some(t)
     };
-    timeline.tracks.insert("empty".to_string(), empty_text);
-
-    timeline.root_nodes.push("grp".to_string());
-    timeline.root_nodes.push("empty".to_string());
+    timeline.world.spawn_with_track("empty", empty_text);
 
     let _scene = timeline.evaluate_with_debug(
         0.0,
@@ -436,7 +432,7 @@ fn mask_clips_children_to_own_bounds() {
         t.add_keyframe(0, [1.0, 0.0, 0.0, 1.0], Easing::Linear);
         t
     });
-    timeline.tracks.insert("child".to_string(), child_track);
+    let child_id = timeline.world.spawn_with_track("child", child_track);
 
     // Create Mask actor
     let mut mask_track = AnimationTrack::placeholder("mask".to_string());
@@ -447,10 +443,8 @@ fn mask_clips_children_to_own_bounds() {
         t.add_keyframe(0, [100.0, 100.0], Easing::Linear);
         t
     });
-    mask_track.children.push("child".to_string());
-    timeline.tracks.insert("mask".to_string(), mask_track);
-
-    timeline.root_nodes.push("mask".to_string());
+    let mask_id = timeline.world.spawn_with_track("mask", mask_track);
+    timeline.world.link(mask_id, child_id);
 
     let dimensions = SceneDimensions {
         width: 800,
@@ -468,7 +462,7 @@ fn target_bounds_prefer_precise_command_bounds() {
     // The declared size box is 100x100 centered at (0,0), but the precise
     // command bounds describe a different world AABB.
     timeline.ensure_bounds_registry();
-    let slot = timeline.tracks.get("test_box").expect("track").bounds_slot.get();
+    let slot = timeline.world.tracks.get("test_box").expect("track").bounds_slot.get();
     timeline
         .eval_caches
         .precise_bounds
@@ -532,24 +526,22 @@ fn make_root_track(label: &str) -> AnimationTrack {
 #[test]
 fn root_filter_post_composite_requires_last_root_node() {
     let mut timeline = Timeline::new();
-    timeline.tracks.insert("fx".to_string(), make_root_track("fx"));
-    timeline.tracks.insert("late".to_string(), make_root_track("late"));
-    timeline.root_nodes.push("fx".to_string());
-    timeline.root_nodes.push("late".to_string());
+    timeline.world.spawn_with_track("fx", make_root_track("fx"));
+    timeline.world.spawn_with_track("late", make_root_track("late"));
 
+    let fx_id = timeline.get_entity_id("fx").expect("fx");
     assert!(
-        !timeline.can_post_composite_filter("fx"),
+        !timeline.can_post_composite_filter(fx_id),
         "filter followed by a later sibling must not post-composite"
     );
 
     let mut timeline = Timeline::new();
-    timeline.tracks.insert("late".to_string(), make_root_track("late"));
-    timeline.tracks.insert("fx".to_string(), make_root_track("fx"));
-    timeline.root_nodes.push("late".to_string());
-    timeline.root_nodes.push("fx".to_string());
+    timeline.world.spawn_with_track("late", make_root_track("late"));
+    timeline.world.spawn_with_track("fx", make_root_track("fx"));
 
+    let fx_id = timeline.get_entity_id("fx").expect("fx");
     assert!(
-        timeline.can_post_composite_filter("fx"),
+        timeline.can_post_composite_filter(fx_id),
         "a last root filter may post-composite"
     );
 }

@@ -629,7 +629,7 @@ mod tests {
             _children: &[crate::ast::InlineItem],
         ) -> Result<(), Vec<Diagnostic>> {
             let track =
-                ctx.timeline.tracks.entry(label.to_string()).or_insert_with(|| {
+                ctx.timeline.world.tracks.entry(label.to_string()).or_insert_with(|| {
                     crate::timeline::AnimationTrack::placeholder(label.to_string())
                 });
             // The fixture historically claimed the `Text` kind so its plan
@@ -673,7 +673,7 @@ mod tests {
             _diagnostics: &mut Vec<Diagnostic>,
         ) {
             for target in &action.targets {
-                if let Some(track) = timeline.tracks.get_mut(target) {
+                if let Some(track) = timeline.world.tracks.get_mut(target) {
                     track.style.opacity.ensure(1.0).add_keyframe(
                         time_ms as u64,
                         0.25,
@@ -795,7 +795,7 @@ mod tests {
             "unexpected diagnostics: {:?}",
             report.diagnostics
         );
-        let track = report.output.tracks.get("r").expect("rect track");
+        let track = report.output.world.tracks.get("r").expect("rect track");
         let slot = track.property_plan.get(PropertyId(1_000_000)).expect("bool slot");
         assert_eq!(slot.track.sample(0), Some(crate::timeline::PropertyValue::Bool(true)));
         assert_eq!(slot.track.sample(1000), Some(crate::timeline::PropertyValue::Bool(false)));
@@ -1046,7 +1046,7 @@ mod tests {
             report.diagnostics
         );
 
-        let track = report.output.tracks.get("g").expect("gauge track");
+        let track = report.output.world.tracks.get("g").expect("gauge track");
         assert_eq!(track.actor_type, "Gauge");
         let level = animatix_syntax::schema::PropertyId(1_000_000);
         assert_eq!(
@@ -1094,7 +1094,7 @@ mod tests {
             "unexpected diagnostics: {:?}",
             report.diagnostics
         );
-        let track = report.output.tracks.get("r").expect("rect track");
+        let track = report.output.world.tracks.get("r").expect("rect track");
         assert_eq!(
             track
                 .property_plan
@@ -1191,7 +1191,7 @@ mod tests {
             "unexpected diagnostics: {:?}",
             report.diagnostics
         );
-        let track = report.output.tracks.get("target").expect("actor track");
+        let track = report.output.world.tracks.get("target").expect("actor track");
         assert_eq!(track.style.opacity.get(0, 1.0), 0.25);
     }
 }

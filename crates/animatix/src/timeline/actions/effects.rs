@@ -87,7 +87,7 @@ impl BuiltinAction for Shake {
                 continue;
             }
 
-            let track = match timeline.tracks.get_mut(target) {
+            let track = match timeline.world.tracks.get_mut(target) {
                 Some(t) => t,
                 None => continue,
             };
@@ -181,7 +181,7 @@ impl BuiltinAction for Pulse {
                 continue;
             }
 
-            let track = match timeline.tracks.get_mut(target) {
+            let track = match timeline.world.tracks.get_mut(target) {
                 Some(t) => t,
                 None => continue,
             };
@@ -303,7 +303,7 @@ impl BuiltinAction for Bounce {
                 continue;
             }
 
-            let track = match timeline.tracks.get_mut(target) {
+            let track = match timeline.world.tracks.get_mut(target) {
                 Some(t) => t,
                 None => continue,
             };
@@ -394,7 +394,7 @@ mod tests {
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.tracks.get("badge").expect("badge track");
+        let track = report.output.world.tracks.get("badge").expect("badge track");
 
         // Check that multiple motion offset keyframes were added
         assert!(
@@ -439,7 +439,7 @@ mod tests {
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.tracks.get("badge").expect("badge track");
+        let track = report.output.world.tracks.get("badge").expect("badge track");
 
         // Check that scale keyframes were added
         assert!(track.geometry.scale.as_ref().map(|t| t.keyframes.len() >= 2).unwrap_or(false));

@@ -211,6 +211,7 @@ pub(crate) fn bake_scene_stats(timeline: &mut Timeline) {
     // 3. Actors explicitly marked legend: false / hidden
     // 4. Actors whose spatial geometry/presence is driven dynamically or that consume scene.stats
     let eligible_tracks: Vec<&AnimationTrack> = timeline
+        .world
         .tracks
         .iter()
         .filter(|(label, t)| {

@@ -63,7 +63,7 @@ impl Primitive for CaptionsPrimitive {
     ) -> Result<(), Vec<Diagnostic>> {
         ctx.timeline.add_node(label.to_string(), ctx.parent_label);
         let track =
-            ctx.timeline.tracks.entry(label.to_string()).or_insert_with(|| {
+            ctx.timeline.world.tracks.entry(label.to_string()).or_insert_with(|| {
                 crate::timeline::AnimationTrack::new(label.to_string(), "Captions")
             });
         track.set_identity("Captions");

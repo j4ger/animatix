@@ -228,7 +228,7 @@ impl Timeline {
     /// Extract all text glyph paths from every track in the timeline.
     pub fn extract_all_glyphs(&self) -> Vec<TextPath> {
         let mut glyphs = Vec::new();
-        for track in self.tracks.values() {
+        for track in self.world.tracks.values() {
             if let Some(text_paths) = &track.text.text_paths {
                 for (paths, _) in text_paths.keyframes.values() {
                     for glyph in paths {
@@ -257,7 +257,7 @@ impl Timeline {
             return super::SoloState::default();
         }
         let mut soloed: Option<std::collections::HashSet<String>> = None;
-        for label in self.tracks.keys() {
+        for label in self.world.tracks.keys() {
             if !self.track_is_soloed(label, time_ms) {
                 continue;
             }
@@ -304,14 +304,14 @@ impl Timeline {
             )
         });
         let needed = always_writes_solo
-            || self.tracks.values().any(|track| self.track_declares_solo(track, 0));
+            || self.world.tracks.values().any(|track| self.track_declares_solo(track, 0));
         self.eval_caches.solo_scan_needed.set(Some(needed));
         needed
     }
 
     /// Read one actor's `solo` flag at `time_ms`; the visibility rule applies.
     fn track_is_soloed(&self, label: &str, time_ms: u64) -> bool {
-        let Some(track) = self.tracks.get(label) else {
+        let Some(track) = self.world.tracks.get(label) else {
             return false;
         };
         // `visible: false` wins: an explicitly hidden actor is not soloed back
@@ -339,9 +339,12 @@ impl Timeline {
     /// Check whether a filter actor can safely use zero-readback post-render compositing.
     /// This is only safe when the filter is the last child in every ancestor container
     /// (nothing renders after the filter in the scene graph).
-    pub(crate) fn can_post_composite_filter(&self, node_label: &str) -> bool {
+    pub(crate) fn can_post_composite_filter(&self, node_id: EntityId) -> bool {
+        let Some(label) = self.world.label(node_id) else {
+            return false;
+        };
         // Find the path from root to this actor
-        let Some(path) = self.find_path_to_actor(node_label) else {
+        let Some(path) = self.find_path_to_actor(label) else {
             return false;
         };
 
@@ -355,24 +358,23 @@ impl Timeline {
         // must be the last root node, or later siblings would render *under*
         // the post-render blit instead of after it.
         for i in 0..path.len() {
-            let label = &path[i];
-            if !self.tracks.contains_key(label) {
-                return false;
-            }
+            let id = match self.world.get_id(&path[i]) {
+                Some(id) => id,
+                None => return false,
+            };
 
             if i == 0 {
-                if self.root_nodes.last() != Some(label) {
+                if self.world.root_entities().last() != Some(&id) {
                     return false;
                 }
                 continue;
             }
 
             // Check it's the last child of its parent
-            let parent_label = &path[i - 1];
-            let Some(parent_track) = self.tracks.get(parent_label) else {
+            let Some(parent_id) = self.world.get_id(&path[i - 1]) else {
                 return false;
             };
-            if parent_track.children.last() != Some(label) {
+            if self.world.hierarchy(parent_id).children.last() != Some(&id) {
                 return false;
             }
         }
@@ -390,7 +392,7 @@ impl Timeline {
         frame: &crate::primitives::RenderFrame<'_>,
         out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) {
-        let Some(track) = self.tracks.get_by_id(node_id) else {
+        let Some(track) = self.world.tracks.get_by_id(node_id) else {
             return;
         };
         let blend = self.track_blend_mode(track, frame.time_ms);
@@ -439,7 +441,7 @@ impl Timeline {
         frame: &crate::primitives::RenderFrame<'_>,
         out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) {
-        if let Some(id) = self.tracks.get_id(node_label) {
+        if let Some(id) = self.world.tracks.get_id(node_label) {
             self.evaluate_node_by_id(
                 id,
                 parent_transform,
@@ -490,7 +492,7 @@ impl Timeline {
 
     #[allow(dead_code)] // Fallback when label is used directly
     fn node_blend_mode(&self, node_label: &str, time_ms: u64) -> Option<vello::peniko::Mix> {
-        let track = self.tracks.get(node_label)?;
+        let track = self.world.tracks.get(node_label)?;
         self.track_blend_mode(track, time_ms)
     }
 
@@ -504,7 +506,7 @@ impl Timeline {
         frame: &crate::primitives::RenderFrame<'_>,
         out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) -> (kurbo::Affine, f32) {
-        let Some(track) = self.tracks.get_by_id(node_id) else {
+        let Some(track) = self.world.tracks.get_by_id(node_id) else {
             return (parent_transform, parent_opacity);
         };
         self.render_actor_node_impl(
@@ -557,31 +559,16 @@ impl Timeline {
         // selection is still possible via the layers / inspector tab.
         if time_ms < track.first_seen_ms {
             // Still recurse into children so they are also hidden
-            if track.children_ids.len() == track.children.len() && !track.children_ids.is_empty() {
-                for &child_id in &track.children_ids {
-                    self.evaluate_node_by_id(
-                        child_id,
-                        parent_transform,
-                        parent_opacity,
-                        layout_positions,
-                        allow_pending_composites,
-                        frame,
-                        out,
-                    );
-                }
-            } else {
-                let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
-                for child_label in children {
-                    self.evaluate_node(
-                        child_label,
-                        parent_transform,
-                        parent_opacity,
-                        layout_positions,
-                        allow_pending_composites,
-                        frame,
-                        out,
-                    );
-                }
+            for &child_id in &self.world.hierarchy(track.id).children {
+                self.evaluate_node_by_id(
+                    child_id,
+                    parent_transform,
+                    parent_opacity,
+                    layout_positions,
+                    allow_pending_composites,
+                    frame,
+                    out,
+                );
             }
             return (parent_transform, parent_opacity);
         }
@@ -1001,7 +988,7 @@ impl Timeline {
         frame: &crate::primitives::RenderFrame<'_>,
         out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) {
-        let Some(track) = self.tracks.get_by_id(node_id) else {
+        let Some(track) = self.world.tracks.get_by_id(node_id) else {
             return;
         };
         self.render_node_children_impl(
@@ -1059,12 +1046,8 @@ impl Timeline {
             program_items: &mut *out.program_items,
             filter_backend: &mut *out.filter_backend,
         };
-        let res = if !track.children_ids.is_empty() {
-            primitive.render_children_by_id(&mut ctx, &track.children_ids)
-        } else {
-            let children: Vec<&str> = track.children.iter().map(|s| s.as_str()).collect();
-            primitive.render_children(&mut ctx, &children)
-        };
+        let res =
+            primitive.render_children_by_id(&mut ctx, &self.world.hierarchy(track.id).children);
         if let Err(e) = res {
             let label = node_label.to_string();
             self.eval_caches.runtime_diagnostics.borrow_mut().push(
@@ -1522,12 +1505,9 @@ impl Timeline {
                 && !self.camera_used.get()
                 && suppressed_actors.is_empty()
                 && transient_overrides.is_empty();
-            let has_all_root_ids = self.root_ids.len() == self.root_nodes.len();
-            for (idx, root) in self.root_nodes.iter().enumerate() {
-                let root_id = if has_all_root_ids {
-                    Some(self.root_ids[idx])
-                } else {
-                    self.root_ids.get(idx).copied().or_else(|| self.tracks.get_id(root))
+            for &root_id in self.world.root_entities() {
+                let Some(root_track) = self.world.tracks.get_by_id(root_id) else {
+                    continue;
                 };
                 // `camera_follow: false` keeps a root subtree out of the camera
                 // entirely — the HUD that must not move while the scene pushes
@@ -1537,28 +1517,21 @@ impl Timeline {
                 // reported at build). Short-circuited on `camera_exempt` so a
                 // scene that never uses the flag does no track lookup per root.
                 let root_affine = if camera_exempt {
-                    let track = root_id
-                        .and_then(|id| self.tracks.get_by_id(id))
-                        .or_else(|| self.tracks.get(root));
-                    if let Some(t) = track {
-                        if !t.camera_follow || t.parallax == 0.0 {
-                            kurbo::Affine::IDENTITY
-                        } else if (t.parallax - 1.0).abs() < f32::EPSILON {
-                            camera_affine
-                        } else {
-                            let p = t.parallax as f64;
-                            let cam = camera_affine.as_coeffs();
-                            kurbo::Affine::new([
-                                1.0 + p * (cam[0] - 1.0),
-                                p * cam[1],
-                                p * cam[2],
-                                1.0 + p * (cam[3] - 1.0),
-                                p * cam[4],
-                                p * cam[5],
-                            ])
-                        }
-                    } else {
+                    if !root_track.camera_follow || root_track.parallax == 0.0 {
+                        kurbo::Affine::IDENTITY
+                    } else if (root_track.parallax - 1.0).abs() < f32::EPSILON {
                         camera_affine
+                    } else {
+                        let p = root_track.parallax as f64;
+                        let cam = camera_affine.as_coeffs();
+                        kurbo::Affine::new([
+                            1.0 + p * (cam[0] - 1.0),
+                            p * cam[1],
+                            p * cam[2],
+                            1.0 + p * (cam[3] - 1.0),
+                            p * cam[4],
+                            p * cam[5],
+                        ])
                     }
                 } else {
                     camera_affine
@@ -1574,13 +1547,9 @@ impl Timeline {
                 // A camera move invalidates it: the cached encoding is appended
                 // verbatim and cannot be re-transformed, so the frame must
                 // re-evaluate the subtree instead.
-                let is_static = allow_static
-                    && root_id
-                        .map(|id| self.is_static_subtree_id(id))
-                        .unwrap_or_else(|| self.is_static_subtree(root));
+                let is_static = allow_static && self.is_static_subtree_id(root_id);
                 if is_static {
-                    let cached_id = root_id.unwrap();
-                    let cache_key = (cached_id, scene_dimensions, collect_items, debug_options);
+                    let cache_key = (root_id, scene_dimensions, collect_items, debug_options);
                     let cache = self.eval_caches.static_subtree_cache.borrow_mut();
                     if let Some((cached_scene, cached_bounds, cached_items, cached_hit_regions)) =
                         cache.get(&cache_key)
@@ -1627,27 +1596,15 @@ impl Timeline {
                             &mut temp_scene,
                             &mut subtree_items_slot,
                             |temp_out| {
-                                if let Some(id) = root_id {
-                                    self.evaluate_node_by_id(
-                                        id,
-                                        root_affine,
-                                        1.0,
-                                        &crate::timeline::layout::LayoutPositions::new(),
-                                        true,
-                                        &frame,
-                                        temp_out,
-                                    );
-                                } else {
-                                    self.evaluate_node(
-                                        root,
-                                        root_affine,
-                                        1.0,
-                                        &crate::timeline::layout::LayoutPositions::new(),
-                                        true,
-                                        &frame,
-                                        temp_out,
-                                    );
-                                }
+                                self.evaluate_node_by_id(
+                                    root_id,
+                                    root_affine,
+                                    1.0,
+                                    &crate::timeline::layout::LayoutPositions::new(),
+                                    true,
+                                    &frame,
+                                    temp_out,
+                                );
                             },
                         );
                         let subtree_items = subtree_items_slot.take().unwrap_or_default();
@@ -1679,28 +1636,16 @@ impl Timeline {
                     // when nothing renders after it (`can_post_composite_filter`);
                     // otherwise its post-render blit would cover later siblings.
                     // Mid-out.scene filters fall back to the inline readback path.
-                    let allow_pending = self.can_post_composite_filter(root);
-                    if let Some(id) = root_id {
-                        self.evaluate_node_by_id(
-                            id,
-                            root_affine,
-                            1.0,
-                            &crate::timeline::layout::LayoutPositions::new(), // empty for roots
-                            allow_pending,
-                            &frame,
-                            &mut out,
-                        );
-                    } else {
-                        self.evaluate_node(
-                            root,
-                            root_affine,
-                            1.0,
-                            &crate::timeline::layout::LayoutPositions::new(), // empty for roots
-                            allow_pending,
-                            &frame,
-                            &mut out,
-                        );
-                    }
+                    let allow_pending = self.can_post_composite_filter(root_id);
+                    self.evaluate_node_by_id(
+                        root_id,
+                        root_affine,
+                        1.0,
+                        &crate::timeline::layout::LayoutPositions::new(), // empty for roots
+                        allow_pending,
+                        &frame,
+                        &mut out,
+                    );
                 }
             }
         }

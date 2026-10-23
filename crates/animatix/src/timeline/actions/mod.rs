@@ -176,8 +176,8 @@ pub(crate) fn lift_hidden_by_default_subtree(
     t_end_ms: u64,
     easing: Easing,
 ) {
-    let children = timeline.tracks.get(label).map(|t| t.children.clone()).unwrap_or_default();
-    if let Some(track) = timeline.tracks.get_mut(label) {
+    let children: Vec<String> = timeline.child_labels(label).map(str::to_string).collect();
+    if let Some(track) = timeline.world.tracks.get_mut(label) {
         lift_hidden_by_default(track, t_start_ms, t_end_ms, easing);
     }
     for child in children {
@@ -186,7 +186,7 @@ pub(crate) fn lift_hidden_by_default_subtree(
 }
 
 /// Resolve a possibly-dotted action target (e.g. `"decomp_eq.f1"`) to the
-/// actual track key in `timeline.tracks`.
+/// actual track key in `timeline.world.tracks`.
 ///
 /// Resolution order:
 /// 1. If the full string is already a track key, return it directly.
@@ -195,7 +195,7 @@ pub(crate) fn lift_hidden_by_default_subtree(
 /// 3. Return `None` if the path cannot be resolved.
 fn resolve_action_target(timeline: &Timeline, target: &str) -> Option<String> {
     // Fast path: direct lookup (handles plain identifiers and pre-built keys)
-    if timeline.tracks.contains_key(target) {
+    if timeline.world.tracks.contains_key(target) {
         return Some(target.to_string());
     }
 
@@ -207,12 +207,9 @@ fn resolve_action_target(timeline: &Timeline, target: &str) -> Option<String> {
 
     let mut current = segments[0].to_string();
     for &segment in &segments[1..] {
-        let track = timeline.tracks.get(&current)?;
-        if track.children.contains(&segment.to_string()) {
-            current = segment.to_string();
-        } else {
-            return None;
-        }
+        let current_id = timeline.world.get_id(&current)?;
+        let next = timeline.world.child_labels(current_id).find(|child| *child == segment)?;
+        current = next.to_string();
     }
 
     Some(current)
@@ -263,14 +260,17 @@ pub(crate) fn expand_group_targets(
     while let Some(label) = stack.pop() {
         // Resolve dotted paths (e.g. "decomp_eq.f1" → "f1") before track lookup
         let resolved = resolve_action_target(timeline, &label).unwrap_or(label.clone());
-        if let Some(track) = timeline.tracks.get(&resolved) {
-            if track.children.is_empty() {
+        if let Some(track) = timeline.world.tracks.get(&resolved) {
+            let children = &timeline.world.hierarchy(track.id).children;
+            if children.is_empty() {
                 // Leaf actor — keep the resolved key
                 result.push(resolved);
             } else if is_recursive_container(timeline, track) {
                 // Container (layout or structural group) — recurse into children
-                for child in track.children.iter().rev() {
-                    stack.push(child.clone());
+                for child_id in children.iter().rev() {
+                    if let Some(child) = timeline.world.label(*child_id) {
+                        stack.push(child.to_string());
+                    }
                 }
             } else {
                 // Non-layout container with children (e.g. Graph with tick labels)
@@ -304,7 +304,7 @@ pub(crate) fn ensure_vector_reveal_target(
     diagnostics: &mut Vec<Diagnostic>,
     span: Option<crate::ast::Span>,
 ) -> bool {
-    let Some(track) = timeline.tracks.get(target) else {
+    let Some(track) = timeline.world.tracks.get(target) else {
         push_unsupported_action_target_diagnostic(
             verb,
             target,
@@ -343,14 +343,16 @@ pub(crate) fn ensure_vector_reveal_target(
 
     if capabilities
         .is_some_and(|info| info.capabilities.is_container || info.capabilities.layout_container)
-        || (timeline.tracks.get(target).is_some_and(|track| !track.children.is_empty())
-            && track
-                .shape
-                .vector_paths
-                .as_ref()
-                .map(|t| t.default_value.is_empty() && t.keyframes.is_empty())
-                .unwrap_or(true)
-            && !track.has_svg_path_content())
+        || (timeline.world.tracks.get(target).is_some_and(|track| {
+            !timeline.world.hierarchy(track.id).children.is_empty()
+                && track
+                    .shape
+                    .vector_paths
+                    .as_ref()
+                    .map(|t| t.default_value.is_empty() && t.keyframes.is_empty())
+                    .unwrap_or(true)
+                && !track.has_svg_path_content()
+        }))
     {
         push_unsupported_action_target_diagnostic(
             verb,
@@ -405,9 +407,9 @@ fn lift_container_and_intermediate_containers(
 ) {
     use crate::timeline::property_track::TrackAccessor;
     let resolved = resolve_action_target(timeline, label).unwrap_or_else(|| label.to_string());
-    let children = timeline.tracks.get(&resolved).map(|t| t.children.clone()).unwrap_or_default();
+    let children: Vec<String> = timeline.child_labels(&resolved).map(str::to_string).collect();
     if !children.is_empty() {
-        if let Some(track) = timeline.tracks.get_mut(&resolved) {
+        if let Some(track) = timeline.world.tracks.get_mut(&resolved) {
             let was_hidden = track.hidden_by_default;
             lift_hidden_by_default(track, t_start_ms, t_end_ms, easing);
             if !was_hidden {
@@ -471,8 +473,11 @@ fn execute_action(
         // Warn when an entrance targets an actor whose opacity remains 0.0
         // after entrance (e.g. an unlifted opacity track or an ancestor holding it invisible).
         for target in &expanded_action.targets {
-            let target_opacity =
-                timeline.tracks.get(target).map_or(1.0, |t| t.style.opacity.get(t_end_ms, 1.0));
+            let target_opacity = timeline
+                .world
+                .tracks
+                .get(target)
+                .map_or(1.0, |t| t.style.opacity.get(t_end_ms, 1.0));
             if target_opacity <= 0.0 {
                 diagnostics.push(
                     Diagnostic::warning(
@@ -620,6 +625,7 @@ mod tests {
         ) -> Result<(), Vec<Diagnostic>> {
             let track = ctx
                 .timeline
+                .world
                 .tracks
                 .entry(label.to_string())
                 .or_insert_with(|| AnimationTrack::placeholder(label.to_string()));
@@ -654,7 +660,9 @@ mod tests {
             .collect();
         assert!(build_unexpected.is_empty(), "unexpected diagnostics: {build_unexpected:?}");
         let mut timeline = report.output;
-        assert_eq!(timeline.tracks.get("root").expect("root").children, vec!["a", "b"]);
+        let root_id = timeline.get_entity_id("root").expect("root track");
+        let children: Vec<&str> = timeline.world.child_labels(root_id).collect();
+        assert_eq!(children, vec!["a", "b"]);
 
         let action = Action {
             verb: "fade-in".to_string(),
@@ -677,11 +685,11 @@ mod tests {
             .collect();
         assert!(unexpected.is_empty(), "unexpected diagnostics: {unexpected:?}");
         assert!(
-            timeline.tracks.get("root").expect("root").style.opacity.is_none(),
+            timeline.world.tracks.get("root").expect("root").style.opacity.is_none(),
             "layout container itself should not receive the leaf action"
         );
         for label in ["a", "b"] {
-            let opacity = timeline.tracks.get(label).expect(label).style.opacity.get(0, 1.0);
+            let opacity = timeline.world.tracks.get(label).expect(label).style.opacity.get(0, 1.0);
             assert_eq!(opacity, 0.0, "{label} should receive the expanded leaf action");
         }
     }
@@ -743,9 +751,9 @@ mod tests {
     #[test]
     fn vector_reveal_targets_reject_container_nodes_with_leaf_only_message() {
         let mut timeline = Timeline::new();
-        let mut track = AnimationTrack::placeholder("row".to_string());
-        track.children.push("row.child".to_string());
-        timeline.tracks.insert("row".to_string(), track);
+        let row_id = timeline.spawn_entity("row", "Rect");
+        let child_id = timeline.spawn_entity("row.child", "Rect");
+        timeline.world.link(row_id, child_id);
 
         let mut diagnostics = Vec::new();
         let ok = ensure_vector_reveal_target(&timeline, "row", "draw-in", &mut diagnostics, None);
@@ -805,12 +813,8 @@ mod tests {
     #[test]
     fn swap_action_requires_common_parent() {
         let mut timeline = Timeline::new();
-        timeline
-            .tracks
-            .insert("a".to_string(), AnimationTrack::placeholder("a".to_string()));
-        timeline
-            .tracks
-            .insert("b".to_string(), AnimationTrack::placeholder("b".to_string()));
+        timeline.spawn_entity("a", "Rect");
+        timeline.spawn_entity("b", "Rect");
 
         let action = Action {
             verb: "swap".to_string(),
@@ -836,19 +840,20 @@ mod tests {
         let mut timeline = Timeline::new();
 
         // Set up container with children
-        let mut parent_track = AnimationTrack::placeholder("row".to_string());
-        parent_track.children.push("a".to_string());
-        parent_track.children.push("b".to_string());
-        timeline.tracks.insert("row".to_string(), parent_track);
+        let row_id = timeline
+            .world
+            .spawn_with_track("row", AnimationTrack::placeholder("row".to_string()));
 
         // Set up child tracks with layout size so they're admitted
         let mut child_a = AnimationTrack::placeholder("a".to_string());
         child_a.geometry.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
-        timeline.tracks.insert("a".to_string(), child_a);
+        let child_a = timeline.world.spawn_with_track("a", child_a);
+        timeline.world.link(row_id, child_a);
 
         let mut child_b = AnimationTrack::placeholder("b".to_string());
         child_b.geometry.layout_size = Some(PropertyTrack::new([15.0, 40.0]));
-        timeline.tracks.insert("b".to_string(), child_b);
+        let child_b = timeline.world.spawn_with_track("b", child_b);
+        timeline.world.link(row_id, child_b);
 
         // Set up container metadata with layout children
         timeline.container_metadata.insert(
@@ -895,16 +900,15 @@ mod tests {
         let mut timeline = Timeline::new();
 
         // Set up container with children
-        let mut parent_track = AnimationTrack::placeholder("row".to_string());
-        parent_track.children.push("a".to_string());
-        parent_track.children.push("b".to_string());
-        parent_track.children.push("c".to_string());
-        timeline.tracks.insert("row".to_string(), parent_track);
+        let row_id = timeline
+            .world
+            .spawn_with_track("row", AnimationTrack::placeholder("row".to_string()));
 
         for label in ["a", "b", "c"] {
             let mut child = AnimationTrack::placeholder(label.to_string());
             child.geometry.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
-            timeline.tracks.insert(label.to_string(), child);
+            let child_id = timeline.world.spawn_with_track(label, child);
+            timeline.world.link(row_id, child_id);
         }
 
         timeline.container_metadata.insert(
@@ -980,8 +984,8 @@ mod tests {
     fn reorder_action_requires_order_modifier() {
         let mut timeline = Timeline::new();
         timeline
-            .tracks
-            .insert("row".to_string(), AnimationTrack::placeholder("row".to_string()));
+            .world
+            .spawn_with_track("row", AnimationTrack::placeholder("row".to_string()));
 
         let action = Action {
             verb: "reorder".to_string(),
@@ -1007,16 +1011,15 @@ mod tests {
         let mut timeline = Timeline::new();
 
         // Set up container with children
-        let mut parent_track = AnimationTrack::placeholder("row".to_string());
-        parent_track.children.push("a".to_string());
-        parent_track.children.push("b".to_string());
-        parent_track.children.push("c".to_string());
-        timeline.tracks.insert("row".to_string(), parent_track);
+        let row_id = timeline
+            .world
+            .spawn_with_track("row", AnimationTrack::placeholder("row".to_string()));
 
         for label in ["a", "b", "c"] {
             let mut child = AnimationTrack::placeholder(label.to_string());
             child.geometry.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
-            timeline.tracks.insert(label.to_string(), child);
+            let child_id = timeline.world.spawn_with_track(label, child);
+            timeline.world.link(row_id, child_id);
         }
 
         timeline.container_metadata.insert(
@@ -1073,15 +1076,15 @@ mod tests {
         let mut timeline = Timeline::new();
 
         // Set up container with children
-        let mut parent_track = AnimationTrack::placeholder("row".to_string());
-        parent_track.children.push("a".to_string());
-        parent_track.children.push("b".to_string());
-        timeline.tracks.insert("row".to_string(), parent_track);
+        let row_id = timeline
+            .world
+            .spawn_with_track("row", AnimationTrack::placeholder("row".to_string()));
 
         for label in ["a", "b"] {
             let mut child = AnimationTrack::placeholder(label.to_string());
             child.geometry.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
-            timeline.tracks.insert(label.to_string(), child);
+            let child_id = timeline.world.spawn_with_track(label, child);
+            timeline.world.link(row_id, child_id);
         }
 
         timeline.container_metadata.insert(
@@ -1158,14 +1161,15 @@ mod tests {
         // that spans the gap between the end of swap N and the end of swap N+1.
         let mut timeline = Timeline::new();
 
-        let mut parent_track = AnimationTrack::placeholder("row".to_string());
-        parent_track.children = vec!["a".to_string(), "b".to_string(), "c".to_string()];
-        timeline.tracks.insert("row".to_string(), parent_track);
+        let row_id = timeline
+            .world
+            .spawn_with_track("row", AnimationTrack::placeholder("row".to_string()));
 
         for label in ["a", "b", "c"] {
             let mut child = AnimationTrack::placeholder(label.to_string());
             child.geometry.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
-            timeline.tracks.insert(label.to_string(), child);
+            let child_id = timeline.world.spawn_with_track(label, child);
+            timeline.world.link(row_id, child_id);
         }
 
         timeline.container_metadata.insert(
@@ -1233,21 +1237,16 @@ mod tests {
         let mut timeline = Timeline::new();
         timeline.dynamic_layout = true;
 
-        let mut parent_track = AnimationTrack::placeholder("bars".to_string());
-        parent_track.children = vec![
-            "bar1".to_string(),
-            "bar2".to_string(),
-            "bar3".to_string(),
-            "bar4".to_string(),
-            "bar5".to_string(),
-        ];
-        timeline.tracks.insert("bars".to_string(), parent_track);
+        let bars_id = timeline
+            .world
+            .spawn_with_track("bars", AnimationTrack::placeholder("bars".to_string()));
 
         let sizes: [f32; 2] = [30.0, 40.0]; // half-size (60x80 rects)
         for label in ["bar1", "bar2", "bar3", "bar4", "bar5"] {
             let mut child = AnimationTrack::placeholder(label.to_string());
             child.geometry.layout_size = Some(PropertyTrack::new(sizes));
-            timeline.tracks.insert(label.to_string(), child);
+            let child_id = timeline.world.spawn_with_track(label, child);
+            timeline.world.link(bars_id, child_id);
         }
 
         timeline.container_metadata.insert(

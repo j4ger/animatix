@@ -30,11 +30,23 @@ use tracing::warn;
 use super::taffy_layout::{
     ChildSizeSpec, SizeConstraints, compute_taffy_grid_layout,
     compute_taffy_grid_layout_with_specs, compute_taffy_linear_layout,
-    compute_taffy_linear_layout_with_baselines, compute_taffy_linear_layout_with_specs,
+    compute_taffy_linear_layout_with_specs,
 };
-use super::{ContainerLayoutChild, Diagnostic, Easing, PlacementMode, Timeline, TrackAccessor};
+use super::{
+    ContainerLayoutChild, ContainerMetadata, Diagnostic, Easing, LayoutEngine, PlacementMode,
+    Timeline, TrackAccessor,
+};
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
 use crate::renderer::text::TextKind;
+
+mod engine;
+mod grid;
+mod linear;
+mod positions;
+
+pub(crate) use engine::LayoutContainerCache;
+pub use positions::LayoutPositions;
+pub(crate) use positions::empty_layout_positions;
 
 /// Represents a child's layout-relevant size at a specific point in time.
 #[derive(Clone, Debug)]
@@ -86,78 +98,6 @@ pub(crate) fn compute_stack_layout_results(
         })
         .collect()
 }
-
-fn compute_linear_layout_results_with_specs(
-    children: &[ChildExtent],
-    is_row: bool,
-    gap: [f32; 2],
-    padding: [f32; 4],
-    align: &str,
-    metadata: &ContainerMetadata,
-    child_baselines: &[f32],
-    size_specs: &[Option<super::taffy_layout::ChildSizeSpec>],
-    constraints: &[super::taffy_layout::SizeConstraints],
-    parent_content_size: [f32; 2],
-) -> Vec<super::taffy_layout::TaffyLayoutResult> {
-    let layout_type = if is_row {
-        super::LayoutType::Row
-    } else {
-        super::LayoutType::Col
-    };
-
-    let output = if size_specs.is_empty() && constraints.is_empty() {
-        // Legacy path: no specs
-        compute_taffy_linear_layout_with_baselines(
-            children,
-            layout_type,
-            gap,
-            padding,
-            align,
-            child_baselines,
-            &metadata.vertical_align,
-        )
-    } else {
-        compute_taffy_linear_layout_with_specs(
-            children,
-            layout_type,
-            gap,
-            padding,
-            align,
-            child_baselines,
-            &metadata.vertical_align,
-            size_specs,
-            constraints,
-            parent_content_size,
-        )
-    };
-    output.positions
-}
-
-fn compute_grid_layout_results_with_specs(
-    children: &[ChildExtent],
-    gap: [f32; 2],
-    padding: [f32; 4],
-    cols: usize,
-    size_specs: &[Option<super::taffy_layout::ChildSizeSpec>],
-    constraints: &[super::taffy_layout::SizeConstraints],
-    parent_content_size: [f32; 2],
-) -> Vec<super::taffy_layout::TaffyLayoutResult> {
-    let output = if size_specs.is_empty() && constraints.is_empty() {
-        compute_taffy_grid_layout(children, gap, padding, cols)
-    } else {
-        compute_taffy_grid_layout_with_specs(
-            children,
-            gap,
-            padding,
-            cols,
-            size_specs,
-            constraints,
-            parent_content_size,
-        )
-    };
-    output.positions
-}
-
 #[allow(dead_code)] // Used by unit tests in taffy_layout.rs
 pub(crate) fn compute_container_size(
     children: &[ChildExtent],
@@ -232,407 +172,6 @@ pub(crate) fn compute_container_size_with_specs(
         [0.0, 0.0]
     }
 }
-
-use super::{ContainerMetadata, LayoutEngine};
-
-/// Resolved child positions for one container, keyed by child label.
-///
-/// Layout positions calculated for container children, indexed by either `EntityId`
-/// (for hot per-frame rendering without string lookups) or actor label string.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct LayoutPositions {
-    by_id: std::collections::HashMap<crate::timeline::EntityId, [f32; 2]>,
-    by_label: std::collections::HashMap<String, [f32; 2]>,
-}
-
-impl LayoutPositions {
-    pub fn new() -> Self {
-        Self {
-            by_id: std::collections::HashMap::new(),
-            by_label: std::collections::HashMap::new(),
-        }
-    }
-
-    #[inline(always)]
-    pub fn insert(&mut self, label: String, pos: [f32; 2]) {
-        self.by_label.insert(label, pos);
-    }
-
-    #[inline(always)]
-    pub fn insert_id(&mut self, id: crate::timeline::EntityId, pos: [f32; 2]) {
-        self.by_id.insert(id, pos);
-    }
-
-    #[inline(always)]
-    pub fn insert_with_id(&mut self, id: crate::timeline::EntityId, label: String, pos: [f32; 2]) {
-        self.by_id.insert(id, pos);
-        self.by_label.insert(label, pos);
-    }
-
-    #[inline(always)]
-    pub fn get(&self, label: &str) -> Option<&[f32; 2]> {
-        self.by_label.get(label)
-    }
-
-    #[inline(always)]
-    pub fn get_by_id(&self, id: crate::timeline::EntityId) -> Option<&[f32; 2]> {
-        self.by_id.get(&id)
-    }
-
-    #[inline(always)]
-    pub fn is_empty(&self) -> bool {
-        self.by_label.is_empty() && self.by_id.is_empty()
-    }
-
-    #[inline(always)]
-    pub fn len(&self) -> usize {
-        self.by_label.len().max(self.by_id.len())
-    }
-}
-
-/// One shared empty `Arc<LayoutPositions>`.
-///
-/// "This actor has no layout-managed children" paths used to allocate a fresh
-/// empty map per call — once per non-container node per frame on typical
-/// scenes (~60 allocations/frame on a 60-actor scene, `alloc_driver`
-/// 2026-09-04). Callers only ever read through the `Arc`, so sharing one
-/// instance is equivalent and allocation-free.
-pub(crate) fn empty_layout_positions() -> std::sync::Arc<LayoutPositions> {
-    use std::sync::{Arc, OnceLock};
-    static EMPTY: OnceLock<Arc<LayoutPositions>> = OnceLock::new();
-    Arc::clone(EMPTY.get_or_init(|| Arc::new(LayoutPositions::new())))
-}
-
-/// Cached layout computation result for a single container.
-///
-/// Positions are shared through an `Arc` so a cache hit hands back a
-/// refcount bump instead of cloning the whole per-child `String`-keyed map
-/// (PF-4: the clone was one heap allocation per child per frame).
-#[derive(Clone, Debug)]
-pub(crate) struct LayoutCacheEntry {
-    /// Cached output positions.
-    positions: std::sync::Arc<LayoutPositions>,
-}
-
-/// Per-frame dynamic layout inputs for one container, compared by exact value.
-///
-/// Only these inputs vary between frames: child `layout_size` fingerprints and
-/// baselines. Everything else that the previous structured
-/// [`LayoutCacheKey`](..) carried (container identity, metadata strings, child
-/// membership/order) is fixed at build time and therefore implied by the
-/// per-container cache bucket this key lives in — carrying it here again cost
-/// 3N+3 `String` allocations per container per frame purely to look up a
-/// cached result.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct LayoutDynKey {
-    /// Child size/placement fingerprints, in admitted order.
-    fingerprints: Vec<([u32; 2], u8)>,
-    /// Baseline alignment values (bit representation), in admitted order.
-    baselines: Vec<u32>,
-}
-
-/// Per-container cache bucket: memoized admitted children plus the results
-/// computed for the dynamic input states seen since the last invalidation.
-///
-/// The container label is the bucket key and the static identity: metadata
-/// (`gap`/`padding`/`align`/`cols`), admitted membership, and child order are
-/// fixed between invalidations — every public mutable accessor funnels through
-/// `invalidate_frame_cache`, which clears this cache. Child `layout_size` MAY
-/// change per frame and stays in the dynamic key.
-#[derive(Clone, Debug)]
-pub(crate) struct LayoutContainerCache {
-    /// Cached results per dynamic input state (usually one).
-    entries: Vec<(LayoutDynKey, LayoutCacheEntry)>,
-    /// PF-6 round 13: for containers whose children's `layout_size` and
-    /// `baseline` tracks carry no keyframes, the fingerprint pass output is
-    /// identical every frame — serve the result directly and skip the
-    /// per-child `tracks.get` BTreeMap navigation (60-child containers
-    /// measured 1.85% of the evaluate frame). Cleared by
-    /// `invalidate_cache`, the same mutation funnel as `entries`.
-    static_result: Option<std::sync::Arc<LayoutPositions>>,
-    /// Whether the fast path above has been validated for this bucket (all
-    /// children keyframe-free at install time).
-    children_are_keyframe_free: bool,
-}
-
-fn f32_bits(v: f32) -> u32 {
-    v.to_bits()
-}
-
-impl LayoutEngine {
-    /// Create a new layout engine with an empty cache.
-    pub fn new() -> Self {
-        Self {
-            cache: std::cell::RefCell::new(std::collections::HashMap::new()),
-        }
-    }
-
-    /// Invalidate the layout cache (e.g. after a timeline rebuild).
-    pub fn invalidate_cache(&self) {
-        self.cache.borrow_mut().clear();
-    }
-    pub(crate) fn compute_positions(
-        metadata: &ContainerMetadata,
-        children: &[ChildExtent],
-    ) -> Vec<[f32; 2]> {
-        Self::compute_positions_with_baselines(metadata, children, &[])
-    }
-
-    /// Like `compute_positions` but supports baseline alignment.
-    /// `child_baselines` are per-child baseline offsets from text center (f32).
-    /// Empty slice means no baseline info available.
-    pub(crate) fn compute_positions_with_baselines(
-        metadata: &ContainerMetadata,
-        children: &[ChildExtent],
-        child_baselines: &[f32],
-    ) -> Vec<[f32; 2]> {
-        Self::compute_positions_with_specs(
-            metadata,
-            children,
-            child_baselines,
-            &[],
-            &[],
-            [0.0, 0.0],
-        )
-    }
-
-    /// Like `compute_positions_with_baselines` but supports size specs and constraints.
-    pub(crate) fn compute_positions_with_specs(
-        metadata: &ContainerMetadata,
-        children: &[ChildExtent],
-        child_baselines: &[f32],
-        size_specs: &[Option<super::taffy_layout::ChildSizeSpec>],
-        constraints: &[super::taffy_layout::SizeConstraints],
-        parent_content_size: [f32; 2],
-    ) -> Vec<[f32; 2]> {
-        Self::compute_layout_with_specs(
-            metadata,
-            children,
-            child_baselines,
-            size_specs,
-            constraints,
-            parent_content_size,
-        )
-        .into_iter()
-        .map(|r| r.position)
-        .collect()
-    }
-
-    /// Computes both positions and resolved sizes with size specs and constraints.
-    pub(crate) fn compute_layout_with_specs(
-        metadata: &ContainerMetadata,
-        children: &[ChildExtent],
-        child_baselines: &[f32],
-        size_specs: &[Option<super::taffy_layout::ChildSizeSpec>],
-        constraints: &[super::taffy_layout::SizeConstraints],
-        parent_content_size: [f32; 2],
-    ) -> Vec<super::taffy_layout::TaffyLayoutResult> {
-        let is_row = metadata.layout_type == super::LayoutType::Row;
-        let is_col = metadata.layout_type == super::LayoutType::Col;
-        let is_stack = metadata.layout_type == super::LayoutType::Stack;
-        let is_grid = metadata.layout_type == super::LayoutType::Grid;
-
-        if !is_row && !is_col && !is_stack && !is_grid {
-            return Vec::new();
-        }
-
-        if is_stack {
-            compute_stack_layout_results(children, &metadata.align)
-        } else if is_grid {
-            compute_grid_layout_results_with_specs(
-                children,
-                metadata.gap,
-                metadata.padding,
-                metadata.cols.unwrap_or(1).max(1),
-                size_specs,
-                constraints,
-                parent_content_size,
-            )
-        } else {
-            compute_linear_layout_results_with_specs(
-                children,
-                is_row,
-                metadata.gap,
-                metadata.padding,
-                &metadata.align,
-                metadata,
-                child_baselines,
-                size_specs,
-                constraints,
-                parent_content_size,
-            )
-        }
-    }
-
-    /// Computes layout positions for all children of a container at a specific time.
-    /// Returns a BTreeMap mapping child labels to their computed positions.
-    ///
-    /// Uses a per-container cache keyed on children's layout sizes. If the
-    /// children's half-sizes and placement modes haven't changed since the last
-    /// call, the cached positions are returned without recomputing via Taffy.
-    pub fn compute_layout_for_time(
-        &self,
-        container_label: &str,
-        metadata: &ContainerMetadata,
-        layout_children: &[super::ContainerLayoutChild],
-        time_ms: u64,
-        tracks: &super::TrackStore,
-    ) -> std::sync::Arc<LayoutPositions> {
-        // PF-4: sample the per-frame dynamic inputs WITHOUT owning labels —
-        // the hit path needs no child labels at all, so no `String` is
-        // allocated here. Baselines keep the legacy shape: one entry per
-        // `layout_children` element (0.0 when the track is missing), while
-        // fingerprints cover only admitted children.
-        {
-            // PF-6 round 13 fast path: for a keyframe-free container the
-            // fingerprint pass output is constant, so the first computed
-            // result is served directly and the per-child `tracks.get`
-            // BTreeMap navigation disappears from the steady-state frame.
-            let cache = self.cache.borrow();
-            if let Some(bucket) = cache.get(container_label) {
-                if bucket.children_are_keyframe_free {
-                    if let Some(positions) = &bucket.static_result {
-                        return std::sync::Arc::clone(positions);
-                    }
-                }
-            }
-        }
-
-        let mut fingerprints: Vec<([u32; 2], u8)> = Vec::with_capacity(layout_children.len());
-        let mut baselines: Vec<f32> = Vec::with_capacity(layout_children.len());
-        let mut children_are_keyframe_free = true;
-        for child in layout_children {
-            let Some(track) = tracks.get(&child.label) else {
-                baselines.push(0.0);
-                continue;
-            };
-            // `layout_size`/`baseline` without keyframes sample to a constant;
-            // any keyframe makes the container dynamic for this fast path.
-            children_are_keyframe_free &=
-                track.geometry.layout_size.as_ref().is_none_or(|t| t.keyframes.is_empty())
-                    && track.text.baseline.as_ref().is_none_or(|t| t.keyframes.is_empty());
-            baselines.push(track.baseline_get(time_ms));
-            if let Some(half_size) = track.layout_size_get(time_ms) {
-                fingerprints.push((half_size.map(f32_bits), child.placement_mode as u8));
-            }
-        }
-        let dyn_key = LayoutDynKey {
-            fingerprints,
-            baselines: baselines.iter().map(|v| f32_bits(*v)).collect(),
-        };
-
-        {
-            let cache = self.cache.borrow();
-            if let Some(bucket) = cache.get(container_label) {
-                if let Some((_, entry)) = bucket.entries.iter().find(|(key, _)| *key == dyn_key) {
-                    // Hit: share the cached positions (refcount bump, no clone
-                    // of the child-label-keyed map).
-                    return std::sync::Arc::clone(&entry.positions);
-                }
-            }
-        }
-
-        // Miss: rebuild extents with owned labels and compute.
-        let child_extents: Vec<ChildExtent> = layout_children
-            .iter()
-            .filter_map(|child| {
-                let track = tracks.get(&child.label)?;
-                let half_size = track.layout_size_get(time_ms)?;
-                Some(ChildExtent {
-                    label: child.label.clone(),
-                    half_size,
-                    placement_mode: child.placement_mode,
-                })
-            })
-            .collect();
-
-        let (size_specs, constraints, parent_content_size) = {
-            let p_size = tracks
-                .get(container_label)
-                .and_then(|t| {
-                    t.layout_size_get(time_ms)
-                        .or_else(|| t.layout_size_last())
-                        .or_else(|| t.geometry.size.get_or_default(time_ms))
-                        .or_else(|| {
-                            t.geometry.size.last_time().map(|_| t.geometry.size.last([0.0, 0.0]))
-                        })
-                })
-                .map(|s| [s[0] * 2.0, s[1] * 2.0])
-                .unwrap_or([0.0, 0.0]);
-            let mut specs = Vec::with_capacity(layout_children.len());
-            let mut cons = Vec::with_capacity(layout_children.len());
-            for child in layout_children {
-                if let Some(t) = tracks.get(&child.label) {
-                    specs.push(t.geometry.size_spec);
-                    let min_w = t.geometry.min_width.get(time_ms, 0.0);
-                    let min_h = t.geometry.min_height.get(time_ms, 0.0);
-                    let max_h = t.geometry.max_height.get(time_ms, f32::INFINITY);
-                    cons.push(super::taffy_layout::SizeConstraints {
-                        min_width: if min_w > 0.0 { Some(min_w) } else { None },
-                        max_width: None,
-                        min_height: if min_h > 0.0 { Some(min_h) } else { None },
-                        max_height: if !max_h.is_infinite() && !max_h.is_nan() {
-                            Some(max_h)
-                        } else {
-                            None
-                        },
-                    });
-                } else {
-                    specs.push(None);
-                    cons.push(super::taffy_layout::SizeConstraints::default());
-                }
-            }
-            (specs, cons, p_size)
-        };
-
-        let positions = Self::compute_positions_with_specs(
-            metadata,
-            &child_extents,
-            &baselines,
-            &size_specs,
-            &constraints,
-            parent_content_size,
-        );
-
-        // Build result map, only including LayoutManaged children
-        let mut result = LayoutPositions::new();
-        for (i, child) in child_extents.iter().enumerate() {
-            if child.placement_mode == PlacementMode::LayoutManaged {
-                if let Some(id) = tracks.get_id(&child.label) {
-                    result.insert_with_id(id, child.label.clone(), positions[i]);
-                } else {
-                    result.insert(child.label.clone(), positions[i]);
-                }
-            }
-        }
-        let positions = std::sync::Arc::new(result);
-
-        // Store in cache. Keyframe-free containers also get the static fast
-        // path: their inputs (and therefore their result) are frame-invariant.
-        let mut cache = self.cache.borrow_mut();
-        let bucket =
-            cache
-                .entry(container_label.to_string())
-                .or_insert_with(|| LayoutContainerCache {
-                    entries: Vec::new(),
-                    static_result: None,
-                    children_are_keyframe_free: false,
-                });
-        bucket.entries.push((
-            dyn_key,
-            LayoutCacheEntry {
-                positions: std::sync::Arc::clone(&positions),
-            },
-        ));
-        if children_are_keyframe_free {
-            bucket.children_are_keyframe_free = true;
-            bucket.static_result = Some(std::sync::Arc::clone(&positions));
-        }
-
-        positions
-    }
-}
-
 // ─────────────────────────────────────────────────────────────
 // Width propagation: container → text children
 // ─────────────────────────────────────────────────────────────
@@ -680,7 +219,7 @@ impl Timeline {
     ) -> Option<TextChildProps> {
         use crate::timeline::TrackAccessor;
 
-        let track = self.tracks.get(child_label)?;
+        let track = self.world.tracks.get(child_label)?;
 
         // Check if this is a text-type actor (Text, Typst, Code)
         let text_kind = match track.caps.text {
@@ -809,7 +348,7 @@ impl Timeline {
             new_half_size
         );
 
-        let Some(track) = self.tracks.get_mut(child_label) else {
+        let Some(track) = self.world.tracks.get_mut(child_label) else {
             return;
         };
 
@@ -897,13 +436,13 @@ impl Timeline {
             return Vec::new();
         };
 
-        let Some(parent_track) = self.tracks.get(container_label) else {
+        let Some(container_id) = self.world.get_id(container_label) else {
             return Vec::new();
         };
 
         let mut jobs = Vec::new();
 
-        for (child_index, child_label) in parent_track.children.iter().enumerate() {
+        for (child_index, child_label) in self.world.child_labels(container_id).enumerate() {
             let Some(props) = self.read_text_child_props(child_label, time_ms) else {
                 continue;
             };
@@ -923,7 +462,7 @@ impl Timeline {
             }
 
             jobs.push(TextChildRecompile {
-                label: child_label.clone(),
+                label: child_label.to_string(),
                 props,
                 available_width,
             });
@@ -982,7 +521,7 @@ impl Timeline {
         let mut layout_children = Vec::with_capacity(child_order.len());
 
         for child_label in child_order {
-            let Some(track) = self.tracks.get(child_label) else {
+            let Some(track) = self.world.tracks.get(child_label) else {
                 warn!("layout: child '{}' not found in tracks, skipping", child_label);
                 continue;
             };
@@ -990,7 +529,7 @@ impl Timeline {
             let placement_mode = track.geometry.placement_mode.last(PlacementMode::LayoutManaged);
 
             // Only children with seeded layout_size are admitted into the layout set.
-            // Manual children may still exist in the scene graph via track.children,
+            // Manual children may still exist in the scene graph via the hierarchy,
             // but they are excluded from layout spacing/placement when unmeasured.
             let is_admitted = if !track.has_layout_size() {
                 if placement_mode == PlacementMode::LayoutManaged {
@@ -1028,6 +567,7 @@ impl Timeline {
         let mut constraints: Vec<SizeConstraints> = Vec::with_capacity(children.len());
 
         let parent_content_size = self
+            .world
             .tracks
             .get(container_label)
             .and_then(|t| {
@@ -1042,7 +582,7 @@ impl Timeline {
             .unwrap_or([0.0, 0.0]);
 
         for cl in children {
-            if let Some(track) = self.tracks.get(&cl.label) {
+            if let Some(track) = self.world.tracks.get(&cl.label) {
                 size_specs.push(track.geometry.size_spec);
                 let min_w = track.geometry.min_width.get(time_ms, 0.0);
                 let max_w = f32::INFINITY;
@@ -1090,7 +630,7 @@ impl Timeline {
         let child_extents: Vec<ChildExtent> = children
             .iter()
             .filter_map(|cl| {
-                let track = self.tracks.get(&cl.label)?;
+                let track = self.world.tracks.get(&cl.label)?;
                 let half_size = track.layout_size_last()?;
                 Some(ChildExtent {
                     label: cl.label.clone(),
@@ -1105,7 +645,7 @@ impl Timeline {
         // Sample child baselines for baseline alignment
         let child_baselines: Vec<f32> = children
             .iter()
-            .map(|cl| self.tracks.get(&cl.label).map(|t| t.baseline_get(t_ms)).unwrap_or(0.0))
+            .map(|cl| self.world.tracks.get(&cl.label).map(|t| t.baseline_get(t_ms)).unwrap_or(0.0))
             .collect();
 
         // Collect size specs and constraints for phase 7
@@ -1124,7 +664,7 @@ impl Timeline {
         // Write positions and resolved sizes to tracks, only for LayoutManaged children
         for (i, child) in children.iter().enumerate() {
             if child.placement_mode == PlacementMode::LayoutManaged {
-                if let Some(track) = self.tracks.get_mut(&child.label) {
+                if let Some(track) = self.world.tracks.get_mut(&child.label) {
                     track.geometry.position.ensure([0.0, 0.0]).add_keyframe(
                         t_ms,
                         layout_results[i].position,

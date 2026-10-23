@@ -80,7 +80,7 @@ impl Timeline {
         // Reserve up front: this runs once per declaration during build and
         // injects every track's properties, so growing unreserved would rehash
         // the override map repeatedly (O(declarations²) insert work).
-        env.reserve_overrides(self.variable_tracks.len() + self.tracks.len() * 40);
+        env.reserve_overrides(self.variable_tracks.len() + self.world.tracks.len() * 40);
         // Inject variable tracks so build-time `let` declarations can reference
         // previously declared variables (e.g., `let a = list_swap(a, 0, 2)`).
         // Block-scoped (function-local) bindings shadow scene variable tracks
@@ -124,7 +124,7 @@ impl Timeline {
             match &self.referenced_roots {
                 Some(_) => {
                     let mut count = 0;
-                    for label in self.tracks.keys() {
+                    for label in self.world.tracks.keys() {
                         let is_wildcard = self.wildcard_actors.contains(label.as_str())
                             || self
                                 .wildcard_actors
@@ -146,7 +146,7 @@ impl Timeline {
                     }
                     count
                 },
-                None => self.tracks.len() * 120,
+                None => self.world.tracks.len() * 120,
             }
         } else {
             0
@@ -207,7 +207,7 @@ impl Timeline {
             // PF-6: one shared key buffer for the whole injection pass — the
             // per-track `String::with_capacity` calls were an allocation each.
             let mut key = String::with_capacity(96);
-            for (label, track) in &self.tracks {
+            for (label, track) in &self.world.tracks {
                 crate::timeline::property_engine::inject_extension_properties_into_env(
                     &mut env,
                     &mut key,
@@ -297,7 +297,7 @@ impl Timeline {
             }
         }
 
-        for (label, track) in &self.tracks {
+        for (label, track) in &self.world.tracks {
             // Referenced-root filtering: expressions can only reference actor
             // labels that appear textually in the program (see
             // build::referenced_roots), so unreferenced actors' properties are

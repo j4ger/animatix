@@ -91,10 +91,11 @@ fn a_glass_scope_queues_one_backdrop_and_one_overlay() {
     assert_eq!(spy.backdrops.len(), 1, "the panel must ask for exactly one backdrop pass");
     assert_eq!(spy.overlays, 1, "the scope's children ride in one overlay");
     assert_eq!(spy.in_scene_calls, 0, "a backdrop must not go through the readback path");
-    let card = timeline.tracks.get("card").expect("the Glass scope has a track");
+    let card_id = timeline.get_entity_id("card").expect("the Glass scope has a track");
+    let card_children: Vec<&str> = timeline.world.child_labels(card_id).collect();
     assert_eq!(
-        card.children,
-        vec!["label".to_string()],
+        card_children,
+        vec!["label"],
         "the build must attach the panel's content children to the scope, or the          overlay composites an empty scene and the text disappears"
     );
 }
@@ -164,7 +165,11 @@ hud: Rect, size: (80, 20), at: (60, 40), color: accent.warning
 "#,
     );
     assert_ne!(
-        timeline.root_nodes.last().map(String::as_str),
+        timeline
+            .world
+            .root_entities()
+            .last()
+            .and_then(|&id| timeline.get_entity_label(id)),
         Some("card"),
         "the scene must actually put something after the scope, or this test          measures the case that already worked"
     );

@@ -25,7 +25,7 @@ pub(crate) fn apply_fade_out_opacity(
     delay_ms: f64,
     easing: Easing,
 ) {
-    let track = match timeline.tracks.get_mut(target) {
+    let track = match timeline.world.tracks.get_mut(target) {
         Some(t) => t,
         None => return,
     };
@@ -266,7 +266,7 @@ mod tests {
         let mut timeline = Timeline::new();
         let mut track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
         track.style.opacity.ensure(1.0);
-        timeline.tracks.insert("actor".to_string(), track);
+        timeline.world.tracks.insert("actor".to_string(), track);
 
         let action = Action {
             verb: "persist".to_string(),
@@ -294,7 +294,7 @@ mod tests {
         for label in ["a", "b", "c"] {
             let mut track = crate::timeline::AnimationTrack::placeholder(label.to_string());
             track.style.opacity.ensure(1.0);
-            timeline.tracks.insert(label.to_string(), track);
+            timeline.world.tracks.insert(label.to_string(), track);
         }
 
         let action = Action {
@@ -320,7 +320,7 @@ mod tests {
         let mut timeline = Timeline::new();
         let mut track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
         track.style.opacity.ensure(1.0);
-        timeline.tracks.insert("actor".to_string(), track);
+        timeline.world.tracks.insert("actor".to_string(), track);
 
         let action = Action {
             verb: "persist".to_string(),
@@ -378,7 +378,7 @@ mod tests {
         let mut timeline = Timeline::new();
         let mut track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
         track.style.opacity.ensure(1.0);
-        timeline.tracks.insert("actor".to_string(), track);
+        timeline.world.tracks.insert("actor".to_string(), track);
         timeline.persistence_flags.insert("actor".to_string(), true);
 
         let action = Action {
@@ -406,7 +406,7 @@ mod tests {
         let mut timeline = Timeline::new();
         let mut track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-        timeline.tracks.insert("actor".to_string(), track);
+        timeline.world.tracks.insert("actor".to_string(), track);
 
         let action = Action {
             verb: "remove".to_string(),
@@ -421,7 +421,7 @@ mod tests {
         Remove.execute(&action, 0.0, &mut timeline, &mut diagnostics);
 
         assert!(diagnostics.is_empty());
-        let track = timeline.tracks.get("actor").unwrap();
+        let track = timeline.world.tracks.get("actor").unwrap();
         assert_eq!(track.style.opacity.get(0, 1.0), 0.0);
     }
 
@@ -430,7 +430,7 @@ mod tests {
         let mut timeline = Timeline::new();
         let mut track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
         track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-        timeline.tracks.insert("actor".to_string(), track);
+        timeline.world.tracks.insert("actor".to_string(), track);
 
         let action = Action {
             verb: "remove".to_string(),
@@ -448,7 +448,7 @@ mod tests {
         Remove.execute(&action, 0.0, &mut timeline, &mut diagnostics);
 
         assert!(diagnostics.is_empty());
-        let track = timeline.tracks.get("actor").unwrap();
+        let track = timeline.world.tracks.get("actor").unwrap();
         assert_eq!(track.style.opacity.get(0, 1.0), 1.0);
         assert!(track.style.opacity.get(500, 1.0) > 0.0);
         assert!(track.style.opacity.get(500, 1.0) < 1.0);
@@ -542,7 +542,7 @@ mod tests {
             Some(&false),
             "remove should clear persistence flag"
         );
-        let track = report.output.tracks.get("headline").unwrap();
+        let track = report.output.world.tracks.get("headline").unwrap();
         assert_eq!(
             track.style.opacity.get(1000, 1.0),
             0.0,

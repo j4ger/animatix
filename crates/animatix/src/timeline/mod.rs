@@ -51,6 +51,16 @@ pub mod effects;
 /// Strongly-typed entity IDs and contiguous track storage.
 pub mod entity;
 pub use entity::{EntityId, TrackEntry, TrackStore};
+/// Public timeline data types (build quality, layout metadata, scene
+/// dimensions, audio segments, variable tracks).
+mod types;
+pub use types::{
+    AudioSegment, BuildQuality, ContainerLayoutChild, ContainerMetadata, DebugRenderOptions,
+    LayoutEngine, LayoutType, SceneDimensions, VariableTrack, gap_uniform, padding_uniform,
+};
+/// The ECS world: entities, component stores, and entity views.
+pub mod world;
+pub use world::{ComponentStore, EntityMut, EntityRef, RequiredStore, World};
 /// Evaluation environment for expressions.
 pub mod env;
 pub(crate) mod env_keys;
@@ -186,50 +196,6 @@ pub(crate) use timing::{
 use crate::diagnostics::{BuildReport, Diagnostic, DiagnosticCode, DiagnosticPhase};
 
 // ─────────────────────────────────────────────────────────────
-// Build quality levels (Phase 6.3)
-// ─────────────────────────────────────────────────────────────
-
-/// Controls plot sampling fidelity during timeline build.
-///
-/// - `Draft` — fastest, used during live GUI editing.
-/// - `Preview` — balanced, used when paused or scrubbing.
-/// - `Production` — maximum fidelity, used for export.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
-pub enum BuildQuality {
-    /// Fastest quality for live GUI editing.
-    #[default]
-    Draft,
-    /// Balanced quality for paused/scrubbing preview.
-    Preview,
-    /// Maximum fidelity for export.
-    Production,
-}
-
-impl BuildQuality {
-    /// Apply quality scaling to plot sampling parameters.
-    pub fn scale_plot_params(
-        &self,
-        tolerance: &mut f64,
-        max_depth: &mut usize,
-        resolution: &mut usize,
-    ) {
-        match self {
-            BuildQuality::Draft => {
-                *tolerance = (*tolerance * 4.0).max(0.5);
-                *max_depth = max_depth.saturating_sub(4).max(6);
-                *resolution = (*resolution / 4).max(16);
-            },
-            BuildQuality::Preview => {
-                *tolerance = (*tolerance * 2.0).max(0.5);
-                *max_depth = max_depth.saturating_sub(2).max(6);
-                *resolution = (*resolution / 2).max(16);
-            },
-            BuildQuality::Production => {
-                // No scaling — use values as-is (already clamped by caller)
-            },
-        }
-    }
-}
 pub use actor_caps::{ActorCaps, ActorCategory, ShapeKind, TextKind};
 pub use animation_track::{
     ActionCategory, ActionEvent, ConnectorEndpoint, ConnectorRouting, DEFAULT_LAYOUT_HALF_SIZE,
@@ -279,231 +245,6 @@ pub use vello_path::{GradientExtend, GradientShape, GradientSpace, GradientSpec,
 use crate::ast::{Expr, Modifier, Stmt};
 use crate::easing::*;
 use crate::timeline::modifier_runtime::ir::ModifierIrProgram;
-
-/// Layout strategy for container actors.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum LayoutType {
-    /// Horizontal left-to-right flow.
-    Row,
-    /// Vertical top-to-bottom flow.
-    Col,
-    /// CSS-like grid with configurable columns.
-    Grid,
-    /// Absolute/manual positioning.
-    Stack,
-}
-
-impl LayoutType {
-    /// Parse a container type string into a `LayoutType`.
-    ///
-    /// Defaults to `Row` for unrecognized names.
-    pub fn from_container_ty(container_ty: &str) -> Self {
-        match container_ty {
-            "Row" => Self::Row,
-            "Col" => Self::Col,
-            "Grid" => Self::Grid,
-            "Stack" => Self::Stack,
-            _ => Self::Row,
-        }
-    }
-
-    /// Return the string representation of this layout type.
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Row => "Row",
-            Self::Col => "Col",
-            Self::Grid => "Grid",
-            Self::Stack => "Stack",
-        }
-    }
-}
-
-/// A child actor admitted into a container's layout system.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ContainerLayoutChild {
-    /// Layout-admitted child label.
-    ///
-    /// This is a validated subset of scene-graph children used only for layout
-    /// membership/order. Children excluded here still remain in `track.children`
-    /// for scene traversal/rendering.
-    pub label: String,
-    /// Cached placement mode from build time to avoid repeated track lookups.
-    pub placement_mode: PlacementMode,
-}
-
-/// Metadata describing the layout configuration of a container actor.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ContainerMetadata {
-    /// Row, Col, Grid, or Stack.
-    pub layout_type: LayoutType,
-    /// Gap between children in logical pixels.
-    /// `[0]` = main-axis gap, `[1]` = cross-axis gap.
-    pub gap: [f32; 2],
-    /// Padding inside the container bounds in logical pixels.
-    /// `[left, top, right, bottom]`.
-    pub padding: [f32; 4],
-    /// Cross-axis alignment string (e.g. "center", "start").
-    pub align: String,
-    /// Vertical alignment string ("center", "baseline", "top", "bottom").
-    /// Default is "center" for backward compatibility.
-    pub vertical_align: String,
-    /// Number of columns when `layout_type` is `Grid`.
-    pub cols: Option<usize>,
-    /// Raw authored child order snapshot for this container.
-    ///
-    /// This is retained for debugging/tests and for preserving the distinction
-    /// between authored scene-graph membership and admitted layout membership.
-    /// Layout-admitted children are derived from this on demand via
-    /// `Timeline::layout_children_for` or `ContainerMetadata::layout_children`.
-    pub child_order: Vec<String>,
-}
-
-/// Create a uniform `[f32; 2]` gap array where both axes use the same value.
-pub fn gap_uniform(v: f32) -> [f32; 2] {
-    [v, v]
-}
-
-/// Create a uniform `[f32; 4]` padding array where all sides use the same value.
-pub fn padding_uniform(v: f32) -> [f32; 4] {
-    [v, v, v, v]
-}
-
-impl ContainerMetadata {
-    /// Compute layout-admitted children on demand from `child_order` + tracks.
-    pub fn layout_children(&self, tracks: &TrackStore) -> Vec<ContainerLayoutChild> {
-        self.child_order
-            .iter()
-            .filter_map(|child_label| {
-                let track = tracks.get(child_label)?;
-                if !track.has_layout_size() {
-                    return None;
-                }
-                Some(ContainerLayoutChild {
-                    label: child_label.clone(),
-                    placement_mode: track
-                        .geometry
-                        .placement_mode
-                        .last(PlacementMode::LayoutManaged),
-                })
-            })
-            .collect()
-    }
-}
-
-/// Layout engine for computing child positions inside containers.
-///
-/// Caches layout results per-container to avoid redundant Taffy computation
-/// when children's layout sizes haven't changed between frames.
-#[derive(Clone, Debug)]
-pub struct LayoutEngine {
-    /// Per-container cache bucket keyed by container label (PF-4: the label is
-    /// borrowed for lookup — no `String` is allocated per frame). Static layout
-    /// inputs are implied by the bucket; only per-frame dynamic inputs
-    /// (`layout_size`, baselines) are compared inside it.
-    pub(crate) cache: std::cell::RefCell<
-        std::collections::HashMap<String, crate::timeline::layout::LayoutContainerCache>,
-    >,
-}
-
-impl Default for LayoutEngine {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-/// Width and height of the output scene in pixels.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct SceneDimensions {
-    /// Scene width in pixels.
-    pub width: u32,
-    /// Scene height in pixels.
-    pub height: u32,
-}
-
-/// Optional debug overlays for the renderer.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
-pub struct DebugRenderOptions {
-    /// Draw bounding-box outlines around actors.
-    pub draw_bounds: bool,
-    /// P2.24: When true, compute hit regions during evaluation.
-    /// The GUI sets this to true when it needs click-to-select data.
-    pub compute_hit_regions: bool,
-    /// Show layout-specific debug info (container labels, slot outlines, sizes).
-    pub draw_layout_debug: bool,
-    /// Show padding and gap regions as semi-transparent overlays.
-    pub draw_spacing: bool,
-}
-
-impl Default for SceneDimensions {
-    fn default() -> Self {
-        Self {
-            width: 1920,
-            height: 1080,
-        }
-    }
-}
-
-/// A single audio segment to be muxed during export.
-#[derive(Clone, Debug)]
-pub struct AudioSegment {
-    /// Path or identifier of the audio asset.
-    pub source: String,
-    /// Start time within the global timeline in seconds.
-    pub start_time_s: f64,
-    /// Playback duration in seconds.
-    pub duration_s: Option<f64>,
-    /// Playback volume multiplier (1.0 = full volume).
-    pub volume: f32,
-    /// Optional animated volume envelope (sample_time_s, gain 0.0..1.0).
-    pub volume_envelope: Option<Vec<(f64, f32)>>,
-}
-
-impl AudioSegment {
-    /// Evaluate the volume gain at a given timeline time in seconds.
-    pub fn volume_at(&self, time_s: f64) -> f32 {
-        if let Some(env) = &self.volume_envelope {
-            if env.is_empty() {
-                return self.volume;
-            }
-            if time_s <= env[0].0 {
-                return env[0].1;
-            }
-            if time_s >= env.last().unwrap().0 {
-                return env.last().unwrap().1;
-            }
-            for i in 0..env.len() - 1 {
-                let (t0, v0) = env[i];
-                let (t1, v1) = env[i + 1];
-                if time_s >= t0 && time_s <= t1 {
-                    if (t1 - t0).abs() < 1e-6 {
-                        return v1;
-                    }
-                    let factor = ((time_s - t0) / (t1 - t0)) as f32;
-                    return v0 + (v1 - v0) * factor;
-                }
-            }
-            self.volume
-        } else {
-            self.volume
-        }
-    }
-}
-
-/// A piecewise-constant variable track defined by `let` declarations in keyframes.
-/// Evaluates to the value of the most recent keyframe at or before the query time.
-#[derive(Clone, Debug, Default)]
-pub struct VariableTrack {
-    /// Map from time in milliseconds to the variable value at that keyframe.
-    pub keyframes: BTreeMap<u64, Value>,
-}
-
-impl VariableTrack {
-    /// Evaluate the variable at the given time, returning the most recent keyframe value.
-    pub fn evaluate(&self, time_ms: u64) -> Option<Value> {
-        self.keyframes.range(..=time_ms).next_back().map(|(_, v)| v.clone())
-    }
-}
-
 /// Trait for types that have a notion of their maximum keyframe time.
 pub trait HasDuration {
     /// Returns the maximum keyframe time in milliseconds.
@@ -550,16 +291,15 @@ type StaticSubtreeEntry = (
 /// evaluation state.
 #[derive(Clone)]
 pub struct Timeline {
-    /// Every actor track, keyed by label.
+    /// The ECS world: dense entity storage plus every component store.
     ///
-    /// Mutating a track after the first evaluation must invalidate the frame
-    /// cache, so post-build code goes through [`Self::get_track_mut`] or
-    /// [`Self::tracks_mut`] (both invalidate). Direct access to this field is
-    /// for the build phase, which runs before any cached frame exists.
-    pub(crate) tracks: TrackStore,
+    /// Mutating entity data after the first evaluation must invalidate the
+    /// frame cache, so post-build code goes through [`Self::entity_mut`],
+    /// [`Self::world_mut`] or [`Self::tracks_mut`] (all invalidate). Direct
+    /// access to the inner store is for the build phase, which runs before any
+    /// cached frame exists.
+    pub(crate) world: World,
     pub(crate) background_color: PropertyTrack<[f32; 4]>,
-    pub(crate) root_nodes: Vec<String>,
-    pub(crate) root_ids: Vec<EntityId>,
     pub(crate) env: Environment,
     /// Scope stack for `Stmt::Block` (function-call expansion). Each entry
     /// records the `let` names bound inside that block so they can be removed
@@ -925,10 +665,8 @@ impl Timeline {
         let mut bg_track = PropertyTrack::new([0.0, 0.0, 0.0, 1.0]);
         bg_track.add_keyframe(0, [0.0, 0.0, 0.0, 1.0], Easing::Linear);
         Self {
-            tracks: TrackStore::new(),
+            world: World::new(),
             background_color: bg_track,
-            root_nodes: Vec::new(),
-            root_ids: Vec::new(),
             env: Environment::new(),
             block_scope: Vec::new(),
             primitive_registry: std::sync::Arc::new(crate::primitives::PrimitiveRegistry::new()),
@@ -1046,6 +784,7 @@ impl Timeline {
     /// keyframe across all tracks, background, and child order animations.
     pub fn duration_seconds(&self) -> f64 {
         let max_ms = self
+            .world
             .tracks
             .values()
             .map(|t| t.max_keyframe_time_ms())
@@ -1089,7 +828,7 @@ impl Timeline {
     /// Collects actor labels with non-empty `shared_id` at `time_ms`, keyed by `shared_id`.
     pub fn shared_id_actors(&self, time_ms: u64) -> std::collections::HashMap<String, String> {
         let mut map = std::collections::HashMap::new();
-        for (label, track) in &self.tracks {
+        for (label, track) in &self.world.tracks {
             if let Some(crate::timeline::property_engine::PropertyValue::String(id)) =
                 crate::timeline::read_property_value(
                     track,
@@ -1130,7 +869,7 @@ impl Timeline {
     /// and dynamic plot parameter tracks that the registry cannot enumerate statically.
     pub fn keyframe_times_s(&self) -> Vec<f64> {
         let mut times_ms: BTreeSet<u64> = BTreeSet::new();
-        for track in self.tracks.values() {
+        for track in self.world.tracks.values() {
             // Registry-driven: covers all applicable fields for this actor kind
             for &time_s in collect_all_keyframe_times(track).iter() {
                 let ms = (time_s * 1000.0) as u64;
@@ -1161,25 +900,35 @@ impl Timeline {
 
     /// Returns true if an actor with the given label exists.
     pub fn has_actor(&self, label: &str) -> bool {
-        self.tracks.contains_key(label)
+        self.world.tracks.contains_key(label)
     }
 
     /// Returns an iterator over all track labels.
     pub fn actor_labels(&self) -> impl Iterator<Item = &String> {
-        self.tracks.keys()
+        self.world.tracks.keys()
+    }
+
+    /// Labels of `label`'s direct children, in authored/insertion order.
+    ///
+    /// Label-boundary helper: build diagnostics, action target resolution and
+    /// the GUI use it; the frame path walks `world.hierarchy(id).children`.
+    pub fn child_labels(&self, label: &str) -> impl Iterator<Item = &str> {
+        self.world.get_id(label).into_iter().flat_map(|id| self.world.child_labels(id))
     }
 
     /// Finds the common parent container of two child labels.
     /// Returns `None` if no shared parent exists.
     pub fn find_common_parent(&self, child_a: &str, child_b: &str) -> Option<String> {
-        for (label, track) in &self.tracks {
-            if track.children.contains(&child_a.to_string())
-                && track.children.contains(&child_b.to_string())
-            {
-                return Some(label.clone());
-            }
-        }
-        None
+        let child_a = self.world.get_id(child_a)?;
+        let child_b = self.world.get_id(child_b)?;
+        self.world
+            .tracks
+            .iter()
+            .find(|(_, track)| {
+                let children = &self.world.hierarchy(track.id).children;
+                children.contains(&child_a) && children.contains(&child_b)
+            })
+            .map(|(label, _)| label.clone())
     }
 
     /// Returns the effective child order for a container at the given time.
@@ -1227,7 +976,7 @@ impl Timeline {
             .child_order
             .iter()
             .filter_map(|child_label| {
-                let track = self.tracks.get(child_label)?;
+                let track = self.world.tracks.get(child_label)?;
                 if !track.has_layout_size() {
                     return None;
                 }
@@ -1254,7 +1003,7 @@ impl Timeline {
         let child_extents: Vec<ChildExtent> = order
             .iter()
             .filter_map(|label| {
-                let track = self.tracks.get(label)?;
+                let track = self.world.tracks.get(label)?;
                 Some(ChildExtent {
                     label: label.clone(),
                     half_size: track.layout_size_get(time_ms)?,
@@ -1271,7 +1020,7 @@ impl Timeline {
         let mut result = layout::LayoutPositions::new();
         for (i, child) in child_extents.iter().enumerate() {
             if child.placement_mode == PlacementMode::LayoutManaged {
-                if let Some(id) = self.tracks.get_id(&child.label) {
+                if let Some(id) = self.world.tracks.get_id(&child.label) {
                     result.insert_with_id(id, child.label.clone(), positions[i]);
                 } else {
                     result.insert(child.label.clone(), positions[i]);
@@ -1316,7 +1065,7 @@ impl Timeline {
                         let p1 = pos1.get(label).copied().unwrap_or([0.0, 0.0]);
                         let p2 = pos2.get(label).copied().unwrap_or([0.0, 0.0]);
                         let pos = p1.interpolate(&p2, eased_t);
-                        if let Some(id) = self.tracks.get_id(label) {
+                        if let Some(id) = self.world.tracks.get_id(label) {
                             result.insert_with_id(id, label.clone(), pos);
                         } else {
                             result.insert(label.clone(), pos);
@@ -1347,7 +1096,7 @@ impl Timeline {
                         let p1 = pos1.get(label).copied().unwrap_or([0.0, 0.0]);
                         let p2 = pos2.get(label).copied().unwrap_or([0.0, 0.0]);
                         let pos = p1.interpolate(&p2, eased_t);
-                        if let Some(id) = self.tracks.get_id(label) {
+                        if let Some(id) = self.world.tracks.get_id(label) {
                             result.insert_with_id(id, label.clone(), pos);
                         } else {
                             result.insert(label.clone(), pos);
@@ -1368,46 +1117,8 @@ impl Timeline {
             metadata,
             &layout_children,
             time_ms,
-            &self.tracks,
+            &self.world.tracks,
         )
-    }
-
-    /// Returns the list of root actor labels (actors with no parent).
-    pub fn root_actor_labels(&self) -> &[String] {
-        &self.root_nodes
-    }
-
-    /// Resolve the dense [`EntityId`] of every root actor, in `root_nodes`
-    /// order.
-    ///
-    /// This used to also build a depth-first execution order and per-entity
-    /// `parent_id` / `children_ids`, but nothing ever read them: the frame path
-    /// walks `root_nodes` and each node's `children` labels, and the frame
-    /// cache keys on labels. They were removed rather than left as per-build
-    /// allocations. `root_ids` is live — `evaluate_program_inner` uses it to
-    /// skip a label lookup per root per frame.
-    pub(crate) fn resolve_root_ids(&mut self) {
-        let mut root_ids = Vec::with_capacity(self.root_nodes.len());
-        for root in &self.root_nodes {
-            if let Some(root_id) = self.tracks.get_id(root) {
-                root_ids.push(root_id);
-            }
-        }
-        self.root_ids = root_ids;
-
-        for i in 0..self.tracks.len() {
-            let child_labels = self.tracks.dense[i].children.clone();
-            let parent_label = self.tracks.dense[i].parent.clone();
-            let mut children_ids = Vec::with_capacity(child_labels.len());
-            for child_label in &child_labels {
-                if let Some(child_id) = self.tracks.get_id(child_label) {
-                    children_ids.push(child_id);
-                }
-            }
-            self.tracks.dense[i].children_ids = children_ids;
-            self.tracks.dense[i].parent_id =
-                parent_label.as_deref().and_then(|p| self.tracks.get_id(p));
-        }
     }
 
     /// Resolve animated volume envelopes for all audio segments from their tracks.
@@ -1415,6 +1126,7 @@ impl Timeline {
         for seg in &mut self.audio_segments {
             // Find track with matching normalized source or Audio actor type
             let matching_track = self
+                .world
                 .tracks
                 .dense
                 .iter()
@@ -1463,7 +1175,7 @@ impl Timeline {
 
     /// Returns a reference to the track for the given label, if it exists.
     pub fn get_track(&self, label: &str) -> Option<&AnimationTrack> {
-        self.tracks.get(label)
+        self.world.tracks.get(label)
     }
 
     /// Returns a mutable reference to the track for the given label, if it exists.
@@ -1472,37 +1184,38 @@ impl Timeline {
     /// the track can change the rendered scene at the cached time.
     pub fn get_track_mut(&mut self, label: &str) -> Option<&mut AnimationTrack> {
         self.invalidate_frame_cache();
-        self.tracks.get_mut(label)
+        self.world.tracks.get_mut(label)
     }
 
     /// Return the entity ID corresponding to the given actor label.
     #[inline(always)]
     pub fn get_entity_id(&self, label: &str) -> Option<EntityId> {
-        self.tracks.get_id(label)
+        self.world.tracks.get_id(label)
     }
 
     /// Return the actor label corresponding to the given entity ID.
     #[inline(always)]
     pub fn get_entity_label(&self, id: EntityId) -> Option<&str> {
-        self.tracks.get_label(id)
+        self.world.tracks.get_label(id)
     }
 
     /// Returns a reference to the track for the given entity ID.
     #[inline(always)]
     pub fn get_track_by_id(&self, id: EntityId) -> Option<&AnimationTrack> {
-        self.tracks.get_by_id(id)
+        self.world.tracks.get_by_id(id)
     }
 
     /// Returns a mutable reference to the track for the given entity ID.
     #[inline(always)]
     pub fn get_track_by_id_mut(&mut self, id: EntityId) -> Option<&mut AnimationTrack> {
         self.invalidate_frame_cache();
-        self.tracks.get_by_id_mut(id)
+        self.world.tracks.get_by_id_mut(id)
     }
 
     /// Check if a keyframe exists for the given actor and property at `time_ms`.
     pub fn has_keyframe_at(&self, actor: &str, property: &str, time_ms: u64) -> bool {
-        self.tracks
+        self.world
+            .tracks
             .get(actor)
             .map(|t| t.has_keyframe_at(property, time_ms))
             .unwrap_or(false)
@@ -1510,7 +1223,11 @@ impl Timeline {
 
     /// List all keyframe times (in ms) for the given actor and property.
     pub fn list_keyframes(&self, actor: &str, property: &str) -> Vec<u64> {
-        self.tracks.get(actor).map(|t| t.list_keyframes(property)).unwrap_or_default()
+        self.world
+            .tracks
+            .get(actor)
+            .map(|t| t.list_keyframes(property))
+            .unwrap_or_default()
     }
 
     /// Evaluate the background color at the given time.
@@ -1520,13 +1237,61 @@ impl Timeline {
 
     /// Returns a reference to all tracks.
     pub fn tracks(&self) -> &TrackStore {
-        &self.tracks
+        &self.world.tracks
     }
 
     /// Returns a mutable reference to all tracks.
     pub fn tracks_mut(&mut self) -> &mut TrackStore {
         self.invalidate_frame_cache();
-        &mut self.tracks
+        &mut self.world.tracks
+    }
+
+    /// Returns the ECS world (entities + component stores).
+    #[inline(always)]
+    pub fn world(&self) -> &World {
+        &self.world
+    }
+
+    /// Returns the ECS world for build-time mutation.
+    ///
+    /// Invalidates the frame cache first: any component write can change the
+    /// rendered scene at the cached time.
+    pub fn world_mut(&mut self) -> &mut World {
+        self.invalidate_frame_cache();
+        &mut self.world
+    }
+
+    /// Read-only entity view for a label.
+    #[inline(always)]
+    pub fn entity(&self, label: &str) -> Option<EntityRef<'_>> {
+        self.world.entity(label)
+    }
+
+    /// Read-only entity view for an id.
+    #[inline(always)]
+    pub fn entity_by_id(&self, id: EntityId) -> Option<EntityRef<'_>> {
+        self.world.view(id)
+    }
+
+    /// Mutable entity view for a label. Invalidates the frame cache first.
+    pub fn entity_mut(&mut self, label: &str) -> Option<EntityMut<'_>> {
+        self.invalidate_frame_cache();
+        self.world.entity_mut(label)
+    }
+
+    /// Mutable entity view for an id. Invalidates the frame cache first.
+    pub fn entity_by_id_mut(&mut self, id: EntityId) -> Option<EntityMut<'_>> {
+        self.invalidate_frame_cache();
+        self.world.view_mut(id)
+    }
+
+    /// Create an entity with a blank track, or return the existing one.
+    ///
+    /// Build code, tests and plugins use this instead of inserting into
+    /// `TrackStore` by hand. Invalidates the frame cache first.
+    pub fn spawn_entity(&mut self, label: &str, actor_type: impl Into<String>) -> EntityId {
+        self.invalidate_frame_cache();
+        self.world.spawn(label, actor_type)
     }
 
     /// Returns a reference to all parsed speech transcripts, keyed by actor label.
@@ -1536,16 +1301,21 @@ impl Timeline {
         &self.transcripts
     }
 
-    /// Map each child label to its parent label, derived from the
-    /// authoritative children lists. The stored `parent` back-reference
-    /// on first-declaration children can be missing (noted during the
-    /// component Group fix), so all parent-chain queries should go through
-    /// this helper instead of reading the stored field.
-    pub fn parent_of(&self) -> std::collections::HashMap<&String, &String> {
-        self.tracks
-            .iter()
-            .flat_map(|(label, t)| t.children.iter().map(move |c| (c, label)))
-            .collect()
+    /// Map each child label to its parent label, derived from the hierarchy
+    /// component. Used by build diagnostics (never-revealed ancestors).
+    pub fn parent_of(&self) -> std::collections::HashMap<&str, &str> {
+        let mut parents = std::collections::HashMap::new();
+        for (parent, hierarchy) in self.world.hierarchy.iter() {
+            let Some(parent_label) = self.world.label(parent) else {
+                continue;
+            };
+            for child in &hierarchy.children {
+                if let Some(child_label) = self.world.label(*child) {
+                    parents.insert(child_label, parent_label);
+                }
+            }
+        }
+        parents
     }
 
     /// Returns a reference to the container metadata map.
@@ -1642,7 +1412,7 @@ impl Timeline {
     /// transitions) always use their cached build-time paths and do not force a
     /// frame environment to be constructed.
     pub(crate) fn has_procedural_plots(&self) -> bool {
-        self.tracks.values().any(|t| {
+        self.world.tracks.values().any(|t| {
             t.procedural_plot().is_some_and(|pp| pp.is_dynamic(&self.frame_written_vars))
                 || !t.func_transitions().is_empty()
         })
@@ -1662,7 +1432,7 @@ impl Timeline {
     /// Stamp [`AnimationTrack::bounds_slot`] values and (re)build the label
     /// registry if invalid. See [`EvalCaches::ensure_bounds_registry`].
     pub(crate) fn ensure_bounds_registry(&self) {
-        self.eval_caches.ensure_bounds_registry(&self.tracks);
+        self.eval_caches.ensure_bounds_registry(&self.world.tracks);
     }
 
     /// Precise world-space bounds for `label` recorded during the current
@@ -1686,7 +1456,7 @@ impl Timeline {
         let mut slot = stamped_slot;
         if slot == u32::MAX {
             self.ensure_bounds_registry();
-            slot = self.tracks.get(label).map(|t| t.bounds_slot.get()).unwrap_or(u32::MAX);
+            slot = self.world.tracks.get(label).map(|t| t.bounds_slot.get()).unwrap_or(u32::MAX);
             if slot == u32::MAX {
                 // Unreachable while the invalidation funnel holds; log rather
                 // than silently dropping the bounds.
@@ -1708,7 +1478,7 @@ impl Timeline {
     }
 
     pub(crate) fn refresh_blend_used(&self) {
-        let any = self.tracks.values().any(|t| t.style.blend.is_some());
+        let any = self.world.tracks.values().any(|t| t.style.blend.is_some());
         self.blend_used.set(any);
     }
 
@@ -1720,8 +1490,12 @@ impl Timeline {
     pub(crate) fn refresh_camera_used(&self) {
         self.camera_used
             .set(self.camera.is_authored() || Self::stmts_address_camera(&self.modifiers));
-        self.camera_exempt_present
-            .set(self.tracks.values().any(|track| !track.camera_follow || track.parallax != 1.0));
+        self.camera_exempt_present.set(
+            self.world
+                .tracks
+                .values()
+                .any(|track| !track.camera_follow || track.parallax != 1.0),
+        );
     }
 
     fn stmts_address_camera(stmts: &[crate::ast::Stmt]) -> bool {
@@ -1738,20 +1512,12 @@ impl Timeline {
         })
     }
 
-    pub(crate) fn is_static_subtree(&self, label: &str) -> bool {
-        if let Some(id) = self.tracks.get_entity_id(label) {
-            self.is_static_subtree_id(id)
-        } else {
-            self.compute_static_subtree(label)
-        }
-    }
-
     pub(crate) fn is_static_subtree_id(&self, id: EntityId) -> bool {
         let idx = id.index();
         if let Some(&Some(cached)) = self.eval_caches.static_subtree_flags.borrow().get(idx) {
             return cached;
         }
-        let Some(track) = self.tracks.get_by_id(id) else {
+        let Some(track) = self.world.tracks.get_by_id(id) else {
             return true;
         };
         let is_static = self.compute_static_subtree(&track.label);
@@ -1792,7 +1558,7 @@ impl Timeline {
         if self.is_targeted_by_modifier(label) {
             return false;
         }
-        let Some(track) = self.tracks.get(label) else {
+        let Some(track) = self.world.tracks.get(label) else {
             return true;
         };
         if track.caps.time_dependent
@@ -1804,13 +1570,11 @@ impl Timeline {
         {
             return false;
         }
-        track.children.iter().all(|child| {
-            if let Some(child_id) = self.tracks.get_entity_id(child) {
-                self.is_static_subtree_id(child_id)
-            } else {
-                self.compute_static_subtree(child)
-            }
-        })
+        self.world
+            .hierarchy(track.id)
+            .children
+            .iter()
+            .all(|child_id| self.is_static_subtree_id(*child_id))
     }
 
     #[cfg(test)]
@@ -1821,7 +1585,7 @@ impl Timeline {
         collect_items: bool,
         debug_options: DebugRenderOptions,
     ) -> bool {
-        let Some(id) = self.tracks.get_entity_id(label) else {
+        let Some(id) = self.world.tracks.get_entity_id(label) else {
             return false;
         };
         self.eval_caches.static_subtree_cache.borrow().contains_key(&(
@@ -1876,7 +1640,7 @@ impl Timeline {
         // Per-track hot-path memos (vector-path Arc sharing) key on this
         // epoch: every mutation funnels through this invalidation, so the
         // bump is the single memo-invalidation point.
-        for track in self.tracks.values() {
+        for track in self.world.tracks.values() {
             track
                 .shape
                 .vector_paths_epoch
@@ -1959,7 +1723,7 @@ impl Timeline {
             layout::empty_layout_positions();
 
         for node_label in &path {
-            let track = self.tracks.get(node_label)?;
+            let track = self.world.tracks.get(node_label)?;
 
             let placement_mode =
                 track.geometry.placement_mode.get(time_ms, PlacementMode::LayoutManaged);
@@ -2000,7 +1764,7 @@ impl Timeline {
                         metadata,
                         &layout_children,
                         time_ms,
-                        &self.tracks,
+                        &self.world.tracks,
                     );
                 } else {
                     current_layout_positions = layout::empty_layout_positions();
@@ -2013,8 +1777,9 @@ impl Timeline {
 
     /// Find the path of actor labels from a root node down to `target`.
     fn find_path_to_actor(&self, target: &str) -> Option<Vec<String>> {
-        for root in &self.root_nodes {
-            if let Some(path) = self.find_path_from(root, target) {
+        for &root in self.world.root_entities() {
+            let label = self.world.label(root)?;
+            if let Some(path) = self.find_path_from(label, target) {
                 return Some(path);
             }
         }
@@ -2025,12 +1790,14 @@ impl Timeline {
         if current == target {
             return Some(vec![current.to_string()]);
         }
-        if let Some(track) = self.tracks.get(current) {
-            for child in &track.children {
-                if let Some(mut path) = self.find_path_from(child, target) {
-                    path.insert(0, current.to_string());
-                    return Some(path);
-                }
+        let id = self.world.get_id(current)?;
+        for &child in &self.world.hierarchy(id).children {
+            let Some(child_label) = self.world.label(child) else {
+                continue;
+            };
+            if let Some(mut path) = self.find_path_from(child_label, target) {
+                path.insert(0, current.to_string());
+                return Some(path);
             }
         }
         None

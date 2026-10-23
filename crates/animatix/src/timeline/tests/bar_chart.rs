@@ -17,7 +17,7 @@ fn bar_colors_scheme_token_single() {
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
-    assert!(report.output.tracks.contains_key("chart"), "chart track should exist");
+    assert!(report.output.world.tracks.contains_key("chart"), "chart track should exist");
 }
 
 #[test]
@@ -85,7 +85,7 @@ fn bar_colors_invalid_token_emits_diagnostic() {
         "Expected UnknownColorReference diagnostic, got: {:?}",
         report.diagnostics
     );
-    assert!(report.output.tracks.contains_key("chart"), "chart track should exist");
+    assert!(report.output.world.tracks.contains_key("chart"), "chart track should exist");
 }
 
 #[test]
@@ -154,7 +154,7 @@ fn show_axis_invalid_type_emits_diagnostic() {
         "Expected InvalidPropertyValue diagnostic, got: {:?}",
         report.diagnostics
     );
-    assert!(report.output.tracks.contains_key("chart"), "chart track should exist");
+    assert!(report.output.world.tracks.contains_key("chart"), "chart track should exist");
 }
 
 #[test]
@@ -183,11 +183,11 @@ fn show_labels_bool_creates_child_label_tracks() {
         report.diagnostics
     );
     assert!(
-        report.output.tracks.contains_key("chart_bar_label_0"),
+        report.output.world.tracks.contains_key("chart_bar_label_0"),
         "Bar labels should create child Text tracks"
     );
     assert!(
-        report.output.tracks.contains_key("chart_bar_label_1"),
+        report.output.world.tracks.contains_key("chart_bar_label_1"),
         "Each bar should create a child Text label"
     );
 }
@@ -207,7 +207,7 @@ fn show_labels_string() {
         report.diagnostics
     );
     assert!(
-        !report.output.tracks.contains_key("chart_bar_label_0"),
+        !report.output.world.tracks.contains_key("chart_bar_label_0"),
         "show_labels: \"false\" should suppress child label tracks"
     );
 }
@@ -305,7 +305,7 @@ fn flat_number_list_auto_labeling() {
         report.diagnostics
     );
     // The chart track should still exist (auto-labeling worked)
-    assert!(report.output.tracks.contains_key("chart"), "chart track should exist");
+    assert!(report.output.world.tracks.contains_key("chart"), "chart track should exist");
 }
 
 #[test]
@@ -324,7 +324,7 @@ fn flat_number_list_single_value() {
         "Expected auto-labeling diagnostic, got: {:?}",
         report.diagnostics
     );
-    assert!(report.output.tracks.contains_key("chart"), "chart track should exist");
+    assert!(report.output.world.tracks.contains_key("chart"), "chart track should exist");
 }
 
 #[test]
@@ -342,7 +342,7 @@ fn tuple_list_still_works_with_no_diagnostics() {
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
-    assert!(report.output.tracks.contains_key("chart"), "chart track should exist");
+    assert!(report.output.world.tracks.contains_key("chart"), "chart track should exist");
 }
 
 #[test]
@@ -393,7 +393,7 @@ fn hosted_bar_chart_spans_graph_axis() {
 
     // Hosted bars must span most of the 800px axis box (math-mode layout
     // reserves padding), not the legacy central half.
-    let track = report.output.tracks.get("chart").expect("chart track");
+    let track = report.output.world.tracks.get("chart").expect("chart track");
     let paths = track.evaluate_vector_paths(0);
     assert!(!paths.is_empty(), "hosted bars should be baked");
     use kurbo::Shape as _;
@@ -473,9 +473,10 @@ card: Card, width: 240, height: 150 {
     assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
 
     let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
-    let has_track = |needle: &str| report.output.tracks.keys().any(|k| k.contains(needle));
+    let has_track = |needle: &str| report.output.world.tracks.keys().any(|k| k.contains(needle));
     let has_fill_text = report
         .output
+        .world
         .tracks
         .iter()
         .any(|(_k, t)| t.text.text_content.get(0, String::new()).contains("SLOT FILLED"));
@@ -485,20 +486,27 @@ card: Card, width: 240, height: 150 {
     // instance wrapper (empty children) with the expanded siblings as
     // independent roots. Before the fix this was:
     //   CHILDREN card: []   / ROOT NODES: ["card", "card.root"]
+    let root_labels: Vec<&str> = report
+        .output
+        .world
+        .root_entities()
+        .iter()
+        .map(|&id| report.output.get_entity_label(id).expect("root id resolves"))
+        .collect();
     assert_eq!(
-        report.output.root_nodes,
-        vec!["card".to_string()],
+        root_labels,
+        vec!["card"],
         "a multi-statement component instance must be a single root node"
     );
-    let card = report.output.tracks.get("card").expect("card track exists");
+    let card_id = report.output.get_entity_id("card").expect("card track exists");
     assert!(
-        !card.children.is_empty(),
+        !report.output.world.hierarchy(card_id).children.is_empty(),
         "the instance wrapper 'card' must contain the expanded body as children"
     );
     // The expanded body must stay nested under the instance (not ride the
     // scene-root list alongside it).
     assert!(
-        !report.output.root_nodes.iter().any(|r| r.starts_with("card.")),
+        !root_labels.iter().any(|r| r.starts_with("card.")),
         "expanded body children must not become separate root nodes"
     );
 
@@ -533,35 +541,36 @@ fn components_gallery_instances_form_single_nodes() {
     assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
     let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
 
-    let row = report.output.tracks.get("row").expect("row container exists");
+    let row_id = report.output.get_entity_id("row").expect("row container exists");
+    let row_children: Vec<&str> = report.output.world.child_labels(row_id).collect();
     assert_eq!(
-        row.children,
-        vec![
-            "card1".to_string(),
-            "card2".to_string(),
-            "card3".to_string()
-        ],
+        row_children,
+        vec!["card1", "card2", "card3"],
         "each MetricCard instance must be a single node in the row, not three spread cells"
     );
     for card in ["card1", "card2", "card3"] {
-        let track = report.output.tracks.get(card).expect("card node exists");
+        let card_id = report.output.get_entity_id(card).expect("card node exists");
+        let children: Vec<&str> = report.output.world.child_labels(card_id).collect();
         assert!(
-            track.children.len() == 3,
-            "{card} must contain its expanded body (frame, header, value_text), got {:?}",
-            track.children
+            children.len() == 3,
+            "{card} must contain its expanded body (frame, header, value_text), got {children:?}"
         );
     }
     // The slot fills (a/b/c) must live inside each card's header, not ride the
-    // scene root. (The `parent` back-reference is not always back-filled for
-    // first-declaration children, so assert on the authoritative children list
-    // and on the root-node set instead.)
-    let header = report.output.tracks.get("card1.header").expect("card1.header track");
+    // scene root.
+    let header_id = report.output.get_entity_id("card1.header").expect("card1.header track");
     assert!(
-        header.children.contains(&"a".to_string()),
+        report.output.world.child_labels(header_id).any(|child| child == "a"),
         "slot fill 'a' must be nested under the owning component's header"
     );
     assert!(
-        !report.output.root_nodes.contains(&"a".to_string()),
+        !report
+            .output
+            .world
+            .root_entities()
+            .iter()
+            .filter_map(|&id| report.output.get_entity_label(id))
+            .any(|label| label == "a"),
         "slot fill 'a' must not be an independent root node"
     );
 }
@@ -658,7 +667,7 @@ fn plot_curve_color_drives_stroke() {
         report.diagnostics
     );
 
-    let track = report.output.tracks.get("curve").expect("curve track");
+    let track = report.output.world.tracks.get("curve").expect("curve track");
     let paths = track.evaluate_vector_paths(0);
     let strokes: Vec<_> = paths.iter().filter_map(|p| p.stroke).collect();
     assert!(!strokes.is_empty(), "curve strokes should be baked");
@@ -693,7 +702,7 @@ fn single_bar_colors_value_is_uniform() {
         report.diagnostics
     );
 
-    let track = report.output.tracks.get("chart").expect("chart track");
+    let track = report.output.world.tracks.get("chart").expect("chart track");
     let paths = track.evaluate_vector_paths(0);
     let fills: Vec<_> = paths.iter().filter_map(|p| p.fill).collect();
     assert!(fills.len() >= 3, "expected three bar fills, got {fills:?}");
@@ -728,7 +737,7 @@ fn size_property_drives_bar_chart_geometry() {
         report.diagnostics
     );
 
-    let track = report.output.tracks.get("chart").expect("chart track");
+    let track = report.output.world.tracks.get("chart").expect("chart track");
     assert_eq!(track.geometry.size.last([0.0, 0.0]), [400.0, 190.0]);
     assert_eq!(track.geometry.position.last([0.0, 0.0]), [640.0, 400.0]);
 
@@ -772,7 +781,7 @@ fn bar_chart_anchor_offset_produce_scene_binding() {
         report.diagnostics
     );
 
-    let track = report.output.tracks.get("chart").expect("chart track");
+    let track = report.output.world.tracks.get("chart").expect("chart track");
     match track
         .geometry
         .position_binding
@@ -811,7 +820,7 @@ chart: BarChart, data: {("A", 10), ("B", 20)}, at: (320, 180), size: (400, 220),
 chart.data = {("A", 30), ("B", 5)} [800ms]
 "#,
     );
-    let track = timeline.tracks.get("chart").expect("chart track");
+    let track = timeline.world.tracks.get("chart").expect("chart track");
     assert_eq!(track.bar_data_transitions().len(), 1);
     let transition = &track.bar_data_transitions()[0];
     assert_eq!((transition.start_ms, transition.end_ms), (1000, 1800));
@@ -884,7 +893,7 @@ chart: BarChart, data: {("A", 10), ("B", 20)}, max_value: 40, at: (320, 180), si
 chart.data = {("A", 30), ("B", 5)} [800ms]
 "#,
     );
-    let track = timeline.tracks.get("chart").expect("chart track");
+    let track = timeline.world.tracks.get("chart").expect("chart track");
     let layout = track.bar_layout().expect("bar layout stored at build");
     let heights = |time_ms: u64| -> Vec<f64> {
         let data = crate::timeline::plot::bar_data_at(
@@ -936,7 +945,7 @@ chart.data = {("A", 30), ("B", 5)} [800ms]
         "expected the no-captions warning, got: {:?}",
         diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
-    let track = timeline.tracks.get("chart").expect("chart track");
+    let track = timeline.world.tracks.get("chart").expect("chart track");
     assert!(track.bar_data().is_empty(), "an undeclared chart starts from no dataset");
     assert_eq!(track.bar_data_transitions().len(), 1);
     assert_eq!(track.bar_data_transitions()[0].from.len(), 0);
@@ -967,7 +976,7 @@ chart.data = {("A", 30), ("C", 5)} [800ms]
         "expected one caption-drift warning, got: {:?}",
         diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
-    let track = timeline.tracks.get("chart").expect("chart track");
+    let track = timeline.world.tracks.get("chart").expect("chart track");
     assert_eq!(track.bar_data_transitions().len(), 1, "the transition is still recorded");
     assert_eq!(track.bar_data_transitions()[0].to[1].0, "C");
 }
@@ -984,7 +993,7 @@ chart: BarChart, data: {("A", 10), ("B", 20)}, show_labels: false, at: (320, 180
 chart.data = {("B", 5), ("A", 30)} [800ms]
 "#,
     );
-    let track = timeline.tracks.get("chart").expect("chart track");
+    let track = timeline.world.tracks.get("chart").expect("chart track");
     assert_eq!(track.bar_data_transitions().len(), 1);
     assert_eq!(track.bar_data_transitions()[0].to[0].0, "B");
 }

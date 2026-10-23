@@ -20,7 +20,7 @@ fn idle_float_synthesizes_seamless_motion_offset() {
 box: Rect, size: (100, 100), at: (200, 200), idle: "float"
 "#;
     let timeline = build_test_timeline(source);
-    let track = timeline.tracks.get("box").expect("box track exists");
+    let track = timeline.world.tracks.get("box").expect("box track exists");
 
     // At t=0, motion_offset y is 0.0
     let y0 = track.geometry.motion_offset.get(0, [0.0, 0.0])[1];
@@ -50,7 +50,7 @@ fn idle_breath_synthesizes_seamless_scale() {
 box: Rect, size: (100, 100), at: (200, 200), idle: "breath"
 "#;
     let timeline = build_test_timeline(source);
-    let track = timeline.tracks.get("box").expect("box track exists");
+    let track = timeline.world.tracks.get("box").expect("box track exists");
 
     // At t=0, scale is 1.0
     let s0 = track.geometry.scale.get(0, 1.0);
@@ -72,7 +72,7 @@ fn rect_with_shadow_generates_shadow_render_command_and_bounds() {
 box: Rect, size: (100, 100), at: (200, 200), shadow: (0, 8, 16, 2), shadow_color: (0, 0, 0, 0.25)
 "#;
     let timeline = build_test_timeline(source);
-    let track = timeline.tracks.get("box").expect("box track exists");
+    let track = timeline.world.tracks.get("box").expect("box track exists");
     use crate::primitives::Primitive;
     let primitive = crate::primitives::RECT;
     let asset_cache = crate::timeline::assets::AssetCache::default();
@@ -119,7 +119,7 @@ fn tilt_affine_applied_from_rotate_x_and_rotate_y() {
 box: Rect, size: (100, 100), at: (200, 200), rotate_x: 0.1, rotate_y: 0.2
 "#;
     let timeline = build_test_timeline(source);
-    let track = timeline.tracks.get("box").expect("box track exists");
+    let track = timeline.world.tracks.get("box").expect("box track exists");
     let dims = SceneDimensions {
         width: 1920,
         height: 1080,

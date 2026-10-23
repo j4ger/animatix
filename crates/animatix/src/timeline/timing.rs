@@ -885,7 +885,7 @@ fade-in box [500ms]
             &std::collections::HashMap::new(),
         );
         let timeline = report.output;
-        let track = timeline.tracks.get("box").expect("box track");
+        let track = timeline.world.tracks.get("box").expect("box track");
         let easing = track
             .field_ref(crate::timeline::ActorField::Opacity)
             .and_then(|f| f.keyframe_easing(500));

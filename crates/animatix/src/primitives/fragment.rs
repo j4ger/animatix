@@ -53,15 +53,11 @@ impl Primitive for FragmentPrimitive {
         _modifiers: &[Modifier],
         _children: &[InlineItem],
     ) -> Result<(), Vec<Diagnostic>> {
-        // Clone env before mutable borrow of ctx.timeline.tracks
+        // Clone env before mutable borrow of ctx.timeline.world.tracks
         let env = ctx.timeline.env().clone();
 
         // Ensure the track exists.
-        let track = ctx
-            .timeline
-            .tracks
-            .entry(label.to_string())
-            .or_insert_with(|| AnimationTrack::new(label.to_string(), "Fragment"));
+        let track = ctx.timeline.world.ensure_track(label, "Fragment");
         track.set_identity("Fragment");
         track.first_seen_ms = ctx.time_ms as u64;
 

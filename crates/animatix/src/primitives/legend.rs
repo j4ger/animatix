@@ -189,11 +189,7 @@ impl Primitive for LegendPrimitive {
         }
 
         // Ensure track exists and set kind
-        let track = ctx
-            .timeline
-            .tracks
-            .entry(label.to_string())
-            .or_insert_with(|| AnimationTrack::new(label.to_string(), "Legend"));
+        let track = ctx.timeline.world.ensure_track(label, "Legend");
         track.set_identity("Legend");
 
         if track.first_seen_ms == u64::MAX {

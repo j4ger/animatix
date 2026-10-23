@@ -272,7 +272,7 @@ impl Timeline {
         let mut p_x_scale = super::utils::ScaleType::Linear;
         let mut p_y_scale = super::utils::ScaleType::Linear;
 
-        let host_id = self.tracks.get_id(parent_label);
+        let host_id = self.world.tracks.get_id(parent_label);
         if let Some(id) = host_id {
             if let Some(frame) = self.coordinate_frames.get(&id) {
                 x_domain = frame.x_domain;
@@ -312,6 +312,7 @@ impl Timeline {
             })
             .unwrap_or([500.0, 500.0]);
         let parent_pos = self
+            .world
             .tracks
             .get(parent_label)
             .map(|t| t.geometry.position.last([0.0, 0.0]))

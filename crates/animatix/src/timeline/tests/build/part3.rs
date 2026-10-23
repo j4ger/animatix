@@ -279,7 +279,7 @@ box: Ellipse, size: (140, 140), color: accent.success [900ms, strategy: match]
     let report =
         crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
-    let track = timeline.tracks.get("box").expect("box track exists");
+    let track = timeline.world.tracks.get("box").expect("box track exists");
 
     let radius_pre = track.shape.corner_radius.get(500, 0.0);
     assert_eq!(
@@ -315,7 +315,7 @@ a: Rect, size: (40, 40), color: accent.primary, at: (200, 150)
 bounce a [1s, intensity: 100]
 "#,
     );
-    let track = timeline.tracks.get("a").expect("rect track");
+    let track = timeline.world.tracks.get("a").expect("rect track");
     let y = |ms: u64| track.geometry.motion_offset.get(ms, [0.0, 0.0])[1];
 
     // restitution 0.6 ⇒ six visible hops filling the 1s window, so the first
@@ -343,7 +343,7 @@ a: Rect, size: (40, 40), color: accent.primary, at: (200, 150)
 bounce a [1s, intensity: 100, restitution: 0.9]
 "#,
     );
-    let track = timeline.tracks.get("a").expect("rect track");
+    let track = timeline.world.tracks.get("a").expect("rect track");
     let y = |ms: u64| track.geometry.motion_offset.get(ms, [0.0, 0.0])[1];
     // A springier ball is still airborne at 900ms — the hop cap must not leave
     // it parked early — and it is home at the end of the duration.
@@ -413,7 +413,7 @@ fn stroke_only_shapes_inherit_an_authored_color_into_their_stroke() {
         assert!(parse_errors.is_empty(), "{label} parse errors: {parse_errors:?}");
         let report =
             Timeline::build_with_diagnostics(&ast.unwrap(), &std::collections::HashMap::new());
-        let track = report.output.tracks.get("a").expect("track");
+        let track = report.output.world.tracks.get("a").expect("track");
         let stroke = track.style.stroke_color.get(0, [0.0; 4]);
         let fill = track.style.color.get(0, [0.0; 4]);
         // Assert the tracks exist, not just that they agree: two absent tracks
@@ -441,7 +441,7 @@ fn plot_actors_honour_an_authored_opacity() {
         assert!(parse_errors.is_empty(), "{ty} parse errors: {parse_errors:?}");
         let report =
             Timeline::build_with_diagnostics(&ast.unwrap(), &std::collections::HashMap::new());
-        let track = report.output.tracks.get("g").expect("plot track");
+        let track = report.output.world.tracks.get("g").expect("plot track");
         let opacity = track.style.opacity.get(0, 99.0);
         assert!(
             (opacity - 0.05).abs() < 1e-6,
@@ -485,7 +485,11 @@ fn a_redeclaration_starts_from_what_it_replaces_not_from_its_target() {
         let timeline =
             Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new())
                 .output;
-        let track = timeline.tracks.get("a").unwrap_or_else(|| panic!("{label}: no track 'a'"));
+        let track = timeline
+            .world
+            .tracks
+            .get("a")
+            .unwrap_or_else(|| panic!("{label}: no track 'a'"));
 
         // The frame before the stamp is still the declared ellipse, and still
         // carries no blue at all.
@@ -534,7 +538,7 @@ t.text = \"second\"
     let timeline =
         Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new())
             .output;
-    let text = timeline.tracks.get("t").expect("text track");
+    let text = timeline.world.tracks.get("t").expect("text track");
 
     for ms in [0u64, 500, 1000, 1999] {
         assert_eq!(
@@ -584,7 +588,7 @@ r.opacity = 0.0
     let timeline =
         Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new())
             .output;
-    let rect = timeline.tracks.get("r").expect("rect track");
+    let rect = timeline.world.tracks.get("r").expect("rect track");
 
     for ms in [0u64, 500, 1000, 1999] {
         assert_eq!(
@@ -868,8 +872,8 @@ pop-in chip [500ms]
 
     let read = |label: &str, prop: &str, ms: u64| {
         let schema = lookup_property(prop).expect("property");
-        read_property_value(timeline.tracks.get(label).unwrap(), schema.field, ms)
-            .unwrap_or_else(|| (schema.default_value)(&timeline.tracks[label].caps))
+        read_property_value(timeline.world.tracks.get(label).unwrap(), schema.field, ms)
+            .unwrap_or_else(|| (schema.default_value)(&timeline.world.tracks[label].caps))
     };
 
     // settle-in: 0.5s..1.0s, scale 0.92 -> 1.0 relative to the sampled scale,
@@ -946,7 +950,7 @@ move dot [to: (200, 0), 500ms, anticipate: 100ms]
 
     let offset_at = |ms: u64| -> [f32; 2] {
         let schema = lookup_property("shift").expect("property");
-        match read_property_value(timeline.tracks.get("dot").unwrap(), schema.field, ms) {
+        match read_property_value(timeline.world.tracks.get("dot").unwrap(), schema.field, ms) {
             Some(crate::timeline::PropertyValue::Vec2(v)) => v,
             other => panic!("expected a Vec2 offset at {ms}ms, got {other:?}"),
         }
@@ -1017,7 +1021,7 @@ fade-in t [200ms]
     use crate::timeline::read_property_value;
     let sampled = |label: &str, prop: &str| {
         let schema = crate::timeline::property_registry::lookup_property(prop).unwrap();
-        let track = timeline.tracks.get(label).unwrap();
+        let track = timeline.world.tracks.get(label).unwrap();
         read_property_value(track, schema.field, 0)
             .unwrap_or_else(|| (schema.default_value)(&track.caps))
     };
@@ -1074,7 +1078,7 @@ box.shift = (240, 0)
         );
         use crate::timeline::read_property_value;
         let schema = crate::timeline::property_registry::lookup_property("shift").unwrap();
-        let track = report.output.tracks.get("box").unwrap();
+        let track = report.output.world.tracks.get("box").unwrap();
         match read_property_value(track, schema.field, ms) {
             Some(crate::timeline::PropertyValue::Vec2(v)) => v,
             other => panic!("expected a Vec2 shift, got {other:?}"),
@@ -1114,7 +1118,12 @@ fn icon_property_expands_to_commands_geometry() {
     );
 
     let geometry = |label: &str| -> Vec<kurbo::PathEl> {
-        let track = report.output.tracks.get(label).unwrap_or_else(|| panic!("no track {label}"));
+        let track = report
+            .output
+            .world
+            .tracks
+            .get(label)
+            .unwrap_or_else(|| panic!("no track {label}"));
         let paths = track.evaluate_vector_paths_value(0);
         let mut elements = Vec::new();
         for vp in paths {
@@ -1186,7 +1195,7 @@ fade-in box [200ms]
     use crate::timeline::read_property_value;
     let schema = crate::timeline::property_registry::lookup_property("scale").unwrap();
     let scale_of = |label: &str| -> Option<f32> {
-        let track = timeline.tracks.get(label).unwrap();
+        let track = timeline.world.tracks.get(label).unwrap();
         match read_property_value(track, schema.field, 0) {
             Some(crate::timeline::PropertyValue::F32(v)) => Some(v),
             None => None,
@@ -1232,7 +1241,7 @@ move dot [along: {move_to(100, 100), line_to(500, 100)}, 2s]
     let timeline = report.output;
     use crate::timeline::read_property_value;
     let schema = crate::timeline::property_registry::lookup_property("position").unwrap();
-    let track = timeline.tracks.get("dot").unwrap();
+    let track = timeline.world.tracks.get("dot").unwrap();
     let at = |ms: u64| match read_property_value(track, schema.field, ms) {
         Some(crate::timeline::PropertyValue::Vec2(v)) => v,
         other => panic!("expected a position at {ms}ms, got {other:?}"),
@@ -1287,7 +1296,7 @@ draw-in line [4s{extra}]
         report.output
     };
     let progress_at = |timeline: &crate::timeline::Timeline, ms: u64| -> f32 {
-        timeline.tracks.get("line").unwrap().text.char_progress.get(ms, 1.0)
+        timeline.world.tracks.get("line").unwrap().text.char_progress.get(ms, 1.0)
     };
 
     let words = build(", by: word");
@@ -1341,7 +1350,7 @@ fn pre_keyframe_actor_declaration_has_decl_span_and_explicit_warning() {
     let report =
         crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
-    let track = report.output.tracks.get("box").expect("box track must exist");
+    let track = report.output.world.tracks.get("box").expect("box track must exist");
     assert!(track.decl_span.is_some(), "track must preserve its declaration span");
     let span = track.decl_span.unwrap();
     assert_eq!(span.start_line, 1, "declaration starts on line 1");
@@ -1436,241 +1445,4 @@ fn unary_minus_on_imported_module_path_resolves_in_graph_domain() {
         other => panic!("expected Vec2([-1.75, 1.75]) for g_y_domain, got {other:?}"),
     }
     let _ = std::fs::remove_dir_all(&dir);
-}
-
-#[test]
-fn component_instance_with_explicit_zero_opacity_lifts_on_fade_in() {
-    const SRC: &str = r##"
-pub component BoxItem(title: Str) {
-  box: Stack, size: (100, 50) {
-    bg: Rect, size: (100, 50), color: "#ff0000"
-    txt: Text, text: title, font_size: 16
-  }
-}
-
-#0s
-item: BoxItem, title: "Hello", opacity: 0.0
-
-#1s
-fade-in item [500ms]
-"##;
-    let mut graph = animatix_syntax::module::ModuleGraph::new();
-    let program = graph
-        .load_program_with_source(std::path::Path::new("virtual:///comp_repro.amx"), Some(SRC))
-        .expect("load program");
-    let mut expansion_errors = Vec::new();
-    let expanded = program.expand_components(&mut expansion_errors);
-    assert!(expansion_errors.is_empty(), "expansion errors: {expansion_errors:?}");
-
-    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
-    let timeline = report.output;
-    let item_track = timeline.tracks.get("item").expect("item track exists");
-    assert_eq!(
-        item_track.style.opacity.get(500, 1.0),
-        0.0,
-        "should be invisible before entrance"
-    );
-    assert_eq!(
-        item_track.style.opacity.get(1500, 0.0),
-        1.0,
-        "should be lifted to 1.0 after entrance"
-    );
-}
-
-#[test]
-fn entrance_action_warns_when_target_opacity_remains_zero() {
-    // When an actor has an opacity assignment or structure that keeps it at 0.0 after entrance
-    const SRC: &str = r##"
-box: Rect, size: (100, 100), opacity: 0.0
-#1s
-wipe-in box [500ms]
-"##;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(SRC);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "wipe-in lifts authored 0.0 on rect so no warning expected, got: {:?}",
-        report.diagnostics
-    );
-}
-
-#[test]
-fn text_anchor_left_center_right_alignments() {
-    let source = r#"
-t_center: Text, text: "Animatix", at: (300, 200)
-t_left: Text, text: "Animatix", text_anchor: "left", at: (300, 200)
-t_right: Text, text: "Animatix", text_anchor: "right", at: (300, 200)
-"#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "diagnostics: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
-
-    fn x_bounds(paths: &[crate::renderer::text::TextPath]) -> (f64, f64) {
-        use kurbo::Shape as _;
-        let mut min_x = f64::INFINITY;
-        let mut max_x = f64::NEG_INFINITY;
-        for p in paths {
-            let b = p.path.bounding_box();
-            min_x = min_x.min(b.x0);
-            max_x = max_x.max(b.x1);
-        }
-        (min_x, max_x)
-    }
-
-    let center_paths = timeline.tracks.get("t_center").unwrap().evaluate_text_paths(0);
-    let left_paths = timeline.tracks.get("t_left").unwrap().evaluate_text_paths(0);
-    let right_paths = timeline.tracks.get("t_right").unwrap().evaluate_text_paths(0);
-
-    let (c_min, c_max) = x_bounds(&center_paths);
-    let (l_min, l_max) = x_bounds(&left_paths);
-    let (r_min, r_max) = x_bounds(&right_paths);
-
-    let width = c_max - c_min;
-    assert!(width > 10.0, "text must have positive width, got {width}");
-
-    // Center anchor: centered at 0
-    assert!(
-        (c_min + c_max).abs() < 1e-3,
-        "center anchor should center on 0: [{c_min:.3}, {c_max:.3}]"
-    );
-
-    // Left anchor: left edge sits at 0, extending right to +width
-    assert!(l_min.abs() < 1e-3, "left anchor should place left edge at 0: min={l_min:.3}");
-    assert!(
-        (l_max - width).abs() < 1e-3,
-        "left anchor right edge should be at width={width:.3}: max={l_max:.3}"
-    );
-
-    // Right anchor: right edge sits at 0, extending left to -width
-    assert!(r_max.abs() < 1e-3, "right anchor should place right edge at 0: max={r_max:.3}");
-    assert!(
-        (r_min + width).abs() < 1e-3,
-        "right anchor left edge should be at -width={:.3}: min={r_min:.3}",
-        -width
-    );
-}
-
-#[test]
-fn text_anchor_assignment_reanchors_paths() {
-    let source = r#"
-#0s
-t: Text, text: "AnchorTest", text_anchor: "left", at: (300, 200)
-
-#1s
-t.text_anchor = "right"
-"#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "diagnostics: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
-
-    fn x_bounds(paths: &[crate::renderer::text::TextPath]) -> (f64, f64) {
-        use kurbo::Shape as _;
-        let mut min_x = f64::INFINITY;
-        let mut max_x = f64::NEG_INFINITY;
-        for p in paths {
-            let b = p.path.bounding_box();
-            min_x = min_x.min(b.x0);
-            max_x = max_x.max(b.x1);
-        }
-        (min_x, max_x)
-    }
-
-    let t_track = timeline.tracks.get("t").unwrap();
-    let paths_0 = t_track.evaluate_text_paths(0);
-    let paths_1000 = t_track.evaluate_text_paths(1000);
-
-    let (min_0, _) = x_bounds(&paths_0);
-    let (_, max_1000) = x_bounds(&paths_1000);
-
-    assert!(
-        min_0.abs() < 1e-3,
-        "at 0s, text_anchor left should place left edge at 0, got {min_0:.3}"
-    );
-    assert!(
-        max_1000.abs() < 1e-3,
-        "at 1s, text_anchor right should place right edge at 0, got {max_1000:.3}"
-    );
-}
-
-#[test]
-fn text_anchor_override_shifts_paths() {
-    let source = r#"
-t: Text, text: "OverrideAnchor", text_anchor: "center", at: (300, 200)
-
-always {
-  t.text_anchor = "left"
-}
-"#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "diagnostics: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
-    let mut overrides = std::collections::HashMap::new();
-    overrides.insert("text_anchor".to_string(), Value::Str("left".to_string()));
-
-    let t_track = timeline.tracks.get("t").unwrap();
-    let font_ctx = crate::renderer::text::FontContext::new();
-    let mut text_compiler = crate::renderer::text::TextCompiler::new();
-    let mut text_compile_ctx = crate::primitives::TextCompileCtx {
-        font_context: &font_ctx,
-        text_compiler: &mut text_compiler,
-    };
-    let asset_cache = crate::timeline::assets::AssetCache::new();
-    let eval_ctx = crate::primitives::EvaluateCtx {
-        track: t_track,
-        time_ms: 0,
-        local_transform: kurbo::Affine::IDENTITY,
-        opacity: 1.0,
-        scene_dimensions: crate::timeline::SceneDimensions {
-            width: 640,
-            height: 480,
-        },
-        background_color: [0.0; 4],
-        overrides: Some(&overrides),
-        vector_paths: &[],
-        asset_cache: &asset_cache,
-        target_resolver: None,
-    };
-    use crate::primitives::Primitive as _;
-    let res = crate::primitives::TEXT
-        .evaluate(&eval_ctx, Some(&mut text_compile_ctx))
-        .unwrap();
-    let Some(commands) = res else {
-        panic!("expected render commands")
-    };
-    let crate::primitives::RenderCommand::Text { paths, .. } = &commands[0] else {
-        panic!("expected Text render command");
-    };
-    use kurbo::Shape as _;
-    let mut min_x = f64::INFINITY;
-    for p in paths.iter() {
-        let b = p.path.bounding_box();
-        min_x = min_x.min(b.x0);
-    }
-    assert!(
-        min_x.abs() < 1e-3,
-        "override to text_anchor left should place left edge at 0, got {min_x:.3}"
-    );
 }

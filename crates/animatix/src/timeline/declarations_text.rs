@@ -1,9 +1,9 @@
 use super::property_engine::{parse_property_value, write_property_field};
 use super::property_registry::lookup_property;
 use super::{
-    AnimationTrack, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, Diagnostic, DiagnosticCode,
-    DiagnosticPhase, Easing, Expr, Modifier, ModifierHost, MorphOptions, ParsedTimingModifiers,
-    Timeline, TrackAccessor, apply_explicit_position_binding, evaluate_expr_with_lookup_diagnostic,
+    DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, Diagnostic, DiagnosticCode, DiagnosticPhase, Easing,
+    Expr, Modifier, ModifierHost, MorphOptions, ParsedTimingModifiers, Timeline, TrackAccessor,
+    apply_explicit_position_binding, evaluate_expr_with_lookup_diagnostic,
     has_non_default_morph_options, parse_color_in_env_with_lookup_diagnostic,
     parse_timing_modifiers, preserve_discrete_position_state_before,
     preserve_instant_delayed_value, push_modifier_diagnostic,
@@ -110,6 +110,7 @@ impl Timeline {
         self.add_node(label_str.clone(), parent_label);
         self.warn_unknown_declaration_properties(&label_str, kind.type_name(), props, diagnostics);
         let had_text_paths = self
+            .world
             .tracks
             .get(&label_str)
             .map(|track| {
@@ -383,12 +384,9 @@ impl Timeline {
 
         // Pre-seed opacity for pre-keyframe first declarations without explicit opacity.
         let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
-        let is_first_decl = !self.tracks.contains_key(&label_str);
+        let is_first_decl = !self.world.tracks.contains_key(&label_str);
 
-        let track = self
-            .tracks
-            .entry(label_str.clone())
-            .or_insert_with(|| AnimationTrack::new(label_str.clone(), kind.type_name()));
+        let track = self.world.ensure_track(&label_str, kind.type_name());
 
         // Ensure the track kind matches the declaration type so downstream
         // code (inspector, drag handles) can dispatch correctly.

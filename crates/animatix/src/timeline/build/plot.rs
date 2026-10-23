@@ -1148,7 +1148,7 @@ impl Timeline {
 
         if primitive.is_graph_host() {
             // ECS Component registration: record CoordinateFrameComponent for this host
-            if let Some(host_id) = self.tracks.get_id(label) {
+            if let Some(host_id) = self.world.tracks.get_id(label) {
                 self.coordinate_frames.insert(
                     host_id,
                     crate::timeline::CoordinateFrameComponent {
@@ -1436,7 +1436,7 @@ impl Timeline {
             let mut p_y_domain = y_domain;
 
             // Prefer strongly-typed CoordinateFrameComponent
-            if let Some(host_id) = self.tracks.get_id(&p_label) {
+            if let Some(host_id) = self.world.tracks.get_id(&p_label) {
                 if let Some(frame) = self.coordinate_frames.get(&host_id) {
                     p_x_domain = frame.x_domain;
                     p_y_domain = frame.y_domain;
@@ -1476,7 +1476,7 @@ impl Timeline {
             let mut p_padding = [0.0; 4];
 
             // Resolve coordinate context: prefer strongly-typed ECS CoordinateFrameComponent
-            if let Some(host_id) = self.tracks.get_id(&p_label) {
+            if let Some(host_id) = self.world.tracks.get_id(&p_label) {
                 if let Some(frame) = self.coordinate_frames.get(&host_id) {
                     p_x_domain = frame.x_domain;
                     p_y_domain = frame.y_domain;

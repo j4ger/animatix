@@ -66,7 +66,7 @@ wire: Connector, from: (box1, right), to: (box2, left), routing: "elbow", arrow:
         &stmts.expect("parsed AST"),
         &std::collections::HashMap::new(),
     );
-    if !report.output.tracks.contains_key("wire") {
+    if !report.output.world.tracks.contains_key("wire") {
         panic!("Connector wire track missing! Diagnostics: {:#?}", report.diagnostics);
     }
     let dims = SceneDimensions {
@@ -75,7 +75,7 @@ wire: Connector, from: (box1, right), to: (box2, left), routing: "elbow", arrow:
     };
     let _scene = report.output.evaluate(0.0, dims);
     assert!(
-        report.output.tracks.contains_key("wire"),
+        report.output.world.tracks.contains_key("wire"),
         "Connector wire track should be present"
     );
 }

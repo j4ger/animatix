@@ -95,19 +95,17 @@ fn collect_persistent_entries(
     // Build child entries recursively before creating this entry so that
     // children references can be moved in.
     let mut child_entries = BTreeMap::new();
-    if let Some(track) = timeline.tracks.get(label) {
-        for child_label in &track.children {
-            collect_persistent_entries(
-                timeline,
-                child_label,
-                time_ms,
-                true, // parent is persistent, so children carry too
-                &mut child_entries,
-            );
-        }
+    for child_label in timeline.child_labels(label) {
+        collect_persistent_entries(
+            timeline,
+            child_label,
+            time_ms,
+            true, // parent is persistent, so children carry too
+            &mut child_entries,
+        );
     }
 
-    let Some(track) = timeline.tracks.get(label) else {
+    let Some(track) = timeline.world.tracks.get(label) else {
         tracing::warn!("Skipping persistent entry for missing track '{}'", label);
         return;
     };
@@ -177,8 +175,11 @@ impl Timeline {
 /// Inject a single `CarryEntry` into a target timeline.
 ///
 /// `is_root` — when `true` the entry is a top-level carry-bag entry and its
-/// label is added to `root_nodes`.  When `false` the entry is a child of a
-/// carried container; it is inserted into `tracks` but not re-rooted.
+/// entity is re-rooted.  When `false` the entry is a child of a carried
+/// container; it is inserted and linked under its parent by the recursive
+/// caller.  The hierarchy is rebuilt through [`crate::timeline::World`] after
+/// the snapshot track is inserted — a `CarryEntry` stores only the track, the
+/// links are re-established from `entry.children`.
 ///
 /// Phase 3 re-rooting: if a root entry has a layout-managed or container-
 /// relative position binding, we resolve its world-space position from the
@@ -248,8 +249,9 @@ fn inject_entry(
         }
     }
 
-    // ── Recursively inject children first so the parent track's child-label
-    //    references resolve when the parent is later evaluated. ──
+    // ── Recursively inject children first, then insert this entity and link
+    //    the children through `World` (the hierarchy is not stored on the
+    //    snapshot track). ──
     for (child_label, child_entry) in &entry.children {
         inject_entry(
             dest,
@@ -263,12 +265,22 @@ fn inject_entry(
         );
     }
 
-    // Insert the (possibly rewritten) snapshot track.
-    dest.tracks.insert(label.to_string(), track);
+    // Insert the (possibly rewritten) snapshot track. `spawn_replacing` keeps
+    // the label's entity id and resets its hierarchy component, matching the
+    // old `TrackStore::insert` replacement semantics.
+    let id = dest.world.spawn_replacing(label, track);
 
-    // Re-root top-level entries only.
-    if is_root && !dest.root_nodes.contains(&label.to_string()) {
-        dest.root_nodes.push(label.to_string());
+    // Re-root top-level entries only. `adopt` already placed the entity in the
+    // root set; the call makes the intent explicit and keeps the ordering rule
+    // (append on declaration) in one place.
+    if is_root {
+        dest.world.set_parent_label(label, None);
+    }
+
+    for child_label in entry.children.keys() {
+        if let Some(child_id) = dest.world.get_id(child_label) {
+            dest.world.link(id, child_id);
+        }
     }
 
     // Seed the persistence flag so chain-persistence works automatically.
@@ -352,10 +364,10 @@ impl Timeline {
 ///
 /// `first_seen_ms` is set to `0` on the snapshot.
 ///
-/// The `parent` and `children` fields are preserved as-is via `clone()` since
-/// they are labels (not animated), so no special collapse is needed.  Any
-/// consumer that re-inserts a snapshot into a fresh timeline should verify
-/// that hierarchy labels still resolve (see `inject_carry_bag`).
+/// The scene-graph hierarchy is not part of the snapshot: it lives in the
+/// entity's `SceneHierarchyComponent`, and [`CarryEntry::children`] is the
+/// serializable form of a carried subtree. `inject_carry_bag` re-establishes
+/// the links after inserting each snapshot.
 pub fn snapshot_track_at(track: &AnimationTrack, time_ms: u64) -> AnimationTrack {
     let mut snapshot = track.clone();
     snapshot.first_seen_ms = 0;
@@ -508,475 +520,4 @@ fn collapse_property_track_inner<T: crate::timeline::property_track::Interpolate
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::easing::Easing;
-    use crate::timeline::dispatch::AnimationTrack;
-    use crate::timeline::property_track::TrackAccessor;
-    use crate::timeline::{CapturedEnv, Timeline};
-
-    fn make_timeline_with_persistent_actors() -> Timeline {
-        let mut timeline = Timeline::new();
-
-        // Create a simple Rect actor
-        let mut rect = AnimationTrack::placeholder("rect1".to_string());
-        rect.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-        rect.style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
-        timeline.tracks.insert("rect1".to_string(), rect);
-
-        // Create a child actor
-        let mut child = AnimationTrack::placeholder("child1".to_string());
-        child
-            .geometry
-            .position
-            .ensure([0.0, 0.0])
-            .add_keyframe(0, [0.0, 0.0], Easing::Linear);
-        child
-            .geometry
-            .position
-            .ensure([0.0, 0.0])
-            .add_keyframe(500, [100.0, 50.0], Easing::Linear);
-        timeline.tracks.insert("child1".to_string(), child);
-
-        // Set up parent-child relationship
-        timeline.tracks.get_mut("rect1").unwrap().children.push("child1".to_string());
-
-        // Mark rect1 as persistent
-        timeline.persistence_flags.insert("rect1".to_string(), true);
-
-        timeline
-    }
-
-    // -----------------------------------------------------------------------
-    // snapshot_track_at
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn snapshot_collapses_opacity_to_single_keyframe() {
-        let mut track = AnimationTrack::placeholder("test".to_string());
-        track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-        track.style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
-
-        let snapshot = snapshot_track_at(&track, 500);
-        let opacity_track = snapshot.style.opacity.unwrap();
-        assert_eq!(opacity_track.keyframes.len(), 1);
-        assert_eq!(opacity_track.keyframes.get(&0).unwrap().0, 0.75); // interpolated at 500ms
-    }
-
-    #[test]
-    fn snapshot_collapses_position_to_single_keyframe() {
-        let mut track = AnimationTrack::placeholder("test".to_string());
-        track
-            .geometry
-            .position
-            .ensure([0.0, 0.0])
-            .add_keyframe(0, [0.0, 0.0], Easing::Linear);
-        track.geometry.position.ensure([0.0, 0.0]).add_keyframe(
-            1000,
-            [200.0, 100.0],
-            Easing::Linear,
-        );
-
-        let snapshot = snapshot_track_at(&track, 500);
-        let pos_track = snapshot.geometry.position.unwrap();
-        assert_eq!(pos_track.keyframes.len(), 1);
-        assert_eq!(pos_track.keyframes.get(&0).unwrap().0, [100.0, 50.0]); // interpolated at 500ms
-    }
-
-    #[test]
-    fn snapshot_preserves_kind() {
-        let track = AnimationTrack::placeholder("test".to_string());
-        let snapshot = snapshot_track_at(&track, 0);
-        assert_eq!(snapshot.actor_type, track.actor_type);
-    }
-
-    #[test]
-    fn snapshot_sets_first_seen_ms_to_zero() {
-        let mut track = AnimationTrack::placeholder("test".to_string());
-        track.first_seen_ms = 500;
-        let snapshot = snapshot_track_at(&track, 500);
-        assert_eq!(snapshot.first_seen_ms, 0);
-    }
-
-    #[test]
-    fn snapshot_preserves_svg_paths() {
-        use crate::timeline::VelloPath;
-        let mut track = AnimationTrack::placeholder("test".to_string());
-        track.ensure_svg_payload().svg_paths.push(VelloPath::default());
-        let snapshot = snapshot_track_at(&track, 0);
-        assert_eq!(snapshot.svg_paths().len(), 1);
-    }
-
-    #[test]
-    fn snapshot_clears_func_transitions() {
-        let mut track = AnimationTrack::placeholder("test".to_string());
-        track.func_transitions_mut().push(crate::timeline::plot::FuncTransition {
-            start_ms: 0,
-            end_ms: 1000,
-            easing: Easing::Linear,
-            from: crate::timeline::plot::FuncSource::Compiled(
-                vec![],
-                Box::new(crate::timeline::modifier_runtime::ir::CompiledExpr::Const(
-                    crate::timeline::Value::Num(0.0),
-                )),
-                CapturedEnv::default(),
-            ),
-            to: crate::timeline::plot::FuncSource::Compiled(
-                vec![],
-                Box::new(crate::timeline::modifier_runtime::ir::CompiledExpr::Const(
-                    crate::timeline::Value::Num(1.0),
-                )),
-                CapturedEnv::default(),
-            ),
-            blend_mode: crate::timeline::plot::FuncBlendMode::Output,
-        });
-        let snapshot = snapshot_track_at(&track, 0);
-        assert!(snapshot.func_transitions().is_empty());
-    }
-
-    #[test]
-    fn snapshot_preserves_procedural_plot() {
-        use crate::ast::Expr;
-        let mut track = AnimationTrack::placeholder("test".to_string());
-        track.ensure_plot_payload().procedural_plot = Some(crate::timeline::plot::ProceduralPlot {
-            plot_type: crate::timeline::plot::ProceduralPlotKind::Curve(
-                crate::timeline::plot::PlotCurveKind::Cartesian,
-            ),
-            kind: crate::timeline::plot::PlotCurveKind::Cartesian,
-            func_args: vec!["x".to_string()],
-            func_body: crate::timeline::modifier_runtime::ir::compile_expr(&Expr::Ident(
-                "x".to_string(),
-            ))
-            .expect("test body should compile"),
-            actor_label: "test".to_string(),
-            param_names: vec![],
-            p_x_domain: [0.0, 1.0],
-            p_y_domain: [0.0, 1.0],
-            p_size: [100.0, 100.0],
-            padding: [0.0; 4],
-            t_domain: [0.0, 1.0],
-            tolerance: 0.1,
-            max_depth: 8,
-            resolution: 64,
-            density: 16,
-            levels: vec![],
-            stroke_width: 2.0,
-            stroke_color: [1.0, 1.0, 1.0, 1.0],
-            fill_color: [1.0, 1.0, 1.0, 1.0],
-            params: vec![],
-            extra_captures: CapturedEnv::default(),
-        });
-        let snapshot = snapshot_track_at(&track, 0);
-        assert!(snapshot.procedural_plot().is_some());
-    }
-
-    #[test]
-    fn snapshot_empty_track_has_no_keyframes() {
-        let track = AnimationTrack::placeholder("test".to_string());
-        let snapshot = snapshot_track_at(&track, 0);
-        // No property tracks should have keyframes
-        assert!(
-            snapshot.style.opacity.is_none()
-                || snapshot.style.opacity.unwrap().keyframes.is_empty()
-        );
-        assert!(
-            snapshot.geometry.position.is_none()
-                || snapshot.geometry.position.unwrap().keyframes.is_empty()
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    // compute_carry_bag
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn compute_carry_bag_returns_empty_for_no_persistent_flags() {
-        let timeline = Timeline::new();
-        let bag = timeline.compute_carry_bag(0, true);
-        assert!(bag.entries.is_empty());
-    }
-
-    #[test]
-    fn compute_carry_bag_snapshots_persistent_actors() {
-        let timeline = make_timeline_with_persistent_actors();
-        let bag = timeline.compute_carry_bag(500, true);
-
-        assert_eq!(bag.entries.len(), 1);
-        let entry = bag.entries.get("rect1").expect("rect1 should be in carry bag");
-        assert!(entry.persistent);
-
-        // The snapshot should have opacity ≈ 0.75 (interpolated at 500ms between 1.0 and 0.5)
-        let opacity =
-            entry.track.style.opacity.as_ref().expect("snapshot should have opacity track");
-        assert_eq!(opacity.keyframes.len(), 1);
-        let (_, (val, _)) = opacity.keyframes.iter().next().unwrap();
-        assert!((*val - 0.75).abs() < 1e-6);
-    }
-
-    #[test]
-    fn compute_carry_bag_includes_children_of_persistent_actors() {
-        let timeline = make_timeline_with_persistent_actors();
-        let bag = timeline.compute_carry_bag(500, true);
-
-        let entry = bag.entries.get("rect1").expect("rect1 should be in carry bag");
-        assert_eq!(entry.children.len(), 1, "rect1's child should be carried");
-        let child_entry = entry.children.get("child1").expect("child1 should be in carry bag");
-
-        // child1 should be snapshotted at 500ms: position = [100.0, 50.0]
-        let pos_track = child_entry
-            .track
-            .geometry
-            .position
-            .as_ref()
-            .expect("child snapshot should have position track");
-        assert_eq!(pos_track.keyframes.len(), 1);
-        let (_, (val, _)) = pos_track.keyframes.iter().next().unwrap();
-        assert_eq!(*val, [100.0, 50.0]);
-    }
-
-    #[test]
-    fn compute_carry_bag_skips_non_persistent_actors() {
-        let mut timeline = Timeline::new();
-
-        let mut rect1 = AnimationTrack::placeholder("rect1".to_string());
-        rect1.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-        timeline.tracks.insert("rect1".to_string(), rect1);
-
-        let mut rect2 = AnimationTrack::placeholder("rect2".to_string());
-        rect2.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-        timeline.tracks.insert("rect2".to_string(), rect2);
-
-        // Only rect2 is persistent
-        timeline.persistence_flags.insert("rect2".to_string(), true);
-
-        let bag = timeline.compute_carry_bag(0, true);
-        assert_eq!(bag.entries.len(), 1);
-        assert!(bag.entries.contains_key("rect2"));
-        assert!(!bag.entries.contains_key("rect1"));
-    }
-
-    // -----------------------------------------------------------------------
-    // auto_color_slot carry
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn compute_carry_bag_carries_auto_color_slot() {
-        let mut timeline = Timeline::new();
-
-        let mut actor = AnimationTrack::placeholder("circle".to_string());
-        actor.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-        timeline.tracks.insert("circle".to_string(), actor);
-
-        // Simulate the color: auto assignment — slot 0 was assigned.
-        timeline.auto_color_assignments.insert("circle".to_string(), 0);
-        timeline.next_auto_color_index = 1;
-
-        timeline.persistence_flags.insert("circle".to_string(), true);
-
-        let bag = timeline.compute_carry_bag(0, true);
-        let entry = bag.entries.get("circle").expect("circle should be in bag");
-        assert_eq!(entry.auto_color_slot, Some(0), "auto_color_slot must be carried");
-    }
-
-    #[test]
-    fn inject_carry_bag_seeds_auto_color_assignments() {
-        let mut source = Timeline::new();
-        let mut actor = AnimationTrack::placeholder("dot".to_string());
-        actor.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-        source.tracks.insert("dot".to_string(), actor);
-        source.auto_color_assignments.insert("dot".to_string(), 2);
-        source.next_auto_color_index = 3;
-        source.persistence_flags.insert("dot".to_string(), true);
-
-        let bag = source.compute_carry_bag(0, true);
-
-        let mut dest = Timeline::new();
-        dest.inject_carry_bag(&bag, &source, 0, [1280.0, 720.0], &mut Vec::new());
-
-        assert_eq!(
-            dest.auto_color_assignments.get("dot"),
-            Some(&2),
-            "injected auto_color_slot must appear in dest.auto_color_assignments"
-        );
-        // next_auto_color_index must be bumped to avoid collision
-        assert!(
-            dest.next_auto_color_index >= 3,
-            "next_auto_color_index must be at least slot+1 to avoid collision"
-        );
-    }
-
-    // -----------------------------------------------------------------------
-    // Special actor kind carry (Svg, Image)
-    // -----------------------------------------------------------------------
-
-    #[test]
-    fn snapshot_preserves_svg_actor_kind() {
-        let mut track = AnimationTrack::placeholder("icon".to_string());
-        track.set_identity("Svg");
-        track.ensure_svg_payload().svg_paths.push(crate::timeline::VelloPath::default());
-
-        let snapshot = snapshot_track_at(&track, 0);
-        assert_eq!(snapshot.actor_type, "Svg");
-        assert_eq!(snapshot.svg_paths().len(), 1, "svg_paths must survive snapshot");
-    }
-
-    #[test]
-    fn snapshot_preserves_image_actor_kind() {
-        let mut track = AnimationTrack::placeholder("pic".to_string());
-        track.set_identity("Image");
-
-        let snapshot = snapshot_track_at(&track, 0);
-        assert_eq!(snapshot.actor_type, "Image");
-    }
-
-    #[test]
-    fn inject_carry_bag_preserves_svg_paths() {
-        use crate::timeline::VelloPath;
-
-        let mut source = Timeline::new();
-        let mut actor = AnimationTrack::placeholder("icon".to_string());
-        actor.set_identity("Svg");
-        actor.ensure_svg_payload().svg_paths.push(VelloPath::default());
-        actor.ensure_svg_payload().svg_paths.push(VelloPath::default());
-        source.tracks.insert("icon".to_string(), actor);
-        source.persistence_flags.insert("icon".to_string(), true);
-
-        let bag = source.compute_carry_bag(0, true);
-
-        let mut dest = Timeline::new();
-        dest.inject_carry_bag(&bag, &source, 0, [1280.0, 720.0], &mut Vec::new());
-
-        let icon = dest.tracks.get("icon").expect("icon must be carried");
-        assert_eq!(icon.actor_type, "Svg");
-        assert_eq!(icon.svg_paths().len(), 2, "svg_paths must survive carry");
-    }
-
-    #[test]
-    fn inject_carry_bag_preserves_procedural_plot() {
-        use crate::ast::Expr;
-        use crate::timeline::plot::{PlotCurveKind, ProceduralPlot};
-
-        let mut source = Timeline::new();
-        let mut actor = AnimationTrack::placeholder("curve".to_string());
-        actor.set_identity("PlotCurve");
-        actor.ensure_plot_payload().procedural_plot = Some(ProceduralPlot {
-            plot_type: crate::timeline::plot::ProceduralPlotKind::Curve(PlotCurveKind::Cartesian),
-            kind: PlotCurveKind::Cartesian,
-            func_args: vec!["x".to_string()],
-            func_body: crate::timeline::modifier_runtime::ir::compile_expr(&Expr::Ident(
-                "x".to_string(),
-            ))
-            .expect("test body should compile"),
-            actor_label: "curve".to_string(),
-            param_names: vec![],
-            p_x_domain: [0.0, 10.0],
-            p_y_domain: [-1.0, 1.0],
-            p_size: [400.0, 300.0],
-            padding: [0.0; 4],
-            t_domain: [0.0, 1.0],
-            tolerance: 0.1,
-            max_depth: 8,
-            resolution: 64,
-            density: 16,
-            levels: vec![],
-            stroke_width: 2.0,
-            stroke_color: [1.0, 1.0, 1.0, 1.0],
-            fill_color: [1.0, 1.0, 1.0, 1.0],
-            params: vec![],
-            extra_captures: CapturedEnv::default(),
-        });
-        source.tracks.insert("curve".to_string(), actor);
-        source.persistence_flags.insert("curve".to_string(), true);
-
-        let bag = source.compute_carry_bag(0, true);
-        let mut dest = Timeline::new();
-        dest.inject_carry_bag(&bag, &source, 0, [1280.0, 720.0], &mut Vec::new());
-
-        let carried = dest.tracks.get("curve").expect("curve must be carried");
-        assert_eq!(carried.actor_type, "PlotCurve");
-        assert!(carried.procedural_plot().is_some(), "procedural_plot must survive carry");
-    }
-
-    #[test]
-    fn compute_carry_bag_propagates_child_persistence_flag() {
-        let mut timeline = Timeline::new();
-
-        let mut parent = AnimationTrack::placeholder("parent".to_string());
-        parent.children.push("child".to_string());
-        timeline.tracks.insert("parent".to_string(), parent);
-
-        let mut child = AnimationTrack::placeholder("child".to_string());
-        child
-            .geometry
-            .position
-            .ensure([0.0, 0.0])
-            .add_keyframe(0, [10.0, 20.0], Easing::Linear);
-        timeline.tracks.insert("child".to_string(), child);
-
-        // Only parent is persistent; child should be carried because it's a descendant
-        timeline.persistence_flags.insert("parent".to_string(), true);
-
-        let bag = timeline.compute_carry_bag(0, true);
-
-        let entry = bag.entries.get("parent").expect("parent should be carried");
-        assert!(entry.persistent);
-        assert_eq!(entry.children.len(), 1);
-        // Child should have persistent = false (not directly flagged)
-        let child_entry = entry.children.get("child").expect("child should be in carry bag");
-        assert!(!child_entry.persistent);
-    }
-
-    // -----------------------------------------------------------------------
-    // Serde round-trip tests (feature-gated)
-    // -----------------------------------------------------------------------
-
-    #[cfg(feature = "serde")]
-    #[test]
-    fn carry_bag_serde_round_trip() {
-        let timeline = make_timeline_with_persistent_actors();
-        let bag = timeline.compute_carry_bag(500, true);
-
-        // Serialize to JSON and back.
-        let json = serde_json::to_string(&bag).expect("CarryBag should serialize");
-        let bag2: CarryBag = serde_json::from_str(&json).expect("CarryBag should deserialize");
-
-        // Verify the round-tripped bag has the same structure.
-        assert_eq!(bag2.entries.len(), bag.entries.len());
-        let entry = bag2.entries.get("rect1").expect("rect1 must survive round-trip");
-        assert!(entry.persistent);
-        assert_eq!(entry.children.len(), 1);
-
-        // Opacity should be ≈ 0.75 (interpolated at 500ms).
-        let opacity = entry
-            .track
-            .style
-            .opacity
-            .as_ref()
-            .expect("opacity track must survive round-trip");
-        let (_, (val, _)) = opacity.keyframes.iter().next().unwrap();
-        assert!((*val - 0.75).abs() < 1e-4, "opacity expected ≈0.75, got {}", val);
-    }
-
-    #[cfg(feature = "serde")]
-    #[test]
-    fn value_serde_round_trip() {
-        use crate::timeline::env::Value;
-
-        let cases: &[Value] = &[
-            Value::Num(3.14),
-            Value::Str("hello".into()),
-            Value::Bool(true),
-            Value::Vec2([1.0, 2.0]),
-            Value::Vec4([0.1, 0.2, 0.3, 1.0]),
-            Value::Color([0.5, 0.6, 0.7, 1.0]),
-            Value::List(vec![crate::timeline::Value::Num(1.0), Value::Bool(false)].into()),
-        ];
-        for v in cases {
-            let json = serde_json::to_string(v)
-                .unwrap_or_else(|e| panic!("serialize failed for {:?}: {}", v, e));
-            let v2: Value = serde_json::from_str(&json)
-                .unwrap_or_else(|e| panic!("deserialize failed for {:?}: {}", json, e));
-            assert_eq!(*v, v2, "round-trip mismatch for {:?}", v);
-        }
-    }
-}
+mod tests;

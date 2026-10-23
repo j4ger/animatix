@@ -139,7 +139,7 @@ fn static_scene_cache_is_keyed_by_debug_options() {
     let _debug = timeline.evaluate_with_debug(0.0, dims, debug_opts, &mut None);
 
     let cache = timeline.eval_caches.static_subtree_cache.borrow();
-    let box1_id = timeline.tracks.get_entity_id("box1").expect("box1 id");
+    let box1_id = timeline.world.tracks.get_entity_id("box1").expect("box1 id");
     assert!(cache.contains_key(&(box1_id, dims, false, DebugRenderOptions::default())));
     assert!(cache.contains_key(&(box1_id, dims, false, debug_opts)));
     assert_eq!(cache.len(), 2, "debug options must not reuse the default scene");
@@ -248,7 +248,7 @@ fn static_scene_only_cache_does_not_collect_items() {
 
     let _scene = timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default(), &mut None);
     let cache = timeline.eval_caches.static_subtree_cache.borrow();
-    let box1_id = timeline.tracks.get_entity_id("box1").expect("box1 id");
+    let box1_id = timeline.world.tracks.get_entity_id("box1").expect("box1 id");
     let scene_only_key = (box1_id, dims, false, DebugRenderOptions::default());
     let (_, _, items, _) =
         cache.get(&scene_only_key).expect("scene-only static subtree should be cached");
@@ -306,7 +306,7 @@ fn static_program_after_scene_only_still_collects_items() {
     );
 
     let cache = timeline.eval_caches.static_subtree_cache.borrow();
-    let box1_id = timeline.tracks.get_entity_id("box1").expect("box1 id");
+    let box1_id = timeline.world.tracks.get_entity_id("box1").expect("box1 id");
     let program_key = (box1_id, dims, true, DebugRenderOptions::default());
     let (_, _, items, _) = cache
         .get(&program_key)
@@ -409,7 +409,7 @@ fn static_scene_cache_is_keyed_by_dimensions() {
         timeline.evaluate_with_debug(0.0, dims_2, DebugRenderOptions::default(), &mut None);
 
     let cache = timeline.eval_caches.static_subtree_cache.borrow();
-    let box1_id = timeline.tracks.get_entity_id("box1").expect("box1 id");
+    let box1_id = timeline.world.tracks.get_entity_id("box1").expect("box1 id");
     assert!(cache.contains_key(&(box1_id, dims_1, false, DebugRenderOptions::default())));
     assert!(cache.contains_key(&(box1_id, dims_2, false, DebugRenderOptions::default())));
     assert_eq!(cache.len(), 2, "dimensions must not reuse a static subtree scene");
@@ -753,8 +753,10 @@ fn static_subtree_cache_works_alongside_modifiers() {
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
 
-    assert!(timeline.is_static_subtree("static_box"));
-    assert!(!timeline.is_static_subtree("dynamic_box"));
+    let static_id = timeline.get_entity_id("static_box").expect("static_box id");
+    let dynamic_id = timeline.get_entity_id("dynamic_box").expect("dynamic_box id");
+    assert!(timeline.is_static_subtree_id(static_id));
+    assert!(!timeline.is_static_subtree_id(dynamic_id));
 
     let dims = SceneDimensions {
         width: 1920,
@@ -763,8 +765,6 @@ fn static_subtree_cache_works_alongside_modifiers() {
 
     let _scene1 = timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default(), &mut None);
     let cache = timeline.eval_caches.static_subtree_cache.borrow();
-    let static_id = timeline.tracks.get_entity_id("static_box").expect("static_box id");
-    let dynamic_id = timeline.tracks.get_entity_id("dynamic_box").expect("dynamic_box id");
     assert!(
         cache.contains_key(&(static_id, dims, false, DebugRenderOptions::default())),
         "static_box should be cached despite modifiers existing in scene"
@@ -788,25 +788,28 @@ fn time_dependent_caps_prevent_static_subtree_caching() {
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
 
-    let subs = timeline.tracks.get("subs").expect("subs track must exist");
+    let subs = timeline.world.tracks.get("subs").expect("subs track must exist");
     assert!(subs.caps.time_dependent, "Captions must have time_dependent capability");
-    assert!(!timeline.is_static_subtree("subs"), "Captions must not be a static subtree");
+    let subs_id = timeline.get_entity_id("subs").expect("subs id");
+    assert!(!timeline.is_static_subtree_id(subs_id), "Captions must not be a static subtree");
 
-    let cue = timeline.tracks.get("c1").expect("c1 cue track must exist");
+    let cue = timeline.world.tracks.get("c1").expect("c1 cue track must exist");
     assert!(cue.caps.time_dependent, "Cue must have time_dependent capability");
-    assert!(!timeline.is_static_subtree("c1"), "Cue must not be a static subtree");
+    let cue_id = timeline.get_entity_id("c1").expect("c1 id");
+    assert!(!timeline.is_static_subtree_id(cue_id), "Cue must not be a static subtree");
 }
 
-/// `root_ids` is the one product of the (former) DFS precomputation the frame
-/// path actually reads, so it must line up with `root_nodes` positionally and
-/// resolve to the same tracks the labels do.
+/// The root set and every hierarchy `children` list must keep authored
+/// declaration order — rendering order is the authored order, and the frame
+/// loop walks `World::root_entities()` and `World::hierarchy(id).children`
+/// directly.
 #[test]
-fn root_ids_line_up_with_root_nodes() {
+fn hierarchy_preserves_authored_order() {
     let source = r#"
         root1: Group {
             child1: Rect, size: (10, 10)
             child2: Group {
-                grandchild1: Circle
+                grandchild1: Rect, size: (5, 5)
             }
         }
         root2: Rect, size: (20, 20)
@@ -815,19 +818,31 @@ fn root_ids_line_up_with_root_nodes() {
     assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
     let ast = ast.expect("parsed AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    assert!(
+        !report
+            .diagnostics
+            .iter()
+            .any(|d| d.severity == crate::diagnostics::DiagnosticSeverity::Error),
+        "unexpected build errors: {:?}",
+        report.diagnostics
+    );
     let timeline = report.output;
 
-    assert_eq!(timeline.root_actor_labels(), &["root1", "root2"]);
-    let root_ids = &timeline.root_ids;
-    assert_eq!(
-        root_ids.len(),
-        timeline.root_actor_labels().len(),
-        "every root must have a resolved EntityId, or the frame path falls back to a label lookup"
-    );
-    for (label, id) in timeline.root_actor_labels().iter().zip(root_ids) {
-        let by_id = timeline.get_track_by_id(*id).expect("root id resolves");
-        assert_eq!(&by_id.label, label, "root_ids must track root_nodes order");
-    }
+    let root_labels: Vec<&str> = timeline
+        .world
+        .root_entities()
+        .iter()
+        .map(|&id| timeline.get_entity_label(id).expect("root id resolves"))
+        .collect();
+    assert_eq!(root_labels, vec!["root1", "root2"]);
+
+    let root1 = timeline.get_entity_id("root1").expect("root1 id");
+    let children: Vec<&str> = timeline.world.child_labels(root1).collect();
+    assert_eq!(children, vec!["child1", "child2"]);
+
+    let child2 = timeline.get_entity_id("child2").expect("child2 id");
+    let grandchildren: Vec<&str> = timeline.world.child_labels(child2).collect();
+    assert_eq!(grandchildren, vec!["grandchild1"]);
 }
 
 #[test]

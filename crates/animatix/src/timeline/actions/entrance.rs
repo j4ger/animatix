@@ -51,7 +51,7 @@ impl BuiltinAction for WipeIn {
                 continue;
             }
 
-            let track = match timeline.tracks.get_mut(target) {
+            let track = match timeline.world.tracks.get_mut(target) {
                 Some(t) => t,
                 None => continue,
             };
@@ -141,7 +141,7 @@ impl BuiltinAction for FadeIn {
 
             if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                if let Some(track) = timeline.tracks.get_mut(target) {
+                if let Some(track) = timeline.world.tracks.get_mut(target) {
                     super::ensure_guard_keyframe(&mut track.style.opacity, guard_time, 1.0);
                 }
             }
@@ -152,10 +152,10 @@ impl BuiltinAction for FadeIn {
             // later entrance actions and diagnostics. The lift cascades into
             // hidden children so a container fade-in reveals its subtree
             // (probe 010: Graph-hosted PlotCurves stay seeded at opacity 0).
-            let was_hidden = timeline.tracks.get(target).is_some_and(|t| t.hidden_by_default);
+            let was_hidden = timeline.world.tracks.get(target).is_some_and(|t| t.hidden_by_default);
             super::lift_hidden_by_default_subtree(timeline, target, t_start_ms, t_end_ms, easing);
             if !was_hidden {
-                let track = match timeline.tracks.get_mut(target) {
+                let track = match timeline.world.tracks.get_mut(target) {
                     Some(t) => t,
                     None => continue,
                 };
@@ -308,7 +308,7 @@ mod tests {
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.tracks.get("headline").expect("headline track");
+        let track = report.output.world.tracks.get("headline").expect("headline track");
 
         assert_eq!(track.style.opacity.get(0, 1.0), 0.0);
         assert!(track.style.opacity.get(500, 1.0) > 0.0);
@@ -325,7 +325,7 @@ mod tests {
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.tracks.get("panel").expect("panel track");
+        let track = report.output.world.tracks.get("panel").expect("panel track");
 
         assert_eq!(track.style.stroke_progress.get(0, 1.0), 0.0);
         assert_eq!(track.style.fill_opacity.get(0, 1.0), 0.0);
@@ -371,7 +371,7 @@ mod tests {
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.tracks.get("panel").expect("panel track");
+        let track = report.output.world.tracks.get("panel").expect("panel track");
 
         assert_eq!(track.style.opacity.get(0, 1.0), 0.0);
         assert_eq!(
@@ -395,7 +395,7 @@ mod tests {
             }];
 
             let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-            let track = report.output.tracks.get("panel").expect("panel track");
+            let track = report.output.world.tracks.get("panel").expect("panel track");
 
             assert_eq!(
                 track.style.opacity.get(1000, 1.0),
@@ -419,7 +419,7 @@ mod tests {
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.tracks.get("panel").expect("panel track");
+        let track = report.output.world.tracks.get("panel").expect("panel track");
 
         assert_eq!(track.style.opacity.get(1000, 1.0), 0.25);
     }
@@ -462,7 +462,7 @@ mod tests {
         ];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.tracks.get("panel").expect("panel track");
+        let track = report.output.world.tracks.get("panel").expect("panel track");
 
         assert_eq!(track.style.opacity.get(0, 1.0), 0.0);
         assert_eq!(track.style.opacity.get(400, 1.0), 0.0, "still hidden before the wipe");
@@ -495,7 +495,7 @@ mod tests {
         ];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.tracks.get("panel").expect("panel track");
+        let track = report.output.world.tracks.get("panel").expect("panel track");
 
         assert!(!track.hidden_by_default);
         assert_eq!(track.style.opacity.get(1200, 1.0), 0.3, "explicit opacity is preserved");

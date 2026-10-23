@@ -44,7 +44,7 @@ impl BuiltinAction for FadeOut {
                 continue;
             }
 
-            let track = match timeline.tracks.get_mut(target) {
+            let track = match timeline.world.tracks.get_mut(target) {
                 Some(t) => t,
                 None => continue,
             };
@@ -128,7 +128,7 @@ mod tests {
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.tracks.get("headline").expect("headline track");
+        let track = report.output.world.tracks.get("headline").expect("headline track");
 
         assert_eq!(track.style.opacity.get(0, 1.0), 1.0);
         assert!(track.style.opacity.get(500, 1.0) < 1.0);

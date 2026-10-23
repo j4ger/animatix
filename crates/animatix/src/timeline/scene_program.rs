@@ -101,8 +101,7 @@ mod tests {
             t.add_keyframe(0, [1.0, 0.0, 0.0, 1.0], crate::timeline::Easing::Linear);
             t
         });
-        timeline.tracks_mut().insert("box".to_string(), track);
-        timeline.root_nodes.push("box".to_string());
+        timeline.world.spawn_with_track("box", track);
 
         let mut fb = None;
         let program = timeline.evaluate_program_with_debug(

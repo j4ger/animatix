@@ -81,14 +81,14 @@ fn run_preset(
         // Opacity: the same lift `fade-in` performs, so a hidden-by-default
         // actor is revealed through the subtree-aware path and an authored
         // `opacity: 0` seed is lifted past rather than settled on.
-        let was_hidden = timeline.tracks.get(target).is_some_and(|t| t.hidden_by_default);
+        let was_hidden = timeline.world.tracks.get(target).is_some_and(|t| t.hidden_by_default);
         super::lift_hidden_by_default_subtree(timeline, target, t_start_ms, t_end_ms, easing);
         if !was_hidden {
-            let Some(track) = timeline.tracks.get(target) else {
+            let Some(track) = timeline.world.tracks.get(target) else {
                 continue;
             };
             let end_opacity = super::entrance_opacity_target(track, t_start_ms);
-            let track = match timeline.tracks.get_mut(target) {
+            let track = match timeline.world.tracks.get_mut(target) {
                 Some(t) => t,
                 None => continue,
             };
@@ -99,7 +99,7 @@ fn run_preset(
         // Scale: ramp *relative to* the scale the actor already samples at the
         // entrance's start, so a preset never fights an authored transform.
         let authored = {
-            let track = match timeline.tracks.get_mut(target) {
+            let track = match timeline.world.tracks.get_mut(target) {
                 Some(t) => t,
                 None => continue,
             };

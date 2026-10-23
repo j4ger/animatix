@@ -29,7 +29,7 @@ fn test_keyframe_times_s_collects_all_fields() {
         Easing::Linear,
     );
 
-    timeline.tracks.insert("test".to_string(), track);
+    timeline.world.tracks.insert("test".to_string(), track);
     let times = timeline.keyframe_times_s();
     // Times in seconds: 1.0 (opacity), 2.0 (position), 3.0 (transform)
     assert_eq!(times.len(), 3, "Got: {:?}", times);
@@ -56,7 +56,7 @@ fn test_keyframe_times_s_includes_highlight_fields() {
         .ensure(0.0)
         .add_keyframe(2500, 0.8, Easing::Linear);
 
-    timeline.tracks.insert("test".to_string(), track);
+    timeline.world.tracks.insert("test".to_string(), track);
     let times = timeline.keyframe_times_s();
     assert!(times.contains(&0.5), "Got: {:?}", times);
     assert!(times.contains(&2.5), "Got: {:?}", times);
@@ -71,8 +71,8 @@ fn test_keyframe_times_s_returns_unique_times() {
     let mut track_b = AnimationTrack::placeholder("b".to_string());
     track_b.style.opacity.ensure(1.0).add_keyframe(1000, 0.0, Easing::Linear);
 
-    timeline.tracks.insert("a".to_string(), track_a);
-    timeline.tracks.insert("b".to_string(), track_b);
+    timeline.world.tracks.insert("a".to_string(), track_a);
+    timeline.world.tracks.insert("b".to_string(), track_b);
     let times = timeline.keyframe_times_s();
     // Both tracks have the same keyframe time (1000ms = 1.0s)
     assert_eq!(times.len(), 1, "Should have unique times, got: {:?}", times);
@@ -84,7 +84,7 @@ fn test_keyframe_times_s_returns_seconds_not_milliseconds() {
     let mut timeline = keyframe_times_s_timeline();
     let mut track = AnimationTrack::placeholder("test".to_string());
     track.style.opacity.ensure(1.0).add_keyframe(5000, 0.5, Easing::Linear);
-    timeline.tracks.insert("test".to_string(), track);
+    timeline.world.tracks.insert("test".to_string(), track);
     let times = timeline.keyframe_times_s();
     assert!(!times.contains(&5000.0), "Should be in seconds, not milliseconds");
     assert!(times.contains(&5.0), "5000ms should be 5.0s, got: {:?}", times);
@@ -112,7 +112,7 @@ fn test_keyframe_times_s_includes_effect_params() {
         .param_track_mut("radius", crate::timeline::effects::EffectParamKind::F32)
         .add_keyframe(500, crate::timeline::property_engine::PropertyValue::F32(8.0));
     track.effects.stages.push(stage);
-    timeline.tracks.insert("test".to_string(), track);
+    timeline.world.tracks.insert("test".to_string(), track);
     let times = timeline.keyframe_times_s();
     assert!(times.contains(&0.5), "Got: {:?}", times);
 }
@@ -127,7 +127,7 @@ fn test_keyframe_times_s_includes_plot_param_tracks() {
         .entry("freq".to_string())
         .or_insert_with(|| PropertyTrack::new(1.0))
         .add_keyframe(2000, 2.0, Easing::Linear);
-    timeline.tracks.insert("test".to_string(), track);
+    timeline.world.tracks.insert("test".to_string(), track);
     let times = timeline.keyframe_times_s();
     assert!(times.contains(&2.0));
 }

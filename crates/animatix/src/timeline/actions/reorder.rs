@@ -62,7 +62,7 @@ impl BuiltinAction for Swap {
 
         // Verify both targets exist
         for target in &resolved {
-            if !timeline.tracks.contains_key(target) {
+            if !timeline.world.tracks.contains_key(target) {
                 diagnostics.push(
                     Diagnostic::warning(
                         DiagnosticCode::UnsupportedActionTarget,
@@ -234,7 +234,7 @@ impl BuiltinAction for Reorder {
         let container = &action.targets[0];
 
         // Verify container exists
-        if !timeline.tracks.contains_key(container) {
+        if !timeline.world.tracks.contains_key(container) {
             diagnostics.push(
                 Diagnostic::warning(
                     DiagnosticCode::UnsupportedActionTarget,

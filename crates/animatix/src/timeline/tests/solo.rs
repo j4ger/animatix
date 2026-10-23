@@ -127,7 +127,7 @@ a: Rect, at: (60, 90), size: (40, 40), color: (1, 0, 0, 1)
 b: Rect, at: (160, 90), size: (40, 40), color: (0, 1, 0, 1), solo: true
 "#;
     let mut timeline = build_from_source(source);
-    timeline.tracks.get_mut("b").expect("track b").visible = false;
+    timeline.world.tracks.get_mut("b").expect("track b").visible = false;
     let dimensions = SceneDimensions {
         width: 320,
         height: 180,

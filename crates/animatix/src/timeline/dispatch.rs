@@ -50,7 +50,11 @@ use crate::timeline::property_registry::{ActorField, PropertySchema};
 /// Every actor in the scene graph has exactly one `AnimationTrack`.  The track
 /// stores typed optional property tracks (geometry, style, filter, shape, text,
 /// highlight tiers), along with metadata such as the derived capability
-/// projection `caps`, `children` (scene-graph hierarchy), and `visible`.
+/// projection `caps` and `visible`.
+///
+/// The scene graph is *not* stored here: parent/children links live in
+/// [`crate::timeline::world::SceneHierarchyComponent`] (see `docs/ecs.md`), so
+/// `world.hierarchy(id)` is the single source of truth for the hierarchy.
 ///
 /// Primitive-specific state lives in exactly one place: [`Self::payload`]. An
 /// actor carries at most one payload variant — a plot actor has a
@@ -88,17 +92,6 @@ pub struct AnimationTrack {
     pub property_plan: super::plan::PropertyPlan,
     /// First frame (ms) this actor appears.
     pub first_seen_ms: u64,
-    /// Labels of child actors in the scene hierarchy.
-    pub children: Vec<String>,
-    /// Entity IDs of child actors in the scene hierarchy.
-    #[cfg_attr(feature = "serde", serde(default))]
-    pub children_ids: Vec<EntityId>,
-    /// Label of the parent actor in the scene hierarchy, if any.
-    /// `None` for root-level actors.
-    pub parent: Option<String>,
-    /// Entity ID of the parent actor in the scene hierarchy, if any.
-    #[cfg_attr(feature = "serde", serde(default))]
-    pub parent_id: Option<EntityId>,
     /// Whether the actor is visible in the preview and export.
     pub visible: bool,
     /// Whether the actor is locked (preventing selection and drag in the GUI).
@@ -206,10 +199,6 @@ impl AnimationTrack {
             actor_type,
             property_plan: super::plan::PropertyPlan::default(),
             first_seen_ms: u64::MAX,
-            children: Vec::new(),
-            children_ids: Vec::new(),
-            parent: None,
-            parent_id: None,
             visible: true,
             locked: false,
             camera_follow: true,
@@ -557,16 +546,6 @@ impl AnimationTrack {
     pub fn layout_size_get(&self, time_ms: u64) -> Option<[f32; 2]> {
         self.geometry.layout_size.as_ref().map(|t| t.evaluate(time_ms))
     }
-    /// Returns the parent actor label, if this actor has a parent.
-    pub fn parent(&self) -> Option<&str> {
-        self.parent.as_deref()
-    }
-
-    /// Returns the labels of child actors.
-    pub fn children(&self) -> &[String] {
-        &self.children
-    }
-
     /// Return the last value of `layout_size`.
     pub fn layout_size_last(&self) -> Option<[f32; 2]> {
         self.geometry.layout_size.as_ref().map(|t| t.last_value())

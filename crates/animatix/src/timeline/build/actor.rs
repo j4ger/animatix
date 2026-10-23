@@ -15,7 +15,7 @@ impl Timeline {
         parent_label: Option<&str>,
     ) -> Option<crate::timeline::CoordinateContext> {
         let p_label = parent_label?;
-        let host_id = self.tracks.get_id(p_label)?;
+        let host_id = self.world.tracks.get_id(p_label)?;
         let frame = self.coordinate_frames.get(&host_id)?;
         let p_size = self
             .env
@@ -82,7 +82,7 @@ impl Timeline {
             let mut p_size = [500.0, 500.0];
             let mut p_padding = [0.0; 4];
 
-            if let Some(host_id) = self.tracks.get_id(&p_label) {
+            if let Some(host_id) = self.world.tracks.get_id(&p_label) {
                 if let Some(frame) = self.coordinate_frames.get(&host_id) {
                     p_x_domain = frame.x_domain;
                     p_y_domain = frame.y_domain;
@@ -370,7 +370,7 @@ impl Timeline {
             // A value the bool parser rejects is already reported by it; the flag
             // keeps its default, so the actor stays camera'd rather than guessing.
             if let Some(crate::timeline::property_engine::PropertyValue::Bool(follow)) = parsed {
-                if let Some(track) = self.tracks.get_mut(label) {
+                if let Some(track) = self.world.tracks.get_mut(label) {
                     track.camera_follow = follow;
                     if !follow {
                         track.parallax = 0.0;
@@ -389,7 +389,7 @@ impl Timeline {
                 &subject,
             );
             if let Some(crate::timeline::property_engine::PropertyValue::F32(p)) = parsed {
-                if let Some(track) = self.tracks.get_mut(label) {
+                if let Some(track) = self.world.tracks.get_mut(label) {
                     track.parallax = p;
                 }
             }
@@ -422,7 +422,7 @@ impl Timeline {
                 parent_label,
                 diagnostics,
             );
-            if let Some(track) = self.tracks.get_mut(label) {
+            if let Some(track) = self.world.tracks.get_mut(label) {
                 if track.decl_span.is_none() {
                     track.decl_span = decl_span;
                 }
@@ -447,7 +447,7 @@ impl Timeline {
                 {
                     diagnostics.append(&mut diags);
                 }
-                if let Some(track) = self.tracks.get_mut(label) {
+                if let Some(track) = self.world.tracks.get_mut(label) {
                     if track.decl_span.is_none() {
                         track.decl_span = decl_span;
                     }
@@ -520,6 +520,7 @@ impl Timeline {
             .map(PrimitiveFamilyDescriptor::from_info)
             .unwrap_or_default();
         let existing_track = self
+            .world
             .tracks
             .get(label)
             .cloned()
@@ -529,6 +530,7 @@ impl Timeline {
         // from math coordinates to screen pixels.
         let mapped_props = if let Some(p_label) = parent_label {
             let is_graph = self
+                .world
                 .tracks
                 .get_id(p_label)
                 .and_then(|id| self.coordinate_frames.get(&id).map(|_| ()))
@@ -554,7 +556,7 @@ impl Timeline {
         );
 
         if primitive.is_graph_host() {
-            if let Some(host_id) = self.tracks.get_id(label) {
+            if let Some(host_id) = self.world.tracks.get_id(label) {
                 self.coordinate_frames.insert(
                     host_id,
                     crate::timeline::CoordinateFrameComponent {
@@ -584,10 +586,7 @@ impl Timeline {
         // check can inspect the parent's kind. Only create track entry if the actor
         // has children (otherwise skip to avoid breaking is_first_decl).
         if !children.is_empty() {
-            let early_track = self
-                .tracks
-                .entry(label.to_string())
-                .or_insert_with(|| AnimationTrack::new(label.to_string(), ty));
+            let early_track = self.world.ensure_track(label, ty);
             early_track.set_identity(ty);
             early_track.rebuild_property_plan();
         }
@@ -611,7 +610,7 @@ impl Timeline {
         // and skips the container, so a container-level seed could never be
         // lifted. Self-drawing containers that are *not* expanded (Graph and the
         // other plot hosts) are seeded in `process_plot_actor_dispatch` instead.
-        let is_first_decl = !self.tracks.contains_key(label);
+        let is_first_decl = !self.world.tracks.contains_key(label);
         let mut opacity = if is_first_decl && !has_explicit_opacity {
             self.default_opacity
         } else {
@@ -896,7 +895,7 @@ impl Timeline {
         // Store them in the track's side-channel so the primitive's frame-time
         // `evaluate` method can resolve them each frame.
         if matches!(caps.shape, Some(super::ShapeKind::Line | super::ShapeKind::Arrow)) {
-            if let Some(track) = self.tracks.get_mut(label) {
+            if let Some(track) = self.world.tracks.get_mut(label) {
                 for prop in props {
                     if prop.name == "from" || prop.name == "to" {
                         if let Expr::Path(segments) = &prop.value {
@@ -936,7 +935,7 @@ impl Timeline {
         // Warn when a child of a layout container uses `at` or `position`.
         // Layout-managed children should use `transform` for visual offsets.
         if let Some(parent) = parent_label {
-            if let Some(parent_track) = self.tracks.get(parent) {
+            if let Some(parent_track) = self.world.tracks.get(parent) {
                 if parent_track.caps.layout_container {
                     let has_at = extracted.at_expr.is_some();
                     let has_position = props.iter().any(|p| p.name == "position");
@@ -965,10 +964,7 @@ impl Timeline {
             label,
         );
 
-        let track = self
-            .tracks
-            .entry(label.to_string())
-            .or_insert_with(|| AnimationTrack::new(label.to_string(), ty));
+        let track = self.world.ensure_track(label, ty);
         track.set_identity(ty);
         track.rebuild_property_plan();
         if track.decl_span.is_none() {
@@ -976,9 +972,6 @@ impl Timeline {
         }
         if track.first_seen_ms == u64::MAX {
             track.first_seen_ms = t_start_ms;
-        }
-        if let Some(pl) = parent_label {
-            track.parent = Some(pl.to_string());
         }
         track.legend.color = legend_color;
 
@@ -1454,7 +1447,7 @@ impl Timeline {
             diagnostics,
             label,
         ) {
-            if let Some(track) = self.tracks.get_mut(label) {
+            if let Some(track) = self.world.tracks.get_mut(label) {
                 let t_start_ms = time_ms as u64;
                 preserve_discrete_position_state_before(track, t_start_ms);
                 set_track_position_binding(track, t_start_ms, binding);
@@ -1477,7 +1470,7 @@ impl Timeline {
                     if let Ok(crate::timeline::Value::Num(v)) =
                         super::evaluate_expr(&prop.value, &eval_env)
                     {
-                        if let Some(track) = self.tracks.get_mut(label) {
+                        if let Some(track) = self.world.tracks.get_mut(label) {
                             track.style.opacity.ensure(1.0).add_keyframe(
                                 time_ms as u64,
                                 v.clamp(0.0, 1.0) as f32,
@@ -1490,7 +1483,7 @@ impl Timeline {
                     if let Ok(crate::timeline::Value::Vec2(v)) =
                         super::evaluate_expr(&prop.value, &eval_env)
                     {
-                        if let Some(track) = self.tracks.get_mut(label) {
+                        if let Some(track) = self.world.tracks.get_mut(label) {
                             track
                                 .geometry
                                 .size
@@ -1542,7 +1535,7 @@ impl Timeline {
         let t_start_ms = (time_ms + delay_ms) as u64;
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
         let eval_env = self.build_eval_env(time_ms as u64);
-        let Some(track) = self.tracks.get_mut(label) else {
+        let Some(track) = self.world.tracks.get_mut(label) else {
             return;
         };
 
@@ -1672,20 +1665,18 @@ impl Timeline {
 
         // First-declaration status must be captured BEFORE the track exists:
         // a first declaration with children is seeded hidden-by-default.
-        let is_first_decl = !self.tracks.contains_key(label);
+        let is_first_decl = !self.world.tracks.contains_key(label);
 
         // Create the plot host's track before `process_plot_actor` runs: it
         // processes children, and `add_node` requires the parent track to exist
         // rather than defaulting one in.
         {
-            let entry = self
-                .tracks
-                .entry(label.to_string())
-                .or_insert_with(|| AnimationTrack::new(label.to_string(), ty));
+            let entry = self.world.ensure_track(label, ty);
             entry.set_identity(ty);
             entry.rebuild_property_plan();
         }
         let existing_track = self
+            .world
             .tracks
             .get(label)
             .cloned()
@@ -1795,10 +1786,7 @@ impl Timeline {
             let t_start_ms = (time_ms + delay_ms) as u64;
             let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
-            let track = self
-                .tracks
-                .entry(label.to_string())
-                .or_insert_with(|| AnimationTrack::new(label.to_string(), ty));
+            let track = self.world.ensure_track(label, ty);
             track.set_identity(ty);
             track.rebuild_property_plan();
             // Plot-family build path only (this dispatch serves Graph,
@@ -1814,9 +1802,6 @@ impl Timeline {
                 // replaces.
                 payload.bar_layout = bar_layout;
                 payload.bar_data = bar_data;
-            }
-            if let Some(pl) = parent_label {
-                track.parent = Some(pl.to_string());
             }
 
             // Seed plot_param_tracks with initial declaration values.

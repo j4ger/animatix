@@ -118,7 +118,7 @@ panel:
     let ast = ast.expect("AST");
     let report =
         crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report.output.tracks.get("label").expect("label track exists");
+    let track = report.output.world.tracks.get("label").expect("label track exists");
     let width = track.text.text_max_width.get(0, 0.0);
     assert!(
         (width - 10000.0).abs() < 0.01,

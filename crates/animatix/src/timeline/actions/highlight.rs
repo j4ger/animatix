@@ -63,11 +63,14 @@ fn is_equation_parent(timeline: &Timeline, track: &crate::timeline::AnimationTra
 /// is highlighted, sibling Fragments are automatically unhighlighted so that
 /// only one Fragment (or one group via multi-target) is highlighted at a time.
 fn find_equation_parent(timeline: &Timeline, fragment: &str) -> Option<String> {
+    let fragment_id = timeline.get_entity_id(fragment)?;
     timeline
+        .world
         .tracks
         .iter()
         .find(|(_, t)| {
-            is_equation_parent(timeline, t) && t.children.contains(&fragment.to_string())
+            is_equation_parent(timeline, t)
+                && timeline.world.hierarchy(t.id).children.contains(&fragment_id)
         })
         .map(|(k, _)| k.clone())
 }
@@ -159,7 +162,7 @@ impl BuiltinAction for Highlight {
                 continue;
             }
 
-            let track = match timeline.tracks.get_mut(target) {
+            let track = match timeline.world.tracks.get_mut(target) {
                 Some(t) => t,
                 None => continue,
             };
@@ -223,10 +226,10 @@ impl BuiltinAction for Highlight {
             let mut siblings = Vec::new();
             for target in &action.targets {
                 if let Some(parent_label) = find_equation_parent(timeline, target) {
-                    if let Some(parent_track) = timeline.tracks.get(&parent_label) {
-                        for child in &parent_track.children {
+                    if let Some(parent_id) = timeline.get_entity_id(&parent_label) {
+                        for child in timeline.world.child_labels(parent_id) {
                             if !target_set.contains(child) {
-                                siblings.push((child.clone(), t_start_ms, t_end_ms));
+                                siblings.push((child.to_string(), t_start_ms, t_end_ms));
                             }
                         }
                     }
@@ -235,7 +238,7 @@ impl BuiltinAction for Highlight {
             siblings
         };
         for (sibling, t_start, t_end) in siblings_to_unhighlight {
-            if let Some(track) = timeline.tracks.get_mut(&sibling) {
+            if let Some(track) = timeline.world.tracks.get_mut(&sibling) {
                 let start_opacity = track.highlight.highlight_opacity.get(t_start, 1.0);
                 track.highlight.highlight_opacity.ensure(0.0).add_keyframe(
                     t_start,
@@ -291,7 +294,7 @@ impl BuiltinAction for Unhighlight {
                 continue;
             }
 
-            let track = match timeline.tracks.get_mut(target) {
+            let track = match timeline.world.tracks.get_mut(target) {
                 Some(t) => t,
                 None => continue,
             };
@@ -478,6 +481,7 @@ mod tests {
     ) -> usize {
         report
             .output
+            .world
             .tracks
             .get(label)
             .and_then(|t| t.highlight.highlight_opacity.as_ref())
@@ -509,6 +513,7 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report
             .output
+            .world
             .tracks
             .get("f1")
             .expect("`f1` should have a track — the Equation's child was never registered");
@@ -554,7 +559,7 @@ mod tests {
         }
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        if let Some(track) = report.output.tracks.get("f1") {
+        if let Some(track) = report.output.world.tracks.get("f1") {
             assert!(
                 track
                     .highlight

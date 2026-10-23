@@ -152,7 +152,7 @@ fn test_hierarchical_assignment_target() {
     let timeline = report.output;
 
     // At t=0s, circ.opacity should be 0.0 (pre-keyframe default is hidden)
-    let circ_track = timeline.tracks.get("circ").expect("circ track should exist");
+    let circ_track = timeline.world.tracks.get("circ").expect("circ track should exist");
     let opacity_at_0 = circ_track.style.opacity.as_ref().unwrap().evaluate(0);
     assert!(
         (opacity_at_0 - 0.0).abs() < 0.01,
@@ -187,7 +187,7 @@ fn explicit_opacity_before_keyframe_is_honored() {
         "Expected no build diagnostics, got: {:?}",
         report.diagnostics
     );
-    let track = report.output.tracks.get("box").expect("box track should exist");
+    let track = report.output.world.tracks.get("box").expect("box track should exist");
     let opacity_at_0 = track.style.opacity.as_ref().unwrap().evaluate(0);
     assert_eq!(opacity_at_0, 0.0, "explicit opacity: 0 should apply at t=0");
 }
@@ -204,7 +204,7 @@ fn graph_axes_invisible_before_fadein() {
         crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
 
-    let track = timeline.tracks.get("g1").expect("g1 track should exist");
+    let track = timeline.world.tracks.get("g1").expect("g1 track should exist");
     let opacity_at_0 = track.style.opacity.as_ref().map(|t| t.evaluate(0));
     let opacity_at_500 = track.style.opacity.as_ref().map(|t| t.evaluate(500));
     let opacity_at_900 = track.style.opacity.as_ref().map(|t| t.evaluate(900));
@@ -238,7 +238,7 @@ fn container_fadein_reveals_graph_hosted_children() {
         crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
 
-    let child = timeline.tracks.get("c").expect("child curve track should exist");
+    let child = timeline.world.tracks.get("c").expect("child curve track should exist");
     assert!(
         !child.hidden_by_default,
         "container fade-in must lift the child's hidden-by-default flag"
@@ -282,7 +282,7 @@ fn pre_keyframe_graph_container_is_hidden_until_its_entrance() {
         crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
 
-    let graph = timeline.tracks.get("g").expect("graph track should exist");
+    let graph = timeline.world.tracks.get("g").expect("graph track should exist");
     assert!(!graph.hidden_by_default, "the entrance action consumes the flag");
     let opacity = |ms: u64| graph.style.opacity.as_ref().map(|t| t.evaluate(ms)).unwrap_or(1.0);
     assert_eq!(opacity(0), 0.0, "graph must start invisible before its entrance");
@@ -319,7 +319,7 @@ fn every_built_track_identity_is_consistent() {
         crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
 
-    for (label, track) in &timeline.tracks {
+    for (label, track) in &timeline.world.tracks {
         let expected = animatix_std::caps_for_type(&track.actor_type).unwrap_or_default();
         assert_eq!(
             track.caps, expected,
@@ -388,7 +388,7 @@ fn plot_capture_of_always_written_var_is_dynamic() {
         "always bare assignment must register the written name, got: {:?}",
         timeline.frame_written_vars
     );
-    let track = timeline.tracks.get("curve").expect("curve track");
+    let track = timeline.world.tracks.get("curve").expect("curve track");
     let plot = track.procedural_plot().expect("procedural plot");
     assert!(
         plot.is_dynamic(&timeline.frame_written_vars),
@@ -428,7 +428,7 @@ fade-in c [100ms]
     );
     let timeline = report.output;
 
-    let track = timeline.tracks.get("c").expect("curve track");
+    let track = timeline.world.tracks.get("c").expect("curve track");
     assert!(
         track
             .procedural_plot()
@@ -712,9 +712,9 @@ plain: Rect, size: (50, 50), color: text.primary, at: (600, 320)
     let timeline = report.output;
 
     use crate::timeline::TrackAccessor;
-    let glow = timeline.tracks.get("glow").expect("glow track");
+    let glow = timeline.world.tracks.get("glow").expect("glow track");
     assert_eq!(glow.style.blend.get(0, "normal".to_string()), "screen");
-    let plain = timeline.tracks.get("plain").expect("plain track");
+    let plain = timeline.world.tracks.get("plain").expect("plain track");
     assert_eq!(plain.style.blend.get(0, "normal".to_string()), "normal");
 }
 
@@ -747,6 +747,7 @@ label.text = format("facts={} arith={}", fact_sum, arith)
     );
     let timeline = report.output;
     let text = timeline
+        .world
         .tracks
         .get("label")
         .and_then(|t| t.text.text_content.as_ref())
@@ -948,7 +949,7 @@ fn high_frequency_curve_meets_resolution_floor() {
         crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
 
-    let track = timeline.tracks.get("c").expect("curve track");
+    let track = timeline.world.tracks.get("c").expect("curve track");
     let paths = track.evaluate_vector_paths_value(500);
     let point_count: usize = paths.iter().map(|vp| vp.path.elements().len()).sum();
     assert!(
@@ -973,22 +974,22 @@ fn equation_container_builds_with_fragment_children() {
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
     // Equation container track should exist
-    let eq_track = report.output.tracks.get("eq").expect("eq track should exist");
+    // (its children are checked through the authoritative hierarchy below)
 
     // Equation should have Fragment children registered
+    let eq_id = report.output.get_entity_id("eq").expect("eq track should exist");
+    let eq_children: Vec<&str> = report.output.world.child_labels(eq_id).collect();
     assert!(
-        eq_track.children.contains(&"f1".to_string()),
-        "Equation track should contain child 'f1', got: {:?}",
-        eq_track.children
+        eq_children.contains(&"f1"),
+        "Equation track should contain child 'f1', got: {eq_children:?}"
     );
     assert!(
-        eq_track.children.contains(&"f2".to_string()),
-        "Equation track should contain child 'f2', got: {:?}",
-        eq_track.children
+        eq_children.contains(&"f2"),
+        "Equation track should contain child 'f2', got: {eq_children:?}"
     );
 
     // Fragment f1 track should exist with its body stored
-    let f1_track = report.output.tracks.get("f1").expect("f1 track should exist");
+    let f1_track = report.output.world.tracks.get("f1").expect("f1 track should exist");
     let f1_content = f1_track
         .text
         .text_content
@@ -998,7 +999,7 @@ fn equation_container_builds_with_fragment_children() {
     assert_eq!(f1_content, "x^2", "Expected f1 content 'x^2', got {:?}", f1_content);
 
     // Fragment f2 track should exist with content stored
-    let f2_track = report.output.tracks.get("f2").expect("f2 track should exist");
+    let f2_track = report.output.world.tracks.get("f2").expect("f2 track should exist");
     let f2_content = f2_track
         .text
         .text_content
@@ -1038,7 +1039,7 @@ fn equation_fragment_dot_path_assignment() {
     let timeline = report.output;
 
     // Fragment f1 should have highlight_opacity animated
-    let f1_track = timeline.tracks.get("f1").expect("f1 track should exist");
+    let f1_track = timeline.world.tracks.get("f1").expect("f1 track should exist");
     let highlight_opacity_at_1s = f1_track
         .highlight
         .highlight_opacity
@@ -1064,7 +1065,7 @@ fn equation_fragment_dot_path_assignment() {
     );
 
     // Fragment f2 should have updated content
-    let f2_track = timeline.tracks.get("f2").expect("f2 track should exist");
+    let f2_track = timeline.world.tracks.get("f2").expect("f2 track should exist");
     let f2_content_at_1s = f2_track
         .text
         .text_content
@@ -1094,7 +1095,7 @@ fn pointlist_literal_tuples() {
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
-    assert!(report.output.tracks.contains_key("poly"), "poly track should exist");
+    assert!(report.output.world.tracks.contains_key("poly"), "poly track should exist");
 }
 
 #[test]

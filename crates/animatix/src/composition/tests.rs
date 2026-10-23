@@ -549,7 +549,7 @@ fn test_cross_file_scene_duration_preserved() {
 // -----------------------------------------------------------------------
 
 /// Basic carry: `title` persisted from SceneA → SceneB.
-/// SceneB should have `title` in its tracks and root_nodes.
+/// SceneB should have `title` in its tracks and as a root entity.
 #[test]
 fn test_persist_basic_carry() {
     let source = concat!(
@@ -585,13 +585,11 @@ fn test_persist_basic_carry() {
     // SceneB: carried actor present
     let scene_b = comp.scenes.get("SceneB").expect("SceneB must exist");
     assert!(
-        scene_b.timeline.tracks.contains_key("title"),
+        scene_b.timeline.world.tracks.contains_key("title"),
         "SceneB must have carried `title` track"
     );
-    assert!(
-        scene_b.timeline.root_nodes.contains(&"title".to_string()),
-        "SceneB: `title` must be in root_nodes (re-rooted)"
-    );
+    let title_id = scene_b.timeline.get_entity_id("title").expect("title must be an entity");
+    assert!(scene_b.timeline.world.is_root(title_id), "SceneB: `title` must be re-rooted");
 }
 
 /// Carry with assignment: SceneB modifies the carried actor's property.
@@ -620,7 +618,7 @@ fn test_persist_carry_then_assign() {
 
     let scene_b = report.output.scenes.get("SceneB").expect("SceneB must exist");
     assert!(
-        scene_b.timeline.tracks.contains_key("title"),
+        scene_b.timeline.world.tracks.contains_key("title"),
         "SceneB must have carried `title`"
     );
     // Opacity assignment on a carried actor must succeed (no UnsupportedActionTarget)
@@ -661,7 +659,7 @@ fn test_persist_chain() {
 
     let scene_b = comp.scenes.get("SceneB").expect("SceneB must exist");
     assert!(
-        scene_b.timeline.tracks.contains_key("badge"),
+        scene_b.timeline.world.tracks.contains_key("badge"),
         "SceneB must have badge from chain carry"
     );
     assert_eq!(
@@ -672,7 +670,7 @@ fn test_persist_chain() {
 
     let scene_c = comp.scenes.get("SceneC").expect("SceneC must exist");
     assert!(
-        scene_c.timeline.tracks.contains_key("badge"),
+        scene_c.timeline.world.tracks.contains_key("badge"),
         "SceneC must have badge via chain carry"
     );
 }
@@ -709,7 +707,7 @@ fn test_remove_breaks_chain() {
     // badge must be present in SceneB (it was carried)
     let scene_b = comp.scenes.get("SceneB").expect("SceneB");
     assert!(
-        scene_b.timeline.tracks.contains_key("badge"),
+        scene_b.timeline.world.tracks.contains_key("badge"),
         "SceneB must have badge (carried then removed)"
     );
     assert_eq!(
@@ -721,7 +719,7 @@ fn test_remove_breaks_chain() {
     // badge must NOT be in SceneC (chain broken by remove in B)
     let scene_c = comp.scenes.get("SceneC").expect("SceneC");
     assert!(
-        !scene_c.timeline.tracks.contains_key("badge"),
+        !scene_c.timeline.world.tracks.contains_key("badge"),
         "SceneC must NOT have badge (chain broken by remove in SceneB)"
     );
 }
@@ -758,22 +756,22 @@ fn test_persist_container_subtree() {
 
     // row is the re-rooted container
     assert!(
-        scene_b.timeline.tracks.contains_key("row"),
+        scene_b.timeline.world.tracks.contains_key("row"),
         "SceneB must have carried `row` track"
     );
-    assert!(
-        scene_b.timeline.root_nodes.contains(&"row".to_string()),
-        "SceneB: `row` must be in root_nodes"
-    );
+    let row_id = scene_b.timeline.get_entity_id("row").expect("row must be an entity");
+    assert!(scene_b.timeline.world.is_root(row_id), "SceneB: `row` must be re-rooted");
 
-    // child carried as subtree member, not re-rooted to root_nodes
+    // child carried as subtree member, not re-rooted
     assert!(
-        scene_b.timeline.tracks.contains_key("child"),
+        scene_b.timeline.world.tracks.contains_key("child"),
         "SceneB must have carried `child` track"
     );
-    assert!(
-        !scene_b.timeline.root_nodes.contains(&"child".to_string()),
-        "child must NOT be in root_nodes (it stays under row)"
+    let child_id = scene_b.timeline.get_entity_id("child").expect("child must be an entity");
+    assert_eq!(
+        scene_b.timeline.world.hierarchy(child_id).parent,
+        Some(row_id),
+        "child must stay under row (not re-rooted)"
     );
 
     // container metadata must be seeded so layout still resolves in B
@@ -943,7 +941,7 @@ fn test_auto_color_slot_preserved_across_carry() {
     // SceneB should have the same auto_color slot for 'circle'
     let scene_b = comp.scenes.get("SceneB").expect("SceneB");
     assert!(
-        scene_b.timeline.tracks.contains_key("circle"),
+        scene_b.timeline.world.tracks.contains_key("circle"),
         "SceneB: carried circle track must exist"
     );
     assert!(
@@ -986,16 +984,16 @@ fn test_plot_curve_carry() {
 
     // Container 'g' must be carried
     assert!(
-        scene_b.timeline.tracks.contains_key("g"),
+        scene_b.timeline.world.tracks.contains_key("g"),
         "SceneB: carried Graph track 'g' must exist"
     );
     // PlotCurve child 'curve' must be carried as part of container subtree
     assert!(
-        scene_b.timeline.tracks.contains_key("curve"),
+        scene_b.timeline.world.tracks.contains_key("curve"),
         "SceneB: PlotCurve child 'curve' must be carried"
     );
 
-    let curve_track = scene_b.timeline.tracks.get("curve").unwrap();
+    let curve_track = scene_b.timeline.world.tracks.get("curve").unwrap();
     assert_eq!(
         curve_track.actor_type,
         "PlotCurve".to_string(),
@@ -1029,10 +1027,10 @@ fn test_svg_actor_carry() {
     let scene_b = comp.scenes.get("SceneB").expect("SceneB");
 
     assert!(
-        scene_b.timeline.tracks.contains_key("icon"),
+        scene_b.timeline.world.tracks.contains_key("icon"),
         "SceneB: carried Svg 'icon' track must exist"
     );
-    let icon_track = scene_b.timeline.tracks.get("icon").unwrap();
+    let icon_track = scene_b.timeline.world.tracks.get("icon").unwrap();
     assert_eq!(
         icon_track.actor_type,
         "Svg".to_string(),
@@ -1062,10 +1060,10 @@ fn test_image_actor_carry() {
     let scene_b = comp.scenes.get("SceneB").expect("SceneB");
 
     assert!(
-        scene_b.timeline.tracks.contains_key("pic"),
+        scene_b.timeline.world.tracks.contains_key("pic"),
         "SceneB: carried Image 'pic' track must exist"
     );
-    let pic_track = scene_b.timeline.tracks.get("pic").unwrap();
+    let pic_track = scene_b.timeline.world.tracks.get("pic").unwrap();
     assert_eq!(
         pic_track.actor_type,
         "Image".to_string(),

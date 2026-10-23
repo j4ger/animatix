@@ -15,7 +15,7 @@ title: Text, text: "Hello World", at: (100, 100), split_by: "word", split_stagge
         &stmts.expect("parsed AST"),
         &std::collections::HashMap::new(),
     );
-    let track = report.output.tracks.get("title").expect("title track");
+    let track = report.output.world.tracks.get("title").expect("title track");
     assert_eq!(track.text.split_by.as_ref().map(|t| t.evaluate(0)), Some("word".to_string()));
     assert_eq!(track.text.split_stagger.as_ref().map(|t| t.evaluate(0)), Some(0.05));
     assert_eq!(track.text.split_offset_y.as_ref().map(|t| t.evaluate(0)), Some(24.0));
@@ -34,7 +34,7 @@ draw-in title [1s, by: word, offset_y: 30, mask: baseline, stagger: 0.1s]
     let (stmts, errors) = parse_source(source);
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
-    let track = timeline.tracks.get("title").expect("title track");
+    let track = timeline.world.tracks.get("title").expect("title track");
 
     assert!(track.text.char_progress.is_some());
     assert_eq!(track.text.char_progress.get(1000, 1.0), 0.0);
@@ -82,7 +82,7 @@ reveal-in sub [500ms, by: line, offset_y: 15, mask: baseline]
     let (stmts, errors) = parse_source(source);
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
-    let track = timeline.tracks.get("sub").expect("sub track");
+    let track = timeline.world.tracks.get("sub").expect("sub track");
 
     assert!(track.text.char_progress.is_some());
     assert_eq!(track.text.char_progress.get(500, 1.0), 0.0);
@@ -105,7 +105,7 @@ c: Counter, value: 1234, prefix: "$", suffix: " /mo", decimals: 2, comma: true, 
         &stmts.expect("parsed AST"),
         &std::collections::HashMap::new(),
     );
-    let track = report.output.tracks.get("c").expect("counter track");
+    let track = report.output.world.tracks.get("c").expect("counter track");
 
     let data = track.text.counter_data.as_ref().expect("prebaked counter data");
     assert_eq!(data.digits.len(), 10, "Should prebake digits 0..=9");
@@ -132,7 +132,7 @@ cnt.value = 100 [1s]
     let (stmts, errors) = parse_source(source);
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
-    let track = timeline.tracks.get("cnt").expect("cnt track");
+    let track = timeline.world.tracks.get("cnt").expect("cnt track");
 
     use crate::primitives::Primitive;
     let primitive = crate::primitives::counter::COUNTER;
@@ -204,7 +204,7 @@ label.color = (0.0, 1.0, 0.0, 1.0) [1s]
     let (stmts, errors) = parse_source(source);
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
-    let track = timeline.tracks.get("label").expect("label track");
+    let track = timeline.world.tracks.get("label").expect("label track");
     assert!(track.text.static_paths.is_some(), "Static text paths should be pre-cached");
 
     use crate::primitives::Primitive;
@@ -259,7 +259,7 @@ draw-in title [1s, by: word, offset_y: 30, mask: baseline, stagger: 0.1s]
     let (stmts, errors) = parse_source(source);
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
-    let track = timeline.tracks.get("title").expect("title track");
+    let track = timeline.world.tracks.get("title").expect("title track");
 
     let (paths_mid, clip_mid) = track.evaluate_text_paths_and_clip(1500);
     assert!(!paths_mid.is_empty(), "CJK glyphs should be generated");
@@ -284,7 +284,7 @@ t: Text, text: "Hardware Stream", at: (300, 200), font_size: 32
     let (stmts, errors) = parse_source(source);
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
-    let track = timeline.tracks.get("t").expect("track t exists");
+    let track = timeline.world.tracks.get("t").expect("track t exists");
 
     assert!(track.text.hardware_layout.is_some(), "Hardware text layout should be populated");
     let hw = track.text.hardware_layout.as_ref().unwrap();

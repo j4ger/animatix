@@ -5,6 +5,7 @@
 
 use tracing::instrument;
 
+use super::post::{seed_namespace_exports, synthesize_idle_tracks};
 use super::*;
 use crate::timeline::layout::ChildExtent;
 
@@ -21,7 +22,11 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
         vertical_align: Option<&str>,
     ) {
-        let child_order = self.tracks.get(label).map(|t| t.children.clone()).unwrap_or_default();
+        let child_order: Vec<String> = self
+            .world
+            .get_id(label)
+            .map(|id| self.world.child_labels(id).map(str::to_string).collect())
+            .unwrap_or_default();
         // layout_children is computed on demand via Timeline::layout_children_for
         let _layout_children =
             self.build_layout_children(label, container_ty, &child_order, diagnostics);
@@ -48,7 +53,7 @@ impl Timeline {
         let child_extents: Vec<ChildExtent> = child_order
             .iter()
             .filter_map(|cl| {
-                let track = self.tracks.get(cl)?;
+                let track = self.world.tracks.get(cl)?;
                 // Use layout_size_last() to get the most recently keyframed value,
                 // consistent with apply_container_layout().
                 let half_size = track.layout_size_last()?;
@@ -604,7 +609,7 @@ impl Timeline {
             prop_refs.sort();
             prop_refs.dedup();
             for (label, prop) in prop_refs {
-                if !timeline.tracks.contains_key(&label) {
+                if !timeline.world.tracks.contains_key(&label) {
                     diagnostics.push(
                         Diagnostic::warning(
                             DiagnosticCode::UnknownTargetPath,
@@ -667,15 +672,16 @@ impl Timeline {
             false
         };
         let revealed_via_ancestor = |label: &str| -> bool {
-            let mut current = parent_of.get(&label.to_string());
+            let mut current = parent_of.get(label).copied();
             while let Some(parent) = current {
-                if let Some(pt) = timeline.tracks.get(parent).and_then(|t| t.style.opacity.as_ref())
+                if let Some(pt) =
+                    timeline.world.tracks.get(parent).and_then(|t| t.style.opacity.as_ref())
                 {
                     if opacity_reveals(pt) {
                         return true;
                     }
                 }
-                current = parent_of.get(*parent);
+                current = parent_of.get(parent).copied();
             }
             false
         };
@@ -687,7 +693,7 @@ impl Timeline {
                 || label.contains("_tick_y_")
                 || label.contains("_bar_label_")
         };
-        for (label, track) in &timeline.tracks {
+        for (label, track) in &timeline.world.tracks {
             if !track.hidden_by_default {
                 continue;
             }
@@ -759,7 +765,7 @@ impl Timeline {
             let end_ms = (timeline.duration_seconds() * 1000.0).round() as u64;
             if end_ms > 0 {
                 let mut broken: Vec<String> = Vec::new();
-                for (label, track) in &timeline.tracks {
+                for (label, track) in &timeline.world.tracks {
                     for idx in crate::timeline::property_registry::allowed_property_indices(
                         &track.caps,
                         &track.actor_type,
@@ -847,7 +853,7 @@ impl Timeline {
         // required at construction, so a miss means the declared primitive is
         // not registered (typically an extension whose plugin is not loaded).
         // Warn once here rather than silently rendering nothing every frame.
-        for (label, track) in &timeline.tracks {
+        for (label, track) in &timeline.world.tracks {
             if timeline.primitive_registry.find(&track.actor_type).is_none() {
                 diagnostics.push(
                     Diagnostic::warning(
@@ -874,7 +880,7 @@ impl Timeline {
             } = stmt
             {
                 let actor_key = crate::timeline::assignment_target_key(target);
-                if let Some(track) = timeline.tracks.get(&actor_key) {
+                if let Some(track) = timeline.world.tracks.get(&actor_key) {
                     // A per-frame write only lands on an animatable property; for
                     // anything else the modifier runtime has nowhere to put it and
                     // the write is dropped. Say so instead of dropping it quietly
@@ -932,11 +938,11 @@ impl Timeline {
 
         // Validate Callout `target` references after all actors are built.
         // This is a post-build pass so forward declarations are visible.
-        for (label, track) in &timeline.tracks {
+        for (label, track) in &timeline.world.tracks {
             if track.caps.callout {
                 use crate::timeline::TrackAccessor;
                 let target = track.geometry.callout_target.get(0, String::new());
-                if !target.is_empty() && !timeline.tracks.contains_key(&target) {
+                if !target.is_empty() && !timeline.world.tracks.contains_key(&target) {
                     diagnostics.push(
                         Diagnostic::error(
                             DiagnosticCode::CalloutTargetNotFound,
@@ -957,8 +963,8 @@ impl Timeline {
         // actor it would read as a HUD that keeps moving, so say now that the
         // declaration has no effect instead of leaving it to be discovered in a
         // render.
-        for (label, track) in &timeline.tracks {
-            if !track.camera_follow && !timeline.root_nodes.contains(label) {
+        for (label, track) in &timeline.world.tracks {
+            if !track.camera_follow && !timeline.world.is_root(track.id) {
                 diagnostics.push(
                     Diagnostic::warning(
                         DiagnosticCode::InapplicableProperty,
@@ -971,7 +977,7 @@ impl Timeline {
                     )
                     .with_subject(label),
                 );
-            } else if track.parallax != 1.0 && !timeline.root_nodes.contains(label) {
+            } else if track.parallax != 1.0 && !timeline.world.is_root(track.id) {
                 diagnostics.push(
                     Diagnostic::warning(
                         DiagnosticCode::InapplicableProperty,
@@ -991,18 +997,16 @@ impl Timeline {
         // Populate Legend entries after every actor is built so generated and
         // forward-declared actors participate in the same scan.
         let legend_labels = timeline
+            .world
             .tracks
             .iter()
             .filter(|(_, track)| track.caps.legend_host)
             .map(|(label, _)| label.clone())
             .collect::<Vec<_>>();
         if !legend_labels.is_empty() {
-            let entries = crate::timeline::legend::scan_legend_entries(
-                &timeline.tracks,
-                &timeline.root_nodes,
-            );
+            let entries = crate::timeline::legend::scan_legend_entries(&timeline.world);
             for label in legend_labels {
-                if let Some(track) = timeline.tracks.get_mut(&label) {
+                if let Some(track) = timeline.world.tracks.get_mut(&label) {
                     track.legend.entries = entries.clone();
                 }
             }
@@ -1025,101 +1029,14 @@ impl Timeline {
         timeline.pause_points.dedup();
 
         timeline.has_effect_scopes =
-            timeline.tracks.values().any(|track| track.caps.is_effect_scope());
+            timeline.world.tracks.values().any(|track| track.caps.is_effect_scope());
         timeline.refresh_blend_used();
         timeline.refresh_camera_used();
-        timeline.resolve_root_ids();
+        // Resolve any hierarchy link whose child track was created by a path
+        // that bypassed `World::spawn` (carry injection, direct inserts).
+        timeline.world.finish_hierarchy();
         timeline.resolve_audio_volume_envelopes();
 
         BuildReport::new(timeline, diagnostics)
-    }
-}
-
-fn synthesize_idle_tracks(timeline: &mut Timeline) {
-    use crate::timeline::TrackAccessor;
-    let duration_ms = ((timeline.duration_seconds() * 1000.0).round() as u64).max(3000);
-    for track in timeline.tracks.values_mut() {
-        if let Some(crate::timeline::property_engine::PropertyValue::String(idle_mode)) =
-            crate::timeline::read_property_value(
-                track,
-                crate::timeline::ActorField::Tagged("idle"),
-                0,
-            )
-        {
-            let period_ms: u64 = 3000;
-            let num_cycles = duration_ms.div_ceil(period_ms);
-            match idle_mode.as_str() {
-                "float" => {
-                    let base_offset = track.geometry.motion_offset.get(0, [0.0, 0.0]);
-                    let mot = track.geometry.motion_offset.ensure(base_offset);
-                    for c in 0..num_cycles {
-                        let t0 = c * period_ms;
-                        mot.add_keyframe(t0, base_offset, crate::timeline::Easing::EaseInOut);
-                        mot.add_keyframe(
-                            t0 + 750,
-                            [base_offset[0], base_offset[1] - 6.0],
-                            crate::timeline::Easing::EaseInOut,
-                        );
-                        mot.add_keyframe(
-                            t0 + 1500,
-                            base_offset,
-                            crate::timeline::Easing::EaseInOut,
-                        );
-                        mot.add_keyframe(
-                            t0 + 2250,
-                            [base_offset[0], base_offset[1] + 6.0],
-                            crate::timeline::Easing::EaseInOut,
-                        );
-                        mot.add_keyframe(
-                            t0 + 3000,
-                            base_offset,
-                            crate::timeline::Easing::EaseInOut,
-                        );
-                    }
-                },
-                "breath" => {
-                    let base_scale = track.geometry.scale.get(0, 1.0);
-                    let peak_scale = base_scale * 1.03;
-                    let sc = track.geometry.scale.ensure(base_scale);
-                    for c in 0..num_cycles {
-                        let t0 = c * period_ms;
-                        sc.add_keyframe(t0, base_scale, crate::timeline::Easing::EaseInOut);
-                        sc.add_keyframe(t0 + 1500, peak_scale, crate::timeline::Easing::EaseInOut);
-                        sc.add_keyframe(t0 + 3000, base_scale, crate::timeline::Easing::EaseInOut);
-                    }
-                },
-                _ => {},
-            }
-        }
-    }
-}
-
-fn seed_namespace_exports(
-    timeline: &mut Timeline,
-    diagnostics: &mut Vec<Diagnostic>,
-    prefix: &str,
-    namespace: &crate::module::Namespace,
-) {
-    for (name, expr) in &namespace.exports {
-        let key = format!("{prefix}.{name}");
-        match evaluate_expr(expr, &timeline.env) {
-            Ok(value) => {
-                timeline.env.set(&key, value);
-            },
-            Err(e) => {
-                diagnostics.push(
-                    Diagnostic::error(
-                        DiagnosticCode::ModuleExportEvalError,
-                        DiagnosticPhase::Build,
-                        format!("Failed to evaluate export '{key}': {e}; using default."),
-                    )
-                    .with_subject(&key),
-                );
-            },
-        }
-    }
-
-    for (alias, nested) in &namespace.namespaces {
-        seed_namespace_exports(timeline, diagnostics, &format!("{prefix}.{alias}"), nested);
     }
 }

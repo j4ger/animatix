@@ -26,8 +26,11 @@ impl Timeline {
         time_ms: f64,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let is_scope =
-            self.tracks.get(parent_label).is_some_and(|track| track.caps.is_effect_scope());
+        let is_scope = self
+            .world
+            .tracks
+            .get(parent_label)
+            .is_some_and(|track| track.caps.is_effect_scope());
         if !is_scope {
             diagnostics.push(
                 Diagnostic::error(
@@ -130,7 +133,7 @@ impl Timeline {
 
         // Re-borrow the parent mutably only now: `lower_effect_stage` read the
         // parent above, and the stage may need environment lookups in between.
-        if let Some(parent) = self.tracks.get_mut(parent_label) {
+        if let Some(parent) = self.world.tracks.get_mut(parent_label) {
             parent.effects.stages.push(stage);
         }
     }

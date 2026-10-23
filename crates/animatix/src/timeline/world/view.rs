@@ -1,0 +1,120 @@
+//! Read/write views over one entity.
+//!
+//! `EntityRef` and `EntityMut` are the only entity access surface outside
+//! `world/`. Domain accessors are added as each domain migrates: while a
+//! domain still lives on the transitional `AnimationTrack`, the accessor
+//! forwards to it; when the domain moves to a component store, only the
+//! accessor changes. Call sites adopt the accessor once and do not churn again.
+
+use super::super::dispatch::AnimationTrack;
+use super::super::entity::EntityId;
+use super::World;
+
+/// Borrowed read-only view of one entity.
+#[derive(Clone, Copy, Debug)]
+pub struct EntityRef<'w> {
+    world: &'w World,
+    id: EntityId,
+}
+
+impl<'w> EntityRef<'w> {
+    #[inline(always)]
+    pub(crate) fn new(world: &'w World, id: EntityId) -> Self {
+        Self { world, id }
+    }
+
+    /// The entity handle.
+    #[inline(always)]
+    pub fn id(self) -> EntityId {
+        self.id
+    }
+
+    /// The entity's label (empty only if the handle is stale, which cannot
+    /// happen for a view produced by `World`).
+    #[inline(always)]
+    pub fn label(self) -> &'w str {
+        self.world.tracks.get_label(self.id).unwrap_or("")
+    }
+
+    /// The transitional aggregate track.
+    ///
+    /// Migration-only: call sites should use the domain accessors. Removed
+    /// with `AnimationTrack` in Phase 6.
+    #[inline(always)]
+    pub fn track(self) -> &'w AnimationTrack {
+        self.world
+            .tracks
+            .get_by_id(self.id)
+            .expect("EntityRef is only constructed for an existing entity")
+    }
+
+    /// The entity's parent/children links.
+    #[inline(always)]
+    pub fn hierarchy(self) -> &'w super::SceneHierarchyComponent {
+        self.world.hierarchy.get(self.id)
+    }
+}
+
+/// Borrowed mutable view of one entity.
+///
+/// Methods take `&mut self` and hand out one component borrow at a time; code
+/// that needs two components mutably at once uses the narrow split helpers on
+/// `World` instead of nesting these borrows.
+#[derive(Debug)]
+pub struct EntityMut<'w> {
+    world: &'w mut World,
+    id: EntityId,
+}
+
+impl<'w> EntityMut<'w> {
+    #[inline(always)]
+    pub(crate) fn new(world: &'w mut World, id: EntityId) -> Self {
+        Self { world, id }
+    }
+
+    /// The entity handle.
+    #[inline(always)]
+    pub fn id(&self) -> EntityId {
+        self.id
+    }
+
+    /// The entity's label.
+    #[inline(always)]
+    pub fn label(&self) -> &str {
+        self.world.tracks.get_label(self.id).unwrap_or("")
+    }
+
+    /// The transitional aggregate track (read-only).
+    ///
+    /// Migration-only: removed with `AnimationTrack` in Phase 6.
+    #[inline(always)]
+    pub fn track(&self) -> &AnimationTrack {
+        self.world
+            .tracks
+            .get_by_id(self.id)
+            .expect("EntityMut is only constructed for an existing entity")
+    }
+
+    /// The transitional aggregate track (mutable).
+    ///
+    /// Migration-only: removed with `AnimationTrack` in Phase 6.
+    #[inline(always)]
+    pub fn track_mut(&mut self) -> &mut AnimationTrack {
+        self.world
+            .tracks
+            .get_by_id_mut(self.id)
+            .expect("EntityMut is only constructed for an existing entity")
+    }
+
+    /// The entity's parent/children links.
+    #[inline(always)]
+    pub fn hierarchy(&self) -> &super::SceneHierarchyComponent {
+        self.world.hierarchy.get(self.id)
+    }
+
+    /// Mutably borrow the entity's parent/children links.
+    #[inline(always)]
+    pub fn hierarchy_mut(&mut self) -> &mut super::SceneHierarchyComponent {
+        self.world.hierarchy.get_mut(self.id)
+    }
+}

@@ -193,7 +193,7 @@ impl Timeline {
         let mut positions: Vec<Option<[f64; 2]>> = Vec::with_capacity(n);
         for stmt in body {
             let pos_opt = Self::statement_target_actor(stmt).and_then(|label| {
-                self.tracks.get(&label).map(|track| {
+                self.world.tracks.get(&label).map(|track| {
                     let pos = track.geometry.position.get(time_ms as u64, [0.0, 0.0]);
                     let size = track.geometry.size.get(time_ms as u64, [0.0, 0.0]);
                     [
