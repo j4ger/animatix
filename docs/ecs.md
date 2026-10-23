@@ -227,6 +227,15 @@ cross-scene carry, not for runtime storage.
 | P6 | delete `AnimationTrack`/`TrackStore`, migrate GUI, snapshot DTO | pending |
 | P7 | perf + full gate matrix + docs close-out | pending |
 
+**Tier-migration prerequisite.** `TrackFieldRef` / `TrackFieldMut` in
+`timeline/dispatch.rs` assume every registry-backed property lives on
+`AnimationTrack`, and `read_property_value` / `write_property_field` reach them
+without a `World`. `highlight`, `text`, `shape`, `style`, `geometry` and
+`tagged_tracks` therefore cannot move until the property read/write path takes a
+component context (or a `World` + `EntityId`). `legend`, `effects` and `payload`
+are outside that table and migrate first; `payload` still needs a render/evaluate
+context field for the image/SVG/plot primitives.
+
 ## 7. Adding a component
 
 1. Define `pub struct XComponent` in `timeline/components/<domain>.rs`
