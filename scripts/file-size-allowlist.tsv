@@ -12,7 +12,6 @@ crates/animatix/src/timeline/declarations_text.rs	819	legacy oversized file	P6
 crates/animatix-std/src/catalog.rs	822	legacy oversized file	P6
 crates/animatix-syntax/src/parser/stmt.rs	884	legacy oversized file	P2
 crates/animatix-syntax/src/semantic_diagnostics.rs	872	legacy oversized file	P2
-crates/animatix-syntax/src/token.rs	848	legacy oversized file	P2
 crates/eparts/src/widget/toggle.rs	807	legacy oversized file	P2
 web/embed/src/amx-player.js	1985	legacy oversized file	P6
 web/site.css	2825	legacy oversized file	P6
