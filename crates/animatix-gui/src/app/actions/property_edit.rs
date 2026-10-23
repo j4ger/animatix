@@ -9,6 +9,7 @@ use super::*;
 /// `evaluate()` immediately sees the new value.
 pub(super) fn apply_property_edit_to_track(
     track: &mut animatix::timeline::AnimationTrack,
+    effects: Option<&mut animatix::timeline::effects::EffectChainTrack>,
     legend: Option<&mut animatix::timeline::LegendTracks>,
     property: &str,
     value: &panels::PropertyValue,
@@ -22,8 +23,10 @@ pub(super) fn apply_property_edit_to_track(
 
     // `scope.stage.param` edits address the scope's effect chain.
     if let Some((stage, param)) = property.split_once('.') {
-        if track.effects.write_param(stage, param, value.clone(), time_ms, time_ms, linear) {
-            return;
+        if let Some(effects) = effects {
+            if effects.write_param(stage, param, value.clone(), time_ms, time_ms, linear) {
+                return;
+            }
         }
     }
 

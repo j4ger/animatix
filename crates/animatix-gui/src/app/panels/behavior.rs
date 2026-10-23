@@ -154,7 +154,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                             let scene = comp.scenes.get(name)?;
                             let mut times: Vec<f64> = scene.timeline.tracks().values()
                                 .flat_map(|track| {
-                                    crate::app::document::timeline_diff::collect_actor_keyframes(track)
+                                    crate::app::document::timeline_diff::collect_actor_keyframes(track, None)
                                         .into_iter()
                                         .map(|(ms, _)| ms as f64 / 1000.0)
                                 })

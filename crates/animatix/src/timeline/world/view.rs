@@ -11,6 +11,7 @@ use super::super::components::{
     TranscriptComponent,
 };
 use super::super::dispatch::AnimationTrack;
+use super::super::effects::EffectChainTrack;
 use super::super::entity::EntityId;
 use super::super::legend::LegendTracks;
 use super::super::types::ContainerMetadata;
@@ -101,6 +102,12 @@ impl<'w> EntityRef<'w> {
     #[inline(always)]
     pub fn legend(self) -> Option<&'w LegendTracks> {
         self.world.legend.get(self.id)
+    }
+
+    /// The entity's post-processing effect chain, when it is a scope.
+    #[inline(always)]
+    pub fn effects(self) -> Option<&'w EffectChainTrack> {
+        self.world.effects.get(self.id)
     }
 }
 
@@ -209,5 +216,11 @@ impl<'w> EntityMut<'w> {
     #[inline(always)]
     pub fn legend_mut(&mut self) -> Option<&mut LegendTracks> {
         self.world.legend.get_mut(self.id)
+    }
+
+    /// Mutably borrow the entity's post-processing effect chain, if present.
+    #[inline(always)]
+    pub fn effects_mut(&mut self) -> Option<&mut EffectChainTrack> {
+        self.world.effects.get_mut(self.id)
     }
 }

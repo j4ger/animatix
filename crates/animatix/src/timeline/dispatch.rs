@@ -152,10 +152,6 @@ pub struct AnimationTrack {
     /// Style property tracks (color, opacity, stroke, line_cap, line_join, morph_options).
     pub style: StyleTracks,
 
-    // ── Effects tier ──
-    /// Effect chain for compositing scopes; empty for non-scope actors.
-    pub effects: crate::timeline::effects::EffectChainTrack,
-
     // ── Primitive-specific payload ──
     /// Modular primitive payload (plots, SVG assets, raster images, custom plugin extensions).
     pub payload: crate::primitives::PrimitivePayload,
@@ -213,7 +209,6 @@ impl AnimationTrack {
             // Style tier (sub-struct)
             style: StyleTracks::default(),
 
-            effects: crate::timeline::effects::EffectChainTrack::default(),
             payload: crate::primitives::PrimitivePayload::None,
 
             // Shape tier (sub-struct)
@@ -887,10 +882,6 @@ impl AnimationTrack {
         for bt in self.bar_data_transitions() {
             max = Some(max.map_or(bt.end_ms, |m| m.max(bt.end_ms)));
         }
-        // Effect chain parameters.
-        if let Some(t) = self.effects.max_keyframe_time() {
-            max = Some(max.map_or(t, |m| m.max(t)));
-        }
         max
     }
 
@@ -910,7 +901,6 @@ impl AnimationTrack {
             || self.property_plan.has_any_keyframes()
             || !self.func_transitions().is_empty()
             || !self.bar_data_transitions().is_empty()
-            || self.effects.has_any_keyframes()
     }
 }
 

@@ -884,7 +884,7 @@ impl DocumentController<'_> {
             else {
                 return false;
             };
-            crate::app::document::timeline_diff::collect_per_property_keyframes(track)
+            crate::app::document::timeline_diff::collect_per_property_keyframes(track, None)
                 .into_iter()
                 .any(|(property, times)| {
                     property == keyframe.property && times.contains(&keyframe.time_ms)

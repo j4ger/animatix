@@ -219,7 +219,10 @@ pub use crate::primitives::primitive_info_by_name;
 /// Collect all keyframe times (in seconds) across all property tracks of an
 /// `AnimationTrack`, using the property registry to discover all possible fields.
 /// Used by the GUI to show keyframe markers on the mini timeline and time lens.
-pub fn collect_all_keyframe_times(track: &AnimationTrack) -> Vec<f64> {
+pub fn collect_all_keyframe_times(
+    track: &AnimationTrack,
+    effects: Option<&crate::timeline::effects::EffectChainTrack>,
+) -> Vec<f64> {
     let indices = property_registry::allowed_property_indices(&track.caps, &track.actor_type);
     let mut times = std::collections::BTreeSet::new();
 
@@ -231,8 +234,10 @@ pub fn collect_all_keyframe_times(track: &AnimationTrack) -> Vec<f64> {
     }
 
     // Effect chain parameters live outside the property registry.
-    for t in track.effects.keyframe_times() {
-        times.insert(t);
+    if let Some(effects) = effects {
+        for t in effects.keyframe_times() {
+            times.insert(t);
+        }
     }
 
     times.into_iter().map(|ms| ms as f64 / 1000.0).collect()
@@ -794,6 +799,14 @@ impl Timeline {
             .max(self.background_color.max_keyframe_time_ms())
             .max(
                 self.world
+                    .effects
+                    .iter()
+                    .filter_map(|(_, chain)| chain.max_keyframe_time())
+                    .max()
+                    .unwrap_or(0),
+            )
+            .max(
+                self.world
                     .child_order
                     .iter()
                     .map(|(_, component)| component.track.max_keyframe_time_ms())
@@ -880,7 +893,7 @@ impl Timeline {
         let mut times_ms: BTreeSet<u64> = BTreeSet::new();
         for track in self.world.tracks.values() {
             // Registry-driven: covers all applicable fields for this actor kind
-            for &time_s in collect_all_keyframe_times(track).iter() {
+            for &time_s in collect_all_keyframe_times(track, self.world.effects(track.id)).iter() {
                 let ms = (time_s * 1000.0) as u64;
                 times_ms.insert(ms);
             }
@@ -1765,6 +1778,7 @@ impl Timeline {
         };
         if track.caps.time_dependent
             || self.world.transcript.contains(track.id)
+            || self.world.effects(track.id).is_some_and(|chain| chain.has_any_keyframes())
             || track.has_any_keyframes()
             || track.procedural_plot().is_some()
             || track.shape.from_anchor.is_some()

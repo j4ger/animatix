@@ -48,7 +48,11 @@ impl Timeline {
         // the panel, so painting it over later siblings is the documented
         // behaviour, not an ordering bug. Honouring the flag here silently
         // disabled every glass panel that was not the scene's last root actor.
-        let chain = track.effects.build_chain(time_ms);
+        let chain = self
+            .world
+            .effects(track.id)
+            .map(|effects| effects.build_chain(time_ms))
+            .unwrap_or_default();
         let has_backend = out.filter_backend.is_some();
         if chain.is_empty() || !has_backend {
             if !has_backend && !chain.is_empty() {
@@ -117,9 +121,15 @@ impl Timeline {
         // The blur needs source pixels from outside the panel, or its edges smear
         // against the region border; the composite is clipped back to the panel,
         // so the extra margin is never painted.
-        let region =
-            Self::region_from_rect(panel, track.effects.worst_case_support(), scene_dimensions)
-                .unwrap_or(full);
+        let region = Self::region_from_rect(
+            panel,
+            self.world
+                .effects(track.id)
+                .map(|effects| effects.worst_case_support())
+                .unwrap_or(0.0),
+            scene_dimensions,
+        )
+        .unwrap_or(full);
 
         let mut sub_scene = vello::Scene::new();
         out.with_scene(&mut sub_scene, |out| {

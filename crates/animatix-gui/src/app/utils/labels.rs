@@ -31,8 +31,9 @@ pub fn unique_effect_label(
 ) -> String {
     let base = ty.to_lowercase();
     let existing: HashSet<&str> = timeline
-        .and_then(|t| t.tracks().get(scope))
-        .map(|track| track.effects.stages.iter().map(|stage| stage.label.as_str()).collect())
+        .and_then(|t| t.entity(scope))
+        .and_then(|entity| entity.effects())
+        .map(|effects| effects.stages.iter().map(|stage| stage.label.as_str()).collect())
         .unwrap_or_default();
     for i in 1.. {
         let candidate = format!("{}{}", base, i);

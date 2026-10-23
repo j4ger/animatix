@@ -899,6 +899,7 @@ pub(crate) fn render_action_blocks(
 pub(crate) fn render_empty_property_lane(
     ui: &mut egui::Ui,
     track: &animatix::timeline::AnimationTrack,
+    effects: Option<&animatix::timeline::effects::EffectChainTrack>,
     actor_label: &str,
     prop_name: &str,
     track_idx: usize,
@@ -942,9 +943,8 @@ pub(crate) fn render_empty_property_lane(
     );
     if add_resp.clicked() {
         if prop_name.contains('.') {
-            let value = track
-                .effects
-                .sample_lane(prop_name, (playhead_s * 1000.0) as u64)
+            let value = effects
+                .and_then(|effects| effects.sample_lane(prop_name, (playhead_s * 1000.0) as u64))
                 .unwrap_or(animatix::timeline::PropertyValue::F32(0.0));
             commands.push_back(
                 DocumentCommand::PropertyEdit(PropertyEdit {

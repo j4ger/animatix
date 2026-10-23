@@ -105,7 +105,7 @@ pub(crate) fn emit_keyframe_moves(commands: &mut ActionQueue, drag: Option<&KfDr
 pub(crate) fn collect_actor_keyframe_groups(track: &AnimationTrack) -> Vec<(u64, Vec<String>)> {
     let mut by_time: std::collections::BTreeMap<u64, Vec<String>> =
         std::collections::BTreeMap::new();
-    for (property, times) in collect_per_property_keyframes(track) {
+    for (property, times) in collect_per_property_keyframes(track, None) {
         for time_ms in times {
             by_time.entry(time_ms).or_default().push(property.clone());
         }

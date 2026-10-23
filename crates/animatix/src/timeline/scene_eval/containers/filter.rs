@@ -83,7 +83,11 @@ impl Timeline {
 
         // Effects are lowered onto the scope's chain at build time; identity
         // and disabled stages are dropped during sampling.
-        let chain = track.effects.build_chain(time_ms);
+        let chain = self
+            .world
+            .effects(track.id)
+            .map(|effects| effects.build_chain(time_ms))
+            .unwrap_or_default();
 
         if chain.is_empty() {
             out.scene.encoding_mut().append(sub_scene.encoding(), &None);
@@ -121,7 +125,10 @@ impl Timeline {
                 content.and_then(|rect| {
                     Self::region_from_rect(
                         rect,
-                        track.effects.worst_case_support(),
+                        self.world
+                            .effects(track.id)
+                            .map(|effects| effects.worst_case_support())
+                            .unwrap_or(0.0),
                         scene_dimensions,
                     )
                 })

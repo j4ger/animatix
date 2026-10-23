@@ -489,10 +489,10 @@ bg: Filter {
 "#,
     );
     let scope = timeline.world.tracks.get("bg").expect("filter scope");
-    assert_eq!(scope.effects.stages.len(), 1);
-    assert_eq!(scope.effects.stages[0].label, "soft");
+    assert_eq!(timeline.world.effects(scope.id).expect("effects").stages.len(), 1);
+    assert_eq!(timeline.world.effects(scope.id).expect("effects").stages[0].label, "soft");
 
-    let chain = scope.effects.build_chain(0);
+    let chain = timeline.world.effects(scope.id).expect("effects").build_chain(0);
     assert_eq!(chain.instances.len(), 1);
     assert_eq!(chain.instances[0].id.as_str(), "Blur");
     assert_eq!(chain.instances[0].params.f32_at(0), 10.0);
@@ -517,8 +517,18 @@ bg.soft.radius = 16 [1s]
 "#,
     );
     let scope = timeline.world.tracks.get("bg").expect("filter scope");
-    assert_eq!(scope.effects.build_chain(0).instances[0].params.f32_at(0), 4.0);
-    assert_eq!(scope.effects.build_chain(2000).instances[0].params.f32_at(0), 16.0);
+    assert_eq!(
+        timeline.world.effects(scope.id).expect("effects").build_chain(0).instances[0]
+            .params
+            .f32_at(0),
+        4.0
+    );
+    assert_eq!(
+        timeline.world.effects(scope.id).expect("effects").build_chain(2000).instances[0]
+            .params
+            .f32_at(0),
+        16.0
+    );
 }
 
 /// An effect declared outside a `Filter` scope reports a build diagnostic.
@@ -561,7 +571,7 @@ bg: Filter, bounds: (40, 30, 120, 80) {
 "#,
     );
     let scope = timeline.world.tracks.get("bg").expect("filter scope");
-    assert!(!scope.effects.build_chain(0).is_empty());
+    assert!(!timeline.world.effects(scope.id).expect("effects").build_chain(0).is_empty());
 
     let (width, height) = timeline.resolution().expect("configured resolution");
     let region = timeline
@@ -689,10 +699,10 @@ bg: Filter {
 "#,
     );
     let scope = timeline.world.tracks.get("bg").expect("filter scope");
-    assert_eq!(scope.effects.stages.len(), 1);
-    assert_eq!(scope.effects.stages[0].label, "fx");
+    assert_eq!(timeline.world.effects(scope.id).expect("effects").stages.len(), 1);
+    assert_eq!(timeline.world.effects(scope.id).expect("effects").stages[0].label, "fx");
 
-    let chain = scope.effects.build_chain(0);
+    let chain = timeline.world.effects(scope.id).expect("effects").build_chain(0);
     assert_eq!(chain.instances.len(), 1);
     assert_eq!(chain.instances[0].id.as_str(), "MockPixelate");
     assert_eq!(chain.instances[0].params.f32_at(0), 8.0);

@@ -77,7 +77,7 @@ icon.url = "{}" [1s]
     assert!(property_has_keyframe_at(track, ActorField::ImageData, 1000));
     assert_eq!(property_keyframe_count(track, ActorField::ImageData), 2);
 
-    let collected = collect_all_keyframe_times(track);
+    let collected = collect_all_keyframe_times(track, None);
     assert!(collected.iter().any(|t| (*t - 1.0).abs() < 0.001));
     assert!(collected.iter().any(|t| (*t - 2.0).abs() < 0.001));
 }

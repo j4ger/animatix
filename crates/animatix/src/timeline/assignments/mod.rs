@@ -160,7 +160,12 @@ impl Timeline {
                 .tracks
                 .iter()
                 .filter(|(_, track)| track.caps.is_effect_scope())
-                .filter(|(_, track)| track.effects.stage(stage_label).is_some())
+                .filter(|(_, track)| {
+                    self.world
+                        .effects(track.id)
+                        .and_then(|chain| chain.stage(stage_label))
+                        .is_some()
+                })
                 .map(|(label, _)| label.clone())
                 .collect();
             if owners.len() > 1 {
@@ -183,7 +188,8 @@ impl Timeline {
                     .world
                     .tracks
                     .get(&scope_label)
-                    .and_then(|track| track.effects.stage(stage_label))
+                    .and_then(|track| self.world.effects(track.id))
+                    .and_then(|chain| chain.stage(stage_label))
                     .map(|stage| stage.kind.clone());
                 if let Some(kind) = stage_kind {
                     write_effect_stage_param(
@@ -213,7 +219,8 @@ impl Timeline {
                 .tracks
                 .get(scope_label)
                 .filter(|track| track.caps.is_effect_scope())
-                .and_then(|track| track.effects.stage(stage_label))
+                .and_then(|track| self.world.effects(track.id))
+                .and_then(|chain| chain.stage(stage_label))
                 .map(|stage| stage.kind.clone());
             if let Some(kind) = stage_kind {
                 write_effect_stage_param(

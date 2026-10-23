@@ -70,7 +70,10 @@ impl Timeline {
         };
         Self::region_from_rect(
             camera.transform_rect_bbox(rect),
-            track.effects.worst_case_support(),
+            self.world
+                .effects(track.id)
+                .map(|effects| effects.worst_case_support())
+                .unwrap_or(0.0),
             scene_dimensions,
         )
     }

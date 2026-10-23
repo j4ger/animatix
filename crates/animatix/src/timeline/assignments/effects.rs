@@ -71,10 +71,10 @@ pub(super) fn write_effect_stage_param(
         }
     };
 
-    let Some(scope) = timeline.world.tracks.get_mut(scope_label) else {
+    let Some(scope_id) = timeline.world.get_id(scope_label) else {
         return;
     };
-    let Some(stage) = scope.effects.stage_mut(stage_label) else {
+    let Some(stage) = timeline.world.ensure_effects(scope_id).stage_mut(stage_label) else {
         return;
     };
     let track = if is_enabled {

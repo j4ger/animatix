@@ -268,3 +268,31 @@ fn child_order_ids_follow_labels() {
     assert!(timeline.get_child_order("ghost", 0).is_empty());
     assert!(timeline.get_child_order_ids("ghost", 0).is_empty());
 }
+
+#[test]
+fn effects_component_roundtrip() {
+    use crate::timeline::effects::{EffectId, EffectParamKind, EffectStage};
+
+    let mut timeline = Timeline::new();
+    let scope = timeline.spawn_entity("scope", "Filter");
+    assert!(timeline.entity("scope").expect("scope").effects().is_none());
+
+    let mut stage = EffectStage::new("soft".to_string(), EffectId::new("Blur"));
+    stage
+        .param_track_mut("radius", EffectParamKind::F32)
+        .add_keyframe(500, crate::timeline::property_engine::PropertyValue::F32(8.0));
+    timeline.world.ensure_effects(scope).stages.push(stage);
+
+    let effects = timeline.entity("scope").expect("scope").effects().expect("effects");
+    assert_eq!(effects.stages.len(), 1);
+    assert_eq!(effects.stages[0].label, "soft");
+    assert_eq!(timeline.world.effects(scope).expect("effects").stages.len(), 1);
+    // The effect parameter is part of the actor's duration.
+    assert_eq!(timeline.duration_seconds(), 0.5);
+
+    // Replacement (carry injection path) clears the optional component.
+    timeline
+        .world
+        .spawn_replacing("scope", AnimationTrack::new("scope".to_string(), "Filter"));
+    assert!(timeline.entity("scope").expect("scope").effects().is_none());
+}

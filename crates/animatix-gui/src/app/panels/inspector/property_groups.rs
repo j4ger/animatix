@@ -8,6 +8,7 @@ use egui::{Color32, Stroke, Vec2};
 use eparts::widget::{Select, UiExt, color_to_hex_rgba};
 use eparts::{Checkbox, NumberField, Slider, TextField};
 
+use super::property_groups_legend::legend_style_entries;
 use crate::app::commands::{
     ActionQueue, DocumentCommand, DragEvent, KeyframeCommand, PropertyEdit,
     PropertyValue as GuiPropertyValue, ShellAction,
@@ -89,7 +90,11 @@ pub(crate) fn build_property_groups(
     let mut visibility = Vec::new();
     let mut legend_props = Vec::new();
     let legend = timeline.entity(&track.label).and_then(|entity| entity.legend());
-
+    let effects = timeline
+        .entity(&track.label)
+        .and_then(|entity| entity.effects())
+        .cloned()
+        .unwrap_or_default();
     for &idx in &indices {
         let schema = &PROPERTY_REGISTRY[idx];
         // Skip group-resolution fields and build-time-only properties
@@ -367,7 +372,7 @@ pub(crate) fn build_property_groups(
     // Effect stages on a compositing scope. Entry names are `stage.param`;
     // the property-edit handler routes the dotted form to the effect chain.
     let mut effect_props = Vec::new();
-    for stage in &track.effects.stages {
+    for stage in &effects.stages {
         let Some(effect) = animatix::timeline::effects::effect(&stage.kind) else {
             continue;
         };
@@ -511,40 +516,6 @@ fn legend_participation_entry(
         has_keyframes: false,
         has_keyframe_at_current_time: false,
         keyframe_count: 0,
-    }
-}
-
-fn legend_style_entries(legend: Option<&animatix::timeline::LegendTracks>) -> Vec<PropertyEntry> {
-    fn entry(name: &str, kind: PropertyKind) -> PropertyEntry {
-        PropertyEntry {
-            name: name.to_string(),
-            kind,
-            has_keyframes: false,
-            has_keyframe_at_current_time: false,
-            keyframe_count: 0,
-        }
-    }
-    let legend = legend.cloned().unwrap_or_default();
-    let label_color = legend.label_color.map(color_display).unwrap_or_else(|| "auto".to_string());
-    vec![
-        entry("title", PropertyKind::Text(legend.title.clone())),
-        entry("font_size", PropertyKind::Float(legend.font_size)),
-        entry("label_color", PropertyKind::Text(label_color)),
-        entry("swatch_size", PropertyKind::Float(legend.swatch_size)),
-        entry("gap", PropertyKind::Float(legend.gap)),
-        entry("text_max_width", PropertyKind::Float(legend.text_max_width)),
-    ]
-}
-
-fn color_display(color: [f32; 4]) -> String {
-    let r = (color[0] * 255.0).round() as u8;
-    let g = (color[1] * 255.0).round() as u8;
-    let b = (color[2] * 255.0).round() as u8;
-    let a = color[3];
-    if a >= 0.999 {
-        format!("#{r:02x}{g:02x}{b:02x}")
-    } else {
-        format!("rgba({r},{g},{b},{a:.2})")
     }
 }
 

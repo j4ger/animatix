@@ -284,9 +284,12 @@ impl GuiShell {
                 let time_ms =
                     (edit.time_s.unwrap_or(self.preview_store.preview.playback.current_time_s())
                         * 1000.0) as u64;
-                if let Some((track, legend)) = timeline.world_mut().track_and_legend_mut(id) {
+                if let Some((track, effects, legend)) =
+                    timeline.world_mut().track_effects_and_legend_mut(id)
+                {
                     apply_property_edit_to_track(
                         track,
+                        Some(effects),
                         Some(legend),
                         &edit.property,
                         &edit.value,
@@ -593,7 +596,7 @@ mod tests {
     #[test]
     fn gui_tagged_edit_is_visible_through_property_plan() {
         let mut track = AnimationTrack::new("box".into(), "Rect");
-        apply_property_edit_to_track(&mut track, None, "solo", &PV::Bool(true), 1000);
+        apply_property_edit_to_track(&mut track, None, None, "solo", &PV::Bool(true), 1000);
 
         assert_eq!(
             read_property_value(&track, ActorField::Tagged("solo"), 1000),

@@ -28,6 +28,7 @@ use crate::easing::Easing;
 use crate::timeline::animation_track::{
     GeometryTracks, HighlightTracks, ShapeTracks, StyleTracks, TextTracks,
 };
+use crate::timeline::effects::EffectChainTrack;
 use crate::timeline::property_track::{PropertyTrack, TrackAccessor};
 use crate::timeline::{
     AnimationTrack, ContainerMetadata, CoordinateFrameComponent, PlacementMode, PositionBinding,
@@ -89,6 +90,9 @@ pub struct CarryEntry {
     /// actor keeps word timings that its destination scene never declares.
     #[cfg_attr(feature = "serde", serde(default))]
     pub transcript: Option<SpeechTranscript>,
+    /// Post-processing effect chain snapshot for a compositing scope.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub effects: Option<EffectChainTrack>,
     /// Coordinate frame of a plot host (a `Graph` and any `plot_host`
     /// primitive), if the actor has one.
     ///
@@ -134,6 +138,7 @@ fn collect_persistent_entries(
         tracing::warn!("Skipping persistent entry for missing track '{}'", label);
         return;
     };
+    let effects = timeline.world.effects(track.id).map(|chain| snapshot_effects(chain, time_ms));
     let track = snapshot_track_at(track, time_ms);
 
     entries.insert(
@@ -146,6 +151,7 @@ fn collect_persistent_entries(
             container_layout: timeline.container_layout(label).cloned(),
             transcript: timeline.transcript(label).cloned(),
             coordinate_frame: timeline.coordinate_frame_for(label).cloned(),
+            effects,
         },
     );
 }
@@ -290,6 +296,9 @@ fn inject_entry(
     // the label's entity id and resets its hierarchy component, matching the
     // old `TrackStore::insert` replacement semantics.
     let id = dest.world.spawn_replacing(label, track);
+    if let Some(effects) = entry.effects.clone() {
+        dest.world.effects.insert(id, effects);
+    }
 
     // Re-root top-level entries only. `adopt` already placed the entity in the
     // root set; the call makes the intent explicit and keeps the ordering rule
@@ -456,14 +465,17 @@ pub fn snapshot_track_at(track: &AnimationTrack, time_ms: u64) -> AnimationTrack
         collapse_dyn_track(&mut slot.track, time_ms);
     }
 
-    // Collapse effect chain parameters, which are `DynTrack`-backed.
-    for stage in snapshot.effects.stages.iter_mut() {
+    snapshot
+}
+
+fn snapshot_effects(chain: &EffectChainTrack, time_ms: u64) -> EffectChainTrack {
+    let mut snapshot = chain.clone();
+    for stage in snapshot.stages.iter_mut() {
         for param in stage.params.values_mut() {
             collapse_dyn_track(param, time_ms);
         }
         collapse_dyn_track(&mut stage.enabled, time_ms);
     }
-
     snapshot
 }
 

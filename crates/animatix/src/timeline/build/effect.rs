@@ -133,8 +133,8 @@ impl Timeline {
 
         // Re-borrow the parent mutably only now: `lower_effect_stage` read the
         // parent above, and the stage may need environment lookups in between.
-        if let Some(parent) = self.world.tracks.get_mut(parent_label) {
-            parent.effects.stages.push(stage);
+        if let Some(parent_id) = self.world.get_id(parent_label) {
+            self.world.ensure_effects(parent_id).stages.push(stage);
         }
     }
 }

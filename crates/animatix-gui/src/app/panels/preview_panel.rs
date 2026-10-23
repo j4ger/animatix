@@ -39,14 +39,11 @@ fn presentation_hud_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui, canvas_r
         egui::vec2(hud_width, hud_height),
     );
 
-    // Elevated shadow
     ui.painter()
         .add(theme.elevation.overlay.as_shape(hud_rect, egui::CornerRadius::same(18)));
 
-    // Obsidian glassmorphic pill background
     ui.painter().rect_filled(hud_rect, 18.0, theme.palette.overlay.floating_hud_bg);
 
-    // Border
     ui.painter().rect_stroke(
         hud_rect,
         18.0,
@@ -826,7 +823,12 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                                 .root_entities()
                                 .iter()
                                 .filter_map(|&id| tl.get_track_by_id(id))
-                                .flat_map(animatix::timeline::collect_all_keyframe_times)
+                                .flat_map(|track| {
+                                    animatix::timeline::collect_all_keyframe_times(
+                                        track,
+                                        tl.world().effects(track.id),
+                                    )
+                                })
                                 .collect()
                         } else {
                             Vec::new()

@@ -21,6 +21,7 @@ use crate::app::utils::text as app_text;
 pub(crate) mod graph_editor;
 pub(crate) mod keyframe_table;
 pub(crate) mod property_groups;
+mod property_groups_legend;
 pub(crate) mod spreadsheet;
 
 use self::keyframe_table::{count_keyframes, render_dope_sheet};
@@ -792,7 +793,7 @@ pub(super) fn inspector_ui(
             // ── Mini Timeline ──
             layout::group_box(ui, format!("{} Timeline", egui_phosphor::regular::CLOCK), |ui| {
                 let duration_s = timeline.duration_seconds().max(0.1);
-                let all_kf = collect_all_keyframe_times(track);
+                let all_kf = collect_all_keyframe_times(track, timeline.world().effects(track.id));
                 let strip = timeline::TimelineStrip {
                     duration_s,
                     current_time_s,

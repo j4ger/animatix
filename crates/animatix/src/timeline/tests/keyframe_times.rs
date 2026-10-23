@@ -103,7 +103,7 @@ fn test_keyframe_times_s_includes_background_color() {
 #[test]
 fn test_keyframe_times_s_includes_effect_params() {
     let mut timeline = keyframe_times_s_timeline();
-    let mut track = AnimationTrack::placeholder("test".to_string());
+    let track = AnimationTrack::placeholder("test".to_string());
     let mut stage = crate::timeline::effects::EffectStage::new(
         "soft".to_string(),
         crate::timeline::effects::EffectId::new("Blur"),
@@ -111,8 +111,10 @@ fn test_keyframe_times_s_includes_effect_params() {
     stage
         .param_track_mut("radius", crate::timeline::effects::EffectParamKind::F32)
         .add_keyframe(500, crate::timeline::property_engine::PropertyValue::F32(8.0));
-    track.effects.stages.push(stage);
-    timeline.world.tracks.insert("test".to_string(), track);
+    let mut effects = crate::timeline::effects::EffectChainTrack::default();
+    effects.stages.push(stage);
+    let id = timeline.world.spawn_with_track("test", track);
+    timeline.world.effects.insert(id, effects);
     let times = timeline.keyframe_times_s();
     assert!(times.contains(&0.5), "Got: {:?}", times);
 }

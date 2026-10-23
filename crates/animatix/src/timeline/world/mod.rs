@@ -25,6 +25,7 @@ use super::components::{
     TranscriptComponent,
 };
 use super::dispatch::AnimationTrack;
+use super::effects::EffectChainTrack;
 use super::entity::{EntityId, TrackStore};
 use super::legend::LegendTracks;
 use super::types::ContainerMetadata;
@@ -66,6 +67,8 @@ pub struct World {
     /// color that makes it an automatic candidate. Presence is optional: an
     /// actor with no legend involvement has no component.
     pub(crate) legend: ComponentStore<LegendTracks>,
+    /// Post-processing effect chain for a compositing scope.
+    pub(crate) effects: ComponentStore<EffectChainTrack>,
     /// Root entities in authored/insertion order.
     pub(crate) roots: Vec<EntityId>,
     /// Build-time command buffer: a child label whose track has not been
@@ -143,6 +146,17 @@ impl World {
         let track = self.tracks.get_by_id_mut(id)?;
         let legend = self.legend.get_or_insert_with(id, LegendTracks::default);
         Some((track, legend))
+    }
+
+    /// Split borrow of the track, effect chain, and legend component.
+    pub fn track_effects_and_legend_mut(
+        &mut self,
+        id: EntityId,
+    ) -> Option<(&mut AnimationTrack, &mut EffectChainTrack, &mut LegendTracks)> {
+        let track = self.tracks.get_by_id_mut(id)?;
+        let effects = self.effects.get_or_insert_with(id, EffectChainTrack::default);
+        let legend = self.legend.get_or_insert_with(id, LegendTracks::default);
+        Some((track, effects, legend))
     }
 
     /// A read-only entity view.
@@ -239,6 +253,7 @@ impl World {
         self.persistence.reset_at(id);
         self.auto_color.reset_at(id);
         self.transcript.reset_at(id);
+        self.effects.reset_at(id);
         self.legend.reset_at(id);
         self.attach_pending_auto_color(id, label);
         self.adopt(id, label);
@@ -273,6 +288,23 @@ impl World {
     #[inline(always)]
     pub fn legend_mut(&mut self, id: EntityId) -> Option<&mut LegendTracks> {
         self.legend.get_mut(id)
+    }
+
+    /// Borrow an entity's effect chain, when present.
+    #[inline(always)]
+    pub fn effects(&self, id: EntityId) -> Option<&EffectChainTrack> {
+        self.effects.get(id)
+    }
+
+    /// Mutably borrow an entity's effect chain.
+    #[inline(always)]
+    pub fn effects_mut(&mut self, id: EntityId) -> Option<&mut EffectChainTrack> {
+        self.effects.get_mut(id)
+    }
+
+    /// Insert a default effect chain when absent and borrow it.
+    pub fn ensure_effects(&mut self, id: EntityId) -> &mut EffectChainTrack {
+        self.effects.get_or_insert_with(id, EffectChainTrack::default)
     }
 
     /// Ensure an entity has legend data and return it for a build/render write.
