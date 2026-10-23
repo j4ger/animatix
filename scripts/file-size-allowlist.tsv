@@ -35,7 +35,6 @@ crates/animatix-syntax/src/module/inline_actions.rs	1231	legacy oversized file	P
 crates/animatix-syntax/src/module/rewrite.rs	1031	legacy oversized file	P2
 crates/animatix-syntax/src/parser/stmt.rs	884	legacy oversized file	P2
 crates/animatix-syntax/src/semantic_diagnostics.rs	872	legacy oversized file	P2
-crates/animatix-syntax/src/symbol_table.rs	1309	legacy oversized file	P2
 crates/animatix-syntax/src/token.rs	848	legacy oversized file	P2
 crates/animatix-syntax/src/typing.rs	1151	legacy oversized file	P2
 crates/eparts/src/widget/list.rs	1077	legacy oversized file	P2
