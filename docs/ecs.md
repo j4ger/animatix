@@ -54,7 +54,7 @@ EntityId(u32) ── entities: EntityStore { meta: Vec<EntityMeta>, label maps }
                    ├── legend:       ComponentStore<LegendTracks>
                    ├── effects:      ComponentStore<EffectChainTrack>
                    ├── payload:      ComponentStore<PrimitivePayload>
-                   ├── container:    ComponentStore<ContainerLayoutComponent>
+                   ├── container_layout: ComponentStore<ContainerMetadata>
                    ├── coordinate:   ComponentStore<CoordinateFrameComponent>
                    ├── persistence:  ComponentStore<PersistenceComponent>
                    ├── auto_color:   ComponentStore<AutoColorComponent>
@@ -127,7 +127,7 @@ Rules:
 | `LegendTracks` | legend entries | optional |
 | `EffectChainTrack` | effect stages for Filter/Mask/Glass scopes | optional |
 | `PrimitivePayload` | Plot/Svg/Image payload | optional |
-| `ContainerLayoutComponent` | layout type/gap/padding/align/cols/child order (ids) | optional |
+| `ContainerMetadata` | layout type/gap/padding/align/cols/child order (labels) | optional containers |
 | `CoordinateFrameComponent` | domain/scale/padding/grid/ticks/tick labels | optional (plot hosts) |
 | `PersistenceComponent` | `persistent: bool` | optional |
 | `AutoColorComponent` | auto-color slot | optional |
@@ -199,6 +199,9 @@ cross-scene carry, not for runtime storage.
 - `snapshot_entity_at(world, id, time_ms)` samples every property track to a
   single t=0 keyframe (the old `snapshot_track_at` behaviour, extended to all
   components and `DynTrack` slots).
+- The container-layout component rides the carry bag as a whole
+  (`CarryEntry::container_layout`) rather than through the per-property
+  snapshot, so a re-rooted container keeps its layout in the successor scene.
 - `restore_entity` is two-pass: create every entity and component first, then
   link hierarchy / child order by label so ids are resolved once.
 - `CarryBag` stays label-keyed on the wire; `EntityId` is an in-memory handle
@@ -214,7 +217,7 @@ cross-scene carry, not for runtime storage.
 | P1 | `world/` stores, `EntityStore`, `EntityRef`/`EntityMut`, `Timeline.world` | done |
 | P2 | hierarchy + roots (bounds slots deferred to P5h) | done |
 | P3a | persistence / auto-color / transcript stores + `EntityId` hit regions | done |
-| P3b | container-layout + child-order stores | pending |
+| P3b | container-layout + child-order stores | in progress: container-layout store done; animated child-order store pending |
 | P4 | coordinate-frame closure (no env fallback, carry across scenes) | pending |
 | P5 | tier components (effects/payload/legend/highlight/text/shape/style/geometry/plan) | pending |
 | P6 | delete `AnimationTrack`/`TrackStore`, migrate GUI, snapshot DTO | pending |

@@ -2,7 +2,7 @@ use super::*;
 use crate::easing::Easing;
 use crate::timeline::dispatch::AnimationTrack;
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::{CapturedEnv, Timeline};
+use crate::timeline::{CapturedEnv, ContainerMetadata, LayoutType, Timeline};
 
 fn make_timeline_with_persistent_actors() -> Timeline {
     let mut timeline = Timeline::new();
@@ -324,6 +324,64 @@ fn carry_bag_preserves_auto_color_and_transcript() {
     assert_eq!(dest.transcript("narrator"), Some(&transcript), "transcript must carry");
     assert_eq!(dest.transcript("narrator").unwrap().duration, 1.5);
     assert_eq!(dest.next_auto_color_index, 3, "next slot must stay collision-free");
+}
+
+#[test]
+fn carry_bag_preserves_container_layout() {
+    let mut source = Timeline::new();
+    let mut actor = AnimationTrack::placeholder("row".to_string());
+    actor.set_identity("Row");
+    actor.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
+    source.world.spawn_with_track("row", actor);
+    source.set_persistence_flag("row", true);
+
+    let metadata = ContainerMetadata {
+        layout_type: LayoutType::Row,
+        gap: [12.0, 6.0],
+        padding: [4.0, 2.0, 4.0, 2.0],
+        align: "start".to_string(),
+        vertical_align: "center".to_string(),
+        cols: None,
+        child_order: vec!["a".to_string(), "b".to_string()],
+    };
+    assert!(
+        source.set_container_layout("row", metadata.clone()),
+        "container layout must attach to the container entity"
+    );
+
+    let bag = source.compute_carry_bag(0, true);
+    let entry = bag.entries.get("row").expect("row should be carried");
+    assert_eq!(
+        entry.container_layout,
+        Some(metadata.clone()),
+        "the carry bag must snapshot the container layout component"
+    );
+
+    let mut dest = Timeline::new();
+    dest.inject_carry_bag(&bag, &source, 0, [1280.0, 720.0], &mut Vec::new());
+
+    assert_eq!(
+        dest.container_layout("row"),
+        Some(&metadata),
+        "the injected entity must carry the container layout component"
+    );
+    // Still a real component on the destination entity, not a side table.
+    let row = dest.entity("row").expect("row must exist after injection");
+    assert_eq!(row.container_layout(), Some(&metadata));
+
+    // The field is new payload state: it must survive a serde carry-bag trip
+    // and older bags must default it to `None`.
+    #[cfg(feature = "serde")]
+    {
+        let json = serde_json::to_string(&bag).expect("CarryBag should serialize");
+        let round_tripped: CarryBag =
+            serde_json::from_str(&json).expect("CarryBag should deserialize");
+        assert_eq!(
+            round_tripped.entries["row"].container_layout,
+            Some(metadata.clone()),
+            "container layout must survive the carry-bag serde round-trip"
+        );
+    }
 }
 
 // -----------------------------------------------------------------------

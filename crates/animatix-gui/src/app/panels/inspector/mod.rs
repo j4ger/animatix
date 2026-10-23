@@ -774,7 +774,7 @@ pub(super) fn inspector_ui(
             }
 
             // ── Container Children ──
-            if timeline.container_metadata().contains_key(sel) {
+            if timeline.container_layout(sel).is_some() {
                 layout::card(ui, |ui| {
                     layout::section_header(
                         ui,

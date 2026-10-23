@@ -23,6 +23,7 @@ use std::collections::HashMap;
 use super::components::{AutoColorComponent, PersistenceComponent, TranscriptComponent};
 use super::dispatch::AnimationTrack;
 use super::entity::{EntityId, TrackStore};
+use super::types::ContainerMetadata;
 
 /// Entities and component stores for one scene timeline.
 #[derive(Clone, Debug, Default)]
@@ -32,6 +33,13 @@ pub struct World {
     pub(crate) tracks: TrackStore,
     /// Parent/children links, aligned with `tracks`.
     pub(crate) hierarchy: RequiredStore<SceneHierarchyComponent>,
+    /// Layout configuration for `Row`/`Col`/`Grid`/`Stack` actors.
+    ///
+    /// Presence means the entity is a layout container. The authored child
+    /// order stays on [`ContainerMetadata::child_order`] during this slice;
+    /// animated child-order tracks are still the label-keyed
+    /// `Timeline::child_orders` map.
+    pub(crate) container_layout: ComponentStore<ContainerMetadata>,
     /// `persist` / `remove` state for actors that were targeted by an action.
     pub(crate) persistence: ComponentStore<PersistenceComponent>,
     /// `color: auto` slot for actors declared with automatic coloring.
@@ -192,6 +200,7 @@ impl World {
         }
         self.ensure_len();
         self.hierarchy.reset_at(id);
+        self.container_layout.reset_at(id);
         self.persistence.reset_at(id);
         self.auto_color.reset_at(id);
         self.transcript.reset_at(id);
@@ -381,6 +390,7 @@ impl World {
     pub(crate) fn ensure_len(&mut self) {
         let len = self.tracks.len();
         self.hierarchy.ensure_len(len);
+        self.container_layout.ensure_len(len);
         self.persistence.ensure_len(len);
         self.auto_color.ensure_len(len);
         self.transcript.ensure_len(len);
@@ -390,6 +400,7 @@ impl World {
     pub fn clear(&mut self) {
         self.tracks.clear();
         self.hierarchy.clear();
+        self.container_layout.clear();
         self.persistence.clear();
         self.auto_color.clear();
         self.transcript.clear();
@@ -413,6 +424,7 @@ mod tests {
         assert_eq!(b.index(), 1);
         assert_eq!(world.len(), 2);
         assert_eq!(world.hierarchy.len(), 2);
+        assert_eq!(world.container_layout.len(), 2);
         assert_eq!(world.label(a), Some("a"));
         assert_eq!(world.get_id("b"), Some(b));
 
@@ -462,5 +474,6 @@ mod tests {
         world.clear();
         assert!(world.is_empty());
         assert!(world.hierarchy.is_empty());
+        assert!(world.container_layout.is_empty());
     }
 }

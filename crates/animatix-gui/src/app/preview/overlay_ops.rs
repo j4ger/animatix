@@ -1101,7 +1101,8 @@ pub fn layout_debug_ops(
     let mut ops = Vec::new();
     let style = LayoutDebugStyle::from_theme(theme);
     let viewport = scene_viewport(&tx);
-    for (container_label, metadata) in timeline.container_metadata() {
+    for (container_id, metadata) in timeline.container_layouts() {
+        let container_label = timeline.get_entity_label(container_id).expect("container entity");
         let Some(track) = timeline.get_track(container_label) else {
             continue;
         };

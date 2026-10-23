@@ -9,6 +9,7 @@
 use super::super::components::{AutoColorComponent, PersistenceComponent, TranscriptComponent};
 use super::super::dispatch::AnimationTrack;
 use super::super::entity::EntityId;
+use super::super::types::ContainerMetadata;
 use super::World;
 
 /// Borrowed read-only view of one entity.
@@ -53,6 +54,13 @@ impl<'w> EntityRef<'w> {
     #[inline(always)]
     pub fn hierarchy(self) -> &'w super::SceneHierarchyComponent {
         self.world.hierarchy.get(self.id)
+    }
+
+    /// The entity's container layout configuration, when it is a
+    /// `Row`/`Col`/`Grid`/`Stack` container.
+    #[inline(always)]
+    pub fn container_layout(self) -> Option<&'w ContainerMetadata> {
+        self.world.container_layout.get(self.id)
     }
 
     /// The entity's `persist`/`remove` state, when an action targeted it.
@@ -135,6 +143,13 @@ impl<'w> EntityMut<'w> {
     #[inline(always)]
     pub fn hierarchy_mut(&mut self) -> &mut super::SceneHierarchyComponent {
         self.world.hierarchy.get_mut(self.id)
+    }
+
+    /// Mutably borrow the entity's container layout configuration, if it is a
+    /// layout container.
+    #[inline(always)]
+    pub fn container_layout_mut(&mut self) -> Option<&mut ContainerMetadata> {
+        self.world.container_layout.get_mut(self.id)
     }
 
     /// Mutably borrow the entity's `persist`/`remove` state, if present.

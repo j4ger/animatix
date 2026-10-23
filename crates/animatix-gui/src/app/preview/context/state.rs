@@ -143,7 +143,7 @@ impl PreviewContext<'_> {
         let actor_id = timeline.get_entity_id(actor)?;
         let container_id = timeline.world().hierarchy(actor_id).parent?;
         let container = timeline.get_entity_label(container_id)?.to_string();
-        let metadata = timeline.container_metadata().get(&container)?;
+        let metadata = timeline.container_layout(&container)?;
         let source_index = timeline
             .world()
             .hierarchy(container_id)

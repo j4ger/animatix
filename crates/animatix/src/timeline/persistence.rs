@@ -29,7 +29,9 @@ use crate::timeline::animation_track::{
     GeometryTracks, HighlightTracks, ShapeTracks, StyleTracks, TextTracks,
 };
 use crate::timeline::property_track::{PropertyTrack, TrackAccessor};
-use crate::timeline::{AnimationTrack, PlacementMode, PositionBinding, SceneDimensions, Timeline};
+use crate::timeline::{
+    AnimationTrack, ContainerMetadata, PlacementMode, PositionBinding, SceneDimensions, Timeline,
+};
 
 // ---------------------------------------------------------------------------
 // CarryBag
@@ -73,6 +75,12 @@ pub struct CarryEntry {
     pub persistent: bool,
     /// Auto-color slot index (for `color: auto`), if the actor uses auto-color.
     pub auto_color_slot: Option<usize>,
+    /// Container layout metadata, if the actor is a `Row`/`Col`/`Grid`/`Stack`.
+    ///
+    /// Carried so a re-rooted container keeps its layout inside the successor
+    /// scene instead of falling back to a plain, un-laid-out actor.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub container_layout: Option<ContainerMetadata>,
     /// Speech transcript attached to the actor, if it declares one.
     ///
     /// Carried as data rather than re-read from the destination scene's assets:
@@ -126,6 +134,7 @@ fn collect_persistent_entries(
             children: child_entries,
             persistent: timeline.persistence_flag(label),
             auto_color_slot: timeline.auto_color_slot(label),
+            container_layout: timeline.container_layout(label).cloned(),
             transcript: timeline.transcript(label).cloned(),
         },
     );
@@ -303,9 +312,12 @@ fn inject_entry(
         dest.set_transcript(label, transcript.clone());
     }
 
-    // Carry container metadata so layout still resolves inside scene B.
-    if let Some(metadata) = source_timeline.container_metadata.get(label) {
-        dest.container_metadata.insert(label.to_string(), metadata.clone());
+    // Carry the container layout so a re-parented container still lays out in
+    // the destination scene. `spawn_replacing` cleared the optional component
+    // above, so this restores it from the bag rather than re-reading the
+    // source timeline.
+    if let Some(metadata) = &entry.container_layout {
+        dest.set_container_layout(label, metadata.clone());
     }
 }
 

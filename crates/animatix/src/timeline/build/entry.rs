@@ -41,7 +41,7 @@ impl Timeline {
             child_order: child_order.clone(),
         };
 
-        self.container_metadata.insert(label.to_string(), metadata.clone());
+        self.set_container_layout(label, metadata.clone());
 
         // ─── Two-pass width propagation ───
         // Pass 1: Apply layout to get container size from Taffy.

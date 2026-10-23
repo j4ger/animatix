@@ -362,7 +362,6 @@ pub struct Timeline {
     /// not per-entity state. The assigned slot itself lives in the entity's
     /// [`AutoColorComponent`].
     pub(crate) next_auto_color_index: usize,
-    pub(crate) container_metadata: BTreeMap<String, ContainerMetadata>,
     /// Component store for mathematical coordinate frames keyed by host EntityId.
     pub(crate) coordinate_frames: BTreeMap<EntityId, CoordinateFrameComponent>,
     /// Memoized layout-admitted children per container (see
@@ -694,7 +693,6 @@ impl Timeline {
             resolution: None,
             declared_duration_s: None,
             next_auto_color_index: 0,
-            container_metadata: BTreeMap::new(),
             coordinate_frames: BTreeMap::new(),
             layout_children_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
             layout_engine: LayoutEngine::new(),
@@ -948,8 +946,7 @@ impl Timeline {
                 return value;
             }
         }
-        self.container_metadata
-            .get(container_label)
+        self.container_layout(container_label)
             .map(|m| m.child_order.clone())
             .unwrap_or_default()
     }
@@ -977,7 +974,7 @@ impl Timeline {
 
     /// Uncached admission computation behind [`Timeline::layout_children_for`].
     fn compute_layout_children(&self, container_label: &str) -> Vec<ContainerLayoutChild> {
-        let Some(metadata) = self.container_metadata.get(container_label) else {
+        let Some(metadata) = self.container_layout(container_label) else {
             return Vec::new();
         };
         metadata
@@ -1046,7 +1043,7 @@ impl Timeline {
         container_label: &str,
         time_ms: u64,
     ) -> Arc<layout::LayoutPositions> {
-        let Some(metadata) = self.container_metadata.get(container_label) else {
+        let Some(metadata) = self.container_layout(container_label) else {
             // Shared empty table: this early return fires once per
             // non-container node per frame (alloc_driver 2026-09-04 measured
             // ~60 fresh empty `LayoutPositions` allocations per frame on a
@@ -1445,18 +1442,50 @@ impl Timeline {
         parents
     }
 
-    /// Returns a reference to the container metadata map.
-    pub fn container_metadata(&self) -> &BTreeMap<String, ContainerMetadata> {
-        &self.container_metadata
+    /// Returns the layout metadata of a container actor, if it is one.
+    ///
+    /// Label-boundary helper: the frame path resolves `EntityId`s once and
+    /// then uses [`crate::timeline::EntityRef::container_layout`].
+    pub fn container_layout(&self, label: &str) -> Option<&ContainerMetadata> {
+        self.entity(label)?.container_layout()
     }
 
-    /// Returns a mutable reference to the container metadata map.
+    /// Returns the layout metadata of a container actor mutably.
     ///
     /// Invalidates the frame cache before returning, because layout metadata
     /// changes affect rendered positions.
-    pub fn container_metadata_mut(&mut self) -> &mut BTreeMap<String, ContainerMetadata> {
+    pub fn container_layout_mut(&mut self, label: &str) -> Option<&mut ContainerMetadata> {
         self.invalidate_frame_cache();
-        &mut self.container_metadata
+        let id = self.world.get_id(label)?;
+        self.world.container_layout.get_mut(id)
+    }
+
+    /// Inserts or replaces a container's layout metadata.
+    ///
+    /// Returns `false` when no such entity exists (the caller registered a
+    /// container before its track was created, which the build never does).
+    /// Invalidates the frame cache, like every component write.
+    pub fn set_container_layout(&mut self, label: &str, metadata: ContainerMetadata) -> bool {
+        self.invalidate_frame_cache();
+        let Some(id) = self.world.get_id(label) else {
+            tracing::warn!("container layout for '{label}' dropped: no such actor");
+            return false;
+        };
+        self.world.container_layout.insert(id, metadata);
+        true
+    }
+
+    /// Iterate every container's layout metadata, keyed by entity id.
+    ///
+    /// Slot order (insertion order), not label order: callers that need a
+    /// label map ids through [`Timeline::get_entity_label`].
+    pub fn container_layouts(&self) -> impl Iterator<Item = (EntityId, &ContainerMetadata)> + '_ {
+        self.world.container_layout.iter()
+    }
+
+    /// Entity ids of every container, in slot order.
+    pub fn container_layout_ids(&self) -> Vec<EntityId> {
+        self.world.container_layout.iter().map(|(id, _)| id).collect()
     }
 
     /// Returns a reference to the asset cache.
@@ -1884,7 +1913,7 @@ impl Timeline {
 
             // Compute layout positions for this node's children (needed for next iteration)
             if self.dynamic_layout {
-                if let Some(metadata) = self.container_metadata.get(node_label.as_str()) {
+                if let Some(metadata) = self.container_layout(node_label.as_str()) {
                     let layout_children = self.layout_children_for(node_label.as_str());
                     current_layout_positions = self.layout_engine.compute_layout_for_time(
                         node_label.as_str(),

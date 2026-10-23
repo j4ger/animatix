@@ -776,10 +776,10 @@ fn test_persist_container_subtree() {
         "child must stay under row (not re-rooted)"
     );
 
-    // container metadata must be seeded so layout still resolves in B
+    // container layout must be carried so layout still resolves in B
     assert!(
-        scene_b.timeline.container_metadata.contains_key("row"),
-        "SceneB: container_metadata must contain `row`"
+        scene_b.timeline.container_layout("row").is_some(),
+        "SceneB: container_layout must carry `row`"
     );
 }
 

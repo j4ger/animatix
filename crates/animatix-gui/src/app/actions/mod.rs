@@ -212,10 +212,10 @@ impl GuiShell {
         if is_drag {
             if let Some(at) = self.document_store.source.document.active_timeline_mut() {
                 let timeline = &mut *at.timeline;
-                if let Some(metadata) = timeline.container_metadata_mut().get_mut(&edit.actor) {
+                // `container_layout_mut` invalidates the frame cache itself.
+                if let Some(metadata) = timeline.container_layout_mut(&edit.actor) {
                     if let PV::StringList(order) = &edit.value {
                         metadata.child_order = order.clone();
-                        timeline.invalidate_frame_cache();
                     }
                 }
             }
@@ -430,10 +430,10 @@ impl GuiShell {
 
         if let Some(at) = self.document_store.source.document.active_timeline_mut() {
             let timeline = &mut *at.timeline;
-            if let Some(metadata) = timeline.container_metadata_mut().get_mut(&edit.actor) {
+            // `container_layout_mut` invalidates the frame cache itself.
+            if let Some(metadata) = timeline.container_layout_mut(&edit.actor) {
                 if let PV::StringList(order) = &edit.value {
                     metadata.child_order = order.clone();
-                    timeline.invalidate_frame_cache();
                 }
             }
         }

@@ -432,7 +432,7 @@ impl Timeline {
         container_size: [f32; 2],
         time_ms: u64,
     ) -> Vec<TextChildRecompile> {
-        let Some(metadata) = self.container_metadata.get(container_label).cloned() else {
+        let Some(metadata) = self.container_layout(container_label).cloned() else {
             return Vec::new();
         };
 
@@ -616,7 +616,7 @@ impl Timeline {
         time_ms: f64,
         _diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let Some(metadata) = self.container_metadata.get(container_label).cloned() else {
+        let Some(metadata) = self.container_layout(container_label).cloned() else {
             return;
         };
 

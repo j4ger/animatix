@@ -6,6 +6,9 @@
 
 use std::collections::BTreeMap;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 use crate::timeline::PlacementMode;
 use crate::timeline::entity::TrackStore;
 use crate::timeline::env::Value;
@@ -62,6 +65,7 @@ impl BuildQuality {
 
 /// Layout strategy for container actors.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum LayoutType {
     /// Horizontal left-to-right flow.
     Row,
@@ -113,6 +117,7 @@ pub struct ContainerLayoutChild {
 
 /// Metadata describing the layout configuration of a container actor.
 #[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ContainerMetadata {
     /// Row, Col, Grid, or Stack.
     pub layout_type: LayoutType,

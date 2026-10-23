@@ -881,7 +881,7 @@ A `CarryBag` (`timeline/persistence.rs`) is a collection of `CarryEntry` objects
 4. **Walk-order carry loop** (`Composition::build`, step 3.5): For each scene (index ≥ 1):
    - Compute carry bag from predecessor timeline at its exit time.
    - If bag is non-empty, rebuild the scene's timeline with `build_with_carry`, which calls `inject_carry_bag` before processing statements.
-5. **Carry injection** (`inject_carry_bag`): Inserts carried tracks into `timeline.world`, adds to the root set, propagates `container_metadata`, and restores the `PersistenceComponent`, `AutoColorComponent`, and `TranscriptComponent` on each carried entity.
+5. **Carry injection** (`inject_carry_bag`): Inserts carried tracks into `timeline.world`, adds to the root set, restores the `ContainerMetadata`, `PersistenceComponent`, `AutoColorComponent`, and `TranscriptComponent` components on each carried entity.
 
 ### Snapshot Semantics
 

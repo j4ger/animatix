@@ -856,8 +856,8 @@ mod tests {
         timeline.world.link(row_id, child_b);
 
         // Set up container metadata with layout children
-        timeline.container_metadata.insert(
-            "row".to_string(),
+        timeline.set_container_layout(
+            "row",
             ContainerMetadata {
                 layout_type: LayoutType::Row,
                 gap: [8.0, 8.0],
@@ -911,8 +911,8 @@ mod tests {
             timeline.world.link(row_id, child_id);
         }
 
-        timeline.container_metadata.insert(
-            "row".to_string(),
+        timeline.set_container_layout(
+            "row",
             ContainerMetadata {
                 layout_type: LayoutType::Row,
                 gap: [8.0, 8.0],
@@ -1022,8 +1022,8 @@ mod tests {
             timeline.world.link(row_id, child_id);
         }
 
-        timeline.container_metadata.insert(
-            "row".to_string(),
+        timeline.set_container_layout(
+            "row",
             ContainerMetadata {
                 layout_type: LayoutType::Row,
                 gap: [8.0, 8.0],
@@ -1087,8 +1087,8 @@ mod tests {
             timeline.world.link(row_id, child_id);
         }
 
-        timeline.container_metadata.insert(
-            "row".to_string(),
+        timeline.set_container_layout(
+            "row",
             ContainerMetadata {
                 layout_type: LayoutType::Row,
                 gap: [8.0, 8.0],
@@ -1172,8 +1172,8 @@ mod tests {
             timeline.world.link(row_id, child_id);
         }
 
-        timeline.container_metadata.insert(
-            "row".to_string(),
+        timeline.set_container_layout(
+            "row",
             ContainerMetadata {
                 layout_type: LayoutType::Row,
                 gap: [8.0, 8.0],
@@ -1249,8 +1249,8 @@ mod tests {
             timeline.world.link(bars_id, child_id);
         }
 
-        timeline.container_metadata.insert(
-            "bars".to_string(),
+        timeline.set_container_layout(
+            "bars",
             ContainerMetadata {
                 layout_type: LayoutType::Row,
                 gap: [8.0, 8.0],
