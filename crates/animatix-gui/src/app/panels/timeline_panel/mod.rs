@@ -187,7 +187,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
     let speech_snap_targets: Vec<(f64, String)> = timeline
         .map(|tl| {
             let mut targets = Vec::new();
-            for transcript in tl.transcripts().values() {
+            for (_, transcript) in tl.transcripts_iter() {
                 for (marker, &time_s) in &transcript.markers {
                     targets.push((time_s, format!("@{}", marker)));
                 }
@@ -294,7 +294,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
             content_y = scene_track_bot;
         }
 
-        let has_transcripts = timeline.map(|tl| !tl.transcripts().is_empty()).unwrap_or(false);
+        let has_transcripts =
+            timeline.map(|tl| tl.transcripts_iter().next().is_some()).unwrap_or(false);
         let speech_track_top = content_y;
         let speech_track_bot = speech_track_top + sp.timeline.track_row_height;
         if has_transcripts {

@@ -534,7 +534,8 @@ pub(crate) fn render_speech_track(
     }
 
     if let Some(tl) = timeline {
-        for (actor_label, transcript) in tl.transcripts() {
+        for (actor_id, transcript) in tl.transcripts_iter() {
+            let actor_label = tl.get_entity_label(actor_id).unwrap_or("");
             // Draw words
             for seg in &transcript.segments {
                 if !seg.words.is_empty() {
@@ -602,7 +603,7 @@ pub(crate) fn render_speech_track(
 
                         let word_id = panel_id.with((
                             "speech_word",
-                            actor_label.as_str(),
+                            actor_label,
                             w.word.as_str(),
                             w.start_s.to_bits(),
                         ));
@@ -673,8 +674,7 @@ pub(crate) fn render_speech_track(
                 ];
                 painter.add(egui::Shape::convex_polygon(pts, marker_color, Stroke::NONE));
 
-                let marker_id =
-                    panel_id.with(("speech_marker", actor_label.as_str(), marker_name.as_str()));
+                let marker_id = panel_id.with(("speech_marker", actor_label, marker_name.as_str()));
                 let m_rect =
                     Rect::from_min_max(Pos2::new(mx - 5.0, sp_top), Pos2::new(mx + 5.0, sp_bot));
                 let m_resp = ui.interact(m_rect, marker_id, Sense::click());
