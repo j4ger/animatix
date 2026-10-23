@@ -13,7 +13,6 @@ crates/animatix-gui/src/app/preview/mod.rs	963	legacy oversized file	P6
 crates/animatix-gui/src/app/preview/overlay_ops.rs	1490	legacy oversized file	P6
 crates/animatix-gui/src/app/runtime.rs	1152	legacy oversized file	P6
 crates/animatix-gui/src/app/shell/insertion_palette.rs	988	legacy oversized file	P6
-crates/animatix-gui/src/cell_editor/render.rs	1272	legacy oversized file	P6
 crates/animatix-gui/src/source_edit/scene_edits.rs	921	legacy oversized file	P6
 crates/animatix-render/src/filter_backend/mod.rs	1376	legacy oversized file	P2
 crates/animatix-render/src/offscreen/mod.rs	853	legacy oversized file	P2
