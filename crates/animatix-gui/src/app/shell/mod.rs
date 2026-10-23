@@ -1,3 +1,7 @@
+mod commands;
+mod frame;
+mod update;
+
 pub mod autosave;
 pub mod command_palette;
 pub mod export_dialog;
