@@ -6,7 +6,6 @@ crates/animatix-gui/src/app/commands/mod.rs	828	legacy oversized file	P6
 crates/animatix-gui/src/app/panels/inspector/mod.rs	1356	legacy oversized file	P6
 crates/animatix-gui/src/app/panels/inspector/property_groups.rs	1778	legacy oversized file	P6
 crates/animatix-gui/src/app/preview/mod.rs	963	legacy oversized file	P6
-crates/animatix-gui/src/app/shell/insertion_palette.rs	988	legacy oversized file	P6
 crates/animatix-gui/src/source_edit/scene_edits.rs	921	legacy oversized file	P6
 crates/animatix-render/src/offscreen/mod.rs	853	legacy oversized file	P2
 crates/animatix/src/timeline/assignments/mod.rs	1232	legacy oversized file	P6
