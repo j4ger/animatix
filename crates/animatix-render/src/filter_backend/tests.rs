@@ -3,6 +3,7 @@ use animatix::timeline::effects::{
 };
 use animatix_core::effect::EffectParamKind;
 
+use super::readback::scale_pixel_params;
 use super::*;
 
 fn pack_radius(radius: f32) -> [u8; 4] {
