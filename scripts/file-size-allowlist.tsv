@@ -36,7 +36,6 @@ crates/animatix/src/timeline/env.rs	841	legacy oversized file	P6
 crates/animatix/src/timeline/eval_shared.rs	1440	legacy oversized file	P6
 crates/animatix/src/timeline/mod.rs	2047	legacy oversized file	P6
 crates/animatix/src/timeline/morph.rs	1458	legacy oversized file	P6
-crates/animatix/src/timeline/property_registry.rs	1606	legacy oversized file	P6
 crates/animatix/src/timeline/shapes/mod.rs	884	legacy oversized file	P6
 crates/animatix/src/timeline/taffy_layout.rs	1421	legacy oversized file	P6
 crates/animatix/src/timeline/timing.rs	894	legacy oversized file	P6
