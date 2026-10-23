@@ -51,8 +51,9 @@ mod declarations_text;
 /// Built-in post-processing effects, chain storage, and the compositing
 /// backend boundary.
 pub mod effects;
-/// Strongly-typed entity IDs and contiguous track storage.
 pub mod entity;
+/// Strongly-typed entity IDs and contiguous track storage.
+mod track;
 pub use entity::{EntityId, TrackEntry, TrackStore};
 /// Public timeline data types (build quality, layout metadata, scene
 /// dimensions, audio segments, variable tracks).

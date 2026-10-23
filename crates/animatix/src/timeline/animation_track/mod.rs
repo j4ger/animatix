@@ -7,7 +7,8 @@ mod style;
 mod tests;
 mod text;
 
-pub use super::dispatch::{AnimationTrack, TrackFieldMut, TrackFieldRef};
+pub use super::dispatch::{TrackFieldMut, TrackFieldRef};
+pub use super::track::AnimationTrack;
 pub use actions::{ActionCategory, ActionEvent};
 pub use geometry::{
     CalloutPlace, ConnectorEndpoint, ConnectorRouting, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE,
