@@ -1,71 +1,19 @@
-//! Extension manifests for analyzer-only language intelligence.
-//!
-//! These manifests describe external primitives and properties without loading
-//! native runtime plugins. Parsed manifests use the shared schema descriptor
-//! shapes, but their property `id` is intentionally `None`: runtime ids are
-//! allocated by `ExtensionRegistry`, never guessed by a manifest.
+//! Raw manifest schema, canonical TOML wire shapes, and model conversion.
 
 use animatix_syntax::schema::{
     ActionParam, ActionSignature, ChildProcessingKind, FunctionDescriptor, PrimitiveCapabilities,
-    PrimitiveCategory, PrimitiveDescriptor, PrimitiveSpec, PropertyDescriptor, PropertyValueKind,
+    PrimitiveCategory, PrimitiveDescriptor, PropertyDescriptor, PropertyValueKind,
     ServiceDescriptor,
 };
 use animatix_syntax::typing::Type;
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::symbol_table::SymbolTable;
+use super::manifest::{ExtensionManifest, ManifestEffect, ManifestEffectParam};
 
 /// Manifest primitive metadata exposed as the shared schema descriptor.
 pub type ManifestPrimitive = PrimitiveDescriptor;
 /// Manifest property metadata exposed as the shared schema descriptor.
 pub type ManifestProperty = PropertyDescriptor;
-
-/// Collection of analyzer-only extension metadata.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct ExtensionManifest {
-    /// Optional native library path, resolved relative to the manifest file by
-    /// CLI consumers. Analyzer and LSP ignore this field.
-    pub library: Option<String>,
-    /// Primitive declarations.
-    pub primitives: Vec<PrimitiveDescriptor>,
-    /// Property declarations.
-    pub properties: Vec<PropertyDescriptor>,
-    /// Action declarations.
-    pub actions: Vec<ActionSignature>,
-    /// Function declarations.
-    pub functions: Vec<FunctionDescriptor>,
-    /// Service declarations.
-    pub services: Vec<ServiceDescriptor>,
-    /// Plugin-authored post-processing effect declarations.
-    pub effects: Vec<ManifestEffect>,
-}
-
-/// Manifest metadata for one plugin-authored effect.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct ManifestEffect {
-    /// Authored type name used in `.amx` (`pix: Pixelate`).
-    pub name: String,
-    /// Human-readable name for GUI labels and completion detail.
-    pub display_name: Option<String>,
-    /// Declared parameters.
-    pub params: Vec<ManifestEffectParam>,
-}
-
-/// One parameter of a manifest-declared effect.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct ManifestEffectParam {
-    /// Parameter name as authored.
-    pub name: String,
-    /// Declared value type string (`"Num"`, `"Bool"`, `"Vec2"`, `"Vec4"`).
-    pub ty: String,
-}
-
-impl ManifestEffect {
-    /// The name used for completion detail lines.
-    pub fn display_label(&self) -> &str {
-        self.display_name.as_deref().unwrap_or(&self.name)
-    }
-}
 
 #[derive(Deserialize)]
 struct RawManifest {
@@ -314,102 +262,6 @@ impl<'de> Deserialize<'de> for ExtensionManifest {
 }
 
 impl ExtensionManifest {
-    /// Parse a TOML manifest.
-    pub fn from_toml(source: &str) -> Result<Self, String> {
-        toml::from_str(source).map_err(|err| err.to_string())
-    }
-
-    /// Merge multiple manifests, preserving declaration order.
-    pub fn merge(manifests: &[Self]) -> Self {
-        let mut merged = Self::default();
-        for manifest in manifests {
-            if merged.library.is_none() {
-                merged.library.clone_from(&manifest.library);
-            }
-            merged.primitives.extend(manifest.primitives.iter().cloned());
-            merged.properties.extend(manifest.properties.iter().cloned());
-            merged.actions.extend(manifest.actions.iter().cloned());
-            merged.functions.extend(manifest.functions.iter().cloned());
-            merged.services.extend(manifest.services.iter().cloned());
-            merged.effects.extend(manifest.effects.iter().cloned());
-        }
-        merged
-    }
-
-    /// Build a manifest from runtime descriptors, stripping runtime property ids.
-    ///
-    /// This is the single-source path for generating analyzer metadata from a
-    /// loaded native plugin or in-process extension context.
-    pub fn from_runtime(
-        library: Option<String>,
-        primitives: &[PrimitiveSpec],
-        properties: &[PropertyDescriptor],
-        actions: &[ActionSignature],
-        functions: &[FunctionDescriptor],
-        services: &[ServiceDescriptor],
-        effects: &[ManifestEffect],
-    ) -> Self {
-        Self {
-            library,
-            effects: effects.to_vec(),
-            primitives: primitives
-                .iter()
-                .map(|spec| {
-                    let declared = properties
-                        .iter()
-                        .filter(|property| {
-                            property.actor_types.iter().any(|ty| ty == &spec.type_name)
-                        })
-                        .map(|property| property.name.clone())
-                        .collect();
-                    let mut capabilities = spec.capabilities;
-                    if !capabilities.has_visual_content && !capabilities.is_container {
-                        capabilities.has_visual_content = capabilities.is_shape
-                            || capabilities.text_paths
-                            || capabilities.image_payload
-                            || capabilities.vector_paths
-                            || capabilities.plot_geometry
-                            || capabilities.plot_host
-                            || matches!(
-                                spec.category,
-                                PrimitiveCategory::Shape
-                                    | PrimitiveCategory::Text
-                                    | PrimitiveCategory::Plot
-                                    | PrimitiveCategory::Annotation
-                            );
-                    }
-                    PrimitiveDescriptor {
-                        type_name: spec.type_name.clone(),
-                        display_name: spec.display_name.clone(),
-                        category: spec.category,
-                        icon_id: spec.icon_id.clone(),
-                        advanced: spec.advanced,
-                        capabilities,
-                        child_processing: spec.child_processing,
-                        properties: declared,
-                    }
-                })
-                .collect(),
-            properties: properties
-                .iter()
-                .map(|property| PropertyDescriptor {
-                    id: None,
-                    name: property.name.clone(),
-                    actor_types: property.actor_types.clone(),
-                    ty: property.ty.clone(),
-                    value_kind: property.value_kind,
-                    injectable: property.injectable,
-                    display_name: property.display_name.clone(),
-                    group: property.group.clone(),
-                    help: property.help.clone(),
-                })
-                .collect(),
-            actions: actions.to_vec(),
-            functions: functions.to_vec(),
-            services: services.to_vec(),
-        }
-    }
-
     /// Serialize this manifest as canonical TOML.
     pub fn to_toml(&self) -> Result<String, String> {
         let output = OutputManifest {
@@ -501,77 +353,6 @@ impl ExtensionManifest {
                 .collect(),
         };
         toml::to_string(&output).map_err(|err| err.to_string())
-    }
-
-    /// Apply this manifest to a symbol table so completions and diagnostics see it.
-    pub fn apply_to(&self, table: &mut SymbolTable) {
-        for primitive in &self.primitives {
-            table.types.insert(primitive.type_name.clone());
-        }
-        for property in &self.properties {
-            for actor_type in &property.actor_types {
-                let properties = table.properties.entry(actor_type.clone()).or_default();
-                if !properties.iter().any(|existing| existing == &property.name) {
-                    properties.push(property.name.clone());
-                }
-                table
-                    .property_types
-                    .insert((actor_type.clone(), property.name.clone()), property.ty.clone());
-            }
-        }
-        // Extension types also accept the shared common properties (at,
-        // opacity, size, ...), which the schema registers per built-in actor
-        // type. Merge those so the analyzer does not flag them as unknown.
-        let common_specs = {
-            let all = animatix_syntax::schema::property_specs();
-            let common = animatix_syntax::schema::common_property_names();
-            all.into_iter().filter(|spec| common.contains(&spec.name)).collect::<Vec<_>>()
-        };
-        for primitive in &self.primitives {
-            let actor_type = primitive.type_name.clone();
-            for spec in &common_specs {
-                let properties = table.properties.entry(actor_type.clone()).or_default();
-                if !properties.iter().any(|existing| existing == spec.name) {
-                    properties.push(spec.name.to_string());
-                }
-                table
-                    .property_types
-                    .entry((actor_type.clone(), spec.name.to_string()))
-                    .or_insert_with(|| spec.ty.clone());
-            }
-        }
-        // Plugin-authored effects behave like built-in effects for the
-        // analyzer: the type is known, the declared parameters (plus the
-        // implicit `enabled`) complete and validate.
-        for effect in &self.effects {
-            table.types.insert(effect.name.clone());
-            table.effect_names.insert(effect.name.clone());
-            let properties = table.properties.entry(effect.name.clone()).or_default();
-            for param in &effect.params {
-                if !properties.iter().any(|existing| existing == &param.name) {
-                    properties.push(param.name.clone());
-                }
-                table.property_types.insert(
-                    (effect.name.clone(), param.name.clone()),
-                    parse_manifest_type(&param.ty),
-                );
-            }
-            if !properties.iter().any(|existing| existing == "enabled") {
-                properties.push("enabled".to_string());
-            }
-            table
-                .property_types
-                .insert((effect.name.clone(), "enabled".to_string()), Type::Bool);
-        }
-        for action in &self.actions {
-            table.actions.insert(action.name.clone());
-        }
-        for function in &self.functions {
-            table.functions.insert(function.name.clone());
-        }
-        for service in &self.services {
-            table.services.insert(service.name.clone());
-        }
     }
 
     fn from_raw(raw: RawManifest) -> Self {
@@ -755,7 +536,7 @@ fn manifest_value_kind(ty: &str) -> PropertyValueKind {
 /// Parse a manifest type annotation, falling back to [`Type::Any`] for unknown
 /// strings (manifests are lenient). The grammar itself lives in the shared
 /// [`Type::parse`]; this only provides the lenient fallback.
-fn parse_manifest_type(ty: &str) -> Type {
+pub(super) fn parse_manifest_type(ty: &str) -> Type {
     Type::parse(ty).unwrap_or(Type::Any)
 }
 
@@ -788,209 +569,5 @@ fn output_child_processing(kind: ChildProcessingKind) -> Option<&'static str> {
         ChildProcessingKind::Mask => Some("Mask"),
         ChildProcessingKind::Equation => Some("Equation"),
         ChildProcessingKind::Captions => Some("Captions"),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parses_manifest_and_applies_to_symbols() {
-        let manifest = ExtensionManifest::from_toml(
-            r#"
-[[primitives]]
-type_name = "Gauge"
-
-[[properties]]
-actor_type = "Gauge"
-name = "level"
-type = "Num"
-"#,
-        )
-        .expect("parse manifest");
-
-        let mut table = SymbolTable::default();
-        manifest.apply_to(&mut table);
-        assert!(table.types.contains("Gauge"));
-        assert!(table.properties.get("Gauge").is_some_and(|props| {
-            props.contains(&"level".to_string()) && props.contains(&"at".to_string())
-        }));
-        assert_eq!(
-            table.property_types.get(&("Gauge".to_string(), "level".to_string())),
-            Some(&Type::Num)
-        );
-    }
-
-    #[test]
-    fn applies_action_function_and_service_names() {
-        let manifest = ExtensionManifest::from_toml(
-            r#"
-[[actions]]
-name = "pulse"
-category = "Native"
-description = "Demo action"
-
-[[functions]]
-name = "double"
-
-[[services]]
-name = "demo.pulse"
-"#,
-        )
-        .expect("parse manifest");
-
-        let mut table = SymbolTable::default();
-        manifest.apply_to(&mut table);
-        assert!(table.actions.contains("pulse"));
-        assert!(table.functions.contains("double"));
-        assert!(table.services.contains("demo.pulse"));
-    }
-
-    #[test]
-    fn manifest_uses_shared_primitive_and_property_descriptors() {
-        let manifest = ExtensionManifest::from_toml(
-            r#"
-[[primitives]]
-type_name = "Gauge"
-display_name = "Gauge Dial"
-category = "Plot"
-icon_id = "gauge"
-advanced = true
-child_processing = "Filter"
-
-[[properties]]
-actor_type = "Gauge"
-name = "level"
-type = "Num"
-injectable = true
-"#,
-        )
-        .expect("parse manifest");
-
-        let primitive = &manifest.primitives[0];
-        assert_eq!(primitive.type_name, "Gauge");
-        assert_eq!(primitive.display_name, "Gauge Dial");
-        assert_eq!(primitive.category, PrimitiveCategory::Plot);
-        assert_eq!(primitive.icon_id, "gauge");
-        assert!(primitive.advanced);
-        assert_eq!(primitive.child_processing, ChildProcessingKind::Filter);
-        assert!(primitive.properties.is_empty(), "manifests must not guess runtime ids");
-
-        let property = &manifest.properties[0];
-        assert_eq!(property.id, None);
-        assert_eq!(property.actor_types, vec!["Gauge".to_string()]);
-        assert_eq!(property.ty, Type::Num);
-        assert_eq!(property.value_kind, PropertyValueKind::F32);
-        assert!(property.injectable);
-    }
-
-    #[test]
-    fn manifest_parses_enum_property_type_and_roundtrips() {
-        let manifest = ExtensionManifest::from_toml(
-            r#"
-[[properties]]
-actor_type = "Gauge"
-name = "direction"
-type = "Enum(left, right, top)"
-"#,
-        )
-        .expect("parse manifest");
-        assert_eq!(
-            manifest.properties[0].ty,
-            Type::Enum(vec!["left".to_string(), "right".to_string(), "top".to_string()])
-        );
-        let toml = manifest.to_toml().expect("serialize manifest");
-        assert!(toml.contains("Enum(left, right, top)"));
-        let parsed = ExtensionManifest::from_toml(&toml).expect("parse roundtrip");
-        assert_eq!(parsed, manifest);
-    }
-
-    #[test]
-    fn merge_preserves_order_and_duplicates() {
-        let a = ExtensionManifest::from_toml("[[primitives]]\ntype_name = \"Gauge\"\n").unwrap();
-        let b = ExtensionManifest::from_toml("[[primitives]]\ntype_name = \"Dial\"\n").unwrap();
-        let merged = ExtensionManifest::merge(&[a, b]);
-        assert_eq!(merged.primitives.len(), 2);
-        assert_eq!(merged.primitives[0].type_name, "Gauge");
-        assert_eq!(merged.primitives[1].type_name, "Dial");
-    }
-
-    #[test]
-    fn runtime_manifest_roundtrips_through_toml() {
-        let primitive = PrimitiveSpec {
-            type_name: "Pulse".to_string(),
-            display_name: "Pulse".to_string(),
-            doc: "Pulse animation primitive.".to_string(),
-            default_stub: None,
-            category: PrimitiveCategory::Shape,
-            icon_id: "extension:pulse".to_string(),
-            advanced: false,
-            capabilities: PrimitiveCapabilities {
-                vector_paths: true,
-                is_shape: true,
-                ..PrimitiveCapabilities::default()
-            },
-            child_processing: ChildProcessingKind::Filter,
-        };
-        let property = PropertyDescriptor {
-            id: Some(animatix_syntax::schema::PropertyId(1_000_000)),
-            name: "glow".to_string(),
-            actor_types: vec!["Pulse".to_string()],
-            ty: Type::Num,
-            value_kind: PropertyValueKind::U32,
-            injectable: true,
-            display_name: Some("Glow".to_string()),
-            group: Some("Pulse".to_string()),
-            help: Some("Pulse radius glow amount".to_string()),
-        };
-
-        let action = ActionSignature {
-            name: "pulse".to_string(),
-            category: "Native".to_string(),
-            description: "Demo pulse action".to_string(),
-            params: vec![ActionParam {
-                name: "target".to_string(),
-                description: "Target actor".to_string(),
-                type_info: "Str".to_string(),
-            }],
-            modifiers: vec![],
-        };
-        let function = FunctionDescriptor {
-            name: "double".to_string(),
-            params: vec![ActionParam {
-                name: "value".to_string(),
-                description: "Input value".to_string(),
-                type_info: "Num".to_string(),
-            }],
-            return_type: Some(Type::Num),
-            help: Some("Doubles a value".to_string()),
-        };
-        let service = ServiceDescriptor {
-            name: "demo.pulse".to_string(),
-            type_info: Some("usize".to_string()),
-            help: None,
-        };
-
-        let manifest = ExtensionManifest::from_runtime(
-            Some("libdemo.so".to_string()),
-            &[primitive],
-            &[property],
-            &[action],
-            &[function],
-            &[service],
-            &[],
-        );
-        let toml = manifest.to_toml().expect("serialize manifest");
-        assert!(toml.contains("icon_id = \"extension:pulse\""));
-        assert!(toml.contains("type = \"U32\""));
-        assert!(toml.contains("child_processing = \"Filter\""));
-        assert!(toml.contains("[[actions]]"));
-        assert!(toml.contains("[[functions]]"));
-        assert!(toml.contains("[[services]]"));
-
-        let parsed = ExtensionManifest::from_toml(&toml).expect("parse manifest");
-        assert_eq!(parsed, manifest);
-        assert_eq!(parsed.properties[0].id, None);
     }
 }
