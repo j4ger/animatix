@@ -209,6 +209,12 @@ why running one in the wrong shell looks like a compile error.
 - **animatix-lsp**: Compiles, manual testing with editors
 - **animatix-gui**: Integrated with workspace tests
 
+`scripts/ci.sh gate file-size` enforces the split programme described in
+`docs/ecs.md` §8: production source files ≤ 800 lines, tests ≤ 1500, with legacy
+offenders frozen in `scripts/file-size-allowlist.tsv`. The allowlist is a
+ratchet — split a file, then delete its row; never raise a row or add one for a
+new file.
+
 For demo work: keep runnable demos under `examples/`, verify with both `ast` and `image`/`video`. Use `dogfood/` for in-progress real-content projects and grammar probes; do not move known-broken probes into `examples/`.
 
 ---
@@ -286,6 +292,29 @@ two visitor methods, lowering parity) are silent if missed:
 
 Precedents to copy: `LetChain` (block bodies, 13 touch points),
 `PropRef` (references, 9), `MakeList` (list/tuple split, 7).
+
+## Adding a Component to the ECS World
+
+The timeline stores per-entity data as components indexed by `EntityId`, not as
+fields on a monolithic track. `docs/ecs.md` is the normative design. The
+touch-point checklist is:
+
+1. **Component type** — `crates/animatix/src/timeline/components/<domain>.rs`
+   (`Clone`, `Debug`; `Serialize/Deserialize` behind `feature = "serde"` when
+   it belongs in a `CarryBag` snapshot).
+2. **Store** — add a `RequiredStore<C>`/`ComponentStore<C>` to `World`, and
+   populate/resize it in `World::spawn`. Required means every entity has it.
+3. **Accessor** — add `EntityRef::<domain>()` and, when writable,
+   `EntityMut::<domain>_mut()`. Do not let call sites touch the store directly.
+4. **Delete the old field/table** in the same change, and route every call site
+   through the accessor. `rustc` is the checklist; a dual write is a bug.
+5. **Snapshot** — extend `snapshot_entity_at` / `restore_entity` and the
+   `CarryBag` round-trip test.
+6. **Tests** — component presence, snapshot round-trip, and
+   `frame_cache_invalidates_on_component_write`.
+7. **Docs** — update `docs/ecs.md` §2 and `docs/architecture.md` §2. A
+   label-keyed resource instead of a component needs a one-line reason in
+   `docs/ecs.md` §2.3.
 
 ## GUI Actor Creation
 

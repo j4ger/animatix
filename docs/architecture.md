@@ -100,27 +100,44 @@ See [§16 Multi-Scene Composition](#16-multi-scene-composition) below.
 
 ## 2. Data Structures
 
-### Timeline
+### Timeline and the ECS world
 
-```rust
+Timeline data is migrating to an entity/component model. `docs/ecs.md` is the
+normative design; this section is the summary.
+
+```
 Timeline {
-    tracks: TrackStore, // Dense Vec<AnimationTrack> indexed by EntityId(u32), with label mapping
-    nodes: BTreeMap<String, SceneNode>,
-    root_nodes: Vec<String>,
-    root_ids: Vec<EntityId>, // Dense id per root, in `root_nodes` order
-    modifiers: Vec<Stmt>,
+    world: World,          // entities + typed component stores
+    background_color, env, camera, colorscheme, assets, font context,
+    layout engine, duration/config, frame caches, modifiers …
+}
+
+World {
+    entities: EntityStore,                  // EntityId -> EntityMeta + label maps
+    roots: RootSet,                         // Vec<EntityId>, insertion order
+    hierarchy: RequiredStore<SceneHierarchyComponent>,
+    geometry:  RequiredStore<GeometryTracks>,
+    style:     RequiredStore<StyleTracks>,
+    shape:     RequiredStore<ShapeComponent>,
+    text:      RequiredStore<TextTracks>,
+    highlight: RequiredStore<HighlightTracks>,
+    property_plan / tagged_tracks: RequiredStore<…>,
+    container_layout / coordinate_frame / persistence / auto_color /
+    child_order / transcript / legend / effects / payload: ComponentStore<…>,
 }
 ```
 
-### AnimationTrack
+Entities are append-only and identified by `EntityId(u32)`; `TrackStore` has no
+removal API and structural GUI deletes rebuild the whole timeline, so ids are
+never reused. Required components exist on every entity; optional components are
+looked up with `Option`. `EntityRef`/`EntityMut` are the access surface, and
+labels are converted to ids at the build/expression/serialization/GUI boundary.
+Frame caches (`bounds_slot`, shape/vector-path memos) live in `EvalCaches`, not
+in components.
 
-Per-actor storage is organized into three tiers:
-
-- **Header**: `label`, `actor_type` (the authored type name — the identity),
-  `caps: ActorCaps` (derived capability projection), `first_seen_ms`, `children`
-- **Geometry tier**: `position`, `motion_offset`, `size`, `layout_size`, `rotation`, `scale`, `transform`, `placement_mode`, `position_binding`
-- **Style tier**: `color`, `opacity`, `stroke_width`, `stroke_color`, `stroke_progress`, `fill_opacity`, `morph_options`
-- **Payload** (kind-specific): `Shape { shape_type, line_from, line_to, arc_angles, points, vector_paths }`, `Text { content, text_paths }`, `Image { image }`, `Svg { svg_paths }`, `Plot { vector_paths }`, or `Empty`
+Per-actor keyframed data is split into the component domains listed above. The
+old monolithic `AnimationTrack` survives only as the serializable
+`EntitySnapshot` DTO used by `CarryBag`; see `docs/ecs.md` §5.
 
 ### PropertyTrack
 
@@ -523,7 +540,7 @@ pub struct FuncTransition {
 }
 ```
 
-At render time, [`sample_procedural_plot_at`](../crates/animatix/src/timeline/plot.rs):
+At render time, [`sample_procedural_plot_at`](../crates/animatix/src/timeline/plot/procedural.rs):
 1. Finds the active transition via `active_at(time_ms)`.
 2. Constructs a `PlotFuncRef::Blended { from, to, progress }` for output blending.
 3. Evaluates both functions at each sample point and lerps: `from + (to - from) * progress`.
@@ -919,6 +936,10 @@ crates/
 │       ├── lib.rs         # Re-exports syntax modules
 │       ├── composition/   # Multi-scene composition engine (mod, build, time, tests)
 │       ├── timeline/      # Timeline compilation, actions, morphing, plotting
+│       │   ├── world/     # EntityStore, component stores, EntityRef/EntityMut
+│       │   ├── components/# Per-domain component types (geometry, style, text, …)
+│       │   ├── snapshot/  # EntitySnapshot + carry sampling/restore
+│       │   └── …          # build/, scene_eval/, actions/, layout, property_engine
 │       ├── renderer/      # Frame vocabulary only (error, types, text re-export)
 │       ├── primitives/    # Actor primitive system
 │       └── ir.rs          # Re-export: timeline modifier runtime IR

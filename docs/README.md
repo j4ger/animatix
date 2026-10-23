@@ -6,6 +6,7 @@
 | [`primitives.md`](primitives.md) | Users | Quick reference for every scene primitive, graph primitive, and container |
 | [`properties.md`](properties.md) | Users | Property registry reference: all actor properties, types, and applicability |
 | [`architecture.md`](architecture.md) | Contributors | System architecture: pipeline, data structures, runtime, layout, rendering, property system, composition |
+| [`ecs.md`](ecs.md) | Contributors | Timeline entity/component design: `World` stores, label→id boundary, component checklist, snapshots, migration status, file-size ratchet |
 | [`primitive_abstraction.md`](primitive_abstraction.md) | Contributors | Primitive trait model: what is unified, accepted boundaries, remaining non-uniformity, deferred decisions, and a recommended order |
 | [`contributing.md`](contributing.md) | Contributors | Build/test workflows, project structure, LSP setup, error model, commit messages |
 | [`roadmap.md`](roadmap.md) | Both | Canonical source of truth for *remaining* work |
@@ -25,6 +26,7 @@
 - **All primitives**: `primitives.md`
 - **All properties**: `properties.md`
 - **System architecture**: `architecture.md`
+- **Timeline ECS / component storage**: `ecs.md`
 - **Primitive abstraction status/gaps**: `primitive_abstraction.md`
 - **How to build/test**: `contributing.md` §Development Workflows
 - **What's next**: `roadmap.md`

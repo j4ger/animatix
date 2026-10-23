@@ -8,6 +8,20 @@ closed work lives in [`history.md`](history.md) — do not re-add it here.
 ## Backlog & Prioritization
 
 
+### Timeline ECS migration + file-size ratchet (active)
+
+The timeline entity/component redesign and the large-file split programme are
+tracked in [`ecs.md`](ecs.md) §6 (phase status) and §8 (the `file-size` gate).
+That document is the single source for what remains:
+
+- **ECS:** Phase 3 (container/persistence/auto-color/child-order/transcript/hit
+  regions), Phase 4 (coordinate-frame closure), Phase 5 (tier components),
+  Phase 6 (delete `AnimationTrack`, GUI migration), Phase 7 (perf + full gates).
+- **Splits:** the allowlist is a ratchet; `scripts/file-size.sh` fails on a new
+  >800-line production file (tests >1500) or on growth past a frozen row.
+
+Do not duplicate the phase list here — update `ecs.md` §6 when a phase lands.
+
 ### Web playback performance (active)
 
 > **Instrument warning, 2026-10-03.** `debug_bench_frames` on a *demo* page is

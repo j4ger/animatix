@@ -30,7 +30,7 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
   notes are in `web/README.md`.
 - `crates/eparts`: themed egui widget framework used by the GUI.
 - `crates/animatix-syntax/src/token.rs`: the single lossless tokenizer; drives parser input, LSP semantic tokens, and GUI highlighting.
-- `docs`: documentation (`docs/roadmap.md` is remaining work only; completed work is archived in `docs/history.md`). `examples`: runnable `.amx` demos. `dogfood`: in-progress real-content projects and grammar probes.
+- `docs`: documentation (`docs/roadmap.md` is remaining work only; completed work is archived in `docs/history.md`). `docs/ecs.md` is the normative timeline entity/component design and the file-size ratchet contract. `examples`: runnable `.amx` demos. `dogfood`: in-progress real-content projects and grammar probes.
 
 ## Workflow
 
@@ -65,7 +65,7 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
    | `native` | `scripts/ci.sh gate <name>` | pure-Rust checks (fmt, meta-version, eparts on non-Linux); stays off nix |
    | `nix` | `nix develop --command scripts/ci.sh gate <name>` | ALSA + FFmpeg headers, Mesa/Vulkan, `cog`, `cargo-audit` |
    | `web` | `nix develop .#web-build --command scripts/ci.sh gate <name>` | the only toolchain with a wasm32 std |
-   | `none` | anywhere | checks that need no toolchain (`content-sync`, `workflows`) |
+   | `none` | anywhere | checks that need no toolchain (`content-sync`, `file-size`, `workflows`) |
 
    Use `env -i` if your shell already loaded a dev shell (see the `.#web-build`
    PATH note in `flake.nix`). A gate whose environment is missing says so and names
@@ -83,7 +83,9 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
    (`web/embed/amx-player.js` is the esbuild output of
    `web/embed/src/amx-player.js`, built on demand and gitignored),
    `content-sync` (generated plates, bundled-library parity, the duplicated font
-   hash table, the bundle sizes `web/README.md` quotes) and `workflows`.
+   hash table, the bundle sizes `web/README.md` quotes), `file-size` (the
+   `docs/ecs.md` §8 ratchet: production source ≤ 800 lines, tests ≤ 1500, legacy
+   offenders frozen in `scripts/file-size-allowlist.tsv`) and `workflows`.
 
    A `.amx` scene that a page embeds also owes one content check: it must rest on
    a composition. `autoplay loop` cycles are `duration` + `hold`, so a closing
@@ -137,6 +139,8 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 ## Common Pitfalls
 
 - **GUI/tooling drift**: `cargo check -p animatix` does not compile the GUI, analyzer, or LSP. Use `cargo check --workspace --all-targets` before committing so their errors cannot accumulate silently.
+- **Timeline data is ECS data**: per-entity state belongs in a `World` component store keyed by `EntityId`, not in a new label-keyed `Timeline` map and not as a new field on `AnimationTrack`/its snapshot DTO. `docs/ecs.md` is normative; follow its "Adding a Component" checklist (`docs/contributing.md`) and delete the old field/table in the same change. Every component write must go through a `Timeline`/`EntityMut` entry point that invalidates the frame cache, and the frame path must not reintroduce a string-keyed fallback.
+- **Follow the file-size ratchet**: `scripts/ci.sh gate file-size` fails if a production source file grows past its `scripts/file-size-allowlist.tsv` row, if a new >800-line file appears (production; tests >1500), or if a split file's row is left behind. Split, then delete the row; never raise or add one.
 - **Evaluation paths**: Both build-time expressions (`evaluate_expr`) and frame-time modifier code / plot closures are evaluated through the unified IR VM. Build-time expressions lower to IR via `compile_expr` and execute via `evaluate_compiled_expr`. Leaf operators and builtins are shared through `eval_shared`. When adding a new expression *semantic* (not just a builtin), follow the touch-point checklist in `docs/contributing.md` ("Adding a New Expression Semantic to the IR").
 - **`cog` is inside the dev shell**: `nix develop` provides `cog` (cocogitto). If `cog` isn't found, you're outside the shell — re-enter `nix develop` before committing. Do not preemptively fall back to `git commit -m`; use it only when cog is genuinely blocked (e.g., the linked-worktree `.git` quirk for cross-worktree commits).
 - **Workspace-wide cargo commands need the dev shell (ALSA)**: `animatix-gui` pulls `rodio` → `cpal` → `alsa-sys`, whose build script probes the system for ALSA through `pkg-config`. Outside `nix develop`, any `--workspace` cargo command dies inside that dependency — `The system library 'alsa' required by crate 'alsa-sys' was not found … PKG_CONFIG_PATH … alsa.pc` — and `cargo check --workspace --all-targets` reports a build failure before it ever looks at this repo's code. It is a missing system library, not a code fault: enter `nix develop` instead of editing `Cargo.toml`, gating the crate behind a feature, or setting `PKG_CONFIG_PATH` by hand. Note the asymmetry — commands scoped to a crate that does not reach the GUI (e.g. `cargo test -p animatix-web`) build and pass outside the shell, so a green single-crate run is not evidence the workspace checks will pass.
