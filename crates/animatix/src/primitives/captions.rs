@@ -80,7 +80,7 @@ impl Primitive for CaptionsPrimitive {
                         if let Ok(transcript) =
                             animatix_text::transcript::parse_transcript_auto(&content)
                         {
-                            ctx.timeline.transcripts.insert(label.to_string(), transcript);
+                            ctx.timeline.set_transcript(label, transcript);
                         }
                     }
                 }

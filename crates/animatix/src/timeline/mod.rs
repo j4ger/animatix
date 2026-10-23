@@ -43,7 +43,10 @@ pub mod callout_geometry;
 pub(crate) mod camera;
 pub mod colorscheme;
 pub mod components;
-pub use components::{CoordinateContext, CoordinateFrameComponent};
+pub use components::{
+    AutoColorComponent, CoordinateContext, CoordinateFrameComponent, PersistenceComponent,
+    TranscriptComponent,
+};
 mod declarations_text;
 /// Built-in post-processing effects, chain storage, and the compositing
 /// backend boundary.
@@ -284,7 +287,7 @@ type StaticSubtreeEntry = (
     Vec<crate::timeline::scene_program::SceneItem>,
     // Hit regions captured for this subtree (only populated when the cache
     // key's `compute_hit_regions` was set — the GUI always sets it).
-    Vec<(String, kurbo::Rect)>,
+    Vec<(EntityId, kurbo::Rect)>,
 );
 
 /// Compiled animation package containing the full scene graph, tracks, and
@@ -353,7 +356,11 @@ pub struct Timeline {
     /// contract `docs/spec.md` documents and the composition path has always
     /// honoured per scene. See [`Timeline::playback_duration_seconds`].
     pub(crate) declared_duration_s: Option<f64>,
-    pub(crate) auto_color_assignments: BTreeMap<String, usize>,
+    /// Next auto-color slot handed out to a `color: auto` declaration.
+    ///
+    /// A scene-level resource (not a component): it is an allocation counter,
+    /// not per-entity state. The assigned slot itself lives in the entity's
+    /// [`AutoColorComponent`].
     pub(crate) next_auto_color_index: usize,
     pub(crate) container_metadata: BTreeMap<String, ContainerMetadata>,
     /// Component store for mathematical coordinate frames keyed by host EntityId.
@@ -387,9 +394,12 @@ pub struct Timeline {
     /// Per-container child order animations.
     /// Key: container label. Value: track of child label orderings.
     pub(crate) child_orders: BTreeMap<String, PropertyTrack<Vec<String>>>,
-    /// Persistence flags set by `persist`/`remove` actions.
-    /// `true` = actor should be carried into the next scene; `false` = not carried.
-    pub(crate) persistence_flags: BTreeMap<String, bool>,
+    /// Whether `persist camera` marked the scene camera to be carried.
+    ///
+    /// The camera is not an entity and owns no track, so its persistence flag
+    /// is a scene resource rather than a [`PersistenceComponent`]; every other
+    /// target stores the flag on its entity.
+    pub(crate) camera_persistent: bool,
     /// Interactive pause points in milliseconds marked by `#step` or `pause`.
     pub pause_points: Vec<u64>,
     /// Runtime text compiler with cache. Enables `always` blocks to change
@@ -438,8 +448,6 @@ pub struct Timeline {
     /// Audio segments collected from Audio actor declarations.
     /// These are muxed into the output during video export.
     pub(crate) audio_segments: Vec<AudioSegment>,
-    /// Speech transcripts parsed from audio/captions declarations, keyed by actor label.
-    pub transcripts: std::collections::HashMap<String, animatix_text::transcript::SpeechTranscript>,
     /// Action events collected during build, for GUI timeline visualization.
     pub action_events: Vec<crate::timeline::animation_track::ActionEvent>,
     /// Cache for static plot paths keyed by parameter hash (Phase 6.4).
@@ -497,7 +505,9 @@ pub(crate) struct EvalCaches {
     /// mutated. Indexed by `EntityId.index()`.
     static_subtree_flags: std::cell::RefCell<Vec<Option<bool>>>,
     scene_buffer: std::cell::RefCell<Option<vello::Scene>>,
-    hit_regions: std::cell::RefCell<Vec<(String, kurbo::Rect)>>,
+    /// Per-frame hit regions keyed by entity id. The label view is materialized
+    /// only by [`Timeline::hit_regions`] at the GUI boundary.
+    hit_regions: std::cell::RefCell<Vec<(EntityId, kurbo::Rect)>>,
     overrides_buffer: std::cell::RefCell<crate::timeline::modifier_runtime::ir::ModifierOverrides>,
     /// Precise world-space bounds for the current frame, indexed by
     /// [`AnimationTrack::bounds_slot`] instead of actor label (PF-6 slot-id
@@ -683,7 +693,6 @@ impl Timeline {
             export_preset: None,
             resolution: None,
             declared_duration_s: None,
-            auto_color_assignments: BTreeMap::new(),
             next_auto_color_index: 0,
             container_metadata: BTreeMap::new(),
             coordinate_frames: BTreeMap::new(),
@@ -698,7 +707,7 @@ impl Timeline {
             build_quality: BuildQuality::Production,
             default_opacity: 1.0,
             child_orders: BTreeMap::new(),
-            persistence_flags: BTreeMap::new(),
+            camera_persistent: false,
             pause_points: Vec::new(),
             text_compiler: std::cell::RefCell::new(crate::renderer::text::TextCompiler::new()),
             eval_caches: EvalCaches::default(),
@@ -713,7 +722,6 @@ impl Timeline {
             wildcard_actors: std::collections::HashSet::new(),
             referenced_properties: std::collections::HashMap::new(),
             audio_segments: Vec::new(),
-            transcripts: std::collections::HashMap::new(),
             action_events: Vec::new(),
             plot_path_cache: std::collections::HashMap::new(),
             modifier_hash: 0,
@@ -1169,7 +1177,22 @@ impl Timeline {
 
     /// Returns the hit regions from the last evaluate call.
     /// Each entry is (actor_label, world_bounds) in scene coordinates.
+    ///
+    /// Label view for the GUI and picking code. Frame-time producers store
+    /// [`EntityId`]s; ids are mapped to labels once here, at the consumer
+    /// boundary. Use [`Self::hit_regions_by_id`] to avoid that allocation.
     pub fn hit_regions(&self) -> Vec<(String, kurbo::Rect)> {
+        let regions = self.eval_caches.hit_regions.borrow();
+        regions
+            .iter()
+            .filter_map(|(id, bounds)| {
+                self.world.label(*id).map(|label| (label.to_string(), *bounds))
+            })
+            .collect()
+    }
+
+    /// Returns the hit regions from the last evaluate call, keyed by entity id.
+    pub fn hit_regions_by_id(&self) -> Vec<(EntityId, kurbo::Rect)> {
         self.eval_caches.hit_regions.borrow().clone()
     }
 
@@ -1294,11 +1317,115 @@ impl Timeline {
         self.world.spawn(label, actor_type)
     }
 
-    /// Returns a reference to all parsed speech transcripts, keyed by actor label.
-    pub fn transcripts(
+    /// Read the speech transcript attached to `label`, if any.
+    #[inline(always)]
+    pub fn transcript(&self, label: &str) -> Option<&animatix_text::transcript::SpeechTranscript> {
+        let id = self.world.get_id(label)?;
+        self.world.transcript.get(id).map(|component| &component.0)
+    }
+
+    /// Iterate every actor that carries a speech transcript, keyed by entity id.
+    pub fn transcripts_iter(
         &self,
-    ) -> &std::collections::HashMap<String, animatix_text::transcript::SpeechTranscript> {
-        &self.transcripts
+    ) -> impl Iterator<Item = (EntityId, &animatix_text::transcript::SpeechTranscript)> + '_ {
+        self.world.transcript.iter().map(|(id, component)| (id, &component.0))
+    }
+
+    /// Attach a parsed speech transcript to `label`.
+    ///
+    /// Returns `false` when no such entity exists (the transcript is dropped;
+    /// the pre-pass only collects labels the build then creates).
+    pub fn set_transcript(
+        &mut self,
+        label: &str,
+        transcript: animatix_text::transcript::SpeechTranscript,
+    ) -> bool {
+        self.invalidate_frame_cache();
+        let Some(id) = self.world.get_id(label) else {
+            tracing::warn!("speech transcript for '{label}' dropped: no such actor");
+            return false;
+        };
+        self.world.transcript.insert(id, TranscriptComponent(transcript));
+        true
+    }
+
+    /// Whether `label` is marked `persistent` by a `persist` action.
+    ///
+    /// An entity that was never targeted resolves `false`, matching the old
+    /// label-keyed map's default. `camera` is not an entity and reads the
+    /// scene-level flag instead.
+    pub fn persistence_flag(&self, label: &str) -> bool {
+        if label == camera::CAMERA_TARGET {
+            return self.camera_persistent;
+        }
+        self.entity(label)
+            .and_then(|entity| entity.persistence())
+            .is_some_and(|component| component.persistent)
+    }
+
+    /// Set (or clear) `label`'s persistence flag.
+    ///
+    /// Invalidates the frame cache first, like every component write.
+    pub fn set_persistence_flag(&mut self, label: &str, persistent: bool) {
+        self.invalidate_frame_cache();
+        if label == camera::CAMERA_TARGET {
+            self.camera_persistent = persistent;
+            return;
+        }
+        let Some(id) = self.world.get_id(label) else {
+            tracing::warn!("persistence flag for '{label}' dropped: no such actor");
+            return;
+        };
+        self.world.persistence.insert(id, PersistenceComponent { persistent });
+    }
+
+    /// Iterate every explicit persistence flag as `(actor_label, flag)`.
+    ///
+    /// Includes `false` flags written by `remove` (so callers can tell
+    /// "never persisted" from "explicitly removed") and the reserved `camera`
+    /// target when it is marked persistent.
+    pub fn persistence_flags_iter(&self) -> impl Iterator<Item = (&str, bool)> + '_ {
+        let actors = self.world.persistence.iter().filter_map(|(id, component)| {
+            self.world.label(id).map(|label| (label, component.persistent))
+        });
+        let camera = self.camera_persistent.then_some((camera::CAMERA_TARGET, true));
+        actors.chain(camera)
+    }
+
+    /// Read the auto-color slot assigned to `label`, if any.
+    ///
+    /// Also reports a slot still buffered for an entity that has not been
+    /// spawned yet (the build assigns `color: auto` before the primitive
+    /// creates the track; the world attaches the buffered slot on spawn).
+    pub fn auto_color_slot(&self, label: &str) -> Option<usize> {
+        if let Some((pending_label, slot)) = &self.world.pending_auto_color {
+            if pending_label == label {
+                return Some(*slot);
+            }
+        }
+        let id = self.world.get_id(label)?;
+        self.world.auto_color.get(id).map(|component| component.slot)
+    }
+
+    /// Record `label`'s auto-color slot.
+    ///
+    /// Invalidates the frame cache first. During the build the entity may not
+    /// exist yet; the slot is then buffered by [`World`] and attached when the
+    /// declaration's track is spawned.
+    pub fn set_auto_color_slot(&mut self, label: &str, slot: usize) {
+        self.invalidate_frame_cache();
+        if let Some(id) = self.world.get_id(label) {
+            self.world.auto_color.insert(id, AutoColorComponent { slot });
+            return;
+        }
+        if let Some((pending_label, _)) = &self.world.pending_auto_color {
+            if pending_label != label {
+                tracing::warn!(
+                    "auto-color slot for '{label}' overwrote a pending slot for '{pending_label}'"
+                );
+            }
+        }
+        self.world.pending_auto_color = Some((label.to_string(), slot));
     }
 
     /// Map each child label to its parent label, derived from the hierarchy
@@ -1562,7 +1689,7 @@ impl Timeline {
             return true;
         };
         if track.caps.time_dependent
-            || self.transcripts.contains_key(label)
+            || self.world.transcript.contains(track.id)
             || track.has_any_keyframes()
             || track.procedural_plot().is_some()
             || track.shape.from_anchor.is_some()

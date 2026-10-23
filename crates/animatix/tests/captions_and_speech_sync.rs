@@ -101,7 +101,7 @@ subs: Captions, opacity: 1.0, transcript: "{}", caption_mode: "karaoke", backdro
     assert!(report.diagnostics.is_empty(), "build diagnostics: {:?}", report.diagnostics);
 
     let tl = report.output;
-    assert!(tl.transcripts().contains_key("voice"));
+    assert!(tl.transcript("voice").is_some());
 
     // Frame evaluation at word active times
     let _scene_word0 = tl.evaluate(0.3, DIMS);
@@ -249,8 +249,8 @@ fn test_demo_scene_captions_evaluation() {
         animatix::composition::BuildTarget::SingleScene(tl) => tl,
         animatix::composition::BuildTarget::MultiScene(_) => panic!("Expected single scene"),
     };
-    assert!(tl.transcripts().contains_key("voice"));
-    assert!(tl.transcripts().contains_key("subs"));
+    assert!(tl.transcript("voice").is_some());
+    assert!(tl.transcript("subs").is_some());
     let subs_track = tl.tracks().get("subs").expect("subs track must exist");
     assert_eq!(subs_track.actor_type, "Captions");
     assert_eq!(subs_track.style.opacity.get(2000, 0.0), 1.0);

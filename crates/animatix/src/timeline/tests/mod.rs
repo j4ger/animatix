@@ -25,6 +25,8 @@ mod camera;
 #[cfg(test)]
 mod colorscheme;
 #[cfg(test)]
+mod components;
+#[cfg(test)]
 mod connector;
 #[cfg(test)]
 mod container_helpers;

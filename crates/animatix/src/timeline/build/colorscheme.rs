@@ -328,19 +328,23 @@ impl Timeline {
     }
 
     pub(crate) fn auto_color_for_label(&mut self, label: &str) -> Option<[f32; 4]> {
-        if self.colorscheme.auto_cycle.is_empty() {
+        let cycle_len = self.colorscheme.auto_cycle.len();
+        if cycle_len == 0 {
             return None;
         }
 
-        let slot = if let Some(slot) = self.auto_color_assignments.get(label) {
-            *slot
-        } else {
-            let slot = self.next_auto_color_index;
-            self.auto_color_assignments.insert(label.to_string(), slot);
-            self.next_auto_color_index += 1;
-            slot
+        let slot = match self.auto_color_slot(label) {
+            Some(slot) => slot,
+            None => {
+                let slot = self.next_auto_color_index;
+                // At build time the declaration's entity may not exist yet;
+                // `set_auto_color_slot` buffers the slot until it is spawned.
+                self.set_auto_color_slot(label, slot);
+                self.next_auto_color_index += 1;
+                slot
+            },
         };
 
-        Some(self.colorscheme.auto_cycle[slot % self.colorscheme.auto_cycle.len()])
+        Some(self.colorscheme.auto_cycle[slot % cycle_len])
     }
 }

@@ -842,10 +842,10 @@ impl Timeline {
                 transform_rect_bbox(&local_transform, default_bounds)
             };
             // `hit_regions` is only read back when picking was requested
-            // (`evaluate_program_inner` discards it otherwise), so building
-            // the owned label per node per frame is wasted allocation.
+            // (`evaluate_program_inner` discards it otherwise). The id is the
+            // entity handle, so no label is materialized per node per frame.
             if debug_options.compute_hit_regions {
-                hit_regions.push((node_label.to_string(), world_bounds));
+                hit_regions.push((track.id, world_bounds));
             }
             // PF-6 slot-id bounds: the frame start stamped every track's
             // slot, so the write is a `Vec` store — no string key, no hash.
@@ -1368,7 +1368,7 @@ impl Timeline {
         self.eval_caches.solo.replace(solo_state);
 
         // Collect actor world-space bounding boxes for click-to-select
-        let mut hit_regions: Vec<(String, kurbo::Rect)> = if debug_options.compute_hit_regions {
+        let mut hit_regions: Vec<(EntityId, kurbo::Rect)> = if debug_options.compute_hit_regions {
             self.eval_caches.hit_regions.take()
         } else {
             Vec::new()
@@ -1613,7 +1613,7 @@ impl Timeline {
                         }
                         // Capture the subtree's hit regions once (only collected
                         // when requested; see the cache-key's debug_options).
-                        let new_hit_regions: Vec<(String, kurbo::Rect)> =
+                        let new_hit_regions: Vec<(EntityId, kurbo::Rect)> =
                             if debug_options.compute_hit_regions {
                                 out.hit_regions[subtree_hits_before..].to_vec()
                             } else {

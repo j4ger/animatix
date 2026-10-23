@@ -20,6 +20,7 @@ pub use view::{EntityMut, EntityRef};
 
 use std::collections::HashMap;
 
+use super::components::{AutoColorComponent, PersistenceComponent, TranscriptComponent};
 use super::dispatch::AnimationTrack;
 use super::entity::{EntityId, TrackStore};
 
@@ -31,6 +32,12 @@ pub struct World {
     pub(crate) tracks: TrackStore,
     /// Parent/children links, aligned with `tracks`.
     pub(crate) hierarchy: RequiredStore<SceneHierarchyComponent>,
+    /// `persist` / `remove` state for actors that were targeted by an action.
+    pub(crate) persistence: ComponentStore<PersistenceComponent>,
+    /// `color: auto` slot for actors declared with automatic coloring.
+    pub(crate) auto_color: ComponentStore<AutoColorComponent>,
+    /// Parsed speech transcript for `Audio` / `Captions` actors.
+    pub(crate) transcript: ComponentStore<TranscriptComponent>,
     /// Root entities in authored/insertion order.
     pub(crate) roots: Vec<EntityId>,
     /// Build-time command buffer: a child label whose track has not been
@@ -41,6 +48,16 @@ pub struct World {
     /// `spawn_with_track` the moment the entity exists. This is build state,
     /// not runtime storage: it is empty after a completed build.
     pub(crate) pending_parents: HashMap<String, EntityId>,
+    /// Build-time command buffer: an auto-color slot assigned while the
+    /// declaration's properties were evaluated, before its entity existed.
+    ///
+    /// `color: auto` is resolved during property evaluation, but the primitive
+    /// creates the track only afterwards (and build code between the two
+    /// deliberately observes the entity as *not yet spawned*, e.g.
+    /// `is_first_decl`). The slot is attached by `spawn_with_track`/`spawn`
+    /// when the entity appears. Empty after a completed build; not runtime
+    /// storage.
+    pub(crate) pending_auto_color: Option<(String, usize)>,
     /// Build-time root order for labels whose entity does not exist yet.
     pub(crate) pending_roots: Vec<String>,
 }
@@ -130,6 +147,7 @@ impl World {
             // `TrackStore` insert (extension builds, tests); keep the
             // component stores aligned before anyone borrows them.
             self.ensure_len();
+            self.attach_pending_auto_color(id, label);
             return id;
         }
         self.spawn_with_track(label, AnimationTrack::new(label.to_string(), actor_type))
@@ -139,10 +157,12 @@ impl World {
     pub fn spawn_with_track(&mut self, label: &str, track: AnimationTrack) -> EntityId {
         if let Some(id) = self.tracks.get_id(label) {
             self.ensure_len();
+            self.attach_pending_auto_color(id, label);
             return id;
         }
         let id = self.tracks.insert_internal(label.to_string(), track);
         self.ensure_len();
+        self.attach_pending_auto_color(id, label);
         self.adopt(id, label);
         id
     }
@@ -172,6 +192,10 @@ impl World {
         }
         self.ensure_len();
         self.hierarchy.reset_at(id);
+        self.persistence.reset_at(id);
+        self.auto_color.reset_at(id);
+        self.transcript.reset_at(id);
+        self.attach_pending_auto_color(id, label);
         self.adopt(id, label);
         id
     }
@@ -301,6 +325,25 @@ impl World {
         }
     }
 
+    /// Attach an auto-color slot that was resolved before the entity existed.
+    ///
+    /// `color: auto` is evaluated in the declaration's property loop, which
+    /// runs before the primitive creates the track; the build deliberately
+    /// still sees the entity as absent there (`is_first_decl`). The slot waits
+    /// in [`Self::pending_auto_color`] and lands here the moment the entity is
+    /// spawned.
+    fn attach_pending_auto_color(&mut self, id: EntityId, label: &str) {
+        let matches = self
+            .pending_auto_color
+            .as_ref()
+            .is_some_and(|(pending_label, _)| pending_label == label);
+        if !matches {
+            return;
+        }
+        let (_, slot) = self.pending_auto_color.take().expect("checked above");
+        self.auto_color.insert(id, AutoColorComponent { slot });
+    }
+
     /// Resolve buffered hierarchy labels after a build pass.
     ///
     /// Handles entities created by direct `TrackStore` insertion (carry
@@ -338,14 +381,21 @@ impl World {
     pub(crate) fn ensure_len(&mut self) {
         let len = self.tracks.len();
         self.hierarchy.ensure_len(len);
+        self.persistence.ensure_len(len);
+        self.auto_color.ensure_len(len);
+        self.transcript.ensure_len(len);
     }
 
     /// Drop every entity and component.
     pub fn clear(&mut self) {
         self.tracks.clear();
         self.hierarchy.clear();
+        self.persistence.clear();
+        self.auto_color.clear();
+        self.transcript.clear();
         self.roots.clear();
         self.pending_parents.clear();
+        self.pending_auto_color = None;
         self.pending_roots.clear();
     }
 }

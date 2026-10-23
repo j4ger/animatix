@@ -526,7 +526,7 @@ impl Composition {
                 // Emit PersistTargetNotCarried for the predecessor if it's the last scene.
                 if !has_successor {
                     if let Some(pred) = scenes.get(&pred_name) {
-                        for (label, &flag) in &pred.timeline.persistence_flags {
+                        for (label, flag) in pred.timeline.persistence_flags_iter() {
                             if flag {
                                 diagnostics.push(
                                     Diagnostic::warning(
@@ -611,7 +611,7 @@ impl Composition {
         // (persistence flags set but no successor to carry them into).
         if let Some(last_scene_name) = walk_order.last() {
             if let Some(last_scene) = scenes.get(last_scene_name) {
-                for (label, &flag) in &last_scene.timeline.persistence_flags {
+                for (label, flag) in last_scene.timeline.persistence_flags_iter() {
                     if flag {
                         // Only warn if this scene really has no outgoing edge.
                         let has_outgoing = edges.contains_key(last_scene_name);

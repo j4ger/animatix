@@ -576,10 +576,9 @@ fn test_persist_basic_carry() {
 
     // SceneA: persistence flag set
     let scene_a = comp.scenes.get("SceneA").expect("SceneA must exist");
-    assert_eq!(
-        scene_a.timeline.persistence_flags.get("title"),
-        Some(&true),
-        "SceneA persistence_flags[title] must be true"
+    assert!(
+        scene_a.timeline.persistence_flag("title"),
+        "SceneA persistence flag for title must be true"
     );
 
     // SceneB: carried actor present
@@ -662,10 +661,9 @@ fn test_persist_chain() {
         scene_b.timeline.world.tracks.contains_key("badge"),
         "SceneB must have badge from chain carry"
     );
-    assert_eq!(
-        scene_b.timeline.persistence_flags.get("badge"),
-        Some(&true),
-        "chain: SceneB persistence_flags[badge] must remain true"
+    assert!(
+        scene_b.timeline.persistence_flag("badge"),
+        "chain: SceneB persistence flag for badge must remain true"
     );
 
     let scene_c = comp.scenes.get("SceneC").expect("SceneC must exist");
@@ -711,9 +709,13 @@ fn test_remove_breaks_chain() {
         "SceneB must have badge (carried then removed)"
     );
     assert_eq!(
-        scene_b.timeline.persistence_flags.get("badge"),
-        Some(&false),
-        "SceneB persistence_flags[badge] must be false after remove"
+        scene_b
+            .timeline
+            .entity("badge")
+            .and_then(|entity| entity.persistence())
+            .map(|component| component.persistent),
+        Some(false),
+        "SceneB persistence flag for badge must be false after remove"
     );
 
     // badge must NOT be in SceneC (chain broken by remove in B)
@@ -903,7 +905,7 @@ fn test_persist_after_remove_warns_via_build() {
 ///
 /// Actor declared with `color: auto` in SceneA gets an auto_color slot.
 /// When carried to SceneB, that slot must appear in SceneB's
-/// `auto_color_assignments` so the actor keeps its color.
+/// `auto_color` component so the actor keeps its color.
 #[test]
 fn test_auto_color_slot_preserved_across_carry() {
     let source = concat!(
@@ -930,13 +932,12 @@ fn test_auto_color_slot_preserved_across_carry() {
 
     let comp = &report.output;
 
-    // SceneA should have auto_color_assignments for 'circle'
+    // SceneA should have an auto_color slot for 'circle'
     let scene_a = comp.scenes.get("SceneA").expect("SceneA");
-    assert!(
-        scene_a.timeline.auto_color_assignments.contains_key("circle"),
-        "SceneA: circle should have an auto_color slot"
-    );
-    let slot_a = scene_a.timeline.auto_color_assignments["circle"];
+    let slot_a = scene_a
+        .timeline
+        .auto_color_slot("circle")
+        .expect("SceneA: circle should have an auto_color slot");
 
     // SceneB should have the same auto_color slot for 'circle'
     let scene_b = comp.scenes.get("SceneB").expect("SceneB");
@@ -944,11 +945,10 @@ fn test_auto_color_slot_preserved_across_carry() {
         scene_b.timeline.world.tracks.contains_key("circle"),
         "SceneB: carried circle track must exist"
     );
-    assert!(
-        scene_b.timeline.auto_color_assignments.contains_key("circle"),
-        "SceneB: circle auto_color slot must be carried"
-    );
-    let slot_b = scene_b.timeline.auto_color_assignments["circle"];
+    let slot_b = scene_b
+        .timeline
+        .auto_color_slot("circle")
+        .expect("SceneB: circle auto_color slot must be carried");
     assert_eq!(slot_a, slot_b, "auto_color slot must be the same in both scenes");
 }
 
@@ -1254,9 +1254,8 @@ fn persist_camera_carries_the_transform() {
     );
 
     let scene_a = report.output.scenes.get("SceneA").expect("SceneA");
-    assert_eq!(
-        scene_a.timeline.persistence_flags.get(crate::timeline::camera::CAMERA_TARGET),
-        Some(&true),
+    assert!(
+        scene_a.timeline.persistence_flag(crate::timeline::camera::CAMERA_TARGET),
         "SceneA must record the camera as persistent"
     );
     // Sample the source where it actually ends: the pan is written *at* 500 ms
@@ -1355,9 +1354,8 @@ fn remove_camera_stops_the_carry_without_fading_anything() {
         1.8,
         "the receiving scene keeps the push"
     );
-    assert_eq!(
-        scene_b.timeline.persistence_flags.get(crate::timeline::camera::CAMERA_TARGET),
-        Some(&false),
+    assert!(
+        !scene_b.timeline.persistence_flag(crate::timeline::camera::CAMERA_TARGET),
         "`remove camera` clears the flag"
     );
     let scene_c = report.output.scenes.get("SceneC").expect("SceneC");

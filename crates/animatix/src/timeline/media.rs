@@ -355,7 +355,7 @@ impl Timeline {
                             if let Ok(t) =
                                 animatix_text::transcript::parse_transcript_auto(&content)
                             {
-                                self.transcripts.insert(label.to_string(), t);
+                                self.set_transcript(label, t);
                             }
                         }
                     }

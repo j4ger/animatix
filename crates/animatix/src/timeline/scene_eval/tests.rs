@@ -287,7 +287,7 @@ fn hit_regions_are_populated_after_evaluate() {
     );
 
     // hit_regions should be populated after evaluate
-    let regions = timeline.eval_caches.hit_regions.borrow();
+    let regions = timeline.hit_regions();
     assert!(!regions.is_empty(), "hit_regions should be populated after evaluate");
     assert!(
         regions.iter().any(|(label, _)| label == "test_box"),
@@ -314,7 +314,7 @@ fn hit_regions_contain_world_bounds() {
         &mut None,
     );
 
-    let regions = timeline.eval_caches.hit_regions.borrow();
+    let regions = timeline.hit_regions();
     let (label, bounds) = regions
         .iter()
         .find(|(l, _)| l == "test_box")
@@ -324,6 +324,52 @@ fn hit_regions_contain_world_bounds() {
     // The bounds should be valid rectangles (x0 < x1, y0 < y1)
     assert!(bounds.x0 < bounds.x1, "hit region x0 should be less than x1");
     assert!(bounds.y0 < bounds.y1, "hit region y0 should be less than y1");
+}
+
+#[test]
+fn hit_regions_by_id_matches_label_view() {
+    let timeline = make_minimal_timeline();
+    let dimensions = SceneDimensions {
+        width: 800,
+        height: 600,
+    };
+
+    let _scene = timeline.evaluate_with_debug(
+        0.0,
+        dimensions,
+        DebugRenderOptions {
+            draw_bounds: false,
+            compute_hit_regions: true,
+            ..Default::default()
+        },
+        &mut None,
+    );
+
+    let by_id = timeline.hit_regions_by_id();
+    let by_label = timeline.hit_regions();
+    assert_eq!(by_id.len(), by_label.len(), "both views must list the same regions");
+
+    let test_box = timeline.get_entity_id("test_box").expect("test_box entity id");
+    let (id, id_bounds) = by_id
+        .iter()
+        .find(|(id, _)| *id == test_box)
+        .expect("by-id view must contain the test_box entity");
+    assert_eq!(*id, test_box);
+    let (label, label_bounds) = by_label
+        .iter()
+        .find(|(label, _)| label == "test_box")
+        .expect("label view must contain 'test_box'");
+    assert_eq!(label, "test_box");
+    assert_eq!(
+        *id_bounds, *label_bounds,
+        "the two views must report the same bounds for the same entity"
+    );
+
+    // Every id in the label-independent view resolves back to a label.
+    assert!(
+        by_id.iter().all(|(id, _)| timeline.get_entity_label(*id).is_some()),
+        "every recorded hit region id must resolve to a label"
+    );
 }
 
 #[test]
@@ -372,7 +418,7 @@ fn hit_regions_cover_actors_without_draw_commands() {
         &mut None,
     );
 
-    let regions = timeline.eval_caches.hit_regions.borrow();
+    let regions = timeline.hit_regions();
     let (found_grp, bounds_grp) = regions
         .iter()
         .find(|(l, _)| l == "grp")

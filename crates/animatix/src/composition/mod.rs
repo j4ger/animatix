@@ -283,7 +283,7 @@ impl BuildTarget {
                 Timeline::build_with_diagnostics_and_defines(statements, namespaces, defines)
             };
             let mut diags = report.diagnostics;
-            for (label, &flag) in &report.output.persistence_flags {
+            for (label, flag) in report.output.persistence_flags_iter() {
                 if flag {
                     diags.push(
                         Diagnostic::warning(
@@ -343,7 +343,7 @@ impl BuildTarget {
             );
             // Warn about persistent actors in a truly single-scene file (no successor).
             let mut diags = report.diagnostics;
-            for (label, &flag) in &report.output.persistence_flags {
+            for (label, flag) in report.output.persistence_flags_iter() {
                 if flag {
                     diags.push(
                         Diagnostic::warning(
@@ -408,7 +408,7 @@ impl BuildTarget {
                     context,
                 );
             let mut diags = report.diagnostics;
-            for (label, &flag) in &report.output.persistence_flags {
+            for (label, flag) in report.output.persistence_flags_iter() {
                 if flag {
                     diags.push(
                         Diagnostic::warning(

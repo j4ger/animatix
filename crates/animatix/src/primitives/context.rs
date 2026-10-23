@@ -114,8 +114,8 @@ pub(crate) struct RenderFrame<'a> {
 pub(crate) struct RenderOutputs<'s, 'f> {
     /// Scene receiving the draw commands.
     pub(crate) scene: &'s mut vello::Scene,
-    /// Hit regions (world bounds) collected for this frame.
-    pub(crate) hit_regions: &'s mut Vec<(String, kurbo::Rect)>,
+    /// Hit regions (world bounds) collected for this frame, keyed by entity id.
+    pub(crate) hit_regions: &'s mut Vec<(crate::timeline::EntityId, kurbo::Rect)>,
     /// Observable scene items, when collection was requested.
     pub(crate) program_items: &'s mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
     /// The active filter backend, when one is available.
@@ -201,8 +201,8 @@ pub struct RenderChildrenCtx<'a, 'b, 'c> {
     pub allow_pending_composites: bool,
     /// Output scene for this frame.
     pub scene: &'b mut vello::Scene,
-    /// Output hit regions (world bounds) for this frame.
-    pub hit_regions: &'b mut Vec<(String, kurbo::Rect)>,
+    /// Output hit regions (world bounds) for this frame, keyed by entity id.
+    pub hit_regions: &'b mut Vec<(crate::timeline::EntityId, kurbo::Rect)>,
     /// Output observable scene items, when item collection was requested.
     pub program_items: &'b mut Option<Vec<crate::timeline::scene_program::SceneItem>>,
     /// The active filter backend, when one is available.

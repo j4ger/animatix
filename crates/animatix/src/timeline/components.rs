@@ -7,6 +7,8 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use animatix_text::transcript::SpeechTranscript;
+
 use super::build::utils::ScaleType;
 use super::entity::EntityId;
 
@@ -83,3 +85,34 @@ impl CoordinateContext {
         }
     }
 }
+
+/// Whether an actor is carried into the successor scene.
+///
+/// Written by the `persist` / `remove` actions. An entity without this
+/// component has never been targeted by either action, which resolves exactly
+/// like a `false` flag (the pre-ECS `persistence_flags` map default).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct PersistenceComponent {
+    /// `true` = carry the actor across a scene boundary; `false` = `remove`d.
+    pub persistent: bool,
+}
+
+/// Auto-color slot assigned by `color: auto`, indexing the colorscheme cycle.
+///
+/// Presence means the actor was declared with `color: auto`; the slot is
+/// carried across scenes so the actor keeps the same cycle color.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct AutoColorComponent {
+    /// Slot index into the resolved colorscheme's `auto_cycle`.
+    pub slot: usize,
+}
+
+/// Parsed speech transcript attached to an `Audio` / `Captions` actor.
+///
+/// Holds the word-level timing data used by the captions renderer and the GUI
+/// speech lanes.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct TranscriptComponent(pub SpeechTranscript);

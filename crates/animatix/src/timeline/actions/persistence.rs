@@ -105,15 +105,21 @@ impl BuiltinAction for Persist {
             // mid-push has a transform worth handing over. The bag carries it as
             // its own entry (see `CarryBag::camera`).
             if target == crate::timeline::camera::CAMERA_TARGET {
-                timeline.persistence_flags.insert(target.clone(), true);
+                timeline.set_persistence_flag(target, true);
                 continue;
             }
             if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics, None) {
                 continue;
             }
 
-            // Warn if the actor was removed (flag set to false) earlier in this scene.
-            if let Some(&false) = timeline.persistence_flags.get(target) {
+            // Warn only when an explicit `remove` (a `false` component) was
+            // recorded earlier; an actor that was never targeted is not
+            // "removed" and reads the same `false` through `persistence_flag`.
+            let explicitly_removed = timeline
+                .entity(target)
+                .and_then(|entity| entity.persistence())
+                .is_some_and(|component| !component.persistent);
+            if explicitly_removed {
                 diagnostics.push(
                     Diagnostic::warning(
                         DiagnosticCode::PersistAfterRemove,
@@ -128,7 +134,7 @@ impl BuiltinAction for Persist {
                 );
             }
 
-            timeline.persistence_flags.insert(target.clone(), true);
+            timeline.set_persistence_flag(target, true);
         }
     }
 }
@@ -198,7 +204,7 @@ impl BuiltinAction for Remove {
                         .with_ast_span(None),
                     );
                 }
-                timeline.persistence_flags.insert(target.clone(), false);
+                timeline.set_persistence_flag(target, false);
                 continue;
             }
             if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics, None) {
@@ -209,7 +215,7 @@ impl BuiltinAction for Remove {
             apply_fade_out_opacity(timeline, target, t_start_ms, t_end_ms, delay_ms, easing);
 
             // Clear the persistence flag so this actor is NOT carried forward
-            timeline.persistence_flags.insert(target.clone(), false);
+            timeline.set_persistence_flag(target, false);
         }
     }
 }
@@ -281,11 +287,7 @@ mod tests {
         Persist.execute(&action, 0.0, &mut timeline, &mut diagnostics);
 
         assert!(diagnostics.is_empty());
-        assert_eq!(
-            timeline.persistence_flags.get("actor"),
-            Some(&true),
-            "persist should set flag to true"
-        );
+        assert!(timeline.persistence_flag("actor"), "persist should set flag to true");
     }
 
     #[test]
@@ -310,9 +312,9 @@ mod tests {
         Persist.execute(&action, 0.0, &mut timeline, &mut diagnostics);
 
         assert!(diagnostics.is_empty());
-        assert_eq!(timeline.persistence_flags.get("a"), Some(&true));
-        assert_eq!(timeline.persistence_flags.get("b"), Some(&true));
-        assert_eq!(timeline.persistence_flags.get("c"), Some(&true));
+        assert!(timeline.persistence_flag("a"));
+        assert!(timeline.persistence_flag("b"));
+        assert!(timeline.persistence_flag("c"));
     }
 
     #[test]
@@ -344,7 +346,7 @@ mod tests {
         assert!(has_warning, "persist with duration should emit warning");
 
         // Flag should still be set despite warning
-        assert_eq!(timeline.persistence_flags.get("actor"), Some(&true));
+        assert!(timeline.persistence_flag("actor"));
     }
 
     #[test]
@@ -366,7 +368,7 @@ mod tests {
         let has_error =
             diagnostics.iter().any(|d| d.code == DiagnosticCode::UnsupportedActionTarget);
         assert!(has_error, "persist on nonexistent target should emit error");
-        assert!(!timeline.persistence_flags.contains_key("nonexistent"));
+        assert!(!timeline.persistence_flag("nonexistent"));
     }
 
     // -----------------------------------------------------------------------
@@ -379,7 +381,7 @@ mod tests {
         let mut track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
         track.style.opacity.ensure(1.0);
         timeline.world.tracks.insert("actor".to_string(), track);
-        timeline.persistence_flags.insert("actor".to_string(), true);
+        timeline.set_persistence_flag("actor", true);
 
         let action = Action {
             verb: "remove".to_string(),
@@ -395,8 +397,8 @@ mod tests {
 
         assert!(diagnostics.is_empty());
         assert_eq!(
-            timeline.persistence_flags.get("actor"),
-            Some(&false),
+            timeline.entity("actor").and_then(|e| e.persistence()).map(|c| c.persistent),
+            Some(false),
             "remove should clear persistence flag"
         );
     }
@@ -506,7 +508,7 @@ mod tests {
             &ast,
             &std::collections::HashMap::new(),
         );
-        assert_eq!(report.output.persistence_flags.get("headline"), Some(&true));
+        assert!(report.output.persistence_flag("headline"));
     }
 
     #[test]
@@ -538,8 +540,12 @@ mod tests {
             &std::collections::HashMap::new(),
         );
         assert_eq!(
-            report.output.persistence_flags.get("headline"),
-            Some(&false),
+            report
+                .output
+                .entity("headline")
+                .and_then(|e| e.persistence())
+                .map(|c| c.persistent),
+            Some(false),
             "remove should clear persistence flag"
         );
         let track = report.output.world.tracks.get("headline").unwrap();

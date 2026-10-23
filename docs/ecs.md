@@ -213,7 +213,8 @@ cross-scene carry, not for runtime storage.
 | P0 | `docs/ecs.md`, file-size ratchet, AGENTS/architecture docs, baseline | done |
 | P1 | `world/` stores, `EntityStore`, `EntityRef`/`EntityMut`, `Timeline.world` | done |
 | P2 | hierarchy + roots (bounds slots deferred to P5h) | done |
-| P3 | container/persistence/auto-color/child-order/transcript/hit regions | pending |
+| P3a | persistence / auto-color / transcript stores + `EntityId` hit regions | done |
+| P3b | container-layout + child-order stores | pending |
 | P4 | coordinate-frame closure (no env fallback, carry across scenes) | pending |
 | P5 | tier components (effects/payload/legend/highlight/text/shape/style/geometry/plan) | pending |
 | P6 | delete `AnimationTrack`/`TrackStore`, migrate GUI, snapshot DTO | pending |

@@ -6,6 +6,7 @@
 //! forwards to it; when the domain moves to a component store, only the
 //! accessor changes. Call sites adopt the accessor once and do not churn again.
 
+use super::super::components::{AutoColorComponent, PersistenceComponent, TranscriptComponent};
 use super::super::dispatch::AnimationTrack;
 use super::super::entity::EntityId;
 use super::World;
@@ -52,6 +53,24 @@ impl<'w> EntityRef<'w> {
     #[inline(always)]
     pub fn hierarchy(self) -> &'w super::SceneHierarchyComponent {
         self.world.hierarchy.get(self.id)
+    }
+
+    /// The entity's `persist`/`remove` state, when an action targeted it.
+    #[inline(always)]
+    pub fn persistence(self) -> Option<&'w PersistenceComponent> {
+        self.world.persistence.get(self.id)
+    }
+
+    /// The entity's auto-color slot, when it was declared with `color: auto`.
+    #[inline(always)]
+    pub fn auto_color(self) -> Option<&'w AutoColorComponent> {
+        self.world.auto_color.get(self.id)
+    }
+
+    /// The entity's speech transcript, when it declares one.
+    #[inline(always)]
+    pub fn transcript(self) -> Option<&'w TranscriptComponent> {
+        self.world.transcript.get(self.id)
     }
 }
 
@@ -116,5 +135,23 @@ impl<'w> EntityMut<'w> {
     #[inline(always)]
     pub fn hierarchy_mut(&mut self) -> &mut super::SceneHierarchyComponent {
         self.world.hierarchy.get_mut(self.id)
+    }
+
+    /// Mutably borrow the entity's `persist`/`remove` state, if present.
+    #[inline(always)]
+    pub fn persistence_mut(&mut self) -> Option<&mut PersistenceComponent> {
+        self.world.persistence.get_mut(self.id)
+    }
+
+    /// Mutably borrow the entity's auto-color slot, if present.
+    #[inline(always)]
+    pub fn auto_color_mut(&mut self) -> Option<&mut AutoColorComponent> {
+        self.world.auto_color.get_mut(self.id)
+    }
+
+    /// Mutably borrow the entity's speech transcript, if present.
+    #[inline(always)]
+    pub fn transcript_mut(&mut self) -> Option<&mut TranscriptComponent> {
+        self.world.transcript.get_mut(self.id)
     }
 }

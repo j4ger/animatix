@@ -495,17 +495,21 @@ impl Timeline {
             }
         }
 
-        // Pre-pass: collect speech transcripts from Audio/Captions declarations
+        // Pre-pass: collect speech transcripts from Audio/Captions declarations.
+        // The map is a build-time buffer: it lowers speech-anchored keyframe
+        // times below, then each transcript is attached to its actor's entity
+        // after the declaration walk created it.
+        let mut collected_transcripts = std::collections::HashMap::new();
         super::speech::collect_transcripts_from_ast(
             ast,
             &timeline.asset_cache,
-            &mut timeline.transcripts,
+            &mut collected_transcripts,
             &mut diagnostics,
         );
 
         // Pre-pass: lower any speech-anchored keyframe times in the AST
         let lowered_ast =
-            super::speech::lower_speech_keyframes(ast, &timeline.transcripts, &mut diagnostics);
+            super::speech::lower_speech_keyframes(ast, &collected_transcripts, &mut diagnostics);
         let ast = &lowered_ast;
 
         let mut has_seen_keyframe = false;
@@ -547,6 +551,15 @@ impl Timeline {
                 },
                 _ => {}, // Config/import/type aliases are handled by earlier phases
             }
+        }
+
+        // Attach the pre-pass transcripts now that every declaration has
+        // created its entity. Primitive builds may already have attached the
+        // same parse (Audio/Captions read the file themselves); last writer
+        // wins and both come from the same file, so this only fills actors
+        // whose primitive did not.
+        for (label, transcript) in collected_transcripts {
+            timeline.set_transcript(&label, transcript);
         }
 
         // Names written by always blocks — a plot closure capturing one of

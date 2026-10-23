@@ -148,7 +148,7 @@ pub fn build_document_with_modules(
             );
         // `BuildTarget::from_ast*` adds a `PersistTargetNotCarried` warning
         // here for persisted actors with no successor scene, but reads the
-        // private `persistence_flags` to do it. The web driver skips that
+        // timeline's persistence flags to do it. The web driver skips that
         // nicety; persistence in a single-scene web document degrades to
         // "state simply resets between loops".
         (BuildTarget::SingleScene(report.output), report.diagnostics)

@@ -132,10 +132,10 @@ impl Timeline {
         }
 
         if all_cues.is_empty() {
-            let transcript = self.transcripts.get(node_label).or_else(|| {
+            let transcript = self.transcript(node_label).or_else(|| {
                 let source = track.sample_string_prop("source", time_ms, "");
                 if !source.is_empty() {
-                    self.transcripts.get(&source)
+                    self.transcript(&source)
                 } else {
                     None
                 }

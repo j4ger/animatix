@@ -31,7 +31,7 @@ fn make_timeline_with_persistent_actors() -> Timeline {
     timeline.world.link(rect_id, child_id);
 
     // Mark rect1 as persistent
-    timeline.persistence_flags.insert("rect1".to_string(), true);
+    timeline.set_persistence_flag("rect1", true);
 
     timeline
 }
@@ -234,7 +234,7 @@ fn compute_carry_bag_skips_non_persistent_actors() {
     timeline.world.spawn_with_track("rect2", rect2);
 
     // Only rect2 is persistent
-    timeline.persistence_flags.insert("rect2".to_string(), true);
+    timeline.set_persistence_flag("rect2", true);
 
     let bag = timeline.compute_carry_bag(0, true);
     assert_eq!(bag.entries.len(), 1);
@@ -255,10 +255,10 @@ fn compute_carry_bag_carries_auto_color_slot() {
     timeline.world.spawn_with_track("circle", actor);
 
     // Simulate the color: auto assignment — slot 0 was assigned.
-    timeline.auto_color_assignments.insert("circle".to_string(), 0);
+    timeline.set_auto_color_slot("circle", 0);
     timeline.next_auto_color_index = 1;
 
-    timeline.persistence_flags.insert("circle".to_string(), true);
+    timeline.set_persistence_flag("circle", true);
 
     let bag = timeline.compute_carry_bag(0, true);
     let entry = bag.entries.get("circle").expect("circle should be in bag");
@@ -271,9 +271,9 @@ fn inject_carry_bag_seeds_auto_color_assignments() {
     let mut actor = AnimationTrack::placeholder("dot".to_string());
     actor.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
     source.world.spawn_with_track("dot", actor);
-    source.auto_color_assignments.insert("dot".to_string(), 2);
+    source.set_auto_color_slot("dot", 2);
     source.next_auto_color_index = 3;
-    source.persistence_flags.insert("dot".to_string(), true);
+    source.set_persistence_flag("dot", true);
 
     let bag = source.compute_carry_bag(0, true);
 
@@ -281,15 +281,49 @@ fn inject_carry_bag_seeds_auto_color_assignments() {
     dest.inject_carry_bag(&bag, &source, 0, [1280.0, 720.0], &mut Vec::new());
 
     assert_eq!(
-        dest.auto_color_assignments.get("dot"),
-        Some(&2),
-        "injected auto_color_slot must appear in dest.auto_color_assignments"
+        dest.auto_color_slot("dot"),
+        Some(2),
+        "injected auto_color_slot must appear in dest's auto_color store"
     );
     // next_auto_color_index must be bumped to avoid collision
     assert!(
         dest.next_auto_color_index >= 3,
         "next_auto_color_index must be at least slot+1 to avoid collision"
     );
+}
+
+#[test]
+fn carry_bag_preserves_auto_color_and_transcript() {
+    let mut source = Timeline::new();
+    let mut actor = AnimationTrack::placeholder("narrator".to_string());
+    actor.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
+    source.world.spawn_with_track("narrator", actor);
+    source.set_auto_color_slot("narrator", 2);
+    source.next_auto_color_index = 3;
+    source.set_persistence_flag("narrator", true);
+
+    let transcript = SpeechTranscript {
+        duration: 1.5,
+        markers: std::collections::HashMap::from([("intro".to_string(), 0.5)]),
+        segments: Vec::new(),
+    };
+    assert!(
+        source.set_transcript("narrator", transcript.clone()),
+        "transcript must attach to the narrator entity"
+    );
+
+    let bag = source.compute_carry_bag(0, true);
+    let entry = bag.entries.get("narrator").expect("narrator should be carried");
+    assert_eq!(entry.auto_color_slot, Some(2));
+    assert_eq!(entry.transcript, Some(transcript.clone()));
+
+    let mut dest = Timeline::new();
+    dest.inject_carry_bag(&bag, &source, 0, [1280.0, 720.0], &mut Vec::new());
+
+    assert_eq!(dest.auto_color_slot("narrator"), Some(2), "slot must carry");
+    assert_eq!(dest.transcript("narrator"), Some(&transcript), "transcript must carry");
+    assert_eq!(dest.transcript("narrator").unwrap().duration, 1.5);
+    assert_eq!(dest.next_auto_color_index, 3, "next slot must stay collision-free");
 }
 
 // -----------------------------------------------------------------------
@@ -326,7 +360,7 @@ fn inject_carry_bag_preserves_svg_paths() {
     actor.ensure_svg_payload().svg_paths.push(VelloPath::default());
     actor.ensure_svg_payload().svg_paths.push(VelloPath::default());
     source.world.spawn_with_track("icon", actor);
-    source.persistence_flags.insert("icon".to_string(), true);
+    source.set_persistence_flag("icon", true);
 
     let bag = source.compute_carry_bag(0, true);
 
@@ -373,7 +407,7 @@ fn inject_carry_bag_preserves_procedural_plot() {
         extra_captures: CapturedEnv::default(),
     });
     source.world.spawn_with_track("curve", actor);
-    source.persistence_flags.insert("curve".to_string(), true);
+    source.set_persistence_flag("curve", true);
 
     let bag = source.compute_carry_bag(0, true);
     let mut dest = Timeline::new();
@@ -401,7 +435,7 @@ fn compute_carry_bag_propagates_child_persistence_flag() {
     timeline.world.link(parent_id, child_id);
 
     // Only parent is persistent; child should be carried because it's a descendant
-    timeline.persistence_flags.insert("parent".to_string(), true);
+    timeline.set_persistence_flag("parent", true);
 
     let bag = timeline.compute_carry_bag(0, true);
 

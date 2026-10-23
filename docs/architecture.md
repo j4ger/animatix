@@ -871,6 +871,7 @@ A `CarryBag` (`timeline/persistence.rs`) is a collection of `CarryEntry` objects
 - Recursive snapshots of child actors (for containers)
 - The persistence flag (sticky — propagates automatically until `remove`)
 - Optional auto-color slot index (for `color: auto` actors)
+- Optional speech transcript (for `Audio`/`Captions` actors)
 
 ### Build Process
 
@@ -880,7 +881,7 @@ A `CarryBag` (`timeline/persistence.rs`) is a collection of `CarryEntry` objects
 4. **Walk-order carry loop** (`Composition::build`, step 3.5): For each scene (index ≥ 1):
    - Compute carry bag from predecessor timeline at its exit time.
    - If bag is non-empty, rebuild the scene's timeline with `build_with_carry`, which calls `inject_carry_bag` before processing statements.
-5. **Carry injection** (`inject_carry_bag`): Inserts carried tracks into `timeline.tracks`, adds to `root_nodes`, seeds `persistence_flags`, propagates `container_metadata`, and restores `auto_color_assignments`.
+5. **Carry injection** (`inject_carry_bag`): Inserts carried tracks into `timeline.world`, adds to the root set, propagates `container_metadata`, and restores the `PersistenceComponent`, `AutoColorComponent`, and `TranscriptComponent` on each carried entity.
 
 ### Snapshot Semantics
 
@@ -892,7 +893,7 @@ When a layout-managed child is carried, its position binding is rewritten to `Ab
 
 ### Auto-Color Preservation
 
-Actors declared with `color: auto` receive an integer slot in `timeline.auto_color_assignments`. When carried, the slot is stored in `CarryEntry.auto_color_slot` and re-injected into `dest.auto_color_assignments`, ensuring the actor keeps the same auto-cycle color across scenes. The `next_auto_color_index` is bumped to `max(existing, slot + 1)` to prevent slot collisions with newly declared actors in the destination scene.
+Actors declared with `color: auto` receive an integer slot in their `AutoColorComponent`. When carried, the slot is stored in `CarryEntry.auto_color_slot` and re-injected into the destination entity's component, ensuring the actor keeps the same auto-cycle color across scenes. `Timeline::next_auto_color_index` is bumped to `max(existing, slot + 1)` to prevent slot collisions with newly declared actors in the destination scene.
 
 ### Transition Rendering
 

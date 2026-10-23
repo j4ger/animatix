@@ -21,6 +21,8 @@ use std::collections::BTreeMap;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use animatix_text::transcript::SpeechTranscript;
+
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::timeline::animation_track::{
@@ -71,6 +73,13 @@ pub struct CarryEntry {
     pub persistent: bool,
     /// Auto-color slot index (for `color: auto`), if the actor uses auto-color.
     pub auto_color_slot: Option<usize>,
+    /// Speech transcript attached to the actor, if it declares one.
+    ///
+    /// Carried as data rather than re-read from the destination scene's assets:
+    /// the transcript belongs to the actor, so a carried `Captions`/`Audio`
+    /// actor keeps word timings that its destination scene never declares.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub transcript: Option<SpeechTranscript>,
 }
 
 // ---------------------------------------------------------------------------
@@ -85,8 +94,7 @@ fn collect_persistent_entries(
     ancestors_are_persistent: bool,
     entries: &mut BTreeMap<String, CarryEntry>,
 ) {
-    let is_persistent =
-        timeline.persistence_flags.get(label).copied().unwrap_or(false) || ancestors_are_persistent;
+    let is_persistent = timeline.persistence_flag(label) || ancestors_are_persistent;
 
     if !is_persistent {
         return;
@@ -111,15 +119,14 @@ fn collect_persistent_entries(
     };
     let track = snapshot_track_at(track, time_ms);
 
-    let auto_color_slot = timeline.auto_color_assignments.get(label).copied();
-
     entries.insert(
         label.to_string(),
         CarryEntry {
             track,
             children: child_entries,
-            persistent: timeline.persistence_flags.get(label).copied().unwrap_or(false),
-            auto_color_slot,
+            persistent: timeline.persistence_flag(label),
+            auto_color_slot: timeline.auto_color_slot(label),
+            transcript: timeline.transcript(label).cloned(),
         },
     );
 }
@@ -127,33 +134,28 @@ fn collect_persistent_entries(
 impl Timeline {
     /// Snapshot the timeline at a given time, returning a `CarryBag`.
     ///
-    /// Iterates `persistence_flags`, finds entries where `persistent == true`,
-    /// snapshots the tracks via `snapshot_track_at`, and recursively
-    /// snapshots children.
+    /// Iterates the entities' [`crate::timeline::PersistenceComponent`]s, finds
+    /// entries where `persistent == true`, snapshots the tracks via
+    /// `snapshot_track_at`, and recursively snapshots children.
     ///
     /// `has_successor` — when `false`, any persisted actors will emit a
     /// `PersistTargetNotCarried` warning since there is no next scene.
     pub fn compute_carry_bag(&self, time_ms: u64, _has_successor: bool) -> CarryBag {
         let mut entries = BTreeMap::new();
 
-        // Collect labels whose persistence flag is set.
-        let persistent_labels: Vec<String> = self
-            .persistence_flags
-            .iter()
-            .filter(|(_, persistent)| **persistent)
-            .map(|(label, _)| label.clone())
-            .collect();
-
         // `persist camera` is the camera's own entry: no track to snapshot, so
         // the axes are sampled where the scene ends.
-        let camera = persistent_labels
-            .iter()
-            .any(|label| label == crate::timeline::camera::CAMERA_TARGET)
-            .then(|| {
-                let (pan, zoom, spin) = self.camera.values_at(time_ms);
-                Some(CarriedCamera { pan, zoom, spin })
-            })
-            .flatten();
+        let camera = self.camera_persistent.then(|| {
+            let (pan, zoom, spin) = self.camera.values_at(time_ms);
+            CarriedCamera { pan, zoom, spin }
+        });
+
+        // Collect labels whose persistence flag is set.
+        let persistent_labels: Vec<&str> = self
+            .persistence_flags_iter()
+            .filter(|(_, persistent)| *persistent)
+            .map(|(label, _)| label)
+            .collect();
 
         for label in persistent_labels {
             if label == crate::timeline::camera::CAMERA_TARGET {
@@ -161,7 +163,7 @@ impl Timeline {
                 // would only warn that the track is missing.
                 continue;
             }
-            collect_persistent_entries(self, &label, time_ms, false, &mut entries);
+            collect_persistent_entries(self, label, time_ms, false, &mut entries);
         }
 
         CarryBag { entries, camera }
@@ -284,15 +286,21 @@ fn inject_entry(
     }
 
     // Seed the persistence flag so chain-persistence works automatically.
-    dest.persistence_flags.insert(label.to_string(), entry.persistent);
+    dest.set_persistence_flag(label, entry.persistent);
 
     // Carry auto-color slot so `color: auto` stays consistent.
     if let Some(slot) = entry.auto_color_slot {
-        dest.auto_color_assignments.insert(label.to_string(), slot);
+        dest.set_auto_color_slot(label, slot);
         // Ensure next_auto_color_index is large enough to not collide.
         if slot >= dest.next_auto_color_index {
             dest.next_auto_color_index = slot + 1;
         }
+    }
+
+    // Carry the speech transcript so a carried Audio/Captions actor keeps its
+    // word timings in the destination scene.
+    if let Some(transcript) = &entry.transcript {
+        dest.set_transcript(label, transcript.clone());
     }
 
     // Carry container metadata so layout still resolves inside scene B.
@@ -345,8 +353,7 @@ impl Timeline {
             // Sticky, like every other carried target: the flag propagates so a
             // pushed-in camera stays pushed through a chain of scenes until an
             // explicit `remove camera`.
-            self.persistence_flags
-                .insert(crate::timeline::camera::CAMERA_TARGET.to_string(), true);
+            self.set_persistence_flag(crate::timeline::camera::CAMERA_TARGET, true);
         }
     }
 }

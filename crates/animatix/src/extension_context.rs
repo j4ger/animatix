@@ -1158,7 +1158,7 @@ mod tests {
         let mut timeline =
             Timeline::build_with_context(&ast, &std::collections::HashMap::new(), Arc::new(ctx))
                 .output;
-        timeline.persistence_flags.insert("g".to_string(), true);
+        timeline.set_persistence_flag("g", true);
         let bag = timeline.compute_carry_bag(500, true);
 
         let json = serde_json::to_string(&bag).expect("serialize carry bag");
