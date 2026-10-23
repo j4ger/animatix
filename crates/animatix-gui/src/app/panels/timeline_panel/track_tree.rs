@@ -18,7 +18,10 @@ pub(crate) fn build_actor_tree(
     collapsed: &HashSet<String>,
 ) -> Vec<(String, usize)> {
     let mut result = Vec::new();
-    for root in timeline.root_actor_labels() {
+    for &root_id in timeline.world().root_entities() {
+        let Some(root) = timeline.get_entity_label(root_id) else {
+            continue;
+        };
         add_actor_and_children(timeline, root, 0, collapsed, &mut result);
     }
     result
@@ -33,10 +36,8 @@ fn add_actor_and_children(
 ) {
     result.push((label.to_string(), depth));
     if !collapsed.contains(label) {
-        if let Some(track) = timeline.get_track(label) {
-            for child in &track.children {
-                add_actor_and_children(timeline, child, depth + 1, collapsed, result);
-            }
+        for child in timeline.child_labels(label) {
+            add_actor_and_children(timeline, child, depth + 1, collapsed, result);
         }
     }
 }

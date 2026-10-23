@@ -385,9 +385,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         let mut current_y = actor_first_top;
         for (track_idx, (actor_label, depth)) in actor_tree.iter().enumerate() {
             let is_collapsed = collapsed_actors.contains(actor_label);
-            let has_children = timeline
-                .and_then(|tl| tl.get_track(actor_label))
-                .is_some_and(|t| !t.children.is_empty());
+            let has_children =
+                timeline.is_some_and(|tl| tl.child_labels(actor_label).next().is_some());
             let is_selected = selected_actors.contains(actor_label);
             let prop_expanded = expanded_properties.contains(actor_label);
             let at_top = current_y;

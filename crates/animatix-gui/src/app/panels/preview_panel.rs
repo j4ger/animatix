@@ -822,13 +822,11 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
 
                     let all_kf = if t_held {
                         let mut all_kf: Vec<f64> = if let Some(tl) = ctx.timeline {
-                            tl.root_actor_labels()
+                            tl.world()
+                                .root_entities()
                                 .iter()
-                                .flat_map(|label| {
-                                    tl.get_track(label)
-                                        .map(animatix::timeline::collect_all_keyframe_times)
-                                        .unwrap_or_default()
-                                })
+                                .filter_map(|&id| tl.get_track_by_id(id))
+                                .flat_map(animatix::timeline::collect_all_keyframe_times)
                                 .collect()
                         } else {
                             Vec::new()

@@ -106,7 +106,6 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
             sidebar_rail_ui(ctx, ui);
             return;
         }
-
         let mut active_tab = *ctx.sidebar_tab;
         let prev_tab = *ctx.sidebar_tab;
 
@@ -785,8 +784,8 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
         }
     }
 
-    let root_nodes = timeline.root_actor_labels();
-    if root_nodes.is_empty() {
+    let root_ids = timeline.world().root_entities();
+    if root_ids.is_empty() {
         ui.vertical_centered(|ui| {
             ui.add_space(sp.base.space_5 * 3.0);
             ui.add(
@@ -842,7 +841,10 @@ fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) {
 
     let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
     egui::ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
-        for root_label in root_nodes {
+        for &root_id in root_ids {
+            let Some(root_label) = timeline.get_entity_label(root_id) else {
+                continue;
+            };
             render_actor_tree(
                 ui,
                 timeline,
@@ -881,7 +883,7 @@ fn render_actor_tree(
 
     let is_selected = selected_actors.contains(label);
     let is_anonymous = label.starts_with("__anon");
-    let has_children = !track.children.is_empty();
+    let has_children = timeline.child_labels(label).next().is_some();
 
     // ── Filter logic ─────────────────────────────────────────────────────
     // When a filter is active, decide whether this actor (and its subtree)
@@ -897,9 +899,8 @@ fn render_actor_tree(
     let (is_expanded, should_show) = if has_filter {
         let base_expanded = has_children && !collapsed_actors.contains(label);
         let self_matches = label.to_lowercase().contains(filter_lower);
-        let descendant_matches = track
-            .children
-            .iter()
+        let descendant_matches = timeline
+            .child_labels(label)
             .any(|child| actor_matches_filter(timeline, child, filter_lower));
         let show = self_matches || descendant_matches;
         let expanded = self_matches || descendant_matches || base_expanded;
@@ -1209,7 +1210,7 @@ fn render_actor_tree(
 
     // Children
     if is_expanded {
-        for child_label in &track.children {
+        for child_label in timeline.child_labels(label) {
             render_actor_tree(
                 ui,
                 timeline,
@@ -1229,15 +1230,14 @@ fn render_actor_tree(
 /// Recursively check whether any actor in the subtree rooted at `label`
 /// matches `filter_lower` (case-insensitive substring on the actor label).
 fn actor_matches_filter(timeline: &Timeline, label: &str, filter_lower: &str) -> bool {
-    let Some(track) = timeline.get_track(label) else {
+    if !timeline.has_actor(label) {
         return false;
-    };
+    }
     if label.to_lowercase().contains(filter_lower) {
         return true;
     }
-    track
-        .children
-        .iter()
+    timeline
+        .child_labels(label)
         .any(|child| actor_matches_filter(timeline, child, filter_lower))
 }
 

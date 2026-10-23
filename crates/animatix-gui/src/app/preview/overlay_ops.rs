@@ -1443,9 +1443,9 @@ mod tests {
     #[test]
     fn motion_paths_emit_lines_dots_and_labels() {
         // Minimal timeline with two position keyframes.
-        let timeline = Timeline::new();
-        let mut timeline = timeline;
-        let mut track = animatix::timeline::AnimationTrack::new("box".to_string(), "Rect");
+        let mut timeline = Timeline::new();
+        timeline.spawn_entity("box", "Rect");
+        let track = timeline.get_track_mut("box").expect("box track");
         track
             .geometry
             .position
@@ -1456,7 +1456,6 @@ mod tests {
             [100.0, 0.0],
             animatix::timeline::Easing::Linear,
         );
-        timeline.tracks_mut().insert("box".to_string(), track);
 
         let ops =
             motion_path_ops(&theme(), &timeline, std::iter::once("box".to_string()), 0.0, tx());

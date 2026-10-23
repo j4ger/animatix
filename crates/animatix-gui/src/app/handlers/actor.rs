@@ -677,8 +677,7 @@ pub fn handle_ungroup_selected_actors(
     let mut group_children: Vec<(String, Vec<String>)> = Vec::new();
     if let Some(timeline) = document_store.source.document.active_timeline() {
         for group in &groups {
-            let children: Vec<String> =
-                timeline.get_track(group).map(|t| t.children.clone()).unwrap_or_default();
+            let children: Vec<String> = timeline.child_labels(group).map(str::to_string).collect();
             group_children.push((group.clone(), children));
         }
     }

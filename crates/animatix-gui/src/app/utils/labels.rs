@@ -45,16 +45,14 @@ pub fn unique_effect_label(
 
 #[cfg(test)]
 mod tests {
-    use animatix::timeline::{AnimationTrack, Timeline};
+    use animatix::timeline::Timeline;
 
     use super::*;
 
     #[test]
     fn unique_label_finds_first_available() {
         let mut timeline = Timeline::new();
-        timeline
-            .tracks_mut()
-            .insert("rect1".into(), AnimationTrack::new("rect1".into(), "Rect"));
+        timeline.spawn_entity("rect1", "Rect");
 
         assert_eq!(unique_label(Some(&timeline), "Rect"), "rect2");
     }
@@ -68,12 +66,8 @@ mod tests {
     #[test]
     fn unique_label_skips_occupied() {
         let mut timeline = Timeline::new();
-        timeline
-            .tracks_mut()
-            .insert("rect1".into(), AnimationTrack::new("rect1".into(), "Rect"));
-        timeline
-            .tracks_mut()
-            .insert("rect2".into(), AnimationTrack::new("rect2".into(), "Rect"));
+        timeline.spawn_entity("rect1", "Rect");
+        timeline.spawn_entity("rect2", "Rect");
 
         assert_eq!(unique_label(Some(&timeline), "Rect"), "rect3");
     }

@@ -496,8 +496,7 @@ pub(super) fn inspector_ui(
         return;
     };
 
-    let root_nodes = timeline.root_actor_labels();
-    if root_nodes.is_empty() {
+    if timeline.world().root_entities().is_empty() {
         ui.vertical_centered(|ui| {
             ui.add_space(sp.base.space_5 * 3.0);
             ui.add(
@@ -1128,12 +1127,12 @@ fn render_parent_card(
 ) {
     use crate::app::components::layout;
 
-    // Find current parent
+    // Find current parent from the authoritative hierarchy component.
     let current_parent = timeline
-        .tracks()
-        .iter()
-        .find(|(_, track)| track.children.iter().any(|c| c == actor))
-        .map(|(label, _)| label.clone());
+        .get_entity_id(actor)
+        .and_then(|id| timeline.world().hierarchy(id).parent)
+        .and_then(|parent_id| timeline.get_entity_label(parent_id))
+        .map(str::to_string);
 
     layout::group_box(ui, format!("{} Hierarchy", egui_phosphor::regular::TREE_STRUCTURE), |ui| {
         layout::labeled_row(ui, "Parent", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
