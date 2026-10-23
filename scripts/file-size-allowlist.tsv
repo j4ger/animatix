@@ -30,7 +30,6 @@ crates/animatix/src/timeline/timing.rs	894	legacy oversized file	P6
 crates/animatix-std/src/catalog.rs	822	legacy oversized file	P6
 crates/animatix-syntax/src/ast.rs	1021	legacy oversized file	P2
 crates/animatix-syntax/src/diagnostics.rs	882	legacy oversized file	P2
-crates/animatix-syntax/src/module/expand.rs	1051	legacy oversized file	P2
 crates/animatix-syntax/src/module/rewrite.rs	1031	legacy oversized file	P2
 crates/animatix-syntax/src/parser/stmt.rs	884	legacy oversized file	P2
 crates/animatix-syntax/src/semantic_diagnostics.rs	872	legacy oversized file	P2
