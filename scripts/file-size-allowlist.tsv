@@ -6,6 +6,5 @@ crates/animatix-gui/src/app/panels/inspector/property_groups.rs	1778	legacy over
 crates/animatix/src/timeline/assignments/mod.rs	1232	legacy oversized file	P6
 crates/animatix/src/timeline/build/actor.rs	1981	legacy oversized file	P6
 crates/animatix-syntax/src/parser/stmt.rs	884	legacy oversized file	P2
-crates/eparts/src/widget/toggle.rs	807	legacy oversized file	P2
 web/embed/src/amx-player.js	1985	legacy oversized file	P6
 web/site.css	2825	legacy oversized file	P6
