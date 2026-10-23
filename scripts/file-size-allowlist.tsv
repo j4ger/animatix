@@ -9,7 +9,6 @@ crates/animatix-render/src/offscreen/mod.rs	853	legacy oversized file	P2
 crates/animatix/src/timeline/assignments/mod.rs	1232	legacy oversized file	P6
 crates/animatix/src/timeline/build/actor.rs	1981	legacy oversized file	P6
 crates/animatix/src/timeline/declarations_text.rs	819	legacy oversized file	P6
-crates/animatix/src/timeline/env.rs	841	legacy oversized file	P6
 crates/animatix-std/src/catalog.rs	822	legacy oversized file	P6
 crates/animatix-syntax/src/diagnostics.rs	882	legacy oversized file	P2
 crates/animatix-syntax/src/parser/stmt.rs	884	legacy oversized file	P2
