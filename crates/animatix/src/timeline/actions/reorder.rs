@@ -112,8 +112,10 @@ impl BuiltinAction for Swap {
         // after `t_start_ms` means a previous swap is still in flight; a
         // keyframe exactly at `t_start_ms` is that swap's end boundary, so
         // back-to-back swaps (`step`-sequenced loops) are allowed.
-        if let Some(track) = timeline.child_orders.get(&parent) {
-            if let Some((&pending_time, _)) = track.keyframes.next_keyframe(t_start_ms + 1) {
+        if let Some(component) = timeline.child_order(&parent) {
+            if let Some((&pending_time, _)) =
+                component.track.keyframes.next_keyframe(t_start_ms + 1)
+            {
                 diagnostics.push(
                     Diagnostic::warning(
                         DiagnosticCode::ConflictingModifierKey,
@@ -129,11 +131,15 @@ impl BuiltinAction for Swap {
             }
         }
 
-        // Get current order
-        let current_order = timeline.get_child_order(&parent, t_start_ms);
+        // Get current order. The animated order stores entity ids; the action's
+        // label targets resolve to the same ids so reorder/swap never keys on a
+        // label in the component.
+        let current_order = timeline.get_child_order_ids(&parent, t_start_ms);
+        let child_a_id = timeline.get_entity_id(child_a).expect("verified above");
+        let child_b_id = timeline.get_entity_id(child_b).expect("verified above");
 
         // Verify both children are in order
-        let idx_a = match current_order.iter().position(|l| l == child_a) {
+        let idx_a = match current_order.iter().position(|id| *id == child_a_id) {
             Some(i) => i,
             None => {
                 diagnostics.push(
@@ -151,7 +157,7 @@ impl BuiltinAction for Swap {
             },
         };
 
-        let idx_b = match current_order.iter().position(|l| l == child_b) {
+        let idx_b = match current_order.iter().position(|id| *id == child_b_id) {
             Some(i) => i,
             None => {
                 diagnostics.push(
@@ -174,15 +180,15 @@ impl BuiltinAction for Swap {
         new_order.swap(idx_a, idx_b);
 
         // Set keyframes: hold current order at start time, then transition to new order
-        let track = timeline
-            .child_orders
-            .entry(parent)
-            .or_insert_with(|| crate::timeline::PropertyTrack::new(current_order.clone()));
+        let mut track = timeline
+            .child_order(&parent)
+            .map(|component| component.track.clone())
+            .unwrap_or_else(|| crate::timeline::PropertyTrack::new(current_order.clone()));
         track.add_keyframe(t_start_ms, current_order, Easing::Linear);
         track.add_keyframe(t_end_ms, new_order, easing);
 
         // Invalidate frame cache so next evaluation picks up the new order
-        timeline.invalidate_frame_cache();
+        timeline.set_child_order_track(&parent, track);
     }
 }
 
@@ -291,8 +297,10 @@ impl BuiltinAction for Reorder {
             },
         };
 
-        // Get current order to validate against
+        // Get current order to validate against. The label view keeps the
+        // diagnostic contract; the id view is what the component stores.
         let current_order = timeline.get_child_order(container, time_ms as u64);
+        let current_order_ids = timeline.get_child_order_ids(container, time_ms as u64);
 
         // Validate: the new order must contain exactly the same children
         let current_set: std::collections::HashSet<_> = current_order.iter().collect();
@@ -312,6 +320,11 @@ impl BuiltinAction for Reorder {
             );
             return;
         }
+
+        // The set check guarantees every label resolves: `current_order` was
+        // derived from live entity ids, so its labels all map back to an id.
+        let new_order_ids: Vec<crate::timeline::EntityId> =
+            new_order.iter().filter_map(|label| timeline.get_entity_id(label)).collect();
 
         // Parse timing modifiers (excluding 'order')
         let timing_modifiers: Vec<Modifier> = action
@@ -335,8 +348,8 @@ impl BuiltinAction for Reorder {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         // Check for overlapping reorder on same container
-        if let Some(track) = timeline.child_orders.get(container) {
-            if let Some((&pending_time, _)) = track.keyframes.next_keyframe(t_start_ms) {
+        if let Some(component) = timeline.child_order(container) {
+            if let Some((&pending_time, _)) = component.track.keyframes.next_keyframe(t_start_ms) {
                 diagnostics.push(
                     Diagnostic::warning(
                         DiagnosticCode::ConflictingModifierKey,
@@ -353,14 +366,14 @@ impl BuiltinAction for Reorder {
         }
 
         // Set keyframes: hold current order at start time, then transition to new order
-        let track = timeline
-            .child_orders
-            .entry(container.clone())
-            .or_insert_with(|| crate::timeline::PropertyTrack::new(current_order.clone()));
-        track.add_keyframe(t_start_ms, current_order, Easing::Linear);
-        track.add_keyframe(t_end_ms, new_order, easing);
+        let mut track = timeline
+            .child_order(container)
+            .map(|component| component.track.clone())
+            .unwrap_or_else(|| crate::timeline::PropertyTrack::new(current_order_ids.clone()));
+        track.add_keyframe(t_start_ms, current_order_ids, Easing::Linear);
+        track.add_keyframe(t_end_ms, new_order_ids, easing);
 
         // Invalidate frame cache so next evaluation picks up the new order
-        timeline.invalidate_frame_cache();
+        timeline.set_child_order_track(container, track);
     }
 }

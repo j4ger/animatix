@@ -40,7 +40,7 @@ fn test_percentage_child_sizing_row() {
         align: "start".to_string(),
         vertical_align: "center".to_string(),
         cols: None,
-        child_order: vec!["a".into(), "b".into()],
+        child_order: vec![EntityId(0), EntityId(1)],
     };
 
     let positions = crate::timeline::LayoutEngine::compute_positions_with_specs(
@@ -100,7 +100,7 @@ fn test_min_max_constraints() {
         align: "start".to_string(),
         vertical_align: "center".to_string(),
         cols: None,
-        child_order: vec!["a".into(), "b".into()],
+        child_order: vec![EntityId(0), EntityId(1)],
     };
 
     let positions = crate::timeline::LayoutEngine::compute_positions_with_specs(

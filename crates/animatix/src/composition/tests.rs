@@ -1094,8 +1094,9 @@ fn sorting_visualizer_steps_scene_sorts() {
     );
     let comp = report.output;
     let steps = &comp.scenes["Steps"].timeline;
-    let track = steps.child_orders.get("bars").expect("bars child orders");
-    let final_order = track.evaluate(*track.keyframes.keys().max().expect("last keyframe"));
+    let track = &steps.child_order("bars").expect("bars child orders").track;
+    let last = *track.keyframes.keys().max().expect("last keyframe");
+    let final_order = steps.get_child_order("bars", last);
     // bar3 has value 2 and bar2 has value 3, so this order is [1,2,3,4].
     assert_eq!(
         final_order,

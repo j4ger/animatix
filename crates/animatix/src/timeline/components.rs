@@ -11,6 +11,7 @@ use animatix_text::transcript::SpeechTranscript;
 
 use super::build::utils::ScaleType;
 use super::entity::EntityId;
+use super::property_track::PropertyTrack;
 
 /// 2D Mathematical Coordinate Frame Component.
 ///
@@ -107,6 +108,18 @@ pub struct PersistenceComponent {
 pub struct AutoColorComponent {
     /// Slot index into the resolved colorscheme's `auto_cycle`.
     pub slot: usize,
+}
+
+/// Animated child order for a layout container.
+///
+/// Written by the `swap` / `reorder` actions. The track holds
+/// [`EntityId`]s so the frame path never hashes a label to restore an order;
+/// labels are resolved only at the language / layout boundary.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ChildOrderComponent {
+    /// Animated child order, sampled per frame by the layout path.
+    pub track: PropertyTrack<Vec<EntityId>>,
 }
 
 /// Parsed speech transcript attached to an `Audio` / `Captions` actor.

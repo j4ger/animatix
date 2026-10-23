@@ -941,7 +941,7 @@ mod tests {
     #[test]
     fn test_compute_available_width_col() {
         // Col: available_width = container_size - horizontal padding
-        use crate::timeline::{ContainerMetadata, LayoutType};
+        use crate::timeline::{ContainerMetadata, EntityId, LayoutType};
 
         let metadata = ContainerMetadata {
             layout_type: LayoutType::Col,
@@ -950,7 +950,7 @@ mod tests {
             align: "center".to_string(),
             vertical_align: "center".to_string(),
             cols: None,
-            child_order: vec!["child".to_string()],
+            child_order: vec![EntityId(0)],
         };
 
         // Container width 500, padding left+right=20 → available = 480
@@ -961,7 +961,7 @@ mod tests {
 
     #[test]
     fn test_compute_available_width_grid() {
-        use crate::timeline::{ContainerMetadata, LayoutType};
+        use crate::timeline::{ContainerMetadata, EntityId, LayoutType};
 
         let metadata = ContainerMetadata {
             layout_type: LayoutType::Grid,
@@ -970,7 +970,7 @@ mod tests {
             align: "center".to_string(),
             vertical_align: "center".to_string(),
             cols: Some(3),
-            child_order: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+            child_order: vec![EntityId(0), EntityId(1), EntityId(2)],
         };
 
         // Container width 400, padding left+right=10, gaps=10*2=20, cols=3
@@ -982,7 +982,7 @@ mod tests {
 
     #[test]
     fn test_compute_available_width_row_unbounded() {
-        use crate::timeline::{ContainerMetadata, LayoutType};
+        use crate::timeline::{ContainerMetadata, EntityId, LayoutType};
 
         let metadata = ContainerMetadata {
             layout_type: LayoutType::Row,
@@ -991,7 +991,7 @@ mod tests {
             align: "center".to_string(),
             vertical_align: "center".to_string(),
             cols: None,
-            child_order: vec!["child".to_string()],
+            child_order: vec![EntityId(0)],
         };
 
         // Row: unbounded width
@@ -1002,7 +1002,7 @@ mod tests {
 
     #[test]
     fn test_compute_available_width_min_1px() {
-        use crate::timeline::{ContainerMetadata, LayoutType};
+        use crate::timeline::{ContainerMetadata, EntityId, LayoutType};
 
         let metadata = ContainerMetadata {
             layout_type: LayoutType::Col,
@@ -1011,7 +1011,7 @@ mod tests {
             align: "center".to_string(),
             vertical_align: "center".to_string(),
             cols: None,
-            child_order: vec!["child".to_string()],
+            child_order: vec![EntityId(0)],
         };
 
         // Container width 50, padding 200 → available would be -150, clamped to 1
@@ -1022,7 +1022,7 @@ mod tests {
 
     #[test]
     fn test_compute_container_size_row() {
-        use crate::timeline::{ContainerMetadata, LayoutType};
+        use crate::timeline::{ContainerMetadata, EntityId, LayoutType};
 
         let children = vec![
             make_child("a", 100.0, 50.0, PlacementMode::LayoutManaged),
@@ -1036,7 +1036,7 @@ mod tests {
             align: "center".to_string(),
             vertical_align: "center".to_string(),
             cols: None,
-            child_order: vec!["a".to_string(), "b".to_string()],
+            child_order: vec![EntityId(0), EntityId(1)],
         };
 
         let size = compute_container_size(&children, &metadata);
@@ -1047,7 +1047,7 @@ mod tests {
 
     #[test]
     fn test_compute_container_size_col() {
-        use crate::timeline::{ContainerMetadata, LayoutType};
+        use crate::timeline::{ContainerMetadata, EntityId, LayoutType};
 
         let children = vec![
             make_child("a", 150.0, 100.0, PlacementMode::LayoutManaged),
@@ -1061,7 +1061,7 @@ mod tests {
             align: "center".to_string(),
             vertical_align: "center".to_string(),
             cols: None,
-            child_order: vec!["a".to_string(), "b".to_string()],
+            child_order: vec![EntityId(0), EntityId(1)],
         };
 
         let size = compute_container_size(&children, &metadata);

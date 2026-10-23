@@ -2,7 +2,7 @@ use super::*;
 use crate::easing::Easing;
 use crate::timeline::dispatch::AnimationTrack;
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::{CapturedEnv, ContainerMetadata, LayoutType, Timeline};
+use crate::timeline::{CapturedEnv, ContainerMetadata, EntityId, LayoutType, Timeline};
 
 fn make_timeline_with_persistent_actors() -> Timeline {
     let mut timeline = Timeline::new();
@@ -332,8 +332,12 @@ fn carry_bag_preserves_container_layout() {
     let mut actor = AnimationTrack::placeholder("row".to_string());
     actor.set_identity("Row");
     actor.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-    source.world.spawn_with_track("row", actor);
+    let row_id = source.world.spawn_with_track("row", actor);
     source.set_persistence_flag("row", true);
+    let source_a = source.spawn_entity("a", "Rect");
+    let source_b = source.spawn_entity("b", "Rect");
+    source.world.link(row_id, source_a);
+    source.world.link(row_id, source_b);
 
     let metadata = ContainerMetadata {
         layout_type: LayoutType::Row,
@@ -342,7 +346,7 @@ fn carry_bag_preserves_container_layout() {
         align: "start".to_string(),
         vertical_align: "center".to_string(),
         cols: None,
-        child_order: vec!["a".to_string(), "b".to_string()],
+        child_order: vec![source_a, source_b],
     };
     assert!(
         source.set_container_layout("row", metadata.clone()),
@@ -357,19 +361,26 @@ fn carry_bag_preserves_container_layout() {
         "the carry bag must snapshot the container layout component"
     );
 
+    // The destination creates the same labels in the opposite order, so the
+    // snapshot's source ids cannot coincide with the destination's.
     let mut dest = Timeline::new();
+    let dest_b = dest.spawn_entity("b", "Rect");
+    let dest_a = dest.spawn_entity("a", "Rect");
     dest.inject_carry_bag(&bag, &source, 0, [1280.0, 720.0], &mut Vec::new());
 
+    let mut expected = metadata.clone();
+    expected.child_order = vec![dest_a, dest_b];
     assert_eq!(
         dest.container_layout("row"),
-        Some(&metadata),
-        "the injected entity must carry the container layout component"
+        Some(&expected),
+        "the injected entity must carry the remapped container layout component"
     );
     // Still a real component on the destination entity, not a side table.
     let row = dest.entity("row").expect("row must exist after injection");
-    assert_eq!(row.container_layout(), Some(&metadata));
+    assert_eq!(row.container_layout(), Some(&expected));
 
     // The field is new payload state: it must survive a serde carry-bag trip
+    // (still holding the source ids — injection is where they are remapped)
     // and older bags must default it to `None`.
     #[cfg(feature = "serde")]
     {
@@ -382,6 +393,47 @@ fn carry_bag_preserves_container_layout() {
             "container layout must survive the carry-bag serde round-trip"
         );
     }
+}
+
+#[test]
+fn carry_remaps_container_child_order_ids() {
+    let mut source = Timeline::new();
+    let row = source.spawn_entity("row", "Row");
+    let source_a = source.spawn_entity("a", "Rect");
+    let source_b = source.spawn_entity("b", "Rect");
+    source.world.link(row, source_a);
+    source.world.link(row, source_b);
+    source.set_persistence_flag("row", true);
+    assert!(source.set_container_layout(
+        "row",
+        ContainerMetadata {
+            layout_type: LayoutType::Row,
+            gap: [0.0, 0.0],
+            padding: [0.0; 4],
+            align: "center".to_string(),
+            vertical_align: "center".to_string(),
+            cols: None,
+            // `EntityId(9999)` is stale: no carried child owns it, so remapping
+            // must drop it instead of keeping a source-space id.
+            child_order: vec![source_b, source_a, EntityId(9999)],
+        }
+    ));
+
+    let bag = source.compute_carry_bag(0, true);
+
+    let mut dest = Timeline::new();
+    let dest_b = dest.spawn_entity("b", "Rect");
+    let dest_a = dest.spawn_entity("a", "Rect");
+    dest.inject_carry_bag(&bag, &source, 0, [1280.0, 720.0], &mut Vec::new());
+
+    let order = &dest.container_layout("row").expect("row layout").child_order;
+    assert_eq!(
+        order,
+        &vec![dest_b, dest_a],
+        "source ids must remap to destination entities and missing children drop"
+    );
+    assert_ne!(order, &vec![source_b, source_a], "source-scene ids must not leak through");
+    assert!(!order.contains(&EntityId(9999)), "a stale source id must be dropped");
 }
 
 // -----------------------------------------------------------------------

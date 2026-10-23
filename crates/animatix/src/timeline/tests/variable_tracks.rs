@@ -357,14 +357,8 @@ for i in {0, 1} [step: 300ms] {
     let timeline = report.output;
 
     // Two swaps: t=0..300 (b0<->b1) and t=300..600 (b1<->b2).
-    let orders = timeline
-        .child_orders
-        .get("row")
-        .expect("row child_orders track")
-        .keyframes
-        .keys()
-        .copied()
-        .collect::<Vec<_>>();
+    let track = &timeline.child_order("row").expect("row child_orders track").track;
+    let orders = track.keyframes.keys().copied().collect::<Vec<_>>();
     assert_eq!(orders, vec![0, 300, 600], "swap keyframes must advance per step");
 
     // The algorithm state carried through the loop updates per iteration:
@@ -657,14 +651,8 @@ bubble_sort(b, vals)
     let timeline = report.output;
     // 4 swaps (1 + 1 + 2) land on the step-sequenced timeline: times are
     // pass_start + j*300 for the swaps in each pass.
-    let orders = timeline
-        .child_orders
-        .get("row")
-        .expect("row child_orders")
-        .keyframes
-        .keys()
-        .copied()
-        .collect::<Vec<_>>();
+    let track = &timeline.child_order("row").expect("row child_orders").track;
+    let orders = track.keyframes.keys().copied().collect::<Vec<_>>();
     assert_eq!(
         orders,
         vec![0, 300, 1200, 1500, 2400, 2700, 3000],
@@ -727,20 +715,13 @@ dnf_pass(arr, 0, 0, 5)
     let timeline = report.output;
     // Effective swaps: (0,5) at t=0 and (3,4) at t=2800; the same-index
     // swaps are no-ops but still emit child-order keyframes.
-    let orders = timeline
-        .child_orders
-        .get("row")
-        .expect("row child_orders")
-        .keyframes
-        .keys()
-        .copied()
-        .collect::<Vec<_>>();
+    let track = &timeline.child_order("row").expect("row child_orders").track;
+    let orders = track.keyframes.keys().copied().collect::<Vec<_>>();
     assert!(!orders.is_empty(), "dnf fn must emit swap keyframes");
     eprintln!("[dnf-fn] orders = {orders:?}");
     // Final child order after the swaps: [0,0,1,1,2,2] values map to slots
     // b__0..b__5; assert the layout settles without duplicate-position chaos.
-    let track = timeline.child_orders.get("row").expect("row orders");
-    let final_order = track.evaluate(*orders.last().expect("last keyframe"));
+    let final_order = timeline.get_child_order("row", *orders.last().expect("last keyframe"));
     assert_eq!(
         final_order,
         vec!["b__5", "b__1", "b__2", "b__4", "b__3", "b__0"],
@@ -791,16 +772,17 @@ bubble_sort(bars, vals)
     );
     let timeline = report.output;
     eprintln!(
-        "[dotted-fn] child_orders keys: {:?}",
-        timeline.child_orders.keys().collect::<Vec<_>>()
+        "[dotted-fn] child_order ids: {:?}",
+        timeline.child_orders_iter().map(|(id, _)| id).collect::<Vec<_>>()
     );
     eprintln!(
         "[dotted-fn] tracks sample: {:?}",
         timeline.world.tracks.keys().take(8).collect::<Vec<_>>()
     );
     // The component instance's row track receives the swaps.
-    let row_key = timeline.child_orders.keys().next().expect("row child_orders").clone();
-    let track = timeline.child_orders.get(&row_key).expect("row child_orders");
+    let (row_id, _) = timeline.child_orders_iter().next().expect("row child_orders");
+    let row_key = timeline.get_entity_label(row_id).expect("row label").to_string();
+    let track = &timeline.child_order(&row_key).expect("row child_orders").track;
     let times = track.keyframes.keys().copied().collect::<Vec<_>>();
     eprintln!("[dotted-fn] times = {times:?}");
     assert_eq!(
@@ -966,8 +948,9 @@ fn sort_colors_demo_file_produces_dnf_sequence() {
         report.diagnostics
     );
     let timeline = report.output;
-    let track = timeline.child_orders.get("row").expect("row child_orders from the demo");
-    let final_order = track.evaluate(*track.keyframes.keys().max().expect("last keyframe"));
+    let track = &timeline.child_order("row").expect("row child_orders from the demo").track;
+    let last = *track.keyframes.keys().max().expect("last keyframe");
+    let final_order = timeline.get_child_order("row", last);
     assert_eq!(
         final_order,
         vec!["b__5", "b__1", "b__2", "b__4", "b__3", "b__0"],

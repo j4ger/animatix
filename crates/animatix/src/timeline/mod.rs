@@ -44,8 +44,8 @@ pub(crate) mod camera;
 pub mod colorscheme;
 pub mod components;
 pub use components::{
-    AutoColorComponent, CoordinateContext, CoordinateFrameComponent, PersistenceComponent,
-    TranscriptComponent,
+    AutoColorComponent, ChildOrderComponent, CoordinateContext, CoordinateFrameComponent,
+    PersistenceComponent, TranscriptComponent,
 };
 mod declarations_text;
 /// Built-in post-processing effects, chain storage, and the compositing
@@ -390,9 +390,6 @@ pub struct Timeline {
     /// Set to 0.0 for pre-keyframe declarations (actors are hidden until entrance action).
     /// Set to 1.0 for declarations inside keyframes (actors are visible immediately).
     pub(crate) default_opacity: f32,
-    /// Per-container child order animations.
-    /// Key: container label. Value: track of child label orderings.
-    pub(crate) child_orders: BTreeMap<String, PropertyTrack<Vec<String>>>,
     /// Whether `persist camera` marked the scene camera to be carried.
     ///
     /// The camera is not an entity and owns no track, so its persistence flag
@@ -704,7 +701,6 @@ impl Timeline {
             font_context,
             build_quality: BuildQuality::Production,
             default_opacity: 1.0,
-            child_orders: BTreeMap::new(),
             camera_persistent: false,
             pause_points: Vec::new(),
             text_compiler: std::cell::RefCell::new(crate::renderer::text::TextCompiler::new()),
@@ -797,7 +793,14 @@ impl Timeline {
             .max()
             .unwrap_or(0)
             .max(self.background_color.max_keyframe_time_ms())
-            .max(self.child_orders.values().map(|t| t.max_keyframe_time_ms()).max().unwrap_or(0))
+            .max(
+                self.world
+                    .child_order
+                    .iter()
+                    .map(|(_, component)| component.track.max_keyframe_time_ms())
+                    .max()
+                    .unwrap_or(0),
+            )
             .max(
                 self.variable_tracks
                     .values()
@@ -871,7 +874,8 @@ impl Timeline {
     /// Used by the GUI timeline scrubber to show keyframe markers.
     ///
     /// Uses the property registry to discover all applicable fields per actor kind,
-    /// plus cross-track sources (background_color, child_orders, variable_tracks)
+    /// plus cross-track sources (background_color, child-order tracks,
+    /// variable_tracks)
     /// and dynamic plot parameter tracks that the registry cannot enumerate statically.
     pub fn keyframe_times_s(&self) -> Vec<f64> {
         let mut times_ms: BTreeSet<u64> = BTreeSet::new();
@@ -895,8 +899,8 @@ impl Timeline {
         }
         // Cross-track sources
         times_ms.extend(self.background_color.keyframes.keys().copied());
-        for t in self.child_orders.values() {
-            times_ms.extend(t.keyframes.keys().copied());
+        for (_, component) in self.world.child_order.iter() {
+            times_ms.extend(component.track.keyframes.keys().copied());
         }
         for t in self.variable_tracks.values() {
             times_ms.extend(t.keyframes.keys().copied());
@@ -937,18 +941,77 @@ impl Timeline {
             .map(|(label, _)| label.clone())
     }
 
-    /// Returns the effective child order for a container at the given time.
-    /// Falls back to the container's authored `child_order`.
+    /// Returns the effective child order for a container at the given time,
+    /// as actor labels.
+    ///
+    /// Label-boundary helper: the animated order lives on the container's
+    /// [`ChildOrderComponent`] as [`EntityId`]s; ids are mapped to labels here
+    /// so the GUI and action diagnostics keep their label contract.
+    /// [`Self::get_child_order_ids`] is the id-preserving form used by layout.
     pub fn get_child_order(&self, container_label: &str, time_ms: u64) -> Vec<String> {
-        if let Some(track) = self.child_orders.get(container_label) {
-            let value = track.evaluate(time_ms);
+        self.get_child_order_ids(container_label, time_ms)
+            .into_iter()
+            .filter_map(|id| self.world.label(id))
+            .map(str::to_string)
+            .collect()
+    }
+
+    /// Returns the effective child order for a container at the given time, as
+    /// entity ids.
+    ///
+    /// Samples the container's [`ChildOrderComponent`]; an absent component or
+    /// an empty track falls back to the authored
+    /// [`ContainerMetadata::child_order`] (`Vec<EntityId>` too). The frame path
+    /// keeps ids and resolves labels only at the Taffy boundary; the GUI/action
+    /// boundary uses [`Self::get_child_order`].
+    pub fn get_child_order_ids(&self, container_label: &str, time_ms: u64) -> Vec<EntityId> {
+        if let Some(component) = self.child_order(container_label) {
+            let value = component.track.evaluate(time_ms);
             if !value.is_empty() {
                 return value;
             }
         }
         self.container_layout(container_label)
-            .map(|m| m.child_order.clone())
+            .map(|metadata| metadata.child_order.clone())
             .unwrap_or_default()
+    }
+
+    /// Borrow a container's animated child-order component, if it has one.
+    pub fn child_order(&self, container_label: &str) -> Option<&ChildOrderComponent> {
+        self.entity(container_label)?.child_order()
+    }
+
+    /// Mutably borrow a container's animated child-order component.
+    ///
+    /// Invalidates the frame cache before returning, because reordering writes
+    /// change layout output.
+    pub fn child_order_mut(&mut self, container_label: &str) -> Option<&mut ChildOrderComponent> {
+        self.invalidate_frame_cache();
+        let id = self.world.get_id(container_label)?;
+        self.world.child_order.get_mut(id)
+    }
+
+    /// Inserts or replaces a container's animated child-order track.
+    ///
+    /// Returns `false` when no such entity exists (the action targeted a label
+    /// with no track). Invalidates the frame cache, like every component write.
+    pub fn set_child_order_track(
+        &mut self,
+        container_label: &str,
+        track: PropertyTrack<Vec<EntityId>>,
+    ) -> bool {
+        self.invalidate_frame_cache();
+        let Some(id) = self.world.get_id(container_label) else {
+            tracing::warn!("child-order track for '{container_label}' dropped: no such actor");
+            return false;
+        };
+        self.world.child_order.insert(id, ChildOrderComponent { track });
+        true
+    }
+
+    /// Iterate every animated child-order track, keyed by entity id.
+    pub fn child_orders_iter(&self) -> impl Iterator<Item = (EntityId, &ChildOrderComponent)> + '_ {
+        self.world.child_order.iter()
     }
 
     /// Compute layout-admitted children for a container on demand.
@@ -977,40 +1040,24 @@ impl Timeline {
         let Some(metadata) = self.container_layout(container_label) else {
             return Vec::new();
         };
-        metadata
-            .child_order
-            .iter()
-            .filter_map(|child_label| {
-                let track = self.world.tracks.get(child_label)?;
-                if !track.has_layout_size() {
-                    return None;
-                }
-                Some(ContainerLayoutChild {
-                    label: child_label.clone(),
-                    placement_mode: track
-                        .geometry
-                        .placement_mode
-                        .last(PlacementMode::LayoutManaged),
-                })
-            })
-            .collect()
+        metadata.layout_children(&self.world)
     }
 
     /// Computes layout positions for a container using a specific child order.
     fn compute_layout_positions_for_order(
         &self,
         metadata: &ContainerMetadata,
-        order: &[String],
+        order: &[EntityId],
         time_ms: u64,
     ) -> layout::LayoutPositions {
         use crate::timeline::layout::ChildExtent;
 
         let child_extents: Vec<ChildExtent> = order
             .iter()
-            .filter_map(|label| {
-                let track = self.world.tracks.get(label)?;
+            .filter_map(|child_id| {
+                let track = self.world.track(*child_id)?;
                 Some(ChildExtent {
-                    label: label.clone(),
+                    label: self.world.label(*child_id)?.to_string(),
                     half_size: track.layout_size_get(time_ms)?,
                     placement_mode: track
                         .geometry
@@ -1036,7 +1083,7 @@ impl Timeline {
     }
 
     /// Computes layout positions with animated child-order transitions.
-    /// If a `child_orders` transition is active, interpolates positions between
+    /// If a child-order component is present, interpolates positions between
     /// the old and new orders. Otherwise delegates to static layout.
     pub fn compute_animated_layout(
         &self,
@@ -1051,8 +1098,9 @@ impl Timeline {
             return layout::empty_layout_positions();
         };
 
-        // Check for child_orders track
-        if let Some(track) = self.child_orders.get(container_label) {
+        // Check for an animated child order on the container entity
+        if let Some(component) = self.child_order(container_label) {
+            let track = &component.track;
             let prev = track.keyframes.prev_keyframe(time_ms);
             let next = track.keyframes.next_keyframe(time_ms);
 
@@ -1066,15 +1114,14 @@ impl Timeline {
                     let pos2 = self.compute_layout_positions_for_order(metadata, order2, time_ms);
 
                     let mut result = layout::LayoutPositions::new();
-                    for label in order1.iter().chain(order2.iter()) {
+                    for id in order1.iter().chain(order2.iter()) {
+                        let Some(label) = self.world.label(*id) else {
+                            continue;
+                        };
                         let p1 = pos1.get(label).copied().unwrap_or([0.0, 0.0]);
                         let p2 = pos2.get(label).copied().unwrap_or([0.0, 0.0]);
                         let pos = p1.interpolate(&p2, eased_t);
-                        if let Some(id) = self.world.tracks.get_id(label) {
-                            result.insert_with_id(id, label.clone(), pos);
-                        } else {
-                            result.insert(label.clone(), pos);
-                        }
+                        result.insert_with_id(*id, label.to_string(), pos);
                     }
                     return Arc::new(result);
                 },
@@ -1097,15 +1144,14 @@ impl Timeline {
                     let pos2 = self.compute_layout_positions_for_order(metadata, order, time_ms);
 
                     let mut result = layout::LayoutPositions::new();
-                    for label in track.default_value.iter().chain(order.iter()) {
+                    for id in track.default_value.iter().chain(order.iter()) {
+                        let Some(label) = self.world.label(*id) else {
+                            continue;
+                        };
                         let p1 = pos1.get(label).copied().unwrap_or([0.0, 0.0]);
                         let p2 = pos2.get(label).copied().unwrap_or([0.0, 0.0]);
                         let pos = p1.interpolate(&p2, eased_t);
-                        if let Some(id) = self.world.tracks.get_id(label) {
-                            result.insert_with_id(id, label.clone(), pos);
-                        } else {
-                            result.insert(label.clone(), pos);
-                        }
+                        result.insert_with_id(*id, label.to_string(), pos);
                     }
                     return Arc::new(result);
                 },
@@ -1115,7 +1161,7 @@ impl Timeline {
             }
         }
 
-        // No child_orders track — delegate to static layout
+        // No child-order track — delegate to static layout
         let layout_children = self.layout_children_for(container_label);
         self.layout_engine.compute_layout_for_time(
             container_label,
@@ -1704,9 +1750,10 @@ impl Timeline {
     /// Uncached static-subtree computation ([`Self::is_static_subtree`] wraps
     /// this in a memo).
     fn compute_static_subtree(&self, label: &str) -> bool {
-        // Child-order animations live outside `AnimationTrack` keyframe detection
-        // and can change layout output, so they disable static caching.
-        if self.child_orders.contains_key(label) {
+        // Animated child orders live in a component, outside `AnimationTrack`
+        // keyframe detection, and can change layout output, so they disable
+        // static caching.
+        if self.world.get_id(label).is_some_and(|id| self.world.child_order.contains(id)) {
             return false;
         }
         // If this actor is written to by any modifier (always block), it changes

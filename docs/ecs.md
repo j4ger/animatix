@@ -127,7 +127,7 @@ Rules:
 | `LegendTracks` | legend entries | optional |
 | `EffectChainTrack` | effect stages for Filter/Mask/Glass scopes | optional |
 | `PrimitivePayload` | Plot/Svg/Image payload | optional |
-| `ContainerMetadata` | layout type/gap/padding/align/cols/child order (labels) | optional containers |
+| `ContainerMetadata` | layout type/gap/padding/align/cols/child order (`EntityId`s) | optional containers |
 | `CoordinateFrameComponent` | domain/scale/padding/grid/ticks/tick labels | optional (plot hosts) |
 | `PersistenceComponent` | `persistent: bool` | optional |
 | `AutoColorComponent` | auto-color slot | optional |
@@ -217,7 +217,7 @@ cross-scene carry, not for runtime storage.
 | P1 | `world/` stores, `EntityStore`, `EntityRef`/`EntityMut`, `Timeline.world` | done |
 | P2 | hierarchy + roots (bounds slots deferred to P5h) | done |
 | P3a | persistence / auto-color / transcript stores + `EntityId` hit regions | done |
-| P3b | container-layout + child-order stores | in progress: container-layout store done; animated child-order store pending |
+| P3b | container-layout + child-order stores | done |
 | P4 | coordinate-frame closure (no env fallback, carry across scenes) | pending |
 | P5 | tier components (effects/payload/legend/highlight/text/shape/style/geometry/plan) | pending |
 | P6 | delete `AnimationTrack`/`TrackStore`, migrate GUI, snapshot DTO | pending |

@@ -6,7 +6,9 @@
 //! forwards to it; when the domain moves to a component store, only the
 //! accessor changes. Call sites adopt the accessor once and do not churn again.
 
-use super::super::components::{AutoColorComponent, PersistenceComponent, TranscriptComponent};
+use super::super::components::{
+    AutoColorComponent, ChildOrderComponent, PersistenceComponent, TranscriptComponent,
+};
 use super::super::dispatch::AnimationTrack;
 use super::super::entity::EntityId;
 use super::super::types::ContainerMetadata;
@@ -61,6 +63,12 @@ impl<'w> EntityRef<'w> {
     #[inline(always)]
     pub fn container_layout(self) -> Option<&'w ContainerMetadata> {
         self.world.container_layout.get(self.id)
+    }
+
+    /// The entity's animated child order, when a `swap`/`reorder` targeted it.
+    #[inline(always)]
+    pub fn child_order(self) -> Option<&'w ChildOrderComponent> {
+        self.world.child_order.get(self.id)
     }
 
     /// The entity's `persist`/`remove` state, when an action targeted it.
@@ -150,6 +158,12 @@ impl<'w> EntityMut<'w> {
     #[inline(always)]
     pub fn container_layout_mut(&mut self) -> Option<&mut ContainerMetadata> {
         self.world.container_layout.get_mut(self.id)
+    }
+
+    /// Mutably borrow the entity's animated child order, if present.
+    #[inline(always)]
+    pub fn child_order_mut(&mut self) -> Option<&mut ChildOrderComponent> {
+        self.world.child_order.get_mut(self.id)
     }
 
     /// Mutably borrow the entity's `persist`/`remove` state, if present.

@@ -10,7 +10,8 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::timeline::PlacementMode;
-use crate::timeline::entity::TrackStore;
+use crate::timeline::World;
+use crate::timeline::entity::EntityId;
 use crate::timeline::env::Value;
 use crate::timeline::property_track::TrackAccessor;
 
@@ -134,13 +135,13 @@ pub struct ContainerMetadata {
     pub vertical_align: String,
     /// Number of columns when `layout_type` is `Grid`.
     pub cols: Option<usize>,
-    /// Raw authored child order snapshot for this container.
+    /// Raw authored child order snapshot for this container, as entity ids.
     ///
     /// This is retained for debugging/tests and for preserving the distinction
     /// between authored scene-graph membership and admitted layout membership.
     /// Layout-admitted children are derived from this on demand via
     /// `Timeline::layout_children_for` or `ContainerMetadata::layout_children`.
-    pub child_order: Vec<String>,
+    pub child_order: Vec<EntityId>,
 }
 
 /// Create a uniform `[f32; 2]` gap array where both axes use the same value.
@@ -154,17 +155,22 @@ pub fn padding_uniform(v: f32) -> [f32; 4] {
 }
 
 impl ContainerMetadata {
-    /// Compute layout-admitted children on demand from `child_order` + tracks.
-    pub fn layout_children(&self, tracks: &TrackStore) -> Vec<ContainerLayoutChild> {
+    /// Compute layout-admitted children on demand from `child_order` + the world.
+    ///
+    /// `child_order` holds entity ids; Taffy/layout admission consumes labels,
+    /// so each id is mapped once here and the child's track supplies its
+    /// placement mode. Ids without a live track (a stale carried order) are
+    /// dropped, matching the old label lookup's missing-label behaviour.
+    pub fn layout_children(&self, world: &World) -> Vec<ContainerLayoutChild> {
         self.child_order
             .iter()
-            .filter_map(|child_label| {
-                let track = tracks.get(child_label)?;
+            .filter_map(|child_id| {
+                let track = world.track(*child_id)?;
                 if !track.has_layout_size() {
                     return None;
                 }
                 Some(ContainerLayoutChild {
-                    label: child_label.clone(),
+                    label: world.label(*child_id)?.to_string(),
                     placement_mode: track
                         .geometry
                         .placement_mode

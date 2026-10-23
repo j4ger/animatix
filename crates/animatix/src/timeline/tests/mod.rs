@@ -23,6 +23,8 @@ mod callout;
 #[cfg(test)]
 mod camera;
 #[cfg(test)]
+mod child_order;
+#[cfg(test)]
 mod colorscheme;
 #[cfg(test)]
 mod components;

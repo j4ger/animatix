@@ -20,7 +20,9 @@ pub use view::{EntityMut, EntityRef};
 
 use std::collections::HashMap;
 
-use super::components::{AutoColorComponent, PersistenceComponent, TranscriptComponent};
+use super::components::{
+    AutoColorComponent, ChildOrderComponent, PersistenceComponent, TranscriptComponent,
+};
 use super::dispatch::AnimationTrack;
 use super::entity::{EntityId, TrackStore};
 use super::types::ContainerMetadata;
@@ -36,10 +38,12 @@ pub struct World {
     /// Layout configuration for `Row`/`Col`/`Grid`/`Stack` actors.
     ///
     /// Presence means the entity is a layout container. The authored child
-    /// order stays on [`ContainerMetadata::child_order`] during this slice;
-    /// animated child-order tracks are still the label-keyed
-    /// `Timeline::child_orders` map.
+    /// order lives on [`ContainerMetadata::child_order`] as entity ids;
+    /// animated child-order tracks are the separate
+    /// [`Self::child_order`] store.
     pub(crate) container_layout: ComponentStore<ContainerMetadata>,
+    /// Animated child order for containers targeted by `swap` / `reorder`.
+    pub(crate) child_order: ComponentStore<ChildOrderComponent>,
     /// `persist` / `remove` state for actors that were targeted by an action.
     pub(crate) persistence: ComponentStore<PersistenceComponent>,
     /// `color: auto` slot for actors declared with automatic coloring.
@@ -201,6 +205,7 @@ impl World {
         self.ensure_len();
         self.hierarchy.reset_at(id);
         self.container_layout.reset_at(id);
+        self.child_order.reset_at(id);
         self.persistence.reset_at(id);
         self.auto_color.reset_at(id);
         self.transcript.reset_at(id);
@@ -219,6 +224,16 @@ impl World {
     #[inline(always)]
     pub fn hierarchy_mut(&mut self, id: EntityId) -> &mut SceneHierarchyComponent {
         self.hierarchy.get_mut(id)
+    }
+
+    /// Inputs of the child-order cache flag: true when any container carries an
+    /// animated child-order track.
+    ///
+    /// Stops at the first present component; the frame cache compares this flag
+    /// so a scene that never authors `swap`/`reorder` pays one short scan.
+    #[inline]
+    pub fn has_child_orders(&self) -> bool {
+        self.child_order.iter().next().is_some()
     }
 
     /// Root entities, in authored/insertion order.
@@ -391,6 +406,7 @@ impl World {
         let len = self.tracks.len();
         self.hierarchy.ensure_len(len);
         self.container_layout.ensure_len(len);
+        self.child_order.ensure_len(len);
         self.persistence.ensure_len(len);
         self.auto_color.ensure_len(len);
         self.transcript.ensure_len(len);
@@ -401,6 +417,7 @@ impl World {
         self.tracks.clear();
         self.hierarchy.clear();
         self.container_layout.clear();
+        self.child_order.clear();
         self.persistence.clear();
         self.auto_color.clear();
         self.transcript.clear();

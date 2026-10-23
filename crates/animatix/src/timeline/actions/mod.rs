@@ -785,7 +785,7 @@ mod tests {
         process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
 
         assert!(diagnostics.iter().any(|d| d.code == DiagnosticCode::InvalidModifierValue));
-        assert!(timeline.child_orders.is_empty());
+        assert_eq!(timeline.child_orders_iter().count(), 0);
     }
 
     #[test]
@@ -807,7 +807,7 @@ mod tests {
         process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
 
         assert!(diagnostics.iter().any(|d| d.code == DiagnosticCode::UnsupportedActionTarget));
-        assert!(timeline.child_orders.is_empty());
+        assert_eq!(timeline.child_orders_iter().count(), 0);
     }
 
     #[test]
@@ -832,7 +832,7 @@ mod tests {
         process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
 
         assert!(diagnostics.iter().any(|d| d.code == DiagnosticCode::UnsupportedActionTarget));
-        assert!(timeline.child_orders.is_empty());
+        assert_eq!(timeline.child_orders_iter().count(), 0);
     }
 
     #[test]
@@ -865,7 +865,7 @@ mod tests {
                 align: "center".to_string(),
                 vertical_align: "center".to_string(),
                 cols: None,
-                child_order: vec!["a".to_string(), "b".to_string()],
+                child_order: timeline.world.hierarchy(row_id).children.clone(),
             },
         );
 
@@ -885,14 +885,14 @@ mod tests {
         process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
 
         assert!(diagnostics.is_empty(), "unexpected diagnostics: {:?}", diagnostics);
-        assert_eq!(timeline.child_orders.len(), 1);
+        assert_eq!(timeline.child_orders_iter().count(), 1);
 
-        let track = timeline.child_orders.get("row").unwrap();
+        let track = &timeline.child_order("row").unwrap().track;
         assert_eq!(track.keyframes.len(), 2);
         let (start_order, _) = track.keyframes.get(&0).unwrap();
-        assert_eq!(start_order, &vec!["a".to_string(), "b".to_string()]);
+        assert_eq!(start_order, &vec![child_a, child_b]);
         let (end_order, _) = track.keyframes.get(&500).unwrap();
-        assert_eq!(end_order, &vec!["b".to_string(), "a".to_string()]);
+        assert_eq!(end_order, &vec![child_b, child_a]);
     }
 
     #[test]
@@ -920,7 +920,7 @@ mod tests {
                 align: "center".to_string(),
                 vertical_align: "center".to_string(),
                 cols: None,
-                child_order: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+                child_order: timeline.world.hierarchy(row_id).children.clone(),
             },
         );
 
@@ -957,7 +957,7 @@ mod tests {
 
         assert!(diagnostics2.iter().any(|d| d.code == DiagnosticCode::ConflictingModifierKey));
         // Only the first swap's keyframes should exist (start + end)
-        let track = timeline.child_orders.get("row").unwrap();
+        let track = &timeline.child_order("row").unwrap().track;
         assert_eq!(track.keyframes.len(), 2);
     }
 
@@ -977,7 +977,7 @@ mod tests {
         process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
 
         assert!(diagnostics.iter().any(|d| d.code == DiagnosticCode::InvalidModifierValue));
-        assert!(timeline.child_orders.is_empty());
+        assert_eq!(timeline.child_orders_iter().count(), 0);
     }
 
     #[test]
@@ -1003,7 +1003,7 @@ mod tests {
         process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
 
         assert!(diagnostics.iter().any(|d| d.code == DiagnosticCode::InvalidModifierValue));
-        assert!(timeline.child_orders.is_empty());
+        assert_eq!(timeline.child_orders_iter().count(), 0);
     }
 
     #[test]
@@ -1031,7 +1031,7 @@ mod tests {
                 align: "center".to_string(),
                 vertical_align: "center".to_string(),
                 cols: None,
-                child_order: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+                child_order: timeline.world.hierarchy(row_id).children.clone(),
             },
         );
 
@@ -1061,14 +1061,15 @@ mod tests {
         process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
 
         assert!(diagnostics.is_empty(), "unexpected diagnostics: {:?}", diagnostics);
-        assert_eq!(timeline.child_orders.len(), 1);
+        assert_eq!(timeline.child_orders_iter().count(), 1);
 
-        let track = timeline.child_orders.get("row").unwrap();
+        let track = &timeline.child_order("row").unwrap().track;
         assert_eq!(track.keyframes.len(), 2);
         let (start_order, _) = track.keyframes.get(&0).unwrap();
-        assert_eq!(start_order, &vec!["a".to_string(), "b".to_string(), "c".to_string()]);
+        assert_eq!(start_order, &timeline.world.hierarchy(row_id).children);
         let (end_order, _) = track.keyframes.get(&500).unwrap();
-        assert_eq!(end_order, &vec!["c".to_string(), "b".to_string(), "a".to_string()]);
+        let reversed: Vec<_> = start_order.iter().rev().copied().collect();
+        assert_eq!(end_order, &reversed);
     }
 
     #[test]
@@ -1096,7 +1097,7 @@ mod tests {
                 align: "center".to_string(),
                 vertical_align: "center".to_string(),
                 cols: None,
-                child_order: vec!["a".to_string(), "b".to_string()],
+                child_order: timeline.world.hierarchy(row_id).children.clone(),
             },
         );
 
@@ -1151,7 +1152,7 @@ mod tests {
 
         assert!(diagnostics2.iter().any(|d| d.code == DiagnosticCode::ConflictingModifierKey));
         // Only the first reorder's keyframes should exist (start + end)
-        let track = timeline.child_orders.get("row").unwrap();
+        let track = &timeline.child_order("row").unwrap().track;
         assert_eq!(track.keyframes.len(), 2);
     }
 
@@ -1181,7 +1182,7 @@ mod tests {
                 align: "center".to_string(),
                 vertical_align: "center".to_string(),
                 cols: None,
-                child_order: vec!["a".to_string(), "b".to_string(), "c".to_string()],
+                child_order: timeline.world.hierarchy(row_id).children.clone(),
             },
         );
 
@@ -1213,7 +1214,7 @@ mod tests {
         };
         process_action(&action2, 1000.0, &mut timeline, &mut Vec::new(), None);
 
-        let track = timeline.child_orders.get("row").unwrap();
+        let track = &timeline.child_order("row").unwrap().track;
         assert_eq!(track.keyframes.len(), 4, "expected start+end for each swap");
 
         // At 600ms (after first swap ends, before second starts) the order
@@ -1258,13 +1259,7 @@ mod tests {
                 align: "bottom".to_string(),
                 vertical_align: "center".to_string(),
                 cols: None,
-                child_order: vec![
-                    "bar1".to_string(),
-                    "bar2".to_string(),
-                    "bar3".to_string(),
-                    "bar4".to_string(),
-                    "bar5".to_string(),
-                ],
+                child_order: timeline.world.hierarchy(bars_id).children.clone(),
             },
         );
 

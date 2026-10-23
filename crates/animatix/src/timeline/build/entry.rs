@@ -22,14 +22,20 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
         vertical_align: Option<&str>,
     ) {
-        let child_order: Vec<String> = self
+        let child_labels: Vec<String> = self
             .world
             .get_id(label)
             .map(|id| self.world.child_labels(id).map(str::to_string).collect())
             .unwrap_or_default();
+        // The container component stores entity ids; build-time layout
+        // admission (diagnostics, extents) stays label-keyed.
+        let child_order: Vec<EntityId> = child_labels
+            .iter()
+            .filter_map(|child_label| self.world.get_id(child_label))
+            .collect();
         // layout_children is computed on demand via Timeline::layout_children_for
         let _layout_children =
-            self.build_layout_children(label, container_ty, &child_order, diagnostics);
+            self.build_layout_children(label, container_ty, &child_labels, diagnostics);
 
         let metadata = ContainerMetadata {
             layout_type: LayoutType::from_container_ty(container_ty),
@@ -38,7 +44,7 @@ impl Timeline {
             align: align.unwrap_or("center").to_string(),
             vertical_align: vertical_align.unwrap_or("center").to_string(),
             cols,
-            child_order: child_order.clone(),
+            child_order,
         };
 
         self.set_container_layout(label, metadata.clone());
@@ -50,7 +56,7 @@ impl Timeline {
 
         // Compute container size for width propagation.
         // The container_size comes from the Taffy layout we just computed.
-        let child_extents: Vec<ChildExtent> = child_order
+        let child_extents: Vec<ChildExtent> = child_labels
             .iter()
             .filter_map(|cl| {
                 let track = self.world.tracks.get(cl)?;

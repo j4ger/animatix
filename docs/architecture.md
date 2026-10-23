@@ -214,7 +214,7 @@ The GUI supports canvas drag-to-reorder for layout-managed children:
 1. **Drag start** on a layout-managed child enters `Reorder` mode instead of `Move`
 2. **Mouse tracking** projects the cursor onto the container's main axis and computes an insertion index against sibling center positions
 3. **Visual feedback** shows a ghost at the original position and an accent-blue drop line at the insertion point
-4. **Drop** emits a `child_order` property edit targeting the container; the edit pipeline updates `ContainerMetadata` and persists the new order to source via AST mutation
+4. **Drop** emits a `child_order` property edit targeting the container; the edit pipeline resolves the label order to `EntityId`s, updates `ContainerMetadata.child_order`, and persists the new order to source via AST mutation
 5. **Inspector** also exposes up/down arrow buttons for each child when a container is selected
 
 ---

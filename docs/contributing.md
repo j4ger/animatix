@@ -108,7 +108,7 @@ Preview drag → PropertyEdit → handle_property_edit → source + timeline + i
 Special-case edits (e.g. `child_order` on containers) bypass per-track dispatch and are handled directly in `handle_property_edit` / `handle_keyframe_edit` before the generic pipeline:
 ```
 PropertyEdit { actor: container, property: "child_order", value: StringList }
-  → update ContainerMetadata.child_order + rebuild layout_children
+  → resolve labels to EntityIds, update ContainerMetadata.child_order + rebuild layout_children
   → AST mutation: ReorderContainerChildren → reorder children block in source
 ```
 

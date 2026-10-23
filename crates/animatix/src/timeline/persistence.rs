@@ -316,8 +316,21 @@ fn inject_entry(
     // the destination scene. `spawn_replacing` cleared the optional component
     // above, so this restores it from the bag rather than re-reading the
     // source timeline.
+    //
+    // `CarryEntry::container_layout` stores *source-scene* entity ids in
+    // `child_order`, so remap each id through its source label to the
+    // destination entity of the same label. A child that was not carried (or
+    // whose id is stale) has no destination entity and is dropped, matching
+    // the layout admission's missing-child behaviour.
     if let Some(metadata) = &entry.container_layout {
-        dest.set_container_layout(label, metadata.clone());
+        let mut metadata = metadata.clone();
+        metadata.child_order = metadata
+            .child_order
+            .iter()
+            .filter_map(|source_id| source_timeline.get_entity_label(*source_id))
+            .filter_map(|child_label| dest.get_entity_id(child_label))
+            .collect();
+        dest.set_container_layout(label, metadata);
     }
 }
 

@@ -60,7 +60,7 @@ fn test_baseline_alignment_via_layout_engine() {
         align: "center".to_string(),
         vertical_align: "baseline".to_string(),
         cols: None,
-        child_order: vec!["a".to_string(), "b".to_string()],
+        child_order: vec![EntityId(0), EntityId(1)],
     };
 
     // Baseline alignment
@@ -150,7 +150,7 @@ fn test_fixed_size_layout_still_works() {
         align: "center".to_string(),
         vertical_align: "center".to_string(),
         cols: None,
-        child_order: vec!["a".into(), "b".into()],
+        child_order: vec![EntityId(0), EntityId(1)],
     };
 
     // Legacy path (no specs/constraints)

@@ -142,6 +142,15 @@ impl Interpolate for Vec<String> {
     }
 }
 
+impl Interpolate for Vec<crate::timeline::EntityId> {
+    /// A child order is discrete: each keyframe holds a complete order, so the
+    /// midpoint swap matches `Vec<String>` rather than blending positions here
+    /// (the layout path interpolates the resulting *positions*).
+    fn interpolate(&self, other: &Self, t: f32) -> Self {
+        if t < 0.5 { self.clone() } else { other.clone() }
+    }
+}
+
 impl Interpolate for Vec<f32> {
     fn interpolate(&self, other: &Self, t: f32) -> Self {
         if self.is_empty() || other.is_empty() || self.len() != other.len() {

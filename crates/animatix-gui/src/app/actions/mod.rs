@@ -206,19 +206,9 @@ impl GuiShell {
     }
 
     fn apply_child_order_edit(&mut self, edit: panels::PropertyEdit, is_drag: bool) {
-        use crate::app::panels::PropertyValue as PV;
-
         // During drag: mutate timeline only, defer source write.
         if is_drag {
-            if let Some(at) = self.document_store.source.document.active_timeline_mut() {
-                let timeline = &mut *at.timeline;
-                // `container_layout_mut` invalidates the frame cache itself.
-                if let Some(metadata) = timeline.container_layout_mut(&edit.actor) {
-                    if let PV::StringList(order) = &edit.value {
-                        metadata.child_order = order.clone();
-                    }
-                }
-            }
+            self.apply_child_order_component_edit(&edit);
             self.defer_drag_edit(edit);
             self.preview_store.preview_dirty = true;
             return;
@@ -428,17 +418,27 @@ impl GuiShell {
                 ));
             };
 
-        if let Some(at) = self.document_store.source.document.active_timeline_mut() {
-            let timeline = &mut *at.timeline;
-            // `container_layout_mut` invalidates the frame cache itself.
-            if let Some(metadata) = timeline.container_layout_mut(&edit.actor) {
-                if let PV::StringList(order) = &edit.value {
-                    metadata.child_order = order.clone();
-                }
-            }
-        }
+        self.apply_child_order_component_edit(edit);
         self.commit_source(new_source, source_index, flashes);
         Ok(())
+    }
+
+    /// Write a `child_order` edit to the component as entity ids.
+    ///
+    /// The edit carries labels; the component stores `EntityId`s.
+    fn apply_child_order_component_edit(&mut self, edit: &panels::PropertyEdit) {
+        use crate::app::panels::PropertyValue as PV;
+        let (Some(at), PV::StringList(order)) =
+            (self.document_store.source.document.active_timeline_mut(), &edit.value)
+        else {
+            return;
+        };
+        let timeline = &mut *at.timeline;
+        let ids: Vec<_> = order.iter().filter_map(|label| timeline.get_entity_id(label)).collect();
+        // `container_layout_mut` invalidates the frame cache itself.
+        if let Some(metadata) = timeline.container_layout_mut(&edit.actor) {
+            metadata.child_order = ids;
+        }
     }
 
     fn commit_source(

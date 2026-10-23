@@ -1158,7 +1158,7 @@ impl Timeline {
         }
         let time_ms = (time_s * 1000.0) as u64;
         let needs_frame_env = self.needs_frame_env();
-        let has_child_orders = !self.child_orders.is_empty();
+        let has_child_orders = self.world.has_child_orders();
         let cached = self.eval_caches.frame_cache.borrow();
         let cached = cached.as_ref()?;
         if cached.time_ms != time_ms
@@ -1325,7 +1325,7 @@ impl Timeline {
 
         let time_ms = (time_s * 1000.0) as u64;
         let needs_frame_env = self.needs_frame_env();
-        let has_child_orders = !self.child_orders.is_empty();
+        let has_child_orders = self.world.has_child_orders();
 
         // Clear stale runtime diagnostics from previous frame.
         self.clear_runtime_diagnostics();
