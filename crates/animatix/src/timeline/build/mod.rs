@@ -13,7 +13,7 @@
 //! | `shape.rs` | Vector shape state construction |
 //! | `actor.rs` | Actor declaration processing, VelloPath generation, keyframes |
 //! | `process.rs` | Main `process_body` AST statement dispatcher |
-//! | `plot.rs` | Plot curve/axis path building (pre-existing) |
+//! | `plot/` | Plot actor lowering, graph/field/curve/bar path building |
 //! | `post.rs` | Post-build passes: idle tracks, namespace exports |
 //! | `keyframe_utils.rs` | Keyframe insertion helpers (pre-existing) |
 

@@ -19,11 +19,11 @@
 //! |--------|------|
 //! | `build.rs` | AST lowering into Timeline |
 //! | `frame_env.rs` / `scene_eval.rs` | Frame-time evaluation and render-scene assembly |
-//! | `property_track.rs`, `animation_track.rs`, `dispatch.rs`, `actor_kind.rs` | Keyframed property tracks, interpolation, and track dispatch |
+//! | `property_track.rs`, `animation_track/`, `dispatch.rs`, `actor_kind.rs` | Keyframed property tracks, interpolation, and track dispatch |
 //! | `layout.rs` | Container placement (Row, Col, Grid, Stack) |
 //! | `colorscheme.rs` | Built-in and inline colorscheme resolution |
 //! | `morph.rs` | Path morphing between vector shapes |
-//! | `plot.rs` | Adaptive sampling for graph plots |
+//! | `plot/` | Adaptive sampling for graph plots |
 //! | `utils.rs` | Expression evaluation |
 //! | `modifier_runtime/` | IR lowering and interpretation for `always` blocks |
 //!

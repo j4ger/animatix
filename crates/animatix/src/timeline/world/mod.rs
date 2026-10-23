@@ -26,10 +26,10 @@ use super::components::{
 };
 use super::dispatch::AnimationTrack;
 use super::effects::EffectChainTrack;
-use crate::primitives::PrimitivePayload;
 use super::entity::{EntityId, TrackStore};
 use super::legend::LegendTracks;
 use super::types::ContainerMetadata;
+use crate::primitives::PrimitivePayload;
 
 /// Entities and component stores for one scene timeline.
 #[derive(Clone, Debug, Default)]
