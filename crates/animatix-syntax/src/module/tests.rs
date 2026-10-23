@@ -2,8 +2,6 @@ use super::*;
 
 use std::path::PathBuf;
 
-use super::*;
-
 #[test]
 fn sources_only_mode_never_reads_disk() {
     let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
