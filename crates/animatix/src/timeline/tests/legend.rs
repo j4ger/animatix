@@ -4,6 +4,13 @@ use super::*;
 use crate::ast::Property;
 use crate::primitives::{EvaluateCtx, LEGEND, Primitive, RenderCommand, TextCompileCtx};
 
+fn legend_component<'a>(timeline: &'a Timeline, label: &str) -> &'a crate::timeline::LegendTracks {
+    timeline
+        .entity(label)
+        .and_then(|entity| entity.legend())
+        .expect("legend component")
+}
+
 fn make_config() -> Stmt {
     Stmt::Config {
         settings: vec![Property {
@@ -47,9 +54,14 @@ fn test_legend_wrapped_label_respects_max_width() {
 
     let mut track = AnimationTrack::placeholder("legend".to_string());
     track.set_identity("Legend");
-    track.legend.entries =
-        vec![("A very long series label that should wrap".to_string(), [1.0, 0.0, 0.0, 1.0])];
-    track.legend.text_max_width = 80.0;
+    let legend = crate::timeline::LegendTracks {
+        entries: vec![(
+            "A very long series label that should wrap".to_string(),
+            [1.0, 0.0, 0.0, 1.0],
+        )],
+        text_max_width: 80.0,
+        ..Default::default()
+    };
 
     let asset_cache = crate::timeline::assets::AssetCache::new();
     let ctx = EvaluateCtx {
@@ -66,6 +78,7 @@ fn test_legend_wrapped_label_respects_max_width() {
         vector_paths: &[],
         asset_cache: &asset_cache,
         target_resolver: None,
+        legend: Some(&legend),
     };
     let font_context = std::sync::Arc::new(crate::renderer::text::FontContext::new());
     let mut text_compiler = crate::renderer::text::TextCompiler::new();
@@ -168,7 +181,10 @@ fn test_legend_basic_rendering() {
     assert_eq!(track.actor_type, "Legend", "track kind should be Legend");
 
     // A legend-only scene has no color-bearing candidates.
-    assert!(track.legend.entries.is_empty(), "legend should have no entries");
+    assert!(
+        legend_component(&timeline, "legend").entries.is_empty(),
+        "legend should have no entries"
+    );
 
     // Evaluate at time 0 — should not panic and should produce RenderCommands
     let dims = SceneDimensions {
@@ -182,10 +198,12 @@ fn test_legend_basic_rendering() {
 fn test_legend_entries() {
     // Verify that legend entries are stored correctly
     let timeline = build_legend_timeline();
-    let track = timeline.get_track("legend").expect("legend track should exist");
 
     // A legend-only scene has no color-bearing candidates.
-    assert!(track.legend.entries.is_empty(), "legend should have no entries");
+    assert!(
+        legend_component(&timeline, "legend").entries.is_empty(),
+        "legend should have no entries"
+    );
 }
 
 #[test]
@@ -197,9 +215,10 @@ fn test_legend_empty() {
 
     let mut track = AnimationTrack::placeholder("empty_legend".to_string());
     track.set_identity("Legend");
+    let legend = crate::timeline::LegendTracks::default();
 
     // Ensure entries are empty (default)
-    assert!(track.legend.entries.is_empty(), "fresh track should have empty legend entries");
+    assert!(legend.entries.is_empty(), "fresh legend component should have empty entries");
 
     let asset_cache = crate::timeline::assets::AssetCache::new();
     let ctx = EvaluateCtx {
@@ -216,6 +235,7 @@ fn test_legend_empty() {
         vector_paths: &[],
         asset_cache: &asset_cache,
         target_resolver: None,
+        legend: Some(&legend),
     };
 
     let result = LEGEND.evaluate(&ctx, None).expect("evaluate should succeed");
@@ -280,10 +300,9 @@ fn test_legend_auto_extraction_from_colored_actors() {
         report.diagnostics
     );
     let timeline = report.output;
-    let track = timeline.get_track("legend").expect("legend track should exist");
 
     assert_eq!(
-        track.legend.entries,
+        legend_component(&timeline, "legend").entries,
         vec![
             ("Revenue".to_string(), [1.0, 0.0, 0.0, 1.0]),
             ("Line C".to_string(), [0.0, 0.0, 1.0, 1.0]),
@@ -355,13 +374,14 @@ fn test_legend_style_properties_are_parsed() {
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
-    let track = report.output.get_track("legend").expect("legend track");
-    assert_eq!(track.legend.title, "Metrics");
-    assert_eq!(track.legend.font_size, 18.0);
-    assert_eq!(track.legend.label_color, Some([1.0, 1.0, 1.0, 1.0]));
-    assert_eq!(track.legend.swatch_size, 20.0);
-    assert_eq!(track.legend.gap, 12.0);
-    assert_eq!(track.legend.text_max_width, 180.0);
+    let timeline = report.output;
+    let track = timeline.get_track("legend").expect("legend track");
+    assert_eq!(legend_component(&timeline, "legend").title, "Metrics");
+    assert_eq!(legend_component(&timeline, "legend").font_size, 18.0);
+    assert_eq!(legend_component(&timeline, "legend").label_color, Some([1.0, 1.0, 1.0, 1.0]));
+    assert_eq!(legend_component(&timeline, "legend").swatch_size, 20.0);
+    assert_eq!(legend_component(&timeline, "legend").gap, 12.0);
+    assert_eq!(legend_component(&timeline, "legend").text_max_width, 180.0);
 
     use crate::timeline::property_engine::PropertyValue;
     use crate::timeline::property_registry::ActorField;
@@ -433,8 +453,10 @@ fn test_legend_excludes_full_viewport_background() {
         report.diagnostics
     );
     let timeline = report.output;
-    let track = timeline.get_track("legend").expect("legend track");
-    assert!(track.legend.entries.is_empty(), "full-viewport background should be excluded");
+    assert!(
+        legend_component(&timeline, "legend").entries.is_empty(),
+        "full-viewport background should be excluded"
+    );
 }
 
 #[test]
@@ -499,8 +521,12 @@ fn test_legend_true_force_includes_background() {
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
-    let track = report.output.get_track("legend").expect("legend track");
-    assert_eq!(track.legend.entries.len(), 1, "legend:true should force-include a background");
+    let timeline = report.output;
+    assert_eq!(
+        legend_component(&timeline, "legend").entries.len(),
+        1,
+        "legend:true should force-include a background"
+    );
 }
 
 #[test]
@@ -550,9 +576,13 @@ fn test_legend_source_order_is_preserved() {
         "Expected no diagnostics, got: {:?}",
         report.diagnostics
     );
-    let track = report.output.get_track("legend").expect("legend track");
+    let timeline = report.output;
     assert_eq!(
-        track.legend.entries.iter().map(|(label, _)| label.clone()).collect::<Vec<_>>(),
+        legend_component(&timeline, "legend")
+            .entries
+            .iter()
+            .map(|(label, _)| label.clone())
+            .collect::<Vec<_>>(),
         vec!["Line Z".to_string(), "Line A".to_string()]
     );
 }
@@ -574,7 +604,7 @@ fn example_legend_entries_are_scanned() {
     let timeline = report.output;
     let track = timeline.get_track("legend").expect("legend track should exist");
     assert_eq!(
-        track.legend.entries,
+        legend_component(&timeline, "legend").entries,
         vec![
             ("Series A".to_string(), [1.0, 0.0, 0.0, 1.0]),
             ("Series B".to_string(), [0.0, 1.0, 0.0, 1.0]),
@@ -597,11 +627,14 @@ fn test_legend_render_commands_produced() {
     track.set_identity("Legend");
 
     // Set manual entries to exercise label rendering without a scene build.
-    track.legend.entries = vec![
-        ("Series A".to_string(), [1.0, 0.0, 0.0, 1.0]),
-        ("Series B".to_string(), [0.0, 1.0, 0.0, 1.0]),
-        ("Series C".to_string(), [0.0, 0.0, 1.0, 1.0]),
-    ];
+    let legend = crate::timeline::LegendTracks {
+        entries: vec![
+            ("Series A".to_string(), [1.0, 0.0, 0.0, 1.0]),
+            ("Series B".to_string(), [0.0, 1.0, 0.0, 1.0]),
+            ("Series C".to_string(), [0.0, 0.0, 1.0, 1.0]),
+        ],
+        ..Default::default()
+    };
 
     let asset_cache = crate::timeline::assets::AssetCache::new();
     let ctx = EvaluateCtx {
@@ -618,6 +651,7 @@ fn test_legend_render_commands_produced() {
         vector_paths: &[],
         asset_cache: &asset_cache,
         target_resolver: None,
+        legend: Some(&legend),
     };
 
     let font_context = std::sync::Arc::new(crate::renderer::text::FontContext::new());

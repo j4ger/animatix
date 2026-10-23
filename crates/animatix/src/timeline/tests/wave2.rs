@@ -152,6 +152,7 @@ cnt.value = 100 [1s]
         vector_paths: &[],
         asset_cache: &asset_cache,
         target_resolver: None,
+        legend: None,
     };
 
     let ctx0 = make_ctx(0);
@@ -224,6 +225,7 @@ label.color = (0.0, 1.0, 0.0, 1.0) [1s]
         vector_paths: &[],
         asset_cache: &asset_cache,
         target_resolver: None,
+        legend: None,
     };
 
     // Evaluate at t=0 (red)
@@ -308,6 +310,7 @@ t: Text, text: "Hardware Stream", at: (300, 200), font_size: 32
         vector_paths: &[],
         asset_cache: &asset_cache,
         target_resolver: None,
+        legend: None,
     };
 
     let cmds = primitive.evaluate(&ctx, None).unwrap().unwrap();

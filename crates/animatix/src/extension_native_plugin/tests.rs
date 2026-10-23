@@ -10,8 +10,7 @@ use crate::timeline::{Environment, PropertyKind, Value};
 /// advertises decodes to a curve and re-encodes to that same code, codes it
 /// does not know are rejected instead of reading as `Linear`, and the two
 /// parameterized curves report `UNSUPPORTED` rather than borrowing a
-/// neighbour's name. Before the table was exhaustive, `bounce`/`elastic`/
-/// `back`/`expo*` all crossed the boundary as `Linear` in both directions.
+/// neighbour's name. Before the table was exhaustive, `bounce`/`elastic`/`back`/`expo*` all crossed the boundary as `Linear` in both directions.
 #[test]
 fn easing_codes_round_trip_and_reject_the_unknown() {
     use crate::easing::Easing;
@@ -110,6 +109,7 @@ fn sample_evaluate_ctx<'a>(
         vector_paths: &[],
         asset_cache,
         target_resolver: None,
+        legend: None,
     }
 }
 

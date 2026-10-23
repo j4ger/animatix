@@ -1013,21 +1013,21 @@ impl Timeline {
             }
         }
 
-        // Populate Legend entries after every actor is built so generated and
-        // forward-declared actors participate in the same scan.
-        let legend_labels = timeline
+        // Populate Legend entries after every actor is built so generated,
+        // forward-declared and carry-injected actors participate in the same
+        // scan. Entries are derived data: they live on the entity's legend
+        // component and are never carried across scenes.
+        let legend_ids = timeline
             .world
             .tracks
             .iter()
             .filter(|(_, track)| track.caps.legend_host)
-            .map(|(label, _)| label.clone())
+            .map(|(_, track)| track.id)
             .collect::<Vec<_>>();
-        if !legend_labels.is_empty() {
+        if !legend_ids.is_empty() {
             let entries = crate::timeline::legend::scan_legend_entries(&timeline.world);
-            for label in legend_labels {
-                if let Some(track) = timeline.world.tracks.get_mut(&label) {
-                    track.legend.entries = entries.clone();
-                }
+            for id in legend_ids {
+                timeline.world.ensure_legend(id).entries = entries.clone();
             }
         }
 

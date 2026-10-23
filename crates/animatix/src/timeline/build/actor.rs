@@ -600,7 +600,11 @@ impl Timeline {
         };
         let mut stroke_width = existing_track.style.stroke_width.last(caps.default_stroke_width());
         let mut stroke_color = existing_track.style.stroke_color.last(DEFAULT_WHITE);
-        let legend_color = existing_track.legend.color;
+        let legend_color = self
+            .world
+            .get_id(label)
+            .and_then(|id| self.world.legend(id))
+            .and_then(|legend| legend.color);
         let mut stroke_progress = existing_track.style.stroke_progress.last(1.0);
         let mut fill_opacity = existing_track.style.fill_opacity.last(1.0);
         let mut dash_pattern = existing_track.style.dash_pattern.last(Vec::new());
@@ -946,16 +950,25 @@ impl Timeline {
             label,
         );
 
-        let track = self.world.ensure_track(label, ty);
-        track.set_identity(ty);
-        track.rebuild_property_plan();
-        if track.decl_span.is_none() {
-            track.decl_span = decl_span;
+        let track_id = {
+            let track = self.world.ensure_track(label, ty);
+            track.set_identity(ty);
+            track.rebuild_property_plan();
+            if track.decl_span.is_none() {
+                track.decl_span = decl_span;
+            }
+            if track.first_seen_ms == u64::MAX {
+                track.first_seen_ms = t_start_ms;
+            }
+            track.id
+        };
+        // Legend participation is a component, not a track field. Only actors
+        // with an explicit color/stroke become automatic legend candidates, so
+        // actors with nothing to contribute carry no component at all.
+        if let Some(color) = legend_color {
+            self.world.ensure_legend(track_id).color = Some(color);
         }
-        if track.first_seen_ms == u64::MAX {
-            track.first_seen_ms = t_start_ms;
-        }
-        track.legend.color = legend_color;
+        let track = self.world.track_mut(track_id).expect("World::ensure_track creates the track");
 
         // Seed Callout defaults before user properties so fields used by targeted
         // geometry and text evaluation are always present, even without explicit props.

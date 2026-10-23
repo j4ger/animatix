@@ -165,6 +165,15 @@ impl<C> ComponentStore<C> {
         self.values.get_mut(id.index())?.as_mut()
     }
 
+    /// Mutably borrow an entity's component, inserting `default()` if absent.
+    pub fn get_or_insert_with<F: FnOnce() -> C>(&mut self, id: EntityId, default: F) -> &mut C {
+        let index = id.index();
+        if self.values.len() <= index {
+            self.values.resize_with(index + 1, || None);
+        }
+        self.values[index].get_or_insert_with(default)
+    }
+
     /// Insert (or replace) an entity's component, returning the previous value.
     pub fn insert(&mut self, id: EntityId, value: C) -> Option<C> {
         let index = id.index();

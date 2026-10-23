@@ -81,6 +81,11 @@ pub struct EvaluateCtx<'a> {
     /// Narrow resolver for target actor bounds (targeted callout mode).
     /// Replaces the previous broad `Option<&Timeline>` field.
     pub target_resolver: Option<&'a dyn TargetResolver>,
+    /// The actor's legend component, when it participates in a legend.
+    ///
+    /// Supplied by the frame path from the entity's component store so the
+    /// Legend primitive reads legend data without a per-frame world lookup.
+    pub legend: Option<&'a crate::timeline::LegendTracks>,
 }
 
 /// Frame-invariant, read-only state shared by every node rendered this frame.

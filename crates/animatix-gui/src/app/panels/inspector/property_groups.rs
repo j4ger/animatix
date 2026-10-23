@@ -88,6 +88,7 @@ pub(crate) fn build_property_groups(
     let mut captions = Vec::new();
     let mut visibility = Vec::new();
     let mut legend_props = Vec::new();
+    let legend = timeline.entity(&track.label).and_then(|entity| entity.legend());
 
     for &idx in &indices {
         let schema = &PROPERTY_REGISTRY[idx];
@@ -321,10 +322,12 @@ pub(crate) fn build_property_groups(
     }
 
     if track.caps.legend_host {
-        legend_props.extend(legend_style_entries(track));
+        legend_props.extend(legend_style_entries(legend));
     }
     let mode = animatix::timeline::legend::legend_mode_for_track(track);
-    if track.legend.color.is_some() || mode != animatix::timeline::LegendMode::Auto {
+    if legend.and_then(|legend| legend.color).is_some()
+        || mode != animatix::timeline::LegendMode::Auto
+    {
         legend_props.push(legend_participation_entry(track, mode));
     }
     if !legend_props.is_empty() {
@@ -511,7 +514,7 @@ fn legend_participation_entry(
     }
 }
 
-fn legend_style_entries(track: &AnimationTrack) -> Vec<PropertyEntry> {
+fn legend_style_entries(legend: Option<&animatix::timeline::LegendTracks>) -> Vec<PropertyEntry> {
     fn entry(name: &str, kind: PropertyKind) -> PropertyEntry {
         PropertyEntry {
             name: name.to_string(),
@@ -521,18 +524,15 @@ fn legend_style_entries(track: &AnimationTrack) -> Vec<PropertyEntry> {
             keyframe_count: 0,
         }
     }
-    let label_color = track
-        .legend
-        .label_color
-        .map(color_display)
-        .unwrap_or_else(|| "auto".to_string());
+    let legend = legend.cloned().unwrap_or_default();
+    let label_color = legend.label_color.map(color_display).unwrap_or_else(|| "auto".to_string());
     vec![
-        entry("title", PropertyKind::Text(track.legend.title.clone())),
-        entry("font_size", PropertyKind::Float(track.legend.font_size)),
+        entry("title", PropertyKind::Text(legend.title.clone())),
+        entry("font_size", PropertyKind::Float(legend.font_size)),
         entry("label_color", PropertyKind::Text(label_color)),
-        entry("swatch_size", PropertyKind::Float(track.legend.swatch_size)),
-        entry("gap", PropertyKind::Float(track.legend.gap)),
-        entry("text_max_width", PropertyKind::Float(track.legend.text_max_width)),
+        entry("swatch_size", PropertyKind::Float(legend.swatch_size)),
+        entry("gap", PropertyKind::Float(legend.gap)),
+        entry("text_max_width", PropertyKind::Float(legend.text_max_width)),
     ]
 }
 

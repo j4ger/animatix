@@ -99,6 +99,7 @@ impl Timeline {
                 vector_paths: &child_vector_paths,
                 asset_cache: &self.asset_cache,
                 target_resolver: Some(self),
+                legend: self.world.legend(child_track.id),
             };
             if let Some(cue) = primitive.caption_cue(&ctx) {
                 let start_s = cue.start_ms as f64 / 1000.0;

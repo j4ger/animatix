@@ -90,6 +90,7 @@ box: Rect, size: (100, 100), at: (200, 200), shadow: (0, 8, 16, 2), shadow_color
         vector_paths: &[],
         asset_cache: &asset_cache,
         target_resolver: None,
+        legend: None,
     };
     let cmds = primitive.evaluate(&ctx, None).expect("eval success").expect("render commands");
     assert_eq!(cmds.len(), 2, "Expected shadow + rect fill commands");

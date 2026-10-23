@@ -114,9 +114,6 @@ pub fn write_property_field(
             .map(|schema| (schema.default_value)(&track.caps)),
         _ => None,
     };
-    if field == ActorField::Tagged("legend") {
-        track.legend.legend_declared = true;
-    }
 
     if field == ActorField::Tagged("callout_place")
         && let PropertyValue::Enum(choice) = &value

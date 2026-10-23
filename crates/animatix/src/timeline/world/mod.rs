@@ -26,6 +26,7 @@ use super::components::{
 };
 use super::dispatch::AnimationTrack;
 use super::entity::{EntityId, TrackStore};
+use super::legend::LegendTracks;
 use super::types::ContainerMetadata;
 
 /// Entities and component stores for one scene timeline.
@@ -58,6 +59,13 @@ pub struct World {
     pub(crate) auto_color: ComponentStore<AutoColorComponent>,
     /// Parsed speech transcript for `Audio` / `Captions` actors.
     pub(crate) transcript: ComponentStore<TranscriptComponent>,
+    /// Legend data for actors that participate in a legend.
+    ///
+    /// A `Legend` host carries its presentation settings and the entries the
+    /// post-build scene scan generated; an ordinary actor carries only the
+    /// color that makes it an automatic candidate. Presence is optional: an
+    /// actor with no legend involvement has no component.
+    pub(crate) legend: ComponentStore<LegendTracks>,
     /// Root entities in authored/insertion order.
     pub(crate) roots: Vec<EntityId>,
     /// Build-time command buffer: a child label whose track has not been
@@ -122,6 +130,19 @@ impl World {
     #[inline(always)]
     pub fn track_mut(&mut self, id: EntityId) -> Option<&mut AnimationTrack> {
         self.tracks.get_by_id_mut(id)
+    }
+
+    /// Split borrow of the transitional track and the legend component.
+    ///
+    /// GUI property edits write both in one call; a single `EntityMut` cannot
+    /// hand out two stores at once, so this keeps the split explicit.
+    pub fn track_and_legend_mut(
+        &mut self,
+        id: EntityId,
+    ) -> Option<(&mut AnimationTrack, &mut LegendTracks)> {
+        let track = self.tracks.get_by_id_mut(id)?;
+        let legend = self.legend.get_or_insert_with(id, LegendTracks::default);
+        Some((track, legend))
     }
 
     /// A read-only entity view.
@@ -218,6 +239,7 @@ impl World {
         self.persistence.reset_at(id);
         self.auto_color.reset_at(id);
         self.transcript.reset_at(id);
+        self.legend.reset_at(id);
         self.attach_pending_auto_color(id, label);
         self.adopt(id, label);
         id
@@ -239,6 +261,32 @@ impl World {
     #[inline(always)]
     pub fn coordinate_frame(&self, id: EntityId) -> Option<&CoordinateFrameComponent> {
         self.coordinate_frame.get(id)
+    }
+
+    /// Borrow an entity's legend data, when it participates in a legend.
+    #[inline(always)]
+    pub fn legend(&self, id: EntityId) -> Option<&LegendTracks> {
+        self.legend.get(id)
+    }
+
+    /// Mutably borrow an entity's legend data, when present.
+    #[inline(always)]
+    pub fn legend_mut(&mut self, id: EntityId) -> Option<&mut LegendTracks> {
+        self.legend.get_mut(id)
+    }
+
+    /// Ensure an entity has legend data and return it for a build/render write.
+    ///
+    /// Inserts `LegendTracks::default()` when absent. Callers that hold the
+    /// frame cache (the `Timeline` entry points) must invalidate it; this
+    /// `World` method is the build-path form with no cache to invalidate.
+    pub fn ensure_legend(&mut self, id: EntityId) -> &mut LegendTracks {
+        if self.legend.get(id).is_none() {
+            self.legend.insert(id, LegendTracks::default());
+        }
+        self.legend
+            .get_mut(id)
+            .expect("World::ensure_legend just inserted the component")
     }
 
     /// Inputs of the child-order cache flag: true when any container carries an
@@ -426,6 +474,7 @@ impl World {
         self.persistence.ensure_len(len);
         self.auto_color.ensure_len(len);
         self.transcript.ensure_len(len);
+        self.legend.ensure_len(len);
     }
 
     /// Drop every entity and component.
@@ -438,6 +487,7 @@ impl World {
         self.persistence.clear();
         self.auto_color.clear();
         self.transcript.clear();
+        self.legend.clear();
         self.roots.clear();
         self.pending_parents.clear();
         self.pending_auto_color = None;

@@ -12,6 +12,7 @@ use super::super::components::{
 };
 use super::super::dispatch::AnimationTrack;
 use super::super::entity::EntityId;
+use super::super::legend::LegendTracks;
 use super::super::types::ContainerMetadata;
 use super::World;
 
@@ -94,6 +95,12 @@ impl<'w> EntityRef<'w> {
     #[inline(always)]
     pub fn transcript(self) -> Option<&'w TranscriptComponent> {
         self.world.transcript.get(self.id)
+    }
+
+    /// The entity's legend data, when it participates in a legend.
+    #[inline(always)]
+    pub fn legend(self) -> Option<&'w LegendTracks> {
+        self.world.legend.get(self.id)
     }
 }
 
@@ -196,5 +203,11 @@ impl<'w> EntityMut<'w> {
     #[inline(always)]
     pub fn transcript_mut(&mut self) -> Option<&mut TranscriptComponent> {
         self.world.transcript.get_mut(self.id)
+    }
+
+    /// Mutably borrow the entity's legend data, if present.
+    #[inline(always)]
+    pub fn legend_mut(&mut self) -> Option<&mut LegendTracks> {
+        self.world.legend.get_mut(self.id)
     }
 }

@@ -796,6 +796,7 @@ impl Timeline {
                     vector_paths: &vector_paths,
                     asset_cache: &self.asset_cache,
                     target_resolver: Some(self),
+                    legend: self.world.legend(track.id),
                 };
                 let mut text_ctx = crate::primitives::TextCompileCtx {
                     text_compiler: &mut self.text_compiler.borrow_mut(),
@@ -956,6 +957,7 @@ impl Timeline {
             vector_paths: &vector_paths,
             asset_cache: &self.asset_cache,
             target_resolver: Some(self),
+            legend: self.world.legend(child.id),
         };
         let path = primitive.clip_path(&ctx, &child.caps);
         // Consume the memo-bounds handoff so it can't leak into the next node.

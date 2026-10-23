@@ -304,6 +304,18 @@ fn inject_entry(
         }
     }
 
+    // Legend data is a component, so it is not inside the carried track
+    // snapshot and `spawn_replacing` cleared it. Restore the source actor's
+    // participation data (color and presentation settings) from the source
+    // timeline: without it, a carried colored actor would silently drop out of
+    // the destination scene's legend scan. Entries are derived data — the
+    // post-build scan overwrites them for legend hosts in the destination.
+    if let Some(source_id) = source_timeline.world.get_id(label)
+        && let Some(legend) = source_timeline.world.legend(source_id)
+    {
+        dest.world.ensure_legend(id).clone_from(legend);
+    }
+
     // Seed the persistence flag so chain-persistence works automatically.
     dest.set_persistence_flag(label, entry.persistent);
 

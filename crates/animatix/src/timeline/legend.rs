@@ -49,8 +49,6 @@ pub struct LegendTracks {
     pub entries: Vec<(String, [f32; 4])>,
     /// Explicit color captured from the actor declaration, if any.
     pub color: Option<[f32; 4]>,
-    /// Whether `legend` was explicitly declared on this actor.
-    pub legend_declared: bool,
     /// Optional title rendered above the entries.
     pub title: String,
     /// Label font size in points.
@@ -81,7 +79,6 @@ impl Default for LegendTracks {
         Self {
             entries: Vec::new(),
             color: None,
-            legend_declared: false,
             title: String::new(),
             font_size: 14.0,
             label_color: None,
@@ -89,6 +86,32 @@ impl Default for LegendTracks {
             gap: 8.0,
             text_max_width: 240.0,
         }
+    }
+}
+
+impl super::Timeline {
+    /// The legend component attached to `id`, when the entity participates in
+    /// a legend.
+    #[inline(always)]
+    pub fn legend(&self, id: super::EntityId) -> Option<&LegendTracks> {
+        self.world.legend(id)
+    }
+
+    /// The legend component attached to `label`.
+    ///
+    /// Label-boundary helper: the frame path resolves the entity once and then
+    /// uses [`Timeline::legend`].
+    pub fn legend_for(&self, label: &str) -> Option<&LegendTracks> {
+        let id = self.world.get_id(label)?;
+        self.world.legend(id)
+    }
+
+    /// Mutably borrow the legend component attached to `id`.
+    ///
+    /// Invalidates the frame cache first, like every component write.
+    pub fn legend_mut(&mut self, id: super::EntityId) -> Option<&mut LegendTracks> {
+        self.invalidate_frame_cache();
+        self.world.legend_mut(id)
     }
 }
 
@@ -150,23 +173,39 @@ fn source_order(world: &super::World) -> std::collections::HashMap<String, usize
     order
 }
 
+/// Whether the actor authored a `legend` property.
+///
+/// Derived from the tagged property track — the single source of truth for the
+/// participation mode — so a declaration and a later assignment are both seen
+/// without a duplicate boolean in [`LegendTracks`].
+fn legend_declared(track: &super::AnimationTrack) -> bool {
+    super::dispatch::read_property_value(
+        track,
+        super::ActorField::Tagged("legend"),
+        track.first_seen_ms,
+    )
+    .is_some()
+}
+
 /// Scan completed actor tracks for color-bearing legend candidates.
 ///
-/// Runs after the full timeline is built so forward declarations and generated
-/// actors are visible. Structural actors are excluded by kind, and actors can
-/// opt out or supply an explicit label via `legend`.
+/// Runs after the full timeline is built so forward declarations, generated
+/// actors and injected carry entries are visible. Structural actors are
+/// excluded by kind, and actors can opt out or supply an explicit label via
+/// `legend`.
 pub fn scan_legend_entries(world: &super::World) -> Vec<(String, [f32; 4])> {
     let order = source_order(world);
     let mut candidates = Vec::new();
     for (label, track) in &world.tracks {
+        let legend = world.legend(track.id);
         let mode = legend_mode_for_track(track);
         if !legend_eligible(&track.caps)
             || mode == LegendMode::Hidden
-            || (is_full_viewport_background(track) && !track.legend.legend_declared)
+            || (is_full_viewport_background(track) && !legend_declared(track))
         {
             continue;
         }
-        let Some(color) = track.legend.color else {
+        let Some(color) = legend.and_then(|legend| legend.color) else {
             continue;
         };
         let display_label = match &mode {

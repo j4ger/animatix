@@ -218,6 +218,7 @@ always {
         vector_paths: &[],
         asset_cache: &asset_cache,
         target_resolver: None,
+        legend: None,
     };
     use crate::primitives::Primitive as _;
     let res = crate::primitives::TEXT

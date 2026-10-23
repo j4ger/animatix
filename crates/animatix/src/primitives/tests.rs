@@ -262,6 +262,7 @@ fn runtime_text_content_crossfade_compiles_both_endpoints() {
         vector_paths: &[],
         asset_cache: &asset_cache,
         target_resolver: None,
+        legend: None,
     };
     let mut text_ctx = TextCompileCtx {
         text_compiler: &mut text_compiler,

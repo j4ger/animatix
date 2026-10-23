@@ -196,10 +196,6 @@ impl Primitive for LegendPrimitive {
             track.first_seen_ms = ctx.time_ms as u64;
         }
 
-        // Entries are populated by the post-build scene scan, so a rebuild
-        // starts from an empty slate instead of retaining stale entries.
-        track.legend.entries.clear();
-
         let time_ms = ctx.time_ms as u64;
         let default_fields = [
             (
@@ -267,13 +263,6 @@ impl Primitive for LegendPrimitive {
             }
         }
 
-        track.legend.title = title;
-        track.legend.font_size = font_size;
-        track.legend.label_color = label_color;
-        track.legend.swatch_size = swatch_size;
-        track.legend.gap = gap;
-        track.legend.text_max_width = text_max_width;
-
         // Legend is an annotation primitive, so it bypasses the generic actor
         // build path and must resolve its own `at` position.
         track.geometry.position.ensure([0.0, 0.0]).add_keyframe(
@@ -281,6 +270,20 @@ impl Primitive for LegendPrimitive {
             at,
             crate::easing::Easing::Linear,
         );
+
+        // Presentation settings live on the entity's legend component; the
+        // tagged tracks above remain the animated/overridable form the frame
+        // path prefers. Entries are populated by the post-build scene scan, so
+        // a rebuild starts from an empty slate instead of retaining stale ones.
+        let track_id = track.id;
+        let legend = ctx.timeline.world.ensure_legend(track_id);
+        legend.entries.clear();
+        legend.title = title;
+        legend.font_size = font_size;
+        legend.label_color = label_color;
+        legend.swatch_size = swatch_size;
+        legend.gap = gap;
+        legend.text_max_width = text_max_width;
 
         Ok(())
     }
@@ -290,7 +293,12 @@ impl Primitive for LegendPrimitive {
         ctx: &EvaluateCtx,
         mut text_ctx: Option<&mut TextCompileCtx>,
     ) -> Result<Option<Vec<RenderCommand>>, RenderError> {
-        let entries = &ctx.track.legend.entries;
+        // No legend component means the actor contributes no entries, which is
+        // the same frame as a present component with an empty entry list.
+        let Some(legend) = ctx.legend else {
+            return Ok(None);
+        };
+        let entries = &legend.entries;
         if entries.is_empty() {
             return Ok(None);
         }
@@ -300,19 +308,18 @@ impl Primitive for LegendPrimitive {
 
         let mut commands = Vec::new();
         let title = tagged_string_opt(ctx.track, "legend_title", ctx.time_ms)
-            .unwrap_or_else(|| ctx.track.legend.title.clone());
+            .unwrap_or_else(|| legend.title.clone());
         let font_size = tagged_f32_opt(ctx.track, "legend_font_size", ctx.time_ms)
-            .unwrap_or(ctx.track.legend.font_size)
+            .unwrap_or(legend.font_size)
             .max(1.0);
         let swatch_size = tagged_f32_opt(ctx.track, "legend_swatch_size", ctx.time_ms)
-            .unwrap_or(ctx.track.legend.swatch_size) as f64;
-        let gap = tagged_f32_opt(ctx.track, "legend_gap", ctx.time_ms)
-            .unwrap_or(ctx.track.legend.gap) as f64;
+            .unwrap_or(legend.swatch_size) as f64;
+        let gap = tagged_f32_opt(ctx.track, "legend_gap", ctx.time_ms).unwrap_or(legend.gap) as f64;
         let label_offset = swatch_size + gap;
         let max_width = tagged_f32_opt(ctx.track, "legend_text_max_width", ctx.time_ms)
-            .unwrap_or(ctx.track.legend.text_max_width);
+            .unwrap_or(legend.text_max_width);
         let label_color = tagged_color_opt(ctx.track, "legend_label_color", ctx.time_ms)
-            .or(ctx.track.legend.label_color)
+            .or(legend.label_color)
             .unwrap_or_else(|| label_color_for_background(ctx.background_color));
         let mut y_offset = 0.0f64;
 
