@@ -471,7 +471,7 @@ pub fn compile_text_cached(
 /// back. Measured at ~2.5ms per frame per Equation before memoization
 /// (`benches/equation_frame.rs`).
 ///
-/// Keyed on the same inputs as [`compile_text_cached`] (including the font
+/// Keyed on the same inputs as [`crate::compile_text_cached`] (including the font
 /// epoch), so a hit is bit-identical to recompiling.
 #[allow(clippy::too_many_arguments)] // Mirrors the compile_typst parameter set it wraps.
 pub fn compile_typst_grouped_cached(
@@ -596,7 +596,7 @@ pub fn compile_typst_grouped_cached(
 ///
 /// When text properties change at runtime (e.g. via `always` reactive blocks),
 /// this service recompiles glyph paths on-demand; identical inputs are served
-/// from the shared table (see [`compile_text_cached`]), which also survives
+/// from the shared table (see [`crate::compile_text_cached`]), which also survives
 /// `Timeline` rebuilds.
 #[derive(Clone)]
 pub struct TextCompiler {
