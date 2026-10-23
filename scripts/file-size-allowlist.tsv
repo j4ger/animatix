@@ -40,7 +40,6 @@ crates/animatix-syntax/src/semantic_diagnostics.rs	872	legacy oversized file	P2
 crates/animatix-syntax/src/symbol_table.rs	1309	legacy oversized file	P2
 crates/animatix-syntax/src/token.rs	848	legacy oversized file	P2
 crates/animatix-syntax/src/typing.rs	1151	legacy oversized file	P2
-crates/animatix/tests/parser_tests.rs	2233	legacy oversized file	P7
 crates/animatix-text/src/tests/text_tests.rs	1670	legacy oversized file	P7
 crates/eparts/src/widget/list.rs	1077	legacy oversized file	P2
 crates/eparts/src/widget/select.rs	998	legacy oversized file	P2
