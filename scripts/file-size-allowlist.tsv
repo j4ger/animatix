@@ -4,7 +4,6 @@
 crates/animatix-analyzer/src/completer.rs	946	legacy oversized file	P2
 crates/animatix-gui/src/app/command_handlers.rs	879	legacy oversized file	P6
 crates/animatix-gui/src/app/commands/mod.rs	828	legacy oversized file	P6
-crates/animatix-gui/src/app/interaction/keyboard.rs	1154	legacy oversized file	P6
 crates/animatix-gui/src/app/panels/inspector/mod.rs	1356	legacy oversized file	P6
 crates/animatix-gui/src/app/panels/inspector/property_groups.rs	1778	legacy oversized file	P6
 crates/animatix-gui/src/app/panels/timeline_panel/track_lanes.rs	982	legacy oversized file	P6
