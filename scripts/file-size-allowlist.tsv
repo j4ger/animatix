@@ -9,7 +9,6 @@ crates/animatix-gui/src/app/panels/inspector/property_groups.rs	1778	legacy over
 crates/animatix-gui/src/app/panels/timeline_panel/track_lanes.rs	982	legacy oversized file	P6
 crates/animatix-gui/src/app/persistence.rs	1036	legacy oversized file	P6
 crates/animatix-gui/src/app/preview/mod.rs	963	legacy oversized file	P6
-crates/animatix-gui/src/app/runtime.rs	1152	legacy oversized file	P6
 crates/animatix-gui/src/app/shell/insertion_palette.rs	988	legacy oversized file	P6
 crates/animatix-gui/src/source_edit/scene_edits.rs	921	legacy oversized file	P6
 crates/animatix-render/src/filter_backend/mod.rs	1376	legacy oversized file	P2
