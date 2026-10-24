@@ -28,7 +28,7 @@ pub struct TrackFields<'a> {
     /// Shape tier (shape_type/line_from/…).
     pub shape: Option<&'a ShapeTracks>,
     /// Text tier.
-    pub text: &'a TextTracks,
+    pub text: Option<&'a TextTracks>,
     /// Equation-fragment highlight tier.
     pub highlight: Option<&'a HighlightTracks>,
     /// Tagged union tracks keyed by property name.
@@ -52,7 +52,7 @@ pub struct TrackFieldsMut<'a> {
     /// Shape tier.
     pub shape: Option<&'a mut ShapeTracks>,
     /// Text tier.
-    pub text: &'a mut TextTracks,
+    pub text: Option<&'a mut TextTracks>,
     /// Highlight tier.
     pub highlight: Option<&'a mut HighlightTracks>,
     /// Tagged union tracks.
@@ -75,7 +75,7 @@ impl World {
             geometry: &track.geometry,
             style: &track.style,
             shape: self.shape.try_get(id),
-            text: &track.text,
+            text: self.text.try_get(id),
             highlight: self.highlight.try_get(id),
             tagged_tracks: self.tagged_tracks.try_get(id),
             payload: self.payload.get(id),
@@ -96,7 +96,7 @@ impl World {
             geometry: &mut track.geometry,
             style: &mut track.style,
             shape: self.shape.try_get_mut(id),
-            text: &mut track.text,
+            text: self.text.try_get_mut(id),
             highlight: self.highlight.try_get_mut(id),
             tagged_tracks: self.tagged_tracks.try_get_mut(id),
             payload: self.payload.get_mut(id),
@@ -143,12 +143,16 @@ mod tests {
 
 impl<'a> TrackFields<'a> {
     /// Bundle the tiers of one track.
+    ///
+    /// The shape and text tiers are separate `World` components, so a
+    /// track-only bundle carries `shape: None` and `text: None`;
+    /// `World::fields` is the component-aware constructor.
     pub fn from_track(track: &'a crate::timeline::AnimationTrack) -> Self {
         Self {
             geometry: &track.geometry,
             style: &track.style,
             shape: None,
-            text: &track.text,
+            text: None,
             highlight: None,
             tagged_tracks: None,
             payload: None,
@@ -196,29 +200,29 @@ impl<'a> TrackFields<'a> {
             DashOffset => TrackFieldRef::F32(&self.style.dash_offset),
             Blend => TrackFieldRef::String(&self.style.blend),
             Commands => TrackFieldRef::CommandList(&self.shape?.commands),
-            TextContent => TrackFieldRef::String(&self.text.text_content),
-            TextMaxWidth => TrackFieldRef::F32(&self.text.text_max_width),
-            TextAlign => TrackFieldRef::String(&self.text.text_align),
-            TextAnchor => TrackFieldRef::String(&self.text.text_anchor),
-            Overflow => TrackFieldRef::String(&self.text.overflow),
-            Language => TrackFieldRef::String(&self.text.language),
-            FontFamily => TrackFieldRef::String(&self.text.font_family),
-            FontSize => TrackFieldRef::F32(&self.text.font_size),
-            CharProgress => TrackFieldRef::F32(&self.text.char_progress),
+            TextContent => TrackFieldRef::String(&self.text?.text_content),
+            TextMaxWidth => TrackFieldRef::F32(&self.text?.text_max_width),
+            TextAlign => TrackFieldRef::String(&self.text?.text_align),
+            TextAnchor => TrackFieldRef::String(&self.text?.text_anchor),
+            Overflow => TrackFieldRef::String(&self.text?.overflow),
+            Language => TrackFieldRef::String(&self.text?.language),
+            FontFamily => TrackFieldRef::String(&self.text?.font_family),
+            FontSize => TrackFieldRef::F32(&self.text?.font_size),
+            CharProgress => TrackFieldRef::F32(&self.text?.char_progress),
             PlacementMode => TrackFieldRef::PlacementMode(&self.geometry.placement_mode),
             MorphOptions => TrackFieldRef::MorphOptions(&self.style.morph_options),
-            Ascent => TrackFieldRef::F32(&self.text.ascent),
-            Descent => TrackFieldRef::F32(&self.text.descent),
-            Baseline => TrackFieldRef::F32(&self.text.baseline),
+            Ascent => TrackFieldRef::F32(&self.text?.ascent),
+            Descent => TrackFieldRef::F32(&self.text?.descent),
+            Baseline => TrackFieldRef::F32(&self.text?.baseline),
             HighlightColor => TrackFieldRef::Vec4(&self.highlight?.highlight_color),
             HighlightOpacity => TrackFieldRef::F32(&self.highlight?.highlight_opacity),
             HighlightPadding => TrackFieldRef::F32(&self.highlight?.highlight_padding),
             HighlightRadius => TrackFieldRef::F32(&self.highlight?.highlight_radius),
-            FontWeight => TrackFieldRef::F32(&self.text.font_weight),
-            FontStyle => TrackFieldRef::String(&self.text.font_style),
-            LineHeight => TrackFieldRef::F32(&self.text.line_height),
-            LetterSpacing => TrackFieldRef::F32(&self.text.letter_spacing),
-            WordSpacing => TrackFieldRef::F32(&self.text.word_spacing),
+            FontWeight => TrackFieldRef::F32(&self.text?.font_weight),
+            FontStyle => TrackFieldRef::String(&self.text?.font_style),
+            LineHeight => TrackFieldRef::F32(&self.text?.line_height),
+            LetterSpacing => TrackFieldRef::F32(&self.text?.letter_spacing),
+            WordSpacing => TrackFieldRef::F32(&self.text?.word_spacing),
             MinWidth => TrackFieldRef::F32(&self.geometry.min_width),
             MinHeight => TrackFieldRef::F32(&self.geometry.min_height),
             MaxHeight => TrackFieldRef::F32(&self.geometry.max_height),
@@ -228,7 +232,7 @@ impl<'a> TrackFields<'a> {
             CalloutStandoff => TrackFieldRef::F32(&self.geometry.callout_standoff),
             CalloutToOffset => TrackFieldRef::Vec2(&self.geometry.callout_to_offset),
             VectorPaths => TrackFieldRef::VectorPaths(&self.shape?.vector_paths),
-            TextPaths => TrackFieldRef::TextPaths(&self.text.text_paths),
+            TextPaths => TrackFieldRef::TextPaths(&self.text?.text_paths),
             ImageData => return self.payload?.as_image().map(|p| TrackFieldRef::Image(&p.image)),
             PositionBinding => TrackFieldRef::PositionBinding(&self.geometry.position_binding),
             Tagged(name) => {
@@ -246,12 +250,16 @@ impl<'a> TrackFields<'a> {
 
 impl<'a> TrackFieldsMut<'a> {
     /// Bundle the tiers of one track, mutably.
+    ///
+    /// The shape and text tiers are separate `World` components, so a
+    /// track-only bundle carries `shape: None` and `text: None`;
+    /// `World::fields_mut` is the component-aware constructor.
     pub fn from_track(track: &'a mut crate::timeline::AnimationTrack) -> Self {
         Self {
             geometry: &mut track.geometry,
             style: &mut track.style,
             shape: None,
-            text: &mut track.text,
+            text: None,
             highlight: None,
             tagged_tracks: None,
             payload: None,
@@ -304,29 +312,29 @@ impl<'a> TrackFieldsMut<'a> {
             DashOffset => TrackFieldMut::F32(&mut self.style.dash_offset),
             Blend => TrackFieldMut::String(&mut self.style.blend),
             Commands => TrackFieldMut::CommandList(&mut self.shape.as_mut()?.commands),
-            TextContent => TrackFieldMut::String(&mut self.text.text_content),
-            TextMaxWidth => TrackFieldMut::F32(&mut self.text.text_max_width),
-            TextAlign => TrackFieldMut::String(&mut self.text.text_align),
-            TextAnchor => TrackFieldMut::String(&mut self.text.text_anchor),
-            Overflow => TrackFieldMut::String(&mut self.text.overflow),
-            Language => TrackFieldMut::String(&mut self.text.language),
-            FontFamily => TrackFieldMut::String(&mut self.text.font_family),
-            FontSize => TrackFieldMut::F32(&mut self.text.font_size),
-            CharProgress => TrackFieldMut::F32(&mut self.text.char_progress),
+            TextContent => TrackFieldMut::String(&mut self.text.as_mut()?.text_content),
+            TextMaxWidth => TrackFieldMut::F32(&mut self.text.as_mut()?.text_max_width),
+            TextAlign => TrackFieldMut::String(&mut self.text.as_mut()?.text_align),
+            TextAnchor => TrackFieldMut::String(&mut self.text.as_mut()?.text_anchor),
+            Overflow => TrackFieldMut::String(&mut self.text.as_mut()?.overflow),
+            Language => TrackFieldMut::String(&mut self.text.as_mut()?.language),
+            FontFamily => TrackFieldMut::String(&mut self.text.as_mut()?.font_family),
+            FontSize => TrackFieldMut::F32(&mut self.text.as_mut()?.font_size),
+            CharProgress => TrackFieldMut::F32(&mut self.text.as_mut()?.char_progress),
             PlacementMode => TrackFieldMut::PlacementMode(&mut self.geometry.placement_mode),
             MorphOptions => TrackFieldMut::MorphOptions(&mut self.style.morph_options),
-            Ascent => TrackFieldMut::F32(&mut self.text.ascent),
-            Descent => TrackFieldMut::F32(&mut self.text.descent),
-            Baseline => TrackFieldMut::F32(&mut self.text.baseline),
+            Ascent => TrackFieldMut::F32(&mut self.text.as_mut()?.ascent),
+            Descent => TrackFieldMut::F32(&mut self.text.as_mut()?.descent),
+            Baseline => TrackFieldMut::F32(&mut self.text.as_mut()?.baseline),
             HighlightColor => TrackFieldMut::Vec4(&mut self.highlight.as_mut()?.highlight_color),
             HighlightOpacity => TrackFieldMut::F32(&mut self.highlight.as_mut()?.highlight_opacity),
             HighlightPadding => TrackFieldMut::F32(&mut self.highlight.as_mut()?.highlight_padding),
             HighlightRadius => TrackFieldMut::F32(&mut self.highlight.as_mut()?.highlight_radius),
-            FontWeight => TrackFieldMut::F32(&mut self.text.font_weight),
-            FontStyle => TrackFieldMut::String(&mut self.text.font_style),
-            LineHeight => TrackFieldMut::F32(&mut self.text.line_height),
-            LetterSpacing => TrackFieldMut::F32(&mut self.text.letter_spacing),
-            WordSpacing => TrackFieldMut::F32(&mut self.text.word_spacing),
+            FontWeight => TrackFieldMut::F32(&mut self.text.as_mut()?.font_weight),
+            FontStyle => TrackFieldMut::String(&mut self.text.as_mut()?.font_style),
+            LineHeight => TrackFieldMut::F32(&mut self.text.as_mut()?.line_height),
+            LetterSpacing => TrackFieldMut::F32(&mut self.text.as_mut()?.letter_spacing),
+            WordSpacing => TrackFieldMut::F32(&mut self.text.as_mut()?.word_spacing),
             MinWidth => TrackFieldMut::F32(&mut self.geometry.min_width),
             MinHeight => TrackFieldMut::F32(&mut self.geometry.min_height),
             MaxHeight => TrackFieldMut::F32(&mut self.geometry.max_height),
@@ -336,7 +344,7 @@ impl<'a> TrackFieldsMut<'a> {
             CalloutStandoff => TrackFieldMut::F32(&mut self.geometry.callout_standoff),
             CalloutToOffset => TrackFieldMut::Vec2(&mut self.geometry.callout_to_offset),
             VectorPaths => TrackFieldMut::VectorPaths(&mut self.shape.as_mut()?.vector_paths),
-            TextPaths => TrackFieldMut::TextPaths(&mut self.text.text_paths),
+            TextPaths => TrackFieldMut::TextPaths(&mut self.text.as_mut()?.text_paths),
             ImageData => {
                 let payload = self.payload.as_mut()?;
                 TrackFieldMut::Image(&mut payload.ensure_image().image)

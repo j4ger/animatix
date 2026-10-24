@@ -1,8 +1,7 @@
 use animatix::renderer::text as animatix_text;
 use animatix::timeline::{
     ActorField, AnimationTrack, LEGEND_SUM_VARIANTS, PROPERTY_REGISTRY, PropertyValue, ShapeType,
-    SumVariant, ValueType, allowed_property_indices, property_has_keyframes,
-    read_property_value_or_default,
+    SumVariant, ValueType, allowed_property_indices,
 };
 use egui::{Color32, Stroke, Vec2};
 use eparts::widget::{Select, UiExt, color_to_hex_rgba};
@@ -111,13 +110,12 @@ pub(crate) fn build_property_groups(
         }
 
         let value = read_inspector_property_value(timeline, track, schema, time_ms);
-        // One store: the registry-driven plan is authoritative for tagged
-        // properties, and these helpers already consult it before the legacy
-        // `tagged_tracks` map. Reading the map first here would show stale or
-        // absent keyframe state for anything the engine wrote into the plan.
-        let has_kf = property_has_keyframes(track, schema.field);
-        let has_kf_now = animatix::timeline::property_has_keyframe_at(track, schema.field, time_ms);
-        let kf_count = animatix::timeline::property_keyframe_count(track, schema.field);
+        // One store: the World field bundle is the shape-aware view — it joins
+        // the property plan for tagged fields with the tier tracks (including
+        // the shape component), so shape-tier keyframes are not invisible here.
+        let has_kf = timeline.world().property_has_keyframes(track.id, schema.field);
+        let has_kf_now = timeline.world().property_has_keyframe_at(track.id, schema.field, time_ms);
+        let kf_count = timeline.world().property_keyframe_count(track.id, schema.field);
 
         let value = convert_for_display(value, schema.name);
         let kind = match schema.value_type {
@@ -432,7 +430,7 @@ fn read_inspector_property_value(
     time_ms: u64,
 ) -> PropertyValue {
     // Plot domains live on the plot payload's generator, not on a property
-    // track, so they are read before the plan/legacy fallback below.
+    // track, so they are read before the World/registry fallback below.
     if let Some(plot) = timeline.world().procedural_plot(track.id) {
         match schema.name {
             "x_domain" => {
@@ -447,7 +445,18 @@ fn read_inspector_property_value(
             _ => {},
         }
     }
-    read_property_value_or_default(track, schema, time_ms)
+    // Read through the World field bundle: it is the shape-aware view, so
+    // shape-tier properties (corner_radius, arc_angles, line_from/line_to,
+    // head_size, shape_type, points, commands, vector_paths) no longer show
+    // their schema default when the actor actually carries a value.
+    timeline
+        .world()
+        .read_property_value(track.id, schema.field, time_ms)
+        .unwrap_or_else(|| {
+            (schema.default_value)(
+                &animatix::timeline::caps_for_type(&track.actor_type).unwrap_or_default(),
+            )
+        })
 }
 
 /// Map an effect parameter value to the inspector's editable kind.

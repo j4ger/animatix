@@ -165,6 +165,7 @@ impl Timeline {
                         &layout_children,
                         time_ms,
                         &self.world.tracks,
+                        &self.world,
                     );
                 } else {
                     current_layout_positions = layout::empty_layout_positions();

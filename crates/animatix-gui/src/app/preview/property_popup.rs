@@ -1,6 +1,5 @@
 use animatix::timeline::{
     PropertyValue as TlPropertyValue, SceneDimensions, Timeline, lookup_property,
-    read_property_value_or_default,
 };
 use egui::{Color32, Pos2, Rect, RichText, Sense, Stroke, Vec2};
 
@@ -124,14 +123,24 @@ pub fn show_property_popup(
     content.add_space(header_h + sp.base.space_2);
     // ── Property rows ──
     let time_ms = (current_time_s * 1000.0) as u64;
-    // Read opacity from timeline
+    // Read opacity from timeline. The World field bundle is the shape-aware
+    // view; this row is tier-agnostic so it must not go through the track-only
+    // helper.
     let opacity = timeline
         .and_then(|tl| {
             tl.get_track(actor).map(|track| {
                 let Some(schema) = lookup_property("opacity") else {
                     return 1.0;
                 };
-                let val = read_property_value_or_default(track, schema, time_ms);
+                let val = tl
+                    .world()
+                    .read_property_value(track.id, schema.field, time_ms)
+                    .unwrap_or_else(|| {
+                        (schema.default_value)(
+                            &animatix::timeline::caps_for_type(&track.actor_type)
+                                .unwrap_or_default(),
+                        )
+                    });
                 match val {
                     TlPropertyValue::F32(v) => v,
                     _ => 1.0,

@@ -59,17 +59,18 @@ impl Primitive for MathPrimitive {
         if !matches!(property, "text" | "text_anchor") {
             return false;
         }
+        let text = ctx.text.as_deref_mut().expect("assignment text tier");
         let target = if property == "text_anchor" {
             let anchor = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                 .unwrap_or(Value::Str("center".to_string()))
                 .as_str()
                 .to_string();
-            track.text.text_anchor.ensure("center".to_string()).add_keyframe(
+            text.text_anchor.ensure("center".to_string()).add_keyframe(
                 ctx.t_end_ms,
                 anchor,
                 ctx.easing,
             );
-            track.text.text_content.get(ctx.t_end_ms, String::new())
+            text.text_content.get(ctx.t_end_ms, String::new())
         } else {
             evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                 .unwrap_or(Value::Str(String::new()))
@@ -78,6 +79,7 @@ impl Primitive for MathPrimitive {
         };
         if let Err(e) = crate::timeline::recompile_text_at_assignment(
             track,
+            text,
             target,
             ctx.t_start_ms,
             ctx.t_end_ms,
@@ -116,7 +118,8 @@ impl Primitive for MathPrimitive {
                 crate::renderer::text::default_font_size(TextKind::Math),
             )
         } else {
-            let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(ctx.time_ms);
+            let text = ctx.text.expect("text actor evaluated without a text tier");
+            let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(text, ctx.time_ms);
             Ok((std::sync::Arc::from(paths), clip))
         }?;
         if paths.is_empty() {

@@ -89,6 +89,7 @@ impl Timeline {
                 world: Some(&self.world),
                 highlight: self.world.highlight(child_track.id),
                 shape: Some(self.world.shape(child_track.id)),
+                text: Some(self.world.text(child_track.id)),
                 property_plan: Some(self.world.property_plan(child_track.id)),
                 caps: self.world.caps(child_track.id),
                 payload: self.world.payload(child_track.id),
@@ -115,14 +116,15 @@ impl Timeline {
                 .join(" ");
 
             // Use equation-level font_size and color from the Equation track.
-            let font_size = track.text.font_size.get(time_ms, 48.0);
+            let text = self.world.text(track.id);
+            let font_size = text.font_size.get(time_ms, 48.0);
             let eq_color = track.style.color.get(time_ms, DEFAULT_WHITE);
-            let font_family = track.text.font_family.get(time_ms, String::new());
-            let font_weight = track.text.font_weight.get(time_ms, 400.0);
-            let font_style = track.text.font_style.get(time_ms, "normal".to_string());
-            let line_height = track.text.line_height.get(time_ms, 1.2);
-            let letter_spacing = track.text.letter_spacing.get(time_ms, 0.0);
-            let word_spacing = track.text.word_spacing.get(time_ms, 0.0);
+            let font_family = text.font_family.get(time_ms, String::new());
+            let font_weight = text.font_weight.get(time_ms, 400.0);
+            let font_style = text.font_style.get(time_ms, "normal".to_string());
+            let line_height = text.line_height.get(time_ms, 1.2);
+            let letter_spacing = text.letter_spacing.get(time_ms, 0.0);
+            let word_spacing = text.word_spacing.get(time_ms, 0.0);
 
             // Compile the Typst markup. Memoized process-wide: fragment
             // content and font properties rarely change between frames, so

@@ -208,13 +208,14 @@ impl BuiltinAction for DrawIn {
             }
 
             if is_text {
+                let text = timeline.world.text.get_mut(track.id);
                 let by_opt = reveal_granularity(&action.modifiers);
                 let stagger_opt = reveal_stagger(&action.modifiers);
                 let offset_y_opt = reveal_offset_y(&action.modifiers);
                 let mask_opt = reveal_mask(&action.modifiers);
 
                 if let Some(by) = &by_opt {
-                    track.text.split_by.ensure("char".to_string()).add_keyframe(
+                    text.split_by.ensure("char".to_string()).add_keyframe(
                         t_start_ms,
                         by.clone(),
                         Easing::Linear,
@@ -226,44 +227,36 @@ impl BuiltinAction for DrawIn {
                     } else {
                         stagger
                     };
-                    track.text.split_stagger.ensure(0.0).add_keyframe(
-                        t_start_ms,
-                        s,
-                        Easing::Linear,
-                    );
+                    text.split_stagger.ensure(0.0).add_keyframe(t_start_ms, s, Easing::Linear);
                 }
                 if let Some(offset_y) = offset_y_opt {
-                    track.text.split_offset_y.ensure(0.0).add_keyframe(
+                    text.split_offset_y.ensure(0.0).add_keyframe(
                         t_start_ms,
                         offset_y,
                         Easing::Linear,
                     );
                 }
                 if let Some(mask) = mask_opt {
-                    track.text.split_mask.ensure(false).add_keyframe(
-                        t_start_ms,
-                        mask,
-                        Easing::Linear,
-                    );
+                    text.split_mask.ensure(false).add_keyframe(t_start_ms, mask, Easing::Linear);
                 }
 
                 // Typewriter effect: animate char_progress 0→1, or in whole-word
                 // steps when the author asks for `by: word`.
                 if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
                     let guard_time = t_start_ms.saturating_sub(1);
-                    super::ensure_guard_keyframe(&mut track.text.char_progress, guard_time, 1.0);
+                    super::ensure_guard_keyframe(&mut text.char_progress, guard_time, 1.0);
                 }
 
                 let is_split_mode = offset_y_opt.is_some()
                     || mask_opt.is_some()
                     || stagger_opt.is_some()
-                    || track.text.split_offset_y.is_some()
-                    || track.text.split_mask.is_some()
-                    || track.text.split_stagger.is_some();
+                    || text.split_offset_y.is_some()
+                    || text.split_mask.is_some()
+                    || text.split_stagger.is_some();
                 let by_word =
                     !is_split_mode && matches!(by_opt.as_deref(), Some("word") | Some("words"));
                 let steps = by_word.then(|| {
-                    let text = track.text.text_content.get(t_start_ms, String::new());
+                    let text = text.text_content.get(t_start_ms, String::new());
                     word_progress_steps(&text)
                 });
 
@@ -277,12 +270,12 @@ impl BuiltinAction for DrawIn {
                         for (i, fraction) in fractions.iter().enumerate() {
                             let at = t_start_ms + (span as f64 * (i as f64 / n as f64)) as u64;
                             let settle = (at + span / (n as u64 * 4).max(1)).min(t_end_ms);
-                            track.text.char_progress.ensure(1.0).add_keyframe(
+                            text.char_progress.ensure(1.0).add_keyframe(
                                 at,
                                 if i == 0 { 0.0 } else { fractions[i - 1] },
                                 Easing::Linear,
                             );
-                            track.text.char_progress.ensure(1.0).add_keyframe(
+                            text.char_progress.ensure(1.0).add_keyframe(
                                 settle,
                                 *fraction,
                                 Easing::Linear,
@@ -290,12 +283,12 @@ impl BuiltinAction for DrawIn {
                         }
                     },
                     _ => {
-                        track.text.char_progress.ensure(1.0).add_keyframe(
+                        text.char_progress.ensure(1.0).add_keyframe(
                             t_start_ms,
                             0.0,
                             Easing::Linear,
                         );
-                        track.text.char_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+                        text.char_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
                     },
                 }
             } else {
@@ -425,13 +418,14 @@ impl BuiltinAction for RevealIn {
             }
 
             if is_text {
+                let text = timeline.world.text.get_mut(track.id);
                 let by_opt = reveal_granularity(&action.modifiers);
                 let stagger_opt = reveal_stagger(&action.modifiers);
                 let offset_y_opt = reveal_offset_y(&action.modifiers);
                 let mask_opt = reveal_mask(&action.modifiers);
 
                 if let Some(by) = &by_opt {
-                    track.text.split_by.ensure("char".to_string()).add_keyframe(
+                    text.split_by.ensure("char".to_string()).add_keyframe(
                         t_start_ms,
                         by.clone(),
                         Easing::Linear,
@@ -443,38 +437,26 @@ impl BuiltinAction for RevealIn {
                     } else {
                         stagger
                     };
-                    track.text.split_stagger.ensure(0.0).add_keyframe(
-                        t_start_ms,
-                        s,
-                        Easing::Linear,
-                    );
+                    text.split_stagger.ensure(0.0).add_keyframe(t_start_ms, s, Easing::Linear);
                 }
                 if let Some(offset_y) = offset_y_opt {
-                    track.text.split_offset_y.ensure(0.0).add_keyframe(
+                    text.split_offset_y.ensure(0.0).add_keyframe(
                         t_start_ms,
                         offset_y,
                         Easing::Linear,
                     );
                 }
                 if let Some(mask) = mask_opt {
-                    track.text.split_mask.ensure(false).add_keyframe(
-                        t_start_ms,
-                        mask,
-                        Easing::Linear,
-                    );
+                    text.split_mask.ensure(false).add_keyframe(t_start_ms, mask, Easing::Linear);
                 }
 
                 if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
                     let guard_time = t_start_ms.saturating_sub(1);
-                    super::ensure_guard_keyframe(&mut track.text.char_progress, guard_time, 1.0);
+                    super::ensure_guard_keyframe(&mut text.char_progress, guard_time, 1.0);
                 }
 
-                track
-                    .text
-                    .char_progress
-                    .ensure(1.0)
-                    .add_keyframe(t_start_ms, 0.0, Easing::Linear);
-                track.text.char_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+                text.char_progress.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);
+                text.char_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
             } else {
                 let has_prior_stroke = track
                     .style

@@ -183,6 +183,7 @@ impl LayoutEngine {
         layout_children: &[ContainerLayoutChild],
         time_ms: u64,
         tracks: &TrackStore,
+        world: &crate::timeline::World,
     ) -> std::sync::Arc<LayoutPositions> {
         // PF-4: sample the per-frame dynamic inputs WITHOUT owning labels —
         // the hit path needs no child labels at all, so no `String` is
@@ -214,10 +215,13 @@ impl LayoutEngine {
             };
             // `layout_size`/`baseline` without keyframes sample to a constant;
             // any keyframe makes the container dynamic for this fast path.
-            children_are_keyframe_free &=
-                track.geometry.layout_size.as_ref().is_none_or(|t| t.keyframes.is_empty())
-                    && track.text.baseline.as_ref().is_none_or(|t| t.keyframes.is_empty());
-            baselines.push(track.baseline_get(time_ms));
+            children_are_keyframe_free &= track
+                .geometry
+                .layout_size
+                .as_ref()
+                .is_none_or(|t| t.keyframes.is_empty())
+                && world.text(track.id).baseline.as_ref().is_none_or(|t| t.keyframes.is_empty());
+            baselines.push(track.baseline_get(world.text(track.id), time_ms));
             if let Some(half_size) = track.layout_size_get(time_ms) {
                 fingerprints.push((half_size.map(f32_bits), child.placement_mode as u8));
             }

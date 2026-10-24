@@ -355,6 +355,7 @@ impl Timeline {
                 asset_cache: std::sync::Arc::make_mut(&mut self.asset_cache),
                 highlight: self.world.highlight.try_get_mut(track.id),
                 shape: self.world.shape.try_get_mut(track.id),
+                text: self.world.text.try_get_mut(track.id),
                 property_plan: Some(self.world.property_plan.get_mut(track.id)),
                 payload: Some(
                     self.world

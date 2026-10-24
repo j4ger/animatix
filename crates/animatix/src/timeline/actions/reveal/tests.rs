@@ -410,13 +410,14 @@ fn draw_in_on_text_animates_char_progress() {
     }];
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report.output.world.tracks.get("headline").expect("headline track");
+    let id = report.output.world.get_id("headline").expect("headline entity");
+    let text = report.output.world.text(id);
 
     // char_progress should be 0 at start, 1 at end
-    assert_eq!(track.text.char_progress.get(0, 1.0), 0.0);
-    assert_eq!(track.text.char_progress.get(2000, 1.0), 1.0);
+    assert_eq!(text.char_progress.get(0, 1.0), 0.0);
+    assert_eq!(text.char_progress.get(2000, 1.0), 1.0);
     // Midpoint should be ~0.5
-    let mid = track.text.char_progress.get(1000, 1.0);
+    let mid = text.char_progress.get(1000, 1.0);
     assert!(
         mid > 0.0 && mid < 1.0,
         "char_progress at midpoint should be between 0 and 1, got {}",
@@ -458,8 +459,9 @@ fn draw_in_on_text_does_not_set_stroke_progress() {
                 .unwrap_or(true)
     );
     // Only char_progress should be tracked
-    assert!(track.text.char_progress.is_some());
-    assert!(!track.text.char_progress.as_ref().unwrap().keyframes.is_empty());
+    let text = report.output.world.text(report.output.world.get_id("msg").expect("msg entity"));
+    assert!(text.char_progress.is_some());
+    assert!(!text.char_progress.as_ref().unwrap().keyframes.is_empty());
     assert!(report.diagnostics.is_empty());
 }
 
@@ -480,7 +482,11 @@ fn draw_in_on_regular_shape_still_animates_stroke_progress() {
     assert_eq!(track.style.fill_opacity.get(500, 1.0), 0.0);
     assert_eq!(track.style.fill_opacity.get(1000, 1.0), 1.0);
     // char_progress should NOT be set for non-text targets
-    assert!(track.text.char_progress.is_none());
+    let text = report
+        .output
+        .world
+        .text(report.output.world.get_id("shape").expect("shape entity"));
+    assert!(text.char_progress.is_none());
     assert!(report.diagnostics.is_empty());
 }
 
@@ -531,7 +537,8 @@ fn draw_in_uses_text_capability_for_extension_primitives() {
     process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
     assert!(diagnostics.is_empty(), "unexpected diagnostics: {:?}", diagnostics);
     let track = timeline.world.tracks.get("p").expect("text extension track");
-    assert!(track.text.char_progress.is_some());
+    let text = timeline.world.text(timeline.world.get_id("p").expect("text extension entity"));
+    assert!(text.char_progress.is_some());
     assert!(
         track.style.stroke_progress.is_none()
             || track.style.stroke_progress.as_ref().is_some_and(|t| t.keyframes.is_empty()),

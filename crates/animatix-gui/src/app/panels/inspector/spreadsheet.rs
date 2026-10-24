@@ -288,9 +288,9 @@ pub(crate) fn render_property_spreadsheet(
 
                         // Get the value at current time
                         let value_text = get_property_value_display(track, prop_name, time_ms);
-                        let has_animated_track = has_property_track(track, prop_name);
+                        let has_animated_track = has_property_track(timeline, track, prop_name);
                         let has_keyframes = lookup_property(prop_name).is_some_and(|s| {
-                            animatix::timeline::property_has_keyframes(track, s.field)
+                            timeline.world().property_has_keyframes(track.id, s.field)
                         });
 
                         let value_color = if has_keyframes {
@@ -326,7 +326,7 @@ pub(crate) fn render_property_spreadsheet(
                             );
                             if kf_btn.clicked() {
                                 if let Some(gui_val) =
-                                    get_property_gui_value(track, prop_name, time_ms)
+                                    get_property_gui_value(timeline, track, prop_name, time_ms)
                                 {
                                     commands.push_back(
                                         DocumentCommand::PropertyEdit(PropertyEdit {
@@ -465,14 +465,17 @@ fn get_property_value_display(track: &AnimationTrack, prop_name: &str, time_ms: 
 }
 
 /// Get a `GuiPropertyValue` for the property at the given time, for emitting edits.
+///
+/// Reads through the World field bundle so shape-tier properties resolve from
+/// the shape component instead of falling through to no value.
 pub fn get_property_gui_value(
+    timeline: &Timeline,
     track: &AnimationTrack,
     property_name: &str,
     time_ms: u64,
 ) -> Option<GuiPropertyValue> {
     let schema = lookup_property(property_name)?;
-    let field_ref = track.field_ref(schema.field)?;
-    let value = field_ref.evaluate_value(time_ms)?;
+    let value = timeline.world().read_property_value(track.id, schema.field, time_ms)?;
 
     // Convert PropertyValue to GuiPropertyValue
     // Special cases: color/stroke_color are Vec4 tracks evaluated as PropertyValue::Color
@@ -492,9 +495,13 @@ pub fn get_property_gui_value(
 }
 
 /// Check whether an actor has an actual property track for the given property name.
-pub fn has_property_track(track: &AnimationTrack, property_name: &str) -> bool {
+pub fn has_property_track(
+    timeline: &Timeline,
+    track: &AnimationTrack,
+    property_name: &str,
+) -> bool {
     lookup_property(property_name)
-        .and_then(|schema| track.field_ref(schema.field))
+        .and_then(|schema| timeline.world().fields(track.id)?.field_ref(schema.field))
         .is_some()
 }
 

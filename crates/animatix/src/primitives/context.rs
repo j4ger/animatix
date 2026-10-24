@@ -45,6 +45,8 @@ pub struct AssignmentCtx<'a> {
     pub highlight: Option<&'a mut crate::timeline::animation_track::HighlightTracks>,
     /// Shape geometry tier for this actor.
     pub shape: Option<&'a mut crate::timeline::animation_track::ShapeTracks>,
+    /// Text tier for this actor.
+    pub text: Option<&'a mut crate::timeline::animation_track::TextTracks>,
     /// Registry-driven property plan for this actor.
     pub property_plan: Option<&'a mut crate::timeline::plan::PropertyPlan>,
     /// Primitive payload for this entity (plot/SVG/image state).
@@ -92,6 +94,8 @@ pub struct EvaluateCtx<'a> {
     pub highlight: &'a crate::timeline::animation_track::HighlightTracks,
     /// Shape geometry tier for this actor.
     pub shape: Option<&'a crate::timeline::animation_track::ShapeTracks>,
+    /// Text tier for this actor.
+    pub text: Option<&'a crate::timeline::animation_track::TextTracks>,
     /// Registry-driven property plan for this actor.
     pub property_plan: Option<&'a crate::timeline::plan::PropertyPlan>,
     /// Capability projection for this actor.

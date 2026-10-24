@@ -173,7 +173,9 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
         } else {
             curve_plot::actor_shade_factor(label)
         };
-        curves.extend(curve_plot::collect_curves_for_actor(label, track, theme, qualify, shade));
+        curves.extend(curve_plot::collect_curves_for_actor(
+            timeline, label, track, theme, qualify, shade,
+        ));
     }
 
     // The shared keyframe selection is the single source of truth, so a
@@ -474,7 +476,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
 
         if resp.drag_stopped() {
             if let Some(d) = new_drag.take() {
-                emit_drag_commands(ctx.commands, &d, &tracks, &scene);
+                emit_drag_commands(ctx.commands, &d, &tracks, &scene, timeline);
             }
         }
     }
@@ -501,6 +503,7 @@ fn emit_drag_commands(
     drag: &CurveDrag,
     tracks: &[(&str, &AnimationTrack)],
     scene: &Option<String>,
+    timeline: &Timeline,
 ) {
     // A drag can carry ids from several actors; each edit reads the value out
     // of the track that owns it.
@@ -550,7 +553,7 @@ fn emit_drag_commands(
                 return;
             };
             let Some(mut value) =
-                animatix::timeline::read_property_value(track, edit.field, time_ms)
+                timeline.world().read_property_value(track.id, edit.field, time_ms)
             else {
                 tracing::warn!(
                     actor = %edit.id.actor,
@@ -712,7 +715,7 @@ b.at = (0, 200)
         let mut curves: Vec<CurveChannel> = Vec::new();
         for actor in ["a", "b"] {
             let track = timeline.get_track(actor).expect("track");
-            curves.extend(collect_curves_for_actor(actor, track, theme, true, 1.0));
+            curves.extend(collect_curves_for_actor(&timeline, actor, track, theme, true, 1.0));
         }
         assert!(curves.len() >= 2, "both actors must contribute channels");
 

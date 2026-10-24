@@ -474,12 +474,15 @@ card: Card, width: 240, height: 150 {
 
     let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
     let has_track = |needle: &str| report.output.world.tracks.keys().any(|k| k.contains(needle));
-    let has_fill_text = report
-        .output
-        .world
-        .tracks
-        .iter()
-        .any(|(_k, t)| t.text.text_content.get(0, String::new()).contains("SLOT FILLED"));
+    let has_fill_text = report.output.world.tracks.iter().any(|(_k, t)| {
+        report
+            .output
+            .world
+            .text(t.id)
+            .text_content
+            .get(0, String::new())
+            .contains("SLOT FILLED")
+    });
 
     // Scene-hierarchy regression: a multi-statement component body must expand
     // into ONE root node with the whole subtree linked under it, not orphan the

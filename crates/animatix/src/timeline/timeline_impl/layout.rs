@@ -150,6 +150,7 @@ impl Timeline {
             &layout_children,
             time_ms,
             &self.world.tracks,
+            &self.world,
         )
     }
 

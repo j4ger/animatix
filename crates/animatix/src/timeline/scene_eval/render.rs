@@ -468,6 +468,7 @@ impl Timeline {
                     world: Some(&self.world),
                     highlight: self.world.highlight(track.id),
                     shape: Some(self.world.shape(track.id)),
+                    text: Some(self.world.text(track.id)),
                     property_plan: Some(self.world.property_plan(track.id)),
                     caps: self.world.caps(track.id),
                     payload: self.world.payload(track.id),
@@ -576,7 +577,7 @@ impl Timeline {
             // Debug overlays
             if debug_options.draw_bounds {
                 let svg_paths = self.world.svg_paths_at(track.id, time_ms).unwrap_or_default();
-                let text_paths = track.evaluate_text_paths(time_ms);
+                let text_paths = track.evaluate_text_paths(self.world.text(track.id), time_ms);
                 let _ = self.add_node_debug_overlays(
                     &svg_paths,
                     half_size,
@@ -637,6 +638,7 @@ impl Timeline {
             world: Some(&self.world),
             highlight: self.world.highlight(child.id),
             shape: Some(self.world.shape(child.id)),
+            text: Some(self.world.text(child.id)),
             property_plan: Some(self.world.property_plan(child.id)),
             caps: self.world.caps(child.id),
             payload: self.world.payload(child.id),

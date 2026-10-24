@@ -1,10 +1,4 @@
 //! The timeline ECS world: entities plus typed component stores.
-//! `docs/ecs.md` for the normative design.
-//!
-//! During the migration, `World::tracks` still holds the monolithic
-//! `AnimationTrack`. A domain moves to a component store only when its field is
-//! deleted from `AnimationTrack` in the same change, so there is never a second
-//! source of truth across a merge boundary.
 
 mod caps;
 mod component;
@@ -16,6 +10,7 @@ mod payload;
 mod plan;
 mod shape;
 mod tagged;
+mod text;
 mod view;
 
 pub use component::{ComponentStore, RequiredStore};
@@ -50,6 +45,8 @@ pub struct World {
     pub(crate) highlight: RequiredStore<crate::timeline::animation_track::HighlightTracks>,
     /// Tagged-union property tracks (legend, extension tags).
     pub(crate) tagged_tracks: RequiredStore<TaggedTracksComponent>,
+    /// Text tier for every entity.
+    pub(crate) text: RequiredStore<crate::timeline::animation_track::TextTracks>,
     /// Shape geometry tier for every entity.
     pub(crate) shape: RequiredStore<crate::timeline::animation_track::ShapeTracks>,
     /// Explicit capability overrides for extension primitives.
@@ -273,6 +270,7 @@ impl World {
         self.hierarchy.reset_at(id);
         self.highlight.reset_at(id);
         self.tagged_tracks.reset_at(id);
+        self.text.reset_at(id);
         self.shape.reset_at(id);
         self.property_plan.reset_at(id);
         self.meta.reset_at(id);
@@ -591,6 +589,7 @@ impl World {
         self.hierarchy.ensure_len(len);
         self.highlight.ensure_len(len);
         self.tagged_tracks.ensure_len(len);
+        self.text.ensure_len(len);
         self.shape.ensure_len(len);
         self.property_plan.ensure_len(len);
         self.meta.ensure_len(len);
@@ -613,6 +612,7 @@ impl World {
         self.hierarchy.clear();
         self.highlight.clear();
         self.tagged_tracks.clear();
+        self.text.clear();
         self.shape.clear();
         self.property_plan.clear();
         self.meta.clear();

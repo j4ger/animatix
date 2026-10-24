@@ -35,6 +35,7 @@ pub struct KeyframeId {
 pub(crate) fn collect_per_property_keyframes(
     track: &animatix::timeline::AnimationTrack,
     shape: &animatix::timeline::animation_track::ShapeTracks,
+    text: &animatix::timeline::animation_track::TextTracks,
     effects: Option<&animatix::timeline::effects::EffectChainTrack>,
 ) -> Vec<(String, Vec<u64>)> {
     let mut result = Vec::new();
@@ -67,9 +68,9 @@ pub(crate) fn collect_per_property_keyframes(
     push(&mut result, &track.style.line_cap, "line_cap");
     push(&mut result, &track.style.line_join, "line_join");
     // Text
-    push(&mut result, &track.text.text_content, "text_content");
-    push(&mut result, &track.text.font_family, "font_family");
-    push(&mut result, &track.text.font_size, "font_size");
+    push(&mut result, &text.text_content, "text_content");
+    push(&mut result, &text.font_family, "font_family");
+    push(&mut result, &text.font_size, "font_size");
     // Shape
     push(&mut result, &shape.shape_type, "shape_type");
     push(&mut result, &shape.line_from, "line_from");
@@ -151,6 +152,7 @@ const PROPERTY_LANES: &[(&str, ActorField)] = &[
 fn lane_keyframe_times(
     track: &animatix::timeline::AnimationTrack,
     shape: &animatix::timeline::animation_track::ShapeTracks,
+    text: &animatix::timeline::animation_track::TextTracks,
     field: ActorField,
 ) -> Vec<u64> {
     use animatix::timeline::Interpolate;
@@ -170,6 +172,11 @@ fn lane_keyframe_times(
         ActorField::Points => times(&shape.points),
         ActorField::Commands => times(&shape.commands),
         ActorField::VectorPaths => times(&shape.vector_paths),
+        // Text fields moved to their own component store, so the track-only
+        // engine helper cannot see them either; read the text tier directly.
+        ActorField::TextContent => times(&text.text_content),
+        ActorField::FontFamily => times(&text.font_family),
+        ActorField::FontSize => times(&text.font_size),
         _ => animatix::timeline::property_keyframe_times(track, field),
     }
 }
@@ -184,6 +191,7 @@ fn lane_keyframe_times(
 pub(crate) fn collect_property_lanes(
     track: &animatix::timeline::AnimationTrack,
     shape: &animatix::timeline::animation_track::ShapeTracks,
+    text: &animatix::timeline::animation_track::TextTracks,
     effects: Option<&animatix::timeline::effects::EffectChainTrack>,
 ) -> Vec<(String, Vec<u64>)> {
     use animatix::timeline::{PROPERTY_REGISTRY, allowed_property_indices};
@@ -198,7 +206,7 @@ pub(crate) fn collect_property_lanes(
         .collect();
     // Fields with real keyframes keep a lane even when the registry does not
     // expose their storage field directly (e.g. `arc_angles`, `vector_paths`).
-    let keyframed: Vec<String> = collect_per_property_keyframes(track, shape, effects)
+    let keyframed: Vec<String> = collect_per_property_keyframes(track, shape, text, effects)
         .into_iter()
         .map(|(property, _)| property)
         .collect();
@@ -208,7 +216,9 @@ pub(crate) fn collect_property_lanes(
         .filter(|(property, field)| {
             allowed_fields.contains(field) || keyframed.iter().any(|name| name == property)
         })
-        .map(|&(property, field)| (property.to_string(), lane_keyframe_times(track, shape, field)))
+        .map(|&(property, field)| {
+            (property.to_string(), lane_keyframe_times(track, shape, text, field))
+        })
         .collect();
 
     // Effect stage lanes exist whenever the scope declares the stage.
@@ -267,10 +277,11 @@ pub(crate) fn lane_schema(
 pub(crate) fn collect_actor_keyframes(
     track: &animatix::timeline::AnimationTrack,
     shape: &animatix::timeline::animation_track::ShapeTracks,
+    text: &animatix::timeline::animation_track::TextTracks,
     effects: Option<&animatix::timeline::effects::EffectChainTrack>,
 ) -> Vec<(u64, String)> {
     let mut result = Vec::new();
-    for (property, times) in collect_per_property_keyframes(track, shape, effects) {
+    for (property, times) in collect_per_property_keyframes(track, shape, text, effects) {
         result.extend(times.into_iter().map(|time_ms| (time_ms, property.clone())));
     }
     result.sort_by_key(|(time_ms, _)| *time_ms);
@@ -304,9 +315,12 @@ impl TimelineFingerprint {
             actors.extend(timeline.tracks().keys().cloned());
             actors_by_scene.insert(None, timeline.tracks().keys().cloned().collect());
             for track in timeline.tracks().values() {
-                for (property, times) in
-                    collect_per_property_keyframes(track, timeline.world().shape(track.id), None)
-                {
+                for (property, times) in collect_per_property_keyframes(
+                    track,
+                    timeline.world().shape(track.id),
+                    timeline.world().text(track.id),
+                    None,
+                ) {
                     for time_ms in times {
                         keyframes.insert(KeyframeId {
                             scene: None,
@@ -330,6 +344,7 @@ impl TimelineFingerprint {
                     for (property, times) in collect_per_property_keyframes(
                         track,
                         scene.timeline.world().shape(track.id),
+                        scene.timeline.world().text(track.id),
                         None,
                     ) {
                         for time_ms in times {
@@ -628,7 +643,12 @@ mod tests {
         let timeline = document.active_timeline().expect("single-scene timeline");
         let track = timeline.get_track("box").expect("box track");
 
-        let lanes = collect_property_lanes(track, timeline.world().shape(track.id), None);
+        let lanes = collect_property_lanes(
+            track,
+            timeline.world().shape(track.id),
+            timeline.world().text(track.id),
+            None,
+        );
 
         // Lane names are unique (no duplicate rows from registry aliases).
         let mut names: Vec<String> = lanes.iter().map(|(name, _)| name.clone()).collect();
@@ -639,9 +659,12 @@ mod tests {
 
         // Every keyframed property has a lane whose times match the typed
         // collector exactly.
-        for (property, times) in
-            collect_per_property_keyframes(track, timeline.world().shape(track.id), None)
-        {
+        for (property, times) in collect_per_property_keyframes(
+            track,
+            timeline.world().shape(track.id),
+            timeline.world().text(track.id),
+            None,
+        ) {
             let lane = lanes
                 .iter()
                 .find(|(name, _)| *name == property)
@@ -666,9 +689,14 @@ mod tests {
         // `background_color` aliases `ActorField::Color`, so the alias must not
         // surface as its own lane.
         assert!(
-            !collect_property_lanes(track, timeline.world().shape(track.id), None)
-                .iter()
-                .any(|(name, _)| *name == "background_color"),
+            !collect_property_lanes(
+                track,
+                timeline.world().shape(track.id),
+                timeline.world().text(track.id),
+                None,
+            )
+            .iter()
+            .any(|(name, _)| *name == "background_color"),
             "registry aliases must collapse onto the storage field's lane"
         );
     }

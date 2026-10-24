@@ -19,7 +19,6 @@ pub(super) fn render_scene_inspector(
         );
         return;
     };
-
     ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
         // ── Scene Header ──
         let available = ui.available_width();
@@ -778,6 +777,7 @@ pub(super) fn inspector_ui(
                     KeyframeViewMode::Curve => {
                         graph_editor::render_multi_fcurve(
                             ui,
+                            timeline,
                             track,
                             timeline.duration_seconds(),
                             current_time_s,

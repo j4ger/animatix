@@ -559,22 +559,20 @@ t.text = \"second\"
     let timeline =
         Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new())
             .output;
-    let text = timeline.world.tracks.get("t").expect("text track");
+    let text_track = timeline.world.tracks.get("t").expect("text track");
+    let text = timeline.world.text(text_track.id);
 
     for ms in [0u64, 500, 1000, 1999] {
         assert_eq!(
-            text.text.text_content.get(ms, String::new()),
+            text.text_content.get(ms, String::new()),
             "first",
             "the text swap leaked into the frame before its stamp at {ms}ms"
         );
         // The renderer cross-fades whenever a segment is open *between two
         // different strings*; a segment whose endpoints are the same string is
         // harmless, so that is the property asserted here.
-        if let Some((_, prev, found, _, _)) = text
-            .text
-            .text_content
-            .as_ref()
-            .and_then(|track| track.interpolation_segment(ms))
+        if let Some((_, prev, found, _, _)) =
+            text.text_content.as_ref().and_then(|track| track.interpolation_segment(ms))
         {
             assert_eq!(
                 prev, found,
@@ -584,7 +582,7 @@ t.text = \"second\"
     }
 
     assert_eq!(
-        text.text.text_content.get(2000, String::new()),
+        text.text_content.get(2000, String::new()),
         "second",
         "the swap did not take effect at its own stamp"
     );
@@ -1040,11 +1038,12 @@ fade-in t [200ms]
     // The override must reach the *resolved* properties, not just the
     // environment — re-applying the values after the walk would leave every
     // property that already resolved against them at its authored default.
-    use crate::timeline::read_property_value;
     let sampled = |label: &str, prop: &str| {
         let schema = crate::timeline::property_registry::lookup_property(prop).unwrap();
         let track = timeline.world.tracks.get(label).unwrap();
-        read_property_value(track, schema.field, 0)
+        timeline
+            .world
+            .read_property_value(track.id, schema.field, 0)
             .unwrap_or_else(|| (schema.default_value)(&timeline.world.caps(track.id)))
     };
     assert_eq!(
@@ -1318,7 +1317,8 @@ draw-in line [4s{extra}]
         report.output
     };
     let progress_at = |timeline: &crate::timeline::Timeline, ms: u64| -> f32 {
-        timeline.world.tracks.get("line").unwrap().text.char_progress.get(ms, 1.0)
+        let track = timeline.world.tracks.get("line").unwrap();
+        timeline.world.text(track.id).char_progress.get(ms, 1.0)
     };
 
     let words = build(", by: word");

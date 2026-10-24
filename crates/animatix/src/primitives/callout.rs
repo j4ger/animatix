@@ -188,7 +188,11 @@ impl Primitive for CalloutPrimitive {
         }];
 
         // Sample label text and position
-        let mut label_text = ctx.track.text.text_content.get(ctx.time_ms, String::new());
+        let mut label_text = ctx
+            .text
+            .expect("Callout evaluated without a text tier")
+            .text_content
+            .get(ctx.time_ms, String::new());
         let mut label_at = ctx.track.geometry.label_at.get(ctx.time_ms, [0.0, 50.0]);
 
         if let Some(overrides) = ctx.overrides {

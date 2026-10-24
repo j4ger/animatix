@@ -59,17 +59,18 @@ impl Primitive for TextPrimitive {
         if !matches!(property, "text" | "latex" | "math" | "code" | "text_anchor") {
             return false;
         }
+        let text = ctx.text.as_deref_mut().expect("assignment text tier");
         let target_text = if property == "text_anchor" {
             let anchor = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                 .unwrap_or(Value::Str("center".to_string()))
                 .as_str()
                 .to_string();
-            track.text.text_anchor.ensure("center".to_string()).add_keyframe(
+            text.text_anchor.ensure("center".to_string()).add_keyframe(
                 ctx.t_end_ms,
                 anchor,
                 ctx.easing,
             );
-            track.text.text_content.get(ctx.t_end_ms, String::new())
+            text.text_content.get(ctx.t_end_ms, String::new())
         } else {
             evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                 .unwrap_or(Value::Str(String::new()))
@@ -78,6 +79,7 @@ impl Primitive for TextPrimitive {
         };
         if let Err(e) = crate::timeline::recompile_text_at_assignment(
             track,
+            text,
             target_text,
             ctx.t_start_ms,
             ctx.t_end_ms,
@@ -116,7 +118,8 @@ impl Primitive for TextPrimitive {
                 crate::renderer::text::default_font_size(TextKind::Text),
             )
         } else {
-            let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(ctx.time_ms);
+            let text = ctx.text.expect("Text actor evaluated without a text tier");
+            let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(text, ctx.time_ms);
             Ok((std::sync::Arc::from(paths), clip))
         }?;
         if paths.is_empty() {
@@ -136,10 +139,11 @@ impl Primitive for TextPrimitive {
             use crate::timeline::TrackAccessor;
             let col = ctx.track.style.color.get(ctx.time_ms, [1.0, 1.0, 1.0, 1.0]);
             let tint_color = Some(crate::renderer::text::f32_color_to_rgba8(&col));
-            let hardware_layout = if ctx.track.text.char_progress.is_none()
-                && ctx.track.text.text_anchor.get(ctx.time_ms, "center".to_string()) == "center"
+            let text = ctx.text.expect("Text actor evaluated without a text tier");
+            let hardware_layout = if text.char_progress.is_none()
+                && text.text_anchor.get(ctx.time_ms, "center".to_string()) == "center"
             {
-                ctx.track.text.hardware_layout.clone()
+                text.hardware_layout.clone()
             } else {
                 None
             };

@@ -21,7 +21,13 @@ impl Timeline {
             .tracks
             .get(&label_str)
             .map(|track| {
-                track.text.text_paths.as_ref().map(|t| !t.keyframes.is_empty()).unwrap_or(false)
+                self.world
+                    .text
+                    .get(track.id)
+                    .text_paths
+                    .as_ref()
+                    .map(|t| !t.keyframes.is_empty())
+                    .unwrap_or(false)
             })
             .unwrap_or(false);
         let ParsedTimingModifiers {
@@ -393,10 +399,11 @@ impl Timeline {
             );
         }
         let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
+        let text = self.world.text.get_mut(track_id);
 
         // Store text_content, font_family and font_size on the track so Phase-2 runtime
         // recompilation knows what text and font to use when color or other properties change.
-        track.text.text_content.ensure(String::new()).add_keyframe(
+        text.text_content.ensure(String::new()).add_keyframe(
             t_end_ms,
             text_content.clone(),
             easing,
@@ -406,60 +413,48 @@ impl Timeline {
         } else {
             font_family
         };
-        track
-            .text
-            .font_family
+        text.font_family
             .ensure(crate::renderer::text::DEFAULT_FONT_FAMILY.to_string())
             .add_keyframe(t_end_ms, font_family.clone(), easing);
-        track
-            .text
-            .font_size
+        text.font_size
             .ensure(kind.default_font_size())
             .add_keyframe(t_end_ms, font_size, easing);
-        track.text.font_weight.ensure(400.0).add_keyframe(t_end_ms, font_weight, easing);
-        track.text.font_style.ensure("normal".to_string()).add_keyframe(
+        text.font_weight.ensure(400.0).add_keyframe(t_end_ms, font_weight, easing);
+        text.font_style.ensure("normal".to_string()).add_keyframe(
             t_end_ms,
             font_style.clone(),
             easing,
         );
-        track.text.line_height.ensure(1.2).add_keyframe(t_end_ms, line_height, easing);
-        track
-            .text
-            .letter_spacing
-            .ensure(0.0)
-            .add_keyframe(t_end_ms, letter_spacing, easing);
-        track.text.word_spacing.ensure(0.0).add_keyframe(t_end_ms, word_spacing, easing);
-        track.text.text_max_width.ensure(0.0).add_keyframe(t_end_ms, max_width, easing);
-        track.text.text_align.ensure("left".to_string()).add_keyframe(
+        text.line_height.ensure(1.2).add_keyframe(t_end_ms, line_height, easing);
+        text.letter_spacing.ensure(0.0).add_keyframe(t_end_ms, letter_spacing, easing);
+        text.word_spacing.ensure(0.0).add_keyframe(t_end_ms, word_spacing, easing);
+        text.text_max_width.ensure(0.0).add_keyframe(t_end_ms, max_width, easing);
+        text.text_align.ensure("left".to_string()).add_keyframe(
             t_end_ms,
             text_align.clone(),
             easing,
         );
-        track.text.text_anchor.ensure("center".to_string()).add_keyframe(
+        text.text_anchor.ensure("center".to_string()).add_keyframe(
             t_end_ms,
             text_anchor.clone(),
             easing,
         );
-        track.text.overflow.ensure("visible".to_string()).add_keyframe(
+        text.overflow.ensure("visible".to_string()).add_keyframe(
             t_end_ms,
             overflow.clone(),
             easing,
         );
         if let Some(by) = split_by {
-            track
-                .text
-                .split_by
-                .ensure("char".to_string())
-                .add_keyframe(t_end_ms, by, easing);
+            text.split_by.ensure("char".to_string()).add_keyframe(t_end_ms, by, easing);
         }
         if let Some(stagger) = split_stagger {
-            track.text.split_stagger.ensure(0.0).add_keyframe(t_end_ms, stagger, easing);
+            text.split_stagger.ensure(0.0).add_keyframe(t_end_ms, stagger, easing);
         }
         if let Some(offset_y) = split_offset_y {
-            track.text.split_offset_y.ensure(0.0).add_keyframe(t_end_ms, offset_y, easing);
+            text.split_offset_y.ensure(0.0).add_keyframe(t_end_ms, offset_y, easing);
         }
         if let Some(mask) = split_mask {
-            track.text.split_mask.ensure(false).add_keyframe(t_end_ms, mask, easing);
+            text.split_mask.ensure(false).add_keyframe(t_end_ms, mask, easing);
         }
 
         if kind == TextDeclarationKind::Counter {
@@ -535,8 +530,8 @@ impl Timeline {
                 self.font_context.as_ref(),
             )?;
 
-            track.set_metrics(t_end_ms, prebaked.data.ascent, prebaked.data.descent, 0.0);
-            track.text.counter_data = Some(prebaked.data);
+            track.set_metrics(text, t_end_ms, prebaked.data.ascent, prebaked.data.descent, 0.0);
+            text.counter_data = Some(prebaked.data);
             track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                 t_end_ms,
                 prebaked.initial_half_size,
@@ -569,7 +564,7 @@ impl Timeline {
             // The generic property loop above already wrote `language` into
             // the track lane; read it back so the build-time precompile shares
             // the render path's cache key (and highlights identically).
-            &track.text.language.get(t_end_ms, String::new()),
+            &text.language.get(t_end_ms, String::new()),
             // Same palette the render path uses, so the precompile shares its
             // cache entry and the build-time glyphs highlight identically.
             self.text_compiler.borrow().highlight_palette.as_ref(),
@@ -642,15 +637,19 @@ impl Timeline {
         // Store font metrics on the track for baseline alignment
         // Metrics are set at t_end_ms (when new text appears).
         // For animated transitions, the metrics don't interpolate (text changes discretely).
-        track.set_metrics(t_end_ms, compiled.ascent, compiled.descent, compiled.baseline_offset);
+        track.set_metrics(
+            text,
+            t_end_ms,
+            compiled.ascent,
+            compiled.descent,
+            compiled.baseline_offset,
+        );
 
         if duration_ms > 0.0 {
-            let start_val = track.evaluate_text_paths(t_start_ms);
-            track.text.text_paths.ensure(Vec::new()).add_keyframe(
-                t_start_ms,
-                start_val,
-                Easing::Linear,
-            );
+            let start_val = track.evaluate_text_paths(text, t_start_ms);
+            text.text_paths
+                .ensure(Vec::new())
+                .add_keyframe(t_start_ms, start_val, Easing::Linear);
             let start_size = track.geometry.size.get(t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
             let start_layout_size =
                 track.layout_size_get(t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
@@ -665,7 +664,7 @@ impl Timeline {
                 Easing::Linear,
             );
         } else if delay_ms > 0.0 {
-            preserve_instant_delayed_value(&mut track.text.text_paths, t_start_ms);
+            preserve_instant_delayed_value(&mut text.text_paths, t_start_ms);
             preserve_instant_delayed_value(&mut track.geometry.size, t_start_ms);
             preserve_instant_delayed_value(&mut track.geometry.layout_size, t_start_ms);
         }
@@ -676,22 +675,18 @@ impl Timeline {
                 Easing::Linear,
             );
         }
-        track.text.static_split_clip = crate::renderer::text::compute_split_mask_clip(&new_paths);
-        track.text.static_paths = if duration_ms == 0.0 {
+        text.static_split_clip = crate::renderer::text::compute_split_mask_clip(&new_paths);
+        text.static_paths = if duration_ms == 0.0 {
             Some(std::sync::Arc::from(new_paths.clone()))
         } else {
             None
         };
-        track.text.hardware_layout = if duration_ms == 0.0 && anchor_offset_x == 0.0 {
+        text.hardware_layout = if duration_ms == 0.0 && anchor_offset_x == 0.0 {
             compiled.hardware_layout.clone()
         } else {
             None
         };
-        track
-            .text
-            .text_paths
-            .ensure(Vec::new())
-            .add_keyframe(t_end_ms, new_paths, easing);
+        text.text_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths, easing);
         track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
             t_end_ms,
             new_half_size,

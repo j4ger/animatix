@@ -33,26 +33,14 @@ impl AnimationTrack {
             DashOffset => TrackFieldRef::F32(&self.style.dash_offset),
             Blend => TrackFieldRef::String(&self.style.blend),
             Commands => return None,
-            TextContent => TrackFieldRef::String(&self.text.text_content),
-            TextMaxWidth => TrackFieldRef::F32(&self.text.text_max_width),
-            TextAlign => TrackFieldRef::String(&self.text.text_align),
-            TextAnchor => TrackFieldRef::String(&self.text.text_anchor),
-            Overflow => TrackFieldRef::String(&self.text.overflow),
-            Language => TrackFieldRef::String(&self.text.language),
-            FontFamily => TrackFieldRef::String(&self.text.font_family),
-            FontSize => TrackFieldRef::F32(&self.text.font_size),
-            CharProgress => TrackFieldRef::F32(&self.text.char_progress),
+            // The text tier lives in `World.text`; world-aware callers read it
+            // through `World::fields`, which bundles the component.
+            TextContent | TextMaxWidth | TextAlign | TextAnchor | Overflow | Language
+            | FontFamily | FontSize | CharProgress | Ascent | Descent | Baseline | FontWeight
+            | FontStyle | LineHeight | LetterSpacing | WordSpacing | TextPaths => return None,
             PlacementMode => TrackFieldRef::PlacementMode(&self.geometry.placement_mode),
             MorphOptions => TrackFieldRef::MorphOptions(&self.style.morph_options),
-            Ascent => TrackFieldRef::F32(&self.text.ascent),
-            Descent => TrackFieldRef::F32(&self.text.descent),
-            Baseline => TrackFieldRef::F32(&self.text.baseline),
             HighlightColor | HighlightOpacity | HighlightPadding | HighlightRadius => return None,
-            FontWeight => TrackFieldRef::F32(&self.text.font_weight),
-            FontStyle => TrackFieldRef::String(&self.text.font_style),
-            LineHeight => TrackFieldRef::F32(&self.text.line_height),
-            LetterSpacing => TrackFieldRef::F32(&self.text.letter_spacing),
-            WordSpacing => TrackFieldRef::F32(&self.text.word_spacing),
             MinWidth => TrackFieldRef::F32(&self.geometry.min_width),
             MinHeight => TrackFieldRef::F32(&self.geometry.min_height),
             MaxHeight => TrackFieldRef::F32(&self.geometry.max_height),
@@ -62,7 +50,6 @@ impl AnimationTrack {
             CalloutStandoff => TrackFieldRef::F32(&self.geometry.callout_standoff),
             CalloutToOffset => TrackFieldRef::Vec2(&self.geometry.callout_to_offset),
             VectorPaths => return None,
-            TextPaths => TrackFieldRef::TextPaths(&self.text.text_paths),
             // The image payload owns the raster track; an actor without that
             // payload has no image data, which reads as `None`.
             ImageData => return None,
@@ -109,26 +96,13 @@ impl AnimationTrack {
             DashOffset => TrackFieldMut::F32(&mut self.style.dash_offset),
             Blend => TrackFieldMut::String(&mut self.style.blend),
             Commands => return None,
-            TextContent => TrackFieldMut::String(&mut self.text.text_content),
-            TextMaxWidth => TrackFieldMut::F32(&mut self.text.text_max_width),
-            TextAlign => TrackFieldMut::String(&mut self.text.text_align),
-            TextAnchor => TrackFieldMut::String(&mut self.text.text_anchor),
-            Overflow => TrackFieldMut::String(&mut self.text.overflow),
-            Language => TrackFieldMut::String(&mut self.text.language),
-            FontFamily => TrackFieldMut::String(&mut self.text.font_family),
-            FontSize => TrackFieldMut::F32(&mut self.text.font_size),
-            CharProgress => TrackFieldMut::F32(&mut self.text.char_progress),
+            // Text writes go through `World.text_mut`; see `field_ref`.
+            TextContent | TextMaxWidth | TextAlign | TextAnchor | Overflow | Language
+            | FontFamily | FontSize | CharProgress | Ascent | Descent | Baseline | FontWeight
+            | FontStyle | LineHeight | LetterSpacing | WordSpacing | TextPaths => return None,
             PlacementMode => TrackFieldMut::PlacementMode(&mut self.geometry.placement_mode),
             MorphOptions => TrackFieldMut::MorphOptions(&mut self.style.morph_options),
-            Ascent => TrackFieldMut::F32(&mut self.text.ascent),
-            Descent => TrackFieldMut::F32(&mut self.text.descent),
-            Baseline => TrackFieldMut::F32(&mut self.text.baseline),
             HighlightColor | HighlightOpacity | HighlightPadding | HighlightRadius => return None,
-            FontWeight => TrackFieldMut::F32(&mut self.text.font_weight),
-            FontStyle => TrackFieldMut::String(&mut self.text.font_style),
-            LineHeight => TrackFieldMut::F32(&mut self.text.line_height),
-            LetterSpacing => TrackFieldMut::F32(&mut self.text.letter_spacing),
-            WordSpacing => TrackFieldMut::F32(&mut self.text.word_spacing),
             MinWidth => TrackFieldMut::F32(&mut self.geometry.min_width),
             MinHeight => TrackFieldMut::F32(&mut self.geometry.min_height),
             MaxHeight => TrackFieldMut::F32(&mut self.geometry.max_height),
@@ -138,7 +112,6 @@ impl AnimationTrack {
             CalloutStandoff => TrackFieldMut::F32(&mut self.geometry.callout_standoff),
             CalloutToOffset => TrackFieldMut::Vec2(&mut self.geometry.callout_to_offset),
             VectorPaths => return None,
-            TextPaths => TrackFieldMut::TextPaths(&mut self.text.text_paths),
             AudioVolume => TrackFieldMut::F32(&mut self.geometry.volume),
             // Image data is written through the media/image paths (which hold
             // the asset cache), never through generic property dispatch.

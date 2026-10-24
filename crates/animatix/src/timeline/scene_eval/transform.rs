@@ -233,7 +233,7 @@ impl Timeline {
     pub fn extract_all_glyphs(&self) -> Vec<TextPath> {
         let mut glyphs = Vec::new();
         for track in self.world.tracks.values() {
-            if let Some(text_paths) = &track.text.text_paths {
+            if let Some(text_paths) = &self.world.text(track.id).text_paths {
                 for (paths, _) in text_paths.keyframes.values() {
                     for glyph in paths {
                         glyphs.push(glyph.clone());

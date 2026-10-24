@@ -232,21 +232,23 @@ impl DocumentController<'_> {
         }
         let document = &self.document_store.source.document;
         self.ui_store.selection.selected_keyframes.retain(|keyframe| {
-            let Some((track, shape)) =
-                resolve_timeline_for_scene(document, keyframe.scene.as_deref()).and_then(
-                    |timeline| {
-                        let track = timeline.get_track(&keyframe.actor)?;
-                        Some((track, timeline.world().shape(track.id)))
-                    },
-                )
-            else {
+            let Some((track, shape, text)) = resolve_timeline_for_scene(
+                document,
+                keyframe.scene.as_deref(),
+            )
+            .and_then(|timeline| {
+                let track = timeline.get_track(&keyframe.actor)?;
+                Some((track, timeline.world().shape(track.id), timeline.world().text(track.id)))
+            }) else {
                 return false;
             };
-            crate::app::document::timeline_diff::collect_per_property_keyframes(track, shape, None)
-                .into_iter()
-                .any(|(property, times)| {
-                    property == keyframe.property && times.contains(&keyframe.time_ms)
-                })
+            crate::app::document::timeline_diff::collect_per_property_keyframes(
+                track, shape, text, None,
+            )
+            .into_iter()
+            .any(|(property, times)| {
+                property == keyframe.property && times.contains(&keyframe.time_ms)
+            })
         });
     }
 }

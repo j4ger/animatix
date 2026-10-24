@@ -414,8 +414,15 @@ pub(super) fn apply_property_edit_to_track(
             // Shape-owned fields moved to the shape component store, so the
             // track-level accessor has no destination for them. Route the write
             // through the world field bundle, which is shape-aware.
-            field_writes
-                .push((schema.field, coerce_for_value_type(value.clone(), schema.value_type)));
+            let pv = match (schema.field, value) {
+                // The inspector emits the enum choice as a string; the engine
+                // writer only converts an Enum payload into a ShapeType.
+                (animatix::timeline::ActorField::ShapeType, PV::String(name)) => {
+                    PV::Enum(name.clone())
+                },
+                _ => coerce_for_value_type(value.clone(), schema.value_type),
+            };
+            field_writes.push((schema.field, pv));
         }
     }
 }

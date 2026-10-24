@@ -117,6 +117,29 @@ fn write_read_roundtrip(
     read_property_value(track, field, time_ms)
 }
 
+/// Write and read one property through `World`, which owns the text tier.
+///
+/// The track-only helpers above cannot reach text fields now that
+/// `TextTracks` lives in `World`, so text round-trips have to go through it.
+fn world_write_read_roundtrip(
+    timeline: &mut crate::timeline::Timeline,
+    id: crate::timeline::EntityId,
+    field: ActorField,
+    value: PropertyValue,
+    time_ms: u64,
+) -> Option<PropertyValue> {
+    timeline.world_mut().write_property_field(
+        id,
+        field,
+        value,
+        time_ms,
+        time_ms,
+        Easing::Linear,
+        &mut vec![],
+    );
+    timeline.world().read_property_value(id, field, time_ms)
+}
+
 // ────────────────────────────────────────────────
 // 4.2: write/read round-trip tests
 // ────────────────────────────────────────────────
@@ -179,9 +202,11 @@ fn test_write_read_roundtrip_transform() {
 
 #[test]
 fn test_write_read_roundtrip_string() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    let result = write_read_roundtrip(
-        &mut track,
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Text");
+    let result = world_write_read_roundtrip(
+        &mut timeline,
+        id,
         ActorField::FontFamily,
         PropertyValue::String("Arial".to_string()),
         500,
@@ -327,9 +352,15 @@ fn test_write_read_roundtrip_min_height() {
 
 #[test]
 fn test_write_read_roundtrip_letter_spacing() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    let result =
-        write_read_roundtrip(&mut track, ActorField::LetterSpacing, PropertyValue::F32(2.5), 500);
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Text");
+    let result = world_write_read_roundtrip(
+        &mut timeline,
+        id,
+        ActorField::LetterSpacing,
+        PropertyValue::F32(2.5),
+        500,
+    );
     assert_eq!(result, Some(PropertyValue::F32(2.5)));
 }
 

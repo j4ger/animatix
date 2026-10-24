@@ -82,6 +82,7 @@ fn test_legend_wrapped_label_respects_max_width() {
         property_plan: None,
         world: None,
         shape: None,
+        text: None,
 
         payload: None,
         target_resolver: None,
@@ -254,6 +255,7 @@ fn test_legend_empty() {
         property_plan: None,
         world: None,
         shape: None,
+        text: None,
         payload: None,
         target_resolver: None,
         legend: Some(&legend),
@@ -676,6 +678,7 @@ fn test_legend_render_commands_produced() {
         property_plan: None,
         world: None,
         shape: None,
+        text: None,
         payload: None,
         target_resolver: None,
         legend: Some(&legend),

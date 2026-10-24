@@ -1,7 +1,9 @@
 use super::*;
+use crate::timeline::animation_track::TextTracks;
 
 pub(crate) fn recompile_text_at_assignment(
     track: &mut AnimationTrack,
+    text: &mut TextTracks,
     target_text: String,
     t_start_ms: u64,
     t_end_ms: u64,
@@ -12,12 +14,10 @@ pub(crate) fn recompile_text_at_assignment(
     text_compiler: &mut crate::renderer::text::TextCompiler,
 ) -> Result<(), RenderError> {
     if duration_ms > 0.0 {
-        let start_val = track.text.text_content.get(t_start_ms, String::new());
-        track.text.text_content.ensure(String::new()).add_keyframe(
-            t_start_ms,
-            start_val,
-            Easing::Linear,
-        );
+        let start_val = text.text_content.get(t_start_ms, String::new());
+        text.text_content
+            .ensure(String::new())
+            .add_keyframe(t_start_ms, start_val, Easing::Linear);
     } else {
         // A step has to be fenced too. With no keyframe just before the stamp,
         // the previously declared string interpolates all the way into the new
@@ -26,18 +26,17 @@ pub(crate) fn recompile_text_at_assignment(
         // keyframe `.text =` assignments overprint". `preserve_instant_delayed_value`
         // already does the fencing for delayed steps; an undated assignment needs
         // exactly the same thing one millisecond earlier.
-        preserve_instant_delayed_value(&mut track.text.text_content, t_start_ms);
+        preserve_instant_delayed_value(&mut text.text_content, t_start_ms);
     }
-    track.text.text_content.ensure(String::new()).add_keyframe(
-        t_end_ms,
-        target_text.clone(),
-        easing,
-    );
+    text.text_content
+        .ensure(String::new())
+        .add_keyframe(t_end_ms, target_text.clone(), easing);
 
-    // This helper receives a bare track (the primitive assignment path owns
-    // no `World`), so derive the projection from the actor type, which is the
-    // same derivation the built-in catalog uses. Extension overrides live in
-    // `World` and are applied by callers that have one.
+    // This helper receives a bare track plus the text tier (the primitive
+    // assignment path owns no `World`), so derive the projection from the
+    // actor type, which is the same derivation the built-in catalog uses.
+    // Extension overrides live in `World` and are applied by callers that
+    // have one.
     let caps = animatix_std::caps_for_type(&track.actor_type).unwrap_or_default();
     let text_kind = match caps.text {
         Some(crate::timeline::TextKind::Text) => crate::renderer::text::TextKind::Text,
@@ -47,15 +46,15 @@ pub(crate) fn recompile_text_at_assignment(
         _ => return Ok(()),
     };
 
-    let font_family = track.text.font_family.get(t_end_ms, String::new());
-    let font_size = track.text.font_size.get(t_end_ms, 48.0);
-    let font_weight = track.text.font_weight.get(t_end_ms, 400.0);
-    let font_style = track.text.font_style.get(t_end_ms, "normal".to_string());
-    let line_height = track.text.line_height.get(t_end_ms, 1.2);
-    let letter_spacing = track.text.letter_spacing.get(t_end_ms, 0.0);
-    let word_spacing = track.text.word_spacing.get(t_end_ms, 0.0);
+    let font_family = text.font_family.get(t_end_ms, String::new());
+    let font_size = text.font_size.get(t_end_ms, 48.0);
+    let font_weight = text.font_weight.get(t_end_ms, 400.0);
+    let font_style = text.font_style.get(t_end_ms, "normal".to_string());
+    let line_height = text.line_height.get(t_end_ms, 1.2);
+    let letter_spacing = text.letter_spacing.get(t_end_ms, 0.0);
+    let word_spacing = text.word_spacing.get(t_end_ms, 0.0);
     let color = track.style.color.get(t_end_ms, [1.0, 1.0, 1.0, 1.0]);
-    let language = track.text.language.get(t_end_ms, String::new());
+    let language = text.language.get(t_end_ms, String::new());
 
     let new_paths = text_compiler.compile(
         &target_text,
@@ -75,7 +74,7 @@ pub(crate) fn recompile_text_at_assignment(
         "visible",
     )?;
     let new_half_size = crate::renderer::text::measure_text_paths(&new_paths);
-    let text_anchor = track.text.text_anchor.get(t_end_ms, "center".to_string());
+    let text_anchor = text.text_anchor.get(t_end_ms, "center".to_string());
     let mut new_paths_vec = new_paths.to_vec();
     let anchor_offset_x = match text_anchor.as_str() {
         "left" => new_half_size[0],
@@ -91,12 +90,10 @@ pub(crate) fn recompile_text_at_assignment(
     }
 
     if duration_ms > 0.0 {
-        let start_val = track.evaluate_text_paths(t_start_ms);
-        track.text.text_paths.ensure(Vec::new()).add_keyframe(
-            t_start_ms,
-            start_val,
-            Easing::Linear,
-        );
+        let start_val = track.evaluate_text_paths_and_clip(text, t_start_ms).0;
+        text.text_paths
+            .ensure(Vec::new())
+            .add_keyframe(t_start_ms, start_val, Easing::Linear);
         let start_size = track.geometry.size.get(t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
         let start_layout_size =
             track.layout_size_get(t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
@@ -111,7 +108,7 @@ pub(crate) fn recompile_text_at_assignment(
             Easing::Linear,
         );
     } else if instant_delayed {
-        preserve_instant_delayed_value(&mut track.text.text_paths, t_start_ms);
+        preserve_instant_delayed_value(&mut text.text_paths, t_start_ms);
         preserve_instant_delayed_value(&mut track.geometry.size, t_start_ms);
         preserve_instant_delayed_value(&mut track.geometry.layout_size, t_start_ms);
     }
@@ -164,11 +161,7 @@ pub(crate) fn recompile_text_at_assignment(
         Err(_) => (0.0, 0.0, 0.0),
     };
 
-    track
-        .text
-        .text_paths
-        .ensure(Vec::new())
-        .add_keyframe(t_end_ms, new_paths_vec, easing);
+    text.text_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths_vec, easing);
     track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
         t_end_ms,
         new_half_size,
@@ -179,6 +172,6 @@ pub(crate) fn recompile_text_at_assignment(
         new_half_size,
         easing,
     );
-    track.set_metrics(t_end_ms, ascent, descent, baseline_offset);
+    track.set_metrics(text, t_end_ms, ascent, descent, baseline_offset);
     Ok(())
 }

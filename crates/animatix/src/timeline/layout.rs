@@ -229,12 +229,14 @@ impl Timeline {
             _ => return None,
         };
 
-        let content = track.text.text_content.get(time_ms, String::new());
+        let text = self.world.text(track.id);
+
+        let content = text.text_content.get(time_ms, String::new());
         if content.is_empty() {
             return None;
         }
 
-        let font_family = track.text.font_family.get(time_ms, String::new());
+        let font_family = text.font_family.get(time_ms, String::new());
         let font_family = if font_family.is_empty() {
             crate::renderer::text::DEFAULT_FONT_FAMILY.to_string()
         } else {
@@ -245,17 +247,17 @@ impl Timeline {
             text_kind,
             content,
             font_family,
-            font_size: track.text.font_size.get(time_ms, 48.0),
-            font_weight: track.text.font_weight.get(time_ms, 400.0),
-            font_style: track.text.font_style.get(time_ms, "normal".to_string()),
-            line_height: track.text.line_height.get(time_ms, 1.2),
-            letter_spacing: track.text.letter_spacing.get(time_ms, 0.0),
-            word_spacing: track.text.word_spacing.get(time_ms, 0.0),
+            font_size: text.font_size.get(time_ms, 48.0),
+            font_weight: text.font_weight.get(time_ms, 400.0),
+            font_style: text.font_style.get(time_ms, "normal".to_string()),
+            line_height: text.line_height.get(time_ms, 1.2),
+            letter_spacing: text.letter_spacing.get(time_ms, 0.0),
+            word_spacing: text.word_spacing.get(time_ms, 0.0),
             color: track.style.color.get(time_ms, [1.0, 1.0, 1.0, 1.0]),
-            text_align: track.text.text_align.get(time_ms, "left".to_string()),
-            overflow: track.text.overflow.get(time_ms, "visible".to_string()),
-            language: track.text.language.get(time_ms, String::new()),
-            existing_max_width: track.text.text_max_width.get(time_ms, 0.0),
+            text_align: text.text_align.get(time_ms, "left".to_string()),
+            overflow: text.overflow.get(time_ms, "visible".to_string()),
+            language: text.language.get(time_ms, String::new()),
+            existing_max_width: text.text_max_width.get(time_ms, 0.0),
         })
     }
 
@@ -351,15 +353,17 @@ impl Timeline {
         let Some(track) = self.world.tracks.get_mut(child_label) else {
             return;
         };
+        // Read the sibling text component through direct field access: the
+        // `world.text_mut` accessor borrows the whole `World`, which cannot
+        // coexist with the mutable track borrow above.
+        let text = self.world.text.get_mut(track.id);
 
         // Update max_width track
-        track.text.text_max_width.ensure(0.0).add_keyframe(
-            time_ms,
-            effective_max_width,
-            Easing::Linear,
-        );
+        text.text_max_width
+            .ensure(0.0)
+            .add_keyframe(time_ms, effective_max_width, Easing::Linear);
 
-        let text_anchor = track.text.text_anchor.get(time_ms, "center".to_string());
+        let text_anchor = text.text_anchor.get(time_ms, "center".to_string());
         let mut paths_vec = compiled.paths.to_vec();
         let anchor_offset_x = match text_anchor.as_str() {
             "left" => new_half_size[0],
@@ -375,9 +379,7 @@ impl Timeline {
         }
 
         // Update text_paths, size, layout_size, and metrics tracks
-        track
-            .text
-            .text_paths
+        text.text_paths
             .ensure(Vec::new())
             .add_keyframe(time_ms, paths_vec, Easing::Linear);
         track
@@ -388,7 +390,13 @@ impl Timeline {
         track
             .ensure_layout_size(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
             .add_keyframe(time_ms, new_half_size, Easing::Linear);
-        track.set_metrics(time_ms, compiled.ascent, compiled.descent, compiled.baseline_offset);
+        track.set_metrics(
+            text,
+            time_ms,
+            compiled.ascent,
+            compiled.descent,
+            compiled.baseline_offset,
+        );
     }
 
     /// Compute available width for a text child based on container type.
@@ -645,7 +653,13 @@ impl Timeline {
         // Sample child baselines for baseline alignment
         let child_baselines: Vec<f32> = children
             .iter()
-            .map(|cl| self.world.tracks.get(&cl.label).map(|t| t.baseline_get(t_ms)).unwrap_or(0.0))
+            .map(|cl| {
+                self.world
+                    .tracks
+                    .get(&cl.label)
+                    .map(|t| t.baseline_get(self.world.text(t.id), t_ms))
+                    .unwrap_or(0.0)
+            })
             .collect();
 
         // Collect size specs and constraints for phase 7

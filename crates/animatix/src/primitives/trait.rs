@@ -32,20 +32,21 @@ pub fn evaluate_text_paths(
 > {
     use crate::timeline::TrackAccessor;
 
-    let mut content = ctx.track.text.text_content.get(ctx.time_ms, String::new());
-    let mut font_family = ctx.track.text.font_family.get(ctx.time_ms, String::new());
-    let mut font_size = ctx.track.text.font_size.get(ctx.time_ms, default_font_size);
-    let mut font_weight = ctx.track.text.font_weight.get(ctx.time_ms, 400.0);
-    let mut font_style = ctx.track.text.font_style.get(ctx.time_ms, "normal".to_string());
-    let mut line_height = ctx.track.text.line_height.get(ctx.time_ms, 1.2);
-    let mut letter_spacing = ctx.track.text.letter_spacing.get(ctx.time_ms, 0.0);
-    let mut word_spacing = ctx.track.text.word_spacing.get(ctx.time_ms, 0.0);
-    let mut max_width = ctx.track.text.text_max_width.get(ctx.time_ms, 0.0);
-    let mut text_align = ctx.track.text.text_align.get(ctx.time_ms, "left".to_string());
-    let mut text_anchor = ctx.track.text.text_anchor.get(ctx.time_ms, "center".to_string());
-    let mut overflow = ctx.track.text.overflow.get(ctx.time_ms, "visible".to_string());
+    let text = ctx.text.expect("text primitive evaluated without a text tier");
+    let mut content = text.text_content.get(ctx.time_ms, String::new());
+    let mut font_family = text.font_family.get(ctx.time_ms, String::new());
+    let mut font_size = text.font_size.get(ctx.time_ms, default_font_size);
+    let mut font_weight = text.font_weight.get(ctx.time_ms, 400.0);
+    let mut font_style = text.font_style.get(ctx.time_ms, "normal".to_string());
+    let mut line_height = text.line_height.get(ctx.time_ms, 1.2);
+    let mut letter_spacing = text.letter_spacing.get(ctx.time_ms, 0.0);
+    let mut word_spacing = text.word_spacing.get(ctx.time_ms, 0.0);
+    let mut max_width = text.text_max_width.get(ctx.time_ms, 0.0);
+    let mut text_align = text.text_align.get(ctx.time_ms, "left".to_string());
+    let mut text_anchor = text.text_anchor.get(ctx.time_ms, "center".to_string());
+    let mut overflow = text.overflow.get(ctx.time_ms, "visible".to_string());
     let mut color = ctx.track.style.color.get(ctx.time_ms, DEFAULT_WHITE);
-    let mut language = ctx.track.text.language.get(ctx.time_ms, String::new());
+    let mut language = text.language.get(ctx.time_ms, String::new());
 
     let mut content_override: Option<String> = None;
     if let Some(ov) = ctx.overrides {
@@ -105,9 +106,7 @@ pub fn evaluate_text_paths(
         // Keyframed content swaps are cross-faded by compiling both endpoint
         // strings and rendering them at partial opacity. Without this, the
         // String track snaps at the midpoint before the compiler runs.
-        if let Some((source_text, target_text, progress)) = ctx
-            .track
-            .text
+        if let Some((source_text, target_text, progress)) = text
             .text_content
             .as_ref()
             .and_then(|track| track.interpolation_segment(ctx.time_ms))
@@ -196,24 +195,24 @@ pub fn evaluate_text_paths(
                 );
                 let clip = crate::timeline::dispatch::apply_split_text_animation(
                     &mut crossfaded,
-                    ctx.track,
+                    text,
                     ctx.time_ms,
                 );
                 return Ok((std::sync::Arc::from(crossfaded), clip));
             }
         }
     }
-    if content_override.is_none() && ctx.track.text.char_progress.is_none() {
-        if let Some(static_paths) = &ctx.track.text.static_paths {
-            let track_anchor = ctx.track.text.text_anchor.get(ctx.time_ms, "center".to_string());
+    if content_override.is_none() && text.char_progress.is_none() {
+        if let Some(static_paths) = &text.static_paths {
+            let track_anchor = text.text_anchor.get(ctx.time_ms, "center".to_string());
             if text_anchor == track_anchor {
                 return Ok((std::sync::Arc::clone(static_paths), None));
             }
         }
     }
-    if content_override.is_none() && ctx.track.text.text_paths.is_some() {
-        let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(ctx.time_ms);
-        let track_anchor = ctx.track.text.text_anchor.get(ctx.time_ms, "center".to_string());
+    if content_override.is_none() && text.text_paths.is_some() {
+        let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(text, ctx.time_ms);
+        let track_anchor = text.text_anchor.get(ctx.time_ms, "center".to_string());
         if text_anchor != track_anchor && !paths.is_empty() {
             let half_size = crate::renderer::text::measure_text_paths(&paths);
             let old_offset = match track_anchor.as_str() {
@@ -276,12 +275,12 @@ pub fn evaluate_text_paths(
         }
         let clip = crate::timeline::dispatch::apply_split_text_animation(
             &mut paths_vec,
-            ctx.track,
+            text,
             ctx.time_ms,
         );
         Ok((std::sync::Arc::from(paths_vec), clip))
     } else {
-        let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(ctx.time_ms);
+        let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(text, ctx.time_ms);
         Ok((std::sync::Arc::from(paths), clip))
     }
 }

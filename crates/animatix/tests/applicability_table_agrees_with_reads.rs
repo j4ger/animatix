@@ -201,7 +201,7 @@ fn every_actor_row_covers_the_type_that_reads_it() {
 /// - Read through a **renamed tag**: the binding's `ActorField::Tagged("…")`
 ///   names a different string than the property, so the reader never mentions
 ///   the property name (`bounds` → `filter_bounds`, `place` → `callout_place`).
-/// - Read through typed storage: `track.text.char_progress`, and the Taffy
+/// - Read through typed storage: `world.text(id).char_progress`, and the Taffy
 ///   `constraints.*` the layout builder fills from `min_width` / `min_height` /
 ///   `max_height`.
 /// - Deferred with a diagnostic: `perspective` has no consumer yet, so the
@@ -215,7 +215,7 @@ const READ_WITHOUT_A_NAME_STRING: &[(&str, &str)] = &[
         "descent",
         "Applicable::Never; written and read as the `Descent` lane by font metrics",
     ),
-    ("char_progress", "read as `track.text.char_progress` (typewriter reveal)"),
+    ("char_progress", "read as `world.text(id).char_progress` (typewriter reveal)"),
     (
         "min_width",
         "read as the Taffy `constraints.min_width` the layout builder fills",

@@ -235,16 +235,20 @@ fn every_catalog_row_derives_caps() {
 fn runtime_text_content_crossfade_compiles_both_endpoints() {
     use crate::easing::Easing;
     use crate::renderer::text::{FontContext, TextCompiler, TextKind};
+    use crate::timeline::animation_track::TextTracks;
     use crate::timeline::property_track::PropertyTrack;
     use crate::timeline::{AnimationTrack, SceneDimensions};
 
-    let mut track = AnimationTrack::placeholder("label".to_string());
+    let track = AnimationTrack::placeholder("label".to_string());
     let mut content = PropertyTrack::new("Hello".to_string());
     content.add_keyframe(0, "Hello".to_string(), Easing::Linear);
     content.add_keyframe(1000, "Hello".to_string(), Easing::Linear);
     content.add_keyframe(2000, "World".to_string(), Easing::Linear);
-    track.text.text_content = Some(content);
-    track.text.font_size = Some(PropertyTrack::new(48.0));
+    let text = TextTracks {
+        text_content: Some(content),
+        font_size: Some(PropertyTrack::new(48.0)),
+        ..Default::default()
+    };
 
     let font_ctx = FontContext::new();
     let mut text_compiler = TextCompiler::new();
@@ -264,6 +268,7 @@ fn runtime_text_content_crossfade_compiles_both_endpoints() {
         asset_cache: &asset_cache,
         highlight: &crate::timeline::animation_track::HighlightTracks::default(),
         shape: None,
+        text: Some(&text),
         property_plan: None,
         caps: animatix_std::caps_for_type(track.actor_type.as_str()).unwrap_or_default(),
         world: None,

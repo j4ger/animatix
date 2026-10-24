@@ -115,7 +115,7 @@ fn test_callout_basic_rendering() {
     assert_eq!(to, [100.0, 0.0], "to should be (100, 0)");
 
     // Verify label was stored
-    let label_val = track.text.text_content.get(0, String::new());
+    let label_val = timeline.world().text(track.id).text_content.get(0, String::new());
     assert_eq!(label_val, "Test", "label should be 'Test'");
 
     // Verify label_at
@@ -325,7 +325,7 @@ fn test_callout_no_label_does_not_set_text_content() {
     assert_eq!(track.actor_type, "Callout");
 
     // The text_content should be empty string (default)
-    let label_val = track.text.text_content.get(0, String::new());
+    let label_val = timeline.world().text(track.id).text_content.get(0, String::new());
     assert_eq!(label_val, "", "label should be empty when not provided");
 
     // Evaluate should not panic

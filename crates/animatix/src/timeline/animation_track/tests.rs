@@ -149,14 +149,42 @@ fn create_track_with_vec2_keyframe(
     track
 }
 
-fn create_track_with_string_keyframe(
+/// Helper: spawn a `Text` entity and write one f32 tier field through the
+/// `World` field bundle.
+///
+/// The text tier is a `World` component, so its typed slots are reachable only
+/// through `World::fields_mut`; `AnimationTrack::field_mut` has no destination
+/// for them.
+fn create_world_f32_keyframe(
+    field: ActorField,
+    time_ms: u64,
+    value: f32,
+) -> (Timeline, crate::timeline::EntityId) {
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Text");
+    {
+        let mut fields = timeline.world_mut().fields_mut(id).expect("entity fields");
+        match fields.field_mut(field).expect("f32 property slot") {
+            TrackFieldMut::F32(opt) => {
+                opt.ensure(0.0).add_keyframe(time_ms, value, Easing::Linear);
+            },
+            _ => panic!("Expected F32 track"),
+        }
+    }
+    (timeline, id)
+}
+
+/// String counterpart of [`create_world_f32_keyframe`].
+fn create_world_string_keyframe(
     field: ActorField,
     time_ms: u64,
     value: &str,
-) -> AnimationTrack {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    if let Some(mut f) = track.field_mut(field) {
-        match &mut f {
+) -> (Timeline, crate::timeline::EntityId) {
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Text");
+    {
+        let mut fields = timeline.world_mut().fields_mut(id).expect("entity fields");
+        match fields.field_mut(field).expect("string property slot") {
             TrackFieldMut::String(opt) => {
                 opt.ensure(value.to_string()).add_keyframe(
                     time_ms,
@@ -167,13 +195,14 @@ fn create_track_with_string_keyframe(
             _ => panic!("Expected String track"),
         }
     }
-    track
+    (timeline, id)
 }
 
 #[test]
 fn test_field_ref_ascent_returns_f32() {
-    let track = create_track_with_f32_keyframe(ActorField::Ascent, 0, 10.0);
-    let rf = track.field_ref(ActorField::Ascent).unwrap();
+    let (timeline, id) = create_world_f32_keyframe(ActorField::Ascent, 0, 10.0);
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::Ascent).unwrap();
     assert!(matches!(rf, TrackFieldRef::F32(_)));
     assert_eq!(
         rf.evaluate_value(0),
@@ -183,50 +212,57 @@ fn test_field_ref_ascent_returns_f32() {
 
 #[test]
 fn test_field_ref_descent_returns_f32() {
-    let track = create_track_with_f32_keyframe(ActorField::Descent, 0, 5.0);
-    let rf = track.field_ref(ActorField::Descent).unwrap();
+    let (timeline, id) = create_world_f32_keyframe(ActorField::Descent, 0, 5.0);
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::Descent).unwrap();
     assert!(matches!(rf, TrackFieldRef::F32(_)));
 }
 
 #[test]
 fn test_field_ref_baseline_returns_f32() {
-    let track = create_track_with_f32_keyframe(ActorField::Baseline, 0, 2.0);
-    let rf = track.field_ref(ActorField::Baseline).unwrap();
+    let (timeline, id) = create_world_f32_keyframe(ActorField::Baseline, 0, 2.0);
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::Baseline).unwrap();
     assert!(matches!(rf, TrackFieldRef::F32(_)));
 }
 
 #[test]
 fn test_field_ref_font_weight_returns_f32() {
-    let track = create_track_with_f32_keyframe(ActorField::FontWeight, 0, 700.0);
-    let rf = track.field_ref(ActorField::FontWeight).unwrap();
+    let (timeline, id) = create_world_f32_keyframe(ActorField::FontWeight, 0, 700.0);
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::FontWeight).unwrap();
     assert!(matches!(rf, TrackFieldRef::F32(_)));
 }
 
 #[test]
 fn test_field_ref_font_style_returns_string() {
-    let track = create_track_with_string_keyframe(ActorField::FontStyle, 0, "italic");
-    let rf = track.field_ref(ActorField::FontStyle).unwrap();
+    let (timeline, id) = create_world_string_keyframe(ActorField::FontStyle, 0, "italic");
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::FontStyle).unwrap();
     assert!(matches!(rf, TrackFieldRef::String(_)));
 }
 
 #[test]
 fn test_field_ref_line_height_returns_f32() {
-    let track = create_track_with_f32_keyframe(ActorField::LineHeight, 0, 1.5);
-    let rf = track.field_ref(ActorField::LineHeight).unwrap();
+    let (timeline, id) = create_world_f32_keyframe(ActorField::LineHeight, 0, 1.5);
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::LineHeight).unwrap();
     assert!(matches!(rf, TrackFieldRef::F32(_)));
 }
 
 #[test]
 fn test_field_ref_letter_spacing_returns_f32() {
-    let track = create_track_with_f32_keyframe(ActorField::LetterSpacing, 0, 0.5);
-    let rf = track.field_ref(ActorField::LetterSpacing).unwrap();
+    let (timeline, id) = create_world_f32_keyframe(ActorField::LetterSpacing, 0, 0.5);
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::LetterSpacing).unwrap();
     assert!(matches!(rf, TrackFieldRef::F32(_)));
 }
 
 #[test]
 fn test_field_ref_word_spacing_returns_f32() {
-    let track = create_track_with_f32_keyframe(ActorField::WordSpacing, 0, 2.0);
-    let rf = track.field_ref(ActorField::WordSpacing).unwrap();
+    let (timeline, id) = create_world_f32_keyframe(ActorField::WordSpacing, 0, 2.0);
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::WordSpacing).unwrap();
     assert!(matches!(rf, TrackFieldRef::F32(_)));
 }
 
@@ -262,10 +298,17 @@ fn test_field_ref_vector_paths_is_world_owned() {
 
 #[test]
 fn test_field_ref_text_paths_returns_text_paths() {
-    let track = AnimationTrack::placeholder("test".to_string());
-    let rf = track.field_ref(ActorField::TextPaths);
+    // The text tier lives in the `World.text` component, so the typed slot is
+    // reachable through the world field bundle and not from a bare track.
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Text");
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::TextPaths);
     assert!(rf.is_some());
     assert!(matches!(rf.unwrap(), TrackFieldRef::TextPaths(_)));
+
+    let track = AnimationTrack::placeholder("test".to_string());
+    assert!(track.field_ref(ActorField::TextPaths).is_none());
 }
 
 #[test]
@@ -299,15 +342,19 @@ fn test_field_ref_returns_correct_type_for_transform() {
 
 #[test]
 fn test_field_mut_returns_correct_type_for_font_weight() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    let f = track.field_mut(ActorField::FontWeight).unwrap();
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Text");
+    let mut fields = timeline.world_mut().fields_mut(id).expect("entity fields");
+    let f = fields.field_mut(ActorField::FontWeight).unwrap();
     assert!(matches!(f, TrackFieldMut::F32(_)));
 }
 
 #[test]
 fn test_field_mut_returns_correct_type_for_font_style() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    let f = track.field_mut(ActorField::FontStyle).unwrap();
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Text");
+    let mut fields = timeline.world_mut().fields_mut(id).expect("entity fields");
+    let f = fields.field_mut(ActorField::FontStyle).unwrap();
     assert!(matches!(f, TrackFieldMut::String(_)));
 }
 
@@ -379,10 +426,24 @@ fn test_has_any_keyframes_returns_true_for_highlight_fields() {
 }
 
 #[test]
-fn test_has_any_keyframes_returns_true_for_font_metrics() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.text.ascent.ensure(0.0).add_keyframe(500, 10.0, Easing::Linear);
-    assert!(track.has_any_keyframes());
+fn test_font_metrics_reach_the_world_tier_not_the_track_scan() {
+    // Font metrics are text-tier traffic now. `AnimationTrack::has_any_keyframes`
+    // scans the registry through the track, which has no text fields left; the
+    // keyframes are visible through the `World` field bundle instead.
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Text");
+    timeline
+        .world_mut()
+        .text_mut(id)
+        .ascent
+        .ensure(0.0)
+        .add_keyframe(500, 10.0, Easing::Linear);
+
+    let track = timeline.world().track(id).expect("track");
+    assert!(!track.has_any_keyframes());
+
+    let fields = timeline.world().fields(id).expect("entity fields");
+    assert_eq!(fields.property_keyframe_times(ActorField::Ascent), vec![500]);
 }
 
 #[test]
@@ -561,16 +622,38 @@ fn test_registry_driven_max_keyframe_time_finds_min_width() {
 
 #[test]
 fn test_registry_driven_max_keyframe_time_finds_letter_spacing() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.text.letter_spacing.ensure(0.0).add_keyframe(2500, 1.0, Easing::Linear);
-    assert_eq!(track.max_keyframe_time(), Some(2500));
+    // `letter_spacing` is text-tier storage: the track-only scan cannot see it,
+    // the `World` field bundle can.
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Text");
+    timeline.world_mut().text_mut(id).letter_spacing.ensure(0.0).add_keyframe(
+        2500,
+        1.0,
+        Easing::Linear,
+    );
+
+    let track = timeline.world().track(id).expect("track");
+    assert_eq!(track.max_keyframe_time(), None);
+
+    let fields = timeline.world().fields(id).expect("entity fields");
+    assert_eq!(fields.property_keyframe_times(ActorField::LetterSpacing), vec![2500]);
 }
 
 #[test]
 fn test_registry_driven_has_any_keyframes_finds_word_spacing() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.text.word_spacing.ensure(0.0).add_keyframe(1000, 5.0, Easing::Linear);
-    assert!(track.has_any_keyframes());
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Text");
+    timeline.world_mut().text_mut(id).word_spacing.ensure(0.0).add_keyframe(
+        1000,
+        5.0,
+        Easing::Linear,
+    );
+
+    let track = timeline.world().track(id).expect("track");
+    assert!(!track.has_any_keyframes());
+
+    let fields = timeline.world().fields(id).expect("entity fields");
+    assert_eq!(fields.property_keyframe_times(ActorField::WordSpacing), vec![1000]);
 }
 
 // ────────────────────────────────────────────────────────

@@ -8,8 +8,7 @@
 //! scrub ruler on top of the returned geometry.
 
 use animatix::timeline::{
-    ActorField, AnimationTrack, PROPERTY_REGISTRY, ValueType, allowed_property_indices,
-    property_has_keyframes, property_keyframe_easing, property_keyframe_times, read_property_value,
+    ActorField, AnimationTrack, PROPERTY_REGISTRY, Timeline, ValueType, allowed_property_indices,
 };
 use animatix_syntax::easing::Easing;
 use egui::{Color32, Painter, Pos2, Rect, Stroke};
@@ -52,22 +51,23 @@ pub(crate) struct CurveChannel {
 /// Sample every animated channel of a track.
 ///
 /// Properties with fewer than two keyframes are skipped: a single keyframe has
-/// no curve to draw.
+/// no curve to draw. Reads go through the World field bundle, which is the
+/// shape-aware view, so shape-tier properties graph like every other tier.
 pub(crate) fn collect_curves(
+    timeline: &Timeline,
     actor: &str,
     track: &AnimationTrack,
     theme: Theme,
 ) -> Vec<CurveChannel> {
     let mut curves: Vec<CurveChannel> = Vec::new();
 
-    // Bare-track helper: derive the capability projection from the actor type.
-    let caps = animatix::timeline::caps_for_type(&track.actor_type).unwrap_or_default();
+    let caps = timeline.world().caps(track.id);
     for &idx in &allowed_property_indices(&caps, &track.actor_type) {
         let schema = &PROPERTY_REGISTRY[idx];
-        if !property_has_keyframes(track, schema.field) {
+        if !timeline.world().property_has_keyframes(track.id, schema.field) {
             continue;
         }
-        let kf_times = property_keyframe_times(track, schema.field);
+        let kf_times = timeline.world().property_keyframe_times(track.id, schema.field);
         if kf_times.len() < 2 {
             continue;
         }
@@ -80,7 +80,9 @@ pub(crate) fn collect_curves(
             let segment_easing = kf_times
                 .iter()
                 .map(|time_ms| {
-                    property_keyframe_easing(track, schema.field, *time_ms)
+                    timeline
+                        .world()
+                        .property_keyframe_easing(track.id, schema.field, *time_ms)
                         .unwrap_or(Easing::Linear)
                 })
                 .collect();
@@ -102,7 +104,7 @@ pub(crate) fn collect_curves(
                 let mut points = Vec::new();
                 for time_ms in &kf_times {
                     if let Some(animatix::timeline::PropertyValue::F32(v)) =
-                        read_property_value(track, schema.field, *time_ms)
+                        timeline.world().read_property_value(track.id, schema.field, *time_ms)
                     {
                         points.push((*time_ms as f64 / 1000.0, v));
                     }
@@ -114,7 +116,7 @@ pub(crate) fn collect_curves(
                 let mut y_points = Vec::new();
                 for time_ms in &kf_times {
                     if let Some(animatix::timeline::PropertyValue::Vec2(v)) =
-                        read_property_value(track, schema.field, *time_ms)
+                        timeline.world().read_property_value(track.id, schema.field, *time_ms)
                     {
                         x_points.push((*time_ms as f64 / 1000.0, v[0]));
                         y_points.push((*time_ms as f64 / 1000.0, v[1]));
@@ -136,7 +138,11 @@ pub(crate) fn collect_curves(
             ValueType::Vec4 | ValueType::Color => {
                 let mut ch: [Vec<(f64, f32)>; 4] = Default::default();
                 for time_ms in &kf_times {
-                    let value = match read_property_value(track, schema.field, *time_ms) {
+                    let value = match timeline.world().read_property_value(
+                        track.id,
+                        schema.field,
+                        *time_ms,
+                    ) {
                         Some(animatix::timeline::PropertyValue::Vec4(v)) => Some(v),
                         Some(animatix::timeline::PropertyValue::Color(v)) => Some(v),
                         _ => None,
@@ -171,13 +177,14 @@ pub(crate) fn collect_curves(
 /// channel colours down so the same property of two actors stays
 /// distinguishable; pass `1.0` to keep them as-is.
 pub(crate) fn collect_curves_for_actor(
+    timeline: &Timeline,
     actor: &str,
     track: &AnimationTrack,
     theme: Theme,
     qualify: bool,
     shade: f32,
 ) -> Vec<CurveChannel> {
-    let mut curves = collect_curves(actor, track, theme);
+    let mut curves = collect_curves(timeline, actor, track, theme);
     for curve in &mut curves {
         if qualify {
             curve.label = format!("{actor} · {}", curve.base_label);
@@ -550,8 +557,8 @@ mod tests {
         let a = timeline.get_track("a").expect("track a");
         let b = timeline.get_track("b").expect("track b");
 
-        let a_curves = collect_curves_for_actor("a", a, theme, true, 1.0);
-        let b_curves = collect_curves_for_actor("b", b, theme, true, 1.0);
+        let a_curves = collect_curves_for_actor(&timeline, "a", a, theme, true, 1.0);
+        let b_curves = collect_curves_for_actor(&timeline, "b", b, theme, true, 1.0);
         assert!(!a_curves.is_empty(), "actor a must have graphed channels");
         assert!(!b_curves.is_empty(), "actor b must have graphed channels");
         for curve in a_curves.iter().chain(b_curves.iter()) {
@@ -570,7 +577,7 @@ mod tests {
             );
         }
 
-        let unqualified = collect_curves_for_actor("a", a, theme, false, 1.0);
+        let unqualified = collect_curves_for_actor(&timeline, "a", a, theme, false, 1.0);
         assert!(
             unqualified.iter().all(|curve| curve.label == curve.base_label),
             "single-actor labels stay canonical"
@@ -583,6 +590,33 @@ mod tests {
         assert_eq!(first, actor_shade_factor("card_reel"), "shade must be deterministic");
         assert!(ACTOR_SHADES.contains(&first));
         assert!(first < 1.0, "additional actors must differ from the canonical colour");
+    }
+
+    /// Shape-tier properties graph like any other tier: `to` lives on the World
+    /// shape component, which the track-only sampler used to miss entirely.
+    #[test]
+    fn shape_tier_channel_is_graphed() {
+        let source = r#"
+#0s
+a: Line, from: (0, 0), to: (10, 10)
+
+#1s
+a.to = (40, 20)
+"#;
+        let (ast, errors) = animatix_syntax::parser::parse_source(source);
+        assert!(errors.is_empty(), "parse errors: {errors:?}");
+        let timeline = Timeline::build(&ast.expect("ast"));
+        let track = timeline.get_track("a").expect("line track");
+
+        let curves = collect_curves(&timeline, "a", track, eparts::Theme::default());
+        let to_y = curves
+            .iter()
+            .find(|curve| curve.base_label == "to.Y")
+            .expect("shape-tier `to.Y` channel must be graphed");
+        assert!(to_y.points.len() >= 2, "points: {:?}", to_y.points);
+        let last = to_y.points.last().expect("points");
+        assert!((last.0 - 1.0).abs() < 0.001, "last point time: {last:?}");
+        assert!((last.1 - 20.0).abs() < 0.001, "last point value: {last:?}");
     }
 
     /// A `Rect` with two timed `at` assignments: the shared fixture for the

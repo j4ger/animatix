@@ -791,13 +791,13 @@ b: Code, text: "hello code"
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let typst_track = report.output.world.tracks.get("a").expect("a track");
     assert_eq!(
-        typst_track.text.text_content.get(0, String::new()),
+        report.output.world.text(typst_track.id).text_content.get(0, String::new()),
         "hello typst",
         "Typst should read content from `text:`"
     );
     let code_track = report.output.world.tracks.get("b").expect("b track");
     assert_eq!(
-        code_track.text.text_content.get(0, String::new()),
+        report.output.world.text(code_track.id).text_content.get(0, String::new()),
         "hello code",
         "Code should read content from `text:`"
     );
@@ -825,9 +825,13 @@ b: Code, code: "x = 1"
     );
 
     let a_track = report.output.world.tracks.get("a").expect("a track");
-    assert_eq!(a_track.text.language.get(0, String::new()), "rust");
+    assert_eq!(report.output.world.text(a_track.id).language.get(0, String::new()), "rust");
     let b_track = report.output.world.tracks.get("b").expect("b track");
-    assert_eq!(b_track.text.language.get(0, String::new()), "", "default is plain");
+    assert_eq!(
+        report.output.world.text(b_track.id).language.get(0, String::new()),
+        "",
+        "default is plain"
+    );
 }
 
 #[test]
@@ -909,7 +913,7 @@ label.text = format("step(2)={} base={}", step(2), base)
         .world
         .tracks
         .get("label")
-        .and_then(|t| t.text.text_content.as_ref())
+        .and_then(|t| timeline.world.text(t.id).text_content.as_ref())
         .map(|track| track.evaluate(1000))
         .unwrap_or_default();
     // step(2) = (4*10)+2 = 42; the outer `base` must still be 4 afterwards.
@@ -1115,7 +1119,7 @@ label.text = format("add20(4) = {}", add20(4))
         .world
         .tracks
         .get("label")
-        .and_then(|t| t.text.text_content.as_ref())
+        .and_then(|t| timeline.world.text(t.id).text_content.as_ref())
         .map(|track| track.evaluate(1000))
         .unwrap_or_default();
     // maker(2) binds a=20; add20(4) = 4 + 20.

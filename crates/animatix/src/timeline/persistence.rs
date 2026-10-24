@@ -110,6 +110,9 @@ pub struct CarryEntry {
     /// Shape tier snapshot.
     #[cfg_attr(feature = "serde", serde(default))]
     pub shape: crate::timeline::animation_track::ShapeTracks,
+    /// Text tier snapshot.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub text: crate::timeline::animation_track::TextTracks,
     /// Registry-driven property slots snapshot.
     #[cfg_attr(feature = "serde", serde(default))]
     pub property_plan: crate::timeline::plan::PropertyPlan,
@@ -154,6 +157,7 @@ fn collect_persistent_entries(
     let highlight = snapshot_highlight_at(timeline.world.highlight(track.id), time_ms);
     let property_plan = snapshot_property_plan_at(timeline.world.property_plan(track.id), time_ms);
     let shape = snapshot_shape_at(timeline.world.shape(track.id), time_ms);
+    let text = snapshot_text_at(timeline.world.text(track.id), time_ms);
     let payload = timeline
         .world
         .payload(track.id)
@@ -176,6 +180,7 @@ fn collect_persistent_entries(
             payload,
             highlight,
             shape,
+            text,
             property_plan,
         },
     );
@@ -326,6 +331,7 @@ fn inject_entry(
     *dest.world.highlight.get_mut(id) = entry.highlight.clone();
     *dest.world.property_plan.get_mut(id) = entry.property_plan.clone();
     *dest.world.shape.get_mut(id) = entry.shape.clone();
+    *dest.world.text.get_mut(id) = entry.text.clone();
     if let Some(effects) = entry.effects.clone() {
         dest.world.effects.insert(id, effects);
     }
@@ -493,7 +499,6 @@ pub fn snapshot_track_at(track: &AnimationTrack, time_ms: u64) -> AnimationTrack
     // Collapse each tier's property tracks to a single t=0 keyframe.
     collapse_geometry_tracks(&mut snapshot.geometry, time_ms);
     collapse_style_tracks(&mut snapshot.style, time_ms);
-    collapse_text_tracks(&mut snapshot.text, time_ms);
 
     snapshot
 }
@@ -644,5 +649,15 @@ pub fn snapshot_shape_at(
 ) -> crate::timeline::animation_track::ShapeTracks {
     let mut snapshot = shape.clone();
     collapse_shape_tracks(&mut snapshot, time_ms);
+    snapshot
+}
+
+/// Snapshot the text tier at `time_ms` (single keyframe per track).
+pub fn snapshot_text_at(
+    text: &crate::timeline::animation_track::TextTracks,
+    time_ms: u64,
+) -> crate::timeline::animation_track::TextTracks {
+    let mut snapshot = text.clone();
+    collapse_text_tracks(&mut snapshot, time_ms);
     snapshot
 }

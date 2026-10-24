@@ -16,10 +16,11 @@ title: Text, text: "Hello World", at: (100, 100), split_by: "word", split_stagge
         &std::collections::HashMap::new(),
     );
     let track = report.output.world.tracks.get("title").expect("title track");
-    assert_eq!(track.text.split_by.as_ref().map(|t| t.evaluate(0)), Some("word".to_string()));
-    assert_eq!(track.text.split_stagger.as_ref().map(|t| t.evaluate(0)), Some(0.05));
-    assert_eq!(track.text.split_offset_y.as_ref().map(|t| t.evaluate(0)), Some(24.0));
-    assert_eq!(track.text.split_mask.as_ref().map(|t| t.evaluate(0)), Some(true));
+    let text = report.output.world.text(track.id);
+    assert_eq!(text.split_by.as_ref().map(|t| t.evaluate(0)), Some("word".to_string()));
+    assert_eq!(text.split_stagger.as_ref().map(|t| t.evaluate(0)), Some(0.05));
+    assert_eq!(text.split_offset_y.as_ref().map(|t| t.evaluate(0)), Some(24.0));
+    assert_eq!(text.split_mask.as_ref().map(|t| t.evaluate(0)), Some(true));
 }
 
 #[test]
@@ -35,13 +36,14 @@ draw-in title [1s, by: word, offset_y: 30, mask: baseline, stagger: 0.1s]
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
     let track = timeline.world.tracks.get("title").expect("title track");
+    let text = timeline.world.text(track.id);
 
-    assert!(track.text.char_progress.is_some());
-    assert_eq!(track.text.char_progress.get(1000, 1.0), 0.0);
-    assert_eq!(track.text.char_progress.get(2000, 1.0), 1.0);
+    assert!(text.char_progress.is_some());
+    assert_eq!(text.char_progress.get(1000, 1.0), 0.0);
+    assert_eq!(text.char_progress.get(2000, 1.0), 1.0);
 
     // At t=1500 (midpoint of reveal, progress=0.5):
-    let (paths_mid, clip_mid) = track.evaluate_text_paths_and_clip(1500);
+    let (paths_mid, clip_mid) = track.evaluate_text_paths_and_clip(text, 1500);
     assert!(!paths_mid.is_empty(), "Glyphs should be present");
     assert!(clip_mid.is_some(), "Baseline mask should generate clip path at midpoint");
 
@@ -62,7 +64,7 @@ draw-in title [1s, by: word, offset_y: 30, mask: baseline, stagger: 0.1s]
     );
 
     // At t=2000 (reveal complete):
-    let (paths_end, clip_end) = track.evaluate_text_paths_and_clip(2000);
+    let (paths_end, clip_end) = track.evaluate_text_paths_and_clip(text, 2000);
     assert!(!paths_end.is_empty());
     assert!(clip_end.is_none(), "Baseline mask should be None once reveal is complete");
     for p in &paths_end {
@@ -83,12 +85,13 @@ reveal-in sub [500ms, by: line, offset_y: 15, mask: baseline]
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
     let track = timeline.world.tracks.get("sub").expect("sub track");
+    let text = timeline.world.text(track.id);
 
-    assert!(track.text.char_progress.is_some());
-    assert_eq!(track.text.char_progress.get(500, 1.0), 0.0);
-    assert_eq!(track.text.char_progress.get(1000, 1.0), 1.0);
+    assert!(text.char_progress.is_some());
+    assert_eq!(text.char_progress.get(500, 1.0), 0.0);
+    assert_eq!(text.char_progress.get(1000, 1.0), 1.0);
 
-    let (paths_mid, clip_mid) = track.evaluate_text_paths_and_clip(750);
+    let (paths_mid, clip_mid) = track.evaluate_text_paths_and_clip(text, 750);
     assert!(!paths_mid.is_empty());
     assert!(clip_mid.is_some());
 }
@@ -106,8 +109,9 @@ c: Counter, value: 1234, prefix: "$", suffix: " /mo", decimals: 2, comma: true, 
         &std::collections::HashMap::new(),
     );
     let track = report.output.world.tracks.get("c").expect("counter track");
+    let text = report.output.world.text(track.id);
 
-    let data = track.text.counter_data.as_ref().expect("prebaked counter data");
+    let data = text.counter_data.as_ref().expect("prebaked counter data");
     assert_eq!(data.digits.len(), 10, "Should prebake digits 0..=9");
     assert!(data.col_width > 0.0, "Column width should be positive");
     assert!(data.slot_height > 0.0, "Slot height should be positive");
@@ -157,6 +161,7 @@ cnt.value = 100 [1s]
         property_plan: None,
         world: None,
         shape: Some(timeline.world.shape(track.id)),
+        text: Some(timeline.world.text(track.id)),
 
         payload: None,
         target_resolver: None,
@@ -214,7 +219,8 @@ label.color = (0.0, 1.0, 0.0, 1.0) [1s]
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
     let track = timeline.world.tracks.get("label").expect("label track");
-    assert!(track.text.static_paths.is_some(), "Static text paths should be pre-cached");
+    let text = timeline.world.text(track.id);
+    assert!(text.static_paths.is_some(), "Static text paths should be pre-cached");
 
     use crate::primitives::Primitive;
     let primitive = crate::primitives::TEXT;
@@ -238,6 +244,7 @@ label.color = (0.0, 1.0, 0.0, 1.0) [1s]
         property_plan: None,
         world: None,
         shape: Some(timeline.world.shape(track.id)),
+        text: Some(timeline.world.text(track.id)),
         payload: None,
         target_resolver: None,
         legend: None,
@@ -277,8 +284,9 @@ draw-in title [1s, by: word, offset_y: 30, mask: baseline, stagger: 0.1s]
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
     let track = timeline.world.tracks.get("title").expect("title track");
+    let text = timeline.world.text(track.id);
 
-    let (paths_mid, clip_mid) = track.evaluate_text_paths_and_clip(1500);
+    let (paths_mid, clip_mid) = track.evaluate_text_paths_and_clip(text, 1500);
     assert!(!paths_mid.is_empty(), "CJK glyphs should be generated");
     assert!(clip_mid.is_some(), "Mask should be generated for CJK");
 
@@ -303,8 +311,9 @@ t: Text, text: "Hardware Stream", at: (300, 200), font_size: 32
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
     let track = timeline.world.tracks.get("t").expect("track t exists");
 
-    assert!(track.text.hardware_layout.is_some(), "Hardware text layout should be populated");
-    let hw = track.text.hardware_layout.as_ref().unwrap();
+    let text = timeline.world.text(track.id);
+    assert!(text.hardware_layout.is_some(), "Hardware text layout should be populated");
+    let hw = text.hardware_layout.as_ref().unwrap();
     assert!(!hw.runs.is_empty(), "Should contain at least one glyph run");
     assert!(!hw.runs[0].glyphs.is_empty(), "Glyph run should contain positioned glyphs");
 
@@ -330,6 +339,7 @@ t: Text, text: "Hardware Stream", at: (300, 200), font_size: 32
         property_plan: None,
         world: None,
         shape: Some(timeline.world.shape(track.id)),
+        text: Some(timeline.world.text(track.id)),
         payload: None,
         target_resolver: None,
         legend: None,

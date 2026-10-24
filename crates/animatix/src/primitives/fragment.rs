@@ -31,8 +31,9 @@ impl Primitive for FragmentPrimitive {
     /// content and highlight state to the parent `Equation`'s document. Any
     /// other primitive (including an extension) can opt in by overriding this.
     fn equation_fragment(&self, ctx: &EvaluateCtx) -> Option<EquationFragment> {
+        let text = ctx.text.expect("Fragment evaluated without a text tier");
         Some(EquationFragment {
-            content: ctx.track.text.text_content.get(ctx.time_ms, String::new()),
+            content: text.text_content.get(ctx.time_ms, String::new()),
             highlight_color: ctx.highlight.highlight_color.get(ctx.time_ms, [0.3, 0.5, 1.0, 1.0]),
             highlight_opacity: ctx.highlight.highlight_opacity.get(ctx.time_ms, 0.0),
             highlight_padding: ctx.highlight.highlight_padding.get(ctx.time_ms, 4.0),
@@ -77,11 +78,13 @@ impl Primitive for FragmentPrimitive {
                                 .unwrap_or_default()
                         },
                     };
-                    track.text.text_content.ensure(String::new()).add_keyframe(
-                        ctx.time_ms as u64,
-                        content_str,
-                        Easing::Linear,
-                    );
+                    ctx.timeline
+                        .world
+                        .text
+                        .get_mut(track_id)
+                        .text_content
+                        .ensure(String::new())
+                        .add_keyframe(ctx.time_ms as u64, content_str, Easing::Linear);
                 },
                 "highlight_color" => {
                     // Initial highlight color (stored for later use by scene_eval).
@@ -129,7 +132,7 @@ impl Primitive for FragmentPrimitive {
 
     fn handle_assignment(
         &self,
-        track: &mut AnimationTrack,
+        _track: &mut AnimationTrack,
         property: &str,
         value: &Expr,
         ctx: &mut AssignmentCtx,
@@ -141,7 +144,8 @@ impl Primitive for FragmentPrimitive {
         let t_end_ms = ctx.t_end_ms;
         let easing = ctx.easing;
         let duration_ms = ctx.duration_ms;
-        let highlight = ctx.highlight_mut().expect("assignment highlight");
+        let highlight = ctx.highlight.as_deref_mut().expect("assignment highlight");
+        let text = ctx.text.as_deref_mut().expect("assignment text tier");
         match property {
             "text" => {
                 let content_str =
@@ -149,18 +153,16 @@ impl Primitive for FragmentPrimitive {
                         .map(|v| v.as_str().to_string())
                         .unwrap_or_default();
                 if duration_ms > 0.0 {
-                    let start_val = track.text.text_content.get(t_start_ms, String::new());
-                    track.text.text_content.ensure(String::new()).add_keyframe(
+                    let start_val = text.text_content.get(t_start_ms, String::new());
+                    text.text_content.ensure(String::new()).add_keyframe(
                         t_start_ms,
                         start_val,
                         Easing::Linear,
                     );
                 }
-                track.text.text_content.ensure(String::new()).add_keyframe(
-                    t_end_ms,
-                    content_str,
-                    easing,
-                );
+                text.text_content
+                    .ensure(String::new())
+                    .add_keyframe(t_end_ms, content_str, easing);
                 true
             },
             "highlight_color" => {

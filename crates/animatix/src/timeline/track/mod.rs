@@ -91,10 +91,6 @@ pub struct AnimationTrack {
     // ── Style tier (sub-struct) ──
     /// Style property tracks (color, opacity, stroke, line_cap, line_join, morph_options).
     pub style: StyleTracks,
-
-    // ── Text tier (sub-struct) ──
-    /// Text property tracks (text_content, font_family, font_size, etc.).
-    pub text: TextTracks,
     // ── Tagged union tracks ──
 }
 
@@ -123,9 +119,7 @@ impl AnimationTrack {
 
             // Style tier (sub-struct)
             style: StyleTracks::default(),
-
             // Text tier (sub-struct)
-            text: TextTracks::default(),
         }
     }
 
@@ -332,24 +326,31 @@ impl AnimationTrack {
 
     // ── Font metrics accessors (Phase 6) ──
     /// Evaluate `ascent` at `time_ms`.
-    pub fn ascent_get(&self, time_ms: u64) -> f32 {
-        self.text.ascent.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
+    pub fn ascent_get(&self, text: &TextTracks, time_ms: u64) -> f32 {
+        text.ascent.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
     }
     /// Evaluate `descent` at `time_ms`.
-    pub fn descent_get(&self, time_ms: u64) -> f32 {
-        self.text.descent.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
+    pub fn descent_get(&self, text: &TextTracks, time_ms: u64) -> f32 {
+        text.descent.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
     }
     /// Evaluate `baseline` at `time_ms`.
     /// This is the offset of the baseline from the text center (0,0) after centering paths.
-    pub fn baseline_get(&self, time_ms: u64) -> f32 {
-        self.text.baseline.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
+    pub fn baseline_get(&self, text: &TextTracks, time_ms: u64) -> f32 {
+        text.baseline.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
     }
     /// Set all three font metrics on the track at the given time.
-    pub fn set_metrics(&mut self, time_ms: u64, ascent: f32, descent: f32, baseline: f32) {
+    pub fn set_metrics(
+        &mut self,
+        text: &mut TextTracks,
+        time_ms: u64,
+        ascent: f32,
+        descent: f32,
+        baseline: f32,
+    ) {
         use crate::easing::Easing;
-        self.text.ascent.ensure(0.0).add_keyframe(time_ms, ascent, Easing::Linear);
-        self.text.descent.ensure(0.0).add_keyframe(time_ms, descent, Easing::Linear);
-        self.text.baseline.ensure(0.0).add_keyframe(time_ms, baseline, Easing::Linear);
+        text.ascent.ensure(0.0).add_keyframe(time_ms, ascent, Easing::Linear);
+        text.descent.ensure(0.0).add_keyframe(time_ms, descent, Easing::Linear);
+        text.baseline.ensure(0.0).add_keyframe(time_ms, baseline, Easing::Linear);
     }
 
     // ── Path evaluation ──
@@ -357,9 +358,10 @@ impl AnimationTrack {
     /// applying morphing, char_progress typewriter truncation, and split-text baseline reveal.
     pub fn evaluate_text_paths_and_clip(
         &self,
+        text: &TextTracks,
         time_ms: u64,
     ) -> (Vec<TextPath>, Option<kurbo::BezPath>) {
-        if let Some(content_track) = &self.text.text_content {
+        if let Some(content_track) = &text.text_content {
             if !content_track.keyframes.is_empty() {
                 let current_text = content_track.evaluate(time_ms);
                 if current_text.is_empty() {
@@ -368,7 +370,7 @@ impl AnimationTrack {
             }
         }
         let default_paths = PropertyTrack::new(Vec::new());
-        let paths_track = self.text.text_paths.as_ref().unwrap_or(&default_paths);
+        let paths_track = text.text_paths.as_ref().unwrap_or(&default_paths);
         let default_morph = PropertyTrack::new(MorphOptions::default());
         let morph_track = self.style.morph_options.as_ref().unwrap_or(&default_morph);
         let mut paths = morph::evaluate_paths_with_options(
@@ -378,13 +380,13 @@ impl AnimationTrack {
             morph::interpolate_text_paths,
         );
 
-        let clip = apply_split_text_animation(&mut paths, self, time_ms);
+        let clip = apply_split_text_animation(&mut paths, text, time_ms);
         (paths, clip)
     }
 
     /// Evaluate text paths at `time_ms`, applying morphing and char_progress truncation.
-    pub fn evaluate_text_paths(&self, time_ms: u64) -> Vec<TextPath> {
-        self.evaluate_text_paths_and_clip(time_ms).0
+    pub fn evaluate_text_paths(&self, text: &TextTracks, time_ms: u64) -> Vec<TextPath> {
+        self.evaluate_text_paths_and_clip(text, time_ms).0
     }
 }
 
@@ -392,26 +394,23 @@ impl AnimationTrack {
 /// Returns an optional baseline clip path if `split_mask` is active.
 pub fn apply_split_text_animation(
     paths: &mut Vec<TextPath>,
-    track: &AnimationTrack,
+    text: &TextTracks,
     time_ms: u64,
 ) -> Option<kurbo::BezPath> {
-    let cp_track = track.text.char_progress.as_ref()?;
+    let cp_track = text.char_progress.as_ref()?;
     let progress = cp_track.evaluate(time_ms).clamp(0.0, 1.0);
     if progress >= 1.0 {
         return None;
     }
 
-    let split_by = track
-        .text
+    let split_by = text
         .split_by
         .as_ref()
         .map(|t| t.evaluate(time_ms))
         .unwrap_or_else(|| "char".to_string());
-    let split_stagger =
-        track.text.split_stagger.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0);
-    let split_offset_y =
-        track.text.split_offset_y.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0);
-    let split_mask = track.text.split_mask.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(false);
+    let split_stagger = text.split_stagger.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0);
+    let split_offset_y = text.split_offset_y.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0);
+    let split_mask = text.split_mask.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(false);
 
     // Case A: Standard typewriter truncation
     let is_split_mode = split_offset_y != 0.0
@@ -474,7 +473,7 @@ pub fn apply_split_text_animation(
 
     // Calculate baseline clip rectangles if split_mask is true
     let clip_path = if split_mask {
-        if let Some(static_clip) = &track.text.static_split_clip {
+        if let Some(static_clip) = &text.static_split_clip {
             Some(static_clip.clone())
         } else {
             crate::renderer::text::compute_split_mask_clip(paths)

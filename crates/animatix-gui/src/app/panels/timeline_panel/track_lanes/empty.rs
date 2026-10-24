@@ -2,6 +2,7 @@ use super::*;
 
 pub(crate) fn render_empty_property_lane(
     ui: &mut egui::Ui,
+    timeline: &animatix::timeline::Timeline,
     track: &animatix::timeline::AnimationTrack,
     effects: Option<&animatix::timeline::effects::EffectChainTrack>,
     actor_label: &str,
@@ -65,11 +66,17 @@ pub(crate) fn render_empty_property_lane(
             &track.actor_type,
             prop_name,
         ) {
-            let value = animatix::timeline::read_property_value_or_default(
-                track,
-                schema,
-                (playhead_s * 1000.0) as u64,
-            );
+            // Read the seed value through the World field bundle so a shape-tier
+            // lane (corner_radius, line_from, …) keyframes its live value
+            // instead of the schema default.
+            let value = timeline
+                .world()
+                .read_property_value(track.id, schema.field, (playhead_s * 1000.0) as u64)
+                .unwrap_or_else(|| {
+                    (schema.default_value)(
+                        &animatix::timeline::caps_for_type(&track.actor_type).unwrap_or_default(),
+                    )
+                });
             commands.push_back(
                 DocumentCommand::PropertyEdit(PropertyEdit {
                     actor: actor_label.to_string(),
