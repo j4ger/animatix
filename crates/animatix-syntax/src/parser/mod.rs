@@ -39,6 +39,7 @@
 
 mod comments;
 pub(crate) mod common;
+mod control;
 mod entry;
 mod error;
 pub(crate) mod expr;
