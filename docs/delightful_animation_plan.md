@@ -106,7 +106,7 @@ flowchart TD
 *   **Vello 原生支持**：Vello 的 `scene.fill(..., brush, ..., &text_path.path)` 原生支持对任意 `kurbo::BezPath`（包括文字轮廓）传入 `peniko::Gradient`。
 *   **落地实现**：
     1. 在 [`crates/animatix-core/src/property.rs`](../crates/animatix-core/src/property.rs) 将 `fill_gradient`、`gradient_extend`、`gradient_space` 扩展为 `Applicable::Any(&[Applicable::AllShapesExceptLine, Applicable::TextLike])`。
-    2. 在 [`crates/animatix/src/timeline/declarations_text.rs`](../crates/animatix/src/timeline/declarations_text.rs) 接收文本渐变声明并存入 `track.style.fill_gradient`。
+    2. 在 [`crates/animatix/src/timeline/declarations_text/mod.rs`](../crates/animatix/src/timeline/declarations_text/mod.rs) 接收文本渐变声明并存入 `track.style.fill_gradient`。
     3. 扩充 `RenderCommand::Text`，以文本包围盒为基准映射渐变 Brush 传给 Vello。
 
 #### 2.2 Split-Text（逐字/逐词/逐行错落基线展开）[Tier 1]
