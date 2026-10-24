@@ -241,11 +241,13 @@ Direction for unlocking the rest: a borrowed `TrackFields<'a>` /
 refs) now exists in `timeline/world/fields.rs`, assembled by `World::fields(id)`
 and `World::fields_mut(id)`. `TrackFieldRef` / `TrackFieldMut` construction has
 moved onto the bundle (`TrackFields::field_ref` / `TrackFieldsMut::field_mut`),
-and reads now go through `TrackFields::read_property_value` /
-`World::read_property_value(id, field, t)` — the free function is a forwarding
-wrapper. The write path (`write_property_field`) still takes `&mut
-AnimationTrack`; moving it to `World::fields_mut` plus `EntityId` is the next
-step, after which call sites migrate per domain instead of in one rewrite.
+and both property directions now go through it:
+`TrackFields::read_property_value` / `World::read_property_value(id, field, t)`
+and `write_property_fields` / `World::write_property_field(id, …)`. The
+`AnimationTrack`-taking free functions are forwarding wrappers, so existing
+call sites keep compiling while they migrate per domain; deleting those
+wrappers is what removes the last path that assumes the tiers live on the
+track.
 
 ## 7. Adding a component
 
