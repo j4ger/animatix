@@ -614,8 +614,11 @@ impl Timeline {
         track: &AnimationTrack,
         time_ms: u64,
     ) -> Option<&'a dyn crate::primitives::Primitive> {
-        self.primitive_registry
-            .find(track.render_type_name(self.world.shape(track.id), time_ms))
+        self.primitive_registry.find(track.render_type_name(
+            self.world.actor_type(track.id),
+            self.world.shape(track.id),
+            time_ms,
+        ))
     }
 
     /// Local-space clip geometry for a Mask's `clip_shape` child, obtained from

@@ -305,7 +305,10 @@ impl Timeline {
 
         // Ensure the track kind matches the declaration type so downstream
         // code (inspector, drag handles) can dispatch correctly.
-        track.set_identity(kind.type_name());
+        self.world
+            .actor_types
+            .get_mut(track_id)
+            .clone_from(&kind.type_name().to_string());
 
         // Record first declaration time so scene evaluation can hide
         // actors before they are declared

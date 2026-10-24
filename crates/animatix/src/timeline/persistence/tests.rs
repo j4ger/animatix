@@ -12,7 +12,7 @@ fn make_timeline_with_persistent_actors() -> Timeline {
 
     // Create a simple Rect actor
     let rect = AnimationTrack::placeholder("rect1".to_string());
-    let rect_id = timeline.world.spawn_with_track("rect1", rect);
+    let rect_id = timeline.world.spawn_with_track("rect1", "Rect", rect);
     timeline
         .world
         .style_mut(rect_id)
@@ -28,7 +28,7 @@ fn make_timeline_with_persistent_actors() -> Timeline {
 
     // Create a child actor
     let child = AnimationTrack::placeholder("child1".to_string());
-    let child_id = timeline.world.spawn_with_track("child1", child);
+    let child_id = timeline.world.spawn_with_track("child1", "Rect", child);
     timeline.world.geometry_mut(child_id).position.ensure([0.0, 0.0]).add_keyframe(
         0,
         [0.0, 0.0],
@@ -82,9 +82,14 @@ fn snapshot_collapses_position_to_single_keyframe() {
 
 #[test]
 fn snapshot_preserves_kind() {
+    // Identity lives in World (id -> actor_type), so a track snapshot only
+    // has to keep the entity id for the identity to survive.
+    let mut timeline = Timeline::new();
     let track = AnimationTrack::placeholder("test".to_string());
-    let snapshot = snapshot_track_at(&track, 0);
-    assert_eq!(snapshot.actor_type, track.actor_type);
+    let id = timeline.world.spawn_with_track("test", "Rect", track);
+    let snapshot = snapshot_track_at(timeline.world.track(id).expect("spawned track"), 0);
+    assert_eq!(snapshot.id, id);
+    assert_eq!(timeline.world.actor_type(snapshot.id), "Rect");
 }
 
 #[test]
@@ -92,7 +97,7 @@ fn snapshot_preserves_svg_paths() {
     use crate::timeline::VelloPath;
     let mut timeline = Timeline::new();
     let track = AnimationTrack::placeholder("test".to_string());
-    let id = timeline.world.spawn_with_track("test", track);
+    let id = timeline.world.spawn_with_track("test", "Rect", track);
     timeline.world.ensure_svg_payload(id).svg_paths.push(VelloPath::default());
     let payload = timeline.world.payload(id).cloned().unwrap_or_default();
     let snapshot = snapshot_payload_at(&payload, 0);
@@ -103,7 +108,7 @@ fn snapshot_preserves_svg_paths() {
 fn snapshot_clears_func_transitions() {
     let mut timeline = Timeline::new();
     let track = AnimationTrack::placeholder("test".to_string());
-    let id = timeline.world.spawn_with_track("test", track);
+    let id = timeline.world.spawn_with_track("test", "Rect", track);
     timeline
         .world
         .func_transitions_mut(id)
@@ -137,7 +142,7 @@ fn snapshot_preserves_procedural_plot() {
     use crate::ast::Expr;
     let mut timeline = Timeline::new();
     let track = AnimationTrack::placeholder("test".to_string());
-    let id = timeline.world.spawn_with_track("test", track);
+    let id = timeline.world.spawn_with_track("test", "Rect", track);
     timeline.world.ensure_plot_payload(id).procedural_plot =
         Some(crate::timeline::plot::ProceduralPlot {
             plot_type: crate::timeline::plot::ProceduralPlotKind::Curve(
@@ -238,7 +243,7 @@ fn compute_carry_bag_skips_non_persistent_actors() {
     let mut timeline = Timeline::new();
 
     let rect1 = AnimationTrack::placeholder("rect1".to_string());
-    let rect1_id = timeline.world.spawn_with_track("rect1", rect1);
+    let rect1_id = timeline.world.spawn_with_track("rect1", "Rect", rect1);
     timeline
         .world
         .style_mut(rect1_id)
@@ -247,7 +252,7 @@ fn compute_carry_bag_skips_non_persistent_actors() {
         .add_keyframe(0, 1.0, Easing::Linear);
 
     let rect2 = AnimationTrack::placeholder("rect2".to_string());
-    let rect2_id = timeline.world.spawn_with_track("rect2", rect2);
+    let rect2_id = timeline.world.spawn_with_track("rect2", "Rect", rect2);
     timeline
         .world
         .style_mut(rect2_id)
@@ -273,7 +278,7 @@ fn compute_carry_bag_carries_auto_color_slot() {
     let mut timeline = Timeline::new();
 
     let actor = AnimationTrack::placeholder("circle".to_string());
-    let actor_id = timeline.world.spawn_with_track("circle", actor);
+    let actor_id = timeline.world.spawn_with_track("circle", "Rect", actor);
     timeline
         .world
         .style_mut(actor_id)
@@ -296,7 +301,7 @@ fn compute_carry_bag_carries_auto_color_slot() {
 fn inject_carry_bag_seeds_auto_color_assignments() {
     let mut source = Timeline::new();
     let actor = AnimationTrack::placeholder("dot".to_string());
-    let actor_id = source.world.spawn_with_track("dot", actor);
+    let actor_id = source.world.spawn_with_track("dot", "Rect", actor);
     source
         .world
         .style_mut(actor_id)
@@ -328,7 +333,7 @@ fn inject_carry_bag_seeds_auto_color_assignments() {
 fn carry_bag_preserves_auto_color_and_transcript() {
     let mut source = Timeline::new();
     let actor = AnimationTrack::placeholder("narrator".to_string());
-    let actor_id = source.world.spawn_with_track("narrator", actor);
+    let actor_id = source.world.spawn_with_track("narrator", "Rect", actor);
     source
         .world
         .style_mut(actor_id)
@@ -366,9 +371,8 @@ fn carry_bag_preserves_auto_color_and_transcript() {
 #[test]
 fn carry_bag_preserves_container_layout() {
     let mut source = Timeline::new();
-    let mut actor = AnimationTrack::placeholder("row".to_string());
-    actor.set_identity("Row");
-    let row_id = source.world.spawn_with_track("row", actor);
+    let actor = AnimationTrack::placeholder("row".to_string());
+    let row_id = source.world.spawn_with_track("row", "Row", actor);
     source
         .world
         .style_mut(row_id)
@@ -440,9 +444,8 @@ fn carry_bag_preserves_container_layout() {
 #[test]
 fn carry_bag_preserves_coordinate_frame() {
     let mut source = Timeline::new();
-    let mut actor = AnimationTrack::placeholder("g".to_string());
-    actor.set_identity("Graph");
-    source.world.spawn_with_track("g", actor);
+    let actor = AnimationTrack::placeholder("g".to_string());
+    source.world.spawn_with_track("g", "Graph", actor);
     let frame = CoordinateFrameComponent {
         x_domain: [0.0, 4.0],
         y_domain: [0.0, 2.0],
@@ -530,9 +533,8 @@ fn carry_remaps_container_child_order_ids() {
 #[test]
 fn snapshot_preserves_svg_actor_kind() {
     let mut timeline = Timeline::new();
-    let mut track = AnimationTrack::placeholder("icon".to_string());
-    track.set_identity("Svg");
-    let id = timeline.world.spawn_with_track("icon", track);
+    let track = AnimationTrack::placeholder("icon".to_string());
+    let id = timeline.world.spawn_with_track("icon", "Svg", track);
     timeline
         .world
         .ensure_svg_payload(id)
@@ -541,7 +543,8 @@ fn snapshot_preserves_svg_actor_kind() {
 
     let track = timeline.world.track(id).expect("spawned icon track");
     let snapshot = snapshot_track_at(track, 0);
-    assert_eq!(snapshot.actor_type, "Svg");
+    assert_eq!(snapshot.id, id);
+    assert_eq!(timeline.world.actor_type(id), "Svg");
 
     let payload = timeline.world.payload(id).cloned().unwrap_or_default();
     let payload_snapshot = snapshot_payload_at(&payload, 0);
@@ -554,11 +557,13 @@ fn snapshot_preserves_svg_actor_kind() {
 
 #[test]
 fn snapshot_preserves_image_actor_kind() {
-    let mut track = AnimationTrack::placeholder("pic".to_string());
-    track.set_identity("Image");
+    let mut timeline = Timeline::new();
+    let track = AnimationTrack::placeholder("pic".to_string());
+    let id = timeline.world.spawn_with_track("pic", "Image", track);
 
-    let snapshot = snapshot_track_at(&track, 0);
-    assert_eq!(snapshot.actor_type, "Image");
+    let snapshot = snapshot_track_at(timeline.world.track(id).expect("spawned track"), 0);
+    assert_eq!(snapshot.id, id);
+    assert_eq!(timeline.world.actor_type(id), "Image");
 }
 
 #[test]
@@ -566,9 +571,8 @@ fn inject_carry_bag_preserves_svg_paths() {
     use crate::timeline::VelloPath;
 
     let mut source = Timeline::new();
-    let mut actor = AnimationTrack::placeholder("icon".to_string());
-    actor.set_identity("Svg");
-    let icon_id = source.world.spawn_with_track("icon", actor);
+    let actor = AnimationTrack::placeholder("icon".to_string());
+    let icon_id = source.world.spawn_with_track("icon", "Svg", actor);
     source.world.ensure_svg_payload(icon_id).svg_paths.push(VelloPath::default());
     source.world.ensure_svg_payload(icon_id).svg_paths.push(VelloPath::default());
     source.set_persistence_flag("icon", true);
@@ -579,7 +583,7 @@ fn inject_carry_bag_preserves_svg_paths() {
     dest.inject_carry_bag(&bag, &source, 0, [1280.0, 720.0], &mut Vec::new());
 
     let icon = dest.world.tracks.get("icon").expect("icon must be carried");
-    assert_eq!(icon.actor_type, "Svg");
+    assert_eq!(dest.world.actor_type(icon.id), "Svg");
     assert_eq!(dest.world.svg_paths(icon.id).len(), 2, "svg_paths must survive carry");
 }
 
@@ -589,9 +593,8 @@ fn inject_carry_bag_preserves_procedural_plot() {
     use crate::timeline::plot::{PlotCurveKind, ProceduralPlot};
 
     let mut source = Timeline::new();
-    let mut actor = AnimationTrack::placeholder("curve".to_string());
-    actor.set_identity("PlotCurve");
-    let curve_id = source.world.spawn_with_track("curve", actor);
+    let actor = AnimationTrack::placeholder("curve".to_string());
+    let curve_id = source.world.spawn_with_track("curve", "PlotCurve", actor);
     source.world.ensure_plot_payload(curve_id).procedural_plot = Some(ProceduralPlot {
         plot_type: crate::timeline::plot::ProceduralPlotKind::Curve(PlotCurveKind::Cartesian),
         kind: PlotCurveKind::Cartesian,
@@ -625,7 +628,7 @@ fn inject_carry_bag_preserves_procedural_plot() {
     dest.inject_carry_bag(&bag, &source, 0, [1280.0, 720.0], &mut Vec::new());
 
     let carried = dest.world.tracks.get("curve").expect("curve must be carried");
-    assert_eq!(carried.actor_type, "PlotCurve");
+    assert_eq!(dest.world.actor_type(carried.id), "PlotCurve");
     assert!(
         dest.world.procedural_plot(carried.id).is_some(),
         "procedural_plot must survive carry"
@@ -637,10 +640,10 @@ fn compute_carry_bag_propagates_child_persistence_flag() {
     let mut timeline = Timeline::new();
 
     let parent = AnimationTrack::placeholder("parent".to_string());
-    let parent_id = timeline.world.spawn_with_track("parent", parent);
+    let parent_id = timeline.world.spawn_with_track("parent", "Rect", parent);
 
     let child = AnimationTrack::placeholder("child".to_string());
-    let child_id = timeline.world.spawn_with_track("child", child);
+    let child_id = timeline.world.spawn_with_track("child", "Rect", child);
     timeline.world.geometry_mut(child_id).position.ensure([0.0, 0.0]).add_keyframe(
         0,
         [10.0, 20.0],
@@ -713,9 +716,8 @@ fn value_serde_round_trip() {
 #[test]
 fn carry_bag_preserves_primitive_payload() {
     let mut source = Timeline::new();
-    let mut track = AnimationTrack::placeholder("asset".to_string());
-    track.set_identity("Svg");
-    let id = source.world.spawn_with_track("asset", track);
+    let track = AnimationTrack::placeholder("asset".to_string());
+    let id = source.world.spawn_with_track("asset", "Svg", track);
     source.world.ensure_svg_payload(id);
     source.set_persistence_flag("asset", true);
 

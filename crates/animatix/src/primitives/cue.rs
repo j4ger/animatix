@@ -54,13 +54,6 @@ impl Primitive for CuePrimitive {
         ctx.timeline.add_node(label.to_string(), ctx.parent_label);
         let track_id = ctx.timeline.world.spawn(label, "Cue");
         ctx.timeline.world.set_first_seen(track_id, ctx.time_ms as u64);
-        let track = ctx
-            .timeline
-            .world
-            .tracks
-            .get_by_id_mut(track_id)
-            .expect("spawn creates the track");
-        track.set_identity("Cue");
 
         for prop in props {
             if prop.name == "text" {

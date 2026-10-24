@@ -97,7 +97,7 @@ mod tests {
             }),
             ..Default::default()
         };
-        let id = timeline.world.spawn_with_track("box", track);
+        let id = timeline.world.spawn_with_track("box", "Rect", track);
         timeline.world.style_mut(id).color = Some({
             let mut t = crate::timeline::PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);
             t.add_keyframe(0, [1.0, 0.0, 0.0, 1.0], crate::timeline::Easing::Linear);

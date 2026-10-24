@@ -105,7 +105,7 @@ pub(super) fn is_recursive_container(
 ) -> bool {
     timeline
         .primitive_registry
-        .info_of(&track.actor_type)
+        .info_of(timeline.world.actor_type(track.id))
         .map(crate::timeline::PrimitiveFamilyDescriptor::from_info)
         .is_some_and(|descriptor| descriptor.is_recursive_container())
 }
@@ -128,7 +128,7 @@ pub(crate) fn ensure_vector_reveal_target(
         return false;
     };
 
-    let capabilities = timeline.primitive_registry.info_of(&track.actor_type);
+    let capabilities = timeline.primitive_registry.info_of(timeline.world.actor_type(track.id));
 
     if capabilities.is_some_and(|info| info.capabilities.image_payload) {
         push_unsupported_action_target_diagnostic(

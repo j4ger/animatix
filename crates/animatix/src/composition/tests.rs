@@ -995,8 +995,8 @@ fn test_plot_curve_carry() {
 
     let curve_track = scene_b.timeline.world.tracks.get("curve").unwrap();
     assert_eq!(
-        curve_track.actor_type,
-        "PlotCurve".to_string(),
+        scene_b.timeline.world.actor_type(curve_track.id),
+        "PlotCurve",
         "carried PlotCurve track must retain PlotCurve kind"
     );
     assert!(
@@ -1032,8 +1032,8 @@ fn test_svg_actor_carry() {
     );
     let icon_track = scene_b.timeline.world.tracks.get("icon").unwrap();
     assert_eq!(
-        icon_track.actor_type,
-        "Svg".to_string(),
+        scene_b.timeline.world.actor_type(icon_track.id),
+        "Svg",
         "carried Svg track must retain Svg kind"
     );
 }
@@ -1065,8 +1065,8 @@ fn test_image_actor_carry() {
     );
     let pic_track = scene_b.timeline.world.tracks.get("pic").unwrap();
     assert_eq!(
-        pic_track.actor_type,
-        "Image".to_string(),
+        scene_b.timeline.world.actor_type(pic_track.id),
+        "Image",
         "carried Image track must retain Image kind"
     );
 }

@@ -56,13 +56,6 @@ impl Primitive for FragmentPrimitive {
         // Ensure the track exists.
         let track_id = ctx.timeline.world.spawn(label, "Fragment");
         ctx.timeline.world.meta_mut(track_id).first_seen_ms = ctx.time_ms as u64;
-        let track = ctx
-            .timeline
-            .world
-            .tracks
-            .get_by_id_mut(track_id)
-            .expect("spawn creates the track");
-        track.set_identity("Fragment");
 
         // Extract the text body and store it as text_content.
         for prop in props {
@@ -94,7 +87,7 @@ impl Primitive for FragmentPrimitive {
                             ctx.timeline
                                 .world
                                 .highlight
-                                .get_mut(track.id)
+                                .get_mut(track_id)
                                 .highlight_color
                                 .ensure([0.3, 0.5, 1.0, 1.0])
                                 .add_keyframe(
@@ -117,7 +110,7 @@ impl Primitive for FragmentPrimitive {
                         ctx.timeline
                             .world
                             .highlight
-                            .get_mut(track.id)
+                            .get_mut(track_id)
                             .highlight_color
                             .ensure([0.3, 0.5, 1.0, 1.0])
                             .add_keyframe(ctx.time_ms as u64, color, Easing::Linear);

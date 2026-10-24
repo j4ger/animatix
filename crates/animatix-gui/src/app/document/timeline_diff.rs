@@ -4,12 +4,9 @@
 //! summarizes the compiled-target change so handlers can keep time, active
 //! scene, and selection when they still exist and report what was removed.
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
-
-use animatix::timeline::ActorField;
-
 use crate::document::DocumentSession;
-
+use animatix::timeline::ActorField;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 /// Stable identity of a keyframe selection.
 ///
 /// `scene` is `None` for a single-scene document and `Some(name)` for a named
@@ -217,6 +214,7 @@ fn lane_keyframe_times(
 /// authority for actual keyframe times.
 pub(crate) fn collect_property_lanes(
     track: &animatix::timeline::AnimationTrack,
+    actor_type: &str,
     geometry: &animatix::timeline::animation_track::GeometryTracks,
     style: &animatix::timeline::animation_track::StyleTracks,
     shape: &animatix::timeline::animation_track::ShapeTracks,
@@ -228,8 +226,8 @@ pub(crate) fn collect_property_lanes(
     // Storage fields the registry allows for this actor kind. Keying by field
     // dedupes aliases that share one storage location. Capabilities derive from
     // the actor type here: this helper receives a bare track, not a `World`.
-    let caps = animatix::timeline::caps_for_type(&track.actor_type).unwrap_or_default();
-    let allowed_fields: Vec<ActorField> = allowed_property_indices(&caps, &track.actor_type)
+    let caps = animatix::timeline::caps_for_type(actor_type).unwrap_or_default();
+    let allowed_fields: Vec<ActorField> = allowed_property_indices(&caps, actor_type)
         .into_iter()
         .map(|idx| PROPERTY_REGISTRY[idx].field)
         .collect();
@@ -681,6 +679,7 @@ mod tests {
 
         let lanes = collect_property_lanes(
             track,
+            timeline.world().actor_type(track.id),
             timeline.world().geometry(track.id),
             timeline.world().style(track.id),
             timeline.world().shape(track.id),
@@ -730,6 +729,7 @@ mod tests {
         assert!(
             !collect_property_lanes(
                 track,
+                timeline.world().actor_type(track.id),
                 timeline.world().geometry(track.id),
                 timeline.world().style(track.id),
                 timeline.world().shape(track.id),

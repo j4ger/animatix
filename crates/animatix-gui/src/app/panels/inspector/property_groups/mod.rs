@@ -75,7 +75,8 @@ pub(crate) fn build_property_groups(
     time_ms: u64,
 ) -> Vec<PropertyGroup> {
     let caps = timeline.world().caps(track.id);
-    let indices = allowed_property_indices(&caps, &track.actor_type);
+    let actor_type = timeline.world().actor_type(track.id);
+    let indices = allowed_property_indices(&caps, actor_type);
 
     let mut geometry = Vec::new();
     let mut layout = Vec::new();
@@ -230,7 +231,7 @@ pub(crate) fn build_property_groups(
                 "solo" => visibility.push(entry),
                 "comma" | "decimals" | "prefix" | "suffix" | "value" | "split_by"
                 | "split_mask" | "split_offset_y" | "split_stagger" => text.push(entry),
-                "transcript" if track.actor_type == "Audio" => audio.push(entry),
+                "transcript" if actor_type == "Audio" => audio.push(entry),
                 "caption_mode" | "active_color" | "inactive_color" | "backdrop"
                 | "backdrop_color" | "backdrop_radius" | "backdrop_padding" | "pop_scale"
                 | "max_lines" | "transition_time" | "transcript" => captions.push(entry),
@@ -347,7 +348,6 @@ pub(crate) fn build_property_groups(
     }
 
     let mut extension_props = Vec::new();
-    let actor_type = track.actor_type.as_str();
     // A standalone track (inspector tests, previews not backed by a world
     // entity) has no plan slot; fall back to an empty plan, which is what the
     // old on-track plan was for those callers.
@@ -454,7 +454,8 @@ fn read_inspector_property_value(
         .read_property_value(track.id, schema.field, time_ms)
         .unwrap_or_else(|| {
             (schema.default_value)(
-                &animatix::timeline::caps_for_type(&track.actor_type).unwrap_or_default(),
+                &animatix::timeline::caps_for_type(timeline.world().actor_type(track.id))
+                    .unwrap_or_default(),
             )
         })
 }

@@ -51,14 +51,6 @@ pub struct AnimationTrack {
     pub id: EntityId,
     /// Human-readable identifier for the actor.
     pub label: String,
-    /// Capability projection of this actor's primitive kind, derived once at
-    /// identity time.
-    /// or an extension's type name). Required and non-optional: it is the
-    /// single registry key the frame path resolves the primitive with, so no
-    /// lookup needs a kind fallback. Empty only across a legacy deserialization
-    /// boundary, which [`Self::normalize_identity`] resolves once on load.
-    #[cfg_attr(feature = "serde", serde(default))]
-    pub actor_type: String,
     // ── Tagged union tracks ──
 }
 
@@ -69,13 +61,11 @@ impl AnimationTrack {
     /// The primitive identity is required at construction: capabilities are
     /// derived from it, so no later lookup needs a fallback for a track that
     /// was built without a type name.
-    pub fn new(label: String, actor_type: impl Into<String>) -> Self {
-        let actor_type = actor_type.into();
+    pub fn new(label: String) -> Self {
         Self {
             // Identity
             id: EntityId::INVALID,
             label: label.clone(),
-            actor_type,
             // Style tier (sub-struct)
             // Text tier (sub-struct)
         }
@@ -88,20 +78,7 @@ impl AnimationTrack {
     /// [`Self::new`] with a real primitive type name.
     #[cfg(test)]
     pub(crate) fn placeholder(label: String) -> Self {
-        Self::new(label, "Rect")
-    }
-
-    /// Resolve tracks whose identity was never set. The authored type name is
-    /// the only identity — there is nothing to derive it from.
-    pub fn normalize_identity(&mut self) {
-        if self.actor_type.is_empty() {
-            tracing::warn!("track '{}' has an empty actor type; it cannot be rendered", self.label);
-        }
-    }
-
-    /// Set this track's primitive type name. Capabilities live in `World`.
-    pub(crate) fn set_identity(&mut self, actor_type: &str) {
-        self.actor_type = actor_type.to_string();
+        Self::new(label)
     }
 
     /// The primitive type name this track must resolve to at `time_ms`.
@@ -117,13 +94,18 @@ impl AnimationTrack {
     /// the primitive instead; every other identity keeps its type, including
     /// non-shape actors whose plan carries only a vestigial constant
     /// `shape_type` (inserted by the generic morph build path).
-    pub fn render_type_name(&self, shape: &ShapeTracks, time_ms: u64) -> &str {
+    pub fn render_type_name<'a>(
+        &self,
+        actor_type: &'a str,
+        shape: &ShapeTracks,
+        time_ms: u64,
+    ) -> &'a str {
         const VECTOR_SHAPES: [&str; 6] = ["Rect", "Ellipse", "Line", "Arrow", "Polygon", "Path"];
-        if !VECTOR_SHAPES.contains(&self.actor_type.as_str()) {
-            return &self.actor_type;
+        if !VECTOR_SHAPES.contains(&actor_type) {
+            return actor_type;
         }
         let Some(shape_track) = shape.shape_type.as_ref() else {
-            return &self.actor_type;
+            return actor_type;
         };
         // Only a track whose value actually changes may switch the primitive.
         // The verdict is memoized on the track (`shape_type_switches`, cleared
@@ -136,7 +118,7 @@ impl AnimationTrack {
                 let mut values = shape_track.keyframes.values();
                 let Some((first, _)) = values.next() else {
                     shape.shape_type_switches.set(Some(false));
-                    return &self.actor_type;
+                    return actor_type;
                 };
                 let changed = values.any(|(v, _)| v != first);
                 shape.shape_type_switches.set(Some(changed));
@@ -144,13 +126,13 @@ impl AnimationTrack {
             },
         };
         if !switches {
-            return &self.actor_type;
+            return actor_type;
         }
         // A `switches == true` verdict implies a non-empty map; emptiness
         // returns through `invalidate_frame_cache`'s memo clear, so this
         // guard is belt-and-braces, not a live path.
         let Some((first, _)) = shape_track.keyframes.values().next() else {
-            return &self.actor_type;
+            return actor_type;
         };
         let at: ShapeType = shape.shape_type.get(time_ms, *first);
         let name = match at {
@@ -160,13 +142,9 @@ impl AnimationTrack {
             ShapeType::Polygon => "Polygon",
             ShapeType::Path => "Path",
             ShapeType::Arrow => "Arrow",
-            _ => return &self.actor_type,
+            _ => return actor_type,
         };
-        if name != self.actor_type {
-            name
-        } else {
-            &self.actor_type
-        }
+        if name != actor_type { name } else { actor_type }
     }
 
     /// Sample a plan-stored property by canonical name.

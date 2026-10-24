@@ -406,8 +406,8 @@ mod tests {
         let mut store = TrackStore::new();
         assert!(store.is_empty());
 
-        let t1 = AnimationTrack::new("box".to_string(), "Rect");
-        let t2 = AnimationTrack::new("text".to_string(), "Text");
+        let t1 = AnimationTrack::new("box".to_string());
+        let t2 = AnimationTrack::new("text".to_string());
 
         let prev = store.insert("box".to_string(), t1);
         assert!(prev.is_none());
@@ -430,13 +430,13 @@ mod tests {
         assert_eq!(labels, vec!["box", "text"]);
 
         // Mutation via index
-        store[id_box].actor_type = "Text".to_string();
-        assert_eq!(store["box"].actor_type, "Text");
+        store[id_box].label = "renamed".to_string();
+        assert_eq!(store["box"].label, "renamed");
 
         // Entry API
         store
             .entry("circle".to_string())
-            .or_insert_with(|| AnimationTrack::new("circle".to_string(), "Circle"));
+            .or_insert_with(|| AnimationTrack::new("circle".to_string()));
         assert_eq!(store.len(), 3);
         assert!(store.contains_key("circle"));
     }

@@ -15,7 +15,8 @@
 //!        └──► PrimitiveInfo cards (animatix_std::CATALOG, the metadata source)
 //! ```
 //!
-//! Identity is the authored type name (`AnimationTrack::actor_type`); the
+//! Identity is the authored type name, stored per entity in `World`
+//! (`World::actor_type`); the
 //! engine dispatches on `ActorCaps`, a `Copy` projection derived from the
 //! catalog row. There is no actor-kind enum to extend.
 //!

@@ -312,6 +312,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     if let Some(track) = tl.get_track(actor_label) {
                         extra_prop_lanes += collect_property_lanes(
                             track,
+                            tl.world().actor_type(track.id),
                             tl.world().geometry(track.id),
                             tl.world().style(track.id),
                             tl.world().shape(track.id),
@@ -518,6 +519,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     if let Some(track) = tl.get_track(actor_label) {
                         let prop_lanes = collect_property_lanes(
                             track,
+                            tl.world().actor_type(track.id),
                             tl.world().geometry(track.id),
                             tl.world().style(track.id),
                             tl.world().shape(track.id),

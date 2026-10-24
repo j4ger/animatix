@@ -159,7 +159,7 @@ impl<'a> TrackFields<'a> {
             tagged_tracks: None,
             payload: None,
             label: &track.label,
-            caps: animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
+            caps: ActorCaps::default(),
             property_plan: None,
         }
     }
@@ -265,7 +265,7 @@ impl<'a> TrackFieldsMut<'a> {
             highlight: None,
             tagged_tracks: None,
             payload: None,
-            caps: animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
+            caps: ActorCaps::default(),
             label: &track.label,
             property_plan: None,
         }
@@ -383,7 +383,7 @@ mod field_access_tests {
         assert!(fields.field_ref(ActorField::NoStorage).is_none());
 
         // The geometry tier is a `World` component; a bare-track bundle has none.
-        let track = AnimationTrack::new("box".into(), "Rect");
+        let track = AnimationTrack::new("box".into());
         assert!(TrackFields::from_track(&track).field_ref(ActorField::Size).is_none());
     }
 

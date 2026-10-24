@@ -130,28 +130,31 @@ impl Timeline {
                 {
                     diagnostics.append(&mut diags);
                 }
-                let mut extension_caps = None;
+                let mut extension_id = None;
                 if let Some(track) = self.world.tracks.get_mut(label) {
                     if self.world.decl_span.get(track.id).is_none()
                         && let Some(span) = decl_span
                     {
                         self.world.decl_span.get_or_insert_with(track.id, || span);
                     }
+                    extension_id = Some(track.id);
+                }
+                if let Some(id) = extension_id {
+                    // Identity lives in `World`; set it from the registration
+                    // type so caps and plan lookups resolve the extension
+                    // primitive (and a re-declaration cannot keep a stale type).
+                    self.world.set_identity(id, ty);
                     // Capabilities come from the registration info, not the
                     // built-in catalog: an in-process extension can be a
                     // text-like or shape-like primitive and must get the full
                     // built-in treatment.
-                    track.actor_type = ty.to_string();
-                    extension_caps = registry
-                        .info_of(ty)
-                        .map(|info| (track.id, animatix_std::caps_from_info(info)));
+                    if let Some(info) = registry.info_of(ty) {
+                        self.world.set_caps(id, animatix_std::caps_from_info(info));
+                    }
                     // Extension builds create the track; mirror the built-in
                     // path so the actor is visible from its declaration time
                     // instead of being skipped forever (first_seen_ms = MAX).
-                    self.world.meta.record_first_seen(track.id, time_ms as u64);
-                }
-                if let Some((id, caps)) = extension_caps {
-                    self.world.set_caps(id, caps);
+                    self.world.meta.record_first_seen(id, time_ms as u64);
                 }
                 self.process_inline_items(time_ms, children, label, diagnostics);
                 // Extension builds only create the track; apply the common
@@ -231,7 +234,7 @@ impl Timeline {
             .tracks
             .get(label)
             .cloned()
-            .unwrap_or_else(|| AnimationTrack::new(label.to_string(), ty));
+            .unwrap_or_else(|| AnimationTrack::new(label.to_string()));
 
         // Math coordinate auto-mapping: if the parent carries a coordinate
         // frame component, map child positions from math coordinates to screen
@@ -282,16 +285,15 @@ impl Timeline {
             );
         }
 
-        // Set track.kind before processing children so the layout-managed-child
-        // check can inspect the parent's kind. Only create track entry if the actor
-        // has children (otherwise skip to avoid breaking is_first_decl).
+        // Set the parent's identity before processing children so the
+        // layout-managed-child check can inspect the parent's kind. Only create
+        // the track entry if the actor has children (otherwise skip to avoid
+        // breaking is_first_decl).
         if !children.is_empty() {
-            let track_id = {
-                let early_track = self.world.ensure_track(label, ty);
-                early_track.set_identity(ty);
-                early_track.id
-            };
-            self.world.rebuild_property_plan(track_id);
+            let track_id = self.world.spawn(label, ty);
+            self.world.set_identity(track_id, ty);
+            let track_caps = self.world.caps(track_id);
+            self.world.property_plan.get_mut(track_id).rebuild_for(&track_caps, ty);
         }
 
         self.process_inline_items(time_ms, children, label, diagnostics);

@@ -192,12 +192,6 @@ mod tests {
             _children: &[InlineItem],
         ) -> Result<(), Vec<Diagnostic>> {
             let track_id = ctx.timeline.world.spawn(label, "Text");
-            ctx.timeline
-                .world
-                .tracks
-                .get_by_id_mut(track_id)
-                .expect("spawn creates the track")
-                .set_identity("Text");
             ctx.timeline.world.rebuild_property_plan(track_id);
             Ok(())
         }
@@ -321,8 +315,7 @@ mod tests {
             report.diagnostics
         );
         let track = report.output.world.tracks.get("g").expect("custom actor track");
-        assert_eq!(track.actor_type, "Gauge");
-        assert_eq!(track.actor_type, "Gauge");
+        assert_eq!(report.output.world.actor_type(track.id), "Gauge");
 
         let _scene = report.output.evaluate(0.0, crate::timeline::SceneDimensions::default());
     }

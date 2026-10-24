@@ -212,6 +212,11 @@ impl Timeline {
         // Capabilities live in `World`, so resolve them before the mutable
         // track borrow (the projection is `Copy`).
         let caps = self.world.get_id(&target_key).map(|id| self.world.caps(id)).unwrap_or_default();
+        let actor_type = self
+            .world
+            .get_id(&target_key)
+            .map(|id| self.world.actor_type(id).to_string())
+            .unwrap_or_default();
         let Some(track) = self.world.tracks.get_mut(&target_key) else {
             tracing::warn!("assignment target '{target_key}' has no track; skipping");
             return;
@@ -336,7 +341,7 @@ impl Timeline {
         }
 
         // ── Primitive dispatch: let each primitive handle its own special cases ──
-        let primitive = self.primitive_registry.find(&track.actor_type);
+        let primitive = self.primitive_registry.find(&actor_type);
         if let Some(primitive) = primitive {
             let mut ctx = AssignmentCtx {
                 t_start_ms,
@@ -349,6 +354,7 @@ impl Timeline {
                 asset_cache: std::sync::Arc::make_mut(&mut self.asset_cache),
                 highlight: self.world.highlight.try_get_mut(track.id),
                 style: self.world.style.try_get_mut(track.id),
+                caps,
                 geometry: self.world.geometry.try_get_mut(track.id),
                 shape: self.world.shape.try_get_mut(track.id),
                 text: self.world.text.try_get_mut(track.id),
@@ -511,6 +517,7 @@ impl Timeline {
 
                 let new_half_size = handle_size_assignment(
                     track,
+                    &actor_type,
                     self.world.style.get(track_id),
                     self.world.geometry.get_mut(track_id),
                     self.world.shape.get_mut(track_id),
@@ -642,6 +649,7 @@ impl Timeline {
                         .expect("assignment target track exists");
                     rebuild_vector_paths(
                         track,
+                        actor_type.as_str(),
                         self.world.style.get(track_id),
                         self.world.geometry.get(track_id),
                         self.world.shape.get_mut(track_id),
@@ -656,7 +664,7 @@ impl Timeline {
         } else {
             // Extension properties registered on this actor type.
             if let Some(ctx) = self.extensions.clone() {
-                let spec = ctx.property_spec(&track.actor_type, property).cloned();
+                let spec = ctx.property_spec(&actor_type, property).cloned();
                 if let Some(spec) = spec {
                     if let Some(pv) =
                         crate::timeline::property_engine::parse_extension_property_value(

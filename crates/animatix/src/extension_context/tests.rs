@@ -45,6 +45,7 @@ impl Primitive for Gauge {
     ) -> Result<(), Vec<Diagnostic>> {
         let track_id = ctx.timeline.world.spawn_with_track(
             label,
+            "Gauge",
             crate::timeline::AnimationTrack::placeholder(label.to_string()),
         );
         // The fixture historically claimed the `Text` kind so its plan carries
@@ -465,7 +466,7 @@ fn build_with_context_writes_extension_properties() {
     );
 
     let track = report.output.world.tracks.get("g").expect("gauge track");
-    assert_eq!(track.actor_type, "Gauge");
+    assert_eq!(report.output.world.actor_type(track.id), "Gauge");
     let plan = report.output.world.property_plan(track.id);
     let level = animatix_syntax::schema::PropertyId(1_000_000);
     assert_eq!(

@@ -2,7 +2,7 @@
 //! evaluation.
 
 use super::*;
-use crate::timeline::{AnimationTrack, DEFAULT_WHITE, Value, VelloPath};
+use crate::timeline::{DEFAULT_WHITE, Value, VelloPath};
 
 #[test]
 fn all_primitives_have_unique_type_names() {
@@ -53,11 +53,10 @@ fn text_color_override_reaches_shape_style() {
     // `always { l.stroke = "#30d158" }` arrives in the frame override map as a
     // `Value::Str`. Hex text has to land the same way a tuple does, and a
     // non-color under a color key has to leave the keyframed value alone.
-    let track = AnimationTrack::new("l".to_string(), "Line");
     let mut overrides = std::collections::HashMap::new();
     overrides.insert("color".to_string(), Value::Str("#ff2d55".to_string()));
     overrides.insert("stroke".to_string(), Value::Num(0.5));
-    let caps = animatix_std::caps_for_type(&track.actor_type).unwrap_or_default();
+    let caps = animatix_std::caps_for_type("Line").unwrap_or_default();
     let style_tracks = crate::timeline::StyleTracks::default();
     let style = sample_shape_style(&style_tracks, caps, 0, Some(&overrides));
     let near = |a: [f32; 4], b: [f32; 4]| a.iter().zip(b).all(|(x, y)| (x - y).abs() < 1e-6);
@@ -274,7 +273,7 @@ fn runtime_text_content_crossfade_compiles_both_endpoints() {
         style: Some(&style_tracks),
         text: Some(&text),
         property_plan: None,
-        caps: animatix_std::caps_for_type(track.actor_type.as_str()).unwrap_or_default(),
+        caps: animatix_std::caps_for_type("Rect").unwrap_or_default(),
         world: None,
 
         payload: None,

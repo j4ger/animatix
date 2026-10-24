@@ -332,12 +332,13 @@ fn every_built_track_identity_is_consistent() {
     let timeline = report.output;
 
     for (label, track) in &timeline.world.tracks {
-        let expected = animatix_std::caps_for_type(&track.actor_type).unwrap_or_default();
+        let expected =
+            animatix_std::caps_for_type(timeline.world.actor_type(track.id)).unwrap_or_default();
         assert_eq!(
             timeline.world.caps(track.id),
             expected,
             "track '{label}' caps drifted from actor_type '{}'",
-            track.actor_type
+            timeline.world.actor_type(track.id)
         );
     }
 }

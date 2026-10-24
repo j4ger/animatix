@@ -224,7 +224,7 @@ fn native_append_image_uses_actor_image() {
         },
         natural_size: [1.0, 1.0],
     };
-    let id = timeline.world.spawn_with_track("pulse", track);
+    let id = timeline.world.spawn_with_track("pulse", "Rect", track);
     timeline.world.ensure_image_payload(id).image.ensure(None).add_keyframe(
         0,
         Some(image),
@@ -280,7 +280,7 @@ fn native_append_image_rejects_uncached_explicit_url() {
         },
         natural_size: [1.0, 1.0],
     };
-    let id = timeline.world.spawn_with_track("pulse", track);
+    let id = timeline.world.spawn_with_track("pulse", "Rect", track);
     timeline.world.ensure_image_payload(id).image.ensure(None).add_keyframe(
         0,
         Some(image),
@@ -426,8 +426,8 @@ fn native_get_property_reads_extension_slot() {
         .register_property("Pulse", "glow", animatix_syntax::schema::PropertyValueKind::F32, true)
         .expect("register property");
     let track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
-    let caps = animatix_std::caps_for_type(&track.actor_type).unwrap_or_default();
-    let mut plan = crate::timeline::plan::PropertyPlan::for_actor(&caps, &track.actor_type);
+    let caps = animatix_std::caps_for_type("Rect").unwrap_or_default();
+    let mut plan = crate::timeline::plan::PropertyPlan::for_actor(&caps, "Rect");
     crate::timeline::property_engine::write_property_plan_slot(
         &mut plan,
         id,

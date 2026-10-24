@@ -81,6 +81,7 @@ impl Primitive for CodePrimitive {
         };
         if let Err(e) = crate::timeline::recompile_text_at_assignment(
             track,
+            ctx.caps,
             style,
             text,
             geometry,

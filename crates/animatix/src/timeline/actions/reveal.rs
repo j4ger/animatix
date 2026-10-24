@@ -30,7 +30,7 @@ fn ensure_reveal_stroke(
 fn is_text_like(timeline: &Timeline, track: &crate::timeline::AnimationTrack) -> bool {
     timeline
         .primitive_registry
-        .info_of(&track.actor_type)
+        .info_of(timeline.world.actor_type(track.id))
         .is_some_and(|info| info.capabilities.text_paths)
 }
 

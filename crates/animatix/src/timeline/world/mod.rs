@@ -6,6 +6,8 @@ mod geometry;
 mod hierarchy;
 mod highlight;
 mod meta;
+#[cfg(test)]
+mod meta_default_tests;
 mod payload;
 mod plan;
 mod shape;
@@ -40,6 +42,8 @@ pub struct World {
     pub(crate) hierarchy: RequiredStore<SceneHierarchyComponent>,
     pub(crate) highlight: RequiredStore<crate::timeline::animation_track::HighlightTracks>,
     pub(crate) tagged_tracks: RequiredStore<TaggedTracksComponent>,
+    /// Primitive identity (registry key) for every entity.
+    pub(crate) actor_types: RequiredStore<String>,
     /// Shape-command memo cells per entity.
     pub(crate) shape_memos:
         RequiredStore<std::cell::RefCell<Box<crate::primitives::ShapeCommandMemo>>>,
@@ -212,6 +216,7 @@ impl World {
     /// Mirrors the build path's `tracks.entry(label).or_insert_with(...)`:
     /// re-declaring a label keeps the same entity and its current data.
     pub fn spawn(&mut self, label: &str, actor_type: impl Into<String>) -> EntityId {
+        let actor_type = actor_type.into();
         if let Some(id) = self.tracks.get_id(label) {
             // The track may have been created by a legacy direct
             // `TrackStore` insert (extension builds, tests); keep the
@@ -220,17 +225,24 @@ impl World {
             self.attach_pending_auto_color(id, label);
             return id;
         }
-        self.spawn_with_track(label, AnimationTrack::new(label.to_string(), actor_type))
+        self.spawn_with_track(label, actor_type, AnimationTrack::new(label.to_string()))
     }
 
     /// Create an entity from a fully built track, or return the existing one.
-    pub fn spawn_with_track(&mut self, label: &str, track: AnimationTrack) -> EntityId {
+    pub fn spawn_with_track(
+        &mut self,
+        label: &str,
+        actor_type: impl Into<String>,
+        track: AnimationTrack,
+    ) -> EntityId {
         if let Some(id) = self.tracks.get_id(label) {
             self.ensure_len();
             self.attach_pending_auto_color(id, label);
             return id;
         }
         let id = self.tracks.insert_internal(label.to_string(), track);
+        self.ensure_len();
+        *self.actor_types.get_mut(id) = actor_type.into();
         self.ensure_len();
         self.attach_pending_auto_color(id, label);
         self.adopt(id, label);
@@ -254,16 +266,21 @@ impl World {
     /// This is the carry-injection path's old `TrackStore::insert` semantics:
     /// the label keeps its entity id, but every component starts from the new
     /// snapshot rather than inheriting the previous scene's state.
-    pub fn spawn_replacing(&mut self, label: &str, track: AnimationTrack) -> EntityId {
+    pub fn spawn_replacing(
+        &mut self,
+        label: &str,
+        actor_type: &str,
+        track: AnimationTrack,
+    ) -> EntityId {
         let replaced = self.tracks.insert(label.to_string(), track);
         let id = self.tracks.get_id(label).expect("TrackStore::insert must register the label");
         if replaced.is_some() {
             self.unlink(id);
         }
         self.ensure_len();
+        *self.actor_types.get_mut(id) = actor_type.to_string();
         self.hierarchy.reset_at(id);
         self.highlight.reset_at(id);
-        self.tagged_tracks.reset_at(id);
         self.shape_memos.reset_at(id);
         self.pending_shape_bounds.reset_at(id);
         self.bounds_slots.reset_at(id);
@@ -582,6 +599,7 @@ impl World {
         self.hierarchy.ensure_len(len);
         self.highlight.ensure_len(len);
         self.tagged_tracks.ensure_len(len);
+        self.actor_types.ensure_len(len);
         self.shape_memos.ensure_len(len);
         self.pending_shape_bounds.ensure_len(len);
         self.bounds_slots.ensure_len(len);
@@ -610,6 +628,7 @@ impl World {
         self.hierarchy.clear();
         self.highlight.clear();
         self.tagged_tracks.clear();
+        self.actor_types.clear();
         self.shape_memos.clear();
         self.pending_shape_bounds.clear();
         self.bounds_slots.clear();
@@ -659,7 +678,7 @@ mod tests {
 
         assert_eq!(world.spawn("a", "Ellipse"), a);
         assert_eq!(world.len(), 2);
-        assert_eq!(world.track(a).unwrap().actor_type, "Rect");
+        assert_eq!(world.actor_type(a), "Rect");
     }
 
     #[test]
@@ -670,10 +689,10 @@ mod tests {
         world.link(parent, id);
         assert_eq!(world.hierarchy(id).parent, Some(parent));
 
-        world.spawn_replacing("box", AnimationTrack::new("box".to_string(), "Ellipse"));
+        world.spawn_replacing("box", "Ellipse", AnimationTrack::new("box".to_string()));
         assert_eq!(world.get_id("box"), Some(id));
         assert_eq!(world.hierarchy(id), &SceneHierarchyComponent::default());
-        assert_eq!(world.track(id).unwrap().actor_type, "Ellipse");
+        assert_eq!(world.actor_type(id), "Ellipse");
         assert!(!world.hierarchy(parent).children.contains(&id));
         assert!(world.is_root(id));
     }
@@ -691,7 +710,7 @@ mod tests {
         );
         assert!(world.coordinate_frame(id).is_some());
 
-        let replacement = world.spawn_replacing("g", AnimationTrack::new("g".to_string(), "Graph"));
+        let replacement = world.spawn_replacing("g", "Graph", AnimationTrack::new("g".to_string()));
         assert_eq!(replacement, id, "replacement keeps the entity id");
         assert!(
             world.coordinate_frame(id).is_none(),
@@ -737,7 +756,7 @@ mod decl_span_tests {
         world.set_decl_span(id, animatix_syntax::ast::Span::new(1, 1, 1, 10));
         assert_eq!(world.decl_span(id).map(|s| s.start_line), Some(1));
 
-        world.spawn_replacing("box", AnimationTrack::new("box".into(), "Rect"));
+        world.spawn_replacing("box", "Rect", AnimationTrack::new("box".into()));
         assert!(world.decl_span(id).is_none(), "replacement starts from a clean span");
     }
 }
@@ -759,42 +778,11 @@ mod meta_tests {
         world.meta_mut(id).locked = true;
         world.meta_mut(id).hidden_by_default = true;
         world.set_first_seen(id, 100);
-        world.spawn_replacing("box", AnimationTrack::new("box".into(), "Rect"));
+        world.spawn_replacing("box", "Rect", AnimationTrack::new("box".into()));
         let meta = world.meta(id);
         assert!(meta.visible, "replacement starts visible");
         assert!(!meta.locked, "replacement starts unlocked");
         assert!(!meta.hidden_by_default, "replacement starts revealed");
         assert_eq!(world.first_seen(id), u64::MAX, "replacement starts unseen");
-    }
-}
-
-#[cfg(test)]
-mod meta_default_tests {
-    use super::*;
-
-    #[test]
-    fn directly_inserted_tracks_get_default_meta_on_demand() {
-        let mut world = World::new();
-        world
-            .tracks
-            .insert("direct".into(), AnimationTrack::new("direct".into(), "Rect"));
-        let id = world.tracks.get_id("direct").expect("direct id");
-
-        assert!(world.meta(id).visible, "missing component reads as the default");
-        world.meta_mut(id).visible = false;
-        assert!(!world.meta(id).visible);
-        assert_eq!(world.first_seen(id), u64::MAX);
-        world.set_first_seen(id, 250);
-        assert_eq!(world.first_seen(id), 250);
-        world.set_first_seen(id, 900);
-        assert_eq!(world.first_seen(id), 250, "first sighting wins");
-    }
-}
-
-impl World {
-    /// Authoring/registration type name for an entity.
-    #[inline(always)]
-    pub fn actor_type(&self, id: EntityId) -> &str {
-        self.tracks.get_by_id(id).map_or("", |track| track.actor_type.as_str())
     }
 }

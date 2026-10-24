@@ -71,7 +71,7 @@ fn tagged_property_routes_through_actor_plan() {
 fn property_plan_slot_writes_and_reads_without_string_lookup() {
     let mut timeline = crate::timeline::Timeline::new();
     let track = AnimationTrack::placeholder("test".to_string());
-    let id = timeline.world_mut().spawn_with_track("test", track);
+    let id = timeline.world_mut().spawn_with_track("test", "Rect", track);
     timeline.world_mut().rebuild_property_plan(id);
     let position = crate::timeline::property_id("position").expect("position is registered");
 
@@ -412,7 +412,7 @@ fn test_write_read_roundtrip_with_duration_uses_linear_easing_at_start() {
 fn test_read_property_value_or_default_falls_back() {
     let track = AnimationTrack::placeholder("test".to_string());
     let schema = crate::timeline::property_registry::lookup_property("opacity").unwrap();
-    let val = read_property_value_or_default(&track, schema, 0);
+    let val = read_property_value_or_default(&track, schema, 0, "Rect");
     assert_eq!(val, PropertyValue::F32(1.0));
 }
 

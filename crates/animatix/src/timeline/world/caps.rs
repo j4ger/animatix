@@ -9,9 +9,9 @@ impl World {
     /// Capability projection for an entity.
     pub fn caps(&self, id: EntityId) -> animatix_core::caps::ActorCaps {
         self.caps_overrides.get(id).copied().unwrap_or_else(|| {
-            self.tracks
-                .get_by_id(id)
-                .and_then(|track| animatix_std::caps_for_type(&track.actor_type))
+            self.actor_types
+                .try_get(id)
+                .and_then(|ty| animatix_std::caps_for_type(ty))
                 .unwrap_or_default()
         })
     }
@@ -23,9 +23,8 @@ impl World {
 
     /// Set the actor type and clear any capability override so caps re-derive.
     pub fn set_identity(&mut self, id: EntityId, actor_type: &str) {
-        if let Some(track) = self.tracks.get_by_id_mut(id) {
-            track.actor_type = actor_type.to_string();
-        }
+        self.ensure_len();
+        *self.actor_types.get_mut(id) = actor_type.to_string();
         self.caps_overrides.remove(id);
     }
 
@@ -37,5 +36,13 @@ impl World {
     /// Whether the entity renders visual content.
     pub fn renders_visual_content(&self, id: EntityId) -> bool {
         self.caps(id).renders_visual_content()
+    }
+}
+
+impl World {
+    /// Authoring/registration type name for an entity.
+    #[inline(always)]
+    pub fn actor_type(&self, id: EntityId) -> &str {
+        self.actor_types.try_get(id).map_or("", String::as_str)
     }
 }

@@ -137,7 +137,7 @@ pub fn show_property_popup(
                     .read_property_value(track.id, schema.field, time_ms)
                     .unwrap_or_else(|| {
                         (schema.default_value)(
-                            &animatix::timeline::caps_for_type(&track.actor_type)
+                            &animatix::timeline::caps_for_type(tl.world().actor_type(track.id))
                                 .unwrap_or_default(),
                         )
                     });

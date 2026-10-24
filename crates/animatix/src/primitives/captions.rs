@@ -64,13 +64,6 @@ impl Primitive for CaptionsPrimitive {
         ctx.timeline.add_node(label.to_string(), ctx.parent_label);
         let track_id = ctx.timeline.world.spawn(label, "Captions");
         ctx.timeline.world.set_first_seen(track_id, ctx.time_ms as u64);
-        let track = ctx
-            .timeline
-            .world
-            .tracks
-            .get_by_id_mut(track_id)
-            .expect("spawn creates the track");
-        track.set_identity("Captions");
 
         // Check for direct transcript property on Captions
         for prop in props {

@@ -226,11 +226,12 @@ pub fn collect_all_keyframe_times(
     effects: Option<&crate::timeline::effects::EffectChainTrack>,
     world: Option<&crate::timeline::World>,
 ) -> Vec<f64> {
-    let caps = world.map_or_else(
-        || animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
-        |world| world.caps(track.id),
-    );
-    let indices = property_registry::allowed_property_indices(&caps, &track.actor_type);
+    // Identity (and the caps projection derived from it) lives in `World`.
+    // Without one there is no actor type to key the registry with, so only
+    // the universally applicable properties are discoverable.
+    let caps = world.map_or_else(ActorCaps::default, |world| world.caps(track.id));
+    let actor_type = world.map_or("", |world| world.actor_type(track.id));
+    let indices = property_registry::allowed_property_indices(&caps, actor_type);
     let mut times = std::collections::BTreeSet::new();
 
     for &idx in &indices {

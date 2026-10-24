@@ -181,13 +181,18 @@ pub fn read_property_value(
 
 /// Read a property value, falling back to the schema default if the track
 /// has no value for this property.
+///
+/// `actor_type` is the entity's primitive identity (`world.actor_type(id)`);
+/// it is only needed for the schema default, whose caps projection is
+/// identity-derived.
 pub fn read_property_value_or_default(
     track: &AnimationTrack,
     schema: &PropertySchema,
     time_ms: u64,
+    actor_type: &str,
 ) -> PropertyValue {
     read_property_value(track, schema.field, time_ms).unwrap_or_else(|| {
-        (schema.default_value)(&animatix_std::caps_for_type(&track.actor_type).unwrap_or_default())
+        (schema.default_value)(&animatix_std::caps_for_type(actor_type).unwrap_or_default())
     })
 }
 
@@ -229,18 +234,21 @@ mod payload_tests {
     #[test]
     fn rect_track_carries_no_payload() {
         let mut timeline = Timeline::new();
-        let id = timeline
-            .world
-            .spawn_with_track("box", AnimationTrack::new("box".to_string(), "Rect"));
+        let id =
+            timeline
+                .world
+                .spawn_with_track("box", "Rect", AnimationTrack::new("box".to_string()));
         assert!(timeline.world.payload(id).is_none());
     }
 
     #[test]
     fn ensure_plot_payload_switches_variant() {
         let mut timeline = Timeline::new();
-        let id = timeline
-            .world
-            .spawn_with_track("curve", AnimationTrack::new("curve".to_string(), "PlotCurve"));
+        let id = timeline.world.spawn_with_track(
+            "curve",
+            "PlotCurve",
+            AnimationTrack::new("curve".to_string()),
+        );
         assert!(timeline.world.payload(id).is_none());
 
         timeline
@@ -259,9 +267,10 @@ mod payload_tests {
     #[test]
     fn svg_and_image_payloads_are_distinct() {
         let mut timeline = Timeline::new();
-        let id = timeline
-            .world
-            .spawn_with_track("icon", AnimationTrack::new("icon".to_string(), "Svg"));
+        let id =
+            timeline
+                .world
+                .spawn_with_track("icon", "Svg", AnimationTrack::new("icon".to_string()));
         timeline
             .world
             .ensure_svg_payload(id)

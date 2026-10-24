@@ -53,7 +53,7 @@ fn parse_blend_mode(s: &str) -> vello::peniko::Mix {
 fn is_equation_parent(timeline: &Timeline, track: &crate::timeline::AnimationTrack) -> bool {
     timeline
         .primitive_registry
-        .info_of(&track.actor_type)
+        .info_of(timeline.world.actor_type(track.id))
         .is_some_and(|info| info.child_processing == ChildProcessing::Equation)
 }
 

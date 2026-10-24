@@ -3,6 +3,7 @@ use crate::timeline::animation_track::{GeometryTracks, StyleTracks, TextTracks};
 
 pub(crate) fn recompile_text_at_assignment(
     track: &mut AnimationTrack,
+    caps: animatix_core::caps::ActorCaps,
     style: &mut StyleTracks,
     text: &mut TextTracks,
     geometry: &mut GeometryTracks,
@@ -39,7 +40,6 @@ pub(crate) fn recompile_text_at_assignment(
     // actor type, which is the same derivation the built-in catalog uses.
     // Extension overrides live in `World` and are applied by callers that
     // have one.
-    let caps = animatix_std::caps_for_type(&track.actor_type).unwrap_or_default();
     let text_kind = match caps.text {
         Some(crate::timeline::TextKind::Text) => crate::renderer::text::TextKind::Text,
         Some(crate::timeline::TextKind::Code) => crate::renderer::text::TextKind::Code,

@@ -599,7 +599,7 @@ pub(crate) fn track_is_nestable_container(
 ) -> bool {
     timeline
         .primitive_registry_snapshot()
-        .info_of(&track.actor_type)
+        .info_of(timeline.world().actor_type(track.id))
         .map(animatix::timeline::caps_from_info)
         .is_some_and(|caps| caps.is_nestable_container())
 }

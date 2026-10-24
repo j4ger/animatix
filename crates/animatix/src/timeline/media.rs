@@ -336,8 +336,6 @@ impl Timeline {
         self.add_node(label.to_string(), parent_label);
         let track_id = self.world.spawn(label, "Audio");
         self.world.set_first_seen(track_id, time_ms as u64);
-        let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
-        track.set_identity("Audio");
 
         let eval_env = self.build_eval_env(time_ms as u64);
         let mut source = String::new();

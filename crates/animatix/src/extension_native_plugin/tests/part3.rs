@@ -9,9 +9,8 @@ fn native_assignment_write_keyframe_writes_extension_slot() {
     let property_ids = HashMap::from([("glow".to_string(), id)]);
     let property_kinds =
         HashMap::from([("glow".to_string(), animatix_syntax::schema::PropertyValueKind::F32)]);
-    let track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
-    let caps = animatix_std::caps_for_type(&track.actor_type).unwrap_or_default();
-    let mut plan = crate::timeline::plan::PropertyPlan::for_actor(&caps, &track.actor_type);
+    let caps = animatix_std::caps_for_type("Rect").unwrap_or_default();
+    let mut plan = crate::timeline::plan::PropertyPlan::for_actor(&caps, "Rect");
     let mut host = NativeAssignmentHost {
         plan: &mut plan,
         property_ids: &property_ids,

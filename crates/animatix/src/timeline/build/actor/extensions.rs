@@ -345,12 +345,10 @@ impl Timeline {
         // Create the plot host's track before `process_plot_actor` runs: it
         // processes children, and `add_node` requires the parent track to exist
         // rather than defaulting one in.
-        let track_id = {
-            let entry = self.world.ensure_track(label, ty);
-            entry.set_identity(ty);
-            entry.id
-        };
-        self.world.rebuild_property_plan(track_id);
+        let track_id = self.world.spawn(label, ty);
+        self.world.set_identity(track_id, ty);
+        let track_caps = self.world.caps(track_id);
+        self.world.property_plan.get_mut(track_id).rebuild_for(&track_caps, ty);
         let existing_track = self
             .world
             .tracks

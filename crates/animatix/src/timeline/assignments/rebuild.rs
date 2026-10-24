@@ -8,6 +8,7 @@ use crate::timeline::animation_track::{GeometryTracks, ShapeTracks, StyleTracks}
 
 pub(super) fn handle_size_assignment(
     track: &mut AnimationTrack,
+    actor_type: &str,
     style: &StyleTracks,
     geometry: &mut GeometryTracks,
     shape: &mut ShapeTracks,
@@ -89,6 +90,7 @@ pub(super) fn handle_size_assignment(
     // Rebuild vector paths after size change
     rebuild_vector_paths(
         track,
+        actor_type,
         style,
         geometry,
         shape,
@@ -104,6 +106,7 @@ pub(super) fn handle_size_assignment(
 
 pub(super) fn rebuild_vector_paths(
     track: &mut AnimationTrack,
+    actor_type: &str,
     style: &StyleTracks,
     geometry: &GeometryTracks,
     shape: &mut ShapeTracks,
@@ -159,7 +162,7 @@ pub(super) fn rebuild_vector_paths(
     let color = style.color.last(DEFAULT_WHITE);
     // Bare-track helper: derive the projection from the actor type (the same
     // derivation the catalog performs). `World`-aware callers apply overrides.
-    let caps = animatix_std::caps_for_type(&track.actor_type).unwrap_or_default();
+    let caps = animatix_std::caps_for_type(actor_type).unwrap_or_default();
     let stroke_width = style.stroke_width.last(caps.default_stroke_width());
     let stroke_color = style.stroke_color.last(DEFAULT_WHITE);
     let fill_opacity = style.fill_opacity.last(1.0);

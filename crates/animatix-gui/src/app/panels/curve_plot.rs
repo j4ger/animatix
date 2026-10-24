@@ -62,7 +62,8 @@ pub(crate) fn collect_curves(
     let mut curves: Vec<CurveChannel> = Vec::new();
 
     let caps = timeline.world().caps(track.id);
-    for &idx in &allowed_property_indices(&caps, &track.actor_type) {
+    let actor_type = timeline.world().actor_type(track.id);
+    for &idx in &allowed_property_indices(&caps, actor_type) {
         let schema = &PROPERTY_REGISTRY[idx];
         if !timeline.world().property_has_keyframes(track.id, schema.field) {
             continue;

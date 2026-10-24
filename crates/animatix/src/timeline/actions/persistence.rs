@@ -270,7 +270,7 @@ mod tests {
     fn persist_sets_flag() {
         let mut timeline = Timeline::new();
         let track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
-        let id = timeline.world.spawn_with_track("actor", track);
+        let id = timeline.world.spawn_with_track("actor", "Rect", track);
         timeline.world.style_mut(id).opacity.ensure(1.0);
 
         let action = Action {
@@ -294,7 +294,7 @@ mod tests {
         let mut timeline = Timeline::new();
         for label in ["a", "b", "c"] {
             let track = crate::timeline::AnimationTrack::placeholder(label.to_string());
-            let id = timeline.world.spawn_with_track(label, track);
+            let id = timeline.world.spawn_with_track(label, "Rect", track);
             timeline.world.style_mut(id).opacity.ensure(1.0);
         }
 
@@ -320,7 +320,7 @@ mod tests {
     fn persist_emits_warning_for_duration_modifier() {
         let mut timeline = Timeline::new();
         let track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
-        let id = timeline.world.spawn_with_track("actor", track);
+        let id = timeline.world.spawn_with_track("actor", "Rect", track);
         timeline.world.style_mut(id).opacity.ensure(1.0);
 
         let action = Action {
@@ -378,7 +378,7 @@ mod tests {
     fn remove_clears_persistence_flag() {
         let mut timeline = Timeline::new();
         let track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
-        let id = timeline.world.spawn_with_track("actor", track);
+        let id = timeline.world.spawn_with_track("actor", "Rect", track);
         timeline.world.style_mut(id).opacity.ensure(1.0);
         timeline.set_persistence_flag("actor", true);
 
@@ -406,7 +406,7 @@ mod tests {
     fn remove_instant_sets_opacity_to_zero() {
         let mut timeline = Timeline::new();
         let track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
-        let id = timeline.world.spawn_with_track("actor", track);
+        let id = timeline.world.spawn_with_track("actor", "Rect", track);
         timeline
             .world
             .style_mut(id)
@@ -436,7 +436,7 @@ mod tests {
     fn remove_animated_sets_fade_out_keyframes() {
         let mut timeline = Timeline::new();
         let track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
-        let id = timeline.world.spawn_with_track("actor", track);
+        let id = timeline.world.spawn_with_track("actor", "Rect", track);
         timeline
             .world
             .style_mut(id)

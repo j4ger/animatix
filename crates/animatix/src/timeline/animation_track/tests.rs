@@ -52,12 +52,9 @@ fn track_identity_derives_caps_from_registry() {
     let mut world = crate::timeline::World::new();
     for meta in primitive_catalog().iter() {
         let label = meta.type_name.to_string();
-        let track = super::AnimationTrack::new(label.clone(), meta.type_name.clone());
-        let id = world.spawn_with_track(&label, track);
-        assert_eq!(
-            world.tracks.get_by_id(id).expect("spawned track").actor_type,
-            meta.type_name.as_ref()
-        );
+        let track = super::AnimationTrack::new(label.clone());
+        let id = world.spawn_with_track(&label, meta.type_name.as_ref(), track);
+        assert_eq!(world.actor_type(id), meta.type_name.as_ref());
         if let Some(expected) = animatix_std::caps_for_type(meta.type_name.as_ref()) {
             assert_eq!(world.caps(id), expected, "caps drifted for {}", meta.type_name);
         }
@@ -366,7 +363,7 @@ fn test_field_mut_returns_correct_type_for_font_style() {
 fn test_max_keyframe_time_with_transform() {
     let mut timeline = Timeline::new();
     let track = AnimationTrack::placeholder("test".to_string());
-    let id = timeline.world_mut().spawn_with_track("test", track);
+    let id = timeline.world_mut().spawn_with_track("test", "Rect", track);
     timeline
         .world_mut()
         .geometry_mut(id)
@@ -393,7 +390,7 @@ fn test_max_keyframe_time_with_highlight_color() {
 fn test_max_keyframe_time_returns_max_across_all_fields() {
     let mut timeline = Timeline::new();
     let track = AnimationTrack::placeholder("test".to_string());
-    let id = timeline.world_mut().spawn_with_track("test", track);
+    let id = timeline.world_mut().spawn_with_track("test", "Rect", track);
     timeline
         .world_mut()
         .style_mut(id)
@@ -611,7 +608,7 @@ fn test_interpolation_segment_with_single_keyframe_returns_none() {
 fn test_max_keyframe_time_iterates_through_all_registry_fields() {
     let mut timeline = Timeline::new();
     let track = AnimationTrack::placeholder("test".to_string());
-    let id = timeline.world_mut().spawn_with_track("test", track);
+    let id = timeline.world_mut().spawn_with_track("test", "Rect", track);
     // Expect max_keyframe_time to iterate registry-driven fields
     // Put a keyframe on an unconventional registry field
     timeline.world_mut().geometry_mut(id).min_width.ensure(0.0).add_keyframe(
@@ -639,7 +636,7 @@ fn test_has_any_keyframes_iterates_through_all_registry_fields() {
 fn test_registry_driven_max_keyframe_time_finds_min_width() {
     let mut timeline = Timeline::new();
     let track = AnimationTrack::placeholder("test".to_string());
-    let id = timeline.world_mut().spawn_with_track("test", track);
+    let id = timeline.world_mut().spawn_with_track("test", "Rect", track);
     timeline.world_mut().geometry_mut(id).min_height.ensure(0.0).add_keyframe(
         4000,
         200.0,

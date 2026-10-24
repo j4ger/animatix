@@ -107,7 +107,9 @@ fn sample_evaluate_ctx_with_payload<'a>(
 ) -> EvaluateCtx<'a> {
     EvaluateCtx {
         track,
-        caps: animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
+        // These tests build bare placeholder tracks (no World identity), whose
+        // implied type is Rect.
+        caps: animatix_std::caps_for_type("Rect").unwrap_or_default(),
         time_ms: 0,
         local_transform: kurbo::Affine::IDENTITY,
         opacity: 1.0,

@@ -49,6 +49,8 @@ pub struct AssignmentCtx<'a> {
     pub geometry: Option<&'a mut crate::timeline::animation_track::GeometryTracks>,
     /// Style tier for this actor.
     pub style: Option<&'a mut crate::timeline::animation_track::StyleTracks>,
+    /// Capability projection for this actor.
+    pub caps: animatix_core::caps::ActorCaps,
     /// Text tier for this actor.
     pub text: Option<&'a mut crate::timeline::animation_track::TextTracks>,
     /// Registry-driven property plan for this actor.

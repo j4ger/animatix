@@ -313,9 +313,15 @@ box: Ellipse, size: (140, 140), color: accent.success [900ms, strategy: match]
     // The frame-time primitive must follow the shape_type track, not the
     // (last-write-wins) track identity: the actor renders as the declared
     // Rect until the morph beat and as the re-declared Ellipse after it.
-    assert_eq!(track.render_type_name(shape, 500), "Rect");
-    assert_eq!(track.render_type_name(shape, 1_400), "Rect");
-    assert_eq!(track.render_type_name(shape, 2_400), "Ellipse");
+    assert_eq!(track.render_type_name(timeline.world.actor_type(track.id), shape, 500), "Rect");
+    assert_eq!(
+        track.render_type_name(timeline.world.actor_type(track.id), shape, 1_400),
+        "Rect"
+    );
+    assert_eq!(
+        track.render_type_name(timeline.world.actor_type(track.id), shape, 2_400),
+        "Ellipse"
+    );
 }
 
 #[test]

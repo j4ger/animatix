@@ -27,7 +27,8 @@ struct TrackGroup {
 // ─── Public Entry Point ───────────────────────────────────────────────────
 
 pub(super) fn count_keyframes(timeline: &Timeline, track: &AnimationTrack) -> usize {
-    let indices = allowed_property_indices(&timeline.world().caps(track.id), &track.actor_type);
+    let actor_type = timeline.world().actor_type(track.id);
+    let indices = allowed_property_indices(&timeline.world().caps(track.id), actor_type);
     let builtin = indices
         .iter()
         .filter_map(|&idx| {
@@ -312,7 +313,8 @@ fn render_compact_track_row(
 // ─── Collection (generic via registry) ────────────────────────────────────
 
 fn collect_track_groups(timeline: &Timeline, track: &AnimationTrack) -> Vec<TrackGroup> {
-    let indices = allowed_property_indices(&timeline.world().caps(track.id), &track.actor_type);
+    let actor_type = timeline.world().actor_type(track.id);
+    let indices = allowed_property_indices(&timeline.world().caps(track.id), actor_type);
 
     let mut transform = Vec::new();
     let mut style = Vec::new();
@@ -413,7 +415,6 @@ fn collect_track_groups(timeline: &Timeline, track: &AnimationTrack) -> Vec<Trac
         });
     }
 
-    let actor_type = track.actor_type.as_str();
     // A standalone track (inspector tests) has no plan slot; fall back to an
     // empty plan, which is what the old on-track plan was for those callers.
     let empty_plan = PropertyPlan::default();
@@ -531,21 +532,21 @@ mod tests {
 
     use super::*;
 
-    fn make_track(actor_type: &str) -> AnimationTrack {
-        AnimationTrack::new("test".to_string(), actor_type)
+    fn make_track() -> AnimationTrack {
+        AnimationTrack::new("test".to_string())
     }
 
     /// Count the keyframes on a real spawned entity, the way the inspector does.
-    fn count_for(track: AnimationTrack) -> usize {
+    fn count_for(actor_type: &str) -> usize {
         let mut timeline = Timeline::new();
-        let id = timeline.world_mut().spawn_with_track("test", track);
+        let id = timeline.world_mut().spawn_with_track("test", actor_type, make_track());
         let track = timeline.world().track(id).expect("spawned track");
         count_keyframes(&timeline, track)
     }
 
     #[test]
     fn test_count_keyframes_empty_track() {
-        assert_eq!(count_for(make_track("Rect")), 0);
+        assert_eq!(count_for("Rect"), 0);
     }
 
     #[test]
@@ -582,7 +583,7 @@ mod tests {
     #[test]
     fn test_count_keyframes_skips_non_applicable_properties() {
         // Text kinds do not have shape-specific properties like stroke_width applicable
-        let track = make_track("Text");
+        let track = make_track();
 
         // stroke_width is only applicable to AllShapes — not Text
         let mut sw = PropertyTrack::new(1.0);
@@ -595,7 +596,7 @@ mod tests {
         let mut txt = PropertyTrack::new(String::new());
         txt.add_keyframe(0, "hello".to_string(), Easing::Linear);
         let mut timeline = Timeline::new();
-        let id = timeline.world_mut().spawn_with_track("test", track);
+        let id = timeline.world_mut().spawn_with_track("test", "Text", track);
         timeline.world_mut().style_mut(id).stroke_width = Some(sw);
         timeline.world_mut().geometry_mut(id).position = Some(pos);
         timeline.world_mut().text_mut(id).text_content = Some(txt);

@@ -17,7 +17,7 @@ pub fn actor_icon_for_track(
     timeline: &Timeline,
 ) -> std::borrow::Cow<'static, str> {
     let snapshot = timeline.primitive_registry_snapshot();
-    match snapshot.info_of(&track.actor_type) {
+    match snapshot.info_of(timeline.world().actor_type(track.id)) {
         // Built-in rows keep their literal; extension icons are host-owned.
         Some(info) => match info.static_icon_id() {
             Some(icon) => std::borrow::Cow::Borrowed(icon),

@@ -57,10 +57,13 @@ pub(crate) fn inject_property_into_env(
             None => {
                 // No track value — fall back to schema default.
                 // For Component sources, extract the indexed component.
-                let caps = world.map_or_else(
-                    || animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
-                    |world| world.caps(track.id),
-                );
+                // Identity lives in `World.actor_types`, so caps can only be
+                // derived when a `World` is available; the per-frame injection
+                // path always passes one (the `None` form is a legacy
+                // track-only fallback with no identity source).
+                let caps = world.map_or_else(animatix_core::caps::ActorCaps::default, |world| {
+                    world.caps(track.id)
+                });
                 let write_default = (schema.default_value)(&caps);
                 match schema.read_source {
                     ReadSource::Field(_) | ReadSource::Alias(_) => write_default,
@@ -97,11 +100,15 @@ pub(crate) fn inject_property_into_env(
 }
 
 /// Inject external property values into a frame environment.
+///
+/// The entity's `track` is accepted for the shared call-site shape but is no
+/// longer read: primitive identity lives in `World`, and the plan already
+/// scopes the injected specs to this entity.
 pub(crate) fn inject_extension_properties_into_env(
     env: &mut Environment,
     key: &mut String,
     label: &str,
-    track: &AnimationTrack,
+    _track: &AnimationTrack,
     plan: &crate::timeline::plan::PropertyPlan,
     time_ms: u64,
     ctx: Option<&ExtensionContext>,
@@ -111,7 +118,6 @@ pub(crate) fn inject_extension_properties_into_env(
     let Some(ctx) = ctx else {
         return;
     };
-    let actor_type = track.actor_type.as_str();
 
     // Same shared-buffer discipline as `inject_property_into_env` (PF-6).
     key.clear();
@@ -120,7 +126,12 @@ pub(crate) fn inject_extension_properties_into_env(
     let prefix_len = key.len();
 
     for spec in ctx.property_specs() {
-        if !spec.injectable || spec.actor_type != actor_type {
+        // Identity lives in `World.actor_types`, which this injector does not
+        // receive. The plan is the per-entity projection of the owning actor
+        // type, so a spec with no slot in it belongs to another primitive (or
+        // was never registered for this actor) — the same set the old
+        // `spec.actor_type` comparison selected.
+        if !spec.injectable || plan.get(spec.id).is_none() {
             continue;
         }
         if let Some(allowed) = allowed_props {

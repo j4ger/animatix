@@ -398,7 +398,7 @@ impl Timeline {
                 for (label, track) in &timeline.world.tracks {
                     for idx in crate::timeline::property_registry::allowed_property_indices(
                         &timeline.world.caps(track.id),
-                        &track.actor_type,
+                        timeline.world.actor_type(track.id),
                     ) {
                         let schema = &crate::timeline::property_registry::PROPERTY_REGISTRY[idx];
                         if !timeline.world.property_has_keyframes(track.id, schema.field) {
@@ -479,20 +479,20 @@ impl Timeline {
             }
         }
 
-        // Every track's primitive identity must resolve. `actor_type` is
-        // required at construction, so a miss means the declared primitive is
+        // Every track's primitive identity must resolve. Identity is required
+        // when the entity is spawned, so a miss means the declared primitive is
         // not registered (typically an extension whose plugin is not loaded).
         // Warn once here rather than silently rendering nothing every frame.
         for (label, track) in &timeline.world.tracks {
-            if timeline.primitive_registry.find(&track.actor_type).is_none() {
+            let actor_type = timeline.world.actor_type(track.id);
+            if timeline.primitive_registry.find(actor_type).is_none() {
                 diagnostics.push(
                     Diagnostic::warning(
                         DiagnosticCode::UnknownActorType,
                         DiagnosticPhase::Build,
                         format!(
-                            "Actor `{label}` is type `{}`, which is not a registered primitive; \
-                             it will not render. Load the extension that provides it.",
-                            track.actor_type
+                            "Actor `{label}` is type `{actor_type}`, which is not a registered \
+                             primitive; it will not render. Load the extension that provides it."
                         ),
                     )
                     .with_subject(label),

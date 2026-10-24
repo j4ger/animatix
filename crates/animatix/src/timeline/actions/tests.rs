@@ -241,20 +241,24 @@ fn swap_action_sets_child_order_keyframe() {
     let mut timeline = Timeline::new();
 
     // Set up container with children
-    let row_id = timeline
-        .world
-        .spawn_with_track("row", AnimationTrack::placeholder("row".to_string()));
+    let row_id = timeline.world.spawn_with_track(
+        "row",
+        "Rect",
+        AnimationTrack::placeholder("row".to_string()),
+    );
 
     // Set up child tracks with layout size so they're admitted
-    let child_a = timeline
-        .world
-        .spawn_with_track("a", AnimationTrack::placeholder("a".to_string()));
+    let child_a =
+        timeline
+            .world
+            .spawn_with_track("a", "Rect", AnimationTrack::placeholder("a".to_string()));
     timeline.world.geometry_mut(child_a).layout_size = Some(PropertyTrack::new([15.0, 20.0]));
     timeline.world.link(row_id, child_a);
 
-    let child_b = timeline
-        .world
-        .spawn_with_track("b", AnimationTrack::placeholder("b".to_string()));
+    let child_b =
+        timeline
+            .world
+            .spawn_with_track("b", "Rect", AnimationTrack::placeholder("b".to_string()));
     timeline.world.geometry_mut(child_b).layout_size = Some(PropertyTrack::new([15.0, 40.0]));
     timeline.world.link(row_id, child_b);
 
@@ -303,14 +307,18 @@ fn swap_action_detects_overlapping_swaps() {
     let mut timeline = Timeline::new();
 
     // Set up container with children
-    let row_id = timeline
-        .world
-        .spawn_with_track("row", AnimationTrack::placeholder("row".to_string()));
+    let row_id = timeline.world.spawn_with_track(
+        "row",
+        "Rect",
+        AnimationTrack::placeholder("row".to_string()),
+    );
 
     for label in ["a", "b", "c"] {
-        let child_id = timeline
-            .world
-            .spawn_with_track(label, AnimationTrack::placeholder(label.to_string()));
+        let child_id = timeline.world.spawn_with_track(
+            label,
+            "Rect",
+            AnimationTrack::placeholder(label.to_string()),
+        );
         timeline.world.geometry_mut(child_id).layout_size = Some(PropertyTrack::new([15.0, 20.0]));
         timeline.world.link(row_id, child_id);
     }
@@ -389,7 +397,7 @@ fn reorder_action_requires_order_modifier() {
     let mut timeline = Timeline::new();
     timeline
         .world
-        .spawn_with_track("row", AnimationTrack::placeholder("row".to_string()));
+        .spawn_with_track("row", "Rect", AnimationTrack::placeholder("row".to_string()));
 
     let action = Action {
         verb: "reorder".to_string(),
@@ -415,14 +423,18 @@ fn reorder_action_sets_child_order_keyframe() {
     let mut timeline = Timeline::new();
 
     // Set up container with children
-    let row_id = timeline
-        .world
-        .spawn_with_track("row", AnimationTrack::placeholder("row".to_string()));
+    let row_id = timeline.world.spawn_with_track(
+        "row",
+        "Rect",
+        AnimationTrack::placeholder("row".to_string()),
+    );
 
     for label in ["a", "b", "c"] {
-        let child_id = timeline
-            .world
-            .spawn_with_track(label, AnimationTrack::placeholder(label.to_string()));
+        let child_id = timeline.world.spawn_with_track(
+            label,
+            "Rect",
+            AnimationTrack::placeholder(label.to_string()),
+        );
         timeline.world.geometry_mut(child_id).layout_size = Some(PropertyTrack::new([15.0, 20.0]));
         timeline.world.link(row_id, child_id);
     }
@@ -482,14 +494,18 @@ fn reorder_action_detects_overlapping_reorders() {
     let mut timeline = Timeline::new();
 
     // Set up container with children
-    let row_id = timeline
-        .world
-        .spawn_with_track("row", AnimationTrack::placeholder("row".to_string()));
+    let row_id = timeline.world.spawn_with_track(
+        "row",
+        "Rect",
+        AnimationTrack::placeholder("row".to_string()),
+    );
 
     for label in ["a", "b"] {
-        let child_id = timeline
-            .world
-            .spawn_with_track(label, AnimationTrack::placeholder(label.to_string()));
+        let child_id = timeline.world.spawn_with_track(
+            label,
+            "Rect",
+            AnimationTrack::placeholder(label.to_string()),
+        );
         timeline.world.geometry_mut(child_id).layout_size = Some(PropertyTrack::new([15.0, 20.0]));
         timeline.world.link(row_id, child_id);
     }
@@ -568,14 +584,18 @@ fn swap_action_bounds_transition_to_duration() {
     // that spans the gap between the end of swap N and the end of swap N+1.
     let mut timeline = Timeline::new();
 
-    let row_id = timeline
-        .world
-        .spawn_with_track("row", AnimationTrack::placeholder("row".to_string()));
+    let row_id = timeline.world.spawn_with_track(
+        "row",
+        "Rect",
+        AnimationTrack::placeholder("row".to_string()),
+    );
 
     for label in ["a", "b", "c"] {
-        let child_id = timeline
-            .world
-            .spawn_with_track(label, AnimationTrack::placeholder(label.to_string()));
+        let child_id = timeline.world.spawn_with_track(
+            label,
+            "Rect",
+            AnimationTrack::placeholder(label.to_string()),
+        );
         timeline.world.geometry_mut(child_id).layout_size = Some(PropertyTrack::new([15.0, 20.0]));
         timeline.world.link(row_id, child_id);
     }
@@ -645,15 +665,19 @@ fn swap_action_animates_positions_smoothly() {
     let mut timeline = Timeline::new();
     timeline.dynamic_layout = true;
 
-    let bars_id = timeline
-        .world
-        .spawn_with_track("bars", AnimationTrack::placeholder("bars".to_string()));
+    let bars_id = timeline.world.spawn_with_track(
+        "bars",
+        "Rect",
+        AnimationTrack::placeholder("bars".to_string()),
+    );
 
     let sizes: [f32; 2] = [30.0, 40.0]; // half-size (60x80 rects)
     for label in ["bar1", "bar2", "bar3", "bar4", "bar5"] {
-        let child_id = timeline
-            .world
-            .spawn_with_track(label, AnimationTrack::placeholder(label.to_string()));
+        let child_id = timeline.world.spawn_with_track(
+            label,
+            "Rect",
+            AnimationTrack::placeholder(label.to_string()),
+        );
         timeline.world.geometry_mut(child_id).layout_size = Some(PropertyTrack::new(sizes));
         timeline.world.link(bars_id, child_id);
     }

@@ -83,7 +83,7 @@ fn persistence_auto_color_transcript_components_roundtrip() {
     // optional components and does not inherit the previous entity's state.
     timeline
         .world
-        .spawn_replacing("card", AnimationTrack::new("card".to_string(), "Ellipse"));
+        .spawn_replacing("card", "Rect", AnimationTrack::new("card".to_string()));
     let entity = timeline.entity("card").expect("card must exist");
     assert!(entity.persistence().is_none());
     assert!(entity.auto_color().is_none());
@@ -148,7 +148,7 @@ fn container_layout_component_roundtrip() {
     // optional component and does not inherit the previous entity's state.
     timeline
         .world
-        .spawn_replacing("row", AnimationTrack::new("row".to_string(), "Row"));
+        .spawn_replacing("row", "Rect", AnimationTrack::new("row".to_string()));
     assert!(timeline.container_layout("row").is_none());
     assert!(timeline.container_layout_ids().is_empty());
 }
@@ -220,7 +220,7 @@ fn child_order_component_roundtrip() {
     // optional component and does not inherit the previous entity's state.
     timeline
         .world
-        .spawn_replacing("row", AnimationTrack::new("row".to_string(), "Row"));
+        .spawn_replacing("row", "Rect", AnimationTrack::new("row".to_string()));
     assert!(timeline.child_order("row").is_none());
     assert_eq!(timeline.child_orders_iter().count(), 0);
     assert!(!timeline.world.has_child_orders());
@@ -293,6 +293,6 @@ fn effects_component_roundtrip() {
     // Replacement (carry injection path) clears the optional component.
     timeline
         .world
-        .spawn_replacing("scope", AnimationTrack::new("scope".to_string(), "Filter"));
+        .spawn_replacing("scope", "Rect", AnimationTrack::new("scope".to_string()));
     assert!(timeline.entity("scope").expect("scope").effects().is_none());
 }

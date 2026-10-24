@@ -124,7 +124,7 @@ pub fn build_vector_shape_vello_path(
             // only the memoized shape, never the track's identity.
             thread_local! {
                 static SCRATCH_TRACK: crate::timeline::AnimationTrack =
-                    crate::timeline::AnimationTrack::new(String::new(), "Rect");
+                    crate::timeline::AnimationTrack::new(String::new());
                 static SCRATCH_SHAPE: crate::timeline::animation_track::ShapeTracks =
                     crate::timeline::animation_track::ShapeTracks::default();
             }

@@ -38,7 +38,8 @@ impl PreviewContext<'_> {
             .read_property_value(track.id, schema.field, time_ms)
             .unwrap_or_else(|| {
                 (schema.default_value)(
-                    &animatix::timeline::caps_for_type(&track.actor_type).unwrap_or_default(),
+                    &animatix::timeline::caps_for_type(timeline.world().actor_type(track.id))
+                        .unwrap_or_default(),
                 )
             });
         match value {

@@ -52,8 +52,7 @@ fn build_legend_timeline() -> Timeline {
 fn test_legend_wrapped_label_respects_max_width() {
     use kurbo::{Affine, Shape};
 
-    let mut track = AnimationTrack::placeholder("legend".to_string());
-    track.set_identity("Legend");
+    let track = AnimationTrack::placeholder("legend".to_string());
     let legend = crate::timeline::LegendTracks {
         entries: vec![(
             "A very long series label that should wrap".to_string(),
@@ -68,7 +67,7 @@ fn test_legend_wrapped_label_respects_max_width() {
     let style = crate::timeline::animation_track::StyleTracks::default();
     let ctx = EvaluateCtx {
         track: &track,
-        caps: animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
+        caps: animatix_std::caps_for_type("Legend").unwrap_or_default(),
         time_ms: 0,
         local_transform: Affine::IDENTITY,
         opacity: 1.0,
@@ -198,7 +197,7 @@ fn test_legend_basic_rendering() {
     let timeline = build_legend_timeline();
 
     let track = timeline.get_track("legend").expect("legend track should exist");
-    assert_eq!(track.actor_type, "Legend", "track kind should be Legend");
+    assert_eq!(timeline.world.actor_type(track.id), "Legend", "track kind should be Legend");
 
     // A legend-only scene has no color-bearing candidates.
     assert!(
@@ -233,8 +232,7 @@ fn test_legend_empty() {
     // the build-time placeholder insertion.
     use kurbo::Affine;
 
-    let mut track = AnimationTrack::placeholder("empty_legend".to_string());
-    track.set_identity("Legend");
+    let track = AnimationTrack::placeholder("empty_legend".to_string());
     let legend = crate::timeline::LegendTracks::default();
 
     // Ensure entries are empty (default)
@@ -245,7 +243,7 @@ fn test_legend_empty() {
     let style = crate::timeline::animation_track::StyleTracks::default();
     let ctx = EvaluateCtx {
         track: &track,
-        caps: animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
+        caps: animatix_std::caps_for_type("Legend").unwrap_or_default(),
         time_ms: 0,
         local_transform: Affine::IDENTITY,
         opacity: 1.0,
@@ -655,8 +653,7 @@ fn test_legend_render_commands_produced() {
     // Create a track with entries and verify evaluate returns Some(commands)
     use kurbo::Affine;
 
-    let mut track = AnimationTrack::placeholder("legend".to_string());
-    track.set_identity("Legend");
+    let track = AnimationTrack::placeholder("legend".to_string());
 
     // Set manual entries to exercise label rendering without a scene build.
     let legend = crate::timeline::LegendTracks {
@@ -673,7 +670,7 @@ fn test_legend_render_commands_produced() {
     let style = crate::timeline::animation_track::StyleTracks::default();
     let ctx = EvaluateCtx {
         track: &track,
-        caps: animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
+        caps: animatix_std::caps_for_type("Legend").unwrap_or_default(),
         time_ms: 0,
         local_transform: Affine::IDENTITY,
         opacity: 1.0,

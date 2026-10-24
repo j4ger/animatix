@@ -17,7 +17,7 @@ fn test_keyframe_times_s_collects_all_fields() {
     let track = AnimationTrack::placeholder("test".to_string());
 
     // Add keyframes to various fields
-    let id = timeline.world.spawn_with_track("test", track);
+    let id = timeline.world.spawn_with_track("test", "Rect", track);
     timeline
         .world
         .style_mut(id)
@@ -47,10 +47,9 @@ fn test_keyframe_times_s_collects_all_fields() {
 fn test_keyframe_times_s_includes_highlight_fields() {
     let mut timeline = keyframe_times_s_timeline();
     // Highlight fields apply to Equation/Fragment actors
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.set_identity("Equation");
+    let track = AnimationTrack::placeholder("test".to_string());
 
-    let id = timeline.world_mut().spawn_with_track("test", track);
+    let id = timeline.world_mut().spawn_with_track("test", "Equation", track);
     timeline
         .world_mut()
         .highlight_mut(id)
@@ -74,8 +73,8 @@ fn test_keyframe_times_s_returns_unique_times() {
     let track_a = AnimationTrack::placeholder("a".to_string());
     let track_b = AnimationTrack::placeholder("b".to_string());
 
-    let id_a = timeline.world.spawn_with_track("a", track_a);
-    let id_b = timeline.world.spawn_with_track("b", track_b);
+    let id_a = timeline.world.spawn_with_track("a", "Rect", track_a);
+    let id_b = timeline.world.spawn_with_track("b", "Rect", track_b);
     timeline
         .world
         .style_mut(id_a)
@@ -98,7 +97,7 @@ fn test_keyframe_times_s_returns_unique_times() {
 fn test_keyframe_times_s_returns_seconds_not_milliseconds() {
     let mut timeline = keyframe_times_s_timeline();
     let track = AnimationTrack::placeholder("test".to_string());
-    let id = timeline.world.spawn_with_track("test", track);
+    let id = timeline.world.spawn_with_track("test", "Rect", track);
     timeline
         .world
         .style_mut(id)
@@ -133,7 +132,7 @@ fn test_keyframe_times_s_includes_effect_params() {
         .add_keyframe(500, crate::timeline::property_engine::PropertyValue::F32(8.0));
     let mut effects = crate::timeline::effects::EffectChainTrack::default();
     effects.stages.push(stage);
-    let id = timeline.world.spawn_with_track("test", track);
+    let id = timeline.world.spawn_with_track("test", "Rect", track);
     timeline.world.effects.insert(id, effects);
     let times = timeline.keyframe_times_s();
     assert!(times.contains(&0.5), "Got: {:?}", times);
@@ -143,7 +142,7 @@ fn test_keyframe_times_s_includes_effect_params() {
 fn test_keyframe_times_s_includes_plot_param_tracks() {
     let mut timeline = keyframe_times_s_timeline();
     let track = AnimationTrack::placeholder("test".to_string());
-    let id = timeline.world.spawn_with_track("test", track);
+    let id = timeline.world.spawn_with_track("test", "Rect", track);
     timeline
         .world
         .ensure_plot_payload(id)

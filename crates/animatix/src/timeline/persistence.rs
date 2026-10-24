@@ -71,6 +71,13 @@ pub struct CarriedCamera {
 pub struct CarryEntry {
     /// Single-keyframe snapshot of the actor at t=0.
     pub track: AnimationTrack,
+    /// Primitive identity of the actor (`World.actor_types`).
+    ///
+    /// Track snapshots no longer store the identity, so the bag records it
+    /// explicitly and re-installs it through `World::set_identity` on inject.
+    /// Empty only across a legacy deserialization boundary.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub actor_type: String,
     /// Recursive subtree of carried children (keyed by child label).
     pub children: BTreeMap<String, CarryEntry>,
     /// Whether the actor carries the `persistent` flag forward.
@@ -172,12 +179,14 @@ fn collect_persistent_entries(
         .map_or_else(crate::primitives::PrimitivePayload::default, |payload| {
             snapshot_payload_at(payload, time_ms)
         });
+    let actor_type = timeline.world.actor_type(track.id).to_string();
     let track = snapshot_track_at(track, time_ms);
 
     entries.insert(
         label.to_string(),
         CarryEntry {
             track,
+            actor_type,
             children: child_entries,
             persistent: timeline.persistence_flag(label),
             auto_color_slot: timeline.auto_color_slot(label),
@@ -261,12 +270,8 @@ fn inject_entry(
     dims: [f64; 2],
     _diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut track = entry.track.clone();
+    let track = entry.track.clone();
     let mut geometry = entry.geometry.clone();
-    // A carry entry may come from a legacy payload with no recorded
-    // `actor_type`; resolve it from `kind` once here (the single compatibility
-    // boundary — runtime lookups never fall back).
-    track.normalize_identity();
 
     // ── Phase 3: re-root layout-managed entries to absolute world position ──
     if is_root {
@@ -334,7 +339,10 @@ fn inject_entry(
     // Insert the (possibly rewritten) snapshot track. `spawn_replacing` keeps
     // the label's entity id and resets its hierarchy component, matching the
     // old `TrackStore::insert` replacement semantics.
-    let id = dest.world.spawn_replacing(label, track);
+    let id = dest.world.spawn_replacing(label, &entry.actor_type, track);
+    // Identity lives in `World` and `spawn_replacing` reset it; restore the
+    // carried primitive type so caps and plan lookups resolve again.
+    dest.world.set_identity(id, &entry.actor_type);
     dest.world.meta_mut(id).first_seen_ms = 0;
     dest.world.payload.insert(id, entry.payload.clone());
     *dest.world.highlight.get_mut(id) = entry.highlight.clone();
