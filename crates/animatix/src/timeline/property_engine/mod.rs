@@ -41,6 +41,7 @@ mod tests;
 mod value;
 
 pub use declaration::write_property_field;
+pub(crate) use declaration::write_property_fields;
 pub use plan::{read_property_plan_slot, write_property_plan_slot};
 pub use value::{EnumPropertyValue, PropertyValue};
 

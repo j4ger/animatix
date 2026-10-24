@@ -37,6 +37,8 @@ pub struct TrackFields<'a> {
     pub tagged_tracks: &'a HashMap<String, Option<PropertyTrack<PropertyValue>>>,
     /// Primitive payload (plot/SVG/image).
     pub payload: &'a PrimitivePayload,
+    /// Actor label (diagnostics).
+    pub label: &'a str,
     /// Capability projection for this entity.
     pub caps: ActorCaps,
     /// Registry-derived property plan for this entity.
@@ -59,6 +61,8 @@ pub struct TrackFieldsMut<'a> {
     pub tagged_tracks: &'a mut HashMap<String, Option<PropertyTrack<PropertyValue>>>,
     /// Primitive payload.
     pub payload: &'a mut PrimitivePayload,
+    /// Actor label (diagnostics).
+    pub label: &'a str,
     /// Capability projection for this entity.
     pub caps: ActorCaps,
     /// Registry-derived property plan for this entity.
@@ -77,6 +81,7 @@ impl World {
             highlight: &track.highlight,
             tagged_tracks: &track.tagged_tracks,
             payload: &track.payload,
+            label: &track.label,
             caps: track.caps,
             property_plan: &track.property_plan,
         })
@@ -93,6 +98,7 @@ impl World {
             highlight: &mut track.highlight,
             tagged_tracks: &mut track.tagged_tracks,
             payload: &mut track.payload,
+            label: &track.label,
             caps: track.caps,
             property_plan: &mut track.property_plan,
         })
@@ -144,6 +150,7 @@ impl<'a> TrackFields<'a> {
             highlight: &track.highlight,
             tagged_tracks: &track.tagged_tracks,
             payload: &track.payload,
+            label: &track.label,
             caps: track.caps,
             property_plan: &track.property_plan,
         }
@@ -247,15 +254,16 @@ impl<'a> TrackFieldsMut<'a> {
             tagged_tracks: &mut track.tagged_tracks,
             payload: &mut track.payload,
             caps: track.caps,
+            label: &track.label,
             property_plan: &mut track.property_plan,
         }
     }
 
     /// Mutable reference to one registry-backed property field.
     pub fn field_mut(
-        self,
+        &mut self,
         field: crate::timeline::property_registry::ActorField,
-    ) -> Option<crate::timeline::dispatch::TrackFieldMut<'a>> {
+    ) -> Option<crate::timeline::dispatch::TrackFieldMut<'_>> {
         use crate::timeline::dispatch::TrackFieldMut;
         use crate::timeline::property_registry::ActorField;
         if let ActorField::Tagged(name) = field {
@@ -430,5 +438,56 @@ mod read_tests {
             timeline.world().read_property_value(id, ActorField::Opacity, 100),
             Some(crate::timeline::PropertyValue::F32(0.75))
         );
+    }
+}
+
+impl World {
+    /// Write one property value for an entity, routing through the tier bundle.
+    pub fn write_property_field(
+        &mut self,
+        id: EntityId,
+        field: crate::timeline::property_registry::ActorField,
+        value: PropertyValue,
+        t_start_ms: u64,
+        t_end_ms: u64,
+        easing: crate::easing::Easing,
+        diagnostics: &mut Vec<crate::diagnostics::Diagnostic>,
+    ) {
+        if let Some(mut fields) = self.fields_mut(id) {
+            crate::timeline::property_engine::write_property_fields(
+                &mut fields,
+                field,
+                value,
+                t_start_ms,
+                t_end_ms,
+                easing,
+                diagnostics,
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod write_tests {
+    use crate::timeline::Timeline;
+    use crate::timeline::property_registry::ActorField;
+
+    #[test]
+    fn world_write_property_field_writes_through() {
+        let mut timeline = Timeline::new();
+        let id = timeline.world_mut().spawn("box", "Rect");
+        let mut diagnostics = Vec::new();
+        timeline.world_mut().write_property_field(
+            id,
+            ActorField::Opacity,
+            crate::timeline::PropertyValue::F32(0.6),
+            0,
+            100,
+            crate::easing::Easing::Linear,
+            &mut diagnostics,
+        );
+        assert!(diagnostics.is_empty());
+        let track = timeline.world().tracks.get_by_id(id).unwrap();
+        assert_eq!(track.style.opacity.as_ref().unwrap().evaluate(100), 0.6);
     }
 }

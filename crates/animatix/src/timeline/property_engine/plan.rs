@@ -15,13 +15,9 @@ use super::value::{PropertyValue, property_value_from_value};
 // Plan-backed property access
 // ─────────────────────────────────────────────────────────────
 
-/// Write a property value through the actor's registry-driven `PropertyPlan`.
-///
-/// Returns `true` when the value was stored in a plan slot. The slot is
-/// created lazily for extension properties not present in the built-in
-/// registry.
-pub fn write_property_plan_slot(
-    track: &mut AnimationTrack,
+/// Write a value through a plan, without an actor track.
+pub fn write_property_plan_slot_on(
+    plan: &mut crate::timeline::plan::PropertyPlan,
     id: animatix_syntax::schema::PropertyId,
     kind: crate::timeline::PropertyKind,
     value: PropertyValue,
@@ -30,7 +26,7 @@ pub fn write_property_plan_slot(
     easing: Easing,
 ) -> bool {
     let has_duration = t_end_ms > t_start_ms;
-    let slot = track.property_plan.ensure_slot(id, kind);
+    let slot = plan.ensure_slot(id, kind);
     // The track model has no step keyframe: two writes at one timestamp collapse
     // to the later one, and any two *consecutive* keyframes read as an
     // interpolation segment. So an undated change has to be fenced as well, or
@@ -54,6 +50,27 @@ pub fn write_property_plan_slot(
         }
     }
     slot.track.add_keyframe_eased(t_end_ms, value, easing).is_some()
+}
+
+/// Write a property value through the actor’s registry-driven `PropertyPlan`.
+pub fn write_property_plan_slot(
+    track: &mut AnimationTrack,
+    id: animatix_syntax::schema::PropertyId,
+    kind: crate::timeline::PropertyKind,
+    value: PropertyValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+) -> bool {
+    write_property_plan_slot_on(
+        &mut track.property_plan,
+        id,
+        kind,
+        value,
+        t_start_ms,
+        t_end_ms,
+        easing,
+    )
 }
 
 /// Read a property value through the actor's registry-driven `PropertyPlan`.

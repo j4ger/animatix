@@ -8,7 +8,7 @@ use crate::timeline::preserve_instant_delayed_value;
 use crate::timeline::property_registry::ActorField;
 use crate::timeline::{AnimationTrack, PropertyTrack, ShapeType, TrackAccessor};
 
-use super::plan::write_property_plan_slot;
+use super::plan::write_property_plan_slot_on;
 use super::value::{EnumPropertyValue, PropertyValue};
 
 // ─────────────────────────────────────────────────────────────
@@ -24,8 +24,11 @@ use super::value::{EnumPropertyValue, PropertyValue};
 /// The dispatch works in two tiers:
 /// 1. Special cases that need custom extraction/conversion (ShapeType, no-ops, group diagnostics)
 /// 2. Uniform dispatch via `ActorField::default_value()` + `TrackFieldMut` for standard fields
-pub fn write_property_field(
-    track: &mut AnimationTrack,
+use crate::timeline::world::TrackFieldsMut;
+
+/// Write a parsed property value into a bundle of tier fields.
+pub fn write_property_fields(
+    fields: &mut TrackFieldsMut<'_>,
     field: ActorField,
     value: PropertyValue,
     t_start_ms: u64,
@@ -47,7 +50,7 @@ pub fn write_property_field(
             };
             if let Some(st) = st {
                 write_shape_type(
-                    &mut track.shape.shape_type,
+                    &mut fields.shape.shape_type,
                     st,
                     t_start_ms,
                     t_end_ms,
@@ -67,7 +70,7 @@ pub fn write_property_field(
         | ActorField::TextPaths
         | ActorField::ImageData
         | ActorField::SvgPaths => return,
-        // Audio source cannot be animated; volume can be animated via the volume track.
+        // Audio source cannot be animated; volume can be animated via the volume fields.
         ActorField::AudioSource => {
             diagnostics.push(Diagnostic::warning(
                 DiagnosticCode::UnimplementedProperty,
@@ -76,7 +79,7 @@ pub fn write_property_field(
                     "`{}.source` cannot be animated yet: audio `source` is snapshotted \
                      from the declaration, so this write is dropped. Set `source: …` on the Audio \
                      declaration instead.",
-                    track.label
+                    fields.label
                 ),
             ));
             return;
@@ -111,7 +114,7 @@ pub fn write_property_field(
     let pv_default = ActorField::default_value(field);
     let tagged_default = match field {
         ActorField::Tagged(name) => crate::timeline::property_registry::lookup_property(name)
-            .map(|schema| (schema.default_value)(&track.caps)),
+            .map(|schema| (schema.default_value)(&fields.caps)),
         _ => None,
     };
 
@@ -119,7 +122,7 @@ pub fn write_property_field(
         && let PropertyValue::Enum(choice) = &value
         && let Some(place) = crate::timeline::animation_track::CalloutPlace::from_str(choice)
     {
-        let callout_track = &mut track.geometry.callout_place;
+        let callout_track = &mut fields.geometry.callout_place;
         if has_duration {
             let start = callout_track
                 .get(t_start_ms, crate::timeline::animation_track::CalloutPlace::Right);
@@ -142,17 +145,25 @@ pub fn write_property_field(
         && name != "callout_place"
         && let Some(id) = crate::timeline::property_registry::property_id(name)
     {
-        let kind = track
+        let kind = fields
             .property_plan
             .get(id)
             .map(|slot| slot.kind)
             .unwrap_or(crate::timeline::PropertyKind::Generic);
-        if write_property_plan_slot(track, id, kind, value.clone(), t_start_ms, t_end_ms, easing) {
+        if write_property_plan_slot_on(
+            fields.property_plan,
+            id,
+            kind,
+            value.clone(),
+            t_start_ms,
+            t_end_ms,
+            easing,
+        ) {
             return;
         }
     }
 
-    if let Some(tf) = track.field_mut(field) {
+    if let Some(tf) = fields.field_mut(field) {
         match tf {
             TrackFieldMut::F32(f) => {
                 let default = match pv_default {
@@ -231,7 +242,7 @@ pub fn write_property_field(
                     _ => 0,
                 };
                 // U32 uses write_f32 under the hood (PropertyValue uses F32 for numeric keyframes)
-                // Handle by extracting and writing via the f32 track
+                // Handle by extracting and writing via the f32 fields
                 if let PropertyValue::F32(v) = value {
                     let v_u32 = v.max(0.0) as u32;
                     if has_duration {
@@ -352,6 +363,20 @@ pub fn write_property_field(
             TrackFieldMut::Image(_) => {},
         }
     }
+}
+
+/// Write a parsed property value to the correct track field.
+pub fn write_property_field(
+    track: &mut AnimationTrack,
+    field: ActorField,
+    value: PropertyValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut fields = TrackFieldsMut::from_track(track);
+    write_property_fields(&mut fields, field, value, t_start_ms, t_end_ms, easing, diagnostics);
 }
 
 // ─────────────────────────────────────────────────────────────
