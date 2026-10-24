@@ -354,7 +354,9 @@ pub(crate) fn build_property_groups(
             continue;
         }
         let id = animatix::property_descriptor::runtime_id(&descriptor);
-        let Some(value) = animatix::timeline::read_property_plan_slot(track, id, time_ms) else {
+        let Some(value) =
+            animatix::timeline::read_property_plan_slot(&track.property_plan, id, time_ms)
+        else {
             continue;
         };
         extension_props.push(PropertyEntry {

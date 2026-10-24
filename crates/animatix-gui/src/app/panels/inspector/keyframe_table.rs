@@ -415,7 +415,7 @@ fn collect_track_groups(timeline: &Timeline, track: &AnimationTrack) -> Vec<Trac
         }
         let mut keyframes = Vec::new();
         for time_ms in track.property_plan.keyframe_times(id) {
-            if let Some(value) = read_property_plan_slot(track, id, time_ms) {
+            if let Some(value) = read_property_plan_slot(&track.property_plan, id, time_ms) {
                 let easing = track
                     .property_plan
                     .keyframe_easing(id, time_ms)

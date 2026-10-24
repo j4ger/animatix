@@ -90,7 +90,7 @@ pub(crate) unsafe extern "C" fn native_get_property(
     };
     let value = if let Some(id) = host.property_ids.get(&name) {
         crate::timeline::property_engine::read_property_plan_slot(
-            host.ctx.track,
+            &host.ctx.track.property_plan,
             *id,
             host.ctx.time_ms,
         )
@@ -548,7 +548,7 @@ pub(crate) unsafe extern "C" fn native_assignment_write_keyframe(
         return NATIVE_STATUS_TYPE_ERROR;
     };
     crate::timeline::property_engine::write_property_plan_slot(
-        host.track,
+        &mut host.track.property_plan,
         *id,
         crate::timeline::PropertyKind::from(*kind),
         property_value,
@@ -674,7 +674,7 @@ pub(crate) unsafe extern "C" fn native_action_write_keyframe(
         return NATIVE_STATUS_TYPE_ERROR;
     };
     crate::timeline::property_engine::write_property_plan_slot(
-        track,
+        &mut track.property_plan,
         *id,
         crate::timeline::PropertyKind::from(*kind),
         property_value,

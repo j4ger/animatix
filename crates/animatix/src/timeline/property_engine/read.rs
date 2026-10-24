@@ -120,7 +120,7 @@ pub(crate) fn inject_extension_properties_into_env(
                 continue;
             }
         }
-        let Some(pv) = read_property_plan_slot(track, spec.id, time_ms) else {
+        let Some(pv) = read_property_plan_slot(&track.property_plan, spec.id, time_ms) else {
             continue;
         };
         key.truncate(prefix_len);
@@ -228,7 +228,7 @@ pub(crate) fn read_property_value_resolved(
     time_ms: u64,
 ) -> Option<PropertyValue> {
     if let Some(id) = slot
-        && let Some(value) = read_property_plan_slot(track, id, time_ms)
+        && let Some(value) = read_property_plan_slot(&track.property_plan, id, time_ms)
     {
         return Some(value);
     }

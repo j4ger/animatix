@@ -83,7 +83,7 @@ fn property_plan_slot_writes_and_reads_without_string_lookup() {
     let position = crate::timeline::property_id("position").expect("position is registered");
 
     assert!(write_property_plan_slot(
-        &mut track,
+        &mut track.property_plan,
         position,
         crate::timeline::PropertyKind::Vec2,
         PropertyValue::Vec2([10.0, 20.0]),
@@ -92,12 +92,12 @@ fn property_plan_slot_writes_and_reads_without_string_lookup() {
         Easing::Linear,
     ));
     assert_eq!(
-        read_property_plan_slot(&track, position, 0),
+        read_property_plan_slot(&track.property_plan, position, 0),
         Some(PropertyValue::Vec2([10.0, 20.0]))
     );
 
     assert!(write_property_plan_slot(
-        &mut track,
+        &mut track.property_plan,
         position,
         crate::timeline::PropertyKind::Vec2,
         PropertyValue::Vec2([110.0, 20.0]),

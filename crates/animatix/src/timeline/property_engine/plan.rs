@@ -54,7 +54,7 @@ pub fn write_property_plan_slot_on(
 
 /// Write a property value through the actor’s registry-driven `PropertyPlan`.
 pub fn write_property_plan_slot(
-    track: &mut AnimationTrack,
+    plan: &mut crate::timeline::plan::PropertyPlan,
     id: animatix_syntax::schema::PropertyId,
     kind: crate::timeline::PropertyKind,
     value: PropertyValue,
@@ -62,24 +62,16 @@ pub fn write_property_plan_slot(
     t_end_ms: u64,
     easing: Easing,
 ) -> bool {
-    write_property_plan_slot_on(
-        &mut track.property_plan,
-        id,
-        kind,
-        value,
-        t_start_ms,
-        t_end_ms,
-        easing,
-    )
+    write_property_plan_slot_on(plan, id, kind, value, t_start_ms, t_end_ms, easing)
 }
 
 /// Read a property value through the actor's registry-driven `PropertyPlan`.
 pub fn read_property_plan_slot(
-    track: &AnimationTrack,
+    plan: &crate::timeline::plan::PropertyPlan,
     id: animatix_syntax::schema::PropertyId,
     time_ms: u64,
 ) -> Option<PropertyValue> {
-    track.property_plan.get(id).and_then(|slot| slot.track.sample(time_ms))
+    plan.get(id).and_then(|slot| slot.track.sample(time_ms))
 }
 
 /// Parse an expression into the finite value kind declared by an extension.
@@ -194,5 +186,13 @@ pub(crate) fn write_extension_property_slot(
         (PropertyValueKind::U32, PropertyValue::F32(v)) => PropertyValue::U32(v.max(0.0) as u32),
         _ => value,
     };
-    write_property_plan_slot(track, spec.id, spec.kind.into(), value, t_start_ms, t_end_ms, easing)
+    write_property_plan_slot(
+        &mut track.property_plan,
+        spec.id,
+        spec.kind.into(),
+        value,
+        t_start_ms,
+        t_end_ms,
+        easing,
+    )
 }

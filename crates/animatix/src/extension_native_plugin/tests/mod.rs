@@ -228,7 +228,7 @@ fn native_action_context_writes_extension_keyframe() {
     assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
     assert_eq!(
         crate::timeline::property_engine::read_property_plan_slot(
-            timeline.world.tracks.get("p").expect("track"),
+            &timeline.world.tracks.get("p").expect("track").property_plan,
             id,
             500,
         ),

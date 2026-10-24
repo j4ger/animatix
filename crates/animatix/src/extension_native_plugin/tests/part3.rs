@@ -38,7 +38,7 @@ fn native_assignment_write_keyframe_writes_extension_slot() {
         NATIVE_STATUS_OK
     );
     assert_eq!(
-        crate::timeline::property_engine::read_property_plan_slot(&track, id, 500),
+        crate::timeline::property_engine::read_property_plan_slot(&track.property_plan, id, 500),
         Some(crate::timeline::PropertyValue::F32(0.75))
     );
 }

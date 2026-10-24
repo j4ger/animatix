@@ -427,7 +427,7 @@ fn native_get_property_reads_extension_slot() {
         .expect("register property");
     let mut track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
     crate::timeline::property_engine::write_property_plan_slot(
-        &mut track,
+        &mut track.property_plan,
         id,
         PropertyKind::F32,
         crate::timeline::PropertyValue::F32(0.75),
