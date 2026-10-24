@@ -11,10 +11,12 @@
 //! source of truth across a merge boundary.
 
 mod component;
+mod fields;
 mod hierarchy;
 mod view;
 
 pub use component::{ComponentStore, RequiredStore};
+pub use fields::{TrackFields, TrackFieldsMut};
 pub use hierarchy::SceneHierarchyComponent;
 pub use view::{EntityMut, EntityRef};
 
