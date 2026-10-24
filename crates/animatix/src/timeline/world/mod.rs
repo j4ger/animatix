@@ -13,6 +13,7 @@
 mod component;
 mod fields;
 mod hierarchy;
+mod highlight;
 mod meta;
 mod payload;
 mod view;
