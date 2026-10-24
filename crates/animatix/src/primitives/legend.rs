@@ -189,12 +189,15 @@ impl Primitive for LegendPrimitive {
         }
 
         // Ensure track exists and set kind
-        let track = ctx.timeline.world.ensure_track(label, "Legend");
+        let track_id = ctx.timeline.world.spawn(label, "Legend");
+        ctx.timeline.world.set_first_seen(track_id, ctx.time_ms as u64);
+        let track = ctx
+            .timeline
+            .world
+            .tracks
+            .get_by_id_mut(track_id)
+            .expect("spawn creates the track");
         track.set_identity("Legend");
-
-        if track.first_seen_ms == u64::MAX {
-            track.first_seen_ms = ctx.time_ms as u64;
-        }
 
         let time_ms = ctx.time_ms as u64;
         let default_fields = [

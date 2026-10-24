@@ -64,8 +64,8 @@ pub struct LegendTracks {
 }
 
 /// Derive the current legend participation mode from the tagged `legend` property.
-pub fn legend_mode_for_track(track: &super::AnimationTrack) -> LegendMode {
-    let time_ms = track.first_seen_ms;
+pub fn legend_mode_for_track(track: &super::AnimationTrack, first_seen_ms: u64) -> LegendMode {
+    let time_ms = first_seen_ms;
     let value =
         super::dispatch::read_property_value(track, super::ActorField::Tagged("legend"), time_ms);
     value
@@ -178,13 +178,9 @@ fn source_order(world: &super::World) -> std::collections::HashMap<String, usize
 /// Derived from the tagged property track — the single source of truth for the
 /// participation mode — so a declaration and a later assignment are both seen
 /// without a duplicate boolean in [`LegendTracks`].
-fn legend_declared(track: &super::AnimationTrack) -> bool {
-    super::dispatch::read_property_value(
-        track,
-        super::ActorField::Tagged("legend"),
-        track.first_seen_ms,
-    )
-    .is_some()
+fn legend_declared(track: &super::AnimationTrack, first_seen_ms: u64) -> bool {
+    super::dispatch::read_property_value(track, super::ActorField::Tagged("legend"), first_seen_ms)
+        .is_some()
 }
 
 /// Scan completed actor tracks for color-bearing legend candidates.
@@ -198,10 +194,11 @@ pub fn scan_legend_entries(world: &super::World) -> Vec<(String, [f32; 4])> {
     let mut candidates = Vec::new();
     for (label, track) in &world.tracks {
         let legend = world.legend(track.id);
-        let mode = legend_mode_for_track(track);
+        let first_seen_ms = world.meta(track.id).first_seen_ms;
+        let mode = legend_mode_for_track(track, first_seen_ms);
         if !legend_eligible(&track.caps)
             || mode == LegendMode::Hidden
-            || (is_full_viewport_background(track) && !legend_declared(track))
+            || (is_full_viewport_background(track) && !legend_declared(track, first_seen_ms))
         {
             continue;
         }
@@ -213,13 +210,7 @@ pub fn scan_legend_entries(world: &super::World) -> Vec<(String, [f32; 4])> {
             LegendMode::Auto | LegendMode::Hidden => prettify_label(label),
         };
         let source_position = order.get(label).copied().unwrap_or(usize::MAX);
-        candidates.push((
-            source_position,
-            track.first_seen_ms,
-            label.clone(),
-            display_label,
-            color,
-        ));
+        candidates.push((source_position, first_seen_ms, label.clone(), display_label, color));
     }
 
     candidates

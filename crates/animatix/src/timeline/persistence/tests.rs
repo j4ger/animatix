@@ -82,14 +82,6 @@ fn snapshot_preserves_kind() {
 }
 
 #[test]
-fn snapshot_sets_first_seen_ms_to_zero() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.first_seen_ms = 500;
-    let snapshot = snapshot_track_at(&track, 500);
-    assert_eq!(snapshot.first_seen_ms, 0);
-}
-
-#[test]
 fn snapshot_preserves_svg_paths() {
     use crate::timeline::VelloPath;
     let mut track = AnimationTrack::placeholder("test".to_string());

@@ -296,6 +296,7 @@ fn inject_entry(
     // the label's entity id and resets its hierarchy component, matching the
     // old `TrackStore::insert` replacement semantics.
     let id = dest.world.spawn_replacing(label, track);
+    dest.world.meta_mut(id).first_seen_ms = 0;
     if let Some(effects) = entry.effects.clone() {
         dest.world.effects.insert(id, effects);
     }
@@ -440,7 +441,6 @@ impl Timeline {
 /// the links after inserting each snapshot.
 pub fn snapshot_track_at(track: &AnimationTrack, time_ms: u64) -> AnimationTrack {
     let mut snapshot = track.clone();
-    snapshot.first_seen_ms = 0;
 
     // Collapse each tier's property tracks to a single t=0 keyframe.
     collapse_geometry_tracks(&mut snapshot.geometry, time_ms);

@@ -565,7 +565,8 @@ fn extension_actor_is_visible_from_declaration_time() {
     );
     let track = report.output.world.tracks.get("p").expect("pulse track");
     assert_eq!(
-        track.first_seen_ms, 0,
+        report.output.world.meta(track.id).first_seen_ms,
+        0,
         "extension actors must be visible from their declaration time"
     );
 }

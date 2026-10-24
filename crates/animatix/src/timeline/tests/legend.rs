@@ -162,12 +162,18 @@ fn test_legend_union_property_sets_actor_mode() {
 
     let hidden = timeline.get_track("hidden_series").expect("hidden series track");
     assert_eq!(
-        crate::timeline::legend::legend_mode_for_track(hidden),
+        crate::timeline::legend::legend_mode_for_track(
+            hidden,
+            timeline.world.meta(hidden.id).first_seen_ms,
+        ),
         super::super::LegendMode::Hidden
     );
     let named = timeline.get_track("named_series").expect("named series track");
     assert_eq!(
-        crate::timeline::legend::legend_mode_for_track(named),
+        crate::timeline::legend::legend_mode_for_track(
+            named,
+            timeline.world.meta(named.id).first_seen_ms,
+        ),
         super::super::LegendMode::Label("Revenue".to_string())
     );
 }

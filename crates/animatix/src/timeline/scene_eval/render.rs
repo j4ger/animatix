@@ -224,7 +224,7 @@ impl Timeline {
         // Skip actors that haven't been declared yet.
         // They are not clickable in the preview canvas before they appear;
         // selection is still possible via the layers / inspector tab.
-        if time_ms < track.first_seen_ms {
+        if time_ms < self.world.meta(track.id).first_seen_ms {
             // Still recurse into children so they are also hidden
             for &child_id in &self.world.hierarchy(track.id).children {
                 self.evaluate_node_by_id(

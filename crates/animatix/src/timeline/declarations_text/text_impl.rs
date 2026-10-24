@@ -302,8 +302,12 @@ impl Timeline {
 
         // Record first declaration time so scene evaluation can hide
         // actors before they are declared
-        if track.first_seen_ms == u64::MAX {
-            track.first_seen_ms = t_start_ms;
+        let meta = self
+            .world
+            .meta
+            .get_or_insert_with(track.id, crate::timeline::world::EntityMeta::default);
+        if meta.first_seen_ms == u64::MAX {
+            meta.first_seen_ms = t_start_ms;
         }
 
         if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {

@@ -430,8 +430,8 @@ mod tests {
         assert_eq!(labels, vec!["box", "text"]);
 
         // Mutation via index
-        store[id_box].first_seen_ms = 0;
-        assert_eq!(store["box"].first_seen_ms, 0);
+        store[id_box].actor_type = "Text".to_string();
+        assert_eq!(store["box"].actor_type, "Text");
 
         // Entry API
         store

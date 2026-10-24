@@ -456,9 +456,7 @@ impl Timeline {
                     // Extension builds create the track; mirror the built-in
                     // path so the actor is visible from its declaration time
                     // instead of being skipped forever (first_seen_ms = MAX).
-                    if track.first_seen_ms == u64::MAX {
-                        track.first_seen_ms = time_ms as u64;
-                    }
+                    self.world.meta.record_first_seen(track.id, time_ms as u64);
                 }
                 self.process_inline_items(time_ms, children, label, diagnostics);
                 // Extension builds only create the track; apply the common
@@ -960,9 +958,7 @@ impl Timeline {
             let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
             track.set_identity(ty);
             track.rebuild_property_plan();
-            if track.first_seen_ms == u64::MAX {
-                track.first_seen_ms = t_start_ms;
-            }
+            self.world.meta.record_first_seen(track.id, t_start_ms);
             track.id
         };
         if let Some(span) = decl_span
@@ -1831,9 +1827,7 @@ impl Timeline {
                 }
             }
 
-            if track.first_seen_ms == u64::MAX {
-                track.first_seen_ms = t_start_ms;
-            }
+            self.world.meta.record_first_seen(track.id, t_start_ms);
 
             // Pre-seed opacity for pre-keyframe first declarations so that
             // insert_start_keyframes captures the correct invisible start value.

@@ -62,14 +62,15 @@ impl Primitive for CaptionsPrimitive {
         _children: &[InlineItem],
     ) -> Result<(), Vec<Diagnostic>> {
         ctx.timeline.add_node(label.to_string(), ctx.parent_label);
-        let track =
-            ctx.timeline.world.tracks.entry(label.to_string()).or_insert_with(|| {
-                crate::timeline::AnimationTrack::new(label.to_string(), "Captions")
-            });
+        let track_id = ctx.timeline.world.spawn(label, "Captions");
+        ctx.timeline.world.set_first_seen(track_id, ctx.time_ms as u64);
+        let track = ctx
+            .timeline
+            .world
+            .tracks
+            .get_by_id_mut(track_id)
+            .expect("spawn creates the track");
         track.set_identity("Captions");
-        if track.first_seen_ms == u64::MAX {
-            track.first_seen_ms = ctx.time_ms as u64;
-        }
 
         // Check for direct transcript property on Captions
         for prop in props {

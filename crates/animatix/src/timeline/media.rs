@@ -155,8 +155,12 @@ impl Timeline {
 
         // Record first declaration time so scene evaluation can hide
         // actors before they are declared
-        if track.first_seen_ms == u64::MAX {
-            track.first_seen_ms = time_ms as u64;
+        let meta = self
+            .world
+            .meta
+            .get_or_insert_with(track.id, crate::timeline::world::EntityMeta::default);
+        if meta.first_seen_ms == u64::MAX {
+            meta.first_seen_ms = time_ms as u64;
         }
 
         if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
@@ -302,12 +306,10 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         self.add_node(label.to_string(), parent_label);
-        let track = self.world.ensure_track(label, "Audio");
+        let track_id = self.world.spawn(label, "Audio");
+        self.world.set_first_seen(track_id, time_ms as u64);
+        let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
         track.set_identity("Audio");
-
-        if track.first_seen_ms == u64::MAX {
-            track.first_seen_ms = time_ms as u64;
-        }
 
         let eval_env = self.build_eval_env(time_ms as u64);
         let mut source = String::new();

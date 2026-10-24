@@ -289,15 +289,13 @@ fn render_actor_header(
         ui.with_layout(
             egui::Layout::right_to_left(egui::Align::Center).with_main_wrap(false),
             |ui| {
-                if track.first_seen_ms > 0 && track.first_seen_ms != u64::MAX {
+                let first_seen_ms = timeline.world().meta(track.id).first_seen_ms;
+                if first_seen_ms > 0 && first_seen_ms != u64::MAX {
                     ui.add(
                         egui::Label::new(
-                            RichText::new(format!(
-                                "t = {:.2}s",
-                                track.first_seen_ms as f64 / 1000.0
-                            ))
-                            .size(TextRole::Micro.size())
-                            .color(theme.palette.text.muted),
+                            RichText::new(format!("t = {:.2}s", first_seen_ms as f64 / 1000.0))
+                                .size(TextRole::Micro.size())
+                                .color(theme.palette.text.muted),
                         )
                         .selectable(false),
                     );

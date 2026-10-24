@@ -73,8 +73,6 @@ pub struct AnimationTrack {
     /// Built after the actor identity is known; frame-time extension paths can
     /// use this instead of string lookups.
     pub property_plan: super::plan::PropertyPlan,
-    /// First frame (ms) this actor appears.
-    pub first_seen_ms: u64,
     /// Dense index into the per-frame precise-bounds table (PF-6 slot-id
     /// design). Stamped by `EvalCaches::ensure_bounds_registry` in sorted
     /// `tracks` order and invalidated via `invalidate_frame_cache`; the
@@ -146,7 +144,6 @@ impl AnimationTrack {
             caps,
             actor_type,
             property_plan: super::plan::PropertyPlan::default(),
-            first_seen_ms: u64::MAX,
             bounds_slot: std::cell::Cell::new(u32::MAX),
             shape_command_memo: std::cell::RefCell::new(Box::new(
                 crate::primitives::ShapeCommandMemo::default(),

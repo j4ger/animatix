@@ -14,6 +14,8 @@ pub struct EntityMeta {
     pub parallax: f32,
     /// Whether the build hid this actor until an entrance action.
     pub hidden_by_default: bool,
+    /// First frame (ms) this actor appears; `u64::MAX` until seen.
+    pub first_seen_ms: u64,
 }
 
 impl EntityMeta {
@@ -24,11 +26,22 @@ impl EntityMeta {
         camera_follow: true,
         parallax: 1.0,
         hidden_by_default: false,
+        first_seen_ms: u64::MAX,
     };
 }
 
 impl Default for EntityMeta {
     fn default() -> Self {
         Self::DEFAULT
+    }
+}
+
+impl super::component::ComponentStore<EntityMeta> {
+    /// Record the first sighting of `id`; later calls keep the first time.
+    pub fn record_first_seen(&mut self, id: super::EntityId, time_ms: u64) {
+        let meta = self.get_or_insert_with(id, EntityMeta::default);
+        if meta.first_seen_ms == u64::MAX {
+            meta.first_seen_ms = time_ms;
+        }
     }
 }

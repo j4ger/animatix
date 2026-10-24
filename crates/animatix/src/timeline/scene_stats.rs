@@ -221,8 +221,10 @@ pub(crate) fn bake_scene_stats(timeline: &mut Timeline) {
             if crate::timeline::legend::is_full_viewport_background(t) {
                 return false;
             }
-            if crate::timeline::legend::legend_mode_for_track(t)
-                == crate::timeline::legend::LegendMode::Hidden
+            if crate::timeline::legend::legend_mode_for_track(
+                t,
+                timeline.world.meta(t.id).first_seen_ms,
+            ) == crate::timeline::legend::LegendMode::Hidden
             {
                 return false;
             }

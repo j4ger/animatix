@@ -279,6 +279,21 @@ impl World {
         self.meta.get(id).unwrap_or(&EntityMeta::DEFAULT)
     }
 
+    /// First frame this entity appears, or `u64::MAX` when unseen.
+    #[inline(always)]
+    pub fn first_seen(&self, id: EntityId) -> u64 {
+        self.meta.get(id).map_or(u64::MAX, |meta| meta.first_seen_ms)
+    }
+
+    /// Record the first frame this entity appears.
+    #[inline(always)]
+    pub fn set_first_seen(&mut self, id: EntityId, time_ms: u64) {
+        let meta = self.meta.get_or_insert_with(id, EntityMeta::default);
+        if meta.first_seen_ms == u64::MAX {
+            meta.first_seen_ms = time_ms;
+        }
+    }
+
     /// Mutably borrow an entity's metadata.
     #[inline(always)]
     pub fn meta_mut(&mut self, id: EntityId) -> &mut EntityMeta {
@@ -731,5 +746,10 @@ mod meta_default_tests {
         assert!(world.meta(id).visible, "missing component reads as the default");
         world.meta_mut(id).visible = false;
         assert!(!world.meta(id).visible);
+        assert_eq!(world.first_seen(id), u64::MAX);
+        world.set_first_seen(id, 250);
+        assert_eq!(world.first_seen(id), 250);
+        world.set_first_seen(id, 900);
+        assert_eq!(world.first_seen(id), 250, "first sighting wins");
     }
 }

@@ -958,7 +958,6 @@ fn make_target_track(label: &str, pos: [f32; 2], half: [f32; 2]) -> AnimationTra
     let mut track = AnimationTrack::placeholder(label.to_string());
     track.actor_type = "Rect".to_string();
     track.caps = animatix_std::caps_for_type("Rect").unwrap();
-    track.first_seen_ms = 0;
     track.geometry.position = Some({
         let mut t = PropertyTrack::new(pos);
         t.add_keyframe(0, pos, Easing::Linear);
@@ -978,7 +977,6 @@ fn make_callout_track(label: &str, target: &str) -> AnimationTrack {
     let mut track = AnimationTrack::placeholder(label.to_string());
     track.actor_type = "Callout".to_string();
     track.caps = animatix_std::caps_for_type("Callout").unwrap();
-    track.first_seen_ms = 0;
     track.geometry.callout_target = Some({
         let mut t = PropertyTrack::new(target.to_string());
         t.add_keyframe(0, target.to_string(), Easing::Linear);
@@ -1004,10 +1002,10 @@ fn test_callout_target_translated_world_bounds() {
     // place=right → attach = (240, 100).
     let mut timeline = Timeline::new();
     let target = make_target_track("box", [200.0, 100.0], [40.0, 20.0]);
-    timeline.world.spawn_with_track("box", target);
+    spawn_seen(&mut timeline, "box", target);
 
     let callout = make_callout_track("note", "box");
-    timeline.world.spawn_with_track("note", callout);
+    spawn_seen(&mut timeline, "note", callout);
 
     let dims = SceneDimensions {
         width: 1920,
@@ -1033,10 +1031,10 @@ fn test_callout_target_scaled_world_bounds() {
         t.add_keyframe(0, 2.0, Easing::Linear);
         t
     });
-    timeline.world.spawn_with_track("box", target);
+    spawn_seen(&mut timeline, "box", target);
 
     let callout = make_callout_track("note", "box");
-    timeline.world.spawn_with_track("note", callout);
+    spawn_seen(&mut timeline, "note", callout);
 
     let dims = SceneDimensions {
         width: 1920,
@@ -1067,10 +1065,10 @@ fn test_callout_target_rotated_aabb() {
         t.add_keyframe(0, angle_rad, Easing::Linear);
         t
     });
-    timeline.world.spawn_with_track("box", target);
+    spawn_seen(&mut timeline, "box", target);
 
     let callout = make_callout_track("note", "box");
-    timeline.world.spawn_with_track("note", callout);
+    spawn_seen(&mut timeline, "note", callout);
 
     let dims = SceneDimensions {
         width: 1920,
@@ -1101,15 +1099,15 @@ fn test_callout_target_nested_child_world_bounds() {
     let mut timeline = Timeline::new();
 
     let parent = make_target_track("parent", [100.0, 0.0], [50.0, 50.0]);
-    let parent_id = timeline.world.spawn_with_track("parent", parent);
+    let parent_id = spawn_seen(&mut timeline, "parent", parent);
 
     let child = make_target_track("child", [100.0, 0.0], [40.0, 20.0]);
-    let child_id = timeline.world.spawn_with_track("child", child);
+    let child_id = spawn_seen(&mut timeline, "child", child);
     // Register child under parent
     timeline.world.link(parent_id, child_id);
 
     let callout = make_callout_track("note", "child");
-    timeline.world.spawn_with_track("note", callout);
+    spawn_seen(&mut timeline, "note", callout);
 
     let dims = SceneDimensions {
         width: 1920,
@@ -1164,4 +1162,14 @@ fn test_callout_missing_target_produces_diagnostic() {
         "expected CalloutTargetNotFound diagnostic, got: {:?}",
         report.diagnostics
     );
+}
+
+fn spawn_seen(
+    timeline: &mut crate::timeline::Timeline,
+    label: &str,
+    track: AnimationTrack,
+) -> crate::timeline::EntityId {
+    let id = timeline.world.spawn_with_track(label, track);
+    timeline.world.meta_mut(id).first_seen_ms = 0;
+    id
 }
