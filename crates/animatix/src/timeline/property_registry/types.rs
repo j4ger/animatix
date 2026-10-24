@@ -187,17 +187,20 @@ impl ReadSource {
     pub fn read(
         &self,
         track: &crate::timeline::AnimationTrack,
+        world: Option<&crate::timeline::World>,
         time_ms: u64,
     ) -> Option<crate::timeline::PropertyValue> {
+        let read = |field| match world {
+            Some(world) => world.read_property_value(track.id, field, time_ms),
+            None => crate::timeline::dispatch::read_property_value(track, field, time_ms),
+        };
         match self {
-            ReadSource::Field(f) | ReadSource::Alias(f) => {
-                crate::timeline::dispatch::read_property_value(track, *f, time_ms)
-            },
+            ReadSource::Field(f) | ReadSource::Alias(f) => read(*f),
             ReadSource::Component {
                 field,
                 index,
                 scale,
-            } => crate::timeline::dispatch::read_property_value(track, *field, time_ms).map(|pv| {
+            } => read(*field).map(|pv| {
                 if let crate::timeline::PropertyValue::Vec2(v) = pv {
                     crate::timeline::PropertyValue::F32(v[*index] * *scale as f32)
                 } else {

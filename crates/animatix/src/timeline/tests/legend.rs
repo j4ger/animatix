@@ -168,6 +168,7 @@ fn test_legend_union_property_sets_actor_mode() {
         crate::timeline::legend::legend_mode_for_track(
             hidden,
             timeline.world.meta(hidden.id).first_seen_ms,
+            Some(&timeline.world),
         ),
         super::super::LegendMode::Hidden
     );
@@ -176,6 +177,7 @@ fn test_legend_union_property_sets_actor_mode() {
         crate::timeline::legend::legend_mode_for_track(
             named,
             timeline.world.meta(named.id).first_seen_ms,
+            Some(&timeline.world),
         ),
         super::super::LegendMode::Label("Revenue".to_string())
     );

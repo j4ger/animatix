@@ -332,6 +332,7 @@ pub(crate) fn build_property_groups(
     let mode = animatix::timeline::legend::legend_mode_for_track(
         track,
         timeline.world().meta(track.id).first_seen_ms,
+        Some(timeline.world()),
     );
     if legend.and_then(|legend| legend.color).is_some()
         || mode != animatix::timeline::LegendMode::Auto

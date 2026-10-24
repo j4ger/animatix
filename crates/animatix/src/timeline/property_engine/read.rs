@@ -24,6 +24,7 @@ pub(crate) fn inject_property_into_env(
     key: &mut String,
     label: &str,
     track: &AnimationTrack,
+    world: Option<&crate::timeline::World>,
     time_ms: u64,
     allowed_props: Option<&std::collections::HashSet<String>>,
     inject_animating_flags: bool,
@@ -51,7 +52,7 @@ pub(crate) fn inject_property_into_env(
         }
 
         // Read via the schema's read_source (handles Field, Alias, Component).
-        let pv = match schema.read_source.read(track, time_ms) {
+        let pv = match schema.read_source.read(track, world, time_ms) {
             Some(pv) => pv,
             None => {
                 // No track value — fall back to schema default.

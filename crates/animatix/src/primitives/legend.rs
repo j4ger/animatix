@@ -84,34 +84,40 @@ fn label_color_for_background(background: [f32; 4]) -> [f32; 4] {
     }
 }
 
-fn tagged_string_opt(track: &AnimationTrack, key: &'static str, time_ms: u64) -> Option<String> {
-    match crate::timeline::dispatch::read_property_value(
-        track,
-        crate::timeline::property_registry::ActorField::Tagged(key),
-        time_ms,
-    ) {
+fn tagged_string_opt(
+    ctx: &crate::primitives::EvaluateCtx,
+    key: &'static str,
+    time_ms: u64,
+) -> Option<String> {
+    match ctx
+        .read_property_value(crate::timeline::property_registry::ActorField::Tagged(key), time_ms)
+    {
         Some(crate::timeline::property_engine::PropertyValue::String(value)) => Some(value),
         _ => None,
     }
 }
 
-fn tagged_f32_opt(track: &AnimationTrack, key: &'static str, time_ms: u64) -> Option<f32> {
-    match crate::timeline::dispatch::read_property_value(
-        track,
-        crate::timeline::property_registry::ActorField::Tagged(key),
-        time_ms,
-    ) {
+fn tagged_f32_opt(
+    ctx: &crate::primitives::EvaluateCtx,
+    key: &'static str,
+    time_ms: u64,
+) -> Option<f32> {
+    match ctx
+        .read_property_value(crate::timeline::property_registry::ActorField::Tagged(key), time_ms)
+    {
         Some(crate::timeline::property_engine::PropertyValue::F32(value)) => Some(value),
         _ => None,
     }
 }
 
-fn tagged_color_opt(track: &AnimationTrack, key: &'static str, time_ms: u64) -> Option<[f32; 4]> {
-    match crate::timeline::dispatch::read_property_value(
-        track,
-        crate::timeline::property_registry::ActorField::Tagged(key),
-        time_ms,
-    ) {
+fn tagged_color_opt(
+    ctx: &crate::primitives::EvaluateCtx,
+    key: &'static str,
+    time_ms: u64,
+) -> Option<[f32; 4]> {
+    match ctx
+        .read_property_value(crate::timeline::property_registry::ActorField::Tagged(key), time_ms)
+    {
         Some(crate::timeline::property_engine::PropertyValue::Color(value)) => Some(value),
         Some(crate::timeline::property_engine::PropertyValue::Vec4(value)) => Some(value),
         _ => None,
@@ -120,7 +126,7 @@ fn tagged_color_opt(track: &AnimationTrack, key: &'static str, time_ms: u64) -> 
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx};
 use crate::renderer::error::RenderError;
-use crate::timeline::{AnimationTrack, SceneDimensions};
+use crate::timeline::SceneDimensions;
 
 /// The `Legend` primitive.
 pub struct LegendPrimitive;
@@ -310,18 +316,18 @@ impl Primitive for LegendPrimitive {
         use vello::peniko::Color;
 
         let mut commands = Vec::new();
-        let title = tagged_string_opt(ctx.track, "legend_title", ctx.time_ms)
+        let title = tagged_string_opt(ctx, "legend_title", ctx.time_ms)
             .unwrap_or_else(|| legend.title.clone());
-        let font_size = tagged_f32_opt(ctx.track, "legend_font_size", ctx.time_ms)
+        let font_size = tagged_f32_opt(ctx, "legend_font_size", ctx.time_ms)
             .unwrap_or(legend.font_size)
             .max(1.0);
-        let swatch_size = tagged_f32_opt(ctx.track, "legend_swatch_size", ctx.time_ms)
+        let swatch_size = tagged_f32_opt(ctx, "legend_swatch_size", ctx.time_ms)
             .unwrap_or(legend.swatch_size) as f64;
-        let gap = tagged_f32_opt(ctx.track, "legend_gap", ctx.time_ms).unwrap_or(legend.gap) as f64;
+        let gap = tagged_f32_opt(ctx, "legend_gap", ctx.time_ms).unwrap_or(legend.gap) as f64;
         let label_offset = swatch_size + gap;
-        let max_width = tagged_f32_opt(ctx.track, "legend_text_max_width", ctx.time_ms)
+        let max_width = tagged_f32_opt(ctx, "legend_text_max_width", ctx.time_ms)
             .unwrap_or(legend.text_max_width);
-        let label_color = tagged_color_opt(ctx.track, "legend_label_color", ctx.time_ms)
+        let label_color = tagged_color_opt(ctx, "legend_label_color", ctx.time_ms)
             .or(legend.label_color)
             .unwrap_or_else(|| label_color_for_background(ctx.background_color));
         let mut y_offset = 0.0f64;

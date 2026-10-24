@@ -188,8 +188,8 @@ impl Timeline {
         let mut map = std::collections::HashMap::new();
         for (label, track) in &self.world.tracks {
             if let Some(crate::timeline::property_engine::PropertyValue::String(id)) =
-                crate::timeline::read_property_value(
-                    track,
+                self.world.read_property_value(
+                    track.id,
                     crate::timeline::ActorField::Tagged("shared_id"),
                     time_ms,
                 )

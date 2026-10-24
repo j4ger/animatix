@@ -373,6 +373,7 @@ impl Timeline {
                 &mut key,
                 label,
                 track,
+                Some(&self.world),
                 time_ms,
                 allowed_props,
                 inject_animating_flags,

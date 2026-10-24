@@ -95,11 +95,7 @@ pub(crate) unsafe extern "C" fn native_get_property(
             host.ctx.time_ms,
         )
     } else if let Some(schema) = lookup_property(&name) {
-        crate::timeline::dispatch::read_property_value(
-            host.ctx.track,
-            schema.field,
-            host.ctx.time_ms,
-        )
+        host.ctx.read_property_value(schema.field, host.ctx.time_ms)
     } else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
