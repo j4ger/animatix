@@ -45,6 +45,8 @@ pub struct World {
     pub(crate) tracks: TrackStore,
     /// Parent/children links, aligned with `tracks`.
     pub(crate) hierarchy: RequiredStore<SceneHierarchyComponent>,
+    /// Equation-highlight tier for every entity.
+    pub(crate) highlight: RequiredStore<crate::timeline::animation_track::HighlightTracks>,
     /// Per-entity visibility/lock/camera metadata.
     pub(crate) meta: ComponentStore<EntityMeta>,
     /// Layout configuration for `Row`/`Col`/`Grid`/`Stack` actors.
@@ -260,6 +262,7 @@ impl World {
         }
         self.ensure_len();
         self.hierarchy.reset_at(id);
+        self.highlight.reset_at(id);
         self.meta.reset_at(id);
         self.container_layout.reset_at(id);
         self.child_order.reset_at(id);
@@ -573,6 +576,7 @@ impl World {
     pub(crate) fn ensure_len(&mut self) {
         let len = self.tracks.len();
         self.hierarchy.ensure_len(len);
+        self.highlight.ensure_len(len);
         self.meta.ensure_len(len);
         self.container_layout.ensure_len(len);
         self.child_order.ensure_len(len);
@@ -590,6 +594,7 @@ impl World {
     pub fn clear(&mut self) {
         self.tracks.clear();
         self.hierarchy.clear();
+        self.highlight.clear();
         self.meta.clear();
         self.container_layout.clear();
         self.child_order.clear();
@@ -775,21 +780,6 @@ impl World {
     }
 
     /// Maximum keyframe time across the track tiers and payload.
-    #[inline]
-    pub fn max_keyframe_time(&self, id: EntityId) -> Option<u64> {
-        self.tracks
-            .get_by_id(id)
-            .and_then(|track| track.max_keyframe_time_with(self.payload.get(id)))
-    }
-
-    /// Whether any tier (including payload) has animated keyframes.
-    #[inline]
-    pub fn has_any_keyframes(&self, id: EntityId) -> bool {
-        self.tracks
-            .get_by_id(id)
-            .is_some_and(|track| track.has_any_keyframes_with(self.payload.get(id)))
-    }
-
     /// Authoring/registration type name for an entity.
     #[inline(always)]
     pub fn actor_type(&self, id: EntityId) -> &str {

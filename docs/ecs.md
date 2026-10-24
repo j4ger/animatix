@@ -231,7 +231,7 @@ cross-scene carry, not for runtime storage.
 | P3a | persistence / auto-color / transcript stores + `EntityId` hit regions | done |
 | P3b | container-layout + child-order stores | done |
 | P4 | coordinate-frame store, no env fallback, carry across scenes | done |
-| P5 | header fields + legend + effects + payload done; highlight/text/shape/style/geometry/plan pending | in progress |
+| P5 | header fields + legend + effects + payload + highlight done; text/shape/style/geometry/plan pending | in progress |
 | P6 | delete `AnimationTrack`/`TrackStore`, migrate GUI, snapshot DTO | pending |
 | P7 | perf + full gate matrix + docs close-out | pending |
 

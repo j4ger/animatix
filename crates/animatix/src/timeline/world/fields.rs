@@ -32,7 +32,7 @@ pub struct TrackFields<'a> {
     /// Text tier.
     pub text: &'a TextTracks,
     /// Equation-fragment highlight tier.
-    pub highlight: &'a HighlightTracks,
+    pub highlight: Option<&'a HighlightTracks>,
     /// Tagged union tracks keyed by property name.
     pub tagged_tracks: &'a HashMap<String, Option<PropertyTrack<PropertyValue>>>,
     /// Primitive payload (plot/SVG/image).
@@ -56,7 +56,7 @@ pub struct TrackFieldsMut<'a> {
     /// Text tier.
     pub text: &'a mut TextTracks,
     /// Highlight tier.
-    pub highlight: &'a mut HighlightTracks,
+    pub highlight: Option<&'a mut HighlightTracks>,
     /// Tagged union tracks.
     pub tagged_tracks: &'a mut HashMap<String, Option<PropertyTrack<PropertyValue>>>,
     /// Primitive payload.
@@ -78,7 +78,7 @@ impl World {
             style: &track.style,
             shape: &track.shape,
             text: &track.text,
-            highlight: &track.highlight,
+            highlight: self.highlight.try_get(id),
             tagged_tracks: &track.tagged_tracks,
             payload: self.payload.get(id),
             label: &track.label,
@@ -95,7 +95,7 @@ impl World {
             style: &mut track.style,
             shape: &mut track.shape,
             text: &mut track.text,
-            highlight: &mut track.highlight,
+            highlight: self.highlight.try_get_mut(id),
             tagged_tracks: &mut track.tagged_tracks,
             payload: self.payload.get_mut(id),
             label: &track.label,
@@ -147,7 +147,7 @@ impl<'a> TrackFields<'a> {
             style: &track.style,
             shape: &track.shape,
             text: &track.text,
-            highlight: &track.highlight,
+            highlight: None,
             tagged_tracks: &track.tagged_tracks,
             payload: None,
             label: &track.label,
@@ -208,10 +208,10 @@ impl<'a> TrackFields<'a> {
             Ascent => TrackFieldRef::F32(&self.text.ascent),
             Descent => TrackFieldRef::F32(&self.text.descent),
             Baseline => TrackFieldRef::F32(&self.text.baseline),
-            HighlightColor => TrackFieldRef::Vec4(&self.highlight.highlight_color),
-            HighlightOpacity => TrackFieldRef::F32(&self.highlight.highlight_opacity),
-            HighlightPadding => TrackFieldRef::F32(&self.highlight.highlight_padding),
-            HighlightRadius => TrackFieldRef::F32(&self.highlight.highlight_radius),
+            HighlightColor => TrackFieldRef::Vec4(&self.highlight?.highlight_color),
+            HighlightOpacity => TrackFieldRef::F32(&self.highlight?.highlight_opacity),
+            HighlightPadding => TrackFieldRef::F32(&self.highlight?.highlight_padding),
+            HighlightRadius => TrackFieldRef::F32(&self.highlight?.highlight_radius),
             FontWeight => TrackFieldRef::F32(&self.text.font_weight),
             FontStyle => TrackFieldRef::String(&self.text.font_style),
             LineHeight => TrackFieldRef::F32(&self.text.line_height),
@@ -250,7 +250,7 @@ impl<'a> TrackFieldsMut<'a> {
             style: &mut track.style,
             shape: &mut track.shape,
             text: &mut track.text,
-            highlight: &mut track.highlight,
+            highlight: None,
             tagged_tracks: &mut track.tagged_tracks,
             payload: None,
             caps: track.caps,
@@ -318,10 +318,10 @@ impl<'a> TrackFieldsMut<'a> {
             Ascent => TrackFieldMut::F32(&mut self.text.ascent),
             Descent => TrackFieldMut::F32(&mut self.text.descent),
             Baseline => TrackFieldMut::F32(&mut self.text.baseline),
-            HighlightColor => TrackFieldMut::Vec4(&mut self.highlight.highlight_color),
-            HighlightOpacity => TrackFieldMut::F32(&mut self.highlight.highlight_opacity),
-            HighlightPadding => TrackFieldMut::F32(&mut self.highlight.highlight_padding),
-            HighlightRadius => TrackFieldMut::F32(&mut self.highlight.highlight_radius),
+            HighlightColor => TrackFieldMut::Vec4(&mut self.highlight.as_mut()?.highlight_color),
+            HighlightOpacity => TrackFieldMut::F32(&mut self.highlight.as_mut()?.highlight_opacity),
+            HighlightPadding => TrackFieldMut::F32(&mut self.highlight.as_mut()?.highlight_padding),
+            HighlightRadius => TrackFieldMut::F32(&mut self.highlight.as_mut()?.highlight_radius),
             FontWeight => TrackFieldMut::F32(&mut self.text.font_weight),
             FontStyle => TrackFieldMut::String(&mut self.text.font_style),
             LineHeight => TrackFieldMut::F32(&mut self.text.line_height),

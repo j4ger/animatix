@@ -104,6 +104,9 @@ pub struct CarryEntry {
     /// Primitive payload snapshot (plot parametrisation, SVG/image state).
     #[cfg_attr(feature = "serde", serde(default))]
     pub payload: crate::primitives::PrimitivePayload,
+    /// Equation-highlight tier snapshot.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub highlight: crate::timeline::animation_track::HighlightTracks,
 }
 
 // ---------------------------------------------------------------------------
@@ -142,6 +145,7 @@ fn collect_persistent_entries(
         return;
     };
     let effects = timeline.world.effects(track.id).map(|chain| snapshot_effects(chain, time_ms));
+    let highlight = snapshot_highlight_at(timeline.world.highlight(track.id), time_ms);
     let payload = timeline
         .world
         .payload(track.id)
@@ -162,6 +166,7 @@ fn collect_persistent_entries(
             coordinate_frame: timeline.coordinate_frame_for(label).cloned(),
             effects,
             payload,
+            highlight,
         },
     );
 }
@@ -308,6 +313,7 @@ fn inject_entry(
     let id = dest.world.spawn_replacing(label, track);
     dest.world.meta_mut(id).first_seen_ms = 0;
     dest.world.payload.insert(id, entry.payload.clone());
+    *dest.world.highlight.get_mut(id) = entry.highlight.clone();
     if let Some(effects) = entry.effects.clone() {
         dest.world.effects.insert(id, effects);
     }
@@ -456,6 +462,19 @@ pub fn snapshot_payload_at(
 /// Snapshot all animated tiers of a track at `time_ms`, collapsing each to a
 /// single t=0 keyframe. Primitive payload state lives in a component and is
 /// snapshotted separately by [`snapshot_payload_at`].
+/// Snapshot the highlight tier at `time_ms` (single keyframe per track).
+pub fn snapshot_highlight_at(
+    highlight: &crate::timeline::animation_track::HighlightTracks,
+    time_ms: u64,
+) -> crate::timeline::animation_track::HighlightTracks {
+    let mut snapshot = highlight.clone();
+    collapse_highlight_tracks(&mut snapshot, time_ms);
+    snapshot
+}
+
+/// Snapshot all animated tiers of a track at `time_ms`, collapsing each to a
+/// single t=0 keyframe. Highlight and payload components are snapshotted
+/// separately by [`snapshot_highlight_at`] and [`snapshot_payload_at`].
 pub fn snapshot_track_at(track: &AnimationTrack, time_ms: u64) -> AnimationTrack {
     let mut snapshot = track.clone();
 
@@ -464,7 +483,6 @@ pub fn snapshot_track_at(track: &AnimationTrack, time_ms: u64) -> AnimationTrack
     collapse_style_tracks(&mut snapshot.style, time_ms);
     collapse_shape_tracks(&mut snapshot.shape, time_ms);
     collapse_text_tracks(&mut snapshot.text, time_ms);
-    collapse_highlight_tracks(&mut snapshot.highlight, time_ms);
 
     // Collapse registry-driven extension slots to the same snapshot semantics
     // as built-in property tracks.

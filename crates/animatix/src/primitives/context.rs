@@ -41,6 +41,8 @@ pub struct AssignmentCtx<'a> {
     pub text_compiler: &'a mut crate::renderer::text::TextCompiler,
     /// Shared asset cache for loading media referenced by assignments.
     pub asset_cache: &'a mut crate::timeline::assets::AssetCache,
+    /// Equation-highlight component for this actor.
+    pub highlight: Option<&'a mut crate::timeline::animation_track::HighlightTracks>,
     /// Primitive payload for this entity (plot/SVG/image state).
     pub payload: Option<&'a mut crate::primitives::PrimitivePayload>,
 }
@@ -80,6 +82,8 @@ pub struct EvaluateCtx<'a> {
     pub vector_paths: &'a [VelloPath],
     /// Shared image cache for native render commands that specify a URL.
     pub asset_cache: &'a crate::timeline::assets::AssetCache,
+    /// Equation-highlight component for this actor.
+    pub highlight: &'a crate::timeline::animation_track::HighlightTracks,
     /// The owning world, when the caller has one (frame path); tests may omit it.
     pub world: Option<&'a crate::timeline::World>,
     /// Primitive payload for this entity (plot/SVG/image state).
@@ -513,5 +517,14 @@ impl EvaluateCtx<'_> {
             Some(world) => world.read_property_value(self.track.id, field, time_ms),
             None => crate::timeline::read_property_value(self.track, field, time_ms),
         }
+    }
+}
+
+impl AssignmentCtx<'_> {
+    /// Mutable highlight component, when the assignment has one.
+    pub fn highlight_mut(
+        &mut self,
+    ) -> Option<&mut crate::timeline::animation_track::HighlightTracks> {
+        self.highlight.as_deref_mut()
     }
 }

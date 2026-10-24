@@ -1,5 +1,4 @@
 use super::*;
-
 pub(super) fn render_scene_inspector(
     ui: &mut egui::Ui,
     composition: &animatix::composition::Composition,
@@ -34,8 +33,6 @@ pub(super) fn render_scene_inspector(
             TextRole::Heading.font_id(),
             theme.palette.accent.primary,
         );
-        // Make the mode explicit. This panel is reached by deselecting every
-        // actor, which is otherwise an invisible context switch.
         ui.label(
             RichText::new("No actor selected — showing scene properties")
                 .size(TextRole::Caption.size())
@@ -708,7 +705,11 @@ pub(super) fn inspector_ui(
             // ── Mini Timeline ──
             layout::group_box(ui, format!("{} Timeline", egui_phosphor::regular::CLOCK), |ui| {
                 let duration_s = timeline.duration_seconds().max(0.1);
-                let all_kf = collect_all_keyframe_times(track, timeline.world().effects(track.id));
+                let all_kf = collect_all_keyframe_times(
+                    track,
+                    timeline.world().effects(track.id),
+                    Some(timeline.world()),
+                );
                 let strip = timeline::TimelineStrip {
                     duration_s,
                     current_time_s,

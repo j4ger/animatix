@@ -1044,8 +1044,9 @@ fn equation_fragment_dot_path_assignment() {
 
     // Fragment f1 should have highlight_opacity animated
     let f1_track = timeline.world.tracks.get("f1").expect("f1 track should exist");
-    let highlight_opacity_at_1s = f1_track
-        .highlight
+    let highlight_opacity_at_1s = timeline
+        .world
+        .highlight(f1_track.id)
         .highlight_opacity
         .as_ref()
         .expect("f1 should have highlight_opacity track")
@@ -1056,8 +1057,9 @@ fn equation_fragment_dot_path_assignment() {
         highlight_opacity_at_1s
     );
 
-    let highlight_opacity_at_end = f1_track
-        .highlight
+    let highlight_opacity_at_end = timeline
+        .world
+        .highlight(f1_track.id)
         .highlight_opacity
         .as_ref()
         .expect("f1 should have highlight_opacity track")

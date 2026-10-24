@@ -1,6 +1,7 @@
 use super::*;
 use crate::easing::Easing;
 use crate::primitives::primitive_catalog;
+use crate::timeline::Timeline;
 use crate::timeline::actor_caps::ShapeKind;
 use crate::timeline::property_registry::ActorField;
 use crate::timeline::property_track::{Interpolate, PropertyTrack, TrackAccessor};
@@ -189,35 +190,6 @@ fn test_field_ref_baseline_returns_f32() {
 }
 
 #[test]
-fn test_field_ref_highlight_color_returns_vec4() {
-    let track =
-        create_track_with_vec4_keyframe(ActorField::HighlightColor, 0, [1.0, 0.0, 0.0, 1.0]);
-    let rf = track.field_ref(ActorField::HighlightColor).unwrap();
-    assert!(matches!(rf, TrackFieldRef::Vec4(_)));
-}
-
-#[test]
-fn test_field_ref_highlight_opacity_returns_f32() {
-    let track = create_track_with_f32_keyframe(ActorField::HighlightOpacity, 0, 0.5);
-    let rf = track.field_ref(ActorField::HighlightOpacity).unwrap();
-    assert!(matches!(rf, TrackFieldRef::F32(_)));
-}
-
-#[test]
-fn test_field_ref_highlight_padding_returns_f32() {
-    let track = create_track_with_f32_keyframe(ActorField::HighlightPadding, 0, 8.0);
-    let rf = track.field_ref(ActorField::HighlightPadding).unwrap();
-    assert!(matches!(rf, TrackFieldRef::F32(_)));
-}
-
-#[test]
-fn test_field_ref_highlight_radius_returns_f32() {
-    let track = create_track_with_f32_keyframe(ActorField::HighlightRadius, 0, 6.0);
-    let rf = track.field_ref(ActorField::HighlightRadius).unwrap();
-    assert!(matches!(rf, TrackFieldRef::F32(_)));
-}
-
-#[test]
 fn test_field_ref_font_weight_returns_f32() {
     let track = create_track_with_f32_keyframe(ActorField::FontWeight, 0, 700.0);
     let rf = track.field_ref(ActorField::FontWeight).unwrap();
@@ -319,13 +291,6 @@ fn test_field_ref_returns_correct_type_for_transform() {
 }
 
 #[test]
-fn test_field_mut_returns_correct_type_for_highlight_color() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    let f = track.field_mut(ActorField::HighlightColor).unwrap();
-    assert!(matches!(f, TrackFieldMut::Vec4(_)));
-}
-
-#[test]
 fn test_field_mut_returns_correct_type_for_font_weight() {
     let mut track = AnimationTrack::placeholder("test".to_string());
     let f = track.field_mut(ActorField::FontWeight).unwrap();
@@ -356,17 +321,20 @@ fn test_max_keyframe_time_with_transform() {
 
 #[test]
 fn test_max_keyframe_time_with_highlight_color() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(
-        3000,
-        [1.0, 0.0, 0.0, 0.5],
-        Easing::Linear,
-    );
-    assert_eq!(track.max_keyframe_time(), Some(3000));
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    timeline
+        .world_mut()
+        .highlight_mut(id)
+        .highlight_color
+        .ensure([0.3, 0.5, 1.0, 1.0])
+        .add_keyframe(3000, [1.0, 0.0, 0.0, 0.5], Easing::Linear);
+    assert_eq!(timeline.world().max_keyframe_time(id), Some(3000));
 }
 
 #[test]
 fn test_max_keyframe_time_returns_max_across_all_fields() {
+    let mut timeline = Timeline::new();
     let mut track = AnimationTrack::placeholder("test".to_string());
     track.style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
     track
@@ -374,12 +342,14 @@ fn test_max_keyframe_time_returns_max_across_all_fields() {
         .position
         .ensure([0.0, 0.0])
         .add_keyframe(5000, [100.0, 100.0], Easing::Linear);
-    track
-        .highlight
+    let id = timeline.world_mut().spawn_with_track("test", track);
+    timeline
+        .world_mut()
+        .highlight_mut(id)
         .highlight_opacity
         .ensure(0.0)
         .add_keyframe(3000, 0.8, Easing::Linear);
-    assert_eq!(track.max_keyframe_time(), Some(5000));
+    assert_eq!(timeline.world().max_keyframe_time(id), Some(5000));
 }
 
 #[test]
@@ -390,13 +360,15 @@ fn test_max_keyframe_time_returns_none_for_empty_track() {
 
 #[test]
 fn test_has_any_keyframes_returns_true_for_highlight_fields() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(
-        1000,
-        [1.0, 0.0, 0.0, 0.5],
-        Easing::Linear,
-    );
-    assert!(track.has_any_keyframes());
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    timeline
+        .world_mut()
+        .highlight_mut(id)
+        .highlight_color
+        .ensure([0.3, 0.5, 1.0, 1.0])
+        .add_keyframe(1000, [1.0, 0.0, 0.0, 0.5], Easing::Linear);
+    assert!(timeline.world().has_any_keyframes(id));
 }
 
 #[test]
@@ -562,14 +534,15 @@ fn test_max_keyframe_time_iterates_through_all_registry_fields() {
 
 #[test]
 fn test_has_any_keyframes_iterates_through_all_registry_fields() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    // Put a keyframe on a field that might have been missed
-    track
-        .highlight
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    timeline
+        .world_mut()
+        .highlight_mut(id)
         .highlight_padding
         .ensure(4.0)
         .add_keyframe(500, 8.0, Easing::Linear);
-    assert!(track.has_any_keyframes());
+    assert!(timeline.world().has_any_keyframes(id));
 }
 
 #[test]

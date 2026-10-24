@@ -33,15 +33,11 @@ impl Primitive for FragmentPrimitive {
     fn equation_fragment(&self, ctx: &EvaluateCtx) -> Option<EquationFragment> {
         Some(EquationFragment {
             content: ctx.track.text.text_content.get(ctx.time_ms, String::new()),
-            highlight_color: ctx
-                .track
-                .highlight
-                .highlight_color
-                .get(ctx.time_ms, [0.3, 0.5, 1.0, 1.0]),
-            highlight_opacity: ctx.track.highlight.highlight_opacity.get(ctx.time_ms, 0.0),
-            highlight_padding: ctx.track.highlight.highlight_padding.get(ctx.time_ms, 4.0),
-            highlight_radius: ctx.track.highlight.highlight_radius.get(ctx.time_ms, 3.0),
-            highlight_blend: ctx.track.highlight.highlight_blend,
+            highlight_color: ctx.highlight.highlight_color.get(ctx.time_ms, [0.3, 0.5, 1.0, 1.0]),
+            highlight_opacity: ctx.highlight.highlight_opacity.get(ctx.time_ms, 0.0),
+            highlight_padding: ctx.highlight.highlight_padding.get(ctx.time_ms, 4.0),
+            highlight_radius: ctx.highlight.highlight_radius.get(ctx.time_ms, 3.0),
+            highlight_blend: ctx.highlight.highlight_blend,
         })
     }
 
@@ -92,8 +88,10 @@ impl Primitive for FragmentPrimitive {
                     if let Expr::Ident(name) = &prop.value {
                         if name == "auto" {
                             // Use default highlight color
-                            track
+                            ctx.timeline
+                                .world
                                 .highlight
+                                .get_mut(track.id)
                                 .highlight_color
                                 .ensure([0.3, 0.5, 1.0, 1.0])
                                 .add_keyframe(
@@ -113,11 +111,13 @@ impl Primitive for FragmentPrimitive {
                         ctx.diagnostics,
                         label,
                     ) {
-                        track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(
-                            ctx.time_ms as u64,
-                            color,
-                            Easing::Linear,
-                        );
+                        ctx.timeline
+                            .world
+                            .highlight
+                            .get_mut(track.id)
+                            .highlight_color
+                            .ensure([0.3, 0.5, 1.0, 1.0])
+                            .add_keyframe(ctx.time_ms as u64, color, Easing::Linear);
                     }
                 },
                 _ => {},
@@ -137,24 +137,29 @@ impl Primitive for FragmentPrimitive {
         diagnostics: &mut Vec<Diagnostic>,
         subject: &str,
     ) -> bool {
+        let t_start_ms = ctx.t_start_ms;
+        let t_end_ms = ctx.t_end_ms;
+        let easing = ctx.easing;
+        let duration_ms = ctx.duration_ms;
+        let highlight = ctx.highlight_mut().expect("assignment highlight");
         match property {
             "text" => {
                 let content_str =
                     evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                         .map(|v| v.as_str().to_string())
                         .unwrap_or_default();
-                if ctx.duration_ms > 0.0 {
-                    let start_val = track.text.text_content.get(ctx.t_start_ms, String::new());
+                if duration_ms > 0.0 {
+                    let start_val = track.text.text_content.get(t_start_ms, String::new());
                     track.text.text_content.ensure(String::new()).add_keyframe(
-                        ctx.t_start_ms,
+                        t_start_ms,
                         start_val,
                         Easing::Linear,
                     );
                 }
                 track.text.text_content.ensure(String::new()).add_keyframe(
-                    ctx.t_end_ms,
+                    t_end_ms,
                     content_str,
-                    ctx.easing,
+                    easing,
                 );
                 true
             },
@@ -163,20 +168,18 @@ impl Primitive for FragmentPrimitive {
                     .ok()
                     .flatten()
                     .unwrap_or([0.3, 0.5, 1.0, 1.0]);
-                if ctx.duration_ms > 0.0 {
-                    let start_val =
-                        track.highlight.highlight_color.get(ctx.t_start_ms, [0.3, 0.5, 1.0, 1.0]);
-                    track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(
-                        ctx.t_start_ms,
+                if duration_ms > 0.0 {
+                    let start_val = highlight.highlight_color.get(t_start_ms, [0.3, 0.5, 1.0, 1.0]);
+                    highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(
+                        t_start_ms,
                         start_val,
                         Easing::Linear,
                     );
                 }
-                track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(
-                    ctx.t_end_ms,
-                    color,
-                    ctx.easing,
-                );
+                highlight
+                    .highlight_color
+                    .ensure([0.3, 0.5, 1.0, 1.0])
+                    .add_keyframe(t_end_ms, color, easing);
                 true
             },
             "highlight_opacity" => {
@@ -184,19 +187,15 @@ impl Primitive for FragmentPrimitive {
                     evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                         .map(|v| v.as_num() as f32)
                         .unwrap_or(0.0);
-                if ctx.duration_ms > 0.0 {
-                    let start_val = track.highlight.highlight_opacity.get(ctx.t_start_ms, 0.0);
-                    track.highlight.highlight_opacity.ensure(0.0).add_keyframe(
-                        ctx.t_start_ms,
+                if duration_ms > 0.0 {
+                    let start_val = highlight.highlight_opacity.get(t_start_ms, 0.0);
+                    highlight.highlight_opacity.ensure(0.0).add_keyframe(
+                        t_start_ms,
                         start_val,
                         Easing::Linear,
                     );
                 }
-                track.highlight.highlight_opacity.ensure(0.0).add_keyframe(
-                    ctx.t_end_ms,
-                    opacity,
-                    ctx.easing,
-                );
+                highlight.highlight_opacity.ensure(0.0).add_keyframe(t_end_ms, opacity, easing);
                 true
             },
             "highlight_padding" => {
@@ -204,38 +203,30 @@ impl Primitive for FragmentPrimitive {
                     evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                         .map(|v| v.as_num() as f32)
                         .unwrap_or(4.0);
-                if ctx.duration_ms > 0.0 {
-                    let start_val = track.highlight.highlight_padding.get(ctx.t_start_ms, 4.0);
-                    track.highlight.highlight_padding.ensure(4.0).add_keyframe(
-                        ctx.t_start_ms,
+                if duration_ms > 0.0 {
+                    let start_val = highlight.highlight_padding.get(t_start_ms, 4.0);
+                    highlight.highlight_padding.ensure(4.0).add_keyframe(
+                        t_start_ms,
                         start_val,
                         Easing::Linear,
                     );
                 }
-                track.highlight.highlight_padding.ensure(4.0).add_keyframe(
-                    ctx.t_end_ms,
-                    padding,
-                    ctx.easing,
-                );
+                highlight.highlight_padding.ensure(4.0).add_keyframe(t_end_ms, padding, easing);
                 true
             },
             "highlight_radius" => {
                 let radius = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                     .map(|v| v.as_num() as f32)
                     .unwrap_or(3.0);
-                if ctx.duration_ms > 0.0 {
-                    let start_val = track.highlight.highlight_radius.get(ctx.t_start_ms, 3.0);
-                    track.highlight.highlight_radius.ensure(3.0).add_keyframe(
-                        ctx.t_start_ms,
+                if duration_ms > 0.0 {
+                    let start_val = highlight.highlight_radius.get(t_start_ms, 3.0);
+                    highlight.highlight_radius.ensure(3.0).add_keyframe(
+                        t_start_ms,
                         start_val,
                         Easing::Linear,
                     );
                 }
-                track.highlight.highlight_radius.ensure(3.0).add_keyframe(
-                    ctx.t_end_ms,
-                    radius,
-                    ctx.easing,
-                );
+                highlight.highlight_radius.ensure(3.0).add_keyframe(t_end_ms, radius, easing);
                 true
             },
             _ => false,

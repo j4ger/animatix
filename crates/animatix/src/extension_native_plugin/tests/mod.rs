@@ -118,6 +118,9 @@ fn sample_evaluate_ctx_with_payload<'a>(
         overrides: None,
         vector_paths: &[],
         asset_cache,
+        highlight: Box::leak(
+            Box::new(crate::timeline::animation_track::HighlightTracks::default()),
+        ),
         world: None,
         payload,
         target_resolver: None,

@@ -10,9 +10,7 @@ use serde::{Deserialize, Serialize};
 use super::dispatch::property_keyframe_times;
 
 use super::actor_caps::ActorCaps;
-use super::animation_track::{
-    GeometryTracks, HighlightTracks, ShapeTracks, StyleTracks, TextTracks,
-};
+use super::animation_track::{GeometryTracks, ShapeTracks, StyleTracks, TextTracks};
 use super::entity::EntityId;
 use super::kurbo_shapes::KurboShape;
 use super::morph;
@@ -115,10 +113,6 @@ pub struct AnimationTrack {
     // ── Tagged union tracks ──
     /// Generic tagged union property tracks, keyed by canonical property name.
     pub tagged_tracks: HashMap<String, Option<PropertyTrack<PropertyValue>>>,
-
-    // ── Highlight tier (sub-struct) ──
-    /// Highlight property tracks (color, opacity, padding, radius, blend).
-    pub highlight: HighlightTracks,
 }
 
 impl AnimationTrack {
@@ -158,9 +152,6 @@ impl AnimationTrack {
 
             // Tagged union tracks
             tagged_tracks: HashMap::new(),
-
-            // Highlight tier (sub-struct)
-            highlight: HighlightTracks::default(),
         }
     }
 

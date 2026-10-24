@@ -230,7 +230,10 @@ impl Timeline {
         let mut times_ms: BTreeSet<u64> = BTreeSet::new();
         for track in self.world.tracks.values() {
             // Registry-driven: covers all applicable fields for this actor kind
-            for &time_s in collect_all_keyframe_times(track, self.world.effects(track.id)).iter() {
+            for &time_s in
+                collect_all_keyframe_times(track, self.world.effects(track.id), Some(&self.world))
+                    .iter()
+            {
                 let ms = (time_s * 1000.0) as u64;
                 times_ms.insert(ms);
             }

@@ -1,28 +1,48 @@
 //! Equation-highlight component accessors.
-//!
-//! Transitional delegates: the tier still lives on `AnimationTrack`; these
-//! methods let call sites move to `World` before the storage moves.
 
 use super::{EntityId, World};
 use crate::timeline::animation_track::HighlightTracks;
 
 impl World {
     /// Highlight tier for an entity.
+    #[inline(always)]
     pub fn highlight(&self, id: EntityId) -> &HighlightTracks {
-        &self
-            .tracks
-            .get_by_id(id)
-            .expect("highlight access requires an existing entity")
-            .highlight
+        self.highlight.get(id)
     }
 
     /// Mutable highlight tier for an entity.
+    #[inline(always)]
     pub fn highlight_mut(&mut self, id: EntityId) -> &mut HighlightTracks {
-        &mut self
+        self.highlight.get_mut(id)
+    }
+}
+
+impl World {
+    /// Maximum keyframe time across the track tiers, payload and highlight.
+    #[inline]
+    pub fn max_keyframe_time(&self, id: EntityId) -> Option<u64> {
+        let track = self
             .tracks
-            .get_by_id_mut(id)
-            .expect("highlight access requires an existing entity")
-            .highlight
+            .get_by_id(id)
+            .and_then(|track| track.max_keyframe_time_with(self.payload.get(id)));
+        let highlight = self.highlight.try_get(id).and_then(|h| h.max_keyframe_time());
+        match (track, highlight) {
+            (Some(a), Some(b)) => Some(a.max(b)),
+            (a, b) => a.or(b),
+        }
+    }
+
+    /// Whether any tier (including payload) has animated keyframes.
+    /// Whether any tier (payload and highlight included) has keyframes.
+    #[inline]
+    pub fn has_any_keyframes(&self, id: EntityId) -> bool {
+        self.tracks
+            .get_by_id(id)
+            .is_some_and(|track| track.has_any_keyframes_with(self.payload.get(id)))
+            || self
+                .highlight
+                .try_get(id)
+                .is_some_and(|highlight| highlight.has_any_keyframes())
     }
 }
 
@@ -32,11 +52,10 @@ mod tests {
     use crate::timeline::property_track::TrackAccessor;
 
     #[test]
-    fn world_highlight_accessor_delegates() {
+    fn world_highlight_accessor_reads_the_component() {
         let mut timeline = Timeline::new();
         let id = timeline.world_mut().spawn("eq", "Equation");
         timeline.world_mut().highlight_mut(id).highlight_opacity.ensure(0.5);
-        timeline.world_mut().highlight_mut(id).highlight_opacity.ensure(0.75);
         assert!(timeline.world().highlight(id).highlight_opacity.is_some());
     }
 }

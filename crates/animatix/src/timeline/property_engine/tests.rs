@@ -268,26 +268,40 @@ fn test_write_read_roundtrip_max_height() {
 
 #[test]
 fn test_write_read_roundtrip_highlight_color() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    let result = write_read_roundtrip(
-        &mut track,
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Equation");
+    timeline.world_mut().write_property_field(
+        id,
         ActorField::HighlightColor,
         PropertyValue::Vec4([1.0, 0.0, 0.0, 1.0]),
         500,
+        500,
+        Easing::Linear,
+        &mut vec![],
     );
-    assert_eq!(result, Some(PropertyValue::Color([1.0, 0.0, 0.0, 1.0])));
+    assert_eq!(
+        timeline.world().read_property_value(id, ActorField::HighlightColor, 500),
+        Some(PropertyValue::Color([1.0, 0.0, 0.0, 1.0]))
+    );
 }
 
 #[test]
 fn test_write_read_roundtrip_highlight_opacity() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    let result = write_read_roundtrip(
-        &mut track,
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Equation");
+    timeline.world_mut().write_property_field(
+        id,
         ActorField::HighlightOpacity,
         PropertyValue::F32(0.5),
         500,
+        500,
+        Easing::Linear,
+        &mut vec![],
     );
-    assert_eq!(result, Some(PropertyValue::F32(0.5)));
+    assert_eq!(
+        timeline.world().read_property_value(id, ActorField::HighlightOpacity, 500),
+        Some(PropertyValue::F32(0.5))
+    );
 }
 
 #[test]

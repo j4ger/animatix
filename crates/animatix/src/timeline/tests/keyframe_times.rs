@@ -45,18 +45,19 @@ fn test_keyframe_times_s_includes_highlight_fields() {
     let mut track = AnimationTrack::placeholder("test".to_string());
     track.set_identity("Equation");
 
-    track.highlight.highlight_color.ensure([0.3, 0.5, 1.0, 1.0]).add_keyframe(
-        500,
-        [1.0, 0.0, 0.0, 1.0],
-        Easing::Linear,
-    );
-    track
-        .highlight
+    let id = timeline.world_mut().spawn_with_track("test", track);
+    timeline
+        .world_mut()
+        .highlight_mut(id)
+        .highlight_color
+        .ensure([0.3, 0.5, 1.0, 1.0])
+        .add_keyframe(500, [1.0, 0.0, 0.0, 1.0], Easing::Linear);
+    timeline
+        .world_mut()
+        .highlight_mut(id)
         .highlight_opacity
         .ensure(0.0)
         .add_keyframe(2500, 0.8, Easing::Linear);
-
-    timeline.world.tracks.insert("test".to_string(), track);
     let times = timeline.keyframe_times_s();
     assert!(times.contains(&0.5), "Got: {:?}", times);
     assert!(times.contains(&2.5), "Got: {:?}", times);

@@ -451,6 +451,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                                     animatix::timeline::collect_all_keyframe_times(
                                         track,
                                         tl.world().effects(track.id),
+                                        Some(tl.world()),
                                     )
                                 })
                                 .collect()

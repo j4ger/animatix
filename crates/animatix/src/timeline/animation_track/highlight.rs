@@ -45,3 +45,25 @@ impl HighlightTracks {
         vello::peniko::Mix::Difference
     }
 }
+impl HighlightTracks {
+    /// Latest keyframe across the highlight property tracks.
+    pub fn max_keyframe_time(&self) -> Option<u64> {
+        [
+            self.highlight_color.as_ref().and_then(|t| t.last_keyframe_time()),
+            self.highlight_opacity.as_ref().and_then(|t| t.last_keyframe_time()),
+            self.highlight_padding.as_ref().and_then(|t| t.last_keyframe_time()),
+            self.highlight_radius.as_ref().and_then(|t| t.last_keyframe_time()),
+        ]
+        .into_iter()
+        .flatten()
+        .max()
+    }
+
+    /// Whether any highlight property track has animated keyframes.
+    pub fn has_any_keyframes(&self) -> bool {
+        self.highlight_color.as_ref().is_some_and(|t| !t.is_effectively_static())
+            || self.highlight_opacity.as_ref().is_some_and(|t| !t.is_effectively_static())
+            || self.highlight_padding.as_ref().is_some_and(|t| !t.is_effectively_static())
+            || self.highlight_radius.as_ref().is_some_and(|t| !t.is_effectively_static())
+    }
+}

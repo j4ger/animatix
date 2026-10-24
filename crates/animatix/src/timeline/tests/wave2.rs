@@ -138,6 +138,7 @@ cnt.value = 100 [1s]
     let primitive = crate::primitives::counter::COUNTER;
     let asset_cache = crate::timeline::assets::AssetCache::default();
 
+    let highlight = crate::timeline::animation_track::HighlightTracks::default();
     let make_ctx = |time_ms: u64| crate::primitives::EvaluateCtx {
         track,
         time_ms,
@@ -151,6 +152,7 @@ cnt.value = 100 [1s]
         overrides: None,
         vector_paths: &[],
         asset_cache: &asset_cache,
+        highlight: &highlight,
         world: None,
 
         payload: None,
@@ -214,6 +216,7 @@ label.color = (0.0, 1.0, 0.0, 1.0) [1s]
     use crate::primitives::Primitive;
     let primitive = crate::primitives::TEXT;
     let asset_cache = crate::timeline::assets::AssetCache::default();
+    let highlight = crate::timeline::animation_track::HighlightTracks::default();
     let make_ctx = |time_ms: u64| crate::primitives::EvaluateCtx {
         track,
         time_ms,
@@ -227,6 +230,7 @@ label.color = (0.0, 1.0, 0.0, 1.0) [1s]
         overrides: None,
         vector_paths: &[],
         asset_cache: &asset_cache,
+        highlight: &highlight,
         world: None,
         payload: None,
         target_resolver: None,
@@ -301,6 +305,7 @@ t: Text, text: "Hardware Stream", at: (300, 200), font_size: 32
     use crate::primitives::Primitive;
     let primitive = crate::primitives::TEXT;
     let asset_cache = crate::timeline::assets::AssetCache::default();
+    let highlight = crate::timeline::animation_track::HighlightTracks::default();
     let ctx = crate::primitives::EvaluateCtx {
         track,
         time_ms: 0,
@@ -314,6 +319,7 @@ t: Text, text: "Hardware Stream", at: (300, 200), font_size: 32
         overrides: None,
         vector_paths: &[],
         asset_cache: &asset_cache,
+        highlight: &highlight,
         world: None,
         payload: None,
         target_resolver: None,

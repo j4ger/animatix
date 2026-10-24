@@ -223,13 +223,18 @@ pub use crate::primitives::primitive_info_by_name;
 pub fn collect_all_keyframe_times(
     track: &AnimationTrack,
     effects: Option<&crate::timeline::effects::EffectChainTrack>,
+    world: Option<&crate::timeline::World>,
 ) -> Vec<f64> {
     let indices = property_registry::allowed_property_indices(&track.caps, &track.actor_type);
     let mut times = std::collections::BTreeSet::new();
 
     for &idx in &indices {
         let schema = &property_registry::PROPERTY_REGISTRY[idx];
-        for t in property_keyframe_times(track, schema.field) {
+        let times_for_field = match world {
+            Some(world) => world.property_keyframe_times(track.id, schema.field),
+            None => property_keyframe_times(track, schema.field),
+        };
+        for t in times_for_field {
             times.insert(t);
         }
     }

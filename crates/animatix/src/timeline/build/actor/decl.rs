@@ -62,10 +62,6 @@ impl Timeline {
         let mut corner_radius = existing_track.shape.corner_radius.last(0.0);
         let mut color = existing_track.style.color.last(DEFAULT_WHITE);
         let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
-        // visible-by-default because `expand_group_targets` targets their leaves
-        // and skips the container, so a container-level seed could never be
-        // lifted. Self-drawing containers that are *not* expanded (Graph and the
-        // other plot hosts) are seeded in `process_plot_actor_dispatch` instead.
         let is_first_decl = !self.world.tracks.contains_key(label);
         let mut opacity = if is_first_decl && !has_explicit_opacity {
             self.default_opacity
