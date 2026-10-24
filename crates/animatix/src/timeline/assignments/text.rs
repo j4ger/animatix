@@ -1,0 +1,179 @@
+use super::*;
+
+pub(crate) fn recompile_text_at_assignment(
+    track: &mut AnimationTrack,
+    target_text: String,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+    instant_delayed: bool,
+    duration_ms: f64,
+    font_ctx: &crate::renderer::text::FontContext,
+    text_compiler: &mut crate::renderer::text::TextCompiler,
+) -> Result<(), RenderError> {
+    if duration_ms > 0.0 {
+        let start_val = track.text.text_content.get(t_start_ms, String::new());
+        track.text.text_content.ensure(String::new()).add_keyframe(
+            t_start_ms,
+            start_val,
+            Easing::Linear,
+        );
+    } else {
+        // A step has to be fenced too. With no keyframe just before the stamp,
+        // the previously declared string interpolates all the way into the new
+        // one, and the cross-fade branch in `primitives` then compiles and draws
+        // *both* strings for the whole preceding gap — the roadmap's "static
+        // keyframe `.text =` assignments overprint". `preserve_instant_delayed_value`
+        // already does the fencing for delayed steps; an undated assignment needs
+        // exactly the same thing one millisecond earlier.
+        preserve_instant_delayed_value(&mut track.text.text_content, t_start_ms);
+    }
+    track.text.text_content.ensure(String::new()).add_keyframe(
+        t_end_ms,
+        target_text.clone(),
+        easing,
+    );
+
+    let text_kind = match track.caps.text {
+        Some(crate::timeline::TextKind::Text) => crate::renderer::text::TextKind::Text,
+        Some(crate::timeline::TextKind::Code) => crate::renderer::text::TextKind::Code,
+        Some(crate::timeline::TextKind::Typst) => crate::renderer::text::TextKind::Typst,
+        // `Math` never recompiled on `text` assignment (no plain-text body).
+        _ => return Ok(()),
+    };
+
+    let font_family = track.text.font_family.get(t_end_ms, String::new());
+    let font_size = track.text.font_size.get(t_end_ms, 48.0);
+    let font_weight = track.text.font_weight.get(t_end_ms, 400.0);
+    let font_style = track.text.font_style.get(t_end_ms, "normal".to_string());
+    let line_height = track.text.line_height.get(t_end_ms, 1.2);
+    let letter_spacing = track.text.letter_spacing.get(t_end_ms, 0.0);
+    let word_spacing = track.text.word_spacing.get(t_end_ms, 0.0);
+    let color = track.style.color.get(t_end_ms, [1.0, 1.0, 1.0, 1.0]);
+    let language = track.text.language.get(t_end_ms, String::new());
+
+    let new_paths = text_compiler.compile(
+        &target_text,
+        &font_family,
+        font_size,
+        font_weight,
+        &font_style,
+        line_height,
+        letter_spacing,
+        word_spacing,
+        color,
+        text_kind,
+        &language,
+        font_ctx,
+        0.0,
+        "left",
+        "visible",
+    )?;
+    let new_half_size = crate::renderer::text::measure_text_paths(&new_paths);
+    let text_anchor = track.text.text_anchor.get(t_end_ms, "center".to_string());
+    let mut new_paths_vec = new_paths.to_vec();
+    let anchor_offset_x = match text_anchor.as_str() {
+        "left" => new_half_size[0],
+        "right" => -new_half_size[0],
+        _ => 0.0,
+    };
+    if anchor_offset_x != 0.0 {
+        let affine = kurbo::Affine::translate((anchor_offset_x as f64, 0.0));
+        for p in &mut new_paths_vec {
+            p.path.apply_affine(affine);
+            p.glyph_center[0] += anchor_offset_x;
+        }
+    }
+
+    if duration_ms > 0.0 {
+        let start_val = track.evaluate_text_paths(t_start_ms);
+        track.text.text_paths.ensure(Vec::new()).add_keyframe(
+            t_start_ms,
+            start_val,
+            Easing::Linear,
+        );
+        let start_size = track.geometry.size.get(t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
+        let start_layout_size =
+            track.layout_size_get(t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
+        track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+            t_start_ms,
+            start_size,
+            Easing::Linear,
+        );
+        track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+            t_start_ms,
+            start_layout_size,
+            Easing::Linear,
+        );
+    } else if instant_delayed {
+        preserve_instant_delayed_value(&mut track.text.text_paths, t_start_ms);
+        preserve_instant_delayed_value(&mut track.geometry.size, t_start_ms);
+        preserve_instant_delayed_value(&mut track.geometry.layout_size, t_start_ms);
+    }
+
+    // Content swaps cross-fade the source and target glyph sets instead of
+    // morphing arbitrary strings through a midpoint string snapshot.
+    if duration_ms > 0.0 {
+        track
+            .style
+            .morph_options
+            .ensure(crate::timeline::MorphOptions::default())
+            .add_keyframe(
+                t_end_ms,
+                crate::timeline::MorphOptions {
+                    strategy: crate::timeline::MorphStrategy::Fade,
+                    ..Default::default()
+                },
+                easing,
+            );
+    }
+
+    // Compute font metrics for baseline alignment. The inputs are identical to
+    // the `text_compiler.compile` call above, so this is a process-wide cache
+    // hit rather than a second Typst compilation.
+    let (ascent, descent, baseline_offset) = match crate::renderer::text::compile_text_cached(
+        text_kind,
+        &target_text,
+        &language,
+        // Same palette the `text_compiler.compile` call above used, so this is
+        // still a cache hit rather than a second compilation.
+        text_compiler.highlight_palette.as_ref(),
+        &font_family,
+        font_size,
+        font_weight,
+        &font_style,
+        line_height,
+        letter_spacing,
+        word_spacing,
+        color,
+        0.0,
+        None,
+        "left",
+        "visible",
+        text_compiler.text_fast_path,
+        font_ctx,
+    ) {
+        Ok(cached) => (cached.ascent, cached.descent, cached.baseline_offset),
+        // The same inputs already compiled successfully above; keep the
+        // previous behavior of defaulting metrics when that ever fails.
+        Err(_) => (0.0, 0.0, 0.0),
+    };
+
+    track
+        .text
+        .text_paths
+        .ensure(Vec::new())
+        .add_keyframe(t_end_ms, new_paths_vec, easing);
+    track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+        t_end_ms,
+        new_half_size,
+        easing,
+    );
+    track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+        t_end_ms,
+        new_half_size,
+        easing,
+    );
+    track.set_metrics(t_end_ms, ascent, descent, baseline_offset);
+    Ok(())
+}
