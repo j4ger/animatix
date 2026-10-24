@@ -32,7 +32,7 @@ impl Timeline {
                 .world
                 .tracks
                 .iter()
-                .filter(|(_, track)| track.caps.is_effect_scope())
+                .filter(|(_, track)| self.world.caps(track.id).is_effect_scope())
                 .filter(|(_, track)| {
                     self.world
                         .effects(track.id)
@@ -91,7 +91,7 @@ impl Timeline {
                 .world
                 .tracks
                 .get(scope_label)
-                .filter(|track| track.caps.is_effect_scope())
+                .filter(|track| self.world.caps(track.id).is_effect_scope())
                 .and_then(|track| self.world.effects(track.id))
                 .and_then(|chain| chain.stage(stage_label))
                 .map(|stage| stage.kind.clone());

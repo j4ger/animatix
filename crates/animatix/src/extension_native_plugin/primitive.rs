@@ -209,10 +209,10 @@ impl Primitive for NativePrimitiveAdapter {
             });
             let type_name = self.type_name.clone();
             track.actor_type = type_name;
-            track.set_caps(animatix_std::caps_from_info(&self.info));
             track.id
         };
         timeline.world.ensure_len();
+        timeline.world.set_caps(track_id, animatix_std::caps_from_info(&self.info));
         timeline.world.rebuild_property_plan(track_id);
         let Some(build) = self.build else {
             return Ok(());

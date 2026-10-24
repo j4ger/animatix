@@ -482,7 +482,7 @@ impl Primitive for ConnectorPrimitive {
         let (shaft_path, arrowhead_path) =
             build_connector_path(&waypoints, corner_radius, arrow, head_size);
 
-        let style = sample_shape_style(ctx.track, ctx.time_ms, ctx.overrides);
+        let style = sample_shape_style(ctx.track, ctx.caps, ctx.time_ms, ctx.overrides);
         let mut paths = Vec::new();
 
         let shaft_vello = VelloPath {

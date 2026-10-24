@@ -158,8 +158,10 @@ pub(crate) fn collect_property_lanes(
     };
 
     // Storage fields the registry allows for this actor kind. Keying by field
-    // dedupes aliases that share one storage location.
-    let allowed_fields: Vec<ActorField> = allowed_property_indices(&track.caps, &track.actor_type)
+    // dedupes aliases that share one storage location. Capabilities derive from
+    // the actor type here: this helper receives a bare track, not a `World`.
+    let caps = animatix::timeline::caps_for_type(&track.actor_type).unwrap_or_default();
+    let allowed_fields: Vec<ActorField> = allowed_property_indices(&caps, &track.actor_type)
         .into_iter()
         .map(|idx| PROPERTY_REGISTRY[idx].field)
         .collect();

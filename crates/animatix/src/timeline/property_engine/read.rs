@@ -57,7 +57,11 @@ pub(crate) fn inject_property_into_env(
             None => {
                 // No track value — fall back to schema default.
                 // For Component sources, extract the indexed component.
-                let write_default = (schema.default_value)(&track.caps);
+                let caps = world.map_or_else(
+                    || animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
+                    |world| world.caps(track.id),
+                );
+                let write_default = (schema.default_value)(&caps);
                 match schema.read_source {
                     ReadSource::Field(_) | ReadSource::Alias(_) => write_default,
                     ReadSource::Component { index, scale, .. } => {

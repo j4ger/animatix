@@ -149,7 +149,10 @@ pub(super) fn rebuild_vector_paths(
     let line_to = track.shape.line_to.last([50.0, 0.0]);
     let arc_angles = track.shape.arc_angles.last(default_arc);
     let color = track.style.color.last(DEFAULT_WHITE);
-    let stroke_width = track.style.stroke_width.last(track.caps.default_stroke_width());
+    // Bare-track helper: derive the projection from the actor type (the same
+    // derivation the catalog performs). `World`-aware callers apply overrides.
+    let caps = animatix_std::caps_for_type(&track.actor_type).unwrap_or_default();
+    let stroke_width = track.style.stroke_width.last(caps.default_stroke_width());
     let stroke_color = track.style.stroke_color.last(DEFAULT_WHITE);
     let fill_opacity = track.style.fill_opacity.last(1.0);
 

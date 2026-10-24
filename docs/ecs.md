@@ -114,7 +114,7 @@ Rules:
 
 | Component | Data | Presence |
 |---|---|---|
-| `EntityMeta` | id, label, actor_type, caps, first_seen_ms, visible, locked, camera_follow, parallax, hidden_by_default | optional (reads fall back to `EntityMeta::DEFAULT`) |
+| `EntityMeta` | id, label, actor_type, first_seen_ms, visible, locked, camera_follow, parallax, hidden_by_default | optional (reads fall back to `EntityMeta::DEFAULT`) |
 | `DeclarationSpan` | `Span` of the actor declaration (absent when the parser had none) | optional |
 | `SceneHierarchyComponent` | `parent: Option<EntityId>`, `children: Vec<EntityId>` | every entity |
 | `RootSet` | `Vec<EntityId>` (insertion order) | resource |
@@ -135,7 +135,9 @@ Rules:
 | `ChildOrderComponent` | `PropertyTrack<Vec<EntityId>>` | optional |
 | `TranscriptComponent` | speech transcript | optional |
 
-`hidden_by_default` and `first_seen_ms` moved with the other header fields:
+`caps` is not on the track either: `World::caps(id)` derives it from the
+actor type, and extension primitives install an explicit override with
+`World::set_caps`. `hidden_by_default` and `first_seen_ms` moved with the other header fields:
 the entrance-action helpers (`lift_hidden_by_default*`) now take
 `&mut AnimationTrack` and `&mut EntityMeta` side by side. The remaining
 `EntityMeta` columns (`id`, `label`, `actor_type`, `caps`) are still on

@@ -222,7 +222,7 @@ impl Timeline {
         let track = self.world.tracks.get(child_label)?;
 
         // Check if this is a text-type actor (Text, Typst, Code)
-        let text_kind = match track.caps.text {
+        let text_kind = match self.world.caps(track.id).text {
             Some(crate::timeline::TextKind::Text) => TextKind::Text,
             Some(crate::timeline::TextKind::Typst) => TextKind::Typst,
             Some(crate::timeline::TextKind::Code) => TextKind::Code,

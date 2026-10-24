@@ -378,8 +378,9 @@ pub fn read_property_value_or_default(
     schema: &PropertySchema,
     time_ms: u64,
 ) -> PropertyValue {
-    read_property_value(track, schema.field, time_ms)
-        .unwrap_or_else(|| (schema.default_value)(&track.caps))
+    read_property_value(track, schema.field, time_ms).unwrap_or_else(|| {
+        (schema.default_value)(&animatix_std::caps_for_type(&track.actor_type).unwrap_or_default())
+    })
 }
 
 /// Returns whether a property has any keyframes on the given track.

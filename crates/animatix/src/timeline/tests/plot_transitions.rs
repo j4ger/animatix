@@ -123,10 +123,14 @@ impl Primitive for PlotExt {
             params: vec![],
             extra_captures: Default::default(),
         });
-        let (caps, actor_type) = {
-            let track = ctx.timeline.world.track_mut(track_id).expect("just inserted plot track");
-            (track.caps, track.actor_type.clone())
-        };
+        let caps = ctx.timeline.world.caps(track_id);
+        let actor_type = ctx
+            .timeline
+            .world
+            .track_mut(track_id)
+            .expect("just inserted plot track")
+            .actor_type
+            .clone();
         ctx.timeline
             .world
             .property_plan

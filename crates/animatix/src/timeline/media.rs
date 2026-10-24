@@ -151,15 +151,18 @@ impl Timeline {
         self.warn_unknown_declaration_properties(label, actor_type, props, diagnostics);
 
         let track_id = self.world.spawn(label, actor_type);
-        let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
 
         // Ensure the track identity matches the declaration type (single funnel,
-        // so `kind` cannot drift from `actor_type`).
-        track.set_identity(actor_type);
+        // so `kind` cannot drift from `actor_type`). The World form also clears
+        // any capability override so caps re-derive from the new type.
+        self.world.set_identity(track_id, actor_type);
 
         // Media-specific decode below distinguishes vector graphics from raster images.
-        let is_svg = track.caps.vector_paths;
-        let is_image = track.caps.image_payload;
+        let caps = self.world.caps(track_id);
+        let is_svg = caps.vector_paths;
+        let is_image = caps.image_payload;
+
+        let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
 
         // Record first declaration time so scene evaluation can hide
         // actors before they are declared

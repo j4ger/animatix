@@ -325,7 +325,8 @@ fn every_built_track_identity_is_consistent() {
     for (label, track) in &timeline.world.tracks {
         let expected = animatix_std::caps_for_type(&track.actor_type).unwrap_or_default();
         assert_eq!(
-            track.caps, expected,
+            timeline.world.caps(track.id),
+            expected,
             "track '{label}' caps drifted from actor_type '{}'",
             track.actor_type
         );

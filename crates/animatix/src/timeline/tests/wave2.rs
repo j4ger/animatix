@@ -141,6 +141,7 @@ cnt.value = 100 [1s]
     let highlight = crate::timeline::animation_track::HighlightTracks::default();
     let make_ctx = |time_ms: u64| crate::primitives::EvaluateCtx {
         track,
+        caps: timeline.world.caps(track.id),
         time_ms,
         local_transform: kurbo::Affine::IDENTITY,
         opacity: 1.0,
@@ -220,6 +221,7 @@ label.color = (0.0, 1.0, 0.0, 1.0) [1s]
     let highlight = crate::timeline::animation_track::HighlightTracks::default();
     let make_ctx = |time_ms: u64| crate::primitives::EvaluateCtx {
         track,
+        caps: timeline.world.caps(track.id),
         time_ms,
         local_transform: kurbo::Affine::IDENTITY,
         opacity: 1.0,
@@ -310,6 +312,7 @@ t: Text, text: "Hardware Stream", at: (300, 200), font_size: 32
     let highlight = crate::timeline::animation_track::HighlightTracks::default();
     let ctx = crate::primitives::EvaluateCtx {
         track,
+        caps: timeline.world.caps(track.id),
         time_ms: 0,
         local_transform: kurbo::Affine::IDENTITY,
         opacity: 1.0,

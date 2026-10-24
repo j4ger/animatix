@@ -19,28 +19,29 @@ pub fn actor_gizmo_affordances(
     timeline: &Timeline,
 ) -> Vec<GizmoAffordance> {
     let mut affordances = Vec::new();
+    let caps = timeline.world().caps(track.id);
 
     // 1. Resize mode & bounding box
     let registry = timeline.primitive_registry_snapshot();
     let resize_mode = if let Some(primitive) = registry.find(&track.actor_type) {
-        primitive.resize_mode(&track.caps)
+        primitive.resize_mode(&caps)
     } else {
         ResizeMode::Size
     };
     affordances.push(GizmoAffordance::BoundingBox { resize_mode });
 
     // 2. Control points for shapes with editable vertices
-    if track.shape.points.is_some() || matches!(track.caps.shape, Some(ShapeKind::Polygon)) {
+    if track.shape.points.is_some() || matches!(caps.shape, Some(ShapeKind::Polygon)) {
         affordances.push(GizmoAffordance::ControlPoints);
     }
 
     // 3. Callout annotation handles
-    if track.caps.callout {
+    if caps.callout {
         affordances.push(GizmoAffordance::Callout);
     }
 
     // 4. Inline text editing
-    if let Some(property) = get_track_text_property(track, &registry) {
+    if let Some(property) = get_track_text_property(track, caps, &registry) {
         affordances.push(GizmoAffordance::InlineText { property });
     }
 
@@ -50,9 +51,10 @@ pub fn actor_gizmo_affordances(
 /// Get the text property name for inline editing, if supported by the track.
 pub fn get_track_text_property(
     track: &AnimationTrack,
+    caps: animatix::timeline::ActorCaps,
     registry: &animatix::primitives::PrimitiveRegistry,
 ) -> Option<&'static str> {
-    match track.caps.text {
+    match caps.text {
         Some(animatix::timeline::TextKind::Code) => Some("code"),
         Some(_) => Some("text"),
         None => registry
@@ -68,9 +70,10 @@ mod tests {
 
     #[test]
     fn rect_affordances_include_bounding_box() {
-        let timeline = Timeline::new();
-        let track = AnimationTrack::new("box".into(), "Rect");
-        let affordances = actor_gizmo_affordances(&track, &timeline);
+        let mut timeline = Timeline::new();
+        timeline.world_mut().spawn("box", "Rect");
+        let track = timeline.get_track("box").expect("rect track");
+        let affordances = actor_gizmo_affordances(track, &timeline);
         assert!(affordances.contains(&GizmoAffordance::BoundingBox {
             resize_mode: ResizeMode::Size
         }));
@@ -79,11 +82,16 @@ mod tests {
 
     #[test]
     fn callout_affordances_include_callout_and_text() {
-        let timeline = Timeline::new();
-        let mut track = AnimationTrack::new("c".into(), "Callout");
-        track.caps.callout = true;
-        track.caps.text = Some(animatix::timeline::TextKind::Text);
-        let affordances = actor_gizmo_affordances(&track, &timeline);
+        let mut timeline = Timeline::new();
+        let id = timeline.world_mut().spawn("c", "Callout");
+        // An annotation callout does not claim a text engine by default; the
+        // fixture overrides caps to exercise the inline editing affordance.
+        let mut caps = timeline.world().caps(id);
+        caps.callout = true;
+        caps.text = Some(animatix::timeline::TextKind::Text);
+        timeline.world_mut().set_caps(id, caps);
+        let track = timeline.get_track("c").expect("callout track");
+        let affordances = actor_gizmo_affordances(track, &timeline);
         assert!(affordances.contains(&GizmoAffordance::Callout));
         assert!(affordances.contains(&GizmoAffordance::InlineText { property: "text" }));
     }

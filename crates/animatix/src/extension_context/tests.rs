@@ -47,18 +47,11 @@ impl Primitive for Gauge {
             label,
             crate::timeline::AnimationTrack::placeholder(label.to_string()),
         );
-        {
-            let track = ctx
-                .timeline
-                .world
-                .tracks
-                .get_by_id_mut(track_id)
-                .expect("spawn_with_track creates the track");
-            // The fixture historically claimed the `Text` kind so its plan
-            // carries text slots; derive Text's caps while keeping the
-            // extension's own actor type.
-            track.caps = animatix_std::caps_for_type("Text").unwrap_or_default();
-        }
+        // The fixture historically claimed the `Text` kind so its plan carries
+        // text slots; override caps while keeping the extension's own actor type.
+        ctx.timeline
+            .world
+            .set_caps(track_id, animatix_std::caps_for_type("Text").unwrap_or_default());
         ctx.timeline.world.rebuild_property_plan(track_id);
         Ok(())
     }

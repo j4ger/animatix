@@ -80,7 +80,7 @@ impl World {
             tagged_tracks: self.tagged_tracks.try_get(id),
             payload: self.payload.get(id),
             label: &track.label,
-            caps: track.caps,
+            caps: self.caps(id),
             property_plan: self.property_plan.try_get(id),
         })
     }
@@ -88,6 +88,9 @@ impl World {
     /// Assemble the mutable tier bundle for `id`, when the entity exists.
     pub fn fields_mut(&mut self, id: EntityId) -> Option<TrackFieldsMut<'_>> {
         self.ensure_len();
+        // The capability projection is `Copy`; resolve it before the mutable
+        // track borrow so the bundle can carry it.
+        let caps = self.caps(id);
         let track = self.tracks.get_by_id_mut(id)?;
         Some(TrackFieldsMut {
             geometry: &mut track.geometry,
@@ -98,7 +101,7 @@ impl World {
             tagged_tracks: self.tagged_tracks.try_get_mut(id),
             payload: self.payload.get_mut(id),
             label: &track.label,
-            caps: track.caps,
+            caps,
             property_plan: self.property_plan.try_get_mut(id),
         })
     }
@@ -150,7 +153,7 @@ impl<'a> TrackFields<'a> {
             tagged_tracks: None,
             payload: None,
             label: &track.label,
-            caps: track.caps,
+            caps: animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
             property_plan: None,
         }
     }
@@ -252,7 +255,7 @@ impl<'a> TrackFieldsMut<'a> {
             highlight: None,
             tagged_tracks: None,
             payload: None,
-            caps: track.caps,
+            caps: animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
             label: &track.label,
             property_plan: None,
         }

@@ -60,7 +60,11 @@ pub(crate) fn render_empty_property_lane(
                 })
                 .into(),
             );
-        } else if let Some(schema) = lane_schema(&track.caps, &track.actor_type, prop_name) {
+        } else if let Some(schema) = lane_schema(
+            &animatix::timeline::caps_for_type(&track.actor_type).unwrap_or_default(),
+            &track.actor_type,
+            prop_name,
+        ) {
             let value = animatix::timeline::read_property_value_or_default(
                 track,
                 schema,

@@ -57,7 +57,8 @@ fn text_color_override_reaches_shape_style() {
     let mut overrides = std::collections::HashMap::new();
     overrides.insert("color".to_string(), Value::Str("#ff2d55".to_string()));
     overrides.insert("stroke".to_string(), Value::Num(0.5));
-    let style = sample_shape_style(&track, 0, Some(&overrides));
+    let caps = animatix_std::caps_for_type(&track.actor_type).unwrap_or_default();
+    let style = sample_shape_style(&track, caps, 0, Some(&overrides));
     let near = |a: [f32; 4], b: [f32; 4]| a.iter().zip(b).all(|(x, y)| (x - y).abs() < 1e-6);
     assert!(
         near(style.color, [1.0, 45.0 / 255.0, 85.0 / 255.0, 1.0]),
@@ -263,6 +264,7 @@ fn runtime_text_content_crossfade_compiles_both_endpoints() {
         asset_cache: &asset_cache,
         highlight: &crate::timeline::animation_track::HighlightTracks::default(),
         property_plan: None,
+        caps: animatix_std::caps_for_type(track.actor_type.as_str()).unwrap_or_default(),
         world: None,
 
         payload: None,

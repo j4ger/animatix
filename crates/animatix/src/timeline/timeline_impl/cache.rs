@@ -192,7 +192,7 @@ impl Timeline {
         let Some(track) = self.world.tracks.get(label) else {
             return true;
         };
-        if track.caps.time_dependent
+        if self.world.caps(track.id).time_dependent
             || self.world.transcript.contains(track.id)
             || self.world.effects(track.id).is_some_and(|chain| chain.has_any_keyframes())
             || self.world.has_any_keyframes(track.id)

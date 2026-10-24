@@ -148,7 +148,7 @@ impl Primitive for CalloutPrimitive {
         let path = build_arrow_path(from, to, head_size);
 
         // Sample style
-        let style = sample_shape_style(ctx.track, ctx.time_ms, ctx.overrides);
+        let style = sample_shape_style(ctx.track, ctx.caps, ctx.time_ms, ctx.overrides);
 
         let arrow_vello = VelloPath {
             path: std::sync::Arc::new(path),

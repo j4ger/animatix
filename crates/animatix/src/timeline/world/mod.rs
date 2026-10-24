@@ -9,6 +9,7 @@
 //! deleted from `AnimationTrack` in the same change, so there is never a second
 //! source of truth across a merge boundary.
 
+mod caps;
 mod component;
 mod fields;
 mod hierarchy;
@@ -51,6 +52,8 @@ pub struct World {
     pub(crate) highlight: RequiredStore<crate::timeline::animation_track::HighlightTracks>,
     /// Tagged-union property tracks (legend, extension tags).
     pub(crate) tagged_tracks: RequiredStore<TaggedTracksComponent>,
+    /// Explicit capability overrides for extension primitives.
+    pub(crate) caps_overrides: ComponentStore<animatix_core::caps::ActorCaps>,
     /// Registry-driven property slots for every entity.
     pub(crate) property_plan: RequiredStore<crate::timeline::plan::PropertyPlan>,
     /// Per-entity visibility/lock/camera metadata.
@@ -272,6 +275,7 @@ impl World {
         self.tagged_tracks.reset_at(id);
         self.property_plan.reset_at(id);
         self.meta.reset_at(id);
+        self.caps_overrides.reset_at(id);
         self.container_layout.reset_at(id);
         self.child_order.reset_at(id);
         self.coordinate_frame.reset_at(id);
@@ -588,6 +592,7 @@ impl World {
         self.tagged_tracks.ensure_len(len);
         self.property_plan.ensure_len(len);
         self.meta.ensure_len(len);
+        self.caps_overrides.ensure_len(len);
         self.container_layout.ensure_len(len);
         self.child_order.ensure_len(len);
         self.coordinate_frame.ensure_len(len);
@@ -608,6 +613,7 @@ impl World {
         self.tagged_tracks.clear();
         self.property_plan.clear();
         self.meta.clear();
+        self.caps_overrides.clear();
         self.container_layout.clear();
         self.child_order.clear();
         self.coordinate_frame.clear();
@@ -783,15 +789,6 @@ mod meta_default_tests {
 }
 
 impl World {
-    /// Capability projection for an entity's actor type.
-    #[inline(always)]
-    pub fn caps(&self, id: EntityId) -> animatix_core::caps::ActorCaps {
-        self.tracks
-            .get_by_id(id)
-            .map_or_else(animatix_core::caps::ActorCaps::default, |track| track.caps)
-    }
-
-    /// Maximum keyframe time across the track tiers and payload.
     /// Authoring/registration type name for an entity.
     #[inline(always)]
     pub fn actor_type(&self, id: EntityId) -> &str {

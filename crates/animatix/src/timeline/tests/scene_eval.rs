@@ -789,12 +789,18 @@ fn time_dependent_caps_prevent_static_subtree_caching() {
     let timeline = report.output;
 
     let subs = timeline.world.tracks.get("subs").expect("subs track must exist");
-    assert!(subs.caps.time_dependent, "Captions must have time_dependent capability");
+    assert!(
+        timeline.world.caps(subs.id).time_dependent,
+        "Captions must have time_dependent capability"
+    );
     let subs_id = timeline.get_entity_id("subs").expect("subs id");
     assert!(!timeline.is_static_subtree_id(subs_id), "Captions must not be a static subtree");
 
     let cue = timeline.world.tracks.get("c1").expect("c1 cue track must exist");
-    assert!(cue.caps.time_dependent, "Cue must have time_dependent capability");
+    assert!(
+        timeline.world.caps(cue.id).time_dependent,
+        "Cue must have time_dependent capability"
+    );
     let cue_id = timeline.get_entity_id("c1").expect("c1 id");
     assert!(!timeline.is_static_subtree_id(cue_id), "Cue must not be a static subtree");
 }

@@ -395,7 +395,7 @@ impl Timeline {
                 let mut broken: Vec<String> = Vec::new();
                 for (label, track) in &timeline.world.tracks {
                     for idx in crate::timeline::property_registry::allowed_property_indices(
-                        &track.caps,
+                        &timeline.world.caps(track.id),
                         &track.actor_type,
                     ) {
                         let schema = &crate::timeline::property_registry::PROPERTY_REGISTRY[idx];
@@ -567,7 +567,7 @@ impl Timeline {
         // Validate Callout `target` references after all actors are built.
         // This is a post-build pass so forward declarations are visible.
         for (label, track) in &timeline.world.tracks {
-            if track.caps.callout {
+            if timeline.world.caps(track.id).callout {
                 use crate::timeline::TrackAccessor;
                 let target = track.geometry.callout_target.get(0, String::new());
                 if !target.is_empty() && !timeline.world.tracks.contains_key(&target) {
@@ -633,7 +633,7 @@ impl Timeline {
             .world
             .tracks
             .iter()
-            .filter(|(_, track)| track.caps.legend_host)
+            .filter(|(_, track)| timeline.world.caps(track.id).legend_host)
             .map(|(_, track)| track.id)
             .collect::<Vec<_>>();
         if !legend_ids.is_empty() {
@@ -659,8 +659,11 @@ impl Timeline {
         timeline.pause_points.sort_unstable();
         timeline.pause_points.dedup();
 
-        timeline.has_effect_scopes =
-            timeline.world.tracks.values().any(|track| track.caps.is_effect_scope());
+        timeline.has_effect_scopes = timeline
+            .world
+            .tracks
+            .values()
+            .any(|track| timeline.world.caps(track.id).is_effect_scope());
         timeline.refresh_blend_used();
         timeline.refresh_camera_used();
         // Resolve any hierarchy link whose child track was created by a path

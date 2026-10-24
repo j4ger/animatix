@@ -600,10 +600,10 @@ pub(crate) fn track_is_nestable_container(
 
 /// Whether `track` is a plain structural group (the ungroup action target).
 pub(crate) fn track_is_group_like(
-    _timeline: &animatix::timeline::Timeline,
+    timeline: &animatix::timeline::Timeline,
     track: &animatix::timeline::AnimationTrack,
 ) -> bool {
-    track.is_group_like()
+    timeline.world().caps(track.id).is_group_like()
 }
 
 #[cfg(test)]

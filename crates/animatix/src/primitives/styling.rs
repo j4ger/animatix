@@ -5,7 +5,8 @@ use std::collections::HashMap;
 use crate::primitives::commands::RenderCommand;
 use crate::primitives::{EvaluateCtx, Primitive, RenderCtx};
 use crate::timeline::{
-    AnimationTrack, DEFAULT_WHITE, TrackAccessor, Value, VectorShapeState, VectorShapeStyle,
+    ActorCaps, AnimationTrack, DEFAULT_WHITE, TrackAccessor, Value, VectorShapeState,
+    VectorShapeStyle,
 };
 
 /// Helper to read a color override from an `always` block's assignment table.
@@ -27,11 +28,12 @@ fn override_color(overrides: &HashMap<String, Value>, key: &str) -> Option<[f32;
 /// at the given time, applying property overrides when present.
 pub fn sample_shape_style(
     track: &AnimationTrack,
+    caps: ActorCaps,
     time_ms: u64,
     overrides: Option<&HashMap<String, Value>>,
 ) -> VectorShapeStyle {
     let mut color = track.style.color.get(time_ms, DEFAULT_WHITE);
-    let mut stroke_width = track.style.stroke_width.get(time_ms, track.caps.default_stroke_width());
+    let mut stroke_width = track.style.stroke_width.get(time_ms, caps.default_stroke_width());
     let mut stroke_color = track.style.stroke_color.get(time_ms, DEFAULT_WHITE);
     let mut fill_opacity = track.style.fill_opacity.get(time_ms, 1.0);
     let mut line_cap = track.style.line_cap.get(time_ms, 0);
@@ -220,7 +222,7 @@ pub(crate) fn evaluate_shape_render(
 ) -> Result<Option<Vec<RenderCommand>>, crate::renderer::error::RenderError> {
     use crate::timeline::TrackAccessor;
 
-    let style = sample_shape_style(ctx.track, ctx.time_ms, ctx.overrides);
+    let style = sample_shape_style(ctx.track, ctx.caps, ctx.time_ms, ctx.overrides);
     let epoch = ctx.track.shape.vector_paths_epoch.get();
 
     let progress = f64::from(ctx.track.style.stroke_progress.get(ctx.time_ms, 1.0)).clamp(0.0, 1.0);

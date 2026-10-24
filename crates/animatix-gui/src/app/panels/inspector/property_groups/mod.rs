@@ -75,7 +75,8 @@ pub(crate) fn build_property_groups(
     track: &AnimationTrack,
     time_ms: u64,
 ) -> Vec<PropertyGroup> {
-    let indices = allowed_property_indices(&track.caps, &track.actor_type);
+    let caps = timeline.world().caps(track.id);
+    let indices = allowed_property_indices(&caps, &track.actor_type);
 
     let mut geometry = Vec::new();
     let mut layout = Vec::new();
@@ -326,7 +327,7 @@ pub(crate) fn build_property_groups(
         });
     }
 
-    if track.caps.legend_host {
+    if timeline.world().caps(track.id).legend_host {
         legend_props.extend(legend_style_entries(legend));
     }
     let mode = animatix::timeline::legend::legend_mode_for_track(

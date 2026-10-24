@@ -190,7 +190,7 @@ fn every_plot_host_has_coordinate_frame() {
 
     let mut hosts = 0;
     for entity in timeline.world().views() {
-        if entity.track().caps.plot_host {
+        if timeline.world().caps(entity.id()).plot_host {
             hosts += 1;
             assert!(
                 entity.coordinate_frame().is_some(),
@@ -206,7 +206,7 @@ fn every_plot_host_has_coordinate_frame() {
     // no child plots and carries no frame. A hosted plot child resolves through
     // its parent, so it carries none either.
     let number_plane = timeline.entity("np").expect("NumberPlane entity");
-    assert!(!number_plane.track().caps.plot_host);
+    assert!(!timeline.world().caps(number_plane.id()).plot_host);
     assert!(number_plane.coordinate_frame().is_none());
     assert!(timeline.entity("c").expect("curve entity").coordinate_frame().is_none());
 }

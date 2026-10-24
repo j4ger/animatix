@@ -872,8 +872,9 @@ pop-in chip [500ms]
 
     let read = |label: &str, prop: &str, ms: u64| {
         let schema = lookup_property(prop).expect("property");
-        read_property_value(timeline.world.tracks.get(label).unwrap(), schema.field, ms)
-            .unwrap_or_else(|| (schema.default_value)(&timeline.world.tracks[label].caps))
+        let track = timeline.world.tracks.get(label).unwrap();
+        read_property_value(track, schema.field, ms)
+            .unwrap_or_else(|| (schema.default_value)(&timeline.world.caps(track.id)))
     };
 
     // settle-in: 0.5s..1.0s, scale 0.92 -> 1.0 relative to the sampled scale,
@@ -1023,7 +1024,7 @@ fade-in t [200ms]
         let schema = crate::timeline::property_registry::lookup_property(prop).unwrap();
         let track = timeline.world.tracks.get(label).unwrap();
         read_property_value(track, schema.field, 0)
-            .unwrap_or_else(|| (schema.default_value)(&track.caps))
+            .unwrap_or_else(|| (schema.default_value)(&timeline.world.caps(track.id)))
     };
     assert_eq!(
         sampled("t", "text"),

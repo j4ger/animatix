@@ -60,7 +60,9 @@ pub(crate) fn collect_curves(
 ) -> Vec<CurveChannel> {
     let mut curves: Vec<CurveChannel> = Vec::new();
 
-    for &idx in &allowed_property_indices(&track.caps, &track.actor_type) {
+    // Bare-track helper: derive the capability projection from the actor type.
+    let caps = animatix::timeline::caps_for_type(&track.actor_type).unwrap_or_default();
+    for &idx in &allowed_property_indices(&caps, &track.actor_type) {
         let schema = &PROPERTY_REGISTRY[idx];
         if !property_has_keyframes(track, schema.field) {
             continue;

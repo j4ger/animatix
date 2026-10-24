@@ -129,6 +129,7 @@ impl Timeline {
                 {
                     diagnostics.append(&mut diags);
                 }
+                let mut extension_caps = None;
                 if let Some(track) = self.world.tracks.get_mut(label) {
                     if self.world.decl_span.get(track.id).is_none()
                         && let Some(span) = decl_span
@@ -140,13 +141,16 @@ impl Timeline {
                     // text-like or shape-like primitive and must get the full
                     // built-in treatment.
                     track.actor_type = ty.to_string();
-                    if let Some(info) = registry.info_of(ty) {
-                        track.set_caps(animatix_std::caps_from_info(info));
-                    }
+                    extension_caps = registry
+                        .info_of(ty)
+                        .map(|info| (track.id, animatix_std::caps_from_info(info)));
                     // Extension builds create the track; mirror the built-in
                     // path so the actor is visible from its declaration time
                     // instead of being skipped forever (first_seen_ms = MAX).
                     self.world.meta.record_first_seen(track.id, time_ms as u64);
+                }
+                if let Some((id, caps)) = extension_caps {
+                    self.world.set_caps(id, caps);
                 }
                 self.process_inline_items(time_ms, children, label, diagnostics);
                 // Extension builds only create the track; apply the common

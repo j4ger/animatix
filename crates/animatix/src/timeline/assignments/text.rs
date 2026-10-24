@@ -34,7 +34,12 @@ pub(crate) fn recompile_text_at_assignment(
         easing,
     );
 
-    let text_kind = match track.caps.text {
+    // This helper receives a bare track (the primitive assignment path owns
+    // no `World`), so derive the projection from the actor type, which is the
+    // same derivation the built-in catalog uses. Extension overrides live in
+    // `World` and are applied by callers that have one.
+    let caps = animatix_std::caps_for_type(&track.actor_type).unwrap_or_default();
+    let text_kind = match caps.text {
         Some(crate::timeline::TextKind::Text) => crate::renderer::text::TextKind::Text,
         Some(crate::timeline::TextKind::Code) => crate::renderer::text::TextKind::Code,
         Some(crate::timeline::TextKind::Typst) => crate::renderer::text::TextKind::Typst,

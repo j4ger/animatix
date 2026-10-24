@@ -9,8 +9,12 @@ use crate::timeline::{DEFAULT_WHITE, ModifierHost, Timeline, parse_timing_modifi
 /// Ensure a filled shape without a visible authored stroke has an outline for
 /// draw/reveal actions. The outline uses the actor's fill color so the default
 /// declaration stays clean while the entrance effect remains visible.
-fn ensure_reveal_stroke(track: &mut crate::timeline::AnimationTrack, time_ms: u64) {
-    let current_width = track.style.stroke_width.get(time_ms, track.caps.default_stroke_width());
+fn ensure_reveal_stroke(
+    track: &mut crate::timeline::AnimationTrack,
+    caps: crate::timeline::ActorCaps,
+    time_ms: u64,
+) {
+    let current_width = track.style.stroke_width.get(time_ms, caps.default_stroke_width());
     if current_width > 0.0 {
         return;
     }
@@ -179,6 +183,10 @@ impl BuiltinAction for DrawIn {
                 .tracks
                 .get(target)
                 .is_some_and(|track| is_text_like(timeline, track));
+            let caps = match timeline.world.tracks.get_id(target) {
+                Some(id) => timeline.world.caps(id),
+                None => continue,
+            };
 
             let track = match timeline.world.tracks.get_mut(target) {
                 Some(t) => t,
@@ -291,7 +299,7 @@ impl BuiltinAction for DrawIn {
                     },
                 }
             } else {
-                ensure_reveal_stroke(track, t_start_ms);
+                ensure_reveal_stroke(track, caps, t_start_ms);
                 if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
                     let guard_time = t_start_ms.saturating_sub(1);
                     super::ensure_guard_keyframe(&mut track.style.stroke_progress, guard_time, 1.0);
@@ -392,6 +400,10 @@ impl BuiltinAction for RevealIn {
                 .tracks
                 .get(target)
                 .is_some_and(|track| is_text_like(timeline, track));
+            let caps = match timeline.world.tracks.get_id(target) {
+                Some(id) => timeline.world.caps(id),
+                None => continue,
+            };
 
             let track = match timeline.world.tracks.get_mut(target) {
                 Some(t) => t,
@@ -476,7 +488,7 @@ impl BuiltinAction for RevealIn {
                     0.0
                 };
 
-                ensure_reveal_stroke(track, t_start_ms);
+                ensure_reveal_stroke(track, caps, t_start_ms);
 
                 // Reveal the fill to its authored value, not blindly to 1.0: a
                 // stroke-only Path (fill_opacity seeded 0) must stay unfilled

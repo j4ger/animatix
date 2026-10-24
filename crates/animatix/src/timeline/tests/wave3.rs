@@ -78,6 +78,7 @@ box: Rect, size: (100, 100), at: (200, 200), shadow: (0, 8, 16, 2), shadow_color
     let asset_cache = crate::timeline::assets::AssetCache::default();
     let ctx = crate::primitives::EvaluateCtx {
         track,
+        caps: timeline.world.caps(track.id),
         time_ms: 0,
         local_transform: kurbo::Affine::IDENTITY,
         opacity: 1.0,

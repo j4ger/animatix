@@ -225,7 +225,11 @@ pub fn collect_all_keyframe_times(
     effects: Option<&crate::timeline::effects::EffectChainTrack>,
     world: Option<&crate::timeline::World>,
 ) -> Vec<f64> {
-    let indices = property_registry::allowed_property_indices(&track.caps, &track.actor_type);
+    let caps = world.map_or_else(
+        || animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
+        |world| world.caps(track.id),
+    );
+    let indices = property_registry::allowed_property_indices(&caps, &track.actor_type);
     let mut times = std::collections::BTreeSet::new();
 
     for &idx in &indices {

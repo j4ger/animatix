@@ -66,6 +66,7 @@ fn test_legend_wrapped_label_respects_max_width() {
     let asset_cache = crate::timeline::assets::AssetCache::new();
     let ctx = EvaluateCtx {
         track: &track,
+        caps: animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
         time_ms: 0,
         local_transform: Affine::IDENTITY,
         opacity: 1.0,
@@ -236,6 +237,7 @@ fn test_legend_empty() {
     let asset_cache = crate::timeline::assets::AssetCache::new();
     let ctx = EvaluateCtx {
         track: &track,
+        caps: animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
         time_ms: 0,
         local_transform: Affine::IDENTITY,
         opacity: 1.0,
@@ -656,6 +658,7 @@ fn test_legend_render_commands_produced() {
     let asset_cache = crate::timeline::assets::AssetCache::new();
     let ctx = EvaluateCtx {
         track: &track,
+        caps: animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
         time_ms: 0,
         local_transform: Affine::IDENTITY,
         opacity: 1.0,

@@ -215,7 +215,7 @@ pub(crate) fn bake_scene_stats(timeline: &mut Timeline) {
         .tracks
         .iter()
         .filter(|(label, t)| {
-            if !t.renders_visual_content() {
+            if !timeline.world.renders_visual_content(t.id) {
                 return false;
             }
             if crate::timeline::legend::is_full_viewport_background(t) {

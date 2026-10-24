@@ -221,7 +221,7 @@ pub fn scan_legend_entries(world: &super::World) -> Vec<(String, [f32; 4])> {
         let legend = world.legend(track.id);
         let first_seen_ms = world.meta(track.id).first_seen_ms;
         let mode = legend_mode_for_track(track, first_seen_ms, Some(world));
-        if !legend_eligible(&track.caps)
+        if !legend_eligible(&world.caps(track.id))
             || mode == LegendMode::Hidden
             || (is_full_viewport_background(track)
                 && !legend_declared(track, first_seen_ms, Some(world)))

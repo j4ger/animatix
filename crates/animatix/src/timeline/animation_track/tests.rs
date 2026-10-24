@@ -49,11 +49,17 @@ fn primitive_catalog_is_complete() {
 /// primitive, and the name must survive unchanged.
 #[test]
 fn track_identity_derives_caps_from_registry() {
+    let mut world = crate::timeline::World::new();
     for meta in primitive_catalog().iter() {
-        let track = super::AnimationTrack::new("t".to_string(), meta.type_name.clone());
-        assert_eq!(track.actor_type, meta.type_name.as_ref());
+        let label = meta.type_name.to_string();
+        let track = super::AnimationTrack::new(label.clone(), meta.type_name.clone());
+        let id = world.spawn_with_track(&label, track);
+        assert_eq!(
+            world.tracks.get_by_id(id).expect("spawned track").actor_type,
+            meta.type_name.as_ref()
+        );
         if let Some(expected) = animatix_std::caps_for_type(meta.type_name.as_ref()) {
-            assert_eq!(track.caps, expected, "caps drifted for {}", meta.type_name);
+            assert_eq!(world.caps(id), expected, "caps drifted for {}", meta.type_name);
         }
     }
 }

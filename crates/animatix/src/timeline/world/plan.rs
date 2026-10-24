@@ -17,10 +17,13 @@ impl World {
 
     /// Rebuild an entity's plan from its identity, preserving extension slots.
     pub fn rebuild_property_plan(&mut self, id: EntityId) {
-        let (caps, actor_type) = {
-            let track = self.tracks.get_by_id(id).expect("rebuild requires an existing entity");
-            (track.caps, track.actor_type.clone())
-        };
+        let caps = self.caps(id);
+        let actor_type = self
+            .tracks
+            .get_by_id(id)
+            .expect("rebuild requires an existing entity")
+            .actor_type
+            .clone();
         let mut plan = crate::timeline::plan::PropertyPlan::for_actor(&caps, &actor_type);
         plan.preserve_extension_slots(self.property_plan.get(id));
         *self.property_plan.get_mut(id) = plan;

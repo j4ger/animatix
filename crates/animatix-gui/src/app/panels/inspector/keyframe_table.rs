@@ -28,7 +28,7 @@ struct TrackGroup {
 // ─── Public Entry Point ───────────────────────────────────────────────────
 
 pub(super) fn count_keyframes(timeline: &Timeline, track: &AnimationTrack) -> usize {
-    let indices = allowed_property_indices(&track.caps, &track.actor_type);
+    let indices = allowed_property_indices(&timeline.world().caps(track.id), &track.actor_type);
     let builtin = indices
         .iter()
         .filter_map(|&idx| {
@@ -313,7 +313,7 @@ fn render_compact_track_row(
 // ─── Collection (generic via registry) ────────────────────────────────────
 
 fn collect_track_groups(timeline: &Timeline, track: &AnimationTrack) -> Vec<TrackGroup> {
-    let indices = allowed_property_indices(&track.caps, &track.actor_type);
+    let indices = allowed_property_indices(&timeline.world().caps(track.id), &track.actor_type);
 
     let mut transform = Vec::new();
     let mut style = Vec::new();

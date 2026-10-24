@@ -383,15 +383,11 @@ impl Timeline {
             let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
             let track_id = self.world.spawn(label, ty);
-            {
-                let track =
-                    self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
-                track.set_identity(ty);
-                self.world
-                    .property_plan
-                    .get_mut(track.id)
-                    .rebuild_for(&track.caps, &track.actor_type);
-            }
+            // The World form clears any capability override so caps re-derive
+            // from the declaration type on a re-declaration.
+            self.world.set_identity(track_id, ty);
+            let track_caps = self.world.caps(track_id);
+            self.world.property_plan.get_mut(track_id).rebuild_for(&track_caps, ty);
             // Plot-family build path only (this dispatch serves Graph,
             // PlotCurve, VectorField, Heatmap, ContourSet, NumberPlane and
             // BarChart), so it owns the plot payload outright: assigning all
@@ -455,13 +451,14 @@ impl Timeline {
 
             // === Keyframe Insertion ===
             if duration_ms > 0.0 {
-                insert_start_keyframes(track, t_start_ms);
+                insert_start_keyframes(track, track_caps, t_start_ms);
             } else if delay_ms > 0.0 {
                 preserve_delayed_values(track, t_start_ms);
             }
 
             insert_end_keyframes(
                 track,
+                track_caps,
                 t_end_ms,
                 position,
                 size,

@@ -88,6 +88,8 @@ pub struct EvaluateCtx<'a> {
     pub highlight: &'a crate::timeline::animation_track::HighlightTracks,
     /// Registry-driven property plan for this actor.
     pub property_plan: Option<&'a crate::timeline::plan::PropertyPlan>,
+    /// Capability projection for this actor.
+    pub caps: animatix_core::caps::ActorCaps,
     /// The owning world, when the caller has one (frame path); tests may omit it.
     pub world: Option<&'a crate::timeline::World>,
     /// Primitive payload for this entity (plot/SVG/image state).

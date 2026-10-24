@@ -468,6 +468,7 @@ impl Timeline {
                     world: Some(&self.world),
                     highlight: self.world.highlight(track.id),
                     property_plan: Some(self.world.property_plan(track.id)),
+                    caps: self.world.caps(track.id),
                     payload: self.world.payload(track.id),
                 };
                 let mut text_ctx = crate::primitives::TextCompileCtx {
@@ -634,9 +635,10 @@ impl Timeline {
             world: Some(&self.world),
             highlight: self.world.highlight(child.id),
             property_plan: Some(self.world.property_plan(child.id)),
+            caps: self.world.caps(child.id),
             payload: self.world.payload(child.id),
         };
-        let path = primitive.clip_path(&ctx, &child.caps);
+        let path = primitive.clip_path(&ctx, &ctx.caps);
         // Consume the memo-bounds handoff so it can't leak into the next node.
         let _ = child.take_shape_command_bounds();
         // Place the (origin-centered) clip geometry with the child's fully

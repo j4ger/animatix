@@ -123,7 +123,10 @@ pub(super) fn apply_property_edit_to_track(
         return;
     }
 
-    if track.caps.legend_host {
+    // Bare-track helper: capabilities derive from the actor type (the same
+    // derivation the catalog uses); `World`-aware callers hold overrides.
+    let caps = animatix::timeline::caps_for_type(&track.actor_type).unwrap_or_default();
+    if caps.legend_host {
         let Some(legend) = legend else {
             return;
         };

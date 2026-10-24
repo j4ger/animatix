@@ -30,7 +30,7 @@ impl Timeline {
             .world
             .tracks
             .get(parent_label)
-            .is_some_and(|track| track.caps.is_effect_scope());
+            .is_some_and(|track| self.world.caps(track.id).is_effect_scope());
         if !is_scope {
             diagnostics.push(
                 Diagnostic::error(

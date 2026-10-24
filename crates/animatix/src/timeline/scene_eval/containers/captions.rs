@@ -108,6 +108,7 @@ impl Timeline {
                 world: Some(&self.world),
                 highlight: self.world.highlight(child_track.id),
                 property_plan: Some(self.world.property_plan(child_track.id)),
+                caps: self.world.caps(child_track.id),
                 payload: self.world.payload(child_track.id),
             };
             if let Some(cue) = primitive.caption_cue(&ctx) {

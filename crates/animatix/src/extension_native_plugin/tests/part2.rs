@@ -426,7 +426,8 @@ fn native_get_property_reads_extension_slot() {
         .register_property("Pulse", "glow", animatix_syntax::schema::PropertyValueKind::F32, true)
         .expect("register property");
     let track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
-    let mut plan = crate::timeline::plan::PropertyPlan::for_actor(&track.caps, &track.actor_type);
+    let caps = animatix_std::caps_for_type(&track.actor_type).unwrap_or_default();
+    let mut plan = crate::timeline::plan::PropertyPlan::for_actor(&caps, &track.actor_type);
     crate::timeline::property_engine::write_property_plan_slot(
         &mut plan,
         id,

@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 
 use super::dispatch::property_keyframe_times;
 
-use super::actor_caps::ActorCaps;
 use super::animation_track::{GeometryTracks, ShapeTracks, StyleTracks, TextTracks};
 use super::entity::EntityId;
 use super::kurbo_shapes::KurboShape;
@@ -54,8 +53,6 @@ pub struct AnimationTrack {
     pub label: String,
     /// Capability projection of this actor's primitive kind, derived once at
     /// identity time.
-    pub caps: ActorCaps,
-    /// Source type name for this actor's primitive (e.g. `"Rect"`, `"Text"`,
     /// or an extension's type name). Required and non-optional: it is the
     /// single registry key the frame path resolves the primitive with, so no
     /// lookup needs a kind fallback. Empty only across a legacy deserialization
@@ -114,12 +111,10 @@ impl AnimationTrack {
     /// was built without a type name.
     pub fn new(label: String, actor_type: impl Into<String>) -> Self {
         let actor_type = actor_type.into();
-        let caps = animatix_std::caps_for_type(&actor_type).unwrap_or_default();
         Self {
             // Identity
             id: EntityId::INVALID,
             label: label.clone(),
-            caps,
             actor_type,
             bounds_slot: std::cell::Cell::new(u32::MAX),
             shape_command_memo: std::cell::RefCell::new(Box::new(
@@ -159,32 +154,9 @@ impl AnimationTrack {
         }
     }
 
-    /// Set this track's primitive identity, deriving capabilities from it.
-    ///
-    /// The single funnel for identity writes, so `actor_type` and `caps`
-    /// cannot drift: built-in type names derive their caps from the registry,
-    /// and anything unregistered (extension primitives) keeps all-false caps
-    /// until its build path refines them.
+    /// Set this track's primitive type name. Capabilities live in `World`.
     pub(crate) fn set_identity(&mut self, actor_type: &str) {
         self.actor_type = actor_type.to_string();
-        self.caps = animatix_std::caps_for_type(actor_type).unwrap_or_default();
-    }
-
-    /// Returns `true` if this actor is a container (group, layout container,
-    /// or effect scope) rather than a leaf drawable.
-    pub fn is_container(&self) -> bool {
-        self.caps.is_container
-    }
-
-    /// Returns `true` if this actor is a plain structural group.
-    pub fn is_group_like(&self) -> bool {
-        self.caps.is_group_like()
-    }
-
-    /// Returns `true` if this actor directly renders visual ink or content
-    /// of its own, delegating to [`ActorCaps::renders_visual_content`].
-    pub fn renders_visual_content(&self) -> bool {
-        self.caps.renders_visual_content()
     }
 
     /// The primitive type name this track must resolve to at `time_ms`.
@@ -250,14 +222,6 @@ impl AnimationTrack {
         } else {
             &self.actor_type
         }
-    }
-
-    /// Refine this track's capabilities from a registration info card.
-    ///
-    /// Extension builds call this after `set_identity`: an unregistered type
-    /// name has no built-in caps, but the registration info knows its own.
-    pub(crate) fn set_caps(&mut self, caps: ActorCaps) {
-        self.caps = caps;
     }
 
     /// Sample a plan-stored property by canonical name.

@@ -387,7 +387,7 @@ impl Timeline {
         // Layout-managed children should use `transform` for visual offsets.
         if let Some(parent) = parent_label {
             if let Some(parent_track) = self.world.tracks.get(parent) {
-                if parent_track.caps.layout_container {
+                if self.world.caps(parent_track.id).layout_container {
                     let has_at = extracted.at_expr.is_some();
                     let has_position = props.iter().any(|p| p.name == "position");
                     if has_at || has_position {
@@ -415,17 +415,13 @@ impl Timeline {
             label,
         );
 
-        let track_id = {
-            let track_id = self.world.spawn(label, ty);
-            let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
-            track.set_identity(ty);
-            self.world
-                .property_plan
-                .get_mut(track.id)
-                .rebuild_for(&track.caps, &track.actor_type);
-            self.world.meta.record_first_seen(track.id, t_start_ms);
-            track.id
-        };
+        let track_id = self.world.spawn(label, ty);
+        // The World form clears any capability override so caps re-derive from
+        // the declaration type on a re-declaration.
+        self.world.set_identity(track_id, ty);
+        let track_caps = self.world.caps(track_id);
+        self.world.property_plan.get_mut(track_id).rebuild_for(&track_caps, ty);
+        self.world.meta.record_first_seen(track_id, t_start_ms);
         if let Some(span) = decl_span
             && self.world.decl_span.get(track_id).is_none()
         {
@@ -766,6 +762,7 @@ impl Timeline {
 
         Self::insert_actor_keyframes(
             track,
+            caps,
             t_start_ms,
             t_end_ms,
             [position[0], position[1]],

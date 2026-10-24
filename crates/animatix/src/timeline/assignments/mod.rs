@@ -209,6 +209,9 @@ impl Timeline {
         let coordinate_frame = (is_size_property || affects_shape_geometry(property))
             .then(|| self.coordinate_frame_for(&target_key).cloned())
             .flatten();
+        // Capabilities live in `World`, so resolve them before the mutable
+        // track borrow (the projection is `Copy`).
+        let caps = self.world.get_id(&target_key).map(|id| self.world.caps(id)).unwrap_or_default();
         let Some(track) = self.world.tracks.get_mut(&target_key) else {
             tracing::warn!("assignment target '{target_key}' has no track; skipping");
             return;
@@ -375,7 +378,7 @@ impl Timeline {
         // `func` is a build-time-only AST node, not a registry property.
         // We handle it here so `curve.func = (x) => cos(x) [1s]` creates a
         // FuncTransition that blends function outputs at frame time.
-        let is_plot_actor = track.caps.plot_geometry;
+        let is_plot_actor = caps.plot_geometry;
         if property == "func" && is_plot_actor {
             // Evaluate RHS to a closure.
             let closure_val = match evaluate_expr(value, &eval_env) {
@@ -529,9 +532,14 @@ impl Timeline {
                     let scale_x = new_half_size[0] / old_half_size[0];
                     let scale_y = new_half_size[1] / old_half_size[1];
                     for child_label in &child_labels {
+                        // Capabilities are a `World` projection, not a track field.
+                        let Some(child_id) = self.world.get_id(child_label) else {
+                            continue;
+                        };
+                        let child_caps = self.world.caps(child_id);
                         if let Some(child_track) = self.world.tracks.get_mut(child_label) {
                             // Scale PlotCurve paths
-                            if child_track.caps.plot_geometry {
+                            if child_caps.plot_geometry {
                                 scale_plot_curve_paths(
                                     child_track,
                                     scale_x,
@@ -543,7 +551,7 @@ impl Timeline {
                             }
                             // Scale tick label positions (Text children named {label}_tick_x_N /
                             // _tick_y_N)
-                            if child_track.caps.text.is_some()
+                            if child_caps.text.is_some()
                                 && (child_label.contains("_tick_x_")
                                     || child_label.contains("_tick_y_"))
                             {
@@ -580,7 +588,7 @@ impl Timeline {
             // Standard engine dispatch for everything else. Capture what the
             // track borrow still owes us, then end it so the write can go
             // through `World` (which needs the whole world mutably).
-            let stroke_only = track.caps.shape.is_some_and(|s| s.is_stroke_only());
+            let stroke_only = caps.shape.is_some_and(|s| s.is_stroke_only());
             let pv = parse_property_value(
                 schema.value_type,
                 value,

@@ -2,6 +2,12 @@ use super::*;
 
 use animatix_syntax::typing::Type;
 
+/// Capabilities live in `World` and derive from the spawned identity, so the
+/// fixtures spawn real entities instead of mutating caps on a bare track.
+fn spawn_track(timeline: &mut animatix::timeline::Timeline, label: &str, ty: &str) {
+    timeline.world_mut().spawn(label, ty);
+}
+
 #[test]
 fn extension_value_to_kind_uses_manifest_types() {
     let enum_value = animatix::timeline::PropertyValue::String("right".to_string());
@@ -35,10 +41,10 @@ fn extension_value_to_kind_uses_manifest_types() {
 
 #[test]
 fn build_property_groups_for_graph_includes_plot_domain() {
-    let timeline = animatix::timeline::Timeline::new();
-    let mut track = AnimationTrack::new("g".into(), "Graph");
-    track.caps.plot_host = true;
-    let groups = build_property_groups(&timeline, &track, 0);
+    let mut timeline = animatix::timeline::Timeline::new();
+    spawn_track(&mut timeline, "g", "Graph");
+    let track = timeline.get_track("g").expect("graph track");
+    let groups = build_property_groups(&timeline, track, 0);
     let plot_group = groups.iter().find(|g| g.name == "Plot & Coordinates");
     assert!(plot_group.is_some(), "Graph should have a Plot & Coordinates group");
     let plot_group = plot_group.unwrap();
@@ -54,10 +60,10 @@ fn build_property_groups_for_graph_includes_plot_domain() {
 
 #[test]
 fn build_property_groups_for_container_includes_layout() {
-    let timeline = animatix::timeline::Timeline::new();
-    let mut track = AnimationTrack::new("r".into(), "Row");
-    track.caps.is_container = true;
-    let groups = build_property_groups(&timeline, &track, 0);
+    let mut timeline = animatix::timeline::Timeline::new();
+    spawn_track(&mut timeline, "r", "Row");
+    let track = timeline.get_track("r").expect("row track");
+    let groups = build_property_groups(&timeline, track, 0);
     let layout_group = groups.iter().find(|g| g.name == "Layout");
     assert!(layout_group.is_some(), "Row should have a Layout group");
     let layout_group = layout_group.unwrap();
@@ -69,19 +75,20 @@ fn build_property_groups_for_container_includes_layout() {
 
 #[test]
 fn build_property_groups_for_callout_includes_annotation() {
-    let timeline = animatix::timeline::Timeline::new();
-    let mut track = AnimationTrack::new("c".into(), "Callout");
-    track.caps.callout = true;
-    let groups = build_property_groups(&timeline, &track, 0);
+    let mut timeline = animatix::timeline::Timeline::new();
+    spawn_track(&mut timeline, "c", "Callout");
+    let track = timeline.get_track("c").expect("callout track");
+    let groups = build_property_groups(&timeline, track, 0);
     let annotation_group = groups.iter().find(|g| g.name == "Annotation");
     assert!(annotation_group.is_some(), "Callout should have an Annotation group");
 }
 
 #[test]
 fn build_property_groups_for_captions_actor() {
-    let timeline = animatix::timeline::Timeline::new();
-    let track = AnimationTrack::new("subs".into(), "Captions");
-    let groups = build_property_groups(&timeline, &track, 0);
+    let mut timeline = animatix::timeline::Timeline::new();
+    spawn_track(&mut timeline, "subs", "Captions");
+    let track = timeline.get_track("subs").expect("captions track");
+    let groups = build_property_groups(&timeline, track, 0);
     let cap_group = groups.iter().find(|g| g.name == "Captions");
     assert!(cap_group.is_some(), "Captions should have a Captions group");
     let cap_group = cap_group.unwrap();
@@ -101,9 +108,10 @@ fn build_property_groups_for_captions_actor() {
 
 #[test]
 fn rect_has_no_text_group() {
-    let timeline = animatix::timeline::Timeline::new();
-    let track = AnimationTrack::new("box".into(), "Rect");
-    let groups = build_property_groups(&timeline, &track, 0);
+    let mut timeline = animatix::timeline::Timeline::new();
+    spawn_track(&mut timeline, "box", "Rect");
+    let track = timeline.get_track("box").expect("rect track");
+    let groups = build_property_groups(&timeline, track, 0);
     assert!(
         !groups.iter().any(|g| g.name == "Text"),
         "a Rect has no text properties; `solo`/`idle` must not create a Text group"
@@ -112,9 +120,10 @@ fn rect_has_no_text_group() {
 
 #[test]
 fn solo_lands_in_visibility() {
-    let timeline = animatix::timeline::Timeline::new();
-    let track = AnimationTrack::new("box".into(), "Rect");
-    let groups = build_property_groups(&timeline, &track, 0);
+    let mut timeline = animatix::timeline::Timeline::new();
+    spawn_track(&mut timeline, "box", "Rect");
+    let track = timeline.get_track("box").expect("rect track");
+    let groups = build_property_groups(&timeline, track, 0);
     let visibility = groups.iter().find(|g| g.name == "Visibility");
     assert!(visibility.is_some(), "Rect should have a Visibility group for `solo`");
     assert!(
@@ -125,9 +134,10 @@ fn solo_lands_in_visibility() {
 
 #[test]
 fn idle_lands_in_geometry() {
-    let timeline = animatix::timeline::Timeline::new();
-    let track = AnimationTrack::new("box".into(), "Rect");
-    let groups = build_property_groups(&timeline, &track, 0);
+    let mut timeline = animatix::timeline::Timeline::new();
+    spawn_track(&mut timeline, "box", "Rect");
+    let track = timeline.get_track("box").expect("rect track");
+    let groups = build_property_groups(&timeline, track, 0);
     let transform = groups.iter().find(|g| g.name == "Transform");
     assert!(transform.is_some(), "Rect should have a Transform group");
     assert!(
