@@ -11,7 +11,9 @@ the web side only plays back and embeds.
 
 ```
 crates/animatix-web          wasm32 cdylib: build pipeline + AmxPlayer (the engine)
-web/embed/src/amx-player.js  <amx-player> web component source (built to embed/amx-player.js)
+web/embed/src/amx-player.js  <amx-player> web component entry (built to embed/amx-player.js)
+web/embed/src/player/        player source split by concern: core helpers, then the
+                             element method chain (base → view → load → input → playback)
 web/site.css                 shared dark "instrument" stylesheet (aggregator of site/*.css)
 web/site-chrome.js           shared nav + footer + timeline chrome (scroll playhead,
                              keyframe stamps, hover-play, theater), injected per page

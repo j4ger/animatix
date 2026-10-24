@@ -5,7 +5,7 @@ import * as esbuild from "esbuild";
 await esbuild.build({
   entryPoints: ["../embed/src/amx-player.js"],
   outfile: "../embed/amx-player.js",
-  bundle: false,
+  bundle: true,
   format: "esm",
   minify: true,
   target: "es2022",
