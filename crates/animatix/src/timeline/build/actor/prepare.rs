@@ -123,6 +123,7 @@ impl Timeline {
                     timeline: self,
                     time_ms,
                     parent_label,
+                    label,
                     diagnostics,
                     coordinate_context,
                 };
@@ -182,6 +183,7 @@ impl Timeline {
                     timeline: self,
                     time_ms,
                     parent_label,
+                    label,
                     diagnostics,
                     coordinate_context,
                 };
@@ -350,6 +352,7 @@ impl Timeline {
                 timeline: self,
                 time_ms,
                 parent_label,
+                label,
                 diagnostics,
                 coordinate_context,
             };

@@ -608,7 +608,7 @@ pub(super) fn inspector_ui(
                                 render_property_group(
                                     ui,
                                     group,
-                                    &track.label,
+                                    sel,
                                     commands,
                                     keyframe_mode,
                                     current_time_s,
@@ -620,7 +620,7 @@ pub(super) fn inspector_ui(
                             render_property_stream(
                                 ui,
                                 &groups,
-                                &track.label,
+                                sel,
                                 commands,
                                 keyframe_mode,
                                 current_time_s,

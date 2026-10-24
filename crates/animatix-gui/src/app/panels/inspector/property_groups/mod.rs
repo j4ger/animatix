@@ -90,9 +90,10 @@ pub(crate) fn build_property_groups(
     let mut captions = Vec::new();
     let mut visibility = Vec::new();
     let mut legend_props = Vec::new();
-    let legend = timeline.entity(&track.label).and_then(|entity| entity.legend());
+    let actor_label = timeline.world().label(track.id).unwrap_or("");
+    let legend = timeline.entity(actor_label).and_then(|entity| entity.legend());
     let effects = timeline
-        .entity(&track.label)
+        .entity(actor_label)
         .and_then(|entity| entity.effects())
         .cloned()
         .unwrap_or_default();

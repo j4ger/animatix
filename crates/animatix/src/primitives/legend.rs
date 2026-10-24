@@ -352,7 +352,7 @@ impl Primitive for LegendPrimitive {
                     }
                 },
                 Err(err) => {
-                    tracing::warn!("Legend '{}' title failed to compile: {}", ctx.track.label, err)
+                    tracing::warn!("Legend '{}' title failed to compile: {}", ctx.label, err)
                 },
             }
         }
@@ -371,7 +371,7 @@ impl Primitive for LegendPrimitive {
                     },
                     Err(err) => tracing::warn!(
                         "Legend '{}' label '{}' failed to compile: {}",
-                        ctx.track.label,
+                        ctx.label,
                         label,
                         err
                     ),

@@ -67,7 +67,7 @@ impl Primitive for BarChartPrimitive {
     /// paths every frame must not re-parse properties or re-evaluate expressions.
     fn handle_assignment(
         &self,
-        track: &mut AnimationTrack,
+        _track: &mut AnimationTrack,
         property: &str,
         value: &Expr,
         ctx: &mut AssignmentCtx,
@@ -78,7 +78,7 @@ impl Primitive for BarChartPrimitive {
         if property != "data" {
             return false;
         }
-        let to = parse_bar_chart_data_expr(value, diagnostics, &track.label);
+        let to = parse_bar_chart_data_expr(value, diagnostics, ctx.label);
         // Chain like `func` does: the value in effect is the previous
         // transition's target, or the declaration when there is none.
         let from = ctx
@@ -104,7 +104,7 @@ impl Primitive for BarChartPrimitive {
                         "BarChart '{}' declares no `data:`, so no bar captions were compiled at \
                          build time; the assigned bars will draw without labels. Declare the \
                          first dataset with `data:` and assign the later ones.",
-                        track.label
+                        ctx.label
                     ),
                 )
                 .with_subject(subject),
@@ -119,7 +119,7 @@ impl Primitive for BarChartPrimitive {
                          compiled at build time into the declaration's slots, so the values will \
                          interpolate but the captions will not follow. Keep the same labels in \
                          the same order to animate a chart's values.",
-                        track.label
+                        ctx.label
                     ),
                 )
                 .with_subject(subject),

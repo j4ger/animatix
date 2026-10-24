@@ -91,6 +91,7 @@ impl ActorKind for PrimitiveActorKind {
         let coordinate_context = timeline.resolve_coordinate_context(parent_label);
         let mut ctx = crate::primitives::BuildCtx {
             timeline,
+            label,
             time_ms,
             parent_label,
             diagnostics,

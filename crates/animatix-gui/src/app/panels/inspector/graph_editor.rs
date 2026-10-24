@@ -38,7 +38,8 @@ pub fn render_multi_fcurve(
         egui::StrokeKind::Outside,
     );
 
-    let curves = curve_plot::collect_curves(timeline, &track.label, track, theme);
+    let actor_label = timeline.world().label(track.id).unwrap_or("");
+    let curves = curve_plot::collect_curves(timeline, actor_label, track, theme);
 
     if curves.is_empty() {
         painter.text(

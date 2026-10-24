@@ -99,12 +99,13 @@ impl Timeline {
             );
             let ctx = crate::primitives::EvaluateCtx {
                 track: child_track,
+                label: self.world.label(child_track.id).unwrap_or(""),
                 time_ms,
                 local_transform: kurbo::Affine::IDENTITY,
                 opacity: 1.0,
                 scene_dimensions,
                 background_color: self.eval_caches.background_color.get(),
-                overrides: overrides.get(&child_track.label),
+                overrides: overrides.get(self.world.label(child_track.id).unwrap_or("")),
                 vector_paths: &child_vector_paths,
                 asset_cache: &self.asset_cache,
                 target_resolver: Some(self),

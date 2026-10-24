@@ -46,7 +46,7 @@ impl Timeline {
             .children
             .iter()
             .filter_map(|id| self.world.tracks.get_by_id(*id))
-            .find(|c| c.label == "clip_shape");
+            .find(|c| self.world.label(c.id).unwrap_or("") == "clip_shape");
         let fallback_clip = || {
             let w = half_size[0] as f64;
             let h = half_size[1] as f64;
@@ -64,7 +64,7 @@ impl Timeline {
                                 format!(
                                     "Mask clip_shape '{}' provides no clip geometry; \
                                          using a rectangular clip",
-                                    child.label
+                                    self.world.label(child.id).unwrap_or("")
                                 ),
                             ),
                         );
@@ -74,7 +74,7 @@ impl Timeline {
             },
             None => fallback_clip(),
         };
-        let clip_child_label = clip_shape_track.map(|c| c.label.as_str());
+        let clip_child_id = clip_shape_track.map(|c| c.id);
 
         // Push clip layer. The clip path is in the mask's LOCAL space, so
         // it must be transformed into out.scene space — pushing it with the
@@ -92,7 +92,7 @@ impl Timeline {
         // Render all children normally inside the clip
         for &child_id in &self.world.hierarchy(node_id).children {
             if let Some(child_track) = self.world.tracks.get_by_id(child_id) {
-                if clip_child_label == Some(child_track.label.as_str()) {
+                if clip_child_id == Some(child_track.id) {
                     continue;
                 }
                 self.evaluate_node_by_id(

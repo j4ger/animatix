@@ -107,6 +107,7 @@ fn sample_evaluate_ctx_with_payload<'a>(
 ) -> EvaluateCtx<'a> {
     EvaluateCtx {
         track,
+        label: "pulse",
         // These tests build bare placeholder tracks (no World identity), whose
         // implied type is Rect.
         caps: animatix_std::caps_for_type("Rect").unwrap_or_default(),

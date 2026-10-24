@@ -256,6 +256,7 @@ fn runtime_text_content_crossfade_compiles_both_endpoints() {
     let asset_cache = crate::timeline::assets::AssetCache::new();
     let ctx = EvaluateCtx {
         track: &track,
+        label: "label",
         time_ms: 1500,
         local_transform: kurbo::Affine::IDENTITY,
         opacity: 1.0,

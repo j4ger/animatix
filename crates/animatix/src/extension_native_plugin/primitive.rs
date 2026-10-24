@@ -196,6 +196,7 @@ impl Primitive for NativePrimitiveAdapter {
     ) -> Result<(), Vec<crate::diagnostics::Diagnostic>> {
         let BuildCtx {
             timeline,
+            label: _,
             time_ms,
             parent_label,
             diagnostics,

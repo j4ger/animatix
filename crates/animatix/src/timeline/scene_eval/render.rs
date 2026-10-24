@@ -150,7 +150,7 @@ impl Timeline {
             other => {
                 tracing::warn!(
                     "{}: unknown blend mode '{other}' (expected a CSS mix-mode name); treating as normal",
-                    track.label
+                    self.world.label(track.id).unwrap_or("")
                 );
                 None
             },
@@ -197,7 +197,7 @@ impl Timeline {
         frame: &crate::primitives::RenderFrame<'_>,
         out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) -> (kurbo::Affine, f32) {
-        let node_label = &track.label;
+        let node_label = self.world.label(track.id).unwrap_or("");
         let time_ms = frame.time_ms;
         let scene_dimensions = frame.scene_dimensions;
         let debug_options = frame.debug_options;
@@ -459,6 +459,7 @@ impl Timeline {
                 self.world.begin_shape_commands(track.id);
                 let ctx = crate::primitives::EvaluateCtx {
                     track,
+                    label: node_label,
                     time_ms,
                     local_transform,
                     opacity,
@@ -642,12 +643,13 @@ impl Timeline {
         self.world.begin_shape_commands(child.id);
         let ctx = crate::primitives::EvaluateCtx {
             track: child,
+            label: self.world.label(child.id).unwrap_or(""),
             time_ms,
             local_transform: kurbo::Affine::IDENTITY,
             opacity: 1.0,
             scene_dimensions,
             background_color: self.eval_caches.background_color.get(),
-            overrides: overrides.get(&child.label),
+            overrides: overrides.get(self.world.label(child.id).unwrap_or("")),
             vector_paths: &vector_paths,
             asset_cache: &self.asset_cache,
             target_resolver: Some(self),
@@ -675,7 +677,7 @@ impl Timeline {
             kurbo::Affine::IDENTITY,
             scene_dimensions,
             None,
-            overrides.get(&child.label),
+            overrides.get(self.world.label(child.id).unwrap_or("")),
         );
         path.map(|mut path| {
             path.apply_affine(node.local_transform);
@@ -715,7 +717,7 @@ impl Timeline {
         frame: &crate::primitives::RenderFrame<'_>,
         out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) {
-        let node_label = &track.label;
+        let node_label = self.world.label(track.id).unwrap_or("");
         let time_ms = frame.time_ms;
         let scene_dimensions = frame.scene_dimensions;
         let debug_options = frame.debug_options;

@@ -344,6 +344,7 @@ impl Timeline {
         let primitive = self.primitive_registry.find(&actor_type);
         if let Some(primitive) = primitive {
             let mut ctx = AssignmentCtx {
+                label: &target_key,
                 t_start_ms,
                 t_end_ms,
                 easing,
@@ -492,8 +493,6 @@ impl Timeline {
         }
 
         // ── Generic engine for all other properties ──
-
-        let _track_label = &track.label.clone();
 
         let schema = lookup_property(property);
 

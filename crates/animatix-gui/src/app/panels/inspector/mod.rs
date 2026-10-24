@@ -213,6 +213,7 @@ fn render_actor_header(
     let sp = spatial(ui);
     let theme = eparts::theme(ui);
     let current_time_ms = (current_time_s * 1000.0) as u64;
+    let actor_label = timeline.world().label(track.id).unwrap_or("");
     let available = ui.available_width();
     let row_h = sp.base.row_l;
     let (row_rect, _) = ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
@@ -239,17 +240,17 @@ fn render_actor_header(
                 let is_editing: bool = ui.data(|d| d.get_temp(edit_id)).unwrap_or(false);
                 let mut edit_buffer: String = ui
                     .data(|d| d.get_temp(edit_id.with("buf")))
-                    .unwrap_or_else(|| track.label.clone());
+                    .unwrap_or_else(|| actor_label.to_string());
 
                 if is_editing {
                     let response = TextField::new(&mut edit_buffer).desired_width(120.0).show(ui);
                     response.request_focus();
                     if response.lost_focus() {
                         ui.data_mut(|d| d.insert_temp(edit_id, false));
-                        if edit_buffer != track.label && !edit_buffer.is_empty() {
+                        if edit_buffer != actor_label && !edit_buffer.is_empty() {
                             commands.push_back(
                                 ActorCommand::RenameActor {
-                                    old_label: track.label.clone(),
+                                    old_label: actor_label.to_string(),
                                     new_label: edit_buffer.clone(),
                                 }
                                 .into(),
@@ -258,13 +259,13 @@ fn render_actor_header(
                     }
                     if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
                         ui.data_mut(|d| d.insert_temp(edit_id, false));
-                        edit_buffer = track.label.clone();
+                        edit_buffer = actor_label.to_string();
                     }
                     ui.data_mut(|d| d.insert_temp(edit_id.with("buf"), edit_buffer));
                 } else {
                     let label_response = ui.add(
                         egui::Label::new(
-                            RichText::new(&track.label)
+                            RichText::new(actor_label)
                                 .size(TextRole::Heading.size())
                                 .color(theme.palette.text.primary),
                         )
@@ -274,7 +275,7 @@ fn render_actor_header(
                     if label_response.double_clicked() {
                         ui.data_mut(|d| {
                             d.insert_temp(edit_id, true);
-                            d.insert_temp(edit_id.with("buf"), track.label.clone());
+                            d.insert_temp(edit_id.with("buf"), actor_label.to_string());
                         });
                     }
                 }

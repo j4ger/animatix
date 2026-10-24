@@ -67,7 +67,7 @@ impl Primitive for CalloutPrimitive {
 
     fn handle_assignment(
         &self,
-        track: &mut AnimationTrack,
+        _track: &mut AnimationTrack,
         property: &str,
         value: &Expr,
         ctx: &mut AssignmentCtx,
@@ -94,7 +94,7 @@ impl Primitive for CalloutPrimitive {
             let Some(geometry) = ctx.geometry.as_deref_mut() else {
                 tracing::debug!(
                     "target write for '{}' dropped: no geometry tier in this assignment context",
-                    track.label
+                    ctx.label
                 );
                 return true;
             };
@@ -145,7 +145,7 @@ impl Primitive for CalloutPrimitive {
             // avoid per-frame spam.
             tracing::debug!(
                 "callout '{}': target actor '{}' not found in timeline",
-                ctx.track.label,
+                ctx.label,
                 target_name
             );
         }

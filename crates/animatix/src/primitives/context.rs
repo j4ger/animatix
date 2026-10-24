@@ -17,6 +17,8 @@ pub struct BuildCtx<'a> {
     pub time_ms: f64,
     /// Optional parent actor label.
     pub parent_label: Option<&'a str>,
+    /// This actor's label (identity lives in `World`).
+    pub label: &'a str,
     /// Build diagnostics collector.
     pub diagnostics: &'a mut Vec<Diagnostic>,
     /// Optional active coordinate context from parent host (e.g. `Graph`).
@@ -27,6 +29,8 @@ pub struct BuildCtx<'a> {
 pub struct AssignmentCtx<'a> {
     /// Animation start time in milliseconds.
     pub t_start_ms: u64,
+    /// This actor's label (identity lives in `World`).
+    pub label: &'a str,
     /// Animation end time in milliseconds.
     pub t_end_ms: u64,
     /// Easing function for the animation.
@@ -80,6 +84,8 @@ pub struct RenderCtx<'a> {
 pub struct EvaluateCtx<'a> {
     /// The animation track for this actor.
     pub track: &'a AnimationTrack,
+    /// This actor's label (identity lives in `World`).
+    pub label: &'a str,
     /// Current time in milliseconds.
     pub time_ms: u64,
     /// Local transform (parent * position * rotation * scale).

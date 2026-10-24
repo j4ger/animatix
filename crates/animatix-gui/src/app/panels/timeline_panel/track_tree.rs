@@ -252,7 +252,7 @@ pub(crate) fn render_actor_row_header(
             "label clip must match the icon strip"
         );
 
-        let visible = timeline.is_some_and(|t| t.is_actor_visible(&track.label));
+        let visible = timeline.is_some_and(|t| t.is_actor_visible(actor_label));
         let eye_icon = if visible {
             egui_phosphor::regular::EYE
         } else {
@@ -326,7 +326,7 @@ pub(crate) fn render_actor_row_header(
             );
         }
 
-        let locked = timeline.is_some_and(|t| t.is_actor_locked(&track.label));
+        let locked = timeline.is_some_and(|t| t.is_actor_locked(actor_label));
         let lock_icon = if locked {
             egui_phosphor::regular::LOCK_KEY
         } else {

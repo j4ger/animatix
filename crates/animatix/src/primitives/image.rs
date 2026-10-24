@@ -42,7 +42,7 @@ impl Primitive for ImagePrimitive {
 
     fn handle_assignment(
         &self,
-        track: &mut AnimationTrack,
+        _track: &mut AnimationTrack,
         property: &str,
         value: &Expr,
         ctx: &mut AssignmentCtx,
@@ -61,7 +61,7 @@ impl Primitive for ImagePrimitive {
             return true;
         }
 
-        match ctx.asset_cache.load_image_for(&target_url, &track.label) {
+        match ctx.asset_cache.load_image_for(&target_url, ctx.label) {
             Ok(target_image) => {
                 let t_start_ms = ctx.t_start_ms;
                 let t_end_ms = ctx.t_end_ms;

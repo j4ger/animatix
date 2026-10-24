@@ -54,7 +54,7 @@ impl GestureHandler for CalloutGesture {
                 };
 
                 if !timeline.world().caps(track.id).callout
-                    || ctx.timeline.is_some_and(|t| t.is_actor_locked(&track.label))
+                    || ctx.timeline.is_some_and(|t| t.is_actor_locked(&actor))
                 {
                     return GestureResult::Ignored;
                 }

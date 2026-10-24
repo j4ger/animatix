@@ -19,7 +19,6 @@ pub struct KeyframeId {
     pub property: String,
     pub time_ms: u64,
 }
-
 /// Collect per-property keyframe times for the canonical property set used by
 /// timeline selection.
 ///
@@ -101,7 +100,6 @@ pub(crate) fn collect_per_property_keyframes(
     }
     result
 }
-
 /// Canonical lane name and storage field for every keyframe-addressable
 /// property, in the order expanded property lanes render.
 ///
@@ -140,7 +138,6 @@ const PROPERTY_LANES: &[(&str, ActorField)] = &[
     ("font_family", ActorField::FontFamily),
     ("font_size", ActorField::FontSize),
 ];
-
 /// Keyframe times for one lane's storage field.
 ///
 /// Shape-owned fields moved out of `AnimationTrack` into the shape component
@@ -156,7 +153,6 @@ fn lane_keyframe_times(
     field: ActorField,
 ) -> Vec<u64> {
     use animatix::timeline::Interpolate;
-
     fn times<T: Interpolate>(opt: &Option<animatix::timeline::PropertyTrack<T>>) -> Vec<u64> {
         opt.as_ref()
             .map(|pt| pt.keyframes().keys().copied().collect())
@@ -204,7 +200,6 @@ fn lane_keyframe_times(
         _ => animatix::timeline::property_keyframe_times(track, field),
     }
 }
-
 /// Collect every animatable property lane for an actor kind, including lanes
 /// whose property has never been keyframed (empty time list).
 ///
@@ -357,7 +352,7 @@ impl TimelineFingerprint {
                     for time_ms in times {
                         keyframes.insert(KeyframeId {
                             scene: None,
-                            actor: track.label.clone(),
+                            actor: timeline.world().label(track.id).unwrap_or("").to_string(),
                             property: property.to_string(),
                             time_ms,
                         });
@@ -384,7 +379,12 @@ impl TimelineFingerprint {
                         for time_ms in times {
                             keyframes.insert(KeyframeId {
                                 scene: Some(scene_name.clone()),
-                                actor: track.label.clone(),
+                                actor: scene
+                                    .timeline
+                                    .world()
+                                    .label(track.id)
+                                    .unwrap_or("")
+                                    .to_string(),
                                 property: property.to_string(),
                                 time_ms,
                             });

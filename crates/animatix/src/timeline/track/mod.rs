@@ -49,8 +49,6 @@ pub struct AnimationTrack {
     /// Strongly-typed dense entity ID for this actor in the timeline.
     #[cfg_attr(feature = "serde", serde(default))]
     pub id: EntityId,
-    /// Human-readable identifier for the actor.
-    pub label: String,
     // ── Tagged union tracks ──
 }
 
@@ -61,11 +59,10 @@ impl AnimationTrack {
     /// The primitive identity is required at construction: capabilities are
     /// derived from it, so no later lookup needs a fallback for a track that
     /// was built without a type name.
-    pub fn new(label: String) -> Self {
+    pub fn new(_label: String) -> Self {
         Self {
             // Identity
             id: EntityId::INVALID,
-            label: label.clone(),
             // Style tier (sub-struct)
             // Text tier (sub-struct)
         }

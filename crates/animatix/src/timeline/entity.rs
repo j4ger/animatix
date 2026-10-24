@@ -150,13 +150,11 @@ impl TrackStore {
     pub fn insert(&mut self, label: String, mut track: AnimationTrack) -> Option<AnimationTrack> {
         if let Some(&id) = self.label_to_id.get(&label) {
             track.id = id;
-            track.label = label;
             let old = std::mem::replace(&mut self.dense[id.index()], track);
             Some(old)
         } else {
             let id = EntityId(self.dense.len() as u32);
             track.id = id;
-            track.label = label.clone();
             self.dense.push(track);
             self.id_to_label.push(label.clone());
             self.label_to_id.insert(label, id);
@@ -168,13 +166,11 @@ impl TrackStore {
     pub(crate) fn insert_internal(&mut self, label: String, mut track: AnimationTrack) -> EntityId {
         if let Some(&id) = self.label_to_id.get(&label) {
             track.id = id;
-            track.label = label;
             self.dense[id.index()] = track;
             id
         } else {
             let id = EntityId(self.dense.len() as u32);
             track.id = id;
-            track.label = label.clone();
             self.dense.push(track);
             self.id_to_label.push(label.clone());
             self.label_to_id.insert(label, id);
@@ -417,8 +413,6 @@ mod tests {
         let id_box = store.get_id("box").unwrap();
         assert_eq!(id_box.index(), 0);
         assert_eq!(store.get_label(id_box), Some("box"));
-        assert_eq!(store[id_box].label, "box");
-        assert_eq!(store["box"].label, "box");
 
         store.insert("text".to_string(), t2);
         assert_eq!(store.len(), 2);
@@ -428,10 +422,6 @@ mod tests {
         // Iteration
         let labels: Vec<&String> = store.keys().collect();
         assert_eq!(labels, vec!["box", "text"]);
-
-        // Mutation via index
-        store[id_box].label = "renamed".to_string();
-        assert_eq!(store["box"].label, "renamed");
 
         // Entry API
         store

@@ -60,7 +60,7 @@ pub struct TrackFieldsMut<'a> {
     /// Primitive payload.
     pub payload: Option<&'a mut PrimitivePayload>,
     /// Actor label (diagnostics).
-    pub label: &'a str,
+    pub label: String,
     /// Capability projection for this entity.
     pub caps: ActorCaps,
     /// Registry-derived property plan for this entity.
@@ -70,7 +70,7 @@ pub struct TrackFieldsMut<'a> {
 impl World {
     /// Assemble the immutable tier bundle for `id`, when the entity exists.
     pub fn fields(&self, id: EntityId) -> Option<TrackFields<'_>> {
-        let track = self.tracks.get_by_id(id)?;
+        self.tracks.get_by_id(id)?;
         Some(TrackFields {
             geometry: self.geometry.try_get(id),
             style: self.style.try_get(id),
@@ -79,7 +79,7 @@ impl World {
             highlight: self.highlight.try_get(id),
             tagged_tracks: self.tagged_tracks.try_get(id),
             payload: self.payload.get(id),
-            label: &track.label,
+            label: self.label(id).unwrap_or(""),
             caps: self.caps(id),
             property_plan: self.property_plan.try_get(id),
         })
@@ -90,8 +90,9 @@ impl World {
         self.ensure_len();
         // The capability projection is `Copy`; resolve it before the mutable
         // track borrow so the bundle can carry it.
+        let label = self.label(id).unwrap_or("").to_string();
         let caps = self.caps(id);
-        let track = self.tracks.get_by_id_mut(id)?;
+        self.tracks.get_by_id_mut(id)?;
         Some(TrackFieldsMut {
             geometry: self.geometry.try_get_mut(id),
             style: self.style.try_get_mut(id),
@@ -100,7 +101,7 @@ impl World {
             highlight: self.highlight.try_get_mut(id),
             tagged_tracks: self.tagged_tracks.try_get_mut(id),
             payload: self.payload.get_mut(id),
-            label: &track.label,
+            label,
             caps,
             property_plan: self.property_plan.try_get_mut(id),
         })
@@ -149,7 +150,7 @@ impl<'a> TrackFields<'a> {
     /// The geometry, shape and text tiers are separate `World` components, so a
     /// track-only bundle carries `geometry: None`, `shape: None` and
     /// `text: None`; `World::fields` is the component-aware constructor.
-    pub fn from_track(track: &'a crate::timeline::AnimationTrack) -> Self {
+    pub fn from_track(_track: &'a crate::timeline::AnimationTrack) -> Self {
         Self {
             geometry: None,
             style: None,
@@ -158,7 +159,7 @@ impl<'a> TrackFields<'a> {
             highlight: None,
             tagged_tracks: None,
             payload: None,
-            label: &track.label,
+            label: "",
             caps: ActorCaps::default(),
             property_plan: None,
         }
@@ -256,7 +257,7 @@ impl<'a> TrackFieldsMut<'a> {
     /// The geometry, shape and text tiers are separate `World` components, so a
     /// track-only bundle carries `geometry: None`, `shape: None` and
     /// `text: None`; `World::fields_mut` is the component-aware constructor.
-    pub fn from_track(track: &'a mut crate::timeline::AnimationTrack) -> Self {
+    pub fn from_track(_track: &'a mut crate::timeline::AnimationTrack) -> Self {
         Self {
             geometry: None,
             style: None,
@@ -266,7 +267,7 @@ impl<'a> TrackFieldsMut<'a> {
             tagged_tracks: None,
             payload: None,
             caps: ActorCaps::default(),
-            label: &track.label,
+            label: String::new(),
             property_plan: None,
         }
     }

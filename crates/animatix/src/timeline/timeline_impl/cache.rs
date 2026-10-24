@@ -154,7 +154,7 @@ impl Timeline {
         let Some(track) = self.world.tracks.get_by_id(id) else {
             return true;
         };
-        let is_static = self.compute_static_subtree(&track.label);
+        let is_static = self.compute_static_subtree(self.world.label(track.id).unwrap_or(""));
         let mut flags = self.eval_caches.static_subtree_flags.borrow_mut();
         if idx >= flags.len() {
             flags.resize(idx + 1, None);
