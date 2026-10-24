@@ -723,11 +723,13 @@ mod meta_tests {
         world.meta_mut(id).visible = false;
         world.meta_mut(id).locked = true;
         world.meta_mut(id).hidden_by_default = true;
+        world.set_first_seen(id, 100);
         world.spawn_replacing("box", AnimationTrack::new("box".into(), "Rect"));
         let meta = world.meta(id);
         assert!(meta.visible, "replacement starts visible");
         assert!(!meta.locked, "replacement starts unlocked");
         assert!(!meta.hidden_by_default, "replacement starts revealed");
+        assert_eq!(world.first_seen(id), u64::MAX, "replacement starts unseen");
     }
 }
 
