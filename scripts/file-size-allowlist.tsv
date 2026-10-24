@@ -1,7 +1,6 @@
 # path	max_lines	reason	remove_by_phase
 # Frozen at the Phase 0 baseline. This is a ratchet: delete a row when
 # the file is split; never add or raise one. See docs/ecs.md §5.
-crates/animatix-gui/src/app/panels/inspector/mod.rs	1356	legacy oversized file	P6
 crates/animatix-gui/src/app/panels/inspector/property_groups.rs	1778	legacy oversized file	P6
 crates/animatix/src/timeline/assignments/mod.rs	1232	legacy oversized file	P6
 crates/animatix/src/timeline/build/actor.rs	1981	legacy oversized file	P6
