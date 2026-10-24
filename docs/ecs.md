@@ -236,13 +236,13 @@ component context (or a `World` + `EntityId`). `legend`, `effects` and `payload`
 are outside that table and migrate first; `payload` still needs a render/evaluate
 context field for the image/SVG/plot primitives.
 
-Direction for unlocking the rest: introduce a borrowed `TrackFields<'a>` bundle
-(geometry/style/shape/text/highlight/tagged refs) assembled by
-`World::fields(id)` and `World::fields_mut(id)`, then move
-`TrackFieldRef`/`TrackFieldMut` construction and
-`read_property_value`/`write_property_field` onto that bundle. The existing
-`AnimationTrack` accessors can forward to it during the transition, so call
-sites migrate per domain instead of in one rewrite.
+Direction for unlocking the rest: a borrowed `TrackFields<'a>` /
+`TrackFieldsMut<'a>` bundle (geometry/style/shape/text/highlight/tagged/payload
+refs) now exists in `timeline/world/fields.rs`, assembled by `World::fields(id)`
+and `World::fields_mut(id)`. Next, move `TrackFieldRef`/`TrackFieldMut`
+construction and `read_property_value`/`write_property_field` onto that bundle.
+The existing `AnimationTrack` accessors can forward to it during the transition,
+so call sites migrate per domain instead of in one rewrite.
 
 ## 7. Adding a component
 
@@ -274,7 +274,11 @@ sites migrate per domain instead of in one rewrite.
 `scripts/file-size-allowlist.tsv` freezes every legacy offender at its current
 line count. The ratchet only turns one way: a row is deleted when the file is
 split; raising a row or adding a new one fails review. `scripts/ci.sh gate
-file-size` runs it in the `Fast Checks` job.
+file-size` runs it in the `Fast Checks` job. The split campaign took the list
+from 64 rows to one: `timeline/build/actor.rs`, whose `process_actor_decl` is a
+single sequential pipeline (dispatch → property extraction → path/keyframe
+build → plot dispatch) that has to be refactored phase-by-phase rather than
+moved.
 
 Splitting rules: pure moves plus `pub use` re-exports, no behaviour change in
 the same commit; `foo.rs` becomes `foo/mod.rs` + modules named after the domain
