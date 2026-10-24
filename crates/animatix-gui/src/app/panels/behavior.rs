@@ -161,8 +161,8 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                                 let mut times: Vec<f64> = scene.timeline.tracks().values()
                                 .flat_map(|track| {
                                     crate::app::document::timeline_diff::collect_actor_keyframes(
-                                        track,
                                         scene.timeline.world().geometry(track.id),
+                                        scene.timeline.world().style(track.id),
                                         scene.timeline.world().shape(track.id),
                                         scene.timeline.world().text(track.id),
                                         None,

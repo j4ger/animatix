@@ -398,7 +398,7 @@ a: Rect, size: (100, 100), color: accent.primary, at: (200, 150)
 "#,
     );
     let track = timeline.world.tracks.get("a").expect("rect track");
-    assert_eq!(track.style.stroke_width.get(0, 99.0), 0.0);
+    assert_eq!(timeline.world.style(track.id).stroke_width.get(0, 99.0), 0.0);
 }
 
 #[test]
@@ -411,7 +411,7 @@ a: Line, from: (0, 0), to: (100, 0), at: (200, 150)
 "#,
     );
     let track = timeline.world.tracks.get("a").expect("line track");
-    assert_eq!(track.style.stroke_width.get(0, 99.0), 2.0);
+    assert_eq!(timeline.world.style(track.id).stroke_width.get(0, 99.0), 2.0);
 }
 
 #[test]
@@ -424,7 +424,7 @@ a: Rect, size: (100, 100), color: accent.primary, stroke: red, stroke_width: 4, 
 "#,
     );
     let track = timeline.world.tracks.get("a").expect("rect track");
-    assert_eq!(track.style.stroke_width.get(0, 99.0), 4.0);
+    assert_eq!(timeline.world.style(track.id).stroke_width.get(0, 99.0), 4.0);
 }
 
 #[test]
@@ -446,11 +446,11 @@ g: Graph, x_domain: (-1, 1), y_domain: (-1, 1), at: (320, 180) {
     );
     let track = timeline.world.tracks.get("c").expect("plot curve track");
     assert_eq!(
-        track.style.dash_pattern.get(0, Vec::new()),
+        timeline.world.style(track.id).dash_pattern.get(0, Vec::new()),
         vec![10.0, 7.0],
         "dash_pattern should land on the plot track"
     );
-    let ramp = track.style.stroke_gradient.get(0, Default::default());
+    let ramp = timeline.world.style(track.id).stroke_gradient.get(0, Default::default());
     assert_eq!(ramp.stops.len(), 2, "stroke_gradient should land on the plot track");
 }
 
@@ -465,9 +465,9 @@ draw-in a [1s]
 "#,
     );
     let track = timeline.world.tracks.get("a").expect("rect track");
-    assert_eq!(track.style.stroke_width.get(0, 99.0), 2.0);
-    let fill = track.style.color.get(0, [0.0, 0.0, 0.0, 1.0]);
-    let stroke = track.style.stroke_color.get(0, [0.0, 0.0, 0.0, 1.0]);
+    assert_eq!(timeline.world.style(track.id).stroke_width.get(0, 99.0), 2.0);
+    let fill = timeline.world.style(track.id).color.get(0, [0.0, 0.0, 0.0, 1.0]);
+    let stroke = timeline.world.style(track.id).stroke_color.get(0, [0.0, 0.0, 0.0, 1.0]);
     assert_eq!(stroke, fill, "draw-in outline should use the fill color");
 }
 
@@ -482,7 +482,7 @@ reveal-in a [1s]
 "#,
     );
     let track = timeline.world.tracks.get("a").expect("rect track");
-    assert_eq!(track.style.stroke_width.get(0, 99.0), 2.0);
+    assert_eq!(timeline.world.style(track.id).stroke_width.get(0, 99.0), 2.0);
 }
 
 /// Effect children of a `Filter` scope lower into the scope's chain instead of
@@ -757,7 +757,7 @@ fn stroke_only_path_suppresses_default_fill() {
 
     let track = report.output.world.tracks.get("p").expect("path track");
     assert_eq!(
-        track.style.fill_opacity.get(0, 1.0),
+        report.output.world.style(track.id).fill_opacity.get(0, 1.0),
         0.0,
         "stroke-only Path must default to no fill"
     );
@@ -778,7 +778,7 @@ fn stroke_only_path_keeps_authored_fill_opacity() {
     );
 
     let track = report.output.world.tracks.get("p").expect("path track");
-    assert_eq!(track.style.fill_opacity.get(0, 1.0), 0.5);
+    assert_eq!(report.output.world.style(track.id).fill_opacity.get(0, 1.0), 0.5);
 }
 
 /// An invalid easing name on an assignment must produce a diagnostic.

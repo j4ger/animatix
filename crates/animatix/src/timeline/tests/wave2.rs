@@ -37,13 +37,14 @@ draw-in title [1s, by: word, offset_y: 30, mask: baseline, stagger: 0.1s]
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
     let track = timeline.world.tracks.get("title").expect("title track");
     let text = timeline.world.text(track.id);
+    let style = timeline.world.style(track.id);
 
     assert!(text.char_progress.is_some());
     assert_eq!(text.char_progress.get(1000, 1.0), 0.0);
     assert_eq!(text.char_progress.get(2000, 1.0), 1.0);
 
     // At t=1500 (midpoint of reveal, progress=0.5):
-    let (paths_mid, clip_mid) = track.evaluate_text_paths_and_clip(text, 1500);
+    let (paths_mid, clip_mid) = track.evaluate_text_paths_and_clip(text, style, 1500);
     assert!(!paths_mid.is_empty(), "Glyphs should be present");
     assert!(clip_mid.is_some(), "Baseline mask should generate clip path at midpoint");
 
@@ -64,7 +65,7 @@ draw-in title [1s, by: word, offset_y: 30, mask: baseline, stagger: 0.1s]
     );
 
     // At t=2000 (reveal complete):
-    let (paths_end, clip_end) = track.evaluate_text_paths_and_clip(text, 2000);
+    let (paths_end, clip_end) = track.evaluate_text_paths_and_clip(text, style, 2000);
     assert!(!paths_end.is_empty());
     assert!(clip_end.is_none(), "Baseline mask should be None once reveal is complete");
     for p in &paths_end {
@@ -86,12 +87,13 @@ reveal-in sub [500ms, by: line, offset_y: 15, mask: baseline]
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
     let track = timeline.world.tracks.get("sub").expect("sub track");
     let text = timeline.world.text(track.id);
+    let style = timeline.world.style(track.id);
 
     assert!(text.char_progress.is_some());
     assert_eq!(text.char_progress.get(500, 1.0), 0.0);
     assert_eq!(text.char_progress.get(1000, 1.0), 1.0);
 
-    let (paths_mid, clip_mid) = track.evaluate_text_paths_and_clip(text, 750);
+    let (paths_mid, clip_mid) = track.evaluate_text_paths_and_clip(text, style, 750);
     assert!(!paths_mid.is_empty());
     assert!(clip_mid.is_some());
 }
@@ -164,7 +166,7 @@ cnt.value = 100 [1s]
         shape: Some(timeline.world.shape(track.id)),
         text: Some(timeline.world.text(track.id)),
         geometry: Some(timeline.world.geometry(track.id)),
-
+        style: Some(timeline.world.style(track.id)),
         payload: None,
         target_resolver: None,
         legend: None,
@@ -248,6 +250,7 @@ label.color = (0.0, 1.0, 0.0, 1.0) [1s]
         shape: Some(timeline.world.shape(track.id)),
         text: Some(timeline.world.text(track.id)),
         geometry: Some(timeline.world.geometry(track.id)),
+        style: Some(timeline.world.style(track.id)),
         payload: None,
         target_resolver: None,
         legend: None,
@@ -288,8 +291,9 @@ draw-in title [1s, by: word, offset_y: 30, mask: baseline, stagger: 0.1s]
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
     let track = timeline.world.tracks.get("title").expect("title track");
     let text = timeline.world.text(track.id);
+    let style = timeline.world.style(track.id);
 
-    let (paths_mid, clip_mid) = track.evaluate_text_paths_and_clip(text, 1500);
+    let (paths_mid, clip_mid) = track.evaluate_text_paths_and_clip(text, style, 1500);
     assert!(!paths_mid.is_empty(), "CJK glyphs should be generated");
     assert!(clip_mid.is_some(), "Mask should be generated for CJK");
 
@@ -344,6 +348,7 @@ t: Text, text: "Hardware Stream", at: (300, 200), font_size: 32
         shape: Some(timeline.world.shape(track.id)),
         text: Some(timeline.world.text(track.id)),
         geometry: Some(timeline.world.geometry(track.id)),
+        style: Some(timeline.world.style(track.id)),
         payload: None,
         target_resolver: None,
         legend: None,

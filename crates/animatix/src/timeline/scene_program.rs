@@ -84,7 +84,7 @@ mod tests {
     #[test]
     fn timeline_program_collects_primitive_items() {
         let mut timeline = crate::timeline::Timeline::new();
-        let mut track = crate::timeline::AnimationTrack::placeholder("box".to_string());
+        let track = crate::timeline::AnimationTrack::placeholder("box".to_string());
         let shape = crate::timeline::animation_track::ShapeTracks {
             shape_type: Some({
                 let mut t = crate::timeline::PropertyTrack::new(crate::timeline::ShapeType::Rect);
@@ -97,12 +97,12 @@ mod tests {
             }),
             ..Default::default()
         };
-        track.style.color = Some({
+        let id = timeline.world.spawn_with_track("box", track);
+        timeline.world.style_mut(id).color = Some({
             let mut t = crate::timeline::PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);
             t.add_keyframe(0, [1.0, 0.0, 0.0, 1.0], crate::timeline::Easing::Linear);
             t
         });
-        let id = timeline.world.spawn_with_track("box", track);
         timeline.world.geometry_mut(id).size = Some({
             let mut t = crate::timeline::PropertyTrack::new([50.0, 50.0]);
             t.add_keyframe(0, [50.0, 50.0], crate::timeline::Easing::Linear);

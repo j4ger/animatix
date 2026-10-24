@@ -506,7 +506,7 @@ fn native_declared_builtin_properties_use_generic_writer() {
         "declared position should be written by the generic property engine"
     );
     assert_eq!(
-        track.style.color.get(0, [1.0, 1.0, 1.0, 1.0]),
+        report.output.world.style(track.id).color.get(0, [1.0, 1.0, 1.0, 1.0]),
         [1.0, 0.0, 0.0, 1.0],
         "declared color should be written by the generic property engine"
     );

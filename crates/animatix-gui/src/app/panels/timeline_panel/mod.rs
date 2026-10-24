@@ -313,6 +313,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                         extra_prop_lanes += collect_property_lanes(
                             track,
                             tl.world().geometry(track.id),
+                            tl.world().style(track.id),
                             tl.world().shape(track.id),
                             tl.world().text(track.id),
                             None,
@@ -465,8 +466,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     };
                     keyframes::render_actor_keyframes(
                         ui,
-                        track,
                         tl.world().geometry(track.id),
+                        tl.world().style(track.id),
                         tl.world().shape(track.id),
                         tl.world().text(track.id),
                         actor_label,
@@ -518,6 +519,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                         let prop_lanes = collect_property_lanes(
                             track,
                             tl.world().geometry(track.id),
+                            tl.world().style(track.id),
                             tl.world().shape(track.id),
                             tl.world().text(track.id),
                             None,

@@ -205,7 +205,8 @@ use crate::diagnostics::{BuildReport, Diagnostic, DiagnosticCode, DiagnosticPhas
 pub use actor_caps::{ActorCaps, ActorCategory, ShapeKind, TextKind};
 pub use animation_track::{
     ActionCategory, ActionEvent, ConnectorEndpoint, ConnectorRouting, DEFAULT_LAYOUT_HALF_SIZE,
-    DEFAULT_WHITE, PlacementMode, PositionBinding, ResizeMode, SceneAnchor,
+    DEFAULT_WHITE, GeometryTracks, PlacementMode, PositionBinding, ResizeMode, SceneAnchor,
+    ShapeTracks, StyleTracks, TextTracks,
 };
 pub use animatix_std::{caps_for_type, caps_from_info};
 pub use dispatch::{AnimationTrack, TrackFieldMut, TrackFieldRef};

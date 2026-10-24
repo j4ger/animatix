@@ -61,6 +61,7 @@ impl Primitive for TypstPrimitive {
         }
         let text = ctx.text.as_deref_mut().expect("assignment text tier");
         let geometry = ctx.geometry.as_mut().expect("Typst assignment requires the geometry tier");
+        let style = ctx.style.as_deref_mut().expect("assignment style tier");
         let target_text = if property == "text_anchor" {
             let anchor = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                 .unwrap_or(Value::Str("center".to_string()))
@@ -80,6 +81,7 @@ impl Primitive for TypstPrimitive {
         };
         if let Err(e) = crate::timeline::recompile_text_at_assignment(
             track,
+            style,
             text,
             geometry,
             target_text,
@@ -111,6 +113,7 @@ impl Primitive for TypstPrimitive {
     {
         use crate::primitives::{RenderCommand, evaluate_text_paths};
         use crate::renderer::text::TextKind;
+        let style = ctx.style.expect("text actor evaluated without a style tier");
         use crate::timeline::TrackAccessor;
 
         let (paths, clip_path) = if let Some(text_ctx) = text_ctx {
@@ -122,7 +125,7 @@ impl Primitive for TypstPrimitive {
             )
         } else {
             let text = ctx.text.expect("text actor evaluated without a text tier");
-            let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(text, ctx.time_ms);
+            let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(text, style, ctx.time_ms);
             Ok((std::sync::Arc::from(paths), clip))
         }?;
         if paths.is_empty() {
@@ -161,11 +164,10 @@ impl Primitive for TypstPrimitive {
                         255,
                     );
 
-                    let fill_gradient = if ctx.track.style.fill_gradient.is_some() {
+                    let fill_gradient = if style.fill_gradient.is_some() {
                         use crate::timeline::TrackAccessor;
                         Some(Box::new(
-                            ctx.track
-                                .style
+                            style
                                 .fill_gradient
                                 .get(ctx.time_ms, crate::renderer::types::GradientSpec::default()),
                         ))
@@ -190,11 +192,10 @@ impl Primitive for TypstPrimitive {
                     ]));
                 }
             }
-            let fill_gradient = if ctx.track.style.fill_gradient.is_some() {
+            let fill_gradient = if style.fill_gradient.is_some() {
                 use crate::timeline::TrackAccessor;
                 Some(Box::new(
-                    ctx.track
-                        .style
+                    style
                         .fill_gradient
                         .get(ctx.time_ms, crate::renderer::types::GradientSpec::default()),
                 ))

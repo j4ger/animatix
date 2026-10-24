@@ -253,7 +253,7 @@ impl Timeline {
             line_height: text.line_height.get(time_ms, 1.2),
             letter_spacing: text.letter_spacing.get(time_ms, 0.0),
             word_spacing: text.word_spacing.get(time_ms, 0.0),
-            color: track.style.color.get(time_ms, [1.0, 1.0, 1.0, 1.0]),
+            color: self.world.style(track.id).color.get(time_ms, [1.0, 1.0, 1.0, 1.0]),
             text_align: text.text_align.get(time_ms, "left".to_string()),
             overflow: text.overflow.get(time_ms, "visible".to_string()),
             language: text.language.get(time_ms, String::new()),

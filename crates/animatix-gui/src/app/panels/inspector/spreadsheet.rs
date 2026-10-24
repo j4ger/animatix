@@ -288,8 +288,8 @@ pub(crate) fn render_property_spreadsheet(
 
                         // Get the value at current time
                         let value_text = get_property_value_display(
-                            track,
                             timeline.world().geometry(track.id),
+                            timeline.world().style(track.id),
                             prop_name,
                             time_ms,
                         );
@@ -369,8 +369,8 @@ pub(crate) fn render_property_spreadsheet(
 
 /// Get a display string for a property's value at the given time.
 fn get_property_value_display(
-    track: &AnimationTrack,
     geometry: &animatix::timeline::animation_track::GeometryTracks,
+    style: &animatix::timeline::animation_track::StyleTracks,
     prop_name: &str,
     time_ms: u64,
 ) -> String {
@@ -412,8 +412,7 @@ fn get_property_value_display(
                 format!("{:.2}×", v)
             })
             .unwrap_or_else(|| "—".into()),
-        "opacity" => track
-            .style
+        "opacity" => style
             .opacity
             .as_ref()
             .map(|t| {
@@ -421,8 +420,7 @@ fn get_property_value_display(
                 format!("{:.2}", v)
             })
             .unwrap_or_else(|| "—".into()),
-        "color" => track
-            .style
+        "color" => style
             .color
             .as_ref()
             .map(|t| {
@@ -430,8 +428,7 @@ fn get_property_value_display(
                 format_rgba(v)
             })
             .unwrap_or_else(|| "—".into()),
-        "stroke_width" => track
-            .style
+        "stroke_width" => style
             .stroke_width
             .as_ref()
             .map(|t| {
@@ -439,8 +436,7 @@ fn get_property_value_display(
                 format!("{:.1}", v)
             })
             .unwrap_or_else(|| "—".into()),
-        "stroke_color" => track
-            .style
+        "stroke_color" => style
             .stroke_color
             .as_ref()
             .map(|t| {
@@ -448,8 +444,7 @@ fn get_property_value_display(
                 format_rgba(v)
             })
             .unwrap_or_else(|| "—".into()),
-        "stroke_progress" => track
-            .style
+        "stroke_progress" => style
             .stroke_progress
             .as_ref()
             .map(|t| {
@@ -457,8 +452,7 @@ fn get_property_value_display(
                 format!("{:.2}", v)
             })
             .unwrap_or_else(|| "—".into()),
-        "fill_opacity" => track
-            .style
+        "fill_opacity" => style
             .fill_opacity
             .as_ref()
             .map(|t| {

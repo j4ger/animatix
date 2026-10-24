@@ -61,7 +61,7 @@ pub(crate) fn ensure_guard_keyframe<T: Interpolate>(
 /// entrance reveals the actor. Consumes the track's `hidden_by_default` flag
 /// so the lift happens at most once and never stomps an explicit opacity.
 pub(crate) fn lift_hidden_by_default(
-    track: &mut crate::timeline::AnimationTrack,
+    style: &mut crate::timeline::animation_track::StyleTracks,
     meta: &mut crate::timeline::world::EntityMeta,
     t_start_ms: u64,
     t_end_ms: u64,
@@ -71,13 +71,12 @@ pub(crate) fn lift_hidden_by_default(
         return;
     }
     meta.hidden_by_default = false;
-    let start_opacity = track.style.opacity.get(t_start_ms, 1.0);
-    track
-        .style
+    let start_opacity = style.opacity.get(t_start_ms, 1.0);
+    style
         .opacity
         .ensure(1.0)
         .add_keyframe(t_start_ms, start_opacity, Easing::Linear);
-    track.style.opacity.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+    style.opacity.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
 }
 
 /// The opacity an entrance action settles on.
@@ -92,10 +91,10 @@ pub(crate) fn lift_hidden_by_default(
 /// `draw-in` and `reveal-in` never touched `opacity` at all — the same authoring
 /// meant opposite things depending on which entrance action was picked.
 pub(crate) fn entrance_opacity_target(
-    track: &crate::timeline::AnimationTrack,
+    style: &crate::timeline::animation_track::StyleTracks,
     t_start_ms: u64,
 ) -> f32 {
-    let authored = track.style.opacity.get(t_start_ms, 1.0);
+    let authored = style.opacity.get(t_start_ms, 1.0);
     if authored == 0.0 { 1.0 } else { authored }
 }
 
@@ -107,16 +106,16 @@ pub(crate) fn entrance_opacity_target(
 /// Call only after confirming the target was *not* `hidden_by_default`; that
 /// path's lift already wrote this pair.
 pub(crate) fn reveal_authored_zero_opacity(
-    track: &mut crate::timeline::AnimationTrack,
+    style: &mut crate::timeline::animation_track::StyleTracks,
     t_start_ms: u64,
     t_end_ms: u64,
     easing: Easing,
 ) {
-    if track.style.opacity.get(t_start_ms, 1.0) != 0.0 {
+    if style.opacity.get(t_start_ms, 1.0) != 0.0 {
         return;
     }
-    track.style.opacity.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);
-    track.style.opacity.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+    style.opacity.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);
+    style.opacity.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
 }
 
 /// Lift the hidden-by-default seed for a target and its whole subtree.
@@ -142,12 +141,13 @@ pub(crate) fn lift_hidden_by_default_subtree(
     easing: Easing,
 ) {
     let children: Vec<String> = timeline.child_labels(label).map(str::to_string).collect();
-    if let Some(track) = timeline.world.tracks.get_mut(label) {
+    if let Some(id) = timeline.world.tracks.get_id(label) {
+        let style = timeline.world.style.get_mut(id);
         let meta = timeline
             .world
             .meta
-            .get_or_insert_with(track.id, crate::timeline::world::EntityMeta::default);
-        lift_hidden_by_default(track, meta, t_start_ms, t_end_ms, easing);
+            .get_or_insert_with(id, crate::timeline::world::EntityMeta::default);
+        lift_hidden_by_default(style, meta, t_start_ms, t_end_ms, easing);
     }
     for child in children {
         lift_hidden_by_default_subtree(timeline, &child, t_start_ms, t_end_ms, easing);

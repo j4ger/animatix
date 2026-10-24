@@ -427,8 +427,8 @@ fn stroke_only_shapes_inherit_an_authored_color_into_their_stroke() {
         let report =
             Timeline::build_with_diagnostics(&ast.unwrap(), &std::collections::HashMap::new());
         let track = report.output.world.tracks.get("a").expect("track");
-        let stroke = track.style.stroke_color.get(0, [0.0; 4]);
-        let fill = track.style.color.get(0, [0.0; 4]);
+        let stroke = report.output.world.style(track.id).stroke_color.get(0, [0.0; 4]);
+        let fill = report.output.world.style(track.id).color.get(0, [0.0; 4]);
         // Assert the tracks exist, not just that they agree: two absent tracks
         // both read back as the [0,0,0,0] default and would match vacuously.
         assert!(fill != [0.0, 0.0, 0.0, 0.0], "{label}: no color track was built at all");
@@ -455,7 +455,7 @@ fn plot_actors_honour_an_authored_opacity() {
         let report =
             Timeline::build_with_diagnostics(&ast.unwrap(), &std::collections::HashMap::new());
         let track = report.output.world.tracks.get("g").expect("plot track");
-        let opacity = track.style.opacity.get(0, 99.0);
+        let opacity = report.output.world.style(track.id).opacity.get(0, 99.0);
         assert!(
             (opacity - 0.05).abs() < 1e-6,
             "{ty} dropped the authored opacity (got {opacity})"
@@ -516,9 +516,9 @@ fn a_redeclaration_starts_from_what_it_replaces_not_from_its_target() {
             "{label}: the frame before the morph already shows the target shape"
         );
         assert!(
-            track.style.color.get(999, [0.0; 4])[2] < 0.01,
+            timeline.world.style(track.id).color.get(999, [0.0; 4])[2] < 0.01,
             "{label}: the pre-morph frame started from the target colour: {:?}",
-            track.style.color.get(999, [0.0; 4])
+            timeline.world.style(track.id).color.get(999, [0.0; 4])
         );
         // And the morph itself still lands on the target.
         assert_eq!(
@@ -531,9 +531,9 @@ fn a_redeclaration_starts_from_what_it_replaces_not_from_its_target() {
             "{label}: the morph never reached its target shape"
         );
         assert!(
-            track.style.color.get(1500, [0.0; 4])[2] > 0.99,
+            timeline.world.style(track.id).color.get(1500, [0.0; 4])[2] > 0.99,
             "{label}: the colour morph did not finish: {:?}",
-            track.style.color.get(1500, [0.0; 4])
+            timeline.world.style(track.id).color.get(1500, [0.0; 4])
         );
     }
 }
@@ -611,13 +611,13 @@ r.opacity = 0.0
 
     for ms in [0u64, 500, 1000, 1999] {
         assert_eq!(
-            rect.style.opacity.get(ms, 0.0),
+            timeline.world.style(rect.id).opacity.get(ms, 0.0),
             1.0,
             "the rect was already fading at {ms}ms, two seconds before the assignment"
         );
     }
     assert_eq!(
-        rect.style.opacity.get(2000, 1.0),
+        timeline.world.style(rect.id).opacity.get(2000, 1.0),
         0.0,
         "the step did not take effect at its own stamp"
     );
@@ -1149,7 +1149,11 @@ fn icon_property_expands_to_commands_geometry() {
             .tracks
             .get(label)
             .unwrap_or_else(|| panic!("no track {label}"));
-        let paths = track.evaluate_vector_paths_value(report.output.world.shape(track.id), 0);
+        let paths = track.evaluate_vector_paths_value(
+            report.output.world.shape(track.id),
+            report.output.world.style(track.id),
+            0,
+        );
         let mut elements = Vec::new();
         for vp in paths {
             elements.extend(vp.path.elements().iter().copied());

@@ -72,8 +72,11 @@ impl Timeline {
             let Some(primitive) = self.track_primitive_at(child_track, time_ms) else {
                 continue;
             };
-            let child_vector_paths =
-                child_track.evaluate_vector_paths(self.world.shape(child_track.id), time_ms);
+            let child_vector_paths = child_track.evaluate_vector_paths(
+                self.world.shape(child_track.id),
+                self.world.style(child_track.id),
+                time_ms,
+            );
             let ctx = crate::primitives::EvaluateCtx {
                 track: child_track,
                 time_ms,
@@ -88,6 +91,7 @@ impl Timeline {
                 legend: self.world.legend(child_track.id),
                 world: Some(&self.world),
                 highlight: self.world.highlight(child_track.id),
+                style: Some(self.world.style(child_track.id)),
                 shape: Some(self.world.shape(child_track.id)),
                 geometry: Some(self.world.geometry(child_track.id)),
                 text: Some(self.world.text(child_track.id)),
@@ -119,7 +123,7 @@ impl Timeline {
             // Use equation-level font_size and color from the Equation track.
             let text = self.world.text(track.id);
             let font_size = text.font_size.get(time_ms, 48.0);
-            let eq_color = track.style.color.get(time_ms, DEFAULT_WHITE);
+            let eq_color = self.world.style(track.id).color.get(time_ms, DEFAULT_WHITE);
             let font_family = text.font_family.get(time_ms, String::new());
             let font_weight = text.font_weight.get(time_ms, 400.0);
             let font_style = text.font_style.get(time_ms, "normal".to_string());

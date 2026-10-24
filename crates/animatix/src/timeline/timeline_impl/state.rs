@@ -58,20 +58,24 @@ impl Timeline {
 
     /// Check if a keyframe exists for the given actor and property at `time_ms`.
     pub fn has_keyframe_at(&self, actor: &str, property: &str, time_ms: u64) -> bool {
-        self.world
-            .tracks
-            .get(actor)
-            .map(|t| t.has_keyframe_at(property, time_ms))
-            .unwrap_or(false)
+        let Some(id) = self.world.tracks.get_id(actor) else {
+            return false;
+        };
+        let Some(field) = AnimationTrack::field_for_property(property) else {
+            return false;
+        };
+        self.world.property_has_keyframe_at(id, field, time_ms)
     }
 
     /// List all keyframe times (in ms) for the given actor and property.
     pub fn list_keyframes(&self, actor: &str, property: &str) -> Vec<u64> {
-        self.world
-            .tracks
-            .get(actor)
-            .map(|t| t.list_keyframes(property))
-            .unwrap_or_default()
+        let Some(id) = self.world.tracks.get_id(actor) else {
+            return Vec::new();
+        };
+        let Some(field) = AnimationTrack::field_for_property(property) else {
+            return Vec::new();
+        };
+        self.world.property_keyframe_times(id, field)
     }
 
     /// Evaluate the background color at the given time.

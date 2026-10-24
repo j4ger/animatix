@@ -2,11 +2,7 @@ use super::*;
 use crate::easing::Easing;
 use crate::timeline::PlacementMode;
 use crate::timeline::animation_track::CalloutPlace;
-use crate::timeline::dispatch::{
-    property_has_keyframe_at, property_has_keyframes, property_keyframe_count,
-    property_keyframe_easing, property_keyframe_times, read_property_value,
-    read_property_value_or_default,
-};
+use crate::timeline::dispatch::read_property_value_or_default;
 use crate::timeline::property_registry::ActorField;
 use crate::timeline::{AnimationTrack, Interpolate, ShapeType, TrackAccessor};
 
@@ -106,21 +102,11 @@ fn property_plan_slot_writes_and_reads_without_string_lookup() {
     assert_eq!(slot.track.sample(500), Some(PropertyValue::Vec2([60.0, 20.0])));
 }
 
-// Helper: write a keyframe and read it back
-fn write_read_roundtrip(
-    track: &mut AnimationTrack,
-    field: ActorField,
-    value: PropertyValue,
-    time_ms: u64,
-) -> Option<PropertyValue> {
-    write_property_field(track, field, value, time_ms, time_ms, Easing::Linear, &mut vec![]);
-    read_property_value(track, field, time_ms)
-}
-
-/// Write and read one property through `World`, which owns the text tier.
+/// Write and read one property through `World`, which owns the value tiers.
 ///
-/// The track-only helpers above cannot reach text fields now that
-/// `TextTracks` lives in `World`, so text round-trips have to go through it.
+/// The track alone cannot reach component-backed fields now that the geometry,
+/// style, shape, text and highlight tiers live in `World`, so round-trips go
+/// through it.
 fn world_write_read_roundtrip(
     timeline: &mut crate::timeline::Timeline,
     id: crate::timeline::EntityId,
@@ -146,9 +132,15 @@ fn world_write_read_roundtrip(
 
 #[test]
 fn test_write_read_roundtrip_f32() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    let result =
-        write_read_roundtrip(&mut track, ActorField::Opacity, PropertyValue::F32(0.75), 500);
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    let result = world_write_read_roundtrip(
+        &mut timeline,
+        id,
+        ActorField::Opacity,
+        PropertyValue::F32(0.75),
+        500,
+    );
     assert_eq!(result, Some(PropertyValue::F32(0.75)));
 }
 
@@ -169,9 +161,11 @@ fn test_write_read_roundtrip_vec2() {
 
 #[test]
 fn test_write_read_roundtrip_color() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    let result = write_read_roundtrip(
-        &mut track,
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    let result = world_write_read_roundtrip(
+        &mut timeline,
+        id,
         ActorField::Color,
         PropertyValue::Color([1.0, 0.0, 0.0, 1.0]),
         500,
@@ -181,9 +175,11 @@ fn test_write_read_roundtrip_color() {
 
 #[test]
 fn test_write_read_roundtrip_vec4() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    let result = write_read_roundtrip(
-        &mut track,
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    let result = world_write_read_roundtrip(
+        &mut timeline,
+        id,
         ActorField::StrokeColor,
         PropertyValue::Vec4([0.0, 1.0, 0.0, 0.5]),
         500,
@@ -390,10 +386,11 @@ fn test_write_read_roundtrip_letter_spacing() {
 
 #[test]
 fn test_write_read_roundtrip_with_duration_uses_linear_easing_at_start() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
     let mut diag = vec![];
-    write_property_field(
-        &mut track,
+    timeline.world_mut().write_property_field(
+        id,
         ActorField::Opacity,
         PropertyValue::F32(0.5),
         0,    // t_start
@@ -402,10 +399,13 @@ fn test_write_read_roundtrip_with_duration_uses_linear_easing_at_start() {
         &mut diag,
     );
     // Should have keyframes at 0 (start snapshot) and 1000 (end value)
-    let rf = track.field_ref(ActorField::Opacity).unwrap();
-    assert_eq!(rf.keyframe_count(), 2);
-    assert_eq!(rf.keyframe_easing(0), Some(Easing::Linear));
-    assert_eq!(rf.keyframe_easing(1000), Some(Easing::EaseOut));
+    let world = timeline.world();
+    assert_eq!(world.property_keyframe_count(id, ActorField::Opacity), 2);
+    assert_eq!(world.property_keyframe_easing(id, ActorField::Opacity, 0), Some(Easing::Linear));
+    assert_eq!(
+        world.property_keyframe_easing(id, ActorField::Opacity, 1000),
+        Some(Easing::EaseOut)
+    );
 }
 
 #[test]
@@ -418,42 +418,64 @@ fn test_read_property_value_or_default_falls_back() {
 
 #[test]
 fn test_property_has_keyframes() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.style.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
-    assert!(property_has_keyframes(&track, ActorField::Opacity));
-    assert!(!property_has_keyframes(&track, ActorField::Rotation));
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    timeline
+        .world_mut()
+        .style_mut(id)
+        .opacity
+        .ensure(1.0)
+        .add_keyframe(500, 0.5, Easing::Linear);
+    assert!(timeline.world().property_has_keyframes(id, ActorField::Opacity));
+    assert!(!timeline.world().property_has_keyframes(id, ActorField::Rotation));
 }
 
 #[test]
 fn test_property_has_keyframe_at() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.style.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
-    assert!(property_has_keyframe_at(&track, ActorField::Opacity, 500));
-    assert!(!property_has_keyframe_at(&track, ActorField::Opacity, 0));
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    timeline
+        .world_mut()
+        .style_mut(id)
+        .opacity
+        .ensure(1.0)
+        .add_keyframe(500, 0.5, Easing::Linear);
+    assert!(timeline.world().property_has_keyframe_at(id, ActorField::Opacity, 500));
+    assert!(!timeline.world().property_has_keyframe_at(id, ActorField::Opacity, 0));
 }
 
 #[test]
 fn test_property_keyframe_times_sorted() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.style.opacity.ensure(1.0).add_keyframe(1000, 0.0, Easing::Linear);
-    track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-    let times = property_keyframe_times(&track, ActorField::Opacity);
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    let style = timeline.world_mut().style_mut(id);
+    style.opacity.ensure(1.0).add_keyframe(1000, 0.0, Easing::Linear);
+    style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
+    let times = timeline.world().property_keyframe_times(id, ActorField::Opacity);
     assert_eq!(times, vec![0, 1000]);
 }
 
 #[test]
 fn test_property_keyframe_count() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-    track.style.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
-    assert_eq!(property_keyframe_count(&track, ActorField::Opacity), 2);
-    assert_eq!(property_keyframe_count(&track, ActorField::Rotation), 0);
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    let style = timeline.world_mut().style_mut(id);
+    style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
+    style.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
+    assert_eq!(timeline.world().property_keyframe_count(id, ActorField::Opacity), 2);
+    assert_eq!(timeline.world().property_keyframe_count(id, ActorField::Rotation), 0);
 }
 
 #[test]
 fn test_property_keyframe_easing() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::EaseInOut);
-    let easing = property_keyframe_easing(&track, ActorField::Opacity, 0);
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    timeline
+        .world_mut()
+        .style_mut(id)
+        .opacity
+        .ensure(1.0)
+        .add_keyframe(0, 1.0, Easing::EaseInOut);
+    let easing = timeline.world().property_keyframe_easing(id, ActorField::Opacity, 0);
     assert_eq!(easing, Some(Easing::EaseInOut));
 }

@@ -195,7 +195,6 @@ impl Timeline {
 pub(super) struct ActorPrep {
     pub(super) caps: animatix_core::caps::ActorCaps,
     pub(super) primitive: PrimitiveFamilyDescriptor,
-    pub(super) existing_track: AnimationTrack,
     pub(super) extracted: ExtractedActorProperties,
 }
 
@@ -299,7 +298,6 @@ impl Timeline {
         Some(ActorPrep {
             caps,
             primitive,
-            existing_track,
             extracted,
         })
     }

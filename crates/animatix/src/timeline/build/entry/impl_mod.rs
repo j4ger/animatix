@@ -302,8 +302,10 @@ impl Timeline {
         let revealed_via_ancestor = |label: &str| -> bool {
             let mut current = parent_of.get(label).copied();
             while let Some(parent) = current {
-                if let Some(pt) =
-                    timeline.world.tracks.get(parent).and_then(|t| t.style.opacity.as_ref())
+                if let Some(pt) = timeline
+                    .world
+                    .get_id(parent)
+                    .and_then(|id| timeline.world.style(id).opacity.as_ref())
                 {
                     if opacity_reveals(pt) {
                         return true;
@@ -327,7 +329,7 @@ impl Timeline {
             }
             if is_generated_sub(label)
                 || revealed_via_ancestor(label)
-                || track.style.opacity.as_ref().is_some_and(opacity_reveals)
+                || timeline.world.style(track.id).opacity.as_ref().is_some_and(opacity_reveals)
             {
                 continue;
             }

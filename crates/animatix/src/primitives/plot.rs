@@ -87,8 +87,9 @@ impl Primitive for PlotCurvePrimitive {
             return Ok(None);
         }
 
+        let style = ctx.style.expect("plot evaluation requires the style tier");
         // Sample stroke_progress from the track
-        let progress = ctx.track.style.stroke_progress.get(ctx.time_ms, 1.0) as f64;
+        let progress = style.stroke_progress.get(ctx.time_ms, 1.0) as f64;
         let progress = progress.clamp(0.0, 1.0);
 
         let paths: Vec<_> = if progress < 1.0 {
@@ -114,9 +115,8 @@ impl Primitive for PlotCurvePrimitive {
         // probe because `insert_end_keyframes` creates that track for every
         // actor; the gradient tracks are created only when authored, so
         // `is_some` is enough and avoids cloning a ramp's stop list.
-        let wants_dash = !ctx.track.style.dash_pattern.get(ctx.time_ms, Vec::new()).is_empty();
-        let wants_gradient =
-            ctx.track.style.fill_gradient.is_some() || ctx.track.style.stroke_gradient.is_some();
+        let wants_dash = !style.dash_pattern.get(ctx.time_ms, Vec::new()).is_empty();
+        let wants_gradient = style.fill_gradient.is_some() || style.stroke_gradient.is_some();
         if wants_dash || wants_gradient {
             crate::primitives::stamp_stroke_decoration(&mut commands, ctx);
         }

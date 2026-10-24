@@ -88,16 +88,13 @@ fn run_preset(
             .is_some_and(|m| m.hidden_by_default);
         super::lift_hidden_by_default_subtree(timeline, target, t_start_ms, t_end_ms, easing);
         if !was_hidden {
-            let Some(track) = timeline.world.tracks.get(target) else {
+            let Some(id) = timeline.world.tracks.get_id(target) else {
                 continue;
             };
-            let end_opacity = super::entrance_opacity_target(track, t_start_ms);
-            let track = match timeline.world.tracks.get_mut(target) {
-                Some(t) => t,
-                None => continue,
-            };
-            track.style.opacity.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);
-            track.style.opacity.ensure(1.0).add_keyframe(t_end_ms, end_opacity, easing);
+            let end_opacity = super::entrance_opacity_target(timeline.world.style(id), t_start_ms);
+            let style = timeline.world.style_mut(id);
+            style.opacity.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);
+            style.opacity.ensure(1.0).add_keyframe(t_end_ms, end_opacity, easing);
         }
 
         // Scale: ramp *relative to* the scale the actor already samples at the

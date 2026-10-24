@@ -87,12 +87,12 @@ impl BuiltinAction for MarkAction {
         _diagnostics: &mut Vec<Diagnostic>,
     ) {
         for target in &action.targets {
-            if let Some(track) = timeline.world.tracks.get_mut(target) {
-                track
-                    .style
-                    .opacity
-                    .ensure(1.0)
-                    .add_keyframe(time_ms as u64, 0.25, Easing::Linear);
+            if let Some(id) = timeline.world.get_id(target) {
+                timeline.world.style_mut(id).opacity.ensure(1.0).add_keyframe(
+                    time_ms as u64,
+                    0.25,
+                    Easing::Linear,
+                );
             }
         }
     }
@@ -606,5 +606,5 @@ fn build_with_context_dispatches_custom_actions() {
         report.diagnostics
     );
     let track = report.output.world.tracks.get("target").expect("actor track");
-    assert_eq!(track.style.opacity.get(0, 1.0), 0.25);
+    assert_eq!(report.output.world.style(track.id).opacity.get(0, 1.0), 0.25);
 }

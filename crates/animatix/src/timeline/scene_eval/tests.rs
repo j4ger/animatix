@@ -6,15 +6,15 @@ use crate::timeline::{AnimationTrack, PropertyTrack, ShapeType};
 /// Helper to create a minimal Timeline with one root track.
 fn make_minimal_timeline() -> Timeline {
     let mut timeline = Timeline::new();
-    let mut track = AnimationTrack::placeholder("test_box".to_string());
+    let track = AnimationTrack::placeholder("test_box".to_string());
+
+    let id = spawn_seen(&mut timeline, "test_box", track);
     // Add a color so it renders something visible
-    track.style.color = Some({
+    timeline.world.style_mut(id).color = Some({
         let mut t = PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);
         t.add_keyframe(0, [1.0, 0.0, 0.0, 1.0], Easing::Linear);
         t
     });
-
-    let id = spawn_seen(&mut timeline, "test_box", track);
     // Give it a size so it has content
     timeline.world.geometry_mut(id).size = Some({
         let mut t = PropertyTrack::new([50.0, 50.0]);
@@ -457,13 +457,13 @@ fn mask_clips_children_to_own_bounds() {
     let mut timeline = Timeline::new();
 
     // Create child actor
-    let mut child_track = AnimationTrack::placeholder("child".to_string());
-    child_track.style.color = Some({
+    let child_track = AnimationTrack::placeholder("child".to_string());
+    let child_id = spawn_seen(&mut timeline, "child", child_track);
+    timeline.world.style_mut(child_id).color = Some({
         let mut t = PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);
         t.add_keyframe(0, [1.0, 0.0, 0.0, 1.0], Easing::Linear);
         t
     });
-    let child_id = spawn_seen(&mut timeline, "child", child_track);
     timeline.world.geometry_mut(child_id).size = Some({
         let mut t = PropertyTrack::new([50.0, 50.0]);
         t.add_keyframe(0, [50.0, 50.0], Easing::Linear);

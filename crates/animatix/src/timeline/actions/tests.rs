@@ -78,11 +78,19 @@ fn extension_layout_container_expands_for_leaf_actions() {
         .collect();
     assert!(unexpected.is_empty(), "unexpected diagnostics: {unexpected:?}");
     assert!(
-        timeline.world.tracks.get("root").expect("root").style.opacity.is_none(),
+        timeline
+            .world
+            .style(timeline.world.get_id("root").expect("root"))
+            .opacity
+            .is_none(),
         "layout container itself should not receive the leaf action"
     );
     for label in ["a", "b"] {
-        let opacity = timeline.world.tracks.get(label).expect(label).style.opacity.get(0, 1.0);
+        let opacity = timeline
+            .world
+            .style(timeline.world.get_id(label).expect(label))
+            .opacity
+            .get(0, 1.0);
         assert_eq!(opacity, 0.0, "{label} should receive the expanded leaf action");
     }
 }

@@ -32,6 +32,7 @@ pub fn evaluate_text_paths(
 > {
     use crate::timeline::TrackAccessor;
 
+    let style = ctx.style.expect("text evaluation requires the style tier");
     let text = ctx.text.expect("text primitive evaluated without a text tier");
     let mut content = text.text_content.get(ctx.time_ms, String::new());
     let mut font_family = text.font_family.get(ctx.time_ms, String::new());
@@ -45,7 +46,7 @@ pub fn evaluate_text_paths(
     let mut text_align = text.text_align.get(ctx.time_ms, "left".to_string());
     let mut text_anchor = text.text_anchor.get(ctx.time_ms, "center".to_string());
     let mut overflow = text.overflow.get(ctx.time_ms, "visible".to_string());
-    let mut color = ctx.track.style.color.get(ctx.time_ms, DEFAULT_WHITE);
+    let mut color = style.color.get(ctx.time_ms, DEFAULT_WHITE);
     let mut language = text.language.get(ctx.time_ms, String::new());
 
     let mut content_override: Option<String> = None;
@@ -211,7 +212,7 @@ pub fn evaluate_text_paths(
         }
     }
     if content_override.is_none() && text.text_paths.is_some() {
-        let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(text, ctx.time_ms);
+        let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(text, style, ctx.time_ms);
         let track_anchor = text.text_anchor.get(ctx.time_ms, "center".to_string());
         if text_anchor != track_anchor && !paths.is_empty() {
             let half_size = crate::renderer::text::measure_text_paths(&paths);
@@ -280,7 +281,7 @@ pub fn evaluate_text_paths(
         );
         Ok((std::sync::Arc::from(paths_vec), clip))
     } else {
-        let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(text, ctx.time_ms);
+        let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(text, style, ctx.time_ms);
         Ok((std::sync::Arc::from(paths), clip))
     }
 }

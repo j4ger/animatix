@@ -44,23 +44,22 @@ impl BuiltinAction for FadeOut {
                 continue;
             }
 
-            let track = match timeline.world.tracks.get_mut(target) {
-                Some(t) => t,
-                None => continue,
+            let Some(id) = timeline.world.tracks.get_id(target) else {
+                continue;
             };
+            let style = timeline.world.style_mut(id);
 
-            let start_opacity = track.style.opacity.get(t_start_ms, 1.0);
+            let start_opacity = style.opacity.get(t_start_ms, 1.0);
             if duration_ms > 0.0 {
-                track.style.opacity.ensure(1.0).add_keyframe(
-                    t_start_ms,
-                    start_opacity,
-                    Easing::Linear,
-                );
+                style
+                    .opacity
+                    .ensure(1.0)
+                    .add_keyframe(t_start_ms, start_opacity, Easing::Linear);
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                super::ensure_guard_keyframe(&mut track.style.opacity, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut style.opacity, guard_time, 1.0);
             }
-            track.style.opacity.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
+            style.opacity.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
         }
     }
 }
@@ -129,11 +128,12 @@ mod tests {
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.world.tracks.get("headline").expect("headline track");
+        let style = report.output.world.style(track.id);
 
-        assert_eq!(track.style.opacity.get(0, 1.0), 1.0);
-        assert!(track.style.opacity.get(500, 1.0) < 1.0);
-        assert!(track.style.opacity.get(500, 1.0) > 0.0);
-        assert_eq!(track.style.opacity.get(1000, 1.0), 0.0);
+        assert_eq!(style.opacity.get(0, 1.0), 1.0);
+        assert!(style.opacity.get(500, 1.0) < 1.0);
+        assert!(style.opacity.get(500, 1.0) > 0.0);
+        assert_eq!(style.opacity.get(1000, 1.0), 0.0);
         assert!(report.diagnostics.is_empty());
     }
 }

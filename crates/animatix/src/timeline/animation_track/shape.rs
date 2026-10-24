@@ -72,3 +72,48 @@ pub struct ShapeTracks {
     #[cfg_attr(feature = "serde", serde(skip))]
     pub to_anchor: Option<(String, SceneAnchor)>,
 }
+
+impl ShapeTracks {
+    /// Latest keyframe across the shape property tracks.
+    pub fn max_keyframe_time(&self) -> Option<u64> {
+        macro_rules! latest {
+            ($($field:ident),* $(,)?) => {
+                [$(self.$field.as_ref().and_then(|t| t.last_keyframe_time())),*]
+                    .into_iter()
+                    .flatten()
+                    .max()
+            };
+        }
+        latest!(
+            shape_type,
+            line_from,
+            line_to,
+            head_size,
+            arc_angles,
+            corner_radius,
+            points,
+            commands,
+            vector_paths,
+        )
+    }
+
+    /// Whether any shape property track has animated keyframes.
+    pub fn has_any_keyframes(&self) -> bool {
+        macro_rules! any_animated {
+            ($($field:ident),* $(,)?) => {
+                false $(|| self.$field.as_ref().is_some_and(|t| !t.is_effectively_static()))*
+            };
+        }
+        any_animated!(
+            shape_type,
+            line_from,
+            line_to,
+            head_size,
+            arc_angles,
+            corner_radius,
+            points,
+            commands,
+            vector_paths,
+        )
+    }
+}

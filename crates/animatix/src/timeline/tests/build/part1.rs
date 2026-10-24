@@ -153,7 +153,7 @@ fn test_hierarchical_assignment_target() {
 
     // At t=0s, circ.opacity should be 0.0 (pre-keyframe default is hidden)
     let circ_track = timeline.world.tracks.get("circ").expect("circ track should exist");
-    let opacity_at_0 = circ_track.style.opacity.as_ref().unwrap().evaluate(0);
+    let opacity_at_0 = timeline.world.style(circ_track.id).opacity.as_ref().unwrap().evaluate(0);
     assert!(
         (opacity_at_0 - 0.0).abs() < 0.01,
         "Expected circ.opacity=0.0 at t=0 (pre-keyframe default), got {:?}",
@@ -161,7 +161,8 @@ fn test_hierarchical_assignment_target() {
     );
 
     // At t=1s, circ.opacity should be 0.5
-    let opacity_at_1s = circ_track.style.opacity.as_ref().unwrap().evaluate(1000);
+    let opacity_at_1s =
+        timeline.world.style(circ_track.id).opacity.as_ref().unwrap().evaluate(1000);
     assert!(
         (opacity_at_1s - 0.5).abs() < 0.01,
         "Expected circ.opacity=0.5 at t=1s, got {:?}",
@@ -188,7 +189,7 @@ fn explicit_opacity_before_keyframe_is_honored() {
         report.diagnostics
     );
     let track = report.output.world.tracks.get("box").expect("box track should exist");
-    let opacity_at_0 = track.style.opacity.as_ref().unwrap().evaluate(0);
+    let opacity_at_0 = report.output.world.style(track.id).opacity.as_ref().unwrap().evaluate(0);
     assert_eq!(opacity_at_0, 0.0, "explicit opacity: 0 should apply at t=0");
 }
 
@@ -205,10 +206,10 @@ fn graph_axes_invisible_before_fadein() {
     let timeline = report.output;
 
     let track = timeline.world.tracks.get("g1").expect("g1 track should exist");
-    let opacity_at_0 = track.style.opacity.as_ref().map(|t| t.evaluate(0));
-    let opacity_at_500 = track.style.opacity.as_ref().map(|t| t.evaluate(500));
-    let opacity_at_900 = track.style.opacity.as_ref().map(|t| t.evaluate(900));
-    let opacity_at_1000 = track.style.opacity.as_ref().map(|t| t.evaluate(1000));
+    let opacity_at_0 = timeline.world.style(track.id).opacity.as_ref().map(|t| t.evaluate(0));
+    let opacity_at_500 = timeline.world.style(track.id).opacity.as_ref().map(|t| t.evaluate(500));
+    let opacity_at_900 = timeline.world.style(track.id).opacity.as_ref().map(|t| t.evaluate(900));
+    let opacity_at_1000 = timeline.world.style(track.id).opacity.as_ref().map(|t| t.evaluate(1000));
 
     assert_eq!(opacity_at_0, Some(0.0), "opacity should be 0 at t=0");
     assert_eq!(opacity_at_500, Some(0.0), "opacity should be 0 at t=500ms (fade-in start)");
@@ -243,8 +244,8 @@ fn container_fadein_reveals_graph_hosted_children() {
         !timeline.world.meta(child.id).hidden_by_default,
         "container fade-in must lift the child's hidden-by-default flag"
     );
-    let opacity_at_0 = child.style.opacity.as_ref().map(|t| t.evaluate(0));
-    let opacity_at_1000 = child.style.opacity.as_ref().map(|t| t.evaluate(1000));
+    let opacity_at_0 = timeline.world.style(child.id).opacity.as_ref().map(|t| t.evaluate(0));
+    let opacity_at_1000 = timeline.world.style(child.id).opacity.as_ref().map(|t| t.evaluate(1000));
     assert_eq!(
         opacity_at_0,
         Some(0.0),
@@ -287,7 +288,15 @@ fn pre_keyframe_graph_container_is_hidden_until_its_entrance() {
         !timeline.world.meta(graph.id).hidden_by_default,
         "the entrance action consumes the flag"
     );
-    let opacity = |ms: u64| graph.style.opacity.as_ref().map(|t| t.evaluate(ms)).unwrap_or(1.0);
+    let opacity = |ms: u64| {
+        timeline
+            .world
+            .style(graph.id)
+            .opacity
+            .as_ref()
+            .map(|t| t.evaluate(ms))
+            .unwrap_or(1.0)
+    };
     assert_eq!(opacity(0), 0.0, "graph must start invisible before its entrance");
     assert_eq!(opacity(900), 0.0, "graph must stay invisible until the entrance at 1.0s");
     assert!(
@@ -718,9 +727,9 @@ plain: Rect, size: (50, 50), color: text.primary, at: (600, 320)
 
     use crate::timeline::TrackAccessor;
     let glow = timeline.world.tracks.get("glow").expect("glow track");
-    assert_eq!(glow.style.blend.get(0, "normal".to_string()), "screen");
+    assert_eq!(timeline.world.style(glow.id).blend.get(0, "normal".to_string()), "screen");
     let plain = timeline.world.tracks.get("plain").expect("plain track");
-    assert_eq!(plain.style.blend.get(0, "normal".to_string()), "normal");
+    assert_eq!(timeline.world.style(plain.id).blend.get(0, "normal".to_string()), "normal");
 }
 
 #[test]
@@ -955,7 +964,11 @@ fn high_frequency_curve_meets_resolution_floor() {
     let timeline = report.output;
 
     let track = timeline.world.tracks.get("c").expect("curve track");
-    let paths = track.evaluate_vector_paths_value(timeline.world.shape(track.id), 500);
+    let paths = track.evaluate_vector_paths_value(
+        timeline.world.shape(track.id),
+        timeline.world.style(track.id),
+        500,
+    );
     let point_count: usize = paths.iter().map(|vp| vp.path.elements().len()).sum();
     assert!(
         point_count >= 32,

@@ -138,11 +138,12 @@ impl Timeline {
 
         // Start with track defaults, override from props.
         let caps = self.world.caps(existing_track.id);
-        let mut color = existing_track.style.color.last(DEFAULT_WHITE);
+        let style = self.world.style(existing_track.id);
+        let mut color = style.color.last(DEFAULT_WHITE);
         let default_stroke = caps.default_stroke_width();
-        let mut stroke_width = existing_track.style.stroke_width.last(default_stroke);
-        let mut stroke_color = existing_track.style.stroke_color.last(DEFAULT_WHITE);
-        let mut stroke_progress = existing_track.style.stroke_progress.last(1.0);
+        let mut stroke_width = style.stroke_width.last(default_stroke);
+        let mut stroke_color = style.stroke_color.last(DEFAULT_WHITE);
+        let mut stroke_progress = style.stroke_progress.last(1.0);
 
         // If stroke_color was not explicitly set on track, check colorscheme's default stroke
         if stroke_color == DEFAULT_WHITE {

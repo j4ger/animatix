@@ -24,7 +24,7 @@ pub struct TrackFields<'a> {
     /// Geometry tier (at/position/size/rotation/…).
     pub geometry: Option<&'a GeometryTracks>,
     /// Style tier (color/opacity/stroke/…).
-    pub style: &'a StyleTracks,
+    pub style: Option<&'a StyleTracks>,
     /// Shape tier (shape_type/line_from/…).
     pub shape: Option<&'a ShapeTracks>,
     /// Text tier.
@@ -48,7 +48,7 @@ pub struct TrackFieldsMut<'a> {
     /// Geometry tier.
     pub geometry: Option<&'a mut GeometryTracks>,
     /// Style tier.
-    pub style: &'a mut StyleTracks,
+    pub style: Option<&'a mut StyleTracks>,
     /// Shape tier.
     pub shape: Option<&'a mut ShapeTracks>,
     /// Text tier.
@@ -73,7 +73,7 @@ impl World {
         let track = self.tracks.get_by_id(id)?;
         Some(TrackFields {
             geometry: self.geometry.try_get(id),
-            style: &track.style,
+            style: self.style.try_get(id),
             shape: self.shape.try_get(id),
             text: self.text.try_get(id),
             highlight: self.highlight.try_get(id),
@@ -94,7 +94,7 @@ impl World {
         let track = self.tracks.get_by_id_mut(id)?;
         Some(TrackFieldsMut {
             geometry: self.geometry.try_get_mut(id),
-            style: &mut track.style,
+            style: self.style.try_get_mut(id),
             shape: self.shape.try_get_mut(id),
             text: self.text.try_get_mut(id),
             highlight: self.highlight.try_get_mut(id),
@@ -116,11 +116,10 @@ mod tests {
     fn fields_expose_the_entity_tiers() {
         let mut timeline = Timeline::new();
         let id = timeline.world_mut().spawn("box", "Rect");
-        timeline.world_mut().tracks.get_by_id_mut(id).unwrap().style.opacity =
-            Some(PropertyTrack::new(0.5));
+        timeline.world_mut().style_mut(id).opacity = Some(PropertyTrack::new(0.5));
 
         let fields = timeline.world().fields(id).expect("entity fields");
-        assert_eq!(fields.style.opacity.as_ref().unwrap().default_value, 0.5);
+        assert_eq!(fields.style.expect("style tier").opacity.as_ref().unwrap().default_value, 0.5);
         assert!(timeline.world().fields(EntityId(999)).is_none());
     }
 
@@ -131,13 +130,12 @@ mod tests {
 
         {
             let mut fields = timeline.world_mut().fields_mut(id).expect("entity fields");
-            fields.style.opacity = Some(PropertyTrack::new(0.25));
+            fields.style.as_mut().expect("style tier").opacity = Some(PropertyTrack::new(0.25));
             fields.geometry.as_mut().expect("geometry tier").size =
                 Some(PropertyTrack::new([10.0, 20.0]));
         }
 
-        let track = timeline.world().tracks.get_by_id(id).unwrap();
-        assert_eq!(track.style.opacity.as_ref().unwrap().default_value, 0.25);
+        assert_eq!(timeline.world().style(id).opacity.as_ref().unwrap().default_value, 0.25);
         assert_eq!(
             timeline.world().geometry(id).size.as_ref().unwrap().default_value,
             [10.0, 20.0]
@@ -154,7 +152,7 @@ impl<'a> TrackFields<'a> {
     pub fn from_track(track: &'a crate::timeline::AnimationTrack) -> Self {
         Self {
             geometry: None,
-            style: &track.style,
+            style: None,
             shape: None,
             text: None,
             highlight: None,
@@ -181,28 +179,28 @@ impl<'a> TrackFields<'a> {
             Rotation => TrackFieldRef::F32(&self.geometry?.rotation),
             Scale => TrackFieldRef::F32(&self.geometry?.scale),
             Transform => TrackFieldRef::Transform(&self.geometry?.transform),
-            Color => TrackFieldRef::Vec4(&self.style.color),
-            Opacity => TrackFieldRef::F32(&self.style.opacity),
-            StrokeWidth => TrackFieldRef::F32(&self.style.stroke_width),
-            StrokeColor => TrackFieldRef::Vec4(&self.style.stroke_color),
-            StrokeProgress => TrackFieldRef::F32(&self.style.stroke_progress),
-            FillOpacity => TrackFieldRef::F32(&self.style.fill_opacity),
+            Color => TrackFieldRef::Vec4(&self.style?.color),
+            Opacity => TrackFieldRef::F32(&self.style?.opacity),
+            StrokeWidth => TrackFieldRef::F32(&self.style?.stroke_width),
+            StrokeColor => TrackFieldRef::Vec4(&self.style?.stroke_color),
+            StrokeProgress => TrackFieldRef::F32(&self.style?.stroke_progress),
+            FillOpacity => TrackFieldRef::F32(&self.style?.fill_opacity),
             ShapeType => TrackFieldRef::ShapeType(&self.shape?.shape_type),
             LineFrom => TrackFieldRef::Vec2(&self.shape?.line_from),
             LineTo => TrackFieldRef::Vec2(&self.shape?.line_to),
             HeadSize => TrackFieldRef::F32(&self.shape?.head_size),
-            LineCap => TrackFieldRef::U32(&self.style.line_cap),
-            LineJoin => TrackFieldRef::U32(&self.style.line_join),
+            LineCap => TrackFieldRef::U32(&self.style?.line_cap),
+            LineJoin => TrackFieldRef::U32(&self.style?.line_join),
             ArcAngles => TrackFieldRef::Vec2(&self.shape?.arc_angles),
             CornerRadius => TrackFieldRef::F32(&self.shape?.corner_radius),
             Points => TrackFieldRef::PointList(&self.shape?.points),
-            DashPattern => TrackFieldRef::F32List(&self.style.dash_pattern),
-            FillGradient => TrackFieldRef::Gradient(&self.style.fill_gradient),
-            StrokeGradient => TrackFieldRef::Gradient(&self.style.stroke_gradient),
-            GradientExtend => TrackFieldRef::String(&self.style.gradient_extend),
-            GradientSpace => TrackFieldRef::String(&self.style.gradient_space),
-            DashOffset => TrackFieldRef::F32(&self.style.dash_offset),
-            Blend => TrackFieldRef::String(&self.style.blend),
+            DashPattern => TrackFieldRef::F32List(&self.style?.dash_pattern),
+            FillGradient => TrackFieldRef::Gradient(&self.style?.fill_gradient),
+            StrokeGradient => TrackFieldRef::Gradient(&self.style?.stroke_gradient),
+            GradientExtend => TrackFieldRef::String(&self.style?.gradient_extend),
+            GradientSpace => TrackFieldRef::String(&self.style?.gradient_space),
+            DashOffset => TrackFieldRef::F32(&self.style?.dash_offset),
+            Blend => TrackFieldRef::String(&self.style?.blend),
             Commands => TrackFieldRef::CommandList(&self.shape?.commands),
             TextContent => TrackFieldRef::String(&self.text?.text_content),
             TextMaxWidth => TrackFieldRef::F32(&self.text?.text_max_width),
@@ -214,7 +212,7 @@ impl<'a> TrackFields<'a> {
             FontSize => TrackFieldRef::F32(&self.text?.font_size),
             CharProgress => TrackFieldRef::F32(&self.text?.char_progress),
             PlacementMode => TrackFieldRef::PlacementMode(&self.geometry?.placement_mode),
-            MorphOptions => TrackFieldRef::MorphOptions(&self.style.morph_options),
+            MorphOptions => TrackFieldRef::MorphOptions(&self.style?.morph_options),
             Ascent => TrackFieldRef::F32(&self.text?.ascent),
             Descent => TrackFieldRef::F32(&self.text?.descent),
             Baseline => TrackFieldRef::F32(&self.text?.baseline),
@@ -261,7 +259,7 @@ impl<'a> TrackFieldsMut<'a> {
     pub fn from_track(track: &'a mut crate::timeline::AnimationTrack) -> Self {
         Self {
             geometry: None,
-            style: &mut track.style,
+            style: None,
             shape: None,
             text: None,
             highlight: None,
@@ -293,28 +291,28 @@ impl<'a> TrackFieldsMut<'a> {
             Rotation => TrackFieldMut::F32(&mut self.geometry.as_mut()?.rotation),
             Scale => TrackFieldMut::F32(&mut self.geometry.as_mut()?.scale),
             Transform => TrackFieldMut::Transform(&mut self.geometry.as_mut()?.transform),
-            Color => TrackFieldMut::Vec4(&mut self.style.color),
-            Opacity => TrackFieldMut::F32(&mut self.style.opacity),
-            StrokeWidth => TrackFieldMut::F32(&mut self.style.stroke_width),
-            StrokeColor => TrackFieldMut::Vec4(&mut self.style.stroke_color),
-            StrokeProgress => TrackFieldMut::F32(&mut self.style.stroke_progress),
-            FillOpacity => TrackFieldMut::F32(&mut self.style.fill_opacity),
+            Color => TrackFieldMut::Vec4(&mut self.style.as_mut()?.color),
+            Opacity => TrackFieldMut::F32(&mut self.style.as_mut()?.opacity),
+            StrokeWidth => TrackFieldMut::F32(&mut self.style.as_mut()?.stroke_width),
+            StrokeColor => TrackFieldMut::Vec4(&mut self.style.as_mut()?.stroke_color),
+            StrokeProgress => TrackFieldMut::F32(&mut self.style.as_mut()?.stroke_progress),
+            FillOpacity => TrackFieldMut::F32(&mut self.style.as_mut()?.fill_opacity),
             ShapeType => TrackFieldMut::ShapeType(&mut self.shape.as_mut()?.shape_type),
             LineFrom => TrackFieldMut::Vec2(&mut self.shape.as_mut()?.line_from),
             LineTo => TrackFieldMut::Vec2(&mut self.shape.as_mut()?.line_to),
             HeadSize => TrackFieldMut::F32(&mut self.shape.as_mut()?.head_size),
-            LineCap => TrackFieldMut::U32(&mut self.style.line_cap),
-            LineJoin => TrackFieldMut::U32(&mut self.style.line_join),
+            LineCap => TrackFieldMut::U32(&mut self.style.as_mut()?.line_cap),
+            LineJoin => TrackFieldMut::U32(&mut self.style.as_mut()?.line_join),
             ArcAngles => TrackFieldMut::Vec2(&mut self.shape.as_mut()?.arc_angles),
             CornerRadius => TrackFieldMut::F32(&mut self.shape.as_mut()?.corner_radius),
             Points => TrackFieldMut::PointList(&mut self.shape.as_mut()?.points),
-            DashPattern => TrackFieldMut::F32List(&mut self.style.dash_pattern),
-            FillGradient => TrackFieldMut::Gradient(&mut self.style.fill_gradient),
-            StrokeGradient => TrackFieldMut::Gradient(&mut self.style.stroke_gradient),
-            GradientExtend => TrackFieldMut::String(&mut self.style.gradient_extend),
-            GradientSpace => TrackFieldMut::String(&mut self.style.gradient_space),
-            DashOffset => TrackFieldMut::F32(&mut self.style.dash_offset),
-            Blend => TrackFieldMut::String(&mut self.style.blend),
+            DashPattern => TrackFieldMut::F32List(&mut self.style.as_mut()?.dash_pattern),
+            FillGradient => TrackFieldMut::Gradient(&mut self.style.as_mut()?.fill_gradient),
+            StrokeGradient => TrackFieldMut::Gradient(&mut self.style.as_mut()?.stroke_gradient),
+            GradientExtend => TrackFieldMut::String(&mut self.style.as_mut()?.gradient_extend),
+            GradientSpace => TrackFieldMut::String(&mut self.style.as_mut()?.gradient_space),
+            DashOffset => TrackFieldMut::F32(&mut self.style.as_mut()?.dash_offset),
+            Blend => TrackFieldMut::String(&mut self.style.as_mut()?.blend),
             Commands => TrackFieldMut::CommandList(&mut self.shape.as_mut()?.commands),
             TextContent => TrackFieldMut::String(&mut self.text.as_mut()?.text_content),
             TextMaxWidth => TrackFieldMut::F32(&mut self.text.as_mut()?.text_max_width),
@@ -328,7 +326,7 @@ impl<'a> TrackFieldsMut<'a> {
             PlacementMode => {
                 TrackFieldMut::PlacementMode(&mut self.geometry.as_mut()?.placement_mode)
             },
-            MorphOptions => TrackFieldMut::MorphOptions(&mut self.style.morph_options),
+            MorphOptions => TrackFieldMut::MorphOptions(&mut self.style.as_mut()?.morph_options),
             Ascent => TrackFieldMut::F32(&mut self.text.as_mut()?.ascent),
             Descent => TrackFieldMut::F32(&mut self.text.as_mut()?.descent),
             Baseline => TrackFieldMut::F32(&mut self.text.as_mut()?.baseline),
@@ -391,8 +389,12 @@ mod field_access_tests {
 
     #[test]
     fn bundle_field_mut_writes_through() {
-        let mut track = AnimationTrack::new("box".into(), "Rect");
-        TrackFieldsMut::from_track(&mut track)
+        let mut timeline = Timeline::new();
+        let id = timeline.world_mut().spawn("box", "Rect");
+        timeline
+            .world_mut()
+            .fields_mut(id)
+            .expect("entity fields")
             .field_mut(ActorField::Opacity)
             .and_then(|field| match field {
                 TrackFieldMut::F32(slot) => {
@@ -402,7 +404,7 @@ mod field_access_tests {
                 _ => None,
             })
             .expect("opacity field");
-        assert_eq!(track.style.opacity.as_ref().unwrap().default_value, 0.5);
+        assert_eq!(timeline.world().style(id).opacity.as_ref().unwrap().default_value, 0.5);
     }
 }
 
@@ -453,7 +455,7 @@ mod read_tests {
         let mut track = PropertyTrack::new(0.25_f32);
         track.add_keyframe(0, 0.25, crate::easing::Easing::Linear);
         track.add_keyframe(100, 0.75, crate::easing::Easing::Linear);
-        timeline.world_mut().tracks.get_by_id_mut(id).unwrap().style.opacity = Some(track);
+        timeline.world_mut().style_mut(id).opacity = Some(track);
 
         assert_eq!(
             timeline.world().read_property_value(id, ActorField::Opacity, 0),
@@ -512,8 +514,8 @@ mod write_tests {
             &mut diagnostics,
         );
         assert!(diagnostics.is_empty());
-        let track = timeline.world().tracks.get_by_id(id).unwrap();
-        assert_eq!(track.style.opacity.as_ref().unwrap().evaluate(100), 0.6);
+        let style = timeline.world().style(id);
+        assert_eq!(style.opacity.as_ref().unwrap().evaluate(100), 0.6);
     }
 }
 
@@ -687,7 +689,7 @@ mod keyframe_tests {
         let mut track = PropertyTrack::new(0.0_f32);
         track.add_keyframe(0, 0.0, Easing::Linear);
         track.add_keyframe(100, 1.0, Easing::Linear);
-        timeline.world_mut().tracks.get_by_id_mut(id).unwrap().style.opacity = Some(track);
+        timeline.world_mut().style_mut(id).opacity = Some(track);
 
         assert!(timeline.world().property_has_keyframes(id, ActorField::Opacity));
         assert_eq!(timeline.world().property_keyframe_count(id, ActorField::Opacity), 2);

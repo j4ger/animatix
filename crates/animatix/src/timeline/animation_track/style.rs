@@ -47,3 +47,62 @@ pub struct StyleTracks {
     /// Path morphing options.
     pub morph_options: Option<PropertyTrack<MorphOptions>>,
 }
+
+impl StyleTracks {
+    /// Latest keyframe across the style property tracks.
+    pub fn max_keyframe_time(&self) -> Option<u64> {
+        macro_rules! latest {
+            ($($field:ident),* $(,)?) => {
+                [$(self.$field.as_ref().and_then(|t| t.last_keyframe_time())),*]
+                    .into_iter()
+                    .flatten()
+                    .max()
+            };
+        }
+        latest!(
+            color,
+            opacity,
+            stroke_width,
+            stroke_color,
+            stroke_progress,
+            fill_opacity,
+            line_cap,
+            line_join,
+            dash_pattern,
+            dash_offset,
+            blend,
+            fill_gradient,
+            stroke_gradient,
+            gradient_extend,
+            gradient_space,
+            morph_options,
+        )
+    }
+
+    /// Whether any style property track has animated keyframes.
+    pub fn has_any_keyframes(&self) -> bool {
+        macro_rules! any_animated {
+            ($($field:ident),* $(,)?) => {
+                false $(|| self.$field.as_ref().is_some_and(|t| !t.is_effectively_static()))*
+            };
+        }
+        any_animated!(
+            color,
+            opacity,
+            stroke_width,
+            stroke_color,
+            stroke_progress,
+            fill_opacity,
+            line_cap,
+            line_join,
+            dash_pattern,
+            dash_offset,
+            blend,
+            fill_gradient,
+            stroke_gradient,
+            gradient_extend,
+            gradient_space,
+            morph_options,
+        )
+    }
+}

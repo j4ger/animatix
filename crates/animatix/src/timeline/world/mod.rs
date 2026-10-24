@@ -1,5 +1,4 @@
 //! The timeline ECS world: entities plus typed component stores.
-
 mod caps;
 mod component;
 mod fields;
@@ -10,10 +9,10 @@ mod meta;
 mod payload;
 mod plan;
 mod shape;
+mod style;
 mod tagged;
 mod text;
 mod view;
-
 pub use component::{ComponentStore, RequiredStore};
 pub use fields::{TrackFields, TrackFieldsMut};
 pub use hierarchy::SceneHierarchyComponent;
@@ -41,6 +40,8 @@ pub struct World {
     pub(crate) hierarchy: RequiredStore<SceneHierarchyComponent>,
     pub(crate) highlight: RequiredStore<crate::timeline::animation_track::HighlightTracks>,
     pub(crate) tagged_tracks: RequiredStore<TaggedTracksComponent>,
+    /// Style tier for every entity.
+    pub(crate) style: RequiredStore<crate::timeline::animation_track::StyleTracks>,
     pub(crate) geometry: RequiredStore<crate::timeline::animation_track::GeometryTracks>,
     /// Text tier for every entity.
     pub(crate) text: RequiredStore<crate::timeline::animation_track::TextTracks>,
@@ -267,6 +268,7 @@ impl World {
         self.hierarchy.reset_at(id);
         self.highlight.reset_at(id);
         self.tagged_tracks.reset_at(id);
+        self.style.reset_at(id);
         self.geometry.reset_at(id);
         self.text.reset_at(id);
         self.shape.reset_at(id);
@@ -581,12 +583,12 @@ impl World {
     /// Grow every component store to the entity count.
     ///
     /// Required stores are filled with defaults; optional stores get empty
-    /// slots. Called after every entity insert.
     pub(crate) fn ensure_len(&mut self) {
         let len = self.tracks.len();
         self.hierarchy.ensure_len(len);
         self.highlight.ensure_len(len);
         self.tagged_tracks.ensure_len(len);
+        self.style.ensure_len(len);
         self.geometry.ensure_len(len);
         self.text.ensure_len(len);
         self.shape.ensure_len(len);
@@ -611,6 +613,7 @@ impl World {
         self.hierarchy.clear();
         self.highlight.clear();
         self.tagged_tracks.clear();
+        self.style.clear();
         self.geometry.clear();
         self.text.clear();
         self.shape.clear();
@@ -654,7 +657,6 @@ mod tests {
         assert_eq!(world.label(a), Some("a"));
         assert_eq!(world.get_id("b"), Some(b));
 
-        // Re-spawning a label keeps the entity (build's `entry` semantics).
         assert_eq!(world.spawn("a", "Ellipse"), a);
         assert_eq!(world.len(), 2);
         assert_eq!(world.track(a).unwrap().actor_type, "Rect");
@@ -672,8 +674,6 @@ mod tests {
         assert_eq!(world.get_id("box"), Some(id));
         assert_eq!(world.hierarchy(id), &SceneHierarchyComponent::default());
         assert_eq!(world.track(id).unwrap().actor_type, "Ellipse");
-        // The old parent no longer lists the replaced entity, which is a root
-        // again — the old `TrackStore::insert` replacement semantics.
         assert!(!world.hierarchy(parent).children.contains(&id));
         assert!(world.is_root(id));
     }

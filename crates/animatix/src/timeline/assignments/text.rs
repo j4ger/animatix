@@ -1,8 +1,9 @@
 use super::*;
-use crate::timeline::animation_track::{GeometryTracks, TextTracks};
+use crate::timeline::animation_track::{GeometryTracks, StyleTracks, TextTracks};
 
 pub(crate) fn recompile_text_at_assignment(
     track: &mut AnimationTrack,
+    style: &mut StyleTracks,
     text: &mut TextTracks,
     geometry: &mut GeometryTracks,
     target_text: String,
@@ -54,7 +55,7 @@ pub(crate) fn recompile_text_at_assignment(
     let line_height = text.line_height.get(t_end_ms, 1.2);
     let letter_spacing = text.letter_spacing.get(t_end_ms, 0.0);
     let word_spacing = text.word_spacing.get(t_end_ms, 0.0);
-    let color = track.style.color.get(t_end_ms, [1.0, 1.0, 1.0, 1.0]);
+    let color = style.color.get(t_end_ms, [1.0, 1.0, 1.0, 1.0]);
     let language = text.language.get(t_end_ms, String::new());
 
     let new_paths = text_compiler.compile(
@@ -91,7 +92,7 @@ pub(crate) fn recompile_text_at_assignment(
     }
 
     if duration_ms > 0.0 {
-        let start_val = track.evaluate_text_paths_and_clip(text, t_start_ms).0;
+        let start_val = track.evaluate_text_paths_and_clip(text, style, t_start_ms).0;
         text.text_paths
             .ensure(Vec::new())
             .add_keyframe(t_start_ms, start_val, Easing::Linear);
@@ -117,8 +118,7 @@ pub(crate) fn recompile_text_at_assignment(
     // Content swaps cross-fade the source and target glyph sets instead of
     // morphing arbitrary strings through a midpoint string snapshot.
     if duration_ms > 0.0 {
-        track
-            .style
+        style
             .morph_options
             .ensure(crate::timeline::MorphOptions::default())
             .add_keyframe(

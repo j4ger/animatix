@@ -108,7 +108,7 @@ impl Timeline {
     }
 
     pub(crate) fn refresh_blend_used(&self) {
-        let any = self.world.tracks.values().any(|t| t.style.blend.is_some());
+        let any = self.world.style.iter().any(|(_, style)| style.blend.is_some());
         self.blend_used.set(any);
     }
 

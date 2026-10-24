@@ -348,6 +348,7 @@ impl Timeline {
                 text_compiler: &mut self.text_compiler.borrow_mut(),
                 asset_cache: std::sync::Arc::make_mut(&mut self.asset_cache),
                 highlight: self.world.highlight.try_get_mut(track.id),
+                style: self.world.style.try_get_mut(track.id),
                 geometry: self.world.geometry.try_get_mut(track.id),
                 shape: self.world.shape.try_get_mut(track.id),
                 text: self.world.text.try_get_mut(track.id),
@@ -510,6 +511,7 @@ impl Timeline {
 
                 let new_half_size = handle_size_assignment(
                     track,
+                    self.world.style.get(track_id),
                     self.world.geometry.get_mut(track_id),
                     self.world.shape.get_mut(track_id),
                     property,
@@ -542,6 +544,7 @@ impl Timeline {
                             if child_caps.plot_geometry {
                                 scale_plot_curve_paths(
                                     child_track,
+                                    self.world.style.get(child_id),
                                     self.world.shape.get_mut(child_id),
                                     scale_x,
                                     scale_y,
@@ -639,6 +642,7 @@ impl Timeline {
                         .expect("assignment target track exists");
                     rebuild_vector_paths(
                         track,
+                        self.world.style.get(track_id),
                         self.world.geometry.get(track_id),
                         self.world.shape.get_mut(track_id),
                         t_start_ms,

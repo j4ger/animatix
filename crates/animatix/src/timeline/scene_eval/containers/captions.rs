@@ -92,8 +92,11 @@ impl Timeline {
             let Some(primitive) = self.track_primitive_at(child_track, time_ms) else {
                 continue;
             };
-            let child_vector_paths =
-                child_track.evaluate_vector_paths(self.world.shape(child_track.id), time_ms);
+            let child_vector_paths = child_track.evaluate_vector_paths(
+                self.world.shape(child_track.id),
+                self.world.style(child_track.id),
+                time_ms,
+            );
             let ctx = crate::primitives::EvaluateCtx {
                 track: child_track,
                 time_ms,
@@ -108,6 +111,7 @@ impl Timeline {
                 legend: self.world.legend(child_track.id),
                 world: Some(&self.world),
                 highlight: self.world.highlight(child_track.id),
+                style: Some(self.world.style(child_track.id)),
                 shape: Some(self.world.shape(child_track.id)),
                 geometry: Some(self.world.geometry(child_track.id)),
                 text: Some(self.world.text(child_track.id)),
@@ -207,7 +211,7 @@ impl Timeline {
             let line_height = text.line_height.get(time_ms, 1.2);
             let letter_spacing = text.letter_spacing.get(time_ms, 0.0);
             let word_spacing = text.word_spacing.get(time_ms, 0.0);
-            let base_color = track.style.color.get(time_ms, [1.0, 1.0, 1.0, 1.0]);
+            let base_color = self.world.style(track.id).color.get(time_ms, [1.0, 1.0, 1.0, 1.0]);
             let active_color = cue.active_color.unwrap_or_else(|| {
                 track.sample_color_prop(
                     self.world.property_plan(track.id),

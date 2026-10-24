@@ -301,6 +301,7 @@ impl Timeline {
 
         let track_id = self.world.spawn(&label_str, kind.type_name());
         let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
+        let style = self.world.style.get_mut(track_id);
 
         // Ensure the track kind matches the declaration type so downstream
         // code (inspector, drag handles) can dispatch correctly.
@@ -321,22 +322,17 @@ impl Timeline {
                 .meta
                 .get_or_insert_with(track.id, crate::timeline::world::EntityMeta::default)
                 .hidden_by_default = true;
-            track
-                .style
-                .opacity
-                .ensure(1.0)
-                .add_keyframe(0, self.default_opacity, Easing::Linear);
+            style.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
         }
 
         if let Some(track_color) = initial_track_color {
             if delay_ms > 0.0 && duration_ms == 0.0 {
-                preserve_instant_delayed_value(&mut track.style.color, t_start_ms);
+                preserve_instant_delayed_value(&mut style.color, t_start_ms);
             }
-            track.style.color.ensure(DEFAULT_WHITE).add_keyframe(
-                t_start_ms,
-                track_color,
-                Easing::Linear,
-            );
+            style
+                .color
+                .ensure(DEFAULT_WHITE)
+                .add_keyframe(t_start_ms, track_color, Easing::Linear);
         }
 
         if let Some((binding, position)) = resolve_position_binding_with_lookup_diagnostic(
@@ -400,6 +396,7 @@ impl Timeline {
             );
         }
         let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
+        let style = self.world.style.get_mut(track_id);
         let text = self.world.text.get_mut(track_id);
         let geometry = self.world.geometry.get_mut(track_id);
 
@@ -648,7 +645,7 @@ impl Timeline {
         );
 
         if duration_ms > 0.0 {
-            let start_val = track.evaluate_text_paths(text, t_start_ms);
+            let start_val = track.evaluate_text_paths(text, style, t_start_ms);
             text.text_paths
                 .ensure(Vec::new())
                 .add_keyframe(t_start_ms, start_val, Easing::Linear);
@@ -671,7 +668,7 @@ impl Timeline {
             preserve_instant_delayed_value(&mut geometry.layout_size, t_start_ms);
         }
         if supports_morph_options {
-            track.style.morph_options.ensure(MorphOptions::default()).add_keyframe(
+            style.morph_options.ensure(MorphOptions::default()).add_keyframe(
                 t_end_ms,
                 morph_options,
                 Easing::Linear,

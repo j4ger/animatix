@@ -2,100 +2,21 @@ use super::*;
 
 impl AnimationTrack {
     /// Get an immutable reference to the track field identified by `field`.
-    pub fn field_ref(&self, field: ActorField) -> Option<TrackFieldRef<'_>> {
-        use ActorField::*;
-        Some(match field {
-            // The geometry tier lives in `World.geometry`; world-aware callers
-            // read it through `World::fields`, which bundles the component.
-            Position | MotionOffset | Size | LayoutSize | Rotation | Scale | Transform
-            | PlacementMode | MinWidth | MinHeight | MaxHeight | LabelAt | CalloutTarget
-            | CalloutPlace | CalloutStandoff | CalloutToOffset | PositionBinding | AudioVolume => {
-                return None;
-            },
-            Color => TrackFieldRef::Vec4(&self.style.color),
-            Opacity => TrackFieldRef::F32(&self.style.opacity),
-            StrokeWidth => TrackFieldRef::F32(&self.style.stroke_width),
-            StrokeColor => TrackFieldRef::Vec4(&self.style.stroke_color),
-            StrokeProgress => TrackFieldRef::F32(&self.style.stroke_progress),
-            FillOpacity => TrackFieldRef::F32(&self.style.fill_opacity),
-            // The shape tier lives in `World.shape`; world-aware callers read
-            // it through `World::fields`, which bundles the component.
-            ShapeType | LineFrom | LineTo | HeadSize | ArcAngles | CornerRadius | Points => {
-                return None;
-            },
-            LineCap => TrackFieldRef::U32(&self.style.line_cap),
-            LineJoin => TrackFieldRef::U32(&self.style.line_join),
-            DashPattern => TrackFieldRef::F32List(&self.style.dash_pattern),
-            FillGradient => TrackFieldRef::Gradient(&self.style.fill_gradient),
-            StrokeGradient => TrackFieldRef::Gradient(&self.style.stroke_gradient),
-            GradientExtend => TrackFieldRef::String(&self.style.gradient_extend),
-            GradientSpace => TrackFieldRef::String(&self.style.gradient_space),
-            DashOffset => TrackFieldRef::F32(&self.style.dash_offset),
-            Blend => TrackFieldRef::String(&self.style.blend),
-            Commands => return None,
-            // The text tier lives in `World.text`; world-aware callers read it
-            // through `World::fields`, which bundles the component.
-            TextContent | TextMaxWidth | TextAlign | TextAnchor | Overflow | Language
-            | FontFamily | FontSize | CharProgress | Ascent | Descent | Baseline | FontWeight
-            | FontStyle | LineHeight | LetterSpacing | WordSpacing | TextPaths => return None,
-            MorphOptions => TrackFieldRef::MorphOptions(&self.style.morph_options),
-            HighlightColor | HighlightOpacity | HighlightPadding | HighlightRadius => return None,
-            VectorPaths => return None,
-            // The image payload owns the raster track; an actor without that
-            // payload has no image data, which reads as `None`.
-            ImageData => return None,
-            ActorField::Tagged(_) => return None,
-            // Remaining variants without track storage
-            SvgPaths | AudioSource | PositionBindingGroup | VectorShapeGroup | PlotDomainGroup
-            | ContainerLayoutGroup | NoStorage => return None,
-        })
+    ///
+    /// Every built-in property tier now lives in a `World` component —
+    /// geometry, style, shape, text, highlight, tagged unions and the payload —
+    /// so a bare track resolves no field. World-aware callers read through
+    /// `World::fields(id)`, which bundles the components before dispatching.
+    pub fn field_ref(&self, _field: ActorField) -> Option<TrackFieldRef<'_>> {
+        None
     }
 
     /// Get a mutable reference to the track field identified by `field`.
-    pub fn field_mut(&mut self, field: ActorField) -> Option<TrackFieldMut<'_>> {
-        if let ActorField::Tagged(_) = field {
-            return None;
-        }
-        use ActorField::*;
-        Some(match field {
-            // Geometry writes go through `World.geometry_mut`; see `field_ref`.
-            Position | MotionOffset | Size | LayoutSize | Rotation | Scale | Transform
-            | PlacementMode | MinWidth | MinHeight | MaxHeight | LabelAt | CalloutTarget
-            | CalloutPlace | CalloutStandoff | CalloutToOffset | PositionBinding | AudioVolume => {
-                return None;
-            },
-            Color => TrackFieldMut::Vec4(&mut self.style.color),
-            Opacity => TrackFieldMut::F32(&mut self.style.opacity),
-            StrokeWidth => TrackFieldMut::F32(&mut self.style.stroke_width),
-            StrokeColor => TrackFieldMut::Vec4(&mut self.style.stroke_color),
-            StrokeProgress => TrackFieldMut::F32(&mut self.style.stroke_progress),
-            FillOpacity => TrackFieldMut::F32(&mut self.style.fill_opacity),
-            // Shape writes go through `World.shape_mut`; see `field_ref`.
-            ShapeType | LineFrom | LineTo | HeadSize | ArcAngles | CornerRadius | Points => {
-                return None;
-            },
-            LineCap => TrackFieldMut::U32(&mut self.style.line_cap),
-            LineJoin => TrackFieldMut::U32(&mut self.style.line_join),
-            DashPattern => TrackFieldMut::F32List(&mut self.style.dash_pattern),
-            FillGradient => TrackFieldMut::Gradient(&mut self.style.fill_gradient),
-            StrokeGradient => TrackFieldMut::Gradient(&mut self.style.stroke_gradient),
-            GradientExtend => TrackFieldMut::String(&mut self.style.gradient_extend),
-            GradientSpace => TrackFieldMut::String(&mut self.style.gradient_space),
-            DashOffset => TrackFieldMut::F32(&mut self.style.dash_offset),
-            Blend => TrackFieldMut::String(&mut self.style.blend),
-            Commands => return None,
-            // Text writes go through `World.text_mut`; see `field_ref`.
-            TextContent | TextMaxWidth | TextAlign | TextAnchor | Overflow | Language
-            | FontFamily | FontSize | CharProgress | Ascent | Descent | Baseline | FontWeight
-            | FontStyle | LineHeight | LetterSpacing | WordSpacing | TextPaths => return None,
-            MorphOptions => TrackFieldMut::MorphOptions(&mut self.style.morph_options),
-            HighlightColor | HighlightOpacity | HighlightPadding | HighlightRadius => return None,
-            VectorPaths => return None,
-            // Image data is written through the media/image paths (which hold
-            // the asset cache), never through generic property dispatch.
-            ImageData => return None,
-            _ => return None,
-        })
+    ///
+    /// See [`Self::field_ref`]: property tiers are `World` components, so
+    /// world-aware callers write through `World::fields_mut(id)`.
+    pub fn field_mut(&mut self, _field: ActorField) -> Option<TrackFieldMut<'_>> {
+        None
     }
 
     /// Returns `true` if the property track for `field` is currently
@@ -116,7 +37,7 @@ impl AnimationTrack {
     /// apart from the fall-through arm — which is what each caller keeps for itself
     /// below. A fourth copy is how a property ends up answering one query and not
     /// another.
-    fn field_for_property(property: &str) -> Option<ActorField> {
+    pub(crate) fn field_for_property(property: &str) -> Option<ActorField> {
         use ActorField::*;
         Some(match property {
             "position" => Position,

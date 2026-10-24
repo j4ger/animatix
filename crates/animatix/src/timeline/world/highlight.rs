@@ -31,7 +31,13 @@ impl World {
         });
         let plan = self.property_plan.get(id).max_keyframe_time();
         let geometry = self.geometry.try_get(id).and_then(|g| g.max_keyframe_time());
-        [track, highlight, tagged, plan, geometry].into_iter().flatten().max()
+        let style = self.style.try_get(id).and_then(|s| s.max_keyframe_time());
+        let shape = self.shape.try_get(id).and_then(|s| s.max_keyframe_time());
+        let text = self.text.try_get(id).and_then(|t| t.max_keyframe_time());
+        [track, highlight, tagged, plan, geometry, style, shape, text]
+            .into_iter()
+            .flatten()
+            .max()
     }
 
     /// Whether any tier (payload, highlight and plan included) has keyframes.
@@ -49,6 +55,9 @@ impl World {
             })
             || self.property_plan.get(id).has_any_keyframes()
             || self.geometry.try_get(id).is_some_and(|geometry| geometry.has_any_keyframes())
+            || self.style.try_get(id).is_some_and(|style| style.has_any_keyframes())
+            || self.shape.try_get(id).is_some_and(|shape| shape.has_any_keyframes())
+            || self.text.try_get(id).is_some_and(|text| text.has_any_keyframes())
     }
 }
 

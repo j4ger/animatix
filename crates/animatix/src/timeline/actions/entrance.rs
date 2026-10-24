@@ -51,15 +51,15 @@ impl BuiltinAction for WipeIn {
                 continue;
             }
 
-            let track = match timeline.world.tracks.get_mut(target) {
-                Some(t) => t,
-                None => continue,
+            let Some(id) = timeline.world.tracks.get_id(target) else {
+                continue;
             };
+            let style = timeline.world.style.get_mut(id);
 
             if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                super::ensure_guard_keyframe(&mut track.style.stroke_progress, guard_time, 1.0);
-                super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut style.stroke_progress, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut style.fill_opacity, guard_time, 1.0);
             }
 
             // Reveal pre-keyframe ("hidden by default") targets: wipe-in only
@@ -68,38 +68,26 @@ impl BuiltinAction for WipeIn {
             let meta = timeline
                 .world
                 .meta
-                .get_or_insert_with(track.id, crate::timeline::world::EntityMeta::default);
+                .get_or_insert_with(id, crate::timeline::world::EntityMeta::default);
             let was_hidden = meta.hidden_by_default;
-            super::lift_hidden_by_default(track, meta, t_start_ms, t_end_ms, easing);
+            super::lift_hidden_by_default(style, meta, t_start_ms, t_end_ms, easing);
             if !was_hidden {
                 // An explicitly authored `opacity: 0` needs the same lift: the
                 // wipe itself never writes opacity, so the target would stay
                 // invisible for the whole timeline.
-                super::reveal_authored_zero_opacity(track, t_start_ms, t_end_ms, easing);
+                super::reveal_authored_zero_opacity(style, t_start_ms, t_end_ms, easing);
             }
 
             // Reveal the fill to its authored value, not blindly to 1.0: a
             // stroke-only Path (fill_opacity seeded 0) must stay unfilled
             // after the wipe.
-            let authored_fill = track.style.fill_opacity.get(t_start_ms, 1.0);
+            let authored_fill = style.fill_opacity.get(t_start_ms, 1.0);
 
-            track
-                .style
-                .stroke_progress
-                .ensure(1.0)
-                .add_keyframe(t_start_ms, 0.0, Easing::Linear);
-            track
-                .style
-                .fill_opacity
-                .ensure(1.0)
-                .add_keyframe(t_start_ms, 0.0, Easing::Linear);
+            style.stroke_progress.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);
+            style.fill_opacity.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);
 
-            track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
-            track
-                .style
-                .fill_opacity
-                .ensure(1.0)
-                .add_keyframe(t_end_ms, authored_fill, easing);
+            style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+            style.fill_opacity.ensure(1.0).add_keyframe(t_end_ms, authored_fill, easing);
         }
     }
 }
@@ -145,8 +133,9 @@ impl BuiltinAction for FadeIn {
 
             if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                if let Some(track) = timeline.world.tracks.get_mut(target) {
-                    super::ensure_guard_keyframe(&mut track.style.opacity, guard_time, 1.0);
+                if let Some(id) = timeline.world.tracks.get_id(target) {
+                    let style = timeline.world.style_mut(id);
+                    super::ensure_guard_keyframe(&mut style.opacity, guard_time, 1.0);
                 }
             }
 
@@ -163,17 +152,17 @@ impl BuiltinAction for FadeIn {
                 .is_some_and(|m| m.hidden_by_default);
             super::lift_hidden_by_default_subtree(timeline, target, t_start_ms, t_end_ms, easing);
             if !was_hidden {
-                let track = match timeline.world.tracks.get_mut(target) {
-                    Some(t) => t,
-                    None => continue,
+                let Some(id) = timeline.world.tracks.get_id(target) else {
+                    continue;
                 };
+                let style = timeline.world.style_mut(id);
                 // Settle on the authored opacity. Only an authored 0 is a seed
                 // the entrance has to lift past; a hardcoded 1.0 here used to
                 // discard an authored `opacity: 0.25` without a diagnostic.
-                let end_opacity = super::entrance_opacity_target(track, t_start_ms);
-                track.style.opacity.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);
+                let end_opacity = super::entrance_opacity_target(style, t_start_ms);
+                style.opacity.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);
 
-                track.style.opacity.ensure(1.0).add_keyframe(t_end_ms, end_opacity, easing);
+                style.opacity.ensure(1.0).add_keyframe(t_end_ms, end_opacity, easing);
             }
         }
     }
@@ -317,10 +306,11 @@ mod tests {
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.world.tracks.get("headline").expect("headline track");
+        let style = report.output.world.style(track.id);
 
-        assert_eq!(track.style.opacity.get(0, 1.0), 0.0);
-        assert!(track.style.opacity.get(500, 1.0) > 0.0);
-        assert_eq!(track.style.opacity.get(1000, 1.0), 1.0);
+        assert_eq!(style.opacity.get(0, 1.0), 0.0);
+        assert!(style.opacity.get(500, 1.0) > 0.0);
+        assert_eq!(style.opacity.get(1000, 1.0), 1.0);
         assert!(report.diagnostics.is_empty());
     }
 
@@ -334,13 +324,14 @@ mod tests {
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.world.tracks.get("panel").expect("panel track");
+        let style = report.output.world.style(track.id);
 
-        assert_eq!(track.style.stroke_progress.get(0, 1.0), 0.0);
-        assert_eq!(track.style.fill_opacity.get(0, 1.0), 0.0);
-        assert!(track.style.stroke_progress.get(500, 1.0) > 0.0);
-        assert!(track.style.fill_opacity.get(500, 1.0) > 0.0);
-        assert_eq!(track.style.stroke_progress.get(1000, 1.0), 1.0);
-        assert_eq!(track.style.fill_opacity.get(1000, 1.0), 1.0);
+        assert_eq!(style.stroke_progress.get(0, 1.0), 0.0);
+        assert_eq!(style.fill_opacity.get(0, 1.0), 0.0);
+        assert!(style.stroke_progress.get(500, 1.0) > 0.0);
+        assert!(style.fill_opacity.get(500, 1.0) > 0.0);
+        assert_eq!(style.stroke_progress.get(1000, 1.0), 1.0);
+        assert_eq!(style.fill_opacity.get(1000, 1.0), 1.0);
         assert!(report.diagnostics.is_empty());
     }
 
@@ -380,10 +371,11 @@ mod tests {
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.world.tracks.get("panel").expect("panel track");
+        let style = report.output.world.style(track.id);
 
-        assert_eq!(track.style.opacity.get(0, 1.0), 0.0);
+        assert_eq!(style.opacity.get(0, 1.0), 0.0);
         assert_eq!(
-            track.style.opacity.get(1000, 1.0),
+            style.opacity.get(1000, 1.0),
             0.25,
             "fade-in must settle on the authored opacity, not 1.0"
         );
@@ -404,9 +396,10 @@ mod tests {
 
             let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
             let track = report.output.world.tracks.get("panel").expect("panel track");
+            let style = report.output.world.style(track.id);
 
             assert_eq!(
-                track.style.opacity.get(1000, 1.0),
+                style.opacity.get(1000, 1.0),
                 1.0,
                 "`{verb}` must reveal an explicitly authored `opacity: 0`, not leave it invisible"
             );
@@ -428,8 +421,9 @@ mod tests {
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.world.tracks.get("panel").expect("panel track");
+        let style = report.output.world.style(track.id);
 
-        assert_eq!(track.style.opacity.get(1000, 1.0), 0.25);
+        assert_eq!(style.opacity.get(1000, 1.0), 0.25);
     }
 
     #[test]
@@ -471,11 +465,12 @@ mod tests {
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.world.tracks.get("panel").expect("panel track");
+        let style = report.output.world.style(track.id);
 
-        assert_eq!(track.style.opacity.get(0, 1.0), 0.0);
-        assert_eq!(track.style.opacity.get(400, 1.0), 0.0, "still hidden before the wipe");
-        assert!(track.style.opacity.get(900, 1.0) > 0.0, "opacity must rise during the wipe");
-        assert_eq!(track.style.opacity.get(1200, 1.0), 1.0, "fully visible after the wipe");
+        assert_eq!(style.opacity.get(0, 1.0), 0.0);
+        assert_eq!(style.opacity.get(400, 1.0), 0.0, "still hidden before the wipe");
+        assert!(style.opacity.get(900, 1.0) > 0.0, "opacity must rise during the wipe");
+        assert_eq!(style.opacity.get(1200, 1.0), 1.0, "fully visible after the wipe");
         assert!(
             !report.output.world.meta(track.id).hidden_by_default,
             "flag must be consumed by the lift"
@@ -507,8 +502,9 @@ mod tests {
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.world.tracks.get("panel").expect("panel track");
+        let style = report.output.world.style(track.id);
 
         assert!(!report.output.world.meta(track.id).hidden_by_default);
-        assert_eq!(track.style.opacity.get(1200, 1.0), 0.3, "explicit opacity is preserved");
+        assert_eq!(style.opacity.get(1200, 1.0), 0.3, "explicit opacity is preserved");
     }
 }

@@ -65,6 +65,7 @@ fn test_legend_wrapped_label_respects_max_width() {
 
     let asset_cache = crate::timeline::assets::AssetCache::new();
     let geometry = crate::timeline::animation_track::GeometryTracks::default();
+    let style = crate::timeline::animation_track::StyleTracks::default();
     let ctx = EvaluateCtx {
         track: &track,
         caps: animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
@@ -85,6 +86,7 @@ fn test_legend_wrapped_label_respects_max_width() {
         shape: None,
         text: None,
         geometry: Some(&geometry),
+        style: Some(&style),
 
         payload: None,
         target_resolver: None,
@@ -240,6 +242,7 @@ fn test_legend_empty() {
 
     let asset_cache = crate::timeline::assets::AssetCache::new();
     let geometry = crate::timeline::animation_track::GeometryTracks::default();
+    let style = crate::timeline::animation_track::StyleTracks::default();
     let ctx = EvaluateCtx {
         track: &track,
         caps: animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
@@ -260,6 +263,7 @@ fn test_legend_empty() {
         shape: None,
         text: None,
         geometry: Some(&geometry),
+        style: Some(&style),
         payload: None,
         target_resolver: None,
         legend: Some(&legend),
@@ -666,6 +670,7 @@ fn test_legend_render_commands_produced() {
 
     let asset_cache = crate::timeline::assets::AssetCache::new();
     let geometry = crate::timeline::animation_track::GeometryTracks::default();
+    let style = crate::timeline::animation_track::StyleTracks::default();
     let ctx = EvaluateCtx {
         track: &track,
         caps: animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
@@ -686,6 +691,7 @@ fn test_legend_render_commands_produced() {
         shape: None,
         text: None,
         geometry: Some(&geometry),
+        style: Some(&style),
         payload: None,
         target_resolver: None,
         legend: Some(&legend),

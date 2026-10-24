@@ -98,7 +98,7 @@ box: Rect, size: (100, 100), at: (200, 200), shadow: (0, 8, 16, 2), shadow_color
         shape: Some(timeline.world.shape(track.id)),
         text: Some(timeline.world.text(track.id)),
         geometry: Some(timeline.world.geometry(track.id)),
-
+        style: Some(timeline.world.style(track.id)),
         payload: None,
         target_resolver: None,
         legend: None,

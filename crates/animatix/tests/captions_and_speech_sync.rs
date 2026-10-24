@@ -164,17 +164,16 @@ box: Rect, opacity: 0.0, at: (100, 100), size: (50.0, 50.0)
     assert!(report.diagnostics.is_empty(), "build diagnostics: {:?}", report.diagnostics);
 
     let tl = report.output;
-    let box_track = tl.tracks().get("box").expect("box track");
     let box_id = tl.get_entity_id("box").expect("box entity");
 
     // #voice@intro (intro = 0.5s) -> 500ms
     // #voice["Animatix"] (Animatix start_s = 1.1s) -> 1100ms
     // #voice@outro + 500ms (outro = 3.0s + 0.5s) -> 3500ms
     use animatix::timeline::TrackAccessor;
-    assert_eq!(box_track.style.opacity.get(400, 0.0), 0.0);
-    assert_eq!(box_track.style.opacity.get(500, 0.0), 1.0);
+    assert_eq!(tl.world().style(box_id).opacity.get(400, 0.0), 0.0);
+    assert_eq!(tl.world().style(box_id).opacity.get(500, 0.0), 1.0);
     assert_eq!(tl.world().geometry(box_id).size.get(1100, [0.0, 0.0])[0], 100.0); // half_width = 100
-    assert_eq!(box_track.style.opacity.get(3500, 1.0), 0.0);
+    assert_eq!(tl.world().style(box_id).opacity.get(3500, 1.0), 0.0);
 }
 
 #[test]
@@ -254,7 +253,7 @@ fn test_demo_scene_captions_evaluation() {
     assert!(tl.transcript("subs").is_some());
     let subs_track = tl.tracks().get("subs").expect("subs track must exist");
     assert_eq!(subs_track.actor_type, "Captions");
-    assert_eq!(subs_track.style.opacity.get(2000, 0.0), 1.0);
+    assert_eq!(tl.world().style(subs_track.id).opacity.get(2000, 0.0), 1.0);
 
     let _scene_at_2s = tl.evaluate(2.0, DIMS);
 }

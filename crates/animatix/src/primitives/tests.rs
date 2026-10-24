@@ -58,7 +58,8 @@ fn text_color_override_reaches_shape_style() {
     overrides.insert("color".to_string(), Value::Str("#ff2d55".to_string()));
     overrides.insert("stroke".to_string(), Value::Num(0.5));
     let caps = animatix_std::caps_for_type(&track.actor_type).unwrap_or_default();
-    let style = sample_shape_style(&track, caps, 0, Some(&overrides));
+    let style_tracks = crate::timeline::StyleTracks::default();
+    let style = sample_shape_style(&style_tracks, caps, 0, Some(&overrides));
     let near = |a: [f32; 4], b: [f32; 4]| a.iter().zip(b).all(|(x, y)| (x - y).abs() < 1e-6);
     assert!(
         near(style.color, [1.0, 45.0 / 255.0, 85.0 / 255.0, 1.0]),
@@ -240,6 +241,7 @@ fn runtime_text_content_crossfade_compiles_both_endpoints() {
     use crate::timeline::{AnimationTrack, SceneDimensions};
 
     let track = AnimationTrack::placeholder("label".to_string());
+    let style_tracks = crate::timeline::animation_track::StyleTracks::default();
     let mut content = PropertyTrack::new("Hello".to_string());
     content.add_keyframe(0, "Hello".to_string(), Easing::Linear);
     content.add_keyframe(1000, "Hello".to_string(), Easing::Linear);
@@ -269,6 +271,7 @@ fn runtime_text_content_crossfade_compiles_both_endpoints() {
         highlight: &crate::timeline::animation_track::HighlightTracks::default(),
         shape: None,
         geometry: None,
+        style: Some(&style_tracks),
         text: Some(&text),
         property_plan: None,
         caps: animatix_std::caps_for_type(track.actor_type.as_str()).unwrap_or_default(),

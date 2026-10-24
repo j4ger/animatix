@@ -72,3 +72,74 @@ pub struct TextTracks {
     #[cfg_attr(feature = "serde", serde(skip))]
     pub static_split_clip: Option<kurbo::BezPath>,
 }
+
+impl TextTracks {
+    /// Latest keyframe across the text property tracks.
+    pub fn max_keyframe_time(&self) -> Option<u64> {
+        macro_rules! latest {
+            ($($field:ident),* $(,)?) => {
+                [$(self.$field.as_ref().and_then(|t| t.last_keyframe_time())),*]
+                    .into_iter()
+                    .flatten()
+                    .max()
+            };
+        }
+        latest!(
+            text_content,
+            font_family,
+            font_size,
+            font_weight,
+            font_style,
+            line_height,
+            letter_spacing,
+            word_spacing,
+            text_max_width,
+            text_align,
+            text_anchor,
+            overflow,
+            language,
+            text_paths,
+            char_progress,
+            ascent,
+            descent,
+            baseline,
+            split_by,
+            split_stagger,
+            split_offset_y,
+            split_mask,
+        )
+    }
+
+    /// Whether any text property track has animated keyframes.
+    pub fn has_any_keyframes(&self) -> bool {
+        macro_rules! any_animated {
+            ($($field:ident),* $(,)?) => {
+                false $(|| self.$field.as_ref().is_some_and(|t| !t.is_effectively_static()))*
+            };
+        }
+        any_animated!(
+            text_content,
+            font_family,
+            font_size,
+            font_weight,
+            font_style,
+            line_height,
+            letter_spacing,
+            word_spacing,
+            text_max_width,
+            text_align,
+            text_anchor,
+            overflow,
+            language,
+            text_paths,
+            char_progress,
+            ascent,
+            descent,
+            baseline,
+            split_by,
+            split_stagger,
+            split_offset_y,
+            split_mask,
+        )
+    }
+}

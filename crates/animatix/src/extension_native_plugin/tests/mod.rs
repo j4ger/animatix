@@ -124,8 +124,9 @@ fn sample_evaluate_ctx_with_payload<'a>(
         ),
         property_plan: None,
         world: None,
-        // The shape, text and geometry tiers live in World; these helper
-        // contexts sample a bare track, so no component is attached.
+        // The shape, text, geometry and style tiers live in World; these helper
+        // contexts sample a bare track, so only a default style is attached.
+        style: Some(Box::leak(Box::new(crate::timeline::animation_track::StyleTracks::default()))),
         shape: None,
         text: None,
         geometry: None,

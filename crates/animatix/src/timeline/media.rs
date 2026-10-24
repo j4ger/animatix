@@ -181,11 +181,11 @@ impl Timeline {
                 .meta
                 .get_or_insert_with(track.id, crate::timeline::world::EntityMeta::default)
                 .hidden_by_default = true;
-            track
-                .style
-                .opacity
-                .ensure(1.0)
-                .add_keyframe(0, self.default_opacity, Easing::Linear);
+            self.world.style.get_mut(track.id).opacity.ensure(1.0).add_keyframe(
+                0,
+                self.default_opacity,
+                Easing::Linear,
+            );
         }
 
         let mut url = String::new();

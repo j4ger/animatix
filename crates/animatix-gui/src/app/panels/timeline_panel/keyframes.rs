@@ -1,6 +1,5 @@
 //! Keyframe diamond rendering, multi-select state, dragging, and context menus.
 
-use animatix::timeline::AnimationTrack;
 use egui::{Color32, FontId, Pos2, Rect, Sense, Stroke, Vec2};
 use eparts::widget::UiExt;
 
@@ -103,14 +102,14 @@ pub(crate) fn emit_keyframe_moves(commands: &mut ActionQueue, drag: Option<&KfDr
 /// Group an actor's keyframes by time, preserving every property keyed at that
 /// time.
 pub(crate) fn collect_actor_keyframe_groups(
-    track: &AnimationTrack,
     geometry: &animatix::timeline::animation_track::GeometryTracks,
+    style: &animatix::timeline::animation_track::StyleTracks,
     shape: &animatix::timeline::animation_track::ShapeTracks,
     text: &animatix::timeline::animation_track::TextTracks,
 ) -> Vec<(u64, Vec<String>)> {
     let mut by_time: std::collections::BTreeMap<u64, Vec<String>> =
         std::collections::BTreeMap::new();
-    for (property, times) in collect_per_property_keyframes(track, geometry, shape, text, None) {
+    for (property, times) in collect_per_property_keyframes(geometry, style, shape, text, None) {
         for time_ms in times {
             by_time.entry(time_ms).or_default().push(property.clone());
         }
@@ -165,8 +164,8 @@ pub(crate) struct KeyframeRenderCtx<'a> {
 /// Render aggregate keyframe diamonds for an actor track row.
 pub(crate) fn render_actor_keyframes(
     ui: &mut egui::Ui,
-    track: &AnimationTrack,
     geometry: &animatix::timeline::animation_track::GeometryTracks,
+    style: &animatix::timeline::animation_track::StyleTracks,
     shape: &animatix::timeline::animation_track::ShapeTracks,
     text: &animatix::timeline::animation_track::TextTracks,
     actor_label: &str,
@@ -187,7 +186,7 @@ pub(crate) fn render_actor_keyframes(
     let speech_snap_targets = ctx.speech_snap_targets;
     let theme = ctx.theme;
     let painter = ui.painter();
-    let kf_groups = collect_actor_keyframe_groups(track, geometry, shape, text);
+    let kf_groups = collect_actor_keyframe_groups(geometry, style, shape, text);
     for (kf_ms, props) in kf_groups {
         let prop_label = props.join(", ");
         let drag_prop = props.first().cloned().unwrap_or_default();

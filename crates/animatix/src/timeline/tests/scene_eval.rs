@@ -719,7 +719,11 @@ fn text_content_assignment_crossfades_paths_at_midpoint() {
     );
 
     let track = report.output.get_track("label").expect("label track should exist");
-    let paths_mid = track.evaluate_text_paths(report.output.world().text(track.id), 1500);
+    let paths_mid = track.evaluate_text_paths(
+        report.output.world().text(track.id),
+        report.output.world().style(track.id),
+        1500,
+    );
 
     // The default path-track morph would return one set of glyphs at the
     // midpoint. The content-assignment path stores a Fade morph so both

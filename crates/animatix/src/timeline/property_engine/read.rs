@@ -229,12 +229,18 @@ fn inject_value(
 pub(crate) fn read_property_value_resolved(
     track: &AnimationTrack,
     plan: &crate::timeline::plan::PropertyPlan,
+    world: Option<&crate::timeline::World>,
     schema: &crate::timeline::property_registry::PropertySchema,
     slot: Option<animatix_syntax::schema::PropertyId>,
     time_ms: u64,
 ) -> Option<PropertyValue> {
     if let Some(id) = slot
         && let Some(value) = read_property_plan_slot(plan, id, time_ms)
+    {
+        return Some(value);
+    }
+    if let Some(world) = world
+        && let Some(value) = world.read_property_value(track.id, schema.field, time_ms)
     {
         return Some(value);
     }
@@ -252,6 +258,7 @@ pub(crate) fn read_property_value_resolved(
 pub(crate) fn effective_f32_resolved(
     track: &AnimationTrack,
     plan: &crate::timeline::plan::PropertyPlan,
+    world: Option<&crate::timeline::World>,
     overrides: Option<&std::collections::HashMap<String, Value>>,
     time_ms: u64,
     name: &str,
@@ -262,7 +269,7 @@ pub(crate) fn effective_f32_resolved(
         return *v as f32;
     }
     if let Some((schema, slot)) = resolved
-        && let Some(pv) = read_property_value_resolved(track, plan, schema, slot, time_ms)
+        && let Some(pv) = read_property_value_resolved(track, plan, world, schema, slot, time_ms)
         && let PropertyValue::F32(v) = pv
     {
         return v;
@@ -277,13 +284,14 @@ pub(crate) fn effective_f32_resolved(
 pub(crate) fn effective_half_size_resolved(
     track: &AnimationTrack,
     plan: &crate::timeline::plan::PropertyPlan,
+    world: Option<&crate::timeline::World>,
     overrides: Option<&std::collections::HashMap<String, Value>>,
     time_ms: u64,
     resolved: crate::timeline::property_registry::ResolvedPropertyRead,
     default: [f32; 2],
 ) -> [f32; 2] {
     let track_half = if let Some((schema, slot)) = resolved
-        && let Some(pv) = read_property_value_resolved(track, plan, schema, slot, time_ms)
+        && let Some(pv) = read_property_value_resolved(track, plan, world, schema, slot, time_ms)
         && let PropertyValue::Vec2(v) = pv
     {
         v
@@ -298,6 +306,7 @@ pub(crate) fn effective_half_size_resolved(
 pub(crate) fn effective_transform(
     track: &AnimationTrack,
     plan: &crate::timeline::plan::PropertyPlan,
+    world: Option<&crate::timeline::World>,
     overrides: Option<&std::collections::HashMap<String, Value>>,
     time_ms: u64,
     name: &str,
@@ -314,7 +323,7 @@ pub(crate) fn effective_transform(
         }
     }
     if let Some((schema, slot)) = resolved
-        && let Some(pv) = read_property_value_resolved(track, plan, schema, slot, time_ms)
+        && let Some(pv) = read_property_value_resolved(track, plan, world, schema, slot, time_ms)
         && let PropertyValue::Transform(v) = pv
     {
         return v;

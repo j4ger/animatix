@@ -47,6 +47,8 @@ pub struct AssignmentCtx<'a> {
     pub shape: Option<&'a mut crate::timeline::animation_track::ShapeTracks>,
     /// Geometry tier for this actor.
     pub geometry: Option<&'a mut crate::timeline::animation_track::GeometryTracks>,
+    /// Style tier for this actor.
+    pub style: Option<&'a mut crate::timeline::animation_track::StyleTracks>,
     /// Text tier for this actor.
     pub text: Option<&'a mut crate::timeline::animation_track::TextTracks>,
     /// Registry-driven property plan for this actor.
@@ -98,6 +100,8 @@ pub struct EvaluateCtx<'a> {
     pub shape: Option<&'a crate::timeline::animation_track::ShapeTracks>,
     /// Geometry tier for this actor.
     pub geometry: Option<&'a crate::timeline::animation_track::GeometryTracks>,
+    /// Style tier for this actor.
+    pub style: Option<&'a crate::timeline::animation_track::StyleTracks>,
     /// Text tier for this actor.
     pub text: Option<&'a crate::timeline::animation_track::TextTracks>,
     /// Registry-driven property plan for this actor.

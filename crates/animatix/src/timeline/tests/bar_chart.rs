@@ -394,7 +394,11 @@ fn hosted_bar_chart_spans_graph_axis() {
     // Hosted bars must span most of the 800px axis box (math-mode layout
     // reserves padding), not the legacy central half.
     let track = report.output.world.tracks.get("chart").expect("chart track");
-    let paths = track.evaluate_vector_paths(report.output.world.shape(track.id), 0);
+    let paths = track.evaluate_vector_paths(
+        report.output.world.shape(track.id),
+        report.output.world.style(track.id),
+        0,
+    );
     assert!(!paths.is_empty(), "hosted bars should be baked");
     use kurbo::Shape as _;
     let mut min_x = f64::INFINITY;
@@ -671,7 +675,11 @@ fn plot_curve_color_drives_stroke() {
     );
 
     let track = report.output.world.tracks.get("curve").expect("curve track");
-    let paths = track.evaluate_vector_paths(report.output.world.shape(track.id), 0);
+    let paths = track.evaluate_vector_paths(
+        report.output.world.shape(track.id),
+        report.output.world.style(track.id),
+        0,
+    );
     let strokes: Vec<_> = paths.iter().filter_map(|p| p.stroke).collect();
     assert!(!strokes.is_empty(), "curve strokes should be baked");
     for (color, width) in strokes {
@@ -706,7 +714,11 @@ fn single_bar_colors_value_is_uniform() {
     );
 
     let track = report.output.world.tracks.get("chart").expect("chart track");
-    let paths = track.evaluate_vector_paths(report.output.world.shape(track.id), 0);
+    let paths = track.evaluate_vector_paths(
+        report.output.world.shape(track.id),
+        report.output.world.style(track.id),
+        0,
+    );
     let fills: Vec<_> = paths.iter().filter_map(|p| p.fill).collect();
     assert!(fills.len() >= 3, "expected three bar fills, got {fills:?}");
     let first = fills[0];
@@ -747,7 +759,11 @@ fn size_property_drives_bar_chart_geometry() {
 
     // Baked bar paths must span roughly the declared box (800x380 minus
     // hardcoded axis-label margins), not the legacy 40x40 cluster.
-    let paths = track.evaluate_vector_paths(report.output.world.shape(track.id), 0);
+    let paths = track.evaluate_vector_paths(
+        report.output.world.shape(track.id),
+        report.output.world.style(track.id),
+        0,
+    );
     assert!(!paths.is_empty(), "bar paths should be baked");
     use kurbo::Shape as _;
     let mut min = [f64::INFINITY; 2];

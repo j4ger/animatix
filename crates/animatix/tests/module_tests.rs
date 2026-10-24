@@ -622,7 +622,6 @@ sequence {
         "badge1 should exist. Tracks: {:?}",
         track_names
     );
-    let track = timeline.tracks().get("badge1").unwrap();
     let badge_id = timeline.get_entity_id("badge1").expect("badge1 entity");
     // bounce: each inlined assignment gets the invocation [200ms] modifier,
     // so total bounce span is 400ms (200ms + 200ms). fade-in starts at 400ms.
@@ -643,7 +642,7 @@ sequence {
     // to `expo-out` (it decelerates into place), so a third of the way through
     // the segment is already ~90% opaque rather than the ~33% a linear ramp
     // would give. See `default_easing_for`.
-    let opacity = track.style.opacity.as_ref().expect("opacity should exist");
+    let opacity = timeline.world().style(badge_id).opacity.as_ref().expect("opacity should exist");
     assert!(
         opacity.evaluate(500) > 0.8 && opacity.evaluate(500) < 1.0,
         "Opacity should have most of the way in at 500ms under expo-out, got {}",

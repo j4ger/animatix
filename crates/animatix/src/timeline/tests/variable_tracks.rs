@@ -407,7 +407,7 @@ for j in {0, 2} {
     for key in ["b__0", "b__2"] {
         let track = timeline.world.tracks.get(key).unwrap_or_else(|| panic!("{key} track"));
         assert_eq!(
-            track.style.color.get(200, [1.0, 1.0, 1.0, 1.0]),
+            timeline.world.style(track.id).color.get(200, [1.0, 1.0, 1.0, 1.0]),
             [1.0, 0.0, 0.0, 1.0],
             "indexed assignment should write the resolved actor by the end of its duration"
         );

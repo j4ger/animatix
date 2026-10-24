@@ -32,12 +32,12 @@ fade-in item [500ms]
     let timeline = report.output;
     let item_track = timeline.world.tracks.get("item").expect("item track exists");
     assert_eq!(
-        item_track.style.opacity.get(500, 1.0),
+        timeline.world.style(item_track.id).opacity.get(500, 1.0),
         0.0,
         "should be invisible before entrance"
     );
     assert_eq!(
-        item_track.style.opacity.get(1500, 0.0),
+        timeline.world.style(item_track.id).opacity.get(1500, 0.0),
         1.0,
         "should be lifted to 1.0 after entrance"
     );
@@ -95,9 +95,15 @@ t_right: Text, text: "Animatix", text_anchor: "right", at: (300, 200)
     let center = timeline.world.tracks.get("t_center").unwrap();
     let left = timeline.world.tracks.get("t_left").unwrap();
     let right = timeline.world.tracks.get("t_right").unwrap();
-    let center_paths = center.evaluate_text_paths(timeline.world.text(center.id), 0);
-    let left_paths = left.evaluate_text_paths(timeline.world.text(left.id), 0);
-    let right_paths = right.evaluate_text_paths(timeline.world.text(right.id), 0);
+    let center_paths = center.evaluate_text_paths(
+        timeline.world.text(center.id),
+        timeline.world.style(center.id),
+        0,
+    );
+    let left_paths =
+        left.evaluate_text_paths(timeline.world.text(left.id), timeline.world.style(left.id), 0);
+    let right_paths =
+        right.evaluate_text_paths(timeline.world.text(right.id), timeline.world.style(right.id), 0);
 
     let (c_min, c_max) = x_bounds(&center_paths);
     let (l_min, l_max) = x_bounds(&left_paths);
@@ -162,8 +168,9 @@ t.text_anchor = "right"
 
     let t_track = timeline.world.tracks.get("t").unwrap();
     let t_text = timeline.world.text(t_track.id);
-    let paths_0 = t_track.evaluate_text_paths(t_text, 0);
-    let paths_1000 = t_track.evaluate_text_paths(t_text, 1000);
+    let t_style = timeline.world.style(t_track.id);
+    let paths_0 = t_track.evaluate_text_paths(t_text, t_style, 0);
+    let paths_1000 = t_track.evaluate_text_paths(t_text, t_style, 1000);
 
     let (min_0, _) = x_bounds(&paths_0);
     let (_, max_1000) = x_bounds(&paths_1000);
@@ -216,6 +223,7 @@ always {
         world: Some(&timeline.world),
         shape: Some(timeline.world.shape(t_track.id)),
         text: Some(timeline.world.text(t_track.id)),
+        style: Some(timeline.world.style(t_track.id)),
         geometry: Some(timeline.world.geometry(t_track.id)),
         payload: timeline.world.payload(t_track.id),
         time_ms: 0,

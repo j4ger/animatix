@@ -79,8 +79,8 @@ pub(super) fn execute_action(
             let target_opacity = timeline
                 .world
                 .tracks
-                .get(target)
-                .map_or(1.0, |t| t.style.opacity.get(t_end_ms, 1.0));
+                .get_id(target)
+                .map_or(1.0, |id| timeline.world.style(id).opacity.get(t_end_ms, 1.0));
             if target_opacity <= 0.0 {
                 diagnostics.push(
                     Diagnostic::warning(

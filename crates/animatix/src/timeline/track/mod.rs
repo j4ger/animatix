@@ -83,10 +83,6 @@ pub struct AnimationTrack {
     /// takes them instead of re-unioning `cmd.local_bounds` per node.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) pending_shape_command_bounds: std::cell::Cell<Option<Option<kurbo::Rect>>>,
-
-    // ── Style tier (sub-struct) ──
-    /// Style property tracks (color, opacity, stroke, line_cap, line_join, morph_options).
-    pub style: StyleTracks,
     // ── Tagged union tracks ──
 }
 
@@ -109,9 +105,7 @@ impl AnimationTrack {
                 crate::primitives::ShapeCommandMemo::default(),
             )),
             pending_shape_command_bounds: std::cell::Cell::new(None),
-
             // Style tier (sub-struct)
-            style: StyleTracks::default(),
             // Text tier (sub-struct)
         }
     }
@@ -356,6 +350,7 @@ impl AnimationTrack {
     pub fn evaluate_text_paths_and_clip(
         &self,
         text: &TextTracks,
+        style: &StyleTracks,
         time_ms: u64,
     ) -> (Vec<TextPath>, Option<kurbo::BezPath>) {
         if let Some(content_track) = &text.text_content {
@@ -369,7 +364,7 @@ impl AnimationTrack {
         let default_paths = PropertyTrack::new(Vec::new());
         let paths_track = text.text_paths.as_ref().unwrap_or(&default_paths);
         let default_morph = PropertyTrack::new(MorphOptions::default());
-        let morph_track = self.style.morph_options.as_ref().unwrap_or(&default_morph);
+        let morph_track = style.morph_options.as_ref().unwrap_or(&default_morph);
         let mut paths = morph::evaluate_paths_with_options(
             paths_track,
             morph_track,
@@ -382,8 +377,13 @@ impl AnimationTrack {
     }
 
     /// Evaluate text paths at `time_ms`, applying morphing and char_progress truncation.
-    pub fn evaluate_text_paths(&self, text: &TextTracks, time_ms: u64) -> Vec<TextPath> {
-        self.evaluate_text_paths_and_clip(text, time_ms).0
+    pub fn evaluate_text_paths(
+        &self,
+        text: &TextTracks,
+        style: &StyleTracks,
+        time_ms: u64,
+    ) -> Vec<TextPath> {
+        self.evaluate_text_paths_and_clip(text, style, time_ms).0
     }
 }
 
@@ -537,6 +537,7 @@ impl AnimationTrack {
     pub fn evaluate_vector_paths(
         &self,
         shape: &ShapeTracks,
+        style: &StyleTracks,
         time_ms: u64,
     ) -> std::sync::Arc<Vec<VelloPath>> {
         use std::sync::Arc;
@@ -554,12 +555,12 @@ impl AnimationTrack {
                         return Arc::clone(shared);
                     }
                 }
-                let computed = Arc::new(self.evaluate_vector_paths_value(shape, time_ms));
+                let computed = Arc::new(self.evaluate_vector_paths_value(shape, style, time_ms));
                 *shape.vector_paths_memo.borrow_mut() = Some((epoch, Arc::clone(&computed)));
                 return computed;
             }
         }
-        Arc::new(self.evaluate_vector_paths_value(shape, time_ms))
+        Arc::new(self.evaluate_vector_paths_value(shape, style, time_ms))
     }
 
     /// Memoized `KurboShape → BezPath` conversion for the render path (PF-6).
@@ -596,13 +597,14 @@ impl AnimationTrack {
     pub(crate) fn evaluate_vector_paths_value(
         &self,
         shape: &ShapeTracks,
+        style: &StyleTracks,
         time_ms: u64,
     ) -> Vec<VelloPath> {
         let Some(paths_track) = shape.vector_paths.as_ref() else {
             return Vec::new();
         };
         let default_morph = PropertyTrack::new(MorphOptions::default());
-        let morph_track = self.style.morph_options.as_ref().unwrap_or(&default_morph);
+        let morph_track = style.morph_options.as_ref().unwrap_or(&default_morph);
         morph::evaluate_paths_with_options(
             paths_track,
             morph_track,

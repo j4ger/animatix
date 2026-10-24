@@ -216,7 +216,10 @@ fn test_animated_scene_has_keyframes() {
     let timeline = report.output;
 
     let track = timeline.get_track("box0").expect("box0 should exist");
-    assert!(track.has_any_keyframes(), "box0 should have animated keyframes");
+    assert!(
+        timeline.world().has_any_keyframes(track.id),
+        "box0 should have animated keyframes"
+    );
     assert!(
         timeline
             .world()
@@ -228,12 +231,13 @@ fn test_animated_scene_has_keyframes() {
             >= 2,
         "position should have at least 2 keyframes"
     );
+    let style = timeline.world().style(track.id);
     assert!(
-        track.style.color.as_ref().map(|t| t.keyframes.len()).unwrap_or(0) >= 2,
+        style.color.as_ref().map(|t| t.keyframes.len()).unwrap_or(0) >= 2,
         "color should have at least 2 keyframes"
     );
     assert!(
-        track.style.opacity.as_ref().map(|t| t.keyframes.len()).unwrap_or(0) >= 2,
+        style.opacity.as_ref().map(|t| t.keyframes.len()).unwrap_or(0) >= 2,
         "opacity should have at least 2 keyframes"
     );
 }

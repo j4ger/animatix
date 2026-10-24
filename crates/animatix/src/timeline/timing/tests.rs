@@ -90,8 +90,10 @@ fade-in box [500ms]
     );
     let timeline = report.output;
     let track = timeline.world.tracks.get("box").expect("box track");
-    let easing = track
-        .field_ref(crate::timeline::ActorField::Opacity)
-        .and_then(|f| f.keyframe_easing(500));
+    let easing = timeline.world.property_keyframe_easing(
+        track.id,
+        crate::timeline::ActorField::Opacity,
+        500,
+    );
     assert_eq!(easing, Some(Easing::ExpoOut), "the entrance keyframe must carry the default");
 }

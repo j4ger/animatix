@@ -582,12 +582,11 @@ mod tests {
     #[test]
     fn test_count_keyframes_skips_non_applicable_properties() {
         // Text kinds do not have shape-specific properties like stroke_width applicable
-        let mut track = make_track("Text");
+        let track = make_track("Text");
 
         // stroke_width is only applicable to AllShapes — not Text
         let mut sw = PropertyTrack::new(1.0);
         sw.add_keyframe(0, 2.0, Easing::Linear);
-        track.style.stroke_width = Some(sw);
 
         // position is applicable to Everything, and the text tier is a `World`
         // component, so spawn the entity first and then attach both stores.
@@ -597,6 +596,7 @@ mod tests {
         txt.add_keyframe(0, "hello".to_string(), Easing::Linear);
         let mut timeline = Timeline::new();
         let id = timeline.world_mut().spawn_with_track("test", track);
+        timeline.world_mut().style_mut(id).stroke_width = Some(sw);
         timeline.world_mut().geometry_mut(id).position = Some(pos);
         timeline.world_mut().text_mut(id).text_content = Some(txt);
         let track = timeline.world().track(id).expect("spawned track");

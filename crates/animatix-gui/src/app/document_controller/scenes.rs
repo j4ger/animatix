@@ -232,13 +232,14 @@ impl DocumentController<'_> {
         }
         let document = &self.document_store.source.document;
         self.ui_store.selection.selected_keyframes.retain(|keyframe| {
-            let Some((track, geometry, shape, text)) =
+            let Some((_track, geometry, style, shape, text)) =
                 resolve_timeline_for_scene(document, keyframe.scene.as_deref()).and_then(
                     |timeline| {
                         let track = timeline.get_track(&keyframe.actor)?;
                         Some((
                             track,
                             timeline.world().geometry(track.id),
+                            timeline.world().style(track.id),
                             timeline.world().shape(track.id),
                             timeline.world().text(track.id),
                         ))
@@ -248,7 +249,7 @@ impl DocumentController<'_> {
                 return false;
             };
             crate::app::document::timeline_diff::collect_per_property_keyframes(
-                track, geometry, shape, text, None,
+                geometry, style, shape, text, None,
             )
             .into_iter()
             .any(|(property, times)| {

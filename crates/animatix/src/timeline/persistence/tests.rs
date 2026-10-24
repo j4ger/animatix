@@ -11,10 +11,20 @@ fn make_timeline_with_persistent_actors() -> Timeline {
     let mut timeline = Timeline::new();
 
     // Create a simple Rect actor
-    let mut rect = AnimationTrack::placeholder("rect1".to_string());
-    rect.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-    rect.style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
+    let rect = AnimationTrack::placeholder("rect1".to_string());
     let rect_id = timeline.world.spawn_with_track("rect1", rect);
+    timeline
+        .world
+        .style_mut(rect_id)
+        .opacity
+        .ensure(1.0)
+        .add_keyframe(0, 1.0, Easing::Linear);
+    timeline
+        .world
+        .style_mut(rect_id)
+        .opacity
+        .ensure(1.0)
+        .add_keyframe(1000, 0.5, Easing::Linear);
 
     // Create a child actor
     let child = AnimationTrack::placeholder("child1".to_string());
@@ -45,12 +55,12 @@ fn make_timeline_with_persistent_actors() -> Timeline {
 
 #[test]
 fn snapshot_collapses_opacity_to_single_keyframe() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-    track.style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
+    let mut style = crate::timeline::animation_track::StyleTracks::default();
+    style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
+    style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
 
-    let snapshot = snapshot_track_at(&track, 500);
-    let opacity_track = snapshot.style.opacity.unwrap();
+    let snapshot = snapshot_style_at(&style, 500);
+    let opacity_track = snapshot.opacity.unwrap();
     assert_eq!(opacity_track.keyframes.len(), 1);
     assert_eq!(opacity_track.keyframes.get(&0).unwrap().0, 0.75); // interpolated at 500ms
 }
@@ -164,14 +174,12 @@ fn snapshot_preserves_procedural_plot() {
 
 #[test]
 fn snapshot_empty_track_has_no_keyframes() {
-    let track = AnimationTrack::placeholder("test".to_string());
-    let snapshot = snapshot_track_at(&track, 0);
+    let style = crate::timeline::animation_track::StyleTracks::default();
+    let snapshot = snapshot_style_at(&style, 0);
     let geometry = GeometryTracks::default();
     let geometry_snapshot = snapshot_geometry_at(&geometry, 0);
     // No property tracks should have keyframes
-    assert!(
-        snapshot.style.opacity.is_none() || snapshot.style.opacity.unwrap().keyframes.is_empty()
-    );
+    assert!(snapshot.opacity.is_none() || snapshot.opacity.unwrap().keyframes.is_empty());
     assert!(
         geometry_snapshot.position.is_none()
             || geometry_snapshot.position.unwrap().keyframes.is_empty()
@@ -199,7 +207,7 @@ fn compute_carry_bag_snapshots_persistent_actors() {
     assert!(entry.persistent);
 
     // The snapshot should have opacity ≈ 0.75 (interpolated at 500ms between 1.0 and 0.5)
-    let opacity = entry.track.style.opacity.as_ref().expect("snapshot should have opacity track");
+    let opacity = entry.style.opacity.as_ref().expect("snapshot should have opacity track");
     assert_eq!(opacity.keyframes.len(), 1);
     let (_, (val, _)) = opacity.keyframes.iter().next().unwrap();
     assert!((*val - 0.75).abs() < 1e-6);
@@ -229,13 +237,23 @@ fn compute_carry_bag_includes_children_of_persistent_actors() {
 fn compute_carry_bag_skips_non_persistent_actors() {
     let mut timeline = Timeline::new();
 
-    let mut rect1 = AnimationTrack::placeholder("rect1".to_string());
-    rect1.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-    timeline.world.spawn_with_track("rect1", rect1);
+    let rect1 = AnimationTrack::placeholder("rect1".to_string());
+    let rect1_id = timeline.world.spawn_with_track("rect1", rect1);
+    timeline
+        .world
+        .style_mut(rect1_id)
+        .opacity
+        .ensure(1.0)
+        .add_keyframe(0, 1.0, Easing::Linear);
 
-    let mut rect2 = AnimationTrack::placeholder("rect2".to_string());
-    rect2.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-    timeline.world.spawn_with_track("rect2", rect2);
+    let rect2 = AnimationTrack::placeholder("rect2".to_string());
+    let rect2_id = timeline.world.spawn_with_track("rect2", rect2);
+    timeline
+        .world
+        .style_mut(rect2_id)
+        .opacity
+        .ensure(1.0)
+        .add_keyframe(0, 1.0, Easing::Linear);
 
     // Only rect2 is persistent
     timeline.set_persistence_flag("rect2", true);
@@ -254,9 +272,14 @@ fn compute_carry_bag_skips_non_persistent_actors() {
 fn compute_carry_bag_carries_auto_color_slot() {
     let mut timeline = Timeline::new();
 
-    let mut actor = AnimationTrack::placeholder("circle".to_string());
-    actor.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-    timeline.world.spawn_with_track("circle", actor);
+    let actor = AnimationTrack::placeholder("circle".to_string());
+    let actor_id = timeline.world.spawn_with_track("circle", actor);
+    timeline
+        .world
+        .style_mut(actor_id)
+        .opacity
+        .ensure(1.0)
+        .add_keyframe(0, 1.0, Easing::Linear);
 
     // Simulate the color: auto assignment — slot 0 was assigned.
     timeline.set_auto_color_slot("circle", 0);
@@ -272,9 +295,14 @@ fn compute_carry_bag_carries_auto_color_slot() {
 #[test]
 fn inject_carry_bag_seeds_auto_color_assignments() {
     let mut source = Timeline::new();
-    let mut actor = AnimationTrack::placeholder("dot".to_string());
-    actor.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-    source.world.spawn_with_track("dot", actor);
+    let actor = AnimationTrack::placeholder("dot".to_string());
+    let actor_id = source.world.spawn_with_track("dot", actor);
+    source
+        .world
+        .style_mut(actor_id)
+        .opacity
+        .ensure(1.0)
+        .add_keyframe(0, 1.0, Easing::Linear);
     source.set_auto_color_slot("dot", 2);
     source.next_auto_color_index = 3;
     source.set_persistence_flag("dot", true);
@@ -299,9 +327,14 @@ fn inject_carry_bag_seeds_auto_color_assignments() {
 #[test]
 fn carry_bag_preserves_auto_color_and_transcript() {
     let mut source = Timeline::new();
-    let mut actor = AnimationTrack::placeholder("narrator".to_string());
-    actor.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-    source.world.spawn_with_track("narrator", actor);
+    let actor = AnimationTrack::placeholder("narrator".to_string());
+    let actor_id = source.world.spawn_with_track("narrator", actor);
+    source
+        .world
+        .style_mut(actor_id)
+        .opacity
+        .ensure(1.0)
+        .add_keyframe(0, 1.0, Easing::Linear);
     source.set_auto_color_slot("narrator", 2);
     source.next_auto_color_index = 3;
     source.set_persistence_flag("narrator", true);
@@ -335,8 +368,13 @@ fn carry_bag_preserves_container_layout() {
     let mut source = Timeline::new();
     let mut actor = AnimationTrack::placeholder("row".to_string());
     actor.set_identity("Row");
-    actor.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
     let row_id = source.world.spawn_with_track("row", actor);
+    source
+        .world
+        .style_mut(row_id)
+        .opacity
+        .ensure(1.0)
+        .add_keyframe(0, 1.0, Easing::Linear);
     source.set_persistence_flag("row", true);
     let source_a = source.spawn_entity("a", "Rect");
     let source_b = source.spawn_entity("b", "Rect");
@@ -644,12 +682,7 @@ fn carry_bag_serde_round_trip() {
     assert_eq!(entry.children.len(), 1);
 
     // Opacity should be ≈ 0.75 (interpolated at 500ms).
-    let opacity = entry
-        .track
-        .style
-        .opacity
-        .as_ref()
-        .expect("opacity track must survive round-trip");
+    let opacity = entry.style.opacity.as_ref().expect("opacity track must survive round-trip");
     let (_, (val, _)) = opacity.keyframes.iter().next().unwrap();
     assert!((*val - 0.75).abs() < 1e-4, "opacity expected ≈0.75, got {}", val);
 }

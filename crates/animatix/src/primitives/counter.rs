@@ -380,6 +380,7 @@ impl Primitive for CounterPrimitive {
         ctx: &EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<RenderCommand>>, RenderError> {
+        let style = ctx.style.expect("Counter evaluated without a style tier");
         let Some(ref data) = ctx.text.expect("Counter evaluated without a text tier").counter_data
         else {
             return Ok(None);
@@ -403,7 +404,7 @@ impl Primitive for CounterPrimitive {
         let (paths, clip_rect) = render_counter_columns(data, value, decimals, use_comma);
 
         // Apply animated color if present on the track
-        let tint_color = ctx.track.style.color.as_ref().map(|color_track| {
+        let tint_color = style.color.as_ref().map(|color_track| {
             let col = color_track.evaluate(ctx.time_ms);
             [
                 (col[0] * 255.0) as u8,
@@ -413,10 +414,8 @@ impl Primitive for CounterPrimitive {
             ]
         });
 
-        let fill_gradient = if ctx.track.style.fill_gradient.is_some() {
-            Some(Box::new(
-                ctx.track.style.fill_gradient.get(ctx.time_ms, GradientSpec::default()),
-            ))
+        let fill_gradient = if style.fill_gradient.is_some() {
+            Some(Box::new(style.fill_gradient.get(ctx.time_ms, GradientSpec::default())))
         } else {
             None
         };

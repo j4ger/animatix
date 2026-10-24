@@ -192,17 +192,18 @@ pub(super) fn lift_container_and_intermediate_containers(
     let resolved = resolve_action_target(timeline, label).unwrap_or_else(|| label.to_string());
     let children: Vec<String> = timeline.child_labels(&resolved).map(str::to_string).collect();
     if !children.is_empty() {
-        if let Some(track) = timeline.world.tracks.get_mut(&resolved) {
+        if let Some(id) = timeline.world.tracks.get_id(&resolved) {
+            let style = timeline.world.style.get_mut(id);
             let meta = timeline
                 .world
                 .meta
-                .get_or_insert_with(track.id, crate::timeline::world::EntityMeta::default);
+                .get_or_insert_with(id, crate::timeline::world::EntityMeta::default);
             let was_hidden = meta.hidden_by_default;
-            lift_hidden_by_default(track, meta, t_start_ms, t_end_ms, easing);
+            lift_hidden_by_default(style, meta, t_start_ms, t_end_ms, easing);
             if !was_hidden {
-                let authored = track.style.opacity.get(t_start_ms, 1.0);
+                let authored = style.opacity.get(t_start_ms, 1.0);
                 if authored == 0.0 {
-                    reveal_authored_zero_opacity(track, t_start_ms, t_end_ms, easing);
+                    reveal_authored_zero_opacity(style, t_start_ms, t_end_ms, easing);
                 }
             }
         }

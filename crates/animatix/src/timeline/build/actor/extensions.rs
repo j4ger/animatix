@@ -59,8 +59,8 @@ impl Timeline {
                     if let Ok(crate::timeline::Value::Num(v)) =
                         super::evaluate_expr(&prop.value, &eval_env)
                     {
-                        if let Some(track) = self.world.tracks.get_mut(label) {
-                            track.style.opacity.ensure(1.0).add_keyframe(
+                        if let Some(id) = self.world.get_id(label) {
+                            self.world.style_mut(id).opacity.ensure(1.0).add_keyframe(
                                 time_ms as u64,
                                 v.clamp(0.0, 1.0) as f32,
                                 Easing::Linear,
@@ -187,7 +187,7 @@ impl Timeline {
     /// Frame time samples them off the track (`stamp_stroke_decoration`), so the
     /// declaration has to be routed through the generic engine here.
     pub(super) fn insert_plot_decoration_keyframes(
-        track: &mut AnimationTrack,
+        style: &mut crate::timeline::StyleTracks,
         props: &[Property],
         eval_env: &Environment,
         label: &str,
@@ -213,6 +213,10 @@ impl Timeline {
                 continue;
             };
             let subject = format!("{label}.{}", prop.name);
+            let default_caps = animatix_std::caps_for_type("PlotCurve").unwrap_or_default();
+            let pv_default = (schema.default_value)(&default_caps);
+            let has_duration = t_end_ms > t_start_ms;
+            let has_delay = t_start_ms > 0 && !has_duration;
             if let Some(pv) = crate::timeline::property_engine::parse_property_value(
                 schema.value_type,
                 &prop.value,
@@ -220,15 +224,90 @@ impl Timeline {
                 diagnostics,
                 &subject,
             ) {
-                crate::timeline::property_engine::write_property_field(
-                    track,
-                    schema.field,
-                    pv,
-                    t_start_ms,
-                    t_end_ms,
-                    easing,
-                    diagnostics,
-                );
+                use crate::timeline::property_engine::{
+                    write_f32, write_f32_list, write_gradient, write_string,
+                };
+                match schema.field {
+                    crate::timeline::ActorField::DashPattern => write_f32_list(
+                        &mut style.dash_pattern,
+                        pv,
+                        t_start_ms,
+                        t_end_ms,
+                        easing,
+                        match pv_default {
+                            PropertyValue::F32List(d) => d,
+                            _ => Vec::new(),
+                        },
+                        has_duration,
+                        has_delay,
+                    ),
+                    crate::timeline::ActorField::DashOffset => write_f32(
+                        &mut style.dash_offset,
+                        pv,
+                        t_start_ms,
+                        t_end_ms,
+                        easing,
+                        match pv_default {
+                            PropertyValue::F32(d) => d,
+                            _ => 0.0,
+                        },
+                        has_duration,
+                        has_delay,
+                    ),
+                    crate::timeline::ActorField::FillGradient => write_gradient(
+                        &mut style.fill_gradient,
+                        pv,
+                        t_start_ms,
+                        t_end_ms,
+                        easing,
+                        match pv_default {
+                            PropertyValue::Gradient(d) => d,
+                            _ => Default::default(),
+                        },
+                        has_duration,
+                        has_delay,
+                    ),
+                    crate::timeline::ActorField::StrokeGradient => write_gradient(
+                        &mut style.stroke_gradient,
+                        pv,
+                        t_start_ms,
+                        t_end_ms,
+                        easing,
+                        match pv_default {
+                            PropertyValue::Gradient(d) => d,
+                            _ => Default::default(),
+                        },
+                        has_duration,
+                        has_delay,
+                    ),
+                    crate::timeline::ActorField::GradientExtend => write_string(
+                        &mut style.gradient_extend,
+                        pv,
+                        t_start_ms,
+                        t_end_ms,
+                        easing,
+                        match pv_default.clone() {
+                            PropertyValue::String(d) => d,
+                            _ => String::new(),
+                        },
+                        has_duration,
+                        has_delay,
+                    ),
+                    crate::timeline::ActorField::GradientSpace => write_string(
+                        &mut style.gradient_space,
+                        pv,
+                        t_start_ms,
+                        t_end_ms,
+                        easing,
+                        match pv_default.clone() {
+                            PropertyValue::String(d) => d,
+                            _ => String::new(),
+                        },
+                        has_duration,
+                        has_delay,
+                    ),
+                    _ => {},
+                }
             }
         }
     }
@@ -426,6 +505,7 @@ impl Timeline {
             self.world.meta.record_first_seen(track_id, t_start_ms);
 
             let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
+            let style = self.world.style.get_mut(track_id);
             let shape = self.world.shape.get_mut(track_id);
             let geometry = self.world.geometry.get_mut(track_id);
 
@@ -436,11 +516,7 @@ impl Timeline {
                     .meta
                     .get_or_insert_with(track.id, crate::timeline::world::EntityMeta::default)
                     .hidden_by_default = true;
-                track.style.opacity.ensure(1.0).add_keyframe(
-                    0,
-                    self.default_opacity,
-                    Easing::Linear,
-                );
+                style.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
             }
 
             if let Some((binding, bound_position)) = position_binding {
@@ -454,15 +530,18 @@ impl Timeline {
 
             // === Keyframe Insertion ===
             if duration_ms > 0.0 {
-                insert_start_keyframes(track, geometry, shape, track_caps, t_start_ms);
+                insert_start_keyframes(track, style, geometry, shape, track_caps, t_start_ms);
             } else if delay_ms > 0.0 {
-                preserve_delayed_values(track, geometry, shape, t_start_ms);
+                preserve_delayed_values(style, geometry, shape, t_start_ms);
             }
 
             // Plot hosts are never `Rect`; carry the track value through.
             let corner_radius = shape.corner_radius.last(0.0);
+            let dash_pattern = style.dash_pattern.last(Vec::new());
+            let dash_offset = style.dash_offset.last(0.0);
             insert_end_keyframes(
                 track,
+                style,
                 geometry,
                 shape,
                 track_caps,
@@ -480,14 +559,14 @@ impl Timeline {
                 stroke_color,
                 stroke_progress,
                 fill_opacity,
-                track.style.dash_pattern.last(Vec::new()),
-                track.style.dash_offset.last(0.0),
+                dash_pattern,
+                dash_offset,
                 vello_paths,
                 easing,
             );
 
             Self::insert_plot_decoration_keyframes(
-                track,
+                self.world.style.get_mut(track_id),
                 props,
                 &eval_env,
                 label,

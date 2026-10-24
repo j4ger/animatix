@@ -75,6 +75,7 @@ impl Timeline {
         let rotation = effective_f32_resolved(
             track,
             self.world.property_plan(track.id),
+            Some(&self.world),
             node_overrides,
             time_ms,
             "rotation",
@@ -84,6 +85,7 @@ impl Timeline {
         let scale = effective_f32_resolved(
             track,
             self.world.property_plan(track.id),
+            Some(&self.world),
             node_overrides,
             time_ms,
             "scale",
@@ -93,6 +95,7 @@ impl Timeline {
         let opacity = effective_f32_resolved(
             track,
             self.world.property_plan(track.id),
+            Some(&self.world),
             node_overrides,
             time_ms,
             "opacity",
@@ -102,6 +105,7 @@ impl Timeline {
         let half_size = effective_half_size_resolved(
             track,
             self.world.property_plan(track.id),
+            Some(&self.world),
             node_overrides,
             time_ms,
             reads.size,
@@ -111,6 +115,7 @@ impl Timeline {
         let transform = effective_transform(
             track,
             self.world.property_plan(track.id),
+            Some(&self.world),
             node_overrides,
             time_ms,
             "transform",

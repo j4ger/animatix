@@ -10,18 +10,17 @@ use crate::timeline::{DEFAULT_WHITE, ModifierHost, Timeline, parse_timing_modifi
 /// draw/reveal actions. The outline uses the actor's fill color so the default
 /// declaration stays clean while the entrance effect remains visible.
 fn ensure_reveal_stroke(
-    track: &mut crate::timeline::AnimationTrack,
+    style: &mut crate::timeline::animation_track::StyleTracks,
     caps: crate::timeline::ActorCaps,
     time_ms: u64,
 ) {
-    let current_width = track.style.stroke_width.get(time_ms, caps.default_stroke_width());
+    let current_width = style.stroke_width.get(time_ms, caps.default_stroke_width());
     if current_width > 0.0 {
         return;
     }
-    let color = track.style.color.get(time_ms, DEFAULT_WHITE);
-    track.style.stroke_width.ensure(2.0).add_keyframe(time_ms, 2.0, Easing::Linear);
-    track
-        .style
+    let color = style.color.get(time_ms, DEFAULT_WHITE);
+    style.stroke_width.ensure(2.0).add_keyframe(time_ms, 2.0, Easing::Linear);
+    style
         .stroke_color
         .ensure(DEFAULT_WHITE)
         .add_keyframe(time_ms, color, Easing::Linear);
@@ -188,10 +187,10 @@ impl BuiltinAction for DrawIn {
                 None => continue,
             };
 
-            let track = match timeline.world.tracks.get_mut(target) {
-                Some(t) => t,
-                None => continue,
+            let Some(id) = timeline.world.tracks.get_id(target) else {
+                continue;
             };
+            let style = timeline.world.style.get_mut(id);
 
             // Reveal pre-keyframe ("hidden by default") targets: draw-in
             // animates stroke_progress/fill_opacity/char_progress but never
@@ -199,16 +198,16 @@ impl BuiltinAction for DrawIn {
             let meta = timeline
                 .world
                 .meta
-                .get_or_insert_with(track.id, crate::timeline::world::EntityMeta::default);
+                .get_or_insert_with(id, crate::timeline::world::EntityMeta::default);
             let was_hidden = meta.hidden_by_default;
-            super::lift_hidden_by_default(track, meta, t_start_ms, t_end_ms, easing);
+            super::lift_hidden_by_default(style, meta, t_start_ms, t_end_ms, easing);
             if !was_hidden {
                 // An explicitly authored `opacity: 0` needs the same lift.
-                super::reveal_authored_zero_opacity(track, t_start_ms, t_end_ms, easing);
+                super::reveal_authored_zero_opacity(style, t_start_ms, t_end_ms, easing);
             }
 
             if is_text {
-                let text = timeline.world.text.get_mut(track.id);
+                let text = timeline.world.text.get_mut(id);
                 let by_opt = reveal_granularity(&action.modifiers);
                 let stagger_opt = reveal_stagger(&action.modifiers);
                 let offset_y_opt = reveal_offset_y(&action.modifiers);
@@ -292,43 +291,31 @@ impl BuiltinAction for DrawIn {
                     },
                 }
             } else {
-                ensure_reveal_stroke(track, caps, t_start_ms);
+                ensure_reveal_stroke(style, caps, t_start_ms);
                 if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
                     let guard_time = t_start_ms.saturating_sub(1);
-                    super::ensure_guard_keyframe(&mut track.style.stroke_progress, guard_time, 1.0);
-                    super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
+                    super::ensure_guard_keyframe(&mut style.stroke_progress, guard_time, 1.0);
+                    super::ensure_guard_keyframe(&mut style.fill_opacity, guard_time, 1.0);
                 }
 
                 // Reveal the fill to its authored value, not blindly to 1.0: a
                 // stroke-only Path (fill_opacity seeded 0) must stay unfilled
                 // after the draw completes.
-                let authored_fill = track.style.fill_opacity.get(t_start_ms, 1.0);
+                let authored_fill = style.fill_opacity.get(t_start_ms, 1.0);
 
-                track.style.stroke_progress.ensure(1.0).add_keyframe(
-                    t_start_ms,
-                    0.0,
-                    Easing::Linear,
-                );
-                track
-                    .style
-                    .fill_opacity
-                    .ensure(1.0)
-                    .add_keyframe(t_start_ms, 0.0, Easing::Linear);
+                style.stroke_progress.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);
+                style.fill_opacity.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);
 
                 if duration_ms > 0.0 && t_end_ms > t_start_ms {
-                    track.style.fill_opacity.ensure(1.0).add_keyframe(
+                    style.fill_opacity.ensure(1.0).add_keyframe(
                         t_end_ms.saturating_sub(1),
                         0.0,
                         Easing::Linear,
                     );
                 }
 
-                track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
-                track
-                    .style
-                    .fill_opacity
-                    .ensure(1.0)
-                    .add_keyframe(t_end_ms, authored_fill, easing);
+                style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+                style.fill_opacity.ensure(1.0).add_keyframe(t_end_ms, authored_fill, easing);
             }
         }
     }
@@ -398,10 +385,10 @@ impl BuiltinAction for RevealIn {
                 None => continue,
             };
 
-            let track = match timeline.world.tracks.get_mut(target) {
-                Some(t) => t,
-                None => continue,
+            let Some(id) = timeline.world.tracks.get_id(target) else {
+                continue;
             };
+            let style = timeline.world.style.get_mut(id);
 
             // Reveal pre-keyframe ("hidden by default") targets: reveal-in
             // animates stroke_progress/fill_opacity but never opacity, so
@@ -409,16 +396,16 @@ impl BuiltinAction for RevealIn {
             let meta = timeline
                 .world
                 .meta
-                .get_or_insert_with(track.id, crate::timeline::world::EntityMeta::default);
+                .get_or_insert_with(id, crate::timeline::world::EntityMeta::default);
             let was_hidden = meta.hidden_by_default;
-            super::lift_hidden_by_default(track, meta, t_start_ms, t_end_ms, easing);
+            super::lift_hidden_by_default(style, meta, t_start_ms, t_end_ms, easing);
             if !was_hidden {
                 // An explicitly authored `opacity: 0` needs the same lift.
-                super::reveal_authored_zero_opacity(track, t_start_ms, t_end_ms, easing);
+                super::reveal_authored_zero_opacity(style, t_start_ms, t_end_ms, easing);
             }
 
             if is_text {
-                let text = timeline.world.text.get_mut(track.id);
+                let text = timeline.world.text.get_mut(id);
                 let by_opt = reveal_granularity(&action.modifiers);
                 let stagger_opt = reveal_stagger(&action.modifiers);
                 let offset_y_opt = reveal_offset_y(&action.modifiers);
@@ -458,38 +445,33 @@ impl BuiltinAction for RevealIn {
                 text.char_progress.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);
                 text.char_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
             } else {
-                let has_prior_stroke = track
-                    .style
+                let has_prior_stroke = style
                     .stroke_progress
                     .as_ref()
                     .map(|t| t.keyframes.keys().any(|&k| k < t_start_ms))
                     .unwrap_or(false);
                 let start_stroke = if has_prior_stroke {
-                    track.style.stroke_progress.get(t_start_ms, 1.0)
+                    style.stroke_progress.get(t_start_ms, 1.0)
                 } else {
                     0.0
                 };
 
-                ensure_reveal_stroke(track, caps, t_start_ms);
+                ensure_reveal_stroke(style, caps, t_start_ms);
 
                 // Reveal the fill to its authored value, not blindly to 1.0: a
                 // stroke-only Path (fill_opacity seeded 0) must stay unfilled
                 // after the reveal completes.
-                let authored_fill = track.style.fill_opacity.get(t_start_ms, 1.0);
+                let authored_fill = style.fill_opacity.get(t_start_ms, 1.0);
 
                 if duration_ms > 0.0 {
-                    track.style.stroke_progress.ensure(1.0).add_keyframe(
+                    style.stroke_progress.ensure(1.0).add_keyframe(
                         t_start_ms,
                         start_stroke,
                         Easing::Linear,
                     );
-                    track.style.fill_opacity.ensure(1.0).add_keyframe(
-                        t_start_ms,
-                        0.0,
-                        Easing::Linear,
-                    );
+                    style.fill_opacity.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);
                     if t_end_ms > t_start_ms {
-                        track.style.fill_opacity.ensure(1.0).add_keyframe(
+                        style.fill_opacity.ensure(1.0).add_keyframe(
                             t_end_ms.saturating_sub(1),
                             0.0,
                             Easing::Linear,
@@ -497,16 +479,16 @@ impl BuiltinAction for RevealIn {
                     }
                 } else if delay_ms > 0.0 && t_start_ms > 0 {
                     let guard_time = t_start_ms.saturating_sub(1);
-                    super::ensure_guard_keyframe(&mut track.style.stroke_progress, guard_time, 1.0);
-                    super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
+                    super::ensure_guard_keyframe(&mut style.stroke_progress, guard_time, 1.0);
+                    super::ensure_guard_keyframe(&mut style.fill_opacity, guard_time, 1.0);
                 }
 
-                track.style.fill_opacity.ensure(1.0).add_keyframe(
+                style.fill_opacity.ensure(1.0).add_keyframe(
                     t_end_ms,
                     authored_fill,
                     Easing::Linear,
                 );
-                track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
+                style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 1.0, easing);
             }
         }
     }
@@ -559,33 +541,32 @@ impl BuiltinAction for WipeOut {
                 continue;
             }
 
-            let track = match timeline.world.tracks.get_mut(target) {
-                Some(t) => t,
-                None => continue,
+            let Some(id) = timeline.world.tracks.get_id(target) else {
+                continue;
             };
+            let style = timeline.world.style_mut(id);
 
-            let start_stroke = track.style.stroke_progress.get(t_start_ms, 1.0);
-            let start_fill = track.style.fill_opacity.get(t_start_ms, 1.0);
+            let start_stroke = style.stroke_progress.get(t_start_ms, 1.0);
+            let start_fill = style.fill_opacity.get(t_start_ms, 1.0);
 
             if duration_ms > 0.0 {
-                track.style.stroke_progress.ensure(1.0).add_keyframe(
+                style.stroke_progress.ensure(1.0).add_keyframe(
                     t_start_ms,
                     start_stroke,
                     Easing::Linear,
                 );
-                track.style.fill_opacity.ensure(1.0).add_keyframe(
-                    t_start_ms,
-                    start_fill,
-                    Easing::Linear,
-                );
+                style
+                    .fill_opacity
+                    .ensure(1.0)
+                    .add_keyframe(t_start_ms, start_fill, Easing::Linear);
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                super::ensure_guard_keyframe(&mut track.style.stroke_progress, guard_time, 1.0);
-                super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut style.stroke_progress, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut style.fill_opacity, guard_time, 1.0);
             }
 
-            track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
-            track.style.fill_opacity.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
+            style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
+            style.fill_opacity.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
         }
     }
 }
@@ -637,31 +618,27 @@ impl BuiltinAction for RevealOut {
                 continue;
             }
 
-            let track = match timeline.world.tracks.get_mut(target) {
-                Some(t) => t,
-                None => continue,
+            let Some(id) = timeline.world.tracks.get_id(target) else {
+                continue;
             };
+            let style = timeline.world.style_mut(id);
 
-            let start_stroke = track.style.stroke_progress.get(t_start_ms, 1.0);
+            let start_stroke = style.stroke_progress.get(t_start_ms, 1.0);
 
             if duration_ms > 0.0 {
-                track.style.stroke_progress.ensure(1.0).add_keyframe(
+                style.stroke_progress.ensure(1.0).add_keyframe(
                     t_start_ms,
                     start_stroke,
                     Easing::Linear,
                 );
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                super::ensure_guard_keyframe(&mut track.style.stroke_progress, guard_time, 1.0);
-                super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut style.stroke_progress, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut style.fill_opacity, guard_time, 1.0);
             }
 
-            track
-                .style
-                .fill_opacity
-                .ensure(1.0)
-                .add_keyframe(t_start_ms, 0.0, Easing::Linear);
-            track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
+            style.fill_opacity.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);
+            style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
         }
     }
 }
@@ -713,38 +690,37 @@ impl BuiltinAction for DrawOut {
                 continue;
             }
 
-            let track = match timeline.world.tracks.get_mut(target) {
-                Some(t) => t,
-                None => continue,
+            let Some(id) = timeline.world.tracks.get_id(target) else {
+                continue;
             };
+            let style = timeline.world.style_mut(id);
 
-            let start_stroke = track.style.stroke_progress.get(t_start_ms, 1.0);
-            let start_fill = track.style.fill_opacity.get(t_start_ms, 1.0);
+            let start_stroke = style.stroke_progress.get(t_start_ms, 1.0);
+            let start_fill = style.fill_opacity.get(t_start_ms, 1.0);
 
             if duration_ms > 0.0 {
-                track.style.stroke_progress.ensure(1.0).add_keyframe(
+                style.stroke_progress.ensure(1.0).add_keyframe(
                     t_start_ms,
                     start_stroke,
                     Easing::Linear,
                 );
-                track.style.fill_opacity.ensure(1.0).add_keyframe(
-                    t_start_ms,
-                    start_fill,
-                    Easing::Linear,
-                );
-                track.style.fill_opacity.ensure(1.0).add_keyframe(
+                style
+                    .fill_opacity
+                    .ensure(1.0)
+                    .add_keyframe(t_start_ms, start_fill, Easing::Linear);
+                style.fill_opacity.ensure(1.0).add_keyframe(
                     t_end_ms.saturating_sub(1),
                     start_fill,
                     Easing::Linear,
                 );
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                super::ensure_guard_keyframe(&mut track.style.stroke_progress, guard_time, 1.0);
-                super::ensure_guard_keyframe(&mut track.style.fill_opacity, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut style.stroke_progress, guard_time, 1.0);
+                super::ensure_guard_keyframe(&mut style.fill_opacity, guard_time, 1.0);
             }
 
-            track.style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
-            track.style.fill_opacity.ensure(1.0).add_keyframe(t_end_ms, 0.0, Easing::Linear);
+            style.stroke_progress.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
+            style.fill_opacity.ensure(1.0).add_keyframe(t_end_ms, 0.0, Easing::Linear);
         }
     }
 }

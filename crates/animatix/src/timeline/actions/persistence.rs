@@ -25,23 +25,22 @@ pub(crate) fn apply_fade_out_opacity(
     delay_ms: f64,
     easing: Easing,
 ) {
-    let track = match timeline.world.tracks.get_mut(target) {
-        Some(t) => t,
-        None => return,
+    let Some(id) = timeline.world.tracks.get_id(target) else {
+        return;
     };
+    let style = timeline.world.style_mut(id);
 
-    let start_opacity = track.style.opacity.get(t_start_ms, 1.0);
+    let start_opacity = style.opacity.get(t_start_ms, 1.0);
     if t_end_ms > t_start_ms {
-        track
-            .style
+        style
             .opacity
             .ensure(1.0)
             .add_keyframe(t_start_ms, start_opacity, Easing::Linear);
     } else if delay_ms > 0.0 && t_start_ms > 0 {
         let guard_time = t_start_ms.saturating_sub(1);
-        super::ensure_guard_keyframe(&mut track.style.opacity, guard_time, 1.0);
+        super::ensure_guard_keyframe(&mut style.opacity, guard_time, 1.0);
     }
-    track.style.opacity.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
+    style.opacity.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
 }
 
 // ---------------------------------------------------------------------------
@@ -270,9 +269,9 @@ mod tests {
     #[test]
     fn persist_sets_flag() {
         let mut timeline = Timeline::new();
-        let mut track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
-        track.style.opacity.ensure(1.0);
-        timeline.world.tracks.insert("actor".to_string(), track);
+        let track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
+        let id = timeline.world.spawn_with_track("actor", track);
+        timeline.world.style_mut(id).opacity.ensure(1.0);
 
         let action = Action {
             verb: "persist".to_string(),
@@ -294,9 +293,9 @@ mod tests {
     fn persist_supports_multiple_targets() {
         let mut timeline = Timeline::new();
         for label in ["a", "b", "c"] {
-            let mut track = crate::timeline::AnimationTrack::placeholder(label.to_string());
-            track.style.opacity.ensure(1.0);
-            timeline.world.tracks.insert(label.to_string(), track);
+            let track = crate::timeline::AnimationTrack::placeholder(label.to_string());
+            let id = timeline.world.spawn_with_track(label, track);
+            timeline.world.style_mut(id).opacity.ensure(1.0);
         }
 
         let action = Action {
@@ -320,9 +319,9 @@ mod tests {
     #[test]
     fn persist_emits_warning_for_duration_modifier() {
         let mut timeline = Timeline::new();
-        let mut track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
-        track.style.opacity.ensure(1.0);
-        timeline.world.tracks.insert("actor".to_string(), track);
+        let track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
+        let id = timeline.world.spawn_with_track("actor", track);
+        timeline.world.style_mut(id).opacity.ensure(1.0);
 
         let action = Action {
             verb: "persist".to_string(),
@@ -378,9 +377,9 @@ mod tests {
     #[test]
     fn remove_clears_persistence_flag() {
         let mut timeline = Timeline::new();
-        let mut track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
-        track.style.opacity.ensure(1.0);
-        timeline.world.tracks.insert("actor".to_string(), track);
+        let track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
+        let id = timeline.world.spawn_with_track("actor", track);
+        timeline.world.style_mut(id).opacity.ensure(1.0);
         timeline.set_persistence_flag("actor", true);
 
         let action = Action {
@@ -406,9 +405,14 @@ mod tests {
     #[test]
     fn remove_instant_sets_opacity_to_zero() {
         let mut timeline = Timeline::new();
-        let mut track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
-        track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-        timeline.world.tracks.insert("actor".to_string(), track);
+        let track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
+        let id = timeline.world.spawn_with_track("actor", track);
+        timeline
+            .world
+            .style_mut(id)
+            .opacity
+            .ensure(1.0)
+            .add_keyframe(0, 1.0, Easing::Linear);
 
         let action = Action {
             verb: "remove".to_string(),
@@ -424,15 +428,21 @@ mod tests {
 
         assert!(diagnostics.is_empty());
         let track = timeline.world.tracks.get("actor").unwrap();
-        assert_eq!(track.style.opacity.get(0, 1.0), 0.0);
+        let style = timeline.world.style(track.id);
+        assert_eq!(style.opacity.get(0, 1.0), 0.0);
     }
 
     #[test]
     fn remove_animated_sets_fade_out_keyframes() {
         let mut timeline = Timeline::new();
-        let mut track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
-        track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-        timeline.world.tracks.insert("actor".to_string(), track);
+        let track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
+        let id = timeline.world.spawn_with_track("actor", track);
+        timeline
+            .world
+            .style_mut(id)
+            .opacity
+            .ensure(1.0)
+            .add_keyframe(0, 1.0, Easing::Linear);
 
         let action = Action {
             verb: "remove".to_string(),
@@ -451,10 +461,11 @@ mod tests {
 
         assert!(diagnostics.is_empty());
         let track = timeline.world.tracks.get("actor").unwrap();
-        assert_eq!(track.style.opacity.get(0, 1.0), 1.0);
-        assert!(track.style.opacity.get(500, 1.0) > 0.0);
-        assert!(track.style.opacity.get(500, 1.0) < 1.0);
-        assert_eq!(track.style.opacity.get(1000, 1.0), 0.0);
+        let style = timeline.world.style(track.id);
+        assert_eq!(style.opacity.get(0, 1.0), 1.0);
+        assert!(style.opacity.get(500, 1.0) > 0.0);
+        assert!(style.opacity.get(500, 1.0) < 1.0);
+        assert_eq!(style.opacity.get(1000, 1.0), 0.0);
     }
 
     #[test]
@@ -549,8 +560,9 @@ mod tests {
             "remove should clear persistence flag"
         );
         let track = report.output.world.tracks.get("headline").unwrap();
+        let style = report.output.world.style(track.id);
         assert_eq!(
-            track.style.opacity.get(1000, 1.0),
+            style.opacity.get(1000, 1.0),
             0.0,
             "opacity should reach zero at end of removal"
         );

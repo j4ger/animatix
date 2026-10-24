@@ -110,6 +110,9 @@ pub struct CarryEntry {
     /// Shape tier snapshot.
     #[cfg_attr(feature = "serde", serde(default))]
     pub shape: crate::timeline::animation_track::ShapeTracks,
+    /// Style tier snapshot.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub style: crate::timeline::animation_track::StyleTracks,
     /// Geometry tier snapshot.
     #[cfg_attr(feature = "serde", serde(default))]
     pub geometry: crate::timeline::animation_track::GeometryTracks,
@@ -162,6 +165,7 @@ fn collect_persistent_entries(
     let shape = snapshot_shape_at(timeline.world.shape(track.id), time_ms);
     let text = snapshot_text_at(timeline.world.text(track.id), time_ms);
     let geometry = snapshot_geometry_at(timeline.world.geometry(track.id), time_ms);
+    let style = snapshot_style_at(timeline.world.style(track.id), time_ms);
     let payload = timeline
         .world
         .payload(track.id)
@@ -186,6 +190,7 @@ fn collect_persistent_entries(
             shape,
             text,
             geometry,
+            style,
             property_plan,
         },
     );
@@ -337,6 +342,7 @@ fn inject_entry(
     *dest.world.shape.get_mut(id) = entry.shape.clone();
     *dest.world.text.get_mut(id) = entry.text.clone();
     *dest.world.geometry.get_mut(id) = geometry.clone();
+    *dest.world.style.get_mut(id) = entry.style.clone();
     if let Some(effects) = entry.effects.clone() {
         dest.world.effects.insert(id, effects);
     }
@@ -498,13 +504,10 @@ pub fn snapshot_highlight_at(
 /// Snapshot all animated tiers of a track at `time_ms`, collapsing each to a
 /// single t=0 keyframe. Highlight and payload components are snapshotted
 /// separately by [`snapshot_highlight_at`] and [`snapshot_payload_at`].
-pub fn snapshot_track_at(track: &AnimationTrack, time_ms: u64) -> AnimationTrack {
-    let mut snapshot = track.clone();
-
-    // Collapse each tier's property tracks to a single t=0 keyframe.
-    collapse_style_tracks(&mut snapshot.style, time_ms);
-
-    snapshot
+pub fn snapshot_track_at(track: &AnimationTrack, _time_ms: u64) -> AnimationTrack {
+    // The animated tiers are component stores now; their snapshots are taken
+    // by the per-tier helpers and carried alongside the header DTO.
+    track.clone()
 }
 
 fn snapshot_effects(chain: &EffectChainTrack, time_ms: u64) -> EffectChainTrack {
@@ -673,5 +676,15 @@ pub fn snapshot_geometry_at(
 ) -> crate::timeline::animation_track::GeometryTracks {
     let mut snapshot = geometry.clone();
     collapse_geometry_tracks(&mut snapshot, time_ms);
+    snapshot
+}
+
+/// Snapshot the style tier at `time_ms` (single keyframe per track).
+pub fn snapshot_style_at(
+    style: &crate::timeline::animation_track::StyleTracks,
+    time_ms: u64,
+) -> crate::timeline::animation_track::StyleTracks {
+    let mut snapshot = style.clone();
+    collapse_style_tracks(&mut snapshot, time_ms);
     snapshot
 }

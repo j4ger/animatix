@@ -101,7 +101,10 @@ heading: Text, text: "Delightful", fill_gradient: linear(135, {"#ff0000", "#0000
     );
     assert!(!report.output.world.tracks.is_empty());
     let track = report.output.world.tracks.get("heading").expect("heading track");
-    assert!(track.style.fill_gradient.is_some(), "Text actor should accept fill_gradient");
+    assert!(
+        report.output.world.style(track.id).fill_gradient.is_some(),
+        "Text actor should accept fill_gradient"
+    );
 }
 
 #[test]

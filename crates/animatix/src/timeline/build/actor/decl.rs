@@ -36,7 +36,6 @@ impl Timeline {
         let ActorPrep {
             caps,
             primitive,
-            existing_track,
             extracted,
         } = match self.prepare_actor_build(
             label,
@@ -66,31 +65,37 @@ impl Timeline {
             .map(|id| self.world.geometry(id))
             .cloned()
             .unwrap_or_default();
+        let existing_style = self
+            .world
+            .get_id(label)
+            .map(|id| self.world.style(id))
+            .cloned()
+            .unwrap_or_default();
         let mut position = existing_geometry.position.last([0.0, 0.0]);
         let mut size = existing_geometry.size.last(default_size);
         let mut line_from = existing_shape.line_from.last([-50.0, 0.0]);
         let mut line_to = existing_shape.line_to.last([50.0, 0.0]);
         let mut arc_angles = existing_shape.arc_angles.last(default_arc);
         let mut corner_radius = existing_shape.corner_radius.last(0.0);
-        let mut color = existing_track.style.color.last(DEFAULT_WHITE);
+        let mut color = existing_style.color.last(DEFAULT_WHITE);
         let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
         let is_first_decl = !self.world.tracks.contains_key(label);
         let mut opacity = if is_first_decl && !has_explicit_opacity {
             self.default_opacity
         } else {
-            existing_track.style.opacity.last(1.0)
+            existing_style.opacity.last(1.0)
         };
-        let mut stroke_width = existing_track.style.stroke_width.last(caps.default_stroke_width());
-        let mut stroke_color = existing_track.style.stroke_color.last(DEFAULT_WHITE);
+        let mut stroke_width = existing_style.stroke_width.last(caps.default_stroke_width());
+        let mut stroke_color = existing_style.stroke_color.last(DEFAULT_WHITE);
         let legend_color = self
             .world
             .get_id(label)
             .and_then(|id| self.world.legend(id))
             .and_then(|legend| legend.color);
-        let mut stroke_progress = existing_track.style.stroke_progress.last(1.0);
-        let mut fill_opacity = existing_track.style.fill_opacity.last(1.0);
-        let mut dash_pattern = existing_track.style.dash_pattern.last(Vec::new());
-        let mut dash_offset = existing_track.style.dash_offset.last(0.0);
+        let mut stroke_progress = existing_style.stroke_progress.last(1.0);
+        let mut fill_opacity = existing_style.fill_opacity.last(1.0);
+        let mut dash_pattern = existing_style.dash_pattern.last(Vec::new());
+        let mut dash_offset = existing_style.dash_offset.last(0.0);
 
         let primitive_registry = std::sync::Arc::clone(&self.primitive_registry);
         let vector_shape = primitive_registry.info_of(ty).filter(|info| info.capabilities.is_shape);
@@ -729,6 +734,7 @@ impl Timeline {
             .tracks
             .get_by_id_mut(track_id)
             .expect("World::ensure_track creates the track");
+        let style = self.world.style.get_mut(track_id);
         let shape = self.world.shape.get_mut(track_id);
         let geometry = self.world.geometry.get_mut(track_id);
 
@@ -741,11 +747,7 @@ impl Timeline {
                 .meta
                 .get_or_insert_with(track.id, crate::timeline::world::EntityMeta::default)
                 .hidden_by_default = true;
-            track
-                .style
-                .opacity
-                .ensure(1.0)
-                .add_keyframe(0, self.default_opacity, Easing::Linear);
+            style.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
         }
 
         if let Some(bound) = apply_position_binding(
@@ -760,6 +762,7 @@ impl Timeline {
 
         Self::insert_actor_keyframes(
             track,
+            style,
             geometry,
             shape,
             caps,

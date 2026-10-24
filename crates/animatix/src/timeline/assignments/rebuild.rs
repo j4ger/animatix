@@ -1,6 +1,6 @@
 use super::*;
 use crate::ast::Expr;
-use crate::timeline::animation_track::{GeometryTracks, ShapeTracks};
+use crate::timeline::animation_track::{GeometryTracks, ShapeTracks, StyleTracks};
 
 // ─────────────────────────────────────────────────────────────
 // Helper: size-like assignments (also write to layout_size)
@@ -8,6 +8,7 @@ use crate::timeline::animation_track::{GeometryTracks, ShapeTracks};
 
 pub(super) fn handle_size_assignment(
     track: &mut AnimationTrack,
+    style: &StyleTracks,
     geometry: &mut GeometryTracks,
     shape: &mut ShapeTracks,
     property: &str,
@@ -88,6 +89,7 @@ pub(super) fn handle_size_assignment(
     // Rebuild vector paths after size change
     rebuild_vector_paths(
         track,
+        style,
         geometry,
         shape,
         t_start_ms,
@@ -102,6 +104,7 @@ pub(super) fn handle_size_assignment(
 
 pub(super) fn rebuild_vector_paths(
     track: &mut AnimationTrack,
+    style: &StyleTracks,
     geometry: &GeometryTracks,
     shape: &mut ShapeTracks,
     t_start_ms: u64,
@@ -122,7 +125,7 @@ pub(super) fn rebuild_vector_paths(
         // rebuilt axes. An absent frame degrades to the component defaults
         // (linear scales, [-10, 10] domains), never to an env fallback.
         let frame = coordinate_frame.cloned().unwrap_or_default();
-        let stroke_color = track.style.stroke_color.last(DEFAULT_WHITE);
+        let stroke_color = style.stroke_color.last(DEFAULT_WHITE);
         let new_paths = build_graph_axis_paths(
             size,
             frame.x_domain,
@@ -137,7 +140,7 @@ pub(super) fn rebuild_vector_paths(
         );
 
         if has_duration {
-            let start_paths = track.evaluate_vector_paths_value(shape, t_start_ms);
+            let start_paths = track.evaluate_vector_paths_value(shape, style, t_start_ms);
             shape.vector_paths.ensure(Vec::new()).add_keyframe(
                 t_start_ms,
                 start_paths,
@@ -153,13 +156,13 @@ pub(super) fn rebuild_vector_paths(
     let line_from = shape.line_from.last([-50.0, 0.0]);
     let line_to = shape.line_to.last([50.0, 0.0]);
     let arc_angles = shape.arc_angles.last(default_arc);
-    let color = track.style.color.last(DEFAULT_WHITE);
+    let color = style.color.last(DEFAULT_WHITE);
     // Bare-track helper: derive the projection from the actor type (the same
     // derivation the catalog performs). `World`-aware callers apply overrides.
     let caps = animatix_std::caps_for_type(&track.actor_type).unwrap_or_default();
-    let stroke_width = track.style.stroke_width.last(caps.default_stroke_width());
-    let stroke_color = track.style.stroke_color.last(DEFAULT_WHITE);
-    let fill_opacity = track.style.fill_opacity.last(1.0);
+    let stroke_width = style.stroke_width.last(caps.default_stroke_width());
+    let stroke_color = style.stroke_color.last(DEFAULT_WHITE);
+    let fill_opacity = style.fill_opacity.last(1.0);
 
     // Build vector shape state and compute paths
     let mut vector_shape_state = VectorShapeState::new(shape_type, size);
@@ -233,7 +236,7 @@ pub(super) fn rebuild_vector_paths(
     });
 
     if has_duration {
-        let start_paths = track.evaluate_vector_paths_value(shape, t_start_ms);
+        let start_paths = track.evaluate_vector_paths_value(shape, style, t_start_ms);
         shape
             .vector_paths
             .ensure(Vec::new())
@@ -253,6 +256,7 @@ pub(super) fn rebuild_vector_paths(
 
 pub(super) fn scale_plot_curve_paths(
     track: &mut AnimationTrack,
+    style: &StyleTracks,
     shape: &mut ShapeTracks,
     scale_x: f32,
     scale_y: f32,
@@ -266,7 +270,7 @@ pub(super) fn scale_plot_curve_paths(
     }
 
     let has_duration = t_end_ms > t_start_ms;
-    let current_paths = track.evaluate_vector_paths_value(shape, t_end_ms);
+    let current_paths = track.evaluate_vector_paths_value(shape, style, t_end_ms);
     if current_paths.is_empty() {
         return;
     }
@@ -283,7 +287,7 @@ pub(super) fn scale_plot_curve_paths(
         .collect();
 
     if has_duration {
-        let start_paths = track.evaluate_vector_paths_value(shape, t_start_ms);
+        let start_paths = track.evaluate_vector_paths_value(shape, style, t_start_ms);
         shape
             .vector_paths
             .ensure(Vec::new())

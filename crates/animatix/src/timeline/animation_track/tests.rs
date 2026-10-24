@@ -101,35 +101,24 @@ fn test_property_track_evaluation() {
 // 4.1: field_ref/field_mut coverage tests
 // ────────────────────────────────────────────────────────
 
-/// Helper: create a track with a keyframe added to a specific field.
-fn create_track_with_f32_keyframe(field: ActorField, time_ms: u64, value: f32) -> AnimationTrack {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    if let Some(mut f) = track.field_mut(field) {
-        match &mut f {
-            TrackFieldMut::F32(opt) => {
-                opt.ensure(0.0).add_keyframe(time_ms, value, Easing::Linear);
-            },
-            _ => panic!("Expected F32 track"),
-        }
-    }
-    track
-}
-
-fn create_track_with_vec4_keyframe(
+/// Helper: spawn a `Rect` entity with a keyframe added to a style `Vec4` field.
+fn create_world_vec4_keyframe(
     field: ActorField,
     time_ms: u64,
     value: [f32; 4],
-) -> AnimationTrack {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    if let Some(mut f) = track.field_mut(field) {
-        match &mut f {
+) -> (Timeline, crate::timeline::EntityId) {
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    {
+        let mut fields = timeline.world_mut().fields_mut(id).expect("entity fields");
+        match fields.field_mut(field).expect("vec4 property slot") {
             TrackFieldMut::Vec4(opt) => {
                 opt.ensure(value).add_keyframe(time_ms, value, Easing::Linear);
             },
             _ => panic!("Expected Vec4 track"),
         }
     }
-    track
+    (timeline, id)
 }
 
 fn create_world_vec2_keyframe(
@@ -403,9 +392,14 @@ fn test_max_keyframe_time_with_highlight_color() {
 #[test]
 fn test_max_keyframe_time_returns_max_across_all_fields() {
     let mut timeline = Timeline::new();
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
+    let track = AnimationTrack::placeholder("test".to_string());
     let id = timeline.world_mut().spawn_with_track("test", track);
+    timeline
+        .world_mut()
+        .style_mut(id)
+        .opacity
+        .ensure(1.0)
+        .add_keyframe(1000, 0.5, Easing::Linear);
     timeline.world_mut().geometry_mut(id).position.ensure([0.0, 0.0]).add_keyframe(
         5000,
         [100.0, 100.0],
@@ -468,17 +462,25 @@ fn test_has_any_keyframes_returns_false_for_empty_track() {
 
 #[test]
 fn test_has_any_keyframes_returns_false_for_single_keyframe_at_time_zero() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.style.opacity.ensure(1.0).add_keyframe(0, 0.5, Easing::Linear);
-    assert!(!track.has_any_keyframes());
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    timeline
+        .world_mut()
+        .style_mut(id)
+        .opacity
+        .ensure(1.0)
+        .add_keyframe(0, 0.5, Easing::Linear);
+    assert!(!timeline.world().has_any_keyframes(id));
 }
 
 #[test]
 fn test_has_any_keyframes_returns_true_for_multiple_keyframes() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.style.opacity.ensure(1.0).add_keyframe(0, 0.5, Easing::Linear);
-    track.style.opacity.ensure(0.5).add_keyframe(1000, 1.0, Easing::Linear);
-    assert!(track.has_any_keyframes());
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    let style = timeline.world_mut().style_mut(id);
+    style.opacity.ensure(1.0).add_keyframe(0, 0.5, Easing::Linear);
+    style.opacity.ensure(0.5).add_keyframe(1000, 1.0, Easing::Linear);
+    assert!(timeline.world().has_any_keyframes(id));
 }
 
 // ────────────────────────────────────────────────────────
@@ -688,8 +690,9 @@ fn test_registry_driven_has_any_keyframes_finds_word_spacing() {
 
 #[test]
 fn test_track_field_ref_evaluate_value_f32() {
-    let track = create_track_with_f32_keyframe(ActorField::Opacity, 0, 0.5);
-    let rf = track.field_ref(ActorField::Opacity).unwrap();
+    let (timeline, id) = create_world_f32_keyframe(ActorField::Opacity, 0, 0.5);
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::Opacity).unwrap();
     let val = rf.evaluate_value(0);
     assert_eq!(val, Some(super::super::property_engine::PropertyValue::F32(0.5)));
 }
@@ -705,8 +708,9 @@ fn test_track_field_ref_evaluate_value_vec2() {
 
 #[test]
 fn test_track_field_ref_evaluate_value_color() {
-    let track = create_track_with_vec4_keyframe(ActorField::Color, 0, [1.0, 0.0, 0.0, 1.0]);
-    let rf = track.field_ref(ActorField::Color).unwrap();
+    let (timeline, id) = create_world_vec4_keyframe(ActorField::Color, 0, [1.0, 0.0, 0.0, 1.0]);
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::Color).unwrap();
     let val = rf.evaluate_value(0);
     assert_eq!(
         val,
@@ -716,9 +720,16 @@ fn test_track_field_ref_evaluate_value_color() {
 
 #[test]
 fn test_track_field_ref_has_keyframe_at() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.style.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
-    let rf = track.field_ref(ActorField::Opacity).unwrap();
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    timeline
+        .world_mut()
+        .style_mut(id)
+        .opacity
+        .ensure(1.0)
+        .add_keyframe(500, 0.5, Easing::Linear);
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::Opacity).unwrap();
     assert!(rf.has_keyframe_at(500));
     assert!(!rf.has_keyframe_at(0));
     assert!(!rf.has_keyframe_at(1000));
@@ -726,20 +737,26 @@ fn test_track_field_ref_has_keyframe_at() {
 
 #[test]
 fn test_track_field_ref_keyframe_count() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-    track.style.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
-    track.style.opacity.ensure(0.5).add_keyframe(1000, 0.0, Easing::Linear);
-    let rf = track.field_ref(ActorField::Opacity).unwrap();
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    let style = timeline.world_mut().style_mut(id);
+    style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
+    style.opacity.ensure(1.0).add_keyframe(500, 0.5, Easing::Linear);
+    style.opacity.ensure(0.5).add_keyframe(1000, 0.0, Easing::Linear);
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::Opacity).unwrap();
     assert_eq!(rf.keyframe_count(), 3);
 }
 
 #[test]
 fn test_track_field_ref_keyframe_times() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.style.opacity.ensure(1.0).add_keyframe(1000, 0.0, Easing::Linear);
-    track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
-    let rf = track.field_ref(ActorField::Opacity).unwrap();
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    let style = timeline.world_mut().style_mut(id);
+    style.opacity.ensure(1.0).add_keyframe(1000, 0.0, Easing::Linear);
+    style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::Linear);
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::Opacity).unwrap();
     let mut times = rf.keyframe_times();
     times.sort();
     assert_eq!(times, vec![0, 1000]);
@@ -747,10 +764,13 @@ fn test_track_field_ref_keyframe_times() {
 
 #[test]
 fn test_track_field_ref_keyframe_easing() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::EaseOut);
-    track.style.opacity.ensure(0.0).add_keyframe(500, 0.0, Easing::Linear);
-    let rf = track.field_ref(ActorField::Opacity).unwrap();
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    let style = timeline.world_mut().style_mut(id);
+    style.opacity.ensure(1.0).add_keyframe(0, 1.0, Easing::EaseOut);
+    style.opacity.ensure(0.0).add_keyframe(500, 0.0, Easing::Linear);
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::Opacity).unwrap();
     assert_eq!(rf.keyframe_easing(0), Some(Easing::EaseOut));
     assert_eq!(rf.keyframe_easing(500), Some(Easing::Linear));
     assert_eq!(rf.keyframe_easing(999), None);
@@ -758,8 +778,10 @@ fn test_track_field_ref_keyframe_easing() {
 
 #[test]
 fn test_track_field_ref_keyframe_count_none_for_empty() {
-    let track = AnimationTrack::placeholder("test".to_string());
-    let rf = track.field_ref(ActorField::Opacity).unwrap();
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::Opacity).unwrap();
     assert_eq!(rf.keyframe_count(), 0);
 }
 
@@ -872,7 +894,7 @@ fn test_keyframes_mut_allows_mutation() {
 
 #[test]
 fn test_missing_properties() {
-    let track = AnimationTrack::placeholder("empty_actor".to_string());
+    let style = crate::timeline::animation_track::StyleTracks::default();
     let geometry = crate::timeline::animation_track::GeometryTracks::default();
 
     assert_eq!(geometry.position.get(0, [0.0, 0.0]), [0.0, 0.0]);
@@ -892,7 +914,7 @@ fn test_missing_properties() {
         shape.arc_angles.get(0, [0.0, std::f32::consts::PI]),
         [0.0, std::f32::consts::PI]
     );
-    assert_eq!(track.style.color.get(0, [1.0, 1.0, 1.0, 1.0]), [1.0, 1.0, 1.0, 1.0]);
+    assert_eq!(style.color.get(0, [1.0, 1.0, 1.0, 1.0]), [1.0, 1.0, 1.0, 1.0]);
     assert_eq!(shape.shape_type.get(0, ShapeType::Rect), ShapeType::Rect);
-    assert_eq!(track.style.opacity.get(0, 1.0), 1.0);
+    assert_eq!(style.opacity.get(0, 1.0), 1.0);
 }

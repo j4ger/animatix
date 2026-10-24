@@ -129,7 +129,7 @@ impl Timeline {
         if !self.blend_used.get() {
             return None;
         }
-        let mode = track.style.blend.get(time_ms, "normal".to_string());
+        let mode = self.world.style(track.id).blend.get(time_ms, "normal".to_string());
         match mode.as_str() {
             "normal" | "" => None,
             "multiply" => Some(vello::peniko::Mix::Multiply),
@@ -327,7 +327,11 @@ impl Timeline {
 
         // PF-6: shared Arc — the common static-track case returns a refcount
         // bump instead of a full path-list clone per node per frame.
-        let mut vector_paths = track.evaluate_vector_paths(self.world.shape(track.id), time_ms);
+        let mut vector_paths = track.evaluate_vector_paths(
+            self.world.shape(track.id),
+            self.world.style(track.id),
+            time_ms,
+        );
         // `BarChart` data transitions: once a `data = {…}` assignment has begun,
         // the declaration's paths are stale, so rebuild the bars from the dataset
         // in effect. Gated on the side channel being non-empty, so a chart whose
@@ -467,6 +471,7 @@ impl Timeline {
                     legend: self.world.legend(track.id),
                     world: Some(&self.world),
                     highlight: self.world.highlight(track.id),
+                    style: Some(self.world.style(track.id)),
                     shape: Some(self.world.shape(track.id)),
                     geometry: Some(self.world.geometry(track.id)),
                     text: Some(self.world.text(track.id)),
@@ -578,7 +583,11 @@ impl Timeline {
             // Debug overlays
             if debug_options.draw_bounds {
                 let svg_paths = self.world.svg_paths_at(track.id, time_ms).unwrap_or_default();
-                let text_paths = track.evaluate_text_paths(self.world.text(track.id), time_ms);
+                let text_paths = track.evaluate_text_paths(
+                    self.world.text(track.id),
+                    self.world.style(track.id),
+                    time_ms,
+                );
                 let _ = self.add_node_debug_overlays(
                     &svg_paths,
                     half_size,
@@ -622,7 +631,11 @@ impl Timeline {
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> Option<kurbo::BezPath> {
         let primitive = self.track_primitive_at(child, time_ms)?;
-        let vector_paths = child.evaluate_vector_paths(self.world.shape(child.id), time_ms);
+        let vector_paths = child.evaluate_vector_paths(
+            self.world.shape(child.id),
+            self.world.style(child.id),
+            time_ms,
+        );
         child.begin_shape_commands();
         let ctx = crate::primitives::EvaluateCtx {
             track: child,
@@ -638,6 +651,7 @@ impl Timeline {
             legend: self.world.legend(child.id),
             world: Some(&self.world),
             highlight: self.world.highlight(child.id),
+            style: Some(self.world.style(child.id)),
             shape: Some(self.world.shape(child.id)),
             geometry: Some(self.world.geometry(child.id)),
             text: Some(self.world.text(child.id)),

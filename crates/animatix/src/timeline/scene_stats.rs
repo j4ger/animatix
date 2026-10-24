@@ -12,7 +12,7 @@
 //!
 //! See `docs/scene_stats.md` for full design notes and mathematical derivations.
 
-use crate::timeline::animation_track::GeometryTracks;
+use crate::timeline::animation_track::{GeometryTracks, StyleTracks};
 use crate::timeline::{AnimationTrack, Timeline, Value};
 
 /// Number of sample points P clamped between 32 and 256.
@@ -153,11 +153,11 @@ fn sample_size(geometry: &GeometryTracks, time_ms: u64) -> [f64; 2] {
 }
 
 /// Sample an actor's effective opacity at time_ms.
-fn sample_opacity(track: &AnimationTrack, hidden_by_default: bool, time_ms: u64) -> f64 {
+fn sample_opacity(style: &StyleTracks, hidden_by_default: bool, time_ms: u64) -> f64 {
     if hidden_by_default {
         0.0
     } else {
-        track.style.opacity.as_ref().map(|o| o.evaluate(time_ms) as f64).unwrap_or(1.0)
+        style.opacity.as_ref().map(|o| o.evaluate(time_ms) as f64).unwrap_or(1.0)
     }
 }
 
@@ -264,7 +264,7 @@ pub(crate) fn bake_scene_stats(timeline: &mut Timeline) {
         for track in &eligible_tracks {
             let geometry = timeline.world.geometry(track.id);
             let opacity = sample_opacity(
-                track,
+                timeline.world.style(track.id),
                 timeline.world.meta.get(track.id).is_some_and(|m| m.hidden_by_default),
                 time_ms,
             );

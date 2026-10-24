@@ -81,6 +81,7 @@ impl Primitive for PathPrimitive {
         let half_size = geometry.size.get(ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
         let vector_paths = ctx.track.evaluate_vector_paths(
             ctx.shape.expect("Path evaluation requires the shape tier"),
+            ctx.style.expect("Path evaluation requires the style tier"),
             ctx.time_ms,
         );
 
