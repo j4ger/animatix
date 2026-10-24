@@ -241,7 +241,9 @@ and the property read/write path now go through `TrackFields` / `World`
 registry-backed tiers can move one at a time. The remaining blocker is call
 sites: the `AnimationTrack`-taking free wrappers still exist for compatibility.
 `payload` is outside that table and additionally needs a render/evaluate
-context field for the image/SVG/plot primitives.
+context field for the image/SVG/plot primitives. It now has a complete
+`World` accessor surface (`world/payload.rs`); the remaining work is moving call
+sites off the `AnimationTrack` accessors, then switching the storage.
 
 Direction for unlocking the rest: a borrowed `TrackFields<'a>` /
 `TrackFieldsMut<'a>` bundle (geometry/style/shape/text/highlight/tagged/payload

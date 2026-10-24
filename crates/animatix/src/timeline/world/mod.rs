@@ -14,6 +14,7 @@ mod component;
 mod fields;
 mod hierarchy;
 mod meta;
+mod payload;
 mod view;
 
 pub use component::{ComponentStore, RequiredStore};
