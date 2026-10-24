@@ -267,6 +267,8 @@ impl World {
         self.transcript.reset_at(id);
         self.effects.reset_at(id);
         self.legend.reset_at(id);
+        self.effects.reset_at(id);
+        self.payload.reset_at(id);
         self.decl_span.reset_at(id);
         self.attach_pending_auto_color(id, label);
         self.adopt(id, label);
@@ -577,6 +579,8 @@ impl World {
         self.auto_color.ensure_len(len);
         self.transcript.ensure_len(len);
         self.legend.ensure_len(len);
+        self.effects.ensure_len(len);
+        self.payload.ensure_len(len);
         self.decl_span.ensure_len(len);
     }
 
@@ -592,6 +596,8 @@ impl World {
         self.auto_color.clear();
         self.transcript.clear();
         self.legend.clear();
+        self.effects.clear();
+        self.payload.clear();
         self.decl_span.clear();
         self.roots.clear();
         self.pending_parents.clear();
@@ -614,6 +620,7 @@ mod tests {
         assert_eq!(world.len(), 2);
         assert_eq!(world.hierarchy.len(), 2);
         assert_eq!(world.meta.len(), 2, "metadata stays slot-aligned");
+        assert_eq!(world.payload.len(), 2, "payload stays slot-aligned");
         assert_eq!(world.container_layout.len(), 2);
         assert_eq!(world.coordinate_frame.len(), 2, "every store stays slot-aligned");
         assert_eq!(world.label(a), Some("a"));
