@@ -17,7 +17,7 @@ use crate::renderer::error::RenderError;
 use crate::timeline::VelloPath;
 use crate::timeline::build::build_graph_axis_paths;
 use crate::timeline::plot::FuncSource;
-use crate::timeline::property_engine::{parse_property_value, write_property_field};
+use crate::timeline::property_engine::parse_property_value;
 use crate::timeline::property_registry::{PropertyFlags, lookup_property};
 use crate::timeline::property_track::TrackAccessor;
 
@@ -575,16 +575,20 @@ impl Timeline {
                 return;
             }
 
-            // Standard engine dispatch for everything else
-            if let Some(pv) = parse_property_value(
+            // Standard engine dispatch for everything else. Capture what the
+            // track borrow still owes us, then end it so the write can go
+            // through `World` (which needs the whole world mutably).
+            let stroke_only = track.caps.shape.is_some_and(|s| s.is_stroke_only());
+            let pv = parse_property_value(
                 schema.value_type,
                 value,
                 &eval_env,
                 diagnostics,
                 &assignment_subject,
-            ) {
-                write_property_field(
-                    track,
+            );
+            if let Some(pv) = pv {
+                self.world.write_property_field(
+                    track_id,
                     schema.field,
                     pv,
                     t_start_ms,
@@ -595,7 +599,7 @@ impl Timeline {
 
                 // For stroke-only shapes, a `color` assignment also sets
                 // `stroke_color` — they paint from it and nothing else.
-                if property == "color" && track.caps.shape.is_some_and(|s| s.is_stroke_only()) {
+                if property == "color" && stroke_only {
                     if let Some(spv) = parse_property_value(
                         schema.value_type,
                         value,
@@ -603,8 +607,8 @@ impl Timeline {
                         diagnostics,
                         &assignment_subject,
                     ) {
-                        write_property_field(
-                            track,
+                        self.world.write_property_field(
+                            track_id,
                             crate::timeline::ActorField::StrokeColor,
                             spv,
                             t_start_ms,
@@ -617,6 +621,11 @@ impl Timeline {
 
                 // If this property affects shape geometry, rebuild vector paths
                 if affects_shape_geometry(property) {
+                    let track = self
+                        .world
+                        .tracks
+                        .get_mut(&target_key)
+                        .expect("assignment target track exists");
                     rebuild_vector_paths(
                         track,
                         t_start_ms,

@@ -194,16 +194,19 @@ impl Primitive for LegendPrimitive {
             }
         }
 
-        // Ensure track exists and set kind
+        // Ensure track exists and set kind. Scope the track borrow so every
+        // property write below can go through `World`.
         let track_id = ctx.timeline.world.spawn(label, "Legend");
         ctx.timeline.world.set_first_seen(track_id, ctx.time_ms as u64);
-        let track = ctx
-            .timeline
-            .world
-            .tracks
-            .get_by_id_mut(track_id)
-            .expect("spawn creates the track");
-        track.set_identity("Legend");
+        {
+            let track = ctx
+                .timeline
+                .world
+                .tracks
+                .get_by_id_mut(track_id)
+                .expect("spawn creates the track");
+            track.set_identity("Legend");
+        }
 
         let time_ms = ctx.time_ms as u64;
         let default_fields = [
@@ -220,8 +223,8 @@ impl Primitive for LegendPrimitive {
             ),
         ];
         for (key, value) in default_fields {
-            crate::timeline::property_engine::write_property_field(
-                track,
+            ctx.timeline.world.write_property_field(
+                track_id,
                 crate::timeline::property_registry::ActorField::Tagged(key),
                 value,
                 time_ms,
@@ -260,8 +263,8 @@ impl Primitive for LegendPrimitive {
                 ctx.diagnostics,
                 &prop_subject,
             ) {
-                crate::timeline::property_engine::write_property_field(
-                    track,
+                ctx.timeline.world.write_property_field(
+                    track_id,
                     crate::timeline::property_registry::ActorField::Tagged(key),
                     pv,
                     time_ms,
@@ -274,6 +277,12 @@ impl Primitive for LegendPrimitive {
 
         // Legend is an annotation primitive, so it bypasses the generic actor
         // build path and must resolve its own `at` position.
+        let track = ctx
+            .timeline
+            .world
+            .tracks
+            .get_by_id_mut(track_id)
+            .expect("spawn creates the track");
         track.geometry.position.ensure([0.0, 0.0]).add_keyframe(
             time_ms,
             at,

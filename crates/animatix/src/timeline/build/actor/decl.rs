@@ -443,12 +443,6 @@ impl Timeline {
         if let Some(color) = legend_color {
             self.world.ensure_legend(track_id).color = Some(color);
         }
-        let track = self
-            .world
-            .tracks
-            .get_by_id_mut(track_id)
-            .expect("World::ensure_track creates the track");
-
         // Seed Callout defaults before user properties so fields used by targeted
         // geometry and text evaluation are always present, even without explicit props.
         if caps.callout {
@@ -483,8 +477,8 @@ impl Timeline {
                 ),
             ];
             for (field, pv) in defaults {
-                crate::timeline::property_engine::write_property_field(
-                    track,
+                self.world.write_property_field(
+                    track_id,
                     field,
                     pv,
                     t_start_ms,
@@ -501,6 +495,11 @@ impl Timeline {
         // Catalog data decides this (via the descriptor already built above),
         // not a `ty == "Connector"` compare.
         if primitive.connector {
+            let track = self
+                .world
+                .tracks
+                .get_by_id_mut(track_id)
+                .expect("World::ensure_track creates the track");
             track
                 .geometry
                 .connector_arrow
@@ -645,8 +644,8 @@ impl Timeline {
                     diagnostics,
                     &prop_subject,
                 ) {
-                    crate::timeline::property_engine::write_property_field(
-                        track,
+                    self.world.write_property_field(
+                        track_id,
                         schema.field,
                         pv,
                         t_start_ms,
@@ -668,8 +667,8 @@ impl Timeline {
                     if let Some(target) =
                         crate::timeline::lookup::parse_actor_ref_literal(&prop.value)
                     {
-                        crate::timeline::property_engine::write_property_field(
-                            track,
+                        self.world.write_property_field(
+                            track_id,
                             crate::timeline::property_registry::ActorField::CalloutTarget,
                             crate::timeline::property_engine::PropertyValue::String(target),
                             t_start_ms,
@@ -726,8 +725,8 @@ impl Timeline {
                             line_to = *v;
                         }
                     }
-                    crate::timeline::property_engine::write_property_field(
-                        track,
+                    self.world.write_property_field(
+                        track_id,
                         field,
                         pv,
                         t_start_ms,
@@ -738,6 +737,12 @@ impl Timeline {
                 }
             }
         }
+
+        let track = self
+            .world
+            .tracks
+            .get_by_id_mut(track_id)
+            .expect("World::ensure_track creates the track");
 
         apply_size_spec(track, &primitive, props, label, parent_label, diagnostics);
 

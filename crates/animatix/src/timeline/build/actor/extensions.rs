@@ -123,7 +123,7 @@ impl Timeline {
         let t_start_ms = (time_ms + delay_ms) as u64;
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
         let eval_env = self.build_eval_env(time_ms as u64);
-        let Some(track) = self.world.tracks.get_mut(label) else {
+        let Some(track_id) = self.world.tracks.get_id(label) else {
             return;
         };
 
@@ -138,8 +138,8 @@ impl Timeline {
                         diagnostics,
                         &subject,
                     ) {
-                        crate::timeline::property_engine::write_property_field(
-                            track,
+                        self.world.write_property_field(
+                            track_id,
                             schema.field,
                             pv,
                             t_start_ms,
@@ -162,6 +162,9 @@ impl Timeline {
                 diagnostics,
                 &subject,
             ) {
+                let Some(track) = self.world.tracks.get_by_id_mut(track_id) else {
+                    continue;
+                };
                 crate::timeline::property_engine::write_extension_property_slot(
                     track, &ctx, ty, &prop.name, pv, t_start_ms, t_end_ms, easing,
                 );
