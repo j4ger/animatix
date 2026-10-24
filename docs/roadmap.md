@@ -14,8 +14,11 @@ The timeline entity/component redesign and the large-file split programme are
 tracked in [`ecs.md`](ecs.md) §6 (phase status) and §8 (the `file-size` gate).
 That document is the single source for what remains:
 
-- **ECS:** Phase 5 (tier components), Phase 6 (delete `AnimationTrack`, GUI
-  migration), Phase 7 (perf + full gates). Phases 0–4 are done.
+- **ECS:** Phases 0–5 are done. Phase 6 is in progress: `AnimationTrack` now
+  holds only `id`; remaining work is the entity-storage swap, deleting
+  `AnimationTrack`/`TrackStore`, the snapshot DTO and GUI call sites — see the
+  P6 checklist in [`ecs.md`](ecs.md) §6. Phase 7 (perf + full gates) follows.
+
 - **Splits:** the allowlist is a ratchet; `scripts/file-size.sh` fails on a new
   >800-line production file (tests >1500) or on growth past a frozen row.
 
@@ -62,20 +65,10 @@ Remaining:
 | rAF-cadence sampling in automation | The quality-step logic is currently only exercisable in a foreground tab; the automated harness measures throughput, not smoothness. | Not started |
 | `debug_readback` intermittently traps the wasm | The readback probe is flaky rather than wrong at a particular time, and with `panic = "abort"` a trap takes the whole page's shared engine with it: after one, later probes in that tab fail (`error` states, `Runtime.evaluate` timeouts) until the browser restarts. Evidence from the 2026-10-01 sweep (flake `.#web` Chromium, `--webgpu`): the same call alternates — `tour/scenes/syntax.amx` `debug_readback(1.95)` timed out once and returned 27 distinct colours on the repeat; `web/demos/hash/scene.amx` `debug_readback(19.5)` hung twice while 19.0/20.0/20.5 were fine; one tour sweep surfaced `RuntimeError: unreachable` with frames inside `animatix_web_bg.wasm`. Meanwhile `render_frame` at the same time is fine and the transformer page's seven scenes, the hero and the hash/sorting compositions all read back — so the shipped demos render; only the probe path dies. Affects `web/demos/multi-probe.html?readback=1` and the `svg-probe/*` harnesses, which is why they need a fresh browser per probe until this is understood. | Not started |
 
-Done (recorded so they are not re-litigated):
-
-| Item | Outcome |
-|---|---|
-| wasm build profile (`wasm-release`: fat LTO, 1 codegen unit, `panic = "abort"`, `+simd128`) | **No measurable frame-time effect** in an alternating A/B (2.67–2.86 ms vs 2.68–2.74 ms, 3 loads per arm). Kept for the artifact size: raw −11%, brotli −4.9%. |
-| Canvas backing store at the displayed size | Done (embed `_applyRenderScale`). Worth ~0.14 ms where `display px × dpr` is below the scene resolution, and a no-op above it. |
-| Foreground-window measurement | Done 2026-09-30. The gap is **real**, not background-tab throttling: 3.42 ms/frame at display size vs native 1.63 ms at a larger raster. |
-
 ## Planned Features
 
 | Feature | Notes | Status |
 |---|---|---|
-| Route the frame path's child lookup by `EntityId` | The frame path resolves every node and child through `self.tracks.get(label)` (a label hash) and walks `Vec<String>` children plus the label-keyed side tables (`overrides`, `transcripts`, `child_orders`, the static-subtree cache). `TrackStore` is already a dense `Vec<AnimationTrack>` and `AnimationTrack.id` is populated, so the lookup itself is cheap to convert — but the side tables are all label-keyed, so the win is bounded until those move too. Re-added `parent_id`/`children_ids` to `AnimationTrack` and introduced `evaluate_node_by_id`/`render_node_children_by_id` to route subtrees directly by index. | Completed |
-| Audio volume automation | `source` and `volume` were snapshotted from the Audio declaration into a static `AudioSegment`. Completed: (1) sample keyframed `volume` tracks into `volume_envelope` on `AudioSegment` via `resolve_audio_volume_envelopes`; (2) emit `volume='…':eval=frame` for export filter chain; (3) dynamic volume scaling in GUI player `AudioEngine::sync`. | Completed |
 | Delightful Animation & Kinetic Design ([`docs/delightful_animation_plan.md`](delightful_animation_plan.md)) | Comprehensive architecture plan for kinetic typography (split-text, text gradient, rolling counters), continuous physics (spring handoff, spatial stagger, lead-follow), native erf Gaussian shadows, 2.5D perspective tilt, smart camera target-tracking, and feathered/FLIP transitions. Phased across Waves 1–4. | Planning / Wave 1 scoped |
 | `Code` custom highlighting theme | Token colours now follow the active colorscheme via a role→named-token palette (`ResolvedColorscheme::highlight_palette`, resolved at build). A fully custom palette (arbitrary per-role colours, or a user-supplied `.tmTheme`) is not exposed as an authoring surface; deferred until a real content need. | Not started |
 | Re-declaration morphs sharing one keyframe stamp | When two actor re-declarations share a single `#t` stamp, the actors render their **target** geometry on every frame before the morph starts (an `Ellipse`→`Rect` re-declaration shows a square on pre-morph frames; a size-less `Polygon` leaked as a default-size `Ellipse`). One re-declaration per stamp is safe — `web/tour/scenes/morph.amx` exercises the full sequence leak-free. Found while frame-auditing `web/scenes/hero.amx` (probes in the 2026-10-01 site session); the hero now choreographs its trio with rotations/resizes instead. Fix direction: a morph track's pre-start evaluation must hold the *previous* declaration, not the target. | Not started |

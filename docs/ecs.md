@@ -139,10 +139,11 @@ Rules:
 actor type, and extension primitives install an explicit override with
 `World::set_caps`. `hidden_by_default` and `first_seen_ms` moved with the other header fields:
 the entrance-action helpers (`lift_hidden_by_default*`) now take
-`&mut AnimationTrack` and `&mut EntityMeta` side by side. The remaining
-`EntityMeta` columns (`id`, `label`, `actor_type`, `caps`) are still on
-`AnimationTrack` during Phase 5; `visible`, `locked`, `camera_follow`,
-`parallax`, `hidden_by_default`, `first_seen_ms` are live in the component.
+`&mut AnimationTrack` and `&mut EntityMeta` side by side. By the P6 checkpoint
+`actor_type` and `label` are World data too (`World::actor_type`,
+`World::label`); `AnimationTrack` holds only `id`. `visible`, `locked`,
+`camera_follow`, `parallax`, `hidden_by_default` and `first_seen_ms` are live
+in `EntityMeta`.
 
 ### 2.3 Resources (deliberately not components)
 
@@ -234,8 +235,25 @@ cross-scene carry, not for runtime storage.
 | P3b | container-layout + child-order stores | done |
 | P4 | coordinate-frame store, no env fallback, carry across scenes | done |
 | P5 | header fields + legend + effects + payload + highlight + geometry/style/shape/text tiers + tagged + plan done | done |
-| P6 | delete `AnimationTrack`/`TrackStore` (identity: id only), migrate GUI, snapshot DTO | in progress (bounds slot + shape-command memos + actor_type + label moved to `World`) |
-| P7 | perf + full gate matrix + docs close-out | pending |
+| P6 | delete `AnimationTrack`/`TrackStore` (identity: id only), migrate GUI, snapshot DTO | in progress — `AnimationTrack` is now `{ id: EntityId }`; see the P6 checklist below |
+| P7 | perf + full gate matrix + docs close-out | pending (starts after P6) |
+
+**P6 remaining (checkpoint).** `AnimationTrack` now holds only `id`; all tiers,
+label, actor type, bounds slot and shape-command memos live in `World`. The
+remaining work, in order:
+
+1. Move the dense entity storage and label maps from `TrackStore` into
+   `EntityStore`; expose entity lookup as `EntityId`/`EntityRef` only.
+2. Delete `AnimationTrack` and every `&AnimationTrack` parameter; replace with
+   `EntityId` (or `EntityRef`/`EntityMut` where a World borrow is needed).
+3. Remove the track-only free wrappers (`TrackFields::from_track`,
+   `read_property_value(track, ...)`, `property_keyframe_*(track, ...)`) and move
+   their callers to the World APIs.
+4. Replace `CarryEntry.track` (the snapshot DTO) with `EntityId` + header data;
+   update persistence and snapshot tests.
+5. Migrate GUI call sites that still take `&AnimationTrack` to entity ids.
+6. Delete `timeline/track/mod.rs`; run the full gate matrix and close P6.
+
 
 **Tier-migration prerequisite.** `TrackFieldRef` / `TrackFieldMut` construction
 and the property read/write path now go through `TrackFields` / `World`
