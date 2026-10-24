@@ -12,6 +12,7 @@
 //!
 //! See `docs/scene_stats.md` for full design notes and mathematical derivations.
 
+use crate::timeline::animation_track::GeometryTracks;
 use crate::timeline::{AnimationTrack, Timeline, Value};
 
 /// Number of sample points P clamped between 32 and 256.
@@ -128,9 +129,8 @@ fn points_to_value_list(points: &[CurvePoint]) -> Value {
 }
 
 /// Sample an actor's effective position at time_ms.
-fn sample_position(track: &AnimationTrack, time_ms: u64) -> [f64; 2] {
-    track
-        .geometry
+fn sample_position(geometry: &GeometryTracks, time_ms: u64) -> [f64; 2] {
+    geometry
         .position
         .as_ref()
         .map(|p| {
@@ -141,9 +141,8 @@ fn sample_position(track: &AnimationTrack, time_ms: u64) -> [f64; 2] {
 }
 
 /// Sample an actor's effective size at time_ms.
-fn sample_size(track: &AnimationTrack, time_ms: u64) -> [f64; 2] {
-    track
-        .geometry
+fn sample_size(geometry: &GeometryTracks, time_ms: u64) -> [f64; 2] {
+    geometry
         .size
         .as_ref()
         .map(|s| {
@@ -163,8 +162,8 @@ fn sample_opacity(track: &AnimationTrack, hidden_by_default: bool, time_ms: u64)
 }
 
 /// Sample an actor's instantaneous velocity norm ||p'(t)|| at time_ms.
-fn sample_speed(track: &AnimationTrack, time_ms: u64, duration_ms: u64) -> f64 {
-    if track.geometry.position.is_none() {
+fn sample_speed(geometry: &GeometryTracks, time_ms: u64, duration_ms: u64) -> f64 {
+    if geometry.position.is_none() {
         return 0.0;
     }
     let t_prev = time_ms.saturating_sub(1);
@@ -173,8 +172,8 @@ fn sample_speed(track: &AnimationTrack, time_ms: u64, duration_ms: u64) -> f64 {
     if dt <= 1e-6 {
         return 0.0;
     }
-    let p_prev = sample_position(track, t_prev);
-    let p_next = sample_position(track, t_next);
+    let p_prev = sample_position(geometry, t_prev);
+    let p_next = sample_position(geometry, t_next);
     let vx = (p_next[0] - p_prev[0]) / dt;
     let vy = (p_next[1] - p_prev[1]) / dt;
     (vx * vx + vy * vy).sqrt()
@@ -218,7 +217,7 @@ pub(crate) fn bake_scene_stats(timeline: &mut Timeline) {
             if !timeline.world.renders_visual_content(t.id) {
                 return false;
             }
-            if crate::timeline::legend::is_full_viewport_background(t) {
+            if crate::timeline::legend::is_full_viewport_background(timeline.world.geometry(t.id)) {
                 return false;
             }
             if crate::timeline::legend::legend_mode_for_track(
@@ -263,6 +262,7 @@ pub(crate) fn bake_scene_stats(timeline: &mut Timeline) {
         let mut actor_samples = Vec::with_capacity(eligible_tracks.len());
 
         for track in &eligible_tracks {
+            let geometry = timeline.world.geometry(track.id);
             let opacity = sample_opacity(
                 track,
                 timeline.world.meta.get(track.id).is_some_and(|m| m.hidden_by_default),
@@ -271,13 +271,13 @@ pub(crate) fn bake_scene_stats(timeline: &mut Timeline) {
             if opacity > 0.0 {
                 visible_cast += 1.0;
             }
-            let size = sample_size(track, time_ms);
+            let size = sample_size(geometry, time_ms);
             let area = size[0] * size[1];
             let weight = area * opacity;
 
-            let pos = sample_position(track, time_ms);
+            let pos = sample_position(geometry, time_ms);
 
-            let speed = sample_speed(track, time_ms, duration_ms);
+            let speed = sample_speed(geometry, time_ms, duration_ms);
             sum_motion += speed * area * opacity;
             sum_ink += area * opacity;
 

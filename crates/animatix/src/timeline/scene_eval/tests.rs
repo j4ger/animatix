@@ -7,13 +7,6 @@ use crate::timeline::{AnimationTrack, PropertyTrack, ShapeType};
 fn make_minimal_timeline() -> Timeline {
     let mut timeline = Timeline::new();
     let mut track = AnimationTrack::placeholder("test_box".to_string());
-    // Set first_seen_ms to 0 so the actor is visible from time 0
-    // Give it a size so it has content
-    track.geometry.size = Some({
-        let mut t = PropertyTrack::new([50.0, 50.0]);
-        t.add_keyframe(0, [50.0, 50.0], Easing::Linear);
-        t
-    });
     // Add a color so it renders something visible
     track.style.color = Some({
         let mut t = PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);
@@ -22,6 +15,12 @@ fn make_minimal_timeline() -> Timeline {
     });
 
     let id = spawn_seen(&mut timeline, "test_box", track);
+    // Give it a size so it has content
+    timeline.world.geometry_mut(id).size = Some({
+        let mut t = PropertyTrack::new([50.0, 50.0]);
+        t.add_keyframe(0, [50.0, 50.0], Easing::Linear);
+        t
+    });
     // Give it a shape type
     timeline.world.shape_mut(id).shape_type = Some({
         let mut t = PropertyTrack::new(ShapeType::Rect);
@@ -383,23 +382,23 @@ fn hit_regions_cover_actors_without_draw_commands() {
     let mut group = AnimationTrack::placeholder("grp".to_string());
     group.set_identity("Group");
     group.actor_type = "Group".to_string();
-    group.geometry.size = {
+    let group_id = spawn_seen(&mut timeline, "grp", group);
+    timeline.world.geometry_mut(group_id).size = {
         let mut t = PropertyTrack::new([40.0, 30.0]);
         t.add_keyframe(0, [40.0, 30.0], Easing::Linear);
         Some(t)
     };
-    spawn_seen(&mut timeline, "grp", group);
 
     // An empty Text actor: evaluate() -> Ok(None), no content glyphs.
     let mut empty_text = AnimationTrack::placeholder("empty".to_string());
     empty_text.set_identity("Text");
     empty_text.actor_type = "Text".to_string();
-    empty_text.geometry.size = {
+    let empty_id = spawn_seen(&mut timeline, "empty", empty_text);
+    timeline.world.geometry_mut(empty_id).size = {
         let mut t = PropertyTrack::new([60.0, 20.0]);
         t.add_keyframe(0, [60.0, 20.0], Easing::Linear);
         Some(t)
     };
-    spawn_seen(&mut timeline, "empty", empty_text);
 
     let _scene = timeline.evaluate_with_debug(
         0.0,
@@ -459,17 +458,17 @@ fn mask_clips_children_to_own_bounds() {
 
     // Create child actor
     let mut child_track = AnimationTrack::placeholder("child".to_string());
-    child_track.geometry.size = Some({
-        let mut t = PropertyTrack::new([50.0, 50.0]);
-        t.add_keyframe(0, [50.0, 50.0], Easing::Linear);
-        t
-    });
     child_track.style.color = Some({
         let mut t = PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);
         t.add_keyframe(0, [1.0, 0.0, 0.0, 1.0], Easing::Linear);
         t
     });
     let child_id = spawn_seen(&mut timeline, "child", child_track);
+    timeline.world.geometry_mut(child_id).size = Some({
+        let mut t = PropertyTrack::new([50.0, 50.0]);
+        t.add_keyframe(0, [50.0, 50.0], Easing::Linear);
+        t
+    });
     timeline.world.shape_mut(child_id).shape_type = Some({
         let mut t = PropertyTrack::new(ShapeType::Rect);
         t.add_keyframe(0, ShapeType::Rect, Easing::Linear);
@@ -479,12 +478,12 @@ fn mask_clips_children_to_own_bounds() {
     // Create Mask actor
     let mut mask_track = AnimationTrack::placeholder("mask".to_string());
     mask_track.set_identity("Mask");
-    mask_track.geometry.size = Some({
+    let mask_id = spawn_seen(&mut timeline, "mask", mask_track);
+    timeline.world.geometry_mut(mask_id).size = Some({
         let mut t = PropertyTrack::new([100.0, 100.0]);
         t.add_keyframe(0, [100.0, 100.0], Easing::Linear);
         t
     });
-    let mask_id = spawn_seen(&mut timeline, "mask", mask_track);
     timeline.world.link(mask_id, child_id);
 
     let dimensions = SceneDimensions {

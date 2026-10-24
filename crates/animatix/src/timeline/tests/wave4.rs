@@ -41,10 +41,12 @@ move b [to: (400, 200), 1s, ease: spring(15, 20)]
     let timeline = report.output;
     let track = timeline.world.tracks.get("b").expect("actor track b");
 
+    let geometry = timeline.world.geometry(track.id);
+
     // Sample positions before and after the 1.5s interruption
-    let pos_1490 = track.geometry.position.get(1490, [0.0, 0.0]);
-    let pos_1500 = track.geometry.position.get(1500, [0.0, 0.0]);
-    let pos_1510 = track.geometry.position.get(1510, [0.0, 0.0]);
+    let pos_1490 = geometry.position.get(1490, [0.0, 0.0]);
+    let pos_1500 = geometry.position.get(1500, [0.0, 0.0]);
+    let pos_1510 = geometry.position.get(1510, [0.0, 0.0]);
 
     // Positional continuity: no teleportation at 1500ms
     let step_before = [pos_1500[0] - pos_1490[0], pos_1500[1] - pos_1490[1]];

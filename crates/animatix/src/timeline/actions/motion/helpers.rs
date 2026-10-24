@@ -48,7 +48,7 @@ const ANTICIPATION_LEAN: f32 = 0.12;
 /// Returns the value the `t_start` keyframe should hold, or `None` when there is
 /// nothing to anticipate from (no window, or the action starts at t=0).
 pub(super) fn anticipation_start(
-    track: &mut crate::timeline::AnimationTrack,
+    geometry: &mut crate::timeline::animation_track::GeometryTracks,
     anticipate_ms: f64,
     t_start_ms: u64,
     start_offset: [f32; 2],
@@ -65,10 +65,9 @@ pub(super) fn anticipation_start(
         start_offset[0] - travel[0] * ANTICIPATION_LEAN,
         start_offset[1] - travel[1] * ANTICIPATION_LEAN,
     ];
-    track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
-        t_anti,
-        start_offset,
-        Easing::EaseInOut,
-    );
+    geometry
+        .motion_offset
+        .ensure([0.0, 0.0])
+        .add_keyframe(t_anti, start_offset, Easing::EaseInOut);
     Some(leaned)
 }

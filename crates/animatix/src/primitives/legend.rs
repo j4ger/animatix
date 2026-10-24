@@ -277,23 +277,17 @@ impl Primitive for LegendPrimitive {
 
         // Legend is an annotation primitive, so it bypasses the generic actor
         // build path and must resolve its own `at` position.
-        let track = ctx
-            .timeline
+        ctx.timeline
             .world
-            .tracks
-            .get_by_id_mut(track_id)
-            .expect("spawn creates the track");
-        track.geometry.position.ensure([0.0, 0.0]).add_keyframe(
-            time_ms,
-            at,
-            crate::easing::Easing::Linear,
-        );
+            .geometry_mut(track_id)
+            .position
+            .ensure([0.0, 0.0])
+            .add_keyframe(time_ms, at, crate::easing::Easing::Linear);
 
         // Presentation settings live on the entity's legend component; the
         // tagged tracks above remain the animated/overridable form the frame
         // path prefers. Entries are populated by the post-build scene scan, so
         // a rebuild starts from an empty slate instead of retaining stale ones.
-        let track_id = track.id;
         let legend = ctx.timeline.world.ensure_legend(track_id);
         legend.entries.clear();
         legend.title = title;

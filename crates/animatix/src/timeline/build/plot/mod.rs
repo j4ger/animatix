@@ -586,8 +586,9 @@ impl Timeline {
         // default, which made standalone plot builders (BarChart, VectorField,
         // Heatmap, ContourSet, NumberPlane) lay out in a ~40x40 box regardless
         // of `size:`. Re-declarations keep inheriting the stored track size.
-        let size = if existing_track.geometry.size.last(default_size) != default_size {
-            existing_track.geometry.size.last(default_size)
+        let existing_size = self.world.geometry(existing_track.id).size.last(default_size);
+        let size = if existing_size != default_size {
+            existing_size
         } else {
             parsed.initial_size
         };

@@ -413,3 +413,74 @@ impl Interpolate for ConnectorRouting {
         if t < 0.5 { *self } else { *other }
     }
 }
+
+impl GeometryTracks {
+    /// Latest keyframe across the geometry property tracks.
+    pub fn max_keyframe_time(&self) -> Option<u64> {
+        macro_rules! latest {
+            ($($field:ident),* $(,)?) => {
+                [$(self.$field.as_ref().and_then(|t| t.last_keyframe_time())),*]
+                    .into_iter()
+                    .flatten()
+                    .max()
+            };
+        }
+        latest!(
+            position,
+            motion_offset,
+            rotation,
+            scale,
+            transform,
+            placement_mode,
+            position_binding,
+            size,
+            layout_size,
+            min_width,
+            min_height,
+            max_height,
+            label_at,
+            callout_target,
+            callout_place,
+            callout_standoff,
+            callout_to_offset,
+            connector_from,
+            connector_to,
+            connector_routing,
+            connector_arrow,
+            volume,
+        )
+    }
+
+    /// Whether any geometry property track has animated keyframes.
+    pub fn has_any_keyframes(&self) -> bool {
+        macro_rules! any_animated {
+            ($($field:ident),* $(,)?) => {
+                false $(|| self.$field.as_ref().is_some_and(|t| !t.is_effectively_static()))*
+            };
+        }
+        any_animated!(
+            position,
+            motion_offset,
+            rotation,
+            scale,
+            transform,
+            placement_mode,
+            position_binding,
+            size,
+            layout_size,
+            min_width,
+            min_height,
+            max_height,
+            label_at,
+            callout_target,
+            callout_place,
+            callout_standoff,
+            callout_to_offset,
+            connector_from,
+            connector_to,
+            connector_routing,
+            connector_arrow,
+            volume,
+        )
+    }
+}

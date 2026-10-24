@@ -741,8 +741,9 @@ fn size_property_drives_bar_chart_geometry() {
     );
 
     let track = report.output.world.tracks.get("chart").expect("chart track");
-    assert_eq!(track.geometry.size.last([0.0, 0.0]), [400.0, 190.0]);
-    assert_eq!(track.geometry.position.last([0.0, 0.0]), [640.0, 400.0]);
+    let geometry = report.output.world.geometry(track.id);
+    assert_eq!(geometry.size.last([0.0, 0.0]), [400.0, 190.0]);
+    assert_eq!(geometry.position.last([0.0, 0.0]), [640.0, 400.0]);
 
     // Baked bar paths must span roughly the declared box (800x380 minus
     // hardcoded axis-label margins), not the legacy 40x40 cluster.
@@ -785,11 +786,8 @@ fn bar_chart_anchor_offset_produce_scene_binding() {
     );
 
     let track = report.output.world.tracks.get("chart").expect("chart track");
-    match track
-        .geometry
-        .position_binding
-        .get(0, crate::timeline::PositionBinding::Absolute)
-    {
+    let geometry = report.output.world.geometry(track.id);
+    match geometry.position_binding.get(0, crate::timeline::PositionBinding::Absolute) {
         crate::timeline::PositionBinding::SceneAnchor { anchor, offset } => {
             assert_eq!(anchor, crate::timeline::SceneAnchor::Top);
             assert_eq!(offset, [0.0, 60.0]);

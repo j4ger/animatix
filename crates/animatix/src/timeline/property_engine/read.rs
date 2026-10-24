@@ -86,7 +86,10 @@ pub(crate) fn inject_property_into_env(
         if inject_animating_flags {
             if let Some(storage) = schema.read_source.storage_field() {
                 let flag_key = crate::timeline::env_keys::animating_flag(label, schema.name);
-                let animating = track.is_field_currently_animating(storage, time_ms);
+                let animating = match world {
+                    Some(world) => world.is_field_currently_animating(track.id, storage, time_ms),
+                    None => track.is_field_currently_animating(storage, time_ms),
+                };
                 env.set(&flag_key, Value::Bool(animating));
             }
         }

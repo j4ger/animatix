@@ -232,12 +232,10 @@ pub(crate) unsafe extern "C" fn native_append_image(
             command.natural_size[1] as f32,
         ]
     } else {
-        let half = host
-            .ctx
-            .track
-            .geometry
-            .size
-            .get(host.ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+        let half =
+            host.ctx.geometry.map_or(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE, |geometry| {
+                geometry.size.get(host.ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
+            });
         [half[0] * 2.0, half[1] * 2.0]
     };
     host.commands.push(crate::primitives::RenderCommand::Image {

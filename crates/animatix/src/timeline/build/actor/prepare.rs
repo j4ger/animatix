@@ -3,9 +3,10 @@
 use super::*;
 use crate::ast::{InlineItem, Property};
 use crate::timeline::actor_caps::find_actor_kind;
+use crate::timeline::animation_track::GeometryTracks;
 
 pub(super) fn apply_size_spec(
-    track: &mut AnimationTrack,
+    geometry: &mut GeometryTracks,
     primitive: &PrimitiveFamilyDescriptor,
     props: &[Property],
     label: &str,
@@ -16,7 +17,7 @@ pub(super) fn apply_size_spec(
     for prop in props {
         if prop.name == "size" {
             let spec = crate::timeline::taffy_layout::parse_size_spec(&prop.value);
-            track.geometry.size_spec = Some(spec);
+            geometry.size_spec = Some(spec);
 
             // Warn on auto/fit for non-container primitives
             if !is_container {
@@ -305,7 +306,7 @@ impl Timeline {
 }
 
 pub(super) fn apply_position_binding(
-    track: &mut AnimationTrack,
+    geometry: &mut GeometryTracks,
     position_binding: Option<(PositionBinding, Option<[f32; 2]>)>,
     is_layout_container: bool,
     parent_label: Option<&str>,
@@ -313,16 +314,16 @@ pub(super) fn apply_position_binding(
 ) -> Option<[f32; 2]> {
     let mut bound_position = None;
     if let Some((binding, bound)) = position_binding {
-        preserve_discrete_position_state_before(track, t_start_ms);
-        set_track_position_binding(track, t_start_ms, binding);
+        preserve_discrete_position_state_before(geometry, t_start_ms);
+        set_track_position_binding(geometry, t_start_ms, binding);
         if let Some(bound) = bound {
             bound_position = Some(bound);
         }
-        mark_track_manual_position(track, t_start_ms);
+        mark_track_manual_position(geometry, t_start_ms);
     } else if is_layout_container && parent_label.is_none() {
-        preserve_discrete_position_state_before(track, t_start_ms);
+        preserve_discrete_position_state_before(geometry, t_start_ms);
         set_track_position_binding(
-            track,
+            geometry,
             t_start_ms,
             PositionBinding::ContainerDefault {
                 anchor: SceneAnchor::Center,

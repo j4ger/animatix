@@ -89,6 +89,7 @@ impl Timeline {
                 world: Some(&self.world),
                 highlight: self.world.highlight(child_track.id),
                 shape: Some(self.world.shape(child_track.id)),
+                geometry: Some(self.world.geometry(child_track.id)),
                 text: Some(self.world.text(child_track.id)),
                 property_plan: Some(self.world.property_plan(child_track.id)),
                 caps: self.world.caps(child_track.id),

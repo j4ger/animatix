@@ -259,8 +259,8 @@ fn child_order_ids_follow_labels() {
     assert_eq!(timeline.get_child_order_ids("row", 0), vec![a, b, c]);
 
     // Layout admission maps ids to labels and drops unadmitted children.
-    timeline.entity_mut("b").expect("b must exist").track_mut().geometry.layout_size =
-        Some(PropertyTrack::new([10.0, 10.0]));
+    let b_id = timeline.world.get_id("b").expect("b must exist");
+    timeline.world_mut().geometry_mut(b_id).layout_size = Some(PropertyTrack::new([10.0, 10.0]));
     let admitted = timeline.container_layout("row").unwrap().layout_children(&timeline.world);
     assert_eq!(admitted.len(), 1);
     assert_eq!(admitted[0].label, "b");

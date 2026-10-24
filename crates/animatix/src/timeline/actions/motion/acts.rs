@@ -59,17 +59,17 @@ impl BuiltinAction for Shift {
                 continue;
             }
 
-            let track = match timeline.world.tracks.get_mut(target) {
-                Some(t) => t,
+            let track_id = match timeline.world.tracks.get(target) {
+                Some(t) => t.id,
                 None => continue,
             };
-            let prior_v = track
-                .geometry
+            let geometry = timeline.world.geometry_mut(track_id);
+            let prior_v = geometry
                 .motion_offset
                 .as_ref()
                 .map(|mot| mot.velocity_at(t_start_ms))
                 .unwrap_or([0.0, 0.0]);
-            let start_offset = track.geometry.motion_offset.get(t_start_ms, [0.0, 0.0]);
+            let start_offset = geometry.motion_offset.get(t_start_ms, [0.0, 0.0]);
             let end_offset = [start_offset[0] + shift_by[0], start_offset[1] + shift_by[1]];
             let dist_sq = shift_by[0] * shift_by[0] + shift_by[1] * shift_by[1];
             let effective_easing = match easing {
@@ -92,31 +92,35 @@ impl BuiltinAction for Shift {
                 other => other,
             };
 
-            let from_offset =
-                anticipation_start(track, parsed.anticipate_ms, t_start_ms, start_offset, shift_by)
-                    .unwrap_or(start_offset);
+            let from_offset = anticipation_start(
+                geometry,
+                parsed.anticipate_ms,
+                t_start_ms,
+                start_offset,
+                shift_by,
+            )
+            .unwrap_or(start_offset);
 
-            if let Some(mot) = track.geometry.motion_offset.as_mut() {
+            if let Some(mot) = geometry.motion_offset.as_mut() {
                 mot.split_off_after(t_start_ms);
             }
 
             if duration_ms > 0.0 {
-                track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
+                geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
                     t_start_ms,
                     from_offset,
                     Easing::Linear,
                 );
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                let prior_offset = track.geometry.motion_offset.get(guard_time, [0.0, 0.0]);
-                if !track
-                    .geometry
+                let prior_offset = geometry.motion_offset.get(guard_time, [0.0, 0.0]);
+                if !geometry
                     .motion_offset
                     .as_ref()
                     .map(|t| t.keyframes.contains_key(&guard_time))
                     .unwrap_or(false)
                 {
-                    track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
+                    geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
                         guard_time,
                         prior_offset,
                         Easing::Linear,
@@ -124,7 +128,7 @@ impl BuiltinAction for Shift {
                 }
             }
 
-            track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
+            geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
                 t_end_ms,
                 end_offset,
                 effective_easing,
@@ -191,30 +195,30 @@ impl BuiltinAction for Rotate {
                 continue;
             }
 
-            let track = match timeline.world.tracks.get_mut(target) {
-                Some(t) => t,
+            let track_id = match timeline.world.tracks.get(target) {
+                Some(t) => t.id,
                 None => continue,
             };
-            let start_rotation = track.geometry.rotation.get(t_start_ms, 0.0);
+            let geometry = timeline.world.geometry_mut(track_id);
+            let start_rotation = geometry.rotation.get(t_start_ms, 0.0);
             let end_rotation = start_rotation + angle_by;
 
             if duration_ms > 0.0 {
-                track.geometry.rotation.ensure(0.0).add_keyframe(
+                geometry.rotation.ensure(0.0).add_keyframe(
                     t_start_ms,
                     start_rotation,
                     Easing::Linear,
                 );
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                let prior_rotation = track.geometry.rotation.get(guard_time, 0.0);
-                if !track
-                    .geometry
+                let prior_rotation = geometry.rotation.get(guard_time, 0.0);
+                if !geometry
                     .rotation
                     .as_ref()
                     .map(|t| t.keyframes.contains_key(&guard_time))
                     .unwrap_or(false)
                 {
-                    track.geometry.rotation.ensure(0.0).add_keyframe(
+                    geometry.rotation.ensure(0.0).add_keyframe(
                         guard_time,
                         prior_rotation,
                         Easing::Linear,
@@ -222,7 +226,7 @@ impl BuiltinAction for Rotate {
                 }
             }
 
-            track.geometry.rotation.ensure(0.0).add_keyframe(t_end_ms, end_rotation, easing);
+            geometry.rotation.ensure(0.0).add_keyframe(t_end_ms, end_rotation, easing);
         }
     }
 }
@@ -285,30 +289,26 @@ impl BuiltinAction for Scale {
                 continue;
             }
 
-            let track = match timeline.world.tracks.get_mut(target) {
-                Some(t) => t,
+            let track_id = match timeline.world.tracks.get(target) {
+                Some(t) => t.id,
                 None => continue,
             };
-            let start_scale = track.geometry.scale.get(t_start_ms, 1.0);
+            let geometry = timeline.world.geometry_mut(track_id);
+            let start_scale = geometry.scale.get(t_start_ms, 1.0);
             let end_scale = start_scale * scale_by;
 
             if duration_ms > 0.0 {
-                track.geometry.scale.ensure(1.0).add_keyframe(
-                    t_start_ms,
-                    start_scale,
-                    Easing::Linear,
-                );
+                geometry.scale.ensure(1.0).add_keyframe(t_start_ms, start_scale, Easing::Linear);
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                let prior_scale = track.geometry.scale.get(guard_time, 1.0);
-                if !track
-                    .geometry
+                let prior_scale = geometry.scale.get(guard_time, 1.0);
+                if !geometry
                     .scale
                     .as_ref()
                     .map(|t| t.keyframes.contains_key(&guard_time))
                     .unwrap_or(false)
                 {
-                    track.geometry.scale.ensure(1.0).add_keyframe(
+                    geometry.scale.ensure(1.0).add_keyframe(
                         guard_time,
                         prior_scale,
                         Easing::Linear,
@@ -316,7 +316,7 @@ impl BuiltinAction for Scale {
                 }
             }
 
-            track.geometry.scale.ensure(1.0).add_keyframe(t_end_ms, end_scale, easing);
+            geometry.scale.ensure(1.0).add_keyframe(t_end_ms, end_scale, easing);
         }
     }
 }

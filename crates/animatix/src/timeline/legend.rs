@@ -147,14 +147,16 @@ fn prettify_label(label: &str) -> String {
 }
 
 /// Returns `true` when a shape is sized to fill the full viewport.
-pub(crate) fn is_full_viewport_background(track: &super::AnimationTrack) -> bool {
+pub(crate) fn is_full_viewport_background(
+    geometry: &crate::timeline::animation_track::GeometryTracks,
+) -> bool {
     use crate::timeline::taffy_layout::SizeSpec;
     let full = |spec: SizeSpec| match spec {
         SizeSpec::Fill => true,
         SizeSpec::Percent(p) => (p - 1.0).abs() < f32::EPSILON,
         _ => false,
     };
-    matches!(track.geometry.size_spec, Some(spec) if full(spec.width) && full(spec.height))
+    matches!(geometry.size_spec, Some(spec) if full(spec.width) && full(spec.height))
 }
 
 fn source_order(world: &super::World) -> std::collections::HashMap<String, usize> {
@@ -223,7 +225,7 @@ pub fn scan_legend_entries(world: &super::World) -> Vec<(String, [f32; 4])> {
         let mode = legend_mode_for_track(track, first_seen_ms, Some(world));
         if !legend_eligible(&world.caps(track.id))
             || mode == LegendMode::Hidden
-            || (is_full_viewport_background(track)
+            || (is_full_viewport_background(world.geometry(track.id))
                 && !legend_declared(track, first_seen_ms, Some(world)))
         {
             continue;

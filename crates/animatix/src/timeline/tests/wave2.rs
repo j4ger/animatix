@@ -110,6 +110,7 @@ c: Counter, value: 1234, prefix: "$", suffix: " /mo", decimals: 2, comma: true, 
     );
     let track = report.output.world.tracks.get("c").expect("counter track");
     let text = report.output.world.text(track.id);
+    let geometry = report.output.world.geometry(track.id);
 
     let data = text.counter_data.as_ref().expect("prebaked counter data");
     assert_eq!(data.digits.len(), 10, "Should prebake digits 0..=9");
@@ -120,7 +121,7 @@ c: Counter, value: 1234, prefix: "$", suffix: " /mo", decimals: 2, comma: true, 
     assert!(data.comma.1 > 0.0, "Comma width should be non-empty");
     assert!(data.dot.1 > 0.0, "Dot width should be non-empty");
 
-    let size = track.geometry.size.get(0, [0.0, 0.0]);
+    let size = geometry.size.get(0, [0.0, 0.0]);
     assert!(size[0] > 0.0 && size[1] > 0.0, "Initial half size should be non-zero");
 }
 
@@ -162,6 +163,7 @@ cnt.value = 100 [1s]
         world: None,
         shape: Some(timeline.world.shape(track.id)),
         text: Some(timeline.world.text(track.id)),
+        geometry: Some(timeline.world.geometry(track.id)),
 
         payload: None,
         target_resolver: None,
@@ -245,6 +247,7 @@ label.color = (0.0, 1.0, 0.0, 1.0) [1s]
         world: None,
         shape: Some(timeline.world.shape(track.id)),
         text: Some(timeline.world.text(track.id)),
+        geometry: Some(timeline.world.geometry(track.id)),
         payload: None,
         target_resolver: None,
         legend: None,
@@ -340,6 +343,7 @@ t: Text, text: "Hardware Stream", at: (300, 200), font_size: 32
         world: None,
         shape: Some(timeline.world.shape(track.id)),
         text: Some(timeline.world.text(track.id)),
+        geometry: Some(timeline.world.geometry(track.id)),
         payload: None,
         target_resolver: None,
         legend: None,

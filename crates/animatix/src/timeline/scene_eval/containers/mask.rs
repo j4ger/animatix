@@ -32,7 +32,7 @@ impl Timeline {
         } else {
             std::sync::Arc::new(crate::timeline::layout::LayoutPositions::new())
         };
-        let half_size = track.geometry.size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+        let half_size = self.world.geometry(track.id).size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
 
         // Resolve the clip geometry. A child labelled `clip_shape` defines
         // the clip and is NOT rendered itself; its primitive supplies the

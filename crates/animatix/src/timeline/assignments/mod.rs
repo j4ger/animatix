@@ -226,6 +226,7 @@ impl Timeline {
         if matches!(property, "position" | "at") {
             let default_pos = [0.0, 0.0];
             let default_binding = PositionBinding::Absolute;
+            let geometry = self.world.geometry.get_mut(track_id);
             let target_pos = if let Some((binding, position)) =
                 resolve_position_binding_with_lookup_diagnostic(
                     Some(value),
@@ -235,46 +236,40 @@ impl Timeline {
                     diagnostics,
                     &assignment_subject,
                 ) {
-                preserve_discrete_position_state_before(track, t_start_ms);
+                preserve_discrete_position_state_before(geometry, t_start_ms);
                 if instant_delayed {
-                    preserve_instant_delayed_value(&mut track.geometry.position, t_start_ms);
+                    preserve_instant_delayed_value(&mut geometry.position, t_start_ms);
                 }
-                mark_track_manual_position(track, t_start_ms);
+                mark_track_manual_position(geometry, t_start_ms);
                 if duration_ms > 0.0 {
-                    let start_binding =
-                        track.geometry.position_binding.get(t_start_ms, default_binding);
-                    track.geometry.position_binding.ensure(default_binding).add_keyframe(
+                    let start_binding = geometry.position_binding.get(t_start_ms, default_binding);
+                    geometry.position_binding.ensure(default_binding).add_keyframe(
                         t_start_ms,
                         start_binding,
                         Easing::Linear,
                     );
-                    track
-                        .geometry
+                    geometry
                         .position_binding
                         .ensure(default_binding)
                         .add_keyframe(t_end_ms, binding, easing);
                 } else {
-                    set_track_position_binding(track, t_start_ms, binding);
+                    set_track_position_binding(geometry, t_start_ms, binding);
                 }
-                position.unwrap_or_else(|| track.geometry.position.last(default_pos))
+                position.unwrap_or_else(|| geometry.position.last(default_pos))
             } else {
-                track.geometry.position.last(default_pos)
+                geometry.position.last(default_pos)
             };
             if duration_ms > 0.0 {
-                let start_val = track.geometry.position.get(t_start_ms, default_pos);
-                track.geometry.position.ensure(default_pos).add_keyframe(
+                let start_val = geometry.position.get(t_start_ms, default_pos);
+                geometry.position.ensure(default_pos).add_keyframe(
                     t_start_ms,
                     start_val,
                     Easing::Linear,
                 );
             } else if instant_delayed {
-                preserve_instant_delayed_value(&mut track.geometry.position, t_start_ms);
+                preserve_instant_delayed_value(&mut geometry.position, t_start_ms);
             }
-            track
-                .geometry
-                .position
-                .ensure(default_pos)
-                .add_keyframe(t_end_ms, target_pos, easing);
+            geometry.position.ensure(default_pos).add_keyframe(t_end_ms, target_pos, easing);
             return;
         }
 
@@ -293,7 +288,8 @@ impl Timeline {
                 return;
             };
             let default_binding = PositionBinding::Absolute;
-            let current = track.geometry.position_binding.get(t_start_ms, default_binding);
+            let geometry = self.world.geometry.get_mut(track_id);
+            let current = geometry.position_binding.get(t_start_ms, default_binding);
             let rebased = match current {
                 PositionBinding::SceneAnchor { anchor, .. } => PositionBinding::SceneAnchor {
                     anchor,
@@ -320,23 +316,21 @@ impl Timeline {
                     return;
                 },
             };
-            preserve_discrete_position_state_before(track, t_start_ms);
-            mark_track_manual_position(track, t_start_ms);
+            preserve_discrete_position_state_before(geometry, t_start_ms);
+            mark_track_manual_position(geometry, t_start_ms);
             if duration_ms > 0.0 {
-                let start_binding =
-                    track.geometry.position_binding.get(t_start_ms, default_binding);
-                track.geometry.position_binding.ensure(default_binding).add_keyframe(
+                let start_binding = geometry.position_binding.get(t_start_ms, default_binding);
+                geometry.position_binding.ensure(default_binding).add_keyframe(
                     t_start_ms,
                     start_binding,
                     Easing::Linear,
                 );
-                track
-                    .geometry
+                geometry
                     .position_binding
                     .ensure(default_binding)
                     .add_keyframe(t_end_ms, rebased, easing);
             } else {
-                set_track_position_binding(track, t_start_ms, rebased);
+                set_track_position_binding(geometry, t_start_ms, rebased);
             }
             return;
         }
@@ -354,6 +348,7 @@ impl Timeline {
                 text_compiler: &mut self.text_compiler.borrow_mut(),
                 asset_cache: std::sync::Arc::make_mut(&mut self.asset_cache),
                 highlight: self.world.highlight.try_get_mut(track.id),
+                geometry: self.world.geometry.try_get_mut(track.id),
                 shape: self.world.shape.try_get_mut(track.id),
                 text: self.world.text.try_get_mut(track.id),
                 property_plan: Some(self.world.property_plan.get_mut(track.id)),
@@ -510,10 +505,12 @@ impl Timeline {
             // Special handling for properties that write to size + layout_size together
             if is_size_property {
                 // Save parent's old size before assignment (for scaling children)
-                let old_half_size = track.geometry.size.last(DEFAULT_LAYOUT_HALF_SIZE);
+                let old_half_size =
+                    self.world.geometry.get(track_id).size.last(DEFAULT_LAYOUT_HALF_SIZE);
 
                 let new_half_size = handle_size_assignment(
                     track,
+                    self.world.geometry.get_mut(track_id),
                     self.world.shape.get_mut(track_id),
                     property,
                     value,
@@ -559,25 +556,25 @@ impl Timeline {
                                 && (child_label.contains("_tick_x_")
                                     || child_label.contains("_tick_y_"))
                             {
-                                let old_pos = child_track.geometry.position.last([0.0, 0.0]);
+                                let child_geometry = self.world.geometry.get_mut(child_id);
+                                let old_pos = child_geometry.position.last([0.0, 0.0]);
                                 let new_pos = [old_pos[0] * scale_x, old_pos[1] * scale_y];
                                 let child_has_duration = t_end_ms > t_start_ms;
                                 if child_has_duration {
                                     let start_pos =
-                                        child_track.geometry.position.get(t_start_ms, [0.0, 0.0]);
-                                    child_track.geometry.position.ensure([0.0, 0.0]).add_keyframe(
+                                        child_geometry.position.get(t_start_ms, [0.0, 0.0]);
+                                    child_geometry.position.ensure([0.0, 0.0]).add_keyframe(
                                         t_start_ms,
                                         start_pos,
                                         Easing::Linear,
                                     );
                                 } else if instant_delayed {
                                     preserve_instant_delayed_value(
-                                        &mut child_track.geometry.position,
+                                        &mut child_geometry.position,
                                         t_start_ms,
                                     );
                                 }
-                                child_track
-                                    .geometry
+                                child_geometry
                                     .position
                                     .ensure([0.0, 0.0])
                                     .add_keyframe(t_end_ms, new_pos, easing);
@@ -642,6 +639,7 @@ impl Timeline {
                         .expect("assignment target track exists");
                     rebuild_vector_paths(
                         track,
+                        self.world.geometry.get(track_id),
                         self.world.shape.get_mut(track_id),
                         t_start_ms,
                         t_end_ms,

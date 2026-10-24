@@ -77,11 +77,8 @@ impl Primitive for PathPrimitive {
         use crate::primitives::evaluate_shape_render;
         use crate::timeline::shapes::PathState;
 
-        let half_size = ctx
-            .track
-            .geometry
-            .size
-            .get(ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+        let geometry = ctx.geometry.expect("Path evaluation requires the geometry tier");
+        let half_size = geometry.size.get(ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
         let vector_paths = ctx.track.evaluate_vector_paths(
             ctx.shape.expect("Path evaluation requires the shape tier"),
             ctx.time_ms,

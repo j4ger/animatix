@@ -18,18 +18,18 @@ fn test_keyframe_times_s_collects_all_fields() {
 
     // Add keyframes to various fields
     track.style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
-    track
-        .geometry
-        .position
-        .ensure([0.0, 0.0])
-        .add_keyframe(2000, [100.0, 0.0], Easing::Linear);
-    track.geometry.transform.ensure([1.0, 0.0, 0.0, 1.0, 0.0, 0.0]).add_keyframe(
-        3000,
-        [2.0, 0.0, 0.0, 2.0, 0.0, 0.0],
+    let id = timeline.world.spawn_with_track("test", track);
+    timeline.world.geometry_mut(id).position.ensure([0.0, 0.0]).add_keyframe(
+        2000,
+        [100.0, 0.0],
         Easing::Linear,
     );
-
-    timeline.world.tracks.insert("test".to_string(), track);
+    timeline
+        .world
+        .geometry_mut(id)
+        .transform
+        .ensure([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
+        .add_keyframe(3000, [2.0, 0.0, 0.0, 2.0, 0.0, 0.0], Easing::Linear);
     let times = timeline.keyframe_times_s();
     // Times in seconds: 1.0 (opacity), 2.0 (position), 3.0 (transform)
     assert_eq!(times.len(), 3, "Got: {:?}", times);
@@ -72,8 +72,8 @@ fn test_keyframe_times_s_returns_unique_times() {
     let mut track_b = AnimationTrack::placeholder("b".to_string());
     track_b.style.opacity.ensure(1.0).add_keyframe(1000, 0.0, Easing::Linear);
 
-    timeline.world.tracks.insert("a".to_string(), track_a);
-    timeline.world.tracks.insert("b".to_string(), track_b);
+    timeline.world.spawn_with_track("a", track_a);
+    timeline.world.spawn_with_track("b", track_b);
     let times = timeline.keyframe_times_s();
     // Both tracks have the same keyframe time (1000ms = 1.0s)
     assert_eq!(times.len(), 1, "Should have unique times, got: {:?}", times);
@@ -85,7 +85,7 @@ fn test_keyframe_times_s_returns_seconds_not_milliseconds() {
     let mut timeline = keyframe_times_s_timeline();
     let mut track = AnimationTrack::placeholder("test".to_string());
     track.style.opacity.ensure(1.0).add_keyframe(5000, 0.5, Easing::Linear);
-    timeline.world.tracks.insert("test".to_string(), track);
+    timeline.world.spawn_with_track("test", track);
     let times = timeline.keyframe_times_s();
     assert!(!times.contains(&5000.0), "Should be in seconds, not milliseconds");
     assert!(times.contains(&5.0), "5000ms should be 5.0s, got: {:?}", times);

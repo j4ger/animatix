@@ -329,7 +329,7 @@ bounce a [1s, intensity: 100]
 "#,
     );
     let track = timeline.world.tracks.get("a").expect("rect track");
-    let y = |ms: u64| track.geometry.motion_offset.get(ms, [0.0, 0.0])[1];
+    let y = |ms: u64| timeline.world.geometry(track.id).motion_offset.get(ms, [0.0, 0.0])[1];
 
     // restitution 0.6 ⇒ six visible hops filling the 1s window, so the first
     // airtime is 1000·(1-0.6)/(1-0.6⁶) ≈ 420ms: apex at 210, contact at 420.
@@ -357,7 +357,7 @@ bounce a [1s, intensity: 100, restitution: 0.9]
 "#,
     );
     let track = timeline.world.tracks.get("a").expect("rect track");
-    let y = |ms: u64| track.geometry.motion_offset.get(ms, [0.0, 0.0])[1];
+    let y = |ms: u64| timeline.world.geometry(track.id).motion_offset.get(ms, [0.0, 0.0])[1];
     // A springier ball is still airborne at 900ms — the hop cap must not leave
     // it parked early — and it is home at the end of the duration.
     assert!(y(900) < -1.0, "0.9 restitution should still be bouncing, got {}", y(900));
@@ -887,12 +887,13 @@ pop-in chip [500ms]
     );
     let timeline = report.output;
     use crate::timeline::property_registry::lookup_property;
-    use crate::timeline::read_property_value;
 
     let read = |label: &str, prop: &str, ms: u64| {
         let schema = lookup_property(prop).expect("property");
         let track = timeline.world.tracks.get(label).unwrap();
-        read_property_value(track, schema.field, ms)
+        timeline
+            .world
+            .read_property_value(track.id, schema.field, ms)
             .unwrap_or_else(|| (schema.default_value)(&timeline.world.caps(track.id)))
     };
 
@@ -966,11 +967,14 @@ move dot [to: (200, 0), 500ms, anticipate: 100ms]
     );
     let timeline = report.output;
     use crate::timeline::property_registry::lookup_property;
-    use crate::timeline::read_property_value;
 
     let offset_at = |ms: u64| -> [f32; 2] {
         let schema = lookup_property("shift").expect("property");
-        match read_property_value(timeline.world.tracks.get("dot").unwrap(), schema.field, ms) {
+        match timeline.world.read_property_value(
+            timeline.world.tracks.get_id("dot").unwrap(),
+            schema.field,
+            ms,
+        ) {
             Some(crate::timeline::PropertyValue::Vec2(v)) => v,
             other => panic!("expected a Vec2 offset at {ms}ms, got {other:?}"),
         }
@@ -1097,10 +1101,10 @@ box.shift = (240, 0)
             "unexpected diagnostics: {:?}",
             report.diagnostics
         );
-        use crate::timeline::read_property_value;
+
         let schema = crate::timeline::property_registry::lookup_property("shift").unwrap();
         let track = report.output.world.tracks.get("box").unwrap();
-        match read_property_value(track, schema.field, ms) {
+        match report.output.world.read_property_value(track.id, schema.field, ms) {
             Some(crate::timeline::PropertyValue::Vec2(v)) => v,
             other => panic!("expected a Vec2 shift, got {other:?}"),
         }
@@ -1213,11 +1217,11 @@ fade-in box [200ms]
         &std::collections::HashMap::new(),
     );
     let timeline = report.output;
-    use crate::timeline::read_property_value;
+
     let schema = crate::timeline::property_registry::lookup_property("scale").unwrap();
     let scale_of = |label: &str| -> Option<f32> {
         let track = timeline.world.tracks.get(label).unwrap();
-        match read_property_value(track, schema.field, 0) {
+        match timeline.world.read_property_value(track.id, schema.field, 0) {
             Some(crate::timeline::PropertyValue::F32(v)) => Some(v),
             None => None,
             other => panic!("expected a numeric scale for {label}, got {other:?}"),
@@ -1260,10 +1264,10 @@ move dot [along: {move_to(100, 100), line_to(500, 100)}, 2s]
         .collect();
     assert!(offenders.is_empty(), "unexpected diagnostics: {offenders:?}");
     let timeline = report.output;
-    use crate::timeline::read_property_value;
+
     let schema = crate::timeline::property_registry::lookup_property("position").unwrap();
     let track = timeline.world.tracks.get("dot").unwrap();
-    let at = |ms: u64| match read_property_value(track, schema.field, ms) {
+    let at = |ms: u64| match timeline.world.read_property_value(track.id, schema.field, ms) {
         Some(crate::timeline::PropertyValue::Vec2(v)) => v,
         other => panic!("expected a position at {ms}ms, got {other:?}"),
     };
@@ -1282,7 +1286,14 @@ move dot [along: {move_to(100, 100), line_to(500, 100)}, 2s]
     );
     // Keyframed densely enough that a curve route reads as smooth.
     assert!(
-        track.geometry.position.as_ref().map(|t| t.keyframes.len()).unwrap_or(0) > 8,
+        timeline
+            .world
+            .geometry(track.id)
+            .position
+            .as_ref()
+            .map(|t| t.keyframes.len())
+            .unwrap_or(0)
+            > 8,
         "the route must be baked into many samples"
     );
 }

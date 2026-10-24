@@ -604,8 +604,9 @@ pulse btn [strength: 1.5]
     // The scale keyframe written through the fn body targets the actor;
     // scale is stored in the transform track as [s,0,0,s,0,0].
     let track = timeline.world.tracks.get("btn").expect("btn track");
+    let geometry = timeline.world.geometry(track.id);
     assert_eq!(
-        track.geometry.scale.get(1100, 1.0),
+        geometry.scale.get(1100, 1.0),
         3.0,
         "pulse body should write scale = strength * 2 = 3.0 at t=1.1s"
     );
@@ -1015,11 +1016,12 @@ p: StubPulse, at: (100, 100), size: (50, 50)
         panic!("expected single scene");
     };
     let track = timeline.world.tracks.get("p").expect("p track");
+    let geometry = timeline.world.geometry(track.id);
     // Regression: extension actors must honor the common `at` property like
     // built-ins (previously the position stayed [0,0], so native text and
     // image commands rendered at the scene origin).
     assert_eq!(
-        track.geometry.position.get(0, [0.0, 0.0]),
+        geometry.position.get(0, [0.0, 0.0]),
         [100.0, 100.0],
         "extension actor must apply `at`"
     );

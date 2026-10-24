@@ -338,3 +338,41 @@ impl<'a> TrackFieldRef<'a> {
         }
     }
 }
+
+impl TrackFieldRef<'_> {
+    /// Whether the referenced property track is interpolating at `time_ms`.
+    pub fn is_currently_animating(&self, time_ms: u64) -> bool {
+        macro_rules! animating {
+            ($($variant:ident),* $(,)?) => {
+                match self {
+                    $(Self::$variant(track) => track
+                        .as_ref()
+                        .is_some_and(|track| track.is_currently_animating(time_ms)),)*
+                    Self::Tagged(_, track) => track
+                        .as_ref()
+                        .is_some_and(|track| track.is_currently_animating(time_ms)),
+                }
+            };
+        }
+        animating!(
+            F32,
+            Vec2,
+            Vec4,
+            Transform,
+            String,
+            U32,
+            F32List,
+            Gradient,
+            PointList,
+            CommandList,
+            ShapeType,
+            PlacementMode,
+            CalloutPlace,
+            MorphOptions,
+            VectorPaths,
+            TextPaths,
+            Image,
+            PositionBinding,
+        )
+    }
+}

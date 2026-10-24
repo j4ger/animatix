@@ -154,17 +154,28 @@ fn test_for_loop_tuple_destructuring_creates_actors() {
     // Verify all three actors have position tracks
     // dot__0 should be at (10, 20)
     let dot0 = timeline.world.tracks.get("dot__0").unwrap();
-    assert!(dot0.geometry.position.is_some(), "Expected dot__0 to have position track");
+    assert!(
+        timeline.world.geometry(dot0.id).position.is_some(),
+        "Expected dot__0 to have position track"
+    );
 
     // dot__1 should be at (30, 40)
     assert!(
-        timeline.world.tracks.get("dot__1").unwrap().geometry.position.is_some(),
+        timeline
+            .world
+            .geometry(timeline.world.tracks.get_id("dot__1").unwrap())
+            .position
+            .is_some(),
         "Expected dot__1 to have position track"
     );
 
     // dot__2 should be at (50, 60)
     assert!(
-        timeline.world.tracks.get("dot__2").unwrap().geometry.position.is_some(),
+        timeline
+            .world
+            .geometry(timeline.world.tracks.get_id("dot__2").unwrap())
+            .position
+            .is_some(),
         "Expected dot__2 to have position track"
     );
 }
@@ -232,7 +243,7 @@ fn test_for_loop_tuple_with_vec2_values() {
 
     // The last iteration sets at to (25, 35)
     let track = timeline.world.tracks.get("point").unwrap();
-    if let Some(pos_track) = &track.geometry.position {
+    if let Some(pos_track) = &timeline.world.geometry(track.id).position {
         let pos = pos_track.evaluate(0);
         // position may be stored as Vec2 or individually
         assert!(
@@ -1248,8 +1259,20 @@ box.size = {120, 60} [500ms, ease: ease-out]
     let timeline = report.output;
 
     let box_track = timeline.world.tracks.get("box").expect("box track");
-    let at = box_track.geometry.position.as_ref().expect("at track").evaluate(2000);
-    let size = box_track.geometry.size.as_ref().expect("size track").evaluate(2000);
+    let at = timeline
+        .world
+        .geometry(box_track.id)
+        .position
+        .as_ref()
+        .expect("at track")
+        .evaluate(2000);
+    let size = timeline
+        .world
+        .geometry(box_track.id)
+        .size
+        .as_ref()
+        .expect("size track")
+        .evaluate(2000);
     assert_eq!(at, [420.0, 260.0], "brace at must position the actor");
     assert_eq!(size, [60.0, 30.0], "brace size is stored as half-size");
 }

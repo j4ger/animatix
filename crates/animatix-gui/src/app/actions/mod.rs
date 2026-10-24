@@ -1,5 +1,5 @@
 mod property_edit;
-use property_edit::{apply_property_edit_to_track, apply_shape_angle_edit};
+use property_edit::{apply_property_edit_to_entity, apply_shape_angle_edit};
 
 use animatix::timeline::TrackAccessor;
 
@@ -295,14 +295,10 @@ impl GuiShell {
                     &edit.value,
                     time_ms,
                 );
-                if !angle_edited
-                    && let Some((track, effects, legend)) =
-                        timeline.world_mut().track_effects_and_legend_mut(id)
-                {
-                    apply_property_edit_to_track(
-                        track,
-                        Some(effects),
-                        Some(legend),
+                if !angle_edited {
+                    apply_property_edit_to_entity(
+                        timeline.world_mut(),
+                        id,
                         &edit.property,
                         &edit.value,
                         time_ms,
@@ -622,7 +618,7 @@ mod tests {
 
     use crate::app::panels::PropertyValue as PV;
 
-    use super::apply_property_edit_to_track;
+    use super::apply_property_edit_to_entity;
 
     /// A GUI edit of a registry-backed tagged property must land in the store
     /// the engine reads (`property_plan`), not only in `tagged_tracks`.
@@ -633,19 +629,15 @@ mod tests {
         timeline.world_mut().rebuild_property_plan(id);
         let mut legacy_tagged = Vec::new();
         let mut field_writes = Vec::new();
-        {
-            let track = timeline.get_track_mut("box").expect("spawned track");
-            apply_property_edit_to_track(
-                track,
-                None,
-                None,
-                "solo",
-                &PV::Bool(true),
-                1000,
-                &mut legacy_tagged,
-                &mut field_writes,
-            );
-        }
+        apply_property_edit_to_entity(
+            timeline.world_mut(),
+            id,
+            "solo",
+            &PV::Bool(true),
+            1000,
+            &mut legacy_tagged,
+            &mut field_writes,
+        );
         for (field, value) in field_writes {
             timeline.world_mut().write_property_field(
                 id,
@@ -679,19 +671,15 @@ mod tests {
         let id = timeline.world_mut().spawn("box", "Rect");
         let mut legacy_tagged = Vec::new();
         let mut field_writes = Vec::new();
-        {
-            let track = timeline.get_track_mut("box").expect("spawned track");
-            apply_property_edit_to_track(
-                track,
-                None,
-                None,
-                "corner_radius",
-                &PV::F32(12.0),
-                500,
-                &mut legacy_tagged,
-                &mut field_writes,
-            );
-        }
+        apply_property_edit_to_entity(
+            timeline.world_mut(),
+            id,
+            "corner_radius",
+            &PV::F32(12.0),
+            500,
+            &mut legacy_tagged,
+            &mut field_writes,
+        );
         assert!(
             field_writes.iter().any(|(field, _)| *field == ActorField::CornerRadius),
             "shape-owned property edits must route through the world field bundle"

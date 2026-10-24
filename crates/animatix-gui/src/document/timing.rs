@@ -1,18 +1,20 @@
 //! Timeline duration and keyframe-time helpers shared across the GUI.
 
 use animatix::composition::Composition;
-use animatix::timeline::{AnimationTrack, Timeline};
-
-fn track_max_ms(track: &AnimationTrack) -> u64 {
-    track.max_keyframe_time().unwrap_or(0)
-}
+use animatix::timeline::Timeline;
 
 pub fn timeline_duration_seconds(
     timeline: Option<&Timeline>,
     composition: Option<&Composition>,
 ) -> f64 {
     if let Some(timeline) = timeline {
-        timeline.tracks().values().map(track_max_ms).max().unwrap_or(0) as f64 / 1000.0
+        timeline
+            .tracks()
+            .values()
+            .map(|track| timeline.world().max_keyframe_time(track.id).unwrap_or(0))
+            .max()
+            .unwrap_or(0) as f64
+            / 1000.0
     } else {
         composition.map(|c| c.global_duration_s).unwrap_or(0.0)
     }

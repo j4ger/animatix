@@ -43,7 +43,7 @@ pub fn motion_path_ops(
             Some(track) => track,
             None => continue,
         };
-        let pos_track = match &track.geometry.position {
+        let pos_track = match &timeline.world().geometry(track.id).position {
             Some(track) => track,
             None => continue,
         };

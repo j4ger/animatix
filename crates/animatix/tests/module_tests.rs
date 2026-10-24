@@ -623,9 +623,10 @@ sequence {
         track_names
     );
     let track = timeline.tracks().get("badge1").unwrap();
+    let badge_id = timeline.get_entity_id("badge1").expect("badge1 entity");
     // bounce: each inlined assignment gets the invocation [200ms] modifier,
     // so total bounce span is 400ms (200ms + 200ms). fade-in starts at 400ms.
-    let scale = track.geometry.scale.as_ref().expect("scale should exist");
+    let scale = timeline.world().geometry(badge_id).scale.as_ref().expect("scale should exist");
     // At 100ms, first scale assignment is halfway through 200ms: 1.0 → 1.5 = 1.25
     assert!(
         (scale.evaluate(100) - 1.25).abs() < 0.01,

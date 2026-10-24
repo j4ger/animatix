@@ -103,7 +103,10 @@ impl Primitive for ImagePrimitive {
 
         if let Some(image) = ctx.image_track().and_then(|t| t.evaluate(ctx.time_ms)) {
             let half_size = crate::primitives::resolve_half_size(
-                ctx.track.geometry.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE),
+                ctx.geometry
+                    .expect("Image evaluation requires the geometry tier")
+                    .size
+                    .get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE),
                 ctx.overrides,
             );
             let natural_size = [half_size[0] * 2.0, half_size[1] * 2.0];

@@ -3,6 +3,7 @@
 mod caps;
 mod component;
 mod fields;
+mod geometry;
 mod hierarchy;
 mod highlight;
 mod meta;
@@ -36,15 +37,11 @@ use crate::primitives::PrimitivePayload;
 /// Entities and component stores for one scene timeline.
 #[derive(Clone, Debug, Default)]
 pub struct World {
-    /// Dense entity storage (transitional: the header and not-yet-migrated
-    /// component tiers still live on `AnimationTrack`).
     pub(crate) tracks: TrackStore,
-    /// Parent/children links, aligned with `tracks`.
     pub(crate) hierarchy: RequiredStore<SceneHierarchyComponent>,
-    /// Equation-highlight tier for every entity.
     pub(crate) highlight: RequiredStore<crate::timeline::animation_track::HighlightTracks>,
-    /// Tagged-union property tracks (legend, extension tags).
     pub(crate) tagged_tracks: RequiredStore<TaggedTracksComponent>,
+    pub(crate) geometry: RequiredStore<crate::timeline::animation_track::GeometryTracks>,
     /// Text tier for every entity.
     pub(crate) text: RequiredStore<crate::timeline::animation_track::TextTracks>,
     /// Shape geometry tier for every entity.
@@ -270,6 +267,7 @@ impl World {
         self.hierarchy.reset_at(id);
         self.highlight.reset_at(id);
         self.tagged_tracks.reset_at(id);
+        self.geometry.reset_at(id);
         self.text.reset_at(id);
         self.shape.reset_at(id);
         self.property_plan.reset_at(id);
@@ -589,6 +587,7 @@ impl World {
         self.hierarchy.ensure_len(len);
         self.highlight.ensure_len(len);
         self.tagged_tracks.ensure_len(len);
+        self.geometry.ensure_len(len);
         self.text.ensure_len(len);
         self.shape.ensure_len(len);
         self.property_plan.ensure_len(len);
@@ -612,6 +611,7 @@ impl World {
         self.hierarchy.clear();
         self.highlight.clear();
         self.tagged_tracks.clear();
+        self.geometry.clear();
         self.text.clear();
         self.shape.clear();
         self.property_plan.clear();

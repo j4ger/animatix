@@ -200,7 +200,7 @@ impl PreviewContext<'_> {
             // Callout handles: tip + label + place (targeted) + standoff (targeted)
             if affordances.contains(&crate::app::primitives::GizmoAffordance::Callout) {
                 let geo = animatix::timeline::callout_geometry::derive_callout_geometry(
-                    track,
+                    timeline.world().geometry(track.id),
                     timeline.world().shape(track.id),
                     time_ms,
                     Some(timeline),

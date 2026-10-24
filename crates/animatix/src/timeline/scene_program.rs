@@ -97,17 +97,17 @@ mod tests {
             }),
             ..Default::default()
         };
-        track.geometry.size = Some({
-            let mut t = crate::timeline::PropertyTrack::new([50.0, 50.0]);
-            t.add_keyframe(0, [50.0, 50.0], crate::timeline::Easing::Linear);
-            t
-        });
         track.style.color = Some({
             let mut t = crate::timeline::PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);
             t.add_keyframe(0, [1.0, 0.0, 0.0, 1.0], crate::timeline::Easing::Linear);
             t
         });
         let id = timeline.world.spawn_with_track("box", track);
+        timeline.world.geometry_mut(id).size = Some({
+            let mut t = crate::timeline::PropertyTrack::new([50.0, 50.0]);
+            t.add_keyframe(0, [50.0, 50.0], crate::timeline::Easing::Linear);
+            t
+        });
         *timeline.world.shape_mut(id) = shape;
         timeline.world.meta_mut(id).first_seen_ms = 0;
 

@@ -132,7 +132,17 @@ pub fn write_property_fields(
         && let PropertyValue::Enum(choice) = &value
         && let Some(place) = crate::timeline::animation_track::CalloutPlace::from_str(choice)
     {
-        let callout_track = &mut fields.geometry.callout_place;
+        // The geometry tier is a required component on a spawned entity; a
+        // bundle built without one (track-only test helpers) has no
+        // destination for the keyframe.
+        let Some(geometry) = fields.geometry.as_deref_mut() else {
+            tracing::debug!(
+                "callout_place write for '{}' dropped: no geometry tier in this field bundle",
+                fields.label
+            );
+            return;
+        };
+        let callout_track = &mut geometry.callout_place;
         if has_duration {
             let start = callout_track
                 .get(t_start_ms, crate::timeline::animation_track::CalloutPlace::Right);

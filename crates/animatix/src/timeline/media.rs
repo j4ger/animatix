@@ -50,12 +50,13 @@ fn seed_svg_track(
             let measured_half_size = DEFAULT_LAYOUT_HALF_SIZE;
             {
                 let track = world.tracks.get_by_id_mut(id).expect("media seed target must exist");
-                track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                let geometry = world.geometry.get_mut(id);
+                geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                     time_ms,
                     measured_half_size,
                     Easing::Linear,
                 );
-                track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                track.ensure_layout_size(geometry, DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                     time_ms,
                     measured_half_size,
                     Easing::Linear,
@@ -92,12 +93,13 @@ fn seed_image_track(
                 .unwrap_or([image.natural_size[0] / 2.0, image.natural_size[1] / 2.0]);
             {
                 let track = world.tracks.get_by_id_mut(id).expect("media seed target must exist");
-                track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                let geometry = world.geometry.get_mut(id);
+                geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                     time_ms,
                     display_size,
                     Easing::Linear,
                 );
-                track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                track.ensure_layout_size(geometry, DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                     time_ms,
                     display_size,
                     Easing::Linear,
@@ -243,7 +245,12 @@ impl Timeline {
             diagnostics,
             label,
         ) {
-            apply_explicit_position_binding(track, time_ms as u64, binding, position);
+            apply_explicit_position_binding(
+                self.world.geometry_mut(track_id),
+                time_ms as u64,
+                binding,
+                position,
+            );
         }
 
         let mut pending_writes: Vec<(

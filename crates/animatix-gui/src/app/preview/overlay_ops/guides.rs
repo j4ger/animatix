@@ -153,14 +153,13 @@ mod tests {
     fn motion_paths_emit_lines_dots_and_labels() {
         // Minimal timeline with two position keyframes.
         let mut timeline = Timeline::new();
-        timeline.spawn_entity("box", "Rect");
-        let track = timeline.get_track_mut("box").expect("box track");
-        track
-            .geometry
+        let id = timeline.spawn_entity("box", "Rect");
+        let geometry = timeline.world_mut().geometry_mut(id);
+        geometry
             .position
             .get_or_insert_with(|| animatix::timeline::PropertyTrack::new([0.0, 0.0]))
             .add_keyframe(0, [0.0, 0.0], animatix::timeline::Easing::Linear);
-        track.geometry.position.as_mut().unwrap().add_keyframe(
+        geometry.position.as_mut().unwrap().add_keyframe(
             1000,
             [100.0, 0.0],
             animatix::timeline::Easing::Linear,

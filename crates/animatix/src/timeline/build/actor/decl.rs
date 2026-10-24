@@ -60,8 +60,14 @@ impl Timeline {
             .map(|id| self.world.shape(id))
             .cloned()
             .unwrap_or_default();
-        let mut position = existing_track.geometry.position.last([0.0, 0.0]);
-        let mut size = existing_track.geometry.size.last(default_size);
+        let existing_geometry = self
+            .world
+            .get_id(label)
+            .map(|id| self.world.geometry(id))
+            .cloned()
+            .unwrap_or_default();
+        let mut position = existing_geometry.position.last([0.0, 0.0]);
+        let mut size = existing_geometry.size.last(default_size);
         let mut line_from = existing_shape.line_from.last([-50.0, 0.0]);
         let mut line_to = existing_shape.line_to.last([50.0, 0.0]);
         let mut arc_angles = existing_shape.arc_angles.last(default_arc);
@@ -490,19 +496,10 @@ impl Timeline {
         // Catalog data decides this (via the descriptor already built above),
         // not a `ty == "Connector"` compare.
         if primitive.connector {
-            let track = self
-                .world
-                .tracks
-                .get_by_id_mut(track_id)
-                .expect("World::ensure_track creates the track");
+            let geometry = self.world.geometry.get_mut(track_id);
             let shape = self.world.shape.get_mut(track_id);
-            track
-                .geometry
-                .connector_arrow
-                .ensure(true)
-                .add_keyframe(t_start_ms, true, easing);
-            track
-                .geometry
+            geometry.connector_arrow.ensure(true).add_keyframe(t_start_ms, true, easing);
+            geometry
                 .connector_routing
                 .ensure(crate::timeline::ConnectorRouting::Elbow)
                 .add_keyframe(t_start_ms, crate::timeline::ConnectorRouting::Elbow, easing);
@@ -518,8 +515,7 @@ impl Timeline {
                                 &eval_env,
                             )
                         {
-                            track
-                                .geometry
+                            geometry
                                 .connector_from
                                 .ensure(endpoint.clone())
                                 .add_keyframe(t_start_ms, endpoint, easing);
@@ -532,8 +528,7 @@ impl Timeline {
                                 &eval_env,
                             )
                         {
-                            track
-                                .geometry
+                            geometry
                                 .connector_to
                                 .ensure(endpoint.clone())
                                 .add_keyframe(t_start_ms, endpoint, easing);
@@ -547,8 +542,7 @@ impl Timeline {
                         let routing = routing_str
                             .parse::<crate::timeline::ConnectorRouting>()
                             .unwrap_or(crate::timeline::ConnectorRouting::Elbow);
-                        track
-                            .geometry
+                        geometry
                             .connector_routing
                             .ensure(routing)
                             .add_keyframe(t_start_ms, routing, easing);
@@ -559,8 +553,7 @@ impl Timeline {
                             Expr::Ident(s) => s == "true",
                             _ => true,
                         };
-                        track
-                            .geometry
+                        geometry
                             .connector_arrow
                             .ensure(arrow_val)
                             .add_keyframe(t_start_ms, arrow_val, easing);
@@ -737,8 +730,9 @@ impl Timeline {
             .get_by_id_mut(track_id)
             .expect("World::ensure_track creates the track");
         let shape = self.world.shape.get_mut(track_id);
+        let geometry = self.world.geometry.get_mut(track_id);
 
-        apply_size_spec(track, &primitive, props, label, parent_label, diagnostics);
+        apply_size_spec(geometry, &primitive, props, label, parent_label, diagnostics);
 
         // Pre-seed opacity for pre-keyframe first declarations so that
         // insert_start_keyframes captures the correct invisible start value.
@@ -755,7 +749,7 @@ impl Timeline {
         }
 
         if let Some(bound) = apply_position_binding(
-            track,
+            geometry,
             position_binding,
             primitive.is_layout_container(),
             parent_label,
@@ -766,6 +760,7 @@ impl Timeline {
 
         Self::insert_actor_keyframes(
             track,
+            geometry,
             shape,
             caps,
             t_start_ms,

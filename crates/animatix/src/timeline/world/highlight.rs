@@ -30,7 +30,8 @@ impl World {
             tracks.values().flatten().filter_map(|t| t.last_keyframe_time()).max()
         });
         let plan = self.property_plan.get(id).max_keyframe_time();
-        [track, highlight, tagged, plan].into_iter().flatten().max()
+        let geometry = self.geometry.try_get(id).and_then(|g| g.max_keyframe_time());
+        [track, highlight, tagged, plan, geometry].into_iter().flatten().max()
     }
 
     /// Whether any tier (payload, highlight and plan included) has keyframes.
@@ -47,6 +48,7 @@ impl World {
                 tracks.values().flatten().any(|track| !track.is_effectively_static())
             })
             || self.property_plan.get(id).has_any_keyframes()
+            || self.geometry.try_get(id).is_some_and(|geometry| geometry.has_any_keyframes())
     }
 }
 

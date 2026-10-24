@@ -12,14 +12,13 @@ pub(super) fn synthesize_idle_tracks(timeline: &mut Timeline) {
                 .world
                 .read_property_value(id, crate::timeline::ActorField::Tagged("idle"), 0);
         if let Some(crate::timeline::property_engine::PropertyValue::String(idle_mode)) = idle {
-            let track =
-                timeline.world.tracks.get_by_id_mut(id).expect("id came from the track store");
+            let geometry = timeline.world.geometry_mut(id);
             let period_ms: u64 = 3000;
             let num_cycles = duration_ms.div_ceil(period_ms);
             match idle_mode.as_str() {
                 "float" => {
-                    let base_offset = track.geometry.motion_offset.get(0, [0.0, 0.0]);
-                    let mot = track.geometry.motion_offset.ensure(base_offset);
+                    let base_offset = geometry.motion_offset.get(0, [0.0, 0.0]);
+                    let mot = geometry.motion_offset.ensure(base_offset);
                     for c in 0..num_cycles {
                         let t0 = c * period_ms;
                         mot.add_keyframe(t0, base_offset, crate::timeline::Easing::EaseInOut);
@@ -46,9 +45,9 @@ pub(super) fn synthesize_idle_tracks(timeline: &mut Timeline) {
                     }
                 },
                 "breath" => {
-                    let base_scale = track.geometry.scale.get(0, 1.0);
+                    let base_scale = geometry.scale.get(0, 1.0);
                     let peak_scale = base_scale * 1.03;
-                    let sc = track.geometry.scale.ensure(base_scale);
+                    let sc = geometry.scale.ensure(base_scale);
                     for c in 0..num_cycles {
                         let t0 = c * period_ms;
                         sc.add_keyframe(t0, base_scale, crate::timeline::Easing::EaseInOut);

@@ -154,9 +154,12 @@ fn test_write_read_roundtrip_f32() {
 
 #[test]
 fn test_write_read_roundtrip_vec2() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    let result = write_read_roundtrip(
-        &mut track,
+    // position is geometry-tier storage owned by `World`.
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    let result = world_write_read_roundtrip(
+        &mut timeline,
+        id,
         ActorField::Position,
         PropertyValue::Vec2([100.0, 200.0]),
         500,
@@ -190,9 +193,12 @@ fn test_write_read_roundtrip_vec4() {
 
 #[test]
 fn test_write_read_roundtrip_transform() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    let result = write_read_roundtrip(
-        &mut track,
+    // transform is geometry-tier storage owned by `World`.
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    let result = world_write_read_roundtrip(
+        &mut timeline,
+        id,
         ActorField::Transform,
         PropertyValue::Transform([2.0, 0.0, 0.0, 2.0, 50.0, 100.0]),
         500,
@@ -290,17 +296,29 @@ fn test_tagged_auto_transition_snaps_cross_variant() {
 
 #[test]
 fn test_write_read_roundtrip_min_width() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    let result =
-        write_read_roundtrip(&mut track, ActorField::MinWidth, PropertyValue::F32(200.0), 500);
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    let result = world_write_read_roundtrip(
+        &mut timeline,
+        id,
+        ActorField::MinWidth,
+        PropertyValue::F32(200.0),
+        500,
+    );
     assert_eq!(result, Some(PropertyValue::F32(200.0)));
 }
 
 #[test]
 fn test_write_read_roundtrip_max_height() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    let result =
-        write_read_roundtrip(&mut track, ActorField::MaxHeight, PropertyValue::F32(800.0), 500);
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    let result = world_write_read_roundtrip(
+        &mut timeline,
+        id,
+        ActorField::MaxHeight,
+        PropertyValue::F32(800.0),
+        500,
+    );
     assert_eq!(result, Some(PropertyValue::F32(800.0)));
 }
 
@@ -344,9 +362,15 @@ fn test_write_read_roundtrip_highlight_opacity() {
 
 #[test]
 fn test_write_read_roundtrip_min_height() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    let result =
-        write_read_roundtrip(&mut track, ActorField::MinHeight, PropertyValue::F32(300.0), 500);
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    let result = world_write_read_roundtrip(
+        &mut timeline,
+        id,
+        ActorField::MinHeight,
+        PropertyValue::F32(300.0),
+        500,
+    );
     assert_eq!(result, Some(PropertyValue::F32(300.0)));
 }
 

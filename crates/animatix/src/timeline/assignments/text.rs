@@ -1,9 +1,10 @@
 use super::*;
-use crate::timeline::animation_track::TextTracks;
+use crate::timeline::animation_track::{GeometryTracks, TextTracks};
 
 pub(crate) fn recompile_text_at_assignment(
     track: &mut AnimationTrack,
     text: &mut TextTracks,
+    geometry: &mut GeometryTracks,
     target_text: String,
     t_start_ms: u64,
     t_end_ms: u64,
@@ -32,7 +33,7 @@ pub(crate) fn recompile_text_at_assignment(
         .ensure(String::new())
         .add_keyframe(t_end_ms, target_text.clone(), easing);
 
-    // This helper receives a bare track plus the text tier (the primitive
+    // This helper receives a bare track plus the text and geometry tiers (the primitive
     // assignment path owns no `World`), so derive the projection from the
     // actor type, which is the same derivation the built-in catalog uses.
     // Extension overrides live in `World` and are applied by callers that
@@ -94,23 +95,23 @@ pub(crate) fn recompile_text_at_assignment(
         text.text_paths
             .ensure(Vec::new())
             .add_keyframe(t_start_ms, start_val, Easing::Linear);
-        let start_size = track.geometry.size.get(t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
+        let start_size = geometry.size.get(t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
         let start_layout_size =
-            track.layout_size_get(t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
-        track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+            track.layout_size_get(geometry, t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
+        geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
             t_start_ms,
             start_size,
             Easing::Linear,
         );
-        track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+        track.ensure_layout_size(geometry, DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
             t_start_ms,
             start_layout_size,
             Easing::Linear,
         );
     } else if instant_delayed {
         preserve_instant_delayed_value(&mut text.text_paths, t_start_ms);
-        preserve_instant_delayed_value(&mut track.geometry.size, t_start_ms);
-        preserve_instant_delayed_value(&mut track.geometry.layout_size, t_start_ms);
+        preserve_instant_delayed_value(&mut geometry.size, t_start_ms);
+        preserve_instant_delayed_value(&mut geometry.layout_size, t_start_ms);
     }
 
     // Content swaps cross-fade the source and target glyph sets instead of
@@ -162,12 +163,11 @@ pub(crate) fn recompile_text_at_assignment(
     };
 
     text.text_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths_vec, easing);
-    track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
-        t_end_ms,
-        new_half_size,
-        easing,
-    );
-    track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+    geometry
+        .size
+        .ensure(DEFAULT_LAYOUT_HALF_SIZE)
+        .add_keyframe(t_end_ms, new_half_size, easing);
+    track.ensure_layout_size(geometry, DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
         t_end_ms,
         new_half_size,
         easing,

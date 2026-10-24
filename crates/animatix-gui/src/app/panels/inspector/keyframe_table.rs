@@ -550,29 +550,33 @@ mod tests {
 
     #[test]
     fn test_count_keyframes_one_keyframe() {
-        let mut track = make_track("Rect");
+        let mut timeline = Timeline::new();
+        let id = timeline.world_mut().spawn("test", "Rect");
         let mut pt = PropertyTrack::new([0.0, 0.0]);
         pt.add_keyframe(0, [100.0, 200.0], Easing::Linear);
-        track.geometry.position = Some(pt);
-        assert_eq!(count_for(track), 1);
+        timeline.world_mut().geometry_mut(id).position = Some(pt);
+        let track = timeline.world().track(id).expect("spawned track");
+        assert_eq!(count_keyframes(&timeline, track), 1);
     }
 
     #[test]
     fn test_count_keyframes_multiple_properties() {
-        let mut track = make_track("Rect");
+        let mut timeline = Timeline::new();
+        let id = timeline.world_mut().spawn("test", "Rect");
 
         // Two keyframes on position
         let mut pos = PropertyTrack::new([0.0, 0.0]);
         pos.add_keyframe(0, [100.0, 0.0], Easing::Linear);
         pos.add_keyframe(1000, [200.0, 0.0], Easing::EaseInOut);
-        track.geometry.position = Some(pos);
+        timeline.world_mut().geometry_mut(id).position = Some(pos);
 
         // One keyframe on rotation
         let mut rot = PropertyTrack::new(0.0);
         rot.add_keyframe(500, 1.57, Easing::EaseOut);
-        track.geometry.rotation = Some(rot);
+        timeline.world_mut().geometry_mut(id).rotation = Some(rot);
 
-        assert_eq!(count_for(track), 3);
+        let track = timeline.world().track(id).expect("spawned track");
+        assert_eq!(count_keyframes(&timeline, track), 3);
     }
 
     #[test]
@@ -580,23 +584,20 @@ mod tests {
         // Text kinds do not have shape-specific properties like stroke_width applicable
         let mut track = make_track("Text");
 
-        // position is applicable to Everything
-        let mut pos = PropertyTrack::new([0.0, 0.0]);
-        pos.add_keyframe(0, [100.0, 0.0], Easing::Linear);
-        track.geometry.position = Some(pos);
-
         // stroke_width is only applicable to AllShapes — not Text
         let mut sw = PropertyTrack::new(1.0);
         sw.add_keyframe(0, 2.0, Easing::Linear);
         track.style.stroke_width = Some(sw);
 
-        // text is applicable to Text. The text tier is a `World` component, so
-        // it cannot ride on the bare track: spawn the entity, then attach it
-        // through the text store the inspector counts from.
+        // position is applicable to Everything, and the text tier is a `World`
+        // component, so spawn the entity first and then attach both stores.
+        let mut pos = PropertyTrack::new([0.0, 0.0]);
+        pos.add_keyframe(0, [100.0, 0.0], Easing::Linear);
         let mut txt = PropertyTrack::new(String::new());
         txt.add_keyframe(0, "hello".to_string(), Easing::Linear);
         let mut timeline = Timeline::new();
         let id = timeline.world_mut().spawn_with_track("test", track);
+        timeline.world_mut().geometry_mut(id).position = Some(pos);
         timeline.world_mut().text_mut(id).text_content = Some(txt);
         let track = timeline.world().track(id).expect("spawned track");
 

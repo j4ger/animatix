@@ -56,6 +56,7 @@ icon.url = "{}" [1s]
     assert!(diagnostics.is_empty(), "Expected no build diagnostics, got: {:?}", diagnostics);
 
     let track = timeline.world.tracks.get("icon").expect("icon track should exist");
+    let geometry = timeline.world.geometry(track.id);
     assert!(
         timeline.world.svg_paths_at(track.id, 0).is_some(),
         "static SVG should be available at t=0"
@@ -69,8 +70,8 @@ icon.url = "{}" [1s]
         "assignment should provide new paths"
     );
 
-    let size_at_0 = track.geometry.size.get(0, DEFAULT_LAYOUT_HALF_SIZE);
-    let size_at_2000 = track.geometry.size.get(2000, DEFAULT_LAYOUT_HALF_SIZE);
+    let size_at_0 = geometry.size.get(0, DEFAULT_LAYOUT_HALF_SIZE);
+    let size_at_2000 = geometry.size.get(2000, DEFAULT_LAYOUT_HALF_SIZE);
     assert!(
         size_at_2000[0] > size_at_0[0],
         "assigned SVG should grow the measured half-size: {} -> {}",

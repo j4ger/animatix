@@ -3,7 +3,7 @@ use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::{AnimationTrack, ModifierHost, Timeline, parse_timing_modifiers};
+use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
 fn effect_timing_params() -> Vec<ActionParam> {
     let mut params = vec![
@@ -87,13 +87,14 @@ impl BuiltinAction for Shake {
                 continue;
             }
 
-            let track = match timeline.world.tracks.get_mut(target) {
-                Some(t) => t,
+            let track_id = match timeline.world.tracks.get(target) {
+                Some(t) => t.id,
                 None => continue,
             };
+            let geometry = timeline.world.geometry_mut(track_id);
 
             // Get starting offset
-            let start_offset = track.geometry.motion_offset.get(t_start_ms, [0.0, 0.0]);
+            let start_offset = geometry.motion_offset.get(t_start_ms, [0.0, 0.0]);
 
             // Duration per shake cycle
             let _cycle_duration = if frequency > 0 {
@@ -112,7 +113,7 @@ impl BuiltinAction for Shake {
                 let shake_offset = [start_offset[0] + intensity * direction, start_offset[1]];
 
                 // Build up shake with linear interpolation between cycles
-                track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
+                geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
                     cycle_time,
                     shake_offset,
                     Easing::Linear,
@@ -120,11 +121,10 @@ impl BuiltinAction for Shake {
             }
 
             // Return to original position at end
-            track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
-                t_end_ms,
-                start_offset,
-                easing,
-            );
+            geometry
+                .motion_offset
+                .ensure([0.0, 0.0])
+                .add_keyframe(t_end_ms, start_offset, easing);
         }
     }
 }
@@ -181,24 +181,21 @@ impl BuiltinAction for Pulse {
                 continue;
             }
 
-            let track = match timeline.world.tracks.get_mut(target) {
-                Some(t) => t,
+            let track_id = match timeline.world.tracks.get(target) {
+                Some(t) => t.id,
                 None => continue,
             };
+            let geometry = timeline.world.geometry_mut(track_id);
 
-            let start_scale = track.geometry.scale.get(t_start_ms, 1.0);
+            let start_scale = geometry.scale.get(t_start_ms, 1.0);
             let peak_scale = start_scale * (1.0 + intensity);
 
             // Scale up to peak
-            track
-                .geometry
-                .scale
-                .ensure(1.0)
-                .add_keyframe(t_start_ms, start_scale, Easing::Linear);
-            track.geometry.scale.ensure(1.0).add_keyframe(t_mid_ms, peak_scale, easing);
+            geometry.scale.ensure(1.0).add_keyframe(t_start_ms, start_scale, Easing::Linear);
+            geometry.scale.ensure(1.0).add_keyframe(t_mid_ms, peak_scale, easing);
 
             // Scale back down
-            track.geometry.scale.ensure(1.0).add_keyframe(t_end_ms, start_scale, easing);
+            geometry.scale.ensure(1.0).add_keyframe(t_end_ms, start_scale, easing);
         }
     }
 }
@@ -219,8 +216,13 @@ const MAX_BOUNCE_HOPS: usize = 8;
 ///
 /// Effects write here rather than to `at`, so they stack on top of whatever
 /// positional choreography the author already keyed.
-fn add_offset(track: &mut AnimationTrack, at_ms: u64, y: [f32; 2], easing: Easing) {
-    track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(at_ms, y, easing);
+fn add_offset(
+    geometry: &mut crate::timeline::animation_track::GeometryTracks,
+    at_ms: u64,
+    y: [f32; 2],
+    easing: Easing,
+) {
+    geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(at_ms, y, easing);
 }
 
 /// Read a numeric modifier of an effect action, evaluated against the
@@ -303,13 +305,14 @@ impl BuiltinAction for Bounce {
                 continue;
             }
 
-            let track = match timeline.world.tracks.get_mut(target) {
-                Some(t) => t,
+            let track_id = match timeline.world.tracks.get(target) {
+                Some(t) => t.id,
                 None => continue,
             };
+            let geometry = timeline.world.geometry_mut(track_id);
 
-            let start_offset = track.geometry.motion_offset.get(t_start_ms, [0.0, 0.0]);
-            add_offset(track, t_start_ms, start_offset, Easing::Linear);
+            let start_offset = geometry.motion_offset.get(t_start_ms, [0.0, 0.0]);
+            add_offset(geometry, t_start_ms, start_offset, Easing::Linear);
 
             let mut cursor = 0.0f64;
             let mut airtime = first_airtime;
@@ -321,19 +324,19 @@ impl BuiltinAction for Bounce {
                 let apex_ms = (base + airtime * 0.5) as u64;
                 let land_ms = (base + airtime) as u64;
                 add_offset(
-                    track,
+                    geometry,
                     apex_ms,
                     [start_offset[0], start_offset[1] - peak],
                     Easing::EaseOut,
                 );
-                add_offset(track, land_ms, start_offset, Easing::EaseIn);
+                add_offset(geometry, land_ms, start_offset, Easing::EaseIn);
                 cursor += airtime;
                 airtime *= f64::from(restitution);
             }
 
             // Pin the rest position: if the series is truncated by the hop cap
             // the actor must still land where it started.
-            add_offset(track, t_end_ms, start_offset, easing);
+            add_offset(geometry, t_end_ms, start_offset, easing);
         }
     }
 }
@@ -395,11 +398,11 @@ mod tests {
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.world.tracks.get("badge").expect("badge track");
+        let geometry = report.output.world.geometry(track.id);
 
         // Check that multiple motion offset keyframes were added
         assert!(
-            track
-                .geometry
+            geometry
                 .motion_offset
                 .as_ref()
                 .map(|t| !t.keyframes.is_empty())
@@ -440,9 +443,10 @@ mod tests {
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.world.tracks.get("badge").expect("badge track");
+        let geometry = report.output.world.geometry(track.id);
 
         // Check that scale keyframes were added
-        assert!(track.geometry.scale.as_ref().map(|t| t.keyframes.len() >= 2).unwrap_or(false));
+        assert!(geometry.scale.as_ref().map(|t| t.keyframes.len() >= 2).unwrap_or(false));
         assert!(report.diagnostics.is_empty());
     }
 }

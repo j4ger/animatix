@@ -8,8 +8,8 @@ use crate::primitives::{
 use crate::renderer::error::RenderError;
 use crate::renderer::text::TextKind;
 use crate::timeline::callout_geometry::derive_callout_geometry;
-use crate::timeline::property_engine::{parse_property_value, write_property_field};
-use crate::timeline::property_registry::{ActorField, ValueType};
+use crate::timeline::property_engine::parse_property_value;
+use crate::timeline::property_registry::ValueType;
 use crate::timeline::{
     ActorCaps, AnimationTrack, Environment, SceneDimensions, TrackAccessor, Value,
     VectorShapeState, VelloPath,
@@ -91,14 +91,24 @@ impl Primitive for CalloutPrimitive {
         if let Some(target) =
             parse_property_value(ValueType::String, &target_expr, env, diagnostics, subject)
         {
-            write_property_field(
-                track,
-                ActorField::CalloutTarget,
+            let Some(geometry) = ctx.geometry.as_deref_mut() else {
+                tracing::debug!(
+                    "target write for '{}' dropped: no geometry tier in this assignment context",
+                    track.label
+                );
+                return true;
+            };
+            let has_duration = ctx.t_end_ms > ctx.t_start_ms;
+            let has_delay = ctx.t_start_ms > 0 && !has_duration;
+            crate::timeline::property_engine::write_string(
+                &mut geometry.callout_target,
                 target,
                 ctx.t_start_ms,
                 ctx.t_end_ms,
                 ctx.easing,
-                diagnostics,
+                String::new(),
+                has_duration,
+                has_delay,
             );
         }
         true
@@ -112,8 +122,9 @@ impl Primitive for CalloutPrimitive {
         use crate::timeline::Value;
 
         // Derive geometry using the shared helper (handles both manual and targeted mode).
+        let geometry = ctx.geometry.expect("Callout evaluation requires the geometry tier");
         let geom = derive_callout_geometry(
-            ctx.track,
+            geometry,
             ctx.shape.expect("callout shape tier"),
             ctx.time_ms,
             ctx.target_resolver,
@@ -128,7 +139,7 @@ impl Primitive for CalloutPrimitive {
             .get(ctx.time_ms, 10.0);
 
         // Warn when targeted but resolver didn't find the target.
-        let target_name = ctx.track.geometry.callout_target.get(ctx.time_ms, String::new());
+        let target_name = geometry.callout_target.get(ctx.time_ms, String::new());
         if !target_name.is_empty() && ctx.target_resolver.is_none() {
             // Build-time diagnostic (CalloutTargetNotFound) already covers this; debug only to
             // avoid per-frame spam.
@@ -193,7 +204,7 @@ impl Primitive for CalloutPrimitive {
             .expect("Callout evaluated without a text tier")
             .text_content
             .get(ctx.time_ms, String::new());
-        let mut label_at = ctx.track.geometry.label_at.get(ctx.time_ms, [0.0, 50.0]);
+        let mut label_at = geometry.label_at.get(ctx.time_ms, [0.0, 50.0]);
 
         if let Some(overrides) = ctx.overrides {
             if let Some(Value::Str(s)) = overrides.get("label") {

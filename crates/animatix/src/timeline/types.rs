@@ -165,16 +165,12 @@ impl ContainerMetadata {
         self.child_order
             .iter()
             .filter_map(|child_id| {
-                let track = world.track(*child_id)?;
-                if !track.has_layout_size() {
-                    return None;
-                }
+                world.track(*child_id)?;
+                let geometry = world.geometry(*child_id);
+                geometry.layout_size.as_ref()?;
                 Some(ContainerLayoutChild {
                     label: world.label(*child_id)?.to_string(),
-                    placement_mode: track
-                        .geometry
-                        .placement_mode
-                        .last(PlacementMode::LayoutManaged),
+                    placement_mode: geometry.placement_mode.last(PlacementMode::LayoutManaged),
                 })
             })
             .collect()

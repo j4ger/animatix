@@ -499,8 +499,9 @@ fn native_declared_builtin_properties_use_generic_writer() {
         report.diagnostics
     );
     let track = report.output.world.tracks.get("p").expect("pulse track");
+    let geometry = report.output.world.geometry(track.id);
     assert_eq!(
-        track.geometry.position.get(0, [0.0, 0.0]),
+        geometry.position.get(0, [0.0, 0.0]),
         [10.0, 20.0],
         "declared position should be written by the generic property engine"
     );

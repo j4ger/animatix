@@ -22,7 +22,7 @@ use super::{EntityId, World};
 /// Immutable view of one entity's property tiers.
 pub struct TrackFields<'a> {
     /// Geometry tier (at/position/size/rotation/…).
-    pub geometry: &'a GeometryTracks,
+    pub geometry: Option<&'a GeometryTracks>,
     /// Style tier (color/opacity/stroke/…).
     pub style: &'a StyleTracks,
     /// Shape tier (shape_type/line_from/…).
@@ -46,7 +46,7 @@ pub struct TrackFields<'a> {
 /// Mutable view of one entity's property tiers.
 pub struct TrackFieldsMut<'a> {
     /// Geometry tier.
-    pub geometry: &'a mut GeometryTracks,
+    pub geometry: Option<&'a mut GeometryTracks>,
     /// Style tier.
     pub style: &'a mut StyleTracks,
     /// Shape tier.
@@ -72,7 +72,7 @@ impl World {
     pub fn fields(&self, id: EntityId) -> Option<TrackFields<'_>> {
         let track = self.tracks.get_by_id(id)?;
         Some(TrackFields {
-            geometry: &track.geometry,
+            geometry: self.geometry.try_get(id),
             style: &track.style,
             shape: self.shape.try_get(id),
             text: self.text.try_get(id),
@@ -93,7 +93,7 @@ impl World {
         let caps = self.caps(id);
         let track = self.tracks.get_by_id_mut(id)?;
         Some(TrackFieldsMut {
-            geometry: &mut track.geometry,
+            geometry: self.geometry.try_get_mut(id),
             style: &mut track.style,
             shape: self.shape.try_get_mut(id),
             text: self.text.try_get_mut(id),
@@ -130,26 +130,30 @@ mod tests {
         let id = timeline.world_mut().spawn("box", "Rect");
 
         {
-            let fields = timeline.world_mut().fields_mut(id).expect("entity fields");
+            let mut fields = timeline.world_mut().fields_mut(id).expect("entity fields");
             fields.style.opacity = Some(PropertyTrack::new(0.25));
-            fields.geometry.size = Some(PropertyTrack::new([10.0, 20.0]));
+            fields.geometry.as_mut().expect("geometry tier").size =
+                Some(PropertyTrack::new([10.0, 20.0]));
         }
 
         let track = timeline.world().tracks.get_by_id(id).unwrap();
         assert_eq!(track.style.opacity.as_ref().unwrap().default_value, 0.25);
-        assert_eq!(track.geometry.size.as_ref().unwrap().default_value, [10.0, 20.0]);
+        assert_eq!(
+            timeline.world().geometry(id).size.as_ref().unwrap().default_value,
+            [10.0, 20.0]
+        );
     }
 }
 
 impl<'a> TrackFields<'a> {
     /// Bundle the tiers of one track.
     ///
-    /// The shape and text tiers are separate `World` components, so a
-    /// track-only bundle carries `shape: None` and `text: None`;
-    /// `World::fields` is the component-aware constructor.
+    /// The geometry, shape and text tiers are separate `World` components, so a
+    /// track-only bundle carries `geometry: None`, `shape: None` and
+    /// `text: None`; `World::fields` is the component-aware constructor.
     pub fn from_track(track: &'a crate::timeline::AnimationTrack) -> Self {
         Self {
-            geometry: &track.geometry,
+            geometry: None,
             style: &track.style,
             shape: None,
             text: None,
@@ -170,13 +174,13 @@ impl<'a> TrackFields<'a> {
         use crate::timeline::dispatch::TrackFieldRef;
         use crate::timeline::property_registry::ActorField::*;
         Some(match field {
-            Position => TrackFieldRef::Vec2(&self.geometry.position),
-            MotionOffset => TrackFieldRef::Vec2(&self.geometry.motion_offset),
-            Size => TrackFieldRef::Vec2(&self.geometry.size),
-            LayoutSize => TrackFieldRef::Vec2(&self.geometry.layout_size),
-            Rotation => TrackFieldRef::F32(&self.geometry.rotation),
-            Scale => TrackFieldRef::F32(&self.geometry.scale),
-            Transform => TrackFieldRef::Transform(&self.geometry.transform),
+            Position => TrackFieldRef::Vec2(&self.geometry?.position),
+            MotionOffset => TrackFieldRef::Vec2(&self.geometry?.motion_offset),
+            Size => TrackFieldRef::Vec2(&self.geometry?.size),
+            LayoutSize => TrackFieldRef::Vec2(&self.geometry?.layout_size),
+            Rotation => TrackFieldRef::F32(&self.geometry?.rotation),
+            Scale => TrackFieldRef::F32(&self.geometry?.scale),
+            Transform => TrackFieldRef::Transform(&self.geometry?.transform),
             Color => TrackFieldRef::Vec4(&self.style.color),
             Opacity => TrackFieldRef::F32(&self.style.opacity),
             StrokeWidth => TrackFieldRef::F32(&self.style.stroke_width),
@@ -209,7 +213,7 @@ impl<'a> TrackFields<'a> {
             FontFamily => TrackFieldRef::String(&self.text?.font_family),
             FontSize => TrackFieldRef::F32(&self.text?.font_size),
             CharProgress => TrackFieldRef::F32(&self.text?.char_progress),
-            PlacementMode => TrackFieldRef::PlacementMode(&self.geometry.placement_mode),
+            PlacementMode => TrackFieldRef::PlacementMode(&self.geometry?.placement_mode),
             MorphOptions => TrackFieldRef::MorphOptions(&self.style.morph_options),
             Ascent => TrackFieldRef::F32(&self.text?.ascent),
             Descent => TrackFieldRef::F32(&self.text?.descent),
@@ -223,25 +227,25 @@ impl<'a> TrackFields<'a> {
             LineHeight => TrackFieldRef::F32(&self.text?.line_height),
             LetterSpacing => TrackFieldRef::F32(&self.text?.letter_spacing),
             WordSpacing => TrackFieldRef::F32(&self.text?.word_spacing),
-            MinWidth => TrackFieldRef::F32(&self.geometry.min_width),
-            MinHeight => TrackFieldRef::F32(&self.geometry.min_height),
-            MaxHeight => TrackFieldRef::F32(&self.geometry.max_height),
-            LabelAt => TrackFieldRef::Vec2(&self.geometry.label_at),
-            CalloutTarget => TrackFieldRef::String(&self.geometry.callout_target),
-            CalloutPlace => TrackFieldRef::CalloutPlace(&self.geometry.callout_place),
-            CalloutStandoff => TrackFieldRef::F32(&self.geometry.callout_standoff),
-            CalloutToOffset => TrackFieldRef::Vec2(&self.geometry.callout_to_offset),
+            MinWidth => TrackFieldRef::F32(&self.geometry?.min_width),
+            MinHeight => TrackFieldRef::F32(&self.geometry?.min_height),
+            MaxHeight => TrackFieldRef::F32(&self.geometry?.max_height),
+            LabelAt => TrackFieldRef::Vec2(&self.geometry?.label_at),
+            CalloutTarget => TrackFieldRef::String(&self.geometry?.callout_target),
+            CalloutPlace => TrackFieldRef::CalloutPlace(&self.geometry?.callout_place),
+            CalloutStandoff => TrackFieldRef::F32(&self.geometry?.callout_standoff),
+            CalloutToOffset => TrackFieldRef::Vec2(&self.geometry?.callout_to_offset),
             VectorPaths => TrackFieldRef::VectorPaths(&self.shape?.vector_paths),
             TextPaths => TrackFieldRef::TextPaths(&self.text?.text_paths),
             ImageData => return self.payload?.as_image().map(|p| TrackFieldRef::Image(&p.image)),
-            PositionBinding => TrackFieldRef::PositionBinding(&self.geometry.position_binding),
+            PositionBinding => TrackFieldRef::PositionBinding(&self.geometry?.position_binding),
             Tagged(name) => {
                 return self
                     .tagged_tracks?
                     .get(name)
                     .map(|track| TrackFieldRef::Tagged(name, track));
             },
-            AudioVolume => TrackFieldRef::F32(&self.geometry.volume),
+            AudioVolume => TrackFieldRef::F32(&self.geometry?.volume),
             SvgPaths | AudioSource | PositionBindingGroup | VectorShapeGroup | PlotDomainGroup
             | ContainerLayoutGroup | NoStorage => return None,
         })
@@ -251,12 +255,12 @@ impl<'a> TrackFields<'a> {
 impl<'a> TrackFieldsMut<'a> {
     /// Bundle the tiers of one track, mutably.
     ///
-    /// The shape and text tiers are separate `World` components, so a
-    /// track-only bundle carries `shape: None` and `text: None`;
-    /// `World::fields_mut` is the component-aware constructor.
+    /// The geometry, shape and text tiers are separate `World` components, so a
+    /// track-only bundle carries `geometry: None`, `shape: None` and
+    /// `text: None`; `World::fields_mut` is the component-aware constructor.
     pub fn from_track(track: &'a mut crate::timeline::AnimationTrack) -> Self {
         Self {
-            geometry: &mut track.geometry,
+            geometry: None,
             style: &mut track.style,
             shape: None,
             text: None,
@@ -282,13 +286,13 @@ impl<'a> TrackFieldsMut<'a> {
         }
         use ActorField::*;
         Some(match field {
-            Position => TrackFieldMut::Vec2(&mut self.geometry.position),
-            MotionOffset => TrackFieldMut::Vec2(&mut self.geometry.motion_offset),
-            Size => TrackFieldMut::Vec2(&mut self.geometry.size),
-            LayoutSize => TrackFieldMut::Vec2(&mut self.geometry.layout_size),
-            Rotation => TrackFieldMut::F32(&mut self.geometry.rotation),
-            Scale => TrackFieldMut::F32(&mut self.geometry.scale),
-            Transform => TrackFieldMut::Transform(&mut self.geometry.transform),
+            Position => TrackFieldMut::Vec2(&mut self.geometry.as_mut()?.position),
+            MotionOffset => TrackFieldMut::Vec2(&mut self.geometry.as_mut()?.motion_offset),
+            Size => TrackFieldMut::Vec2(&mut self.geometry.as_mut()?.size),
+            LayoutSize => TrackFieldMut::Vec2(&mut self.geometry.as_mut()?.layout_size),
+            Rotation => TrackFieldMut::F32(&mut self.geometry.as_mut()?.rotation),
+            Scale => TrackFieldMut::F32(&mut self.geometry.as_mut()?.scale),
+            Transform => TrackFieldMut::Transform(&mut self.geometry.as_mut()?.transform),
             Color => TrackFieldMut::Vec4(&mut self.style.color),
             Opacity => TrackFieldMut::F32(&mut self.style.opacity),
             StrokeWidth => TrackFieldMut::F32(&mut self.style.stroke_width),
@@ -321,7 +325,9 @@ impl<'a> TrackFieldsMut<'a> {
             FontFamily => TrackFieldMut::String(&mut self.text.as_mut()?.font_family),
             FontSize => TrackFieldMut::F32(&mut self.text.as_mut()?.font_size),
             CharProgress => TrackFieldMut::F32(&mut self.text.as_mut()?.char_progress),
-            PlacementMode => TrackFieldMut::PlacementMode(&mut self.geometry.placement_mode),
+            PlacementMode => {
+                TrackFieldMut::PlacementMode(&mut self.geometry.as_mut()?.placement_mode)
+            },
             MorphOptions => TrackFieldMut::MorphOptions(&mut self.style.morph_options),
             Ascent => TrackFieldMut::F32(&mut self.text.as_mut()?.ascent),
             Descent => TrackFieldMut::F32(&mut self.text.as_mut()?.descent),
@@ -335,22 +341,24 @@ impl<'a> TrackFieldsMut<'a> {
             LineHeight => TrackFieldMut::F32(&mut self.text.as_mut()?.line_height),
             LetterSpacing => TrackFieldMut::F32(&mut self.text.as_mut()?.letter_spacing),
             WordSpacing => TrackFieldMut::F32(&mut self.text.as_mut()?.word_spacing),
-            MinWidth => TrackFieldMut::F32(&mut self.geometry.min_width),
-            MinHeight => TrackFieldMut::F32(&mut self.geometry.min_height),
-            MaxHeight => TrackFieldMut::F32(&mut self.geometry.max_height),
-            LabelAt => TrackFieldMut::Vec2(&mut self.geometry.label_at),
-            CalloutTarget => TrackFieldMut::String(&mut self.geometry.callout_target),
-            CalloutPlace => TrackFieldMut::CalloutPlace(&mut self.geometry.callout_place),
-            CalloutStandoff => TrackFieldMut::F32(&mut self.geometry.callout_standoff),
-            CalloutToOffset => TrackFieldMut::Vec2(&mut self.geometry.callout_to_offset),
+            MinWidth => TrackFieldMut::F32(&mut self.geometry.as_mut()?.min_width),
+            MinHeight => TrackFieldMut::F32(&mut self.geometry.as_mut()?.min_height),
+            MaxHeight => TrackFieldMut::F32(&mut self.geometry.as_mut()?.max_height),
+            LabelAt => TrackFieldMut::Vec2(&mut self.geometry.as_mut()?.label_at),
+            CalloutTarget => TrackFieldMut::String(&mut self.geometry.as_mut()?.callout_target),
+            CalloutPlace => TrackFieldMut::CalloutPlace(&mut self.geometry.as_mut()?.callout_place),
+            CalloutStandoff => TrackFieldMut::F32(&mut self.geometry.as_mut()?.callout_standoff),
+            CalloutToOffset => TrackFieldMut::Vec2(&mut self.geometry.as_mut()?.callout_to_offset),
             VectorPaths => TrackFieldMut::VectorPaths(&mut self.shape.as_mut()?.vector_paths),
             TextPaths => TrackFieldMut::TextPaths(&mut self.text.as_mut()?.text_paths),
             ImageData => {
                 let payload = self.payload.as_mut()?;
                 TrackFieldMut::Image(&mut payload.ensure_image().image)
             },
-            PositionBinding => TrackFieldMut::PositionBinding(&mut self.geometry.position_binding),
-            AudioVolume => TrackFieldMut::F32(&mut self.geometry.volume),
+            PositionBinding => {
+                TrackFieldMut::PositionBinding(&mut self.geometry.as_mut()?.position_binding)
+            },
+            AudioVolume => TrackFieldMut::F32(&mut self.geometry.as_mut()?.volume),
             SvgPaths | AudioSource | PositionBindingGroup | VectorShapeGroup | PlotDomainGroup
             | ContainerLayoutGroup | NoStorage => return None,
             ActorField::Tagged(_) => unreachable!(),
@@ -362,17 +370,23 @@ impl<'a> TrackFieldsMut<'a> {
 mod field_access_tests {
     use super::*;
     use crate::timeline::AnimationTrack;
+    use crate::timeline::Timeline;
     use crate::timeline::dispatch::{TrackFieldMut, TrackFieldRef};
     use crate::timeline::property_registry::ActorField;
     use crate::timeline::property_track::PropertyTrack;
 
     #[test]
     fn bundle_field_ref_matches_the_track_shape() {
-        let track = AnimationTrack::new("box".into(), "Rect");
-        let fields = TrackFields::from_track(&track);
+        let mut timeline = Timeline::new();
+        let id = timeline.world_mut().spawn("box", "Rect");
+        let fields = timeline.world().fields(id).expect("entity fields");
         assert!(matches!(fields.field_ref(ActorField::Opacity), Some(TrackFieldRef::F32(_))));
         assert!(matches!(fields.field_ref(ActorField::Size), Some(TrackFieldRef::Vec2(_))));
         assert!(fields.field_ref(ActorField::NoStorage).is_none());
+
+        // The geometry tier is a `World` component; a bare-track bundle has none.
+        let track = AnimationTrack::new("box".into(), "Rect");
+        assert!(TrackFields::from_track(&track).field_ref(ActorField::Size).is_none());
     }
 
     #[test]
@@ -709,5 +723,39 @@ mod tagged_field_tests {
             fields.field_ref(ActorField::Tagged("legend")),
             Some(TrackFieldRef::Tagged("legend", _))
         ));
+    }
+}
+
+impl World {
+    /// Whether a registry field is currently interpolating at `time_ms`.
+    pub fn is_field_currently_animating(
+        &self,
+        id: EntityId,
+        field: crate::timeline::property_registry::ActorField,
+        time_ms: u64,
+    ) -> bool {
+        self.fields(id)
+            .and_then(|fields| fields.field_ref(field))
+            .is_some_and(|field| field.is_currently_animating(time_ms))
+    }
+
+    /// Whether two or more distinct keyframe values make `property` animated.
+    pub fn is_property_animated(&self, id: EntityId, property: &str) -> bool {
+        let Some(schema) = crate::timeline::property_registry::lookup_property(property) else {
+            return self
+                .tracks
+                .get_by_id(id)
+                .is_some_and(|track| track.is_property_animated(property));
+        };
+        let times = self.property_keyframe_times(id, schema.field);
+        if times.len() < 2 {
+            return false;
+        }
+        let Some(first) = self.read_property_value(id, schema.field, times[0]) else {
+            return true;
+        };
+        times[1..]
+            .iter()
+            .any(|&time| self.read_property_value(id, schema.field, time) != Some(first.clone()))
     }
 }

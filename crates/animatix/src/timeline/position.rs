@@ -2,12 +2,13 @@ use super::lookup::{
     evaluate_expr_with_lookup_diagnostic, parse_numeric_vec2_with_lookup_diagnostic,
 };
 use super::{
-    AnimationTrack, Environment, Interpolate, PlacementMode, PositionBinding, PropertyTrack,
-    SceneAnchor, SceneDimensions,
+    Environment, Interpolate, PlacementMode, PositionBinding, PropertyTrack, SceneAnchor,
+    SceneDimensions,
 };
 use crate::ast::Expr;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
+use crate::timeline::animation_track::GeometryTracks;
 use crate::timeline::property_track::TrackAccessor;
 
 pub(crate) fn parse_scene_anchor(expr: &Expr) -> Option<SceneAnchor> {
@@ -187,47 +188,45 @@ pub(crate) fn resolve_bound_position(
     [local_point.x as f32, local_point.y as f32]
 }
 
-pub(crate) fn mark_track_manual_position(track: &mut AnimationTrack, time_ms: u64) {
-    track.geometry.placement_mode.ensure(PlacementMode::LayoutManaged).add_keyframe(
+pub(crate) fn mark_track_manual_position(geometry: &mut GeometryTracks, time_ms: u64) {
+    geometry.placement_mode.ensure(PlacementMode::LayoutManaged).add_keyframe(
         time_ms,
         PlacementMode::Manual,
         Easing::Linear,
     );
 }
 
-pub(crate) fn preserve_discrete_position_state_before(track: &mut AnimationTrack, time_ms: u64) {
+pub(crate) fn preserve_discrete_position_state_before(geometry: &mut GeometryTracks, time_ms: u64) {
     if time_ms == 0 {
         return;
     }
 
     let previous_time = time_ms - 1;
 
-    if !track
-        .geometry
+    if !geometry
         .placement_mode
         .as_ref()
         .map(|t| t.keyframes.contains_key(&previous_time))
         .unwrap_or(false)
     {
         let previous_mode =
-            track.geometry.placement_mode.get(previous_time, PlacementMode::LayoutManaged);
-        track.geometry.placement_mode.ensure(PlacementMode::LayoutManaged).add_keyframe(
+            geometry.placement_mode.get(previous_time, PlacementMode::LayoutManaged);
+        geometry.placement_mode.ensure(PlacementMode::LayoutManaged).add_keyframe(
             previous_time,
             previous_mode,
             Easing::Linear,
         );
     }
 
-    if !track
-        .geometry
+    if !geometry
         .position_binding
         .as_ref()
         .map(|t| t.keyframes.contains_key(&previous_time))
         .unwrap_or(false)
     {
         let previous_binding =
-            track.geometry.position_binding.get(previous_time, PositionBinding::Absolute);
-        track.geometry.position_binding.ensure(PositionBinding::Absolute).add_keyframe(
+            geometry.position_binding.get(previous_time, PositionBinding::Absolute);
+        geometry.position_binding.ensure(PositionBinding::Absolute).add_keyframe(
             previous_time,
             previous_binding,
             Easing::Linear,
@@ -257,11 +256,11 @@ pub(crate) fn preserve_instant_delayed_value<T: Interpolate + Default>(
 }
 
 pub(crate) fn set_track_position_binding(
-    track: &mut AnimationTrack,
+    geometry: &mut GeometryTracks,
     time_ms: u64,
     binding: PositionBinding,
 ) {
-    track.geometry.position_binding.ensure(PositionBinding::Absolute).add_keyframe(
+    geometry.position_binding.ensure(PositionBinding::Absolute).add_keyframe(
         time_ms,
         binding,
         Easing::Linear,
@@ -269,16 +268,15 @@ pub(crate) fn set_track_position_binding(
 }
 
 pub(crate) fn apply_explicit_position_binding(
-    track: &mut AnimationTrack,
+    geometry: &mut GeometryTracks,
     time_ms: u64,
     binding: PositionBinding,
     position: Option<[f32; 2]>,
 ) {
-    mark_track_manual_position(track, time_ms);
-    set_track_position_binding(track, time_ms, binding);
+    mark_track_manual_position(geometry, time_ms);
+    set_track_position_binding(geometry, time_ms, binding);
     if let Some(position) = position {
-        track
-            .geometry
+        geometry
             .position
             .ensure([0.0, 0.0])
             .add_keyframe(time_ms, position, Easing::Linear);

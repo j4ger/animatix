@@ -60,6 +60,7 @@ impl Primitive for TextPrimitive {
             return false;
         }
         let text = ctx.text.as_deref_mut().expect("assignment text tier");
+        let geometry = ctx.geometry.as_mut().expect("Text assignment requires the geometry tier");
         let target_text = if property == "text_anchor" {
             let anchor = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                 .unwrap_or(Value::Str("center".to_string()))
@@ -80,6 +81,7 @@ impl Primitive for TextPrimitive {
         if let Err(e) = crate::timeline::recompile_text_at_assignment(
             track,
             text,
+            geometry,
             target_text,
             ctx.t_start_ms,
             ctx.t_end_ms,

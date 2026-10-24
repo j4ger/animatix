@@ -103,12 +103,13 @@ fn run_preset(
         // Scale: ramp *relative to* the scale the actor already samples at the
         // entrance's start, so a preset never fights an authored transform.
         let authored = {
-            let track = match timeline.world.tracks.get_mut(target) {
-                Some(t) => t,
+            let track_id = match timeline.world.tracks.get(target) {
+                Some(t) => t.id,
                 None => continue,
             };
-            let authored = track.geometry.scale.get(t_start_ms, 1.0);
-            track.geometry.scale.ensure(1.0).add_keyframe(
+            let geometry = timeline.world.geometry_mut(track_id);
+            let authored = geometry.scale.get(t_start_ms, 1.0);
+            geometry.scale.ensure(1.0).add_keyframe(
                 t_start_ms,
                 authored * preset.start_factor,
                 Easing::Linear,
@@ -117,14 +118,14 @@ fn run_preset(
                 if t_end_ms > t_start_ms {
                     let peak_ms =
                         t_start_ms + ((t_end_ms - t_start_ms) as f64 * OVERSHOOT_AT) as u64;
-                    track.geometry.scale.ensure(1.0).add_keyframe(
+                    geometry.scale.ensure(1.0).add_keyframe(
                         peak_ms,
                         authored * (1.0 + peak),
                         Easing::EaseIn,
                     );
                 }
             }
-            track.geometry.scale.ensure(1.0).add_keyframe(t_end_ms, authored, easing);
+            geometry.scale.ensure(1.0).add_keyframe(t_end_ms, authored, easing);
             authored
         };
         if authored <= 0.0 {

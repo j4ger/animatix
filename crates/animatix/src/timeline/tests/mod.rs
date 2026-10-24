@@ -218,7 +218,14 @@ fn test_animated_scene_has_keyframes() {
     let track = timeline.get_track("box0").expect("box0 should exist");
     assert!(track.has_any_keyframes(), "box0 should have animated keyframes");
     assert!(
-        track.geometry.position.as_ref().map(|t| t.keyframes.len()).unwrap_or(0) >= 2,
+        timeline
+            .world()
+            .geometry(track.id)
+            .position
+            .as_ref()
+            .map(|t| t.keyframes.len())
+            .unwrap_or(0)
+            >= 2,
         "position should have at least 2 keyframes"
     );
     assert!(

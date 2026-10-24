@@ -47,11 +47,12 @@ fn bench_cost_breakdown(c: &mut Criterion) {
         let time_ms = 500;
         b.iter(|| {
             for track in timeline.tracks().values() {
-                let _ = track.geometry.size.get(time_ms, [50.0, 50.0]);
-                let _ = track.geometry.position.get(time_ms, [0.0, 0.0]);
+                let geometry = timeline.world().geometry(track.id);
+                let _ = geometry.size.get(time_ms, [50.0, 50.0]);
+                let _ = geometry.position.get(time_ms, [0.0, 0.0]);
                 let _ = track.style.color.get(time_ms, [1.0, 1.0, 1.0, 1.0]);
                 let _ = track.style.opacity.get(time_ms, 1.0);
-                let _ = track.geometry.rotation.get(time_ms, 0.0);
+                let _ = geometry.rotation.get(time_ms, 0.0);
             }
         })
     });

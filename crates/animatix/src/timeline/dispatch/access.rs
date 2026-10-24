@@ -5,13 +5,13 @@ impl AnimationTrack {
     pub fn field_ref(&self, field: ActorField) -> Option<TrackFieldRef<'_>> {
         use ActorField::*;
         Some(match field {
-            Position => TrackFieldRef::Vec2(&self.geometry.position),
-            MotionOffset => TrackFieldRef::Vec2(&self.geometry.motion_offset),
-            Size => TrackFieldRef::Vec2(&self.geometry.size),
-            LayoutSize => TrackFieldRef::Vec2(&self.geometry.layout_size),
-            Rotation => TrackFieldRef::F32(&self.geometry.rotation),
-            Scale => TrackFieldRef::F32(&self.geometry.scale),
-            Transform => TrackFieldRef::Transform(&self.geometry.transform),
+            // The geometry tier lives in `World.geometry`; world-aware callers
+            // read it through `World::fields`, which bundles the component.
+            Position | MotionOffset | Size | LayoutSize | Rotation | Scale | Transform
+            | PlacementMode | MinWidth | MinHeight | MaxHeight | LabelAt | CalloutTarget
+            | CalloutPlace | CalloutStandoff | CalloutToOffset | PositionBinding | AudioVolume => {
+                return None;
+            },
             Color => TrackFieldRef::Vec4(&self.style.color),
             Opacity => TrackFieldRef::F32(&self.style.opacity),
             StrokeWidth => TrackFieldRef::F32(&self.style.stroke_width),
@@ -38,24 +38,13 @@ impl AnimationTrack {
             TextContent | TextMaxWidth | TextAlign | TextAnchor | Overflow | Language
             | FontFamily | FontSize | CharProgress | Ascent | Descent | Baseline | FontWeight
             | FontStyle | LineHeight | LetterSpacing | WordSpacing | TextPaths => return None,
-            PlacementMode => TrackFieldRef::PlacementMode(&self.geometry.placement_mode),
             MorphOptions => TrackFieldRef::MorphOptions(&self.style.morph_options),
             HighlightColor | HighlightOpacity | HighlightPadding | HighlightRadius => return None,
-            MinWidth => TrackFieldRef::F32(&self.geometry.min_width),
-            MinHeight => TrackFieldRef::F32(&self.geometry.min_height),
-            MaxHeight => TrackFieldRef::F32(&self.geometry.max_height),
-            LabelAt => TrackFieldRef::Vec2(&self.geometry.label_at),
-            CalloutTarget => TrackFieldRef::String(&self.geometry.callout_target),
-            CalloutPlace => TrackFieldRef::CalloutPlace(&self.geometry.callout_place),
-            CalloutStandoff => TrackFieldRef::F32(&self.geometry.callout_standoff),
-            CalloutToOffset => TrackFieldRef::Vec2(&self.geometry.callout_to_offset),
             VectorPaths => return None,
             // The image payload owns the raster track; an actor without that
             // payload has no image data, which reads as `None`.
             ImageData => return None,
-            PositionBinding => TrackFieldRef::PositionBinding(&self.geometry.position_binding),
             ActorField::Tagged(_) => return None,
-            AudioVolume => TrackFieldRef::F32(&self.geometry.volume),
             // Remaining variants without track storage
             SvgPaths | AudioSource | PositionBindingGroup | VectorShapeGroup | PlotDomainGroup
             | ContainerLayoutGroup | NoStorage => return None,
@@ -69,13 +58,12 @@ impl AnimationTrack {
         }
         use ActorField::*;
         Some(match field {
-            Position => TrackFieldMut::Vec2(&mut self.geometry.position),
-            MotionOffset => TrackFieldMut::Vec2(&mut self.geometry.motion_offset),
-            Size => TrackFieldMut::Vec2(&mut self.geometry.size),
-            LayoutSize => TrackFieldMut::Vec2(&mut self.geometry.layout_size),
-            Rotation => TrackFieldMut::F32(&mut self.geometry.rotation),
-            Scale => TrackFieldMut::F32(&mut self.geometry.scale),
-            Transform => TrackFieldMut::Transform(&mut self.geometry.transform),
+            // Geometry writes go through `World.geometry_mut`; see `field_ref`.
+            Position | MotionOffset | Size | LayoutSize | Rotation | Scale | Transform
+            | PlacementMode | MinWidth | MinHeight | MaxHeight | LabelAt | CalloutTarget
+            | CalloutPlace | CalloutStandoff | CalloutToOffset | PositionBinding | AudioVolume => {
+                return None;
+            },
             Color => TrackFieldMut::Vec4(&mut self.style.color),
             Opacity => TrackFieldMut::F32(&mut self.style.opacity),
             StrokeWidth => TrackFieldMut::F32(&mut self.style.stroke_width),
@@ -100,23 +88,12 @@ impl AnimationTrack {
             TextContent | TextMaxWidth | TextAlign | TextAnchor | Overflow | Language
             | FontFamily | FontSize | CharProgress | Ascent | Descent | Baseline | FontWeight
             | FontStyle | LineHeight | LetterSpacing | WordSpacing | TextPaths => return None,
-            PlacementMode => TrackFieldMut::PlacementMode(&mut self.geometry.placement_mode),
             MorphOptions => TrackFieldMut::MorphOptions(&mut self.style.morph_options),
             HighlightColor | HighlightOpacity | HighlightPadding | HighlightRadius => return None,
-            MinWidth => TrackFieldMut::F32(&mut self.geometry.min_width),
-            MinHeight => TrackFieldMut::F32(&mut self.geometry.min_height),
-            MaxHeight => TrackFieldMut::F32(&mut self.geometry.max_height),
-            LabelAt => TrackFieldMut::Vec2(&mut self.geometry.label_at),
-            CalloutTarget => TrackFieldMut::String(&mut self.geometry.callout_target),
-            CalloutPlace => TrackFieldMut::CalloutPlace(&mut self.geometry.callout_place),
-            CalloutStandoff => TrackFieldMut::F32(&mut self.geometry.callout_standoff),
-            CalloutToOffset => TrackFieldMut::Vec2(&mut self.geometry.callout_to_offset),
             VectorPaths => return None,
-            AudioVolume => TrackFieldMut::F32(&mut self.geometry.volume),
             // Image data is written through the media/image paths (which hold
             // the asset cache), never through generic property dispatch.
             ImageData => return None,
-            PositionBinding => TrackFieldMut::PositionBinding(&mut self.geometry.position_binding),
             _ => return None,
         })
     }
@@ -129,65 +106,7 @@ impl AnimationTrack {
     /// This is the frame-time definition of "being driven by keyframes"
     /// used by the `_animating_*` environment flags.
     pub fn is_field_currently_animating(&self, field: ActorField, time_ms: u64) -> bool {
-        self.field_ref(field).is_some_and(|f| match f {
-            TrackFieldRef::F32(opt) => {
-                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
-            },
-            TrackFieldRef::Vec2(opt) => {
-                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
-            },
-            TrackFieldRef::Vec4(opt) => {
-                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
-            },
-            TrackFieldRef::Transform(opt) => {
-                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
-            },
-            TrackFieldRef::String(opt) => {
-                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
-            },
-            TrackFieldRef::U32(opt) => {
-                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
-            },
-            TrackFieldRef::F32List(opt) => {
-                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
-            },
-            TrackFieldRef::Gradient(opt) => {
-                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
-            },
-            TrackFieldRef::PointList(opt) => {
-                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
-            },
-            TrackFieldRef::CommandList(opt) => {
-                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
-            },
-            TrackFieldRef::ShapeType(opt) => {
-                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
-            },
-            TrackFieldRef::PlacementMode(opt) => {
-                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
-            },
-            TrackFieldRef::CalloutPlace(opt) => {
-                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
-            },
-            TrackFieldRef::MorphOptions(opt) => {
-                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
-            },
-            TrackFieldRef::VectorPaths(opt) => {
-                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
-            },
-            TrackFieldRef::TextPaths(opt) => {
-                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
-            },
-            TrackFieldRef::Image(opt) => {
-                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
-            },
-            TrackFieldRef::PositionBinding(opt) => {
-                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
-            },
-            TrackFieldRef::Tagged(_, opt) => {
-                opt.as_ref().is_some_and(|t| t.is_currently_animating(time_ms))
-            },
-        })
+        self.field_ref(field).is_some_and(|field| field.is_currently_animating(time_ms))
     }
 
     /// The one `property name → ActorField` table.

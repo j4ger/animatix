@@ -216,6 +216,7 @@ always {
         world: Some(&timeline.world),
         shape: Some(timeline.world.shape(t_track.id)),
         text: Some(timeline.world.text(t_track.id)),
+        geometry: Some(timeline.world.geometry(t_track.id)),
         payload: timeline.world.payload(t_track.id),
         time_ms: 0,
         local_transform: kurbo::Affine::IDENTITY,

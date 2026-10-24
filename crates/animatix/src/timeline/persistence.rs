@@ -110,6 +110,9 @@ pub struct CarryEntry {
     /// Shape tier snapshot.
     #[cfg_attr(feature = "serde", serde(default))]
     pub shape: crate::timeline::animation_track::ShapeTracks,
+    /// Geometry tier snapshot.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub geometry: crate::timeline::animation_track::GeometryTracks,
     /// Text tier snapshot.
     #[cfg_attr(feature = "serde", serde(default))]
     pub text: crate::timeline::animation_track::TextTracks,
@@ -158,6 +161,7 @@ fn collect_persistent_entries(
     let property_plan = snapshot_property_plan_at(timeline.world.property_plan(track.id), time_ms);
     let shape = snapshot_shape_at(timeline.world.shape(track.id), time_ms);
     let text = snapshot_text_at(timeline.world.text(track.id), time_ms);
+    let geometry = snapshot_geometry_at(timeline.world.geometry(track.id), time_ms);
     let payload = timeline
         .world
         .payload(track.id)
@@ -181,6 +185,7 @@ fn collect_persistent_entries(
             highlight,
             shape,
             text,
+            geometry,
             property_plan,
         },
     );
@@ -252,6 +257,7 @@ fn inject_entry(
     _diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut track = entry.track.clone();
+    let mut geometry = entry.geometry.clone();
     // A carry entry may come from a legacy payload with no recorded
     // `actor_type`; resolve it from `kind` once here (the single compatibility
     // boundary — runtime lookups never fall back).
@@ -259,15 +265,13 @@ fn inject_entry(
 
     // ── Phase 3: re-root layout-managed entries to absolute world position ──
     if is_root {
-        let placement_mode = track
-            .geometry
+        let placement_mode = geometry
             .placement_mode
             .as_ref()
             .map(|pt| pt.evaluate(0))
             .unwrap_or(PlacementMode::Manual);
 
-        let binding = track
-            .geometry
+        let binding = geometry
             .position_binding
             .as_ref()
             .map(|pt| pt.evaluate(0))
@@ -291,15 +295,15 @@ fn inject_entry(
                 let world_pos = [t.x as f32, t.y as f32];
 
                 // Rewrite snapshot position to the resolved world coordinate.
-                let pos_track = track.geometry.position.ensure([0.0, 0.0]);
+                let pos_track = geometry.position.ensure([0.0, 0.0]);
                 pos_track.keyframes.clear();
                 pos_track.add_keyframe(0, world_pos, Easing::Linear);
 
-                let bind_track = track.geometry.position_binding.ensure(PositionBinding::Absolute);
+                let bind_track = geometry.position_binding.ensure(PositionBinding::Absolute);
                 bind_track.keyframes.clear();
                 bind_track.add_keyframe(0, PositionBinding::Absolute, Easing::Linear);
 
-                let mode_track = track.geometry.placement_mode.ensure(PlacementMode::Manual);
+                let mode_track = geometry.placement_mode.ensure(PlacementMode::Manual);
                 mode_track.keyframes.clear();
                 mode_track.add_keyframe(0, PlacementMode::Manual, Easing::Linear);
             }
@@ -332,6 +336,7 @@ fn inject_entry(
     *dest.world.property_plan.get_mut(id) = entry.property_plan.clone();
     *dest.world.shape.get_mut(id) = entry.shape.clone();
     *dest.world.text.get_mut(id) = entry.text.clone();
+    *dest.world.geometry.get_mut(id) = geometry.clone();
     if let Some(effects) = entry.effects.clone() {
         dest.world.effects.insert(id, effects);
     }
@@ -497,7 +502,6 @@ pub fn snapshot_track_at(track: &AnimationTrack, time_ms: u64) -> AnimationTrack
     let mut snapshot = track.clone();
 
     // Collapse each tier's property tracks to a single t=0 keyframe.
-    collapse_geometry_tracks(&mut snapshot.geometry, time_ms);
     collapse_style_tracks(&mut snapshot.style, time_ms);
 
     snapshot
@@ -659,5 +663,15 @@ pub fn snapshot_text_at(
 ) -> crate::timeline::animation_track::TextTracks {
     let mut snapshot = text.clone();
     collapse_text_tracks(&mut snapshot, time_ms);
+    snapshot
+}
+
+/// Snapshot the geometry tier at `time_ms` (single keyframe per track).
+pub fn snapshot_geometry_at(
+    geometry: &crate::timeline::animation_track::GeometryTracks,
+    time_ms: u64,
+) -> crate::timeline::animation_track::GeometryTracks {
+    let mut snapshot = geometry.clone();
+    collapse_geometry_tracks(&mut snapshot, time_ms);
     snapshot
 }

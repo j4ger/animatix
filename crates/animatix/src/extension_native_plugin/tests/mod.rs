@@ -124,10 +124,11 @@ fn sample_evaluate_ctx_with_payload<'a>(
         ),
         property_plan: None,
         world: None,
-        // The shape and text tiers live in World; these helper contexts
-        // sample a bare track, so no component is attached.
+        // The shape, text and geometry tiers live in World; these helper
+        // contexts sample a bare track, so no component is attached.
         shape: None,
         text: None,
+        geometry: None,
         payload,
         target_resolver: None,
         legend: None,

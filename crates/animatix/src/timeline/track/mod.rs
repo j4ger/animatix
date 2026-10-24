@@ -84,10 +84,6 @@ pub struct AnimationTrack {
     #[cfg_attr(feature = "serde", serde(skip))]
     pub(crate) pending_shape_command_bounds: std::cell::Cell<Option<Option<kurbo::Rect>>>,
 
-    // ── Geometry tier (sub-struct) ──
-    /// Geometry property tracks (position, size, rotation, scale, etc.).
-    pub geometry: GeometryTracks,
-
     // ── Style tier (sub-struct) ──
     /// Style property tracks (color, opacity, stroke, line_cap, line_join, morph_options).
     pub style: StyleTracks,
@@ -113,9 +109,6 @@ impl AnimationTrack {
                 crate::primitives::ShapeCommandMemo::default(),
             )),
             pending_shape_command_bounds: std::cell::Cell::new(None),
-
-            // Geometry tier (sub-struct)
-            geometry: GeometryTracks::default(),
 
             // Style tier (sub-struct)
             style: StyleTracks::default(),
@@ -308,20 +301,24 @@ impl AnimationTrack {
 
     // ── layout_size convenience methods (replacing old LayoutSizeState) ──
     /// Evaluate `layout_size` at `time_ms`.
-    pub fn layout_size_get(&self, time_ms: u64) -> Option<[f32; 2]> {
-        self.geometry.layout_size.as_ref().map(|t| t.evaluate(time_ms))
+    pub fn layout_size_get(&self, geometry: &GeometryTracks, time_ms: u64) -> Option<[f32; 2]> {
+        geometry.layout_size.as_ref().map(|t| t.evaluate(time_ms))
     }
     /// Return the last value of `layout_size`.
-    pub fn layout_size_last(&self) -> Option<[f32; 2]> {
-        self.geometry.layout_size.as_ref().map(|t| t.last_value())
+    pub fn layout_size_last(&self, geometry: &GeometryTracks) -> Option<[f32; 2]> {
+        geometry.layout_size.as_ref().map(|t| t.last_value())
     }
     /// Ensure `layout_size` exists, creating it with `default` if absent.
-    pub fn ensure_layout_size(&mut self, default: [f32; 2]) -> &mut PropertyTrack<[f32; 2]> {
-        self.geometry.layout_size.get_or_insert_with(|| PropertyTrack::new(default))
+    pub fn ensure_layout_size<'a>(
+        &mut self,
+        geometry: &'a mut GeometryTracks,
+        default: [f32; 2],
+    ) -> &'a mut PropertyTrack<[f32; 2]> {
+        geometry.layout_size.get_or_insert_with(|| PropertyTrack::new(default))
     }
     /// Return `true` if `layout_size` has been set.
-    pub fn has_layout_size(&self) -> bool {
-        self.geometry.layout_size.is_some()
+    pub fn has_layout_size(&self, geometry: &GeometryTracks) -> bool {
+        geometry.layout_size.is_some()
     }
 
     // ── Font metrics accessors (Phase 6) ──

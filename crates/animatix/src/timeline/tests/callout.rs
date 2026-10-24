@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::ast::Property;
-use crate::timeline::animation_track::CalloutPlace;
+use crate::timeline::animation_track::{CalloutPlace, GeometryTracks};
 
 fn make_config() -> Stmt {
     Stmt::Config {
@@ -105,6 +105,8 @@ fn test_callout_basic_rendering() {
 
     // Verify the track exists
     let track = timeline.get_track("callout").expect("callout track should exist");
+
+    let geometry = timeline.world.geometry(track.id);
     assert_eq!(track.actor_type, "Callout", "track kind should be Callout");
 
     // Verify line_from and line_to tracks are populated
@@ -119,7 +121,7 @@ fn test_callout_basic_rendering() {
     assert_eq!(label_val, "Test", "label should be 'Test'");
 
     // Verify label_at
-    let label_at = track.geometry.label_at.get(0, [0.0; 2]);
+    let label_at = geometry.label_at.get(0, [0.0; 2]);
     assert_eq!(label_at, [10.0, 5.0], "label_at should be (10, 5)");
 
     // Verify head_size
@@ -140,8 +142,10 @@ fn test_callout_label_positioning() {
 
     let track = timeline.get_track("callout").expect("callout track should exist");
 
+    let geometry = timeline.world.geometry(track.id);
+
     // Check label_at is correctly stored
-    let label_at = track.geometry.label_at.get(0, [0.0; 2]);
+    let label_at = geometry.label_at.get(0, [0.0; 2]);
     assert_eq!(label_at, [10.0, 5.0], "label_at should be (10,5)");
 
     // Check that evaluate doesn't crash
@@ -430,8 +434,9 @@ fn test_callout_target_assignment_accepts_bare_actor_label() {
     );
     let timeline = report.output;
     let note = timeline.get_track("note").expect("note track should exist");
-    assert_eq!(note.geometry.callout_target.get(0, String::new()), "box1");
-    assert_eq!(note.geometry.callout_target.get(1000, String::new()), "box2");
+    let geometry = timeline.world.geometry(note.id);
+    assert_eq!(geometry.callout_target.get(0, String::new()), "box1");
+    assert_eq!(geometry.callout_target.get(1000, String::new()), "box2");
 }
 
 #[test]
@@ -534,8 +539,9 @@ fn test_callout_target_accepts_array_actor_refs() {
     );
     let timeline = report.output;
     let note = timeline.get_track("note").expect("note track should exist");
-    assert_eq!(note.geometry.callout_target.get(0, String::new()), "bar__0");
-    assert_eq!(note.geometry.callout_target.get(1000, String::new()), "bar__2");
+    let geometry = timeline.world.geometry(note.id);
+    assert_eq!(geometry.callout_target.get(0, String::new()), "bar__0");
+    assert_eq!(geometry.callout_target.get(1000, String::new()), "bar__2");
 }
 
 #[test]
@@ -625,7 +631,8 @@ fn test_callout_target_accepts_namespaced_array_actor_refs() {
     );
     let timeline = report.output;
     let note = timeline.get_track("note").expect("note track should exist");
-    assert_eq!(note.geometry.callout_target.get(0, String::new()), "bars.bar__2");
+    let geometry = timeline.world.geometry(note.id);
+    assert_eq!(geometry.callout_target.get(0, String::new()), "bars.bar__2");
 }
 
 #[test]
@@ -717,24 +724,25 @@ fn test_callout_target_mode_seeds_tracks() {
     let timeline = report.output;
 
     let note = timeline.get_track("note").expect("note track should exist");
+    let geometry = timeline.world.geometry(note.id);
 
     // target / place / standoff / to_offset tracks must be seeded
     assert_eq!(
-        note.geometry.callout_target.get(0, String::new()),
+        geometry.callout_target.get(0, String::new()),
         "box",
         "callout_target should be 'box'"
     );
     assert_eq!(
-        note.geometry.callout_place.get(0, CalloutPlace::Right),
+        geometry.callout_place.get(0, CalloutPlace::Right),
         CalloutPlace::Right,
         "callout_place should be Right"
     );
     assert!(
-        (note.geometry.callout_standoff.get(0, 0.0) - 40.0).abs() < f32::EPSILON,
+        (geometry.callout_standoff.get(0, 0.0) - 40.0).abs() < f32::EPSILON,
         "callout_standoff should be 40.0"
     );
     assert_eq!(
-        note.geometry.callout_to_offset.get(0, [99.0; 2]),
+        geometry.callout_to_offset.get(0, [99.0; 2]),
         [0.0, 0.0],
         "callout_to_offset should be (0, 0)"
     );
@@ -881,8 +889,9 @@ fn test_callout_place_variants_accepted() {
             report.diagnostics
         );
         let track = report.output.get_track("note").unwrap();
+        let geometry = report.output.world.geometry(track.id);
         assert_eq!(
-            track.geometry.callout_place.get(0, CalloutPlace::Right),
+            geometry.callout_place.get(0, CalloutPlace::Right),
             *expected,
             "place={ident} should map to {expected:?}"
         );
@@ -945,8 +954,9 @@ fn test_callout_place_default_is_right() {
     ];
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let track = report.output.get_track("note").unwrap();
+    let geometry = report.output.world.geometry(track.id);
     assert_eq!(
-        track.geometry.callout_place.get(0, CalloutPlace::Auto),
+        geometry.callout_place.get(0, CalloutPlace::Auto),
         CalloutPlace::Right,
         "default callout_place should be Right"
     );
@@ -959,43 +969,52 @@ fn test_callout_place_default_is_right() {
 // relying on how declaration-time props map to internal tracks.
 
 /// Make a minimal target track with a given position and half-size.
-fn make_target_track(label: &str, pos: [f32; 2], half: [f32; 2]) -> AnimationTrack {
+fn make_target_track(
+    label: &str,
+    pos: [f32; 2],
+    half: [f32; 2],
+) -> (AnimationTrack, GeometryTracks) {
     let mut track = AnimationTrack::placeholder(label.to_string());
     track.actor_type = "Rect".to_string();
-    track.geometry.position = Some({
-        let mut t = PropertyTrack::new(pos);
-        t.add_keyframe(0, pos, Easing::Linear);
-        t
-    });
-    track.geometry.size = Some({
-        let mut t = PropertyTrack::new(half);
-        t.add_keyframe(0, half, Easing::Linear);
-        t
-    });
-    track
+    let geometry = GeometryTracks {
+        position: Some({
+            let mut t = PropertyTrack::new(pos);
+            t.add_keyframe(0, pos, Easing::Linear);
+            t
+        }),
+        size: Some({
+            let mut t = PropertyTrack::new(half);
+            t.add_keyframe(0, half, Easing::Linear);
+            t
+        }),
+        ..Default::default()
+    };
+    (track, geometry)
 }
 
 /// Make a Callout track that targets another actor (place=right, standoff=0).
-fn make_callout_track(label: &str, target: &str) -> AnimationTrack {
-    use crate::timeline::animation_track::CalloutPlace;
+fn make_callout_track(label: &str, target: &str) -> (AnimationTrack, GeometryTracks) {
     let mut track = AnimationTrack::placeholder(label.to_string());
     track.actor_type = "Callout".to_string();
-    track.geometry.callout_target = Some({
-        let mut t = PropertyTrack::new(target.to_string());
-        t.add_keyframe(0, target.to_string(), Easing::Linear);
-        t
-    });
-    track.geometry.callout_place = Some({
-        let mut t = PropertyTrack::new(CalloutPlace::Right);
-        t.add_keyframe(0, CalloutPlace::Right, Easing::Linear);
-        t
-    });
-    track.geometry.callout_standoff = Some({
-        let mut t = PropertyTrack::new(0.0f32);
-        t.add_keyframe(0, 0.0, Easing::Linear);
-        t
-    });
-    track
+    let geometry = GeometryTracks {
+        callout_target: Some({
+            let mut t = PropertyTrack::new(target.to_string());
+            t.add_keyframe(0, target.to_string(), Easing::Linear);
+            t
+        }),
+        callout_place: Some({
+            let mut t = PropertyTrack::new(CalloutPlace::Right);
+            t.add_keyframe(0, CalloutPlace::Right, Easing::Linear);
+            t
+        }),
+        callout_standoff: Some({
+            let mut t = PropertyTrack::new(0.0f32);
+            t.add_keyframe(0, 0.0, Easing::Linear);
+            t
+        }),
+        ..Default::default()
+    };
+    (track, geometry)
 }
 
 #[test]
@@ -1004,11 +1023,11 @@ fn test_callout_target_translated_world_bounds() {
     // world_affine = T(200,100); AABB centre=(200,100), half=(40,20).
     // place=right → attach = (240, 100).
     let mut timeline = Timeline::new();
-    let target = make_target_track("box", [200.0, 100.0], [40.0, 20.0]);
-    spawn_seen(&mut timeline, "box", target);
+    let (target, target_geometry) = make_target_track("box", [200.0, 100.0], [40.0, 20.0]);
+    spawn_seen(&mut timeline, "box", target, target_geometry);
 
-    let callout = make_callout_track("note", "box");
-    spawn_seen(&mut timeline, "note", callout);
+    let (callout, callout_geometry) = make_callout_track("note", "box");
+    spawn_seen(&mut timeline, "note", callout, callout_geometry);
 
     let dims = SceneDimensions {
         width: 1920,
@@ -1016,7 +1035,7 @@ fn test_callout_target_translated_world_bounds() {
     };
     let note = timeline.get_track("note").unwrap();
     let geom = crate::timeline::callout_geometry::derive_callout_geometry(
-        note,
+        timeline.world().geometry(note.id),
         timeline.world().shape(note.id),
         0,
         Some(&timeline),
@@ -1033,16 +1052,16 @@ fn test_callout_target_scaled_world_bounds() {
     // place=right → attach = (280, 100).
     // Without transform-aware bounds (old code) we would get: attach = (240, 100).
     let mut timeline = Timeline::new();
-    let mut target = make_target_track("box", [200.0, 100.0], [40.0, 20.0]);
-    target.geometry.scale = Some({
+    let (target, mut target_geometry) = make_target_track("box", [200.0, 100.0], [40.0, 20.0]);
+    target_geometry.scale = Some({
         let mut t = PropertyTrack::new(2.0f32);
         t.add_keyframe(0, 2.0, Easing::Linear);
         t
     });
-    spawn_seen(&mut timeline, "box", target);
+    spawn_seen(&mut timeline, "box", target, target_geometry);
 
-    let callout = make_callout_track("note", "box");
-    spawn_seen(&mut timeline, "note", callout);
+    let (callout, callout_geometry) = make_callout_track("note", "box");
+    spawn_seen(&mut timeline, "note", callout, callout_geometry);
 
     let dims = SceneDimensions {
         width: 1920,
@@ -1050,7 +1069,7 @@ fn test_callout_target_scaled_world_bounds() {
     };
     let note = timeline.get_track("note").unwrap();
     let geom = crate::timeline::callout_geometry::derive_callout_geometry(
-        note,
+        timeline.world().geometry(note.id),
         timeline.world().shape(note.id),
         0,
         Some(&timeline),
@@ -1072,16 +1091,16 @@ fn test_callout_target_rotated_aabb() {
     // place=right → attach ≈ (200+20, 100) = (220, 100).
     let angle_rad = std::f32::consts::FRAC_PI_2; // 90° in radians
     let mut timeline = Timeline::new();
-    let mut target = make_target_track("box", [200.0, 100.0], [40.0, 20.0]);
-    target.geometry.rotation = Some({
+    let (target, mut target_geometry) = make_target_track("box", [200.0, 100.0], [40.0, 20.0]);
+    target_geometry.rotation = Some({
         let mut t = PropertyTrack::new(angle_rad);
         t.add_keyframe(0, angle_rad, Easing::Linear);
         t
     });
-    spawn_seen(&mut timeline, "box", target);
+    spawn_seen(&mut timeline, "box", target, target_geometry);
 
-    let callout = make_callout_track("note", "box");
-    spawn_seen(&mut timeline, "note", callout);
+    let (callout, callout_geometry) = make_callout_track("note", "box");
+    spawn_seen(&mut timeline, "note", callout, callout_geometry);
 
     let dims = SceneDimensions {
         width: 1920,
@@ -1089,7 +1108,7 @@ fn test_callout_target_rotated_aabb() {
     };
     let note = timeline.get_track("note").unwrap();
     let geom = crate::timeline::callout_geometry::derive_callout_geometry(
-        note,
+        timeline.world().geometry(note.id),
         timeline.world().shape(note.id),
         0,
         Some(&timeline),
@@ -1116,16 +1135,16 @@ fn test_callout_target_nested_child_world_bounds() {
     // (Old local-only resolver would see child.position=(100,0) → 100+40=140.)
     let mut timeline = Timeline::new();
 
-    let parent = make_target_track("parent", [100.0, 0.0], [50.0, 50.0]);
-    let parent_id = spawn_seen(&mut timeline, "parent", parent);
+    let (parent, parent_geometry) = make_target_track("parent", [100.0, 0.0], [50.0, 50.0]);
+    let parent_id = spawn_seen(&mut timeline, "parent", parent, parent_geometry);
 
-    let child = make_target_track("child", [100.0, 0.0], [40.0, 20.0]);
-    let child_id = spawn_seen(&mut timeline, "child", child);
+    let (child, child_geometry) = make_target_track("child", [100.0, 0.0], [40.0, 20.0]);
+    let child_id = spawn_seen(&mut timeline, "child", child, child_geometry);
     // Register child under parent
     timeline.world.link(parent_id, child_id);
 
-    let callout = make_callout_track("note", "child");
-    spawn_seen(&mut timeline, "note", callout);
+    let (callout, callout_geometry) = make_callout_track("note", "child");
+    spawn_seen(&mut timeline, "note", callout, callout_geometry);
 
     let dims = SceneDimensions {
         width: 1920,
@@ -1133,7 +1152,7 @@ fn test_callout_target_nested_child_world_bounds() {
     };
     let note = timeline.get_track("note").unwrap();
     let geom = crate::timeline::callout_geometry::derive_callout_geometry(
-        note,
+        timeline.world().geometry(note.id),
         timeline.world().shape(note.id),
         0,
         Some(&timeline),
@@ -1191,8 +1210,10 @@ fn spawn_seen(
     timeline: &mut crate::timeline::Timeline,
     label: &str,
     track: AnimationTrack,
+    geometry: GeometryTracks,
 ) -> crate::timeline::EntityId {
     let id = timeline.world.spawn_with_track(label, track);
+    *timeline.world.geometry_mut(id) = geometry;
     timeline.world.meta_mut(id).first_seen_ms = 0;
     id
 }

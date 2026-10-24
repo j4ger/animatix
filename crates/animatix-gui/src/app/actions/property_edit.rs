@@ -1,16 +1,19 @@
 //! Property-edit application for the timeline (legend, registry, effects).
 
 use super::*;
-/// Apply a property edit to an in-memory `AnimationTrack`.
+/// Apply a property edit to one entity in the timeline `World`.
 ///
 /// This helper centralises the per-property dispatch so both keyframe-mode
 /// and overwrite-mode edits stay consistent. It always adds a keyframe at
 /// `time_ms` (in addition to updating `default_value`) so the renderer's
 /// `evaluate()` immediately sees the new value.
-pub(super) fn apply_property_edit_to_track(
-    track: &mut animatix::timeline::AnimationTrack,
-    effects: Option<&mut animatix::timeline::effects::EffectChainTrack>,
-    legend: Option<&mut animatix::timeline::LegendTracks>,
+///
+/// The geometry tier is a `World` component (`World::geometry`), so this
+/// takes the world and the entity id rather than a bare `AnimationTrack`; the
+/// world-aware field bundle resolves geometry, style, shape, and text writes.
+pub(super) fn apply_property_edit_to_entity(
+    world: &mut animatix::timeline::World,
+    id: animatix::timeline::EntityId,
     property: &str,
     value: &panels::PropertyValue,
     time_ms: u64,
@@ -25,7 +28,7 @@ pub(super) fn apply_property_edit_to_track(
 
     // `scope.stage.param` edits address the scope's effect chain.
     if let Some((stage, param)) = property.split_once('.') {
-        if let Some(effects) = effects {
+        if let Some(effects) = world.effects_mut(id) {
             if effects.write_param(stage, param, value.clone(), time_ms, time_ms, linear) {
                 return;
             }
@@ -65,7 +68,6 @@ pub(super) fn apply_property_edit_to_track(
     /// (`legend_title`, `legend_gap`, ...) keep the legacy map, which is where
     /// their readers look.
     fn write_tagged_value(
-        _track: &mut animatix::timeline::AnimationTrack,
         key: &str,
         pv: animatix::timeline::PropertyValue,
         _time_ms: u64,
@@ -90,8 +92,8 @@ pub(super) fn apply_property_edit_to_track(
         if let PV::String(choice) = value
             && let Some(place) = animatix::timeline::animation_track::CalloutPlace::from_str(choice)
         {
-            track
-                .geometry
+            world
+                .geometry_mut(id)
                 .callout_place
                 .ensure(animatix::timeline::animation_track::CalloutPlace::Right)
                 .add_keyframe(time_ms, place, linear);
@@ -123,19 +125,16 @@ pub(super) fn apply_property_edit_to_track(
         return;
     }
 
-    // Bare-track helper: capabilities derive from the actor type (the same
-    // derivation the catalog uses); `World`-aware callers hold overrides.
-    let caps = animatix::timeline::caps_for_type(&track.actor_type).unwrap_or_default();
+    // World-aware capabilities: the projection carries any per-entity
+    // overrides the catalog derivation alone would miss.
+    let caps = world.caps(id);
     if caps.legend_host {
-        let Some(legend) = legend else {
-            return;
-        };
+        let legend = world.ensure_legend(id);
         match property {
             "title" => {
                 if let PV::String(v) = value {
                     legend.title = v.clone();
                     write_tagged_value(
-                        track,
                         "legend_title",
                         animatix::timeline::PropertyValue::String(v.clone()),
                         time_ms,
@@ -150,7 +149,6 @@ pub(super) fn apply_property_edit_to_track(
                 if let PV::F32(v) = value {
                     legend.font_size = *v;
                     write_tagged_value(
-                        track,
                         "legend_font_size",
                         animatix::timeline::PropertyValue::F32(*v),
                         time_ms,
@@ -165,7 +163,6 @@ pub(super) fn apply_property_edit_to_track(
                 if let PV::F32(v) = value {
                     legend.swatch_size = *v;
                     write_tagged_value(
-                        track,
                         "legend_swatch_size",
                         animatix::timeline::PropertyValue::F32(*v),
                         time_ms,
@@ -180,7 +177,6 @@ pub(super) fn apply_property_edit_to_track(
                 if let PV::F32(v) = value {
                     legend.gap = *v;
                     write_tagged_value(
-                        track,
                         "legend_gap",
                         animatix::timeline::PropertyValue::F32(*v),
                         time_ms,
@@ -195,7 +191,6 @@ pub(super) fn apply_property_edit_to_track(
                 if let PV::F32(v) = value {
                     legend.text_max_width = *v;
                     write_tagged_value(
-                        track,
                         "legend_text_max_width",
                         animatix::timeline::PropertyValue::F32(*v),
                         time_ms,
@@ -212,7 +207,6 @@ pub(super) fn apply_property_edit_to_track(
                     legend.label_color = parsed;
                     if let Some(color) = parsed {
                         write_tagged_value(
-                            track,
                             "legend_label_color",
                             animatix::timeline::PropertyValue::Color(color),
                             time_ms,
@@ -229,111 +223,127 @@ pub(super) fn apply_property_edit_to_track(
     }
 
     // ── Special / compound properties (not covered by generic registry dispatch) ──
-    match property {
-        "size" => {
-            if let PV::Vec2(v) = value {
-                let half = [v[0] / 2.0, v[1] / 2.0];
-                let pt = track.geometry.size.get_or_insert_with(|| PropertyTrack::new(half));
-                pt.set_default_value(half);
-                pt.add_keyframe(time_ms, half, linear);
-            }
-            return;
-        },
-        "offset" => {
-            if let PV::Vec2(v) = value {
-                if let Some(ref mut pb_track) = track.geometry.position_binding {
-                    let current = pb_track.evaluate(time_ms);
-                    if let animatix::timeline::PositionBinding::SceneAnchor { anchor, .. } = current
-                    {
-                        let new_binding =
-                            animatix::timeline::PositionBinding::SceneAnchor { anchor, offset: *v };
-                        pb_track.set_default_value(new_binding);
-                        pb_track.add_keyframe(time_ms, new_binding, linear);
-                    }
+    // The geometry tier lives in the world component store, so borrow it for
+    // the whole block and then fall through to the world-aware field bundle
+    // for the registry-driven dispatch below.
+    let Some(mut fields) = world.fields_mut(id) else {
+        return;
+    };
+    let special = if let Some(geometry) = fields.geometry.as_mut() {
+        match property {
+            "size" => {
+                if let PV::Vec2(v) = value {
+                    let half = [v[0] / 2.0, v[1] / 2.0];
+                    let pt = geometry.size.get_or_insert_with(|| PropertyTrack::new(half));
+                    pt.set_default_value(half);
+                    pt.add_keyframe(time_ms, half, linear);
                 }
-            }
-            return;
-        },
-        "at" => {
-            if let PV::Vec2(v) = value {
-                let binding =
-                    track.geometry.position_binding.as_ref().map(|pb| pb.evaluate(time_ms));
-                match binding {
-                    Some(animatix::timeline::PositionBinding::ScenePercent { .. }) => {
-                        if let Some(ref mut pb_track) = track.geometry.position_binding {
-                            let new_binding = animatix::timeline::PositionBinding::ScenePercent {
-                                x: v[0],
-                                y: v[1],
-                                offset: [0.0, 0.0],
+                true
+            },
+            "offset" => {
+                if let PV::Vec2(v) = value {
+                    if let Some(ref mut pb_track) = geometry.position_binding {
+                        let current = pb_track.evaluate(time_ms);
+                        if let animatix::timeline::PositionBinding::SceneAnchor { anchor, .. } =
+                            current
+                        {
+                            let new_binding = animatix::timeline::PositionBinding::SceneAnchor {
+                                anchor,
+                                offset: *v,
                             };
                             pb_track.set_default_value(new_binding);
                             pb_track.add_keyframe(time_ms, new_binding, linear);
                         }
-                    },
-                    _ => {
-                        let pt =
-                            track.geometry.position.get_or_insert_with(|| PropertyTrack::new(*v));
-                        pt.set_default_value(*v);
-                        pt.add_keyframe(time_ms, *v, linear);
-                    },
+                    }
                 }
-            }
-            return;
-        },
-        "radius" => {
-            if let PV::F32(v) = value {
-                let size = [*v, *v];
-                let pt = track.geometry.size.get_or_insert_with(|| PropertyTrack::new(size));
-                pt.set_default_value(size);
-                pt.add_keyframe(time_ms, size, linear);
-            }
-            return;
-        },
-        "radius_x" => {
-            if let PV::F32(v) = value {
-                let current =
-                    track.geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
-                let size = [*v, current[1]];
-                let pt = track.geometry.size.get_or_insert_with(|| PropertyTrack::new(size));
-                pt.set_default_value(size);
-                pt.add_keyframe(time_ms, size, linear);
-            }
-            return;
-        },
-        "radius_y" => {
-            if let PV::F32(v) = value {
-                let current =
-                    track.geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
-                let size = [current[0], *v];
-                let pt = track.geometry.size.get_or_insert_with(|| PropertyTrack::new(size));
-                pt.set_default_value(size);
-                pt.add_keyframe(time_ms, size, linear);
-            }
-            return;
-        },
-        "tip_length" => {
-            if let PV::F32(v) = value {
-                let current =
-                    track.geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
-                let size = [*v, current[1]];
-                let pt = track.geometry.size.get_or_insert_with(|| PropertyTrack::new(size));
-                pt.set_default_value(size);
-                pt.add_keyframe(time_ms, size, linear);
-            }
-            return;
-        },
-        "tip_width" => {
-            if let PV::F32(v) = value {
-                let current =
-                    track.geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
-                let size = [current[0], *v];
-                let pt = track.geometry.size.get_or_insert_with(|| PropertyTrack::new(size));
-                pt.set_default_value(size);
-                pt.add_keyframe(time_ms, size, linear);
-            }
-            return;
-        },
-        _ => {},
+                true
+            },
+            "at" => {
+                if let PV::Vec2(v) = value {
+                    let binding = geometry.position_binding.as_ref().map(|pb| pb.evaluate(time_ms));
+                    match binding {
+                        Some(animatix::timeline::PositionBinding::ScenePercent { .. }) => {
+                            if let Some(ref mut pb_track) = geometry.position_binding {
+                                let new_binding =
+                                    animatix::timeline::PositionBinding::ScenePercent {
+                                        x: v[0],
+                                        y: v[1],
+                                        offset: [0.0, 0.0],
+                                    };
+                                pb_track.set_default_value(new_binding);
+                                pb_track.add_keyframe(time_ms, new_binding, linear);
+                            }
+                        },
+                        _ => {
+                            let pt =
+                                geometry.position.get_or_insert_with(|| PropertyTrack::new(*v));
+                            pt.set_default_value(*v);
+                            pt.add_keyframe(time_ms, *v, linear);
+                        },
+                    }
+                }
+                true
+            },
+            "radius" => {
+                if let PV::F32(v) = value {
+                    let size = [*v, *v];
+                    let pt = geometry.size.get_or_insert_with(|| PropertyTrack::new(size));
+                    pt.set_default_value(size);
+                    pt.add_keyframe(time_ms, size, linear);
+                }
+                true
+            },
+            "radius_x" => {
+                if let PV::F32(v) = value {
+                    let current =
+                        geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+                    let size = [*v, current[1]];
+                    let pt = geometry.size.get_or_insert_with(|| PropertyTrack::new(size));
+                    pt.set_default_value(size);
+                    pt.add_keyframe(time_ms, size, linear);
+                }
+                true
+            },
+            "radius_y" => {
+                if let PV::F32(v) = value {
+                    let current =
+                        geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+                    let size = [current[0], *v];
+                    let pt = geometry.size.get_or_insert_with(|| PropertyTrack::new(size));
+                    pt.set_default_value(size);
+                    pt.add_keyframe(time_ms, size, linear);
+                }
+                true
+            },
+            "tip_length" => {
+                if let PV::F32(v) = value {
+                    let current =
+                        geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+                    let size = [*v, current[1]];
+                    let pt = geometry.size.get_or_insert_with(|| PropertyTrack::new(size));
+                    pt.set_default_value(size);
+                    pt.add_keyframe(time_ms, size, linear);
+                }
+                true
+            },
+            "tip_width" => {
+                if let PV::F32(v) = value {
+                    let current =
+                        geometry.size.get(time_ms, animatix::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+                    let size = [current[0], *v];
+                    let pt = geometry.size.get_or_insert_with(|| PropertyTrack::new(size));
+                    pt.set_default_value(size);
+                    pt.add_keyframe(time_ms, size, linear);
+                }
+                true
+            },
+            _ => false,
+        }
+    } else {
+        false
+    };
+    if special {
+        return;
     }
 
     // ── Registry-driven dispatch for standard properties ──
@@ -342,18 +352,13 @@ pub(super) fn apply_property_edit_to_track(
         // hands back the legacy map entry, which nothing here used to write.
         // Route them through the one tagged writer instead.
         if let animatix::timeline::ActorField::Tagged(tag) = schema.field {
-            write_tagged_value(
-                track,
-                tag,
-                value.clone(),
-                time_ms,
-                linear,
-                legacy_tagged,
-                field_writes,
-            );
+            write_tagged_value(tag, value.clone(), time_ms, linear, legacy_tagged, field_writes);
             return;
         }
-        if let Some(field_mut) = track.field_mut(schema.field) {
+        // Shape-owned fields must keep routing through the plan writer rather
+        // than the tier store, matching the pre-migration behaviour.
+        let shape_owned = is_shape_field(schema.field);
+        if !shape_owned && let Some(field_mut) = fields.field_mut(schema.field) {
             match (field_mut, value) {
                 (TrackFieldMut::Vec2(f), PV::Vec2(v)) => {
                     let pt = f.get_or_insert_with(|| PropertyTrack::new(*v));

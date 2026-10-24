@@ -152,9 +152,10 @@ impl DocumentController<'_> {
         // Start move drag for the new actor at the original position
         let time_ms = (self.preview_store.preview.playback.current_time_s() * 1000.0) as u64;
         if let Some(timeline) = self.document_store.source.document.active_timeline() {
-            if let Some(track) = timeline.get_track(original_label) {
-                let position = track
-                    .geometry
+            if let Some(id) = timeline.get_entity_id(original_label) {
+                let position = timeline
+                    .world()
+                    .geometry(id)
                     .position
                     .as_ref()
                     .map(|p| p.evaluate(time_ms))

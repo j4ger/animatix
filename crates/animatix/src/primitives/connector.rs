@@ -360,7 +360,7 @@ impl Primitive for ConnectorPrimitive {
 
     fn handle_assignment(
         &self,
-        track: &mut AnimationTrack,
+        _track: &mut AnimationTrack,
         property: &str,
         value: &Expr,
         ctx: &mut AssignmentCtx,
@@ -368,10 +368,12 @@ impl Primitive for ConnectorPrimitive {
         _diagnostics: &mut Vec<Diagnostic>,
         _subject: &str,
     ) -> bool {
+        let geometry =
+            ctx.geometry.as_mut().expect("Connector assignment requires the geometry tier");
         match property {
             "from" => {
                 if let Some(endpoint) = parse_connector_endpoint(value, env) {
-                    track.geometry.connector_from.ensure(endpoint.clone()).add_keyframe(
+                    geometry.connector_from.ensure(endpoint.clone()).add_keyframe(
                         ctx.t_start_ms,
                         endpoint,
                         ctx.easing,
@@ -381,7 +383,7 @@ impl Primitive for ConnectorPrimitive {
             },
             "to" => {
                 if let Some(endpoint) = parse_connector_endpoint(value, env) {
-                    track.geometry.connector_to.ensure(endpoint.clone()).add_keyframe(
+                    geometry.connector_to.ensure(endpoint.clone()).add_keyframe(
                         ctx.t_start_ms,
                         endpoint,
                         ctx.easing,
@@ -396,7 +398,7 @@ impl Primitive for ConnectorPrimitive {
                 };
                 let routing =
                     routing_str.parse::<ConnectorRouting>().unwrap_or(ConnectorRouting::Elbow);
-                track.geometry.connector_routing.ensure(routing).add_keyframe(
+                geometry.connector_routing.ensure(routing).add_keyframe(
                     ctx.t_start_ms,
                     routing,
                     ctx.easing,
@@ -409,7 +411,7 @@ impl Primitive for ConnectorPrimitive {
                     Expr::Ident(s) => s == "true",
                     _ => true,
                 };
-                track.geometry.connector_arrow.ensure(arrow_val).add_keyframe(
+                geometry.connector_arrow.ensure(arrow_val).add_keyframe(
                     ctx.t_start_ms,
                     arrow_val,
                     ctx.easing,
@@ -426,19 +428,13 @@ impl Primitive for ConnectorPrimitive {
         ctx: &EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<RenderCommand>>, RenderError> {
-        let ep_from = ctx
-            .track
-            .geometry
-            .connector_from
-            .get(ctx.time_ms, ConnectorEndpoint::Point([0.0, 0.0]));
-        let ep_to = ctx
-            .track
-            .geometry
-            .connector_to
-            .get(ctx.time_ms, ConnectorEndpoint::Point([100.0, 100.0]));
-        let routing =
-            ctx.track.geometry.connector_routing.get(ctx.time_ms, ConnectorRouting::Elbow);
-        let mut arrow = ctx.track.geometry.connector_arrow.get(ctx.time_ms, true);
+        let geometry = ctx.geometry.expect("Connector evaluation requires the geometry tier");
+        let ep_from =
+            geometry.connector_from.get(ctx.time_ms, ConnectorEndpoint::Point([0.0, 0.0]));
+        let ep_to =
+            geometry.connector_to.get(ctx.time_ms, ConnectorEndpoint::Point([100.0, 100.0]));
+        let routing = geometry.connector_routing.get(ctx.time_ms, ConnectorRouting::Elbow);
+        let mut arrow = geometry.connector_arrow.get(ctx.time_ms, true);
         let shape = ctx.shape.expect("Connector evaluation requires the shape tier");
         let mut corner_radius = shape.corner_radius.get(ctx.time_ms, 8.0);
         let mut head_size = shape.head_size.get(ctx.time_ms, 10.0);

@@ -68,17 +68,17 @@ impl BuiltinAction for Move {
                 continue;
             }
 
-            let track = match timeline.world.tracks.get_mut(target) {
-                Some(t) => t,
+            let track_id = match timeline.world.tracks.get(target) {
+                Some(t) => t.id,
                 None => continue,
             };
-            let prior_v = track
-                .geometry
+            let geometry = timeline.world.geometry_mut(track_id);
+            let prior_v = geometry
                 .motion_offset
                 .as_ref()
                 .map(|mot| mot.velocity_at(t_start_ms))
                 .unwrap_or([0.0, 0.0]);
-            let start_offset = track.geometry.motion_offset.get(t_start_ms, [0.0, 0.0]);
+            let start_offset = geometry.motion_offset.get(t_start_ms, [0.0, 0.0]);
             let travel = [
                 target_offset[0] - start_offset[0],
                 target_offset[1] - start_offset[1],
@@ -104,31 +104,35 @@ impl BuiltinAction for Move {
                 other => other,
             };
 
-            let from_offset =
-                anticipation_start(track, parsed.anticipate_ms, t_start_ms, start_offset, travel)
-                    .unwrap_or(start_offset);
+            let from_offset = anticipation_start(
+                geometry,
+                parsed.anticipate_ms,
+                t_start_ms,
+                start_offset,
+                travel,
+            )
+            .unwrap_or(start_offset);
 
-            if let Some(mot) = track.geometry.motion_offset.as_mut() {
+            if let Some(mot) = geometry.motion_offset.as_mut() {
                 mot.split_off_after(t_start_ms);
             }
 
             if duration_ms > 0.0 {
-                track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
+                geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
                     t_start_ms,
                     from_offset,
                     Easing::Linear,
                 );
             } else if delay_ms > 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                let prior_offset = track.geometry.motion_offset.get(guard_time, [0.0, 0.0]);
-                if !track
-                    .geometry
+                let prior_offset = geometry.motion_offset.get(guard_time, [0.0, 0.0]);
+                if !geometry
                     .motion_offset
                     .as_ref()
                     .map(|t| t.keyframes.contains_key(&guard_time))
                     .unwrap_or(false)
                 {
-                    track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
+                    geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
                         guard_time,
                         prior_offset,
                         Easing::Linear,
@@ -136,7 +140,7 @@ impl BuiltinAction for Move {
                 }
             }
 
-            track.geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
+            geometry.motion_offset.ensure([0.0, 0.0]).add_keyframe(
                 t_end_ms,
                 target_offset,
                 effective_easing,
@@ -225,10 +229,11 @@ fn run_move_along(
             continue;
         }
 
-        let track = match timeline.world.tracks.get_mut(target) {
-            Some(t) => t,
+        let track_id = match timeline.world.tracks.get(target) {
+            Some(t) => t.id,
             None => continue,
         };
+        let geometry = timeline.world.geometry_mut(track_id);
         // Positions are absolute scene coordinates: the route is drawn where the
         // actor should go, so the authored `at` only matters before it starts.
         // Intermediate samples are linear (equal arc-length spacing *is* the
@@ -240,17 +245,16 @@ fn run_move_along(
             } else {
                 Easing::Linear
             };
-            track.geometry.position.ensure([0.0, 0.0]).add_keyframe(
+            geometry.position.ensure([0.0, 0.0]).add_keyframe(
                 at.min(t_end_ms),
                 [point.x as f32, point.y as f32],
                 easing,
             );
             if orient {
-                track.geometry.rotation.ensure(0.0).add_keyframe(
-                    at.min(t_end_ms),
-                    *angle as f32,
-                    easing,
-                );
+                geometry
+                    .rotation
+                    .ensure(0.0)
+                    .add_keyframe(at.min(t_end_ms), *angle as f32, easing);
             }
         }
     }

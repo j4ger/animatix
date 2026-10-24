@@ -61,7 +61,7 @@ impl GestureHandler for CalloutGesture {
 
                 let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
                 let geo = derive_callout_geometry(
-                    track,
+                    timeline.world().geometry(track.id),
                     timeline.world().shape(track.id),
                     time_ms,
                     Some(timeline),
@@ -86,8 +86,10 @@ impl GestureHandler for CalloutGesture {
 
                 let hit_r = PREVIEW_HANDLE_HIT_RADIUS;
                 let scene_start = ctx.preview_screen_to_scene(preview_rect, *pos);
-                let to_offset = track.geometry.callout_to_offset.get(time_ms, [0.0, 0.0]);
-                let label_at = track.geometry.label_at.get(time_ms, [0.0, 50.0]);
+                let to_offset =
+                    timeline.world().geometry(track.id).callout_to_offset.get(time_ms, [0.0, 0.0]);
+                let label_at =
+                    timeline.world().geometry(track.id).label_at.get(time_ms, [0.0, 50.0]);
 
                 // Priority 1: tip handle
                 if pos.distance(tip_screen) <= hit_r {
@@ -203,7 +205,7 @@ impl GestureHandler for CalloutGesture {
                                 (ctx.timeline, ctx.timeline.and_then(|t| t.get_track(&actor)))
                             {
                                 let geo = derive_callout_geometry(
-                                    track,
+                                    timeline.world().geometry(track.id),
                                     timeline.world().shape(track.id),
                                     time_ms,
                                     Some(timeline),
@@ -248,15 +250,18 @@ impl GestureHandler for CalloutGesture {
                                 (ctx.timeline, ctx.timeline.and_then(|t| t.get_track(&actor)))
                             {
                                 let geo = derive_callout_geometry(
-                                    track,
+                                    timeline.world().geometry(track.id),
                                     timeline.world().shape(track.id),
                                     time_ms,
                                     Some(timeline),
                                     ctx.scene_dimensions,
                                 );
                                 if geo.is_targeted {
-                                    let current_offset =
-                                        track.geometry.callout_to_offset.get(time_ms, [0.0, 0.0]);
+                                    let current_offset = timeline
+                                        .world()
+                                        .geometry(track.id)
+                                        .callout_to_offset
+                                        .get(time_ms, [0.0, 0.0]);
                                     let attach = [
                                         geo.to[0] - current_offset[0],
                                         geo.to[1] - current_offset[1],

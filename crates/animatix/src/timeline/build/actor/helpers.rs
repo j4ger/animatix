@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::ast::Property;
-use crate::timeline::animation_track::ShapeTracks;
+use crate::timeline::animation_track::{GeometryTracks, ShapeTracks};
 use crate::timeline::vello_path::VelloPath;
 
 impl Timeline {
@@ -158,6 +158,7 @@ impl Timeline {
     #[allow(clippy::too_many_arguments)]
     pub(super) fn insert_actor_keyframes(
         track: &mut AnimationTrack,
+        geometry: &mut GeometryTracks,
         shape: &mut ShapeTracks,
         caps: ActorCaps,
         t_start_ms: u64,
@@ -185,9 +186,9 @@ impl Timeline {
         morph_options: MorphOptions,
     ) {
         if duration_ms > 0.0 {
-            insert_start_keyframes(track, shape, caps, t_start_ms);
+            insert_start_keyframes(track, geometry, shape, caps, t_start_ms);
         } else if delay_ms > 0.0 {
-            preserve_delayed_values(track, shape, t_start_ms);
+            preserve_delayed_values(track, geometry, shape, t_start_ms);
         }
         if supports_morph_options {
             track.style.morph_options.ensure(MorphOptions::default()).add_keyframe(
@@ -199,6 +200,7 @@ impl Timeline {
 
         insert_end_keyframes(
             track,
+            geometry,
             shape,
             caps,
             t_end_ms,

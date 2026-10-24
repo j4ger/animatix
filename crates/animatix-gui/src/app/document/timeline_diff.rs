@@ -34,6 +34,7 @@ pub struct KeyframeId {
 /// phantom identities for the same keyframes.
 pub(crate) fn collect_per_property_keyframes(
     track: &animatix::timeline::AnimationTrack,
+    geometry: &animatix::timeline::animation_track::GeometryTracks,
     shape: &animatix::timeline::animation_track::ShapeTracks,
     text: &animatix::timeline::animation_track::TextTracks,
     effects: Option<&animatix::timeline::effects::EffectChainTrack>,
@@ -51,13 +52,13 @@ pub(crate) fn collect_per_property_keyframes(
             }
         }
     }
-    // Geometry
-    push(&mut result, &track.geometry.position, "position");
-    push(&mut result, &track.geometry.motion_offset, "motion_offset");
-    push(&mut result, &track.geometry.rotation, "rotation");
-    push(&mut result, &track.geometry.scale, "scale");
-    push(&mut result, &track.geometry.size, "size");
-    push(&mut result, &track.geometry.layout_size, "layout_size");
+    // Geometry (a `World` component, passed in explicitly)
+    push(&mut result, &geometry.position, "position");
+    push(&mut result, &geometry.motion_offset, "motion_offset");
+    push(&mut result, &geometry.rotation, "rotation");
+    push(&mut result, &geometry.scale, "scale");
+    push(&mut result, &geometry.size, "size");
+    push(&mut result, &geometry.layout_size, "layout_size");
     // Style
     push(&mut result, &track.style.color, "color");
     push(&mut result, &track.style.opacity, "opacity");
@@ -147,10 +148,11 @@ const PROPERTY_LANES: &[(&str, ActorField)] = &[
 /// Keyframe times for one lane's storage field.
 ///
 /// Shape-owned fields moved out of `AnimationTrack` into the shape component
-/// store, so the track-only engine helper cannot see them; read those from the
-/// shape tier the caller passes in. Everything else still lives on the track.
+/// store, and the geometry tier now lives in `World.geometry`; read those from
+/// the tiers the caller passes in. Everything else still lives on the track.
 fn lane_keyframe_times(
     track: &animatix::timeline::AnimationTrack,
+    geometry: &animatix::timeline::animation_track::GeometryTracks,
     shape: &animatix::timeline::animation_track::ShapeTracks,
     text: &animatix::timeline::animation_track::TextTracks,
     field: ActorField,
@@ -163,6 +165,13 @@ fn lane_keyframe_times(
             .unwrap_or_default()
     }
     match field {
+        // Geometry fields live in the world geometry tier.
+        ActorField::Position => times(&geometry.position),
+        ActorField::MotionOffset => times(&geometry.motion_offset),
+        ActorField::Rotation => times(&geometry.rotation),
+        ActorField::Scale => times(&geometry.scale),
+        ActorField::Size => times(&geometry.size),
+        ActorField::LayoutSize => times(&geometry.layout_size),
         ActorField::ShapeType => times(&shape.shape_type),
         ActorField::LineFrom => times(&shape.line_from),
         ActorField::LineTo => times(&shape.line_to),
@@ -190,6 +199,7 @@ fn lane_keyframe_times(
 /// authority for actual keyframe times.
 pub(crate) fn collect_property_lanes(
     track: &animatix::timeline::AnimationTrack,
+    geometry: &animatix::timeline::animation_track::GeometryTracks,
     shape: &animatix::timeline::animation_track::ShapeTracks,
     text: &animatix::timeline::animation_track::TextTracks,
     effects: Option<&animatix::timeline::effects::EffectChainTrack>,
@@ -206,10 +216,11 @@ pub(crate) fn collect_property_lanes(
         .collect();
     // Fields with real keyframes keep a lane even when the registry does not
     // expose their storage field directly (e.g. `arc_angles`, `vector_paths`).
-    let keyframed: Vec<String> = collect_per_property_keyframes(track, shape, text, effects)
-        .into_iter()
-        .map(|(property, _)| property)
-        .collect();
+    let keyframed: Vec<String> =
+        collect_per_property_keyframes(track, geometry, shape, text, effects)
+            .into_iter()
+            .map(|(property, _)| property)
+            .collect();
 
     let mut lanes: Vec<(String, Vec<u64>)> = PROPERTY_LANES
         .iter()
@@ -217,7 +228,7 @@ pub(crate) fn collect_property_lanes(
             allowed_fields.contains(field) || keyframed.iter().any(|name| name == property)
         })
         .map(|&(property, field)| {
-            (property.to_string(), lane_keyframe_times(track, shape, text, field))
+            (property.to_string(), lane_keyframe_times(track, geometry, shape, text, field))
         })
         .collect();
 
@@ -276,12 +287,13 @@ pub(crate) fn lane_schema(
 /// timeline UI renders one diamond per actor/time.
 pub(crate) fn collect_actor_keyframes(
     track: &animatix::timeline::AnimationTrack,
+    geometry: &animatix::timeline::animation_track::GeometryTracks,
     shape: &animatix::timeline::animation_track::ShapeTracks,
     text: &animatix::timeline::animation_track::TextTracks,
     effects: Option<&animatix::timeline::effects::EffectChainTrack>,
 ) -> Vec<(u64, String)> {
     let mut result = Vec::new();
-    for (property, times) in collect_per_property_keyframes(track, shape, text, effects) {
+    for (property, times) in collect_per_property_keyframes(track, geometry, shape, text, effects) {
         result.extend(times.into_iter().map(|time_ms| (time_ms, property.clone())));
     }
     result.sort_by_key(|(time_ms, _)| *time_ms);
@@ -317,6 +329,7 @@ impl TimelineFingerprint {
             for track in timeline.tracks().values() {
                 for (property, times) in collect_per_property_keyframes(
                     track,
+                    timeline.world().geometry(track.id),
                     timeline.world().shape(track.id),
                     timeline.world().text(track.id),
                     None,
@@ -343,6 +356,7 @@ impl TimelineFingerprint {
                 for track in scene.timeline.tracks().values() {
                     for (property, times) in collect_per_property_keyframes(
                         track,
+                        scene.timeline.world().geometry(track.id),
                         scene.timeline.world().shape(track.id),
                         scene.timeline.world().text(track.id),
                         None,
@@ -645,6 +659,7 @@ mod tests {
 
         let lanes = collect_property_lanes(
             track,
+            timeline.world().geometry(track.id),
             timeline.world().shape(track.id),
             timeline.world().text(track.id),
             None,
@@ -661,6 +676,7 @@ mod tests {
         // collector exactly.
         for (property, times) in collect_per_property_keyframes(
             track,
+            timeline.world().geometry(track.id),
             timeline.world().shape(track.id),
             timeline.world().text(track.id),
             None,
@@ -691,6 +707,7 @@ mod tests {
         assert!(
             !collect_property_lanes(
                 track,
+                timeline.world().geometry(track.id),
                 timeline.world().shape(track.id),
                 timeline.world().text(track.id),
                 None,

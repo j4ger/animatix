@@ -297,7 +297,7 @@ impl Timeline {
             .world
             .tracks
             .get(parent_label)
-            .map(|t| t.geometry.position.last([0.0, 0.0]))
+            .map(|t| self.world.geometry(t.id).position.last([0.0, 0.0]))
             .unwrap_or([0.0, 0.0]);
 
         props

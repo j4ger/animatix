@@ -114,31 +114,32 @@ impl Primitive for SvgPrimitive {
             easing,
         );
 
+        let geometry = ctx.geometry.as_mut().expect("Svg assignment requires the geometry tier");
         let measured_half_size = measure_svg_paths(&parsed_paths);
         if ctx.duration_ms > 0.0 {
-            let start_size = track.geometry.size.get(ctx.t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
-            track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+            let start_size = geometry.size.get(ctx.t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
+            geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                 ctx.t_start_ms,
                 start_size,
                 Easing::Linear,
             );
-            if let Some(layout_start) = track.layout_size_get(ctx.t_start_ms) {
-                track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+            if let Some(layout_start) = track.layout_size_get(geometry, ctx.t_start_ms) {
+                track.ensure_layout_size(geometry, DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                     ctx.t_start_ms,
                     layout_start,
                     Easing::Linear,
                 );
             }
         } else if ctx.instant_delayed {
-            preserve_instant_delayed_value(&mut track.geometry.size, ctx.t_start_ms);
-            preserve_instant_delayed_value(&mut track.geometry.layout_size, ctx.t_start_ms);
+            preserve_instant_delayed_value(&mut geometry.size, ctx.t_start_ms);
+            preserve_instant_delayed_value(&mut geometry.layout_size, ctx.t_start_ms);
         }
-        track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+        geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
             ctx.t_end_ms,
             measured_half_size,
             ctx.easing,
         );
-        track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+        track.ensure_layout_size(geometry, DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
             ctx.t_end_ms,
             measured_half_size,
             ctx.easing,

@@ -166,22 +166,25 @@ row: Row, gap: 16, padding: 20, size: (900, 120), at: (640, 380) {
         .get("row.a")
         .or_else(|| timeline.world.tracks.get("a"))
         .expect("track a");
+    let geometry_a = timeline.world.geometry(track_a.id);
     let track_b = timeline
         .world
         .tracks
         .get("row.b")
         .or_else(|| timeline.world.tracks.get("b"))
         .expect("track b");
+    let geometry_b = timeline.world.geometry(track_b.id);
     let track_c = timeline
         .world
         .tracks
         .get("row.c")
         .or_else(|| timeline.world.tracks.get("c"))
         .expect("track c");
+    let geometry_c = timeline.world.geometry(track_c.id);
 
-    let size_a = track_a.geometry.size.get(0, [0.0, 0.0]);
-    let size_b = track_b.geometry.size.get(0, [0.0, 0.0]);
-    let size_c = track_c.geometry.size.get(0, [0.0, 0.0]);
+    let size_a = geometry_a.size.get(0, [0.0, 0.0]);
+    let size_b = geometry_b.size.get(0, [0.0, 0.0]);
+    let size_c = geometry_c.size.get(0, [0.0, 0.0]);
 
     // a is 25% of 900 = 225px wide -> half-width 112.5
     assert!(
@@ -208,9 +211,9 @@ row: Row, gap: 16, padding: 20, size: (900, 120), at: (640, 380) {
     assert_eq!(size_c[1], 40.0, "Expected c height 80 (half 40)");
 
     // Positions should be ordered from left to right
-    let pos_a = track_a.geometry.position.get(0, [0.0, 0.0]);
-    let pos_b = track_b.geometry.position.get(0, [0.0, 0.0]);
-    let pos_c = track_c.geometry.position.get(0, [0.0, 0.0]);
+    let pos_a = geometry_a.position.get(0, [0.0, 0.0]);
+    let pos_b = geometry_b.position.get(0, [0.0, 0.0]);
+    let pos_c = geometry_c.position.get(0, [0.0, 0.0]);
     assert!(
         pos_a[0] < pos_b[0],
         "a must be to the left of b: a_x={}, b_x={}",

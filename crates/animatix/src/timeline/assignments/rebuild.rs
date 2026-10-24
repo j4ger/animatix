@@ -1,6 +1,6 @@
 use super::*;
 use crate::ast::Expr;
-use crate::timeline::animation_track::ShapeTracks;
+use crate::timeline::animation_track::{GeometryTracks, ShapeTracks};
 
 // ─────────────────────────────────────────────────────────────
 // Helper: size-like assignments (also write to layout_size)
@@ -8,6 +8,7 @@ use crate::timeline::animation_track::ShapeTracks;
 
 pub(super) fn handle_size_assignment(
     track: &mut AnimationTrack,
+    geometry: &mut GeometryTracks,
     shape: &mut ShapeTracks,
     property: &str,
     value: &Expr,
@@ -39,64 +40,69 @@ pub(super) fn handle_size_assignment(
                         .collect();
                     match dims {
                         Some(dims) => [dims[0] as f32 / 2.0, dims[1] as f32 / 2.0],
-                        None => track.geometry.size.last(default_size),
+                        None => geometry.size.last(default_size),
                     }
                 },
-                _ => track.geometry.size.last(default_size),
+                _ => geometry.size.last(default_size),
             }
         },
         "radius_x" => {
-            let mut s = track.geometry.size.last(default_size);
+            let mut s = geometry.size.last(default_size);
             s[0] = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                 .map(|v| v.as_num() as f32)
                 .unwrap_or(s[0]);
             s
         },
         "radius_y" => {
-            let mut s = track.geometry.size.last(default_size);
+            let mut s = geometry.size.last(default_size);
             s[1] = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
                 .map(|v| v.as_num() as f32)
                 .unwrap_or(s[1]);
             s
         },
-        _ => track.geometry.size.last(default_size),
+        _ => geometry.size.last(default_size),
     };
 
     if has_duration {
-        let start_val = track.geometry.size.get(t_start_ms, default_size);
-        track.geometry.size.ensure(default_size).add_keyframe(
-            t_start_ms,
-            start_val,
-            Easing::Linear,
-        );
-        if let Some(layout_start) = track.layout_size_get(t_start_ms) {
-            track.ensure_layout_size(default_size).add_keyframe(
+        let start_val = geometry.size.get(t_start_ms, default_size);
+        geometry
+            .size
+            .ensure(default_size)
+            .add_keyframe(t_start_ms, start_val, Easing::Linear);
+        if let Some(layout_start) = track.layout_size_get(geometry, t_start_ms) {
+            track.ensure_layout_size(geometry, default_size).add_keyframe(
                 t_start_ms,
                 layout_start,
                 Easing::Linear,
             );
         }
     } else if instant_delayed {
-        preserve_instant_delayed_value(&mut track.geometry.size, t_start_ms);
-        preserve_instant_delayed_value(&mut track.geometry.layout_size, t_start_ms);
+        preserve_instant_delayed_value(&mut geometry.size, t_start_ms);
+        preserve_instant_delayed_value(&mut geometry.layout_size, t_start_ms);
     }
+    geometry.size.ensure(default_size).add_keyframe(t_end_ms, target_size, easing);
     track
-        .geometry
-        .size
-        .ensure(default_size)
-        .add_keyframe(t_end_ms, target_size, easing);
-    track
-        .ensure_layout_size(default_size)
+        .ensure_layout_size(geometry, default_size)
         .add_keyframe(t_end_ms, target_size, easing);
 
     // Rebuild vector paths after size change
-    rebuild_vector_paths(track, shape, t_start_ms, t_end_ms, easing, diagnostics, coordinate_frame);
+    rebuild_vector_paths(
+        track,
+        geometry,
+        shape,
+        t_start_ms,
+        t_end_ms,
+        easing,
+        diagnostics,
+        coordinate_frame,
+    );
 
     target_size
 }
 
 pub(super) fn rebuild_vector_paths(
     track: &mut AnimationTrack,
+    geometry: &GeometryTracks,
     shape: &mut ShapeTracks,
     t_start_ms: u64,
     t_end_ms: u64,
@@ -107,7 +113,7 @@ pub(super) fn rebuild_vector_paths(
     let default_size = DEFAULT_LAYOUT_HALF_SIZE;
     let default_arc = [0.0, 0.0];
     let has_duration = t_end_ms > t_start_ms;
-    let size = track.geometry.size.last(default_size);
+    let size = geometry.size.last(default_size);
     let shape_type = shape.shape_type.last(ShapeType::Rect);
 
     // ── Special case: Graph actors rebuild axis/grid/tick paths ──

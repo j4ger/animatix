@@ -347,11 +347,12 @@ impl Timeline {
             diagnostics,
             &label_str,
         ) {
+            let geometry = self.world.geometry.get_mut(track.id);
             if delay_ms > 0.0 && duration_ms == 0.0 {
-                preserve_discrete_position_state_before(track, t_start_ms);
-                preserve_instant_delayed_value(&mut track.geometry.position, t_start_ms);
+                preserve_discrete_position_state_before(geometry, t_start_ms);
+                preserve_instant_delayed_value(&mut geometry.position, t_start_ms);
             }
-            apply_explicit_position_binding(track, t_start_ms, binding, position);
+            apply_explicit_position_binding(geometry, t_start_ms, binding, position);
         }
 
         let mut pending_writes: Vec<(
@@ -400,6 +401,7 @@ impl Timeline {
         }
         let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
         let text = self.world.text.get_mut(track_id);
+        let geometry = self.world.geometry.get_mut(track_id);
 
         // Store text_content, font_family and font_size on the track so Phase-2 runtime
         // recompilation knows what text and font to use when color or other properties change.
@@ -532,12 +534,12 @@ impl Timeline {
 
             track.set_metrics(text, t_end_ms, prebaked.data.ascent, prebaked.data.descent, 0.0);
             text.counter_data = Some(prebaked.data);
-            track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+            geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                 t_end_ms,
                 prebaked.initial_half_size,
                 easing,
             );
-            track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+            track.ensure_layout_size(geometry, DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                 t_end_ms,
                 prebaked.initial_half_size,
                 easing,
@@ -650,23 +652,23 @@ impl Timeline {
             text.text_paths
                 .ensure(Vec::new())
                 .add_keyframe(t_start_ms, start_val, Easing::Linear);
-            let start_size = track.geometry.size.get(t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
+            let start_size = geometry.size.get(t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
             let start_layout_size =
-                track.layout_size_get(t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
-            track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                track.layout_size_get(geometry, t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
+            geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                 t_start_ms,
                 start_size,
                 Easing::Linear,
             );
-            track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+            track.ensure_layout_size(geometry, DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                 t_start_ms,
                 start_layout_size,
                 Easing::Linear,
             );
         } else if delay_ms > 0.0 {
             preserve_instant_delayed_value(&mut text.text_paths, t_start_ms);
-            preserve_instant_delayed_value(&mut track.geometry.size, t_start_ms);
-            preserve_instant_delayed_value(&mut track.geometry.layout_size, t_start_ms);
+            preserve_instant_delayed_value(&mut geometry.size, t_start_ms);
+            preserve_instant_delayed_value(&mut geometry.layout_size, t_start_ms);
         }
         if supports_morph_options {
             track.style.morph_options.ensure(MorphOptions::default()).add_keyframe(
@@ -687,12 +689,12 @@ impl Timeline {
             None
         };
         text.text_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths, easing);
-        track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+        geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
             t_end_ms,
             new_half_size,
             easing,
         );
-        track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+        track.ensure_layout_size(geometry, DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
             t_end_ms,
             new_half_size,
             easing,

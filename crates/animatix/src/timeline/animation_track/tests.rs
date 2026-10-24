@@ -132,21 +132,23 @@ fn create_track_with_vec4_keyframe(
     track
 }
 
-fn create_track_with_vec2_keyframe(
+fn create_world_vec2_keyframe(
     field: ActorField,
     time_ms: u64,
     value: [f32; 2],
-) -> AnimationTrack {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    if let Some(mut f) = track.field_mut(field) {
-        match &mut f {
+) -> (Timeline, crate::timeline::EntityId) {
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    {
+        let mut fields = timeline.world_mut().fields_mut(id).expect("entity fields");
+        match fields.field_mut(field).expect("vec2 property slot") {
             TrackFieldMut::Vec2(opt) => {
                 opt.ensure(value).add_keyframe(time_ms, value, Easing::Linear);
             },
             _ => panic!("Expected Vec2 track"),
         }
     }
-    track
+    (timeline, id)
 }
 
 /// Helper: spawn a `Text` entity and write one f32 tier field through the
@@ -268,22 +270,25 @@ fn test_field_ref_word_spacing_returns_f32() {
 
 #[test]
 fn test_field_ref_min_width_returns_f32() {
-    let track = create_track_with_f32_keyframe(ActorField::MinWidth, 0, 100.0);
-    let rf = track.field_ref(ActorField::MinWidth).unwrap();
+    let (timeline, id) = create_world_f32_keyframe(ActorField::MinWidth, 0, 100.0);
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::MinWidth).unwrap();
     assert!(matches!(rf, TrackFieldRef::F32(_)));
 }
 
 #[test]
 fn test_field_ref_min_height_returns_f32() {
-    let track = create_track_with_f32_keyframe(ActorField::MinHeight, 0, 200.0);
-    let rf = track.field_ref(ActorField::MinHeight).unwrap();
+    let (timeline, id) = create_world_f32_keyframe(ActorField::MinHeight, 0, 200.0);
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::MinHeight).unwrap();
     assert!(matches!(rf, TrackFieldRef::F32(_)));
 }
 
 #[test]
 fn test_field_ref_max_height_returns_f32() {
-    let track = create_track_with_f32_keyframe(ActorField::MaxHeight, 0, 500.0);
-    let rf = track.field_ref(ActorField::MaxHeight).unwrap();
+    let (timeline, id) = create_world_f32_keyframe(ActorField::MaxHeight, 0, 500.0);
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::MaxHeight).unwrap();
     assert!(matches!(rf, TrackFieldRef::F32(_)));
 }
 
@@ -313,8 +318,10 @@ fn test_field_ref_text_paths_returns_text_paths() {
 
 #[test]
 fn test_field_ref_position_binding_returns_position_binding() {
-    let track = AnimationTrack::placeholder("test".to_string());
-    let rf = track.field_ref(ActorField::PositionBinding);
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::PositionBinding);
     assert!(rf.is_some());
     assert!(matches!(rf.unwrap(), TrackFieldRef::PositionBinding(_)));
 }
@@ -328,15 +335,19 @@ fn test_field_ref_svg_paths_returns_none() {
 
 #[test]
 fn test_field_ref_returns_correct_type_for_position() {
-    let track = AnimationTrack::placeholder("test".to_string());
-    let rf = track.field_ref(ActorField::Position).unwrap();
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::Position).unwrap();
     assert!(matches!(rf, TrackFieldRef::Vec2(_)));
 }
 
 #[test]
 fn test_field_ref_returns_correct_type_for_transform() {
-    let track = AnimationTrack::placeholder("test".to_string());
-    let rf = track.field_ref(ActorField::Transform).unwrap();
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::Transform).unwrap();
     assert!(matches!(rf, TrackFieldRef::Transform(_)));
 }
 
@@ -364,13 +375,16 @@ fn test_field_mut_returns_correct_type_for_font_style() {
 
 #[test]
 fn test_max_keyframe_time_with_transform() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.geometry.transform.ensure([1.0, 0.0, 0.0, 1.0, 0.0, 0.0]).add_keyframe(
-        5000,
-        [2.0, 0.0, 0.0, 2.0, 100.0, 200.0],
-        Easing::Linear,
-    );
-    assert_eq!(track.max_keyframe_time(), Some(5000));
+    let mut timeline = Timeline::new();
+    let track = AnimationTrack::placeholder("test".to_string());
+    let id = timeline.world_mut().spawn_with_track("test", track);
+    timeline
+        .world_mut()
+        .geometry_mut(id)
+        .transform
+        .ensure([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
+        .add_keyframe(5000, [2.0, 0.0, 0.0, 2.0, 100.0, 200.0], Easing::Linear);
+    assert_eq!(timeline.world().max_keyframe_time(id), Some(5000));
 }
 
 #[test]
@@ -391,12 +405,12 @@ fn test_max_keyframe_time_returns_max_across_all_fields() {
     let mut timeline = Timeline::new();
     let mut track = AnimationTrack::placeholder("test".to_string());
     track.style.opacity.ensure(1.0).add_keyframe(1000, 0.5, Easing::Linear);
-    track
-        .geometry
-        .position
-        .ensure([0.0, 0.0])
-        .add_keyframe(5000, [100.0, 100.0], Easing::Linear);
     let id = timeline.world_mut().spawn_with_track("test", track);
+    timeline.world_mut().geometry_mut(id).position.ensure([0.0, 0.0]).add_keyframe(
+        5000,
+        [100.0, 100.0],
+        Easing::Linear,
+    );
     timeline
         .world_mut()
         .highlight_mut(id)
@@ -593,11 +607,17 @@ fn test_interpolation_segment_with_single_keyframe_returns_none() {
 
 #[test]
 fn test_max_keyframe_time_iterates_through_all_registry_fields() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
+    let mut timeline = Timeline::new();
+    let track = AnimationTrack::placeholder("test".to_string());
+    let id = timeline.world_mut().spawn_with_track("test", track);
     // Expect max_keyframe_time to iterate registry-driven fields
     // Put a keyframe on an unconventional registry field
-    track.geometry.min_width.ensure(0.0).add_keyframe(7777, 50.0, Easing::Linear);
-    assert_eq!(track.max_keyframe_time(), Some(7777));
+    timeline.world_mut().geometry_mut(id).min_width.ensure(0.0).add_keyframe(
+        7777,
+        50.0,
+        Easing::Linear,
+    );
+    assert_eq!(timeline.world().max_keyframe_time(id), Some(7777));
 }
 
 #[test]
@@ -615,9 +635,15 @@ fn test_has_any_keyframes_iterates_through_all_registry_fields() {
 
 #[test]
 fn test_registry_driven_max_keyframe_time_finds_min_width() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.geometry.min_height.ensure(0.0).add_keyframe(4000, 200.0, Easing::Linear);
-    assert_eq!(track.max_keyframe_time(), Some(4000));
+    let mut timeline = Timeline::new();
+    let track = AnimationTrack::placeholder("test".to_string());
+    let id = timeline.world_mut().spawn_with_track("test", track);
+    timeline.world_mut().geometry_mut(id).min_height.ensure(0.0).add_keyframe(
+        4000,
+        200.0,
+        Easing::Linear,
+    );
+    assert_eq!(timeline.world().max_keyframe_time(id), Some(4000));
 }
 
 #[test]
@@ -670,8 +696,9 @@ fn test_track_field_ref_evaluate_value_f32() {
 
 #[test]
 fn test_track_field_ref_evaluate_value_vec2() {
-    let track = create_track_with_vec2_keyframe(ActorField::Position, 0, [100.0, 200.0]);
-    let rf = track.field_ref(ActorField::Position).unwrap();
+    let (timeline, id) = create_world_vec2_keyframe(ActorField::Position, 0, [100.0, 200.0]);
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::Position).unwrap();
     let val = rf.evaluate_value(0);
     assert_eq!(val, Some(super::super::property_engine::PropertyValue::Vec2([100.0, 200.0])));
 }
@@ -745,8 +772,10 @@ fn test_track_field_ref_evaluate_value_none_for_vector_paths() {
 
 #[test]
 fn test_track_field_ref_evaluate_value_none_for_position_binding() {
-    let track = AnimationTrack::placeholder("test".to_string());
-    let rf = track.field_ref(ActorField::PositionBinding).unwrap();
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    let fields = timeline.world().fields(id).expect("entity fields");
+    let rf = fields.field_ref(ActorField::PositionBinding).unwrap();
     assert!(rf.evaluate_value(0).is_none());
 }
 
@@ -844,17 +873,18 @@ fn test_keyframes_mut_allows_mutation() {
 #[test]
 fn test_missing_properties() {
     let track = AnimationTrack::placeholder("empty_actor".to_string());
+    let geometry = crate::timeline::animation_track::GeometryTracks::default();
 
-    assert_eq!(track.geometry.position.get(0, [0.0, 0.0]), [0.0, 0.0]);
+    assert_eq!(geometry.position.get(0, [0.0, 0.0]), [0.0, 0.0]);
     assert_eq!(
-        track.geometry.placement_mode.get(0, PlacementMode::LayoutManaged),
+        geometry.placement_mode.get(0, PlacementMode::LayoutManaged),
         PlacementMode::LayoutManaged
     );
     assert_eq!(
-        track.geometry.position_binding.get(0, PositionBinding::Absolute),
+        geometry.position_binding.get(0, PositionBinding::Absolute),
         PositionBinding::Absolute
     );
-    assert_eq!(track.geometry.size.get(0, [50.0, 50.0]), [50.0, 50.0]);
+    assert_eq!(geometry.size.get(0, [50.0, 50.0]), [50.0, 50.0]);
     let shape = crate::timeline::animation_track::ShapeTracks::default();
     assert_eq!(shape.line_from.get(0, [-50.0, 0.0]), [-50.0, 0.0]);
     assert_eq!(shape.line_to.get(0, [50.0, 0.0]), [50.0, 0.0]);

@@ -337,9 +337,10 @@ pub fn handle_align_actors(
 
     if let Some(timeline) = document_store.source.document.active_timeline() {
         for (actor, rect) in &rects[1..] {
-            if let Some(track) = timeline.get_track(actor) {
-                let pos = track
-                    .geometry
+            if let Some(id) = timeline.get_entity_id(actor) {
+                let pos = timeline
+                    .world()
+                    .geometry(id)
                     .position
                     .as_ref()
                     .map(|p| p.evaluate(time_ms))
@@ -465,9 +466,10 @@ pub fn handle_distribute_actors(
 
     if let Some(timeline) = document_store.source.document.active_timeline() {
         for (i, (actor, rect)) in rects.iter().enumerate() {
-            if let Some(track) = timeline.get_track(actor) {
-                let pos = track
-                    .geometry
+            if let Some(id) = timeline.get_entity_id(actor) {
+                let pos = timeline
+                    .world()
+                    .geometry(id)
                     .position
                     .as_ref()
                     .map(|p| p.evaluate(time_ms))

@@ -238,14 +238,16 @@ fn swap_action_sets_child_order_keyframe() {
         .spawn_with_track("row", AnimationTrack::placeholder("row".to_string()));
 
     // Set up child tracks with layout size so they're admitted
-    let mut child_a = AnimationTrack::placeholder("a".to_string());
-    child_a.geometry.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
-    let child_a = timeline.world.spawn_with_track("a", child_a);
+    let child_a = timeline
+        .world
+        .spawn_with_track("a", AnimationTrack::placeholder("a".to_string()));
+    timeline.world.geometry_mut(child_a).layout_size = Some(PropertyTrack::new([15.0, 20.0]));
     timeline.world.link(row_id, child_a);
 
-    let mut child_b = AnimationTrack::placeholder("b".to_string());
-    child_b.geometry.layout_size = Some(PropertyTrack::new([15.0, 40.0]));
-    let child_b = timeline.world.spawn_with_track("b", child_b);
+    let child_b = timeline
+        .world
+        .spawn_with_track("b", AnimationTrack::placeholder("b".to_string()));
+    timeline.world.geometry_mut(child_b).layout_size = Some(PropertyTrack::new([15.0, 40.0]));
     timeline.world.link(row_id, child_b);
 
     // Set up container metadata with layout children
@@ -298,9 +300,10 @@ fn swap_action_detects_overlapping_swaps() {
         .spawn_with_track("row", AnimationTrack::placeholder("row".to_string()));
 
     for label in ["a", "b", "c"] {
-        let mut child = AnimationTrack::placeholder(label.to_string());
-        child.geometry.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
-        let child_id = timeline.world.spawn_with_track(label, child);
+        let child_id = timeline
+            .world
+            .spawn_with_track(label, AnimationTrack::placeholder(label.to_string()));
+        timeline.world.geometry_mut(child_id).layout_size = Some(PropertyTrack::new([15.0, 20.0]));
         timeline.world.link(row_id, child_id);
     }
 
@@ -409,9 +412,10 @@ fn reorder_action_sets_child_order_keyframe() {
         .spawn_with_track("row", AnimationTrack::placeholder("row".to_string()));
 
     for label in ["a", "b", "c"] {
-        let mut child = AnimationTrack::placeholder(label.to_string());
-        child.geometry.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
-        let child_id = timeline.world.spawn_with_track(label, child);
+        let child_id = timeline
+            .world
+            .spawn_with_track(label, AnimationTrack::placeholder(label.to_string()));
+        timeline.world.geometry_mut(child_id).layout_size = Some(PropertyTrack::new([15.0, 20.0]));
         timeline.world.link(row_id, child_id);
     }
 
@@ -475,9 +479,10 @@ fn reorder_action_detects_overlapping_reorders() {
         .spawn_with_track("row", AnimationTrack::placeholder("row".to_string()));
 
     for label in ["a", "b"] {
-        let mut child = AnimationTrack::placeholder(label.to_string());
-        child.geometry.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
-        let child_id = timeline.world.spawn_with_track(label, child);
+        let child_id = timeline
+            .world
+            .spawn_with_track(label, AnimationTrack::placeholder(label.to_string()));
+        timeline.world.geometry_mut(child_id).layout_size = Some(PropertyTrack::new([15.0, 20.0]));
         timeline.world.link(row_id, child_id);
     }
 
@@ -560,9 +565,10 @@ fn swap_action_bounds_transition_to_duration() {
         .spawn_with_track("row", AnimationTrack::placeholder("row".to_string()));
 
     for label in ["a", "b", "c"] {
-        let mut child = AnimationTrack::placeholder(label.to_string());
-        child.geometry.layout_size = Some(PropertyTrack::new([15.0, 20.0]));
-        let child_id = timeline.world.spawn_with_track(label, child);
+        let child_id = timeline
+            .world
+            .spawn_with_track(label, AnimationTrack::placeholder(label.to_string()));
+        timeline.world.geometry_mut(child_id).layout_size = Some(PropertyTrack::new([15.0, 20.0]));
         timeline.world.link(row_id, child_id);
     }
 
@@ -637,9 +643,10 @@ fn swap_action_animates_positions_smoothly() {
 
     let sizes: [f32; 2] = [30.0, 40.0]; // half-size (60x80 rects)
     for label in ["bar1", "bar2", "bar3", "bar4", "bar5"] {
-        let mut child = AnimationTrack::placeholder(label.to_string());
-        child.geometry.layout_size = Some(PropertyTrack::new(sizes));
-        let child_id = timeline.world.spawn_with_track(label, child);
+        let child_id = timeline
+            .world
+            .spawn_with_track(label, AnimationTrack::placeholder(label.to_string()));
+        timeline.world.geometry_mut(child_id).layout_size = Some(PropertyTrack::new(sizes));
         timeline.world.link(bars_id, child_id);
     }
 

@@ -162,6 +162,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                                 .flat_map(|track| {
                                     crate::app::document::timeline_diff::collect_actor_keyframes(
                                         track,
+                                        scene.timeline.world().geometry(track.id),
                                         scene.timeline.world().shape(track.id),
                                         scene.timeline.world().text(track.id),
                                         None,

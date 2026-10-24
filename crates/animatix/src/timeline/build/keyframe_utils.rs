@@ -1,10 +1,11 @@
 use super::*;
-use crate::timeline::animation_track::ShapeTracks;
+use crate::timeline::animation_track::{GeometryTracks, ShapeTracks};
 
 /// Capture current track values and insert start keyframes at `t_start_ms`.
 /// Used when an actor declaration has a non-zero duration animation.
 pub(crate) fn insert_start_keyframes(
     track: &mut AnimationTrack,
+    geometry: &mut GeometryTracks,
     shape: &mut ShapeTracks,
     caps: ActorCaps,
     t_start_ms: u64,
@@ -13,8 +14,8 @@ pub(crate) fn insert_start_keyframes(
     let default_arc = [0.0, std::f32::consts::PI];
 
     let start_vector_paths = track.evaluate_vector_paths_value(shape, t_start_ms);
-    let start_position = track.geometry.position.get(t_start_ms, [0.0, 0.0]);
-    let start_size = track.geometry.size.get(t_start_ms, default_size);
+    let start_position = geometry.position.get(t_start_ms, [0.0, 0.0]);
+    let start_size = geometry.size.get(t_start_ms, default_size);
     let start_line_from = shape.line_from.get(t_start_ms, [-50.0, 0.0]);
     let start_line_to = shape.line_to.get(t_start_ms, [50.0, 0.0]);
     let start_arc_angles = shape.arc_angles.get(t_start_ms, default_arc);
@@ -32,19 +33,19 @@ pub(crate) fn insert_start_keyframes(
         start_vector_paths,
         Easing::Linear,
     );
-    track.geometry.position.ensure([0.0, 0.0]).add_keyframe(
-        t_start_ms,
-        start_position,
-        Easing::Linear,
-    );
-    track
-        .geometry
+    geometry
+        .position
+        .ensure([0.0, 0.0])
+        .add_keyframe(t_start_ms, start_position, Easing::Linear);
+    geometry
         .size
         .ensure(default_size)
         .add_keyframe(t_start_ms, start_size, Easing::Linear);
-    track
-        .ensure_layout_size(default_size)
-        .add_keyframe(t_start_ms, start_size, Easing::Linear);
+    track.ensure_layout_size(geometry, default_size).add_keyframe(
+        t_start_ms,
+        start_size,
+        Easing::Linear,
+    );
     shape
         .line_from
         .ensure([-50.0, 0.0])
@@ -102,13 +103,14 @@ pub(crate) fn insert_start_keyframes(
 /// Used when an actor declaration has a delay but no duration.
 pub(crate) fn preserve_delayed_values(
     track: &mut AnimationTrack,
+    geometry: &mut GeometryTracks,
     shape: &mut ShapeTracks,
     t_start_ms: u64,
 ) {
     preserve_instant_delayed_value(&mut shape.vector_paths, t_start_ms);
-    preserve_instant_delayed_value(&mut track.geometry.position, t_start_ms);
-    preserve_instant_delayed_value(&mut track.geometry.size, t_start_ms);
-    preserve_instant_delayed_value(&mut track.geometry.layout_size, t_start_ms);
+    preserve_instant_delayed_value(&mut geometry.position, t_start_ms);
+    preserve_instant_delayed_value(&mut geometry.size, t_start_ms);
+    preserve_instant_delayed_value(&mut geometry.layout_size, t_start_ms);
     preserve_instant_delayed_value(&mut shape.line_from, t_start_ms);
     preserve_instant_delayed_value(&mut shape.line_to, t_start_ms);
     preserve_instant_delayed_value(&mut shape.arc_angles, t_start_ms);
@@ -126,6 +128,7 @@ pub(crate) fn preserve_delayed_values(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn insert_end_keyframes(
     track: &mut AnimationTrack,
+    geometry: &mut GeometryTracks,
     shape: &mut ShapeTracks,
     caps: ActorCaps,
     t_end_ms: u64,
@@ -154,13 +157,11 @@ pub(crate) fn insert_end_keyframes(
         .vector_paths
         .ensure(Vec::new())
         .add_keyframe(t_end_ms, vello_paths, easing);
+    geometry.position.ensure([0.0, 0.0]).add_keyframe(t_end_ms, position, easing);
+    geometry.size.ensure(default_size).add_keyframe(t_end_ms, size, easing);
     track
-        .geometry
-        .position
-        .ensure([0.0, 0.0])
-        .add_keyframe(t_end_ms, position, easing);
-    track.geometry.size.ensure(default_size).add_keyframe(t_end_ms, size, easing);
-    track.ensure_layout_size(default_size).add_keyframe(t_end_ms, size, easing);
+        .ensure_layout_size(geometry, default_size)
+        .add_keyframe(t_end_ms, size, easing);
     shape.line_from.ensure([-50.0, 0.0]).add_keyframe(t_end_ms, line_from, easing);
     shape.line_to.ensure([50.0, 0.0]).add_keyframe(t_end_ms, line_to, easing);
     shape.arc_angles.ensure(default_arc).add_keyframe(t_end_ms, arc_angles, easing);

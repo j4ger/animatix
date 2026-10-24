@@ -21,25 +21,26 @@ box: Rect, size: (100, 100), at: (200, 200), idle: "float"
 "#;
     let timeline = build_test_timeline(source);
     let track = timeline.world.tracks.get("box").expect("box track exists");
+    let geometry = timeline.world.geometry(track.id);
 
     // At t=0, motion_offset y is 0.0
-    let y0 = track.geometry.motion_offset.get(0, [0.0, 0.0])[1];
+    let y0 = geometry.motion_offset.get(0, [0.0, 0.0])[1];
     assert!((y0 - 0.0).abs() < 1e-4, "y0 was {y0}");
 
     // At t=750, motion_offset y is -6.0
-    let y750 = track.geometry.motion_offset.get(750, [0.0, 0.0])[1];
+    let y750 = geometry.motion_offset.get(750, [0.0, 0.0])[1];
     assert!((y750 - (-6.0)).abs() < 1e-4, "y750 was {y750}");
 
     // At t=1500, motion_offset y returns to 0.0
-    let y1500 = track.geometry.motion_offset.get(1500, [0.0, 0.0])[1];
+    let y1500 = geometry.motion_offset.get(1500, [0.0, 0.0])[1];
     assert!((y1500 - 0.0).abs() < 1e-4, "y1500 was {y1500}");
 
     // At t=2250, motion_offset y is +6.0
-    let y2250 = track.geometry.motion_offset.get(2250, [0.0, 0.0])[1];
+    let y2250 = geometry.motion_offset.get(2250, [0.0, 0.0])[1];
     assert!((y2250 - 6.0).abs() < 1e-4, "y2250 was {y2250}");
 
     // At t=3000, motion_offset y returns to 0.0
-    let y3000 = track.geometry.motion_offset.get(3000, [0.0, 0.0])[1];
+    let y3000 = geometry.motion_offset.get(3000, [0.0, 0.0])[1];
     assert!((y3000 - 0.0).abs() < 1e-4, "y3000 was {y3000}");
 }
 
@@ -51,17 +52,18 @@ box: Rect, size: (100, 100), at: (200, 200), idle: "breath"
 "#;
     let timeline = build_test_timeline(source);
     let track = timeline.world.tracks.get("box").expect("box track exists");
+    let geometry = timeline.world.geometry(track.id);
 
     // At t=0, scale is 1.0
-    let s0 = track.geometry.scale.get(0, 1.0);
+    let s0 = geometry.scale.get(0, 1.0);
     assert!((s0 - 1.0).abs() < 1e-4, "s0 was {s0}");
 
     // At t=1500, scale is 1.03
-    let s1500 = track.geometry.scale.get(1500, 1.0);
+    let s1500 = geometry.scale.get(1500, 1.0);
     assert!((s1500 - 1.03).abs() < 1e-4, "s1500 was {s1500}");
 
     // At t=3000, scale returns to 1.0
-    let s3000 = track.geometry.scale.get(3000, 1.0);
+    let s3000 = geometry.scale.get(3000, 1.0);
     assert!((s3000 - 1.0).abs() < 1e-4, "s3000 was {s3000}");
 }
 
@@ -95,6 +97,7 @@ box: Rect, size: (100, 100), at: (200, 200), shadow: (0, 8, 16, 2), shadow_color
         world: Some(&timeline.world),
         shape: Some(timeline.world.shape(track.id)),
         text: Some(timeline.world.text(track.id)),
+        geometry: Some(timeline.world.geometry(track.id)),
 
         payload: None,
         target_resolver: None,

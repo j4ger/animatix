@@ -535,7 +535,7 @@ impl Timeline {
                             )
                             .with_subject(property),
                         );
-                    } else if track.is_property_animated(property) {
+                    } else if timeline.world.is_property_animated(track.id, property) {
                         // Only a property that actually *moves* is worth warning
                         // about: the build seeds a constant keyframe for most
                         // declared properties, and a frame-time write over a
@@ -569,7 +569,7 @@ impl Timeline {
         for (label, track) in &timeline.world.tracks {
             if timeline.world.caps(track.id).callout {
                 use crate::timeline::TrackAccessor;
-                let target = track.geometry.callout_target.get(0, String::new());
+                let target = timeline.world.geometry(track.id).callout_target.get(0, String::new());
                 if !target.is_empty() && !timeline.world.tracks.contains_key(&target) {
                     diagnostics.push(
                         Diagnostic::error(

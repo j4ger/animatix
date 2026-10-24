@@ -215,14 +215,14 @@ impl LayoutEngine {
             };
             // `layout_size`/`baseline` without keyframes sample to a constant;
             // any keyframe makes the container dynamic for this fast path.
-            children_are_keyframe_free &= track
-                .geometry
+            children_are_keyframe_free &= world
+                .geometry(track.id)
                 .layout_size
                 .as_ref()
                 .is_none_or(|t| t.keyframes.is_empty())
                 && world.text(track.id).baseline.as_ref().is_none_or(|t| t.keyframes.is_empty());
             baselines.push(track.baseline_get(world.text(track.id), time_ms));
-            if let Some(half_size) = track.layout_size_get(time_ms) {
+            if let Some(half_size) = track.layout_size_get(world.geometry(track.id), time_ms) {
                 fingerprints.push((half_size.map(f32_bits), child.placement_mode as u8));
             }
         }
@@ -247,7 +247,7 @@ impl LayoutEngine {
             .iter()
             .filter_map(|child| {
                 let track = tracks.get(&child.label)?;
-                let half_size = track.layout_size_get(time_ms)?;
+                let half_size = track.layout_size_get(world.geometry(track.id), time_ms)?;
                 Some(ChildExtent {
                     label: child.label.clone(),
                     half_size,
@@ -260,11 +260,12 @@ impl LayoutEngine {
             let p_size = tracks
                 .get(container_label)
                 .and_then(|t| {
-                    t.layout_size_get(time_ms)
-                        .or_else(|| t.layout_size_last())
-                        .or_else(|| t.geometry.size.get_or_default(time_ms))
+                    let geometry = world.geometry(t.id);
+                    t.layout_size_get(geometry, time_ms)
+                        .or_else(|| t.layout_size_last(geometry))
+                        .or_else(|| geometry.size.get_or_default(time_ms))
                         .or_else(|| {
-                            t.geometry.size.last_time().map(|_| t.geometry.size.last([0.0, 0.0]))
+                            geometry.size.last_time().map(|_| geometry.size.last([0.0, 0.0]))
                         })
                 })
                 .map(|s| [s[0] * 2.0, s[1] * 2.0])
@@ -273,10 +274,11 @@ impl LayoutEngine {
             let mut cons = Vec::with_capacity(layout_children.len());
             for child in layout_children {
                 if let Some(t) = tracks.get(&child.label) {
-                    specs.push(t.geometry.size_spec);
-                    let min_w = t.geometry.min_width.get(time_ms, 0.0);
-                    let min_h = t.geometry.min_height.get(time_ms, 0.0);
-                    let max_h = t.geometry.max_height.get(time_ms, f32::INFINITY);
+                    let geometry = world.geometry(t.id);
+                    specs.push(geometry.size_spec);
+                    let min_w = geometry.min_width.get(time_ms, 0.0);
+                    let min_h = geometry.min_height.get(time_ms, 0.0);
+                    let max_h = geometry.max_height.get(time_ms, f32::INFINITY);
                     cons.push(SizeConstraints {
                         min_width: if min_w > 0.0 { Some(min_w) } else { None },
                         max_width: None,

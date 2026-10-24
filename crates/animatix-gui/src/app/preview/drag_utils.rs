@@ -316,23 +316,23 @@ pub(crate) fn resolve_snap(
         }
     }
 
-    if let Some(track) = ctx.timeline.and_then(|t| t.get_track(actor)) {
-        if let Some(ref pos_track) = track.geometry.position {
-            let prev_kf_time = pos_track.keyframes().prev_keyframe_before(time_ms).map(|(&t, _)| t);
-            if let Some(kf_ms) = prev_kf_time {
-                if let Some(kf_props) = ctx.get_actor_props_at_time(actor, kf_ms) {
-                    if (nx - kf_props.position[0]).abs() < threshold {
-                        nx = kf_props.position[0];
-                        snapped_keyframe = true;
-                        snap_hud_text =
-                            Some(format!("prev keyframe ({:.2}s)", kf_ms as f64 / 1000.0));
-                    }
-                    if (ny - kf_props.position[1]).abs() < threshold {
-                        ny = kf_props.position[1];
-                        snapped_keyframe = true;
-                        snap_hud_text =
-                            Some(format!("prev keyframe ({:.2}s)", kf_ms as f64 / 1000.0));
-                    }
+    if let Some(pos_track) = ctx
+        .timeline
+        .and_then(|t| t.get_entity_id(actor).map(|id| t.world().geometry(id)))
+        .and_then(|geometry| geometry.position.as_ref())
+    {
+        let prev_kf_time = pos_track.keyframes().prev_keyframe_before(time_ms).map(|(&t, _)| t);
+        if let Some(kf_ms) = prev_kf_time {
+            if let Some(kf_props) = ctx.get_actor_props_at_time(actor, kf_ms) {
+                if (nx - kf_props.position[0]).abs() < threshold {
+                    nx = kf_props.position[0];
+                    snapped_keyframe = true;
+                    snap_hud_text = Some(format!("prev keyframe ({:.2}s)", kf_ms as f64 / 1000.0));
+                }
+                if (ny - kf_props.position[1]).abs() < threshold {
+                    ny = kf_props.position[1];
+                    snapped_keyframe = true;
+                    snap_hud_text = Some(format!("prev keyframe ({:.2}s)", kf_ms as f64 / 1000.0));
                 }
             }
         }
@@ -374,8 +374,11 @@ pub(crate) fn emit_position_edit(actor: String, nx: f32, ny: f32, ctx: &mut Prev
     let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
     let binding = ctx
         .timeline
-        .and_then(|t| t.get_track(&actor))
-        .map(|tr| tr.geometry.position_binding.get(time_ms, PositionBinding::Absolute))
+        .and_then(|t| {
+            t.get_entity_id(&actor).map(|id| {
+                t.world().geometry(id).position_binding.get(time_ms, PositionBinding::Absolute)
+            })
+        })
         .unwrap_or(PositionBinding::Absolute);
 
     match binding {

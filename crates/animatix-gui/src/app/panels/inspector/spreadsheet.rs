@@ -287,7 +287,12 @@ pub(crate) fn render_property_spreadsheet(
                         }
 
                         // Get the value at current time
-                        let value_text = get_property_value_display(track, prop_name, time_ms);
+                        let value_text = get_property_value_display(
+                            track,
+                            timeline.world().geometry(track.id),
+                            prop_name,
+                            time_ms,
+                        );
                         let has_animated_track = has_property_track(timeline, track, prop_name);
                         let has_keyframes = lookup_property(prop_name).is_some_and(|s| {
                             timeline.world().property_has_keyframes(track.id, s.field)
@@ -363,10 +368,14 @@ pub(crate) fn render_property_spreadsheet(
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
 /// Get a display string for a property's value at the given time.
-fn get_property_value_display(track: &AnimationTrack, prop_name: &str, time_ms: u64) -> String {
+fn get_property_value_display(
+    track: &AnimationTrack,
+    geometry: &animatix::timeline::animation_track::GeometryTracks,
+    prop_name: &str,
+    time_ms: u64,
+) -> String {
     match prop_name {
-        "position" => track
-            .geometry
+        "position" => geometry
             .position
             .as_ref()
             .map(|t| {
@@ -375,8 +384,7 @@ fn get_property_value_display(track: &AnimationTrack, prop_name: &str, time_ms: 
             })
             .unwrap_or_else(|| "—".into()),
         "size" => {
-            track
-                .geometry
+            geometry
                 .size
                 .as_ref()
                 .map(|t| {
@@ -388,8 +396,7 @@ fn get_property_value_display(track: &AnimationTrack, prop_name: &str, time_ms: 
                 })
                 .unwrap_or_else(|| "—".into())
         },
-        "rotation" => track
-            .geometry
+        "rotation" => geometry
             .rotation
             .as_ref()
             .map(|t| {
@@ -397,8 +404,7 @@ fn get_property_value_display(track: &AnimationTrack, prop_name: &str, time_ms: 
                 format!("{:.1}°", v.to_degrees())
             })
             .unwrap_or_else(|| "—".into()),
-        "scale" => track
-            .geometry
+        "scale" => geometry
             .scale
             .as_ref()
             .map(|t| {

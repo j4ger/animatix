@@ -1,5 +1,6 @@
 use super::*;
 use crate::easing::Easing;
+use crate::timeline::animation_track::GeometryTracks;
 use crate::timeline::dispatch::AnimationTrack;
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{
@@ -16,18 +17,18 @@ fn make_timeline_with_persistent_actors() -> Timeline {
     let rect_id = timeline.world.spawn_with_track("rect1", rect);
 
     // Create a child actor
-    let mut child = AnimationTrack::placeholder("child1".to_string());
-    child
-        .geometry
-        .position
-        .ensure([0.0, 0.0])
-        .add_keyframe(0, [0.0, 0.0], Easing::Linear);
-    child
-        .geometry
-        .position
-        .ensure([0.0, 0.0])
-        .add_keyframe(500, [100.0, 50.0], Easing::Linear);
+    let child = AnimationTrack::placeholder("child1".to_string());
     let child_id = timeline.world.spawn_with_track("child1", child);
+    timeline.world.geometry_mut(child_id).position.ensure([0.0, 0.0]).add_keyframe(
+        0,
+        [0.0, 0.0],
+        Easing::Linear,
+    );
+    timeline.world.geometry_mut(child_id).position.ensure([0.0, 0.0]).add_keyframe(
+        500,
+        [100.0, 50.0],
+        Easing::Linear,
+    );
 
     // Set up parent-child relationship
     timeline.world.link(rect_id, child_id);
@@ -56,20 +57,15 @@ fn snapshot_collapses_opacity_to_single_keyframe() {
 
 #[test]
 fn snapshot_collapses_position_to_single_keyframe() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track
-        .geometry
-        .position
-        .ensure([0.0, 0.0])
-        .add_keyframe(0, [0.0, 0.0], Easing::Linear);
-    track
-        .geometry
+    let mut geometry = GeometryTracks::default();
+    geometry.position.ensure([0.0, 0.0]).add_keyframe(0, [0.0, 0.0], Easing::Linear);
+    geometry
         .position
         .ensure([0.0, 0.0])
         .add_keyframe(1000, [200.0, 100.0], Easing::Linear);
 
-    let snapshot = snapshot_track_at(&track, 500);
-    let pos_track = snapshot.geometry.position.unwrap();
+    let snapshot = snapshot_geometry_at(&geometry, 500);
+    let pos_track = snapshot.position.unwrap();
     assert_eq!(pos_track.keyframes.len(), 1);
     assert_eq!(pos_track.keyframes.get(&0).unwrap().0, [100.0, 50.0]); // interpolated at 500ms
 }
@@ -170,13 +166,15 @@ fn snapshot_preserves_procedural_plot() {
 fn snapshot_empty_track_has_no_keyframes() {
     let track = AnimationTrack::placeholder("test".to_string());
     let snapshot = snapshot_track_at(&track, 0);
+    let geometry = GeometryTracks::default();
+    let geometry_snapshot = snapshot_geometry_at(&geometry, 0);
     // No property tracks should have keyframes
     assert!(
         snapshot.style.opacity.is_none() || snapshot.style.opacity.unwrap().keyframes.is_empty()
     );
     assert!(
-        snapshot.geometry.position.is_none()
-            || snapshot.geometry.position.unwrap().keyframes.is_empty()
+        geometry_snapshot.position.is_none()
+            || geometry_snapshot.position.unwrap().keyframes.is_empty()
     );
 }
 
@@ -218,7 +216,6 @@ fn compute_carry_bag_includes_children_of_persistent_actors() {
 
     // child1 should be snapshotted at 500ms: position = [100.0, 50.0]
     let pos_track = child_entry
-        .track
         .geometry
         .position
         .as_ref()
@@ -604,13 +601,13 @@ fn compute_carry_bag_propagates_child_persistence_flag() {
     let parent = AnimationTrack::placeholder("parent".to_string());
     let parent_id = timeline.world.spawn_with_track("parent", parent);
 
-    let mut child = AnimationTrack::placeholder("child".to_string());
-    child
-        .geometry
-        .position
-        .ensure([0.0, 0.0])
-        .add_keyframe(0, [10.0, 20.0], Easing::Linear);
+    let child = AnimationTrack::placeholder("child".to_string());
     let child_id = timeline.world.spawn_with_track("child", child);
+    timeline.world.geometry_mut(child_id).position.ensure([0.0, 0.0]).add_keyframe(
+        0,
+        [10.0, 20.0],
+        Easing::Linear,
+    );
     timeline.world.link(parent_id, child_id);
 
     // Only parent is persistent; child should be carried because it's a descendant

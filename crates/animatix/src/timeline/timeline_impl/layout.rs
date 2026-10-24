@@ -39,9 +39,10 @@ impl Timeline {
                 let track = self.world.track(*child_id)?;
                 Some(ChildExtent {
                     label: self.world.label(*child_id)?.to_string(),
-                    half_size: track.layout_size_get(time_ms)?,
-                    placement_mode: track
-                        .geometry
+                    half_size: track.layout_size_get(self.world.geometry(track.id), time_ms)?,
+                    placement_mode: self
+                        .world
+                        .geometry(track.id)
                         .placement_mode
                         .get(time_ms, PlacementMode::LayoutManaged),
                 })
@@ -158,14 +159,12 @@ impl Timeline {
     pub(crate) fn resolve_audio_volume_envelopes(&mut self) {
         for seg in &mut self.audio_segments {
             // Find track with matching normalized source or Audio actor type
-            let matching_track = self
-                .world
-                .tracks
-                .dense
-                .iter()
-                .find(|t| t.actor_type == "Audio" && t.geometry.volume.is_some());
+            let matching_track =
+                self.world.tracks.dense.iter().find(|t| {
+                    t.actor_type == "Audio" && self.world.geometry(t.id).volume.is_some()
+                });
             if let Some(track) = matching_track {
-                if let Some(vol_track) = &track.geometry.volume {
+                if let Some(vol_track) = &self.world.geometry(track.id).volume {
                     let mut envelope = Vec::new();
                     let t_start_ms = (seg.start_time_s * 1000.0).round() as u64;
                     let dur_ms =

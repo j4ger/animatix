@@ -64,6 +64,7 @@ fn test_legend_wrapped_label_respects_max_width() {
     };
 
     let asset_cache = crate::timeline::assets::AssetCache::new();
+    let geometry = crate::timeline::animation_track::GeometryTracks::default();
     let ctx = EvaluateCtx {
         track: &track,
         caps: animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
@@ -83,6 +84,7 @@ fn test_legend_wrapped_label_respects_max_width() {
         world: None,
         shape: None,
         text: None,
+        geometry: Some(&geometry),
 
         payload: None,
         target_resolver: None,
@@ -237,6 +239,7 @@ fn test_legend_empty() {
     assert!(legend.entries.is_empty(), "fresh legend component should have empty entries");
 
     let asset_cache = crate::timeline::assets::AssetCache::new();
+    let geometry = crate::timeline::animation_track::GeometryTracks::default();
     let ctx = EvaluateCtx {
         track: &track,
         caps: animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
@@ -256,6 +259,7 @@ fn test_legend_empty() {
         world: None,
         shape: None,
         text: None,
+        geometry: Some(&geometry),
         payload: None,
         target_resolver: None,
         legend: Some(&legend),
@@ -626,6 +630,7 @@ fn example_legend_entries_are_scanned() {
     );
     let timeline = report.output;
     let track = timeline.get_track("legend").expect("legend track should exist");
+    let geometry = timeline.world.geometry(track.id);
     assert_eq!(
         legend_component(&timeline, "legend").entries,
         vec![
@@ -635,7 +640,7 @@ fn example_legend_entries_are_scanned() {
         ]
     );
     assert_eq!(
-        track.geometry.position.get(0, [0.0, 0.0]),
+        geometry.position.get(0, [0.0, 0.0]),
         [320.0, 100.0],
         "Legend 'at' should resolve to a stored position"
     );
@@ -660,6 +665,7 @@ fn test_legend_render_commands_produced() {
     };
 
     let asset_cache = crate::timeline::assets::AssetCache::new();
+    let geometry = crate::timeline::animation_track::GeometryTracks::default();
     let ctx = EvaluateCtx {
         track: &track,
         caps: animatix_std::caps_for_type(&track.actor_type).unwrap_or_default(),
@@ -679,6 +685,7 @@ fn test_legend_render_commands_produced() {
         world: None,
         shape: None,
         text: None,
+        geometry: Some(&geometry),
         payload: None,
         target_resolver: None,
         legend: Some(&legend),

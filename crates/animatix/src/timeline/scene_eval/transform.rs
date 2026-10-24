@@ -30,12 +30,15 @@ impl Timeline {
                 Value::Vec2(pos) => Some([pos[0] as f32, pos[1] as f32]),
                 _ => None,
             });
-        let placement_mode =
-            track.geometry.placement_mode.get(time_ms, PlacementMode::LayoutManaged);
+        let placement_mode = self
+            .world
+            .geometry(track.id)
+            .placement_mode
+            .get(time_ms, PlacementMode::LayoutManaged);
         let mut base_position = if let Some(ov_pos) = override_position {
             ov_pos
         } else {
-            track.geometry.position.get(time_ms, [0.0, 0.0])
+            self.world.geometry(track.id).position.get(time_ms, [0.0, 0.0])
         };
         if let Some(layout_pos) = layout_position {
             if placement_mode == PlacementMode::LayoutManaged && override_position.is_none() {
@@ -48,7 +51,10 @@ impl Timeline {
         let binding = if override_position.is_some() {
             PositionBinding::Absolute
         } else {
-            track.geometry.position_binding.get(time_ms, PositionBinding::Absolute)
+            self.world
+                .geometry(track.id)
+                .position_binding
+                .get(time_ms, PositionBinding::Absolute)
         };
         let position =
             resolve_bound_position(binding, base_position, parent_transform, scene_dimensions);
@@ -60,7 +66,7 @@ impl Timeline {
             if let Some(Value::Vec2(v)) = node_overrides.and_then(|ov| ov.get("shift")) {
                 [v[0] as f32, v[1] as f32]
             } else {
-                track.geometry.motion_offset.get(time_ms, [0.0, 0.0])
+                self.world.geometry(track.id).motion_offset.get(time_ms, [0.0, 0.0])
             };
         // PF-4: the three scalar reads resolve their registry entries once per
         // process instead of hashing the property name on every node every

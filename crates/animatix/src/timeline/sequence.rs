@@ -194,8 +194,9 @@ impl Timeline {
         for stmt in body {
             let pos_opt = Self::statement_target_actor(stmt).and_then(|label| {
                 self.world.tracks.get(&label).map(|track| {
-                    let pos = track.geometry.position.get(time_ms as u64, [0.0, 0.0]);
-                    let size = track.geometry.size.get(time_ms as u64, [0.0, 0.0]);
+                    let geometry = self.world.geometry(track.id);
+                    let pos = geometry.position.get(time_ms as u64, [0.0, 0.0]);
+                    let size = geometry.size.get(time_ms as u64, [0.0, 0.0]);
                     [
                         pos[0] as f64 + size[0] as f64 * 0.5,
                         pos[1] as f64 + size[1] as f64 * 0.5,

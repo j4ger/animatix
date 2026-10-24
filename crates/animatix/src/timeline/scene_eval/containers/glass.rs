@@ -85,7 +85,11 @@ impl Timeline {
         // carries the camera for anything under a root subtree, so mapping the
         // local half-size is enough — and it is what keeps the blur region on the
         // same pixels the panel was drawn with.
-        let half = track.geometry.size.get(time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
+        let half = self
+            .world
+            .geometry(track.id)
+            .size
+            .get(time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
         let panel = kurbo::Rect::new(
             -f64::from(half[0]),
             -f64::from(half[1]),

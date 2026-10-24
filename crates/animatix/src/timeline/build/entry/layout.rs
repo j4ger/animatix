@@ -51,14 +51,14 @@ impl Timeline {
             .iter()
             .filter_map(|cl| {
                 let track = self.world.tracks.get(cl)?;
+                let geometry = self.world.geometry(track.id);
                 // Use layout_size_last() to get the most recently keyframed value,
                 // consistent with apply_container_layout().
-                let half_size = track.layout_size_last()?;
+                let half_size = track.layout_size_last(geometry)?;
                 Some(ChildExtent {
                     label: cl.clone(),
                     half_size,
-                    placement_mode: track
-                        .geometry
+                    placement_mode: geometry
                         .placement_mode
                         .last(crate::timeline::PlacementMode::LayoutManaged),
                 })

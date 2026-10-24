@@ -125,9 +125,12 @@ impl Timeline {
         for node_label in &path {
             let track = self.world.tracks.get(node_label)?;
 
-            let placement_mode =
-                track.geometry.placement_mode.get(time_ms, PlacementMode::LayoutManaged);
-            let mut base_position = track.geometry.position.get(time_ms, [0.0, 0.0]);
+            let placement_mode = self
+                .world
+                .geometry(track.id)
+                .placement_mode
+                .get(time_ms, PlacementMode::LayoutManaged);
+            let mut base_position = self.world.geometry(track.id).position.get(time_ms, [0.0, 0.0]);
 
             if self.dynamic_layout {
                 if let Some(layout_pos) = current_layout_positions
@@ -140,12 +143,17 @@ impl Timeline {
                 }
             }
 
-            let binding = track.geometry.position_binding.get(time_ms, PositionBinding::Absolute);
+            let binding = self
+                .world
+                .geometry(track.id)
+                .position_binding
+                .get(time_ms, PositionBinding::Absolute);
             let position =
                 resolve_bound_position(binding, base_position, parent_transform, scene_dimensions);
-            let motion_offset = track.geometry.motion_offset.get(time_ms, [0.0, 0.0]);
-            let rotation = track.geometry.rotation.get(time_ms, 0.0) as f64;
-            let scale = track.geometry.scale.get(time_ms, 1.0) as f64;
+            let motion_offset =
+                self.world.geometry(track.id).motion_offset.get(time_ms, [0.0, 0.0]);
+            let rotation = self.world.geometry(track.id).rotation.get(time_ms, 0.0) as f64;
+            let scale = self.world.geometry(track.id).scale.get(time_ms, 1.0) as f64;
 
             parent_transform = parent_transform
                 * kurbo::Affine::translate((

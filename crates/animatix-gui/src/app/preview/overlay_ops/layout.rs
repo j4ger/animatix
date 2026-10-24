@@ -16,13 +16,20 @@ pub fn layout_debug_ops(
         let Some(track) = timeline.get_track(container_label) else {
             continue;
         };
-        let pos = track
-            .geometry
+        let pos = timeline
+            .world()
+            .geometry(track.id)
             .position
             .as_ref()
             .map(|p| p.evaluate(time_ms))
             .unwrap_or([0.0, 0.0]);
-        let size = track.geometry.size.as_ref().map(|s| s.evaluate(time_ms)).unwrap_or([0.0, 0.0]);
+        let size = timeline
+            .world()
+            .geometry(track.id)
+            .size
+            .as_ref()
+            .map(|s| s.evaluate(time_ms))
+            .unwrap_or([0.0, 0.0]);
         let half_w = size[0] / 2.0;
         let half_h = size[1] / 2.0;
         let container_rect = kurbo::Rect::new(
@@ -59,14 +66,16 @@ pub fn layout_debug_ops(
             let Some(child_track) = timeline.get_track(&child.label) else {
                 continue;
             };
-            let child_pos = child_track
-                .geometry
+            let child_pos = timeline
+                .world()
+                .geometry(child_track.id)
                 .position
                 .as_ref()
                 .map(|p| p.evaluate(time_ms))
                 .unwrap_or([0.0, 0.0]);
-            let child_size = child_track
-                .geometry
+            let child_size = timeline
+                .world()
+                .geometry(child_track.id)
                 .size
                 .as_ref()
                 .map(|s| s.evaluate(time_ms))
@@ -84,7 +93,9 @@ pub fn layout_debug_ops(
                 OverlayStroke::new(1.0, style.slot_color),
                 StrokeKind::Outside,
             );
-            let layout_s = child_track.layout_size_get(time_ms).unwrap_or([0.0, 0.0]);
+            let layout_s = child_track
+                .layout_size_get(timeline.world().geometry(child_track.id), time_ms)
+                .unwrap_or([0.0, 0.0]);
             push_text(
                 &mut ops,
                 kurbo::Point::new(
@@ -105,14 +116,16 @@ pub fn layout_debug_ops(
                 .iter()
                 .filter_map(|child| {
                     let track = timeline.get_track(&child.label)?;
-                    let child_pos = track
-                        .geometry
+                    let child_pos = timeline
+                        .world()
+                        .geometry(track.id)
                         .position
                         .as_ref()
                         .map(|p| p.evaluate(time_ms))
                         .unwrap_or([0.0, 0.0]);
-                    let child_size = track
-                        .geometry
+                    let child_size = timeline
+                        .world()
+                        .geometry(track.id)
                         .size
                         .as_ref()
                         .map(|s| s.evaluate(time_ms))

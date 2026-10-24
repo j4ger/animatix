@@ -5,9 +5,7 @@
 //! tip position is computed by exactly one formula.
 
 use crate::timeline::animation_track::{CalloutPlace, SceneAnchor};
-use crate::timeline::{
-    AnimationTrack, Environment, SceneDimensions, Timeline, TrackAccessor, Value,
-};
+use crate::timeline::{Environment, SceneDimensions, Timeline, TrackAccessor, Value};
 
 // -- Resolver trait --
 
@@ -50,7 +48,7 @@ impl TargetResolver for Timeline {
         }
 
         let track = self.get_track(name)?;
-        let half_local = track.geometry.size.get(time_ms, [50.0, 50.0]);
+        let half_local = self.world.geometry(track.id).size.get(time_ms, [50.0, 50.0]);
         // Use the world affine to get a transform-aware AABB.
         if let Some(world) = self.actor_world_affine(name, time_ms, scene_dimensions) {
             // Transform the four corners of the local rect through the world affine.
@@ -71,7 +69,7 @@ impl TargetResolver for Timeline {
             Some((centre, half))
         } else {
             // Fallback for actors not yet in the scene graph: use raw position + size.
-            let centre = track.geometry.position.get(time_ms, [0.0, 0.0]);
+            let centre = self.world.geometry(track.id).position.get(time_ms, [0.0, 0.0]);
             Some((centre, half_local))
         }
     }
@@ -115,19 +113,19 @@ pub struct CalloutGeometry {
 /// - `"left"` -> centre left edge
 /// - anything else (incl. `"right"`) -> centre right edge
 pub fn derive_callout_geometry(
-    track: &AnimationTrack,
+    geometry: &crate::timeline::animation_track::GeometryTracks,
     shape: &crate::timeline::animation_track::ShapeTracks,
     time_ms: u64,
     resolver: Option<&dyn TargetResolver>,
     scene_dimensions: SceneDimensions,
 ) -> CalloutGeometry {
-    let target_name = track.geometry.callout_target.get(time_ms, String::new());
+    let target_name = geometry.callout_target.get(time_ms, String::new());
     let manual_to = shape.line_to.get(time_ms, [100.0, 0.0]);
     let manual_from = shape.line_from.get(time_ms, [-100.0, 0.0]);
-    let label_at = track.geometry.label_at.get(time_ms, [0.0, 50.0]);
-    let place = track.geometry.callout_place.get(time_ms, CalloutPlace::Right);
-    let standoff = track.geometry.callout_standoff.get(time_ms, 40.0);
-    let to_offset = track.geometry.callout_to_offset.get(time_ms, [0.0, 0.0]);
+    let label_at = geometry.label_at.get(time_ms, [0.0, 50.0]);
+    let place = geometry.callout_place.get(time_ms, CalloutPlace::Right);
+    let standoff = geometry.callout_standoff.get(time_ms, 40.0);
+    let to_offset = geometry.callout_to_offset.get(time_ms, [0.0, 0.0]);
 
     let (to, from, is_targeted, target_centre, target_half) = if !target_name.is_empty() {
         if let Some(res) = resolver {

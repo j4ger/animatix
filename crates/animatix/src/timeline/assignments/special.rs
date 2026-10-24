@@ -245,8 +245,9 @@ impl Timeline {
                     .unwrap_or(40.0);
 
                 if let Some(track) = self.world.tracks.get(&label) {
-                    let pos = track.geometry.position.get(t_start_ms, [0.0, 0.0]);
-                    let half_size = track.geometry.size.get(t_start_ms, [50.0, 50.0]);
+                    let geometry = self.world.geometry.get(track.id);
+                    let pos = geometry.position.get(t_start_ms, [0.0, 0.0]);
+                    let half_size = geometry.size.get(t_start_ms, [50.0, 50.0]);
                     let w = (half_size[0] * 2.0).max(1.0);
                     let h = (half_size[1] * 2.0).max(1.0);
                     let view_w = 1920.0_f32;

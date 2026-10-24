@@ -165,6 +165,7 @@ box: Rect, opacity: 0.0, at: (100, 100), size: (50.0, 50.0)
 
     let tl = report.output;
     let box_track = tl.tracks().get("box").expect("box track");
+    let box_id = tl.get_entity_id("box").expect("box entity");
 
     // #voice@intro (intro = 0.5s) -> 500ms
     // #voice["Animatix"] (Animatix start_s = 1.1s) -> 1100ms
@@ -172,7 +173,7 @@ box: Rect, opacity: 0.0, at: (100, 100), size: (50.0, 50.0)
     use animatix::timeline::TrackAccessor;
     assert_eq!(box_track.style.opacity.get(400, 0.0), 0.0);
     assert_eq!(box_track.style.opacity.get(500, 0.0), 1.0);
-    assert_eq!(box_track.geometry.size.get(1100, [0.0, 0.0])[0], 100.0); // half_width = 100
+    assert_eq!(tl.world().geometry(box_id).size.get(1100, [0.0, 0.0])[0], 100.0); // half_width = 100
     assert_eq!(box_track.style.opacity.get(3500, 1.0), 0.0);
 }
 

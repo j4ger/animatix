@@ -436,8 +436,8 @@ impl AnimatixApp {
                                 selected
                                     .iter()
                                     .filter_map(|actor| {
-                                        t.get_track(actor).and_then(|track| {
-                                            track.geometry.position.as_ref().map(|p| {
+                                        t.get_entity_id(actor).and_then(|id| {
+                                            t.world().geometry(id).position.as_ref().map(|p| {
                                                 let pos = p.evaluate(time_ms);
                                                 (actor.clone(), [pos[0] + dx, pos[1] + dy])
                                             })
