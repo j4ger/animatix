@@ -28,10 +28,15 @@ impl World {
 
     /// Rebuild an entity's plan from its identity, preserving extension slots.
     pub fn rebuild_property_plan(&mut self, id: EntityId) {
+        let (caps, actor_type) = {
+            let track = self.tracks.get_by_id(id).expect("rebuild requires an existing entity");
+            (track.caps, track.actor_type.clone())
+        };
         self.tracks
             .get_by_id_mut(id)
             .expect("rebuild requires an existing entity")
-            .rebuild_property_plan();
+            .property_plan
+            .rebuild_for(&caps, &actor_type);
     }
 }
 

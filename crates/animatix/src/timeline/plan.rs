@@ -431,6 +431,20 @@ impl DynTrack {
     }
 }
 
+
+impl PropertyPlan {
+    /// Rebuild in place from an actor identity, preserving extension slots.
+    ///
+    /// This is the storage-independent form of the rebuild: callers that own a
+    /// `PropertyPlan` (rather than an `AnimationTrack`) can refresh it after a
+    /// capability/type change.
+    pub fn rebuild_for(&mut self, caps: &animatix_core::caps::ActorCaps, actor_type: &str) {
+        let previous = std::mem::take(self);
+        *self = Self::for_actor(caps, actor_type);
+        self.preserve_extension_slots(&previous);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{DynTrack, PropertyKind, PropertyPlan, PropertySlot};
@@ -513,3 +527,4 @@ mod tests {
         assert_eq!(slot.track.sample(0), Some(PropertyValue::Vec2([10.0, 20.0])));
     }
 }
+
