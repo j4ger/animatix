@@ -91,10 +91,10 @@ impl Timeline {
         time_ms: u64,
     ) -> bool {
         matches!(
-            crate::timeline::dispatch::read_property_value(
-                track,
+            self.world.read_property_value(
+                track.id,
                 crate::timeline::property_registry::ActorField::Tagged("solo"),
-                time_ms,
+                time_ms
             ),
             Some(crate::timeline::PropertyValue::Bool(true))
         )

@@ -99,16 +99,16 @@ impl Timeline {
             transform[5] as f64,
         ]);
 
-        let rotate_x = match crate::timeline::read_property_value(
-            track,
+        let rotate_x = match self.world.read_property_value(
+            track.id,
             crate::timeline::ActorField::Tagged("rotate_x"),
             time_ms,
         ) {
             Some(crate::timeline::property_engine::PropertyValue::F32(v)) => v as f64,
             _ => 0.0,
         };
-        let rotate_y = match crate::timeline::read_property_value(
-            track,
+        let rotate_y = match self.world.read_property_value(
+            track.id,
             crate::timeline::ActorField::Tagged("rotate_y"),
             time_ms,
         ) {

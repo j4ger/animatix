@@ -5,14 +5,15 @@ use super::*;
 pub(super) fn synthesize_idle_tracks(timeline: &mut Timeline) {
     use crate::timeline::TrackAccessor;
     let duration_ms = ((timeline.duration_seconds() * 1000.0).round() as u64).max(3000);
-    for track in timeline.world.tracks.values_mut() {
-        if let Some(crate::timeline::property_engine::PropertyValue::String(idle_mode)) =
-            crate::timeline::read_property_value(
-                track,
-                crate::timeline::ActorField::Tagged("idle"),
-                0,
-            )
-        {
+    let ids: Vec<_> = timeline.world.tracks.values().map(|track| track.id).collect();
+    for id in ids {
+        let idle =
+            timeline
+                .world
+                .read_property_value(id, crate::timeline::ActorField::Tagged("idle"), 0);
+        if let Some(crate::timeline::property_engine::PropertyValue::String(idle_mode)) = idle {
+            let track =
+                timeline.world.tracks.get_by_id_mut(id).expect("id came from the track store");
             let period_ms: u64 = 3000;
             let num_cycles = duration_ms.div_ceil(period_ms);
             match idle_mode.as_str() {

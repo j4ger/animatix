@@ -35,8 +35,8 @@ impl Timeline {
         time_ms: u64,
         camera: kurbo::Affine,
     ) -> Option<crate::timeline::effects::EffectRegion> {
-        let value = crate::timeline::dispatch::read_property_value(
-            track,
+        let value = self.world.read_property_value(
+            track.id,
             crate::timeline::property_registry::ActorField::Tagged("filter_bounds"),
             time_ms,
         );

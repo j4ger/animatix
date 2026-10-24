@@ -399,12 +399,12 @@ impl Timeline {
                         &track.actor_type,
                     ) {
                         let schema = &crate::timeline::property_registry::PROPERTY_REGISTRY[idx];
-                        if !crate::timeline::property_has_keyframes(track, schema.field) {
+                        if !timeline.world.property_has_keyframes(track.id, schema.field) {
                             continue;
                         }
-                        let first = crate::timeline::read_property_value(track, schema.field, 0);
+                        let first = timeline.world.read_property_value(track.id, schema.field, 0);
                         let last =
-                            crate::timeline::read_property_value(track, schema.field, end_ms);
+                            timeline.world.read_property_value(track.id, schema.field, end_ms);
                         let wraps = match (&first, &last) {
                             (Some(a), Some(b)) => crate::timeline::values_wrap(a, b),
                             // One side never sampled: the property is constant
