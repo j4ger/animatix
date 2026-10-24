@@ -763,3 +763,19 @@ mod meta_default_tests {
         assert_eq!(world.first_seen(id), 250, "first sighting wins");
     }
 }
+
+impl World {
+    /// Capability projection for an entity's actor type.
+    #[inline(always)]
+    pub fn caps(&self, id: EntityId) -> animatix_core::caps::ActorCaps {
+        self.tracks
+            .get_by_id(id)
+            .map_or_else(animatix_core::caps::ActorCaps::default, |track| track.caps)
+    }
+
+    /// Authoring/registration type name for an entity.
+    #[inline(always)]
+    pub fn actor_type(&self, id: EntityId) -> &str {
+        self.tracks.get_by_id(id).map_or("", |track| track.actor_type.as_str())
+    }
+}

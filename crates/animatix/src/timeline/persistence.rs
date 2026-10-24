@@ -439,6 +439,20 @@ impl Timeline {
 /// entity's `SceneHierarchyComponent`, and [`CarryEntry::children`] is the
 /// serializable form of a carried subtree. `inject_carry_bag` re-establishes
 /// the links after inserting each snapshot.
+pub fn snapshot_payload_at(
+    payload: &crate::primitives::PrimitivePayload,
+    time_ms: u64,
+) -> crate::primitives::PrimitivePayload {
+    let mut snapshot = payload.clone();
+    if let crate::primitives::PrimitivePayload::Plot(plot) = &mut snapshot {
+        for pt in plot.plot_param_tracks.values_mut() {
+            collapse_property_track_inner(pt, time_ms);
+        }
+        plot.func_transitions.clear();
+    }
+    snapshot
+}
+
 pub fn snapshot_track_at(track: &AnimationTrack, time_ms: u64) -> AnimationTrack {
     let mut snapshot = track.clone();
 

@@ -114,7 +114,7 @@ impl World {
     }
 
     /// Bar layout resolved at build time.
-    pub fn bar_layout(&self, id: EntityId) -> Option<&BarChartLayout> {
+    pub(crate) fn bar_layout(&self, id: EntityId) -> Option<&BarChartLayout> {
         self.plot_payload(id)?.bar_layout.as_ref()
     }
 
@@ -131,7 +131,6 @@ impl World {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::timeline::Timeline;
 
     #[test]
