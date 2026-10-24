@@ -598,6 +598,7 @@ mod tests {
         assert_eq!(b.index(), 1);
         assert_eq!(world.len(), 2);
         assert_eq!(world.hierarchy.len(), 2);
+        assert_eq!(world.meta.len(), 2, "metadata stays slot-aligned");
         assert_eq!(world.container_layout.len(), 2);
         assert_eq!(world.coordinate_frame.len(), 2, "every store stays slot-aligned");
         assert_eq!(world.label(a), Some("a"));
