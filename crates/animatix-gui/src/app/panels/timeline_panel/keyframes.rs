@@ -102,10 +102,13 @@ pub(crate) fn emit_keyframe_moves(commands: &mut ActionQueue, drag: Option<&KfDr
 
 /// Group an actor's keyframes by time, preserving every property keyed at that
 /// time.
-pub(crate) fn collect_actor_keyframe_groups(track: &AnimationTrack) -> Vec<(u64, Vec<String>)> {
+pub(crate) fn collect_actor_keyframe_groups(
+    track: &AnimationTrack,
+    shape: &animatix::timeline::animation_track::ShapeTracks,
+) -> Vec<(u64, Vec<String>)> {
     let mut by_time: std::collections::BTreeMap<u64, Vec<String>> =
         std::collections::BTreeMap::new();
-    for (property, times) in collect_per_property_keyframes(track, None) {
+    for (property, times) in collect_per_property_keyframes(track, shape, None) {
         for time_ms in times {
             by_time.entry(time_ms).or_default().push(property.clone());
         }
@@ -161,6 +164,7 @@ pub(crate) struct KeyframeRenderCtx<'a> {
 pub(crate) fn render_actor_keyframes(
     ui: &mut egui::Ui,
     track: &AnimationTrack,
+    shape: &animatix::timeline::animation_track::ShapeTracks,
     actor_label: &str,
     track_idx: usize,
     bar_area: Rect,
@@ -179,7 +183,7 @@ pub(crate) fn render_actor_keyframes(
     let speech_snap_targets = ctx.speech_snap_targets;
     let theme = ctx.theme;
     let painter = ui.painter();
-    let kf_groups = collect_actor_keyframe_groups(track);
+    let kf_groups = collect_actor_keyframe_groups(track, shape);
     for (kf_ms, props) in kf_groups {
         let prop_label = props.join(", ");
         let drag_prop = props.first().cloned().unwrap_or_default();

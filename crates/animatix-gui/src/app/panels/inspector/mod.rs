@@ -302,7 +302,7 @@ fn render_actor_header(
                     ui.add_space(sp.base.space_3);
                 }
 
-                if let Some(shape_pt) = &track.shape.shape_type {
+                if let Some(shape_pt) = &timeline.world().shape(track.id).shape_type {
                     let shape = shape_pt.evaluate(current_time_ms);
                     ui.add(
                         egui::Label::new(

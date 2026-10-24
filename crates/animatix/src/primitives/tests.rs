@@ -263,6 +263,7 @@ fn runtime_text_content_crossfade_compiles_both_endpoints() {
         vector_paths: &[],
         asset_cache: &asset_cache,
         highlight: &crate::timeline::animation_track::HighlightTracks::default(),
+        shape: None,
         property_plan: None,
         caps: animatix_std::caps_for_type(track.actor_type.as_str()).unwrap_or_default(),
         world: None,

@@ -425,6 +425,7 @@ impl Timeline {
             self.world.meta.record_first_seen(track_id, t_start_ms);
 
             let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
+            let shape = self.world.shape.get_mut(track_id);
 
             // Pre-seed opacity for pre-keyframe first declarations so that
             // insert_start_keyframes captures the correct invisible start value.
@@ -451,13 +452,16 @@ impl Timeline {
 
             // === Keyframe Insertion ===
             if duration_ms > 0.0 {
-                insert_start_keyframes(track, track_caps, t_start_ms);
+                insert_start_keyframes(track, shape, track_caps, t_start_ms);
             } else if delay_ms > 0.0 {
-                preserve_delayed_values(track, t_start_ms);
+                preserve_delayed_values(track, shape, t_start_ms);
             }
 
+            // Plot hosts are never `Rect`; carry the track value through.
+            let corner_radius = shape.corner_radius.last(0.0);
             insert_end_keyframes(
                 track,
+                shape,
                 track_caps,
                 t_end_ms,
                 position,
@@ -465,8 +469,7 @@ impl Timeline {
                 line_from,
                 line_to,
                 arc_angles,
-                // Plot hosts are never `Rect`; carry the track value through.
-                track.shape.corner_radius.last(0.0),
+                corner_radius,
                 color,
                 shape_type,
                 opacity,

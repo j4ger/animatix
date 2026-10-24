@@ -311,26 +311,6 @@ pub(super) fn apply_property_edit_to_track(
             }
             return;
         },
-        "start_angle" => {
-            if let PV::F32(v) = value {
-                let current = track.shape.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
-                let angles = [*v, current[1]];
-                let pt = track.shape.arc_angles.get_or_insert_with(|| PropertyTrack::new(angles));
-                pt.set_default_value(angles);
-                pt.add_keyframe(time_ms, angles, linear);
-            }
-            return;
-        },
-        "sweep_angle" => {
-            if let PV::F32(v) = value {
-                let current = track.shape.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
-                let angles = [current[0], *v];
-                let pt = track.shape.arc_angles.get_or_insert_with(|| PropertyTrack::new(angles));
-                pt.set_default_value(angles);
-                pt.add_keyframe(time_ms, angles, linear);
-            }
-            return;
-        },
         "tip_length" => {
             if let PV::F32(v) = value {
                 let current =
@@ -430,6 +410,72 @@ pub(super) fn apply_property_edit_to_track(
                 },
                 _ => {},
             }
+        } else if is_shape_field(schema.field) {
+            // Shape-owned fields moved to the shape component store, so the
+            // track-level accessor has no destination for them. Route the write
+            // through the world field bundle, which is shape-aware.
+            field_writes
+                .push((schema.field, coerce_for_value_type(value.clone(), schema.value_type)));
         }
+    }
+}
+
+/// Whether a storage field lives in the shape component store.
+fn is_shape_field(field: animatix::timeline::ActorField) -> bool {
+    use animatix::timeline::ActorField;
+    matches!(
+        field,
+        ActorField::ShapeType
+            | ActorField::LineFrom
+            | ActorField::LineTo
+            | ActorField::HeadSize
+            | ActorField::ArcAngles
+            | ActorField::CornerRadius
+            | ActorField::Points
+            | ActorField::Commands
+            | ActorField::VectorPaths
+    )
+}
+
+/// Apply an edit to a shape-tier angle property (`start_angle`/`sweep_angle`).
+///
+/// The shape tier is a `World` component, not an `AnimationTrack` field, so the
+/// caller passes the entity's shape tier in explicitly. Returns `true` when the
+/// edit was a shape-angle edit and has been applied.
+pub(super) fn apply_shape_angle_edit(
+    shape: &mut animatix::timeline::animation_track::ShapeTracks,
+    property: &str,
+    value: &panels::PropertyValue,
+    time_ms: u64,
+) -> bool {
+    use animatix::timeline::PropertyTrack;
+
+    use crate::app::panels::PropertyValue as PV;
+
+    let linear = animatix_syntax::easing::Easing::Linear;
+    match property {
+        "start_angle" => {
+            let PV::F32(v) = value else {
+                return false;
+            };
+            let current = shape.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
+            let angles = [*v, current[1]];
+            let pt = shape.arc_angles.get_or_insert_with(|| PropertyTrack::new(angles));
+            pt.set_default_value(angles);
+            pt.add_keyframe(time_ms, angles, linear);
+            true
+        },
+        "sweep_angle" => {
+            let PV::F32(v) = value else {
+                return false;
+            };
+            let current = shape.arc_angles.get(time_ms, [0.0, std::f32::consts::PI]);
+            let angles = [current[0], *v];
+            let pt = shape.arc_angles.get_or_insert_with(|| PropertyTrack::new(angles));
+            pt.set_default_value(angles);
+            pt.add_keyframe(time_ms, angles, linear);
+            true
+        },
+        _ => false,
     }
 }

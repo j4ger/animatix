@@ -150,7 +150,8 @@ impl Timeline {
         // with whatever the transform did to the panel.
         let [a, b, ..] = global_transform.as_coeffs();
         let scale = (a * a + b * b).sqrt().max(0.0);
-        let corner_radius = track.shape.corner_radius.get(time_ms, 0.0) as f64 * scale;
+        let corner_radius =
+            self.world.shape(track.id).corner_radius.get(time_ms, 0.0) as f64 * scale;
         let Some(backend) = out.filter_backend.as_mut() else {
             return;
         };

@@ -54,12 +54,18 @@ impl Timeline {
 
         let default_size = DEFAULT_LAYOUT_HALF_SIZE;
         let default_arc = [0.0, 0.0];
+        let existing_shape = self
+            .world
+            .get_id(label)
+            .map(|id| self.world.shape(id))
+            .cloned()
+            .unwrap_or_default();
         let mut position = existing_track.geometry.position.last([0.0, 0.0]);
         let mut size = existing_track.geometry.size.last(default_size);
-        let mut line_from = existing_track.shape.line_from.last([-50.0, 0.0]);
-        let mut line_to = existing_track.shape.line_to.last([50.0, 0.0]);
-        let mut arc_angles = existing_track.shape.arc_angles.last(default_arc);
-        let mut corner_radius = existing_track.shape.corner_radius.last(0.0);
+        let mut line_from = existing_shape.line_from.last([-50.0, 0.0]);
+        let mut line_to = existing_shape.line_to.last([50.0, 0.0]);
+        let mut arc_angles = existing_shape.arc_angles.last(default_arc);
+        let mut corner_radius = existing_shape.corner_radius.last(0.0);
         let mut color = existing_track.style.color.last(DEFAULT_WHITE);
         let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
         let is_first_decl = !self.world.tracks.contains_key(label);
@@ -111,8 +117,7 @@ impl Timeline {
         );
         let t_start_ms = (time_ms + delay_ms) as u64;
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
-        let supports_morph_options = existing_track
-            .shape
+        let supports_morph_options = existing_shape
             .vector_paths
             .as_ref()
             .map(|t| !t.keyframes.is_empty())
@@ -345,19 +350,19 @@ impl Timeline {
         // G6: Detect actor-anchor refs in `from`/`to` property declarations.
         // Store them in the track's side-channel so the primitive's frame-time
         // `evaluate` method can resolve them each frame.
-        if matches!(caps.shape, Some(super::ShapeKind::Line | super::ShapeKind::Arrow)) {
-            if let Some(track) = self.world.tracks.get_mut(label) {
-                for prop in props {
-                    if prop.name == "from" || prop.name == "to" {
-                        if let Expr::Path(segments) = &prop.value {
-                            if segments.len() == 2 {
-                                if let Some(anchor) = SceneAnchor::from_str(&segments[1]) {
-                                    if prop.name == "from" {
-                                        track.shape.from_anchor =
-                                            Some((segments[0].clone(), anchor));
-                                    } else {
-                                        track.shape.to_anchor = Some((segments[0].clone(), anchor));
-                                    }
+        if matches!(caps.shape, Some(super::ShapeKind::Line | super::ShapeKind::Arrow))
+            && let Some(id) = self.world.get_id(label)
+        {
+            let shape = self.world.shape_mut(id);
+            for prop in props {
+                if prop.name == "from" || prop.name == "to" {
+                    if let Expr::Path(segments) = &prop.value {
+                        if segments.len() == 2 {
+                            if let Some(anchor) = SceneAnchor::from_str(&segments[1]) {
+                                if prop.name == "from" {
+                                    shape.from_anchor = Some((segments[0].clone(), anchor));
+                                } else {
+                                    shape.to_anchor = Some((segments[0].clone(), anchor));
                                 }
                             }
                         }
@@ -490,6 +495,7 @@ impl Timeline {
                 .tracks
                 .get_by_id_mut(track_id)
                 .expect("World::ensure_track creates the track");
+            let shape = self.world.shape.get_mut(track_id);
             track
                 .geometry
                 .connector_arrow
@@ -500,8 +506,8 @@ impl Timeline {
                 .connector_routing
                 .ensure(crate::timeline::ConnectorRouting::Elbow)
                 .add_keyframe(t_start_ms, crate::timeline::ConnectorRouting::Elbow, easing);
-            track.shape.corner_radius.ensure(8.0).add_keyframe(t_start_ms, 8.0, easing);
-            track.shape.head_size.ensure(10.0).add_keyframe(t_start_ms, 10.0, easing);
+            shape.corner_radius.ensure(8.0).add_keyframe(t_start_ms, 8.0, easing);
+            shape.head_size.ensure(10.0).add_keyframe(t_start_ms, 10.0, easing);
 
             for prop in props {
                 match prop.name.as_str() {
@@ -563,8 +569,7 @@ impl Timeline {
                         if let Ok(Value::Num(n)) =
                             crate::timeline::evaluate_expr(&prop.value, &eval_env)
                         {
-                            track
-                                .shape
+                            shape
                                 .corner_radius
                                 .ensure(n as f32)
                                 .add_keyframe(t_start_ms, n as f32, easing);
@@ -574,8 +579,7 @@ impl Timeline {
                         if let Ok(Value::Num(n)) =
                             crate::timeline::evaluate_expr(&prop.value, &eval_env)
                         {
-                            track
-                                .shape
+                            shape
                                 .head_size
                                 .ensure(n as f32)
                                 .add_keyframe(t_start_ms, n as f32, easing);
@@ -649,7 +653,6 @@ impl Timeline {
 
         // Callout annotation properties that live outside the tagged storage map.
         // These are handled by the generic build path now; the primitive no longer
-        // re-implements keyframe writing for them.
         if caps.callout {
             for prop in props {
                 let prop_subject = format!("{label}.{}", prop.name);
@@ -733,6 +736,7 @@ impl Timeline {
             .tracks
             .get_by_id_mut(track_id)
             .expect("World::ensure_track creates the track");
+        let shape = self.world.shape.get_mut(track_id);
 
         apply_size_spec(track, &primitive, props, label, parent_label, diagnostics);
 
@@ -762,6 +766,7 @@ impl Timeline {
 
         Self::insert_actor_keyframes(
             track,
+            shape,
             caps,
             t_start_ms,
             t_end_ms,

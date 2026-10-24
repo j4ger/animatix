@@ -1,5 +1,4 @@
 use super::super::tests::without_content_lints;
-use super::super::*;
 use super::part2::build_timeline;
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{Timeline, Value};
@@ -82,18 +81,31 @@ r: Rect, at: (100, 50), size: (120, 70), color: (1, 1, 1, 1), corner_radius: 30 
     let report =
         Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
     let track = report.output.get_track("r").expect("track r");
+    let id = track.id;
+    // corner_radius lives in the shape component store, so the world-aware
+    // accessors are the ones that can see it.
     assert_eq!(
-        property_keyframe_times(track, crate::timeline::ActorField::CornerRadius),
+        report
+            .output
+            .world()
+            .property_keyframe_times(id, crate::timeline::ActorField::CornerRadius),
         vec![0, 600],
         "a timed declaration needs a start snapshot and an end keyframe"
     );
     assert_eq!(
-        crate::timeline::read_property_value(track, crate::timeline::ActorField::CornerRadius, 0),
+        report
+            .output
+            .world()
+            .read_property_value(id, crate::timeline::ActorField::CornerRadius, 0),
         Some(crate::timeline::PropertyValue::F32(0.0)),
         "the animation starts from the pre-declaration value"
     );
     assert_eq!(
-        crate::timeline::read_property_value(track, crate::timeline::ActorField::CornerRadius, 600),
+        report.output.world().read_property_value(
+            id,
+            crate::timeline::ActorField::CornerRadius,
+            600
+        ),
         Some(crate::timeline::PropertyValue::F32(30.0)),
         "and ends at the declared value"
     );
@@ -281,13 +293,14 @@ box: Ellipse, size: (140, 140), color: accent.success [900ms, strategy: match]
     let timeline = report.output;
     let track = timeline.world.tracks.get("box").expect("box track exists");
 
-    let radius_pre = track.shape.corner_radius.get(500, 0.0);
+    let shape = timeline.world.shape(track.id);
+    let radius_pre = shape.corner_radius.get(500, 0.0);
     assert_eq!(
         radius_pre, 0.0,
         "corner_radius at t=500ms (before the #1.5s morph) must be the Rect's 0, got {radius_pre}"
     );
     let shape_pre = crate::timeline::TrackAccessor::get(
-        &track.shape.shape_type,
+        &shape.shape_type,
         500,
         crate::timeline::ShapeType::Rect,
     );
@@ -300,9 +313,9 @@ box: Ellipse, size: (140, 140), color: accent.success [900ms, strategy: match]
     // The frame-time primitive must follow the shape_type track, not the
     // (last-write-wins) track identity: the actor renders as the declared
     // Rect until the morph beat and as the re-declared Ellipse after it.
-    assert_eq!(track.render_type_name(500), "Rect");
-    assert_eq!(track.render_type_name(1_400), "Rect");
-    assert_eq!(track.render_type_name(2_400), "Ellipse");
+    assert_eq!(track.render_type_name(shape, 500), "Rect");
+    assert_eq!(track.render_type_name(shape, 1_400), "Rect");
+    assert_eq!(track.render_type_name(shape, 2_400), "Ellipse");
 }
 
 #[test]
@@ -494,7 +507,11 @@ fn a_redeclaration_starts_from_what_it_replaces_not_from_its_target() {
         // The frame before the stamp is still the declared ellipse, and still
         // carries no blue at all.
         assert_eq!(
-            track.shape.shape_type.get(999, crate::timeline::ShapeType::Rect),
+            timeline
+                .world
+                .shape(track.id)
+                .shape_type
+                .get(999, crate::timeline::ShapeType::Rect),
             crate::timeline::ShapeType::Ellipse,
             "{label}: the frame before the morph already shows the target shape"
         );
@@ -505,7 +522,11 @@ fn a_redeclaration_starts_from_what_it_replaces_not_from_its_target() {
         );
         // And the morph itself still lands on the target.
         assert_eq!(
-            track.shape.shape_type.get(1500, crate::timeline::ShapeType::Ellipse),
+            timeline
+                .world
+                .shape(track.id)
+                .shape_type
+                .get(1500, crate::timeline::ShapeType::Ellipse),
             crate::timeline::ShapeType::Rect,
             "{label}: the morph never reached its target shape"
         );
@@ -1125,7 +1146,7 @@ fn icon_property_expands_to_commands_geometry() {
             .tracks
             .get(label)
             .unwrap_or_else(|| panic!("no track {label}"));
-        let paths = track.evaluate_vector_paths_value(0);
+        let paths = track.evaluate_vector_paths_value(report.output.world.shape(track.id), 0);
         let mut elements = Vec::new();
         for vp in paths {
             elements.extend(vp.path.elements().iter().copied());

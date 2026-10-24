@@ -354,6 +354,7 @@ impl Timeline {
                 text_compiler: &mut self.text_compiler.borrow_mut(),
                 asset_cache: std::sync::Arc::make_mut(&mut self.asset_cache),
                 highlight: self.world.highlight.try_get_mut(track.id),
+                shape: self.world.shape.try_get_mut(track.id),
                 property_plan: Some(self.world.property_plan.get_mut(track.id)),
                 payload: Some(
                     self.world
@@ -512,6 +513,7 @@ impl Timeline {
 
                 let new_half_size = handle_size_assignment(
                     track,
+                    self.world.shape.get_mut(track_id),
                     property,
                     value,
                     &eval_env,
@@ -527,7 +529,7 @@ impl Timeline {
                 // For Graph actors, also rebuild PlotCurve children whose
                 // paths depend on the parent's size (p_size), and scale
                 // tick label positions to match the new axis positions.
-                let shape_type = track.shape.shape_type.last(ShapeType::Rect);
+                let shape_type = self.world.shape.get(track_id).shape_type.last(ShapeType::Rect);
                 if shape_type == ShapeType::Graph && old_half_size != new_half_size {
                     let scale_x = new_half_size[0] / old_half_size[0];
                     let scale_y = new_half_size[1] / old_half_size[1];
@@ -542,6 +544,7 @@ impl Timeline {
                             if child_caps.plot_geometry {
                                 scale_plot_curve_paths(
                                     child_track,
+                                    self.world.shape.get_mut(child_id),
                                     scale_x,
                                     scale_y,
                                     t_start_ms,
@@ -638,6 +641,7 @@ impl Timeline {
                         .expect("assignment target track exists");
                     rebuild_vector_paths(
                         track,
+                        self.world.shape.get_mut(track_id),
                         t_start_ms,
                         t_end_ms,
                         easing,

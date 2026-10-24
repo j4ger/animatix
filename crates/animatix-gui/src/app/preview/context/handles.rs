@@ -159,8 +159,9 @@ impl PreviewContext<'_> {
 
             let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
             if affordances.contains(&crate::app::primitives::GizmoAffordance::ControlPoints) {
-                let points = track
-                    .shape
+                let points = timeline
+                    .world()
+                    .shape(track.id)
                     .points
                     .as_ref()
                     .map(|pt| pt.evaluate(time_ms))
@@ -200,6 +201,7 @@ impl PreviewContext<'_> {
             if affordances.contains(&crate::app::primitives::GizmoAffordance::Callout) {
                 let geo = animatix::timeline::callout_geometry::derive_callout_geometry(
                     track,
+                    timeline.world().shape(track.id),
                     time_ms,
                     Some(timeline),
                     self.scene_dimensions,

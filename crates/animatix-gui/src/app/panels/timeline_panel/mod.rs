@@ -310,7 +310,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
             for (actor_label, _) in &actor_tree {
                 if expanded_properties.contains(actor_label) {
                     if let Some(track) = tl.get_track(actor_label) {
-                        extra_prop_lanes += collect_property_lanes(track, None).len();
+                        extra_prop_lanes +=
+                            collect_property_lanes(track, tl.world().shape(track.id), None).len();
                     }
                 }
             }
@@ -459,6 +460,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     keyframes::render_actor_keyframes(
                         ui,
                         track,
+                        tl.world().shape(track.id),
                         actor_label,
                         track_idx,
                         bar_area,
@@ -505,7 +507,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
             if expanded_properties.contains(actor_label) {
                 if let Some(tl) = timeline {
                     if let Some(track) = tl.get_track(actor_label) {
-                        let prop_lanes = collect_property_lanes(track, None);
+                        let prop_lanes =
+                            collect_property_lanes(track, tl.world().shape(track.id), None);
                         for (prop_name, kf_times) in &prop_lanes {
                             let prop_top = current_y;
                             let prop_bot = prop_top + sp.timeline.track_row_height;

@@ -41,7 +41,7 @@ impl Primitive for LinePrimitive {
             p0: kurbo::Point::new(state.line_from[0] as f64, state.line_from[1] as f64),
             p1: kurbo::Point::new(state.line_to[0] as f64, state.line_to[1] as f64),
         };
-        let path = ctx.track.shape_path_memoized(&shape);
+        let path = ctx.track.shape_path_memoized(ctx.shape.expect("shape tier"), &shape);
         // Line is stroke-only; override fill_opacity to 0
         Some(vec![crate::timeline::shapes::build_vello_path(
             path,
@@ -90,12 +90,13 @@ impl Primitive for LinePrimitive {
         use crate::timeline::callout_geometry::bounds_anchor_point;
         use crate::timeline::shapes::LineState;
 
-        let mut line_from = ctx.track.shape.line_from.get(ctx.time_ms, [-50.0, 0.0]);
-        let mut line_to = ctx.track.shape.line_to.get(ctx.time_ms, [50.0, 0.0]);
+        let shape = ctx.shape.expect("Line evaluation requires the shape tier");
+        let mut line_from = shape.line_from.get(ctx.time_ms, [-50.0, 0.0]);
+        let mut line_to = shape.line_to.get(ctx.time_ms, [50.0, 0.0]);
 
         // G6: Resolve anchor-point refs from the side-channel.
         // Anchor refs are resolved first, then overrides may replace them.
-        if let Some((actor, anchor)) = ctx.track.shape.from_anchor.as_ref() {
+        if let Some((actor, anchor)) = shape.from_anchor.as_ref() {
             if let Some(resolver) = ctx.target_resolver {
                 if let Some((centre, half)) =
                     resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions)
@@ -104,7 +105,7 @@ impl Primitive for LinePrimitive {
                 }
             }
         }
-        if let Some((actor, anchor)) = ctx.track.shape.to_anchor.as_ref() {
+        if let Some((actor, anchor)) = shape.to_anchor.as_ref() {
             if let Some(resolver) = ctx.target_resolver {
                 if let Some((centre, half)) =
                     resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions)

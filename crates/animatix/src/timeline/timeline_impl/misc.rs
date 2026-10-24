@@ -41,11 +41,11 @@ impl Timeline {
         // epoch: every mutation funnels through this invalidation, so the
         // bump is the single memo-invalidation point.
         for track in self.world.tracks.values() {
-            track
-                .shape
-                .vector_paths_epoch
-                .set(track.shape.vector_paths_epoch.get().wrapping_add(1));
-            track.shape.shape_type_switches.set(None);
+            let Some(shape) = self.world.shape.try_get(track.id) else {
+                continue;
+            };
+            shape.vector_paths_epoch.set(shape.vector_paths_epoch.get().wrapping_add(1));
+            shape.shape_type_switches.set(None);
         }
     }
 

@@ -158,8 +158,9 @@ pub(crate) fn ensure_vector_reveal_target(
         .is_some_and(|info| info.capabilities.is_container || info.capabilities.layout_container)
         || (timeline.world.tracks.get(target).is_some_and(|track| {
             !timeline.world.hierarchy(track.id).children.is_empty()
-                && track
-                    .shape
+                && timeline
+                    .world
+                    .shape(track.id)
                     .vector_paths
                     .as_ref()
                     .map(|t| t.default_value.is_empty() && t.keyframes.is_empty())

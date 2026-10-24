@@ -147,22 +147,33 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     );
                 }
                 // Build per-scene keyframe time cache from composition
-                let scene_keyframe_times: HashMap<String, Vec<f64>> = self.document_store.source.document.composition
+                let scene_keyframe_times: HashMap<String, Vec<f64>> = self
+                    .document_store
+                    .source
+                    .document
+                    .composition
                     .as_ref()
                     .map(|comp| {
-                        comp.declaration_order.iter().filter_map(|name| {
-                            let scene = comp.scenes.get(name)?;
-                            let mut times: Vec<f64> = scene.timeline.tracks().values()
+                        comp.declaration_order
+                            .iter()
+                            .filter_map(|name| {
+                                let scene = comp.scenes.get(name)?;
+                                let mut times: Vec<f64> = scene.timeline.tracks().values()
                                 .flat_map(|track| {
-                                    crate::app::document::timeline_diff::collect_actor_keyframes(track, None)
-                                        .into_iter()
-                                        .map(|(ms, _)| ms as f64 / 1000.0)
+                                    crate::app::document::timeline_diff::collect_actor_keyframes(
+                                        track,
+                                        scene.timeline.world().shape(track.id),
+                                        None,
+                                    )
+                                    .into_iter()
+                                    .map(|(ms, _)| ms as f64 / 1000.0)
                                 })
                                 .collect();
-                            times.sort_by(|a, b| a.total_cmp(b));
-                            times.dedup_by(|a, b| (*a - *b).abs() < 0.001);
-                            Some((name.clone(), times))
-                        }).collect()
+                                times.sort_by(|a, b| a.total_cmp(b));
+                                times.dedup_by(|a, b| (*a - *b).abs() < 0.001);
+                                Some((name.clone(), times))
+                            })
+                            .collect()
                     })
                     .unwrap_or_default();
 

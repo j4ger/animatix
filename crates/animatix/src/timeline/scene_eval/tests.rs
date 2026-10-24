@@ -8,12 +8,6 @@ fn make_minimal_timeline() -> Timeline {
     let mut timeline = Timeline::new();
     let mut track = AnimationTrack::placeholder("test_box".to_string());
     // Set first_seen_ms to 0 so the actor is visible from time 0
-    // Give it a shape type
-    track.shape.shape_type = Some({
-        let mut t = PropertyTrack::new(ShapeType::Rect);
-        t.add_keyframe(0, ShapeType::Rect, Easing::Linear);
-        t
-    });
     // Give it a size so it has content
     track.geometry.size = Some({
         let mut t = PropertyTrack::new([50.0, 50.0]);
@@ -27,7 +21,13 @@ fn make_minimal_timeline() -> Timeline {
         t
     });
 
-    spawn_seen(&mut timeline, "test_box", track);
+    let id = spawn_seen(&mut timeline, "test_box", track);
+    // Give it a shape type
+    timeline.world.shape_mut(id).shape_type = Some({
+        let mut t = PropertyTrack::new(ShapeType::Rect);
+        t.add_keyframe(0, ShapeType::Rect, Easing::Linear);
+        t
+    });
     timeline
 }
 
@@ -459,11 +459,6 @@ fn mask_clips_children_to_own_bounds() {
 
     // Create child actor
     let mut child_track = AnimationTrack::placeholder("child".to_string());
-    child_track.shape.shape_type = Some({
-        let mut t = PropertyTrack::new(ShapeType::Rect);
-        t.add_keyframe(0, ShapeType::Rect, Easing::Linear);
-        t
-    });
     child_track.geometry.size = Some({
         let mut t = PropertyTrack::new([50.0, 50.0]);
         t.add_keyframe(0, [50.0, 50.0], Easing::Linear);
@@ -475,6 +470,11 @@ fn mask_clips_children_to_own_bounds() {
         t
     });
     let child_id = spawn_seen(&mut timeline, "child", child_track);
+    timeline.world.shape_mut(child_id).shape_type = Some({
+        let mut t = PropertyTrack::new(ShapeType::Rect);
+        t.add_keyframe(0, ShapeType::Rect, Easing::Linear);
+        t
+    });
 
     // Create Mask actor
     let mut mask_track = AnimationTrack::placeholder("mask".to_string());

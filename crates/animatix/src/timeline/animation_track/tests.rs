@@ -252,11 +252,12 @@ fn test_field_ref_max_height_returns_f32() {
 }
 
 #[test]
-fn test_field_ref_vector_paths_returns_vector_paths() {
+fn test_field_ref_vector_paths_is_world_owned() {
+    // vector_paths moved to the shape component store, so the track-only
+    // accessor has no field to hand back; world-aware readers use
+    // World::fields.
     let track = AnimationTrack::placeholder("test".to_string());
-    let rf = track.field_ref(ActorField::VectorPaths);
-    assert!(rf.is_some());
-    assert!(matches!(rf.unwrap(), TrackFieldRef::VectorPaths(_)));
+    assert!(track.field_ref(ActorField::VectorPaths).is_none());
 }
 
 #[test]
@@ -654,9 +655,9 @@ fn test_track_field_ref_keyframe_count_none_for_empty() {
 
 #[test]
 fn test_track_field_ref_evaluate_value_none_for_vector_paths() {
+    // World-owned shape field: the track-only accessor has no field to read.
     let track = AnimationTrack::placeholder("test".to_string());
-    let rf = track.field_ref(ActorField::VectorPaths).unwrap();
-    assert!(rf.evaluate_value(0).is_none());
+    assert!(track.field_ref(ActorField::VectorPaths).is_none());
 }
 
 #[test]
@@ -771,13 +772,14 @@ fn test_missing_properties() {
         PositionBinding::Absolute
     );
     assert_eq!(track.geometry.size.get(0, [50.0, 50.0]), [50.0, 50.0]);
-    assert_eq!(track.shape.line_from.get(0, [-50.0, 0.0]), [-50.0, 0.0]);
-    assert_eq!(track.shape.line_to.get(0, [50.0, 0.0]), [50.0, 0.0]);
+    let shape = crate::timeline::animation_track::ShapeTracks::default();
+    assert_eq!(shape.line_from.get(0, [-50.0, 0.0]), [-50.0, 0.0]);
+    assert_eq!(shape.line_to.get(0, [50.0, 0.0]), [50.0, 0.0]);
     assert_eq!(
-        track.shape.arc_angles.get(0, [0.0, std::f32::consts::PI]),
+        shape.arc_angles.get(0, [0.0, std::f32::consts::PI]),
         [0.0, std::f32::consts::PI]
     );
     assert_eq!(track.style.color.get(0, [1.0, 1.0, 1.0, 1.0]), [1.0, 1.0, 1.0, 1.0]);
-    assert_eq!(track.shape.shape_type.get(0, ShapeType::Rect), ShapeType::Rect);
+    assert_eq!(shape.shape_type.get(0, ShapeType::Rect), ShapeType::Rect);
     assert_eq!(track.style.opacity.get(0, 1.0), 1.0);
 }

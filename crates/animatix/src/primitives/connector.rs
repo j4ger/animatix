@@ -439,8 +439,9 @@ impl Primitive for ConnectorPrimitive {
         let routing =
             ctx.track.geometry.connector_routing.get(ctx.time_ms, ConnectorRouting::Elbow);
         let mut arrow = ctx.track.geometry.connector_arrow.get(ctx.time_ms, true);
-        let mut corner_radius = ctx.track.shape.corner_radius.get(ctx.time_ms, 8.0);
-        let mut head_size = ctx.track.shape.head_size.get(ctx.time_ms, 10.0);
+        let shape = ctx.shape.expect("Connector evaluation requires the shape tier");
+        let mut corner_radius = shape.corner_radius.get(ctx.time_ms, 8.0);
+        let mut head_size = shape.head_size.get(ctx.time_ms, 10.0);
 
         if let Some(overrides) = ctx.overrides {
             if let Some(Value::Bool(b)) = overrides.get("arrow") {

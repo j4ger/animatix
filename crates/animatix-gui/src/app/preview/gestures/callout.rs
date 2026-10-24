@@ -60,8 +60,13 @@ impl GestureHandler for CalloutGesture {
                 }
 
                 let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
-                let geo =
-                    derive_callout_geometry(track, time_ms, Some(timeline), ctx.scene_dimensions);
+                let geo = derive_callout_geometry(
+                    track,
+                    timeline.world().shape(track.id),
+                    time_ms,
+                    Some(timeline),
+                    ctx.scene_dimensions,
+                );
 
                 let zoom = ctx.preview.viewport.preview_zoom;
                 let pan = ctx.preview.viewport.preview_pan;
@@ -199,6 +204,7 @@ impl GestureHandler for CalloutGesture {
                             {
                                 let geo = derive_callout_geometry(
                                     track,
+                                    timeline.world().shape(track.id),
                                     time_ms,
                                     Some(timeline),
                                     ctx.scene_dimensions,
@@ -243,6 +249,7 @@ impl GestureHandler for CalloutGesture {
                             {
                                 let geo = derive_callout_geometry(
                                     track,
+                                    timeline.world().shape(track.id),
                                     time_ms,
                                     Some(timeline),
                                     ctx.scene_dimensions,

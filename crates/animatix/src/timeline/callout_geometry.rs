@@ -116,13 +116,14 @@ pub struct CalloutGeometry {
 /// - anything else (incl. `"right"`) -> centre right edge
 pub fn derive_callout_geometry(
     track: &AnimationTrack,
+    shape: &crate::timeline::animation_track::ShapeTracks,
     time_ms: u64,
     resolver: Option<&dyn TargetResolver>,
     scene_dimensions: SceneDimensions,
 ) -> CalloutGeometry {
     let target_name = track.geometry.callout_target.get(time_ms, String::new());
-    let manual_to = track.shape.line_to.get(time_ms, [100.0, 0.0]);
-    let manual_from = track.shape.line_from.get(time_ms, [-100.0, 0.0]);
+    let manual_to = shape.line_to.get(time_ms, [100.0, 0.0]);
+    let manual_from = shape.line_from.get(time_ms, [-100.0, 0.0]);
     let label_at = track.geometry.label_at.get(time_ms, [0.0, 50.0]);
     let place = track.geometry.callout_place.get(time_ms, CalloutPlace::Right);
     let standoff = track.geometry.callout_standoff.get(time_ms, 40.0);

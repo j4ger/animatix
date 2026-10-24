@@ -591,9 +591,15 @@ impl Timeline {
         } else {
             parsed.initial_size
         };
-        let line_from = existing_track.shape.line_from.last([-50.0, 0.0]);
-        let line_to = existing_track.shape.line_to.last([50.0, 0.0]);
-        let arc_angles = existing_track.shape.arc_angles.last(default_arc);
+        let existing_shape = self
+            .world
+            .get_id(label)
+            .map(|id| self.world.shape(id))
+            .cloned()
+            .unwrap_or_default();
+        let line_from = existing_shape.line_from.last([-50.0, 0.0]);
+        let line_to = existing_shape.line_to.last([50.0, 0.0]);
+        let arc_angles = existing_shape.arc_angles.last(default_arc);
         let shape_type = shape_type_for_actor(ty).unwrap_or(ShapeType::Rect);
         let fill_opacity = 0.0f32;
 

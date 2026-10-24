@@ -72,7 +72,8 @@ impl Timeline {
             let Some(primitive) = self.track_primitive_at(child_track, time_ms) else {
                 continue;
             };
-            let child_vector_paths = child_track.evaluate_vector_paths(time_ms);
+            let child_vector_paths =
+                child_track.evaluate_vector_paths(self.world.shape(child_track.id), time_ms);
             let ctx = crate::primitives::EvaluateCtx {
                 track: child_track,
                 time_ms,
@@ -87,6 +88,7 @@ impl Timeline {
                 legend: self.world.legend(child_track.id),
                 world: Some(&self.world),
                 highlight: self.world.highlight(child_track.id),
+                shape: Some(self.world.shape(child_track.id)),
                 property_plan: Some(self.world.property_plan(child_track.id)),
                 caps: self.world.caps(child_track.id),
                 payload: self.world.payload(child_track.id),

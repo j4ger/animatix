@@ -955,7 +955,7 @@ fn high_frequency_curve_meets_resolution_floor() {
     let timeline = report.output;
 
     let track = timeline.world.tracks.get("c").expect("curve track");
-    let paths = track.evaluate_vector_paths_value(500);
+    let paths = track.evaluate_vector_paths_value(timeline.world.shape(track.id), 500);
     let point_count: usize = paths.iter().map(|vp| vp.path.elements().len()).sum();
     assert!(
         point_count >= 32,

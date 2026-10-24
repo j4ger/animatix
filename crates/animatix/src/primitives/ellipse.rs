@@ -41,7 +41,7 @@ impl Primitive for EllipsePrimitive {
             radii: kurbo::Vec2::new(state.size[0] as f64, state.size[1] as f64),
             rotation: state.rotation as f64,
         };
-        let path = ctx.track.shape_path_memoized(&shape);
+        let path = ctx.track.shape_path_memoized(ctx.shape.expect("shape tier"), &shape);
         Some(vec![crate::timeline::shapes::build_vello_path(
             path,
             ctx.style.color,
@@ -79,7 +79,11 @@ impl Primitive for EllipsePrimitive {
             ctx.track.geometry.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE),
             ctx.overrides,
         );
-        let arc_angles = ctx.track.shape.arc_angles.get(ctx.time_ms, [0.0, 0.0]);
+        let arc_angles = ctx
+            .shape
+            .expect("Ellipse evaluation requires the shape tier")
+            .arc_angles
+            .get(ctx.time_ms, [0.0, 0.0]);
         let rot = ctx.track.geometry.rotation.get(ctx.time_ms, 0.0);
 
         let mut state = EllipseState {

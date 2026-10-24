@@ -81,6 +81,7 @@ fn test_legend_wrapped_label_respects_max_width() {
         highlight: &crate::timeline::animation_track::HighlightTracks::default(),
         property_plan: None,
         world: None,
+        shape: None,
 
         payload: None,
         target_resolver: None,
@@ -252,6 +253,7 @@ fn test_legend_empty() {
         highlight: &crate::timeline::animation_track::HighlightTracks::default(),
         property_plan: None,
         world: None,
+        shape: None,
         payload: None,
         target_resolver: None,
         legend: Some(&legend),
@@ -673,6 +675,7 @@ fn test_legend_render_commands_produced() {
         highlight: &crate::timeline::animation_track::HighlightTracks::default(),
         property_plan: None,
         world: None,
+        shape: None,
         payload: None,
         target_resolver: None,
         legend: Some(&legend),

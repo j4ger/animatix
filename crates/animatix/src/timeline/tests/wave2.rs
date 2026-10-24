@@ -156,6 +156,7 @@ cnt.value = 100 [1s]
         highlight: &highlight,
         property_plan: None,
         world: None,
+        shape: Some(timeline.world.shape(track.id)),
 
         payload: None,
         target_resolver: None,
@@ -236,6 +237,7 @@ label.color = (0.0, 1.0, 0.0, 1.0) [1s]
         highlight: &highlight,
         property_plan: None,
         world: None,
+        shape: Some(timeline.world.shape(track.id)),
         payload: None,
         target_resolver: None,
         legend: None,
@@ -327,6 +329,7 @@ t: Text, text: "Hardware Stream", at: (300, 200), font_size: 32
         highlight: &highlight,
         property_plan: None,
         world: None,
+        shape: Some(timeline.world.shape(track.id)),
         payload: None,
         target_resolver: None,
         legend: None,

@@ -49,7 +49,7 @@ impl Primitive for PolygonPrimitive {
         } else {
             KurboShape::Polygon { points: Vec::new() }
         };
-        let path = ctx.track.shape_path_memoized(&shape);
+        let path = ctx.track.shape_path_memoized(ctx.shape.expect("shape tier"), &shape);
         Some(vec![crate::timeline::shapes::build_vello_path(
             path,
             ctx.style.color,
@@ -94,9 +94,10 @@ impl Primitive for PolygonPrimitive {
                 .get(ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE),
             ctx.overrides,
         );
-        let points = ctx.track.shape.points.get(ctx.time_ms, Vec::new());
+        let shape = ctx.shape.expect("Polygon evaluation requires the shape tier");
+        let points = shape.points.get(ctx.time_ms, Vec::new());
         let rot = ctx.track.geometry.rotation.get(ctx.time_ms, 0.0);
-        let vector_paths = ctx.track.evaluate_vector_paths(ctx.time_ms);
+        let vector_paths = ctx.track.evaluate_vector_paths(shape, ctx.time_ms);
 
         let mut state = PolygonState {
             size: half_size,

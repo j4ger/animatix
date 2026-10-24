@@ -144,6 +144,7 @@ impl AnimationTrack {
         state: &VectorShapeState,
         primitive: &dyn Primitive,
         time_ms: u64,
+        shape: &crate::timeline::animation_track::ShapeTracks,
     ) -> Result<Vec<RenderCommand>, crate::renderer::error::RenderError> {
         let paths = primitive
             .render(&RenderCtx {
@@ -151,6 +152,7 @@ impl AnimationTrack {
                 style,
                 time_ms,
                 track: self,
+                shape: Some(shape),
             })
             .unwrap_or_default();
         if paths.is_empty() {
@@ -223,20 +225,24 @@ pub(crate) fn evaluate_shape_render(
     use crate::timeline::TrackAccessor;
 
     let style = sample_shape_style(ctx.track, ctx.caps, ctx.time_ms, ctx.overrides);
-    let epoch = ctx.track.shape.vector_paths_epoch.get();
+    let shape = ctx.shape.expect("shape evaluation requires the shape tier");
+    let epoch = shape.vector_paths_epoch.get();
 
     let progress = f64::from(ctx.track.style.stroke_progress.get(ctx.time_ms, 1.0)).clamp(0.0, 1.0);
     let has_dash = !ctx.track.style.dash_pattern.get(ctx.time_ms, Vec::new()).is_empty();
     let has_gradient = shape_has_gradient(ctx);
     let mut commands = if progress < 1.0 {
-        let built = ctx.track.build_shape_commands(epoch, style, state, primitive, ctx.time_ms)?;
+        let built =
+            ctx.track
+                .build_shape_commands(epoch, style, state, primitive, ctx.time_ms, shape)?;
         let mut trimmed = trim_shape_stroke_progress(&built, progress);
         stamp_shape_dash(&mut trimmed, ctx);
         stamp_shape_gradient(&mut trimmed, ctx);
         trimmed
     } else if has_dash || has_gradient {
         let mut built =
-            ctx.track.build_shape_commands(epoch, style, state, primitive, ctx.time_ms)?;
+            ctx.track
+                .build_shape_commands(epoch, style, state, primitive, ctx.time_ms, shape)?;
         if has_dash {
             stamp_shape_dash(&mut built, ctx);
         }
@@ -248,7 +254,8 @@ pub(crate) fn evaluate_shape_render(
         ctx.track.offer_shape_command_bounds(bounds);
         commands
     } else {
-        ctx.track.build_shape_commands(epoch, style, state, primitive, ctx.time_ms)?
+        ctx.track
+            .build_shape_commands(epoch, style, state, primitive, ctx.time_ms, shape)?
     };
 
     attach_shape_shadow(&mut commands, ctx, state);

@@ -125,13 +125,18 @@ pub fn build_vector_shape_vello_path(
             thread_local! {
                 static SCRATCH_TRACK: crate::timeline::AnimationTrack =
                     crate::timeline::AnimationTrack::new(String::new(), "Rect");
+                static SCRATCH_SHAPE: crate::timeline::animation_track::ShapeTracks =
+                    crate::timeline::animation_track::ShapeTracks::default();
             }
             SCRATCH_TRACK.with(|scratch| {
-                primitive.render(&crate::primitives::RenderCtx {
-                    state,
-                    style,
-                    time_ms: 0,
-                    track: scratch,
+                SCRATCH_SHAPE.with(|shape| {
+                    primitive.render(&crate::primitives::RenderCtx {
+                        state,
+                        style,
+                        time_ms: 0,
+                        track: scratch,
+                        shape: Some(shape),
+                    })
                 })
             })
         })

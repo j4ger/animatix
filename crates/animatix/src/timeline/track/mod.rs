@@ -92,10 +92,6 @@ pub struct AnimationTrack {
     /// Style property tracks (color, opacity, stroke, line_cap, line_join, morph_options).
     pub style: StyleTracks,
 
-    // ── Shape tier (sub-struct) ──
-    /// Shape property tracks (shape_type, line_from, line_to, etc.).
-    pub shape: ShapeTracks,
-
     // ── Text tier (sub-struct) ──
     /// Text property tracks (text_content, font_family, font_size, etc.).
     pub text: TextTracks,
@@ -127,9 +123,6 @@ impl AnimationTrack {
 
             // Style tier (sub-struct)
             style: StyleTracks::default(),
-
-            // Shape tier (sub-struct)
-            shape: ShapeTracks::default(),
 
             // Text tier (sub-struct)
             text: TextTracks::default(),
@@ -172,12 +165,12 @@ impl AnimationTrack {
     /// the primitive instead; every other identity keeps its type, including
     /// non-shape actors whose plan carries only a vestigial constant
     /// `shape_type` (inserted by the generic morph build path).
-    pub fn render_type_name(&self, time_ms: u64) -> &str {
+    pub fn render_type_name(&self, shape: &ShapeTracks, time_ms: u64) -> &str {
         const VECTOR_SHAPES: [&str; 6] = ["Rect", "Ellipse", "Line", "Arrow", "Polygon", "Path"];
         if !VECTOR_SHAPES.contains(&self.actor_type.as_str()) {
             return &self.actor_type;
         }
-        let Some(shape_track) = self.shape.shape_type.as_ref() else {
+        let Some(shape_track) = shape.shape_type.as_ref() else {
             return &self.actor_type;
         };
         // Only a track whose value actually changes may switch the primitive.
@@ -185,16 +178,16 @@ impl AnimationTrack {
         // by `invalidate_frame_cache`): constant tracks — every non-morph
         // vector shape — pay one `Cell` read per frame instead of re-walking
         // the keyframe map.
-        let switches = match self.shape.shape_type_switches.get() {
+        let switches = match shape.shape_type_switches.get() {
             Some(verdict) => verdict,
             None => {
                 let mut values = shape_track.keyframes.values();
                 let Some((first, _)) = values.next() else {
-                    self.shape.shape_type_switches.set(Some(false));
+                    shape.shape_type_switches.set(Some(false));
                     return &self.actor_type;
                 };
                 let changed = values.any(|(v, _)| v != first);
-                self.shape.shape_type_switches.set(Some(changed));
+                shape.shape_type_switches.set(Some(changed));
                 changed
             },
         };
@@ -207,7 +200,7 @@ impl AnimationTrack {
         let Some((first, _)) = shape_track.keyframes.values().next() else {
             return &self.actor_type;
         };
-        let at: ShapeType = self.shape.shape_type.get(time_ms, *first);
+        let at: ShapeType = shape.shape_type.get(time_ms, *first);
         let name = match at {
             ShapeType::Rect => "Rect",
             ShapeType::Ellipse => "Ellipse",
@@ -545,9 +538,13 @@ impl AnimationTrack {
     /// list per frame. The memo is guarded by `vector_paths_epoch` (bumped by
     /// `invalidate_frame_cache`, the funnel every mutation goes through) and
     /// must never observe a track mutated without that bump.
-    pub fn evaluate_vector_paths(&self, time_ms: u64) -> std::sync::Arc<Vec<VelloPath>> {
+    pub fn evaluate_vector_paths(
+        &self,
+        shape: &ShapeTracks,
+        time_ms: u64,
+    ) -> std::sync::Arc<Vec<VelloPath>> {
         use std::sync::Arc;
-        if let Some(paths_track) = self.shape.vector_paths.as_ref() {
+        if let Some(paths_track) = shape.vector_paths.as_ref() {
             let constant = paths_track
                 .keyframes
                 .keys()
@@ -555,18 +552,18 @@ impl AnimationTrack {
                 .map(|&last| time_ms > last)
                 .unwrap_or(true);
             if constant {
-                let epoch = self.shape.vector_paths_epoch.get();
-                if let Some((memo_epoch, shared)) = self.shape.vector_paths_memo.borrow().as_ref() {
+                let epoch = shape.vector_paths_epoch.get();
+                if let Some((memo_epoch, shared)) = shape.vector_paths_memo.borrow().as_ref() {
                     if *memo_epoch == epoch {
                         return Arc::clone(shared);
                     }
                 }
-                let computed = Arc::new(self.evaluate_vector_paths_value(time_ms));
-                *self.shape.vector_paths_memo.borrow_mut() = Some((epoch, Arc::clone(&computed)));
+                let computed = Arc::new(self.evaluate_vector_paths_value(shape, time_ms));
+                *shape.vector_paths_memo.borrow_mut() = Some((epoch, Arc::clone(&computed)));
                 return computed;
             }
         }
-        Arc::new(self.evaluate_vector_paths_value(time_ms))
+        Arc::new(self.evaluate_vector_paths_value(shape, time_ms))
     }
 
     /// Memoized `KurboShape → BezPath` conversion for the render path (PF-6).
@@ -579,15 +576,19 @@ impl AnimationTrack {
     /// `Rect` paths per frame (alloc_driver 2026-09-04: ~70 blocks /
     /// 23.5 KB per frame). The shape value fully determines the path (fixed
     /// default tolerance), so the memo is self-validating and needs no epoch.
-    pub fn shape_path_memoized(&self, shape: &KurboShape) -> std::sync::Arc<kurbo::BezPath> {
+    pub fn shape_path_memoized(
+        &self,
+        shape_tracks: &ShapeTracks,
+        shape: &KurboShape,
+    ) -> std::sync::Arc<kurbo::BezPath> {
         use std::sync::Arc;
-        if let Some((cached_shape, shared)) = self.shape.shape_path_memo.borrow().as_ref() {
+        if let Some((cached_shape, shared)) = shape_tracks.shape_path_memo.borrow().as_ref() {
             if cached_shape == shape {
                 return Arc::clone(shared);
             }
         }
         let built = Arc::new(shape.to_path_default());
-        *self.shape.shape_path_memo.borrow_mut() = Some((shape.clone(), Arc::clone(&built)));
+        *shape_tracks.shape_path_memo.borrow_mut() = Some((shape.clone(), Arc::clone(&built)));
         built
     }
 
@@ -596,8 +597,12 @@ impl AnimationTrack {
     /// Build-time callers (`insert_start_keyframes`, assignment rewrites) use
     /// this so they observe values they have just written instead of a memo
     /// captured before the write.
-    pub(crate) fn evaluate_vector_paths_value(&self, time_ms: u64) -> Vec<VelloPath> {
-        let Some(paths_track) = self.shape.vector_paths.as_ref() else {
+    pub(crate) fn evaluate_vector_paths_value(
+        &self,
+        shape: &ShapeTracks,
+        time_ms: u64,
+    ) -> Vec<VelloPath> {
+        let Some(paths_track) = shape.vector_paths.as_ref() else {
             return Vec::new();
         };
         let default_morph = PropertyTrack::new(MorphOptions::default());

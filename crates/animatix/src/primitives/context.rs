@@ -43,6 +43,8 @@ pub struct AssignmentCtx<'a> {
     pub asset_cache: &'a mut crate::timeline::assets::AssetCache,
     /// Equation-highlight component for this actor.
     pub highlight: Option<&'a mut crate::timeline::animation_track::HighlightTracks>,
+    /// Shape geometry tier for this actor.
+    pub shape: Option<&'a mut crate::timeline::animation_track::ShapeTracks>,
     /// Registry-driven property plan for this actor.
     pub property_plan: Option<&'a mut crate::timeline::plan::PropertyPlan>,
     /// Primitive payload for this entity (plot/SVG/image state).
@@ -57,9 +59,11 @@ pub struct RenderCtx<'a> {
     pub style: VectorShapeStyle,
     /// Current time in milliseconds.
     pub time_ms: u64,
-    /// The actor's track — memoization home for the shape→path conversion
-    /// (PF-6); see `AnimationTrack::shape_path_memoized`.
+    /// The actor's track.
     pub track: &'a AnimationTrack,
+    /// Shape geometry tier — memoization home for the shape→path conversion
+    /// (PF-6); see `AnimationTrack::shape_path_memoized`.
+    pub shape: Option<&'a crate::timeline::animation_track::ShapeTracks>,
 }
 
 /// Context passed to `Primitive::evaluate()`.
@@ -86,6 +90,8 @@ pub struct EvaluateCtx<'a> {
     pub asset_cache: &'a crate::timeline::assets::AssetCache,
     /// Equation-highlight component for this actor.
     pub highlight: &'a crate::timeline::animation_track::HighlightTracks,
+    /// Shape geometry tier for this actor.
+    pub shape: Option<&'a crate::timeline::animation_track::ShapeTracks>,
     /// Registry-driven property plan for this actor.
     pub property_plan: Option<&'a crate::timeline::plan::PropertyPlan>,
     /// Capability projection for this actor.

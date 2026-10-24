@@ -1,5 +1,5 @@
 mod property_edit;
-use property_edit::apply_property_edit_to_track;
+use property_edit::{apply_property_edit_to_track, apply_shape_angle_edit};
 
 use animatix::timeline::TrackAccessor;
 
@@ -286,8 +286,18 @@ impl GuiShell {
                         * 1000.0) as u64;
                 let mut legacy_tagged = Vec::new();
                 let mut field_writes = Vec::new();
-                if let Some((track, effects, legend)) =
-                    timeline.world_mut().track_effects_and_legend_mut(id)
+                // Shape angles live in the shape tier, a separate World
+                // component: apply them before borrowing the track and its
+                // sibling components.
+                let angle_edited = apply_shape_angle_edit(
+                    timeline.world_mut().shape_mut(id),
+                    &edit.property,
+                    &edit.value,
+                    time_ms,
+                );
+                if !angle_edited
+                    && let Some((track, effects, legend)) =
+                        timeline.world_mut().track_effects_and_legend_mut(id)
                 {
                     apply_property_edit_to_track(
                         track,
@@ -658,6 +668,50 @@ mod tests {
             timeline.world().read_property_value(id, ActorField::Tagged("solo"), 5000),
             Some(PropertyValue::Bool(true)),
             "solo edit should still be visible after the edited time"
+        );
+    }
+
+    /// A GUI edit of a shape-tier property must reach the shape component
+    /// store: the track itself no longer carries a `shape` field.
+    #[test]
+    fn gui_shape_edit_reaches_the_shape_tier() {
+        let mut timeline = animatix::timeline::Timeline::new();
+        let id = timeline.world_mut().spawn("box", "Rect");
+        let mut legacy_tagged = Vec::new();
+        let mut field_writes = Vec::new();
+        {
+            let track = timeline.get_track_mut("box").expect("spawned track");
+            apply_property_edit_to_track(
+                track,
+                None,
+                None,
+                "corner_radius",
+                &PV::F32(12.0),
+                500,
+                &mut legacy_tagged,
+                &mut field_writes,
+            );
+        }
+        assert!(
+            field_writes.iter().any(|(field, _)| *field == ActorField::CornerRadius),
+            "shape-owned property edits must route through the world field bundle"
+        );
+        for (field, value) in field_writes {
+            timeline.world_mut().write_property_field(
+                id,
+                field,
+                value,
+                500,
+                500,
+                animatix_syntax::easing::Easing::Linear,
+                &mut Vec::new(),
+            );
+        }
+
+        assert_eq!(
+            timeline.world().read_property_value(id, ActorField::CornerRadius, 500),
+            Some(PropertyValue::F32(12.0)),
+            "corner_radius edit should be readable from the shape tier"
         );
     }
 }

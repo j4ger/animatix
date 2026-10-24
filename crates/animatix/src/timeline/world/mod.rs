@@ -1,7 +1,4 @@
 //! The timeline ECS world: entities plus typed component stores.
-//!
-//! migration is in flight) and every component store. Entity ids are stable
-//! and append-only; labels are converted to ids at the boundary. See
 //! `docs/ecs.md` for the normative design.
 //!
 //! During the migration, `World::tracks` still holds the monolithic
@@ -17,6 +14,7 @@ mod highlight;
 mod meta;
 mod payload;
 mod plan;
+mod shape;
 mod tagged;
 mod view;
 
@@ -52,6 +50,8 @@ pub struct World {
     pub(crate) highlight: RequiredStore<crate::timeline::animation_track::HighlightTracks>,
     /// Tagged-union property tracks (legend, extension tags).
     pub(crate) tagged_tracks: RequiredStore<TaggedTracksComponent>,
+    /// Shape geometry tier for every entity.
+    pub(crate) shape: RequiredStore<crate::timeline::animation_track::ShapeTracks>,
     /// Explicit capability overrides for extension primitives.
     pub(crate) caps_overrides: ComponentStore<animatix_core::caps::ActorCaps>,
     /// Registry-driven property slots for every entity.
@@ -273,6 +273,7 @@ impl World {
         self.hierarchy.reset_at(id);
         self.highlight.reset_at(id);
         self.tagged_tracks.reset_at(id);
+        self.shape.reset_at(id);
         self.property_plan.reset_at(id);
         self.meta.reset_at(id);
         self.caps_overrides.reset_at(id);
@@ -590,6 +591,7 @@ impl World {
         self.hierarchy.ensure_len(len);
         self.highlight.ensure_len(len);
         self.tagged_tracks.ensure_len(len);
+        self.shape.ensure_len(len);
         self.property_plan.ensure_len(len);
         self.meta.ensure_len(len);
         self.caps_overrides.ensure_len(len);
@@ -611,6 +613,7 @@ impl World {
         self.hierarchy.clear();
         self.highlight.clear();
         self.tagged_tracks.clear();
+        self.shape.clear();
         self.property_plan.clear();
         self.meta.clear();
         self.caps_overrides.clear();

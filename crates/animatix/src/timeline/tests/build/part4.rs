@@ -210,6 +210,7 @@ always {
         highlight: timeline.world.highlight(t_track.id),
         property_plan: Some(timeline.world.property_plan(t_track.id)),
         world: Some(&timeline.world),
+        shape: Some(timeline.world.shape(t_track.id)),
 
         payload: timeline.world.payload(t_track.id),
         time_ms: 0,

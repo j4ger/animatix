@@ -44,7 +44,13 @@ fn plot_child_uses_component_domain() {
     // The curve y = x over domain [0, 4] fills the 400x200 plot box: x maps to
     // [-200, 200] and y maps to [-100, 100]. A [-10, 10] fallback would keep
     // the curve in the middle of the box instead.
-    let paths = track.shape.vector_paths.as_ref().expect("generated curve paths").evaluate(0);
+    let paths = timeline
+        .world
+        .shape(track.id)
+        .vector_paths
+        .as_ref()
+        .expect("generated curve paths")
+        .evaluate(0);
     assert!(!paths.is_empty(), "curve must generate at least one path");
     let bounds = paths[0].path.bounding_box();
     assert!(
@@ -93,10 +99,10 @@ fn assignment_rebuild_uses_coordinate_frame() {
         "size assignment diagnostics: {diagnostics:?}"
     );
 
+    let track = timeline.get_track("g").expect("graph track");
     let paths = timeline
-        .get_track("g")
-        .expect("graph track")
-        .shape
+        .world()
+        .shape(track.id)
         .vector_paths
         .as_ref()
         .expect("graph axis paths")

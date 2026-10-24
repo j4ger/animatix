@@ -31,7 +31,9 @@ pub fn actor_gizmo_affordances(
     affordances.push(GizmoAffordance::BoundingBox { resize_mode });
 
     // 2. Control points for shapes with editable vertices
-    if track.shape.points.is_some() || matches!(caps.shape, Some(ShapeKind::Polygon)) {
+    if timeline.world().shape(track.id).points.is_some()
+        || matches!(caps.shape, Some(ShapeKind::Polygon))
+    {
         affordances.push(GizmoAffordance::ControlPoints);
     }
 

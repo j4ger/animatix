@@ -42,7 +42,7 @@ impl Primitive for RectPrimitive {
         } else {
             KurboShape::Rect { x0, y0, x1, y1 }
         };
-        let path = ctx.track.shape_path_memoized(&shape);
+        let path = ctx.track.shape_path_memoized(ctx.shape.expect("shape tier"), &shape);
         Some(vec![crate::timeline::shapes::build_vello_path(
             path,
             ctx.style.color,
@@ -118,7 +118,11 @@ impl Primitive for RectPrimitive {
         );
         let mut state = RectState {
             size: half_size,
-            corner_radius: ctx.track.shape.corner_radius.get(ctx.time_ms, 0.0),
+            corner_radius: ctx
+                .shape
+                .expect("Rect evaluation requires the shape tier")
+                .corner_radius
+                .get(ctx.time_ms, 0.0),
         };
 
         if let Some(overrides) = ctx.overrides {

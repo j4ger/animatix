@@ -49,8 +49,18 @@ pub fn write_property_fields(
                 _ => None,
             };
             if let Some(st) = st {
+                // The shape tier is a required component on a spawned entity;
+                // a bundle built without one (track-only test helpers) has no
+                // destination for the keyframe.
+                let Some(shape) = fields.shape.as_deref_mut() else {
+                    tracing::debug!(
+                        "shape_type write for '{}' dropped: no shape tier in this field bundle",
+                        fields.label
+                    );
+                    return;
+                };
                 write_shape_type(
-                    &mut fields.shape.shape_type,
+                    &mut shape.shape_type,
                     st,
                     t_start_ms,
                     t_end_ms,

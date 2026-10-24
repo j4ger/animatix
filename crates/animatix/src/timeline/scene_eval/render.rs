@@ -327,7 +327,7 @@ impl Timeline {
 
         // PF-6: shared Arc — the common static-track case returns a refcount
         // bump instead of a full path-list clone per node per frame.
-        let mut vector_paths = track.evaluate_vector_paths(time_ms);
+        let mut vector_paths = track.evaluate_vector_paths(self.world.shape(track.id), time_ms);
         // `BarChart` data transitions: once a `data = {…}` assignment has begun,
         // the declaration's paths are stale, so rebuild the bars from the dataset
         // in effect. Gated on the side channel being non-empty, so a chart whose
@@ -467,6 +467,7 @@ impl Timeline {
                     legend: self.world.legend(track.id),
                     world: Some(&self.world),
                     highlight: self.world.highlight(track.id),
+                    shape: Some(self.world.shape(track.id)),
                     property_plan: Some(self.world.property_plan(track.id)),
                     caps: self.world.caps(track.id),
                     payload: self.world.payload(track.id),
@@ -602,7 +603,8 @@ impl Timeline {
         track: &AnimationTrack,
         time_ms: u64,
     ) -> Option<&'a dyn crate::primitives::Primitive> {
-        self.primitive_registry.find(track.render_type_name(time_ms))
+        self.primitive_registry
+            .find(track.render_type_name(self.world.shape(track.id), time_ms))
     }
 
     /// Local-space clip geometry for a Mask's `clip_shape` child, obtained from
@@ -618,7 +620,7 @@ impl Timeline {
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> Option<kurbo::BezPath> {
         let primitive = self.track_primitive_at(child, time_ms)?;
-        let vector_paths = child.evaluate_vector_paths(time_ms);
+        let vector_paths = child.evaluate_vector_paths(self.world.shape(child.id), time_ms);
         child.begin_shape_commands();
         let ctx = crate::primitives::EvaluateCtx {
             track: child,
@@ -634,6 +636,7 @@ impl Timeline {
             legend: self.world.legend(child.id),
             world: Some(&self.world),
             highlight: self.world.highlight(child.id),
+            shape: Some(self.world.shape(child.id)),
             property_plan: Some(self.world.property_plan(child.id)),
             caps: self.world.caps(child.id),
             payload: self.world.payload(child.id),

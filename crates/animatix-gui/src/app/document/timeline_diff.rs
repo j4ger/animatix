@@ -34,6 +34,7 @@ pub struct KeyframeId {
 /// phantom identities for the same keyframes.
 pub(crate) fn collect_per_property_keyframes(
     track: &animatix::timeline::AnimationTrack,
+    shape: &animatix::timeline::animation_track::ShapeTracks,
     effects: Option<&animatix::timeline::effects::EffectChainTrack>,
 ) -> Vec<(String, Vec<u64>)> {
     let mut result = Vec::new();
@@ -70,14 +71,14 @@ pub(crate) fn collect_per_property_keyframes(
     push(&mut result, &track.text.font_family, "font_family");
     push(&mut result, &track.text.font_size, "font_size");
     // Shape
-    push(&mut result, &track.shape.shape_type, "shape_type");
-    push(&mut result, &track.shape.line_from, "line_from");
-    push(&mut result, &track.shape.line_to, "line_to");
-    push(&mut result, &track.shape.arc_angles, "arc_angles");
-    push(&mut result, &track.shape.points, "points");
-    push(&mut result, &track.shape.commands, "commands");
-    push(&mut result, &track.shape.vector_paths, "vector_paths");
-    push(&mut result, &track.shape.head_size, "head_size");
+    push(&mut result, &shape.shape_type, "shape_type");
+    push(&mut result, &shape.line_from, "line_from");
+    push(&mut result, &shape.line_to, "line_to");
+    push(&mut result, &shape.arc_angles, "arc_angles");
+    push(&mut result, &shape.points, "points");
+    push(&mut result, &shape.commands, "commands");
+    push(&mut result, &shape.vector_paths, "vector_paths");
+    push(&mut result, &shape.head_size, "head_size");
     // Effect stages: one lane per declared parameter plus the implicit `enabled`.
     if let Some(effects) = effects {
         for stage in &effects.stages {
@@ -142,6 +143,37 @@ const PROPERTY_LANES: &[(&str, ActorField)] = &[
     ("font_size", ActorField::FontSize),
 ];
 
+/// Keyframe times for one lane's storage field.
+///
+/// Shape-owned fields moved out of `AnimationTrack` into the shape component
+/// store, so the track-only engine helper cannot see them; read those from the
+/// shape tier the caller passes in. Everything else still lives on the track.
+fn lane_keyframe_times(
+    track: &animatix::timeline::AnimationTrack,
+    shape: &animatix::timeline::animation_track::ShapeTracks,
+    field: ActorField,
+) -> Vec<u64> {
+    use animatix::timeline::Interpolate;
+
+    fn times<T: Interpolate>(opt: &Option<animatix::timeline::PropertyTrack<T>>) -> Vec<u64> {
+        opt.as_ref()
+            .map(|pt| pt.keyframes().keys().copied().collect())
+            .unwrap_or_default()
+    }
+    match field {
+        ActorField::ShapeType => times(&shape.shape_type),
+        ActorField::LineFrom => times(&shape.line_from),
+        ActorField::LineTo => times(&shape.line_to),
+        ActorField::HeadSize => times(&shape.head_size),
+        ActorField::ArcAngles => times(&shape.arc_angles),
+        ActorField::CornerRadius => times(&shape.corner_radius),
+        ActorField::Points => times(&shape.points),
+        ActorField::Commands => times(&shape.commands),
+        ActorField::VectorPaths => times(&shape.vector_paths),
+        _ => animatix::timeline::property_keyframe_times(track, field),
+    }
+}
+
 /// Collect every animatable property lane for an actor kind, including lanes
 /// whose property has never been keyframed (empty time list).
 ///
@@ -151,11 +183,10 @@ const PROPERTY_LANES: &[(&str, ActorField)] = &[
 /// authority for actual keyframe times.
 pub(crate) fn collect_property_lanes(
     track: &animatix::timeline::AnimationTrack,
+    shape: &animatix::timeline::animation_track::ShapeTracks,
     effects: Option<&animatix::timeline::effects::EffectChainTrack>,
 ) -> Vec<(String, Vec<u64>)> {
-    use animatix::timeline::{
-        PROPERTY_REGISTRY, allowed_property_indices, property_keyframe_times,
-    };
+    use animatix::timeline::{PROPERTY_REGISTRY, allowed_property_indices};
 
     // Storage fields the registry allows for this actor kind. Keying by field
     // dedupes aliases that share one storage location. Capabilities derive from
@@ -167,7 +198,7 @@ pub(crate) fn collect_property_lanes(
         .collect();
     // Fields with real keyframes keep a lane even when the registry does not
     // expose their storage field directly (e.g. `arc_angles`, `vector_paths`).
-    let keyframed: Vec<String> = collect_per_property_keyframes(track, effects)
+    let keyframed: Vec<String> = collect_per_property_keyframes(track, shape, effects)
         .into_iter()
         .map(|(property, _)| property)
         .collect();
@@ -177,7 +208,7 @@ pub(crate) fn collect_property_lanes(
         .filter(|(property, field)| {
             allowed_fields.contains(field) || keyframed.iter().any(|name| name == property)
         })
-        .map(|&(property, field)| (property.to_string(), property_keyframe_times(track, field)))
+        .map(|&(property, field)| (property.to_string(), lane_keyframe_times(track, shape, field)))
         .collect();
 
     // Effect stage lanes exist whenever the scope declares the stage.
@@ -235,10 +266,11 @@ pub(crate) fn lane_schema(
 /// timeline UI renders one diamond per actor/time.
 pub(crate) fn collect_actor_keyframes(
     track: &animatix::timeline::AnimationTrack,
+    shape: &animatix::timeline::animation_track::ShapeTracks,
     effects: Option<&animatix::timeline::effects::EffectChainTrack>,
 ) -> Vec<(u64, String)> {
     let mut result = Vec::new();
-    for (property, times) in collect_per_property_keyframes(track, effects) {
+    for (property, times) in collect_per_property_keyframes(track, shape, effects) {
         result.extend(times.into_iter().map(|time_ms| (time_ms, property.clone())));
     }
     result.sort_by_key(|(time_ms, _)| *time_ms);
@@ -272,7 +304,9 @@ impl TimelineFingerprint {
             actors.extend(timeline.tracks().keys().cloned());
             actors_by_scene.insert(None, timeline.tracks().keys().cloned().collect());
             for track in timeline.tracks().values() {
-                for (property, times) in collect_per_property_keyframes(track, None) {
+                for (property, times) in
+                    collect_per_property_keyframes(track, timeline.world().shape(track.id), None)
+                {
                     for time_ms in times {
                         keyframes.insert(KeyframeId {
                             scene: None,
@@ -293,7 +327,11 @@ impl TimelineFingerprint {
                 actors.extend(scene_actors.iter().cloned());
                 actors_by_scene.insert(Some(scene_name.clone()), scene_actors);
                 for track in scene.timeline.tracks().values() {
-                    for (property, times) in collect_per_property_keyframes(track, None) {
+                    for (property, times) in collect_per_property_keyframes(
+                        track,
+                        scene.timeline.world().shape(track.id),
+                        None,
+                    ) {
                         for time_ms in times {
                             keyframes.insert(KeyframeId {
                                 scene: Some(scene_name.clone()),
@@ -590,7 +628,7 @@ mod tests {
         let timeline = document.active_timeline().expect("single-scene timeline");
         let track = timeline.get_track("box").expect("box track");
 
-        let lanes = collect_property_lanes(track, None);
+        let lanes = collect_property_lanes(track, timeline.world().shape(track.id), None);
 
         // Lane names are unique (no duplicate rows from registry aliases).
         let mut names: Vec<String> = lanes.iter().map(|(name, _)| name.clone()).collect();
@@ -601,7 +639,9 @@ mod tests {
 
         // Every keyframed property has a lane whose times match the typed
         // collector exactly.
-        for (property, times) in collect_per_property_keyframes(track, None) {
+        for (property, times) in
+            collect_per_property_keyframes(track, timeline.world().shape(track.id), None)
+        {
             let lane = lanes
                 .iter()
                 .find(|(name, _)| *name == property)
@@ -626,7 +666,7 @@ mod tests {
         // `background_color` aliases `ActorField::Color`, so the alias must not
         // surface as its own lane.
         assert!(
-            !collect_property_lanes(track, None)
+            !collect_property_lanes(track, timeline.world().shape(track.id), None)
                 .iter()
                 .any(|(name, _)| *name == "background_color"),
             "registry aliases must collapse onto the storage field's lane"

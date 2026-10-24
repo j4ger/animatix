@@ -18,15 +18,13 @@ impl AnimationTrack {
             StrokeColor => TrackFieldRef::Vec4(&self.style.stroke_color),
             StrokeProgress => TrackFieldRef::F32(&self.style.stroke_progress),
             FillOpacity => TrackFieldRef::F32(&self.style.fill_opacity),
-            ShapeType => TrackFieldRef::ShapeType(&self.shape.shape_type),
-            LineFrom => TrackFieldRef::Vec2(&self.shape.line_from),
-            LineTo => TrackFieldRef::Vec2(&self.shape.line_to),
-            HeadSize => TrackFieldRef::F32(&self.shape.head_size),
+            // The shape tier lives in `World.shape`; world-aware callers read
+            // it through `World::fields`, which bundles the component.
+            ShapeType | LineFrom | LineTo | HeadSize | ArcAngles | CornerRadius | Points => {
+                return None;
+            },
             LineCap => TrackFieldRef::U32(&self.style.line_cap),
             LineJoin => TrackFieldRef::U32(&self.style.line_join),
-            ArcAngles => TrackFieldRef::Vec2(&self.shape.arc_angles),
-            CornerRadius => TrackFieldRef::F32(&self.shape.corner_radius),
-            Points => TrackFieldRef::PointList(&self.shape.points),
             DashPattern => TrackFieldRef::F32List(&self.style.dash_pattern),
             FillGradient => TrackFieldRef::Gradient(&self.style.fill_gradient),
             StrokeGradient => TrackFieldRef::Gradient(&self.style.stroke_gradient),
@@ -34,7 +32,7 @@ impl AnimationTrack {
             GradientSpace => TrackFieldRef::String(&self.style.gradient_space),
             DashOffset => TrackFieldRef::F32(&self.style.dash_offset),
             Blend => TrackFieldRef::String(&self.style.blend),
-            Commands => TrackFieldRef::CommandList(&self.shape.commands),
+            Commands => return None,
             TextContent => TrackFieldRef::String(&self.text.text_content),
             TextMaxWidth => TrackFieldRef::F32(&self.text.text_max_width),
             TextAlign => TrackFieldRef::String(&self.text.text_align),
@@ -63,7 +61,7 @@ impl AnimationTrack {
             CalloutPlace => TrackFieldRef::CalloutPlace(&self.geometry.callout_place),
             CalloutStandoff => TrackFieldRef::F32(&self.geometry.callout_standoff),
             CalloutToOffset => TrackFieldRef::Vec2(&self.geometry.callout_to_offset),
-            VectorPaths => TrackFieldRef::VectorPaths(&self.shape.vector_paths),
+            VectorPaths => return None,
             TextPaths => TrackFieldRef::TextPaths(&self.text.text_paths),
             // The image payload owns the raster track; an actor without that
             // payload has no image data, which reads as `None`.
@@ -97,15 +95,12 @@ impl AnimationTrack {
             StrokeColor => TrackFieldMut::Vec4(&mut self.style.stroke_color),
             StrokeProgress => TrackFieldMut::F32(&mut self.style.stroke_progress),
             FillOpacity => TrackFieldMut::F32(&mut self.style.fill_opacity),
-            ShapeType => TrackFieldMut::ShapeType(&mut self.shape.shape_type),
-            LineFrom => TrackFieldMut::Vec2(&mut self.shape.line_from),
-            LineTo => TrackFieldMut::Vec2(&mut self.shape.line_to),
-            HeadSize => TrackFieldMut::F32(&mut self.shape.head_size),
+            // Shape writes go through `World.shape_mut`; see `field_ref`.
+            ShapeType | LineFrom | LineTo | HeadSize | ArcAngles | CornerRadius | Points => {
+                return None;
+            },
             LineCap => TrackFieldMut::U32(&mut self.style.line_cap),
             LineJoin => TrackFieldMut::U32(&mut self.style.line_join),
-            ArcAngles => TrackFieldMut::Vec2(&mut self.shape.arc_angles),
-            CornerRadius => TrackFieldMut::F32(&mut self.shape.corner_radius),
-            Points => TrackFieldMut::PointList(&mut self.shape.points),
             DashPattern => TrackFieldMut::F32List(&mut self.style.dash_pattern),
             FillGradient => TrackFieldMut::Gradient(&mut self.style.fill_gradient),
             StrokeGradient => TrackFieldMut::Gradient(&mut self.style.stroke_gradient),
@@ -113,7 +108,7 @@ impl AnimationTrack {
             GradientSpace => TrackFieldMut::String(&mut self.style.gradient_space),
             DashOffset => TrackFieldMut::F32(&mut self.style.dash_offset),
             Blend => TrackFieldMut::String(&mut self.style.blend),
-            Commands => TrackFieldMut::CommandList(&mut self.shape.commands),
+            Commands => return None,
             TextContent => TrackFieldMut::String(&mut self.text.text_content),
             TextMaxWidth => TrackFieldMut::F32(&mut self.text.text_max_width),
             TextAlign => TrackFieldMut::String(&mut self.text.text_align),
@@ -142,7 +137,7 @@ impl AnimationTrack {
             CalloutPlace => TrackFieldMut::CalloutPlace(&mut self.geometry.callout_place),
             CalloutStandoff => TrackFieldMut::F32(&mut self.geometry.callout_standoff),
             CalloutToOffset => TrackFieldMut::Vec2(&mut self.geometry.callout_to_offset),
-            VectorPaths => TrackFieldMut::VectorPaths(&mut self.shape.vector_paths),
+            VectorPaths => return None,
             TextPaths => TrackFieldMut::TextPaths(&mut self.text.text_paths),
             AudioVolume => TrackFieldMut::F32(&mut self.geometry.volume),
             // Image data is written through the media/image paths (which hold
