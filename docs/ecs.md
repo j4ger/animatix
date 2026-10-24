@@ -239,10 +239,11 @@ context field for the image/SVG/plot primitives.
 Direction for unlocking the rest: a borrowed `TrackFields<'a>` /
 `TrackFieldsMut<'a>` bundle (geometry/style/shape/text/highlight/tagged/payload
 refs) now exists in `timeline/world/fields.rs`, assembled by `World::fields(id)`
-and `World::fields_mut(id)`. Next, move `TrackFieldRef`/`TrackFieldMut`
-construction and `read_property_value`/`write_property_field` onto that bundle.
-The existing `AnimationTrack` accessors can forward to it during the transition,
-so call sites migrate per domain instead of in one rewrite.
+and `World::fields_mut(id)`. `TrackFieldRef` / `TrackFieldMut` construction has
+moved onto the bundle (`TrackFields::field_ref` / `TrackFieldsMut::field_mut`);
+the `AnimationTrack` methods still own the live path until
+`read_property_value` / `write_property_field` take `World` + `EntityId`. Then
+call sites migrate per domain instead of in one rewrite.
 
 ## 7. Adding a component
 
