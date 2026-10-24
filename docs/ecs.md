@@ -137,7 +137,10 @@ Rules:
 
 `hidden_by_default` moved with the other header fields: the entrance-action
 helpers (`lift_hidden_by_default*`) now take `&mut AnimationTrack` and
-`&mut EntityMeta` side by side.
+`&mut EntityMeta` side by side. The remaining `EntityMeta` columns
+(`id`, `label`, `actor_type`, `caps`, `first_seen_ms`) are still on
+`AnimationTrack` during Phase 5; `visible`, `locked`, `camera_follow`,
+`parallax`, `hidden_by_default` are live in the component.
 
 ### 2.3 Resources (deliberately not components)
 
