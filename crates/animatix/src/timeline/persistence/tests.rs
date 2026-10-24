@@ -506,9 +506,9 @@ fn inject_carry_bag_preserves_svg_paths() {
     let mut source = Timeline::new();
     let mut actor = AnimationTrack::placeholder("icon".to_string());
     actor.set_identity("Svg");
-    actor.ensure_svg_payload().svg_paths.push(VelloPath::default());
-    actor.ensure_svg_payload().svg_paths.push(VelloPath::default());
-    source.world.spawn_with_track("icon", actor);
+    let icon_id = source.world.spawn_with_track("icon", actor);
+    source.world.ensure_svg_payload(icon_id).svg_paths.push(VelloPath::default());
+    source.world.ensure_svg_payload(icon_id).svg_paths.push(VelloPath::default());
     source.set_persistence_flag("icon", true);
 
     let bag = source.compute_carry_bag(0, true);
@@ -518,7 +518,7 @@ fn inject_carry_bag_preserves_svg_paths() {
 
     let icon = dest.world.tracks.get("icon").expect("icon must be carried");
     assert_eq!(icon.actor_type, "Svg");
-    assert_eq!(icon.svg_paths().len(), 2, "svg_paths must survive carry");
+    assert_eq!(dest.world.svg_paths(icon.id).len(), 2, "svg_paths must survive carry");
 }
 
 #[test]
@@ -529,7 +529,8 @@ fn inject_carry_bag_preserves_procedural_plot() {
     let mut source = Timeline::new();
     let mut actor = AnimationTrack::placeholder("curve".to_string());
     actor.set_identity("PlotCurve");
-    actor.ensure_plot_payload().procedural_plot = Some(ProceduralPlot {
+    let curve_id = source.world.spawn_with_track("curve", actor);
+    source.world.ensure_plot_payload(curve_id).procedural_plot = Some(ProceduralPlot {
         plot_type: crate::timeline::plot::ProceduralPlotKind::Curve(PlotCurveKind::Cartesian),
         kind: PlotCurveKind::Cartesian,
         func_args: vec!["x".to_string()],
@@ -555,7 +556,6 @@ fn inject_carry_bag_preserves_procedural_plot() {
         params: vec![],
         extra_captures: CapturedEnv::default(),
     });
-    source.world.spawn_with_track("curve", actor);
     source.set_persistence_flag("curve", true);
 
     let bag = source.compute_carry_bag(0, true);
@@ -564,7 +564,10 @@ fn inject_carry_bag_preserves_procedural_plot() {
 
     let carried = dest.world.tracks.get("curve").expect("curve must be carried");
     assert_eq!(carried.actor_type, "PlotCurve");
-    assert!(carried.procedural_plot().is_some(), "procedural_plot must survive carry");
+    assert!(
+        dest.world.procedural_plot(carried.id).is_some(),
+        "procedural_plot must survive carry"
+    );
 }
 
 #[test]

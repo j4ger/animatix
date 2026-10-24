@@ -392,7 +392,7 @@ fn plot_capture_of_always_written_var_is_dynamic() {
         timeline.frame_written_vars
     );
     let track = timeline.world.tracks.get("curve").expect("curve track");
-    let plot = track.procedural_plot().expect("procedural plot");
+    let plot = timeline.world.procedural_plot(track.id).expect("procedural plot");
     assert!(
         plot.is_dynamic(&timeline.frame_written_vars),
         "closure capturing an always-written variable must be dynamic"
@@ -433,8 +433,9 @@ fade-in c [100ms]
 
     let track = timeline.world.tracks.get("c").expect("curve track");
     assert!(
-        track
-            .procedural_plot()
+        timeline
+            .world
+            .procedural_plot(track.id)
             .expect("procedural plot")
             .is_dynamic(&timeline.frame_written_vars),
         "body references t — the plot must be dynamic"

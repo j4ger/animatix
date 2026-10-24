@@ -821,8 +821,8 @@ chart.data = {("A", 30), ("B", 5)} [800ms]
 "#,
     );
     let track = timeline.world.tracks.get("chart").expect("chart track");
-    assert_eq!(track.bar_data_transitions().len(), 1);
-    let transition = &track.bar_data_transitions()[0];
+    assert_eq!(timeline.world.bar_data_transitions(track.id).len(), 1);
+    let transition = &timeline.world.bar_data_transitions(track.id)[0];
     assert_eq!((transition.start_ms, transition.end_ms), (1000, 1800));
     assert_eq!(transition.from, vec![("A".to_string(), 10.0f32), ("B".to_string(), 20.0)]);
     assert_eq!(transition.to, vec![("A".to_string(), 30.0f32), ("B".to_string(), 5.0)]);
@@ -894,11 +894,11 @@ chart.data = {("A", 30), ("B", 5)} [800ms]
 "#,
     );
     let track = timeline.world.tracks.get("chart").expect("chart track");
-    let layout = track.bar_layout().expect("bar layout stored at build");
+    let layout = timeline.world.bar_layout(track.id).expect("bar layout stored at build");
     let heights = |time_ms: u64| -> Vec<f64> {
         let data = crate::timeline::plot::bar_data_at(
-            track.bar_data(),
-            track.bar_data_transitions(),
+            timeline.world.bar_data(track.id),
+            timeline.world.bar_data_transitions(track.id),
             time_ms,
         );
         layout
@@ -946,10 +946,13 @@ chart.data = {("A", 30), ("B", 5)} [800ms]
         diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
     let track = timeline.world.tracks.get("chart").expect("chart track");
-    assert!(track.bar_data().is_empty(), "an undeclared chart starts from no dataset");
-    assert_eq!(track.bar_data_transitions().len(), 1);
-    assert_eq!(track.bar_data_transitions()[0].from.len(), 0);
-    assert_eq!(track.bar_data_transitions()[0].to.len(), 2);
+    assert!(
+        timeline.world.bar_data(track.id).is_empty(),
+        "an undeclared chart starts from no dataset"
+    );
+    assert_eq!(timeline.world.bar_data_transitions(track.id).len(), 1);
+    assert_eq!(timeline.world.bar_data_transitions(track.id)[0].from.len(), 0);
+    assert_eq!(timeline.world.bar_data_transitions(track.id)[0].to.len(), 2);
 }
 
 /// A dataset whose labels move (a new set, or the same set in a new order)
@@ -977,8 +980,12 @@ chart.data = {("A", 30), ("C", 5)} [800ms]
         diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
     let track = timeline.world.tracks.get("chart").expect("chart track");
-    assert_eq!(track.bar_data_transitions().len(), 1, "the transition is still recorded");
-    assert_eq!(track.bar_data_transitions()[0].to[1].0, "C");
+    assert_eq!(
+        timeline.world.bar_data_transitions(track.id).len(),
+        1,
+        "the transition is still recorded"
+    );
+    assert_eq!(timeline.world.bar_data_transitions(track.id)[0].to[1].0, "C");
 }
 
 /// Both caption guards speak about captions, so a chart that asks for none
@@ -994,8 +1001,8 @@ chart.data = {("B", 5), ("A", 30)} [800ms]
 "#,
     );
     let track = timeline.world.tracks.get("chart").expect("chart track");
-    assert_eq!(track.bar_data_transitions().len(), 1);
-    assert_eq!(track.bar_data_transitions()[0].to[0].0, "B");
+    assert_eq!(timeline.world.bar_data_transitions(track.id).len(), 1);
+    assert_eq!(timeline.world.bar_data_transitions(track.id)[0].to[0].0, "B");
 }
 
 /// [`built`] without its no-warnings assertion, for scenes whose point is the

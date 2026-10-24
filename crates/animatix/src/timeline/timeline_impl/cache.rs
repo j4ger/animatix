@@ -41,8 +41,10 @@ impl Timeline {
     /// frame environment to be constructed.
     pub(crate) fn has_procedural_plots(&self) -> bool {
         self.world.tracks.values().any(|t| {
-            t.procedural_plot().is_some_and(|pp| pp.is_dynamic(&self.frame_written_vars))
-                || !t.func_transitions().is_empty()
+            self.world
+                .procedural_plot(t.id)
+                .is_some_and(|pp| pp.is_dynamic(&self.frame_written_vars))
+                || !self.world.func_transitions(t.id).is_empty()
         })
     }
 
@@ -194,7 +196,7 @@ impl Timeline {
             || self.world.transcript.contains(track.id)
             || self.world.effects(track.id).is_some_and(|chain| chain.has_any_keyframes())
             || track.has_any_keyframes()
-            || track.procedural_plot().is_some()
+            || self.world.procedural_plot(track.id).is_some()
             || track.shape.from_anchor.is_some()
             || track.shape.to_anchor.is_some()
         {

@@ -129,6 +129,18 @@ impl World {
     }
 }
 
+impl World {
+    /// Evaluate SVG paths at `time_ms`, timed assignments first.
+    pub fn svg_paths_at(&self, id: EntityId, time_ms: u64) -> Option<Vec<VelloPath>> {
+        self.tracks.get_by_id(id)?.svg_paths_at(time_ms)
+    }
+
+    /// Whether the entity carries declaration or assignment SVG content.
+    pub fn has_svg_path_content(&self, id: EntityId) -> bool {
+        self.tracks.get_by_id(id).is_some_and(|track| track.has_svg_path_content())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::timeline::Timeline;
@@ -144,17 +156,5 @@ mod tests {
         assert!(timeline.world().svg_payload(id).is_some());
         timeline.world_mut().ensure_image_payload(id);
         assert!(timeline.world().image_payload(id).is_some());
-    }
-}
-
-impl World {
-    /// Evaluate SVG paths at `time_ms`, timed assignments first.
-    pub fn svg_paths_at(&self, id: EntityId, time_ms: u64) -> Option<Vec<VelloPath>> {
-        self.tracks.get_by_id(id)?.svg_paths_at(time_ms)
-    }
-
-    /// Whether the entity carries declaration or assignment SVG content.
-    pub fn has_svg_path_content(&self, id: EntityId) -> bool {
-        self.tracks.get_by_id(id).is_some_and(|track| track.has_svg_path_content())
     }
 }

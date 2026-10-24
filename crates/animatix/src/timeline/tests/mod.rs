@@ -53,6 +53,8 @@ mod plot_transitions;
 #[cfg(test)]
 mod plot_transitions_extra;
 #[cfg(test)]
+mod plot_transitions_tail;
+#[cfg(test)]
 mod scene_eval;
 #[cfg(test)]
 mod scene_stats;

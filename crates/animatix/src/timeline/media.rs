@@ -1,8 +1,8 @@
 use super::property_engine::{parse_property_value, write_property_field};
 use super::property_registry::lookup_property;
 use super::{
-    AnimationTrack, AudioSegment, DEFAULT_LAYOUT_HALF_SIZE, Diagnostic, Easing, Expr, Timeline,
-    TrackAccessor, apply_explicit_position_binding, evaluate_expr_with_lookup_diagnostic,
+    AudioSegment, DEFAULT_LAYOUT_HALF_SIZE, Diagnostic, Easing, EntityId, Expr, Timeline,
+    TrackAccessor, World, apply_explicit_position_binding, evaluate_expr_with_lookup_diagnostic,
     resolve_position_binding_with_lookup_diagnostic,
 };
 use crate::ast::Property;
@@ -23,7 +23,8 @@ fn push_media_load_failure_diagnostic(
 }
 
 fn seed_svg_track(
-    track: &mut AnimationTrack,
+    world: &mut World,
+    id: EntityId,
     asset_cache: &mut crate::timeline::assets::AssetCache,
     diagnostics: &mut Vec<Diagnostic>,
     subject_label: &str,
@@ -47,17 +48,20 @@ fn seed_svg_track(
             let measured_half_size = crate::timeline::svg::measure_svg_paths(&parsed_paths);
             #[cfg(not(feature = "svg"))]
             let measured_half_size = DEFAULT_LAYOUT_HALF_SIZE;
-            track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
-                time_ms,
-                measured_half_size,
-                Easing::Linear,
-            );
-            track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
-                time_ms,
-                measured_half_size,
-                Easing::Linear,
-            );
-            track.ensure_svg_payload().svg_paths = parsed_paths;
+            {
+                let track = world.tracks.get_by_id_mut(id).expect("media seed target must exist");
+                track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                    time_ms,
+                    measured_half_size,
+                    Easing::Linear,
+                );
+                track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                    time_ms,
+                    measured_half_size,
+                    Easing::Linear,
+                );
+            }
+            world.ensure_svg_payload(id).svg_paths = parsed_paths;
         },
         Err(error) => push_media_load_failure_diagnostic(
             diagnostics,
@@ -69,7 +73,8 @@ fn seed_svg_track(
 }
 
 fn seed_image_track(
-    track: &mut AnimationTrack,
+    world: &mut World,
+    id: EntityId,
     asset_cache: &mut crate::timeline::assets::AssetCache,
     diagnostics: &mut Vec<Diagnostic>,
     subject_label: &str,
@@ -85,17 +90,20 @@ fn seed_image_track(
         Ok(image) => {
             let display_size = authored_half_size
                 .unwrap_or([image.natural_size[0] / 2.0, image.natural_size[1] / 2.0]);
-            track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
-                time_ms,
-                display_size,
-                Easing::Linear,
-            );
-            track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
-                time_ms,
-                display_size,
-                Easing::Linear,
-            );
-            track.ensure_image_payload().image.ensure(None).add_keyframe(
+            {
+                let track = world.tracks.get_by_id_mut(id).expect("media seed target must exist");
+                track.geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                    time_ms,
+                    display_size,
+                    Easing::Linear,
+                );
+                track.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                    time_ms,
+                    display_size,
+                    Easing::Linear,
+                );
+            }
+            world.ensure_image_payload(id).image.ensure(None).add_keyframe(
                 time_ms,
                 Some(image),
                 Easing::Linear,
@@ -273,7 +281,8 @@ impl Timeline {
 
         match (is_svg, is_image) {
             (true, _) => seed_svg_track(
-                track,
+                &mut self.world,
+                track_id,
                 std::sync::Arc::make_mut(&mut self.asset_cache),
                 diagnostics,
                 label,
@@ -282,7 +291,8 @@ impl Timeline {
                 seed_time_ms,
             ),
             (_, true) => seed_image_track(
-                track,
+                &mut self.world,
+                track_id,
                 std::sync::Arc::make_mut(&mut self.asset_cache),
                 diagnostics,
                 label,

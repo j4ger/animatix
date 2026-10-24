@@ -426,19 +426,8 @@ impl Timeline {
 // snapshot_track_at
 // ---------------------------------------------------------------------------
 
-/// Snapshot a single track at a given time, collapsing all keyframes to t=0.
-///
-/// The resulting `AnimationTrack` has exactly one keyframe per property at
-/// `t=0` with the value sampled at `time_ms`.  Non-animated metadata
-/// (`kind`, `procedural_plot`, `image`, `svg_paths`, `text_paths`,
-/// `vector_paths`) is preserved unchanged.
-///
-/// `first_seen_ms` is set to `0` on the snapshot.
-///
-/// The scene-graph hierarchy is not part of the snapshot: it lives in the
-/// entity's `SceneHierarchyComponent`, and [`CarryEntry::children`] is the
-/// serializable form of a carried subtree. `inject_carry_bag` re-establishes
-/// the links after inserting each snapshot.
+/// Snapshot a primitive payload at `time_ms` (plot params collapsed, live
+/// transitions dropped), mirroring [`snapshot_track_at`] for the payload tier.
 pub fn snapshot_payload_at(
     payload: &crate::primitives::PrimitivePayload,
     time_ms: u64,
@@ -453,6 +442,9 @@ pub fn snapshot_payload_at(
     snapshot
 }
 
+/// Snapshot all animated tiers of a track at `time_ms`, collapsing each to a
+/// single t=0 keyframe. Primitive payload state lives in a component and is
+/// snapshotted separately by [`snapshot_payload_at`].
 pub fn snapshot_track_at(track: &AnimationTrack, time_ms: u64) -> AnimationTrack {
     let mut snapshot = track.clone();
 

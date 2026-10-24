@@ -36,7 +36,7 @@ fn plot_child_uses_component_domain() {
     );
 
     let track = timeline.get_track("c").expect("plot child track");
-    let plot = track.procedural_plot().expect("procedural plot");
+    let plot = timeline.world.procedural_plot(track.id).expect("procedural plot");
     assert_eq!(plot.p_x_domain, [0.0, 4.0], "child sampled the host domain");
     assert_eq!(plot.p_y_domain, [0.0, 4.0]);
     assert_eq!(plot.p_size, [400.0, 200.0], "child sampled the host full size");
@@ -168,7 +168,11 @@ fn carried_graph_keeps_coordinate_frame() {
 
     // The carried child keeps the geometry it was sampled with under that domain.
     let child = scene_b.timeline.get_track("c").expect("carried plot child");
-    let plot = child.procedural_plot().expect("carried procedural plot");
+    let plot = scene_b
+        .timeline
+        .world
+        .procedural_plot(child.id)
+        .expect("carried procedural plot");
     assert_eq!(plot.p_x_domain, [0.0, 4.0]);
     assert_eq!(plot.p_y_domain, [0.0, 2.0]);
 }

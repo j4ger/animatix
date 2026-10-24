@@ -213,6 +213,9 @@ impl Timeline {
             tracing::warn!("assignment target '{target_key}' has no track; skipping");
             return;
         };
+        // Entity handle for the payload accessors: the mutable track borrow
+        // above ends before each `self.world` payload read/write below.
+        let track_id = track.id;
 
         // ── Special cases that can't go through the generic engine ──
 
@@ -406,7 +409,7 @@ impl Timeline {
             // Determine "from" source:
             //   - If there's an active transition, record-and-chain: freeze current blend
             //   - Else use last completed transition's `to`, or the declaration func
-            let from_source = if let Some(active) = track.func_transitions().last() {
+            let from_source = if let Some(active) = self.world.func_transitions(track_id).last() {
                 if time_ms as u64 >= active.start_ms && time_ms as u64 <= active.end_ms {
                     // Record-and-chain: freeze current blend state
                     let progress = if active.end_ms > active.start_ms {
@@ -425,7 +428,7 @@ impl Timeline {
                     // Last transition completed, use its `to`
                     active.to.clone()
                 }
-            } else if let Some(plot) = track.procedural_plot() {
+            } else if let Some(plot) = self.world.procedural_plot(track_id) {
                 // No prior transitions, use declaration func
                 FuncSource::Compiled(
                     plot.func_args.clone(),
@@ -461,14 +464,16 @@ impl Timeline {
             }
 
             // Push FuncTransition
-            track.func_transitions_mut().push(crate::timeline::plot::FuncTransition {
-                start_ms: t_start_ms,
-                end_ms: t_end_ms,
-                easing,
-                from: from_source,
-                to: FuncSource::Compiled(to_args, Box::new(to_body), to_captures),
-                blend_mode: func_blend_mode,
-            });
+            self.world
+                .func_transitions_mut(track_id)
+                .push(crate::timeline::plot::FuncTransition {
+                    start_ms: t_start_ms,
+                    end_ms: t_end_ms,
+                    easing,
+                    from: from_source,
+                    to: FuncSource::Compiled(to_args, Box::new(to_body), to_captures),
+                    blend_mode: func_blend_mode,
+                });
             return; // func is not a registry property; do not fall through
         }
 
@@ -648,8 +653,9 @@ impl Timeline {
             }
 
             // Check if this is a plot parameter assignment
-            let is_plot_param = track
-                .procedural_plot()
+            let is_plot_param = self
+                .world
+                .procedural_plot(track_id)
                 .map(|p| p.param_names.iter().any(|n| n == property))
                 .unwrap_or(false);
 
@@ -688,8 +694,9 @@ impl Timeline {
 
                 let has_duration = t_end_ms > t_start_ms;
                 let prop_name = property.to_string();
-                let param_track = track
-                    .ensure_plot_payload()
+                let param_track = self
+                    .world
+                    .ensure_plot_payload(track_id)
                     .plot_param_tracks
                     .entry(prop_name)
                     .or_insert_with(|| super::PropertyTrack::new(target_val));

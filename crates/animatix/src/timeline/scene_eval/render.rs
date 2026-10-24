@@ -332,11 +332,11 @@ impl Timeline {
         // the declaration's paths are stale, so rebuild the bars from the dataset
         // in effect. Gated on the side channel being non-empty, so a chart whose
         // data never animates pays nothing.
-        if !track.bar_data_transitions().is_empty() {
-            if let Some(layout) = track.bar_layout() {
+        if !self.world.bar_data_transitions(track.id).is_empty() {
+            if let Some(layout) = self.world.bar_layout(track.id) {
                 let data = crate::timeline::plot::bar_data_at(
-                    track.bar_data(),
-                    track.bar_data_transitions(),
+                    self.world.bar_data(track.id),
+                    self.world.bar_data_transitions(track.id),
                     time_ms,
                 );
                 vector_paths = std::sync::Arc::new(layout.paths_for(&data).0);
@@ -345,18 +345,19 @@ impl Timeline {
         // Re-sample procedural plots at frame time so they can reference `t`.
         // Use the shared frame_env if available; fall back to creating one on-demand
         // (should only happen when frame_env was created at top level).
-        if let Some(procedural_plot) = track.procedural_plot() {
+        if let Some(procedural_plot) = self.world.procedural_plot(track.id) {
             // Guard: only resample per-frame when the plot is dynamic (references `t`
             // or has animated params) or a func transition is currently active.
             // Static, non-transitioning plots keep the cached build-time vector_paths.
-            let transitioning = track
-                .func_transitions()
+            let transitioning = self
+                .world
+                .func_transitions(track.id)
                 .iter()
                 .any(|t| time_ms >= t.start_ms && time_ms <= t.end_ms);
             // Also use per-frame sampling once all transitions are complete so that
             // the final `to` function (not the original declaration) is rendered.
             let has_completed_transitions =
-                track.func_transitions().iter().any(|t| t.is_complete_at(time_ms));
+                self.world.func_transitions(track.id).iter().any(|t| t.is_complete_at(time_ms));
 
             if procedural_plot.is_dynamic(&self.frame_written_vars)
                 || transitioning
@@ -377,7 +378,7 @@ impl Timeline {
                 // deep-cloning the entire Environment hash map.
                 let mut param_bindings = Vec::new();
                 for name in &procedural_plot.param_names {
-                    if let Some(param_track) = track.plot_param_track(name) {
+                    if let Some(param_track) = self.world.plot_param_track(track.id, name) {
                         let val = param_track.evaluate(time_ms);
                         let num_val = crate::timeline::Value::Num(val);
                         // Set the dotted key (e.g. "curve.freq") for explicit references
@@ -405,7 +406,7 @@ impl Timeline {
                         procedural_plot,
                         env,
                         time_ms,
-                        track.func_transitions(),
+                        self.world.func_transitions(track.id),
                     ));
 
                 if has_params {
@@ -538,8 +539,9 @@ impl Timeline {
             // shape commands never carry images), skipping the per-node
             // bezpath `bounding_box` unions entirely.
             let memo_bounds = track.take_shape_command_bounds();
-            let image_size = track
-                .image_track()
+            let image_size = self
+                .world
+                .image_track(track.id)
                 .is_some_and(|t| t.evaluate(time_ms).is_some())
                 .then_some(half_size);
             let local_bounds: Option<kurbo::Rect> = match memo_bounds {

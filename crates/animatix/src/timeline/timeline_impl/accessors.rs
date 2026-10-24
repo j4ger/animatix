@@ -235,7 +235,7 @@ impl Timeline {
                 times_ms.insert(ms);
             }
             // D4 exception: dynamic plot parameter tracks (not statically representable)
-            if let Some(param_tracks) = track.plot_param_tracks() {
+            if let Some(param_tracks) = self.world.plot_param_tracks(track.id) {
                 for pt in param_tracks.values() {
                     times_ms.extend(pt.keyframes.keys().copied());
                 }

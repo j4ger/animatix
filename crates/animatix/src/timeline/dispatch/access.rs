@@ -397,17 +397,6 @@ impl AnimationTrack {
 // Free functions: Property value reading & keyframe introspection
 // ─────────────────────────────────────────────────────────────
 
-fn svg_paths_track_for(
-    track: &AnimationTrack,
-    field: ActorField,
-) -> Option<&PropertyTrack<Option<Vec<VelloPath>>>> {
-    if track.caps.vector_paths && field == ActorField::ImageData {
-        track.svg_payload().and_then(|p| p.svg_paths_track.as_ref())
-    } else {
-        None
-    }
-}
-
 /// Read the current value of a property from a track at the given time.
 /// Returns `None` if the property has no track (not set on this actor).
 pub fn read_property_value(
@@ -431,49 +420,22 @@ pub fn read_property_value_or_default(
 
 /// Returns whether a property has any keyframes on the given track.
 pub fn property_has_keyframes(track: &AnimationTrack, field: ActorField) -> bool {
-    property_keyframe_count(track, field) > 0
+    crate::timeline::world::TrackFields::from_track(track).property_has_keyframes(field)
 }
 
 /// Returns whether a property has a keyframe at exactly the given time.
 pub fn property_has_keyframe_at(track: &AnimationTrack, field: ActorField, time_ms: u64) -> bool {
-    if let Some(svg_track) = svg_paths_track_for(track, field) {
-        return svg_track.keyframes.contains_key(&time_ms);
-    }
-    if let Some(id) = plan_id_for_tagged_field(&field)
-        && track.property_plan.has_keyframe_at(id, time_ms)
-    {
-        return true;
-    }
-    track.field_ref(field).is_some_and(|f| f.has_keyframe_at(time_ms))
+    crate::timeline::world::TrackFields::from_track(track).property_has_keyframe_at(field, time_ms)
 }
 
 /// Returns the number of keyframes for a property on the given track.
 pub fn property_keyframe_count(track: &AnimationTrack, field: ActorField) -> usize {
-    if let Some(svg_track) = svg_paths_track_for(track, field) {
-        return svg_track.keyframes.len();
-    }
-    if let Some(id) = plan_id_for_tagged_field(&field)
-        && track.property_plan.keyframe_count(id) > 0
-    {
-        return track.property_plan.keyframe_count(id);
-    }
-    track.field_ref(field).map_or(0, |f| f.keyframe_count())
+    crate::timeline::world::TrackFields::from_track(track).property_keyframe_count(field)
 }
 
 /// Returns all keyframe times (in ms) for a property, sorted.
 pub fn property_keyframe_times(track: &AnimationTrack, field: ActorField) -> Vec<u64> {
-    if let Some(svg_track) = svg_paths_track_for(track, field) {
-        let mut times: Vec<u64> = svg_track.keyframes.keys().copied().collect();
-        times.sort_unstable();
-        return times;
-    }
-    if let Some(id) = plan_id_for_tagged_field(&field) {
-        let times = track.property_plan.keyframe_times(id);
-        if !times.is_empty() {
-            return times;
-        }
-    }
-    track.field_ref(field).map_or(Vec::new(), |f| f.keyframe_times())
+    crate::timeline::world::TrackFields::from_track(track).property_keyframe_times(field)
 }
 
 /// Returns the easing at a specific keyframe time for a property.
@@ -482,26 +444,7 @@ pub fn property_keyframe_easing(
     field: ActorField,
     time_ms: u64,
 ) -> Option<Easing> {
-    if let Some(svg_track) = svg_paths_track_for(track, field) {
-        return svg_track.keyframes.get(&time_ms).map(|(_, easing)| *easing);
-    }
-    if let Some(id) = plan_id_for_tagged_field(&field) {
-        if let Some(easing) = track.property_plan.keyframe_easing(id, time_ms) {
-            return Some(easing);
-        }
-    }
-    track.field_ref(field).and_then(|f| f.keyframe_easing(time_ms))
-}
-
-/// Resolve a tagged field to a plan-backed property id, excluding legacy
-/// special fields that still use typed/tagged storage.
-fn plan_id_for_tagged_field(field: &ActorField) -> Option<animatix_syntax::schema::PropertyId> {
-    match field {
-        ActorField::Tagged(name) if *name != "legend" && *name != "callout_place" => {
-            crate::timeline::property_registry::property_id(name)
-        },
-        _ => None,
-    }
+    crate::timeline::world::TrackFields::from_track(track).property_keyframe_easing(field, time_ms)
 }
 
 #[cfg(test)]

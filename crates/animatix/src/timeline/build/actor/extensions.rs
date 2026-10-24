@@ -375,16 +375,19 @@ impl Timeline {
             let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
             let track_id = self.world.spawn(label, ty);
-            let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
-            track.set_identity(ty);
-            track.rebuild_property_plan();
+            {
+                let track =
+                    self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
+                track.set_identity(ty);
+                track.rebuild_property_plan();
+            }
             // Plot-family build path only (this dispatch serves Graph,
             // PlotCurve, VectorField, Heatmap, ContourSet, NumberPlane and
             // BarChart), so it owns the plot payload outright: assigning all
             // three fields mirrors the old flat-field overwrite, including the
             // clear on a re-declaration that resolves no plot.
             {
-                let payload = track.ensure_plot_payload();
+                let payload = self.world.ensure_plot_payload(track_id);
                 payload.procedural_plot = procedural_plot;
                 // The bar chart's side channel: a `data = {…}` assignment needs
                 // the layout to rebuild paths per frame, and the dataset it
@@ -396,10 +399,13 @@ impl Timeline {
             // Seed plot_param_tracks with initial declaration values.
             // Only create tracks that don't already exist so re-declarations
             // preserve existing keyframes.
-            if let Some(plot) = track.procedural_plot() {
-                let param_names: Vec<(String, f64)> =
-                    plot.params.iter().map(|(n, v)| (n.clone(), *v)).collect();
-                let param_tracks = &mut track.ensure_plot_payload().plot_param_tracks;
+            let param_names: Vec<(String, f64)> = self
+                .world
+                .procedural_plot(track_id)
+                .map(|plot| plot.params.iter().map(|(n, v)| (n.clone(), *v)).collect())
+                .unwrap_or_default();
+            if !param_names.is_empty() {
+                let param_tracks = &mut self.world.ensure_plot_payload(track_id).plot_param_tracks;
                 for (name, default_val) in param_names {
                     param_tracks.entry(name).or_insert_with(|| {
                         let mut t = super::PropertyTrack::new(default_val);
@@ -409,7 +415,9 @@ impl Timeline {
                 }
             }
 
-            self.world.meta.record_first_seen(track.id, t_start_ms);
+            self.world.meta.record_first_seen(track_id, t_start_ms);
+
+            let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
 
             // Pre-seed opacity for pre-keyframe first declarations so that
             // insert_start_keyframes captures the correct invisible start value.
