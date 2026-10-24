@@ -196,7 +196,10 @@ fn draw_in_lifts_hidden_by_default_opacity() {
     assert_eq!(track.style.opacity.get(400, 1.0), 0.0, "still hidden before the draw");
     assert!(track.style.opacity.get(900, 1.0) > 0.0, "opacity must rise during the draw");
     assert_eq!(track.style.opacity.get(1200, 1.0), 1.0, "fully visible after the draw");
-    assert!(!track.hidden_by_default, "flag must be consumed by the lift");
+    assert!(
+        !report.output.world.meta(track.id).hidden_by_default,
+        "flag must be consumed by the lift"
+    );
     assert!(report.diagnostics.is_empty());
 }
 
@@ -237,7 +240,7 @@ fn reveal_in_lifts_hidden_by_default_opacity() {
 
     assert_eq!(track.style.opacity.get(400, 1.0), 0.0);
     assert_eq!(track.style.opacity.get(1200, 1.0), 1.0);
-    assert!(!track.hidden_by_default);
+    assert!(!report.output.world.meta(track.id).hidden_by_default);
     assert!(report.diagnostics.is_empty());
 }
 

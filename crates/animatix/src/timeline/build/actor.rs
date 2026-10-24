@@ -956,7 +956,8 @@ impl Timeline {
         );
 
         let track_id = {
-            let track = self.world.ensure_track(label, ty);
+            let track_id = self.world.spawn(label, ty);
+            let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
             track.set_identity(ty);
             track.rebuild_property_plan();
             if track.first_seen_ms == u64::MAX {
@@ -975,7 +976,11 @@ impl Timeline {
         if let Some(color) = legend_color {
             self.world.ensure_legend(track_id).color = Some(color);
         }
-        let track = self.world.track_mut(track_id).expect("World::ensure_track creates the track");
+        let track = self
+            .world
+            .tracks
+            .get_by_id_mut(track_id)
+            .expect("World::ensure_track creates the track");
 
         // Seed Callout defaults before user properties so fields used by targeted
         // geometry and text evaluation are always present, even without explicit props.
@@ -1337,7 +1342,7 @@ impl Timeline {
         // Pre-seed opacity for pre-keyframe first declarations so that
         // insert_start_keyframes captures the correct invisible start value.
         if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
-            track.hidden_by_default = true;
+            self.world.meta.get_mut(track.id).hidden_by_default = true;
             track
                 .style
                 .opacity
@@ -1788,7 +1793,8 @@ impl Timeline {
             let t_start_ms = (time_ms + delay_ms) as u64;
             let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
-            let track = self.world.ensure_track(label, ty);
+            let track_id = self.world.spawn(label, ty);
+            let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
             track.set_identity(ty);
             track.rebuild_property_plan();
             // Plot-family build path only (this dispatch serves Graph,
@@ -1829,7 +1835,7 @@ impl Timeline {
             // Pre-seed opacity for pre-keyframe first declarations so that
             // insert_start_keyframes captures the correct invisible start value.
             if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
-                track.hidden_by_default = true;
+                self.world.meta.get_mut(track.id).hidden_by_default = true;
                 track.style.opacity.ensure(1.0).add_keyframe(
                     0,
                     self.default_opacity,

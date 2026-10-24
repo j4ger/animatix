@@ -322,7 +322,7 @@ impl Timeline {
                 || label.contains("_bar_label_")
         };
         for (label, track) in &timeline.world.tracks {
-            if !track.hidden_by_default {
+            if !timeline.world.meta.try_get(track.id).is_some_and(|m| m.hidden_by_default) {
                 continue;
             }
             if is_generated_sub(label)

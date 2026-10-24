@@ -12,6 +12,8 @@ pub struct EntityMeta {
     pub camera_follow: bool,
     /// Continuous parallax multiplier for camera movement on root actors.
     pub parallax: f32,
+    /// Whether the build hid this actor until an entrance action.
+    pub hidden_by_default: bool,
 }
 
 impl Default for EntityMeta {
@@ -21,6 +23,7 @@ impl Default for EntityMeta {
             locked: false,
             camera_follow: true,
             parallax: 1.0,
+            hidden_by_default: false,
         }
     }
 }

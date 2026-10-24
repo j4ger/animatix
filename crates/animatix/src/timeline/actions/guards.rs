@@ -62,14 +62,15 @@ pub(crate) fn ensure_guard_keyframe<T: Interpolate>(
 /// so the lift happens at most once and never stomps an explicit opacity.
 pub(crate) fn lift_hidden_by_default(
     track: &mut crate::timeline::AnimationTrack,
+    meta: &mut crate::timeline::world::EntityMeta,
     t_start_ms: u64,
     t_end_ms: u64,
     easing: Easing,
 ) {
-    if !track.hidden_by_default {
+    if !meta.hidden_by_default {
         return;
     }
-    track.hidden_by_default = false;
+    meta.hidden_by_default = false;
     let start_opacity = track.style.opacity.get(t_start_ms, 1.0);
     track
         .style
@@ -142,7 +143,8 @@ pub(crate) fn lift_hidden_by_default_subtree(
 ) {
     let children: Vec<String> = timeline.child_labels(label).map(str::to_string).collect();
     if let Some(track) = timeline.world.tracks.get_mut(label) {
-        lift_hidden_by_default(track, t_start_ms, t_end_ms, easing);
+        let meta = timeline.world.meta.get_mut(track.id);
+        lift_hidden_by_default(track, meta, t_start_ms, t_end_ms, easing);
     }
     for child in children {
         lift_hidden_by_default_subtree(timeline, &child, t_start_ms, t_end_ms, easing);

@@ -142,7 +142,8 @@ impl Timeline {
         // ahead of the mutation below is purely for the borrow checker.
         self.warn_unknown_declaration_properties(label, actor_type, props, diagnostics);
 
-        let track = self.world.ensure_track(label, actor_type);
+        let track_id = self.world.spawn(label, actor_type);
+        let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
 
         // Ensure the track identity matches the declaration type (single funnel,
         // so `kind` cannot drift from `actor_type`).
@@ -159,7 +160,7 @@ impl Timeline {
         }
 
         if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
-            track.hidden_by_default = true;
+            self.world.meta.get_mut(track.id).hidden_by_default = true;
             track
                 .style
                 .opacity

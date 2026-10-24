@@ -81,7 +81,11 @@ fn run_preset(
         // Opacity: the same lift `fade-in` performs, so a hidden-by-default
         // actor is revealed through the subtree-aware path and an authored
         // `opacity: 0` seed is lifted past rather than settled on.
-        let was_hidden = timeline.world.tracks.get(target).is_some_and(|t| t.hidden_by_default);
+        let was_hidden = timeline
+            .world
+            .meta
+            .try_get(timeline.world.tracks.get_id(target).unwrap_or_default())
+            .is_some_and(|m| m.hidden_by_default);
         super::lift_hidden_by_default_subtree(timeline, target, t_start_ms, t_end_ms, easing);
         if !was_hidden {
             let Some(track) = timeline.world.tracks.get(target) else {

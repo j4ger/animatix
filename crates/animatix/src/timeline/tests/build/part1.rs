@@ -240,7 +240,7 @@ fn container_fadein_reveals_graph_hosted_children() {
 
     let child = timeline.world.tracks.get("c").expect("child curve track should exist");
     assert!(
-        !child.hidden_by_default,
+        !timeline.world.meta(child.id).hidden_by_default,
         "container fade-in must lift the child's hidden-by-default flag"
     );
     let opacity_at_0 = child.style.opacity.as_ref().map(|t| t.evaluate(0));
@@ -283,7 +283,10 @@ fn pre_keyframe_graph_container_is_hidden_until_its_entrance() {
     let timeline = report.output;
 
     let graph = timeline.world.tracks.get("g").expect("graph track should exist");
-    assert!(!graph.hidden_by_default, "the entrance action consumes the flag");
+    assert!(
+        !timeline.world.meta(graph.id).hidden_by_default,
+        "the entrance action consumes the flag"
+    );
     let opacity = |ms: u64| graph.style.opacity.as_ref().map(|t| t.evaluate(ms)).unwrap_or(1.0);
     assert_eq!(opacity(0), 0.0, "graph must start invisible before its entrance");
     assert_eq!(opacity(900), 0.0, "graph must stay invisible until the entrance at 1.0s");

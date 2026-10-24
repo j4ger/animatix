@@ -188,8 +188,9 @@ impl BuiltinAction for DrawIn {
             // Reveal pre-keyframe ("hidden by default") targets: draw-in
             // animates stroke_progress/fill_opacity/char_progress but never
             // opacity, so lift the seeded opacity 0 alongside the draw.
-            let was_hidden = track.hidden_by_default;
-            super::lift_hidden_by_default(track, t_start_ms, t_end_ms, easing);
+            let meta = timeline.world.meta.get_mut(track.id);
+            let was_hidden = meta.hidden_by_default;
+            super::lift_hidden_by_default(track, meta, t_start_ms, t_end_ms, easing);
             if !was_hidden {
                 // An explicitly authored `opacity: 0` needs the same lift.
                 super::reveal_authored_zero_opacity(track, t_start_ms, t_end_ms, easing);
@@ -397,8 +398,9 @@ impl BuiltinAction for RevealIn {
             // Reveal pre-keyframe ("hidden by default") targets: reveal-in
             // animates stroke_progress/fill_opacity but never opacity, so
             // lift the seeded opacity 0 alongside the reveal.
-            let was_hidden = track.hidden_by_default;
-            super::lift_hidden_by_default(track, t_start_ms, t_end_ms, easing);
+            let meta = timeline.world.meta.get_mut(track.id);
+            let was_hidden = meta.hidden_by_default;
+            super::lift_hidden_by_default(track, meta, t_start_ms, t_end_ms, easing);
             if !was_hidden {
                 // An explicitly authored `opacity: 0` needs the same lift.
                 super::reveal_authored_zero_opacity(track, t_start_ms, t_end_ms, easing);

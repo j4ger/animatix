@@ -65,8 +65,9 @@ impl BuiltinAction for WipeIn {
             // Reveal pre-keyframe ("hidden by default") targets: wipe-in only
             // animates stroke_progress/fill_opacity, so lift the seeded
             // opacity 0 alongside the wipe.
-            let was_hidden = track.hidden_by_default;
-            super::lift_hidden_by_default(track, t_start_ms, t_end_ms, easing);
+            let meta = timeline.world.meta.get_mut(track.id);
+            let was_hidden = meta.hidden_by_default;
+            super::lift_hidden_by_default(track, meta, t_start_ms, t_end_ms, easing);
             if !was_hidden {
                 // An explicitly authored `opacity: 0` needs the same lift: the
                 // wipe itself never writes opacity, so the target would stay
@@ -152,7 +153,11 @@ impl BuiltinAction for FadeIn {
             // later entrance actions and diagnostics. The lift cascades into
             // hidden children so a container fade-in reveals its subtree
             // (probe 010: Graph-hosted PlotCurves stay seeded at opacity 0).
-            let was_hidden = timeline.world.tracks.get(target).is_some_and(|t| t.hidden_by_default);
+            let was_hidden = timeline
+                .world
+                .meta
+                .try_get(timeline.world.tracks.get_id(target).unwrap_or_default())
+                .is_some_and(|m| m.hidden_by_default);
             super::lift_hidden_by_default_subtree(timeline, target, t_start_ms, t_end_ms, easing);
             if !was_hidden {
                 let track = match timeline.world.tracks.get_mut(target) {
@@ -468,7 +473,10 @@ mod tests {
         assert_eq!(track.style.opacity.get(400, 1.0), 0.0, "still hidden before the wipe");
         assert!(track.style.opacity.get(900, 1.0) > 0.0, "opacity must rise during the wipe");
         assert_eq!(track.style.opacity.get(1200, 1.0), 1.0, "fully visible after the wipe");
-        assert!(!track.hidden_by_default, "flag must be consumed by the lift");
+        assert!(
+            !report.output.world.meta(track.id).hidden_by_default,
+            "flag must be consumed by the lift"
+        );
         assert!(report.diagnostics.is_empty());
     }
 
@@ -497,7 +505,7 @@ mod tests {
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
         let track = report.output.world.tracks.get("panel").expect("panel track");
 
-        assert!(!track.hidden_by_default);
+        assert!(!report.output.world.meta(track.id).hidden_by_default);
         assert_eq!(track.style.opacity.get(1200, 1.0), 0.3, "explicit opacity is preserved");
     }
 }

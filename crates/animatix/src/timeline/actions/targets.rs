@@ -192,8 +192,9 @@ pub(super) fn lift_container_and_intermediate_containers(
     let children: Vec<String> = timeline.child_labels(&resolved).map(str::to_string).collect();
     if !children.is_empty() {
         if let Some(track) = timeline.world.tracks.get_mut(&resolved) {
-            let was_hidden = track.hidden_by_default;
-            lift_hidden_by_default(track, t_start_ms, t_end_ms, easing);
+            let meta = timeline.world.meta.get_mut(track.id);
+            let was_hidden = meta.hidden_by_default;
+            lift_hidden_by_default(track, meta, t_start_ms, t_end_ms, easing);
             if !was_hidden {
                 let authored = track.style.opacity.get(t_start_ms, 1.0);
                 if authored == 0.0 {

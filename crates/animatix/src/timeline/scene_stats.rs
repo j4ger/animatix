@@ -154,8 +154,8 @@ fn sample_size(track: &AnimationTrack, time_ms: u64) -> [f64; 2] {
 }
 
 /// Sample an actor's effective opacity at time_ms.
-fn sample_opacity(track: &AnimationTrack, time_ms: u64) -> f64 {
-    if track.hidden_by_default {
+fn sample_opacity(track: &AnimationTrack, hidden_by_default: bool, time_ms: u64) -> f64 {
+    if hidden_by_default {
         0.0
     } else {
         track.style.opacity.as_ref().map(|o| o.evaluate(time_ms) as f64).unwrap_or(1.0)
@@ -260,7 +260,11 @@ pub(crate) fn bake_scene_stats(timeline: &mut Timeline) {
         let mut actor_samples = Vec::with_capacity(eligible_tracks.len());
 
         for track in &eligible_tracks {
-            let opacity = sample_opacity(track, time_ms);
+            let opacity = sample_opacity(
+                track,
+                timeline.world.meta.try_get(track.id).is_some_and(|m| m.hidden_by_default),
+                time_ms,
+            );
             if opacity > 0.0 {
                 visible_cast += 1.0;
             }

@@ -75,16 +75,6 @@ pub struct AnimationTrack {
     pub property_plan: super::plan::PropertyPlan,
     /// First frame (ms) this actor appears.
     pub first_seen_ms: u64,
-    /// Whether the build seeded this track's opacity to `0.0` because the
-    /// actor was first declared before the first keyframe without an explicit
-    /// `opacity` (docs/spec.md "Pre-Keyframe Actor Declarations").
-    ///
-    /// Entrance actions that do not animate opacity themselves (`draw-in`,
-    /// `wipe-in`, `reveal-in`) consume this flag to lift the hide, honoring
-    /// the documented contract that *any* entrance reveals the actor. Cleared
-    /// once consumed so later actions never stomp an intentional value.
-    #[cfg_attr(feature = "serde", serde(default))]
-    pub hidden_by_default: bool,
     /// Dense index into the per-frame precise-bounds table (PF-6 slot-id
     /// design). Stamped by `EvalCaches::ensure_bounds_registry` in sorted
     /// `tracks` order and invalidated via `invalidate_frame_cache`; the
@@ -157,7 +147,6 @@ impl AnimationTrack {
             actor_type,
             property_plan: super::plan::PropertyPlan::default(),
             first_seen_ms: u64::MAX,
-            hidden_by_default: false,
             bounds_slot: std::cell::Cell::new(u32::MAX),
             shape_command_memo: std::cell::RefCell::new(Box::new(
                 crate::primitives::ShapeCommandMemo::default(),

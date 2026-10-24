@@ -293,7 +293,8 @@ impl Timeline {
         let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
         let is_first_decl = !self.world.tracks.contains_key(&label_str);
 
-        let track = self.world.ensure_track(&label_str, kind.type_name());
+        let track_id = self.world.spawn(&label_str, kind.type_name());
+        let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
 
         // Ensure the track kind matches the declaration type so downstream
         // code (inspector, drag handles) can dispatch correctly.
@@ -306,7 +307,7 @@ impl Timeline {
         }
 
         if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
-            track.hidden_by_default = true;
+            self.world.meta.get_mut(track.id).hidden_by_default = true;
             track
                 .style
                 .opacity
