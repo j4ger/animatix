@@ -55,6 +55,12 @@ impl<'w> EntityRef<'w> {
             .expect("EntityRef is only constructed for an existing entity")
     }
 
+    /// Source span of the entity's declaration.
+    #[inline(always)]
+    pub fn decl_span(self) -> Option<&'w animatix_syntax::ast::Span> {
+        self.world.decl_span.get(self.id)
+    }
+
     /// The entity's parent/children links.
     #[inline(always)]
     pub fn hierarchy(self) -> &'w super::SceneHierarchyComponent {
@@ -166,6 +172,18 @@ impl<'w> EntityMut<'w> {
             .tracks
             .get_by_id_mut(self.id)
             .expect("EntityMut is only constructed for an existing entity")
+    }
+
+    /// Source span of the entity's declaration.
+    #[inline(always)]
+    pub fn decl_span(&self) -> Option<&animatix_syntax::ast::Span> {
+        self.world.decl_span.get(self.id)
+    }
+
+    /// Set the entity's declaration span.
+    #[inline(always)]
+    pub fn set_decl_span(&mut self, span: animatix_syntax::ast::Span) {
+        self.world.decl_span.get_or_insert_with(self.id, || span);
     }
 
     /// The entity's parent/children links.

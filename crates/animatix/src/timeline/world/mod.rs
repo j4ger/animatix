@@ -70,6 +70,8 @@ pub struct World {
     /// color that makes it an automatic candidate. Presence is optional: an
     /// actor with no legend involvement has no component.
     pub(crate) legend: ComponentStore<LegendTracks>,
+    /// Source span of the actor's declaration, for editor navigation.
+    pub(crate) decl_span: ComponentStore<animatix_syntax::ast::Span>,
     /// Post-processing effect chain for a compositing scope.
     pub(crate) effects: ComponentStore<EffectChainTrack>,
     /// Primitive-specific payload (plots, SVG assets, raster images).
@@ -260,6 +262,7 @@ impl World {
         self.transcript.reset_at(id);
         self.effects.reset_at(id);
         self.legend.reset_at(id);
+        self.decl_span.reset_at(id);
         self.attach_pending_auto_color(id, label);
         self.adopt(id, label);
         id
@@ -281,6 +284,18 @@ impl World {
     #[inline(always)]
     pub fn coordinate_frame(&self, id: EntityId) -> Option<&CoordinateFrameComponent> {
         self.coordinate_frame.get(id)
+    }
+
+    /// Source span of the entity's declaration, when the parser recorded one.
+    #[inline(always)]
+    pub fn decl_span(&self, id: EntityId) -> Option<&animatix_syntax::ast::Span> {
+        self.decl_span.get(id)
+    }
+
+    /// Set the declaration span for an entity.
+    #[inline(always)]
+    pub fn set_decl_span(&mut self, id: EntityId, span: animatix_syntax::ast::Span) {
+        self.decl_span.get_or_insert_with(id, || span);
     }
 
     /// Borrow an entity's legend data, when it participates in a legend.
@@ -529,6 +544,7 @@ impl World {
         self.auto_color.ensure_len(len);
         self.transcript.ensure_len(len);
         self.legend.ensure_len(len);
+        self.decl_span.ensure_len(len);
     }
 
     /// Drop every entity and component.
@@ -542,6 +558,7 @@ impl World {
         self.auto_color.clear();
         self.transcript.clear();
         self.legend.clear();
+        self.decl_span.clear();
         self.roots.clear();
         self.pending_parents.clear();
         self.pending_auto_color = None;
@@ -636,5 +653,21 @@ mod tests {
         assert!(world.hierarchy.is_empty());
         assert!(world.container_layout.is_empty());
         assert!(world.coordinate_frame.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod decl_span_tests {
+    use super::*;
+
+    #[test]
+    fn declaration_span_is_a_component_and_resets_on_replacement() {
+        let mut world = World::new();
+        let id = world.spawn("box", "Rect");
+        world.set_decl_span(id, animatix_syntax::ast::Span::new(1, 1, 1, 10));
+        assert_eq!(world.decl_span(id).map(|s| s.start_line), Some(1));
+
+        world.spawn_replacing("box", AnimationTrack::new("box".into(), "Rect"));
+        assert!(world.decl_span(id).is_none(), "replacement starts from a clean span");
     }
 }

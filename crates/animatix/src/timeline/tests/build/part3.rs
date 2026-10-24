@@ -1351,8 +1351,12 @@ fn pre_keyframe_actor_declaration_has_decl_span_and_explicit_warning() {
         crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
     let track = report.output.world.tracks.get("box").expect("box track must exist");
-    assert!(track.decl_span.is_some(), "track must preserve its declaration span");
-    let span = track.decl_span.unwrap();
+    let span = report
+        .output
+        .world
+        .decl_span(track.id)
+        .copied()
+        .expect("track must preserve its declaration span");
     assert_eq!(span.start_line, 1, "declaration starts on line 1");
 
     let diag = report

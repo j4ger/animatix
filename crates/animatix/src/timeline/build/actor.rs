@@ -412,8 +412,10 @@ impl Timeline {
                 diagnostics,
             );
             if let Some(track) = self.world.tracks.get_mut(label) {
-                if track.decl_span.is_none() {
-                    track.decl_span = decl_span;
+                if self.world.decl_span.get(track.id).is_none()
+                    && let Some(span) = decl_span
+                {
+                    self.world.decl_span.get_or_insert_with(track.id, || span);
                 }
             }
             return;
@@ -437,8 +439,10 @@ impl Timeline {
                     diagnostics.append(&mut diags);
                 }
                 if let Some(track) = self.world.tracks.get_mut(label) {
-                    if track.decl_span.is_none() {
-                        track.decl_span = decl_span;
+                    if self.world.decl_span.get(track.id).is_none()
+                        && let Some(span) = decl_span
+                    {
+                        self.world.decl_span.get_or_insert_with(track.id, || span);
                     }
                     // Capabilities come from the registration info, not the
                     // built-in catalog: an in-process extension can be a
@@ -954,14 +958,16 @@ impl Timeline {
             let track = self.world.ensure_track(label, ty);
             track.set_identity(ty);
             track.rebuild_property_plan();
-            if track.decl_span.is_none() {
-                track.decl_span = decl_span;
-            }
             if track.first_seen_ms == u64::MAX {
                 track.first_seen_ms = t_start_ms;
             }
             track.id
         };
+        if let Some(span) = decl_span
+            && self.world.decl_span.get(track_id).is_none()
+        {
+            self.world.decl_span.get_or_insert_with(track_id, || span);
+        }
         // Legend participation is a component, not a track field. Only actors
         // with an explicit color/stroke become automatic legend candidates, so
         // actors with nothing to contribute carry no component at all.

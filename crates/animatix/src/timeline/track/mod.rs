@@ -99,9 +99,6 @@ pub struct AnimationTrack {
     /// once consumed so later actions never stomp an intentional value.
     #[cfg_attr(feature = "serde", serde(default))]
     pub hidden_by_default: bool,
-    /// Source span of this actor's declaration, if available from the AST.
-    #[cfg_attr(feature = "serde", serde(default))]
-    pub decl_span: Option<animatix_syntax::ast::Span>,
     /// Dense index into the per-frame precise-bounds table (PF-6 slot-id
     /// design). Stamped by `EvalCaches::ensure_bounds_registry` in sorted
     /// `tracks` order and invalidated via `invalidate_frame_cache`; the
@@ -179,7 +176,6 @@ impl AnimationTrack {
             camera_follow: true,
             parallax: 1.0,
             hidden_by_default: false,
-            decl_span: None,
             bounds_slot: std::cell::Cell::new(u32::MAX),
             shape_command_memo: std::cell::RefCell::new(Box::new(
                 crate::primitives::ShapeCommandMemo::default(),

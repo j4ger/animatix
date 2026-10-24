@@ -344,7 +344,7 @@ impl Timeline {
                     ),
                 )
                 .with_subject(label)
-                .with_ast_span(track.decl_span),
+                .with_ast_span(timeline.world.decl_span(track.id).copied()),
             );
         }
 
