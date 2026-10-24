@@ -114,7 +114,7 @@ Rules:
 
 | Component | Data | Presence |
 |---|---|---|
-| `EntityMeta` | id, label, actor_type, caps, first_seen_ms, visible, locked, camera_follow, parallax, hidden_by_default | every entity |
+| `EntityMeta` | id, label, actor_type, caps, first_seen_ms, visible, locked, camera_follow, parallax, hidden_by_default | optional (reads fall back to `EntityMeta::DEFAULT`) |
 | `DeclarationSpan` | `Span` of the actor declaration (absent when the parser had none) | optional |
 | `SceneHierarchyComponent` | `parent: Option<EntityId>`, `children: Vec<EntityId>` | every entity |
 | `RootSet` | `Vec<EntityId>` (insertion order) | resource |

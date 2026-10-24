@@ -143,7 +143,10 @@ pub(crate) fn lift_hidden_by_default_subtree(
 ) {
     let children: Vec<String> = timeline.child_labels(label).map(str::to_string).collect();
     if let Some(track) = timeline.world.tracks.get_mut(label) {
-        let meta = timeline.world.meta.get_mut(track.id);
+        let meta = timeline
+            .world
+            .meta
+            .get_or_insert_with(track.id, crate::timeline::world::EntityMeta::default);
         lift_hidden_by_default(track, meta, t_start_ms, t_end_ms, easing);
     }
     for child in children {

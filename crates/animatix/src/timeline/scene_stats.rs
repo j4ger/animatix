@@ -262,7 +262,7 @@ pub(crate) fn bake_scene_stats(timeline: &mut Timeline) {
         for track in &eligible_tracks {
             let opacity = sample_opacity(
                 track,
-                timeline.world.meta.try_get(track.id).is_some_and(|m| m.hidden_by_default),
+                timeline.world.meta.get(track.id).is_some_and(|m| m.hidden_by_default),
                 time_ms,
             );
             if opacity > 0.0 {

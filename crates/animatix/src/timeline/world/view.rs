@@ -64,7 +64,7 @@ impl<'w> EntityRef<'w> {
     /// The entity's visibility/lock/camera metadata.
     #[inline(always)]
     pub fn meta(self) -> &'w super::EntityMeta {
-        self.world.meta.get(self.id)
+        self.world.meta.get(self.id).unwrap_or(&super::EntityMeta::DEFAULT)
     }
 
     /// The entity's parent/children links.
@@ -195,13 +195,13 @@ impl<'w> EntityMut<'w> {
     /// The entity's visibility/lock/camera metadata.
     #[inline(always)]
     pub fn meta(&self) -> &super::EntityMeta {
-        self.world.meta.get(self.id)
+        self.world.meta.get(self.id).unwrap_or(&super::EntityMeta::DEFAULT)
     }
 
     /// Mutably borrow the entity's metadata.
     #[inline(always)]
     pub fn meta_mut(&mut self) -> &mut super::EntityMeta {
-        self.world.meta.get_mut(self.id)
+        self.world.meta_mut(self.id)
     }
 
     /// The entity's parent/children links.

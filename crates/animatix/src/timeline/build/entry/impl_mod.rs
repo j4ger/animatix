@@ -322,7 +322,7 @@ impl Timeline {
                 || label.contains("_bar_label_")
         };
         for (label, track) in &timeline.world.tracks {
-            if !timeline.world.meta.try_get(track.id).is_some_and(|m| m.hidden_by_default) {
+            if !timeline.world.meta.get(track.id).is_some_and(|m| m.hidden_by_default) {
                 continue;
             }
             if is_generated_sub(label)
@@ -592,7 +592,7 @@ impl Timeline {
         // declaration has no effect instead of leaving it to be discovered in a
         // render.
         for (label, track) in &timeline.world.tracks {
-            let meta = timeline.world.meta.try_get(track.id);
+            let meta = timeline.world.meta.get(track.id);
             let camera_follow = meta.is_none_or(|m| m.camera_follow);
             let parallax = meta.map_or(1.0, |m| m.parallax);
             if !camera_follow && !timeline.world.is_root(track.id) {

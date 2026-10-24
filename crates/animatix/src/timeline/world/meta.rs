@@ -16,14 +16,19 @@ pub struct EntityMeta {
     pub hidden_by_default: bool,
 }
 
+impl EntityMeta {
+    /// Default header data for an entity that has no component slot yet.
+    pub const DEFAULT: Self = Self {
+        visible: true,
+        locked: false,
+        camera_follow: true,
+        parallax: 1.0,
+        hidden_by_default: false,
+    };
+}
+
 impl Default for EntityMeta {
     fn default() -> Self {
-        Self {
-            visible: true,
-            locked: false,
-            camera_follow: true,
-            parallax: 1.0,
-            hidden_by_default: false,
-        }
+        Self::DEFAULT
     }
 }

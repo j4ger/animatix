@@ -121,7 +121,7 @@ impl Timeline {
         self.camera_exempt_present.set(self.world.tracks.values().any(|track| {
             self.world
                 .meta
-                .try_get(track.id)
+                .get(track.id)
                 .is_some_and(|meta| !meta.camera_follow || meta.parallax != 1.0)
         }));
     }

@@ -65,7 +65,10 @@ impl BuiltinAction for WipeIn {
             // Reveal pre-keyframe ("hidden by default") targets: wipe-in only
             // animates stroke_progress/fill_opacity, so lift the seeded
             // opacity 0 alongside the wipe.
-            let meta = timeline.world.meta.get_mut(track.id);
+            let meta = timeline
+                .world
+                .meta
+                .get_or_insert_with(track.id, crate::timeline::world::EntityMeta::default);
             let was_hidden = meta.hidden_by_default;
             super::lift_hidden_by_default(track, meta, t_start_ms, t_end_ms, easing);
             if !was_hidden {
@@ -156,7 +159,7 @@ impl BuiltinAction for FadeIn {
             let was_hidden = timeline
                 .world
                 .meta
-                .try_get(timeline.world.tracks.get_id(target).unwrap_or_default())
+                .get(timeline.world.tracks.get_id(target).unwrap_or_default())
                 .is_some_and(|m| m.hidden_by_default);
             super::lift_hidden_by_default_subtree(timeline, target, t_start_ms, t_end_ms, easing);
             if !was_hidden {

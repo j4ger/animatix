@@ -44,7 +44,7 @@ pub struct World {
     /// Parent/children links, aligned with `tracks`.
     pub(crate) hierarchy: RequiredStore<SceneHierarchyComponent>,
     /// Per-entity visibility/lock/camera metadata.
-    pub(crate) meta: RequiredStore<EntityMeta>,
+    pub(crate) meta: ComponentStore<EntityMeta>,
     /// Layout configuration for `Row`/`Col`/`Grid`/`Stack` actors.
     ///
     /// Presence means the entity is a layout container. The authored child
@@ -276,13 +276,13 @@ impl World {
     /// Borrow an entity's metadata.
     #[inline(always)]
     pub fn meta(&self, id: EntityId) -> &EntityMeta {
-        self.meta.get(id)
+        self.meta.get(id).unwrap_or(&EntityMeta::DEFAULT)
     }
 
     /// Mutably borrow an entity's metadata.
     #[inline(always)]
     pub fn meta_mut(&mut self, id: EntityId) -> &mut EntityMeta {
-        self.meta.get_mut(id)
+        self.meta.get_or_insert_with(id, EntityMeta::default)
     }
 
     /// Borrow an entity's hierarchy component.
@@ -713,5 +713,23 @@ mod meta_tests {
         assert!(meta.visible, "replacement starts visible");
         assert!(!meta.locked, "replacement starts unlocked");
         assert!(!meta.hidden_by_default, "replacement starts revealed");
+    }
+}
+
+#[cfg(test)]
+mod meta_default_tests {
+    use super::*;
+
+    #[test]
+    fn directly_inserted_tracks_get_default_meta_on_demand() {
+        let mut world = World::new();
+        world
+            .tracks
+            .insert("direct".into(), AnimationTrack::new("direct".into(), "Rect"));
+        let id = world.tracks.get_id("direct").expect("direct id");
+
+        assert!(world.meta(id).visible, "missing component reads as the default");
+        world.meta_mut(id).visible = false;
+        assert!(!world.meta(id).visible);
     }
 }

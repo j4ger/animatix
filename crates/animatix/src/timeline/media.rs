@@ -160,7 +160,10 @@ impl Timeline {
         }
 
         if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
-            self.world.meta.get_mut(track.id).hidden_by_default = true;
+            self.world
+                .meta
+                .get_or_insert_with(track.id, crate::timeline::world::EntityMeta::default)
+                .hidden_by_default = true;
             track
                 .style
                 .opacity
