@@ -26,10 +26,10 @@ impl World {
             .get_by_id(id)
             .and_then(|track| track.max_keyframe_time_with(self.payload.get(id)));
         let highlight = self.highlight.try_get(id).and_then(|h| h.max_keyframe_time());
-        match (track, highlight) {
-            (Some(a), Some(b)) => Some(a.max(b)),
-            (a, b) => a.or(b),
-        }
+        let tagged = self.tagged_tracks.try_get(id).and_then(|tracks| {
+            tracks.values().flatten().filter_map(|t| t.last_keyframe_time()).max()
+        });
+        [track, highlight, tagged].into_iter().flatten().max()
     }
 
     /// Whether any tier (including payload) has animated keyframes.
@@ -43,6 +43,9 @@ impl World {
                 .highlight
                 .try_get(id)
                 .is_some_and(|highlight| highlight.has_any_keyframes())
+            || self.tagged_tracks.try_get(id).is_some_and(|tracks| {
+                tracks.values().flatten().any(|track| !track.is_effectively_static())
+            })
     }
 }
 

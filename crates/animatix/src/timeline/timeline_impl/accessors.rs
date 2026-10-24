@@ -245,8 +245,10 @@ impl Timeline {
             }
             // Tagged union tracks are registry-representable, but include them
             // directly as a defensive catch for properties without a schema.
-            for pt in track.tagged_tracks.values().flatten() {
-                times_ms.extend(pt.keyframes.keys().copied());
+            if let Some(tagged) = self.world.tagged_tracks.try_get(track.id) {
+                for pt in tagged.values().flatten() {
+                    times_ms.extend(pt.keyframes.keys().copied());
+                }
             }
         }
         // Cross-track sources

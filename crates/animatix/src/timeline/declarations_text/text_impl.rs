@@ -348,6 +348,10 @@ impl Timeline {
             apply_explicit_position_binding(track, t_start_ms, binding, position);
         }
 
+        let mut pending_writes: Vec<(
+            crate::timeline::property_registry::ActorField,
+            crate::timeline::property_engine::PropertyValue,
+        )> = Vec::new();
         // Dispatch remaining (unhandled) properties through the generic engine so
         // universal properties like scale, rotation, and opacity actually work on
         // text / math / code actors.
@@ -371,18 +375,24 @@ impl Timeline {
                     diagnostics,
                     &prop_subject,
                 ) {
-                    write_property_field(
-                        track,
-                        schema.field,
-                        pv,
-                        t_start_ms,
-                        t_end_ms,
-                        easing,
-                        diagnostics,
-                    );
+                    pending_writes.push((schema.field, pv));
                 }
             }
         }
+
+        let track_id = track.id;
+        for (field, pv) in pending_writes {
+            self.world.write_property_field(
+                track_id,
+                field,
+                pv,
+                t_start_ms,
+                t_end_ms,
+                easing,
+                diagnostics,
+            );
+        }
+        let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
 
         // Store text_content, font_family and font_size on the track so Phase-2 runtime
         // recompilation knows what text and font to use when color or other properties change.

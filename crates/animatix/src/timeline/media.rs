@@ -1,4 +1,4 @@
-use super::property_engine::{parse_property_value, write_property_field};
+use super::property_engine::parse_property_value;
 use super::property_registry::lookup_property;
 use super::{
     AudioSegment, DEFAULT_LAYOUT_HALF_SIZE, Diagnostic, Easing, EntityId, Expr, Timeline,
@@ -243,6 +243,10 @@ impl Timeline {
             apply_explicit_position_binding(track, time_ms as u64, binding, position);
         }
 
+        let mut pending_writes: Vec<(
+            crate::timeline::property_registry::ActorField,
+            crate::timeline::property_engine::PropertyValue,
+        )> = Vec::new();
         // Dispatch remaining (unhandled) properties through the generic engine so
         // universal properties like rotation and opacity work on media actors.
         for prop in props {
@@ -264,17 +268,21 @@ impl Timeline {
                     diagnostics,
                     &prop_subject,
                 ) {
-                    write_property_field(
-                        track,
-                        schema.field,
-                        pv,
-                        time_ms as u64,
-                        time_ms as u64,
-                        Easing::Linear,
-                        diagnostics,
-                    );
+                    pending_writes.push((schema.field, pv));
                 }
             }
+        }
+
+        for (field, pv) in pending_writes {
+            self.world.write_property_field(
+                track_id,
+                field,
+                pv,
+                time_ms as u64,
+                time_ms as u64,
+                Easing::Linear,
+                diagnostics,
+            );
         }
 
         let seed_time_ms = (time_ms as u64).saturating_add(delay_ms as u64);

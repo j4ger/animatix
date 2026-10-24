@@ -8,8 +8,6 @@
 //!
 //! See `docs/ecs.md` §6 ("Tier-migration prerequisite").
 
-use std::collections::HashMap;
-
 use crate::primitives::PrimitivePayload;
 use crate::timeline::actor_caps::ActorCaps;
 use crate::timeline::animation_track::{
@@ -34,7 +32,7 @@ pub struct TrackFields<'a> {
     /// Equation-fragment highlight tier.
     pub highlight: Option<&'a HighlightTracks>,
     /// Tagged union tracks keyed by property name.
-    pub tagged_tracks: &'a HashMap<String, Option<PropertyTrack<PropertyValue>>>,
+    pub tagged_tracks: Option<&'a super::TaggedTracksComponent>,
     /// Primitive payload (plot/SVG/image).
     pub payload: Option<&'a PrimitivePayload>,
     /// Actor label (diagnostics).
@@ -58,7 +56,7 @@ pub struct TrackFieldsMut<'a> {
     /// Highlight tier.
     pub highlight: Option<&'a mut HighlightTracks>,
     /// Tagged union tracks.
-    pub tagged_tracks: &'a mut HashMap<String, Option<PropertyTrack<PropertyValue>>>,
+    pub tagged_tracks: Option<&'a mut super::TaggedTracksComponent>,
     /// Primitive payload.
     pub payload: Option<&'a mut PrimitivePayload>,
     /// Actor label (diagnostics).
@@ -79,7 +77,7 @@ impl World {
             shape: &track.shape,
             text: &track.text,
             highlight: self.highlight.try_get(id),
-            tagged_tracks: &track.tagged_tracks,
+            tagged_tracks: self.tagged_tracks.try_get(id),
             payload: self.payload.get(id),
             label: &track.label,
             caps: track.caps,
@@ -89,6 +87,7 @@ impl World {
 
     /// Assemble the mutable tier bundle for `id`, when the entity exists.
     pub fn fields_mut(&mut self, id: EntityId) -> Option<TrackFieldsMut<'_>> {
+        self.ensure_len();
         let track = self.tracks.get_by_id_mut(id)?;
         Some(TrackFieldsMut {
             geometry: &mut track.geometry,
@@ -96,7 +95,7 @@ impl World {
             shape: &mut track.shape,
             text: &mut track.text,
             highlight: self.highlight.try_get_mut(id),
-            tagged_tracks: &mut track.tagged_tracks,
+            tagged_tracks: self.tagged_tracks.try_get_mut(id),
             payload: self.payload.get_mut(id),
             label: &track.label,
             caps: track.caps,
@@ -148,7 +147,7 @@ impl<'a> TrackFields<'a> {
             shape: &track.shape,
             text: &track.text,
             highlight: None,
-            tagged_tracks: &track.tagged_tracks,
+            tagged_tracks: None,
             payload: None,
             label: &track.label,
             caps: track.caps,
@@ -231,7 +230,7 @@ impl<'a> TrackFields<'a> {
             PositionBinding => TrackFieldRef::PositionBinding(&self.geometry.position_binding),
             Tagged(name) => {
                 return self
-                    .tagged_tracks
+                    .tagged_tracks?
                     .get(name)
                     .map(|track| TrackFieldRef::Tagged(name, track));
             },
@@ -251,7 +250,7 @@ impl<'a> TrackFieldsMut<'a> {
             shape: &mut track.shape,
             text: &mut track.text,
             highlight: None,
-            tagged_tracks: &mut track.tagged_tracks,
+            tagged_tracks: None,
             payload: None,
             caps: track.caps,
             label: &track.label,
@@ -267,10 +266,8 @@ impl<'a> TrackFieldsMut<'a> {
         use crate::timeline::dispatch::TrackFieldMut;
         use crate::timeline::property_registry::ActorField;
         if let ActorField::Tagged(name) = field {
-            return Some(TrackFieldMut::Tagged(
-                name,
-                self.tagged_tracks.entry(name.to_string()).or_default(),
-            ));
+            let tracks = self.tagged_tracks.as_mut()?;
+            return Some(TrackFieldMut::Tagged(name, tracks.entry(name.to_string()).or_default()));
         }
         use ActorField::*;
         Some(match field {
@@ -611,6 +608,16 @@ impl World {
         self.fields(id).is_some_and(|f| f.property_has_keyframes(field))
     }
 
+    /// Easing at one property keyframe.
+    pub fn property_keyframe_easing(
+        &self,
+        id: EntityId,
+        field: crate::timeline::property_registry::ActorField,
+        time_ms: u64,
+    ) -> Option<crate::easing::Easing> {
+        self.fields(id).and_then(|f| f.property_keyframe_easing(field, time_ms))
+    }
+
     /// Whether one property has a keyframe at exactly `time_ms`.
     pub fn property_has_keyframe_at(
         &self,
@@ -664,26 +671,28 @@ mod keyframe_tests {
 
 #[cfg(test)]
 mod tagged_field_tests {
-    use super::*;
-    use crate::timeline::AnimationTrack;
+    use crate::timeline::Timeline;
     use crate::timeline::dispatch::{TrackFieldMut, TrackFieldRef};
     use crate::timeline::property_registry::ActorField;
 
     #[test]
     fn tagged_fields_use_the_tagged_store() {
-        let mut track = AnimationTrack::new("legend".into(), "Rect");
-        let mut fields = TrackFieldsMut::from_track(&mut track);
-        match fields.field_mut(ActorField::Tagged("legend")) {
-            Some(TrackFieldMut::Tagged(name, slot)) => {
-                assert_eq!(name, "legend");
-                *slot = Some(crate::timeline::PropertyTrack::new(
-                    crate::timeline::PropertyValue::Bool(true),
-                ));
-            },
-            _ => panic!("expected a tagged field"),
+        let mut timeline = Timeline::new();
+        let id = timeline.world_mut().spawn("legend", "Rect");
+        {
+            let mut fields = timeline.world_mut().fields_mut(id).expect("entity");
+            match fields.field_mut(ActorField::Tagged("legend")) {
+                Some(TrackFieldMut::Tagged(name, slot)) => {
+                    assert_eq!(name, "legend");
+                    *slot = Some(crate::timeline::PropertyTrack::new(
+                        crate::timeline::PropertyValue::Bool(true),
+                    ));
+                },
+                _ => panic!("expected a tagged field"),
+            }
         }
 
-        let fields = TrackFields::from_track(&track);
+        let fields = timeline.world().fields(id).expect("entity");
         assert!(matches!(
             fields.field_ref(ActorField::Tagged("legend")),
             Some(TrackFieldRef::Tagged("legend", _))

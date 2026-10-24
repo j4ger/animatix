@@ -16,12 +16,14 @@ mod hierarchy;
 mod highlight;
 mod meta;
 mod payload;
+mod tagged;
 mod view;
 
 pub use component::{ComponentStore, RequiredStore};
 pub use fields::{TrackFields, TrackFieldsMut};
 pub use hierarchy::SceneHierarchyComponent;
 pub use meta::EntityMeta;
+pub use tagged::TaggedTracksComponent;
 pub use view::{EntityMut, EntityRef};
 
 use std::collections::HashMap;
@@ -47,6 +49,8 @@ pub struct World {
     pub(crate) hierarchy: RequiredStore<SceneHierarchyComponent>,
     /// Equation-highlight tier for every entity.
     pub(crate) highlight: RequiredStore<crate::timeline::animation_track::HighlightTracks>,
+    /// Tagged-union property tracks (legend, extension tags).
+    pub(crate) tagged_tracks: RequiredStore<TaggedTracksComponent>,
     /// Per-entity visibility/lock/camera metadata.
     pub(crate) meta: ComponentStore<EntityMeta>,
     /// Layout configuration for `Row`/`Col`/`Grid`/`Stack` actors.
@@ -263,6 +267,7 @@ impl World {
         self.ensure_len();
         self.hierarchy.reset_at(id);
         self.highlight.reset_at(id);
+        self.tagged_tracks.reset_at(id);
         self.meta.reset_at(id);
         self.container_layout.reset_at(id);
         self.child_order.reset_at(id);
@@ -577,6 +582,7 @@ impl World {
         let len = self.tracks.len();
         self.hierarchy.ensure_len(len);
         self.highlight.ensure_len(len);
+        self.tagged_tracks.ensure_len(len);
         self.meta.ensure_len(len);
         self.container_layout.ensure_len(len);
         self.child_order.ensure_len(len);
@@ -595,6 +601,7 @@ impl World {
         self.tracks.clear();
         self.hierarchy.clear();
         self.highlight.clear();
+        self.tagged_tracks.clear();
         self.meta.clear();
         self.container_layout.clear();
         self.child_order.clear();

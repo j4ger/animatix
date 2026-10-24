@@ -69,12 +69,7 @@ impl AnimationTrack {
             // payload has no image data, which reads as `None`.
             ImageData => return None,
             PositionBinding => TrackFieldRef::PositionBinding(&self.geometry.position_binding),
-            ActorField::Tagged(name) => {
-                return self
-                    .tagged_tracks
-                    .get(name)
-                    .map(|track| TrackFieldRef::Tagged(name, track));
-            },
+            ActorField::Tagged(_) => return None,
             AudioVolume => TrackFieldRef::F32(&self.geometry.volume),
             // Remaining variants without track storage
             SvgPaths | AudioSource | PositionBindingGroup | VectorShapeGroup | PlotDomainGroup
@@ -84,11 +79,8 @@ impl AnimationTrack {
 
     /// Get a mutable reference to the track field identified by `field`.
     pub fn field_mut(&mut self, field: ActorField) -> Option<TrackFieldMut<'_>> {
-        if let ActorField::Tagged(name) = field {
-            return Some(TrackFieldMut::Tagged(
-                name,
-                self.tagged_tracks.entry(name.to_string()).or_default(),
-            ));
+        if let ActorField::Tagged(_) = field {
+            return None;
         }
         use ActorField::*;
         Some(match field {

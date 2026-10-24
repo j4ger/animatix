@@ -36,11 +36,17 @@ fn enum_boundary_callout_place_roundtrips() {
 
 #[test]
 fn tagged_property_routes_through_actor_plan() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.rebuild_property_plan();
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    timeline
+        .world_mut()
+        .tracks
+        .get_by_id_mut(id)
+        .expect("track")
+        .rebuild_property_plan();
     let field = ActorField::Tagged("legend_title");
-    write_property_field(
-        &mut track,
+    timeline.world_mut().write_property_field(
+        id,
         field,
         PropertyValue::String("Revenue".to_string()),
         0,
@@ -49,12 +55,12 @@ fn tagged_property_routes_through_actor_plan() {
         &mut vec![],
     );
     assert_eq!(
-        read_property_value(&track, field, 0),
+        timeline.world().read_property_value(id, field, 0),
         Some(PropertyValue::String("Revenue".to_string()))
     );
 
-    write_property_field(
-        &mut track,
+    timeline.world_mut().write_property_field(
+        id,
         field,
         PropertyValue::String("Costs".to_string()),
         0,
@@ -62,12 +68,14 @@ fn tagged_property_routes_through_actor_plan() {
         Easing::EaseInOut,
         &mut vec![],
     );
-    assert!(property_has_keyframes(&track, field));
-    assert!(property_has_keyframe_at(&track, field, 1000));
-    assert_eq!(property_keyframe_times(&track, field), vec![0, 1000]);
-    assert_eq!(property_keyframe_easing(&track, field, 1000), Some(Easing::EaseInOut));
+    assert!(timeline.world().property_has_keyframes(id, field));
+    assert!(timeline.world().property_has_keyframe_at(id, field, 1000));
+    assert_eq!(timeline.world().property_keyframe_times(id, field), vec![0, 1000]);
+    assert_eq!(
+        timeline.world().property_keyframe_easing(id, field, 1000),
+        Some(Easing::EaseInOut)
+    );
 }
-
 #[test]
 fn property_plan_slot_writes_and_reads_without_string_lookup() {
     let mut track = AnimationTrack::placeholder("test".to_string());
@@ -186,14 +194,21 @@ fn test_write_read_roundtrip_string() {
 
 #[test]
 fn test_write_read_roundtrip_tagged_bool() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    let result = write_read_roundtrip(
-        &mut track,
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    timeline.world_mut().write_property_field(
+        id,
         ActorField::Tagged("legend"),
         PropertyValue::Bool(false),
         500,
+        500,
+        Easing::Linear,
+        &mut vec![],
     );
-    assert_eq!(result, Some(PropertyValue::Bool(false)));
+    assert_eq!(
+        timeline.world().read_property_value(id, ActorField::Tagged("legend"), 500),
+        Some(PropertyValue::Bool(false))
+    );
 }
 
 #[test]
@@ -219,10 +234,11 @@ fn test_property_value_interpolation_rules() {
 
 #[test]
 fn test_tagged_auto_transition_snaps_cross_variant() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
     let mut diag = Vec::new();
-    write_property_field(
-        &mut track,
+    timeline.world_mut().write_property_field(
+        id,
         ActorField::Tagged("legend"),
         PropertyValue::Bool(false),
         0,
@@ -230,8 +246,8 @@ fn test_tagged_auto_transition_snaps_cross_variant() {
         Easing::Linear,
         &mut diag,
     );
-    write_property_field(
-        &mut track,
+    timeline.world_mut().write_property_field(
+        id,
         ActorField::Tagged("legend"),
         PropertyValue::String("Revenue".to_string()),
         1000,
@@ -241,11 +257,11 @@ fn test_tagged_auto_transition_snaps_cross_variant() {
     );
 
     assert_eq!(
-        read_property_value(&track, ActorField::Tagged("legend"), 1250),
+        timeline.world().read_property_value(id, ActorField::Tagged("legend"), 1250),
         Some(PropertyValue::Bool(false))
     );
     assert_eq!(
-        read_property_value(&track, ActorField::Tagged("legend"), 1750),
+        timeline.world().read_property_value(id, ActorField::Tagged("legend"), 1750),
         Some(PropertyValue::String("Revenue".to_string()))
     );
 }

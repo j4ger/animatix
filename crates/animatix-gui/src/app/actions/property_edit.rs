@@ -14,6 +14,7 @@ pub(super) fn apply_property_edit_to_track(
     property: &str,
     value: &panels::PropertyValue,
     time_ms: u64,
+    legacy_tagged: &mut Vec<(String, animatix::timeline::PropertyValue)>,
 ) {
     use animatix::timeline::{PropertyTrack, TrackFieldMut};
 
@@ -68,6 +69,7 @@ pub(super) fn apply_property_edit_to_track(
         pv: animatix::timeline::PropertyValue,
         time_ms: u64,
         linear: animatix_syntax::easing::Easing,
+        legacy_tagged: &mut Vec<(String, animatix::timeline::PropertyValue)>,
     ) {
         use animatix::timeline::{ActorField, lookup_property, write_property_field};
 
@@ -87,13 +89,7 @@ pub(super) fn apply_property_edit_to_track(
             return;
         }
 
-        let tagged = track
-            .tagged_tracks
-            .entry(key.to_string())
-            .or_default()
-            .get_or_insert_with(|| PropertyTrack::new(pv.clone()));
-        tagged.set_default_value(pv.clone());
-        tagged.add_keyframe(time_ms, pv, linear);
+        legacy_tagged.push((key.to_string(), pv));
     }
 
     if property == "place" {
@@ -105,19 +101,10 @@ pub(super) fn apply_property_edit_to_track(
                 .callout_place
                 .ensure(animatix::timeline::animation_track::CalloutPlace::Right)
                 .add_keyframe(time_ms, place, linear);
-            let tagged = track
-                .tagged_tracks
-                .entry("callout_place".to_string())
-                .or_default()
-                .get_or_insert_with(|| {
-                    PropertyTrack::new(animatix::timeline::PropertyValue::Enum(choice.clone()))
-                });
-            tagged.set_default_value(animatix::timeline::PropertyValue::Enum(choice.clone()));
-            tagged.add_keyframe(
-                time_ms,
+            legacy_tagged.push((
+                "callout_place".to_string(),
                 animatix::timeline::PropertyValue::Enum(choice.clone()),
-                linear,
-            );
+            ));
         }
         return;
     }
@@ -138,13 +125,7 @@ pub(super) fn apply_property_edit_to_track(
             },
             _ => return,
         };
-        let tagged = track
-            .tagged_tracks
-            .entry("legend".to_string())
-            .or_default()
-            .get_or_insert_with(|| PropertyTrack::new(pv.clone()));
-        tagged.set_default_value(pv.clone());
-        tagged.add_keyframe(time_ms, pv, linear);
+        legacy_tagged.push(("legend".to_string(), pv));
         return;
     }
 
@@ -162,6 +143,7 @@ pub(super) fn apply_property_edit_to_track(
                         animatix::timeline::PropertyValue::String(v.clone()),
                         time_ms,
                         linear,
+                        legacy_tagged,
                     );
                 }
                 return;
@@ -175,6 +157,7 @@ pub(super) fn apply_property_edit_to_track(
                         animatix::timeline::PropertyValue::F32(*v),
                         time_ms,
                         linear,
+                        legacy_tagged,
                     );
                 }
                 return;
@@ -188,6 +171,7 @@ pub(super) fn apply_property_edit_to_track(
                         animatix::timeline::PropertyValue::F32(*v),
                         time_ms,
                         linear,
+                        legacy_tagged,
                     );
                 }
                 return;
@@ -201,6 +185,7 @@ pub(super) fn apply_property_edit_to_track(
                         animatix::timeline::PropertyValue::F32(*v),
                         time_ms,
                         linear,
+                        legacy_tagged,
                     );
                 }
                 return;
@@ -214,6 +199,7 @@ pub(super) fn apply_property_edit_to_track(
                         animatix::timeline::PropertyValue::F32(*v),
                         time_ms,
                         linear,
+                        legacy_tagged,
                     );
                 }
                 return;
@@ -229,6 +215,7 @@ pub(super) fn apply_property_edit_to_track(
                             animatix::timeline::PropertyValue::Color(color),
                             time_ms,
                             linear,
+                            legacy_tagged,
                         );
                     }
                 }
@@ -372,7 +359,7 @@ pub(super) fn apply_property_edit_to_track(
         // hands back the legacy map entry, which nothing here used to write.
         // Route them through the one tagged writer instead.
         if let animatix::timeline::ActorField::Tagged(tag) = schema.field {
-            write_tagged_value(track, tag, value.clone(), time_ms, linear);
+            write_tagged_value(track, tag, value.clone(), time_ms, linear, legacy_tagged);
             return;
         }
         if let Some(field_mut) = track.field_mut(schema.field) {

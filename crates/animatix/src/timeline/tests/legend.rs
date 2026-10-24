@@ -401,7 +401,7 @@ fn test_legend_style_properties_are_parsed() {
     use crate::timeline::property_engine::PropertyValue;
     use crate::timeline::property_registry::ActorField;
     let read = |key: &'static str| {
-        crate::timeline::dispatch::read_property_value(track, ActorField::Tagged(key), 0)
+        timeline.world.read_property_value(track.id, ActorField::Tagged(key), 0)
     };
     assert_eq!(read("legend_title"), Some(PropertyValue::String("Metrics".to_string())));
     assert_eq!(read("legend_font_size"), Some(PropertyValue::F32(18.0)));

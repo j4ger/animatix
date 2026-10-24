@@ -2,8 +2,6 @@
 //!
 //! Split out of `dispatch.rs`; the field-dispatch layer stays there.
 
-use std::collections::HashMap;
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -109,10 +107,7 @@ pub struct AnimationTrack {
     // ── Text tier (sub-struct) ──
     /// Text property tracks (text_content, font_family, font_size, etc.).
     pub text: TextTracks,
-
     // ── Tagged union tracks ──
-    /// Generic tagged union property tracks, keyed by canonical property name.
-    pub tagged_tracks: HashMap<String, Option<PropertyTrack<PropertyValue>>>,
 }
 
 impl AnimationTrack {
@@ -149,9 +144,6 @@ impl AnimationTrack {
 
             // Text tier (sub-struct)
             text: TextTracks::default(),
-
-            // Tagged union tracks
-            tagged_tracks: HashMap::new(),
         }
     }
 
@@ -654,12 +646,6 @@ impl AnimationTrack {
                 }
             }
         }
-        // Tagged union tracks (also registry-representable when a schema exists).
-        for track in self.tagged_tracks.values().flatten() {
-            if let Some(t) = track.last_keyframe_time() {
-                max = Some(max.map_or(t, |m| m.max(t)));
-            }
-        }
         // Registry-driven plan tracks.
         if let Some(t) = self.property_plan.max_keyframe_time() {
             max = Some(max.map_or(t, |m| m.max(t)));
@@ -704,7 +690,6 @@ impl AnimationTrack {
             plot.plot_param_tracks.values().any(|t| !t.is_effectively_static())
                 || !plot.func_transitions.is_empty()
                 || !plot.bar_data_transitions.is_empty()
-        }) || self.tagged_tracks.values().flatten().any(|t| !t.is_effectively_static())
-            || self.property_plan.has_any_keyframes()
+        }) || self.property_plan.has_any_keyframes()
     }
 }

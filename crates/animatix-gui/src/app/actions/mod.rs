@@ -284,6 +284,7 @@ impl GuiShell {
                 let time_ms =
                     (edit.time_s.unwrap_or(self.preview_store.preview.playback.current_time_s())
                         * 1000.0) as u64;
+                let mut legacy_tagged = Vec::new();
                 if let Some((track, effects, legend)) =
                     timeline.world_mut().track_effects_and_legend_mut(id)
                 {
@@ -294,7 +295,16 @@ impl GuiShell {
                         &edit.property,
                         &edit.value,
                         time_ms,
+                        &mut legacy_tagged,
                     );
+                }
+                for (key, value) in legacy_tagged {
+                    let tagged = timeline.world_mut().tagged_tracks_mut(id);
+                    let track = tagged.entry(key).or_default().get_or_insert_with(|| {
+                        animatix::timeline::PropertyTrack::new(value.clone())
+                    });
+                    track.set_default_value(value.clone());
+                    track.add_keyframe(time_ms, value, animatix_syntax::easing::Easing::Linear);
                 }
             }
             timeline.invalidate_frame_cache();
@@ -596,7 +606,15 @@ mod tests {
     #[test]
     fn gui_tagged_edit_is_visible_through_property_plan() {
         let mut track = AnimationTrack::new("box".into(), "Rect");
-        apply_property_edit_to_track(&mut track, None, None, "solo", &PV::Bool(true), 1000);
+        apply_property_edit_to_track(
+            &mut track,
+            None,
+            None,
+            "solo",
+            &PV::Bool(true),
+            1000,
+            &mut Vec::new(),
+        );
 
         assert_eq!(
             read_property_value(&track, ActorField::Tagged("solo"), 1000),
