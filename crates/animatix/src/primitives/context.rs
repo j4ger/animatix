@@ -80,6 +80,8 @@ pub struct EvaluateCtx<'a> {
     pub vector_paths: &'a [VelloPath],
     /// Shared image cache for native render commands that specify a URL.
     pub asset_cache: &'a crate::timeline::assets::AssetCache,
+    /// The owning world, when the caller has one (frame path); tests may omit it.
+    pub world: Option<&'a crate::timeline::World>,
     /// Primitive payload for this entity (plot/SVG/image state).
     pub payload: Option<&'a crate::primitives::PrimitivePayload>,
     /// Narrow resolver for target actor bounds (targeted callout mode).
@@ -496,5 +498,20 @@ impl EvaluateCtx<'_> {
         &crate::timeline::property_track::PropertyTrack<Option<crate::timeline::image::SceneImage>>,
     > {
         self.payload.as_ref().and_then(|payload| payload.as_image())?.image.as_ref()
+    }
+}
+
+impl EvaluateCtx<'_> {
+    /// Read one property, preferring the owning `World` and falling back to the
+    /// track-only accessor for contexts built without one.
+    pub fn read_property_value(
+        &self,
+        field: crate::timeline::property_registry::ActorField,
+        time_ms: u64,
+    ) -> Option<crate::timeline::property_engine::PropertyValue> {
+        match self.world {
+            Some(world) => world.read_property_value(self.track.id, field, time_ms),
+            None => crate::timeline::read_property_value(self.track, field, time_ms),
+        }
     }
 }

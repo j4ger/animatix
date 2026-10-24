@@ -384,29 +384,17 @@ impl Primitive for CounterPrimitive {
             return Ok(None);
         };
 
-        let value = match crate::timeline::dispatch::read_property_value(
-            ctx.track,
-            ActorField::Tagged("value"),
-            ctx.time_ms,
-        ) {
+        let value = match ctx.read_property_value(ActorField::Tagged("value"), ctx.time_ms) {
             Some(crate::timeline::property_engine::PropertyValue::F32(n)) => n,
             _ => data.initial_value,
         };
 
-        let decimals = match crate::timeline::dispatch::read_property_value(
-            ctx.track,
-            ActorField::Tagged("decimals"),
-            ctx.time_ms,
-        ) {
+        let decimals = match ctx.read_property_value(ActorField::Tagged("decimals"), ctx.time_ms) {
             Some(crate::timeline::property_engine::PropertyValue::U32(n)) => n,
             _ => data.decimals,
         };
 
-        let use_comma = match crate::timeline::dispatch::read_property_value(
-            ctx.track,
-            ActorField::Tagged("comma"),
-            ctx.time_ms,
-        ) {
+        let use_comma = match ctx.read_property_value(ActorField::Tagged("comma"), ctx.time_ms) {
             Some(crate::timeline::property_engine::PropertyValue::Bool(b)) => b,
             _ => data.use_comma,
         };

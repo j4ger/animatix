@@ -100,6 +100,7 @@ impl Timeline {
                 asset_cache: &self.asset_cache,
                 target_resolver: Some(self),
                 legend: self.world.legend(child_track.id),
+                world: Some(&self.world),
                 payload: self.world.payload(child_track.id),
             };
             if let Some(cue) = primitive.caption_cue(&ctx) {

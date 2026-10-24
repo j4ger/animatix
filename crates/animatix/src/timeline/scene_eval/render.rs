@@ -465,6 +465,7 @@ impl Timeline {
                     asset_cache: &self.asset_cache,
                     target_resolver: Some(self),
                     legend: self.world.legend(track.id),
+                    world: Some(&self.world),
                     payload: self.world.payload(track.id),
                 };
                 let mut text_ctx = crate::primitives::TextCompileCtx {
@@ -628,6 +629,7 @@ impl Timeline {
             asset_cache: &self.asset_cache,
             target_resolver: Some(self),
             legend: self.world.legend(child.id),
+            world: Some(&self.world),
             payload: self.world.payload(child.id),
         };
         let path = primitive.clip_path(&ctx, &child.caps);

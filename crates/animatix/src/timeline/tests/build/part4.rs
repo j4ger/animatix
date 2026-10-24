@@ -206,6 +206,8 @@ always {
     let asset_cache = crate::timeline::assets::AssetCache::new();
     let eval_ctx = crate::primitives::EvaluateCtx {
         track: t_track,
+        world: Some(&timeline.world),
+
         payload: timeline.world.payload(t_track.id),
         time_ms: 0,
         local_transform: kurbo::Affine::IDENTITY,
