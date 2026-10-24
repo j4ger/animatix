@@ -6,8 +6,8 @@ use crate::primitives::commands::RenderCommand;
 use crate::primitives::{EvaluateCtx, Primitive, RenderCtx};
 use crate::timeline::animation_track::StyleTracks;
 use crate::timeline::{
-    ActorCaps, AnimationTrack, DEFAULT_WHITE, TrackAccessor, Value, VectorShapeState,
-    VectorShapeStyle,
+    ActorCaps, AnimationTrack, DEFAULT_WHITE, EntityId, TrackAccessor, Value, VectorShapeState,
+    VectorShapeStyle, World,
 };
 
 /// Helper to read a color override from an `always` block's assignment table.
@@ -109,17 +109,18 @@ impl ShapeCommandMemo {
     }
 }
 
-impl AnimationTrack {
+impl World {
     /// Take the memoized command `Vec` out of the slot for reuse by the
     /// caller (see [`ShapeCommandMemo`]). `None` when the inputs changed;
     /// a stale epoch also drops the stale payload so it can never be served.
     pub(crate) fn take_shape_commands(
         &self,
+        track: &AnimationTrack,
         epoch: u64,
         style: &VectorShapeStyle,
         state: &VectorShapeState,
     ) -> Option<(Vec<RenderCommand>, Option<kurbo::Rect>)> {
-        let mut memo = self.shape_command_memo.borrow_mut();
+        let mut memo = self.shape_memos.get(track.id).borrow_mut();
         if memo.matches(epoch, style, state) {
             let commands = memo.commands.take();
             return commands.map(|c| (c, memo.cached_bounds.unwrap_or(None)));
@@ -140,6 +141,7 @@ impl AnimationTrack {
     /// in the memo slot (see [`ShapeCommandMemo`]).
     pub(crate) fn build_shape_commands(
         &self,
+        track: &AnimationTrack,
         epoch: u64,
         style: VectorShapeStyle,
         state: &VectorShapeState,
@@ -152,7 +154,7 @@ impl AnimationTrack {
                 state,
                 style,
                 time_ms,
-                track: self,
+                track,
                 shape: Some(shape),
             })
             .unwrap_or_default();
@@ -170,7 +172,7 @@ impl AnimationTrack {
         // frame's payload was never taken (dynamic inputs) — keeping the
         // older valid payload avoids a clone per frame on dynamic actors
         // (the key match still guards staleness).
-        let mut memo = self.shape_command_memo.borrow_mut();
+        let mut memo = self.shape_memos.get(track.id).borrow_mut();
         if memo.commands.is_none() {
             // Shape commands never carry images, so `display_size` is
             // irrelevant here (None).
@@ -180,7 +182,7 @@ impl AnimationTrack {
                 .reduce(|acc, rect| acc.union(rect));
             memo.store(epoch, style, state, commands.clone(), bounds);
             drop(memo);
-            self.offer_shape_command_bounds(bounds);
+            self.offer_shape_command_bounds(track.id, bounds);
         }
         Ok(commands)
     }
@@ -188,8 +190,12 @@ impl AnimationTrack {
     /// Return a consumed command `Vec` to the memo slot so the next frame's
     /// hit can take it again (see [`ShapeCommandMemo`]). A `Vec` that did not
     /// come from the slot (double recycle, foreign build) is dropped.
-    pub(crate) fn recycle_shape_commands(&self, commands: Vec<RenderCommand>) {
-        let mut memo = self.shape_command_memo.borrow_mut();
+    pub(crate) fn recycle_shape_commands(
+        &self,
+        track: &AnimationTrack,
+        commands: Vec<RenderCommand>,
+    ) {
+        let mut memo = self.shape_memos.get(track.id).borrow_mut();
         if memo.commands.is_none() {
             memo.commands = Some(commands);
         }
@@ -197,19 +203,19 @@ impl AnimationTrack {
 
     /// Clear the memo-bounds handoff slot (call before primitive evaluation —
     /// a non-shape primitive must never observe the previous node's bounds).
-    pub(crate) fn begin_shape_commands(&self) {
-        self.pending_shape_command_bounds.set(None);
+    pub(crate) fn begin_shape_commands(&self, id: EntityId) {
+        self.pending_shape_bounds.get(id).set(None);
     }
 
     /// Memo hit: publish the build-time-computed local bounds.
-    pub(crate) fn offer_shape_command_bounds(&self, bounds: Option<kurbo::Rect>) {
-        self.pending_shape_command_bounds.set(Some(bounds));
+    pub(crate) fn offer_shape_command_bounds(&self, id: EntityId, bounds: Option<kurbo::Rect>) {
+        self.pending_shape_bounds.get(id).set(Some(bounds));
     }
 
     /// Consume the memo-bounds handoff slot. `None` = no memo data this node;
     /// compute the bounds from the commands as before.
-    pub(crate) fn take_shape_command_bounds(&self) -> Option<Option<kurbo::Rect>> {
-        self.pending_shape_command_bounds.take()
+    pub(crate) fn take_shape_command_bounds(&self, id: EntityId) -> Option<Option<kurbo::Rect>> {
+        self.pending_shape_bounds.get(id).take()
     }
 }
 
@@ -234,17 +240,29 @@ pub(crate) fn evaluate_shape_render(
     let has_dash = !style_tracks.dash_pattern.get(ctx.time_ms, Vec::new()).is_empty();
     let has_gradient = shape_has_gradient(style_tracks);
     let mut commands = if progress < 1.0 {
-        let built =
-            ctx.track
-                .build_shape_commands(epoch, style, state, primitive, ctx.time_ms, shape)?;
+        let built = ctx.world.expect("shape memo requires a world").build_shape_commands(
+            ctx.track,
+            epoch,
+            style,
+            state,
+            primitive,
+            ctx.time_ms,
+            shape,
+        )?;
         let mut trimmed = trim_shape_stroke_progress(&built, progress);
         stamp_shape_dash(&mut trimmed, ctx);
         stamp_shape_gradient(&mut trimmed, ctx);
         trimmed
     } else if has_dash || has_gradient {
-        let mut built =
-            ctx.track
-                .build_shape_commands(epoch, style, state, primitive, ctx.time_ms, shape)?;
+        let mut built = ctx.world.expect("shape memo requires a world").build_shape_commands(
+            ctx.track,
+            epoch,
+            style,
+            state,
+            primitive,
+            ctx.time_ms,
+            shape,
+        )?;
         if has_dash {
             stamp_shape_dash(&mut built, ctx);
         }
@@ -252,12 +270,25 @@ pub(crate) fn evaluate_shape_render(
             stamp_shape_gradient(&mut built, ctx);
         }
         built
-    } else if let Some((commands, bounds)) = ctx.track.take_shape_commands(epoch, &style, state) {
-        ctx.track.offer_shape_command_bounds(bounds);
+    } else if let Some((commands, bounds)) = ctx
+        .world
+        .expect("shape memo requires a world")
+        .take_shape_commands(ctx.track, epoch, &style, state)
+    {
+        ctx.world
+            .expect("shape memo requires a world")
+            .offer_shape_command_bounds(ctx.track.id, bounds);
         commands
     } else {
-        ctx.track
-            .build_shape_commands(epoch, style, state, primitive, ctx.time_ms, shape)?
+        ctx.world.expect("shape memo requires a world").build_shape_commands(
+            ctx.track,
+            epoch,
+            style,
+            state,
+            primitive,
+            ctx.time_ms,
+            shape,
+        )?
     };
 
     attach_shape_shadow(&mut commands, ctx, state);

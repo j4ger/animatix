@@ -435,7 +435,9 @@ pub trait Primitive: Send + Sync {
         let commands = self.evaluate(ctx, None).ok()??;
         let path = clip_bezpath_from_commands(&commands);
         // Return the memo payload for reuse (shape primitives take/recycle it).
-        ctx.track.recycle_shape_commands(commands);
+        ctx.world
+            .expect("shape memo requires a world")
+            .recycle_shape_commands(ctx.track, commands);
         path
     }
 

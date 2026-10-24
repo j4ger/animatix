@@ -59,29 +59,6 @@ pub struct AnimationTrack {
     /// boundary, which [`Self::normalize_identity`] resolves once on load.
     #[cfg_attr(feature = "serde", serde(default))]
     pub actor_type: String,
-    /// Dense index into the per-frame precise-bounds table (PF-6 slot-id
-    /// design). Stamped by `EvalCaches::ensure_bounds_registry` in sorted
-    /// `tracks` order and invalidated via `invalidate_frame_cache`; the
-    /// per-node bounds write is then a `Vec` store with no string key.
-    /// `u32::MAX` until first stamped.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    /// Memoized single-command output for the vector-shape primitives
-    /// (PF-6 round 8; see `primitives::ShapeCommandMemo`). Keyed on
-    /// `(vector_paths_epoch, style, state)` — every track mutation funnels
-    /// through `invalidate_frame_cache`, which bumps the epoch. Owned-Vec
-    /// borrow protocol: `evaluate_shape_render` takes the cached `Vec` on a
-    /// key match, the frame consumer recycles it after encoding. Boxed to
-    /// keep the per-track inline footprint at one pointer — the memo
-    /// payload is large, and `env_50/100/200` iterate every track per frame
-    /// (an inline struct measurably regressed them via cache pressure).
-    #[cfg_attr(feature = "serde", serde(skip))]
-    pub(crate) shape_command_memo: std::cell::RefCell<Box<crate::primitives::ShapeCommandMemo>>,
-    /// Bounds handed over by a shape-command memo hit (PF-4 scoped item):
-    /// `begin_shape_commands` clears it before primitive evaluation, a memo
-    /// hit offers the build-time-computed bounds, and the frame consumer
-    /// takes them instead of re-unioning `cmd.local_bounds` per node.
-    #[cfg_attr(feature = "serde", serde(skip))]
-    pub(crate) pending_shape_command_bounds: std::cell::Cell<Option<Option<kurbo::Rect>>>,
     // ── Tagged union tracks ──
 }
 
@@ -99,10 +76,6 @@ impl AnimationTrack {
             id: EntityId::INVALID,
             label: label.clone(),
             actor_type,
-            shape_command_memo: std::cell::RefCell::new(Box::new(
-                crate::primitives::ShapeCommandMemo::default(),
-            )),
-            pending_shape_command_bounds: std::cell::Cell::new(None),
             // Style tier (sub-struct)
             // Text tier (sub-struct)
         }

@@ -456,7 +456,7 @@ impl Timeline {
             if let Some(primitive) = primitive {
                 // Clear the shape-memo bounds handoff: a non-shape
                 // primitive must never observe the previous node's data.
-                track.begin_shape_commands();
+                self.world.begin_shape_commands(track.id);
                 let ctx = crate::primitives::EvaluateCtx {
                     track,
                     time_ms,
@@ -551,7 +551,7 @@ impl Timeline {
             // build-time-computed bounds (image_size is irrelevant —
             // shape commands never carry images), skipping the per-node
             // bezpath `bounding_box` unions entirely.
-            let memo_bounds = track.take_shape_command_bounds();
+            let memo_bounds = self.world.take_shape_command_bounds(track.id);
             let image_size = self
                 .world
                 .image_track(track.id)
@@ -577,7 +577,7 @@ impl Timeline {
             // can take them again (PF-6 round 8; `take_shape_commands`
             // returns `None` for non-memo actors, so a recycle of a
             // foreign `Vec` is simply dropped by the memo).
-            track.recycle_shape_commands(commands);
+            self.world.recycle_shape_commands(track, commands);
             record_hit_region(local_bounds);
 
             // Debug overlays
@@ -636,7 +636,7 @@ impl Timeline {
             self.world.style(child.id),
             time_ms,
         );
-        child.begin_shape_commands();
+        self.world.begin_shape_commands(child.id);
         let ctx = crate::primitives::EvaluateCtx {
             track: child,
             time_ms,
@@ -661,7 +661,7 @@ impl Timeline {
         };
         let path = primitive.clip_path(&ctx, &ctx.caps);
         // Consume the memo-bounds handoff so it can't leak into the next node.
-        let _ = child.take_shape_command_bounds();
+        let _ = self.world.take_shape_command_bounds(child.id);
         // Place the (origin-centered) clip geometry with the child's fully
         // resolved local transform — anchor/offset/rotation/scale included, not
         // just its raw position.

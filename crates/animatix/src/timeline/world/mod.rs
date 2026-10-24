@@ -40,6 +40,11 @@ pub struct World {
     pub(crate) hierarchy: RequiredStore<SceneHierarchyComponent>,
     pub(crate) highlight: RequiredStore<crate::timeline::animation_track::HighlightTracks>,
     pub(crate) tagged_tracks: RequiredStore<TaggedTracksComponent>,
+    /// Shape-command memo cells per entity.
+    pub(crate) shape_memos:
+        RequiredStore<std::cell::RefCell<Box<crate::primitives::ShapeCommandMemo>>>,
+    /// Memo bounds handoff slot per entity.
+    pub(crate) pending_shape_bounds: RequiredStore<std::cell::Cell<Option<Option<kurbo::Rect>>>>,
     /// Dense precise-bounds table slot per entity (`u32::MAX` until stamped).
     pub(crate) bounds_slots: RequiredStore<std::cell::Cell<u32>>,
     /// Style tier for every entity.
@@ -119,43 +124,36 @@ impl World {
     pub fn new() -> Self {
         Self::default()
     }
-
     /// Number of entities.
     #[inline(always)]
     pub fn len(&self) -> usize {
         self.tracks.len()
     }
-
     /// True when the world has no entities.
     #[inline(always)]
     pub fn is_empty(&self) -> bool {
         self.tracks.is_empty()
     }
-
     /// Resolve a label to its entity.
     #[inline(always)]
     pub fn get_id(&self, label: &str) -> Option<EntityId> {
         self.tracks.get_id(label)
     }
-
     /// Resolve an entity to its label.
     #[inline(always)]
     pub fn label(&self, id: EntityId) -> Option<&str> {
         self.tracks.get_label(id)
     }
-
     /// Borrow the entity's (transitional) track.
     #[inline(always)]
     pub fn track(&self, id: EntityId) -> Option<&AnimationTrack> {
         self.tracks.get_by_id(id)
     }
-
     /// Mutably borrow the entity's (transitional) track.
     #[inline(always)]
     pub fn track_mut(&mut self, id: EntityId) -> Option<&mut AnimationTrack> {
         self.tracks.get_by_id_mut(id)
     }
-
     /// Split borrow of the transitional track and the legend component.
     ///
     /// GUI property edits write both in one call; a single `EntityMut` cannot
@@ -168,7 +166,6 @@ impl World {
         let legend = self.legend.get_or_insert_with(id, LegendTracks::default);
         Some((track, legend))
     }
-
     /// Split borrow of the track, effect chain, and legend component.
     pub fn track_effects_and_legend_mut(
         &mut self,
@@ -179,21 +176,18 @@ impl World {
         let legend = self.legend.get_or_insert_with(id, LegendTracks::default);
         Some((track, effects, legend))
     }
-
     /// A read-only entity view.
     #[inline(always)]
     pub fn view(&self, id: EntityId) -> Option<EntityRef<'_>> {
         self.tracks.get_by_id(id)?;
         Some(EntityRef::new(self, id))
     }
-
     /// A read-only entity view resolved by label.
     #[inline(always)]
     pub fn entity(&self, label: &str) -> Option<EntityRef<'_>> {
         let id = self.tracks.get_id(label)?;
         self.view(id)
     }
-
     /// A mutable entity view.
     #[inline(always)]
     pub fn view_mut(&mut self, id: EntityId) -> Option<EntityMut<'_>> {
@@ -270,6 +264,8 @@ impl World {
         self.hierarchy.reset_at(id);
         self.highlight.reset_at(id);
         self.tagged_tracks.reset_at(id);
+        self.shape_memos.reset_at(id);
+        self.pending_shape_bounds.reset_at(id);
         self.bounds_slots.reset_at(id);
         self.style.reset_at(id);
         self.geometry.reset_at(id);
@@ -586,6 +582,8 @@ impl World {
         self.hierarchy.ensure_len(len);
         self.highlight.ensure_len(len);
         self.tagged_tracks.ensure_len(len);
+        self.shape_memos.ensure_len(len);
+        self.pending_shape_bounds.ensure_len(len);
         self.bounds_slots.ensure_len(len);
         self.style.ensure_len(len);
         self.geometry.ensure_len(len);
@@ -612,6 +610,8 @@ impl World {
         self.hierarchy.clear();
         self.highlight.clear();
         self.tagged_tracks.clear();
+        self.shape_memos.clear();
+        self.pending_shape_bounds.clear();
         self.bounds_slots.clear();
         self.style.clear();
         self.geometry.clear();
