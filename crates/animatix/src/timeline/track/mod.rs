@@ -65,7 +65,6 @@ pub struct AnimationTrack {
     /// per-node bounds write is then a `Vec` store with no string key.
     /// `u32::MAX` until first stamped.
     #[cfg_attr(feature = "serde", serde(skip))]
-    pub(crate) bounds_slot: std::cell::Cell<u32>,
     /// Memoized single-command output for the vector-shape primitives
     /// (PF-6 round 8; see `primitives::ShapeCommandMemo`). Keyed on
     /// `(vector_paths_epoch, style, state)` — every track mutation funnels
@@ -100,7 +99,6 @@ impl AnimationTrack {
             id: EntityId::INVALID,
             label: label.clone(),
             actor_type,
-            bounds_slot: std::cell::Cell::new(u32::MAX),
             shape_command_memo: std::cell::RefCell::new(Box::new(
                 crate::primitives::ShapeCommandMemo::default(),
             )),

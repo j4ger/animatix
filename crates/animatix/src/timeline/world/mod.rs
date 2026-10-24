@@ -40,6 +40,8 @@ pub struct World {
     pub(crate) hierarchy: RequiredStore<SceneHierarchyComponent>,
     pub(crate) highlight: RequiredStore<crate::timeline::animation_track::HighlightTracks>,
     pub(crate) tagged_tracks: RequiredStore<TaggedTracksComponent>,
+    /// Dense precise-bounds table slot per entity (`u32::MAX` until stamped).
+    pub(crate) bounds_slots: RequiredStore<std::cell::Cell<u32>>,
     /// Style tier for every entity.
     pub(crate) style: RequiredStore<crate::timeline::animation_track::StyleTracks>,
     pub(crate) geometry: RequiredStore<crate::timeline::animation_track::GeometryTracks>,
@@ -268,6 +270,7 @@ impl World {
         self.hierarchy.reset_at(id);
         self.highlight.reset_at(id);
         self.tagged_tracks.reset_at(id);
+        self.bounds_slots.reset_at(id);
         self.style.reset_at(id);
         self.geometry.reset_at(id);
         self.text.reset_at(id);
@@ -555,10 +558,7 @@ impl World {
     /// Handles entities created by direct `TrackStore` insertion (carry
     /// injection, tests) that bypassed [`Self::spawn_with_track`]. A pending
     /// label with no entity is dropped with a warning: the label never became a
-    /// track, so there is nothing to link.
     pub fn finish_hierarchy(&mut self) {
-        // Legacy direct `TrackStore` inserts bypassed `spawn_with_track`, so
-        // the component stores may be short even though entities exist.
         self.ensure_len();
         let pending_parents = std::mem::take(&mut self.pending_parents);
         for (child_label, parent) in pending_parents {
@@ -581,13 +581,12 @@ impl World {
     }
 
     /// Grow every component store to the entity count.
-    ///
-    /// Required stores are filled with defaults; optional stores get empty
     pub(crate) fn ensure_len(&mut self) {
         let len = self.tracks.len();
         self.hierarchy.ensure_len(len);
         self.highlight.ensure_len(len);
         self.tagged_tracks.ensure_len(len);
+        self.bounds_slots.ensure_len(len);
         self.style.ensure_len(len);
         self.geometry.ensure_len(len);
         self.text.ensure_len(len);
@@ -613,6 +612,7 @@ impl World {
         self.hierarchy.clear();
         self.highlight.clear();
         self.tagged_tracks.clear();
+        self.bounds_slots.clear();
         self.style.clear();
         self.geometry.clear();
         self.text.clear();

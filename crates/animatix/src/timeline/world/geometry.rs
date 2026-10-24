@@ -16,3 +16,18 @@ impl World {
         self.geometry.get_mut(id)
     }
 }
+
+impl World {
+    /// Dense precise-bounds slot for an entity (`u32::MAX` until stamped).
+    #[inline(always)]
+    pub fn bounds_slot(&self, id: EntityId) -> u32 {
+        self.bounds_slots.get(id).get()
+    }
+}
+
+impl World {
+    /// Stamp the dense bounds slot for an entity.
+    pub(crate) fn set_bounds_slot(&self, id: EntityId, slot: u32) {
+        self.bounds_slots.get(id).set(slot);
+    }
+}

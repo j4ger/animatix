@@ -62,7 +62,7 @@ impl Timeline {
     /// Stamp [`AnimationTrack::bounds_slot`] values and (re)build the label
     /// registry if invalid. See [`EvalCaches::ensure_bounds_registry`].
     pub(crate) fn ensure_bounds_registry(&self) {
-        self.eval_caches.ensure_bounds_registry(&self.world.tracks);
+        self.eval_caches.ensure_bounds_registry(&self.world.tracks, &self.world);
     }
 
     /// Precise world-space bounds for `label` recorded during the current
@@ -86,7 +86,11 @@ impl Timeline {
         let mut slot = stamped_slot;
         if slot == u32::MAX {
             self.ensure_bounds_registry();
-            slot = self.world.tracks.get(label).map(|t| t.bounds_slot.get()).unwrap_or(u32::MAX);
+            slot = self
+                .world
+                .tracks
+                .get_id(label)
+                .map_or(u32::MAX, |id| self.world.bounds_slot(id));
             if slot == u32::MAX {
                 // Unreachable while the invalidation funnel holds; log rather
                 // than silently dropping the bounds.

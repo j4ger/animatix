@@ -650,7 +650,7 @@ impl EvalCaches {
     /// label registry. Cheap no-op while the registry is valid; invalidated by
     /// `invalidate_frame_cache` (the single track-mutation funnel) and by
     /// `Clone` (EvalCaches reset to `Default`).
-    fn ensure_bounds_registry(&self, tracks: &TrackStore) {
+    fn ensure_bounds_registry(&self, tracks: &TrackStore, world: &crate::timeline::World) {
         if self.bounds_registry.borrow().is_some() {
             return;
         }
@@ -662,7 +662,7 @@ impl EvalCaches {
             table.slots.resize(labels.len(), None);
         }
         for (slot, track) in tracks.values().enumerate() {
-            track.bounds_slot.set(slot as u32);
+            world.set_bounds_slot(track.id, slot as u32);
         }
         *self.bounds_registry.borrow_mut() = Some(BoundsRegistry { labels });
     }

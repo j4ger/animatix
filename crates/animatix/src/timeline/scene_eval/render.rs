@@ -531,7 +531,7 @@ impl Timeline {
             }
             // PF-6 slot-id bounds: the frame start stamped every track's
             // slot, so the write is a `Vec` store — no string key, no hash.
-            let slot = track.bounds_slot.get();
+            let slot = self.world.bounds_slot(track.id);
             self.record_precise_bounds(slot, node_label, world_bounds);
         };
         if let Some(commands) = primitive_dispatch {

@@ -502,7 +502,9 @@ fn target_bounds_prefer_precise_command_bounds() {
     // The declared size box is 100x100 centered at (0,0), but the precise
     // command bounds describe a different world AABB.
     timeline.ensure_bounds_registry();
-    let slot = timeline.world.tracks.get("test_box").expect("track").bounds_slot.get();
+    let slot = timeline
+        .world
+        .bounds_slot(timeline.world.tracks.get_id("test_box").expect("track"));
     timeline
         .eval_caches
         .precise_bounds
