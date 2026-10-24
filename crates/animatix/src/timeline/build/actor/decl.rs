@@ -316,8 +316,6 @@ impl Timeline {
             legend_color
         };
 
-        // Stroke-only shapes have no independent fill, so an authored `color:`
-        // is the colour the author means the drawing to take.
         if !stroke_color_explicitly_set && caps.shape.is_some_and(|s| s.is_stroke_only()) {
             stroke_color = color;
         }
@@ -333,9 +331,6 @@ impl Timeline {
             stroke_width = 0.0;
         }
 
-        // A stroke-only Path (explicit `stroke:`, no explicit `color:`) is
-        // line-like: suppress the default scheme fill. Vello implicitly closes
-        // open paths when filling, so the fill otherwise renders a hand-drawn
         // line as a dark filled dome. Closed shapes (Rect/Ellipse/Polygon),
         // paths with an authored color, and paths with an authored
         // `fill_opacity` keep their fill.
@@ -424,7 +419,10 @@ impl Timeline {
             let track_id = self.world.spawn(label, ty);
             let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
             track.set_identity(ty);
-            track.rebuild_property_plan();
+            self.world
+                .property_plan
+                .get_mut(track.id)
+                .rebuild_for(&track.caps, &track.actor_type);
             self.world.meta.record_first_seen(track.id, t_start_ms);
             track.id
         };

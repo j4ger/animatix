@@ -89,11 +89,10 @@ pub(crate) unsafe extern "C" fn native_get_property(
         return NATIVE_STATUS_TYPE_ERROR;
     };
     let value = if let Some(id) = host.property_ids.get(&name) {
-        crate::timeline::property_engine::read_property_plan_slot(
-            &host.ctx.track.property_plan,
-            *id,
-            host.ctx.time_ms,
-        )
+        let Some(plan) = host.ctx.property_plan else {
+            return NATIVE_STATUS_TYPE_ERROR;
+        };
+        crate::timeline::property_engine::read_property_plan_slot(plan, *id, host.ctx.time_ms)
     } else if let Some(schema) = lookup_property(&name) {
         host.ctx.read_property_value(schema.field, host.ctx.time_ms)
     } else {
@@ -498,7 +497,7 @@ pub(crate) unsafe extern "C" fn native_build_report_diagnostic(
 }
 
 pub(crate) struct NativeAssignmentHost<'a> {
-    pub(crate) track: &'a mut crate::timeline::AnimationTrack,
+    pub(crate) plan: &'a mut crate::timeline::plan::PropertyPlan,
     pub(crate) property_ids: &'a HashMap<String, animatix_syntax::schema::PropertyId>,
     pub(crate) property_kinds: &'a HashMap<String, animatix_syntax::schema::PropertyValueKind>,
     pub(crate) value: NativeValue,
@@ -548,7 +547,7 @@ pub(crate) unsafe extern "C" fn native_assignment_write_keyframe(
         return NATIVE_STATUS_TYPE_ERROR;
     };
     crate::timeline::property_engine::write_property_plan_slot(
-        &mut host.track.property_plan,
+        host.plan,
         *id,
         crate::timeline::PropertyKind::from(*kind),
         property_value,
@@ -674,7 +673,7 @@ pub(crate) unsafe extern "C" fn native_action_write_keyframe(
         return NATIVE_STATUS_TYPE_ERROR;
     };
     crate::timeline::property_engine::write_property_plan_slot(
-        &mut track.property_plan,
+        host.timeline.world.property_plan.get_mut(track.id),
         *id,
         crate::timeline::PropertyKind::from(*kind),
         property_value,

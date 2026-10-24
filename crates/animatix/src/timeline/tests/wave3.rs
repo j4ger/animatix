@@ -90,7 +90,8 @@ box: Rect, size: (100, 100), at: (200, 200), shadow: (0, 8, 16, 2), shadow_color
         vector_paths: &[],
         asset_cache: &asset_cache,
         highlight: &crate::timeline::animation_track::HighlightTracks::default(),
-        world: None,
+        property_plan: Some(timeline.world.property_plan(track.id)),
+        world: Some(&timeline.world),
 
         payload: None,
         target_resolver: None,

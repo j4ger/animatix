@@ -162,11 +162,15 @@ impl Timeline {
                 diagnostics,
                 &subject,
             ) {
-                let Some(track) = self.world.tracks.get_by_id_mut(track_id) else {
-                    continue;
-                };
                 crate::timeline::property_engine::write_extension_property_slot(
-                    track, &ctx, ty, &prop.name, pv, t_start_ms, t_end_ms, easing,
+                    self.world.property_plan.get_mut(track_id),
+                    &ctx,
+                    ty,
+                    &prop.name,
+                    pv,
+                    t_start_ms,
+                    t_end_ms,
+                    easing,
                 );
             }
         }
@@ -261,11 +265,12 @@ impl Timeline {
         // Create the plot host's track before `process_plot_actor` runs: it
         // processes children, and `add_node` requires the parent track to exist
         // rather than defaulting one in.
-        {
+        let track_id = {
             let entry = self.world.ensure_track(label, ty);
             entry.set_identity(ty);
-            entry.rebuild_property_plan();
-        }
+            entry.id
+        };
+        self.world.rebuild_property_plan(track_id);
         let existing_track = self
             .world
             .tracks
@@ -382,7 +387,10 @@ impl Timeline {
                 let track =
                     self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
                 track.set_identity(ty);
-                track.rebuild_property_plan();
+                self.world
+                    .property_plan
+                    .get_mut(track.id)
+                    .rebuild_for(&track.caps, &track.actor_type);
             }
             // Plot-family build path only (this dispatch serves Graph,
             // PlotCurve, VectorField, Heatmap, ContourSet, NumberPlane and

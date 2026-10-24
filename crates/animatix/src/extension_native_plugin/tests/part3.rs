@@ -9,9 +9,10 @@ fn native_assignment_write_keyframe_writes_extension_slot() {
     let property_ids = HashMap::from([("glow".to_string(), id)]);
     let property_kinds =
         HashMap::from([("glow".to_string(), animatix_syntax::schema::PropertyValueKind::F32)]);
-    let mut track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
+    let track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
+    let mut plan = crate::timeline::plan::PropertyPlan::for_actor(&track.caps, &track.actor_type);
     let mut host = NativeAssignmentHost {
-        track: &mut track,
+        plan: &mut plan,
         property_ids: &property_ids,
         property_kinds: &property_kinds,
         value: NativeValue {
@@ -38,7 +39,7 @@ fn native_assignment_write_keyframe_writes_extension_slot() {
         NATIVE_STATUS_OK
     );
     assert_eq!(
-        crate::timeline::property_engine::read_property_plan_slot(&track.property_plan, id, 500),
+        crate::timeline::property_engine::read_property_plan_slot(&plan, id, 500),
         Some(crate::timeline::PropertyValue::F32(0.75))
     );
 }
@@ -601,7 +602,8 @@ fn enum_extension_property_bare_identifier_roundtrips() {
         Arc::new(ctx),
     );
     let track = report.output.world.tracks.get("p").expect("pulse track");
-    let slot = track.property_plan.get(PropertyId(1_000_000));
+    let plan = report.output.world.property_plan(track.id);
+    let slot = plan.get(PropertyId(1_000_000));
     let t0 = slot.and_then(|s| s.track.sample(0));
     let t1500 = slot.and_then(|s| s.track.sample(1500));
     assert_eq!(t0, Some(crate::timeline::PropertyValue::Enum("ring".to_string())));
@@ -611,7 +613,7 @@ fn enum_extension_property_bare_identifier_roundtrips() {
     let property_ids = HashMap::from([("mode".to_string(), id)]);
     let service_values = HashMap::new();
     let asset_cache = crate::timeline::assets::AssetCache::new();
-    let eval_ctx = sample_evaluate_ctx(track, &asset_cache);
+    let eval_ctx = sample_evaluate_ctx_with_plan(track, &asset_cache, Some(plan));
     let mut host = NativePrimitiveEvaluateHost {
         ctx: &eval_ctx,
         property_ids: &property_ids,

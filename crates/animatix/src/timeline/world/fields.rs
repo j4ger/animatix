@@ -40,7 +40,7 @@ pub struct TrackFields<'a> {
     /// Capability projection for this entity.
     pub caps: ActorCaps,
     /// Registry-derived property plan for this entity.
-    pub property_plan: &'a PropertyPlan,
+    pub property_plan: Option<&'a PropertyPlan>,
 }
 
 /// Mutable view of one entity's property tiers.
@@ -64,7 +64,7 @@ pub struct TrackFieldsMut<'a> {
     /// Capability projection for this entity.
     pub caps: ActorCaps,
     /// Registry-derived property plan for this entity.
-    pub property_plan: &'a mut PropertyPlan,
+    pub property_plan: Option<&'a mut PropertyPlan>,
 }
 
 impl World {
@@ -81,7 +81,7 @@ impl World {
             payload: self.payload.get(id),
             label: &track.label,
             caps: track.caps,
-            property_plan: &track.property_plan,
+            property_plan: self.property_plan.try_get(id),
         })
     }
 
@@ -99,7 +99,7 @@ impl World {
             payload: self.payload.get_mut(id),
             label: &track.label,
             caps: track.caps,
-            property_plan: &mut track.property_plan,
+            property_plan: self.property_plan.try_get_mut(id),
         })
     }
 }
@@ -151,7 +151,7 @@ impl<'a> TrackFields<'a> {
             payload: None,
             label: &track.label,
             caps: track.caps,
-            property_plan: &track.property_plan,
+            property_plan: None,
         }
     }
 
@@ -254,7 +254,7 @@ impl<'a> TrackFieldsMut<'a> {
             payload: None,
             caps: track.caps,
             label: &track.label,
-            property_plan: &mut track.property_plan,
+            property_plan: None,
         }
     }
 
@@ -394,7 +394,7 @@ impl<'a> TrackFields<'a> {
             && name != "legend"
             && name != "callout_place"
             && let Some(id) = crate::timeline::property_registry::property_id(name)
-            && let Some(slot) = self.property_plan.get(id)
+            && let Some(slot) = self.property_plan?.get(id)
             && let Some(value) = slot.track.sample(time_ms)
         {
             return Some(value);
@@ -524,7 +524,7 @@ impl<'a> TrackFields<'a> {
             return svg.keyframes.contains_key(&time_ms);
         }
         if let Some(id) = plan_id_for_field(&field)
-            && self.property_plan.has_keyframe_at(id, time_ms)
+            && self.property_plan.is_some_and(|plan| plan.has_keyframe_at(id, time_ms))
         {
             return true;
         }
@@ -540,7 +540,7 @@ impl<'a> TrackFields<'a> {
             return svg.keyframes.len();
         }
         if let Some(id) = plan_id_for_field(&field) {
-            let count = self.property_plan.keyframe_count(id);
+            let count = self.property_plan.map_or(0, |plan| plan.keyframe_count(id));
             if count > 0 {
                 return count;
             }
@@ -559,7 +559,7 @@ impl<'a> TrackFields<'a> {
             return times;
         }
         if let Some(id) = plan_id_for_field(&field) {
-            let times = self.property_plan.keyframe_times(id);
+            let times = self.property_plan.map_or(Vec::new(), |plan| plan.keyframe_times(id));
             if !times.is_empty() {
                 return times;
             }
@@ -577,7 +577,8 @@ impl<'a> TrackFields<'a> {
             return svg.keyframes.get(&time_ms).map(|(_, easing)| *easing);
         }
         if let Some(id) = plan_id_for_field(&field)
-            && let Some(easing) = self.property_plan.keyframe_easing(id, time_ms)
+            && let Some(easing) =
+                self.property_plan.and_then(|plan| plan.keyframe_easing(id, time_ms))
         {
             return Some(easing);
         }

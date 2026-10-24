@@ -203,15 +203,17 @@ impl Primitive for NativePrimitiveAdapter {
         } = ctx;
         let time_ms = *time_ms;
         let parent_label = *parent_label;
-        {
+        let track_id = {
             let track = timeline.world.tracks.entry(label.to_string()).or_insert_with(|| {
                 crate::timeline::AnimationTrack::new(label.to_string(), self.type_name.clone())
             });
             let type_name = self.type_name.clone();
             track.actor_type = type_name;
             track.set_caps(animatix_std::caps_from_info(&self.info));
-            track.rebuild_property_plan();
-        }
+            track.id
+        };
+        timeline.world.ensure_len();
+        timeline.world.rebuild_property_plan(track_id);
         let Some(build) = self.build else {
             return Ok(());
         };
@@ -257,7 +259,7 @@ impl Primitive for NativePrimitiveAdapter {
 
     fn handle_assignment(
         &self,
-        track: &mut crate::timeline::AnimationTrack,
+        _track: &mut crate::timeline::AnimationTrack,
         property: &str,
         value: &Expr,
         ctx: &mut AssignmentCtx,
@@ -281,9 +283,15 @@ impl Primitive for NativePrimitiveAdapter {
             return false;
         };
         let property_ptr = arena.string(property).0;
+        let t_start_ms = ctx.t_start_ms;
+        let t_end_ms = ctx.t_end_ms;
+        let easing = easing_code(ctx.easing);
+        let Some(plan) = ctx.property_plan.as_deref_mut() else {
+            return false;
+        };
         let status = {
             let mut host = NativeAssignmentHost {
-                track,
+                plan,
                 property_ids: &self.property_ids,
                 property_kinds: &self.property_kinds,
                 value: native_value,
@@ -292,9 +300,9 @@ impl Primitive for NativePrimitiveAdapter {
                 size: std::mem::size_of::<NativeAssignmentContext>(),
                 host: (&mut host as *mut NativeAssignmentHost).cast(),
                 property: property_ptr,
-                t_start_ms: ctx.t_start_ms,
-                t_end_ms: ctx.t_end_ms,
-                easing: easing_code(ctx.easing),
+                t_start_ms,
+                t_end_ms,
+                easing,
                 get_value: native_assignment_get_value,
                 write_keyframe: native_assignment_write_keyframe,
             };

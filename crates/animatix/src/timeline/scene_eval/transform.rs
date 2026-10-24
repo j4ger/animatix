@@ -66,16 +66,36 @@ impl Timeline {
         // process instead of hashing the property name on every node every
         // frame; semantics are unchanged (see `effective_f32_resolved`).
         let reads = crate::timeline::property_registry::transform_property_reads();
-        let rotation =
-            effective_f32_resolved(track, node_overrides, time_ms, "rotation", reads.rotation, 0.0)
-                as f64;
-        let scale =
-            effective_f32_resolved(track, node_overrides, time_ms, "scale", reads.scale, 1.0)
-                as f64;
-        let opacity =
-            effective_f32_resolved(track, node_overrides, time_ms, "opacity", reads.opacity, 1.0);
+        let rotation = effective_f32_resolved(
+            track,
+            self.world.property_plan(track.id),
+            node_overrides,
+            time_ms,
+            "rotation",
+            reads.rotation,
+            0.0,
+        ) as f64;
+        let scale = effective_f32_resolved(
+            track,
+            self.world.property_plan(track.id),
+            node_overrides,
+            time_ms,
+            "scale",
+            reads.scale,
+            1.0,
+        ) as f64;
+        let opacity = effective_f32_resolved(
+            track,
+            self.world.property_plan(track.id),
+            node_overrides,
+            time_ms,
+            "opacity",
+            reads.opacity,
+            1.0,
+        );
         let half_size = effective_half_size_resolved(
             track,
+            self.world.property_plan(track.id),
             node_overrides,
             time_ms,
             reads.size,
@@ -84,6 +104,7 @@ impl Timeline {
 
         let transform = effective_transform(
             track,
+            self.world.property_plan(track.id),
             node_overrides,
             time_ms,
             "transform",

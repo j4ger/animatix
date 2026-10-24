@@ -975,12 +975,17 @@ fn extension_actor_at_position_regression() {
             _modifiers: &[animatix_syntax::ast::Modifier],
             _children: &[animatix_syntax::ast::InlineItem],
         ) -> Result<(), Vec<animatix_syntax::diagnostics::Diagnostic>> {
-            let track =
-                ctx.timeline.world.tracks.entry(label.to_string()).or_insert_with(|| {
-                    crate::timeline::AnimationTrack::placeholder(label.to_string())
-                });
-            track.actor_type = "StubPulse".to_string();
-            track.rebuild_property_plan();
+            let track_id = ctx.timeline.world.spawn_with_track(
+                label,
+                crate::timeline::AnimationTrack::placeholder(label.to_string()),
+            );
+            ctx.timeline
+                .world
+                .tracks
+                .get_by_id_mut(track_id)
+                .expect("spawn_with_track creates the track")
+                .actor_type = "StubPulse".to_string();
+            ctx.timeline.world.rebuild_property_plan(track_id);
             Ok(())
         }
     }

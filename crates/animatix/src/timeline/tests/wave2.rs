@@ -153,6 +153,7 @@ cnt.value = 100 [1s]
         vector_paths: &[],
         asset_cache: &asset_cache,
         highlight: &highlight,
+        property_plan: None,
         world: None,
 
         payload: None,
@@ -231,6 +232,7 @@ label.color = (0.0, 1.0, 0.0, 1.0) [1s]
         vector_paths: &[],
         asset_cache: &asset_cache,
         highlight: &highlight,
+        property_plan: None,
         world: None,
         payload: None,
         target_resolver: None,
@@ -320,6 +322,7 @@ t: Text, text: "Hardware Stream", at: (300, 200), font_size: 32
         vector_paths: &[],
         asset_cache: &asset_cache,
         highlight: &highlight,
+        property_plan: None,
         world: None,
         payload: None,
         target_resolver: None,

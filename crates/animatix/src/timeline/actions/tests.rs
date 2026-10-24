@@ -26,13 +26,8 @@ impl Primitive for FlexContainer {
         _modifiers: &[crate::ast::Modifier],
         _children: &[crate::ast::InlineItem],
     ) -> Result<(), Vec<Diagnostic>> {
-        let track = ctx
-            .timeline
-            .world
-            .tracks
-            .entry(label.to_string())
-            .or_insert_with(|| AnimationTrack::placeholder(label.to_string()));
-        track.rebuild_property_plan();
+        let track_id = ctx.timeline.world.spawn(label, "Rect");
+        ctx.timeline.world.rebuild_property_plan(track_id);
         Ok(())
     }
 }

@@ -207,6 +207,7 @@ always {
     let eval_ctx = crate::primitives::EvaluateCtx {
         track: t_track,
         highlight: timeline.world.highlight(t_track.id),
+        property_plan: Some(timeline.world.property_plan(t_track.id)),
         world: Some(&timeline.world),
 
         payload: timeline.world.payload(t_track.id),

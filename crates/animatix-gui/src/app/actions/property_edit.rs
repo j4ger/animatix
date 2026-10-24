@@ -15,6 +15,7 @@ pub(super) fn apply_property_edit_to_track(
     value: &panels::PropertyValue,
     time_ms: u64,
     legacy_tagged: &mut Vec<(String, animatix::timeline::PropertyValue)>,
+    field_writes: &mut Vec<(animatix::timeline::ActorField, animatix::timeline::PropertyValue)>,
 ) {
     use animatix::timeline::{PropertyTrack, TrackFieldMut};
 
@@ -64,28 +65,21 @@ pub(super) fn apply_property_edit_to_track(
     /// (`legend_title`, `legend_gap`, ...) keep the legacy map, which is where
     /// their readers look.
     fn write_tagged_value(
-        track: &mut animatix::timeline::AnimationTrack,
+        _track: &mut animatix::timeline::AnimationTrack,
         key: &str,
         pv: animatix::timeline::PropertyValue,
-        time_ms: u64,
-        linear: animatix_syntax::easing::Easing,
+        _time_ms: u64,
+        _linear: animatix_syntax::easing::Easing,
         legacy_tagged: &mut Vec<(String, animatix::timeline::PropertyValue)>,
+        field_writes: &mut Vec<(animatix::timeline::ActorField, animatix::timeline::PropertyValue)>,
     ) {
-        use animatix::timeline::{ActorField, lookup_property, write_property_field};
+        use animatix::timeline::{ActorField, lookup_property};
 
         if let Some(schema) = lookup_property(key)
             && let ActorField::Tagged(tag) = schema.field
         {
             let pv = coerce_for_value_type(pv, schema.value_type);
-            write_property_field(
-                track,
-                ActorField::Tagged(tag),
-                pv,
-                time_ms,
-                time_ms,
-                linear,
-                &mut Vec::new(),
-            );
+            field_writes.push((ActorField::Tagged(tag), pv));
             return;
         }
 
@@ -144,6 +138,7 @@ pub(super) fn apply_property_edit_to_track(
                         time_ms,
                         linear,
                         legacy_tagged,
+                        field_writes,
                     );
                 }
                 return;
@@ -158,6 +153,7 @@ pub(super) fn apply_property_edit_to_track(
                         time_ms,
                         linear,
                         legacy_tagged,
+                        field_writes,
                     );
                 }
                 return;
@@ -172,6 +168,7 @@ pub(super) fn apply_property_edit_to_track(
                         time_ms,
                         linear,
                         legacy_tagged,
+                        field_writes,
                     );
                 }
                 return;
@@ -186,6 +183,7 @@ pub(super) fn apply_property_edit_to_track(
                         time_ms,
                         linear,
                         legacy_tagged,
+                        field_writes,
                     );
                 }
                 return;
@@ -200,6 +198,7 @@ pub(super) fn apply_property_edit_to_track(
                         time_ms,
                         linear,
                         legacy_tagged,
+                        field_writes,
                     );
                 }
                 return;
@@ -216,6 +215,7 @@ pub(super) fn apply_property_edit_to_track(
                             time_ms,
                             linear,
                             legacy_tagged,
+                            field_writes,
                         );
                     }
                 }
@@ -359,7 +359,15 @@ pub(super) fn apply_property_edit_to_track(
         // hands back the legacy map entry, which nothing here used to write.
         // Route them through the one tagged writer instead.
         if let animatix::timeline::ActorField::Tagged(tag) = schema.field {
-            write_tagged_value(track, tag, value.clone(), time_ms, linear, legacy_tagged);
+            write_tagged_value(
+                track,
+                tag,
+                value.clone(),
+                time_ms,
+                linear,
+                legacy_tagged,
+                field_writes,
+            );
             return;
         }
         if let Some(field_mut) = track.field_mut(schema.field) {

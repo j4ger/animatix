@@ -467,6 +467,7 @@ impl Timeline {
                     legend: self.world.legend(track.id),
                     world: Some(&self.world),
                     highlight: self.world.highlight(track.id),
+                    property_plan: Some(self.world.property_plan(track.id)),
                     payload: self.world.payload(track.id),
                 };
                 let mut text_ctx = crate::primitives::TextCompileCtx {
@@ -632,6 +633,7 @@ impl Timeline {
             legend: self.world.legend(child.id),
             world: Some(&self.world),
             highlight: self.world.highlight(child.id),
+            property_plan: Some(self.world.property_plan(child.id)),
             payload: self.world.payload(child.id),
         };
         let path = primitive.clip_path(&ctx, &child.caps);

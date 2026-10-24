@@ -62,11 +62,6 @@ pub struct AnimationTrack {
     /// boundary, which [`Self::normalize_identity`] resolves once on load.
     #[cfg_attr(feature = "serde", serde(default))]
     pub actor_type: String,
-    /// Registry-derived property plan for this actor.
-    ///
-    /// Built after the actor identity is known; frame-time extension paths can
-    /// use this instead of string lookups.
-    pub property_plan: super::plan::PropertyPlan,
     /// Dense index into the per-frame precise-bounds table (PF-6 slot-id
     /// design). Stamped by `EvalCaches::ensure_bounds_registry` in sorted
     /// `tracks` order and invalidated via `invalidate_frame_cache`; the
@@ -126,7 +121,6 @@ impl AnimationTrack {
             label: label.clone(),
             caps,
             actor_type,
-            property_plan: super::plan::PropertyPlan::default(),
             bounds_slot: std::cell::Cell::new(u32::MAX),
             shape_command_memo: std::cell::RefCell::new(Box::new(
                 crate::primitives::ShapeCommandMemo::default(),
@@ -266,62 +260,96 @@ impl AnimationTrack {
         self.caps = caps;
     }
 
-    /// Rebuild the property plan from the current actor identity.
-    pub fn rebuild_property_plan(&mut self) {
-        let previous = std::mem::take(&mut self.property_plan);
-        self.property_plan = super::plan::PropertyPlan::for_actor(&self.caps, &self.actor_type);
-        self.property_plan.preserve_extension_slots(&previous);
-    }
-
     /// Sample a plan-stored property by canonical name.
-    pub fn sample_property_named(&self, name: &str, time_ms: u64) -> Option<PropertyValue> {
+    pub fn sample_property_named(
+        &self,
+        plan: &super::plan::PropertyPlan,
+        name: &str,
+        time_ms: u64,
+    ) -> Option<PropertyValue> {
         let id = crate::timeline::property_registry::property_id(name)?;
-        self.property_plan.get(id).and_then(|slot| slot.track.sample(time_ms))
+        plan.get(id).and_then(|slot| slot.track.sample(time_ms))
     }
 
     /// Sample an f32 property by name with fallback default.
-    pub fn sample_f32_prop(&self, name: &str, time_ms: u64, default: f32) -> f32 {
-        match self.sample_property_named(name, time_ms) {
+    pub fn sample_f32_prop(
+        &self,
+        plan: &super::plan::PropertyPlan,
+        name: &str,
+        time_ms: u64,
+        default: f32,
+    ) -> f32 {
+        match self.sample_property_named(plan, name, time_ms) {
             Some(PropertyValue::F32(v)) => v,
             _ => default,
         }
     }
 
     /// Sample a Color / Vec4 property by name with fallback default.
-    pub fn sample_color_prop(&self, name: &str, time_ms: u64, default: [f32; 4]) -> [f32; 4] {
-        match self.sample_property_named(name, time_ms) {
+    pub fn sample_color_prop(
+        &self,
+        plan: &super::plan::PropertyPlan,
+        name: &str,
+        time_ms: u64,
+        default: [f32; 4],
+    ) -> [f32; 4] {
+        match self.sample_property_named(plan, name, time_ms) {
             Some(PropertyValue::Color(c)) | Some(PropertyValue::Vec4(c)) => c,
             _ => default,
         }
     }
 
     /// Sample a bool property by name with fallback default.
-    pub fn sample_bool_prop(&self, name: &str, time_ms: u64, default: bool) -> bool {
-        match self.sample_property_named(name, time_ms) {
+    pub fn sample_bool_prop(
+        &self,
+        plan: &super::plan::PropertyPlan,
+        name: &str,
+        time_ms: u64,
+        default: bool,
+    ) -> bool {
+        match self.sample_property_named(plan, name, time_ms) {
             Some(PropertyValue::Bool(v)) => v,
             _ => default,
         }
     }
 
     /// Sample a Vec2 property by name with fallback default.
-    pub fn sample_vec2_prop(&self, name: &str, time_ms: u64, default: [f32; 2]) -> [f32; 2] {
-        match self.sample_property_named(name, time_ms) {
+    pub fn sample_vec2_prop(
+        &self,
+        plan: &super::plan::PropertyPlan,
+        name: &str,
+        time_ms: u64,
+        default: [f32; 2],
+    ) -> [f32; 2] {
+        match self.sample_property_named(plan, name, time_ms) {
             Some(PropertyValue::Vec2(v)) => v,
             _ => default,
         }
     }
 
     /// Sample a string property by name with fallback default.
-    pub fn sample_string_prop(&self, name: &str, time_ms: u64, default: &str) -> String {
-        match self.sample_property_named(name, time_ms) {
+    pub fn sample_string_prop(
+        &self,
+        plan: &super::plan::PropertyPlan,
+        name: &str,
+        time_ms: u64,
+        default: &str,
+    ) -> String {
+        match self.sample_property_named(plan, name, time_ms) {
             Some(PropertyValue::String(s)) => s,
             _ => default.to_string(),
         }
     }
 
     /// Sample a u32 property by name with fallback default.
-    pub fn sample_u32_prop(&self, name: &str, time_ms: u64, default: u32) -> u32 {
-        match self.sample_property_named(name, time_ms) {
+    pub fn sample_u32_prop(
+        &self,
+        plan: &super::plan::PropertyPlan,
+        name: &str,
+        time_ms: u64,
+        default: u32,
+    ) -> u32 {
+        match self.sample_property_named(plan, name, time_ms) {
             Some(PropertyValue::U32(v)) => v,
             _ => default,
         }
@@ -646,10 +674,6 @@ impl AnimationTrack {
                 }
             }
         }
-        // Registry-driven plan tracks.
-        if let Some(t) = self.property_plan.max_keyframe_time() {
-            max = Some(max.map_or(t, |m| m.max(t)));
-        }
         // Func transitions: include the end time of each transition.
         for ft in payload
             .and_then(|payload| payload.as_plot())
@@ -690,6 +714,6 @@ impl AnimationTrack {
             plot.plot_param_tracks.values().any(|t| !t.is_effectively_static())
                 || !plot.func_transitions.is_empty()
                 || !plot.bar_data_transitions.is_empty()
-        }) || self.property_plan.has_any_keyframes()
+        })
     }
 }

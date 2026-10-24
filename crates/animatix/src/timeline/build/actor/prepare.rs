@@ -282,9 +282,12 @@ impl Timeline {
         // check can inspect the parent's kind. Only create track entry if the actor
         // has children (otherwise skip to avoid breaking is_first_decl).
         if !children.is_empty() {
-            let early_track = self.world.ensure_track(label, ty);
-            early_track.set_identity(ty);
-            early_track.rebuild_property_plan();
+            let track_id = {
+                let early_track = self.world.ensure_track(label, ty);
+                early_track.set_identity(ty);
+                early_track.id
+            };
+            self.world.rebuild_property_plan(track_id);
         }
 
         self.process_inline_items(time_ms, children, label, diagnostics);

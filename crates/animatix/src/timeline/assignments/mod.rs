@@ -351,6 +351,7 @@ impl Timeline {
                 text_compiler: &mut self.text_compiler.borrow_mut(),
                 asset_cache: std::sync::Arc::make_mut(&mut self.asset_cache),
                 highlight: self.world.highlight.try_get_mut(track.id),
+                property_plan: Some(self.world.property_plan.get_mut(track.id)),
                 payload: Some(
                     self.world
                         .payload
@@ -653,7 +654,7 @@ impl Timeline {
                         )
                     {
                         crate::timeline::property_engine::write_extension_property_slot(
-                            track,
+                            self.world.property_plan.get_mut(track.id),
                             &ctx,
                             &spec.actor_type,
                             property,

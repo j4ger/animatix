@@ -38,12 +38,7 @@ fn enum_boundary_callout_place_roundtrips() {
 fn tagged_property_routes_through_actor_plan() {
     let mut timeline = crate::timeline::Timeline::new();
     let id = timeline.world_mut().spawn("test", "Rect");
-    timeline
-        .world_mut()
-        .tracks
-        .get_by_id_mut(id)
-        .expect("track")
-        .rebuild_property_plan();
+    timeline.world_mut().rebuild_property_plan(id);
     let field = ActorField::Tagged("legend_title");
     timeline.world_mut().write_property_field(
         id,
@@ -78,12 +73,14 @@ fn tagged_property_routes_through_actor_plan() {
 }
 #[test]
 fn property_plan_slot_writes_and_reads_without_string_lookup() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.rebuild_property_plan();
+    let mut timeline = crate::timeline::Timeline::new();
+    let track = AnimationTrack::placeholder("test".to_string());
+    let id = timeline.world_mut().spawn_with_track("test", track);
+    timeline.world_mut().rebuild_property_plan(id);
     let position = crate::timeline::property_id("position").expect("position is registered");
 
     assert!(write_property_plan_slot(
-        &mut track.property_plan,
+        timeline.world_mut().property_plan_mut(id),
         position,
         crate::timeline::PropertyKind::Vec2,
         PropertyValue::Vec2([10.0, 20.0]),
@@ -92,12 +89,12 @@ fn property_plan_slot_writes_and_reads_without_string_lookup() {
         Easing::Linear,
     ));
     assert_eq!(
-        read_property_plan_slot(&track.property_plan, position, 0),
+        read_property_plan_slot(timeline.world().property_plan(id), position, 0),
         Some(PropertyValue::Vec2([10.0, 20.0]))
     );
 
     assert!(write_property_plan_slot(
-        &mut track.property_plan,
+        timeline.world_mut().property_plan_mut(id),
         position,
         crate::timeline::PropertyKind::Vec2,
         PropertyValue::Vec2([110.0, 20.0]),
@@ -105,7 +102,7 @@ fn property_plan_slot_writes_and_reads_without_string_lookup() {
         1000,
         Easing::Linear,
     ));
-    let slot = track.property_plan.get(position).expect("position slot");
+    let slot = timeline.world().property_plan(id).get(position).expect("position slot");
     assert_eq!(slot.track.sample(500), Some(PropertyValue::Vec2([60.0, 20.0])));
 }
 

@@ -425,9 +425,10 @@ fn native_get_property_reads_extension_slot() {
     let id = ctx
         .register_property("Pulse", "glow", animatix_syntax::schema::PropertyValueKind::F32, true)
         .expect("register property");
-    let mut track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
+    let track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
+    let mut plan = crate::timeline::plan::PropertyPlan::for_actor(&track.caps, &track.actor_type);
     crate::timeline::property_engine::write_property_plan_slot(
-        &mut track.property_plan,
+        &mut plan,
         id,
         PropertyKind::F32,
         crate::timeline::PropertyValue::F32(0.75),
@@ -436,7 +437,7 @@ fn native_get_property_reads_extension_slot() {
         crate::easing::Easing::Linear,
     );
     let asset_cache = crate::timeline::assets::AssetCache::new();
-    let eval_ctx = sample_evaluate_ctx(&track, &asset_cache);
+    let eval_ctx = sample_evaluate_ctx_with_plan(&track, &asset_cache, Some(&plan));
     let property_ids = HashMap::from([("glow".to_string(), id)]);
     let service_values = HashMap::new();
     let mut host = NativePrimitiveEvaluateHost {

@@ -349,22 +349,28 @@ pub(crate) fn build_property_groups(
 
     let mut extension_props = Vec::new();
     let actor_type = track.actor_type.as_str();
+    // A standalone track (inspector tests, previews not backed by a world
+    // entity) has no plan slot; fall back to an empty plan, which is what the
+    // old on-track plan was for those callers.
+    let empty_plan = animatix::timeline::PropertyPlan::default();
+    let plan = timeline
+        .world()
+        .track(track.id)
+        .map_or(&empty_plan, |_| timeline.world().property_plan(track.id));
     for descriptor in timeline.extension_property_descriptors() {
         if !descriptor.actor_types.iter().any(|ty| ty.as_str() == actor_type) {
             continue;
         }
         let id = animatix::property_descriptor::runtime_id(&descriptor);
-        let Some(value) =
-            animatix::timeline::read_property_plan_slot(&track.property_plan, id, time_ms)
-        else {
+        let Some(value) = animatix::timeline::read_property_plan_slot(plan, id, time_ms) else {
             continue;
         };
         extension_props.push(PropertyEntry {
             name: descriptor.name.clone(),
             kind: extension_value_to_kind(value, &descriptor.ty),
-            has_keyframes: track.property_plan.keyframe_count(id) > 0,
-            has_keyframe_at_current_time: track.property_plan.has_keyframe_at(id, time_ms),
-            keyframe_count: track.property_plan.keyframe_count(id),
+            has_keyframes: plan.keyframe_count(id) > 0,
+            has_keyframe_at_current_time: plan.has_keyframe_at(id, time_ms),
+            keyframe_count: plan.keyframe_count(id),
         });
     }
     if !extension_props.is_empty() {

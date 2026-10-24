@@ -262,6 +262,7 @@ fn runtime_text_content_crossfade_compiles_both_endpoints() {
         vector_paths: &[],
         asset_cache: &asset_cache,
         highlight: &crate::timeline::animation_track::HighlightTracks::default(),
+        property_plan: None,
         world: None,
 
         payload: None,

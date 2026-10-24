@@ -43,6 +43,8 @@ pub struct AssignmentCtx<'a> {
     pub asset_cache: &'a mut crate::timeline::assets::AssetCache,
     /// Equation-highlight component for this actor.
     pub highlight: Option<&'a mut crate::timeline::animation_track::HighlightTracks>,
+    /// Registry-driven property plan for this actor.
+    pub property_plan: Option<&'a mut crate::timeline::plan::PropertyPlan>,
     /// Primitive payload for this entity (plot/SVG/image state).
     pub payload: Option<&'a mut crate::primitives::PrimitivePayload>,
 }
@@ -84,6 +86,8 @@ pub struct EvaluateCtx<'a> {
     pub asset_cache: &'a crate::timeline::assets::AssetCache,
     /// Equation-highlight component for this actor.
     pub highlight: &'a crate::timeline::animation_track::HighlightTracks,
+    /// Registry-driven property plan for this actor.
+    pub property_plan: Option<&'a crate::timeline::plan::PropertyPlan>,
     /// The owning world, when the caller has one (frame path); tests may omit it.
     pub world: Option<&'a crate::timeline::World>,
     /// Primitive payload for this entity (plot/SVG/image state).
@@ -526,5 +530,29 @@ impl AssignmentCtx<'_> {
         &mut self,
     ) -> Option<&mut crate::timeline::animation_track::HighlightTracks> {
         self.highlight.as_deref_mut()
+    }
+}
+
+impl EvaluateCtx<'_> {
+    /// Sample an f32 plan property, falling back when no plan is attached.
+    pub fn sample_f32_prop(&self, name: &str, time_ms: u64, default: f32) -> f32 {
+        self.property_plan
+            .map_or(default, |plan| self.track.sample_f32_prop(plan, name, time_ms, default))
+    }
+
+    /// Sample a color plan property, falling back when no plan is attached.
+    pub fn sample_color_prop(&self, name: &str, time_ms: u64, default: [f32; 4]) -> [f32; 4] {
+        self.property_plan
+            .map_or(default, |plan| self.track.sample_color_prop(plan, name, time_ms, default))
+    }
+
+    /// Sample an arbitrary plan property.
+    pub fn sample_property_named(
+        &self,
+        name: &str,
+        time_ms: u64,
+    ) -> Option<crate::timeline::PropertyValue> {
+        self.property_plan
+            .and_then(|plan| self.track.sample_property_named(plan, name, time_ms))
     }
 }

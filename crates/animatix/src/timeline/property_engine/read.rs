@@ -95,6 +95,7 @@ pub(crate) fn inject_extension_properties_into_env(
     key: &mut String,
     label: &str,
     track: &AnimationTrack,
+    plan: &crate::timeline::plan::PropertyPlan,
     time_ms: u64,
     ctx: Option<&ExtensionContext>,
     allowed_props: Option<&std::collections::HashSet<String>>,
@@ -120,7 +121,7 @@ pub(crate) fn inject_extension_properties_into_env(
                 continue;
             }
         }
-        let Some(pv) = read_property_plan_slot(&track.property_plan, spec.id, time_ms) else {
+        let Some(pv) = read_property_plan_slot(plan, spec.id, time_ms) else {
             continue;
         };
         key.truncate(prefix_len);
@@ -128,10 +129,7 @@ pub(crate) fn inject_extension_properties_into_env(
         inject_value(env, key, prefix_len, &spec.name, &pv);
 
         if inject_animating_flags {
-            let animating = track
-                .property_plan
-                .get(spec.id)
-                .is_some_and(|slot| slot.track.has_any_keyframes());
+            let animating = plan.get(spec.id).is_some_and(|slot| slot.track.has_any_keyframes());
             let flag_key = crate::timeline::env_keys::animating_flag(label, &spec.name);
             env.set(&flag_key, Value::Bool(animating));
         }
@@ -223,12 +221,13 @@ fn inject_value(
 /// `property_registry::resolve_property` has already done for this call.
 pub(crate) fn read_property_value_resolved(
     track: &AnimationTrack,
+    plan: &crate::timeline::plan::PropertyPlan,
     schema: &crate::timeline::property_registry::PropertySchema,
     slot: Option<animatix_syntax::schema::PropertyId>,
     time_ms: u64,
 ) -> Option<PropertyValue> {
     if let Some(id) = slot
-        && let Some(value) = read_property_plan_slot(&track.property_plan, id, time_ms)
+        && let Some(value) = read_property_plan_slot(plan, id, time_ms)
     {
         return Some(value);
     }
@@ -245,6 +244,7 @@ pub(crate) fn read_property_value_resolved(
 /// unregistered — then the schema/slot read, then `default`.
 pub(crate) fn effective_f32_resolved(
     track: &AnimationTrack,
+    plan: &crate::timeline::plan::PropertyPlan,
     overrides: Option<&std::collections::HashMap<String, Value>>,
     time_ms: u64,
     name: &str,
@@ -255,7 +255,7 @@ pub(crate) fn effective_f32_resolved(
         return *v as f32;
     }
     if let Some((schema, slot)) = resolved
-        && let Some(pv) = read_property_value_resolved(track, schema, slot, time_ms)
+        && let Some(pv) = read_property_value_resolved(track, plan, schema, slot, time_ms)
         && let PropertyValue::F32(v) = pv
     {
         return v;
@@ -269,13 +269,14 @@ pub(crate) fn effective_f32_resolved(
 /// See that helper for why the three sources need different handling.
 pub(crate) fn effective_half_size_resolved(
     track: &AnimationTrack,
+    plan: &crate::timeline::plan::PropertyPlan,
     overrides: Option<&std::collections::HashMap<String, Value>>,
     time_ms: u64,
     resolved: crate::timeline::property_registry::ResolvedPropertyRead,
     default: [f32; 2],
 ) -> [f32; 2] {
     let track_half = if let Some((schema, slot)) = resolved
-        && let Some(pv) = read_property_value_resolved(track, schema, slot, time_ms)
+        && let Some(pv) = read_property_value_resolved(track, plan, schema, slot, time_ms)
         && let PropertyValue::Vec2(v) = pv
     {
         v
@@ -289,6 +290,7 @@ pub(crate) fn effective_half_size_resolved(
 /// overrides over track keyframes.
 pub(crate) fn effective_transform(
     track: &AnimationTrack,
+    plan: &crate::timeline::plan::PropertyPlan,
     overrides: Option<&std::collections::HashMap<String, Value>>,
     time_ms: u64,
     name: &str,
@@ -305,7 +307,7 @@ pub(crate) fn effective_transform(
         }
     }
     if let Some((schema, slot)) = resolved
-        && let Some(pv) = read_property_value_resolved(track, schema, slot, time_ms)
+        && let Some(pv) = read_property_value_resolved(track, plan, schema, slot, time_ms)
         && let PropertyValue::Transform(v) = pv
     {
         return v;

@@ -285,6 +285,7 @@ impl GuiShell {
                     (edit.time_s.unwrap_or(self.preview_store.preview.playback.current_time_s())
                         * 1000.0) as u64;
                 let mut legacy_tagged = Vec::new();
+                let mut field_writes = Vec::new();
                 if let Some((track, effects, legend)) =
                     timeline.world_mut().track_effects_and_legend_mut(id)
                 {
@@ -296,6 +297,18 @@ impl GuiShell {
                         &edit.value,
                         time_ms,
                         &mut legacy_tagged,
+                        &mut field_writes,
+                    );
+                }
+                for (field, value) in field_writes {
+                    timeline.world_mut().write_property_field(
+                        id,
+                        field,
+                        value,
+                        time_ms,
+                        time_ms,
+                        animatix_syntax::easing::Easing::Linear,
+                        &mut Vec::new(),
                     );
                 }
                 for (key, value) in legacy_tagged {
@@ -595,7 +608,7 @@ pub(crate) fn track_is_group_like(
 
 #[cfg(test)]
 mod tests {
-    use animatix::timeline::{ActorField, AnimationTrack, PropertyValue, read_property_value};
+    use animatix::timeline::{ActorField, PropertyValue};
 
     use crate::app::panels::PropertyValue as PV;
 
@@ -605,25 +618,44 @@ mod tests {
     /// the engine reads (`property_plan`), not only in `tagged_tracks`.
     #[test]
     fn gui_tagged_edit_is_visible_through_property_plan() {
-        let mut track = AnimationTrack::new("box".into(), "Rect");
-        apply_property_edit_to_track(
-            &mut track,
-            None,
-            None,
-            "solo",
-            &PV::Bool(true),
-            1000,
-            &mut Vec::new(),
-        );
+        let mut timeline = animatix::timeline::Timeline::new();
+        let id = timeline.world_mut().spawn("box", "Rect");
+        timeline.world_mut().rebuild_property_plan(id);
+        let mut legacy_tagged = Vec::new();
+        let mut field_writes = Vec::new();
+        {
+            let track = timeline.get_track_mut("box").expect("spawned track");
+            apply_property_edit_to_track(
+                track,
+                None,
+                None,
+                "solo",
+                &PV::Bool(true),
+                1000,
+                &mut legacy_tagged,
+                &mut field_writes,
+            );
+        }
+        for (field, value) in field_writes {
+            timeline.world_mut().write_property_field(
+                id,
+                field,
+                value,
+                1000,
+                1000,
+                animatix_syntax::easing::Easing::Linear,
+                &mut Vec::new(),
+            );
+        }
 
         assert_eq!(
-            read_property_value(&track, ActorField::Tagged("solo"), 1000),
+            timeline.world().read_property_value(id, ActorField::Tagged("solo"), 1000),
             Some(PropertyValue::Bool(true)),
             "solo edit should be readable at the edited time"
         );
         // An instant write is fenced, so it holds for every later time too.
         assert_eq!(
-            read_property_value(&track, ActorField::Tagged("solo"), 5000),
+            timeline.world().read_property_value(id, ActorField::Tagged("solo"), 5000),
             Some(PropertyValue::Bool(true)),
             "solo edit should still be visible after the edited time"
         );

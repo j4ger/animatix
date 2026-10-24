@@ -107,6 +107,9 @@ pub struct CarryEntry {
     /// Equation-highlight tier snapshot.
     #[cfg_attr(feature = "serde", serde(default))]
     pub highlight: crate::timeline::animation_track::HighlightTracks,
+    /// Registry-driven property slots snapshot.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub property_plan: crate::timeline::plan::PropertyPlan,
 }
 
 // ---------------------------------------------------------------------------
@@ -146,6 +149,7 @@ fn collect_persistent_entries(
     };
     let effects = timeline.world.effects(track.id).map(|chain| snapshot_effects(chain, time_ms));
     let highlight = snapshot_highlight_at(timeline.world.highlight(track.id), time_ms);
+    let property_plan = snapshot_property_plan_at(timeline.world.property_plan(track.id), time_ms);
     let payload = timeline
         .world
         .payload(track.id)
@@ -167,6 +171,7 @@ fn collect_persistent_entries(
             effects,
             payload,
             highlight,
+            property_plan,
         },
     );
 }
@@ -314,6 +319,7 @@ fn inject_entry(
     dest.world.meta_mut(id).first_seen_ms = 0;
     dest.world.payload.insert(id, entry.payload.clone());
     *dest.world.highlight.get_mut(id) = entry.highlight.clone();
+    *dest.world.property_plan.get_mut(id) = entry.property_plan.clone();
     if let Some(effects) = entry.effects.clone() {
         dest.world.effects.insert(id, effects);
     }
@@ -484,12 +490,6 @@ pub fn snapshot_track_at(track: &AnimationTrack, time_ms: u64) -> AnimationTrack
     collapse_shape_tracks(&mut snapshot.shape, time_ms);
     collapse_text_tracks(&mut snapshot.text, time_ms);
 
-    // Collapse registry-driven extension slots to the same snapshot semantics
-    // as built-in property tracks.
-    for slot in snapshot.property_plan.iter_mut() {
-        collapse_dyn_track(&mut slot.track, time_ms);
-    }
-
     snapshot
 }
 
@@ -619,3 +619,15 @@ fn collapse_property_track_inner<T: crate::timeline::property_track::Interpolate
 
 #[cfg(test)]
 mod tests;
+
+/// Snapshot a property plan at `time_ms`, collapsing each slot track.
+pub fn snapshot_property_plan_at(
+    plan: &crate::timeline::plan::PropertyPlan,
+    time_ms: u64,
+) -> crate::timeline::plan::PropertyPlan {
+    let mut snapshot = plan.clone();
+    for slot in snapshot.iter_mut() {
+        collapse_dyn_track(&mut slot.track, time_ms);
+    }
+    snapshot
+}

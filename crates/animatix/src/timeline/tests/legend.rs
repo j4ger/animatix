@@ -78,6 +78,7 @@ fn test_legend_wrapped_label_respects_max_width() {
         vector_paths: &[],
         asset_cache: &asset_cache,
         highlight: &crate::timeline::animation_track::HighlightTracks::default(),
+        property_plan: None,
         world: None,
 
         payload: None,
@@ -247,6 +248,7 @@ fn test_legend_empty() {
         vector_paths: &[],
         asset_cache: &asset_cache,
         highlight: &crate::timeline::animation_track::HighlightTracks::default(),
+        property_plan: None,
         world: None,
         payload: None,
         target_resolver: None,
@@ -666,6 +668,7 @@ fn test_legend_render_commands_produced() {
         vector_paths: &[],
         asset_cache: &asset_cache,
         highlight: &crate::timeline::animation_track::HighlightTracks::default(),
+        property_plan: None,
         world: None,
         payload: None,
         target_resolver: None,

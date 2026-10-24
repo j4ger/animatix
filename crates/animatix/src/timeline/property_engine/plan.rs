@@ -6,7 +6,6 @@ use crate::ast::Expr;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
 use crate::extension_context::ExtensionContext;
-use crate::timeline::AnimationTrack;
 use crate::timeline::env::{Environment, Value};
 
 use super::value::{PropertyValue, property_value_from_value};
@@ -168,7 +167,7 @@ pub(crate) fn parse_extension_property_value(
 
 /// Write an extension property into the actor plan.
 pub(crate) fn write_extension_property_slot(
-    track: &mut AnimationTrack,
+    plan: &mut crate::timeline::plan::PropertyPlan,
     ctx: &ExtensionContext,
     actor_type: &str,
     property: &str,
@@ -186,13 +185,5 @@ pub(crate) fn write_extension_property_slot(
         (PropertyValueKind::U32, PropertyValue::F32(v)) => PropertyValue::U32(v.max(0.0) as u32),
         _ => value,
     };
-    write_property_plan_slot(
-        &mut track.property_plan,
-        spec.id,
-        spec.kind.into(),
-        value,
-        t_start_ms,
-        t_end_ms,
-        easing,
-    )
+    write_property_plan_slot(plan, spec.id, spec.kind.into(), value, t_start_ms, t_end_ms, easing)
 }

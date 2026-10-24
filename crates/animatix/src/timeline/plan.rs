@@ -431,7 +431,6 @@ impl DynTrack {
     }
 }
 
-
 impl PropertyPlan {
     /// Rebuild in place from an actor identity, preserving extension slots.
     ///
@@ -527,4 +526,3 @@ mod tests {
         assert_eq!(slot.track.sample(0), Some(PropertyValue::Vec2([10.0, 20.0])));
     }
 }
-

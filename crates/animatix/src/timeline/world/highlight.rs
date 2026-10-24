@@ -29,11 +29,11 @@ impl World {
         let tagged = self.tagged_tracks.try_get(id).and_then(|tracks| {
             tracks.values().flatten().filter_map(|t| t.last_keyframe_time()).max()
         });
-        [track, highlight, tagged].into_iter().flatten().max()
+        let plan = self.property_plan.get(id).max_keyframe_time();
+        [track, highlight, tagged, plan].into_iter().flatten().max()
     }
 
-    /// Whether any tier (including payload) has animated keyframes.
-    /// Whether any tier (payload and highlight included) has keyframes.
+    /// Whether any tier (payload, highlight and plan included) has keyframes.
     #[inline]
     pub fn has_any_keyframes(&self, id: EntityId) -> bool {
         self.tracks
@@ -46,6 +46,7 @@ impl World {
             || self.tagged_tracks.try_get(id).is_some_and(|tracks| {
                 tracks.values().flatten().any(|track| !track.is_effectively_static())
             })
+            || self.property_plan.get(id).has_any_keyframes()
     }
 }
 

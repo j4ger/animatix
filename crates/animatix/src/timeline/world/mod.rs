@@ -1,6 +1,5 @@
 //! The timeline ECS world: entities plus typed component stores.
 //!
-//! `World` owns the dense `EntityStore` (still `TrackStore` while the
 //! migration is in flight) and every component store. Entity ids are stable
 //! and append-only; labels are converted to ids at the boundary. See
 //! `docs/ecs.md` for the normative design.
@@ -52,6 +51,8 @@ pub struct World {
     pub(crate) highlight: RequiredStore<crate::timeline::animation_track::HighlightTracks>,
     /// Tagged-union property tracks (legend, extension tags).
     pub(crate) tagged_tracks: RequiredStore<TaggedTracksComponent>,
+    /// Registry-driven property slots for every entity.
+    pub(crate) property_plan: RequiredStore<crate::timeline::plan::PropertyPlan>,
     /// Per-entity visibility/lock/camera metadata.
     pub(crate) meta: ComponentStore<EntityMeta>,
     /// Layout configuration for `Row`/`Col`/`Grid`/`Stack` actors.
@@ -269,6 +270,7 @@ impl World {
         self.hierarchy.reset_at(id);
         self.highlight.reset_at(id);
         self.tagged_tracks.reset_at(id);
+        self.property_plan.reset_at(id);
         self.meta.reset_at(id);
         self.container_layout.reset_at(id);
         self.child_order.reset_at(id);
@@ -584,6 +586,7 @@ impl World {
         self.hierarchy.ensure_len(len);
         self.highlight.ensure_len(len);
         self.tagged_tracks.ensure_len(len);
+        self.property_plan.ensure_len(len);
         self.meta.ensure_len(len);
         self.container_layout.ensure_len(len);
         self.child_order.ensure_len(len);
@@ -603,6 +606,7 @@ impl World {
         self.hierarchy.clear();
         self.highlight.clear();
         self.tagged_tracks.clear();
+        self.property_plan.clear();
         self.meta.clear();
         self.container_layout.clear();
         self.child_order.clear();

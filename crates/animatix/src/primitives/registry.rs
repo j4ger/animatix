@@ -191,12 +191,14 @@ mod tests {
             _modifiers: &[Modifier],
             _children: &[InlineItem],
         ) -> Result<(), Vec<Diagnostic>> {
-            let track =
-                ctx.timeline.world.tracks.entry(label.to_string()).or_insert_with(|| {
-                    crate::timeline::AnimationTrack::placeholder(label.to_string())
-                });
-            track.set_identity("Text");
-            track.rebuild_property_plan();
+            let track_id = ctx.timeline.world.spawn(label, "Text");
+            ctx.timeline
+                .world
+                .tracks
+                .get_by_id_mut(track_id)
+                .expect("spawn creates the track")
+                .set_identity("Text");
+            ctx.timeline.world.rebuild_property_plan(track_id);
             Ok(())
         }
 

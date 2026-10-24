@@ -724,7 +724,7 @@ pub(super) fn inspector_ui(
             ui.add_space(sp.base.space_3);
 
             // ── Keyframes ──
-            let kf_count = count_keyframes(track);
+            let kf_count = count_keyframes(timeline, track);
             layout::card(ui, |ui| {
                 let kf_view = *keyframe_view_mode;
 

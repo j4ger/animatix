@@ -99,6 +99,7 @@ impl Primitive for PlotExt {
             .entry(label.to_string())
             .or_insert_with(|| crate::timeline::AnimationTrack::placeholder(label.to_string()))
             .id;
+        ctx.timeline.world.ensure_len();
         ctx.timeline.world.ensure_plot_payload(track_id).procedural_plot = Some(ProceduralPlot {
             plot_type: ProceduralPlotKind::default(),
             kind: PlotCurveKind::Cartesian,
@@ -122,11 +123,15 @@ impl Primitive for PlotExt {
             params: vec![],
             extra_captures: Default::default(),
         });
+        let (caps, actor_type) = {
+            let track = ctx.timeline.world.track_mut(track_id).expect("just inserted plot track");
+            (track.caps, track.actor_type.clone())
+        };
         ctx.timeline
             .world
-            .track_mut(track_id)
-            .expect("just inserted plot track")
-            .rebuild_property_plan();
+            .property_plan
+            .get_mut(track_id)
+            .rebuild_for(&caps, &actor_type);
         Ok(())
     }
 

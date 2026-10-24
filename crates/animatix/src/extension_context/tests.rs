@@ -43,17 +43,23 @@ impl Primitive for Gauge {
         _modifiers: &[crate::ast::Modifier],
         _children: &[crate::ast::InlineItem],
     ) -> Result<(), Vec<Diagnostic>> {
-        let track = ctx
-            .timeline
-            .world
-            .tracks
-            .entry(label.to_string())
-            .or_insert_with(|| crate::timeline::AnimationTrack::placeholder(label.to_string()));
-        // The fixture historically claimed the `Text` kind so its plan
-        // carries text slots; derive Text's caps while keeping the
-        // extension's own actor type.
-        track.caps = animatix_std::caps_for_type("Text").unwrap_or_default();
-        track.rebuild_property_plan();
+        let track_id = ctx.timeline.world.spawn_with_track(
+            label,
+            crate::timeline::AnimationTrack::placeholder(label.to_string()),
+        );
+        {
+            let track = ctx
+                .timeline
+                .world
+                .tracks
+                .get_by_id_mut(track_id)
+                .expect("spawn_with_track creates the track");
+            // The fixture historically claimed the `Text` kind so its plan
+            // carries text slots; derive Text's caps while keeping the
+            // extension's own actor type.
+            track.caps = animatix_std::caps_for_type("Text").unwrap_or_default();
+        }
+        ctx.timeline.world.rebuild_property_plan(track_id);
         Ok(())
     }
 
@@ -210,7 +216,12 @@ fn extension_bool_property_roundtrips() {
         report.diagnostics
     );
     let track = report.output.world.tracks.get("r").expect("rect track");
-    let slot = track.property_plan.get(PropertyId(1_000_000)).expect("bool slot");
+    let slot = report
+        .output
+        .world
+        .property_plan(track.id)
+        .get(PropertyId(1_000_000))
+        .expect("bool slot");
     assert_eq!(slot.track.sample(0), Some(crate::timeline::PropertyValue::Bool(true)));
     assert_eq!(slot.track.sample(1000), Some(crate::timeline::PropertyValue::Bool(false)));
 
@@ -462,21 +473,22 @@ fn build_with_context_writes_extension_properties() {
 
     let track = report.output.world.tracks.get("g").expect("gauge track");
     assert_eq!(track.actor_type, "Gauge");
+    let plan = report.output.world.property_plan(track.id);
     let level = animatix_syntax::schema::PropertyId(1_000_000);
     assert_eq!(
-        track.property_plan.get(level).and_then(|slot| slot.track.sample(0)),
+        plan.get(level).and_then(|slot| slot.track.sample(0)),
         Some(crate::timeline::PropertyValue::F32(42.0))
     );
     // `#1s g.level = 80` carries no `[duration]`, so it is an instant change
     // (`docs/spec.md`, "Instant Change"): the declared 42 holds until the
     // stamp rather than easing toward 80 across the preceding second.
     assert_eq!(
-        track.property_plan.get(level).and_then(|slot| slot.track.sample(500)),
+        plan.get(level).and_then(|slot| slot.track.sample(500)),
         Some(crate::timeline::PropertyValue::F32(42.0)),
         "an undated extension assignment eased from the previous keyframe"
     );
     assert_eq!(
-        track.property_plan.get(level).and_then(|slot| slot.track.sample(1000)),
+        plan.get(level).and_then(|slot| slot.track.sample(1000)),
         Some(crate::timeline::PropertyValue::F32(80.0))
     );
 
@@ -509,10 +521,9 @@ fn build_with_context_writes_extension_property_on_builtin_actor() {
         report.diagnostics
     );
     let track = report.output.world.tracks.get("r").expect("rect track");
+    let plan = report.output.world.property_plan(track.id);
     assert_eq!(
-        track
-            .property_plan
-            .get(animatix_syntax::schema::PropertyId(1_000_000))
+        plan.get(animatix_syntax::schema::PropertyId(1_000_000))
             .and_then(|slot| slot.track.sample(500)),
         // Undated assignment at `#1s`, so the declared 5 holds through the
         // gap; see `build_with_context_writes_extension_properties`.
@@ -520,9 +531,7 @@ fn build_with_context_writes_extension_property_on_builtin_actor() {
         "an undated assignment on a built-in actor eased from its declaration"
     );
     assert_eq!(
-        track
-            .property_plan
-            .get(animatix_syntax::schema::PropertyId(1_000_000))
+        plan.get(animatix_syntax::schema::PropertyId(1_000_000))
             .and_then(|slot| slot.track.sample(1000)),
         Some(crate::timeline::PropertyValue::F32(10.0)),
         "the step did not take effect at its own stamp"
@@ -580,7 +589,6 @@ fn extension_property_survives_carry_bag_serde() {
     let entry = restored.entries.get("g").expect("carried gauge");
     assert_eq!(
         entry
-            .track
             .property_plan
             .get(animatix_syntax::schema::PropertyId(1_000_000))
             .and_then(|slot| slot.track.sample(0)),

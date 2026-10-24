@@ -1,6 +1,6 @@
 use animatix::timeline::{
-    ActorField, AnimationTrack, PROPERTY_REGISTRY, PropertyValue, ShapeType, Timeline,
-    allowed_property_indices, property_has_keyframes, property_keyframe_easing,
+    ActorField, AnimationTrack, PROPERTY_REGISTRY, PropertyPlan, PropertyValue, ShapeType,
+    Timeline, allowed_property_indices, property_has_keyframes, property_keyframe_easing,
     property_keyframe_times, read_property_plan_slot, read_property_value,
 };
 use animatix_syntax::easing::Easing;
@@ -27,7 +27,7 @@ struct TrackGroup {
 
 // ─── Public Entry Point ───────────────────────────────────────────────────
 
-pub(super) fn count_keyframes(track: &AnimationTrack) -> usize {
+pub(super) fn count_keyframes(timeline: &Timeline, track: &AnimationTrack) -> usize {
     let indices = allowed_property_indices(&track.caps, &track.actor_type);
     let builtin = indices
         .iter()
@@ -40,8 +40,12 @@ pub(super) fn count_keyframes(track: &AnimationTrack) -> usize {
             }
         })
         .sum::<usize>();
-    let extension = track
-        .property_plan
+    let empty_plan = PropertyPlan::default();
+    let plan = timeline
+        .world()
+        .track(track.id)
+        .map_or(&empty_plan, |_| timeline.world().property_plan(track.id));
+    let extension = plan
         .iter()
         .filter(|slot| slot.id.0 >= 1_000_000)
         .map(|slot| slot.track.keyframe_count())
@@ -404,20 +408,26 @@ fn collect_track_groups(timeline: &Timeline, track: &AnimationTrack) -> Vec<Trac
     }
 
     let actor_type = track.actor_type.as_str();
+    // A standalone track (inspector tests) has no plan slot; fall back to an
+    // empty plan, which is what the old on-track plan was for those callers.
+    let empty_plan = PropertyPlan::default();
+    let plan = timeline
+        .world()
+        .track(track.id)
+        .map_or(&empty_plan, |_| timeline.world().property_plan(track.id));
     let mut extensions = Vec::new();
     for descriptor in timeline.extension_property_descriptors() {
         if !descriptor.actor_types.iter().any(|ty| ty.as_str() == actor_type) {
             continue;
         }
         let id = animatix::property_descriptor::runtime_id(&descriptor);
-        if track.property_plan.keyframe_count(id) == 0 {
+        if plan.keyframe_count(id) == 0 {
             continue;
         }
         let mut keyframes = Vec::new();
-        for time_ms in track.property_plan.keyframe_times(id) {
-            if let Some(value) = read_property_plan_slot(&track.property_plan, id, time_ms) {
-                let easing = track
-                    .property_plan
+        for time_ms in plan.keyframe_times(id) {
+            if let Some(value) = read_property_plan_slot(plan, id, time_ms) {
+                let easing = plan
                     .keyframe_easing(id, time_ms)
                     .unwrap_or(animatix_syntax::easing::Easing::Linear);
                 keyframes.push((time_ms, format_value(&value, &descriptor.name), easing));
@@ -519,10 +529,17 @@ mod tests {
         AnimationTrack::new("test".to_string(), actor_type)
     }
 
+    /// Count the keyframes on a real spawned entity, the way the inspector does.
+    fn count_for(track: AnimationTrack) -> usize {
+        let mut timeline = Timeline::new();
+        let id = timeline.world_mut().spawn_with_track("test", track);
+        let track = timeline.world().track(id).expect("spawned track");
+        count_keyframes(&timeline, track)
+    }
+
     #[test]
     fn test_count_keyframes_empty_track() {
-        let track = make_track("Rect");
-        assert_eq!(count_keyframes(&track), 0);
+        assert_eq!(count_for(make_track("Rect")), 0);
     }
 
     #[test]
@@ -531,7 +548,7 @@ mod tests {
         let mut pt = PropertyTrack::new([0.0, 0.0]);
         pt.add_keyframe(0, [100.0, 200.0], Easing::Linear);
         track.geometry.position = Some(pt);
-        assert_eq!(count_keyframes(&track), 1);
+        assert_eq!(count_for(track), 1);
     }
 
     #[test]
@@ -549,7 +566,7 @@ mod tests {
         rot.add_keyframe(500, 1.57, Easing::EaseOut);
         track.geometry.rotation = Some(rot);
 
-        assert_eq!(count_keyframes(&track), 3);
+        assert_eq!(count_for(track), 3);
     }
 
     #[test]
@@ -573,6 +590,6 @@ mod tests {
         track.text.text_content = Some(txt);
 
         // Only position and text_content should count (stroke_width is not applicable)
-        assert_eq!(count_keyframes(&track), 2);
+        assert_eq!(count_for(track), 2);
     }
 }

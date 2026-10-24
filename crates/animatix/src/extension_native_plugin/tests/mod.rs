@@ -121,11 +121,24 @@ fn sample_evaluate_ctx_with_payload<'a>(
         highlight: Box::leak(
             Box::new(crate::timeline::animation_track::HighlightTracks::default()),
         ),
+        property_plan: None,
         world: None,
         payload,
         target_resolver: None,
         legend: None,
     }
+}
+
+/// Like [`sample_evaluate_ctx`], but with the entity's property plan so native
+/// property reads can resolve registry-driven slots.
+fn sample_evaluate_ctx_with_plan<'a>(
+    track: &'a crate::timeline::AnimationTrack,
+    asset_cache: &'a crate::timeline::assets::AssetCache,
+    property_plan: Option<&'a crate::timeline::plan::PropertyPlan>,
+) -> EvaluateCtx<'a> {
+    let mut ctx = sample_evaluate_ctx(track, asset_cache);
+    ctx.property_plan = property_plan;
+    ctx
 }
 
 #[test]
@@ -197,9 +210,7 @@ fn native_action_context_writes_extension_keyframe() {
         .register_property("Pulse", "glow", PropertyValueKind::F32, true)
         .expect("register property");
     let mut timeline = crate::timeline::Timeline::new();
-    let mut track = crate::timeline::AnimationTrack::placeholder("p".to_string());
-    track.actor_type = "Pulse".to_string();
-    timeline.world.tracks.insert("p".to_string(), track);
+    let entity = timeline.world.spawn("p", "Pulse");
 
     let adapter = NativeActionAdapter {
         signature: ActionSignature {
@@ -228,7 +239,7 @@ fn native_action_context_writes_extension_keyframe() {
     assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
     assert_eq!(
         crate::timeline::property_engine::read_property_plan_slot(
-            &timeline.world.tracks.get("p").expect("track").property_plan,
+            timeline.world.property_plan(entity),
             id,
             500,
         ),
