@@ -648,3 +648,32 @@ mod keyframe_tests {
         assert_eq!(timeline.world().property_keyframe_times(id, ActorField::Opacity), vec![0, 100]);
     }
 }
+
+#[cfg(test)]
+mod tagged_field_tests {
+    use super::*;
+    use crate::timeline::AnimationTrack;
+    use crate::timeline::dispatch::{TrackFieldMut, TrackFieldRef};
+    use crate::timeline::property_registry::ActorField;
+
+    #[test]
+    fn tagged_fields_use_the_tagged_store() {
+        let mut track = AnimationTrack::new("legend".into(), "Rect");
+        let mut fields = TrackFieldsMut::from_track(&mut track);
+        match fields.field_mut(ActorField::Tagged("legend")) {
+            Some(TrackFieldMut::Tagged(name, slot)) => {
+                assert_eq!(name, "legend");
+                *slot = Some(crate::timeline::PropertyTrack::new(
+                    crate::timeline::PropertyValue::Bool(true),
+                ));
+            },
+            _ => panic!("expected a tagged field"),
+        }
+
+        let fields = TrackFields::from_track(&track);
+        assert!(matches!(
+            fields.field_ref(ActorField::Tagged("legend")),
+            Some(TrackFieldRef::Tagged("legend", _))
+        ));
+    }
+}
