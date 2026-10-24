@@ -261,6 +261,7 @@ fn runtime_text_content_crossfade_compiles_both_endpoints() {
         overrides: None,
         vector_paths: &[],
         asset_cache: &asset_cache,
+        payload: None,
         target_resolver: None,
         legend: None,
     };

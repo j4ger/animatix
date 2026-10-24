@@ -195,7 +195,7 @@ impl Timeline {
         if track.caps.time_dependent
             || self.world.transcript.contains(track.id)
             || self.world.effects(track.id).is_some_and(|chain| chain.has_any_keyframes())
-            || track.has_any_keyframes()
+            || self.world.has_any_keyframes(track.id)
             || self.world.procedural_plot(track.id).is_some()
             || track.shape.from_anchor.is_some()
             || track.shape.to_anchor.is_some()

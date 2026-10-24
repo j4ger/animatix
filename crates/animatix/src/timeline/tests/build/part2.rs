@@ -949,8 +949,9 @@ fade-in c [100ms]
 
     let track = timeline.world.tracks.get("c").expect("curve track");
     assert!(
-        track
-            .procedural_plot()
+        timeline
+            .world
+            .procedural_plot(track.id)
             .expect("procedural plot")
             .is_dynamic(&timeline.frame_written_vars),
         "LetChain body referencing t must be dynamic"

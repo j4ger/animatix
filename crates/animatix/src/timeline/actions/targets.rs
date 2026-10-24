@@ -141,7 +141,7 @@ pub(crate) fn ensure_vector_reveal_target(
         return false;
     }
 
-    if track.image_track().and_then(|t| t.last_value()).is_some() {
+    if timeline.world.image_track(track.id).and_then(|t| t.last_value()).is_some() {
         push_unsupported_action_target_diagnostic(
             verb,
             target,
@@ -164,7 +164,7 @@ pub(crate) fn ensure_vector_reveal_target(
                     .as_ref()
                     .map(|t| t.default_value.is_empty() && t.keyframes.is_empty())
                     .unwrap_or(true)
-                && !track.has_svg_path_content()
+                && !timeline.world.has_svg_path_content(track.id)
         }))
     {
         push_unsupported_action_target_diagnostic(

@@ -350,6 +350,11 @@ impl Timeline {
                 font_context: self.font_context.as_ref(),
                 text_compiler: &mut self.text_compiler.borrow_mut(),
                 asset_cache: std::sync::Arc::make_mut(&mut self.asset_cache),
+                payload: Some(
+                    self.world
+                        .payload
+                        .get_or_insert_with(track.id, crate::primitives::PrimitivePayload::default),
+                ),
             };
             if primitive.handle_assignment(
                 track,

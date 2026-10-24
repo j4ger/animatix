@@ -827,7 +827,7 @@ chart.data = {("A", 30), ("B", 5)} [800ms]
     assert_eq!(transition.from, vec![("A".to_string(), 10.0f32), ("B".to_string(), 20.0)]);
     assert_eq!(transition.to, vec![("A".to_string(), 30.0f32), ("B".to_string(), 5.0)]);
     // The side channel is content: the scene must know it ends at 1.8s.
-    assert_eq!(track.max_keyframe_time(), Some(1800));
+    assert_eq!(timeline.world.max_keyframe_time(track.id), Some(1800));
 }
 
 /// Bars are matched **by label**: a category only the new set has enters from

@@ -84,73 +84,86 @@ fn snapshot_preserves_kind() {
 #[test]
 fn snapshot_preserves_svg_paths() {
     use crate::timeline::VelloPath;
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.ensure_svg_payload().svg_paths.push(VelloPath::default());
-    let snapshot = snapshot_track_at(&track, 0);
-    assert_eq!(snapshot.svg_paths().len(), 1);
+    let mut timeline = Timeline::new();
+    let track = AnimationTrack::placeholder("test".to_string());
+    let id = timeline.world.spawn_with_track("test", track);
+    timeline.world.ensure_svg_payload(id).svg_paths.push(VelloPath::default());
+    let payload = timeline.world.payload(id).cloned().unwrap_or_default();
+    let snapshot = snapshot_payload_at(&payload, 0);
+    assert_eq!(snapshot.as_svg().expect("svg payload").svg_paths.len(), 1);
 }
 
 #[test]
 fn snapshot_clears_func_transitions() {
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.func_transitions_mut().push(crate::timeline::plot::FuncTransition {
-        start_ms: 0,
-        end_ms: 1000,
-        easing: Easing::Linear,
-        from: crate::timeline::plot::FuncSource::Compiled(
-            vec![],
-            Box::new(crate::timeline::modifier_runtime::ir::CompiledExpr::Const(
-                crate::timeline::Value::Num(0.0),
-            )),
-            CapturedEnv::default(),
-        ),
-        to: crate::timeline::plot::FuncSource::Compiled(
-            vec![],
-            Box::new(crate::timeline::modifier_runtime::ir::CompiledExpr::Const(
-                crate::timeline::Value::Num(1.0),
-            )),
-            CapturedEnv::default(),
-        ),
-        blend_mode: crate::timeline::plot::FuncBlendMode::Output,
-    });
-    let snapshot = snapshot_track_at(&track, 0);
-    assert!(snapshot.func_transitions().is_empty());
+    let mut timeline = Timeline::new();
+    let track = AnimationTrack::placeholder("test".to_string());
+    let id = timeline.world.spawn_with_track("test", track);
+    timeline
+        .world
+        .func_transitions_mut(id)
+        .push(crate::timeline::plot::FuncTransition {
+            start_ms: 0,
+            end_ms: 1000,
+            easing: Easing::Linear,
+            from: crate::timeline::plot::FuncSource::Compiled(
+                vec![],
+                Box::new(crate::timeline::modifier_runtime::ir::CompiledExpr::Const(
+                    crate::timeline::Value::Num(0.0),
+                )),
+                CapturedEnv::default(),
+            ),
+            to: crate::timeline::plot::FuncSource::Compiled(
+                vec![],
+                Box::new(crate::timeline::modifier_runtime::ir::CompiledExpr::Const(
+                    crate::timeline::Value::Num(1.0),
+                )),
+                CapturedEnv::default(),
+            ),
+            blend_mode: crate::timeline::plot::FuncBlendMode::Output,
+        });
+    let payload = timeline.world.payload(id).cloned().unwrap_or_default();
+    let snapshot = snapshot_payload_at(&payload, 0);
+    assert!(snapshot.as_plot().expect("plot payload").func_transitions.is_empty());
 }
 
 #[test]
 fn snapshot_preserves_procedural_plot() {
     use crate::ast::Expr;
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track.ensure_plot_payload().procedural_plot = Some(crate::timeline::plot::ProceduralPlot {
-        plot_type: crate::timeline::plot::ProceduralPlotKind::Curve(
-            crate::timeline::plot::PlotCurveKind::Cartesian,
-        ),
-        kind: crate::timeline::plot::PlotCurveKind::Cartesian,
-        func_args: vec!["x".to_string()],
-        func_body: crate::timeline::modifier_runtime::ir::compile_expr(&Expr::Ident(
-            "x".to_string(),
-        ))
-        .expect("test body should compile"),
-        actor_label: "test".to_string(),
-        param_names: vec![],
-        p_x_domain: [0.0, 1.0],
-        p_y_domain: [0.0, 1.0],
-        p_size: [100.0, 100.0],
-        padding: [0.0; 4],
-        t_domain: [0.0, 1.0],
-        tolerance: 0.1,
-        max_depth: 8,
-        resolution: 64,
-        density: 16,
-        levels: vec![],
-        stroke_width: 2.0,
-        stroke_color: [1.0, 1.0, 1.0, 1.0],
-        fill_color: [1.0, 1.0, 1.0, 1.0],
-        params: vec![],
-        extra_captures: CapturedEnv::default(),
-    });
-    let snapshot = snapshot_track_at(&track, 0);
-    assert!(snapshot.procedural_plot().is_some());
+    let mut timeline = Timeline::new();
+    let track = AnimationTrack::placeholder("test".to_string());
+    let id = timeline.world.spawn_with_track("test", track);
+    timeline.world.ensure_plot_payload(id).procedural_plot =
+        Some(crate::timeline::plot::ProceduralPlot {
+            plot_type: crate::timeline::plot::ProceduralPlotKind::Curve(
+                crate::timeline::plot::PlotCurveKind::Cartesian,
+            ),
+            kind: crate::timeline::plot::PlotCurveKind::Cartesian,
+            func_args: vec!["x".to_string()],
+            func_body: crate::timeline::modifier_runtime::ir::compile_expr(&Expr::Ident(
+                "x".to_string(),
+            ))
+            .expect("test body should compile"),
+            actor_label: "test".to_string(),
+            param_names: vec![],
+            p_x_domain: [0.0, 1.0],
+            p_y_domain: [0.0, 1.0],
+            p_size: [100.0, 100.0],
+            padding: [0.0; 4],
+            t_domain: [0.0, 1.0],
+            tolerance: 0.1,
+            max_depth: 8,
+            resolution: 64,
+            density: 16,
+            levels: vec![],
+            stroke_width: 2.0,
+            stroke_color: [1.0, 1.0, 1.0, 1.0],
+            fill_color: [1.0, 1.0, 1.0, 1.0],
+            params: vec![],
+            extra_captures: CapturedEnv::default(),
+        });
+    let payload = timeline.world.payload(id).cloned().unwrap_or_default();
+    let snapshot = snapshot_payload_at(&payload, 0);
+    assert!(snapshot.as_plot().and_then(|plot| plot.procedural_plot.as_ref()).is_some());
 }
 
 #[test]
@@ -481,13 +494,27 @@ fn carry_remaps_container_child_order_ids() {
 
 #[test]
 fn snapshot_preserves_svg_actor_kind() {
+    let mut timeline = Timeline::new();
     let mut track = AnimationTrack::placeholder("icon".to_string());
     track.set_identity("Svg");
-    track.ensure_svg_payload().svg_paths.push(crate::timeline::VelloPath::default());
+    let id = timeline.world.spawn_with_track("icon", track);
+    timeline
+        .world
+        .ensure_svg_payload(id)
+        .svg_paths
+        .push(crate::timeline::VelloPath::default());
 
-    let snapshot = snapshot_track_at(&track, 0);
+    let track = timeline.world.track(id).expect("spawned icon track");
+    let snapshot = snapshot_track_at(track, 0);
     assert_eq!(snapshot.actor_type, "Svg");
-    assert_eq!(snapshot.svg_paths().len(), 1, "svg_paths must survive snapshot");
+
+    let payload = timeline.world.payload(id).cloned().unwrap_or_default();
+    let payload_snapshot = snapshot_payload_at(&payload, 0);
+    assert_eq!(
+        payload_snapshot.as_svg().expect("svg payload").svg_paths.len(),
+        1,
+        "svg_paths must survive snapshot"
+    );
 }
 
 #[test]
@@ -651,4 +678,28 @@ fn value_serde_round_trip() {
             .unwrap_or_else(|e| panic!("deserialize failed for {:?}: {}", json, e));
         assert_eq!(*v, v2, "round-trip mismatch for {:?}", v);
     }
+}
+
+#[test]
+fn carry_bag_preserves_primitive_payload() {
+    let mut source = Timeline::new();
+    let mut track = AnimationTrack::placeholder("asset".to_string());
+    track.set_identity("Svg");
+    let id = source.world.spawn_with_track("asset", track);
+    source.world.ensure_svg_payload(id);
+    source.set_persistence_flag("asset", true);
+
+    let bag = source.compute_carry_bag(0, true);
+    assert!(
+        bag.entries.get("asset").and_then(|entry| entry.payload.as_svg()).is_some(),
+        "the carry bag must snapshot the primitive payload"
+    );
+
+    let mut dest = Timeline::new();
+    dest.inject_carry_bag(&bag, &source, 0, [1280.0, 720.0], &mut Vec::new());
+    let dest_id = dest.world.get_id("asset").expect("carried entity");
+    assert!(
+        dest.world.svg_payload(dest_id).is_some(),
+        "injection must restore the payload component"
+    );
 }

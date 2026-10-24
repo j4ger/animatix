@@ -862,8 +862,10 @@ fn for_loop_closure_captures_loop_variable() {
             .get_track(&track_name)
             .unwrap_or_else(|| panic!("{} track should exist", track_name));
 
-        let plot = track
-            .procedural_plot()
+        let plot = report
+            .output
+            .world
+            .procedural_plot(track.id)
             .unwrap_or_else(|| panic!("{} should have procedural_plot", track_name));
 
         // Verify that `freq` was captured in extra_captures.

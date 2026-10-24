@@ -41,6 +41,8 @@ pub struct AssignmentCtx<'a> {
     pub text_compiler: &'a mut crate::renderer::text::TextCompiler,
     /// Shared asset cache for loading media referenced by assignments.
     pub asset_cache: &'a mut crate::timeline::assets::AssetCache,
+    /// Primitive payload for this entity (plot/SVG/image state).
+    pub payload: Option<&'a mut crate::primitives::PrimitivePayload>,
 }
 
 /// Context passed to `Primitive::render()`.
@@ -78,6 +80,8 @@ pub struct EvaluateCtx<'a> {
     pub vector_paths: &'a [VelloPath],
     /// Shared image cache for native render commands that specify a URL.
     pub asset_cache: &'a crate::timeline::assets::AssetCache,
+    /// Primitive payload for this entity (plot/SVG/image state).
+    pub payload: Option<&'a crate::primitives::PrimitivePayload>,
     /// Narrow resolver for target actor bounds (targeted callout mode).
     /// Replaces the previous broad `Option<&Timeline>` field.
     pub target_resolver: Option<&'a dyn TargetResolver>,
@@ -420,4 +424,77 @@ pub struct CaptionCue {
     pub end_ms: u64,
     /// Optional active word highlight color override for this cue.
     pub active_color: Option<[f32; 4]>,
+}
+
+impl AssignmentCtx<'_> {
+    /// SVG payload for the actor being assigned, when present.
+    pub fn svg_payload(&self) -> Option<&crate::primitives::SvgPayload> {
+        self.payload.as_ref().and_then(|payload| payload.as_svg())
+    }
+
+    /// Ensure and borrow the actor's SVG payload.
+    pub fn ensure_svg_payload(&mut self) -> &mut crate::primitives::SvgPayload {
+        self.payload
+            .as_mut()
+            .expect("assignment context always carries a payload")
+            .ensure_svg()
+    }
+
+    /// Ensure and borrow the actor's image payload.
+    pub fn ensure_image_payload(&mut self) -> &mut crate::primitives::ImagePayload {
+        self.payload
+            .as_mut()
+            .expect("assignment context always carries a payload")
+            .ensure_image()
+    }
+
+    /// Declaration bar dataset.
+    pub fn bar_data(&self) -> &[(String, f32)] {
+        self.payload
+            .as_ref()
+            .and_then(|payload| payload.as_plot())
+            .map_or(&[], |plot| &plot.bar_data)
+    }
+
+    /// Bar data transitions in stamp order.
+    pub fn bar_data_transitions(&self) -> &[crate::timeline::plot::BarDataTransition] {
+        self.payload
+            .as_ref()
+            .and_then(|payload| payload.as_plot())
+            .map_or(&[], |plot| &plot.bar_data_transitions)
+    }
+
+    /// Bar layout resolved at build time.
+    pub(crate) fn bar_layout(&self) -> Option<&crate::timeline::BarChartLayout> {
+        self.payload.as_ref().and_then(|payload| payload.as_plot())?.bar_layout.as_ref()
+    }
+
+    /// Ensure and borrow the actor's plot payload.
+    pub fn ensure_plot_payload(&mut self) -> &mut crate::primitives::PlotPayload {
+        self.payload
+            .as_mut()
+            .expect("assignment context always carries a payload")
+            .ensure_plot()
+    }
+}
+
+impl EvaluateCtx<'_> {
+    /// SVG payload for this actor, when present.
+    pub fn svg_payload(&self) -> Option<&crate::primitives::SvgPayload> {
+        self.payload.as_ref().and_then(|payload| payload.as_svg())
+    }
+
+    /// Evaluate the actor's SVG paths at `time_ms`.
+    pub fn svg_paths_at(&self, time_ms: u64) -> Option<Vec<VelloPath>> {
+        self.svg_payload()?.svg_paths_at(time_ms)
+    }
+
+    /// Raster image track for this actor, when present.
+    pub fn image_track(
+        &self,
+    ) -> Option<
+        &crate::timeline::property_track::PropertyTrack<Option<crate::timeline::image::SceneImage>>,
+    > {
+        self.payload.as_ref().and_then(|payload| payload.as_image())?.image.as_ref()
+    }
 }

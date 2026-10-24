@@ -182,3 +182,20 @@ impl PrimitivePayload {
         }
     }
 }
+
+impl SvgPayload {
+    /// Evaluate SVG paths at `time_ms`, preferring timed assignments over the
+    /// declaration-level static path set.
+    pub fn svg_paths_at(&self, time_ms: u64) -> Option<Vec<crate::renderer::types::VelloPath>> {
+        self.svg_paths_track
+            .as_ref()
+            .and_then(|track| track.evaluate(time_ms))
+            .or_else(|| {
+                if self.svg_paths.is_empty() {
+                    None
+                } else {
+                    Some(self.svg_paths.clone())
+                }
+            })
+    }
+}

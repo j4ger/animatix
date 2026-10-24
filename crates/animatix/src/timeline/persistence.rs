@@ -101,6 +101,9 @@ pub struct CarryEntry {
     /// Domain values are scene-relative, so no entity-id remap is needed.
     #[cfg_attr(feature = "serde", serde(default))]
     pub coordinate_frame: Option<CoordinateFrameComponent>,
+    /// Primitive payload snapshot (plot parametrisation, SVG/image state).
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub payload: crate::primitives::PrimitivePayload,
 }
 
 // ---------------------------------------------------------------------------
@@ -139,6 +142,12 @@ fn collect_persistent_entries(
         return;
     };
     let effects = timeline.world.effects(track.id).map(|chain| snapshot_effects(chain, time_ms));
+    let payload = timeline
+        .world
+        .payload(track.id)
+        .map_or_else(crate::primitives::PrimitivePayload::default, |payload| {
+            snapshot_payload_at(payload, time_ms)
+        });
     let track = snapshot_track_at(track, time_ms);
 
     entries.insert(
@@ -152,6 +161,7 @@ fn collect_persistent_entries(
             transcript: timeline.transcript(label).cloned(),
             coordinate_frame: timeline.coordinate_frame_for(label).cloned(),
             effects,
+            payload,
         },
     );
 }
@@ -297,6 +307,7 @@ fn inject_entry(
     // old `TrackStore::insert` replacement semantics.
     let id = dest.world.spawn_replacing(label, track);
     dest.world.meta_mut(id).first_seen_ms = 0;
+    dest.world.payload.insert(id, entry.payload.clone());
     if let Some(effects) = entry.effects.clone() {
         dest.world.effects.insert(id, effects);
     }
@@ -454,16 +465,6 @@ pub fn snapshot_track_at(track: &AnimationTrack, time_ms: u64) -> AnimationTrack
     collapse_shape_tracks(&mut snapshot.shape, time_ms);
     collapse_text_tracks(&mut snapshot.text, time_ms);
     collapse_highlight_tracks(&mut snapshot.highlight, time_ms);
-
-    // Collapse the plot payload's parameter tracks and drop its live
-    // transitions: they represent animation, not static snapshot state. A
-    // track with no plot payload has neither, so nothing is created here.
-    if let Some(plot) = snapshot.plot_payload_mut() {
-        for pt in plot.plot_param_tracks.values_mut() {
-            collapse_property_track_inner(pt, time_ms);
-        }
-        plot.func_transitions.clear();
-    }
 
     // Collapse registry-driven extension slots to the same snapshot semantics
     // as built-in property tracks.

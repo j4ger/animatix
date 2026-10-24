@@ -1,12 +1,8 @@
-//! Entity-id keyed payload accessors.
-//!
-//! Transitional delegates: the payload still lives on `AnimationTrack`; these
-//! methods let call sites move to `World` before the storage moves, so the
-//! switch only rewrites this file.
+//! Entity-id keyed payload accessors over `World::payload`.
 
 use super::EntityId;
 use super::World;
-use crate::primitives::{ImagePayload, PlotPayload, SvgPayload};
+use crate::primitives::{ImagePayload, PlotPayload, PrimitivePayload, SvgPayload};
 use crate::timeline::image::SceneImage;
 use crate::timeline::plot::{BarDataTransition, FuncTransition, ProceduralPlot};
 use crate::timeline::property_track::PropertyTrack;
@@ -16,56 +12,47 @@ use std::collections::HashMap;
 impl World {
     /// Plot payload for an entity, when present.
     pub fn plot_payload(&self, id: EntityId) -> Option<&PlotPayload> {
-        self.tracks.get_by_id(id)?.plot_payload()
+        self.payload.get(id)?.as_plot()
     }
 
     /// Mutable plot payload for an entity, when present.
     pub fn plot_payload_mut(&mut self, id: EntityId) -> Option<&mut PlotPayload> {
-        self.tracks.get_by_id_mut(id)?.plot_payload_mut()
+        self.payload.get_mut(id)?.as_plot_mut()
     }
 
     /// Ensure and borrow an entity's plot payload.
     pub fn ensure_plot_payload(&mut self, id: EntityId) -> &mut PlotPayload {
-        self.tracks
-            .get_by_id_mut(id)
-            .expect("payload access requires an existing entity")
-            .ensure_plot_payload()
+        self.payload.get_or_insert_with(id, PrimitivePayload::default).ensure_plot()
     }
 
     /// SVG payload for an entity, when present.
     pub fn svg_payload(&self, id: EntityId) -> Option<&SvgPayload> {
-        self.tracks.get_by_id(id)?.svg_payload()
+        self.payload.get(id)?.as_svg()
     }
 
     /// Mutable SVG payload for an entity, when present.
     pub fn svg_payload_mut(&mut self, id: EntityId) -> Option<&mut SvgPayload> {
-        self.tracks.get_by_id_mut(id)?.svg_payload_mut()
+        self.payload.get_mut(id)?.as_svg_mut()
     }
 
     /// Ensure and borrow an entity's SVG payload.
     pub fn ensure_svg_payload(&mut self, id: EntityId) -> &mut SvgPayload {
-        self.tracks
-            .get_by_id_mut(id)
-            .expect("payload access requires an existing entity")
-            .ensure_svg_payload()
+        self.payload.get_or_insert_with(id, PrimitivePayload::default).ensure_svg()
     }
 
     /// Image payload for an entity, when present.
     pub fn image_payload(&self, id: EntityId) -> Option<&ImagePayload> {
-        self.tracks.get_by_id(id)?.image_payload()
+        self.payload.get(id)?.as_image()
     }
 
     /// Mutable image payload for an entity, when present.
     pub fn image_payload_mut(&mut self, id: EntityId) -> Option<&mut ImagePayload> {
-        self.tracks.get_by_id_mut(id)?.image_payload_mut()
+        self.payload.get_mut(id)?.as_image_mut()
     }
 
     /// Ensure and borrow an entity's image payload.
     pub fn ensure_image_payload(&mut self, id: EntityId) -> &mut ImagePayload {
-        self.tracks
-            .get_by_id_mut(id)
-            .expect("payload access requires an existing entity")
-            .ensure_image_payload()
+        self.payload.get_or_insert_with(id, PrimitivePayload::default).ensure_image()
     }
 
     /// Procedural plot generator for an entity.
@@ -127,34 +114,19 @@ impl World {
     pub fn image_track(&self, id: EntityId) -> Option<&PropertyTrack<Option<SceneImage>>> {
         self.image_payload(id)?.image.as_ref()
     }
-}
 
-impl World {
     /// Evaluate SVG paths at `time_ms`, timed assignments first.
     pub fn svg_paths_at(&self, id: EntityId, time_ms: u64) -> Option<Vec<VelloPath>> {
-        self.tracks.get_by_id(id)?.svg_paths_at(time_ms)
+        self.svg_payload(id)?.svg_paths_at(time_ms)
     }
 
     /// Whether the entity carries declaration or assignment SVG content.
     pub fn has_svg_path_content(&self, id: EntityId) -> bool {
-        self.tracks.get_by_id(id).is_some_and(|track| track.has_svg_path_content())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::timeline::Timeline;
-
-    #[test]
-    fn world_payload_accessors_delegate_to_the_entity() {
-        let mut timeline = Timeline::new();
-        let id = timeline.world_mut().spawn("asset", "Svg");
-        assert!(timeline.world().svg_payload(id).is_none());
-        assert!(timeline.world().procedural_plot(id).is_none());
-
-        timeline.world_mut().ensure_svg_payload(id);
-        assert!(timeline.world().svg_payload(id).is_some());
-        timeline.world_mut().ensure_image_payload(id);
-        assert!(timeline.world().image_payload(id).is_some());
+        self.svg_payload(id).is_some_and(|payload| {
+            !payload.svg_paths.is_empty()
+                || payload.svg_paths_track.as_ref().is_some_and(|track| {
+                    track.default_value.is_some() || !track.keyframes.is_empty()
+                })
+        })
     }
 }

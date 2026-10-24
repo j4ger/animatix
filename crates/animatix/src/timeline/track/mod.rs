@@ -22,8 +22,6 @@ use crate::renderer::types::{TextPath, VelloPath};
 use crate::timeline::morph::MorphOptions;
 pub use crate::timeline::property_engine::PropertyValue;
 
-mod payload;
-
 // ─────────────────────────────────────────────────────────────
 // AnimationTrack
 // ─────────────────────────────────────────────────────────────
@@ -39,16 +37,16 @@ mod payload;
 /// [`crate::timeline::world::SceneHierarchyComponent`] (see `docs/ecs.md`), so
 /// `world.hierarchy(id)` is the single source of truth for the hierarchy.
 ///
-/// Primitive-specific state lives in exactly one place: [`Self::payload`]. An
-/// actor carries at most one payload variant — a plot actor has a
+/// Primitive-specific state lives in exactly one place: the
+/// [`crate::timeline::world::World::payload`] component. An actor carries at
+/// most one payload variant — a plot actor has a
 /// [`crate::primitives::PlotPayload`], an `Svg` actor an
 /// [`crate::primitives::SvgPayload`], an `Image` actor an
 /// [`crate::primitives::ImagePayload`], and everything else
-/// [`crate::primitives::PrimitivePayload::None`]. Read through the accessors
-/// ([`Self::procedural_plot`], [`Self::func_transitions`],
-/// [`Self::svg_paths`], [`Self::image_track`], …) rather than matching the enum,
-/// and write through the `ensure_*_payload` forms — but only from the primitive
-/// family that owns that variant, because `ensure_*` *replaces* the variant.
+/// [`crate::primitives::PrimitivePayload::None`]. Read and write through the
+/// entity-id keyed `World` accessors (`procedural_plot`, `func_transitions`,
+/// `svg_paths`, `image_track`, …); the `ensure_*_payload` forms *replace* the
+/// variant, so only call them from the primitive family that owns it.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct AnimationTrack {
@@ -106,10 +104,6 @@ pub struct AnimationTrack {
     /// Style property tracks (color, opacity, stroke, line_cap, line_join, morph_options).
     pub style: StyleTracks,
 
-    // ── Primitive-specific payload ──
-    /// Modular primitive payload (plots, SVG assets, raster images, custom plugin extensions).
-    pub payload: crate::primitives::PrimitivePayload,
-
     // ── Shape tier (sub-struct) ──
     /// Shape property tracks (shape_type, line_from, line_to, etc.).
     pub shape: ShapeTracks,
@@ -155,8 +149,6 @@ impl AnimationTrack {
 
             // Style tier (sub-struct)
             style: StyleTracks::default(),
-
-            payload: crate::primitives::PrimitivePayload::None,
 
             // Shape tier (sub-struct)
             shape: ShapeTracks::default(),
@@ -559,33 +551,6 @@ pub fn apply_split_text_animation(
 }
 
 impl AnimationTrack {
-    /// Evaluate SVG paths at `time_ms`, preferring timed assignments over the
-    /// declaration-level static path set.
-    pub fn svg_paths_at(&self, time_ms: u64) -> Option<Vec<VelloPath>> {
-        let payload = self.svg_payload()?;
-        payload
-            .svg_paths_track
-            .as_ref()
-            .and_then(|track| track.evaluate(time_ms))
-            .or_else(|| {
-                if payload.svg_paths.is_empty() {
-                    None
-                } else {
-                    Some(payload.svg_paths.clone())
-                }
-            })
-    }
-
-    /// Whether this actor has any declaration or assignment SVG path content.
-    pub fn has_svg_path_content(&self) -> bool {
-        self.svg_payload().is_some_and(|payload| {
-            !payload.svg_paths.is_empty()
-                || payload.svg_paths_track.as_ref().is_some_and(|track| {
-                    track.default_value.is_some() || !track.keyframes.is_empty()
-                })
-        })
-    }
-
     /// Evaluate vector paths at `time_ms`, applying morphing if configured.
     ///
     /// PF-4: when the actor has no `vector_paths` track (every geometric shape
@@ -672,6 +637,14 @@ impl AnimationTrack {
 
     /// Return the maximum keyframe time across all property tracks.
     pub fn max_keyframe_time(&self) -> Option<u64> {
+        self.max_keyframe_time_with(None)
+    }
+
+    /// Maximum keyframe time across all tiers, including a payload when given.
+    pub fn max_keyframe_time_with(
+        &self,
+        payload: Option<&crate::primitives::PrimitivePayload>,
+    ) -> Option<u64> {
         use crate::timeline::property_registry::PROPERTY_REGISTRY;
         let mut max: Option<u64> = None;
         for schema in PROPERTY_REGISTRY.iter() {
@@ -680,7 +653,10 @@ impl AnimationTrack {
             }
         }
         // Dynamic plot parameter tracks (not registry-representable)
-        if let Some(tracks) = self.plot_param_tracks() {
+        if let Some(tracks) = payload
+            .and_then(|payload| payload.as_plot())
+            .map(|plot| &plot.plot_param_tracks)
+        {
             for pt in tracks.values() {
                 if let Some(t) = pt.last_keyframe_time() {
                     max = Some(max.map_or(t, |m| m.max(t)));
@@ -698,11 +674,17 @@ impl AnimationTrack {
             max = Some(max.map_or(t, |m| m.max(t)));
         }
         // Func transitions: include the end time of each transition.
-        for ft in self.func_transitions() {
+        for ft in payload
+            .and_then(|payload| payload.as_plot())
+            .map_or(&[] as &[crate::timeline::plot::FuncTransition], |p| &p.func_transitions)
+        {
             max = Some(max.map_or(ft.end_ms, |m| m.max(ft.end_ms)));
         }
         // BarChart data transitions: the same reasoning as func transitions.
-        for bt in self.bar_data_transitions() {
+        for bt in payload
+            .and_then(|payload| payload.as_plot())
+            .map_or(&[] as &[crate::timeline::plot::BarDataTransition], |p| &p.bar_data_transitions)
+        {
             max = Some(max.map_or(bt.end_ms, |m| m.max(bt.end_ms)));
         }
         max
@@ -711,6 +693,14 @@ impl AnimationTrack {
     /// Returns true if any property track has animated keyframes.
     /// A track is "animated" if it has 2+ keyframes or 1 keyframe at time > 0.
     pub fn has_any_keyframes(&self) -> bool {
+        self.has_any_keyframes_with(None)
+    }
+
+    /// Whether any tier (incl. payload) has animated keyframes.
+    pub fn has_any_keyframes_with(
+        &self,
+        payload: Option<&crate::primitives::PrimitivePayload>,
+    ) -> bool {
         use crate::timeline::property_registry::PROPERTY_REGISTRY;
         for schema in PROPERTY_REGISTRY.iter() {
             let times = property_keyframe_times(self, schema.field);
@@ -718,11 +708,12 @@ impl AnimationTrack {
                 return true;
             }
         }
-        self.plot_param_tracks()
-            .is_some_and(|tracks| tracks.values().any(|t| !t.is_effectively_static()))
-            || self.tagged_tracks.values().flatten().any(|t| !t.is_effectively_static())
+        let plot = payload.and_then(|payload| payload.as_plot());
+        plot.is_some_and(|plot| {
+            plot.plot_param_tracks.values().any(|t| !t.is_effectively_static())
+                || !plot.func_transitions.is_empty()
+                || !plot.bar_data_transitions.is_empty()
+        }) || self.tagged_tracks.values().flatten().any(|t| !t.is_effectively_static())
             || self.property_plan.has_any_keyframes()
-            || !self.func_transitions().is_empty()
-            || !self.bar_data_transitions().is_empty()
     }
 }

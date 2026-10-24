@@ -231,7 +231,7 @@ cross-scene carry, not for runtime storage.
 | P3a | persistence / auto-color / transcript stores + `EntityId` hit regions | done |
 | P3b | container-layout + child-order stores | done |
 | P4 | coordinate-frame store, no env fallback, carry across scenes | done |
-| P5 | header fields (decl span, visibility, lock, camera, hidden, first-seen) + legend + effects done; payload/highlight/text/shape/style/geometry/plan pending | in progress |
+| P5 | header fields + legend + effects + payload done; highlight/text/shape/style/geometry/plan pending | in progress |
 | P6 | delete `AnimationTrack`/`TrackStore`, migrate GUI, snapshot DTO | pending |
 | P7 | perf + full gate matrix + docs close-out | pending |
 
@@ -240,10 +240,11 @@ and the property read/write path now go through `TrackFields` / `World`
 (`World::read_property_value` and `World::write_property_field`), so the
 registry-backed tiers can move one at a time. The remaining blocker is call
 sites: the `AnimationTrack`-taking free wrappers still exist for compatibility.
-`payload` is outside that table and additionally needs a render/evaluate
-context field for the image/SVG/plot primitives. It now has a complete
-`World` accessor surface (`world/payload.rs`); the remaining work is moving call
-sites off the `AnimationTrack` accessors, then switching the storage.
+`payload` moved with them: storage is `World.payload`, accessed by entity id
+through `world/payload.rs` (plot, SVG, image, and their transitions).
+`AssignmentCtx` and `EvaluateCtx` carry an optional payload reference so
+primitives no longer need the track for it; carry snapshots it via
+`snapshot_payload_at`.
 
 Direction for unlocking the rest: a borrowed `TrackFields<'a>` /
 `TrackFieldsMut<'a>` bundle (geometry/style/shape/text/highlight/tagged/payload

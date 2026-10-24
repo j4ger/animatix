@@ -95,6 +95,16 @@ fn sample_evaluate_ctx<'a>(
     track: &'a crate::timeline::AnimationTrack,
     asset_cache: &'a crate::timeline::assets::AssetCache,
 ) -> EvaluateCtx<'a> {
+    sample_evaluate_ctx_with_payload(track, asset_cache, None)
+}
+
+/// Like [`sample_evaluate_ctx`], but with the entity's payload component so
+/// native commands that read primitive state (e.g. the actor image) can see it.
+fn sample_evaluate_ctx_with_payload<'a>(
+    track: &'a crate::timeline::AnimationTrack,
+    asset_cache: &'a crate::timeline::assets::AssetCache,
+    payload: Option<&'a crate::primitives::PrimitivePayload>,
+) -> EvaluateCtx<'a> {
     EvaluateCtx {
         track,
         time_ms: 0,
@@ -108,6 +118,7 @@ fn sample_evaluate_ctx<'a>(
         overrides: None,
         vector_paths: &[],
         asset_cache,
+        payload,
         target_resolver: None,
         legend: None,
     }

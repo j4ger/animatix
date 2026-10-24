@@ -212,7 +212,8 @@ fn native_append_highlight_produces_highlight_command() {
 
 #[test]
 fn native_append_image_uses_actor_image() {
-    let mut track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
+    let mut timeline = crate::timeline::Timeline::new();
+    let track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
     let image = crate::timeline::image::SceneImage {
         data: vello::peniko::ImageData {
             data: vello::peniko::Blob::from(vec![0u8, 0, 0, 255]),
@@ -223,13 +224,16 @@ fn native_append_image_uses_actor_image() {
         },
         natural_size: [1.0, 1.0],
     };
-    track.ensure_image_payload().image.ensure(None).add_keyframe(
+    let id = timeline.world.spawn_with_track("pulse", track);
+    timeline.world.ensure_image_payload(id).image.ensure(None).add_keyframe(
         0,
         Some(image),
         crate::easing::Easing::Linear,
     );
+    let track = timeline.world.track(id).expect("spawned pulse track");
     let asset_cache = crate::timeline::assets::AssetCache::new();
-    let eval_ctx = sample_evaluate_ctx(&track, &asset_cache);
+    let eval_ctx =
+        sample_evaluate_ctx_with_payload(track, &asset_cache, timeline.world.payload(id));
     let property_ids = HashMap::new();
     let service_values = HashMap::new();
     let mut host = NativePrimitiveEvaluateHost {
@@ -264,7 +268,8 @@ fn native_append_image_uses_actor_image() {
 
 #[test]
 fn native_append_image_rejects_uncached_explicit_url() {
-    let mut track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
+    let mut timeline = crate::timeline::Timeline::new();
+    let track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
     let image = crate::timeline::image::SceneImage {
         data: vello::peniko::ImageData {
             data: vello::peniko::Blob::from(vec![0u8, 0, 0, 255]),
@@ -275,13 +280,16 @@ fn native_append_image_rejects_uncached_explicit_url() {
         },
         natural_size: [1.0, 1.0],
     };
-    track.ensure_image_payload().image.ensure(None).add_keyframe(
+    let id = timeline.world.spawn_with_track("pulse", track);
+    timeline.world.ensure_image_payload(id).image.ensure(None).add_keyframe(
         0,
         Some(image),
         crate::easing::Easing::Linear,
     );
+    let track = timeline.world.track(id).expect("spawned pulse track");
     let asset_cache = crate::timeline::assets::AssetCache::new();
-    let eval_ctx = sample_evaluate_ctx(&track, &asset_cache);
+    let eval_ctx =
+        sample_evaluate_ctx_with_payload(track, &asset_cache, timeline.world.payload(id));
     let property_ids = HashMap::new();
     let service_values = HashMap::new();
     let mut host = NativePrimitiveEvaluateHost {

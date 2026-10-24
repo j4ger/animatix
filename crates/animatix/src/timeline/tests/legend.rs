@@ -77,6 +77,7 @@ fn test_legend_wrapped_label_respects_max_width() {
         overrides: None,
         vector_paths: &[],
         asset_cache: &asset_cache,
+        payload: None,
         target_resolver: None,
         legend: Some(&legend),
     };
@@ -240,6 +241,7 @@ fn test_legend_empty() {
         overrides: None,
         vector_paths: &[],
         asset_cache: &asset_cache,
+        payload: None,
         target_resolver: None,
         legend: Some(&legend),
     };
@@ -656,6 +658,7 @@ fn test_legend_render_commands_produced() {
         overrides: None,
         vector_paths: &[],
         asset_cache: &asset_cache,
+        payload: None,
         target_resolver: None,
         legend: Some(&legend),
     };

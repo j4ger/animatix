@@ -226,7 +226,7 @@ pub(crate) unsafe extern "C" fn native_append_image(
     let requested_url = unsafe { read_c_string(command.url) };
     let image = match requested_url.as_deref() {
         Some(url) => host.ctx.asset_cache.get_image(url),
-        None => host.ctx.track.image_track().and_then(|t| t.evaluate(host.ctx.time_ms)),
+        None => host.ctx.image_track().and_then(|t| t.evaluate(host.ctx.time_ms)),
     };
     let Some(image) = image else {
         return NATIVE_STATUS_TYPE_ERROR;

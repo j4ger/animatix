@@ -80,34 +80,38 @@ impl Primitive for SvgPrimitive {
             },
         };
 
-        let current_paths = track
+        let t_start_ms = ctx.t_start_ms;
+        let t_end_ms = ctx.t_end_ms;
+        let duration_ms = ctx.duration_ms;
+        let instant_delayed = ctx.instant_delayed;
+        let easing = ctx.easing;
+        let current_paths = ctx
             .svg_payload()
             .and_then(|payload| payload.svg_paths_track.as_ref())
-            .and_then(|track| track.evaluate(ctx.t_start_ms))
+            .and_then(|track| track.evaluate(t_start_ms))
             .or_else(|| {
-                if track.svg_paths().is_empty() {
+                let payload = ctx.svg_payload()?;
+                if payload.svg_paths.is_empty() {
                     None
                 } else {
-                    Some(track.svg_paths().to_vec())
+                    Some(payload.svg_paths.clone())
                 }
             });
 
-        if ctx.duration_ms > 0.0 {
-            track.ensure_svg_payload().svg_paths_track.ensure(None).add_keyframe(
-                ctx.t_start_ms,
+        let payload = ctx.ensure_svg_payload();
+        if duration_ms > 0.0 {
+            payload.svg_paths_track.ensure(None).add_keyframe(
+                t_start_ms,
                 current_paths,
                 Easing::Linear,
             );
-        } else if ctx.instant_delayed {
-            preserve_instant_delayed_value(
-                &mut track.ensure_svg_payload().svg_paths_track,
-                ctx.t_start_ms,
-            );
+        } else if instant_delayed {
+            preserve_instant_delayed_value(&mut payload.svg_paths_track, t_start_ms);
         }
-        track.ensure_svg_payload().svg_paths_track.ensure(None).add_keyframe(
-            ctx.t_end_ms,
+        payload.svg_paths_track.ensure(None).add_keyframe(
+            t_end_ms,
             Some(parsed_paths.clone()),
-            ctx.easing,
+            easing,
         );
 
         let measured_half_size = measure_svg_paths(&parsed_paths);
@@ -151,7 +155,7 @@ impl Primitive for SvgPrimitive {
     {
         use crate::primitives::RenderCommand;
 
-        let Some(paths) = ctx.track.svg_paths_at(ctx.time_ms) else {
+        let Some(paths) = ctx.svg_paths_at(ctx.time_ms) else {
             return Ok(None);
         };
         if paths.is_empty() {

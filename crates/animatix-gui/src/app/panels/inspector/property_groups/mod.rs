@@ -109,7 +109,7 @@ pub(crate) fn build_property_groups(
             continue;
         }
 
-        let value = read_inspector_property_value(track, schema, time_ms);
+        let value = read_inspector_property_value(timeline, track, schema, time_ms);
         // One store: the registry-driven plan is authoritative for tagged
         // properties, and these helpers already consult it before the legacy
         // `tagged_tracks` map. Reading the map first here would show stale or
@@ -416,13 +416,14 @@ pub(crate) fn build_property_groups(
 }
 
 fn read_inspector_property_value(
+    timeline: &animatix::timeline::Timeline,
     track: &AnimationTrack,
     schema: &animatix::timeline::PropertySchema,
     time_ms: u64,
 ) -> PropertyValue {
     // Plot domains live on the plot payload's generator, not on a property
     // track, so they are read before the plan/legacy fallback below.
-    if let Some(plot) = track.procedural_plot() {
+    if let Some(plot) = timeline.world().procedural_plot(track.id) {
         match schema.name {
             "x_domain" => {
                 return PropertyValue::Vec2([plot.p_x_domain[0] as f32, plot.p_x_domain[1] as f32]);

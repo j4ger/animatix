@@ -36,7 +36,7 @@ pub struct TrackFields<'a> {
     /// Tagged union tracks keyed by property name.
     pub tagged_tracks: &'a HashMap<String, Option<PropertyTrack<PropertyValue>>>,
     /// Primitive payload (plot/SVG/image).
-    pub payload: &'a PrimitivePayload,
+    pub payload: Option<&'a PrimitivePayload>,
     /// Actor label (diagnostics).
     pub label: &'a str,
     /// Capability projection for this entity.
@@ -60,7 +60,7 @@ pub struct TrackFieldsMut<'a> {
     /// Tagged union tracks.
     pub tagged_tracks: &'a mut HashMap<String, Option<PropertyTrack<PropertyValue>>>,
     /// Primitive payload.
-    pub payload: &'a mut PrimitivePayload,
+    pub payload: Option<&'a mut PrimitivePayload>,
     /// Actor label (diagnostics).
     pub label: &'a str,
     /// Capability projection for this entity.
@@ -80,7 +80,7 @@ impl World {
             text: &track.text,
             highlight: &track.highlight,
             tagged_tracks: &track.tagged_tracks,
-            payload: &track.payload,
+            payload: self.payload.get(id),
             label: &track.label,
             caps: track.caps,
             property_plan: &track.property_plan,
@@ -97,7 +97,7 @@ impl World {
             text: &mut track.text,
             highlight: &mut track.highlight,
             tagged_tracks: &mut track.tagged_tracks,
-            payload: &mut track.payload,
+            payload: self.payload.get_mut(id),
             label: &track.label,
             caps: track.caps,
             property_plan: &mut track.property_plan,
@@ -149,7 +149,7 @@ impl<'a> TrackFields<'a> {
             text: &track.text,
             highlight: &track.highlight,
             tagged_tracks: &track.tagged_tracks,
-            payload: &track.payload,
+            payload: None,
             label: &track.label,
             caps: track.caps,
             property_plan: &track.property_plan,
@@ -227,7 +227,7 @@ impl<'a> TrackFields<'a> {
             CalloutToOffset => TrackFieldRef::Vec2(&self.geometry.callout_to_offset),
             VectorPaths => TrackFieldRef::VectorPaths(&self.shape.vector_paths),
             TextPaths => TrackFieldRef::TextPaths(&self.text.text_paths),
-            ImageData => return self.payload.as_image().map(|p| TrackFieldRef::Image(&p.image)),
+            ImageData => return self.payload?.as_image().map(|p| TrackFieldRef::Image(&p.image)),
             PositionBinding => TrackFieldRef::PositionBinding(&self.geometry.position_binding),
             Tagged(name) => {
                 return self
@@ -252,7 +252,7 @@ impl<'a> TrackFieldsMut<'a> {
             text: &mut track.text,
             highlight: &mut track.highlight,
             tagged_tracks: &mut track.tagged_tracks,
-            payload: &mut track.payload,
+            payload: None,
             caps: track.caps,
             label: &track.label,
             property_plan: &mut track.property_plan,
@@ -337,7 +337,10 @@ impl<'a> TrackFieldsMut<'a> {
             CalloutToOffset => TrackFieldMut::Vec2(&mut self.geometry.callout_to_offset),
             VectorPaths => TrackFieldMut::VectorPaths(&mut self.shape.vector_paths),
             TextPaths => TrackFieldMut::TextPaths(&mut self.text.text_paths),
-            ImageData => TrackFieldMut::Image(&mut self.payload.ensure_image().image),
+            ImageData => {
+                let payload = self.payload.as_mut()?;
+                TrackFieldMut::Image(&mut payload.ensure_image().image)
+            },
             PositionBinding => TrackFieldMut::PositionBinding(&mut self.geometry.position_binding),
             AudioVolume => TrackFieldMut::F32(&mut self.geometry.volume),
             SvgPaths | AudioSource | PositionBindingGroup | VectorShapeGroup | PlotDomainGroup
@@ -500,7 +503,7 @@ impl<'a> TrackFields<'a> {
         if self.caps.vector_paths
             && field == crate::timeline::property_registry::ActorField::ImageData
         {
-            self.payload.as_svg().and_then(|p| p.svg_paths_track.as_ref())
+            self.payload?.as_svg().and_then(|p| p.svg_paths_track.as_ref())
         } else {
             None
         }
@@ -606,6 +609,16 @@ impl World {
         field: crate::timeline::property_registry::ActorField,
     ) -> bool {
         self.fields(id).is_some_and(|f| f.property_has_keyframes(field))
+    }
+
+    /// Whether one property has a keyframe at exactly `time_ms`.
+    pub fn property_has_keyframe_at(
+        &self,
+        id: EntityId,
+        field: crate::timeline::property_registry::ActorField,
+        time_ms: u64,
+    ) -> bool {
+        self.fields(id).is_some_and(|f| f.property_has_keyframe_at(field, time_ms))
     }
 
     /// Number of keyframes on one property for an entity.

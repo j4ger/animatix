@@ -130,7 +130,7 @@ impl Timeline {
             .world
             .tracks
             .values()
-            .map(|t| t.max_keyframe_time_ms())
+            .map(|t| self.world.max_keyframe_time(t.id).unwrap_or(0))
             .max()
             .unwrap_or(0)
             .max(self.background_color.max_keyframe_time_ms())

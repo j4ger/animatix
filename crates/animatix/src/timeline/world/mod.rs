@@ -773,6 +773,22 @@ impl World {
             .map_or_else(animatix_core::caps::ActorCaps::default, |track| track.caps)
     }
 
+    /// Maximum keyframe time across the track tiers and payload.
+    #[inline]
+    pub fn max_keyframe_time(&self, id: EntityId) -> Option<u64> {
+        self.tracks
+            .get_by_id(id)
+            .and_then(|track| track.max_keyframe_time_with(self.payload.get(id)))
+    }
+
+    /// Whether any tier (including payload) has animated keyframes.
+    #[inline]
+    pub fn has_any_keyframes(&self, id: EntityId) -> bool {
+        self.tracks
+            .get_by_id(id)
+            .is_some_and(|track| track.has_any_keyframes_with(self.payload.get(id)))
+    }
+
     /// Authoring/registration type name for an entity.
     #[inline(always)]
     pub fn actor_type(&self, id: EntityId) -> &str {

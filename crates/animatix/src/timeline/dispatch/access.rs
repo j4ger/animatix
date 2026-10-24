@@ -70,7 +70,7 @@ impl AnimationTrack {
             TextPaths => TrackFieldRef::TextPaths(&self.text.text_paths),
             // The image payload owns the raster track; an actor without that
             // payload has no image data, which reads as `None`.
-            ImageData => return self.image_payload().map(|p| TrackFieldRef::Image(&p.image)),
+            ImageData => return None,
             PositionBinding => TrackFieldRef::PositionBinding(&self.geometry.position_binding),
             ActorField::Tagged(name) => {
                 return self
@@ -297,17 +297,9 @@ impl AnimationTrack {
     /// Check if a keyframe exists for the given property at exactly `time_ms`.
     /// The `property` parameter is a string name like `"position"`, `"opacity"`, etc.
     pub fn has_keyframe_at(&self, property: &str, time_ms: u64) -> bool {
-        use ActorField::*;
         let Some(field) = Self::field_for_property(property) else {
             return false;
         };
-
-        if field == ImageData && self.caps.vector_paths {
-            return self
-                .svg_payload()
-                .and_then(|p| p.svg_paths_track.as_ref())
-                .is_some_and(|track| track.keyframes.contains_key(&time_ms));
-        }
 
         self.field_ref(field).is_some_and(|f| f.has_keyframe_at(time_ms))
     }
@@ -315,17 +307,9 @@ impl AnimationTrack {
     /// Check if the property has any keyframes at all (regardless of time).
     /// The `property` parameter is a string name like `"position"`, `"opacity"`, etc.
     pub fn has_keyframes_for(&self, property: &str) -> bool {
-        use ActorField::*;
         let Some(field) = Self::field_for_property(property) else {
             return false;
         };
-
-        if field == ImageData && self.caps.vector_paths {
-            return self
-                .svg_payload()
-                .and_then(|p| p.svg_paths_track.as_ref())
-                .is_some_and(|track| !track.keyframes.is_empty());
-        }
 
         self.field_ref(field).is_some_and(|f| f.keyframe_count() > 0)
     }
@@ -375,18 +359,12 @@ impl AnimationTrack {
     /// The `property` parameter is a string name like `"position"`, `"opacity"`, etc.
     /// Returns a sorted, deduplicated list of timestamps.
     pub fn list_keyframes(&self, property: &str) -> Vec<u64> {
-        use ActorField::*;
         let Some(field) = Self::field_for_property(property) else {
             return Vec::new();
         };
 
-        let mut times: Vec<u64> = if field == ImageData && self.caps.vector_paths {
-            self.svg_payload()
-                .and_then(|p| p.svg_paths_track.as_ref())
-                .map_or(Vec::new(), |track| track.keyframes.keys().copied().collect())
-        } else {
-            self.field_ref(field).map(|f| f.keyframe_times()).unwrap_or_default()
-        };
+        let mut times: Vec<u64> =
+            self.field_ref(field).map(|f| f.keyframe_times()).unwrap_or_default();
         times.sort_unstable();
         times.dedup();
         times
@@ -451,37 +429,52 @@ pub fn property_keyframe_easing(
 mod payload_tests {
     use super::AnimationTrack;
     use crate::primitives::PrimitivePayload;
+    use crate::timeline::Timeline;
 
     #[test]
     fn rect_track_carries_no_payload() {
-        let track = AnimationTrack::new("box".to_string(), "Rect");
-        assert!(matches!(track.payload, PrimitivePayload::None));
+        let mut timeline = Timeline::new();
+        let id = timeline
+            .world
+            .spawn_with_track("box", AnimationTrack::new("box".to_string(), "Rect"));
+        assert!(timeline.world.payload(id).is_none());
     }
 
     #[test]
     fn ensure_plot_payload_switches_variant() {
-        let mut track = AnimationTrack::new("curve".to_string(), "PlotCurve");
-        assert!(matches!(track.payload, PrimitivePayload::None));
+        let mut timeline = Timeline::new();
+        let id = timeline
+            .world
+            .spawn_with_track("curve", AnimationTrack::new("curve".to_string(), "PlotCurve"));
+        assert!(timeline.world.payload(id).is_none());
 
-        track
-            .ensure_plot_payload()
+        timeline
+            .world
+            .ensure_plot_payload(id)
             .plot_param_tracks
             .insert("freq".to_string(), super::PropertyTrack::new(2.0));
-        assert!(matches!(track.payload, PrimitivePayload::Plot(_)));
-        assert_eq!(track.plot_param_track("freq").map(|t| t.default_value), Some(2.0));
+        assert!(matches!(timeline.world.payload(id), Some(PrimitivePayload::Plot(_))));
+        assert_eq!(timeline.world.plot_param_track(id, "freq").map(|t| t.default_value), Some(2.0));
 
         // A second `ensure` must hand back the same payload, not reset it.
-        assert_eq!(track.ensure_plot_payload().plot_param_tracks.len(), 1);
-        assert_eq!(track.plot_param_track("freq").map(|t| t.default_value), Some(2.0));
+        assert_eq!(timeline.world.ensure_plot_payload(id).plot_param_tracks.len(), 1);
+        assert_eq!(timeline.world.plot_param_track(id, "freq").map(|t| t.default_value), Some(2.0));
     }
 
     #[test]
     fn svg_and_image_payloads_are_distinct() {
-        let mut track = AnimationTrack::new("icon".to_string(), "Svg");
-        track.ensure_svg_payload().svg_paths.push(crate::timeline::VelloPath::default());
-        assert!(matches!(track.payload, PrimitivePayload::Svg(_)));
-        assert!(track.image_payload().is_none());
-        assert!(track.image_track().is_none());
-        assert_eq!(track.svg_paths().len(), 1);
+        let mut timeline = Timeline::new();
+        let id = timeline
+            .world
+            .spawn_with_track("icon", AnimationTrack::new("icon".to_string(), "Svg"));
+        timeline
+            .world
+            .ensure_svg_payload(id)
+            .svg_paths
+            .push(crate::timeline::VelloPath::default());
+        assert!(matches!(timeline.world.payload(id), Some(PrimitivePayload::Svg(_))));
+        assert!(timeline.world.image_payload(id).is_none());
+        assert!(timeline.world.image_track(id).is_none());
+        assert_eq!(timeline.world.svg_paths(id).len(), 1);
     }
 }

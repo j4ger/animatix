@@ -49,7 +49,10 @@ curve: PlotCurve, func: (x) => sin(freq * x), domain: (0, 6.28), samples: 100
 
     // The timeline should have a procedural plot for "curve"
     let curve_track = timeline.tracks().get("curve").expect("Expected track for 'curve'");
-    assert!(curve_track.procedural_plot().is_some(), "curve should have a procedural_plot");
+    assert!(
+        timeline.world().procedural_plot(curve_track.id).is_some(),
+        "curve should have a procedural_plot"
+    );
 
     // Evaluate at t=0 should not panic and produce a scene
     let _scene = timeline.evaluate(0.0, DIMS);
@@ -102,7 +105,10 @@ curve: PlotCurve, func: (x) => sin(freq * x), freq: 2, domain: (0, 6.28), sample
     let curve_track = timeline.tracks().get("curve").expect("Expected track for 'curve'");
 
     // Procedural plot should exist with "freq" as a param name
-    let plot = curve_track.procedural_plot().expect("curve should have a procedural_plot");
+    let plot = timeline
+        .world()
+        .procedural_plot(curve_track.id)
+        .expect("curve should have a procedural_plot");
     assert!(
         plot.param_names.contains(&"freq".to_string()),
         "param_names should contain 'freq', got: {:?}",
@@ -110,8 +116,9 @@ curve: PlotCurve, func: (x) => sin(freq * x), freq: 2, domain: (0, 6.28), sample
     );
 
     // plot_param_tracks should have "freq" with keyframes at 0ms and 3000ms
-    let freq_pt = curve_track
-        .plot_param_track("freq")
+    let freq_pt = timeline
+        .world()
+        .plot_param_track(curve_track.id, "freq")
         .expect("Expected plot_param_tracks entry for 'freq'");
 
     // At t=0ms, freq should be 2
@@ -167,7 +174,10 @@ always {
 
     // The procedural plot should exist (freq: 2 is a custom numeric param)
     let curve_track = timeline.tracks().get("curve").expect("Expected track for 'curve'");
-    assert!(curve_track.procedural_plot().is_some(), "curve should have a procedural_plot");
+    assert!(
+        timeline.world().procedural_plot(curve_track.id).is_some(),
+        "curve should have a procedural_plot"
+    );
 
     // Build frame env and run modifiers to check the override
     let overrides = std::collections::HashMap::new();
@@ -213,7 +223,10 @@ curve: PlotCurve, func: (x) => amp * sin(freq * x), freq: 2, amp: 1.0, domain: (
 
     let curve_track = timeline.tracks().get("curve").expect("Expected track for 'curve'");
 
-    let plot = curve_track.procedural_plot().expect("curve should have a procedural_plot");
+    let plot = timeline
+        .world()
+        .procedural_plot(curve_track.id)
+        .expect("curve should have a procedural_plot");
 
     // Both freq and amp should be param names
     assert!(
@@ -226,8 +239,9 @@ curve: PlotCurve, func: (x) => amp * sin(freq * x), freq: 2, amp: 1.0, domain: (
     );
 
     // Check freq track
-    let freq_pt = curve_track
-        .plot_param_track("freq")
+    let freq_pt = timeline
+        .world()
+        .plot_param_track(curve_track.id, "freq")
         .expect("Expected plot_param_tracks entry for 'freq'");
 
     let freq_0 = freq_pt.evaluate(0);
@@ -243,8 +257,9 @@ curve: PlotCurve, func: (x) => amp * sin(freq * x), freq: 2, amp: 1.0, domain: (
     );
 
     // Check amp track
-    let amp_pt = curve_track
-        .plot_param_track("amp")
+    let amp_pt = timeline
+        .world()
+        .plot_param_track(curve_track.id, "amp")
         .expect("Expected plot_param_tracks entry for 'amp'");
 
     let amp_0 = amp_pt.evaluate(0);

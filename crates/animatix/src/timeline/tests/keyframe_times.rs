@@ -122,14 +122,15 @@ fn test_keyframe_times_s_includes_effect_params() {
 #[test]
 fn test_keyframe_times_s_includes_plot_param_tracks() {
     let mut timeline = keyframe_times_s_timeline();
-    let mut track = AnimationTrack::placeholder("test".to_string());
-    track
-        .ensure_plot_payload()
+    let track = AnimationTrack::placeholder("test".to_string());
+    let id = timeline.world.spawn_with_track("test", track);
+    timeline
+        .world
+        .ensure_plot_payload(id)
         .plot_param_tracks
         .entry("freq".to_string())
         .or_insert_with(|| PropertyTrack::new(1.0))
         .add_keyframe(2000, 2.0, Easing::Linear);
-    timeline.world.tracks.insert("test".to_string(), track);
     let times = timeline.keyframe_times_s();
     assert!(times.contains(&2.0));
 }

@@ -151,6 +151,7 @@ cnt.value = 100 [1s]
         overrides: None,
         vector_paths: &[],
         asset_cache: &asset_cache,
+        payload: None,
         target_resolver: None,
         legend: None,
     };
@@ -224,6 +225,7 @@ label.color = (0.0, 1.0, 0.0, 1.0) [1s]
         overrides: None,
         vector_paths: &[],
         asset_cache: &asset_cache,
+        payload: None,
         target_resolver: None,
         legend: None,
     };
@@ -309,6 +311,7 @@ t: Text, text: "Hardware Stream", at: (300, 200), font_size: 32
         overrides: None,
         vector_paths: &[],
         asset_cache: &asset_cache,
+        payload: None,
         target_resolver: None,
         legend: None,
     };

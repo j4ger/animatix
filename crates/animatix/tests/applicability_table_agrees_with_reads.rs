@@ -110,8 +110,8 @@ fn bar_chart_gap_is_applicable_to_bar_chart() {
         "`BarChart` reads `gap` as the bar spacing but the row lists {gap_types:?}"
     );
 
-    let plot_rs =
-        std::fs::read_to_string(manifest.join("src/timeline/build/plot.rs")).expect("plot builder");
+    let plot_rs = std::fs::read_to_string(manifest.join("src/timeline/build/plot/bars.rs"))
+        .expect("plot builder");
     assert!(
         read_properties(&plot_rs).iter().any(|name| name == "gap"),
         "the plot builder no longer reads `gap` — drop this test with the read"

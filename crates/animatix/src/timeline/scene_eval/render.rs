@@ -465,6 +465,7 @@ impl Timeline {
                     asset_cache: &self.asset_cache,
                     target_resolver: Some(self),
                     legend: self.world.legend(track.id),
+                    payload: self.world.payload(track.id),
                 };
                 let mut text_ctx = crate::primitives::TextCompileCtx {
                     text_compiler: &mut self.text_compiler.borrow_mut(),
@@ -569,7 +570,7 @@ impl Timeline {
 
             // Debug overlays
             if debug_options.draw_bounds {
-                let svg_paths = track.svg_paths_at(time_ms).unwrap_or_default();
+                let svg_paths = self.world.svg_paths_at(track.id, time_ms).unwrap_or_default();
                 let text_paths = track.evaluate_text_paths(time_ms);
                 let _ = self.add_node_debug_overlays(
                     &svg_paths,
@@ -627,6 +628,7 @@ impl Timeline {
             asset_cache: &self.asset_cache,
             target_resolver: Some(self),
             legend: self.world.legend(child.id),
+            payload: self.world.payload(child.id),
         };
         let path = primitive.clip_path(&ctx, &child.caps);
         // Consume the memo-bounds handoff so it can't leak into the next node.
