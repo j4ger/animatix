@@ -231,17 +231,16 @@ cross-scene carry, not for runtime storage.
 | P3a | persistence / auto-color / transcript stores + `EntityId` hit regions | done |
 | P3b | container-layout + child-order stores | done |
 | P4 | coordinate-frame store, no env fallback, carry across scenes | done |
-| P5 | tier components: legend + effects done; payload/highlight/text/shape/style/geometry/plan pending | in progress |
+| P5 | header fields (decl span, visibility, lock, camera, hidden, first-seen) + legend + effects done; payload/highlight/text/shape/style/geometry/plan pending | in progress |
 | P6 | delete `AnimationTrack`/`TrackStore`, migrate GUI, snapshot DTO | pending |
 | P7 | perf + full gate matrix + docs close-out | pending |
 
-**Tier-migration prerequisite.** `TrackFieldRef` / `TrackFieldMut` in
-`timeline/dispatch.rs` assume every registry-backed property lives on
-`AnimationTrack`, and `read_property_value` / `write_property_field` reach them
-without a `World`. `highlight`, `text`, `shape`, `style`, `geometry` and
-`tagged_tracks` therefore cannot move until the property read/write path takes a
-component context (or a `World` + `EntityId`). `legend`, `effects` and `payload`
-are outside that table and migrate first; `payload` still needs a render/evaluate
+**Tier-migration prerequisite.** `TrackFieldRef` / `TrackFieldMut` construction
+and the property read/write path now go through `TrackFields` / `World`
+(`World::read_property_value` and `World::write_property_field`), so the
+registry-backed tiers can move one at a time. The remaining blocker is call
+sites: the `AnimationTrack`-taking free wrappers still exist for compatibility.
+`payload` is outside that table and additionally needs a render/evaluate
 context field for the image/SVG/plot primitives.
 
 Direction for unlocking the rest: a borrowed `TrackFields<'a>` /
