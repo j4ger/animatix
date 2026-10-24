@@ -289,10 +289,12 @@ path that assumes the tiers live on the track.
 line count. The ratchet only turns one way: a row is deleted when the file is
 split; raising a row or adding a new one fails review. `scripts/ci.sh gate
 file-size` runs it in the `Fast Checks` job. The split campaign took the list
-from 64 rows to one: `timeline/build/actor.rs`, whose `process_actor_decl` is a
-single sequential pipeline (dispatch → property extraction → path/keyframe
-build → plot dispatch) that has to be refactored phase-by-phase rather than
-moved.
+from 64 rows to zero. The last file, `timeline/build/actor.rs`, became
+`build/actor/{mod,decl,helpers,extensions,prepare}.rs`: `process_actor_decl`
+stays the sequential entry point in `decl.rs`, while early dispatch, prepare
+state, size-spec parsing, position binding and container finalize moved to
+`prepare.rs`, and path generation/keyframe insertion/extension and plot
+helpers moved to their own modules.
 
 Splitting rules: pure moves plus `pub use` re-exports, no behaviour change in
 the same commit; `foo.rs` becomes `foo/mod.rs` + modules named after the domain

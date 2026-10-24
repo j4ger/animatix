@@ -225,7 +225,7 @@ Position no longer matters: any `config` inside a scene is now promoted, and
 multiple blocks merge.
 
 And the engine-level lint the round was meant to add: **
-`inapplicable-property`** (`build/actor.rs`, next to the existing typo warning, sharing
+`inapplicable-property`** (`build/actor/helpers.rs`, next to the existing typo warning, sharing
 its call sites so coverage matches). It asks the same `Applicable::includes`
 predicate the inspector filters with, so the editor and the build cannot
 disagree, and it carries the property's own byte span — the first build-phase
