@@ -11,9 +11,11 @@
 use std::collections::HashMap;
 
 use crate::primitives::PrimitivePayload;
+use crate::timeline::actor_caps::ActorCaps;
 use crate::timeline::animation_track::{
     GeometryTracks, HighlightTracks, ShapeTracks, StyleTracks, TextTracks,
 };
+use crate::timeline::plan::PropertyPlan;
 use crate::timeline::property_engine::PropertyValue;
 use crate::timeline::property_track::PropertyTrack;
 
@@ -35,6 +37,10 @@ pub struct TrackFields<'a> {
     pub tagged_tracks: &'a HashMap<String, Option<PropertyTrack<PropertyValue>>>,
     /// Primitive payload (plot/SVG/image).
     pub payload: &'a PrimitivePayload,
+    /// Capability projection for this entity.
+    pub caps: ActorCaps,
+    /// Registry-derived property plan for this entity.
+    pub property_plan: &'a PropertyPlan,
 }
 
 /// Mutable view of one entity's property tiers.
@@ -53,6 +59,10 @@ pub struct TrackFieldsMut<'a> {
     pub tagged_tracks: &'a mut HashMap<String, Option<PropertyTrack<PropertyValue>>>,
     /// Primitive payload.
     pub payload: &'a mut PrimitivePayload,
+    /// Capability projection for this entity.
+    pub caps: ActorCaps,
+    /// Registry-derived property plan for this entity.
+    pub property_plan: &'a mut PropertyPlan,
 }
 
 impl World {
@@ -67,6 +77,8 @@ impl World {
             highlight: &track.highlight,
             tagged_tracks: &track.tagged_tracks,
             payload: &track.payload,
+            caps: track.caps,
+            property_plan: &track.property_plan,
         })
     }
 
@@ -81,6 +93,8 @@ impl World {
             highlight: &mut track.highlight,
             tagged_tracks: &mut track.tagged_tracks,
             payload: &mut track.payload,
+            caps: track.caps,
+            property_plan: &mut track.property_plan,
         })
     }
 }
@@ -130,6 +144,8 @@ impl<'a> TrackFields<'a> {
             highlight: &track.highlight,
             tagged_tracks: &track.tagged_tracks,
             payload: &track.payload,
+            caps: track.caps,
+            property_plan: &track.property_plan,
         }
     }
 
@@ -230,6 +246,8 @@ impl<'a> TrackFieldsMut<'a> {
             highlight: &mut track.highlight,
             tagged_tracks: &mut track.tagged_tracks,
             payload: &mut track.payload,
+            caps: track.caps,
+            property_plan: &mut track.property_plan,
         }
     }
 
@@ -352,5 +370,65 @@ mod field_access_tests {
             })
             .expect("opacity field");
         assert_eq!(track.style.opacity.as_ref().unwrap().default_value, 0.5);
+    }
+}
+
+impl<'a> TrackFields<'a> {
+    /// Read one property value at `time_ms`, preferring the registry plan for
+    /// tagged fields and falling back to the tier track.
+    pub fn read_property_value(
+        &self,
+        field: crate::timeline::property_registry::ActorField,
+        time_ms: u64,
+    ) -> Option<PropertyValue> {
+        use crate::timeline::property_registry::ActorField;
+        if let ActorField::Tagged(name) = field
+            && name != "legend"
+            && name != "callout_place"
+            && let Some(id) = crate::timeline::property_registry::property_id(name)
+            && let Some(slot) = self.property_plan.get(id)
+            && let Some(value) = slot.track.sample(time_ms)
+        {
+            return Some(value);
+        }
+        self.field_ref(field).and_then(|f| f.evaluate_value(time_ms))
+    }
+}
+
+impl World {
+    /// Read one property value for an entity at `time_ms`.
+    pub fn read_property_value(
+        &self,
+        id: EntityId,
+        field: crate::timeline::property_registry::ActorField,
+        time_ms: u64,
+    ) -> Option<PropertyValue> {
+        self.fields(id)?.read_property_value(field, time_ms)
+    }
+}
+
+#[cfg(test)]
+mod read_tests {
+    use crate::timeline::Timeline;
+    use crate::timeline::property_registry::ActorField;
+    use crate::timeline::property_track::PropertyTrack;
+
+    #[test]
+    fn world_read_property_value_matches_the_track() {
+        let mut timeline = Timeline::new();
+        let id = timeline.world_mut().spawn("box", "Rect");
+        let mut track = PropertyTrack::new(0.25_f32);
+        track.add_keyframe(0, 0.25, crate::easing::Easing::Linear);
+        track.add_keyframe(100, 0.75, crate::easing::Easing::Linear);
+        timeline.world_mut().tracks.get_by_id_mut(id).unwrap().style.opacity = Some(track);
+
+        assert_eq!(
+            timeline.world().read_property_value(id, ActorField::Opacity, 0),
+            Some(crate::timeline::PropertyValue::F32(0.25))
+        );
+        assert_eq!(
+            timeline.world().read_property_value(id, ActorField::Opacity, 100),
+            Some(crate::timeline::PropertyValue::F32(0.75))
+        );
     }
 }

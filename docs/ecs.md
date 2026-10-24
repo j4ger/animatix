@@ -240,10 +240,12 @@ Direction for unlocking the rest: a borrowed `TrackFields<'a>` /
 `TrackFieldsMut<'a>` bundle (geometry/style/shape/text/highlight/tagged/payload
 refs) now exists in `timeline/world/fields.rs`, assembled by `World::fields(id)`
 and `World::fields_mut(id)`. `TrackFieldRef` / `TrackFieldMut` construction has
-moved onto the bundle (`TrackFields::field_ref` / `TrackFieldsMut::field_mut`);
-the `AnimationTrack` methods still own the live path until
-`read_property_value` / `write_property_field` take `World` + `EntityId`. Then
-call sites migrate per domain instead of in one rewrite.
+moved onto the bundle (`TrackFields::field_ref` / `TrackFieldsMut::field_mut`),
+and reads now go through `TrackFields::read_property_value` /
+`World::read_property_value(id, field, t)` — the free function is a forwarding
+wrapper. The write path (`write_property_field`) still takes `&mut
+AnimationTrack`; moving it to `World::fields_mut` plus `EntityId` is the next
+step, after which call sites migrate per domain instead of in one rewrite.
 
 ## 7. Adding a component
 

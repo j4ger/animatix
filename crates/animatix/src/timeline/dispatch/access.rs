@@ -415,16 +415,7 @@ pub fn read_property_value(
     field: ActorField,
     time_ms: u64,
 ) -> Option<PropertyValue> {
-    if let ActorField::Tagged(name) = field
-        && name != "legend"
-        && name != "callout_place"
-        && let Some(id) = crate::timeline::property_registry::property_id(name)
-        && let Some(value) =
-            crate::timeline::property_engine::read_property_plan_slot(track, id, time_ms)
-    {
-        return Some(value);
-    }
-    track.field_ref(field).and_then(|f| f.evaluate_value(time_ms))
+    crate::timeline::world::TrackFields::from_track(track).read_property_value(field, time_ms)
 }
 
 /// Read a property value, falling back to the schema default if the track
