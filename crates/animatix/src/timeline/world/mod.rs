@@ -16,6 +16,7 @@ mod hierarchy;
 mod highlight;
 mod meta;
 mod payload;
+mod plan;
 mod tagged;
 mod view;
 

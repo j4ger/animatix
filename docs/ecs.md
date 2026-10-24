@@ -240,6 +240,9 @@ and the property read/write path now go through `TrackFields` / `World`
 (`World::read_property_value` and `World::write_property_field`), so the
 registry-backed tiers can move one at a time. The remaining blocker is call
 sites: the `AnimationTrack`-taking free wrappers still exist for compatibility.
+`plan` now has entity-id accessors (`World::property_plan` / `property_plan_mut` /
+`rebuild_property_plan`) so its call sites can move before the storage does.
+
 `payload` moved with them: storage is `World.payload`, accessed by entity id
 through `world/payload.rs` (plot, SVG, image, and their transitions).
 `AssignmentCtx` and `EvaluateCtx` carry an optional payload reference so
