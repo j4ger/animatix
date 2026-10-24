@@ -22,13 +22,7 @@ impl PreviewContext<'_> {
         let unlocked_hit_regions: Vec<(String, kurbo::Rect)> = self
             .hit_regions
             .iter()
-            .filter(|(label, _)| {
-                !self
-                    .timeline
-                    .and_then(|t| t.get_track(label))
-                    .map(|tr| tr.locked)
-                    .unwrap_or(false)
-            })
+            .filter(|(label, _)| !self.timeline.is_some_and(|t| t.is_actor_locked(label)))
             .cloned()
             .collect();
 
@@ -61,18 +55,12 @@ impl PreviewContext<'_> {
             } else {
                 self.selected_actors.iter().cloned().collect()
             };
-            let any_locked = effective.iter().any(|label| {
-                self.timeline
-                    .and_then(|t| t.get_track(label))
-                    .map(|tr| tr.locked)
-                    .unwrap_or(false)
-            });
-            let any_hidden = effective.iter().any(|label| {
-                self.timeline
-                    .and_then(|t| t.get_track(label))
-                    .map(|tr| !tr.visible)
-                    .unwrap_or(false)
-            });
+            let any_locked = effective
+                .iter()
+                .any(|label| self.timeline.is_some_and(|t| t.is_actor_locked(label)));
+            let any_hidden = effective
+                .iter()
+                .any(|label| self.timeline.is_some_and(|t| !t.is_actor_visible(label)));
 
             let (selected, action, close, _rect) = selection::draw_context_menu(
                 ui,
@@ -225,11 +213,7 @@ impl PreviewContext<'_> {
                     })
                     .filter(|(label, _)| {
                         // Skip locked actors
-                        !self
-                            .timeline
-                            .and_then(|t| t.get_track(label))
-                            .map(|tr| tr.locked)
-                            .unwrap_or(false)
+                        !self.timeline.is_some_and(|t| t.is_actor_locked(label))
                     })
                     .filter(|(label, _)| self.get_text_property(label).is_some())
                     .map(|(label, _)| label.clone())

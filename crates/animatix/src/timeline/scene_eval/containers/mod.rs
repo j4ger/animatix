@@ -52,12 +52,13 @@ impl Timeline {
         // the picture under them — unless this scope opted the camera out, in
         // which case its subtree was evaluated untransformed and its authored
         // numbers are already screen coordinates.
-        let camera = if track.camera_follow && (track.parallax - 1.0).abs() < f32::EPSILON {
+        let meta = self.world.meta(track.id);
+        let camera = if meta.camera_follow && (meta.parallax - 1.0).abs() < f32::EPSILON {
             camera
-        } else if !track.camera_follow || track.parallax == 0.0 {
+        } else if !meta.camera_follow || meta.parallax == 0.0 {
             kurbo::Affine::IDENTITY
         } else {
-            let p = track.parallax as f64;
+            let p = meta.parallax as f64;
             let cam = camera.as_coeffs();
             kurbo::Affine::new([
                 1.0 + p * (cam[0] - 1.0),

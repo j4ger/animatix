@@ -33,11 +33,7 @@ impl GestureHandler for MoveActorGesture {
                 };
 
                 // Check if locked
-                let is_locked = ctx
-                    .timeline
-                    .and_then(|t| t.get_track(&actor))
-                    .map(|tr| tr.locked)
-                    .unwrap_or(false);
+                let is_locked = ctx.timeline.is_some_and(|t| t.is_actor_locked(&actor));
                 if is_locked {
                     return GestureResult::Ignored;
                 }

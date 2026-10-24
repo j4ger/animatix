@@ -56,11 +56,7 @@ impl GestureHandler for MarqueeGesture {
                         }
 
                         for (label, bounds) in ctx.hit_regions {
-                            let is_locked = ctx
-                                .timeline
-                                .and_then(|t| t.get_track(label))
-                                .map(|tr| tr.locked)
-                                .unwrap_or(false);
+                            let is_locked = ctx.timeline.is_some_and(|t| t.is_actor_locked(label));
                             if is_locked {
                                 continue;
                             }

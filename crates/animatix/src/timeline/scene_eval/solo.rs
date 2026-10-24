@@ -77,7 +77,7 @@ impl Timeline {
         // `visible: false` wins: an explicitly hidden actor is not soloed back
         // into view, and a hidden actor must not keep the rest of the scene
         // suppressed.
-        if !track.visible {
+        if !self.world.meta(track.id).visible {
             return false;
         }
         self.track_declares_solo(track, time_ms)

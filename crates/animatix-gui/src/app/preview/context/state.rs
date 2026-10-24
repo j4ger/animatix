@@ -106,12 +106,7 @@ impl PreviewContext<'_> {
     pub(crate) fn capture_group_actors(&self) -> Vec<preview::GroupTransformActor> {
         self.selected_actors
             .iter()
-            .filter(|label| {
-                self.timeline
-                    .and_then(|t| t.get_track(label))
-                    .map(|tr| !tr.locked)
-                    .unwrap_or(true)
-            })
+            .filter(|label| self.timeline.is_none_or(|t| !t.is_actor_locked(label)))
             .filter_map(|label| {
                 let props = self.get_actor_props(label)?;
                 let (resize_mode, scale) = self.actor_resize_mode(label);

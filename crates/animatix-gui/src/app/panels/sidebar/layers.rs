@@ -229,7 +229,7 @@ fn render_actor_tree(
         return;
     }
 
-    let is_visible = track.visible;
+    let is_visible = timeline.is_actor_visible(label);
 
     let (icon, display_label, label_color): (
         Option<std::borrow::Cow<'static, str>>,
@@ -261,7 +261,7 @@ fn render_actor_tree(
         t.palette.text.disabled
     };
 
-    let is_locked = track.locked;
+    let is_locked = timeline.is_actor_locked(label);
     let lock_icon = if is_locked {
         egui_phosphor::regular::LOCK_KEY
     } else {

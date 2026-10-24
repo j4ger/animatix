@@ -114,7 +114,7 @@ Rules:
 
 | Component | Data | Presence |
 |---|---|---|
-| `EntityMeta` | id, label, actor_type, caps, first_seen_ms, visible, locked, camera_follow, parallax, hidden_by_default | every entity |
+| `EntityMeta` | id, label, actor_type, caps, first_seen_ms, visible, locked, camera_follow, parallax | every entity |
 | `DeclarationSpan` | `Span` of the actor declaration (absent when the parser had none) | optional |
 | `SceneHierarchyComponent` | `parent: Option<EntityId>`, `children: Vec<EntityId>` | every entity |
 | `RootSet` | `Vec<EntityId>` (insertion order) | resource |
@@ -134,6 +134,10 @@ Rules:
 | `AutoColorComponent` | auto-color slot | optional |
 | `ChildOrderComponent` | `PropertyTrack<Vec<EntityId>>` | optional |
 | `TranscriptComponent` | speech transcript | optional |
+
+`hidden_by_default` is still an `AnimationTrack` field: the entrance-action
+helpers (`lift_hidden_by_default*`) take `&mut AnimationTrack` and will move to
+`EntityMeta` together with their call sites.
 
 ### 2.3 Resources (deliberately not components)
 

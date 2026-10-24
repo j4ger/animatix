@@ -61,6 +61,12 @@ impl<'w> EntityRef<'w> {
         self.world.decl_span.get(self.id)
     }
 
+    /// The entity's visibility/lock/camera metadata.
+    #[inline(always)]
+    pub fn meta(self) -> &'w super::EntityMeta {
+        self.world.meta.get(self.id)
+    }
+
     /// The entity's parent/children links.
     #[inline(always)]
     pub fn hierarchy(self) -> &'w super::SceneHierarchyComponent {
@@ -184,6 +190,18 @@ impl<'w> EntityMut<'w> {
     #[inline(always)]
     pub fn set_decl_span(&mut self, span: animatix_syntax::ast::Span) {
         self.world.decl_span.get_or_insert_with(self.id, || span);
+    }
+
+    /// The entity's visibility/lock/camera metadata.
+    #[inline(always)]
+    pub fn meta(&self) -> &super::EntityMeta {
+        self.world.meta.get(self.id)
+    }
+
+    /// Mutably borrow the entity's metadata.
+    #[inline(always)]
+    pub fn meta_mut(&mut self) -> &mut super::EntityMeta {
+        self.world.meta.get_mut(self.id)
     }
 
     /// The entity's parent/children links.

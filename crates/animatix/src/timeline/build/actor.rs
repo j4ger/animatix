@@ -359,10 +359,11 @@ impl Timeline {
             // A value the bool parser rejects is already reported by it; the flag
             // keeps its default, so the actor stays camera'd rather than guessing.
             if let Some(crate::timeline::property_engine::PropertyValue::Bool(follow)) = parsed {
-                if let Some(track) = self.world.tracks.get_mut(label) {
-                    track.camera_follow = follow;
+                if let Some(id) = self.world.tracks.get_id(label) {
+                    let meta = self.world.meta_mut(id);
+                    meta.camera_follow = follow;
                     if !follow {
-                        track.parallax = 0.0;
+                        meta.parallax = 0.0;
                     }
                 }
             }
@@ -378,8 +379,8 @@ impl Timeline {
                 &subject,
             );
             if let Some(crate::timeline::property_engine::PropertyValue::F32(p)) = parsed {
-                if let Some(track) = self.world.tracks.get_mut(label) {
-                    track.parallax = p;
+                if let Some(id) = self.world.tracks.get_id(label) {
+                    self.world.meta_mut(id).parallax = p;
                 }
             }
         }

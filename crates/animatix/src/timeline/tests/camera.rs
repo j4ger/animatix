@@ -287,7 +287,10 @@ hud: Rect, size: (40, 40), at: (420, 180), camera_follow: "no"
 "#,
     );
     let track = timeline.world.tracks.get("hud").expect("hud track");
-    assert!(track.camera_follow, "a value the bool parser rejects must not flip the flag");
+    assert!(
+        timeline.world.meta(track.id).camera_follow,
+        "a value the bool parser rejects must not flip the flag"
+    );
 }
 
 /// The opt-out applies where the camera applies — once, to a root subtree. On a
@@ -364,8 +367,18 @@ hud: Text, text: "LIVE", font_size: 24, color: accent.secondary, at: (1088, 84),
 camera.zoom = 1.45
 "#,
     );
-    assert!(!timeline.world.tracks.get("hud").expect("hud track").camera_follow);
-    assert!(timeline.world.tracks.get("plate").expect("plate track").camera_follow);
+    assert!(
+        !timeline
+            .world
+            .meta(timeline.world.tracks.get_id("hud").expect("hud track"))
+            .camera_follow
+    );
+    assert!(
+        timeline
+            .world
+            .meta(timeline.world.tracks.get_id("plate").expect("plate track"))
+            .camera_follow
+    );
 
     let dims = SceneDimensions {
         width: 1280,

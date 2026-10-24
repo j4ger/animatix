@@ -254,10 +254,11 @@ pub fn handle_toggle_actor_visibility(
 ) -> Vec<Effect> {
     if let Some(at) = document_store.source.document.active_timeline_mut() {
         let timeline = &mut *at.timeline;
-        if let Some(track) = timeline.get_track_mut(&actor) {
-            track.visible = !track.visible;
+        if let Some(id) = timeline.get_entity_id(&actor) {
+            let meta = timeline.world_mut().meta_mut(id);
+            meta.visible = !meta.visible;
             preview_store.preview_dirty = true;
-            let status = if track.visible {
+            let status = if meta.visible {
                 format!("{actor} visible")
             } else {
                 format!("{actor} hidden")
@@ -280,10 +281,11 @@ pub fn handle_toggle_actor_lock(
 ) -> Vec<Effect> {
     if let Some(at) = document_store.source.document.active_timeline_mut() {
         let timeline = &mut *at.timeline;
-        if let Some(track) = timeline.get_track_mut(&actor) {
-            track.locked = !track.locked;
+        if let Some(id) = timeline.get_entity_id(&actor) {
+            let meta = timeline.world_mut().meta_mut(id);
+            meta.locked = !meta.locked;
             preview_store.preview_dirty = true;
-            let status = if track.locked {
+            let status = if meta.locked {
                 format!("{actor} locked")
             } else {
                 format!("{actor} unlocked")

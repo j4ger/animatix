@@ -119,6 +119,6 @@ fg: Rect, size: (100, 100), parallax: 1.0, at: (50, 50)
     );
     let bg_track = report.output.world.tracks.get("bg").expect("bg track");
     let fg_track = report.output.world.tracks.get("fg").expect("fg track");
-    assert_eq!(bg_track.parallax, 0.3);
-    assert_eq!(fg_track.parallax, 1.0);
+    assert_eq!(report.output.world.meta(bg_track.id).parallax, 0.3);
+    assert_eq!(report.output.world.meta(fg_track.id).parallax, 1.0);
 }

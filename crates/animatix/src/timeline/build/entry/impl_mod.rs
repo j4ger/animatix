@@ -592,7 +592,10 @@ impl Timeline {
         // declaration has no effect instead of leaving it to be discovered in a
         // render.
         for (label, track) in &timeline.world.tracks {
-            if !track.camera_follow && !timeline.world.is_root(track.id) {
+            let meta = timeline.world.meta.try_get(track.id);
+            let camera_follow = meta.is_none_or(|m| m.camera_follow);
+            let parallax = meta.map_or(1.0, |m| m.parallax);
+            if !camera_follow && !timeline.world.is_root(track.id) {
                 diagnostics.push(
                     Diagnostic::warning(
                         DiagnosticCode::InapplicableProperty,
@@ -605,7 +608,7 @@ impl Timeline {
                     )
                     .with_subject(label),
                 );
-            } else if track.parallax != 1.0 && !timeline.world.is_root(track.id) {
+            } else if parallax != 1.0 && !timeline.world.is_root(track.id) {
                 diagnostics.push(
                     Diagnostic::warning(
                         DiagnosticCode::InapplicableProperty,
@@ -614,7 +617,7 @@ impl Timeline {
                             "'{label}' declares `parallax: {}` but is not a root actor, so \
                              the scene camera moves it with its parent; move it to the top \
                              level of the scene to apply parallax.",
-                            track.parallax
+                            parallax
                         ),
                     )
                     .with_subject(label),

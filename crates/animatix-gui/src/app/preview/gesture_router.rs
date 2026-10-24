@@ -20,12 +20,7 @@ fn select_on_drag_start(
     let scene = ctx.preview_screen_to_scene(preview_rect, pos);
     let candidates: Vec<String> = selection::actors_at_point(ctx.hit_regions, scene)
         .into_iter()
-        .filter(|label| {
-            !ctx.timeline
-                .and_then(|t| t.get_track(label))
-                .map(|track| track.locked)
-                .unwrap_or(false)
-        })
+        .filter(|label| !ctx.timeline.is_some_and(|t| t.is_actor_locked(label)))
         .collect();
 
     let Some(top) = candidates.first().cloned() else {

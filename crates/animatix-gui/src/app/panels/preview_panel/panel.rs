@@ -496,10 +496,7 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                             .hit_regions
                             .iter()
                             .filter(|(label, _)| {
-                                !ctx.timeline
-                                    .and_then(|t| t.get_track(label))
-                                    .map(|tr| tr.locked)
-                                    .unwrap_or(false)
+                                !ctx.timeline.is_some_and(|t| t.is_actor_locked(label))
                             })
                             .cloned()
                             .collect();

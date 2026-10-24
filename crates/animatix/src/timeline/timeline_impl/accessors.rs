@@ -363,3 +363,21 @@ impl Timeline {
         self.world.child_order.iter()
     }
 }
+
+impl Timeline {
+    /// Whether the named actor is visible in the preview/export.
+    pub fn is_actor_visible(&self, label: &str) -> bool {
+        self.world
+            .tracks
+            .get_id(label)
+            .is_some_and(|id| self.world.meta.try_get(id).is_some_and(|m| m.visible))
+    }
+
+    /// Whether the named actor is locked against selection/dragging.
+    pub fn is_actor_locked(&self, label: &str) -> bool {
+        self.world
+            .tracks
+            .get_id(label)
+            .is_some_and(|id| self.world.meta.try_get(id).is_some_and(|m| m.locked))
+    }
+}

@@ -460,12 +460,13 @@ impl Timeline {
                 // reported at build). Short-circuited on `camera_exempt` so a
                 // scene that never uses the flag does no track lookup per root.
                 let root_affine = if camera_exempt {
-                    if !root_track.camera_follow || root_track.parallax == 0.0 {
+                    let root_meta = self.world.meta(root_track.id);
+                    if !root_meta.camera_follow || root_meta.parallax == 0.0 {
                         kurbo::Affine::IDENTITY
-                    } else if (root_track.parallax - 1.0).abs() < f32::EPSILON {
+                    } else if (root_meta.parallax - 1.0).abs() < f32::EPSILON {
                         camera_affine
                     } else {
-                        let p = root_track.parallax as f64;
+                        let p = root_meta.parallax as f64;
                         let cam = camera_affine.as_coeffs();
                         kurbo::Affine::new([
                             1.0 + p * (cam[0] - 1.0),

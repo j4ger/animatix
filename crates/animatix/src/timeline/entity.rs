@@ -430,8 +430,8 @@ mod tests {
         assert_eq!(labels, vec!["box", "text"]);
 
         // Mutation via index
-        store[id_box].visible = false;
-        assert!(!store["box"].visible);
+        store[id_box].first_seen_ms = 0;
+        assert_eq!(store["box"].first_seen_ms, 0);
 
         // Entry API
         store

@@ -306,7 +306,7 @@ impl Timeline {
 
         // Skip hidden actors (visibility toggle in GUI). Children are still
         // evaluated in render_node_children with the correct parent transform.
-        if !track.visible {
+        if !self.world.meta(track.id).visible {
             return (local_transform, opacity);
         }
 

@@ -75,20 +75,6 @@ pub struct AnimationTrack {
     pub property_plan: super::plan::PropertyPlan,
     /// First frame (ms) this actor appears.
     pub first_seen_ms: u64,
-    /// Whether the actor is visible in the preview and export.
-    pub visible: bool,
-    /// Whether the actor is locked (preventing selection and drag in the GUI).
-    pub locked: bool,
-    /// Whether the scene camera wraps this actor, from the declaration's
-    /// `camera_follow:` (default `true`). Read once at build and consulted only
-    /// in the root loop of `scene_eval`, like `visible` — a frame-time toggle
-    /// would need a track and a plan slot, which a HUD does not ask for. An
-    /// actor that opts out keeps the coordinates it authored: the camera is what
-    /// it does *not* see. Applies to root actors; a nested actor inherits its
-    /// container's camera, because the camera is applied once, at the root.
-    pub camera_follow: bool,
-    /// Continuous parallax multiplier for camera movement on root actors (default 1.0).
-    pub parallax: f32,
     /// Whether the build seeded this track's opacity to `0.0` because the
     /// actor was first declared before the first keyframe without an explicit
     /// `opacity` (docs/spec.md "Pre-Keyframe Actor Declarations").
@@ -171,10 +157,6 @@ impl AnimationTrack {
             actor_type,
             property_plan: super::plan::PropertyPlan::default(),
             first_seen_ms: u64::MAX,
-            visible: true,
-            locked: false,
-            camera_follow: true,
-            parallax: 1.0,
             hidden_by_default: false,
             bounds_slot: std::cell::Cell::new(u32::MAX),
             shape_command_memo: std::cell::RefCell::new(Box::new(
