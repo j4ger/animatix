@@ -491,3 +491,160 @@ mod write_tests {
         assert_eq!(track.style.opacity.as_ref().unwrap().evaluate(100), 0.6);
     }
 }
+
+impl<'a> TrackFields<'a> {
+    fn svg_paths_track_for(
+        &self,
+        field: crate::timeline::property_registry::ActorField,
+    ) -> Option<&'a PropertyTrack<Option<Vec<crate::timeline::VelloPath>>>> {
+        if self.caps.vector_paths
+            && field == crate::timeline::property_registry::ActorField::ImageData
+        {
+            self.payload.as_svg().and_then(|p| p.svg_paths_track.as_ref())
+        } else {
+            None
+        }
+    }
+
+    /// Whether the property has any keyframes.
+    pub fn property_has_keyframes(
+        &self,
+        field: crate::timeline::property_registry::ActorField,
+    ) -> bool {
+        self.property_keyframe_count(field) > 0
+    }
+
+    /// Whether the property has a keyframe at exactly `time_ms`.
+    pub fn property_has_keyframe_at(
+        &self,
+        field: crate::timeline::property_registry::ActorField,
+        time_ms: u64,
+    ) -> bool {
+        if let Some(svg) = self.svg_paths_track_for(field) {
+            return svg.keyframes.contains_key(&time_ms);
+        }
+        if let Some(id) = plan_id_for_field(&field)
+            && self.property_plan.has_keyframe_at(id, time_ms)
+        {
+            return true;
+        }
+        self.field_ref(field).is_some_and(|f| f.has_keyframe_at(time_ms))
+    }
+
+    /// Number of keyframes on the property.
+    pub fn property_keyframe_count(
+        &self,
+        field: crate::timeline::property_registry::ActorField,
+    ) -> usize {
+        if let Some(svg) = self.svg_paths_track_for(field) {
+            return svg.keyframes.len();
+        }
+        if let Some(id) = plan_id_for_field(&field) {
+            let count = self.property_plan.keyframe_count(id);
+            if count > 0 {
+                return count;
+            }
+        }
+        self.field_ref(field).map_or(0, |f| f.keyframe_count())
+    }
+
+    /// Sorted keyframe times on the property.
+    pub fn property_keyframe_times(
+        &self,
+        field: crate::timeline::property_registry::ActorField,
+    ) -> Vec<u64> {
+        if let Some(svg) = self.svg_paths_track_for(field) {
+            let mut times: Vec<u64> = svg.keyframes.keys().copied().collect();
+            times.sort_unstable();
+            return times;
+        }
+        if let Some(id) = plan_id_for_field(&field) {
+            let times = self.property_plan.keyframe_times(id);
+            if !times.is_empty() {
+                return times;
+            }
+        }
+        self.field_ref(field).map_or(Vec::new(), |f| f.keyframe_times())
+    }
+
+    /// Easing at one keyframe.
+    pub fn property_keyframe_easing(
+        &self,
+        field: crate::timeline::property_registry::ActorField,
+        time_ms: u64,
+    ) -> Option<crate::easing::Easing> {
+        if let Some(svg) = self.svg_paths_track_for(field) {
+            return svg.keyframes.get(&time_ms).map(|(_, easing)| *easing);
+        }
+        if let Some(id) = plan_id_for_field(&field)
+            && let Some(easing) = self.property_plan.keyframe_easing(id, time_ms)
+        {
+            return Some(easing);
+        }
+        self.field_ref(field).and_then(|f| f.keyframe_easing(time_ms))
+    }
+}
+
+fn plan_id_for_field(
+    field: &crate::timeline::property_registry::ActorField,
+) -> Option<animatix_syntax::schema::PropertyId> {
+    match field {
+        crate::timeline::property_registry::ActorField::Tagged(name)
+            if *name != "legend" && *name != "callout_place" =>
+        {
+            crate::timeline::property_registry::property_id(name)
+        },
+        _ => None,
+    }
+}
+
+impl World {
+    /// Whether one property has any keyframes for an entity.
+    pub fn property_has_keyframes(
+        &self,
+        id: EntityId,
+        field: crate::timeline::property_registry::ActorField,
+    ) -> bool {
+        self.fields(id).is_some_and(|f| f.property_has_keyframes(field))
+    }
+
+    /// Number of keyframes on one property for an entity.
+    pub fn property_keyframe_count(
+        &self,
+        id: EntityId,
+        field: crate::timeline::property_registry::ActorField,
+    ) -> usize {
+        self.fields(id).map_or(0, |f| f.property_keyframe_count(field))
+    }
+
+    /// Sorted keyframe times on one property for an entity.
+    pub fn property_keyframe_times(
+        &self,
+        id: EntityId,
+        field: crate::timeline::property_registry::ActorField,
+    ) -> Vec<u64> {
+        self.fields(id).map_or(Vec::new(), |f| f.property_keyframe_times(field))
+    }
+}
+
+#[cfg(test)]
+mod keyframe_tests {
+    use crate::easing::Easing;
+    use crate::timeline::Timeline;
+    use crate::timeline::property_registry::ActorField;
+    use crate::timeline::property_track::PropertyTrack;
+
+    #[test]
+    fn world_keyframe_introspection_matches_the_track() {
+        let mut timeline = Timeline::new();
+        let id = timeline.world_mut().spawn("box", "Rect");
+        let mut track = PropertyTrack::new(0.0_f32);
+        track.add_keyframe(0, 0.0, Easing::Linear);
+        track.add_keyframe(100, 1.0, Easing::Linear);
+        timeline.world_mut().tracks.get_by_id_mut(id).unwrap().style.opacity = Some(track);
+
+        assert!(timeline.world().property_has_keyframes(id, ActorField::Opacity));
+        assert_eq!(timeline.world().property_keyframe_count(id, ActorField::Opacity), 2);
+        assert_eq!(timeline.world().property_keyframe_times(id, ActorField::Opacity), vec![0, 100]);
+    }
+}

@@ -243,11 +243,13 @@ and `World::fields_mut(id)`. `TrackFieldRef` / `TrackFieldMut` construction has
 moved onto the bundle (`TrackFields::field_ref` / `TrackFieldsMut::field_mut`),
 and both property directions now go through it:
 `TrackFields::read_property_value` / `World::read_property_value(id, field, t)`
-and `write_property_fields` / `World::write_property_field(id, …)`. The
-`AnimationTrack`-taking free functions are forwarding wrappers, so existing
-call sites keep compiling while they migrate per domain; deleting those
-wrappers is what removes the last path that assumes the tiers live on the
-track.
+and `write_property_fields` / `World::write_property_field(id, …)`. Keyframe
+introspection now has the same shape (`TrackFields::property_has_keyframes` /
+`property_keyframe_count` / `property_keyframe_times` /
+`property_keyframe_easing`, mirrored on `World`). The `AnimationTrack`-taking
+free functions are forwarding wrappers, so existing call sites keep compiling
+while they migrate per domain; deleting those wrappers is what removes the last
+path that assumes the tiers live on the track.
 
 ## 7. Adding a component
 
