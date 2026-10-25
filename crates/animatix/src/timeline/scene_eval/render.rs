@@ -129,8 +129,11 @@ impl Timeline {
         if !self.blend_used.get() {
             return None;
         }
-        let mode = self.world.style(id).blend.get(time_ms, "normal".to_string());
-        match mode.as_str() {
+        // `get_or_default` keeps the absent-track case allocation-free; the
+        // old `.get(time_ms, "normal".to_string())` allocated the default
+        // `String` for every node in every blend-using scene.
+        let mode = self.world.style(id).blend.get_or_default(time_ms);
+        match mode.as_deref().unwrap_or("normal") {
             "normal" | "" => None,
             "multiply" => Some(vello::peniko::Mix::Multiply),
             "screen" => Some(vello::peniko::Mix::Screen),
@@ -255,51 +258,19 @@ impl Timeline {
             None
         };
 
-        // P2.18: Temporal coherence — cache node transforms to avoid re-sampling
-        // properties when the same (time, parent_transform) is evaluated again.
-        let parent_coeffs = parent_transform.as_coeffs();
-        let node_transform = {
-            // Copy the hit out first so the borrow ends before the recompute
-            // below. A miss frame must not allocate a fresh `String` key per
-            // node on every insert. Bypassed when node_overrides is present.
-            let hit = if node_overrides.is_some() {
-                None
-            } else {
-                let id_idx = node_id.index();
-                self.eval_caches
-                    .transform_cache
-                    .borrow()
-                    .get(id_idx)
-                    .copied()
-                    .flatten()
-                    .filter(|(cached_time, cached_parent, _)| {
-                        *cached_time == time_ms && *cached_parent == parent_coeffs
-                    })
-                    .map(|(_, _, cached_transform)| cached_transform)
-            };
-            if let Some(transform) = hit {
-                transform
-            } else {
-                let t = self.evaluate_node_transform(
-                    node_id,
-                    time_ms,
-                    parent_opacity,
-                    parent_transform,
-                    scene_dimensions,
-                    layout_pos,
-                    node_overrides,
-                );
-                if node_overrides.is_none() {
-                    let mut cache = self.eval_caches.transform_cache.borrow_mut();
-                    let id_idx = node_id.index();
-                    if id_idx >= cache.len() {
-                        cache.resize(id_idx + 1, None);
-                    }
-                    cache[id_idx] = Some((time_ms, parent_coeffs, t));
-                }
-                t
-            }
-        };
+        // P2.18: Temporal coherence — cache node transforms to avoid
+        // re-sampling properties when the same (time, parent_transform) is
+        // evaluated again; keyframe-free entities reuse across times (see
+        // `cached_node_transform`).
+        let node_transform = self.cached_node_transform(
+            node_id,
+            time_ms,
+            parent_opacity,
+            parent_transform,
+            scene_dimensions,
+            layout_pos,
+            node_overrides,
+        );
         let half_size = node_transform.half_size;
         let opacity = node_transform.opacity;
         let local_transform = node_transform.local_transform;
@@ -450,59 +421,52 @@ impl Timeline {
         // draws the commands and records a hit region; `None` means
         // "no drawable content" — nothing is drawn and no hit region or
         // precise bounds are recorded for it.
-        let primitive_dispatch = {
-            let primitive = self.track_primitive_at(node_id, time_ms);
-            if let Some(primitive) = primitive {
-                // Clear the shape-memo bounds handoff: a non-shape
-                // primitive must never observe the previous node's data.
-                self.world.begin_shape_commands(node_id);
-                let ctx = crate::primitives::EvaluateCtx {
-                    id: node_id,
-                    label: node_label,
-                    time_ms,
-                    local_transform,
-                    opacity,
-                    scene_dimensions,
-                    background_color: self.eval_caches.background_color.get(),
-                    overrides: node_overrides,
-                    vector_paths: &vector_paths,
-                    asset_cache: &self.asset_cache,
-                    target_resolver: Some(self),
-                    legend: self.world.legend(node_id),
-                    world: Some(&self.world),
-                    highlight: self.world.highlight(node_id),
-                    style: Some(self.world.style(node_id)),
-                    shape: Some(self.world.shape(node_id)),
-                    geometry: Some(self.world.geometry(node_id)),
-                    text: Some(self.world.text(node_id)),
-                    property_plan: Some(self.world.property_plan(node_id)),
-                    caps: self.world.caps(node_id),
-                    payload: self.world.payload(node_id),
-                };
-                let mut text_ctx = crate::primitives::TextCompileCtx {
-                    text_compiler: &mut self.text_compiler.borrow_mut(),
-                    font_context: self.font_context.as_ref(),
-                };
-                match primitive.evaluate(&ctx, Some(&mut text_ctx)) {
-                    Ok(commands) => commands,
-                    Err(e) => {
-                        self.eval_caches.runtime_diagnostics.borrow_mut().push(
-                            crate::diagnostics::Diagnostic::error(
-                                crate::diagnostics::DiagnosticCode::RenderFailure,
-                                crate::diagnostics::DiagnosticPhase::Render,
-                                format!(
-                                    "failed to evaluate '{}' at t={time_ms}ms: {e}",
-                                    node_label
-                                ),
-                            ),
-                        );
-                        None
-                    },
-                }
-            } else {
-                None
+        let primitive_dispatch = self.track_primitive_at(node_id, time_ms).and_then(|handle| {
+            let primitive = handle.as_dyn();
+            // Clear the shape-memo bounds handoff: a non-shape
+            // primitive must never observe the previous node's data.
+            self.world.begin_shape_commands(node_id);
+            let ctx = crate::primitives::EvaluateCtx {
+                id: node_id,
+                label: node_label,
+                time_ms,
+                local_transform,
+                opacity,
+                scene_dimensions,
+                background_color: self.eval_caches.background_color.get(),
+                overrides: node_overrides,
+                vector_paths: &vector_paths,
+                asset_cache: &self.asset_cache,
+                target_resolver: Some(self),
+                legend: self.world.legend(node_id),
+                world: Some(&self.world),
+                highlight: self.world.highlight(node_id),
+                style: Some(self.world.style(node_id)),
+                shape: Some(self.world.shape(node_id)),
+                geometry: Some(self.world.geometry(node_id)),
+                text: Some(self.world.text(node_id)),
+                property_plan: Some(self.world.property_plan(node_id)),
+                caps: self.world.caps(node_id),
+                payload: self.world.payload(node_id),
+            };
+            let mut text_ctx = crate::primitives::TextCompileCtx {
+                text_compiler: &mut self.text_compiler.borrow_mut(),
+                font_context: self.font_context.as_ref(),
+            };
+            match primitive.evaluate(&ctx, Some(&mut text_ctx)) {
+                Ok(commands) => commands,
+                Err(e) => {
+                    self.eval_caches.runtime_diagnostics.borrow_mut().push(
+                        crate::diagnostics::Diagnostic::error(
+                            crate::diagnostics::DiagnosticCode::RenderFailure,
+                            crate::diagnostics::DiagnosticPhase::Render,
+                            format!("failed to evaluate '{node_label}' at t={time_ms}ms: {e}"),
+                        ),
+                    );
+                    None
+                },
             }
-        };
+        });
         // Record the hit region for this actor (used by GUI picking and
         // precise-bounds consumers). Command-derived bounds when commands
         // exist; otherwise the actor's layout half-size box — this keeps
@@ -602,20 +566,17 @@ impl Timeline {
         (local_transform, opacity)
     }
 
-    /// Resolve the primitive an entity renders with at `time_ms`. The entity's
-    /// `actor_type` is the registry key — except across a cross-type morph,
-    /// where the per-frame `shape_type` value, not the (last) identity, picks
-    /// the primitive; see `ShapeTracks::render_type_name`.
+    /// Resolve the primitive an entity renders with at `time_ms` as an owned
+    /// handle (cheap clone). The entity's `actor_type` is the registry key —
+    /// except across a cross-type morph, where the per-frame `shape_type`
+    /// value picks the primitive; see `ShapeTracks::render_type_name`.
+    /// Served from the per-entity cache (`timeline_impl::primitive_cache`).
     pub(crate) fn track_primitive_at(
         &self,
         node_id: EntityId,
         time_ms: u64,
-    ) -> Option<&dyn crate::primitives::Primitive> {
-        self.primitive_registry.find(
-            self.world
-                .shape(node_id)
-                .render_type_name(self.world.actor_type(node_id), time_ms),
-        )
+    ) -> Option<crate::primitives::PrimitiveHandle> {
+        self.cached_primitive_for(node_id, time_ms)
     }
 
     /// Local-space clip geometry for a Mask's `clip_shape` child, obtained from
@@ -630,7 +591,8 @@ impl Timeline {
         scene_dimensions: SceneDimensions,
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> Option<kurbo::BezPath> {
-        let primitive = self.track_primitive_at(child_id, time_ms)?;
+        let handle = self.track_primitive_at(child_id, time_ms)?;
+        let primitive = handle.as_dyn();
         let vector_paths = self
             .world
             .shape(child_id)
@@ -721,9 +683,10 @@ impl Timeline {
         // The primitive is the single child-rendering entry point; the pipeline
         // no longer branches on the child-processing strategy. A primitive
         // without a registered type renders nothing (validated at build time).
-        let Some(primitive) = self.track_primitive_at(node_id, time_ms) else {
+        let Some(handle) = self.track_primitive_at(node_id, time_ms) else {
             return;
         };
+        let primitive = handle.as_dyn();
 
         let child_layout_positions = if self.dynamic_layout {
             self.compute_animated_layout(node_label, time_ms)

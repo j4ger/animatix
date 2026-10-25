@@ -80,9 +80,10 @@ impl Timeline {
         let child_ids: Vec<EntityId> = self.world.hierarchy(node_id).children.to_vec();
 
         for &child_id in &child_ids {
-            let Some(primitive) = self.track_primitive_at(child_id, time_ms) else {
+            let Some(handle) = self.track_primitive_at(child_id, time_ms) else {
                 continue;
             };
+            let primitive = handle.as_dyn();
             let child_vector_paths = self
                 .world
                 .shape(child_id)

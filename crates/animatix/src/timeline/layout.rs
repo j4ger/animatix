@@ -361,9 +361,9 @@ impl Timeline {
             .ensure(0.0)
             .add_keyframe(time_ms, effective_max_width, Easing::Linear);
 
-        let text_anchor = text.text_anchor.get(time_ms, "center".to_string());
+        let text_anchor = text.text_anchor.get_or_default(time_ms);
         let mut paths_vec = compiled.paths.to_vec();
-        let anchor_offset_x = match text_anchor.as_str() {
+        let anchor_offset_x = match text_anchor.as_deref().unwrap_or("center") {
             "left" => new_half_size[0],
             "right" => -new_half_size[0],
             _ => 0.0,

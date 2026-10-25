@@ -163,6 +163,26 @@ impl Timeline {
         is_static
     }
 
+    /// Whether the entity's transform inputs are time-invariant: no keyframes
+    /// on any of its tracks (any tier). Such entities' node transforms depend
+    /// only on parent state and layout position, so the transform cache can
+    /// reuse them across times instead of re-sampling the spatial properties
+    /// every frame. Memoized like `is_static_subtree_id`; the same
+    /// invalidation funnel clears it.
+    pub(crate) fn is_transform_static(&self, id: EntityId) -> bool {
+        let idx = id.index();
+        if let Some(&Some(cached)) = self.eval_caches.transform_static_flags.borrow().get(idx) {
+            return cached;
+        }
+        let is_static = self.world.exists(id) && !self.world.has_any_keyframes(id);
+        let mut flags = self.eval_caches.transform_static_flags.borrow_mut();
+        if idx >= flags.len() {
+            flags.resize(idx + 1, None);
+        }
+        flags[idx] = Some(is_static);
+        is_static
+    }
+
     /// Returns `true` if `label` is targeted by any modifier assignment (`Assign` or
     /// `AssignIndexed`).
     pub(crate) fn is_targeted_by_modifier(&self, label: &str) -> bool {

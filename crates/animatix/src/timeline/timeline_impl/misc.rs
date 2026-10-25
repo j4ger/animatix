@@ -22,6 +22,8 @@ impl Timeline {
         self.eval_caches.static_subtree_cache.borrow_mut().clear();
         self.eval_caches.static_subtree_flags.borrow_mut().clear();
         self.eval_caches.transform_cache.borrow_mut().clear();
+        self.eval_caches.transform_static_flags.borrow_mut().clear();
+        self.eval_caches.primitive_handles.borrow_mut().clear();
         self.eval_caches.overrides_buffer.borrow_mut().clear();
         {
             // Flat-vec clear: no string keys to recycle (PF-6 slot-id table).

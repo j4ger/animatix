@@ -64,6 +64,7 @@ pub use context::{
     RenderCtx, TextCompileCtx,
 };
 pub(crate) use context::{RenderFrame, RenderOutputs};
+pub(crate) use registry::{PrimitiveCacheEntry, PrimitiveHandle};
 pub use styling::sample_shape_style;
 pub(crate) use styling::{ShapeCommandMemo, evaluate_shape_render, stamp_stroke_decoration};
 #[cfg(any(test, feature = "plugin-loading"))]

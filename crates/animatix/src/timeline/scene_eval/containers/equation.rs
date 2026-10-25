@@ -63,9 +63,10 @@ impl Timeline {
         for &child_id in &child_ids {
             // A fragment is any child whose primitive opts into
             // `equation_fragment` — never a hard-coded type name.
-            let Some(primitive) = self.track_primitive_at(child_id, time_ms) else {
+            let Some(handle) = self.track_primitive_at(child_id, time_ms) else {
                 continue;
             };
+            let primitive = handle.as_dyn();
             let child_vector_paths = self
                 .world
                 .shape(child_id)

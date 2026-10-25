@@ -3,6 +3,75 @@
 use super::*;
 
 impl Timeline {
+    /// [`Self::evaluate_node_transform`] behind the two-tier transform cache.
+    ///
+    /// `Timed` entries serve repeated evaluation of the same (time, parent
+    /// transform) instant. Entities with no keyframes anywhere
+    /// (`is_transform_static`) have time-invariant transform inputs of their
+    /// own, so their entry keys on parent state + layout position instead of
+    /// time — playback reuses it across frames and skips the per-node
+    /// property sampling. Node overrides bypass the cache entirely (they are
+    /// per-frame modifier output and must always win).
+    pub(crate) fn cached_node_transform(
+        &self,
+        id: EntityId,
+        time_ms: u64,
+        parent_opacity: f32,
+        parent_transform: kurbo::Affine,
+        scene_dimensions: SceneDimensions,
+        layout_pos: Option<[f32; 2]>,
+        node_overrides: Option<&std::collections::HashMap<String, Value>>,
+    ) -> NodeTransform {
+        let parent_coeffs = parent_transform.as_coeffs();
+        let hit = if node_overrides.is_some() {
+            None
+        } else {
+            let idx = id.index();
+            self.eval_caches.transform_cache.borrow().get(idx).copied().flatten().and_then(
+                |entry| match entry {
+                    TransformCacheEntry::Timed(cached_time, cached_parent, cached) => {
+                        (cached_time == time_ms && cached_parent == parent_coeffs).then_some(cached)
+                    },
+                    TransformCacheEntry::Static(
+                        cached_parent,
+                        cached_opacity,
+                        cached_layout,
+                        cached,
+                    ) => (cached_parent == parent_coeffs
+                        && cached_opacity == parent_opacity
+                        && cached_layout == layout_pos)
+                        .then_some(cached),
+                },
+            )
+        };
+        if let Some(transform) = hit {
+            return transform;
+        }
+        let t = self.evaluate_node_transform(
+            id,
+            time_ms,
+            parent_opacity,
+            parent_transform,
+            scene_dimensions,
+            layout_pos,
+            node_overrides,
+        );
+        if node_overrides.is_none() {
+            let entry = if self.is_transform_static(id) {
+                TransformCacheEntry::Static(parent_coeffs, parent_opacity, layout_pos, t)
+            } else {
+                TransformCacheEntry::Timed(time_ms, parent_coeffs, t)
+            };
+            let mut cache = self.eval_caches.transform_cache.borrow_mut();
+            let idx = id.index();
+            if idx >= cache.len() {
+                cache.resize(idx + 1, None);
+            }
+            cache[idx] = Some(entry);
+        }
+        t
+    }
+
     /// Evaluate position, size, and transform for a node.
     ///
     /// `node_overrides` — when set (from an `always` modifier), overrides for

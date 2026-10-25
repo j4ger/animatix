@@ -270,9 +270,6 @@ impl HasDuration for VariableTrack {
     }
 }
 
-/// Cached transform entry: (time_ms, parent_transform_coeffs, node_transform).
-type TransformCacheEntry = (u64, [f64; 6], scene_eval::NodeTransform);
-
 /// Static subtree cache value: cached scene, precise bounds, and observed items.
 ///
 /// Items are only collected when the program API requested them. Cache entries
@@ -486,7 +483,10 @@ pub(crate) struct EvalCaches {
     /// driver can put "has the document changed under this time?" into its
     /// frame signature (`frame_signature`).
     content_epoch: std::cell::Cell<u64>,
-    transform_cache: std::cell::RefCell<Vec<Option<TransformCacheEntry>>>,
+    transform_cache: std::cell::RefCell<Vec<Option<scene_eval::TransformCacheEntry>>>,
+    /// Memoized `is_transform_static` answers (`has_any_keyframes` negated),
+    /// cleared by `invalidate_frame_cache`. Indexed by `EntityId.index()`.
+    transform_static_flags: std::cell::RefCell<Vec<Option<bool>>>,
     static_subtree_cache: std::cell::RefCell<
         std::collections::HashMap<
             (EntityId, SceneDimensions, bool, DebugRenderOptions),
@@ -516,20 +516,20 @@ pub(crate) struct EvalCaches {
     /// Authored solo gate for the current frame. Empty (and allocation-free)
     /// in the common case where no actor declares `solo: true`.
     pub(crate) solo: std::cell::RefCell<SoloState>,
-    /// Whether any actor is soloed this frame. A `Cell<bool>` rather than a
-    /// read of `solo`: the per-node gate consults this on every drawn actor,
-    /// and a plain load keeps that free in the common case.
+    /// Whether any actor is soloed this frame; a plain `Cell<bool>` load
+    /// keeps the per-node gate free in the common case.
     pub(crate) solo_active: std::cell::Cell<bool>,
     /// Whether resolving the solo gate has to walk the tracks at all.
     ///
-    /// Deriving this costs the same O(tracks) walk the gate itself does, so it
-    /// is cached: `None` means "unknown, derive it" (the initial state and what
-    /// `invalidate_frame_cache` resets to), and the common scene — no `solo`
-    /// and no frame-time writers — settles on `Some(false)` after one walk and
-    /// then skips the scan for every later frame. A timeline with `always`
-    /// blocks always reports `true`, because an always block can write the flag
-    /// per frame without going through a mutation.
+    /// `None` means "unknown, derive it" (initial state and what
+    /// `invalidate_frame_cache` resets to); the common scene settles on
+    /// `Some(false)` after one walk. A timeline with `always` blocks always
+    /// reports `true` — an always block can write the flag per frame
+    /// without going through a mutation.
     pub(crate) solo_scan_needed: std::cell::Cell<Option<bool>>,
+    /// Resolved primitive handles per entity, keyed by the actor type each
+    /// was resolved from; see `timeline_impl::primitive_cache`.
+    primitive_handles: std::cell::RefCell<Vec<crate::primitives::PrimitiveCacheEntry>>,
     /// The scene's evaluated background color for the current frame. Sampled
     /// once per frame in `evaluate_program_inner` and read by the primitive
     /// `EvaluateCtx` (used only by legend label-contrast); avoids re-sampling

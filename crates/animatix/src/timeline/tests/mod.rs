@@ -55,6 +55,8 @@ mod plot_transitions_extra;
 #[cfg(test)]
 mod plot_transitions_tail;
 #[cfg(test)]
+mod primitive_handle_cache;
+#[cfg(test)]
 mod scene_eval;
 #[cfg(test)]
 mod scene_stats;
@@ -62,6 +64,8 @@ mod scene_stats;
 mod solo;
 #[cfg(test)]
 mod taffy_layout;
+#[cfg(test)]
+mod transform_cache;
 #[cfg(test)]
 mod variable_tracks;
 #[cfg(test)]
