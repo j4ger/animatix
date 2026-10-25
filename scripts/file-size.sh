@@ -1,20 +1,31 @@
 #!/usr/bin/env bash
-# file-size — enforce the source-file ceilings from docs/ecs.md §5.
+# file-size — enforce the source-file ceilings from docs/ecs.md §8.
 #
-# Production source: 800 lines. Test source: 1500 lines.
+# Two tiers, both ratchets:
 #
-# A file over its ceiling must be listed in scripts/file-size-allowlist.tsv
-# with the line count it had when the split programme started. The allowlist
-# is a ratchet: rows are deleted as files are split, never added (except for a
-# genuinely new legacy file in the same commit that lands it) and never raised.
+#   ceiling  production 800 / tests 1500. A file over its ceiling must be in
+#            scripts/file-size-allowlist.tsv, frozen at the size it had when
+#            the split programme started. Rows are deleted when a file is
+#            split, never added (except for a genuinely new legacy file in
+#            the same commit that lands it) and never raised.
+#
+#   watch    production 600 / tests 1200. The forward guard: a file that
+#            crosses the watch threshold must be frozen at that size in
+#            scripts/file-size-watch.tsv in the same commit, and may not grow
+#            past its frozen row afterwards. The watch tier keeps files from
+#            ever *reaching* the ceiling: growth beyond 600 lines is always
+#            a deliberate, reviewed act (raise the row in a commit that
+#            justifies it), never silent drift. Rows are deleted when the
+#            file drops back under the threshold.
 #
 # Exemptions (generated / deliberate single-source surfaces) live in
-# `is_exempt` below and are documented in docs/ecs.md §5.1.
+# `is_exempt` below and are documented in docs/ecs.md §8.
 #
 # Usage:
-#   scripts/file-size.sh            # check — the `file-size` CI gate
-#   scripts/file-size.sh --list     # print every file over its ceiling
-#   scripts/file-size.sh --update   # rewrite the allowlist from the current tree
+#   scripts/file-size.sh               # check — the `file-size` CI gate
+#   scripts/file-size.sh --list        # print every file over its ceiling
+#   scripts/file-size.sh --update      # rewrite the allowlist from the current tree
+#   scripts/file-size.sh --seed-watch  # write the watch list from the current tree
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -22,7 +33,10 @@ cd "$root"
 
 PROD_MAX=${PROD_MAX:-800}
 TEST_MAX=${TEST_MAX:-1500}
+WATCH_PROD_MAX=${WATCH_PROD_MAX:-600}
+WATCH_TEST_MAX=${WATCH_TEST_MAX:-1200}
 ALLOWLIST="scripts/file-size-allowlist.tsv"
+WATCHLIST="scripts/file-size-watch.tsv"
 
 is_exempt() {
   case "$1" in
@@ -49,6 +63,10 @@ ceiling_for() {
   if is_test "$1"; then echo "$TEST_MAX"; else echo "$PROD_MAX"; fi
 }
 
+watch_ceiling_for() {
+  if is_test "$1"; then echo "$WATCH_TEST_MAX"; else echo "$WATCH_PROD_MAX"; fi
+}
+
 # Documentation only: which phase of the split programme should remove the row.
 phase_for() {
   case "$1" in
@@ -69,6 +87,8 @@ collect() {
 
 declare -A ALLOW_MAX=()
 declare -A ALLOW_LINE=()
+declare -A WATCH_MAX=()
+declare -A WATCH_LINE=()
 
 load_allowlist() {
   [[ -f "$ALLOWLIST" ]] || return 0
@@ -89,15 +109,53 @@ load_allowlist() {
   done < "$ALLOWLIST"
 }
 
+load_watchlist() {
+  [[ -f "$WATCHLIST" ]] || return 0
+  local p m lineno=0
+  while IFS=$'\t' read -r p m || [[ -n "${p:-}" ]]; do
+    lineno=$((lineno + 1))
+    [[ -z "${p:-}" || "$p" == \#* ]] && continue
+    if [[ ! "$m" =~ ^[0-9]+$ ]]; then
+      echo "error: $WATCHLIST:$lineno: max_lines must be an integer, got '$m'" >&2
+      return 1
+    fi
+    if [[ -n "${WATCH_MAX[$p]:-}" ]]; then
+      echo "error: $WATCHLIST:$lineno: duplicate entry for '$p'" >&2
+      return 1
+    fi
+    WATCH_MAX["$p"]="$m"
+    WATCH_LINE["$p"]="$lineno"
+  done < "$WATCHLIST"
+}
+
 check_mode() {
   load_allowlist
-  local fail=0 f n max
+  load_watchlist
+  local fail=0 f n max watch
   declare -A seen=()
+  declare -A seen_watch=()
 
   while IFS= read -r -d '' f; do
     is_exempt "$f" && continue
     [[ -f "$f" ]] || continue
     n=$(wc -l < "$f")
+
+    # ── Watch tier: the forward guard at 600/1200. ──
+    watch=$(watch_ceiling_for "$f")
+    if (( n > watch )); then
+      if [[ -n "${WATCH_MAX[$f]:-}" ]]; then
+        seen_watch["$f"]=1
+        if (( n > WATCH_MAX[$f] )); then
+          echo "FAIL $f: $n lines; the watch tier froze it at ${WATCH_MAX[$f]} — split it, or raise the row in a commit that justifies the growth" >&2
+          fail=1
+        fi
+      else
+        echo "FAIL $f: $n lines crosses the watch threshold (> $watch) and is not in $WATCHLIST — split it, or freeze it there in the same commit" >&2
+        fail=1
+      fi
+    fi
+
+    # ── Ceiling tier: the hard 800/1500 limit. ──
     max=$(ceiling_for "$f")
     (( n > max )) || continue
 
@@ -113,9 +171,10 @@ check_mode() {
     fi
   done < <(collect)
 
-  # A split landed but the allowlist row stayed: force the ratchet forward.
+  # A split landed but a row stayed behind: force both ratchets forward.
   local p
   for p in "${!ALLOW_MAX[@]}"; do
+    [[ -n "${seen[$p]:-}" ]] && continue
     if [[ ! -f "$p" ]]; then
       echo "FAIL $p: allowlist entry (line ${ALLOW_LINE[$p]}) points at a missing file" >&2
       fail=1
@@ -128,9 +187,23 @@ check_mode() {
       fail=1
     fi
   done
+  for p in "${!WATCH_MAX[@]}"; do
+    [[ -n "${seen_watch[$p]:-}" ]] && continue
+    if [[ ! -f "$p" ]]; then
+      echo "FAIL $p: watch entry (line ${WATCH_LINE[$p]}) points at a missing file" >&2
+      fail=1
+      continue
+    fi
+    n=$(wc -l < "$p")
+    watch=$(watch_ceiling_for "$p")
+    if (( n <= watch )); then
+      echo "FAIL $p: now $n lines (<= $watch watch threshold); remove its watch entry (line ${WATCH_LINE[$p]})" >&2
+      fail=1
+    fi
+  done
 
   if (( fail == 0 )); then
-    echo "file-size: ok ($(grep -vc '^#' "$ALLOWLIST" 2>/dev/null || echo 0) allowlisted files; production <= $PROD_MAX, tests <= $TEST_MAX)"
+    echo "file-size: ok ($(grep -vc '^#' "$ALLOWLIST" 2>/dev/null || echo 0) allowlisted, $(grep -vc '^#' "$WATCHLIST" 2>/dev/null || echo 0) watched files; ceilings production <= $PROD_MAX / tests <= $TEST_MAX, watch production <= $WATCH_PROD_MAX / tests <= $WATCH_TEST_MAX)"
   fi
   return "$fail"
 }
@@ -150,37 +223,47 @@ list_mode() {
   } | sort -rn
 }
 
-update_mode() {
-  local f n max tmp
+write_frozen_list() {
+  # write_frozen_list <dest> <threshold-for> <header-lines...>
+  local dest="$1" thresh_fn="$2"
+  shift 2
+  local tmp f n
   tmp=$(mktemp)
   {
-    printf '# path\tmax_lines\treason\tremove_by_phase\n'
-    printf '# Frozen at the Phase 0 baseline. This is a ratchet: delete a row when\n'
-    printf '# the file is split; never add or raise one. See docs/ecs.md §5.\n'
-  } > "$tmp"
-  {
+    for line in "$@"; do printf '# %s\n' "$line"; done
     while IFS= read -r -d '' f; do
       is_exempt "$f" && continue
       [[ -f "$f" ]] || continue
       n=$(wc -l < "$f")
-      max=$(ceiling_for "$f")
-      (( n > max )) || continue
-      printf '%s\t%d\tlegacy oversized file\t%s\n' "$f" "$n" "$(phase_for "$f")"
+      (( n > $($thresh_fn "$f") )) || continue
+      printf '%s\t%d\n' "$f" "$n"
     done < <(collect)
   } | sort >> "$tmp"
-  mv "$tmp" "$ALLOWLIST"
-  echo "file-size: wrote $ALLOWLIST ($(grep -vc '^#' "$ALLOWLIST") entries)"
+  mv "$tmp" "$dest"
+  echo "file-size: wrote $dest ($(grep -vc '^#' "$dest" 2>/dev/null || echo 0) entries)"
 }
 
 case "${1:-check}" in
   check|--check) check_mode ;;
   --list) list_mode ;;
-  --update) update_mode ;;
+  --update)
+    write_frozen_list "$ALLOWLIST" ceiling_for \
+      "path	max_lines	reason	remove_by_phase" \
+      "Frozen at the Phase 0 baseline. This is a ratchet: delete a row when" \
+      "the file is split; never add or raise one. See docs/ecs.md §8."
+    ;;
+  --seed-watch)
+    write_frozen_list "$WATCHLIST" watch_ceiling_for \
+      "path	max_lines" \
+      "Frozen when the file crossed the watch threshold (production 600 / tests" \
+      "1200). Ratchet: delete the row when the file drops under the threshold;" \
+      "raise a row only in a commit that justifies the growth. See docs/ecs.md §8."
+    ;;
   -h|--help)
-    sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'
     ;;
   *)
-    echo "usage: scripts/file-size.sh [check|--list|--update]" >&2
+    echo "usage: scripts/file-size.sh [check|--list|--update|--seed-watch]" >&2
     exit 2
     ;;
 esac

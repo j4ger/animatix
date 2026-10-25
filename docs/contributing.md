@@ -209,11 +209,13 @@ why running one in the wrong shell looks like a compile error.
 - **animatix-lsp**: Compiles, manual testing with editors
 - **animatix-gui**: Integrated with workspace tests
 
-`scripts/ci.sh gate file-size` enforces the split programme described in
-`docs/ecs.md` §8: production source files ≤ 800 lines, tests ≤ 1500, with legacy
-offenders frozen in `scripts/file-size-allowlist.tsv`. The allowlist is a
-ratchet — split a file, then delete its row; never raise a row or add one for a
-new file.
+`scripts/ci.sh gate file-size` enforces the two-tier split programme described
+in `docs/ecs.md` §8: the **ceiling** (production ≤ 800 lines, tests ≤ 1500,
+legacy offenders frozen in `scripts/file-size-allowlist.tsv`) and the **watch**
+tier (production ≤ 600, tests ≤ 1200, frozen in `scripts/file-size-watch.tsv`).
+Both are ratchets — a file that crosses the watch threshold must be frozen in
+the same commit and cannot grow past its row; split a file, then delete its
+row; never raise a row or add one for a new file without justifying it.
 
 For demo work: keep runnable demos under `examples/`, verify with both `ast` and `image`/`video`. Use `dogfood/` for in-progress real-content projects and grammar probes; do not move known-broken probes into `examples/`.
 
