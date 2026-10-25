@@ -76,10 +76,7 @@ impl Timeline {
         }
         // A wildcard actor or any `{wildcard}__`-prefixed label injects fully.
         let is_wildcard = self.wildcard_actors.contains(label)
-            || self
-                .wildcard_actors
-                .iter()
-                .any(|w| label.starts_with(&format!("{w}__")));
+            || self.wildcard_actors.iter().any(|w| label.starts_with(&format!("{w}__")));
         if is_wildcard {
             return EnvInjectDecision::Wildcard(self.is_animating_used);
         }

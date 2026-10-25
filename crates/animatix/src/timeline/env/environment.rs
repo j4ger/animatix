@@ -11,10 +11,10 @@ fn fresh_env_instance() -> u32 {
 /// Uses an override layer over an optional shared base to avoid copying
 /// large stdlib maps on every frame.
 pub struct Environment {
-    pub(crate) overrides: HashMap<String, Value>,
+    pub(crate) overrides: EnvMap,
     /// P2.22: Shared base layer. `get()` checks overrides first, then falls back
     /// to base. This avoids copying ~90 stdlib entries on every [`Timeline::build_frame_env`].
-    pub(crate) base: Option<Arc<HashMap<String, Value>>>,
+    pub(crate) base: Option<Arc<EnvMap>>,
     /// P6.2+: Dual-variable binding overlay for plot sampling.
     /// Avoids cloning the entire overrides HashMap for every sample point.
     /// Two slots allow setting both `x` and `y` for scalar/vector field evaluation.
@@ -25,7 +25,7 @@ pub struct Environment {
     /// expression cache consults `let_epoch` so values computed inside a
     /// let-scope are never reused outside it. `RefCell` keeps
     /// `evaluate_expr(&Expr, &Environment)` signatures unchanged.
-    pub(crate) let_scopes: std::cell::RefCell<Vec<HashMap<String, Value>>>,
+    pub(crate) let_scopes: std::cell::RefCell<Vec<EnvMap>>,
     /// Cache-key epoch bumped on every let-scope push/pop (see `let_epoch`).
     let_epoch: std::cell::Cell<u64>,
 }
@@ -58,7 +58,7 @@ impl Environment {
     /// Create an empty environment with no base layer.
     pub fn new() -> Self {
         Environment {
-            overrides: HashMap::new(),
+            overrides: EnvMap::default(),
             base: None,
             bindings: [None, None],
             stamp: EnvStamp {
@@ -73,7 +73,7 @@ impl Environment {
     /// Create an empty environment with the given initial capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Environment {
-            overrides: HashMap::with_capacity(capacity),
+            overrides: HashMap::with_capacity_and_hasher(capacity, Default::default()),
             base: None,
             bindings: [None, None],
             stamp: EnvStamp {
@@ -86,9 +86,9 @@ impl Environment {
     }
 
     /// Create an environment with a shared base layer.
-    pub fn with_base(base: Arc<HashMap<String, Value>>) -> Self {
+    pub fn with_base(base: Arc<EnvMap>) -> Self {
         Environment {
-            overrides: HashMap::new(),
+            overrides: EnvMap::default(),
             base: Some(base),
             bindings: [None, None],
             stamp: EnvStamp {

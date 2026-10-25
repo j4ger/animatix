@@ -7,6 +7,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::timeline::modifier_runtime::ir::CompiledExpr;
 
+mod fx;
+pub(crate) use fx::EnvMap;
+
 /// Error produced during expression evaluation in the timeline environment.
 #[derive(Debug, Clone)]
 pub enum EvalError {
@@ -90,7 +93,9 @@ impl CapturedEnv {
                 }
             }
         }
-        CapturedEnv(captured)
+        // `CapturedEnv` keeps the std `HashMap` flavor (public API); the
+        // conversion rehashes once per closure creation, off the frame path.
+        CapturedEnv(captured.into_iter().collect())
     }
 
     /// Merge this captured environment into a mutable environment at render

@@ -20,7 +20,7 @@ impl Timeline {
             primitive_registry: std::sync::Arc::new(crate::primitives::PrimitiveRegistry::new()),
             extensions: None,
             has_effect_scopes: false,
-            env_base: std::sync::Arc::new(std::collections::HashMap::new()),
+            env_base: std::sync::Arc::new(Default::default()),
             env_pool: std::cell::RefCell::new(None),
             modifiers: Vec::new(),
             frame_written_vars: std::collections::HashSet::new(),

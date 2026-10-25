@@ -60,7 +60,7 @@ fn direct_overrides_removal_invalidates_cache() {
 fn test_evaluate_closure() {
     // Use an env with a (empty) base to satisfy the stdlib-base invariant
     // checked by the debug_assert in evaluate_call.
-    let mut env = Environment::with_base(std::sync::Arc::new(std::collections::HashMap::new()));
+    let mut env = Environment::with_base(std::sync::Arc::new(Default::default()));
     let closure = Value::Closure(
         vec!["x".to_string()],
         compiled_body(Expr::Binary(
@@ -260,7 +260,7 @@ fn test_evaluate_construct_creates_object() {
 fn test_evaluate_closure_captures_variable_at_creation_time() {
     // Use an env with a (empty) base to satisfy the stdlib-base invariant
     // checked by the debug_assert in evaluate_call.
-    let mut env = Environment::with_base(std::sync::Arc::new(std::collections::HashMap::new()));
+    let mut env = Environment::with_base(std::sync::Arc::new(Default::default()));
     env.set("y", Value::Num(3.0));
     let closure = Value::Closure(
         vec!["x".to_string()],

@@ -320,7 +320,7 @@ pub struct Timeline {
     pub(crate) has_effect_scopes: bool,
     /// P2.22: Frozen Arc reference to the base environment entries (stdlib +
     /// colorscheme). Avoids copying ~90 entries on every [`Timeline::build_frame_env`].
-    env_base: std::sync::Arc<std::collections::HashMap<String, Value>>,
+    env_base: std::sync::Arc<crate::timeline::env::EnvMap>,
     /// PF-6: pooled frame environment handed back by the scene-eval path after
     /// each frame (see `build_frame_env_internal`). Retaining the environment
     /// keeps the overrides map's table capacity and every key `String`

@@ -7,4 +7,4 @@ mod misc;
 mod primitive_cache;
 mod state;
 
-pub(crate) use cache::{EnvInjectDecision, EnvInjectEntry, EnvInjectionPlan};
+pub(crate) use cache::{EnvInjectDecision, EnvInjectionPlan};

@@ -30,15 +30,13 @@ impl Hasher for FxHasher {
     #[inline]
     fn write(&mut self, mut bytes: &[u8]) {
         while bytes.len() >= 8 {
-            self.add_to_hash(u64::from_ne_bytes(
-                bytes[..8].try_into().expect("8-byte slice"),
-            ));
+            self.add_to_hash(u64::from_ne_bytes(bytes[..8].try_into().expect("8-byte slice")));
             bytes = &bytes[8..];
         }
         if bytes.len() >= 4 {
-            self.add_to_hash(u32::from_ne_bytes(
-                bytes[..4].try_into().expect("4-byte slice"),
-            ) as u64);
+            self.add_to_hash(
+                u32::from_ne_bytes(bytes[..4].try_into().expect("4-byte slice")) as u64
+            );
             bytes = &bytes[4..];
         }
         for &b in bytes {
@@ -74,5 +72,4 @@ impl Hasher for FxHasher {
 
 /// The environment's `HashMap<String, Value>` flavor: std `hashbrown` with
 /// FxHash instead of SipHash.
-pub(crate) type EnvMap =
-    std::collections::HashMap<String, Value, BuildHasherDefault<FxHasher>>;
+pub(crate) type EnvMap = std::collections::HashMap<String, Value, BuildHasherDefault<FxHasher>>;
