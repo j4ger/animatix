@@ -5,8 +5,8 @@ use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::timeline::callout_geometry::TargetResolver;
 use crate::timeline::{
-    AnimationTrack, Environment, SceneDimensions, Timeline, Value, VectorShapeState,
-    VectorShapeStyle, VelloPath,
+    EntityId, Environment, SceneDimensions, Timeline, Value, VectorShapeState, VectorShapeStyle,
+    VelloPath,
 };
 
 /// Context passed to `Primitive::build()`.
@@ -71,10 +71,10 @@ pub struct RenderCtx<'a> {
     pub style: VectorShapeStyle,
     /// Current time in milliseconds.
     pub time_ms: u64,
-    /// The actor's track.
-    pub track: &'a AnimationTrack,
+    /// The rendered entity's id (identity lives in `World`).
+    pub id: EntityId,
     /// Shape geometry tier — memoization home for the shape→path conversion
-    /// (PF-6); see `AnimationTrack::shape_path_memoized`.
+    /// (PF-6); see `ShapeTracks::shape_path_memoized`.
     pub shape: Option<&'a crate::timeline::animation_track::ShapeTracks>,
 }
 
@@ -82,8 +82,8 @@ pub struct RenderCtx<'a> {
 ///
 /// All fields are immutable. Text-specific mutable state is in [`TextCompileCtx`].
 pub struct EvaluateCtx<'a> {
-    /// The animation track for this actor.
-    pub track: &'a AnimationTrack,
+    /// The rendered entity's id (identity lives in `World`).
+    pub id: EntityId,
     /// This actor's label (identity lives in `World`).
     pub label: &'a str,
     /// Current time in milliseconds.
@@ -257,15 +257,6 @@ pub struct RenderChildrenCtx<'a, 'b, 'c> {
 }
 
 impl<'a, 'b, 'c> RenderChildrenCtx<'a, 'b, 'c> {
-    /// The container track these children belong to.
-    pub fn track(&self) -> Option<&AnimationTrack> {
-        self.timeline
-            .world
-            .tracks
-            .get_by_id(self.host_id)
-            .or_else(|| self.timeline.world.tracks.get(self.node_label))
-    }
-
     /// This context's read-only frame state, for the render recursion.
     ///
     /// The returned frame borrows the *frame data* (`'a`), not `self`, so the
@@ -538,17 +529,18 @@ impl EvaluateCtx<'_> {
 }
 
 impl EvaluateCtx<'_> {
-    /// Read one property, preferring the owning `World` and falling back to the
-    /// track-only accessor for contexts built without one.
+    /// Read one property value for this entity, when the context carries the
+    /// owning `World`.
+    ///
+    /// Contexts built without a `World` (tests) read nothing: the former
+    /// track-only fallback already returned `None` for every field once the
+    /// tiers moved into `World` components.
     pub fn read_property_value(
         &self,
         field: crate::timeline::property_registry::ActorField,
         time_ms: u64,
     ) -> Option<crate::timeline::property_engine::PropertyValue> {
-        match self.world {
-            Some(world) => world.read_property_value(self.track.id, field, time_ms),
-            None => crate::timeline::read_property_value(self.track, field, time_ms),
-        }
+        self.world.and_then(|world| world.read_property_value(self.id, field, time_ms))
     }
 }
 
@@ -565,13 +557,13 @@ impl EvaluateCtx<'_> {
     /// Sample an f32 plan property, falling back when no plan is attached.
     pub fn sample_f32_prop(&self, name: &str, time_ms: u64, default: f32) -> f32 {
         self.property_plan
-            .map_or(default, |plan| self.track.sample_f32_prop(plan, name, time_ms, default))
+            .map_or(default, |plan| plan.sample_f32_prop(name, time_ms, default))
     }
 
     /// Sample a color plan property, falling back when no plan is attached.
     pub fn sample_color_prop(&self, name: &str, time_ms: u64, default: [f32; 4]) -> [f32; 4] {
         self.property_plan
-            .map_or(default, |plan| self.track.sample_color_prop(plan, name, time_ms, default))
+            .map_or(default, |plan| plan.sample_color_prop(name, time_ms, default))
     }
 
     /// Sample an arbitrary plan property.
@@ -580,7 +572,6 @@ impl EvaluateCtx<'_> {
         name: &str,
         time_ms: u64,
     ) -> Option<crate::timeline::PropertyValue> {
-        self.property_plan
-            .and_then(|plan| self.track.sample_property_named(plan, name, time_ms))
+        self.property_plan.and_then(|plan| plan.sample_property_named(name, time_ms))
     }
 }

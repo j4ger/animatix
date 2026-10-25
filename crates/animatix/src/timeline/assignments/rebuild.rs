@@ -7,7 +7,6 @@ use crate::timeline::animation_track::{GeometryTracks, ShapeTracks, StyleTracks}
 // ─────────────────────────────────────────────────────────────
 
 pub(super) fn handle_size_assignment(
-    track: &mut AnimationTrack,
     actor_type: &str,
     style: &StyleTracks,
     geometry: &mut GeometryTracks,
@@ -71,8 +70,8 @@ pub(super) fn handle_size_assignment(
             .size
             .ensure(default_size)
             .add_keyframe(t_start_ms, start_val, Easing::Linear);
-        if let Some(layout_start) = track.layout_size_get(geometry, t_start_ms) {
-            track.ensure_layout_size(geometry, default_size).add_keyframe(
+        if let Some(layout_start) = geometry.layout_size_get(t_start_ms) {
+            geometry.ensure_layout_size(default_size).add_keyframe(
                 t_start_ms,
                 layout_start,
                 Easing::Linear,
@@ -83,13 +82,12 @@ pub(super) fn handle_size_assignment(
         preserve_instant_delayed_value(&mut geometry.layout_size, t_start_ms);
     }
     geometry.size.ensure(default_size).add_keyframe(t_end_ms, target_size, easing);
-    track
-        .ensure_layout_size(geometry, default_size)
+    geometry
+        .ensure_layout_size(default_size)
         .add_keyframe(t_end_ms, target_size, easing);
 
     // Rebuild vector paths after size change
     rebuild_vector_paths(
-        track,
         actor_type,
         style,
         geometry,
@@ -105,7 +103,6 @@ pub(super) fn handle_size_assignment(
 }
 
 pub(super) fn rebuild_vector_paths(
-    track: &mut AnimationTrack,
     actor_type: &str,
     style: &StyleTracks,
     geometry: &GeometryTracks,
@@ -143,7 +140,7 @@ pub(super) fn rebuild_vector_paths(
         );
 
         if has_duration {
-            let start_paths = track.evaluate_vector_paths_value(shape, style, t_start_ms);
+            let start_paths = shape.evaluate_vector_paths_value(style, t_start_ms);
             shape.vector_paths.ensure(Vec::new()).add_keyframe(
                 t_start_ms,
                 start_paths,
@@ -239,7 +236,7 @@ pub(super) fn rebuild_vector_paths(
     });
 
     if has_duration {
-        let start_paths = track.evaluate_vector_paths_value(shape, style, t_start_ms);
+        let start_paths = shape.evaluate_vector_paths_value(style, t_start_ms);
         shape
             .vector_paths
             .ensure(Vec::new())
@@ -258,7 +255,6 @@ pub(super) fn rebuild_vector_paths(
 // ─────────────────────────────────────────────────────────────
 
 pub(super) fn scale_plot_curve_paths(
-    track: &mut AnimationTrack,
     style: &StyleTracks,
     shape: &mut ShapeTracks,
     scale_x: f32,
@@ -273,7 +269,7 @@ pub(super) fn scale_plot_curve_paths(
     }
 
     let has_duration = t_end_ms > t_start_ms;
-    let current_paths = track.evaluate_vector_paths_value(shape, style, t_end_ms);
+    let current_paths = shape.evaluate_vector_paths_value(style, t_end_ms);
     if current_paths.is_empty() {
         return;
     }
@@ -290,7 +286,7 @@ pub(super) fn scale_plot_curve_paths(
         .collect();
 
     if has_duration {
-        let start_paths = track.evaluate_vector_paths_value(shape, style, t_start_ms);
+        let start_paths = shape.evaluate_vector_paths_value(style, t_start_ms);
         shape
             .vector_paths
             .ensure(Vec::new())

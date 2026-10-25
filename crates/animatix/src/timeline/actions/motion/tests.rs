@@ -126,8 +126,8 @@ fn move_animates_motion_offset_to_target_value() {
     }];
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report.output.world.tracks.get("badge").expect("badge track");
-    let geometry = report.output.world.geometry(track.id);
+    let badge_id = report.output.world.get_id("badge").expect("badge id");
+    let geometry = report.output.world.geometry(badge_id);
 
     assert_eq!(geometry.motion_offset.get(0, [0.0, 0.0]), [0.0, 0.0]);
     assert_eq!(geometry.motion_offset.get(1000, [0.0, 0.0]), [120.0, -30.0]);
@@ -164,8 +164,8 @@ fn rotate_animates_rotation_track_over_duration() {
     }];
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report.output.world.tracks.get("badge").expect("badge track");
-    let geometry = report.output.world.geometry(track.id);
+    let badge_id = report.output.world.get_id("badge").expect("badge id");
+    let geometry = report.output.world.geometry(badge_id);
 
     assert!((geometry.rotation.get(0, 0.0) - 0.0).abs() < f32::EPSILON);
     assert!((geometry.rotation.get(1000, 0.0) - std::f32::consts::FRAC_PI_2).abs() < 0.0001);
@@ -202,8 +202,8 @@ fn scale_animates_scale_track_over_duration() {
     }];
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report.output.world.tracks.get("badge").expect("badge track");
-    let geometry = report.output.world.geometry(track.id);
+    let badge_id = report.output.world.get_id("badge").expect("badge id");
+    let geometry = report.output.world.geometry(badge_id);
 
     assert!((geometry.scale.get(0, 1.0) - 1.0).abs() < f32::EPSILON);
     assert!((geometry.scale.get(1000, 1.0) - 1.5).abs() < 0.0001);
@@ -240,8 +240,8 @@ fn shift_animates_motion_offset_over_duration() {
     }];
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report.output.world.tracks.get("badge").expect("badge track");
-    let geometry = report.output.world.geometry(track.id);
+    let badge_id = report.output.world.get_id("badge").expect("badge id");
+    let geometry = report.output.world.geometry(badge_id);
 
     assert_eq!(geometry.motion_offset.get(0, [0.0, 0.0]), [0.0, 0.0]);
     assert_eq!(geometry.motion_offset.get(1000, [0.0, 0.0]), [40.0, -24.0]);
@@ -305,8 +305,8 @@ fn shift_preserves_layout_managed_targets() {
     }];
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report.output.world.tracks.get("child").expect("child track");
-    let geometry = report.output.world.geometry(track.id);
+    let child_id = report.output.world.get_id("child").expect("child id");
+    let geometry = report.output.world.geometry(child_id);
 
     assert_eq!(
         geometry.placement_mode.get(0, PlacementMode::LayoutManaged),

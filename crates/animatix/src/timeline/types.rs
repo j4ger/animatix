@@ -165,7 +165,9 @@ impl ContainerMetadata {
         self.child_order
             .iter()
             .filter_map(|child_id| {
-                world.track(*child_id)?;
+                if !world.exists(*child_id) {
+                    return None;
+                }
                 let geometry = world.geometry(*child_id);
                 geometry.layout_size.as_ref()?;
                 Some(ContainerLayoutChild {

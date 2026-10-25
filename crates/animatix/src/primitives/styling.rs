@@ -6,8 +6,8 @@ use crate::primitives::commands::RenderCommand;
 use crate::primitives::{EvaluateCtx, Primitive, RenderCtx};
 use crate::timeline::animation_track::StyleTracks;
 use crate::timeline::{
-    ActorCaps, AnimationTrack, DEFAULT_WHITE, EntityId, TrackAccessor, Value, VectorShapeState,
-    VectorShapeStyle, World,
+    ActorCaps, DEFAULT_WHITE, EntityId, TrackAccessor, Value, VectorShapeState, VectorShapeStyle,
+    World,
 };
 
 /// Helper to read a color override from an `always` block's assignment table.
@@ -115,12 +115,12 @@ impl World {
     /// a stale epoch also drops the stale payload so it can never be served.
     pub(crate) fn take_shape_commands(
         &self,
-        track: &AnimationTrack,
+        id: EntityId,
         epoch: u64,
         style: &VectorShapeStyle,
         state: &VectorShapeState,
     ) -> Option<(Vec<RenderCommand>, Option<kurbo::Rect>)> {
-        let mut memo = self.shape_memos.get(track.id).borrow_mut();
+        let mut memo = self.shape_memos.get(id).borrow_mut();
         if memo.matches(epoch, style, state) {
             let commands = memo.commands.take();
             return commands.map(|c| (c, memo.cached_bounds.unwrap_or(None)));
@@ -141,7 +141,7 @@ impl World {
     /// in the memo slot (see [`ShapeCommandMemo`]).
     pub(crate) fn build_shape_commands(
         &self,
-        track: &AnimationTrack,
+        id: EntityId,
         epoch: u64,
         style: VectorShapeStyle,
         state: &VectorShapeState,
@@ -154,7 +154,7 @@ impl World {
                 state,
                 style,
                 time_ms,
-                track,
+                id,
                 shape: Some(shape),
             })
             .unwrap_or_default();
@@ -172,7 +172,7 @@ impl World {
         // frame's payload was never taken (dynamic inputs) — keeping the
         // older valid payload avoids a clone per frame on dynamic actors
         // (the key match still guards staleness).
-        let mut memo = self.shape_memos.get(track.id).borrow_mut();
+        let mut memo = self.shape_memos.get(id).borrow_mut();
         if memo.commands.is_none() {
             // Shape commands never carry images, so `display_size` is
             // irrelevant here (None).
@@ -182,7 +182,7 @@ impl World {
                 .reduce(|acc, rect| acc.union(rect));
             memo.store(epoch, style, state, commands.clone(), bounds);
             drop(memo);
-            self.offer_shape_command_bounds(track.id, bounds);
+            self.offer_shape_command_bounds(id, bounds);
         }
         Ok(commands)
     }
@@ -190,12 +190,8 @@ impl World {
     /// Return a consumed command `Vec` to the memo slot so the next frame's
     /// hit can take it again (see [`ShapeCommandMemo`]). A `Vec` that did not
     /// come from the slot (double recycle, foreign build) is dropped.
-    pub(crate) fn recycle_shape_commands(
-        &self,
-        track: &AnimationTrack,
-        commands: Vec<RenderCommand>,
-    ) {
-        let mut memo = self.shape_memos.get(track.id).borrow_mut();
+    pub(crate) fn recycle_shape_commands(&self, id: EntityId, commands: Vec<RenderCommand>) {
+        let mut memo = self.shape_memos.get(id).borrow_mut();
         if memo.commands.is_none() {
             memo.commands = Some(commands);
         }
@@ -241,7 +237,7 @@ pub(crate) fn evaluate_shape_render(
     let has_gradient = shape_has_gradient(style_tracks);
     let mut commands = if progress < 1.0 {
         let built = ctx.world.expect("shape memo requires a world").build_shape_commands(
-            ctx.track,
+            ctx.id,
             epoch,
             style,
             state,
@@ -255,7 +251,7 @@ pub(crate) fn evaluate_shape_render(
         trimmed
     } else if has_dash || has_gradient {
         let mut built = ctx.world.expect("shape memo requires a world").build_shape_commands(
-            ctx.track,
+            ctx.id,
             epoch,
             style,
             state,
@@ -273,15 +269,15 @@ pub(crate) fn evaluate_shape_render(
     } else if let Some((commands, bounds)) = ctx
         .world
         .expect("shape memo requires a world")
-        .take_shape_commands(ctx.track, epoch, &style, state)
+        .take_shape_commands(ctx.id, epoch, &style, state)
     {
         ctx.world
             .expect("shape memo requires a world")
-            .offer_shape_command_bounds(ctx.track.id, bounds);
+            .offer_shape_command_bounds(ctx.id, bounds);
         commands
     } else {
         ctx.world.expect("shape memo requires a world").build_shape_commands(
-            ctx.track,
+            ctx.id,
             epoch,
             style,
             state,

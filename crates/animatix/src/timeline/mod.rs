@@ -52,9 +52,7 @@ mod declarations_text;
 /// backend boundary.
 pub mod effects;
 pub mod entity;
-/// Strongly-typed entity IDs and contiguous track storage.
-mod track;
-pub use entity::{EntityId, TrackEntry, TrackStore};
+pub use entity::{EntityId, EntityStore};
 /// Public timeline data types (build quality, layout metadata, scene
 /// dimensions, audio segments, variable tracks).
 mod types;
@@ -97,12 +95,6 @@ pub(crate) mod scene_stats;
 pub(crate) mod taffy_layout;
 pub(crate) mod value_parser;
 
-// Re-export the generic property read API
-pub use dispatch::{
-    property_has_keyframe_at, property_has_keyframes, property_keyframe_count,
-    property_keyframe_easing, property_keyframe_times, read_property_value,
-    read_property_value_or_default,
-};
 pub use plan::{DynTrack, PropertyKind, PropertyPlan, PropertySlot};
 pub(crate) use property_engine::values_wrap;
 pub use property_engine::{
@@ -209,7 +201,7 @@ pub use animation_track::{
     ShapeTracks, StyleTracks, TextTracks,
 };
 pub use animatix_std::{caps_for_type, caps_from_info};
-pub use dispatch::{AnimationTrack, TrackFieldMut, TrackFieldRef};
+pub use dispatch::{TrackFieldMut, TrackFieldRef};
 pub use property_track::{Easing, Interpolate, PropertyTrack, TrackAccessor};
 use timing::{
     ParsedStaggerModifiers, StaggerMetric, StaggerOrigin, has_non_default_morph_options,
@@ -219,28 +211,21 @@ use timing::{
 
 pub use crate::primitives::primitive_info_by_name;
 /// Collect all keyframe times (in seconds) across all property tracks of an
-/// `AnimationTrack`, using the property registry to discover all possible fields.
+/// entity, using the property registry to discover all possible fields.
 /// Used by the GUI to show keyframe markers on the mini timeline and time lens.
 pub fn collect_all_keyframe_times(
-    track: &AnimationTrack,
+    id: EntityId,
     effects: Option<&crate::timeline::effects::EffectChainTrack>,
-    world: Option<&crate::timeline::World>,
+    world: &crate::timeline::World,
 ) -> Vec<f64> {
-    // Identity (and the caps projection derived from it) lives in `World`.
-    // Without one there is no actor type to key the registry with, so only
-    // the universally applicable properties are discoverable.
-    let caps = world.map_or_else(ActorCaps::default, |world| world.caps(track.id));
-    let actor_type = world.map_or("", |world| world.actor_type(track.id));
+    let caps = world.caps(id);
+    let actor_type = world.actor_type(id);
     let indices = property_registry::allowed_property_indices(&caps, actor_type);
     let mut times = std::collections::BTreeSet::new();
 
     for &idx in &indices {
         let schema = &property_registry::PROPERTY_REGISTRY[idx];
-        let times_for_field = match world {
-            Some(world) => world.property_keyframe_times(track.id, schema.field),
-            None => property_keyframe_times(track, schema.field),
-        };
-        for t in times_for_field {
+        for t in world.property_keyframe_times(id, schema.field) {
             times.insert(t);
         }
     }
@@ -271,12 +256,6 @@ use crate::timeline::modifier_runtime::ir::ModifierIrProgram;
 pub trait HasDuration {
     /// Returns the maximum keyframe time in milliseconds.
     fn max_keyframe_time_ms(&self) -> u64;
-}
-
-impl HasDuration for AnimationTrack {
-    fn max_keyframe_time_ms(&self) -> u64 {
-        self.max_keyframe_time().unwrap_or(0)
-    }
 }
 
 impl<T: Interpolate> HasDuration for PropertyTrack<T> {
@@ -523,7 +502,7 @@ pub(crate) struct EvalCaches {
     hit_regions: std::cell::RefCell<Vec<(EntityId, kurbo::Rect)>>,
     overrides_buffer: std::cell::RefCell<crate::timeline::modifier_runtime::ir::ModifierOverrides>,
     /// Precise world-space bounds for the current frame, indexed by
-    /// [`AnimationTrack::bounds_slot`] instead of actor label (PF-6 slot-id
+    /// `World::bounds_slots` slot ids instead of actor label (PF-6 slot-id
     /// design: the per-node write is a `Vec` store, the frame-cache stash and
     /// restore are flat `Vec<(u32, Rect)>` copies, and the string-keyed map
     /// machinery — per-node hashing, pooled-key bookkeeping, per-key `String`
@@ -588,7 +567,7 @@ impl SoloState {
 
 /// Dense per-frame precise-bounds storage (PF-6 slot-id design).
 ///
-/// `slots` is indexed by [`AnimationTrack::bounds_slot`], which `ensure_bounds_registry`
+/// `slots` is indexed by the `World::bounds_slots` slot id, which `ensure_bounds_registry`
 /// stamps once per rebuild (sorted `tracks` order — deterministic and stable for the
 /// lifetime of one `Timeline`). `written` lists the slots touched this frame so the
 /// per-frame clear, the frame-cache stash, and the restore are all flat
@@ -637,7 +616,7 @@ impl BoundsTable {
     }
 }
 
-/// Sorted track labels giving [`AnimationTrack::bounds_slot`] values their
+/// Sorted entity labels giving the `World::bounds_slots` values their
 /// meaning; rebuilt whenever `invalidate_frame_cache` clears it.
 #[derive(Clone)]
 struct BoundsRegistry {
@@ -647,23 +626,23 @@ struct BoundsRegistry {
 }
 
 impl EvalCaches {
-    /// Stamp [`AnimationTrack::bounds_slot`] for every track and (re)build the
+    /// Stamp `World::bounds_slots` for every entity and (re)build the
     /// label registry. Cheap no-op while the registry is valid; invalidated by
-    /// `invalidate_frame_cache` (the single track-mutation funnel) and by
+    /// `invalidate_frame_cache` (the single mutation funnel) and by
     /// `Clone` (EvalCaches reset to `Default`).
-    fn ensure_bounds_registry(&self, tracks: &TrackStore, world: &crate::timeline::World) {
+    fn ensure_bounds_registry(&self, world: &crate::timeline::World) {
         if self.bounds_registry.borrow().is_some() {
             return;
         }
-        let labels: Vec<String> = tracks.keys().cloned().collect();
+        let labels: Vec<String> = world.tracks.keys().cloned().collect();
         {
             let mut table = self.precise_bounds.borrow_mut();
             table.clear_frame();
             table.slots.clear();
             table.slots.resize(labels.len(), None);
         }
-        for (slot, track) in tracks.values().enumerate() {
-            world.set_bounds_slot(track.id, slot as u32);
+        for (slot, (_, id)) in world.tracks.iter().enumerate() {
+            world.set_bounds_slot(id, slot as u32);
         }
         *self.bounds_registry.borrow_mut() = Some(BoundsRegistry { labels });
     }

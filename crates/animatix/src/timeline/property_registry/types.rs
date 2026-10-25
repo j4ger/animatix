@@ -182,18 +182,15 @@ pub enum ReadSource {
 }
 
 impl ReadSource {
-    /// Read the current frame-time value from the track. Returns `None` for
-    /// `None_` (not readable) or when the track field has no value.
+    /// Read the current frame-time value for an entity. Returns `None` for
+    /// `None_` (not readable) or when the entity has no value for the field.
     pub fn read(
         &self,
-        track: &crate::timeline::AnimationTrack,
-        world: Option<&crate::timeline::World>,
+        id: crate::timeline::EntityId,
+        world: &crate::timeline::World,
         time_ms: u64,
     ) -> Option<crate::timeline::PropertyValue> {
-        let read = |field| match world {
-            Some(world) => world.read_property_value(track.id, field, time_ms),
-            None => crate::timeline::dispatch::read_property_value(track, field, time_ms),
-        };
+        let read = |field| world.read_property_value(id, field, time_ms);
         match self {
             ReadSource::Field(f) | ReadSource::Alias(f) => read(*f),
             ReadSource::Component {

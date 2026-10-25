@@ -1,4 +1,4 @@
-use animatix::timeline::{AnimationTrack, ResizeMode, ShapeKind, Timeline};
+use animatix::timeline::{EntityId, ResizeMode, ShapeKind, Timeline};
 
 /// Interactive affordances exposed by an actor on the preview canvas.
 #[derive(Clone, Debug, PartialEq)]
@@ -13,17 +13,14 @@ pub enum GizmoAffordance {
     InlineText { property: &'static str },
 }
 
-/// Determine all gizmo affordances for a given track.
-pub fn actor_gizmo_affordances(
-    track: &AnimationTrack,
-    timeline: &Timeline,
-) -> Vec<GizmoAffordance> {
+/// Determine all gizmo affordances for a given entity.
+pub fn actor_gizmo_affordances(id: EntityId, timeline: &Timeline) -> Vec<GizmoAffordance> {
     let mut affordances = Vec::new();
-    let caps = timeline.world().caps(track.id);
+    let caps = timeline.world().caps(id);
 
     // 1. Resize mode & bounding box
     let registry = timeline.primitive_registry_snapshot();
-    let actor_type = timeline.world().actor_type(track.id);
+    let actor_type = timeline.world().actor_type(id);
     let resize_mode = if let Some(primitive) = registry.find(actor_type) {
         primitive.resize_mode(&caps)
     } else {
@@ -32,8 +29,7 @@ pub fn actor_gizmo_affordances(
     affordances.push(GizmoAffordance::BoundingBox { resize_mode });
 
     // 2. Control points for shapes with editable vertices
-    if timeline.world().shape(track.id).points.is_some()
-        || matches!(caps.shape, Some(ShapeKind::Polygon))
+    if timeline.world().shape(id).points.is_some() || matches!(caps.shape, Some(ShapeKind::Polygon))
     {
         affordances.push(GizmoAffordance::ControlPoints);
     }
@@ -74,9 +70,8 @@ mod tests {
     #[test]
     fn rect_affordances_include_bounding_box() {
         let mut timeline = Timeline::new();
-        timeline.world_mut().spawn("box", "Rect");
-        let track = timeline.get_track("box").expect("rect track");
-        let affordances = actor_gizmo_affordances(track, &timeline);
+        let id = timeline.world_mut().spawn("box", "Rect");
+        let affordances = actor_gizmo_affordances(id, &timeline);
         assert!(affordances.contains(&GizmoAffordance::BoundingBox {
             resize_mode: ResizeMode::Size
         }));
@@ -93,8 +88,7 @@ mod tests {
         caps.callout = true;
         caps.text = Some(animatix::timeline::TextKind::Text);
         timeline.world_mut().set_caps(id, caps);
-        let track = timeline.get_track("c").expect("callout track");
-        let affordances = actor_gizmo_affordances(track, &timeline);
+        let affordances = actor_gizmo_affordances(id, &timeline);
         assert!(affordances.contains(&GizmoAffordance::Callout));
         assert!(affordances.contains(&GizmoAffordance::InlineText { property: "text" }));
     }

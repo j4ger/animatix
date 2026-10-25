@@ -405,9 +405,9 @@ for j in {0, 2} {
     );
     let timeline = report.output;
     for key in ["b__0", "b__2"] {
-        let track = timeline.world.tracks.get(key).unwrap_or_else(|| panic!("{key} track"));
+        let track = timeline.world.tracks.get_id(key).unwrap_or_else(|| panic!("{key} track"));
         assert_eq!(
-            timeline.world.style(track.id).color.get(200, [1.0, 1.0, 1.0, 1.0]),
+            timeline.world.style(track).color.get(200, [1.0, 1.0, 1.0, 1.0]),
             [1.0, 0.0, 0.0, 1.0],
             "indexed assignment should write the resolved actor by the end of its duration"
         );
@@ -603,8 +603,8 @@ pulse btn [strength: 1.5]
     );
     // The scale keyframe written through the fn body targets the actor;
     // scale is stored in the transform track as [s,0,0,s,0,0].
-    let track = timeline.world.tracks.get("btn").expect("btn track");
-    let geometry = timeline.world.geometry(track.id);
+    let track = timeline.world.tracks.get_id("btn").expect("btn track");
+    let geometry = timeline.world.geometry(track);
     assert_eq!(
         geometry.scale.get(1100, 1.0),
         3.0,
@@ -976,11 +976,7 @@ fn extension_actor_at_position_regression() {
             _modifiers: &[animatix_syntax::ast::Modifier],
             _children: &[animatix_syntax::ast::InlineItem],
         ) -> Result<(), Vec<animatix_syntax::diagnostics::Diagnostic>> {
-            let track_id = ctx.timeline.world.spawn_with_track(
-                label,
-                "StubPulse",
-                crate::timeline::AnimationTrack::placeholder(label.to_string()),
-            );
+            let track_id = ctx.timeline.world.spawn(label, "StubPulse");
             ctx.timeline.world.rebuild_property_plan(track_id);
             Ok(())
         }
@@ -1010,8 +1006,8 @@ p: StubPulse, at: (100, 100), size: (50, 50)
     let crate::composition::BuildTarget::SingleScene(timeline) = report.output else {
         panic!("expected single scene");
     };
-    let track = timeline.world.tracks.get("p").expect("p track");
-    let geometry = timeline.world.geometry(track.id);
+    let id = timeline.world.get_id("p").expect("p track");
+    let geometry = timeline.world.geometry(id);
     // Regression: extension actors must honor the common `at` property like
     // built-ins (previously the position stayed [0,0], so native text and
     // image commands rendered at the scene origin).

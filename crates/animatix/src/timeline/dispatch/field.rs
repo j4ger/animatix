@@ -1,4 +1,5 @@
 use super::*;
+use crate::easing::Easing;
 
 #[derive(Clone, Debug)]
 /// Immutable, type-erased reference to one property track on a track.

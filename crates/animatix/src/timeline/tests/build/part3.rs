@@ -80,8 +80,7 @@ r: Rect, at: (100, 50), size: (120, 70), color: (1, 1, 1, 1), corner_radius: 30 
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let report =
         Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
-    let track = report.output.get_track("r").expect("track r");
-    let id = track.id;
+    let id = report.output.get_entity_id("r").expect("track r");
     // corner_radius lives in the shape component store, so the world-aware
     // accessors are the ones that can see it.
     assert_eq!(
@@ -291,9 +290,9 @@ box: Ellipse, size: (140, 140), color: accent.success [900ms, strategy: match]
     let report =
         crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
-    let track = timeline.world.tracks.get("box").expect("box track exists");
+    let track = timeline.world.tracks.get_id("box").expect("box track exists");
 
-    let shape = timeline.world.shape(track.id);
+    let shape = timeline.world.shape(track);
     let radius_pre = shape.corner_radius.get(500, 0.0);
     assert_eq!(
         radius_pre, 0.0,
@@ -313,15 +312,9 @@ box: Ellipse, size: (140, 140), color: accent.success [900ms, strategy: match]
     // The frame-time primitive must follow the shape_type track, not the
     // (last-write-wins) track identity: the actor renders as the declared
     // Rect until the morph beat and as the re-declared Ellipse after it.
-    assert_eq!(track.render_type_name(timeline.world.actor_type(track.id), shape, 500), "Rect");
-    assert_eq!(
-        track.render_type_name(timeline.world.actor_type(track.id), shape, 1_400),
-        "Rect"
-    );
-    assert_eq!(
-        track.render_type_name(timeline.world.actor_type(track.id), shape, 2_400),
-        "Ellipse"
-    );
+    assert_eq!(shape.render_type_name(timeline.world.actor_type(track), 500), "Rect");
+    assert_eq!(shape.render_type_name(timeline.world.actor_type(track), 1_400), "Rect");
+    assert_eq!(shape.render_type_name(timeline.world.actor_type(track), 2_400), "Ellipse");
 }
 
 #[test]
@@ -334,8 +327,8 @@ a: Rect, size: (40, 40), color: accent.primary, at: (200, 150)
 bounce a [1s, intensity: 100]
 "#,
     );
-    let track = timeline.world.tracks.get("a").expect("rect track");
-    let y = |ms: u64| timeline.world.geometry(track.id).motion_offset.get(ms, [0.0, 0.0])[1];
+    let track = timeline.world.tracks.get_id("a").expect("rect track");
+    let y = |ms: u64| timeline.world.geometry(track).motion_offset.get(ms, [0.0, 0.0])[1];
 
     // restitution 0.6 ⇒ six visible hops filling the 1s window, so the first
     // airtime is 1000·(1-0.6)/(1-0.6⁶) ≈ 420ms: apex at 210, contact at 420.
@@ -362,8 +355,8 @@ a: Rect, size: (40, 40), color: accent.primary, at: (200, 150)
 bounce a [1s, intensity: 100, restitution: 0.9]
 "#,
     );
-    let track = timeline.world.tracks.get("a").expect("rect track");
-    let y = |ms: u64| timeline.world.geometry(track.id).motion_offset.get(ms, [0.0, 0.0])[1];
+    let track = timeline.world.tracks.get_id("a").expect("rect track");
+    let y = |ms: u64| timeline.world.geometry(track).motion_offset.get(ms, [0.0, 0.0])[1];
     // A springier ball is still airborne at 900ms — the hop cap must not leave
     // it parked early — and it is home at the end of the duration.
     assert!(y(900) < -1.0, "0.9 restitution should still be bouncing, got {}", y(900));
@@ -432,9 +425,9 @@ fn stroke_only_shapes_inherit_an_authored_color_into_their_stroke() {
         assert!(parse_errors.is_empty(), "{label} parse errors: {parse_errors:?}");
         let report =
             Timeline::build_with_diagnostics(&ast.unwrap(), &std::collections::HashMap::new());
-        let track = report.output.world.tracks.get("a").expect("track");
-        let stroke = report.output.world.style(track.id).stroke_color.get(0, [0.0; 4]);
-        let fill = report.output.world.style(track.id).color.get(0, [0.0; 4]);
+        let track = report.output.world.tracks.get_id("a").expect("track");
+        let stroke = report.output.world.style(track).stroke_color.get(0, [0.0; 4]);
+        let fill = report.output.world.style(track).color.get(0, [0.0; 4]);
         // Assert the tracks exist, not just that they agree: two absent tracks
         // both read back as the [0,0,0,0] default and would match vacuously.
         assert!(fill != [0.0, 0.0, 0.0, 0.0], "{label}: no color track was built at all");
@@ -460,8 +453,8 @@ fn plot_actors_honour_an_authored_opacity() {
         assert!(parse_errors.is_empty(), "{ty} parse errors: {parse_errors:?}");
         let report =
             Timeline::build_with_diagnostics(&ast.unwrap(), &std::collections::HashMap::new());
-        let track = report.output.world.tracks.get("g").expect("plot track");
-        let opacity = report.output.world.style(track.id).opacity.get(0, 99.0);
+        let track = report.output.world.tracks.get_id("g").expect("plot track");
+        let opacity = report.output.world.style(track).opacity.get(0, 99.0);
         assert!(
             (opacity - 0.05).abs() < 1e-6,
             "{ty} dropped the authored opacity (got {opacity})"
@@ -504,42 +497,38 @@ fn a_redeclaration_starts_from_what_it_replaces_not_from_its_target() {
         let timeline =
             Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new())
                 .output;
-        let track = timeline
-            .world
-            .tracks
-            .get("a")
-            .unwrap_or_else(|| panic!("{label}: no track 'a'"));
+        let track = timeline.world.get_id("a").unwrap_or_else(|| panic!("{label}: no track 'a'"));
 
         // The frame before the stamp is still the declared ellipse, and still
         // carries no blue at all.
         assert_eq!(
             timeline
                 .world
-                .shape(track.id)
+                .shape(track)
                 .shape_type
                 .get(999, crate::timeline::ShapeType::Rect),
             crate::timeline::ShapeType::Ellipse,
             "{label}: the frame before the morph already shows the target shape"
         );
         assert!(
-            timeline.world.style(track.id).color.get(999, [0.0; 4])[2] < 0.01,
+            timeline.world.style(track).color.get(999, [0.0; 4])[2] < 0.01,
             "{label}: the pre-morph frame started from the target colour: {:?}",
-            timeline.world.style(track.id).color.get(999, [0.0; 4])
+            timeline.world.style(track).color.get(999, [0.0; 4])
         );
         // And the morph itself still lands on the target.
         assert_eq!(
             timeline
                 .world
-                .shape(track.id)
+                .shape(track)
                 .shape_type
                 .get(1500, crate::timeline::ShapeType::Ellipse),
             crate::timeline::ShapeType::Rect,
             "{label}: the morph never reached its target shape"
         );
         assert!(
-            timeline.world.style(track.id).color.get(1500, [0.0; 4])[2] > 0.99,
+            timeline.world.style(track).color.get(1500, [0.0; 4])[2] > 0.99,
             "{label}: the colour morph did not finish: {:?}",
-            timeline.world.style(track.id).color.get(1500, [0.0; 4])
+            timeline.world.style(track).color.get(1500, [0.0; 4])
         );
     }
 }
@@ -565,8 +554,8 @@ t.text = \"second\"
     let timeline =
         Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new())
             .output;
-    let text_track = timeline.world.tracks.get("t").expect("text track");
-    let text = timeline.world.text(text_track.id);
+    let text_track = timeline.world.tracks.get_id("t").expect("text track");
+    let text = timeline.world.text(text_track);
 
     for ms in [0u64, 500, 1000, 1999] {
         assert_eq!(
@@ -613,17 +602,17 @@ r.opacity = 0.0
     let timeline =
         Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new())
             .output;
-    let rect = timeline.world.tracks.get("r").expect("rect track");
+    let rect = timeline.world.tracks.get_id("r").expect("rect track");
 
     for ms in [0u64, 500, 1000, 1999] {
         assert_eq!(
-            timeline.world.style(rect.id).opacity.get(ms, 0.0),
+            timeline.world.style(rect).opacity.get(ms, 0.0),
             1.0,
             "the rect was already fading at {ms}ms, two seconds before the assignment"
         );
     }
     assert_eq!(
-        timeline.world.style(rect.id).opacity.get(2000, 1.0),
+        timeline.world.style(rect).opacity.get(2000, 1.0),
         0.0,
         "the step did not take effect at its own stamp"
     );
@@ -896,11 +885,11 @@ pop-in chip [500ms]
 
     let read = |label: &str, prop: &str, ms: u64| {
         let schema = lookup_property(prop).expect("property");
-        let track = timeline.world.tracks.get(label).unwrap();
+        let track = timeline.world.tracks.get_id(label).unwrap();
         timeline
             .world
-            .read_property_value(track.id, schema.field, ms)
-            .unwrap_or_else(|| (schema.default_value)(&timeline.world.caps(track.id)))
+            .read_property_value(track, schema.field, ms)
+            .unwrap_or_else(|| (schema.default_value)(&timeline.world.caps(track)))
     };
 
     // settle-in: 0.5s..1.0s, scale 0.92 -> 1.0 relative to the sampled scale,
@@ -1050,11 +1039,11 @@ fade-in t [200ms]
     // property that already resolved against them at its authored default.
     let sampled = |label: &str, prop: &str| {
         let schema = crate::timeline::property_registry::lookup_property(prop).unwrap();
-        let track = timeline.world.tracks.get(label).unwrap();
+        let track = timeline.world.tracks.get_id(label).unwrap();
         timeline
             .world
-            .read_property_value(track.id, schema.field, 0)
-            .unwrap_or_else(|| (schema.default_value)(&timeline.world.caps(track.id)))
+            .read_property_value(track, schema.field, 0)
+            .unwrap_or_else(|| (schema.default_value)(&timeline.world.caps(track)))
     };
     assert_eq!(
         sampled("t", "text"),
@@ -1109,8 +1098,8 @@ box.shift = (240, 0)
         );
 
         let schema = crate::timeline::property_registry::lookup_property("shift").unwrap();
-        let track = report.output.world.tracks.get("box").unwrap();
-        match report.output.world.read_property_value(track.id, schema.field, ms) {
+        let track = report.output.world.tracks.get_id("box").unwrap();
+        match report.output.world.read_property_value(track, schema.field, ms) {
             Some(crate::timeline::PropertyValue::Vec2(v)) => v,
             other => panic!("expected a Vec2 shift, got {other:?}"),
         }
@@ -1149,17 +1138,12 @@ fn icon_property_expands_to_commands_geometry() {
     );
 
     let geometry = |label: &str| -> Vec<kurbo::PathEl> {
-        let track = report
+        let track = report.output.world.get_id(label).unwrap_or_else(|| panic!("no track {label}"));
+        let paths = report
             .output
             .world
-            .tracks
-            .get(label)
-            .unwrap_or_else(|| panic!("no track {label}"));
-        let paths = track.evaluate_vector_paths_value(
-            report.output.world.shape(track.id),
-            report.output.world.style(track.id),
-            0,
-        );
+            .shape(track)
+            .evaluate_vector_paths_value(report.output.world.style(track), 0);
         let mut elements = Vec::new();
         for vp in paths {
             elements.extend(vp.path.elements().iter().copied());
@@ -1230,8 +1214,8 @@ fade-in box [200ms]
 
     let schema = crate::timeline::property_registry::lookup_property("scale").unwrap();
     let scale_of = |label: &str| -> Option<f32> {
-        let track = timeline.world.tracks.get(label).unwrap();
-        match timeline.world.read_property_value(track.id, schema.field, 0) {
+        let track = timeline.world.tracks.get_id(label).unwrap();
+        match timeline.world.read_property_value(track, schema.field, 0) {
             Some(crate::timeline::PropertyValue::F32(v)) => Some(v),
             None => None,
             other => panic!("expected a numeric scale for {label}, got {other:?}"),
@@ -1276,8 +1260,8 @@ move dot [along: {move_to(100, 100), line_to(500, 100)}, 2s]
     let timeline = report.output;
 
     let schema = crate::timeline::property_registry::lookup_property("position").unwrap();
-    let track = timeline.world.tracks.get("dot").unwrap();
-    let at = |ms: u64| match timeline.world.read_property_value(track.id, schema.field, ms) {
+    let track = timeline.world.tracks.get_id("dot").unwrap();
+    let at = |ms: u64| match timeline.world.read_property_value(track, schema.field, ms) {
         Some(crate::timeline::PropertyValue::Vec2(v)) => v,
         other => panic!("expected a position at {ms}ms, got {other:?}"),
     };
@@ -1298,7 +1282,7 @@ move dot [along: {move_to(100, 100), line_to(500, 100)}, 2s]
     assert!(
         timeline
             .world
-            .geometry(track.id)
+            .geometry(track)
             .position
             .as_ref()
             .map(|t| t.keyframes.len())
@@ -1338,8 +1322,8 @@ draw-in line [4s{extra}]
         report.output
     };
     let progress_at = |timeline: &crate::timeline::Timeline, ms: u64| -> f32 {
-        let track = timeline.world.tracks.get("line").unwrap();
-        timeline.world.text(track.id).char_progress.get(ms, 1.0)
+        let track = timeline.world.tracks.get_id("line").unwrap();
+        timeline.world.text(track).char_progress.get(ms, 1.0)
     };
 
     let words = build(", by: word");
@@ -1393,11 +1377,11 @@ fn pre_keyframe_actor_declaration_has_decl_span_and_explicit_warning() {
     let report =
         crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
-    let track = report.output.world.tracks.get("box").expect("box track must exist");
+    let track = report.output.world.tracks.get_id("box").expect("box track must exist");
     let span = report
         .output
         .world
-        .decl_span(track.id)
+        .decl_span(track)
         .copied()
         .expect("track must preserve its declaration span");
     assert_eq!(span.start_line, 1, "declaration starts on line 1");

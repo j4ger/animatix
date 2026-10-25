@@ -15,7 +15,7 @@ use crate::primitives::{AssignmentCtx, BuildCtx, EvaluateCtx, Primitive, RenderC
 use crate::renderer::error::RenderError;
 use crate::renderer::text::TextKind;
 use crate::renderer::types::{GradientSpec, TextPath};
-use crate::timeline::{ActorField, AnimationTrack, Environment, SceneDimensions, TrackAccessor};
+use crate::timeline::{ActorField, Environment, SceneDimensions, TrackAccessor};
 
 /// Prebaked data for rolling counter glyphs.
 #[derive(Clone, Debug)]
@@ -364,7 +364,6 @@ impl Primitive for CounterPrimitive {
 
     fn handle_assignment(
         &self,
-        _track: &mut AnimationTrack,
         _property: &str,
         _value: &Expr,
         _ctx: &mut AssignmentCtx,

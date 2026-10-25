@@ -1,4 +1,4 @@
-use crate::timeline::{AnimationTrack, EntityId, Timeline, TrackAccessor};
+use crate::timeline::{EntityId, Timeline, TrackAccessor};
 
 impl Timeline {
     /// Apply the Captions strategy from a `RenderChildrenCtx`.
@@ -43,12 +43,12 @@ impl Timeline {
         let time_ms = frame.time_ms;
         let scene_dimensions = frame.scene_dimensions;
         let overrides = frame.overrides;
-        let Some(track) = self
-            .world
-            .tracks
-            .get_by_id(node_id)
-            .or_else(|| self.world.tracks.get(node_label))
-        else {
+        // Resolve the scope's entity id: trust `node_id`, fall back to the label.
+        let node_id = if self.world.exists(node_id) {
+            node_id
+        } else if let Some(id) = self.world.get_id(node_label) {
+            id
+        } else {
             return;
         };
 
@@ -72,53 +72,43 @@ impl Timeline {
         // screen), `max_lines` caps how many wrapped lines the cue may occupy
         // (`0` = unlimited), and `transition_time` fades a cue in from its own
         // start (0 by default, so captions snap unless asked to transition).
-        let text_max_width = track
-            .sample_f32_prop(self.world.property_plan(track.id), "text_max_width", time_ms, 0.0)
-            .max(0.0);
-        let max_lines =
-            track.sample_u32_prop(self.world.property_plan(track.id), "max_lines", time_ms, 2);
-        let transition_s = track
-            .sample_f32_prop(self.world.property_plan(track.id), "transition_time", time_ms, 0.0)
-            .max(0.0) as f64;
-        let child_tracks: Vec<&AnimationTrack> = self
-            .world
-            .hierarchy(node_id)
-            .children
-            .iter()
-            .filter_map(|id| self.world.tracks.get_by_id(*id))
-            .collect();
+        let property_plan = self.world.property_plan(node_id);
+        let text_max_width = property_plan.sample_f32_prop("text_max_width", time_ms, 0.0).max(0.0);
+        let max_lines = property_plan.sample_u32_prop("max_lines", time_ms, 2);
+        let transition_s =
+            (property_plan.sample_f32_prop("transition_time", time_ms, 0.0).max(0.0)) as f64;
+        let child_ids: Vec<EntityId> = self.world.hierarchy(node_id).children.to_vec();
 
-        for child_track in child_tracks {
-            let Some(primitive) = self.track_primitive_at(child_track, time_ms) else {
+        for &child_id in &child_ids {
+            let Some(primitive) = self.track_primitive_at(child_id, time_ms) else {
                 continue;
             };
-            let child_vector_paths = child_track.evaluate_vector_paths(
-                self.world.shape(child_track.id),
-                self.world.style(child_track.id),
-                time_ms,
-            );
+            let child_vector_paths = self
+                .world
+                .shape(child_id)
+                .evaluate_vector_paths(self.world.style(child_id), time_ms);
             let ctx = crate::primitives::EvaluateCtx {
-                track: child_track,
-                label: self.world.label(child_track.id).unwrap_or(""),
+                id: child_id,
+                label: self.world.label(child_id).unwrap_or(""),
                 time_ms,
                 local_transform: kurbo::Affine::IDENTITY,
                 opacity: 1.0,
                 scene_dimensions,
                 background_color: self.eval_caches.background_color.get(),
-                overrides: overrides.get(self.world.label(child_track.id).unwrap_or("")),
+                overrides: overrides.get(self.world.label(child_id).unwrap_or("")),
                 vector_paths: &child_vector_paths,
                 asset_cache: &self.asset_cache,
                 target_resolver: Some(self),
-                legend: self.world.legend(child_track.id),
+                legend: self.world.legend(child_id),
                 world: Some(&self.world),
-                highlight: self.world.highlight(child_track.id),
-                style: Some(self.world.style(child_track.id)),
-                shape: Some(self.world.shape(child_track.id)),
-                geometry: Some(self.world.geometry(child_track.id)),
-                text: Some(self.world.text(child_track.id)),
-                property_plan: Some(self.world.property_plan(child_track.id)),
-                caps: self.world.caps(child_track.id),
-                payload: self.world.payload(child_track.id),
+                highlight: self.world.highlight(child_id),
+                style: Some(self.world.style(child_id)),
+                shape: Some(self.world.shape(child_id)),
+                geometry: Some(self.world.geometry(child_id)),
+                text: Some(self.world.text(child_id)),
+                property_plan: Some(self.world.property_plan(child_id)),
+                caps: self.world.caps(child_id),
+                payload: self.world.payload(child_id),
             };
             if let Some(cue) = primitive.caption_cue(&ctx) {
                 let start_s = cue.start_ms as f64 / 1000.0;
@@ -153,12 +143,7 @@ impl Timeline {
 
         if all_cues.is_empty() {
             let transcript = self.transcript(node_label).or_else(|| {
-                let source = track.sample_string_prop(
-                    self.world.property_plan(track.id),
-                    "source",
-                    time_ms,
-                    "",
-                );
+                let source = property_plan.sample_string_prop("source", time_ms, "");
                 if !source.is_empty() {
                     self.transcript(&source)
                 } else {
@@ -204,7 +189,7 @@ impl Timeline {
                     cue.start_s,
                     transition_s,
                 );
-            let text = self.world.text(track.id);
+            let text = self.world.text(node_id);
             let font_size = text.font_size.get(time_ms, 32.0);
             let font_family = text.font_family.get(time_ms, String::new());
             let font_style = text.font_style.get(time_ms, "normal".to_string());
@@ -212,57 +197,20 @@ impl Timeline {
             let line_height = text.line_height.get(time_ms, 1.2);
             let letter_spacing = text.letter_spacing.get(time_ms, 0.0);
             let word_spacing = text.word_spacing.get(time_ms, 0.0);
-            let base_color = self.world.style(track.id).color.get(time_ms, [1.0, 1.0, 1.0, 1.0]);
+            let base_color = self.world.style(node_id).color.get(time_ms, [1.0, 1.0, 1.0, 1.0]);
             let active_color = cue.active_color.unwrap_or_else(|| {
-                track.sample_color_prop(
-                    self.world.property_plan(track.id),
-                    "active_color",
-                    time_ms,
-                    [1.0, 0.84, 0.0, 1.0],
-                )
+                property_plan.sample_color_prop("active_color", time_ms, [1.0, 0.84, 0.0, 1.0])
             });
-            let inactive_color = track.sample_color_prop(
-                self.world.property_plan(track.id),
-                "inactive_color",
-                time_ms,
-                [0.7, 0.7, 0.7, 0.7],
-            );
-            let caption_mode = track.sample_string_prop(
-                self.world.property_plan(track.id),
-                "caption_mode",
-                time_ms,
-                "word",
-            );
-            let backdrop = track.sample_bool_prop(
-                self.world.property_plan(track.id),
-                "backdrop",
-                time_ms,
-                true,
-            );
-            let backdrop_color = track.sample_color_prop(
-                self.world.property_plan(track.id),
-                "backdrop_color",
-                time_ms,
-                [0.0, 0.0, 0.0, 0.6],
-            );
-            let backdrop_radius = track.sample_f32_prop(
-                self.world.property_plan(track.id),
-                "backdrop_radius",
-                time_ms,
-                8.0,
-            );
-            let backdrop_padding = track.sample_vec2_prop(
-                self.world.property_plan(track.id),
-                "backdrop_padding",
-                time_ms,
-                [16.0, 8.0],
-            );
-            let pop_scale = track.sample_f32_prop(
-                self.world.property_plan(track.id),
-                "pop_scale",
-                time_ms,
-                1.25,
-            );
+            let inactive_color =
+                property_plan.sample_color_prop("inactive_color", time_ms, [0.7, 0.7, 0.7, 0.7]);
+            let caption_mode = property_plan.sample_string_prop("caption_mode", time_ms, "word");
+            let backdrop = property_plan.sample_bool_prop("backdrop", time_ms, true);
+            let backdrop_color =
+                property_plan.sample_color_prop("backdrop_color", time_ms, [0.0, 0.0, 0.0, 0.6]);
+            let backdrop_radius = property_plan.sample_f32_prop("backdrop_radius", time_ms, 8.0);
+            let backdrop_padding =
+                property_plan.sample_vec2_prop("backdrop_padding", time_ms, [16.0, 8.0]);
+            let pop_scale = property_plan.sample_f32_prop("pop_scale", time_ms, 1.25);
 
             let active_word_idx =
                 cue.words.iter().position(|w| w.start_s <= time_s && time_s < w.end_s);

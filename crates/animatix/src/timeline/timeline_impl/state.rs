@@ -17,20 +17,6 @@ impl Timeline {
         self.eval_caches.hit_regions.borrow().clone()
     }
 
-    /// Returns a reference to the track for the given label, if it exists.
-    pub fn get_track(&self, label: &str) -> Option<&AnimationTrack> {
-        self.world.tracks.get(label)
-    }
-
-    /// Returns a mutable reference to the track for the given label, if it exists.
-    ///
-    /// Invalidates the frame cache before returning, because any mutation to
-    /// the track can change the rendered scene at the cached time.
-    pub fn get_track_mut(&mut self, label: &str) -> Option<&mut AnimationTrack> {
-        self.invalidate_frame_cache();
-        self.world.tracks.get_mut(label)
-    }
-
     /// Return the entity ID corresponding to the given actor label.
     #[inline(always)]
     pub fn get_entity_id(&self, label: &str) -> Option<EntityId> {
@@ -43,28 +29,12 @@ impl Timeline {
         self.world.tracks.get_label(id)
     }
 
-    /// Returns a reference to the track for the given entity ID.
-    #[inline(always)]
-    pub fn get_track_by_id(&self, id: EntityId) -> Option<&AnimationTrack> {
-        self.world.tracks.get_by_id(id)
-    }
-
-    /// Returns a mutable reference to the track for the given entity ID.
-    #[inline(always)]
-    pub fn get_track_by_id_mut(&mut self, id: EntityId) -> Option<&mut AnimationTrack> {
-        self.invalidate_frame_cache();
-        self.world.tracks.get_by_id_mut(id)
-    }
-
     /// Check if a keyframe exists for the given actor and property at `time_ms`.
     pub fn has_keyframe_at(&self, actor: &str, property: &str, time_ms: u64) -> bool {
         let Some(id) = self.world.tracks.get_id(actor) else {
             return false;
         };
-        let Some(field) = AnimationTrack::field_for_property(property) else {
-            return false;
-        };
-        self.world.property_has_keyframe_at(id, field, time_ms)
+        self.world.has_keyframe_at(id, property, time_ms)
     }
 
     /// List all keyframe times (in ms) for the given actor and property.
@@ -72,10 +42,7 @@ impl Timeline {
         let Some(id) = self.world.tracks.get_id(actor) else {
             return Vec::new();
         };
-        let Some(field) = AnimationTrack::field_for_property(property) else {
-            return Vec::new();
-        };
-        self.world.property_keyframe_times(id, field)
+        self.world.list_keyframes(id, property)
     }
 
     /// Evaluate the background color at the given time.
@@ -83,15 +50,9 @@ impl Timeline {
         self.background_color.evaluate(time_ms)
     }
 
-    /// Returns a reference to all tracks.
-    pub fn tracks(&self) -> &TrackStore {
+    /// Returns the entity store (labels ↔ ids).
+    pub fn tracks(&self) -> &EntityStore {
         &self.world.tracks
-    }
-
-    /// Returns a mutable reference to all tracks.
-    pub fn tracks_mut(&mut self) -> &mut TrackStore {
-        self.invalidate_frame_cache();
-        &mut self.world.tracks
     }
 
     /// Returns the ECS world (entities + component stores).

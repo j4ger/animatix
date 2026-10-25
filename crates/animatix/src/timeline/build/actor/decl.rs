@@ -402,8 +402,8 @@ impl Timeline {
         // Warn when a child of a layout container uses `at` or `position`.
         // Layout-managed children should use `transform` for visual offsets.
         if let Some(parent) = parent_label {
-            if let Some(parent_track) = self.world.tracks.get(parent) {
-                if self.world.caps(parent_track.id).layout_container {
+            if let Some(parent_id) = self.world.get_id(parent) {
+                if self.world.caps(parent_id).layout_container {
                     let has_at = extracted.at_expr.is_some();
                     let has_position = props.iter().any(|p| p.name == "position");
                     if has_at || has_position {
@@ -729,11 +729,6 @@ impl Timeline {
             }
         }
 
-        let track = self
-            .world
-            .tracks
-            .get_by_id_mut(track_id)
-            .expect("World::ensure_track creates the track");
         let style = self.world.style.get_mut(track_id);
         let shape = self.world.shape.get_mut(track_id);
         let geometry = self.world.geometry.get_mut(track_id);
@@ -745,7 +740,7 @@ impl Timeline {
         if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
             self.world
                 .meta
-                .get_or_insert_with(track.id, crate::timeline::world::EntityMeta::default)
+                .get_or_insert_with(track_id, crate::timeline::world::EntityMeta::default)
                 .hidden_by_default = true;
             style.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
         }
@@ -761,7 +756,6 @@ impl Timeline {
         }
 
         Self::insert_actor_keyframes(
-            track,
             style,
             geometry,
             shape,

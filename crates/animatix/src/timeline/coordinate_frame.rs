@@ -46,7 +46,7 @@ impl Timeline {
         self.invalidate_frame_cache();
         let id = match target.into() {
             CoordinateFrameTarget::Id(id) => {
-                if self.world.track(id).is_none() {
+                if !self.world.exists(id) {
                     tracing::warn!("coordinate frame for {id} dropped: no such entity");
                     return false;
                 }

@@ -8,7 +8,7 @@
 //! scrub ruler on top of the returned geometry.
 
 use animatix::timeline::{
-    ActorField, AnimationTrack, PROPERTY_REGISTRY, Timeline, ValueType, allowed_property_indices,
+    ActorField, EntityId, PROPERTY_REGISTRY, Timeline, ValueType, allowed_property_indices,
 };
 use animatix_syntax::easing::Easing;
 use egui::{Color32, Painter, Pos2, Rect, Stroke};
@@ -56,19 +56,19 @@ pub(crate) struct CurveChannel {
 pub(crate) fn collect_curves(
     timeline: &Timeline,
     actor: &str,
-    track: &AnimationTrack,
+    id: EntityId,
     theme: Theme,
 ) -> Vec<CurveChannel> {
     let mut curves: Vec<CurveChannel> = Vec::new();
 
-    let caps = timeline.world().caps(track.id);
-    let actor_type = timeline.world().actor_type(track.id);
+    let caps = timeline.world().caps(id);
+    let actor_type = timeline.world().actor_type(id);
     for &idx in &allowed_property_indices(&caps, actor_type) {
         let schema = &PROPERTY_REGISTRY[idx];
-        if !timeline.world().property_has_keyframes(track.id, schema.field) {
+        if !timeline.world().property_has_keyframes(id, schema.field) {
             continue;
         }
-        let kf_times = timeline.world().property_keyframe_times(track.id, schema.field);
+        let kf_times = timeline.world().property_keyframe_times(id, schema.field);
         if kf_times.len() < 2 {
             continue;
         }
@@ -83,7 +83,7 @@ pub(crate) fn collect_curves(
                 .map(|time_ms| {
                     timeline
                         .world()
-                        .property_keyframe_easing(track.id, schema.field, *time_ms)
+                        .property_keyframe_easing(id, schema.field, *time_ms)
                         .unwrap_or(Easing::Linear)
                 })
                 .collect();
@@ -105,7 +105,7 @@ pub(crate) fn collect_curves(
                 let mut points = Vec::new();
                 for time_ms in &kf_times {
                     if let Some(animatix::timeline::PropertyValue::F32(v)) =
-                        timeline.world().read_property_value(track.id, schema.field, *time_ms)
+                        timeline.world().read_property_value(id, schema.field, *time_ms)
                     {
                         points.push((*time_ms as f64 / 1000.0, v));
                     }
@@ -117,7 +117,7 @@ pub(crate) fn collect_curves(
                 let mut y_points = Vec::new();
                 for time_ms in &kf_times {
                     if let Some(animatix::timeline::PropertyValue::Vec2(v)) =
-                        timeline.world().read_property_value(track.id, schema.field, *time_ms)
+                        timeline.world().read_property_value(id, schema.field, *time_ms)
                     {
                         x_points.push((*time_ms as f64 / 1000.0, v[0]));
                         y_points.push((*time_ms as f64 / 1000.0, v[1]));
@@ -139,15 +139,12 @@ pub(crate) fn collect_curves(
             ValueType::Vec4 | ValueType::Color => {
                 let mut ch: [Vec<(f64, f32)>; 4] = Default::default();
                 for time_ms in &kf_times {
-                    let value = match timeline.world().read_property_value(
-                        track.id,
-                        schema.field,
-                        *time_ms,
-                    ) {
-                        Some(animatix::timeline::PropertyValue::Vec4(v)) => Some(v),
-                        Some(animatix::timeline::PropertyValue::Color(v)) => Some(v),
-                        _ => None,
-                    };
+                    let value =
+                        match timeline.world().read_property_value(id, schema.field, *time_ms) {
+                            Some(animatix::timeline::PropertyValue::Vec4(v)) => Some(v),
+                            Some(animatix::timeline::PropertyValue::Color(v)) => Some(v),
+                            _ => None,
+                        };
                     if let Some(v) = value {
                         for (i, slot) in ch.iter_mut().enumerate() {
                             slot.push((*time_ms as f64 / 1000.0, v[i]));
@@ -180,12 +177,12 @@ pub(crate) fn collect_curves(
 pub(crate) fn collect_curves_for_actor(
     timeline: &Timeline,
     actor: &str,
-    track: &AnimationTrack,
+    id: EntityId,
     theme: Theme,
     qualify: bool,
     shade: f32,
 ) -> Vec<CurveChannel> {
-    let mut curves = collect_curves(timeline, actor, track, theme);
+    let mut curves = collect_curves(timeline, actor, id, theme);
     for curve in &mut curves {
         if qualify {
             curve.label = format!("{actor} · {}", curve.base_label);
@@ -555,8 +552,8 @@ mod tests {
     fn qualified_labels_keep_two_actors_distinct() {
         let timeline = two_actor_timeline();
         let theme = eparts::Theme::default();
-        let a = timeline.get_track("a").expect("track a");
-        let b = timeline.get_track("b").expect("track b");
+        let a = timeline.get_entity_id("a").expect("actor a");
+        let b = timeline.get_entity_id("b").expect("actor b");
 
         let a_curves = collect_curves_for_actor(&timeline, "a", a, theme, true, 1.0);
         let b_curves = collect_curves_for_actor(&timeline, "b", b, theme, true, 1.0);
@@ -607,9 +604,9 @@ a.to = (40, 20)
         let (ast, errors) = animatix_syntax::parser::parse_source(source);
         assert!(errors.is_empty(), "parse errors: {errors:?}");
         let timeline = Timeline::build(&ast.expect("ast"));
-        let track = timeline.get_track("a").expect("line track");
+        let id = timeline.get_entity_id("a").expect("line entity");
 
-        let curves = collect_curves(&timeline, "a", track, eparts::Theme::default());
+        let curves = collect_curves(&timeline, "a", id, eparts::Theme::default());
         let to_y = curves
             .iter()
             .find(|curve| curve.base_label == "to.Y")

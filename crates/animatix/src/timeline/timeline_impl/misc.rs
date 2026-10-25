@@ -40,8 +40,8 @@ impl Timeline {
         // Per-track hot-path memos (vector-path Arc sharing) key on this
         // epoch: every mutation funnels through this invalidation, so the
         // bump is the single memo-invalidation point.
-        for track in self.world.tracks.values() {
-            let Some(shape) = self.world.shape.try_get(track.id) else {
+        for (_, id) in self.world.tracks.iter() {
+            let Some(shape) = self.world.shape.try_get(id) else {
                 continue;
             };
             shape.vector_paths_epoch.set(shape.vector_paths_epoch.get().wrapping_add(1));
@@ -123,18 +123,18 @@ impl Timeline {
             layout::empty_layout_positions();
 
         for node_label in &path {
-            let track = self.world.tracks.get(node_label)?;
+            let node_id = self.world.get_id(node_label)?;
 
             let placement_mode = self
                 .world
-                .geometry(track.id)
+                .geometry(node_id)
                 .placement_mode
                 .get(time_ms, PlacementMode::LayoutManaged);
-            let mut base_position = self.world.geometry(track.id).position.get(time_ms, [0.0, 0.0]);
+            let mut base_position = self.world.geometry(node_id).position.get(time_ms, [0.0, 0.0]);
 
             if self.dynamic_layout {
                 if let Some(layout_pos) = current_layout_positions
-                    .get_by_id(track.id)
+                    .get_by_id(node_id)
                     .or_else(|| current_layout_positions.get(node_label.as_str()))
                 {
                     if placement_mode == PlacementMode::LayoutManaged {
@@ -145,15 +145,14 @@ impl Timeline {
 
             let binding = self
                 .world
-                .geometry(track.id)
+                .geometry(node_id)
                 .position_binding
                 .get(time_ms, PositionBinding::Absolute);
             let position =
                 resolve_bound_position(binding, base_position, parent_transform, scene_dimensions);
-            let motion_offset =
-                self.world.geometry(track.id).motion_offset.get(time_ms, [0.0, 0.0]);
-            let rotation = self.world.geometry(track.id).rotation.get(time_ms, 0.0) as f64;
-            let scale = self.world.geometry(track.id).scale.get(time_ms, 1.0) as f64;
+            let motion_offset = self.world.geometry(node_id).motion_offset.get(time_ms, [0.0, 0.0]);
+            let rotation = self.world.geometry(node_id).rotation.get(time_ms, 0.0) as f64;
+            let scale = self.world.geometry(node_id).scale.get(time_ms, 1.0) as f64;
 
             parent_transform = parent_transform
                 * kurbo::Affine::translate((
@@ -172,7 +171,6 @@ impl Timeline {
                         metadata,
                         &layout_children,
                         time_ms,
-                        &self.world.tracks,
                         &self.world,
                     );
                 } else {

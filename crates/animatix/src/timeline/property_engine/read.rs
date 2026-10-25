@@ -1,7 +1,7 @@
 //! Environment injection and override-aware effective property reads.
 
 use crate::extension_context::ExtensionContext;
-use crate::timeline::AnimationTrack;
+use crate::timeline::EntityId;
 use crate::timeline::env::{Environment, Value};
 
 use super::plan::read_property_plan_slot;
@@ -23,8 +23,8 @@ pub(crate) fn inject_property_into_env(
     env: &mut Environment,
     key: &mut String,
     label: &str,
-    track: &AnimationTrack,
-    world: Option<&crate::timeline::World>,
+    id: EntityId,
+    world: &crate::timeline::World,
     time_ms: u64,
     allowed_props: Option<&std::collections::HashSet<String>>,
     inject_animating_flags: bool,
@@ -52,18 +52,12 @@ pub(crate) fn inject_property_into_env(
         }
 
         // Read via the schema's read_source (handles Field, Alias, Component).
-        let pv = match schema.read_source.read(track, world, time_ms) {
+        let pv = match schema.read_source.read(id, world, time_ms) {
             Some(pv) => pv,
             None => {
-                // No track value — fall back to schema default.
+                // No value — fall back to schema default.
                 // For Component sources, extract the indexed component.
-                // Identity lives in `World.actor_types`, so caps can only be
-                // derived when a `World` is available; the per-frame injection
-                // path always passes one (the `None` form is a legacy
-                // track-only fallback with no identity source).
-                let caps = world.map_or_else(animatix_core::caps::ActorCaps::default, |world| {
-                    world.caps(track.id)
-                });
+                let caps = world.caps(id);
                 let write_default = (schema.default_value)(&caps);
                 match schema.read_source {
                     ReadSource::Field(_) | ReadSource::Alias(_) => write_default,
@@ -89,10 +83,7 @@ pub(crate) fn inject_property_into_env(
         if inject_animating_flags {
             if let Some(storage) = schema.read_source.storage_field() {
                 let flag_key = crate::timeline::env_keys::animating_flag(label, schema.name);
-                let animating = match world {
-                    Some(world) => world.is_field_currently_animating(track.id, storage, time_ms),
-                    None => track.is_field_currently_animating(storage, time_ms),
-                };
+                let animating = world.is_field_currently_animating(id, storage, time_ms);
                 env.set(&flag_key, Value::Bool(animating));
             }
         }
@@ -101,14 +92,12 @@ pub(crate) fn inject_property_into_env(
 
 /// Inject external property values into a frame environment.
 ///
-/// The entity's `track` is accepted for the shared call-site shape but is no
-/// longer read: primitive identity lives in `World`, and the plan already
-/// scopes the injected specs to this entity.
+/// The plan already scopes the injected specs to this entity; primitive
+/// identity lives in `World`.
 pub(crate) fn inject_extension_properties_into_env(
     env: &mut Environment,
     key: &mut String,
     label: &str,
-    _track: &AnimationTrack,
     plan: &crate::timeline::plan::PropertyPlan,
     time_ms: u64,
     ctx: Option<&ExtensionContext>,
@@ -238,24 +227,19 @@ fn inject_value(
 /// the track's own field, but skips the name → id lookup that
 /// `property_registry::resolve_property` has already done for this call.
 pub(crate) fn read_property_value_resolved(
-    track: &AnimationTrack,
+    id: EntityId,
     plan: &crate::timeline::plan::PropertyPlan,
-    world: Option<&crate::timeline::World>,
+    world: &crate::timeline::World,
     schema: &crate::timeline::property_registry::PropertySchema,
     slot: Option<animatix_syntax::schema::PropertyId>,
     time_ms: u64,
 ) -> Option<PropertyValue> {
-    if let Some(id) = slot
-        && let Some(value) = read_property_plan_slot(plan, id, time_ms)
+    if let Some(slot_id) = slot
+        && let Some(value) = read_property_plan_slot(plan, slot_id, time_ms)
     {
         return Some(value);
     }
-    if let Some(world) = world
-        && let Some(value) = world.read_property_value(track.id, schema.field, time_ms)
-    {
-        return Some(value);
-    }
-    track.field_ref(schema.field).and_then(|f| f.evaluate_value(time_ms))
+    world.read_property_value(id, schema.field, time_ms)
 }
 
 /// Read an effective f32 property value, preferring modifier overrides over
@@ -267,9 +251,9 @@ pub(crate) fn read_property_value_resolved(
 /// first — so an override still applies even if the property were somehow
 /// unregistered — then the schema/slot read, then `default`.
 pub(crate) fn effective_f32_resolved(
-    track: &AnimationTrack,
+    id: EntityId,
     plan: &crate::timeline::plan::PropertyPlan,
-    world: Option<&crate::timeline::World>,
+    world: &crate::timeline::World,
     overrides: Option<&std::collections::HashMap<String, Value>>,
     time_ms: u64,
     name: &str,
@@ -280,7 +264,7 @@ pub(crate) fn effective_f32_resolved(
         return *v as f32;
     }
     if let Some((schema, slot)) = resolved
-        && let Some(pv) = read_property_value_resolved(track, plan, world, schema, slot, time_ms)
+        && let Some(pv) = read_property_value_resolved(id, plan, world, schema, slot, time_ms)
         && let PropertyValue::F32(v) = pv
     {
         return v;
@@ -293,16 +277,16 @@ pub(crate) fn effective_f32_resolved(
 /// transform and the primitives cannot disagree about what an override means.
 /// See that helper for why the three sources need different handling.
 pub(crate) fn effective_half_size_resolved(
-    track: &AnimationTrack,
+    id: EntityId,
     plan: &crate::timeline::plan::PropertyPlan,
-    world: Option<&crate::timeline::World>,
+    world: &crate::timeline::World,
     overrides: Option<&std::collections::HashMap<String, Value>>,
     time_ms: u64,
     resolved: crate::timeline::property_registry::ResolvedPropertyRead,
     default: [f32; 2],
 ) -> [f32; 2] {
     let track_half = if let Some((schema, slot)) = resolved
-        && let Some(pv) = read_property_value_resolved(track, plan, world, schema, slot, time_ms)
+        && let Some(pv) = read_property_value_resolved(id, plan, world, schema, slot, time_ms)
         && let PropertyValue::Vec2(v) = pv
     {
         v
@@ -315,9 +299,9 @@ pub(crate) fn effective_half_size_resolved(
 /// Read an effective Transform property value ([f32; 6]), preferring modifier
 /// overrides over track keyframes.
 pub(crate) fn effective_transform(
-    track: &AnimationTrack,
+    id: EntityId,
     plan: &crate::timeline::plan::PropertyPlan,
-    world: Option<&crate::timeline::World>,
+    world: &crate::timeline::World,
     overrides: Option<&std::collections::HashMap<String, Value>>,
     time_ms: u64,
     name: &str,
@@ -334,7 +318,7 @@ pub(crate) fn effective_transform(
         }
     }
     if let Some((schema, slot)) = resolved
-        && let Some(pv) = read_property_value_resolved(track, plan, world, schema, slot, time_ms)
+        && let Some(pv) = read_property_value_resolved(id, plan, world, schema, slot, time_ms)
         && let PropertyValue::Transform(v) = pv
     {
         return v;

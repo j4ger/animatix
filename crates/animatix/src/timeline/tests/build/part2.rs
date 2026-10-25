@@ -153,9 +153,9 @@ fn test_for_loop_tuple_destructuring_creates_actors() {
 
     // Verify all three actors have position tracks
     // dot__0 should be at (10, 20)
-    let dot0 = timeline.world.tracks.get("dot__0").unwrap();
+    let dot0 = timeline.world.tracks.get_id("dot__0").unwrap();
     assert!(
-        timeline.world.geometry(dot0.id).position.is_some(),
+        timeline.world.geometry(dot0).position.is_some(),
         "Expected dot__0 to have position track"
     );
 
@@ -242,8 +242,8 @@ fn test_for_loop_tuple_with_vec2_values() {
     assert!(timeline.world.tracks.contains_key("point"), "Expected point track");
 
     // The last iteration sets at to (25, 35)
-    let track = timeline.world.tracks.get("point").unwrap();
-    if let Some(pos_track) = &timeline.world.geometry(track.id).position {
+    let track = timeline.world.tracks.get_id("point").unwrap();
+    if let Some(pos_track) = &timeline.world.geometry(track).position {
         let pos = pos_track.evaluate(0);
         // position may be stored as Vec2 or individually
         assert!(
@@ -397,8 +397,8 @@ config { colorscheme: "editorial-dark", resolution: (640, 360) }
 a: Rect, size: (100, 100), color: accent.primary, at: (200, 150)
 "#,
     );
-    let track = timeline.world.tracks.get("a").expect("rect track");
-    assert_eq!(timeline.world.style(track.id).stroke_width.get(0, 99.0), 0.0);
+    let track = timeline.world.tracks.get_id("a").expect("rect track");
+    assert_eq!(timeline.world.style(track).stroke_width.get(0, 99.0), 0.0);
 }
 
 #[test]
@@ -410,8 +410,8 @@ config { colorscheme: "editorial-dark", resolution: (640, 360) }
 a: Line, from: (0, 0), to: (100, 0), at: (200, 150)
 "#,
     );
-    let track = timeline.world.tracks.get("a").expect("line track");
-    assert_eq!(timeline.world.style(track.id).stroke_width.get(0, 99.0), 2.0);
+    let track = timeline.world.tracks.get_id("a").expect("line track");
+    assert_eq!(timeline.world.style(track).stroke_width.get(0, 99.0), 2.0);
 }
 
 #[test]
@@ -423,8 +423,8 @@ config { colorscheme: "editorial-dark", resolution: (640, 360) }
 a: Rect, size: (100, 100), color: accent.primary, stroke: red, stroke_width: 4, at: (200, 150)
 "#,
     );
-    let track = timeline.world.tracks.get("a").expect("rect track");
-    assert_eq!(timeline.world.style(track.id).stroke_width.get(0, 99.0), 4.0);
+    let track = timeline.world.tracks.get_id("a").expect("rect track");
+    assert_eq!(timeline.world.style(track).stroke_width.get(0, 99.0), 4.0);
 }
 
 #[test]
@@ -444,13 +444,13 @@ g: Graph, x_domain: (-1, 1), y_domain: (-1, 1), at: (320, 180) {
 }
 "##,
     );
-    let track = timeline.world.tracks.get("c").expect("plot curve track");
+    let track = timeline.world.tracks.get_id("c").expect("plot curve track");
     assert_eq!(
-        timeline.world.style(track.id).dash_pattern.get(0, Vec::new()),
+        timeline.world.style(track).dash_pattern.get(0, Vec::new()),
         vec![10.0, 7.0],
         "dash_pattern should land on the plot track"
     );
-    let ramp = timeline.world.style(track.id).stroke_gradient.get(0, Default::default());
+    let ramp = timeline.world.style(track).stroke_gradient.get(0, Default::default());
     assert_eq!(ramp.stops.len(), 2, "stroke_gradient should land on the plot track");
 }
 
@@ -464,10 +464,10 @@ a: Rect, size: (100, 100), color: accent.primary, at: (200, 150)
 draw-in a [1s]
 "#,
     );
-    let track = timeline.world.tracks.get("a").expect("rect track");
-    assert_eq!(timeline.world.style(track.id).stroke_width.get(0, 99.0), 2.0);
-    let fill = timeline.world.style(track.id).color.get(0, [0.0, 0.0, 0.0, 1.0]);
-    let stroke = timeline.world.style(track.id).stroke_color.get(0, [0.0, 0.0, 0.0, 1.0]);
+    let track = timeline.world.tracks.get_id("a").expect("rect track");
+    assert_eq!(timeline.world.style(track).stroke_width.get(0, 99.0), 2.0);
+    let fill = timeline.world.style(track).color.get(0, [0.0, 0.0, 0.0, 1.0]);
+    let stroke = timeline.world.style(track).stroke_color.get(0, [0.0, 0.0, 0.0, 1.0]);
     assert_eq!(stroke, fill, "draw-in outline should use the fill color");
 }
 
@@ -481,8 +481,8 @@ a: Rect, size: (100, 100), color: accent.primary, at: (200, 150)
 reveal-in a [1s]
 "#,
     );
-    let track = timeline.world.tracks.get("a").expect("rect track");
-    assert_eq!(timeline.world.style(track.id).stroke_width.get(0, 99.0), 2.0);
+    let track = timeline.world.tracks.get_id("a").expect("rect track");
+    assert_eq!(timeline.world.style(track).stroke_width.get(0, 99.0), 2.0);
 }
 
 /// Effect children of a `Filter` scope lower into the scope's chain instead of
@@ -499,11 +499,11 @@ bg: Filter {
 }
 "#,
     );
-    let scope = timeline.world.tracks.get("bg").expect("filter scope");
-    assert_eq!(timeline.world.effects(scope.id).expect("effects").stages.len(), 1);
-    assert_eq!(timeline.world.effects(scope.id).expect("effects").stages[0].label, "soft");
+    let scope = timeline.world.tracks.get_id("bg").expect("filter scope");
+    assert_eq!(timeline.world.effects(scope).expect("effects").stages.len(), 1);
+    assert_eq!(timeline.world.effects(scope).expect("effects").stages[0].label, "soft");
 
-    let chain = timeline.world.effects(scope.id).expect("effects").build_chain(0);
+    let chain = timeline.world.effects(scope).expect("effects").build_chain(0);
     assert_eq!(chain.instances.len(), 1);
     assert_eq!(chain.instances[0].id.as_str(), "Blur");
     assert_eq!(chain.instances[0].params.f32_at(0), 10.0);
@@ -527,15 +527,15 @@ bg: Filter {
 bg.soft.radius = 16 [1s]
 "#,
     );
-    let scope = timeline.world.tracks.get("bg").expect("filter scope");
+    let scope = timeline.world.tracks.get_id("bg").expect("filter scope");
     assert_eq!(
-        timeline.world.effects(scope.id).expect("effects").build_chain(0).instances[0]
+        timeline.world.effects(scope).expect("effects").build_chain(0).instances[0]
             .params
             .f32_at(0),
         4.0
     );
     assert_eq!(
-        timeline.world.effects(scope.id).expect("effects").build_chain(2000).instances[0]
+        timeline.world.effects(scope).expect("effects").build_chain(2000).instances[0]
             .params
             .f32_at(0),
         16.0
@@ -581,8 +581,8 @@ bg: Filter, bounds: (40, 30, 120, 80) {
 }
 "#,
     );
-    let scope = timeline.world.tracks.get("bg").expect("filter scope");
-    assert!(!timeline.world.effects(scope.id).expect("effects").build_chain(0).is_empty());
+    let scope = timeline.world.tracks.get_id("bg").expect("filter scope");
+    assert!(!timeline.world.effects(scope).expect("effects").build_chain(0).is_empty());
 
     let (width, height) = timeline.resolution().expect("configured resolution");
     let region = timeline
@@ -619,7 +619,7 @@ bg: Filter, bounds: (40, 30, 120, 80) {
 camera.zoom = 2.0
 "#,
     );
-    let scope = timeline.world.tracks.get("bg").expect("filter scope");
+    let scope = timeline.world.tracks.get_id("bg").expect("filter scope");
     let (width, height) = timeline.resolution().expect("configured resolution");
     let dims = crate::timeline::SceneDimensions { width, height };
 
@@ -652,7 +652,7 @@ bg: Filter {
 }
 "#,
     );
-    let scope = timeline.world.tracks.get("bg").expect("filter scope");
+    let scope = timeline.world.tracks.get_id("bg").expect("filter scope");
     let (width, height) = timeline.resolution().expect("configured resolution");
     assert!(
         timeline
@@ -709,11 +709,11 @@ bg: Filter {
 }
 "#,
     );
-    let scope = timeline.world.tracks.get("bg").expect("filter scope");
-    assert_eq!(timeline.world.effects(scope.id).expect("effects").stages.len(), 1);
-    assert_eq!(timeline.world.effects(scope.id).expect("effects").stages[0].label, "fx");
+    let scope = timeline.world.tracks.get_id("bg").expect("filter scope");
+    assert_eq!(timeline.world.effects(scope).expect("effects").stages.len(), 1);
+    assert_eq!(timeline.world.effects(scope).expect("effects").stages[0].label, "fx");
 
-    let chain = timeline.world.effects(scope.id).expect("effects").build_chain(0);
+    let chain = timeline.world.effects(scope).expect("effects").build_chain(0);
     assert_eq!(chain.instances.len(), 1);
     assert_eq!(chain.instances[0].id.as_str(), "MockPixelate");
     assert_eq!(chain.instances[0].params.f32_at(0), 8.0);
@@ -755,9 +755,9 @@ fn stroke_only_path_suppresses_default_fill() {
         report.diagnostics
     );
 
-    let track = report.output.world.tracks.get("p").expect("path track");
+    let track = report.output.world.tracks.get_id("p").expect("path track");
     assert_eq!(
-        report.output.world.style(track.id).fill_opacity.get(0, 1.0),
+        report.output.world.style(track).fill_opacity.get(0, 1.0),
         0.0,
         "stroke-only Path must default to no fill"
     );
@@ -777,8 +777,8 @@ fn stroke_only_path_keeps_authored_fill_opacity() {
         report.diagnostics
     );
 
-    let track = report.output.world.tracks.get("p").expect("path track");
-    assert_eq!(report.output.world.style(track.id).fill_opacity.get(0, 1.0), 0.5);
+    let track = report.output.world.tracks.get_id("p").expect("path track");
+    assert_eq!(report.output.world.style(track).fill_opacity.get(0, 1.0), 0.5);
 }
 
 /// An invalid easing name on an assignment must produce a diagnostic.
@@ -800,15 +800,15 @@ b: Code, text: "hello code"
     assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
     let ast = ast.expect("AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let typst_track = report.output.world.tracks.get("a").expect("a track");
+    let typst_track = report.output.world.tracks.get_id("a").expect("a track");
     assert_eq!(
-        report.output.world.text(typst_track.id).text_content.get(0, String::new()),
+        report.output.world.text(typst_track).text_content.get(0, String::new()),
         "hello typst",
         "Typst should read content from `text:`"
     );
-    let code_track = report.output.world.tracks.get("b").expect("b track");
+    let code_track = report.output.world.tracks.get_id("b").expect("b track");
     assert_eq!(
-        report.output.world.text(code_track.id).text_content.get(0, String::new()),
+        report.output.world.text(code_track).text_content.get(0, String::new()),
         "hello code",
         "Code should read content from `text:`"
     );
@@ -835,11 +835,11 @@ b: Code, code: "x = 1"
         report.diagnostics
     );
 
-    let a_track = report.output.world.tracks.get("a").expect("a track");
-    assert_eq!(report.output.world.text(a_track.id).language.get(0, String::new()), "rust");
-    let b_track = report.output.world.tracks.get("b").expect("b track");
+    let a_track = report.output.world.tracks.get_id("a").expect("a track");
+    assert_eq!(report.output.world.text(a_track).language.get(0, String::new()), "rust");
+    let b_track = report.output.world.tracks.get_id("b").expect("b track");
     assert_eq!(
-        report.output.world.text(b_track.id).language.get(0, String::new()),
+        report.output.world.text(b_track).language.get(0, String::new()),
         "",
         "default is plain"
     );
@@ -922,9 +922,8 @@ label.text = format("step(2)={} base={}", step(2), base)
     let timeline = report.output;
     let text = timeline
         .world
-        .tracks
-        .get("label")
-        .and_then(|t| timeline.world.text(t.id).text_content.as_ref())
+        .get_id("label")
+        .and_then(|id| timeline.world.text(id).text_content.as_ref())
         .map(|track| track.evaluate(1000))
         .unwrap_or_default();
     // step(2) = (4*10)+2 = 42; the outer `base` must still be 4 afterwards.
@@ -962,11 +961,11 @@ fade-in c [100ms]
     );
     let timeline = report.output;
 
-    let track = timeline.world.tracks.get("c").expect("curve track");
+    let track = timeline.world.tracks.get_id("c").expect("curve track");
     assert!(
         timeline
             .world
-            .procedural_plot(track.id)
+            .procedural_plot(track)
             .expect("procedural plot")
             .is_dynamic(&timeline.frame_written_vars),
         "LetChain body referencing t must be dynamic"
@@ -1128,9 +1127,8 @@ label.text = format("add20(4) = {}", add20(4))
     let timeline = report.output;
     let text = timeline
         .world
-        .tracks
-        .get("label")
-        .and_then(|t| timeline.world.text(t.id).text_content.as_ref())
+        .get_id("label")
+        .and_then(|id| timeline.world.text(id).text_content.as_ref())
         .map(|track| track.evaluate(1000))
         .unwrap_or_default();
     // maker(2) binds a=20; add20(4) = 4 + 20.
@@ -1258,17 +1256,17 @@ box.size = {120, 60} [500ms, ease: ease-out]
     );
     let timeline = report.output;
 
-    let box_track = timeline.world.tracks.get("box").expect("box track");
+    let box_track = timeline.world.tracks.get_id("box").expect("box track");
     let at = timeline
         .world
-        .geometry(box_track.id)
+        .geometry(box_track)
         .position
         .as_ref()
         .expect("at track")
         .evaluate(2000);
     let size = timeline
         .world
-        .geometry(box_track.id)
+        .geometry(box_track)
         .size
         .as_ref()
         .expect("size track")

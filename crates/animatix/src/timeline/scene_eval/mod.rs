@@ -11,8 +11,8 @@ mod solo;
 mod transform;
 
 use super::{
-    AnimationTrack, DEFAULT_LAYOUT_HALF_SIZE, DebugRenderOptions, EntityId, EvalError,
-    PlacementMode, PositionBinding, SceneDimensions, Timeline, TrackAccessor, Value, VelloPath,
+    DEFAULT_LAYOUT_HALF_SIZE, DebugRenderOptions, EntityId, EvalError, PlacementMode,
+    PositionBinding, SceneDimensions, Timeline, TrackAccessor, Value, VelloPath,
     resolve_bound_position,
 };
 use crate::renderer::types::TextPath;

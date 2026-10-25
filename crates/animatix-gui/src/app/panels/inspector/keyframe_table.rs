@@ -1,6 +1,6 @@
 use animatix::timeline::{
-    ActorField, AnimationTrack, PROPERTY_REGISTRY, PropertyPlan, PropertyValue, ShapeType,
-    Timeline, allowed_property_indices, read_property_plan_slot,
+    ActorField, EntityId, PROPERTY_REGISTRY, PropertyValue, ShapeType, Timeline,
+    allowed_property_indices, read_property_plan_slot,
 };
 use animatix_syntax::easing::Easing;
 use egui::{Rect, Vec2};
@@ -26,25 +26,21 @@ struct TrackGroup {
 
 // ─── Public Entry Point ───────────────────────────────────────────────────
 
-pub(super) fn count_keyframes(timeline: &Timeline, track: &AnimationTrack) -> usize {
-    let actor_type = timeline.world().actor_type(track.id);
-    let indices = allowed_property_indices(&timeline.world().caps(track.id), actor_type);
+pub(super) fn count_keyframes(timeline: &Timeline, id: EntityId) -> usize {
+    let actor_type = timeline.world().actor_type(id);
+    let indices = allowed_property_indices(&timeline.world().caps(id), actor_type);
     let builtin = indices
         .iter()
         .filter_map(|&idx| {
             let schema = &PROPERTY_REGISTRY[idx];
-            if timeline.world().property_has_keyframes(track.id, schema.field) {
-                Some(timeline.world().property_keyframe_times(track.id, schema.field).len())
+            if timeline.world().property_has_keyframes(id, schema.field) {
+                Some(timeline.world().property_keyframe_times(id, schema.field).len())
             } else {
                 None
             }
         })
         .sum::<usize>();
-    let empty_plan = PropertyPlan::default();
-    let plan = timeline
-        .world()
-        .track(track.id)
-        .map_or(&empty_plan, |_| timeline.world().property_plan(track.id));
+    let plan = timeline.world().property_plan(id);
     let extension = plan
         .iter()
         .filter(|slot| slot.id.0 >= 1_000_000)
@@ -56,14 +52,14 @@ pub(super) fn count_keyframes(timeline: &Timeline, track: &AnimationTrack) -> us
 pub(super) fn render_dope_sheet(
     ui: &mut egui::Ui,
     timeline: &Timeline,
-    track: &AnimationTrack,
+    id: EntityId,
     current_time_ms: u64,
     actor_label: &str,
     commands: &mut ActionQueue,
     active_scene: Option<&str>,
 ) {
     let sp = spatial(ui);
-    let groups = collect_track_groups(timeline, track);
+    let groups = collect_track_groups(timeline, id);
 
     if groups.is_empty() {
         crate::app::components::layout::empty_state(
@@ -312,9 +308,9 @@ fn render_compact_track_row(
 
 // ─── Collection (generic via registry) ────────────────────────────────────
 
-fn collect_track_groups(timeline: &Timeline, track: &AnimationTrack) -> Vec<TrackGroup> {
-    let actor_type = timeline.world().actor_type(track.id);
-    let indices = allowed_property_indices(&timeline.world().caps(track.id), actor_type);
+fn collect_track_groups(timeline: &Timeline, id: EntityId) -> Vec<TrackGroup> {
+    let actor_type = timeline.world().actor_type(id);
+    let indices = allowed_property_indices(&timeline.world().caps(id), actor_type);
 
     let mut transform = Vec::new();
     let mut style = Vec::new();
@@ -327,18 +323,16 @@ fn collect_track_groups(timeline: &Timeline, track: &AnimationTrack) -> Vec<Trac
         // The World field bundle joins the property plan with the tier tracks,
         // including the shape component, so shape-tier keyframes are listed
         // here instead of looking absent on a track-only view.
-        if !timeline.world().property_has_keyframes(track.id, schema.field) {
+        if !timeline.world().property_has_keyframes(id, schema.field) {
             continue;
         }
 
         let mut keyframes = Vec::new();
-        for time_ms in timeline.world().property_keyframe_times(track.id, schema.field) {
-            if let Some(value) =
-                timeline.world().read_property_value(track.id, schema.field, time_ms)
-            {
+        for time_ms in timeline.world().property_keyframe_times(id, schema.field) {
+            if let Some(value) = timeline.world().read_property_value(id, schema.field, time_ms) {
                 let easing = timeline
                     .world()
-                    .property_keyframe_easing(track.id, schema.field, time_ms)
+                    .property_keyframe_easing(id, schema.field, time_ms)
                     .unwrap_or(animatix_syntax::easing::Easing::Linear);
                 keyframes.push((time_ms, format_value(&value, schema.name), easing));
             }
@@ -415,13 +409,7 @@ fn collect_track_groups(timeline: &Timeline, track: &AnimationTrack) -> Vec<Trac
         });
     }
 
-    // A standalone track (inspector tests) has no plan slot; fall back to an
-    // empty plan, which is what the old on-track plan was for those callers.
-    let empty_plan = PropertyPlan::default();
-    let plan = timeline
-        .world()
-        .track(track.id)
-        .map_or(&empty_plan, |_| timeline.world().property_plan(track.id));
+    let plan = timeline.world().property_plan(id);
     let mut extensions = Vec::new();
     for descriptor in timeline.extension_property_descriptors() {
         if !descriptor.actor_types.iter().any(|ty| ty.as_str() == actor_type) {
@@ -532,16 +520,11 @@ mod tests {
 
     use super::*;
 
-    fn make_track() -> AnimationTrack {
-        AnimationTrack::new("test".to_string())
-    }
-
     /// Count the keyframes on a real spawned entity, the way the inspector does.
     fn count_for(actor_type: &str) -> usize {
         let mut timeline = Timeline::new();
-        let id = timeline.world_mut().spawn_with_track("test", actor_type, make_track());
-        let track = timeline.world().track(id).expect("spawned track");
-        count_keyframes(&timeline, track)
+        let id = timeline.world_mut().spawn("test", actor_type);
+        count_keyframes(&timeline, id)
     }
 
     #[test]
@@ -556,8 +539,7 @@ mod tests {
         let mut pt = PropertyTrack::new([0.0, 0.0]);
         pt.add_keyframe(0, [100.0, 200.0], Easing::Linear);
         timeline.world_mut().geometry_mut(id).position = Some(pt);
-        let track = timeline.world().track(id).expect("spawned track");
-        assert_eq!(count_keyframes(&timeline, track), 1);
+        assert_eq!(count_keyframes(&timeline, id), 1);
     }
 
     #[test]
@@ -576,15 +558,12 @@ mod tests {
         rot.add_keyframe(500, 1.57, Easing::EaseOut);
         timeline.world_mut().geometry_mut(id).rotation = Some(rot);
 
-        let track = timeline.world().track(id).expect("spawned track");
-        assert_eq!(count_keyframes(&timeline, track), 3);
+        assert_eq!(count_keyframes(&timeline, id), 3);
     }
 
     #[test]
     fn test_count_keyframes_skips_non_applicable_properties() {
         // Text kinds do not have shape-specific properties like stroke_width applicable
-        let track = make_track();
-
         // stroke_width is only applicable to AllShapes — not Text
         let mut sw = PropertyTrack::new(1.0);
         sw.add_keyframe(0, 2.0, Easing::Linear);
@@ -596,14 +575,13 @@ mod tests {
         let mut txt = PropertyTrack::new(String::new());
         txt.add_keyframe(0, "hello".to_string(), Easing::Linear);
         let mut timeline = Timeline::new();
-        let id = timeline.world_mut().spawn_with_track("test", "Text", track);
+        let id = timeline.world_mut().spawn("test", "Text");
         timeline.world_mut().style_mut(id).stroke_width = Some(sw);
         timeline.world_mut().geometry_mut(id).position = Some(pos);
         timeline.world_mut().text_mut(id).text_content = Some(txt);
-        let track = timeline.world().track(id).expect("spawned track");
 
         // Only position and text_content should count (stroke_width is not applicable)
-        assert_eq!(count_keyframes(&timeline, track), 2);
+        assert_eq!(count_keyframes(&timeline, id), 2);
     }
 
     /// The dope sheet must list shape-tier lanes: `to` lives on the World shape
@@ -621,15 +599,15 @@ a.to = (40, 20)
         let (ast, errors) = animatix_syntax::parser::parse_source(source);
         assert!(errors.is_empty(), "parse errors: {errors:?}");
         let timeline = Timeline::build(&ast.expect("ast"));
-        let track = timeline.get_track("a").expect("line track");
+        let id = timeline.get_entity_id("a").expect("line entity");
 
-        let times = timeline.world().property_keyframe_times(track.id, ActorField::LineTo);
+        let times = timeline.world().property_keyframe_times(id, ActorField::LineTo);
         assert!(times.len() >= 2, "`to` must be keyframed on the shape tier: {times:?}");
         assert_eq!(times[0], 0);
         assert_eq!(*times.last().unwrap(), 1000);
-        assert!(count_keyframes(&timeline, track) >= 2);
+        assert!(count_keyframes(&timeline, id) >= 2);
 
-        let groups = collect_track_groups(&timeline, track);
+        let groups = collect_track_groups(&timeline, id);
         let to = groups
             .iter()
             .flat_map(|group| &group.tracks)

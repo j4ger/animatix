@@ -138,10 +138,10 @@ impl PreviewContext<'_> {
             let Some(timeline) = self.timeline else {
                 break;
             };
-            let Some(track) = timeline.get_track(actor) else {
+            let Some(id) = timeline.get_entity_id(actor) else {
                 continue;
             };
-            let affordances = crate::app::primitives::actor_gizmo_affordances(track, timeline);
+            let affordances = crate::app::primitives::actor_gizmo_affordances(id, timeline);
 
             let props = self.get_actor_props(actor);
             let fallback =
@@ -161,7 +161,7 @@ impl PreviewContext<'_> {
             if affordances.contains(&crate::app::primitives::GizmoAffordance::ControlPoints) {
                 let points = timeline
                     .world()
-                    .shape(track.id)
+                    .shape(id)
                     .points
                     .as_ref()
                     .map(|pt| pt.evaluate(time_ms))
@@ -200,8 +200,8 @@ impl PreviewContext<'_> {
             // Callout handles: tip + label + place (targeted) + standoff (targeted)
             if affordances.contains(&crate::app::primitives::GizmoAffordance::Callout) {
                 let geo = animatix::timeline::callout_geometry::derive_callout_geometry(
-                    timeline.world().geometry(track.id),
-                    timeline.world().shape(track.id),
+                    timeline.world().geometry(id),
+                    timeline.world().shape(id),
                     time_ms,
                     Some(timeline),
                     self.scene_dimensions,

@@ -67,8 +67,8 @@ impl DocumentController<'_> {
         let container =
             self.ui_store.selection.selected_actors.iter().next().cloned().filter(|sel| {
                 self.document_store.source.document.timeline.as_ref().is_some_and(|t| {
-                    t.get_track(sel)
-                        .is_some_and(|tr| crate::app::actions::track_is_nestable_container(t, tr))
+                    t.get_entity_id(sel)
+                        .is_some_and(|id| crate::app::actions::track_is_nestable_container(t, id))
                 })
             });
 

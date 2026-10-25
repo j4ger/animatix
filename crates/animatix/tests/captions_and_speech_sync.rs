@@ -251,9 +251,9 @@ fn test_demo_scene_captions_evaluation() {
     };
     assert!(tl.transcript("voice").is_some());
     assert!(tl.transcript("subs").is_some());
-    let subs_track = tl.tracks().get("subs").expect("subs track must exist");
-    assert_eq!(tl.world().actor_type(subs_track.id), "Captions");
-    assert_eq!(tl.world().style(subs_track.id).opacity.get(2000, 0.0), 1.0);
+    let subs_id = tl.tracks().get_id("subs").expect("subs track must exist");
+    assert_eq!(tl.world().actor_type(subs_id), "Captions");
+    assert_eq!(tl.world().style(subs_id).opacity.get(2000, 0.0), 1.0);
 
     let _scene_at_2s = tl.evaluate(2.0, DIMS);
 }

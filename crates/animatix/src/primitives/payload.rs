@@ -1,7 +1,7 @@
 //! Primitive-specific payload definitions.
 //!
 //! Decouples primitive-specific storage (plots, charts, SVG vector paths, raster
-//! images) from the common `AnimationTrack` host struct, so an actor carries at
+//! images) from the per-entity `World` components, so an actor carries at
 //! most one kind of primitive state rather than a flat field per primitive.
 
 use std::collections::HashMap;
@@ -43,8 +43,8 @@ use crate::timeline::{BarChartLayout, PropertyTrack, VelloPath};
 /// 2. Define the source type (like `FuncSource`) with variants for raw values
 ///    and mid-transition blends.
 /// 3. Add a `Vec<YourTransition>` field to this payload.
-/// 4. Include the transition end times in `AnimationTrack::max_keyframe_time`.
-/// 5. Include non-empty transitions in `AnimationTrack::has_any_keyframes`.
+/// 4. Include the transition end times in `World::max_keyframe_time`.
+/// 5. Include non-empty transitions in `World::has_any_keyframes`.
 /// 6. At frame evaluation, find the active transition and blend the *outputs*
 ///    of `from` and `to` by eased progress.
 #[derive(Clone, Debug, Default)]

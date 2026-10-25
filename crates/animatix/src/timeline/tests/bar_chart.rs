@@ -393,12 +393,12 @@ fn hosted_bar_chart_spans_graph_axis() {
 
     // Hosted bars must span most of the 800px axis box (math-mode layout
     // reserves padding), not the legacy central half.
-    let track = report.output.world.tracks.get("chart").expect("chart track");
-    let paths = track.evaluate_vector_paths(
-        report.output.world.shape(track.id),
-        report.output.world.style(track.id),
-        0,
-    );
+    let track = report.output.world.get_id("chart").expect("chart track");
+    let paths = report
+        .output
+        .world
+        .shape(track)
+        .evaluate_vector_paths(report.output.world.style(track), 0);
     assert!(!paths.is_empty(), "hosted bars should be baked");
     use kurbo::Shape as _;
     let mut min_x = f64::INFINITY;
@@ -482,7 +482,7 @@ card: Card, width: 240, height: 150 {
         report
             .output
             .world
-            .text(t.id)
+            .text(t)
             .text_content
             .get(0, String::new())
             .contains("SLOT FILLED")
@@ -674,12 +674,12 @@ fn plot_curve_color_drives_stroke() {
         report.diagnostics
     );
 
-    let track = report.output.world.tracks.get("curve").expect("curve track");
-    let paths = track.evaluate_vector_paths(
-        report.output.world.shape(track.id),
-        report.output.world.style(track.id),
-        0,
-    );
+    let track = report.output.world.get_id("curve").expect("curve track");
+    let paths = report
+        .output
+        .world
+        .shape(track)
+        .evaluate_vector_paths(report.output.world.style(track), 0);
     let strokes: Vec<_> = paths.iter().filter_map(|p| p.stroke).collect();
     assert!(!strokes.is_empty(), "curve strokes should be baked");
     for (color, width) in strokes {
@@ -713,12 +713,12 @@ fn single_bar_colors_value_is_uniform() {
         report.diagnostics
     );
 
-    let track = report.output.world.tracks.get("chart").expect("chart track");
-    let paths = track.evaluate_vector_paths(
-        report.output.world.shape(track.id),
-        report.output.world.style(track.id),
-        0,
-    );
+    let track = report.output.world.get_id("chart").expect("chart track");
+    let paths = report
+        .output
+        .world
+        .shape(track)
+        .evaluate_vector_paths(report.output.world.style(track), 0);
     let fills: Vec<_> = paths.iter().filter_map(|p| p.fill).collect();
     assert!(fills.len() >= 3, "expected three bar fills, got {fills:?}");
     let first = fills[0];
@@ -752,18 +752,18 @@ fn size_property_drives_bar_chart_geometry() {
         report.diagnostics
     );
 
-    let track = report.output.world.tracks.get("chart").expect("chart track");
-    let geometry = report.output.world.geometry(track.id);
+    let track = report.output.world.tracks.get_id("chart").expect("chart track");
+    let geometry = report.output.world.geometry(track);
     assert_eq!(geometry.size.last([0.0, 0.0]), [400.0, 190.0]);
     assert_eq!(geometry.position.last([0.0, 0.0]), [640.0, 400.0]);
 
     // Baked bar paths must span roughly the declared box (800x380 minus
     // hardcoded axis-label margins), not the legacy 40x40 cluster.
-    let paths = track.evaluate_vector_paths(
-        report.output.world.shape(track.id),
-        report.output.world.style(track.id),
-        0,
-    );
+    let paths = report
+        .output
+        .world
+        .shape(track)
+        .evaluate_vector_paths(report.output.world.style(track), 0);
     assert!(!paths.is_empty(), "bar paths should be baked");
     use kurbo::Shape as _;
     let mut min = [f64::INFINITY; 2];
@@ -801,8 +801,8 @@ fn bar_chart_anchor_offset_produce_scene_binding() {
         report.diagnostics
     );
 
-    let track = report.output.world.tracks.get("chart").expect("chart track");
-    let geometry = report.output.world.geometry(track.id);
+    let track = report.output.world.tracks.get_id("chart").expect("chart track");
+    let geometry = report.output.world.geometry(track);
     match geometry.position_binding.get(0, crate::timeline::PositionBinding::Absolute) {
         crate::timeline::PositionBinding::SceneAnchor { anchor, offset } => {
             assert_eq!(anchor, crate::timeline::SceneAnchor::Top);
@@ -837,14 +837,14 @@ chart: BarChart, data: {("A", 10), ("B", 20)}, at: (320, 180), size: (400, 220),
 chart.data = {("A", 30), ("B", 5)} [800ms]
 "#,
     );
-    let track = timeline.world.tracks.get("chart").expect("chart track");
-    assert_eq!(timeline.world.bar_data_transitions(track.id).len(), 1);
-    let transition = &timeline.world.bar_data_transitions(track.id)[0];
+    let track = timeline.world.tracks.get_id("chart").expect("chart track");
+    assert_eq!(timeline.world.bar_data_transitions(track).len(), 1);
+    let transition = &timeline.world.bar_data_transitions(track)[0];
     assert_eq!((transition.start_ms, transition.end_ms), (1000, 1800));
     assert_eq!(transition.from, vec![("A".to_string(), 10.0f32), ("B".to_string(), 20.0)]);
     assert_eq!(transition.to, vec![("A".to_string(), 30.0f32), ("B".to_string(), 5.0)]);
     // The side channel is content: the scene must know it ends at 1.8s.
-    assert_eq!(timeline.world.max_keyframe_time(track.id), Some(1800));
+    assert_eq!(timeline.world.max_keyframe_time(track), Some(1800));
 }
 
 /// Bars are matched **by label**: a category only the new set has enters from
@@ -910,12 +910,12 @@ chart: BarChart, data: {("A", 10), ("B", 20)}, max_value: 40, at: (320, 180), si
 chart.data = {("A", 30), ("B", 5)} [800ms]
 "#,
     );
-    let track = timeline.world.tracks.get("chart").expect("chart track");
-    let layout = timeline.world.bar_layout(track.id).expect("bar layout stored at build");
+    let track = timeline.world.tracks.get_id("chart").expect("chart track");
+    let layout = timeline.world.bar_layout(track).expect("bar layout stored at build");
     let heights = |time_ms: u64| -> Vec<f64> {
         let data = crate::timeline::plot::bar_data_at(
-            timeline.world.bar_data(track.id),
-            timeline.world.bar_data_transitions(track.id),
+            timeline.world.bar_data(track),
+            timeline.world.bar_data_transitions(track),
             time_ms,
         );
         layout
@@ -962,14 +962,14 @@ chart.data = {("A", 30), ("B", 5)} [800ms]
         "expected the no-captions warning, got: {:?}",
         diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
-    let track = timeline.world.tracks.get("chart").expect("chart track");
+    let track = timeline.world.tracks.get_id("chart").expect("chart track");
     assert!(
-        timeline.world.bar_data(track.id).is_empty(),
+        timeline.world.bar_data(track).is_empty(),
         "an undeclared chart starts from no dataset"
     );
-    assert_eq!(timeline.world.bar_data_transitions(track.id).len(), 1);
-    assert_eq!(timeline.world.bar_data_transitions(track.id)[0].from.len(), 0);
-    assert_eq!(timeline.world.bar_data_transitions(track.id)[0].to.len(), 2);
+    assert_eq!(timeline.world.bar_data_transitions(track).len(), 1);
+    assert_eq!(timeline.world.bar_data_transitions(track)[0].from.len(), 0);
+    assert_eq!(timeline.world.bar_data_transitions(track)[0].to.len(), 2);
 }
 
 /// A dataset whose labels move (a new set, or the same set in a new order)
@@ -996,13 +996,13 @@ chart.data = {("A", 30), ("C", 5)} [800ms]
         "expected one caption-drift warning, got: {:?}",
         diagnostics.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
-    let track = timeline.world.tracks.get("chart").expect("chart track");
+    let track = timeline.world.tracks.get_id("chart").expect("chart track");
     assert_eq!(
-        timeline.world.bar_data_transitions(track.id).len(),
+        timeline.world.bar_data_transitions(track).len(),
         1,
         "the transition is still recorded"
     );
-    assert_eq!(timeline.world.bar_data_transitions(track.id)[0].to[1].0, "C");
+    assert_eq!(timeline.world.bar_data_transitions(track)[0].to[1].0, "C");
 }
 
 /// Both caption guards speak about captions, so a chart that asks for none
@@ -1017,9 +1017,9 @@ chart: BarChart, data: {("A", 10), ("B", 20)}, show_labels: false, at: (320, 180
 chart.data = {("B", 5), ("A", 30)} [800ms]
 "#,
     );
-    let track = timeline.world.tracks.get("chart").expect("chart track");
-    assert_eq!(timeline.world.bar_data_transitions(track.id).len(), 1);
-    assert_eq!(timeline.world.bar_data_transitions(track.id)[0].to[0].0, "B");
+    let track = timeline.world.tracks.get_id("chart").expect("chart track");
+    assert_eq!(timeline.world.bar_data_transitions(track).len(), 1);
+    assert_eq!(timeline.world.bar_data_transitions(track)[0].to[0].0, "B");
 }
 
 /// [`built`] without its no-warnings assertion, for scenes whose point is the

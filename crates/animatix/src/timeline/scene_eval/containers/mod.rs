@@ -13,7 +13,7 @@ mod mask;
 #[cfg(test)]
 pub(crate) use equation::equation_markup_escaped;
 
-use crate::timeline::{AnimationTrack, SceneDimensions, Timeline};
+use crate::timeline::{EntityId, SceneDimensions, Timeline};
 
 impl Timeline {
     /// Compute the region of interest for an effect scope from an authored
@@ -30,13 +30,13 @@ impl Timeline {
     /// transformed evaluation.
     pub(crate) fn effect_scope_region(
         &self,
-        track: &AnimationTrack,
+        id: EntityId,
         scene_dimensions: SceneDimensions,
         time_ms: u64,
         camera: kurbo::Affine,
     ) -> Option<crate::timeline::effects::EffectRegion> {
         let value = self.world.read_property_value(
-            track.id,
+            id,
             crate::timeline::property_registry::ActorField::Tagged("filter_bounds"),
             time_ms,
         );
@@ -52,7 +52,7 @@ impl Timeline {
         // the picture under them — unless this scope opted the camera out, in
         // which case its subtree was evaluated untransformed and its authored
         // numbers are already screen coordinates.
-        let meta = self.world.meta(track.id);
+        let meta = self.world.meta(id);
         let camera = if meta.camera_follow && (meta.parallax - 1.0).abs() < f32::EPSILON {
             camera
         } else if !meta.camera_follow || meta.parallax == 0.0 {
@@ -72,7 +72,7 @@ impl Timeline {
         Self::region_from_rect(
             camera.transform_rect_bbox(rect),
             self.world
-                .effects(track.id)
+                .effects(id)
                 .map(|effects| effects.worst_case_support())
                 .unwrap_or(0.0),
             scene_dimensions,

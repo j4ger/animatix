@@ -6,9 +6,7 @@ use crate::primitives::{
     AssignmentCtx, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx,
 };
 use crate::renderer::error::RenderError;
-use crate::timeline::{
-    AnimationTrack, BarDataTransition, Environment, SceneDimensions, parse_bar_chart_data_expr,
-};
+use crate::timeline::{BarDataTransition, Environment, SceneDimensions, parse_bar_chart_data_expr};
 
 /// The `BarChart` primitive.
 pub struct BarChartPrimitive;
@@ -67,7 +65,6 @@ impl Primitive for BarChartPrimitive {
     /// paths every frame must not re-parse properties or re-evaluate expressions.
     fn handle_assignment(
         &self,
-        _track: &mut AnimationTrack,
         property: &str,
         value: &Expr,
         ctx: &mut AssignmentCtx,

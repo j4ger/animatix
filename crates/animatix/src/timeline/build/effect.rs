@@ -2,7 +2,7 @@
 //!
 //! Effect children of a `Filter` scope are lowered into the scope's
 //! [`EffectChainTrack`](crate::timeline::effects::EffectChainTrack) instead of
-//! becoming scene-graph actors: they own no `AnimationTrack`, no layout, and no
+//! becoming scene-graph actors: they own no property tiers, no layout, and no
 //! hit region, and are not rendered as content.
 
 use super::*;
@@ -28,9 +28,8 @@ impl Timeline {
     ) {
         let is_scope = self
             .world
-            .tracks
-            .get(parent_label)
-            .is_some_and(|track| self.world.caps(track.id).is_effect_scope());
+            .get_id(parent_label)
+            .is_some_and(|id| self.world.caps(id).is_effect_scope());
         if !is_scope {
             diagnostics.push(
                 Diagnostic::error(

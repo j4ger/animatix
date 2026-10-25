@@ -3,8 +3,7 @@ use super::*;
 #[test]
 fn directly_inserted_tracks_get_default_meta_on_demand() {
     let mut world = World::new();
-    world.tracks.insert("direct".into(), AnimationTrack::new("direct".into()));
-    let id = world.tracks.get_id("direct").expect("direct id");
+    let id = world.spawn("direct", "Rect");
 
     assert!(world.meta(id).visible, "missing component reads as the default");
     world.meta_mut(id).visible = false;

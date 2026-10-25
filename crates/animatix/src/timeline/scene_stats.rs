@@ -13,7 +13,7 @@
 //! See `docs/scene_stats.md` for full design notes and mathematical derivations.
 
 use crate::timeline::animation_track::{GeometryTracks, StyleTracks};
-use crate::timeline::{AnimationTrack, Timeline, Value};
+use crate::timeline::{Timeline, Value};
 
 /// Number of sample points P clamped between 32 and 256.
 fn compute_sample_count(duration_s: f64) -> usize {
@@ -209,21 +209,21 @@ pub(crate) fn bake_scene_stats(timeline: &mut Timeline) {
     // 2. Full-viewport backgrounds (e.g. background plates)
     // 3. Actors explicitly marked legend: false / hidden
     // 4. Actors whose spatial geometry/presence is driven dynamically or that consume scene.stats
-    let eligible_tracks: Vec<&AnimationTrack> = timeline
+    let eligible_tracks: Vec<crate::timeline::EntityId> = timeline
         .world
         .tracks
         .iter()
-        .filter(|(label, t)| {
-            if !timeline.world.renders_visual_content(t.id) {
+        .filter(|(label, id)| {
+            if !timeline.world.renders_visual_content(*id) {
                 return false;
             }
-            if crate::timeline::legend::is_full_viewport_background(timeline.world.geometry(t.id)) {
+            if crate::timeline::legend::is_full_viewport_background(timeline.world.geometry(*id)) {
                 return false;
             }
             if crate::timeline::legend::legend_mode_for_track(
-                t,
-                timeline.world.meta(t.id).first_seen_ms,
-                Some(&timeline.world),
+                *id,
+                timeline.world.meta(*id).first_seen_ms,
+                &timeline.world,
             ) == crate::timeline::legend::LegendMode::Hidden
             {
                 return false;
@@ -233,7 +233,7 @@ pub(crate) fn bake_scene_stats(timeline: &mut Timeline) {
             }
             true
         })
-        .map(|(_, t)| t)
+        .map(|(_, id)| id)
         .collect();
 
     let mut raw_motion = Vec::with_capacity(p_count);
@@ -261,11 +261,11 @@ pub(crate) fn bake_scene_stats(timeline: &mut Timeline) {
         }
         let mut actor_samples = Vec::with_capacity(eligible_tracks.len());
 
-        for track in &eligible_tracks {
-            let geometry = timeline.world.geometry(track.id);
+        for id in &eligible_tracks {
+            let geometry = timeline.world.geometry(*id);
             let opacity = sample_opacity(
-                timeline.world.style(track.id),
-                timeline.world.meta.get(track.id).is_some_and(|m| m.hidden_by_default),
+                timeline.world.style(*id),
+                timeline.world.meta.get(*id).is_some_and(|m| m.hidden_by_default),
                 time_ms,
             );
             if opacity > 0.0 {

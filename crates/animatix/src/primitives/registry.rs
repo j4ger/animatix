@@ -314,8 +314,8 @@ mod tests {
             "unexpected diagnostics: {:?}",
             report.diagnostics
         );
-        let track = report.output.world.tracks.get("g").expect("custom actor track");
-        assert_eq!(report.output.world.actor_type(track.id), "Gauge");
+        let id = report.output.world.get_id("g").expect("custom actor id");
+        assert_eq!(report.output.world.actor_type(id), "Gauge");
 
         let _scene = report.output.evaluate(0.0, crate::timeline::SceneDimensions::default());
     }

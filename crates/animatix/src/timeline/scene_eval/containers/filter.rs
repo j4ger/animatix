@@ -17,12 +17,12 @@ impl Timeline {
     ) {
         let time_ms = frame.time_ms;
         let scene_dimensions = frame.scene_dimensions;
-        let Some(track) = self
-            .world
-            .tracks
-            .get_by_id(node_id)
-            .or_else(|| self.world.tracks.get(node_label))
-        else {
+        // Resolve the scope's entity id: trust `node_id`, fall back to the label.
+        let node_id = if self.world.exists(node_id) {
+            node_id
+        } else if let Some(id) = self.world.get_id(node_label) {
+            id
+        } else {
             return;
         };
 
@@ -85,7 +85,7 @@ impl Timeline {
         // and disabled stages are dropped during sampling.
         let chain = self
             .world
-            .effects(track.id)
+            .effects(node_id)
             .map(|effects| effects.build_chain(time_ms))
             .unwrap_or_default();
 
@@ -115,7 +115,7 @@ impl Timeline {
         } else {
             kurbo::Affine::IDENTITY
         };
-        let region = match self.effect_scope_region(track, scene_dimensions, time_ms, camera) {
+        let region = match self.effect_scope_region(node_id, scene_dimensions, time_ms, camera) {
             Some(region) => Some(region),
             None => {
                 let mut content: Option<kurbo::Rect> = None;
@@ -126,7 +126,7 @@ impl Timeline {
                     Self::region_from_rect(
                         rect,
                         self.world
-                            .effects(track.id)
+                            .effects(node_id)
                             .map(|effects| effects.worst_case_support())
                             .unwrap_or(0.0),
                         scene_dimensions,

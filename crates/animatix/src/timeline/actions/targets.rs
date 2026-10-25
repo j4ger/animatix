@@ -70,12 +70,12 @@ pub(crate) fn expand_group_targets(
     while let Some(label) = stack.pop() {
         // Resolve dotted paths (e.g. "decomp_eq.f1" → "f1") before track lookup
         let resolved = resolve_action_target(timeline, &label).unwrap_or(label.clone());
-        if let Some(track) = timeline.world.tracks.get(&resolved) {
-            let children = &timeline.world.hierarchy(track.id).children;
+        if let Some(id) = timeline.world.get_id(&resolved) {
+            let children = &timeline.world.hierarchy(id).children;
             if children.is_empty() {
                 // Leaf actor — keep the resolved key
                 result.push(resolved);
-            } else if is_recursive_container(timeline, track) {
+            } else if is_recursive_container(timeline, id) {
                 // Container (layout or structural group) — recurse into children
                 for child_id in children.iter().rev() {
                     if let Some(child) = timeline.world.label(*child_id) {
@@ -99,13 +99,10 @@ pub(crate) fn expand_group_targets(
 /// Returns true if the actor kind is a container whose children should be
 /// expanded by `expand_group_targets`. Equation containers aggregate children
 /// into one renderable document and stay leaf-like for action targeting.
-pub(super) fn is_recursive_container(
-    timeline: &Timeline,
-    track: &crate::timeline::AnimationTrack,
-) -> bool {
+pub(super) fn is_recursive_container(timeline: &Timeline, id: crate::timeline::EntityId) -> bool {
     timeline
         .primitive_registry
-        .info_of(timeline.world.actor_type(track.id))
+        .info_of(timeline.world.actor_type(id))
         .map(crate::timeline::PrimitiveFamilyDescriptor::from_info)
         .is_some_and(|descriptor| descriptor.is_recursive_container())
 }
@@ -117,7 +114,7 @@ pub(crate) fn ensure_vector_reveal_target(
     diagnostics: &mut Vec<Diagnostic>,
     span: Option<crate::ast::Span>,
 ) -> bool {
-    let Some(track) = timeline.world.tracks.get(target) else {
+    let Some(id) = timeline.world.get_id(target) else {
         push_unsupported_action_target_diagnostic(
             verb,
             target,
@@ -128,7 +125,7 @@ pub(crate) fn ensure_vector_reveal_target(
         return false;
     };
 
-    let capabilities = timeline.primitive_registry.info_of(timeline.world.actor_type(track.id));
+    let capabilities = timeline.primitive_registry.info_of(timeline.world.actor_type(id));
 
     if capabilities.is_some_and(|info| info.capabilities.image_payload) {
         push_unsupported_action_target_diagnostic(
@@ -141,7 +138,7 @@ pub(crate) fn ensure_vector_reveal_target(
         return false;
     }
 
-    if timeline.world.image_track(track.id).and_then(|t| t.last_value()).is_some() {
+    if timeline.world.image_track(id).and_then(|t| t.last_value()).is_some() {
         push_unsupported_action_target_diagnostic(
             verb,
             target,
@@ -156,16 +153,16 @@ pub(crate) fn ensure_vector_reveal_target(
 
     if capabilities
         .is_some_and(|info| info.capabilities.is_container || info.capabilities.layout_container)
-        || (timeline.world.tracks.get(target).is_some_and(|track| {
-            !timeline.world.hierarchy(track.id).children.is_empty()
+        || (timeline.world.get_id(target).is_some_and(|id| {
+            !timeline.world.hierarchy(id).children.is_empty()
                 && timeline
                     .world
-                    .shape(track.id)
+                    .shape(id)
                     .vector_paths
                     .as_ref()
                     .map(|t| t.default_value.is_empty() && t.keyframes.is_empty())
                     .unwrap_or(true)
-                && !timeline.world.has_svg_path_content(track.id)
+                && !timeline.world.has_svg_path_content(id)
         }))
     {
         push_unsupported_action_target_diagnostic(
@@ -192,7 +189,7 @@ pub(super) fn lift_container_and_intermediate_containers(
     let resolved = resolve_action_target(timeline, label).unwrap_or_else(|| label.to_string());
     let children: Vec<String> = timeline.child_labels(&resolved).map(str::to_string).collect();
     if !children.is_empty() {
-        if let Some(id) = timeline.world.tracks.get_id(&resolved) {
+        if let Some(id) = timeline.world.get_id(&resolved) {
             let style = timeline.world.style.get_mut(id);
             let meta = timeline
                 .world

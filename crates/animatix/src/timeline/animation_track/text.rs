@@ -1,8 +1,12 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+use crate::easing::Easing;
 use crate::renderer::types::TextPath;
-use crate::timeline::property_track::PropertyTrack;
+use crate::timeline::morph;
+use crate::timeline::property_track::{PropertyTrack, TrackAccessor};
+
+use super::style::StyleTracks;
 
 // ─────────────────────────────────────────────────────────────
 // TextTracks sub-struct
@@ -74,6 +78,64 @@ pub struct TextTracks {
 }
 
 impl TextTracks {
+    /// Evaluate `ascent` at `time_ms`.
+    pub fn ascent_get(&self, time_ms: u64) -> f32 {
+        self.ascent.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
+    }
+
+    /// Evaluate `descent` at `time_ms`.
+    pub fn descent_get(&self, time_ms: u64) -> f32 {
+        self.descent.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
+    }
+
+    /// Evaluate `baseline` at `time_ms`.
+    /// This is the offset of the baseline from the text center (0,0) after centering paths.
+    pub fn baseline_get(&self, time_ms: u64) -> f32 {
+        self.baseline.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
+    }
+
+    /// Set all three font metrics at the given time.
+    pub fn set_metrics(&mut self, time_ms: u64, ascent: f32, descent: f32, baseline: f32) {
+        self.ascent.ensure(0.0).add_keyframe(time_ms, ascent, Easing::Linear);
+        self.descent.ensure(0.0).add_keyframe(time_ms, descent, Easing::Linear);
+        self.baseline.ensure(0.0).add_keyframe(time_ms, baseline, Easing::Linear);
+    }
+
+    /// Evaluate text paths and optional baseline clip path at `time_ms`,
+    /// applying morphing, char_progress typewriter truncation, and split-text baseline reveal.
+    pub fn evaluate_paths_and_clip(
+        &self,
+        style: &StyleTracks,
+        time_ms: u64,
+    ) -> (Vec<TextPath>, Option<kurbo::BezPath>) {
+        if let Some(content_track) = &self.text_content {
+            if !content_track.keyframes.is_empty() {
+                let current_text = content_track.evaluate(time_ms);
+                if current_text.is_empty() {
+                    return (Vec::new(), None);
+                }
+            }
+        }
+        let default_paths = PropertyTrack::new(Vec::new());
+        let paths_track = self.text_paths.as_ref().unwrap_or(&default_paths);
+        let default_morph = PropertyTrack::new(morph::MorphOptions::default());
+        let morph_track = style.morph_options.as_ref().unwrap_or(&default_morph);
+        let mut paths = morph::evaluate_paths_with_options(
+            paths_track,
+            morph_track,
+            time_ms,
+            morph::interpolate_text_paths,
+        );
+
+        let clip = apply_split_text_animation(&mut paths, self, time_ms);
+        (paths, clip)
+    }
+
+    /// Evaluate text paths at `time_ms`, applying morphing and char_progress truncation.
+    pub fn evaluate_paths(&self, style: &StyleTracks, time_ms: u64) -> Vec<TextPath> {
+        self.evaluate_paths_and_clip(style, time_ms).0
+    }
+
     /// Latest keyframe across the text property tracks.
     pub fn max_keyframe_time(&self) -> Option<u64> {
         macro_rules! latest {
@@ -142,4 +204,131 @@ impl TextTracks {
             split_mask,
         )
     }
+}
+
+/// Applies split-text baseline reveal and typewriter animation to a collection of text paths.
+/// Returns an optional baseline clip path if `split_mask` is active.
+pub fn apply_split_text_animation(
+    paths: &mut Vec<TextPath>,
+    text: &TextTracks,
+    time_ms: u64,
+) -> Option<kurbo::BezPath> {
+    let cp_track = text.char_progress.as_ref()?;
+    let progress = cp_track.evaluate(time_ms).clamp(0.0, 1.0);
+    if progress >= 1.0 {
+        return None;
+    }
+
+    let split_by = text
+        .split_by
+        .as_ref()
+        .map(|t| t.evaluate(time_ms))
+        .unwrap_or_else(|| "char".to_string());
+    let split_stagger = text.split_stagger.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0);
+    let split_offset_y = text.split_offset_y.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0);
+    let split_mask = text.split_mask.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(false);
+
+    // Case A: Standard typewriter truncation
+    let is_split_mode = split_offset_y != 0.0
+        || split_mask
+        || split_stagger > 0.0
+        || (split_by != "char" && split_by != "chars");
+
+    if !is_split_mode {
+        let n = (progress as f64 * paths.len() as f64).ceil() as usize;
+        paths.truncate(n);
+        return None;
+    }
+
+    if paths.is_empty() {
+        return None;
+    }
+
+    // Case B: Split-text reveal
+    let mut max_unit = 0usize;
+    for g in paths.iter() {
+        let u = match split_by.as_str() {
+            "line" | "lines" => g.line_idx as usize,
+            "word" | "words" => g.word_idx as usize,
+            _ => g.char_idx as usize,
+        };
+        if u > max_unit {
+            max_unit = u;
+        }
+    }
+    let n_units = max_unit + 1;
+
+    let s = if split_stagger > 0.0 {
+        if split_stagger > 1.0 {
+            (split_stagger / 1000.0).clamp(0.0, 0.5)
+        } else {
+            split_stagger
+        }
+    } else {
+        (0.6 / n_units as f32).min(0.08)
+    };
+
+    let s_clamped = if n_units > 1 {
+        s.min(0.85 / (n_units - 1) as f32)
+    } else {
+        0.0
+    };
+    let w = if n_units > 1 {
+        1.0 - (n_units - 1) as f32 * s_clamped
+    } else {
+        1.0
+    };
+
+    let effective_offset = if split_offset_y != 0.0 {
+        split_offset_y
+    } else if split_mask {
+        30.0
+    } else {
+        0.0
+    };
+
+    // Calculate baseline clip rectangles if split_mask is true
+    let clip_path = if split_mask {
+        if let Some(static_clip) = &text.static_split_clip {
+            Some(static_clip.clone())
+        } else {
+            crate::renderer::text::compute_split_mask_clip(paths)
+        }
+    } else {
+        None
+    };
+
+    for g in paths.iter_mut() {
+        let u = match split_by.as_str() {
+            "line" | "lines" => g.line_idx as usize,
+            "word" | "words" => g.word_idx as usize,
+            _ => g.char_idx as usize,
+        };
+        let start_u = u as f32 * s_clamped;
+        let p_u = if w > 0.0 {
+            ((progress - start_u) / w).clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+
+        let dy = (1.0 - p_u) * effective_offset;
+        if dy != 0.0 {
+            g.path = kurbo::Affine::translate((0.0, dy as f64)) * g.path.clone();
+            g.glyph_center[1] += dy;
+            g.bounds = g.bounds + kurbo::Vec2::new(0.0, dy as f64);
+        }
+
+        if split_mask {
+            let alpha = if p_u <= 0.0 {
+                0.0
+            } else {
+                (p_u * 4.0).min(1.0)
+            };
+            g.opacity *= alpha;
+        } else {
+            g.opacity *= p_u;
+        }
+    }
+
+    clip_path
 }

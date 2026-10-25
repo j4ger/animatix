@@ -1,6 +1,6 @@
 use animatix::renderer::text as animatix_text;
 use animatix::timeline::{
-    ActorField, AnimationTrack, LEGEND_SUM_VARIANTS, PROPERTY_REGISTRY, PropertyValue, ShapeType,
+    ActorField, EntityId, LEGEND_SUM_VARIANTS, PROPERTY_REGISTRY, PropertyValue, ShapeType,
     SumVariant, ValueType, allowed_property_indices,
 };
 use egui::{Color32, Stroke, Vec2};
@@ -71,11 +71,11 @@ pub(crate) enum PropertyKind {
 
 pub(crate) fn build_property_groups(
     timeline: &animatix::timeline::Timeline,
-    track: &AnimationTrack,
+    id: EntityId,
     time_ms: u64,
 ) -> Vec<PropertyGroup> {
-    let caps = timeline.world().caps(track.id);
-    let actor_type = timeline.world().actor_type(track.id);
+    let caps = timeline.world().caps(id);
+    let actor_type = timeline.world().actor_type(id);
     let indices = allowed_property_indices(&caps, actor_type);
 
     let mut geometry = Vec::new();
@@ -90,7 +90,7 @@ pub(crate) fn build_property_groups(
     let mut captions = Vec::new();
     let mut visibility = Vec::new();
     let mut legend_props = Vec::new();
-    let actor_label = timeline.world().label(track.id).unwrap_or("");
+    let actor_label = timeline.world().label(id).unwrap_or("");
     let legend = timeline.entity(actor_label).and_then(|entity| entity.legend());
     let effects = timeline
         .entity(actor_label)
@@ -111,13 +111,13 @@ pub(crate) fn build_property_groups(
             continue;
         }
 
-        let value = read_inspector_property_value(timeline, track, schema, time_ms);
+        let value = read_inspector_property_value(timeline, id, schema, time_ms);
         // One store: the World field bundle is the shape-aware view — it joins
         // the property plan for tagged fields with the tier tracks (including
         // the shape component), so shape-tier keyframes are not invisible here.
-        let has_kf = timeline.world().property_has_keyframes(track.id, schema.field);
-        let has_kf_now = timeline.world().property_has_keyframe_at(track.id, schema.field, time_ms);
-        let kf_count = timeline.world().property_keyframe_count(track.id, schema.field);
+        let has_kf = timeline.world().property_has_keyframes(id, schema.field);
+        let has_kf_now = timeline.world().property_has_keyframe_at(id, schema.field, time_ms);
+        let kf_count = timeline.world().property_keyframe_count(id, schema.field);
 
         let value = convert_for_display(value, schema.name);
         let kind = match schema.value_type {
@@ -327,18 +327,18 @@ pub(crate) fn build_property_groups(
         });
     }
 
-    if timeline.world().caps(track.id).legend_host {
+    if timeline.world().caps(id).legend_host {
         legend_props.extend(legend_style_entries(legend));
     }
     let mode = animatix::timeline::legend::legend_mode_for_track(
-        track,
-        timeline.world().meta(track.id).first_seen_ms,
-        Some(timeline.world()),
+        id,
+        timeline.world().meta(id).first_seen_ms,
+        timeline.world(),
     );
     if legend.and_then(|legend| legend.color).is_some()
         || mode != animatix::timeline::LegendMode::Auto
     {
-        legend_props.push(legend_participation_entry(track, mode));
+        legend_props.push(legend_participation_entry(mode));
     }
     if !legend_props.is_empty() {
         groups.push(PropertyGroup {
@@ -349,14 +349,7 @@ pub(crate) fn build_property_groups(
     }
 
     let mut extension_props = Vec::new();
-    // A standalone track (inspector tests, previews not backed by a world
-    // entity) has no plan slot; fall back to an empty plan, which is what the
-    // old on-track plan was for those callers.
-    let empty_plan = animatix::timeline::PropertyPlan::default();
-    let plan = timeline
-        .world()
-        .track(track.id)
-        .map_or(&empty_plan, |_| timeline.world().property_plan(track.id));
+    let plan = timeline.world().property_plan(id);
     for descriptor in timeline.extension_property_descriptors() {
         if !descriptor.actor_types.iter().any(|ty| ty.as_str() == actor_type) {
             continue;
@@ -426,13 +419,13 @@ pub(crate) fn build_property_groups(
 
 fn read_inspector_property_value(
     timeline: &animatix::timeline::Timeline,
-    track: &AnimationTrack,
+    id: EntityId,
     schema: &animatix::timeline::PropertySchema,
     time_ms: u64,
 ) -> PropertyValue {
     // Plot domains live on the plot payload's generator, not on a property
     // track, so they are read before the World/registry fallback below.
-    if let Some(plot) = timeline.world().procedural_plot(track.id) {
+    if let Some(plot) = timeline.world().procedural_plot(id) {
         match schema.name {
             "x_domain" => {
                 return PropertyValue::Vec2([plot.p_x_domain[0] as f32, plot.p_x_domain[1] as f32]);
@@ -452,10 +445,10 @@ fn read_inspector_property_value(
     // their schema default when the actor actually carries a value.
     timeline
         .world()
-        .read_property_value(track.id, schema.field, time_ms)
+        .read_property_value(id, schema.field, time_ms)
         .unwrap_or_else(|| {
             (schema.default_value)(
-                &animatix::timeline::caps_for_type(timeline.world().actor_type(track.id))
+                &animatix::timeline::caps_for_type(timeline.world().actor_type(id))
                     .unwrap_or_default(),
             )
         })
@@ -514,10 +507,7 @@ fn extension_value_to_kind(
     }
 }
 
-fn legend_participation_entry(
-    _track: &AnimationTrack,
-    mode: animatix::timeline::LegendMode,
-) -> PropertyEntry {
+fn legend_participation_entry(mode: animatix::timeline::LegendMode) -> PropertyEntry {
     let value = match &mode {
         animatix::timeline::LegendMode::Auto => PropertyValue::Variant {
             name: "auto".to_string(),

@@ -207,13 +207,12 @@ impl Timeline {
             // PF-6: one shared key buffer for the whole injection pass — the
             // per-track `String::with_capacity` calls were an allocation each.
             let mut key = String::with_capacity(96);
-            for (label, track) in &self.world.tracks {
+            for (label, id) in self.world.tracks.iter() {
                 crate::timeline::property_engine::inject_extension_properties_into_env(
                     &mut env,
                     &mut key,
                     label,
-                    track,
-                    self.world.property_plan(track.id),
+                    self.world.property_plan(id),
                     time_ms,
                     self.extensions.as_deref(),
                     None,
@@ -298,7 +297,7 @@ impl Timeline {
             }
         }
 
-        for (label, track) in &self.world.tracks {
+        for (label, id) in self.world.tracks.iter() {
             // Referenced-root filtering: expressions can only reference actor
             // labels that appear textually in the program (see
             // build::referenced_roots), so unreferenced actors' properties are
@@ -373,8 +372,8 @@ impl Timeline {
                 env,
                 &mut key,
                 label,
-                track,
-                Some(&self.world),
+                id,
+                &self.world,
                 time_ms,
                 allowed_props,
                 inject_animating_flags,
@@ -383,8 +382,7 @@ impl Timeline {
                 env,
                 &mut key,
                 label,
-                track,
-                self.world.property_plan(track.id),
+                self.world.property_plan(id),
                 time_ms,
                 self.extensions.as_deref(),
                 allowed_props,

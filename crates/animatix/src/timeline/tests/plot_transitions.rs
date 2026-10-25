@@ -92,13 +92,7 @@ impl Primitive for PlotExt {
         _modifiers: &[crate::ast::Modifier],
         _children: &[crate::ast::InlineItem],
     ) -> Result<(), Vec<crate::diagnostics::Diagnostic>> {
-        let track_id = ctx
-            .timeline
-            .world
-            .tracks
-            .entry(label.to_string())
-            .or_insert_with(|| crate::timeline::AnimationTrack::placeholder(label.to_string()))
-            .id;
+        let track_id = ctx.timeline.world.spawn(label, "Rect");
         ctx.timeline.world.ensure_len();
         ctx.timeline.world.ensure_plot_payload(track_id).procedural_plot = Some(ProceduralPlot {
             plot_type: ProceduralPlotKind::default(),
@@ -168,15 +162,15 @@ fn basic_func_transition_cartesian() {
         report.diagnostics
     );
 
-    let track = report.output.get_track("curve").expect("curve track should exist");
+    let track = report.output.get_entity_id("curve").expect("curve track should exist");
 
     assert_eq!(
-        report.output.world.func_transitions(track.id).len(),
+        report.output.world.func_transitions(track).len(),
         1,
         "Expected exactly 1 FuncTransition"
     );
 
-    let t = &report.output.world.func_transitions(track.id)[0];
+    let t = &report.output.world.func_transitions(track)[0];
     assert_eq!(t.start_ms, 2000, "start_ms should be 2000 (2s)");
     assert_eq!(t.end_ms, 3000, "end_ms should be 3000 (2s + 1s)");
     // Assignments keep the linear default on purpose: an action that expands
@@ -435,17 +429,17 @@ fn record_and_chain_overlapping_transitions() {
         report.diagnostics
     );
 
-    let track = report.output.get_track("curve").expect("curve track should exist");
+    let track = report.output.get_entity_id("curve").expect("curve track should exist");
 
     assert_eq!(
-        report.output.world.func_transitions(track.id).len(),
+        report.output.world.func_transitions(track).len(),
         2,
         "Expected 2 FuncTransitions for overlapping assignments"
     );
 
     // Second transition's `from` must be a Blend because the second assignment
     // is processed while the first is still active (t=2s, first runs 1s–3s).
-    let second = &report.output.world.func_transitions(track.id)[1];
+    let second = &report.output.world.func_transitions(track)[1];
     match &second.from {
         FuncSource::Blend {
             frozen_progress, ..
@@ -494,38 +488,29 @@ fn cascading_transitions() {
         report.diagnostics
     );
 
-    let track = report.output.get_track("curve").expect("curve track should exist");
+    let track = report.output.get_entity_id("curve").expect("curve track should exist");
 
     assert_eq!(
-        report.output.world.func_transitions(track.id).len(),
+        report.output.world.func_transitions(track).len(),
         3,
         "Expected 3 FuncTransitions for cascading assignments"
     );
 
     // First transition: from = Raw (declaration func).
     assert!(
-        matches!(
-            &report.output.world.func_transitions(track.id)[0].from,
-            FuncSource::Compiled(..)
-        ),
+        matches!(&report.output.world.func_transitions(track)[0].from, FuncSource::Compiled(..)),
         "First transition's from should be Raw"
     );
 
     // Second transition: from = Blend (frozen from the first).
     assert!(
-        matches!(
-            &report.output.world.func_transitions(track.id)[1].from,
-            FuncSource::Blend { .. }
-        ),
+        matches!(&report.output.world.func_transitions(track)[1].from, FuncSource::Blend { .. }),
         "Second transition's from should be Blend"
     );
 
     // Third transition: from = Blend (frozen from the second, which is itself a Blend).
     assert!(
-        matches!(
-            &report.output.world.func_transitions(track.id)[2].from,
-            FuncSource::Blend { .. }
-        ),
+        matches!(&report.output.world.func_transitions(track)[2].from, FuncSource::Blend { .. }),
         "Third transition's from should be Blend"
     );
 
@@ -533,7 +518,7 @@ fn cascading_transitions() {
     // transition (2s–3s) is at progress 0.5.
     if let FuncSource::Blend {
         frozen_progress, ..
-    } = &report.output.world.func_transitions(track.id)[2].from
+    } = &report.output.world.func_transitions(track)[2].from
     {
         assert!(
             (frozen_progress - 0.5).abs() < 1e-9,
@@ -548,15 +533,11 @@ fn cascading_transitions() {
     let plot = report
         .output
         .world
-        .procedural_plot(track.id)
+        .procedural_plot(track)
         .expect("curve should have a procedural_plot")
         .clone();
-    let paths = sample_procedural_plot_at(
-        &plot,
-        &env,
-        2750,
-        report.output.world.func_transitions(track.id),
-    );
+    let paths =
+        sample_procedural_plot_at(&plot, &env, 2750, report.output.world.func_transitions(track));
     assert!(!paths.is_empty(), "Expected output paths during cascading transition");
     assert!(
         !paths[0].path.elements().is_empty(),
@@ -589,15 +570,15 @@ fn polar_mode_transition() {
         report.diagnostics
     );
 
-    let track = report.output.get_track("curve").expect("curve track should exist");
+    let track = report.output.get_entity_id("curve").expect("curve track should exist");
 
     assert_eq!(
-        report.output.world.func_transitions(track.id).len(),
+        report.output.world.func_transitions(track).len(),
         1,
         "Expected 1 FuncTransition for polar mode"
     );
 
-    let t = &report.output.world.func_transitions(track.id)[0];
+    let t = &report.output.world.func_transitions(track)[0];
     assert_eq!(t.start_ms, 2000, "start_ms should be 2000");
     assert_eq!(t.end_ms, 3000, "end_ms should be 3000");
     assert_eq!(t.from.arity(), 1, "from arity should be 1");
@@ -607,14 +588,14 @@ fn polar_mode_transition() {
     let plot = report
         .output
         .world
-        .procedural_plot(track.id)
+        .procedural_plot(track)
         .expect("polar curve should have a procedural_plot");
     assert_eq!(plot.kind, PlotCurveKind::Polar, "plot kind should be Polar");
 
     // Sample at mid-transition and verify non-empty output.
     let env = stdlib_env();
     let paths =
-        sample_procedural_plot_at(plot, &env, 2500, report.output.world.func_transitions(track.id));
+        sample_procedural_plot_at(plot, &env, 2500, report.output.world.func_transitions(track));
     assert!(!paths.is_empty(), "Expected output paths for polar mid-transition");
     assert!(
         !paths[0].path.elements().is_empty(),
@@ -648,15 +629,15 @@ fn parametric_mode_transition() {
         report.diagnostics
     );
 
-    let track = report.output.get_track("curve").expect("curve track should exist");
+    let track = report.output.get_entity_id("curve").expect("curve track should exist");
 
     assert_eq!(
-        report.output.world.func_transitions(track.id).len(),
+        report.output.world.func_transitions(track).len(),
         1,
         "Expected 1 FuncTransition for parametric mode"
     );
 
-    let t = &report.output.world.func_transitions(track.id)[0];
+    let t = &report.output.world.func_transitions(track)[0];
     assert_eq!(t.start_ms, 2000, "start_ms should be 2000");
     assert_eq!(t.end_ms, 3000, "end_ms should be 3000");
     assert_eq!(t.from.arity(), 1, "from arity should be 1");
@@ -666,14 +647,14 @@ fn parametric_mode_transition() {
     let plot = report
         .output
         .world
-        .procedural_plot(track.id)
+        .procedural_plot(track)
         .expect("parametric curve should have a procedural_plot");
     assert_eq!(plot.kind, PlotCurveKind::Parametric, "plot kind should be Parametric");
 
     // Sample at mid-transition and verify non-empty output.
     let env = stdlib_env();
     let paths =
-        sample_procedural_plot_at(plot, &env, 2500, report.output.world.func_transitions(track.id));
+        sample_procedural_plot_at(plot, &env, 2500, report.output.world.func_transitions(track));
     assert!(!paths.is_empty(), "Expected output paths for parametric mid-transition");
     assert!(
         !paths[0].path.elements().is_empty(),
@@ -710,9 +691,9 @@ fn invalid_arity_emits_diagnostic() {
         report.diagnostics
     );
 
-    let track = report.output.get_track("curve").expect("curve track should still exist");
+    let track = report.output.get_entity_id("curve").expect("curve track should still exist");
     assert!(
-        report.output.world.func_transitions(track.id).is_empty(),
+        report.output.world.func_transitions(track).is_empty(),
         "No FuncTransition should be created when arity mismatches"
     );
 }
@@ -739,15 +720,15 @@ fn static_plot_no_transitions() {
         report.diagnostics
     );
 
-    let track = report.output.get_track("curve").expect("curve track should exist");
+    let track = report.output.get_entity_id("curve").expect("curve track should exist");
 
     assert!(
-        report.output.world.func_transitions(track.id).is_empty(),
+        report.output.world.func_transitions(track).is_empty(),
         "Static plot should have no FuncTransitions"
     );
 
     assert!(
-        report.output.world.procedural_plot(track.id).is_some(),
+        report.output.world.procedural_plot(track).is_some(),
         "Static plot should have a procedural_plot for potential future transitions"
     );
 }
@@ -805,10 +786,10 @@ fn always_bare_variable_assignment_updates_plot_closure() {
         "expected freq={expected_freq}, got {frame_freq}"
     );
 
-    let track = timeline.get_track("curve").expect("curve track should exist");
+    let track = timeline.get_entity_id("curve").expect("curve track should exist");
     let plot = timeline
         .world
-        .procedural_plot(track.id)
+        .procedural_plot(track)
         .expect("curve should have a procedural plot");
     let source = FuncSource::Compiled(
         plot.func_args.clone(),
@@ -862,13 +843,13 @@ fn for_loop_closure_captures_loop_variable() {
         let track_name = format!("curve{}", suffix);
         let track = report
             .output
-            .get_track(&track_name)
+            .get_entity_id(&track_name)
             .unwrap_or_else(|| panic!("{} track should exist", track_name));
 
         let plot = report
             .output
             .world
-            .procedural_plot(track.id)
+            .procedural_plot(track)
             .unwrap_or_else(|| panic!("{} should have procedural_plot", track_name));
 
         // Verify that `freq` was captured in extra_captures.
@@ -936,16 +917,16 @@ fn adaptive_quality_reduces_depth_for_blends() {
         .collect();
     assert!(errors.is_empty(), "Unexpected build errors: {:?}", errors);
 
-    let track = report.output.get_track("curve").expect("curve track should exist");
+    let track = report.output.get_entity_id("curve").expect("curve track should exist");
 
     assert_eq!(
-        report.output.world.func_transitions(track.id).len(),
+        report.output.world.func_transitions(track).len(),
         3,
         "Expected 3 FuncTransitions for 3-deep blend"
     );
 
     // Verify the from of the third transition is a nested Blend (depth >= 2).
-    let third_from = &report.output.world.func_transitions(track.id)[2].from;
+    let third_from = &report.output.world.func_transitions(track)[2].from;
     let depth = blend_depth(third_from);
     assert!(
         depth >= 2,
@@ -959,15 +940,11 @@ fn adaptive_quality_reduces_depth_for_blends() {
     let plot = report
         .output
         .world
-        .procedural_plot(track.id)
+        .procedural_plot(track)
         .expect("curve should have a procedural_plot")
         .clone();
-    let paths = sample_procedural_plot_at(
-        &plot,
-        &env,
-        2750,
-        report.output.world.func_transitions(track.id),
-    );
+    let paths =
+        sample_procedural_plot_at(&plot, &env, 2750, report.output.world.func_transitions(track));
     assert!(!paths.is_empty(), "Expected output paths during 3-deep blend");
     assert!(
         !paths[0].path.elements().is_empty(),

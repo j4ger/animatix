@@ -18,12 +18,12 @@ impl Timeline {
         let time_ms = frame.time_ms;
         let scene_dimensions = frame.scene_dimensions;
         let overrides = frame.overrides;
-        let Some(track) = self
-            .world
-            .tracks
-            .get_by_id(node_id)
-            .or_else(|| self.world.tracks.get(node_label))
-        else {
+        // Resolve the scope's entity id: trust `node_id`, fall back to the label.
+        let node_id = if self.world.exists(node_id) {
+            node_id
+        } else if let Some(id) = self.world.get_id(node_label) {
+            id
+        } else {
             return;
         };
 
@@ -32,7 +32,7 @@ impl Timeline {
         } else {
             std::sync::Arc::new(crate::timeline::layout::LayoutPositions::new())
         };
-        let half_size = self.world.geometry(track.id).size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+        let half_size = self.world.geometry(node_id).size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
 
         // Resolve the clip geometry. A child labelled `clip_shape` defines
         // the clip and is NOT rendered itself; its primitive supplies the
@@ -40,21 +40,21 @@ impl Timeline {
         // extension) works. Without one — or when the primitive has no clip
         // geometry — the clip falls back to a rect covering the Mask's own
         // size; the latter case warns instead of silently clipping wrong.
-        let clip_shape_track = self
+        let clip_child_id = self
             .world
             .hierarchy(node_id)
             .children
             .iter()
-            .filter_map(|id| self.world.tracks.get_by_id(*id))
-            .find(|c| self.world.label(c.id).unwrap_or("") == "clip_shape");
+            .find(|id| self.world.label(**id).unwrap_or("") == "clip_shape")
+            .copied();
         let fallback_clip = || {
             let w = half_size[0] as f64;
             let h = half_size[1] as f64;
             kurbo::Rect::new(-w, -h, w, h).into_path(1e-3)
         };
-        let clip_path: kurbo::BezPath = match clip_shape_track {
-            Some(child) => {
-                match self.clip_path_for_child(child, time_ms, scene_dimensions, overrides) {
+        let clip_path: kurbo::BezPath = match clip_child_id {
+            Some(child_id) => {
+                match self.clip_path_for_child(child_id, time_ms, scene_dimensions, overrides) {
                     Some(path) => path,
                     None => {
                         self.eval_caches.runtime_diagnostics.borrow_mut().push(
@@ -64,7 +64,7 @@ impl Timeline {
                                 format!(
                                     "Mask clip_shape '{}' provides no clip geometry; \
                                          using a rectangular clip",
-                                    self.world.label(child.id).unwrap_or("")
+                                    self.world.label(child_id).unwrap_or("")
                                 ),
                             ),
                         );
@@ -74,7 +74,6 @@ impl Timeline {
             },
             None => fallback_clip(),
         };
-        let clip_child_id = clip_shape_track.map(|c| c.id);
 
         // Push clip layer. The clip path is in the mask's LOCAL space, so
         // it must be transformed into out.scene space — pushing it with the
@@ -91,8 +90,8 @@ impl Timeline {
 
         // Render all children normally inside the clip
         for &child_id in &self.world.hierarchy(node_id).children {
-            if let Some(child_track) = self.world.tracks.get_by_id(child_id) {
-                if clip_child_id == Some(child_track.id) {
+            if self.world.exists(child_id) {
+                if clip_child_id == Some(child_id) {
                     continue;
                 }
                 self.evaluate_node_by_id(

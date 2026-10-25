@@ -4,8 +4,8 @@ use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::renderer::error::RenderError;
 use crate::timeline::{
-    ActorCaps, ActorCategory, AnimationTrack, DEFAULT_WHITE, Environment, SceneDimensions, Value,
-    VectorShapeState, VelloPath,
+    ActorCaps, ActorCategory, DEFAULT_WHITE, Environment, SceneDimensions, Value, VectorShapeState,
+    VelloPath,
 };
 
 use super::commands::RenderCommand;
@@ -212,7 +212,7 @@ pub fn evaluate_text_paths(
         }
     }
     if content_override.is_none() && text.text_paths.is_some() {
-        let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(text, style, ctx.time_ms);
+        let (paths, clip) = text.evaluate_paths_and_clip(style, ctx.time_ms);
         let track_anchor = text.text_anchor.get(ctx.time_ms, "center".to_string());
         if text_anchor != track_anchor && !paths.is_empty() {
             let half_size = crate::renderer::text::measure_text_paths(&paths);
@@ -281,7 +281,7 @@ pub fn evaluate_text_paths(
         );
         Ok((std::sync::Arc::from(paths_vec), clip))
     } else {
-        let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(text, style, ctx.time_ms);
+        let (paths, clip) = text.evaluate_paths_and_clip(style, ctx.time_ms);
         Ok((std::sync::Arc::from(paths), clip))
     }
 }
@@ -437,7 +437,7 @@ pub trait Primitive: Send + Sync {
         // Return the memo payload for reuse (shape primitives take/recycle it).
         ctx.world
             .expect("shape memo requires a world")
-            .recycle_shape_commands(ctx.track, commands);
+            .recycle_shape_commands(ctx.id, commands);
         path
     }
 
@@ -550,7 +550,6 @@ pub trait Primitive: Send + Sync {
     /// Default implementation returns `false` (delegate to generic engine).
     fn handle_assignment(
         &self,
-        _track: &mut AnimationTrack,
         _property: &str,
         _value: &Expr,
         _ctx: &mut AssignmentCtx,

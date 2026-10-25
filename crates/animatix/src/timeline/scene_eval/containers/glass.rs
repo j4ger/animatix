@@ -23,12 +23,12 @@ impl Timeline {
     ) {
         let time_ms = frame.time_ms;
         let scene_dimensions = frame.scene_dimensions;
-        let Some(track) = self
-            .world
-            .tracks
-            .get_by_id(node_id)
-            .or_else(|| self.world.tracks.get(node_label))
-        else {
+        // Resolve the scope's entity id: trust `node_id`, fall back to the label.
+        let node_id = if self.world.exists(node_id) {
+            node_id
+        } else if let Some(id) = self.world.get_id(node_label) {
+            id
+        } else {
             return;
         };
 
@@ -50,7 +50,7 @@ impl Timeline {
         // disabled every glass panel that was not the scene's last root actor.
         let chain = self
             .world
-            .effects(track.id)
+            .effects(node_id)
             .map(|effects| effects.build_chain(time_ms))
             .unwrap_or_default();
         let has_backend = out.filter_backend.is_some();
@@ -87,7 +87,7 @@ impl Timeline {
         // same pixels the panel was drawn with.
         let half = self
             .world
-            .geometry(track.id)
+            .geometry(node_id)
             .size
             .get(time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
         let panel = kurbo::Rect::new(
@@ -128,7 +128,7 @@ impl Timeline {
         let region = Self::region_from_rect(
             panel,
             self.world
-                .effects(track.id)
+                .effects(node_id)
                 .map(|effects| effects.worst_case_support())
                 .unwrap_or(0.0),
             scene_dimensions,
@@ -155,7 +155,7 @@ impl Timeline {
         let [a, b, ..] = global_transform.as_coeffs();
         let scale = (a * a + b * b).sqrt().max(0.0);
         let corner_radius =
-            self.world.shape(track.id).corner_radius.get(time_ms, 0.0) as f64 * scale;
+            self.world.shape(node_id).corner_radius.get(time_ms, 0.0) as f64 * scale;
         let Some(backend) = out.filter_backend.as_mut() else {
             return;
         };

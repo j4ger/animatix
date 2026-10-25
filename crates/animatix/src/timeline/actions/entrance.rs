@@ -51,7 +51,7 @@ impl BuiltinAction for WipeIn {
                 continue;
             }
 
-            let Some(id) = timeline.world.tracks.get_id(target) else {
+            let Some(id) = timeline.world.get_id(target) else {
                 continue;
             };
             let style = timeline.world.style.get_mut(id);
@@ -133,7 +133,7 @@ impl BuiltinAction for FadeIn {
 
             if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
                 let guard_time = t_start_ms.saturating_sub(1);
-                if let Some(id) = timeline.world.tracks.get_id(target) {
+                if let Some(id) = timeline.world.get_id(target) {
                     let style = timeline.world.style_mut(id);
                     super::ensure_guard_keyframe(&mut style.opacity, guard_time, 1.0);
                 }
@@ -148,11 +148,11 @@ impl BuiltinAction for FadeIn {
             let was_hidden = timeline
                 .world
                 .meta
-                .get(timeline.world.tracks.get_id(target).unwrap_or_default())
+                .get(timeline.world.get_id(target).unwrap_or_default())
                 .is_some_and(|m| m.hidden_by_default);
             super::lift_hidden_by_default_subtree(timeline, target, t_start_ms, t_end_ms, easing);
             if !was_hidden {
-                let Some(id) = timeline.world.tracks.get_id(target) else {
+                let Some(id) = timeline.world.get_id(target) else {
                     continue;
                 };
                 let style = timeline.world.style_mut(id);
@@ -305,8 +305,8 @@ mod tests {
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.world.tracks.get("headline").expect("headline track");
-        let style = report.output.world.style(track.id);
+        let headline_id = report.output.world.get_id("headline").expect("headline id");
+        let style = report.output.world.style(headline_id);
 
         assert_eq!(style.opacity.get(0, 1.0), 0.0);
         assert!(style.opacity.get(500, 1.0) > 0.0);
@@ -323,8 +323,8 @@ mod tests {
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.world.tracks.get("panel").expect("panel track");
-        let style = report.output.world.style(track.id);
+        let panel_id = report.output.world.get_id("panel").expect("panel id");
+        let style = report.output.world.style(panel_id);
 
         assert_eq!(style.stroke_progress.get(0, 1.0), 0.0);
         assert_eq!(style.fill_opacity.get(0, 1.0), 0.0);
@@ -370,8 +370,8 @@ mod tests {
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.world.tracks.get("panel").expect("panel track");
-        let style = report.output.world.style(track.id);
+        let panel_id = report.output.world.get_id("panel").expect("panel id");
+        let style = report.output.world.style(panel_id);
 
         assert_eq!(style.opacity.get(0, 1.0), 0.0);
         assert_eq!(
@@ -395,8 +395,8 @@ mod tests {
             }];
 
             let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-            let track = report.output.world.tracks.get("panel").expect("panel track");
-            let style = report.output.world.style(track.id);
+            let panel_id = report.output.world.get_id("panel").expect("panel id");
+            let style = report.output.world.style(panel_id);
 
             assert_eq!(
                 style.opacity.get(1000, 1.0),
@@ -420,8 +420,8 @@ mod tests {
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.world.tracks.get("panel").expect("panel track");
-        let style = report.output.world.style(track.id);
+        let panel_id = report.output.world.get_id("panel").expect("panel id");
+        let style = report.output.world.style(panel_id);
 
         assert_eq!(style.opacity.get(1000, 1.0), 0.25);
     }
@@ -464,15 +464,15 @@ mod tests {
         ];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.world.tracks.get("panel").expect("panel track");
-        let style = report.output.world.style(track.id);
+        let panel_id = report.output.world.get_id("panel").expect("panel id");
+        let style = report.output.world.style(panel_id);
 
         assert_eq!(style.opacity.get(0, 1.0), 0.0);
         assert_eq!(style.opacity.get(400, 1.0), 0.0, "still hidden before the wipe");
         assert!(style.opacity.get(900, 1.0) > 0.0, "opacity must rise during the wipe");
         assert_eq!(style.opacity.get(1200, 1.0), 1.0, "fully visible after the wipe");
         assert!(
-            !report.output.world.meta(track.id).hidden_by_default,
+            !report.output.world.meta(panel_id).hidden_by_default,
             "flag must be consumed by the lift"
         );
         assert!(report.diagnostics.is_empty());
@@ -501,10 +501,10 @@ mod tests {
         ];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.world.tracks.get("panel").expect("panel track");
-        let style = report.output.world.style(track.id);
+        let panel_id = report.output.world.get_id("panel").expect("panel id");
+        let style = report.output.world.style(panel_id);
 
-        assert!(!report.output.world.meta(track.id).hidden_by_default);
+        assert!(!report.output.world.meta(panel_id).hidden_by_default);
         assert_eq!(style.opacity.get(1200, 1.0), 0.3, "explicit opacity is preserved");
     }
 }

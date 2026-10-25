@@ -349,12 +349,8 @@ impl Timeline {
         self.world.set_identity(track_id, ty);
         let track_caps = self.world.caps(track_id);
         self.world.property_plan.get_mut(track_id).rebuild_for(&track_caps, ty);
-        let existing_track = self
-            .world
-            .tracks
-            .get(label)
-            .cloned()
-            .expect("plot host track created immediately above");
+        let existing_track_id =
+            self.world.get_id(label).expect("plot host track created immediately above");
 
         if let Some(ProcessedPlotActor {
             initial_size,
@@ -380,10 +376,10 @@ impl Timeline {
             parent_label,
             children,
             diagnostics,
-            &existing_track,
+            existing_track_id,
         ) {
             // Use returned values for keyframe insertion
-            let mut position = self.world.geometry(existing_track.id).position.last([0.0, 0.0]);
+            let mut position = self.world.geometry(existing_track_id).position.last([0.0, 0.0]);
             let eval_env = self.build_eval_env(time_ms as u64);
             for prop in props {
                 if prop.name == "at" || prop.name == "position" {
@@ -502,7 +498,6 @@ impl Timeline {
 
             self.world.meta.record_first_seen(track_id, t_start_ms);
 
-            let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
             let style = self.world.style.get_mut(track_id);
             let shape = self.world.shape.get_mut(track_id);
             let geometry = self.world.geometry.get_mut(track_id);
@@ -512,7 +507,7 @@ impl Timeline {
             if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
                 self.world
                     .meta
-                    .get_or_insert_with(track.id, crate::timeline::world::EntityMeta::default)
+                    .get_or_insert_with(track_id, crate::timeline::world::EntityMeta::default)
                     .hidden_by_default = true;
                 style.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
             }
@@ -528,7 +523,7 @@ impl Timeline {
 
             // === Keyframe Insertion ===
             if duration_ms > 0.0 {
-                insert_start_keyframes(track, style, geometry, shape, track_caps, t_start_ms);
+                insert_start_keyframes(style, geometry, shape, track_caps, t_start_ms);
             } else if delay_ms > 0.0 {
                 preserve_delayed_values(style, geometry, shape, t_start_ms);
             }
@@ -538,7 +533,6 @@ impl Timeline {
             let dash_pattern = style.dash_pattern.last(Vec::new());
             let dash_offset = style.dash_offset.last(0.0);
             insert_end_keyframes(
-                track,
                 style,
                 geometry,
                 shape,

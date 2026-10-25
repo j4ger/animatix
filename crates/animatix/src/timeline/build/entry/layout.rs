@@ -50,11 +50,11 @@ impl Timeline {
         let child_extents: Vec<ChildExtent> = child_labels
             .iter()
             .filter_map(|cl| {
-                let track = self.world.tracks.get(cl)?;
-                let geometry = self.world.geometry(track.id);
+                let child_id = self.world.get_id(cl)?;
+                let geometry = self.world.geometry(child_id);
                 // Use layout_size_last() to get the most recently keyframed value,
                 // consistent with apply_container_layout().
-                let half_size = track.layout_size_last(geometry)?;
+                let half_size = geometry.layout_size_last()?;
                 Some(ChildExtent {
                     label: cl.clone(),
                     half_size,

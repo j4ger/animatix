@@ -10,8 +10,8 @@ pub fn timeline_duration_seconds(
     if let Some(timeline) = timeline {
         timeline
             .tracks()
-            .values()
-            .map(|track| timeline.world().max_keyframe_time(track.id).unwrap_or(0))
+            .iter()
+            .map(|(_, id)| timeline.world().max_keyframe_time(id).unwrap_or(0))
             .max()
             .unwrap_or(0) as f64
             / 1000.0

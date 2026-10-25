@@ -129,8 +129,8 @@ impl Timeline {
         let max_ms = self
             .world
             .tracks
-            .values()
-            .map(|t| self.world.max_keyframe_time(t.id).unwrap_or(0))
+            .iter()
+            .map(|(_, id)| self.world.max_keyframe_time(id).unwrap_or(0))
             .max()
             .unwrap_or(0)
             .max(self.background_color.max_keyframe_time_ms())
@@ -186,10 +186,10 @@ impl Timeline {
     /// Collects actor labels with non-empty `shared_id` at `time_ms`, keyed by `shared_id`.
     pub fn shared_id_actors(&self, time_ms: u64) -> std::collections::HashMap<String, String> {
         let mut map = std::collections::HashMap::new();
-        for (label, track) in &self.world.tracks {
+        for (label, entity_id) in self.world.tracks.iter() {
             if let Some(crate::timeline::property_engine::PropertyValue::String(id)) =
                 self.world.read_property_value(
-                    track.id,
+                    entity_id,
                     crate::timeline::ActorField::Tagged("shared_id"),
                     time_ms,
                 )
@@ -228,24 +228,24 @@ impl Timeline {
     /// and dynamic plot parameter tracks that the registry cannot enumerate statically.
     pub fn keyframe_times_s(&self) -> Vec<f64> {
         let mut times_ms: BTreeSet<u64> = BTreeSet::new();
-        for track in self.world.tracks.values() {
+        for (_, entity_id) in self.world.tracks.iter() {
             // Registry-driven: covers all applicable fields for this actor kind
             for &time_s in
-                collect_all_keyframe_times(track, self.world.effects(track.id), Some(&self.world))
+                collect_all_keyframe_times(entity_id, self.world.effects(entity_id), &self.world)
                     .iter()
             {
                 let ms = (time_s * 1000.0) as u64;
                 times_ms.insert(ms);
             }
             // D4 exception: dynamic plot parameter tracks (not statically representable)
-            if let Some(param_tracks) = self.world.plot_param_tracks(track.id) {
+            if let Some(param_tracks) = self.world.plot_param_tracks(entity_id) {
                 for pt in param_tracks.values() {
                     times_ms.extend(pt.keyframes.keys().copied());
                 }
             }
             // Tagged union tracks are registry-representable, but include them
             // directly as a defensive catch for properties without a schema.
-            if let Some(tagged) = self.world.tagged_tracks.try_get(track.id) {
+            if let Some(tagged) = self.world.tagged_tracks.try_get(entity_id) {
                 for pt in tagged.values().flatten() {
                     times_ms.extend(pt.keyframes.keys().copied());
                 }
@@ -288,8 +288,8 @@ impl Timeline {
         self.world
             .tracks
             .iter()
-            .find(|(_, track)| {
-                let children = &self.world.hierarchy(track.id).children;
+            .find(|(_, entity_id)| {
+                let children = &self.world.hierarchy(*entity_id).children;
                 children.contains(&child_a) && children.contains(&child_b)
             })
             .map(|(label, _)| label.clone())

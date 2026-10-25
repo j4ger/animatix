@@ -6,9 +6,7 @@ use crate::easing::Easing;
 use crate::primitives::{AssignmentCtx, BuildCtx, Primitive};
 use crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::{
-    AnimationTrack, Environment, SceneDimensions, Value, preserve_instant_delayed_value,
-};
+use crate::timeline::{Environment, SceneDimensions, Value, preserve_instant_delayed_value};
 
 /// The `Image` primitive.
 pub struct ImagePrimitive;
@@ -42,7 +40,6 @@ impl Primitive for ImagePrimitive {
 
     fn handle_assignment(
         &self,
-        _track: &mut AnimationTrack,
         property: &str,
         value: &Expr,
         ctx: &mut AssignmentCtx,

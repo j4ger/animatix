@@ -9,8 +9,8 @@ use super::*;
 /// `evaluate()` immediately sees the new value.
 ///
 /// The geometry tier is a `World` component (`World::geometry`), so this
-/// takes the world and the entity id rather than a bare `AnimationTrack`; the
-/// world-aware field bundle resolves geometry, style, shape, and text writes.
+/// takes the world and the entity id; the world-aware field bundle resolves
+/// geometry, style, shape, and text writes.
 pub(super) fn apply_property_edit_to_entity(
     world: &mut animatix::timeline::World,
     id: animatix::timeline::EntityId,
@@ -20,9 +20,8 @@ pub(super) fn apply_property_edit_to_entity(
     legacy_tagged: &mut Vec<(String, animatix::timeline::PropertyValue)>,
     field_writes: &mut Vec<(animatix::timeline::ActorField, animatix::timeline::PropertyValue)>,
 ) {
-    use animatix::timeline::{PropertyTrack, TrackFieldMut};
-
     use crate::app::panels::PropertyValue as PV;
+    use animatix::timeline::{PropertyTrack, TrackAccessor, TrackFieldMut};
 
     let linear = animatix_syntax::easing::Easing::Linear;
 
@@ -451,8 +450,8 @@ fn is_shape_field(field: animatix::timeline::ActorField) -> bool {
 
 /// Apply an edit to a shape-tier angle property (`start_angle`/`sweep_angle`).
 ///
-/// The shape tier is a `World` component, not an `AnimationTrack` field, so the
-/// caller passes the entity's shape tier in explicitly. Returns `true` when the
+/// The shape tier is a `World` component, so the caller passes the entity's
+/// shape tier in explicitly. Returns `true` when the
 /// edit was a shape-angle edit and has been applied.
 pub(super) fn apply_shape_angle_edit(
     shape: &mut animatix::timeline::animation_track::ShapeTracks,
@@ -460,7 +459,7 @@ pub(super) fn apply_shape_angle_edit(
     value: &panels::PropertyValue,
     time_ms: u64,
 ) -> bool {
-    use animatix::timeline::PropertyTrack;
+    use animatix::timeline::{PropertyTrack, TrackAccessor};
 
     use crate::app::panels::PropertyValue as PV;
 

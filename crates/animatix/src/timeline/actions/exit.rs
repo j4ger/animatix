@@ -44,7 +44,7 @@ impl BuiltinAction for FadeOut {
                 continue;
             }
 
-            let Some(id) = timeline.world.tracks.get_id(target) else {
+            let Some(id) = timeline.world.get_id(target) else {
                 continue;
             };
             let style = timeline.world.style_mut(id);
@@ -127,8 +127,8 @@ mod tests {
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.world.tracks.get("headline").expect("headline track");
-        let style = report.output.world.style(track.id);
+        let headline_id = report.output.world.get_id("headline").expect("headline id");
+        let style = report.output.world.style(headline_id);
 
         assert_eq!(style.opacity.get(0, 1.0), 1.0);
         assert!(style.opacity.get(500, 1.0) < 1.0);

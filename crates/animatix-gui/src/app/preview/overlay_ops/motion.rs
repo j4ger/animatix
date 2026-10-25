@@ -39,11 +39,11 @@ pub fn motion_path_ops(
 ) -> Vec<PreviewOverlayOp> {
     let mut ops = Vec::new();
     for actor in selected_actors {
-        let track = match timeline.get_track(&actor) {
-            Some(track) => track,
+        let id = match timeline.get_entity_id(&actor) {
+            Some(id) => id,
             None => continue,
         };
-        let pos_track = match &timeline.world().geometry(track.id).position {
+        let pos_track = match &timeline.world().geometry(id).position {
             Some(track) => track,
             None => continue,
         };

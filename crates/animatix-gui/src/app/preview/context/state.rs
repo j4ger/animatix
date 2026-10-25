@@ -79,8 +79,8 @@ impl PreviewContext<'_> {
         let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
         self.timeline
             .and_then(|t| {
-                t.get_track(actor).map(|tr| {
-                    let affordances = crate::app::primitives::actor_gizmo_affordances(tr, t);
+                t.get_entity_id(actor).map(|id| {
+                    let affordances = crate::app::primitives::actor_gizmo_affordances(id, t);
                     let mode = affordances
                         .iter()
                         .find_map(|a| match a {
@@ -95,7 +95,7 @@ impl PreviewContext<'_> {
                             _ => None,
                         })
                         .unwrap_or(preview::ResizeMode::Size);
-                    (mode, t.world().geometry(tr.id).scale.get(time_ms, 1.0))
+                    (mode, t.world().geometry(id).scale.get(time_ms, 1.0))
                 })
             })
             .unwrap_or((preview::ResizeMode::Size, 1.0))

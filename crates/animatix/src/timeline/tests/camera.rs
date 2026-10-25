@@ -286,9 +286,9 @@ config { colorscheme: "editorial-dark", resolution: (640, 360) }
 hud: Rect, size: (40, 40), at: (420, 180), camera_follow: "no"
 "#,
     );
-    let track = timeline.world.tracks.get("hud").expect("hud track");
+    let track = timeline.world.tracks.get_id("hud").expect("hud track");
     assert!(
-        timeline.world.meta(track.id).camera_follow,
+        timeline.world.meta(track).camera_follow,
         "a value the bool parser rejects must not flip the flag"
     );
 }
@@ -331,7 +331,7 @@ bg: Filter, bounds: (40, 30, 120, 80), camera_follow: false {
 camera.zoom = 2.0
 "#,
     );
-    let scope = timeline.world.tracks.get("bg").expect("filter scope");
+    let scope = timeline.world.tracks.get_id("bg").expect("filter scope");
     let dims = SceneDimensions {
         width: 640,
         height: 360,

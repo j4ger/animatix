@@ -1,7 +1,7 @@
 //! Effect-chain storage owned by a compositing scope.
 //!
 //! Effects are not primitives or actors: a `Filter` scope lowers its effect
-//! children into an [`EffectChainTrack`] on its own `AnimationTrack`. The chain
+//! children into an [`EffectChainTrack`] component on its own entity. The chain
 //! holds ordered [`EffectStage`]s whose parameters animate through [`DynTrack`],
 //! and is sampled into the renderer-facing [`EffectChain`] at frame time.
 

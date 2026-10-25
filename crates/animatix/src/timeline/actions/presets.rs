@@ -83,12 +83,11 @@ fn run_preset(
         // `opacity: 0` seed is lifted past rather than settled on.
         let was_hidden = timeline
             .world
-            .meta
-            .get(timeline.world.tracks.get_id(target).unwrap_or_default())
-            .is_some_and(|m| m.hidden_by_default);
+            .get_id(target)
+            .is_some_and(|id| timeline.world.meta(id).hidden_by_default);
         super::lift_hidden_by_default_subtree(timeline, target, t_start_ms, t_end_ms, easing);
         if !was_hidden {
-            let Some(id) = timeline.world.tracks.get_id(target) else {
+            let Some(id) = timeline.world.get_id(target) else {
                 continue;
             };
             let end_opacity = super::entrance_opacity_target(timeline.world.style(id), t_start_ms);
@@ -100,8 +99,8 @@ fn run_preset(
         // Scale: ramp *relative to* the scale the actor already samples at the
         // entrance's start, so a preset never fights an authored transform.
         let authored = {
-            let track_id = match timeline.world.tracks.get(target) {
-                Some(t) => t.id,
+            let track_id = match timeline.world.get_id(target) {
+                Some(id) => id,
                 None => continue,
             };
             let geometry = timeline.world.geometry_mut(track_id);

@@ -232,16 +232,16 @@ impl DocumentController<'_> {
         }
         let document = &self.document_store.source.document;
         self.ui_store.selection.selected_keyframes.retain(|keyframe| {
-            let Some((_track, geometry, style, shape, text)) =
+            let Some((_id, geometry, style, shape, text)) =
                 resolve_timeline_for_scene(document, keyframe.scene.as_deref()).and_then(
                     |timeline| {
-                        let track = timeline.get_track(&keyframe.actor)?;
+                        let id = timeline.get_entity_id(&keyframe.actor)?;
                         Some((
-                            track,
-                            timeline.world().geometry(track.id),
-                            timeline.world().style(track.id),
-                            timeline.world().shape(track.id),
-                            timeline.world().text(track.id),
+                            id,
+                            timeline.world().geometry(id),
+                            timeline.world().style(id),
+                            timeline.world().shape(id),
+                            timeline.world().text(id),
                         ))
                     },
                 )

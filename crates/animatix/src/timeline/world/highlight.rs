@@ -18,13 +18,38 @@ impl World {
 }
 
 impl World {
-    /// Maximum keyframe time across the track tiers, payload and highlight.
+    /// Maximum keyframe time across the entity's property stores, payload and
+    /// highlight.
+    ///
+    /// Registry-backed slots are introspected through the property plan and
+    /// the tier components; the payload contributes its plot parameter tracks
+    /// and transition end times.
     #[inline]
     pub fn max_keyframe_time(&self, id: EntityId) -> Option<u64> {
-        let track = self
-            .tracks
-            .get_by_id(id)
-            .and_then(|track| track.max_keyframe_time_with(self.payload.get(id)));
+        let mut max: Option<u64> = None;
+        let payload = self.payload.get(id);
+        if let Some(tracks) = payload
+            .and_then(|payload| payload.as_plot())
+            .map(|plot| &plot.plot_param_tracks)
+        {
+            for pt in tracks.values() {
+                if let Some(t) = pt.last_keyframe_time() {
+                    max = Some(max.map_or(t, |m| m.max(t)));
+                }
+            }
+        }
+        for ft in payload
+            .and_then(|payload| payload.as_plot())
+            .map_or(&[] as &[crate::timeline::plot::FuncTransition], |p| &p.func_transitions)
+        {
+            max = Some(max.map_or(ft.end_ms, |m| m.max(ft.end_ms)));
+        }
+        for bt in payload
+            .and_then(|payload| payload.as_plot())
+            .map_or(&[] as &[crate::timeline::plot::BarDataTransition], |p| &p.bar_data_transitions)
+        {
+            max = Some(max.map_or(bt.end_ms, |m| m.max(bt.end_ms)));
+        }
         let highlight = self.highlight.try_get(id).and_then(|h| h.max_keyframe_time());
         let tagged = self.tagged_tracks.try_get(id).and_then(|tracks| {
             tracks.values().flatten().filter_map(|t| t.last_keyframe_time()).max()
@@ -34,18 +59,23 @@ impl World {
         let style = self.style.try_get(id).and_then(|s| s.max_keyframe_time());
         let shape = self.shape.try_get(id).and_then(|s| s.max_keyframe_time());
         let text = self.text.try_get(id).and_then(|t| t.max_keyframe_time());
-        [track, highlight, tagged, plan, geometry, style, shape, text]
+        [highlight, tagged, plan, geometry, style, shape, text]
             .into_iter()
             .flatten()
-            .max()
+            .fold(max, |acc, t| Some(acc.map_or(t, |m| m.max(t))))
     }
 
-    /// Whether any tier (payload, highlight and plan included) has keyframes.
+    /// Whether any property store (payload, highlight and plan included) has
+    /// animated keyframes.
     #[inline]
     pub fn has_any_keyframes(&self, id: EntityId) -> bool {
-        self.tracks
-            .get_by_id(id)
-            .is_some_and(|track| track.has_any_keyframes_with(self.payload.get(id)))
+        let payload_animated =
+            self.payload.get(id).and_then(|payload| payload.as_plot()).is_some_and(|plot| {
+                plot.plot_param_tracks.values().any(|t| !t.is_effectively_static())
+                    || !plot.func_transitions.is_empty()
+                    || !plot.bar_data_transitions.is_empty()
+            });
+        payload_animated
             || self
                 .highlight
                 .try_get(id)

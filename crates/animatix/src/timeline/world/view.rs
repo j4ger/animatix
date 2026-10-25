@@ -1,16 +1,15 @@
 //! Read/write views over one entity.
 //!
 //! `EntityRef` and `EntityMut` are the only entity access surface outside
-//! `world/`. Domain accessors are added as each domain migrates: while a
-//! domain still lives on the transitional `AnimationTrack`, the accessor
-//! forwards to it; when the domain moves to a component store, only the
-//! accessor changes. Call sites adopt the accessor once and do not churn again.
+//! `world/`. Required-component accessors are infallible; optional ones
+//! return `Option`. Every accessor is `#[inline]`. For two mutable components
+//! at once, use the narrow `World::split_*_mut` helpers instead of nesting
+//! these borrows.
 
 use super::super::components::{
     AutoColorComponent, ChildOrderComponent, CoordinateFrameComponent, PersistenceComponent,
     TranscriptComponent,
 };
-use super::super::dispatch::AnimationTrack;
 use super::super::effects::EffectChainTrack;
 use super::super::entity::EntityId;
 use super::super::legend::LegendTracks;
@@ -41,18 +40,6 @@ impl<'w> EntityRef<'w> {
     #[inline(always)]
     pub fn label(self) -> &'w str {
         self.world.tracks.get_label(self.id).unwrap_or("")
-    }
-
-    /// The transitional aggregate track.
-    ///
-    /// Migration-only: call sites should use the domain accessors. Removed
-    /// with `AnimationTrack` in Phase 6.
-    #[inline(always)]
-    pub fn track(self) -> &'w AnimationTrack {
-        self.world
-            .tracks
-            .get_by_id(self.id)
-            .expect("EntityRef is only constructed for an existing entity")
     }
 
     /// Source span of the entity's declaration.
@@ -156,28 +143,6 @@ impl<'w> EntityMut<'w> {
     #[inline(always)]
     pub fn label(&self) -> &str {
         self.world.tracks.get_label(self.id).unwrap_or("")
-    }
-
-    /// The transitional aggregate track (read-only).
-    ///
-    /// Migration-only: removed with `AnimationTrack` in Phase 6.
-    #[inline(always)]
-    pub fn track(&self) -> &AnimationTrack {
-        self.world
-            .tracks
-            .get_by_id(self.id)
-            .expect("EntityMut is only constructed for an existing entity")
-    }
-
-    /// The transitional aggregate track (mutable).
-    ///
-    /// Migration-only: removed with `AnimationTrack` in Phase 6.
-    #[inline(always)]
-    pub fn track_mut(&mut self) -> &mut AnimationTrack {
-        self.world
-            .tracks
-            .get_by_id_mut(self.id)
-            .expect("EntityMut is only constructed for an existing entity")
     }
 
     /// Source span of the entity's declaration.

@@ -41,7 +41,7 @@ impl Primitive for LinePrimitive {
             p0: kurbo::Point::new(state.line_from[0] as f64, state.line_from[1] as f64),
             p1: kurbo::Point::new(state.line_to[0] as f64, state.line_to[1] as f64),
         };
-        let path = ctx.track.shape_path_memoized(ctx.shape.expect("shape tier"), &shape);
+        let path = ctx.shape.expect("shape tier").shape_path_memoized(&shape);
         // Line is stroke-only; override fill_opacity to 0
         Some(vec![crate::timeline::shapes::build_vello_path(
             path,

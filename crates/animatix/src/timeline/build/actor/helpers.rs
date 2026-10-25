@@ -157,7 +157,6 @@ impl Timeline {
 
     #[allow(clippy::too_many_arguments)]
     pub(super) fn insert_actor_keyframes(
-        track: &mut AnimationTrack,
         style: &mut StyleTracks,
         geometry: &mut GeometryTracks,
         shape: &mut ShapeTracks,
@@ -187,7 +186,7 @@ impl Timeline {
         morph_options: MorphOptions,
     ) {
         if duration_ms > 0.0 {
-            insert_start_keyframes(track, style, geometry, shape, caps, t_start_ms);
+            insert_start_keyframes(style, geometry, shape, caps, t_start_ms);
         } else if delay_ms > 0.0 {
             preserve_delayed_values(style, geometry, shape, t_start_ms);
         }
@@ -200,7 +199,6 @@ impl Timeline {
         }
 
         insert_end_keyframes(
-            track,
             style,
             geometry,
             shape,

@@ -163,9 +163,8 @@ fn opacity_keyframe_count(
     report
         .output
         .world
-        .tracks
-        .get(label)
-        .map(|t| report.output.world.highlight(t.id).highlight_opacity.as_ref())
+        .get_id(label)
+        .map(|id| report.output.world.highlight(id).highlight_opacity.as_ref())
         .and_then(|v| v)
         .map(|t| t.keyframes.len())
         .unwrap_or(0)
@@ -193,18 +192,17 @@ fn highlight_adds_opacity_keyframes() {
     }
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report
+    let f1_id = report
         .output
         .world
-        .tracks
-        .get("f1")
+        .get_id("f1")
         .expect("`f1` should have a track — the Equation's child was never registered");
     // highlight_opacity should have keyframes
     assert!(
         report
             .output
             .world
-            .highlight(track.id)
+            .highlight(f1_id)
             .highlight_opacity
             .as_ref()
             .map(|t| !t.keyframes.is_empty())
@@ -243,12 +241,12 @@ fn unhighlight_adds_opacity_keyframes() {
     }
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    if let Some(track) = report.output.world.tracks.get("f1") {
+    if let Some(f1_id) = report.output.world.get_id("f1") {
         assert!(
             report
                 .output
                 .world
-                .highlight(track.id)
+                .highlight(f1_id)
                 .highlight_opacity
                 .as_ref()
                 .map(|t| !t.keyframes.is_empty())

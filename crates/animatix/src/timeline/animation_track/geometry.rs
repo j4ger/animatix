@@ -484,3 +484,22 @@ impl GeometryTracks {
         )
     }
 }
+
+impl GeometryTracks {
+    /// Evaluate `layout_size` at `time_ms`.
+    pub fn layout_size_get(&self, time_ms: u64) -> Option<[f32; 2]> {
+        self.layout_size.as_ref().map(|t| t.evaluate(time_ms))
+    }
+    /// Return the last value of `layout_size`.
+    pub fn layout_size_last(&self) -> Option<[f32; 2]> {
+        self.layout_size.as_ref().map(|t| t.last_value())
+    }
+    /// Ensure `layout_size` exists, creating it with `default` if absent.
+    pub fn ensure_layout_size(&mut self, default: [f32; 2]) -> &mut PropertyTrack<[f32; 2]> {
+        self.layout_size.get_or_insert_with(|| PropertyTrack::new(default))
+    }
+    /// Return `true` if `layout_size` has been set.
+    pub fn has_layout_size(&self) -> bool {
+        self.layout_size.is_some()
+    }
+}

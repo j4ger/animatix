@@ -59,10 +59,10 @@ impl Timeline {
         frame: &crate::primitives::RenderFrame<'_>,
         out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) {
-        let Some(track) = self.world.tracks.get_by_id(node_id) else {
+        if !self.world.exists(node_id) {
             return;
-        };
-        let blend = self.track_blend_mode(track, frame.time_ms);
+        }
+        let blend = self.track_blend_mode(node_id, frame.time_ms);
         if let Some(mix) = blend {
             let unbounded = kurbo::Rect::new(-1.0e9, -1.0e9, 1.0e9, 1.0e9);
             out.scene.push_layer(
@@ -123,13 +123,13 @@ impl Timeline {
 
     /// Sample the node's `blend:` track; `None` when it is absent or
     /// "normal" (the source-over default, no layer).
-    fn track_blend_mode(&self, track: &AnimationTrack, time_ms: u64) -> Option<vello::peniko::Mix> {
+    fn track_blend_mode(&self, id: EntityId, time_ms: u64) -> Option<vello::peniko::Mix> {
         use crate::timeline::TrackAccessor;
 
         if !self.blend_used.get() {
             return None;
         }
-        let mode = self.world.style(track.id).blend.get(time_ms, "normal".to_string());
+        let mode = self.world.style(id).blend.get(time_ms, "normal".to_string());
         match mode.as_str() {
             "normal" | "" => None,
             "multiply" => Some(vello::peniko::Mix::Multiply),
@@ -150,7 +150,7 @@ impl Timeline {
             other => {
                 tracing::warn!(
                     "{}: unknown blend mode '{other}' (expected a CSS mix-mode name); treating as normal",
-                    self.world.label(track.id).unwrap_or("")
+                    self.world.label(id).unwrap_or("")
                 );
                 None
             },
@@ -159,8 +159,8 @@ impl Timeline {
 
     #[allow(dead_code)] // Fallback when label is used directly
     fn node_blend_mode(&self, node_label: &str, time_ms: u64) -> Option<vello::peniko::Mix> {
-        let track = self.world.tracks.get(node_label)?;
-        self.track_blend_mode(track, time_ms)
+        let id = self.world.get_id(node_label)?;
+        self.track_blend_mode(id, time_ms)
     }
 
     fn render_actor_node_by_id(
@@ -173,11 +173,11 @@ impl Timeline {
         frame: &crate::primitives::RenderFrame<'_>,
         out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) -> (kurbo::Affine, f32) {
-        let Some(track) = self.world.tracks.get_by_id(node_id) else {
+        if !self.world.exists(node_id) {
             return (parent_transform, parent_opacity);
-        };
+        }
         self.render_actor_node_impl(
-            track,
+            node_id,
             parent_transform,
             parent_opacity,
             layout_positions,
@@ -189,7 +189,7 @@ impl Timeline {
 
     fn render_actor_node_impl(
         &self,
-        track: &AnimationTrack,
+        node_id: EntityId,
         parent_transform: kurbo::Affine,
         parent_opacity: f32,
         layout_positions: &crate::timeline::layout::LayoutPositions,
@@ -197,7 +197,7 @@ impl Timeline {
         frame: &crate::primitives::RenderFrame<'_>,
         out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) -> (kurbo::Affine, f32) {
-        let node_label = self.world.label(track.id).unwrap_or("");
+        let node_label = self.world.label(node_id).unwrap_or("");
         let time_ms = frame.time_ms;
         let scene_dimensions = frame.scene_dimensions;
         let debug_options = frame.debug_options;
@@ -224,9 +224,9 @@ impl Timeline {
         // Skip actors that haven't been declared yet.
         // They are not clickable in the preview canvas before they appear;
         // selection is still possible via the layers / inspector tab.
-        if time_ms < self.world.meta(track.id).first_seen_ms {
+        if time_ms < self.world.meta(node_id).first_seen_ms {
             // Still recurse into children so they are also hidden
-            for &child_id in &self.world.hierarchy(track.id).children {
+            for &child_id in &self.world.hierarchy(node_id).children {
                 self.evaluate_node_by_id(
                     child_id,
                     parent_transform,
@@ -248,7 +248,7 @@ impl Timeline {
 
         let layout_pos = if self.dynamic_layout {
             layout_positions
-                .get_by_id(track.id)
+                .get_by_id(node_id)
                 .copied()
                 .or_else(|| layout_positions.get(node_label).copied())
         } else {
@@ -265,7 +265,7 @@ impl Timeline {
             let hit = if node_overrides.is_some() {
                 None
             } else {
-                let id_idx = track.id.index();
+                let id_idx = node_id.index();
                 self.eval_caches
                     .transform_cache
                     .borrow()
@@ -281,7 +281,7 @@ impl Timeline {
                 transform
             } else {
                 let t = self.evaluate_node_transform(
-                    track,
+                    node_id,
                     time_ms,
                     parent_opacity,
                     parent_transform,
@@ -291,7 +291,7 @@ impl Timeline {
                 );
                 if node_overrides.is_none() {
                     let mut cache = self.eval_caches.transform_cache.borrow_mut();
-                    let id_idx = track.id.index();
+                    let id_idx = node_id.index();
                     if id_idx >= cache.len() {
                         cache.resize(id_idx + 1, None);
                     }
@@ -306,7 +306,7 @@ impl Timeline {
 
         // Skip hidden actors (visibility toggle in GUI). Children are still
         // evaluated in render_node_children with the correct parent transform.
-        if !self.world.meta(track.id).visible {
+        if !self.world.meta(node_id).visible {
             return (local_transform, opacity);
         }
 
@@ -327,20 +327,19 @@ impl Timeline {
 
         // PF-6: shared Arc — the common static-track case returns a refcount
         // bump instead of a full path-list clone per node per frame.
-        let mut vector_paths = track.evaluate_vector_paths(
-            self.world.shape(track.id),
-            self.world.style(track.id),
-            time_ms,
-        );
+        let mut vector_paths = self
+            .world
+            .shape(node_id)
+            .evaluate_vector_paths(self.world.style(node_id), time_ms);
         // `BarChart` data transitions: once a `data = {…}` assignment has begun,
         // the declaration's paths are stale, so rebuild the bars from the dataset
         // in effect. Gated on the side channel being non-empty, so a chart whose
         // data never animates pays nothing.
-        if !self.world.bar_data_transitions(track.id).is_empty() {
-            if let Some(layout) = self.world.bar_layout(track.id) {
+        if !self.world.bar_data_transitions(node_id).is_empty() {
+            if let Some(layout) = self.world.bar_layout(node_id) {
                 let data = crate::timeline::plot::bar_data_at(
-                    self.world.bar_data(track.id),
-                    self.world.bar_data_transitions(track.id),
+                    self.world.bar_data(node_id),
+                    self.world.bar_data_transitions(node_id),
                     time_ms,
                 );
                 vector_paths = std::sync::Arc::new(layout.paths_for(&data).0);
@@ -349,19 +348,19 @@ impl Timeline {
         // Re-sample procedural plots at frame time so they can reference `t`.
         // Use the shared frame_env if available; fall back to creating one on-demand
         // (should only happen when frame_env was created at top level).
-        if let Some(procedural_plot) = self.world.procedural_plot(track.id) {
+        if let Some(procedural_plot) = self.world.procedural_plot(node_id) {
             // Guard: only resample per-frame when the plot is dynamic (references `t`
             // or has animated params) or a func transition is currently active.
             // Static, non-transitioning plots keep the cached build-time vector_paths.
             let transitioning = self
                 .world
-                .func_transitions(track.id)
+                .func_transitions(node_id)
                 .iter()
                 .any(|t| time_ms >= t.start_ms && time_ms <= t.end_ms);
             // Also use per-frame sampling once all transitions are complete so that
             // the final `to` function (not the original declaration) is rendered.
             let has_completed_transitions =
-                self.world.func_transitions(track.id).iter().any(|t| t.is_complete_at(time_ms));
+                self.world.func_transitions(node_id).iter().any(|t| t.is_complete_at(time_ms));
 
             if procedural_plot.is_dynamic(&self.frame_written_vars)
                 || transitioning
@@ -382,7 +381,7 @@ impl Timeline {
                 // deep-cloning the entire Environment hash map.
                 let mut param_bindings = Vec::new();
                 for name in &procedural_plot.param_names {
-                    if let Some(param_track) = self.world.plot_param_track(track.id, name) {
+                    if let Some(param_track) = self.world.plot_param_track(node_id, name) {
                         let val = param_track.evaluate(time_ms);
                         let num_val = crate::timeline::Value::Num(val);
                         // Set the dotted key (e.g. "curve.freq") for explicit references
@@ -410,7 +409,7 @@ impl Timeline {
                         procedural_plot,
                         env,
                         time_ms,
-                        self.world.func_transitions(track.id),
+                        self.world.func_transitions(node_id),
                     ));
 
                 if has_params {
@@ -452,13 +451,13 @@ impl Timeline {
         // "no drawable content" — nothing is drawn and no hit region or
         // precise bounds are recorded for it.
         let primitive_dispatch = {
-            let primitive = self.track_primitive_at(track, time_ms);
+            let primitive = self.track_primitive_at(node_id, time_ms);
             if let Some(primitive) = primitive {
                 // Clear the shape-memo bounds handoff: a non-shape
                 // primitive must never observe the previous node's data.
-                self.world.begin_shape_commands(track.id);
+                self.world.begin_shape_commands(node_id);
                 let ctx = crate::primitives::EvaluateCtx {
-                    track,
+                    id: node_id,
                     label: node_label,
                     time_ms,
                     local_transform,
@@ -469,16 +468,16 @@ impl Timeline {
                     vector_paths: &vector_paths,
                     asset_cache: &self.asset_cache,
                     target_resolver: Some(self),
-                    legend: self.world.legend(track.id),
+                    legend: self.world.legend(node_id),
                     world: Some(&self.world),
-                    highlight: self.world.highlight(track.id),
-                    style: Some(self.world.style(track.id)),
-                    shape: Some(self.world.shape(track.id)),
-                    geometry: Some(self.world.geometry(track.id)),
-                    text: Some(self.world.text(track.id)),
-                    property_plan: Some(self.world.property_plan(track.id)),
-                    caps: self.world.caps(track.id),
-                    payload: self.world.payload(track.id),
+                    highlight: self.world.highlight(node_id),
+                    style: Some(self.world.style(node_id)),
+                    shape: Some(self.world.shape(node_id)),
+                    geometry: Some(self.world.geometry(node_id)),
+                    text: Some(self.world.text(node_id)),
+                    property_plan: Some(self.world.property_plan(node_id)),
+                    caps: self.world.caps(node_id),
+                    payload: self.world.payload(node_id),
                 };
                 let mut text_ctx = crate::primitives::TextCompileCtx {
                     text_compiler: &mut self.text_compiler.borrow_mut(),
@@ -528,11 +527,11 @@ impl Timeline {
             // (`evaluate_program_inner` discards it otherwise). The id is the
             // entity handle, so no label is materialized per node per frame.
             if debug_options.compute_hit_regions {
-                hit_regions.push((track.id, world_bounds));
+                hit_regions.push((node_id, world_bounds));
             }
             // PF-6 slot-id bounds: the frame start stamped every track's
             // slot, so the write is a `Vec` store — no string key, no hash.
-            let slot = self.world.bounds_slot(track.id);
+            let slot = self.world.bounds_slot(node_id);
             self.record_precise_bounds(slot, node_label, world_bounds);
         };
         if let Some(commands) = primitive_dispatch {
@@ -552,10 +551,10 @@ impl Timeline {
             // build-time-computed bounds (image_size is irrelevant —
             // shape commands never carry images), skipping the per-node
             // bezpath `bounding_box` unions entirely.
-            let memo_bounds = self.world.take_shape_command_bounds(track.id);
+            let memo_bounds = self.world.take_shape_command_bounds(node_id);
             let image_size = self
                 .world
-                .image_track(track.id)
+                .image_track(node_id)
                 .is_some_and(|t| t.evaluate(time_ms).is_some())
                 .then_some(half_size);
             let local_bounds: Option<kurbo::Rect> = match memo_bounds {
@@ -578,17 +577,14 @@ impl Timeline {
             // can take them again (PF-6 round 8; `take_shape_commands`
             // returns `None` for non-memo actors, so a recycle of a
             // foreign `Vec` is simply dropped by the memo).
-            self.world.recycle_shape_commands(track, commands);
+            self.world.recycle_shape_commands(node_id, commands);
             record_hit_region(local_bounds);
 
             // Debug overlays
             if debug_options.draw_bounds {
-                let svg_paths = self.world.svg_paths_at(track.id, time_ms).unwrap_or_default();
-                let text_paths = track.evaluate_text_paths(
-                    self.world.text(track.id),
-                    self.world.style(track.id),
-                    time_ms,
-                );
+                let svg_paths = self.world.svg_paths_at(node_id, time_ms).unwrap_or_default();
+                let text_paths =
+                    self.world.text(node_id).evaluate_paths(self.world.style(node_id), time_ms);
                 let _ = self.add_node_debug_overlays(
                     &svg_paths,
                     half_size,
@@ -606,20 +602,20 @@ impl Timeline {
         (local_transform, opacity)
     }
 
-    /// Resolve the primitive a track renders with at `time_ms`. The track's
+    /// Resolve the primitive an entity renders with at `time_ms`. The entity's
     /// `actor_type` is the registry key — except across a cross-type morph,
     /// where the per-frame `shape_type` value, not the (last) identity, picks
-    /// the primitive; see `AnimationTrack::render_type_name`.
-    pub(crate) fn track_primitive_at<'a>(
-        &'a self,
-        track: &AnimationTrack,
+    /// the primitive; see `ShapeTracks::render_type_name`.
+    pub(crate) fn track_primitive_at(
+        &self,
+        node_id: EntityId,
         time_ms: u64,
-    ) -> Option<&'a dyn crate::primitives::Primitive> {
-        self.primitive_registry.find(track.render_type_name(
-            self.world.actor_type(track.id),
-            self.world.shape(track.id),
-            time_ms,
-        ))
+    ) -> Option<&dyn crate::primitives::Primitive> {
+        self.primitive_registry.find(
+            self.world
+                .shape(node_id)
+                .render_type_name(self.world.actor_type(node_id), time_ms),
+        )
     }
 
     /// Local-space clip geometry for a Mask's `clip_shape` child, obtained from
@@ -629,55 +625,54 @@ impl Timeline {
     /// has no clip geometry — the caller warns and falls back to a rectangle.
     pub(crate) fn clip_path_for_child(
         &self,
-        child: &AnimationTrack,
+        child_id: EntityId,
         time_ms: u64,
         scene_dimensions: SceneDimensions,
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> Option<kurbo::BezPath> {
-        let primitive = self.track_primitive_at(child, time_ms)?;
-        let vector_paths = child.evaluate_vector_paths(
-            self.world.shape(child.id),
-            self.world.style(child.id),
-            time_ms,
-        );
-        self.world.begin_shape_commands(child.id);
+        let primitive = self.track_primitive_at(child_id, time_ms)?;
+        let vector_paths = self
+            .world
+            .shape(child_id)
+            .evaluate_vector_paths(self.world.style(child_id), time_ms);
+        self.world.begin_shape_commands(child_id);
         let ctx = crate::primitives::EvaluateCtx {
-            track: child,
-            label: self.world.label(child.id).unwrap_or(""),
+            id: child_id,
+            label: self.world.label(child_id).unwrap_or(""),
             time_ms,
             local_transform: kurbo::Affine::IDENTITY,
             opacity: 1.0,
             scene_dimensions,
             background_color: self.eval_caches.background_color.get(),
-            overrides: overrides.get(self.world.label(child.id).unwrap_or("")),
+            overrides: overrides.get(self.world.label(child_id).unwrap_or("")),
             vector_paths: &vector_paths,
             asset_cache: &self.asset_cache,
             target_resolver: Some(self),
-            legend: self.world.legend(child.id),
+            legend: self.world.legend(child_id),
             world: Some(&self.world),
-            highlight: self.world.highlight(child.id),
-            style: Some(self.world.style(child.id)),
-            shape: Some(self.world.shape(child.id)),
-            geometry: Some(self.world.geometry(child.id)),
-            text: Some(self.world.text(child.id)),
-            property_plan: Some(self.world.property_plan(child.id)),
-            caps: self.world.caps(child.id),
-            payload: self.world.payload(child.id),
+            highlight: self.world.highlight(child_id),
+            style: Some(self.world.style(child_id)),
+            shape: Some(self.world.shape(child_id)),
+            geometry: Some(self.world.geometry(child_id)),
+            text: Some(self.world.text(child_id)),
+            property_plan: Some(self.world.property_plan(child_id)),
+            caps: self.world.caps(child_id),
+            payload: self.world.payload(child_id),
         };
         let path = primitive.clip_path(&ctx, &ctx.caps);
         // Consume the memo-bounds handoff so it can't leak into the next node.
-        let _ = self.world.take_shape_command_bounds(child.id);
+        let _ = self.world.take_shape_command_bounds(child_id);
         // Place the (origin-centered) clip geometry with the child's fully
         // resolved local transform — anchor/offset/rotation/scale included, not
         // just its raw position.
         let node = self.evaluate_node_transform(
-            child,
+            child_id,
             time_ms,
             1.0,
             kurbo::Affine::IDENTITY,
             scene_dimensions,
             None,
-            overrides.get(self.world.label(child.id).unwrap_or("")),
+            overrides.get(self.world.label(child_id).unwrap_or("")),
         );
         path.map(|mut path| {
             path.apply_affine(node.local_transform);
@@ -695,11 +690,11 @@ impl Timeline {
         frame: &crate::primitives::RenderFrame<'_>,
         out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) {
-        let Some(track) = self.world.tracks.get_by_id(node_id) else {
+        if !self.world.exists(node_id) {
             return;
-        };
+        }
         self.render_node_children_impl(
-            track,
+            node_id,
             global_transform,
             global_opacity,
             allow_pending_composites,
@@ -710,14 +705,14 @@ impl Timeline {
 
     fn render_node_children_impl(
         &self,
-        track: &AnimationTrack,
+        node_id: EntityId,
         global_transform: kurbo::Affine,
         global_opacity: f32,
         allow_pending_composites: bool,
         frame: &crate::primitives::RenderFrame<'_>,
         out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) {
-        let node_label = self.world.label(track.id).unwrap_or("");
+        let node_label = self.world.label(node_id).unwrap_or("");
         let time_ms = frame.time_ms;
         let scene_dimensions = frame.scene_dimensions;
         let debug_options = frame.debug_options;
@@ -726,7 +721,7 @@ impl Timeline {
         // The primitive is the single child-rendering entry point; the pipeline
         // no longer branches on the child-processing strategy. A primitive
         // without a registered type renders nothing (validated at build time).
-        let Some(primitive) = self.track_primitive_at(track, time_ms) else {
+        let Some(primitive) = self.track_primitive_at(node_id, time_ms) else {
             return;
         };
 
@@ -737,7 +732,7 @@ impl Timeline {
         };
         let mut ctx = crate::primitives::RenderChildrenCtx {
             timeline: self,
-            host_id: track.id,
+            host_id: node_id,
             node_label,
             time_ms,
             global_transform,
@@ -754,7 +749,7 @@ impl Timeline {
             filter_backend: &mut *out.filter_backend,
         };
         let res =
-            primitive.render_children_by_id(&mut ctx, &self.world.hierarchy(track.id).children);
+            primitive.render_children_by_id(&mut ctx, &self.world.hierarchy(node_id).children);
         if let Err(e) = res {
             let label = node_label.to_string();
             self.eval_caches.runtime_diagnostics.borrow_mut().push(

@@ -141,7 +141,7 @@ pub(crate) fn lift_hidden_by_default_subtree(
     easing: Easing,
 ) {
     let children: Vec<String> = timeline.child_labels(label).map(str::to_string).collect();
-    if let Some(id) = timeline.world.tracks.get_id(label) {
+    if let Some(id) = timeline.world.get_id(label) {
         let style = timeline.world.style.get_mut(id);
         let meta = timeline
             .world

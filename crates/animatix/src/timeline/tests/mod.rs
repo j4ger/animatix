@@ -90,7 +90,7 @@ fn property_descriptors_include_shared_builtin_schema() {
 }
 
 #[test]
-fn get_track_mut_invalidates_frame_cache() {
+fn entity_mut_invalidates_frame_cache() {
     let ast = vec![Stmt::Keyframe {
         time: crate::ast::Time::Seconds(0.0),
         body: vec![Stmt::ActorDecl {
@@ -119,10 +119,10 @@ fn get_track_mut_invalidates_frame_cache() {
     };
     let _scene = timeline.evaluate(0.0, dims);
     assert!(timeline.eval_caches.frame_cache.borrow().is_some());
-    let _track = timeline.get_track_mut("box0");
+    let _entity = timeline.entity_by_id_mut(timeline.get_entity_id("box0").unwrap());
     assert!(
         timeline.eval_caches.frame_cache.borrow().is_none(),
-        "get_track_mut should invalidate the frame cache"
+        "entity_by_id_mut should invalidate the frame cache"
     );
 }
 
@@ -215,15 +215,12 @@ fn test_animated_scene_has_keyframes() {
     );
     let timeline = report.output;
 
-    let track = timeline.get_track("box0").expect("box0 should exist");
-    assert!(
-        timeline.world().has_any_keyframes(track.id),
-        "box0 should have animated keyframes"
-    );
+    let track = timeline.get_entity_id("box0").expect("box0 should exist");
+    assert!(timeline.world().has_any_keyframes(track), "box0 should have animated keyframes");
     assert!(
         timeline
             .world()
-            .geometry(track.id)
+            .geometry(track)
             .position
             .as_ref()
             .map(|t| t.keyframes.len())
@@ -231,7 +228,7 @@ fn test_animated_scene_has_keyframes() {
             >= 2,
         "position should have at least 2 keyframes"
     );
-    let style = timeline.world().style(track.id);
+    let style = timeline.world().style(track);
     assert!(
         style.color.as_ref().map(|t| t.keyframes.len()).unwrap_or(0) >= 2,
         "color should have at least 2 keyframes"

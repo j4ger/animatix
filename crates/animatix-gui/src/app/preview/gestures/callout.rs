@@ -48,12 +48,12 @@ impl GestureHandler for CalloutGesture {
                     None => return GestureResult::Ignored,
                 };
 
-                let track = match timeline.get_track(&actor) {
-                    Some(t) => t,
+                let id = match timeline.get_entity_id(&actor) {
+                    Some(id) => id,
                     None => return GestureResult::Ignored,
                 };
 
-                if !timeline.world().caps(track.id).callout
+                if !timeline.world().caps(id).callout
                     || ctx.timeline.is_some_and(|t| t.is_actor_locked(&actor))
                 {
                     return GestureResult::Ignored;
@@ -61,8 +61,8 @@ impl GestureHandler for CalloutGesture {
 
                 let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
                 let geo = derive_callout_geometry(
-                    timeline.world().geometry(track.id),
-                    timeline.world().shape(track.id),
+                    timeline.world().geometry(id),
+                    timeline.world().shape(id),
                     time_ms,
                     Some(timeline),
                     ctx.scene_dimensions,
@@ -87,9 +87,8 @@ impl GestureHandler for CalloutGesture {
                 let hit_r = PREVIEW_HANDLE_HIT_RADIUS;
                 let scene_start = ctx.preview_screen_to_scene(preview_rect, *pos);
                 let to_offset =
-                    timeline.world().geometry(track.id).callout_to_offset.get(time_ms, [0.0, 0.0]);
-                let label_at =
-                    timeline.world().geometry(track.id).label_at.get(time_ms, [0.0, 50.0]);
+                    timeline.world().geometry(id).callout_to_offset.get(time_ms, [0.0, 0.0]);
+                let label_at = timeline.world().geometry(id).label_at.get(time_ms, [0.0, 50.0]);
 
                 // Priority 1: tip handle
                 if pos.distance(tip_screen) <= hit_r {
@@ -201,12 +200,12 @@ impl GestureHandler for CalloutGesture {
                         // Snap the absolute label point to guides/edges, then
                         // convert the snapped point back to a label offset.
                         if snap_enabled {
-                            if let (Some(timeline), Some(track)) =
-                                (ctx.timeline, ctx.timeline.and_then(|t| t.get_track(&actor)))
+                            if let Some(timeline) = ctx.timeline
+                                && let Some(id) = timeline.get_entity_id(&actor)
                             {
                                 let geo = derive_callout_geometry(
-                                    timeline.world().geometry(track.id),
-                                    timeline.world().shape(track.id),
+                                    timeline.world().geometry(id),
+                                    timeline.world().shape(id),
                                     time_ms,
                                     Some(timeline),
                                     ctx.scene_dimensions,
@@ -246,12 +245,12 @@ impl GestureHandler for CalloutGesture {
                         // For targeted callouts the authored value is an offset,
                         // so snap the derived world-space tip and convert back.
                         if snap_enabled {
-                            if let (Some(timeline), Some(track)) =
-                                (ctx.timeline, ctx.timeline.and_then(|t| t.get_track(&actor)))
+                            if let Some(timeline) = ctx.timeline
+                                && let Some(id) = timeline.get_entity_id(&actor)
                             {
                                 let geo = derive_callout_geometry(
-                                    timeline.world().geometry(track.id),
-                                    timeline.world().shape(track.id),
+                                    timeline.world().geometry(id),
+                                    timeline.world().shape(id),
                                     time_ms,
                                     Some(timeline),
                                     ctx.scene_dimensions,
@@ -259,7 +258,7 @@ impl GestureHandler for CalloutGesture {
                                 if geo.is_targeted {
                                     let current_offset = timeline
                                         .world()
-                                        .geometry(track.id)
+                                        .geometry(id)
                                         .callout_to_offset
                                         .get(time_ms, [0.0, 0.0]);
                                     let attach = [

@@ -68,8 +68,8 @@ impl BuiltinAction for Move {
                 continue;
             }
 
-            let track_id = match timeline.world.tracks.get(target) {
-                Some(t) => t.id,
+            let track_id = match timeline.world.get_id(target) {
+                Some(id) => id,
                 None => continue,
             };
             let geometry = timeline.world.geometry_mut(track_id);
@@ -229,8 +229,8 @@ fn run_move_along(
             continue;
         }
 
-        let track_id = match timeline.world.tracks.get(target) {
-            Some(t) => t.id,
+        let track_id = match timeline.world.get_id(target) {
+            Some(id) => id,
             None => continue,
         };
         let geometry = timeline.world.geometry_mut(track_id);

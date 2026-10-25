@@ -16,8 +16,8 @@ impl PreviewContext<'_> {
     /// extension primitives that emit text paths default to `"text"`.
     pub(crate) fn get_text_property(&self, actor: &str) -> Option<&'static str> {
         let timeline = self.timeline?;
-        let track = timeline.get_track(actor)?;
-        crate::app::primitives::actor_gizmo_affordances(track, timeline)
+        let id = timeline.get_entity_id(actor)?;
+        crate::app::primitives::actor_gizmo_affordances(id, timeline)
             .into_iter()
             .find_map(|a| match a {
                 crate::app::primitives::GizmoAffordance::InlineText { property } => Some(property),
@@ -28,20 +28,21 @@ impl PreviewContext<'_> {
     /// Get the current text content of a text-type actor.
     pub(crate) fn get_text_content(&self, actor: &str, property: &str) -> Option<String> {
         let timeline = self.timeline?;
-        let track = timeline.get_track(actor)?;
+        let id = timeline.get_entity_id(actor)?;
         let time_ms = (self.preview.playback.current_time_s() * 1000.0) as u64;
         let schema = animatix::timeline::lookup_property(property)?;
         // Shape-aware read: the World field bundle resolves whichever tier owns
         // the property instead of a shape-blind track accessor.
-        let value = timeline
-            .world()
-            .read_property_value(track.id, schema.field, time_ms)
-            .unwrap_or_else(|| {
-                (schema.default_value)(
-                    &animatix::timeline::caps_for_type(timeline.world().actor_type(track.id))
-                        .unwrap_or_default(),
-                )
-            });
+        let value =
+            timeline
+                .world()
+                .read_property_value(id, schema.field, time_ms)
+                .unwrap_or_else(|| {
+                    (schema.default_value)(
+                        &animatix::timeline::caps_for_type(timeline.world().actor_type(id))
+                            .unwrap_or_default(),
+                    )
+                });
         match value {
             animatix::timeline::PropertyValue::String(s) => Some(s),
             _ => None,

@@ -50,10 +50,10 @@ fn parse_blend_mode(s: &str) -> vello::peniko::Mix {
     }
 }
 
-fn is_equation_parent(timeline: &Timeline, track: &crate::timeline::AnimationTrack) -> bool {
+fn is_equation_parent(timeline: &Timeline, id: crate::timeline::EntityId) -> bool {
     timeline
         .primitive_registry
-        .info_of(timeline.world.actor_type(track.id))
+        .info_of(timeline.world.actor_type(id))
         .is_some_and(|info| info.child_processing == ChildProcessing::Equation)
 }
 
@@ -69,8 +69,8 @@ fn find_equation_parent(timeline: &Timeline, fragment: &str) -> Option<String> {
         .tracks
         .iter()
         .find(|(_, t)| {
-            is_equation_parent(timeline, t)
-                && timeline.world.hierarchy(t.id).children.contains(&fragment_id)
+            is_equation_parent(timeline, *t)
+                && timeline.world.hierarchy(*t).children.contains(&fragment_id)
         })
         .map(|(k, _)| k.clone())
 }
@@ -162,9 +162,8 @@ impl BuiltinAction for Highlight {
                 continue;
             }
 
-            let track = match timeline.world.tracks.get_mut(target) {
-                Some(t) => t,
-                None => continue,
+            let Some(id) = timeline.world.get_id(target) else {
+                continue;
             };
 
             // Set highlight color keyframe if specified
@@ -172,7 +171,7 @@ impl BuiltinAction for Highlight {
                 timeline
                     .world
                     .highlight
-                    .get_mut(track.id)
+                    .get_mut(id)
                     .highlight_color
                     .ensure([1.0, 1.0, 1.0, 1.0])
                     .add_keyframe(t_start_ms, c, Easing::Linear);
@@ -180,47 +179,37 @@ impl BuiltinAction for Highlight {
 
             // Set highlight padding keyframe if specified
             if let Some(p) = padding {
-                timeline
-                    .world
-                    .highlight
-                    .get_mut(track.id)
-                    .highlight_padding
-                    .ensure(4.0)
-                    .add_keyframe(t_start_ms, p, Easing::Linear);
+                timeline.world.highlight.get_mut(id).highlight_padding.ensure(4.0).add_keyframe(
+                    t_start_ms,
+                    p,
+                    Easing::Linear,
+                );
             }
 
             // Set highlight radius keyframe if specified
             if let Some(r) = radius {
-                timeline
-                    .world
-                    .highlight
-                    .get_mut(track.id)
-                    .highlight_radius
-                    .ensure(2.0)
-                    .add_keyframe(t_start_ms, r, Easing::Linear);
+                timeline.world.highlight.get_mut(id).highlight_radius.ensure(2.0).add_keyframe(
+                    t_start_ms,
+                    r,
+                    Easing::Linear,
+                );
             }
 
             // Set blend mode (non-animated configuration value)
-            timeline.world.highlight.get_mut(track.id).highlight_blend = blend;
+            timeline.world.highlight.get_mut(id).highlight_blend = blend;
 
             // Animate highlight opacity: 0 → 1
-            let start_opacity = timeline
-                .world
-                .highlight
-                .get_mut(track.id)
-                .highlight_opacity
-                .get(t_start_ms, 0.0);
+            let start_opacity =
+                timeline.world.highlight.get_mut(id).highlight_opacity.get(t_start_ms, 0.0);
+            timeline.world.highlight.get_mut(id).highlight_opacity.ensure(0.0).add_keyframe(
+                t_start_ms,
+                start_opacity,
+                Easing::Linear,
+            );
             timeline
                 .world
                 .highlight
-                .get_mut(track.id)
-                .highlight_opacity
-                .ensure(0.0)
-                .add_keyframe(t_start_ms, start_opacity, Easing::Linear);
-            timeline
-                .world
-                .highlight
-                .get_mut(track.id)
+                .get_mut(id)
                 .highlight_opacity
                 .ensure(0.0)
                 .add_keyframe(t_end_ms, 1.0, easing);
@@ -253,23 +242,19 @@ impl BuiltinAction for Highlight {
             siblings
         };
         for (sibling, t_start, t_end) in siblings_to_unhighlight {
-            if let Some(track) = timeline.world.tracks.get_mut(&sibling) {
+            if let Some(id) = timeline.world.get_id(&sibling) {
                 let start_opacity =
-                    timeline.world.highlight.get_mut(track.id).highlight_opacity.get(t_start, 1.0);
-                timeline
-                    .world
-                    .highlight
-                    .get_mut(track.id)
-                    .highlight_opacity
-                    .ensure(0.0)
-                    .add_keyframe(t_start, start_opacity, Easing::Linear);
-                timeline
-                    .world
-                    .highlight
-                    .get_mut(track.id)
-                    .highlight_opacity
-                    .ensure(0.0)
-                    .add_keyframe(t_end, 0.0, Easing::Linear);
+                    timeline.world.highlight.get_mut(id).highlight_opacity.get(t_start, 1.0);
+                timeline.world.highlight.get_mut(id).highlight_opacity.ensure(0.0).add_keyframe(
+                    t_start,
+                    start_opacity,
+                    Easing::Linear,
+                );
+                timeline.world.highlight.get_mut(id).highlight_opacity.ensure(0.0).add_keyframe(
+                    t_end,
+                    0.0,
+                    Easing::Linear,
+                );
             }
         }
     }
@@ -314,29 +299,22 @@ impl BuiltinAction for Unhighlight {
                 continue;
             }
 
-            let track = match timeline.world.tracks.get_mut(target) {
-                Some(t) => t,
-                None => continue,
+            let Some(id) = timeline.world.get_id(target) else {
+                continue;
             };
 
             // Animate highlight opacity: current → 0
-            let start_opacity = timeline
-                .world
-                .highlight
-                .get_mut(track.id)
-                .highlight_opacity
-                .get(t_start_ms, 1.0);
+            let start_opacity =
+                timeline.world.highlight.get_mut(id).highlight_opacity.get(t_start_ms, 1.0);
+            timeline.world.highlight.get_mut(id).highlight_opacity.ensure(0.0).add_keyframe(
+                t_start_ms,
+                start_opacity,
+                Easing::Linear,
+            );
             timeline
                 .world
                 .highlight
-                .get_mut(track.id)
-                .highlight_opacity
-                .ensure(0.0)
-                .add_keyframe(t_start_ms, start_opacity, Easing::Linear);
-            timeline
-                .world
-                .highlight
-                .get_mut(track.id)
+                .get_mut(id)
                 .highlight_opacity
                 .ensure(0.0)
                 .add_keyframe(t_end_ms, 0.0, easing);

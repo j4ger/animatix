@@ -39,7 +39,7 @@ fn mutable_access_to_a_track_moves_the_epoch() {
     // which is the single point the epoch is bumped from — so an edit made in
     // place cannot leave a frame dedup serving the pre-edit pixels.
     assert!(
-        timeline.get_track_mut("box").is_some(),
+        timeline.entity_mut("box").is_some(),
         "the fixture did not build a track named `box`"
     );
     assert_eq!(timeline.content_epoch(), before + 1, "a mutation funnel did not move the epoch");

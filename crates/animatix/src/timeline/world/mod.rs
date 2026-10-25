@@ -5,6 +5,7 @@ mod fields;
 mod geometry;
 mod hierarchy;
 mod highlight;
+mod keyframes;
 mod meta;
 #[cfg(test)]
 mod meta_default_tests;
@@ -28,9 +29,8 @@ use super::components::{
     AutoColorComponent, ChildOrderComponent, CoordinateFrameComponent, PersistenceComponent,
     TranscriptComponent,
 };
-use super::dispatch::AnimationTrack;
 use super::effects::EffectChainTrack;
-use super::entity::{EntityId, TrackStore};
+use super::entity::{EntityId, EntityStore};
 use super::legend::LegendTracks;
 use super::types::ContainerMetadata;
 use crate::primitives::PrimitivePayload;
@@ -38,7 +38,7 @@ use crate::primitives::PrimitivePayload;
 /// Entities and component stores for one scene timeline.
 #[derive(Clone, Debug, Default)]
 pub struct World {
-    pub(crate) tracks: TrackStore,
+    pub(crate) tracks: EntityStore,
     pub(crate) hierarchy: RequiredStore<SceneHierarchyComponent>,
     pub(crate) highlight: RequiredStore<crate::timeline::animation_track::HighlightTracks>,
     pub(crate) tagged_tracks: RequiredStore<TaggedTracksComponent>,
@@ -106,7 +106,7 @@ pub struct World {
     ///
     /// `add_node` runs before the primitive creates the child's track, so the
     /// link cannot be written as an id yet. The pending entry is adopted by
-    /// `spawn_with_track` the moment the entity exists. This is build state,
+    /// `spawn` the moment the entity exists. This is build state,
     /// not runtime storage: it is empty after a completed build.
     pub(crate) pending_parents: HashMap<String, EntityId>,
     /// Build-time command buffer: an auto-color slot assigned while the
@@ -115,7 +115,7 @@ pub struct World {
     /// `color: auto` is resolved during property evaluation, but the primitive
     /// creates the track only afterwards (and build code between the two
     /// deliberately observes the entity as *not yet spawned*, e.g.
-    /// `is_first_decl`). The slot is attached by `spawn_with_track`/`spawn`
+    /// `is_first_decl`). The slot is attached by `spawn`
     /// when the entity appears. Empty after a completed build; not runtime
     /// storage.
     pub(crate) pending_auto_color: Option<(String, usize)>,
@@ -148,43 +148,15 @@ impl World {
     pub fn label(&self, id: EntityId) -> Option<&str> {
         self.tracks.get_label(id)
     }
-    /// Borrow the entity's (transitional) track.
+    /// Whether `id` refers to a live entity.
     #[inline(always)]
-    pub fn track(&self, id: EntityId) -> Option<&AnimationTrack> {
-        self.tracks.get_by_id(id)
-    }
-    /// Mutably borrow the entity's (transitional) track.
-    #[inline(always)]
-    pub fn track_mut(&mut self, id: EntityId) -> Option<&mut AnimationTrack> {
-        self.tracks.get_by_id_mut(id)
-    }
-    /// Split borrow of the transitional track and the legend component.
-    ///
-    /// GUI property edits write both in one call; a single `EntityMut` cannot
-    /// hand out two stores at once, so this keeps the split explicit.
-    pub fn track_and_legend_mut(
-        &mut self,
-        id: EntityId,
-    ) -> Option<(&mut AnimationTrack, &mut LegendTracks)> {
-        let track = self.tracks.get_by_id_mut(id)?;
-        let legend = self.legend.get_or_insert_with(id, LegendTracks::default);
-        Some((track, legend))
-    }
-    /// Split borrow of the track, effect chain, and legend component.
-    pub fn track_effects_and_legend_mut(
-        &mut self,
-        id: EntityId,
-    ) -> Option<(&mut AnimationTrack, &mut EffectChainTrack, &mut LegendTracks)> {
-        let track = self.tracks.get_by_id_mut(id)?;
-        let effects = self.effects.get_or_insert_with(id, EffectChainTrack::default);
-        let legend = self.legend.get_or_insert_with(id, LegendTracks::default);
-        Some((track, effects, legend))
+    pub fn exists(&self, id: EntityId) -> bool {
+        self.tracks.exists(id)
     }
     /// A read-only entity view.
     #[inline(always)]
     pub fn view(&self, id: EntityId) -> Option<EntityRef<'_>> {
-        self.tracks.get_by_id(id)?;
-        Some(EntityRef::new(self, id))
+        self.tracks.exists(id).then(|| EntityRef::new(self, id))
     }
     /// A read-only entity view resolved by label.
     #[inline(always)]
@@ -195,8 +167,7 @@ impl World {
     /// A mutable entity view.
     #[inline(always)]
     pub fn view_mut(&mut self, id: EntityId) -> Option<EntityMut<'_>> {
-        self.tracks.get_by_id(id)?;
-        Some(EntityMut::new(self, id))
+        self.tracks.exists(id).then(|| EntityMut::new(self, id))
     }
 
     /// A mutable entity view resolved by label.
@@ -211,70 +182,37 @@ impl World {
         (0..self.tracks.len()).filter_map(|index| self.view(EntityId(index as u32)))
     }
 
-    /// Create an entity with a blank track, or return the existing one.
+    /// Create an entity, or return the existing one.
     ///
     /// Mirrors the build path's `tracks.entry(label).or_insert_with(...)`:
     /// re-declaring a label keeps the same entity and its current data.
     pub fn spawn(&mut self, label: &str, actor_type: impl Into<String>) -> EntityId {
         let actor_type = actor_type.into();
         if let Some(id) = self.tracks.get_id(label) {
-            // The track may have been created by a legacy direct
-            // `TrackStore` insert (extension builds, tests); keep the
-            // component stores aligned before anyone borrows them.
+            // The entity may have been created by a direct `EntityStore`
+            // insert (tests); keep the component stores aligned before anyone
+            // borrows them.
             self.ensure_len();
             self.attach_pending_auto_color(id, label);
             return id;
         }
-        self.spawn_with_track(label, actor_type, AnimationTrack::new(label.to_string()))
-    }
-
-    /// Create an entity from a fully built track, or return the existing one.
-    pub fn spawn_with_track(
-        &mut self,
-        label: &str,
-        actor_type: impl Into<String>,
-        track: AnimationTrack,
-    ) -> EntityId {
-        if let Some(id) = self.tracks.get_id(label) {
-            self.ensure_len();
-            self.attach_pending_auto_color(id, label);
-            return id;
-        }
-        let id = self.tracks.insert_internal(label.to_string(), track);
+        let id = self.tracks.insert(label.to_string());
         self.ensure_len();
-        *self.actor_types.get_mut(id) = actor_type.into();
-        self.ensure_len();
+        *self.actor_types.get_mut(id) = actor_type;
         self.attach_pending_auto_color(id, label);
         self.adopt(id, label);
         id
     }
 
-    /// Ensure an entity exists and return its track for build-time writes.
+    /// Replace an entity's data, resetting its optional/required components.
     ///
-    /// The build equivalent of `tracks.entry(label).or_insert_with(...)`, but
-    /// routed through `World` so the entity is adopted into the ECS hierarchy
-    /// (pending parent/root links resolve here). Kept on `World`, not
-    /// `Timeline`, so callers can still borrow sibling timeline fields (asset
-    /// cache, defaults) while writing the track.
-    pub fn ensure_track(&mut self, label: &str, actor_type: &str) -> &mut AnimationTrack {
+    /// This is the carry-injection path's old insert-replacement semantics:
+    /// the label keeps its entity id, but every component starts fresh rather
+    /// than inheriting the previous scene's state.
+    pub fn spawn_replacing(&mut self, label: &str, actor_type: &str) -> EntityId {
+        let replaced = self.tracks.contains_key(label);
         let id = self.spawn(label, actor_type);
-        self.track_mut(id).expect("World::spawn always creates a track")
-    }
-
-    /// Replace an entity's track, resetting its optional/required components.
-    ///
-    /// This is the carry-injection path's old `TrackStore::insert` semantics:
-    /// the label keeps its entity id, but every component starts from the new
-    /// snapshot rather than inheriting the previous scene's state.
-    pub fn spawn_replacing(
-        &mut self,
-        label: &str,
-        actor_type: &str,
-        track: AnimationTrack,
-    ) -> EntityId {
-        let replaced = self.tracks.insert(label.to_string(), track);
-        let id = self.tracks.get_id(label).expect("TrackStore::insert must register the label");
-        if replaced.is_some() {
+        if replaced {
             self.unlink(id);
         }
         self.ensure_len();
@@ -460,10 +398,10 @@ impl World {
     /// Called by `add_node` before the primitive has created the child's
     /// track. When the child entity already exists the link is written
     /// immediately; otherwise it is buffered and adopted by
-    /// [`Self::spawn_with_track`]. A missing parent is a build bug and keeps
+    /// [`Self::spawn`]. A missing parent is a build bug and keeps
     /// the old path's `warn!` instead of silently orphaning the child.
     pub fn set_parent_label(&mut self, child_label: &str, parent_label: Option<&str>) {
-        // Legacy direct `TrackStore` inserts bypass `spawn_with_track`; grow the
+        // Entities may not exist yet when a relation is registered; grow the
         // component stores so the link below can write both endpoints.
         self.ensure_len();
         let child_id = self.tracks.get_id(child_label);
@@ -568,8 +506,8 @@ impl World {
 
     /// Resolve buffered hierarchy labels after a build pass.
     ///
-    /// Handles entities created by direct `TrackStore` insertion (carry
-    /// injection, tests) that bypassed [`Self::spawn_with_track`]. A pending
+    /// Handles entities created outside [`Self::spawn`] (carry injection,
+    /// tests) that never adopted their buffered links. A pending
     /// label with no entity is dropped with a warning: the label never became a
     pub fn finish_hierarchy(&mut self) {
         self.ensure_len();
@@ -689,7 +627,7 @@ mod tests {
         world.link(parent, id);
         assert_eq!(world.hierarchy(id).parent, Some(parent));
 
-        world.spawn_replacing("box", "Ellipse", AnimationTrack::new("box".to_string()));
+        world.spawn_replacing("box", "Ellipse");
         assert_eq!(world.get_id("box"), Some(id));
         assert_eq!(world.hierarchy(id), &SceneHierarchyComponent::default());
         assert_eq!(world.actor_type(id), "Ellipse");
@@ -710,7 +648,7 @@ mod tests {
         );
         assert!(world.coordinate_frame(id).is_some());
 
-        let replacement = world.spawn_replacing("g", "Graph", AnimationTrack::new("g".to_string()));
+        let replacement = world.spawn_replacing("g", "Graph");
         assert_eq!(replacement, id, "replacement keeps the entity id");
         assert!(
             world.coordinate_frame(id).is_none(),
@@ -756,7 +694,7 @@ mod decl_span_tests {
         world.set_decl_span(id, animatix_syntax::ast::Span::new(1, 1, 1, 10));
         assert_eq!(world.decl_span(id).map(|s| s.start_line), Some(1));
 
-        world.spawn_replacing("box", "Rect", AnimationTrack::new("box".into()));
+        world.spawn_replacing("box", "Rect");
         assert!(world.decl_span(id).is_none(), "replacement starts from a clean span");
     }
 }
@@ -778,7 +716,7 @@ mod meta_tests {
         world.meta_mut(id).locked = true;
         world.meta_mut(id).hidden_by_default = true;
         world.set_first_seen(id, 100);
-        world.spawn_replacing("box", "Rect", AnimationTrack::new("box".into()));
+        world.spawn_replacing("box", "Rect");
         let meta = world.meta(id);
         assert!(meta.visible, "replacement starts visible");
         assert!(!meta.locked, "replacement starts unlocked");

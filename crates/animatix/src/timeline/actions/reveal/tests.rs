@@ -160,8 +160,8 @@ fn draw_in_sets_stroke_progress_and_delays_fill_until_end() {
     }];
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report.output.world.tracks.get("shape").expect("shape track");
-    let style = report.output.world.style(track.id);
+    let shape_id = report.output.world.get_id("shape").expect("shape id");
+    let style = report.output.world.style(shape_id);
 
     assert_eq!(style.stroke_progress.get(0, 1.0), 0.0);
     assert_eq!(style.stroke_progress.get(1000, 1.0), 1.0);
@@ -186,15 +186,15 @@ fn draw_in_lifts_hidden_by_default_opacity() {
     ];
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report.output.world.tracks.get("shape").expect("shape track");
-    let style = report.output.world.style(track.id);
+    let shape_id = report.output.world.get_id("shape").expect("shape id");
+    let style = report.output.world.style(shape_id);
 
     assert_eq!(style.opacity.get(0, 1.0), 0.0);
     assert_eq!(style.opacity.get(400, 1.0), 0.0, "still hidden before the draw");
     assert!(style.opacity.get(900, 1.0) > 0.0, "opacity must rise during the draw");
     assert_eq!(style.opacity.get(1200, 1.0), 1.0, "fully visible after the draw");
     assert!(
-        !report.output.world.meta(track.id).hidden_by_default,
+        !report.output.world.meta(shape_id).hidden_by_default,
         "flag must be consumed by the lift"
     );
     assert!(report.diagnostics.is_empty());
@@ -214,8 +214,8 @@ fn draw_in_typewriter_lifts_hidden_by_default_opacity() {
     ];
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report.output.world.tracks.get("headline").expect("headline track");
-    let style = report.output.world.style(track.id);
+    let headline_id = report.output.world.get_id("headline").expect("headline id");
+    let style = report.output.world.style(headline_id);
 
     assert_eq!(style.opacity.get(400, 1.0), 0.0);
     assert_eq!(style.opacity.get(1200, 1.0), 1.0);
@@ -234,12 +234,12 @@ fn reveal_in_lifts_hidden_by_default_opacity() {
     ];
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report.output.world.tracks.get("shape").expect("shape track");
-    let style = report.output.world.style(track.id);
+    let shape_id = report.output.world.get_id("shape").expect("shape id");
+    let style = report.output.world.style(shape_id);
 
     assert_eq!(style.opacity.get(400, 1.0), 0.0);
     assert_eq!(style.opacity.get(1200, 1.0), 1.0);
-    assert!(!report.output.world.meta(track.id).hidden_by_default);
+    assert!(!report.output.world.meta(shape_id).hidden_by_default);
     assert!(report.diagnostics.is_empty());
 }
 
@@ -273,8 +273,8 @@ fn reveal_out_hides_fill_then_erases_stroke() {
     }];
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report.output.world.tracks.get("shape").expect("shape track");
-    let style = report.output.world.style(track.id);
+    let shape_id = report.output.world.get_id("shape").expect("shape id");
+    let style = report.output.world.style(shape_id);
 
     assert_eq!(style.fill_opacity.get(0, 1.0), 0.0);
     assert_eq!(style.stroke_progress.get(0, 1.0), 1.0);
@@ -315,8 +315,8 @@ fn reveal_out_preserves_prior_state_for_delayed_instant_change() {
     }];
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report.output.world.tracks.get("shape").expect("shape track");
-    let style = report.output.world.style(track.id);
+    let shape_id = report.output.world.get_id("shape").expect("shape id");
+    let style = report.output.world.style(shape_id);
 
     assert_eq!(style.fill_opacity.get(249, 1.0), 1.0);
     assert_eq!(style.stroke_progress.get(249, 1.0), 1.0);
@@ -348,8 +348,8 @@ fn reveal_out_on_text_proceeds_without_diagnostics() {
         "reveal-out on text should not report unsupported target"
     );
 
-    let track = report.output.world.tracks.get("headline").expect("headline track");
-    let style = report.output.world.style(track.id);
+    let headline_id = report.output.world.get_id("headline").expect("headline id");
+    let style = report.output.world.style(headline_id);
     // reveal-out hides fill at start (0.0) and keeps it hidden while stroke animates out
     assert_eq!(style.fill_opacity.get(0, 1.0), 0.0);
     assert_eq!(style.fill_opacity.get(1000, 1.0), 0.0);
@@ -364,8 +364,8 @@ fn draw_out_keeps_fill_until_the_end() {
     }];
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report.output.world.tracks.get("shape").expect("shape track");
-    let style = report.output.world.style(track.id);
+    let shape_id = report.output.world.get_id("shape").expect("shape id");
+    let style = report.output.world.style(shape_id);
 
     assert_eq!(style.stroke_progress.get(0, 1.0), 1.0);
     assert_eq!(style.fill_opacity.get(0, 1.0), 1.0);
@@ -399,8 +399,8 @@ fn draw_out_on_text_proceeds_without_diagnostics() {
         "draw-out on text should not report unsupported target"
     );
 
-    let track = report.output.world.tracks.get("headline").expect("headline track");
-    let style = report.output.world.style(track.id);
+    let headline_id = report.output.world.get_id("headline").expect("headline id");
+    let style = report.output.world.style(headline_id);
     // fill_opacity should still be animated (fade-out behavior)
     assert_eq!(style.fill_opacity.get(0, 1.0), 1.0);
     assert_eq!(style.fill_opacity.get(1000, 1.0), 0.0);
@@ -446,8 +446,8 @@ fn draw_in_on_text_does_not_set_stroke_progress() {
     }];
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report.output.world.tracks.get("msg").expect("msg track");
-    let style = report.output.world.style(track.id);
+    let msg_id = report.output.world.get_id("msg").expect("msg id");
+    let style = report.output.world.style(msg_id);
 
     // stroke_progress and fill_opacity should not have been set
     assert!(
@@ -475,8 +475,8 @@ fn draw_in_on_regular_shape_still_animates_stroke_progress() {
     }];
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report.output.world.tracks.get("shape").expect("shape track");
-    let style = report.output.world.style(track.id);
+    let shape_id = report.output.world.get_id("shape").expect("shape id");
+    let style = report.output.world.style(shape_id);
 
     assert_eq!(style.stroke_progress.get(0, 1.0), 0.0);
     assert_eq!(style.stroke_progress.get(1000, 1.0), 1.0);
@@ -500,8 +500,8 @@ fn reveal_in_draws_stroke_then_pops_fill() {
     }];
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report.output.world.tracks.get("shape").expect("shape track");
-    let style = report.output.world.style(track.id);
+    let shape_id = report.output.world.get_id("shape").expect("shape id");
+    let style = report.output.world.style(shape_id);
 
     assert_eq!(style.stroke_progress.get(0, 1.0), 0.0);
     assert_eq!(style.fill_opacity.get(0, 1.0), 0.0);

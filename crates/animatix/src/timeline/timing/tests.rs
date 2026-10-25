@@ -89,11 +89,10 @@ fade-in box [500ms]
         &std::collections::HashMap::new(),
     );
     let timeline = report.output;
-    let track = timeline.world.tracks.get("box").expect("box track");
-    let easing = timeline.world.property_keyframe_easing(
-        track.id,
-        crate::timeline::ActorField::Opacity,
-        500,
-    );
+    let track = timeline.world.tracks.get_id("box").expect("box track");
+    let easing =
+        timeline
+            .world
+            .property_keyframe_easing(track, crate::timeline::ActorField::Opacity, 500);
     assert_eq!(easing, Some(Easing::ExpoOut), "the entrance keyframe must carry the default");
 }

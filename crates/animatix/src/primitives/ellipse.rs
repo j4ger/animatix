@@ -41,7 +41,7 @@ impl Primitive for EllipsePrimitive {
             radii: kurbo::Vec2::new(state.size[0] as f64, state.size[1] as f64),
             rotation: state.rotation as f64,
         };
-        let path = ctx.track.shape_path_memoized(ctx.shape.expect("shape tier"), &shape);
+        let path = ctx.shape.expect("shape tier").shape_path_memoized(&shape);
         Some(vec![crate::timeline::shapes::build_vello_path(
             path,
             ctx.style.color,

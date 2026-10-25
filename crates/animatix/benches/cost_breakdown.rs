@@ -46,9 +46,9 @@ fn bench_cost_breakdown(c: &mut Criterion) {
     c.bench_function("sample_all_tracks", |b| {
         let time_ms = 500;
         b.iter(|| {
-            for track in timeline.tracks().values() {
-                let geometry = timeline.world().geometry(track.id);
-                let style = timeline.world().style(track.id);
+            for (_, id) in timeline.tracks().iter() {
+                let geometry = timeline.world().geometry(id);
+                let style = timeline.world().style(id);
                 let _ = geometry.size.get(time_ms, [50.0, 50.0]);
                 let _ = geometry.position.get(time_ms, [0.0, 0.0]);
                 let _ = style.color.get(time_ms, [1.0, 1.0, 1.0, 1.0]);

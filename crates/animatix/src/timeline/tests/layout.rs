@@ -118,8 +118,8 @@ panel:
     let ast = ast.expect("AST");
     let report =
         crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report.output.world.tracks.get("label").expect("label track exists");
-    let width = report.output.world.text(track.id).text_max_width.get(0, 0.0);
+    let track = report.output.world.tracks.get_id("label").expect("label track exists");
+    let width = report.output.world.text(track).text_max_width.get(0, 0.0);
     assert!(
         (width - 10000.0).abs() < 0.01,
         "explicit text_max_width should be preserved by width propagation, got {width}, want 10000"

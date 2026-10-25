@@ -3,7 +3,7 @@
 
 use std::collections::HashSet;
 
-use animatix::timeline::{ActorField, PropertyValue, Timeline, read_property_value};
+use animatix::timeline::{ActorField, PropertyValue, Timeline};
 use egui::{Align2, Color32, Pos2, Rect, Sense, Vec2};
 
 use crate::app::commands::{ActionQueue, ActorCommand, DocumentCommand, PropertyEdit};
@@ -233,7 +233,7 @@ pub(crate) fn render_actor_row_header(
     }
 
     // Eye / lock / solo controls, right-aligned in the label column
-    if let Some(track) = timeline.and_then(|tl| tl.get_track(actor_label)) {
+    if let Some(id) = timeline.and_then(|tl| tl.get_entity_id(actor_label)) {
         let icon_size = Vec2::new(ICON_W, sp.timeline.track_row_height - 4.0);
         let lock_rect = Rect::from_min_size(
             Pos2::new(bar_origin_x - sp.base.space_2 - ICON_W, at_top + 2.0),
@@ -285,7 +285,11 @@ pub(crate) fn render_actor_row_header(
 
         // Solo is authored state (`solo: true` in the declaration)
         let solo = matches!(
-            read_property_value(track, ActorField::Tagged("solo"), 0),
+            timeline.and_then(|tl| tl.world().read_property_value(
+                id,
+                ActorField::Tagged("solo"),
+                0
+            )),
             Some(PropertyValue::Bool(true))
         );
         let solo_resp =

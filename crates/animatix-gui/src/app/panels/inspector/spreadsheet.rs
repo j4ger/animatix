@@ -10,9 +10,7 @@
 
 use std::collections::HashSet;
 
-use animatix::timeline::{
-    AnimationTrack, PropertyValue, SceneDimensions, Timeline, lookup_property,
-};
+use animatix::timeline::{EntityId, PropertyValue, SceneDimensions, Timeline, lookup_property};
 use egui::{Color32, Pos2, RichText, Vec2};
 
 use eparts::{Button, Size};
@@ -219,7 +217,7 @@ pub(crate) fn render_property_spreadsheet(
 
                 // ── Data rows ──
                 for &actor_label in &actors {
-                    let Some(track) = timeline.get_track(actor_label) else {
+                    let Some(id) = timeline.get_entity_id(actor_label) else {
                         continue;
                     };
 
@@ -244,7 +242,7 @@ pub(crate) fn render_property_spreadsheet(
                     }
 
                     // Actor icon + label text
-                    let icon = crate::app::icons::actor_icon_for_track(track, timeline);
+                    let icon = crate::app::icons::actor_icon_for_track(id, timeline);
                     let label_color = if is_selected {
                         theme.palette.accent.primary
                     } else {
@@ -288,15 +286,14 @@ pub(crate) fn render_property_spreadsheet(
 
                         // Get the value at current time
                         let value_text = get_property_value_display(
-                            timeline.world().geometry(track.id),
-                            timeline.world().style(track.id),
+                            timeline.world().geometry(id),
+                            timeline.world().style(id),
                             prop_name,
                             time_ms,
                         );
-                        let has_animated_track = has_property_track(timeline, track, prop_name);
-                        let has_keyframes = lookup_property(prop_name).is_some_and(|s| {
-                            timeline.world().property_has_keyframes(track.id, s.field)
-                        });
+                        let has_animated_track = has_property_track(timeline, id, prop_name);
+                        let has_keyframes = lookup_property(prop_name)
+                            .is_some_and(|s| timeline.world().property_has_keyframes(id, s.field));
 
                         let value_color = if has_keyframes {
                             theme.palette.status.warning
@@ -331,7 +328,7 @@ pub(crate) fn render_property_spreadsheet(
                             );
                             if kf_btn.clicked() {
                                 if let Some(gui_val) =
-                                    get_property_gui_value(timeline, track, prop_name, time_ms)
+                                    get_property_gui_value(timeline, id, prop_name, time_ms)
                                 {
                                     commands.push_back(
                                         DocumentCommand::PropertyEdit(PropertyEdit {
@@ -470,12 +467,12 @@ fn get_property_value_display(
 /// the shape component instead of falling through to no value.
 pub fn get_property_gui_value(
     timeline: &Timeline,
-    track: &AnimationTrack,
+    id: EntityId,
     property_name: &str,
     time_ms: u64,
 ) -> Option<GuiPropertyValue> {
     let schema = lookup_property(property_name)?;
-    let value = timeline.world().read_property_value(track.id, schema.field, time_ms)?;
+    let value = timeline.world().read_property_value(id, schema.field, time_ms)?;
 
     // Convert PropertyValue to GuiPropertyValue
     // Special cases: color/stroke_color are Vec4 tracks evaluated as PropertyValue::Color
@@ -495,13 +492,9 @@ pub fn get_property_gui_value(
 }
 
 /// Check whether an actor has an actual property track for the given property name.
-pub fn has_property_track(
-    timeline: &Timeline,
-    track: &AnimationTrack,
-    property_name: &str,
-) -> bool {
+pub fn has_property_track(timeline: &Timeline, id: EntityId, property_name: &str) -> bool {
     lookup_property(property_name)
-        .and_then(|schema| timeline.world().fields(track.id)?.field_ref(schema.field))
+        .and_then(|schema| timeline.world().fields(id)?.field_ref(schema.field))
         .is_some()
 }
 

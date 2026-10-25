@@ -204,16 +204,7 @@ impl Primitive for NativePrimitiveAdapter {
         } = ctx;
         let time_ms = *time_ms;
         let parent_label = *parent_label;
-        let track_id = {
-            let track = timeline
-                .world
-                .tracks
-                .entry(label.to_string())
-                .or_insert_with(|| crate::timeline::AnimationTrack::new(label.to_string()));
-            track.id
-        };
-        timeline.world.ensure_len();
-        *timeline.world.actor_types.get_mut(track_id) = self.type_name.clone();
+        let track_id = timeline.world.spawn(label, self.type_name.clone());
         timeline.world.set_caps(track_id, animatix_std::caps_from_info(&self.info));
         timeline.world.rebuild_property_plan(track_id);
         let Some(build) = self.build else {
@@ -261,7 +252,6 @@ impl Primitive for NativePrimitiveAdapter {
 
     fn handle_assignment(
         &self,
-        _track: &mut crate::timeline::AnimationTrack,
         property: &str,
         value: &Expr,
         ctx: &mut AssignmentCtx,

@@ -78,7 +78,6 @@ pub(super) fn execute_action(
         for target in &expanded_action.targets {
             let target_opacity = timeline
                 .world
-                .tracks
                 .get_id(target)
                 .map_or(1.0, |id| timeline.world.style(id).opacity.get(t_end_ms, 1.0));
             if target_opacity <= 0.0 {

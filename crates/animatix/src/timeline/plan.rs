@@ -197,6 +197,60 @@ impl PropertyPlan {
     pub fn has_any_keyframes(&self) -> bool {
         self.slots.iter().any(|slot| slot.track.has_any_keyframes())
     }
+
+    /// Sample a plan-stored property by canonical name.
+    pub fn sample_property_named(&self, name: &str, time_ms: u64) -> Option<PropertyValue> {
+        let id = crate::timeline::property_registry::property_id(name)?;
+        self.get(id).and_then(|slot| slot.track.sample(time_ms))
+    }
+
+    /// Sample an f32 property by name with fallback default.
+    pub fn sample_f32_prop(&self, name: &str, time_ms: u64, default: f32) -> f32 {
+        match self.sample_property_named(name, time_ms) {
+            Some(PropertyValue::F32(v)) => v,
+            _ => default,
+        }
+    }
+
+    /// Sample a Color / Vec4 property by name with fallback default.
+    pub fn sample_color_prop(&self, name: &str, time_ms: u64, default: [f32; 4]) -> [f32; 4] {
+        match self.sample_property_named(name, time_ms) {
+            Some(PropertyValue::Color(c)) | Some(PropertyValue::Vec4(c)) => c,
+            _ => default,
+        }
+    }
+
+    /// Sample a bool property by name with fallback default.
+    pub fn sample_bool_prop(&self, name: &str, time_ms: u64, default: bool) -> bool {
+        match self.sample_property_named(name, time_ms) {
+            Some(PropertyValue::Bool(v)) => v,
+            _ => default,
+        }
+    }
+
+    /// Sample a Vec2 property by name with fallback default.
+    pub fn sample_vec2_prop(&self, name: &str, time_ms: u64, default: [f32; 2]) -> [f32; 2] {
+        match self.sample_property_named(name, time_ms) {
+            Some(PropertyValue::Vec2(v)) => v,
+            _ => default,
+        }
+    }
+
+    /// Sample a string property by name with fallback default.
+    pub fn sample_string_prop(&self, name: &str, time_ms: u64, default: &str) -> String {
+        match self.sample_property_named(name, time_ms) {
+            Some(PropertyValue::String(s)) => s,
+            _ => default.to_string(),
+        }
+    }
+
+    /// Sample a u32 property by name with fallback default.
+    pub fn sample_u32_prop(&self, name: &str, time_ms: u64, default: u32) -> u32 {
+        match self.sample_property_named(name, time_ms) {
+            Some(PropertyValue::U32(v)) => v,
+            _ => default,
+        }
+    }
 }
 
 /// Map a registry value type to the finite dynamic track kind.
@@ -435,8 +489,7 @@ impl PropertyPlan {
     /// Rebuild in place from an actor identity, preserving extension slots.
     ///
     /// This is the storage-independent form of the rebuild: callers that own a
-    /// `PropertyPlan` (rather than an `AnimationTrack`) can refresh it after a
-    /// capability/type change.
+    /// `PropertyPlan` directly can refresh it after a capability/type change.
     pub fn rebuild_for(&mut self, caps: &animatix_core::caps::ActorCaps, actor_type: &str) {
         let previous = std::mem::take(self);
         *self = Self::for_actor(caps, actor_type);

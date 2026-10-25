@@ -137,9 +137,8 @@ fn native_primitive_evaluate_emits_render_commands() {
         HashMap::new(),
     )
     .expect("adapter");
-    let track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
     let asset_cache = crate::timeline::assets::AssetCache::new();
-    let ctx = sample_evaluate_ctx(&track, &asset_cache);
+    let ctx = sample_evaluate_ctx(&asset_cache);
     let commands = adapter.evaluate(&ctx, None).expect("native evaluate").expect("native commands");
     assert!(matches!(commands.as_slice(), [crate::primitives::RenderCommand::Paths { .. }]));
 }
@@ -242,9 +241,8 @@ fn native_primitive_clip_path_and_equation_fragment_flow_through_adapter() {
     )
     .expect("adapter");
 
-    let track = crate::timeline::AnimationTrack::placeholder("pulse".to_string());
     let asset_cache = crate::timeline::assets::AssetCache::new();
-    let ctx = sample_evaluate_ctx(&track, &asset_cache);
+    let ctx = sample_evaluate_ctx(&asset_cache);
 
     let clip = adapter
         .clip_path(&ctx, &crate::timeline::ActorCaps::default())
@@ -497,15 +495,15 @@ fn native_declared_builtin_properties_use_generic_writer() {
         "unexpected diagnostics: {:?}",
         report.diagnostics
     );
-    let track = report.output.world.tracks.get("p").expect("pulse track");
-    let geometry = report.output.world.geometry(track.id);
+    let id = report.output.world.get_id("p").expect("pulse track");
+    let geometry = report.output.world.geometry(id);
     assert_eq!(
         geometry.position.get(0, [0.0, 0.0]),
         [10.0, 20.0],
         "declared position should be written by the generic property engine"
     );
     assert_eq!(
-        report.output.world.style(track.id).color.get(0, [1.0, 1.0, 1.0, 1.0]),
+        report.output.world.style(id).color.get(0, [1.0, 1.0, 1.0, 1.0]),
         [1.0, 0.0, 0.0, 1.0],
         "declared color should be written by the generic property engine"
     );
@@ -565,9 +563,9 @@ fn extension_actor_is_visible_from_declaration_time() {
         "unexpected diagnostics: {:?}",
         report.diagnostics
     );
-    let track = report.output.world.tracks.get("p").expect("pulse track");
+    let id = report.output.world.get_id("p").expect("pulse track");
     assert_eq!(
-        report.output.world.meta(track.id).first_seen_ms,
+        report.output.world.meta(id).first_seen_ms,
         0,
         "extension actors must be visible from their declaration time"
     );
@@ -584,7 +582,7 @@ fn enum_extension_property_bare_identifier_roundtrips() {
     let ast = ast.expect("parsed AST");
 
     let mut ctx = ExtensionContext::new();
-    let id = ctx
+    let _id = ctx
         .register_property_full_typed(
             "Rect",
             "mode",
@@ -602,8 +600,8 @@ fn enum_extension_property_bare_identifier_roundtrips() {
         &std::collections::HashMap::new(),
         Arc::new(ctx),
     );
-    let track = report.output.world.tracks.get("p").expect("pulse track");
-    let plan = report.output.world.property_plan(track.id);
+    let id = report.output.world.get_id("p").expect("pulse track");
+    let plan = report.output.world.property_plan(id);
     let slot = plan.get(PropertyId(1_000_000));
     let t0 = slot.and_then(|s| s.track.sample(0));
     let t1500 = slot.and_then(|s| s.track.sample(1500));
@@ -611,10 +609,10 @@ fn enum_extension_property_bare_identifier_roundtrips() {
     assert_eq!(t1500, Some(crate::timeline::PropertyValue::Enum("dot".to_string())));
 
     // Read back through the native path -> must be NATIVE_VALUE_ENUM.
-    let property_ids = HashMap::from([("mode".to_string(), id)]);
+    let property_ids = HashMap::from([("mode".to_string(), PropertyId(1_000_000))]);
     let service_values = HashMap::new();
     let asset_cache = crate::timeline::assets::AssetCache::new();
-    let eval_ctx = sample_evaluate_ctx_with_plan(track, &asset_cache, Some(plan));
+    let eval_ctx = sample_evaluate_ctx_with_plan(&asset_cache, Some(plan));
     let mut host = NativePrimitiveEvaluateHost {
         ctx: &eval_ctx,
         property_ids: &property_ids,

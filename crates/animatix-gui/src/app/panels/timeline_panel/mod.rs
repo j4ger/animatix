@@ -309,14 +309,14 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
         if let Some(tl) = timeline {
             for (actor_label, _) in &actor_tree {
                 if expanded_properties.contains(actor_label) {
-                    if let Some(track) = tl.get_track(actor_label) {
+                    if let Some(id) = tl.get_entity_id(actor_label) {
                         extra_prop_lanes += collect_property_lanes(
-                            track,
-                            tl.world().actor_type(track.id),
-                            tl.world().geometry(track.id),
-                            tl.world().style(track.id),
-                            tl.world().shape(track.id),
-                            tl.world().text(track.id),
+                            tl.world(),
+                            id,
+                            tl.world().geometry(id),
+                            tl.world().style(id),
+                            tl.world().shape(id),
+                            tl.world().text(id),
                             None,
                         )
                         .len();
@@ -450,7 +450,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
 
             // Keyframe diamonds (computed from timeline)
             if let Some(tl) = timeline {
-                if let Some(track) = tl.get_track(actor_label) {
+                if let Some(id) = tl.get_entity_id(actor_label) {
                     let mut kf_ctx = KeyframeRenderCtx {
                         coords: &coords,
                         preview,
@@ -467,10 +467,10 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                     };
                     keyframes::render_actor_keyframes(
                         ui,
-                        tl.world().geometry(track.id),
-                        tl.world().style(track.id),
-                        tl.world().shape(track.id),
-                        tl.world().text(track.id),
+                        tl.world().geometry(id),
+                        tl.world().style(id),
+                        tl.world().shape(id),
+                        tl.world().text(id),
                         actor_label,
                         track_idx,
                         bar_area,
@@ -516,14 +516,14 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
             // Per-property lanes (if expanded)
             if expanded_properties.contains(actor_label) {
                 if let Some(tl) = timeline {
-                    if let Some(track) = tl.get_track(actor_label) {
+                    if let Some(id) = tl.get_entity_id(actor_label) {
                         let prop_lanes = collect_property_lanes(
-                            track,
-                            tl.world().actor_type(track.id),
-                            tl.world().geometry(track.id),
-                            tl.world().style(track.id),
-                            tl.world().shape(track.id),
-                            tl.world().text(track.id),
+                            tl.world(),
+                            id,
+                            tl.world().geometry(id),
+                            tl.world().style(id),
+                            tl.world().shape(id),
+                            tl.world().text(id),
                             None,
                         );
                         for (prop_name, kf_times) in &prop_lanes {
@@ -557,8 +557,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                                 render_empty_property_lane(
                                     ui,
                                     tl,
-                                    track,
-                                    tl.world().effects(track.id),
+                                    id,
+                                    tl.world().effects(id),
                                     actor_label,
                                     prop_name,
                                     track_idx,
@@ -674,7 +674,7 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             .and_then(|comp| comp.scenes.get(name))
                             .map(|scene| &scene.timeline),
                     };
-                    scene_timeline.is_some_and(|tl| tl.get_track(&id.actor).is_some())
+                    scene_timeline.is_some_and(|tl| tl.has_actor(&id.actor))
                 })
                 .cloned()
                 .collect();

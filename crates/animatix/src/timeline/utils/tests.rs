@@ -744,13 +744,13 @@ fn seeded_rand_is_deterministic() {
     "#;
     let ast = animatix_syntax::parser::parse_simple(source).0.unwrap();
     let timeline = super::super::Timeline::build(&ast);
-    let track = timeline.world.tracks.get("c").unwrap();
-    let pos1 = timeline.world.geometry(track.id).position.get(0, [0.0, 0.0]);
+    let track = timeline.world.tracks.get_id("c").unwrap();
+    let pos1 = timeline.world.geometry(track).position.get(0, [0.0, 0.0]);
 
     // Rebuild and re-evaluate — same seed must produce same value
     let timeline2 = super::super::Timeline::build(&ast);
-    let track2 = timeline2.world.tracks.get("c").unwrap();
-    let pos2 = timeline2.world.geometry(track2.id).position.get(0, [0.0, 0.0]);
+    let track2 = timeline2.world.tracks.get_id("c").unwrap();
+    let pos2 = timeline2.world.geometry(track2).position.get(0, [0.0, 0.0]);
     assert_eq!(pos1, pos2, "seeded_rand must be deterministic for the same seed");
 }
 
@@ -764,8 +764,8 @@ fn seeded_rand_returns_value_in_range() {
     "#;
     let ast = animatix_syntax::parser::parse_simple(source).0.unwrap();
     let timeline = super::super::Timeline::build(&ast);
-    let track = timeline.world.tracks.get("c").unwrap();
-    let pos = timeline.world.geometry(track.id).position.get(0, [0.0, 0.0]);
+    let track = timeline.world.tracks.get_id("c").unwrap();
+    let pos = timeline.world.geometry(track).position.get(0, [0.0, 0.0]);
     assert!(
         pos[0] >= 0.0 && pos[0] <= 100.0,
         "seeded_rand should return value in [0,1] range, got {}",

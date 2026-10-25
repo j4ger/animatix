@@ -2,7 +2,6 @@ use super::*;
 use crate::timeline::animation_track::{GeometryTracks, StyleTracks, TextTracks};
 
 pub(crate) fn recompile_text_at_assignment(
-    track: &mut AnimationTrack,
     caps: animatix_core::caps::ActorCaps,
     style: &mut StyleTracks,
     text: &mut TextTracks,
@@ -92,19 +91,19 @@ pub(crate) fn recompile_text_at_assignment(
     }
 
     if duration_ms > 0.0 {
-        let start_val = track.evaluate_text_paths_and_clip(text, style, t_start_ms).0;
+        let start_val = text.evaluate_paths_and_clip(style, t_start_ms).0;
         text.text_paths
             .ensure(Vec::new())
             .add_keyframe(t_start_ms, start_val, Easing::Linear);
         let start_size = geometry.size.get(t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
         let start_layout_size =
-            track.layout_size_get(geometry, t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
+            geometry.layout_size_get(t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
         geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
             t_start_ms,
             start_size,
             Easing::Linear,
         );
-        track.ensure_layout_size(geometry, DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+        geometry.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
             t_start_ms,
             start_layout_size,
             Easing::Linear,
@@ -167,11 +166,11 @@ pub(crate) fn recompile_text_at_assignment(
         .size
         .ensure(DEFAULT_LAYOUT_HALF_SIZE)
         .add_keyframe(t_end_ms, new_half_size, easing);
-    track.ensure_layout_size(geometry, DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+    geometry.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
         t_end_ms,
         new_half_size,
         easing,
     );
-    track.set_metrics(text, t_end_ms, ascent, descent, baseline_offset);
+    text.set_metrics(t_end_ms, ascent, descent, baseline_offset);
     Ok(())
 }

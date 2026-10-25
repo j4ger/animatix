@@ -18,17 +18,9 @@ impl Timeline {
         self.warn_unknown_declaration_properties(&label_str, kind.type_name(), props, diagnostics);
         let had_text_paths = self
             .world
-            .tracks
-            .get(&label_str)
-            .map(|track| {
-                self.world
-                    .text
-                    .get(track.id)
-                    .text_paths
-                    .as_ref()
-                    .map(|t| !t.keyframes.is_empty())
-                    .unwrap_or(false)
-            })
+            .get_id(&label_str)
+            .and_then(|id| self.world.text(id).text_paths.as_ref())
+            .map(|t| !t.keyframes.is_empty())
             .unwrap_or(false);
         let ParsedTimingModifiers {
             duration_ms,
@@ -300,7 +292,6 @@ impl Timeline {
         let is_first_decl = !self.world.tracks.contains_key(&label_str);
 
         let track_id = self.world.spawn(&label_str, kind.type_name());
-        let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
         let style = self.world.style.get_mut(track_id);
 
         // Ensure the track kind matches the declaration type so downstream
@@ -315,7 +306,7 @@ impl Timeline {
         let meta = self
             .world
             .meta
-            .get_or_insert_with(track.id, crate::timeline::world::EntityMeta::default);
+            .get_or_insert_with(track_id, crate::timeline::world::EntityMeta::default);
         if meta.first_seen_ms == u64::MAX {
             meta.first_seen_ms = t_start_ms;
         }
@@ -323,7 +314,7 @@ impl Timeline {
         if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
             self.world
                 .meta
-                .get_or_insert_with(track.id, crate::timeline::world::EntityMeta::default)
+                .get_or_insert_with(track_id, crate::timeline::world::EntityMeta::default)
                 .hidden_by_default = true;
             style.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
         }
@@ -346,7 +337,7 @@ impl Timeline {
             diagnostics,
             &label_str,
         ) {
-            let geometry = self.world.geometry.get_mut(track.id);
+            let geometry = self.world.geometry.get_mut(track_id);
             if delay_ms > 0.0 && duration_ms == 0.0 {
                 preserve_discrete_position_state_before(geometry, t_start_ms);
                 preserve_instant_delayed_value(&mut geometry.position, t_start_ms);
@@ -386,7 +377,6 @@ impl Timeline {
             }
         }
 
-        let track_id = track.id;
         for (field, pv) in pending_writes {
             self.world.write_property_field(
                 track_id,
@@ -398,7 +388,6 @@ impl Timeline {
                 diagnostics,
             );
         }
-        let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
         let style = self.world.style.get_mut(track_id);
         let text = self.world.text.get_mut(track_id);
         let geometry = self.world.geometry.get_mut(track_id);
@@ -532,14 +521,14 @@ impl Timeline {
                 self.font_context.as_ref(),
             )?;
 
-            track.set_metrics(text, t_end_ms, prebaked.data.ascent, prebaked.data.descent, 0.0);
+            text.set_metrics(t_end_ms, prebaked.data.ascent, prebaked.data.descent, 0.0);
             text.counter_data = Some(prebaked.data);
             geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                 t_end_ms,
                 prebaked.initial_half_size,
                 easing,
             );
-            track.ensure_layout_size(geometry, DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+            geometry.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                 t_end_ms,
                 prebaked.initial_half_size,
                 easing,
@@ -639,28 +628,22 @@ impl Timeline {
         // Store font metrics on the track for baseline alignment
         // Metrics are set at t_end_ms (when new text appears).
         // For animated transitions, the metrics don't interpolate (text changes discretely).
-        track.set_metrics(
-            text,
-            t_end_ms,
-            compiled.ascent,
-            compiled.descent,
-            compiled.baseline_offset,
-        );
+        text.set_metrics(t_end_ms, compiled.ascent, compiled.descent, compiled.baseline_offset);
 
         if duration_ms > 0.0 {
-            let start_val = track.evaluate_text_paths(text, style, t_start_ms);
+            let start_val = text.evaluate_paths(style, t_start_ms);
             text.text_paths
                 .ensure(Vec::new())
                 .add_keyframe(t_start_ms, start_val, Easing::Linear);
             let start_size = geometry.size.get(t_start_ms, DEFAULT_LAYOUT_HALF_SIZE);
             let start_layout_size =
-                track.layout_size_get(geometry, t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
+                geometry.layout_size_get(t_start_ms).unwrap_or(DEFAULT_LAYOUT_HALF_SIZE);
             geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                 t_start_ms,
                 start_size,
                 Easing::Linear,
             );
-            track.ensure_layout_size(geometry, DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+            geometry.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                 t_start_ms,
                 start_layout_size,
                 Easing::Linear,
@@ -694,7 +677,7 @@ impl Timeline {
             new_half_size,
             easing,
         );
-        track.ensure_layout_size(geometry, DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+        geometry.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
             t_end_ms,
             new_half_size,
             easing,

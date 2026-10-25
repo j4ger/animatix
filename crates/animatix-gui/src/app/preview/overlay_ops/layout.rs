@@ -13,19 +13,16 @@ pub fn layout_debug_ops(
     let viewport = scene_viewport(&tx);
     for (container_id, metadata) in timeline.container_layouts() {
         let container_label = timeline.get_entity_label(container_id).expect("container entity");
-        let Some(track) = timeline.get_track(container_label) else {
-            continue;
-        };
         let pos = timeline
             .world()
-            .geometry(track.id)
+            .geometry(container_id)
             .position
             .as_ref()
             .map(|p| p.evaluate(time_ms))
             .unwrap_or([0.0, 0.0]);
         let size = timeline
             .world()
-            .geometry(track.id)
+            .geometry(container_id)
             .size
             .as_ref()
             .map(|s| s.evaluate(time_ms))
@@ -63,19 +60,19 @@ pub fn layout_debug_ops(
 
         let layout_children = timeline.layout_children_for(container_label);
         for child in layout_children.iter() {
-            let Some(child_track) = timeline.get_track(&child.label) else {
+            let Some(child_id) = timeline.get_entity_id(&child.label) else {
                 continue;
             };
             let child_pos = timeline
                 .world()
-                .geometry(child_track.id)
+                .geometry(child_id)
                 .position
                 .as_ref()
                 .map(|p| p.evaluate(time_ms))
                 .unwrap_or([0.0, 0.0]);
             let child_size = timeline
                 .world()
-                .geometry(child_track.id)
+                .geometry(child_id)
                 .size
                 .as_ref()
                 .map(|s| s.evaluate(time_ms))
@@ -93,8 +90,10 @@ pub fn layout_debug_ops(
                 OverlayStroke::new(1.0, style.slot_color),
                 StrokeKind::Outside,
             );
-            let layout_s = child_track
-                .layout_size_get(timeline.world().geometry(child_track.id), time_ms)
+            let layout_s = timeline
+                .world()
+                .geometry(child_id)
+                .layout_size_get(time_ms)
                 .unwrap_or([0.0, 0.0]);
             push_text(
                 &mut ops,
@@ -115,17 +114,17 @@ pub fn layout_debug_ops(
             let children_ordered: Vec<([f32; 2], [f32; 2])> = layout_children
                 .iter()
                 .filter_map(|child| {
-                    let track = timeline.get_track(&child.label)?;
+                    let child_id = timeline.get_entity_id(&child.label)?;
                     let child_pos = timeline
                         .world()
-                        .geometry(track.id)
+                        .geometry(child_id)
                         .position
                         .as_ref()
                         .map(|p| p.evaluate(time_ms))
                         .unwrap_or([0.0, 0.0]);
                     let child_size = timeline
                         .world()
-                        .geometry(track.id)
+                        .geometry(child_id)
                         .size
                         .as_ref()
                         .map(|s| s.evaluate(time_ms))

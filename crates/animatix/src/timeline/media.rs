@@ -49,14 +49,13 @@ fn seed_svg_track(
             #[cfg(not(feature = "svg"))]
             let measured_half_size = DEFAULT_LAYOUT_HALF_SIZE;
             {
-                let track = world.tracks.get_by_id_mut(id).expect("media seed target must exist");
                 let geometry = world.geometry.get_mut(id);
                 geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                     time_ms,
                     measured_half_size,
                     Easing::Linear,
                 );
-                track.ensure_layout_size(geometry, DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                geometry.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                     time_ms,
                     measured_half_size,
                     Easing::Linear,
@@ -92,14 +91,13 @@ fn seed_image_track(
             let display_size = authored_half_size
                 .unwrap_or([image.natural_size[0] / 2.0, image.natural_size[1] / 2.0]);
             {
-                let track = world.tracks.get_by_id_mut(id).expect("media seed target must exist");
                 let geometry = world.geometry.get_mut(id);
                 geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                     time_ms,
                     display_size,
                     Easing::Linear,
                 );
-                track.ensure_layout_size(geometry, DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+                geometry.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                     time_ms,
                     display_size,
                     Easing::Linear,
@@ -164,14 +162,12 @@ impl Timeline {
         let is_svg = caps.vector_paths;
         let is_image = caps.image_payload;
 
-        let track = self.world.tracks.get_by_id_mut(track_id).expect("spawn creates the track");
-
         // Record first declaration time so scene evaluation can hide
         // actors before they are declared
         let meta = self
             .world
             .meta
-            .get_or_insert_with(track.id, crate::timeline::world::EntityMeta::default);
+            .get_or_insert_with(track_id, crate::timeline::world::EntityMeta::default);
         if meta.first_seen_ms == u64::MAX {
             meta.first_seen_ms = time_ms as u64;
         }
@@ -179,9 +175,9 @@ impl Timeline {
         if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
             self.world
                 .meta
-                .get_or_insert_with(track.id, crate::timeline::world::EntityMeta::default)
+                .get_or_insert_with(track_id, crate::timeline::world::EntityMeta::default)
                 .hidden_by_default = true;
-            self.world.style.get_mut(track.id).opacity.ensure(1.0).add_keyframe(
+            self.world.style.get_mut(track_id).opacity.ensure(1.0).add_keyframe(
                 0,
                 self.default_opacity,
                 Easing::Linear,

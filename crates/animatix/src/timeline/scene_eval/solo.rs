@@ -64,35 +64,31 @@ impl Timeline {
             )
         });
         let needed = always_writes_solo
-            || self.world.tracks.values().any(|track| self.track_declares_solo(track, 0));
+            || self.world.tracks.iter().any(|(_, id)| self.track_declares_solo(id, 0));
         self.eval_caches.solo_scan_needed.set(Some(needed));
         needed
     }
 
     /// Read one actor's `solo` flag at `time_ms`; the visibility rule applies.
     pub(crate) fn track_is_soloed(&self, label: &str, time_ms: u64) -> bool {
-        let Some(track) = self.world.tracks.get(label) else {
+        let Some(id) = self.world.get_id(label) else {
             return false;
         };
         // `visible: false` wins: an explicitly hidden actor is not soloed back
         // into view, and a hidden actor must not keep the rest of the scene
         // suppressed.
-        if !self.world.meta(track.id).visible {
+        if !self.world.meta(id).visible {
             return false;
         }
-        self.track_declares_solo(track, time_ms)
+        self.track_declares_solo(id, time_ms)
     }
 
     /// The raw flag read, without the visibility rule: the scan asks whether
     /// the flag is declared at all, independent of `visible`.
-    pub(crate) fn track_declares_solo(
-        &self,
-        track: &crate::timeline::AnimationTrack,
-        time_ms: u64,
-    ) -> bool {
+    pub(crate) fn track_declares_solo(&self, id: EntityId, time_ms: u64) -> bool {
         matches!(
             self.world.read_property_value(
-                track.id,
+                id,
                 crate::timeline::property_registry::ActorField::Tagged("solo"),
                 time_ms
             ),

@@ -4,7 +4,7 @@ use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{AssignmentCtx, BuildCtx, Primitive};
 use crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic;
-use crate::timeline::{AnimationTrack, Environment, SceneDimensions, TrackAccessor, Value};
+use crate::timeline::{Environment, SceneDimensions, TrackAccessor, Value};
 
 /// The `Code` primitive.
 pub struct CodePrimitive;
@@ -48,7 +48,6 @@ impl Primitive for CodePrimitive {
 
     fn handle_assignment(
         &self,
-        track: &mut AnimationTrack,
         property: &str,
         value: &Expr,
         ctx: &mut AssignmentCtx,
@@ -80,7 +79,6 @@ impl Primitive for CodePrimitive {
                 .to_string()
         };
         if let Err(e) = crate::timeline::recompile_text_at_assignment(
-            track,
             ctx.caps,
             style,
             text,
@@ -125,7 +123,7 @@ impl Primitive for CodePrimitive {
             )
         } else {
             let text = ctx.text.expect("text actor evaluated without a text tier");
-            let (paths, clip) = ctx.track.evaluate_text_paths_and_clip(text, style, ctx.time_ms);
+            let (paths, clip) = text.evaluate_paths_and_clip(style, ctx.time_ms);
             Ok((std::sync::Arc::from(paths), clip))
         }?;
         if paths.is_empty() {

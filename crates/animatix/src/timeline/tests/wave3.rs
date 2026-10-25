@@ -20,8 +20,8 @@ fn idle_float_synthesizes_seamless_motion_offset() {
 box: Rect, size: (100, 100), at: (200, 200), idle: "float"
 "#;
     let timeline = build_test_timeline(source);
-    let track = timeline.world.tracks.get("box").expect("box track exists");
-    let geometry = timeline.world.geometry(track.id);
+    let track = timeline.world.tracks.get_id("box").expect("box track exists");
+    let geometry = timeline.world.geometry(track);
 
     // At t=0, motion_offset y is 0.0
     let y0 = geometry.motion_offset.get(0, [0.0, 0.0])[1];
@@ -51,8 +51,8 @@ fn idle_breath_synthesizes_seamless_scale() {
 box: Rect, size: (100, 100), at: (200, 200), idle: "breath"
 "#;
     let timeline = build_test_timeline(source);
-    let track = timeline.world.tracks.get("box").expect("box track exists");
-    let geometry = timeline.world.geometry(track.id);
+    let track = timeline.world.tracks.get_id("box").expect("box track exists");
+    let geometry = timeline.world.geometry(track);
 
     // At t=0, scale is 1.0
     let s0 = geometry.scale.get(0, 1.0);
@@ -74,14 +74,14 @@ fn rect_with_shadow_generates_shadow_render_command_and_bounds() {
 box: Rect, size: (100, 100), at: (200, 200), shadow: (0, 8, 16, 2), shadow_color: (0, 0, 0, 0.25)
 "#;
     let timeline = build_test_timeline(source);
-    let track = timeline.world.tracks.get("box").expect("box track exists");
+    let track = timeline.world.tracks.get_id("box").expect("box track exists");
     use crate::primitives::Primitive;
     let primitive = crate::primitives::RECT;
     let asset_cache = crate::timeline::assets::AssetCache::default();
     let ctx = crate::primitives::EvaluateCtx {
-        track,
+        id: track,
         label: "box",
-        caps: timeline.world.caps(track.id),
+        caps: timeline.world.caps(track),
         time_ms: 0,
         local_transform: kurbo::Affine::IDENTITY,
         opacity: 1.0,
@@ -94,12 +94,12 @@ box: Rect, size: (100, 100), at: (200, 200), shadow: (0, 8, 16, 2), shadow_color
         vector_paths: &[],
         asset_cache: &asset_cache,
         highlight: &crate::timeline::animation_track::HighlightTracks::default(),
-        property_plan: Some(timeline.world.property_plan(track.id)),
+        property_plan: Some(timeline.world.property_plan(track)),
         world: Some(&timeline.world),
-        shape: Some(timeline.world.shape(track.id)),
-        text: Some(timeline.world.text(track.id)),
-        geometry: Some(timeline.world.geometry(track.id)),
-        style: Some(timeline.world.style(track.id)),
+        shape: Some(timeline.world.shape(track)),
+        text: Some(timeline.world.text(track)),
+        geometry: Some(timeline.world.geometry(track)),
+        style: Some(timeline.world.style(track)),
         payload: None,
         target_resolver: None,
         legend: None,
@@ -132,7 +132,7 @@ fn tilt_affine_applied_from_rotate_x_and_rotate_y() {
 box: Rect, size: (100, 100), at: (200, 200), rotate_x: 0.1, rotate_y: 0.2
 "#;
     let timeline = build_test_timeline(source);
-    let track = timeline.world.tracks.get("box").expect("box track exists");
+    let track = timeline.world.tracks.get_id("box").expect("box track exists");
     let dims = SceneDimensions {
         width: 1920,
         height: 1080,

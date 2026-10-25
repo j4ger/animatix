@@ -47,8 +47,8 @@ impl TargetResolver for Timeline {
             ));
         }
 
-        let track = self.get_track(name)?;
-        let half_local = self.world.geometry(track.id).size.get(time_ms, [50.0, 50.0]);
+        let id = self.get_entity_id(name)?;
+        let half_local = self.world.geometry(id).size.get(time_ms, [50.0, 50.0]);
         // Use the world affine to get a transform-aware AABB.
         if let Some(world) = self.actor_world_affine(name, time_ms, scene_dimensions) {
             // Transform the four corners of the local rect through the world affine.
@@ -69,7 +69,7 @@ impl TargetResolver for Timeline {
             Some((centre, half))
         } else {
             // Fallback for actors not yet in the scene graph: use raw position + size.
-            let centre = self.world.geometry(track.id).position.get(time_ms, [0.0, 0.0]);
+            let centre = self.world.geometry(id).position.get(time_ms, [0.0, 0.0]);
             Some((centre, half_local))
         }
     }

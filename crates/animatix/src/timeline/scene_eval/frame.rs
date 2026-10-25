@@ -449,9 +449,9 @@ impl Timeline {
                 && suppressed_actors.is_empty()
                 && transient_overrides.is_empty();
             for &root_id in self.world.root_entities() {
-                let Some(root_track) = self.world.tracks.get_by_id(root_id) else {
+                if !self.world.exists(root_id) {
                     continue;
-                };
+                }
                 // `camera_follow: false` keeps a root subtree out of the camera
                 // entirely — the HUD that must not move while the scene pushes
                 // in. Only roots are consulted: the camera is applied here, once,
@@ -460,7 +460,7 @@ impl Timeline {
                 // reported at build). Short-circuited on `camera_exempt` so a
                 // scene that never uses the flag does no track lookup per root.
                 let root_affine = if camera_exempt {
-                    let root_meta = self.world.meta(root_track.id);
+                    let root_meta = self.world.meta(root_id);
                     if !root_meta.camera_follow || root_meta.parallax == 0.0 {
                         kurbo::Affine::IDENTITY
                     } else if (root_meta.parallax - 1.0).abs() < f32::EPSILON {

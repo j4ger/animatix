@@ -36,13 +36,11 @@ impl Timeline {
         let child_extents: Vec<ChildExtent> = order
             .iter()
             .filter_map(|child_id| {
-                let track = self.world.track(*child_id)?;
+                let geometry = self.world.geometry(*child_id);
                 Some(ChildExtent {
                     label: self.world.label(*child_id)?.to_string(),
-                    half_size: track.layout_size_get(self.world.geometry(track.id), time_ms)?,
-                    placement_mode: self
-                        .world
-                        .geometry(track.id)
+                    half_size: geometry.layout_size_get(time_ms)?,
+                    placement_mode: geometry
                         .placement_mode
                         .get(time_ms, PlacementMode::LayoutManaged),
                 })
@@ -150,7 +148,6 @@ impl Timeline {
             metadata,
             &layout_children,
             time_ms,
-            &self.world.tracks,
             &self.world,
         )
     }
@@ -159,11 +156,12 @@ impl Timeline {
     pub(crate) fn resolve_audio_volume_envelopes(&mut self) {
         for seg in &mut self.audio_segments {
             // Find track with matching normalized source or Audio actor type
-            let matching_track = self.world.tracks.dense.iter().find(|t| {
-                self.world.actor_type(t.id) == "Audio" && self.world.geometry(t.id).volume.is_some()
+            let matching_id = self.world.tracks.iter().find_map(|(_, id)| {
+                (self.world.actor_type(id) == "Audio" && self.world.geometry(id).volume.is_some())
+                    .then_some(id)
             });
-            if let Some(track) = matching_track {
-                if let Some(vol_track) = &self.world.geometry(track.id).volume {
+            if let Some(audio_id) = matching_id {
+                if let Some(vol_track) = &self.world.geometry(audio_id).volume {
                     let mut envelope = Vec::new();
                     let t_start_ms = (seg.start_time_s * 1000.0).round() as u64;
                     let dur_ms =

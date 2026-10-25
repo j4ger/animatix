@@ -219,17 +219,17 @@ impl Timeline {
     ) -> Option<TextChildProps> {
         use crate::timeline::TrackAccessor;
 
-        let track = self.world.tracks.get(child_label)?;
+        let child_id = self.world.get_id(child_label)?;
 
         // Check if this is a text-type actor (Text, Typst, Code)
-        let text_kind = match self.world.caps(track.id).text {
+        let text_kind = match self.world.caps(child_id).text {
             Some(crate::timeline::TextKind::Text) => TextKind::Text,
             Some(crate::timeline::TextKind::Typst) => TextKind::Typst,
             Some(crate::timeline::TextKind::Code) => TextKind::Code,
             _ => return None,
         };
 
-        let text = self.world.text(track.id);
+        let text = self.world.text(child_id);
 
         let content = text.text_content.get(time_ms, String::new());
         if content.is_empty() {
@@ -253,7 +253,7 @@ impl Timeline {
             line_height: text.line_height.get(time_ms, 1.2),
             letter_spacing: text.letter_spacing.get(time_ms, 0.0),
             word_spacing: text.word_spacing.get(time_ms, 0.0),
-            color: self.world.style(track.id).color.get(time_ms, [1.0, 1.0, 1.0, 1.0]),
+            color: self.world.style(child_id).color.get(time_ms, [1.0, 1.0, 1.0, 1.0]),
             text_align: text.text_align.get(time_ms, "left".to_string()),
             overflow: text.overflow.get(time_ms, "visible".to_string()),
             language: text.language.get(time_ms, String::new()),
@@ -350,13 +350,10 @@ impl Timeline {
             new_half_size
         );
 
-        let Some(track) = self.world.tracks.get_mut(child_label) else {
+        let Some(child_id) = self.world.get_id(child_label) else {
             return;
         };
-        // Read the sibling text component through direct field access: the
-        // `world.text_mut` accessor borrows the whole `World`, which cannot
-        // coexist with the mutable track borrow above.
-        let text = self.world.text.get_mut(track.id);
+        let text = self.world.text.get_mut(child_id);
 
         // Update max_width track
         text.text_max_width
@@ -382,25 +379,16 @@ impl Timeline {
         text.text_paths
             .ensure(Vec::new())
             .add_keyframe(time_ms, paths_vec, Easing::Linear);
-        // Direct field access keeps the geometry borrow disjoint from the
-        // mutable track borrow above; `world.geometry_mut` would borrow the
-        // whole `World` and cannot coexist with it.
-        let geometry = self.world.geometry.get_mut(track.id);
+        let geometry = self.world.geometry.get_mut(child_id);
         geometry.size.ensure(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
             time_ms,
             new_half_size,
             Easing::Linear,
         );
-        track
-            .ensure_layout_size(&mut *geometry, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
+        geometry
+            .ensure_layout_size(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
             .add_keyframe(time_ms, new_half_size, Easing::Linear);
-        track.set_metrics(
-            text,
-            time_ms,
-            compiled.ascent,
-            compiled.descent,
-            compiled.baseline_offset,
-        );
+        text.set_metrics(time_ms, compiled.ascent, compiled.descent, compiled.baseline_offset);
     }
 
     /// Compute available width for a text child based on container type.
@@ -533,18 +521,18 @@ impl Timeline {
         let mut layout_children = Vec::with_capacity(child_order.len());
 
         for child_label in child_order {
-            let Some(track) = self.world.tracks.get(child_label) else {
+            let Some(child_id) = self.world.get_id(child_label) else {
                 warn!("layout: child '{}' not found in tracks, skipping", child_label);
                 continue;
             };
 
             let placement_mode =
-                self.world.geometry(track.id).placement_mode.last(PlacementMode::LayoutManaged);
+                self.world.geometry(child_id).placement_mode.last(PlacementMode::LayoutManaged);
 
             // Only children with seeded layout_size are admitted into the layout set.
             // Manual children may still exist in the scene graph via the hierarchy,
             // but they are excluded from layout spacing/placement when unmeasured.
-            let is_admitted = if !track.has_layout_size(self.world.geometry(track.id)) {
+            let is_admitted = if !self.world.geometry(child_id).has_layout_size() {
                 if placement_mode == PlacementMode::LayoutManaged {
                     Self::push_layout_size_exclusion_diagnostic(
                         diagnostics,
@@ -581,21 +569,21 @@ impl Timeline {
 
         let parent_content_size = self
             .world
-            .tracks
-            .get(container_label)
-            .and_then(|t| {
-                let geometry = self.world.geometry(t.id);
-                t.layout_size_get(geometry, time_ms)
-                    .or_else(|| t.layout_size_last(geometry))
-                    .or_else(|| geometry.size.get_or_default(time_ms))
-                    .or_else(|| geometry.size.last_time().map(|_| geometry.size.last([0.0, 0.0])))
+            .get_id(container_label)
+            .and_then(|container_id| {
+                let geometry = self.world.geometry(container_id);
+                geometry
+                    .layout_size_get(time_ms)
+                    .or_else(|| geometry.layout_size_last())
+                    .or_else(|| geometry.size.as_ref().map(|t| t.evaluate(time_ms)))
+                    .or_else(|| geometry.size.as_ref().map(|t| t.last_value()))
             })
             .map(|s| [s[0] * 2.0, s[1] * 2.0])
             .unwrap_or([0.0, 0.0]);
 
         for cl in children {
-            if let Some(track) = self.world.tracks.get(&cl.label) {
-                let geometry = self.world.geometry(track.id);
+            if let Some(child_id) = self.world.get_id(&cl.label) {
+                let geometry = self.world.geometry(child_id);
                 size_specs.push(geometry.size_spec);
                 let min_w = geometry.min_width.get(time_ms, 0.0);
                 let max_w = f32::INFINITY;
@@ -643,8 +631,8 @@ impl Timeline {
         let child_extents: Vec<ChildExtent> = children
             .iter()
             .filter_map(|cl| {
-                let track = self.world.tracks.get(&cl.label)?;
-                let half_size = track.layout_size_last(self.world.geometry(track.id))?;
+                let child_id = self.world.get_id(&cl.label)?;
+                let half_size = self.world.geometry(child_id).layout_size_last()?;
                 Some(ChildExtent {
                     label: cl.label.clone(),
                     half_size,
@@ -660,9 +648,8 @@ impl Timeline {
             .iter()
             .map(|cl| {
                 self.world
-                    .tracks
-                    .get(&cl.label)
-                    .map(|t| t.baseline_get(self.world.text(t.id), t_ms))
+                    .get_id(&cl.label)
+                    .map(|child_id| self.world.text(child_id).baseline_get(t_ms))
                     .unwrap_or(0.0)
             })
             .collect();
@@ -683,11 +670,8 @@ impl Timeline {
         // Write positions and resolved sizes to tracks, only for LayoutManaged children
         for (i, child) in children.iter().enumerate() {
             if child.placement_mode == PlacementMode::LayoutManaged {
-                if let Some(track) = self.world.tracks.get_mut(&child.label) {
-                    // Direct field access keeps the geometry borrow disjoint
-                    // from the mutable track borrow; `world.geometry_mut`
-                    // borrows the whole `World`.
-                    let geometry = self.world.geometry.get_mut(track.id);
+                if let Some(child_id) = self.world.get_id(&child.label) {
+                    let geometry = self.world.geometry.get_mut(child_id);
                     geometry.position.ensure([0.0, 0.0]).add_keyframe(
                         t_ms,
                         layout_results[i].position,
@@ -704,7 +688,7 @@ impl Timeline {
                         && resolved_half_size[0] > 0.0
                         && resolved_half_size[1] > 0.0
                     {
-                        track.ensure_layout_size(&mut *geometry, resolved_half_size).add_keyframe(
+                        geometry.ensure_layout_size(resolved_half_size).add_keyframe(
                             t_ms,
                             resolved_half_size,
                             Easing::Linear,

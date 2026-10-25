@@ -12,7 +12,6 @@ impl Timeline {
         _ty: &str,
         props: &[Property],
         time_ms: f64,
-        _existing_track: &AnimationTrack,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> ExtractedActorProperties {
         let initial_eval_env = self.build_eval_env(time_ms as u64);
@@ -295,9 +294,8 @@ impl Timeline {
             .unwrap_or([500.0, 500.0]);
         let parent_pos = self
             .world
-            .tracks
-            .get(parent_label)
-            .map(|t| self.world.geometry(t.id).position.last([0.0, 0.0]))
+            .get_id(parent_label)
+            .map(|id| self.world.geometry(id).position.last([0.0, 0.0]))
             .unwrap_or([0.0, 0.0]);
 
         props

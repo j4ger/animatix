@@ -9,8 +9,7 @@ use crate::timeline::property_track::TrackAccessor;
 #[cfg(feature = "svg")]
 use crate::timeline::svg::measure_svg_paths;
 use crate::timeline::{
-    AnimationTrack, DEFAULT_LAYOUT_HALF_SIZE, Environment, SceneDimensions, Value,
-    preserve_instant_delayed_value,
+    DEFAULT_LAYOUT_HALF_SIZE, Environment, SceneDimensions, Value, preserve_instant_delayed_value,
 };
 
 /// The `Svg` primitive.
@@ -45,7 +44,6 @@ impl Primitive for SvgPrimitive {
 
     fn handle_assignment(
         &self,
-        track: &mut AnimationTrack,
         property: &str,
         value: &Expr,
         ctx: &mut AssignmentCtx,
@@ -123,8 +121,8 @@ impl Primitive for SvgPrimitive {
                 start_size,
                 Easing::Linear,
             );
-            if let Some(layout_start) = track.layout_size_get(geometry, ctx.t_start_ms) {
-                track.ensure_layout_size(geometry, DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+            if let Some(layout_start) = geometry.layout_size_get(ctx.t_start_ms) {
+                geometry.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
                     ctx.t_start_ms,
                     layout_start,
                     Easing::Linear,
@@ -139,7 +137,7 @@ impl Primitive for SvgPrimitive {
             measured_half_size,
             ctx.easing,
         );
-        track.ensure_layout_size(geometry, DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+        geometry.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
             ctx.t_end_ms,
             measured_half_size,
             ctx.easing,

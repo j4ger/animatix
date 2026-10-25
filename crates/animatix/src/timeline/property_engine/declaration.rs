@@ -6,7 +6,7 @@ use crate::easing::Easing;
 use crate::renderer::types::GradientSpec;
 use crate::timeline::preserve_instant_delayed_value;
 use crate::timeline::property_registry::ActorField;
-use crate::timeline::{AnimationTrack, PropertyTrack, ShapeType, TrackAccessor};
+use crate::timeline::{EntityId, PropertyTrack, ShapeType, TrackAccessor, World};
 
 use super::plan::write_property_plan_slot_on;
 use super::value::{EnumPropertyValue, PropertyValue};
@@ -386,9 +386,11 @@ pub fn write_property_fields(
     }
 }
 
-/// Write a parsed property value to the correct track field.
+/// Write a parsed property value to the correct track field for `id`,
+/// routing through the entity's tier bundle.
 pub fn write_property_field(
-    track: &mut AnimationTrack,
+    world: &mut World,
+    id: EntityId,
     field: ActorField,
     value: PropertyValue,
     t_start_ms: u64,
@@ -396,8 +398,9 @@ pub fn write_property_field(
     easing: Easing,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut fields = TrackFieldsMut::from_track(track);
-    write_property_fields(&mut fields, field, value, t_start_ms, t_end_ms, easing, diagnostics);
+    if let Some(mut fields) = world.fields_mut(id) {
+        write_property_fields(&mut fields, field, value, t_start_ms, t_end_ms, easing, diagnostics);
+    }
 }
 
 // ─────────────────────────────────────────────────────────────

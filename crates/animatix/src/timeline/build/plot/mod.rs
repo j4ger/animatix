@@ -96,7 +96,7 @@ impl Timeline {
         label: &str,
         props: &[Property],
         initial_eval_env: &Environment,
-        existing_track: &AnimationTrack,
+        existing_track_id: EntityId,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> PlotActorProps {
         let mut x_domain = [-10.0, 10.0];
@@ -137,8 +137,8 @@ impl Timeline {
         };
 
         // Start with track defaults, override from props.
-        let caps = self.world.caps(existing_track.id);
-        let style = self.world.style(existing_track.id);
+        let caps = self.world.caps(existing_track_id);
+        let style = self.world.style(existing_track_id);
         let mut color = style.color.last(DEFAULT_WHITE);
         let default_stroke = caps.default_stroke_width();
         let mut stroke_width = style.stroke_width.last(default_stroke);
@@ -540,7 +540,7 @@ impl Timeline {
         parent_label: Option<&str>,
         children: &[InlineItem],
         diagnostics: &mut Vec<Diagnostic>,
-        existing_track: &AnimationTrack,
+        existing_track_id: EntityId,
     ) -> Option<ProcessedPlotActor> {
         let primitive = self
             .primitive_registry
@@ -560,7 +560,7 @@ impl Timeline {
             label,
             props,
             &initial_eval_env,
-            existing_track,
+            existing_track_id,
             diagnostics,
         );
 
@@ -587,7 +587,7 @@ impl Timeline {
         // default, which made standalone plot builders (BarChart, VectorField,
         // Heatmap, ContourSet, NumberPlane) lay out in a ~40x40 box regardless
         // of `size:`. Re-declarations keep inheriting the stored track size.
-        let existing_size = self.world.geometry(existing_track.id).size.last(default_size);
+        let existing_size = self.world.geometry(existing_track_id).size.last(default_size);
         let size = if existing_size != default_size {
             existing_size
         } else {

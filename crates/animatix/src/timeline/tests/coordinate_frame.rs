@@ -35,8 +35,8 @@ fn plot_child_uses_component_domain() {
         "the env side channel must mirror the component at build time"
     );
 
-    let track = timeline.get_track("c").expect("plot child track");
-    let plot = timeline.world.procedural_plot(track.id).expect("procedural plot");
+    let track = timeline.get_entity_id("c").expect("plot child track");
+    let plot = timeline.world.procedural_plot(track).expect("procedural plot");
     assert_eq!(plot.p_x_domain, [0.0, 4.0], "child sampled the host domain");
     assert_eq!(plot.p_y_domain, [0.0, 4.0]);
     assert_eq!(plot.p_size, [400.0, 200.0], "child sampled the host full size");
@@ -46,7 +46,7 @@ fn plot_child_uses_component_domain() {
     // the curve in the middle of the box instead.
     let paths = timeline
         .world
-        .shape(track.id)
+        .shape(track)
         .vector_paths
         .as_ref()
         .expect("generated curve paths")
@@ -99,10 +99,10 @@ fn assignment_rebuild_uses_coordinate_frame() {
         "size assignment diagnostics: {diagnostics:?}"
     );
 
-    let track = timeline.get_track("g").expect("graph track");
+    let track = timeline.get_entity_id("g").expect("graph track");
     let paths = timeline
         .world()
-        .shape(track.id)
+        .shape(track)
         .vector_paths
         .as_ref()
         .expect("graph axis paths")
@@ -173,12 +173,8 @@ fn carried_graph_keeps_coordinate_frame() {
     assert_eq!(context.y_domain, [0.0, 2.0]);
 
     // The carried child keeps the geometry it was sampled with under that domain.
-    let child = scene_b.timeline.get_track("c").expect("carried plot child");
-    let plot = scene_b
-        .timeline
-        .world
-        .procedural_plot(child.id)
-        .expect("carried procedural plot");
+    let child = scene_b.timeline.get_entity_id("c").expect("carried plot child");
+    let plot = scene_b.timeline.world.procedural_plot(child).expect("carried procedural plot");
     assert_eq!(plot.p_x_domain, [0.0, 4.0]);
     assert_eq!(plot.p_y_domain, [0.0, 2.0]);
 }

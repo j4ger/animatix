@@ -65,21 +65,12 @@ pub struct LegendTracks {
 
 /// Derive the current legend participation mode from the tagged `legend` property.
 pub fn legend_mode_for_track(
-    track: &super::AnimationTrack,
+    id: super::EntityId,
     first_seen_ms: u64,
-    world: Option<&super::World>,
+    world: &super::World,
 ) -> LegendMode {
     let time_ms = first_seen_ms;
-    let value = match world {
-        Some(world) => {
-            world.read_property_value(track.id, super::ActorField::Tagged("legend"), time_ms)
-        },
-        None => super::dispatch::read_property_value(
-            track,
-            super::ActorField::Tagged("legend"),
-            time_ms,
-        ),
-    };
+    let value = world.read_property_value(id, super::ActorField::Tagged("legend"), time_ms);
     value
         .as_ref()
         .and_then(LegendMode::from_property_value)
@@ -192,22 +183,10 @@ fn source_order(world: &super::World) -> std::collections::HashMap<String, usize
 /// Derived from the tagged property track — the single source of truth for the
 /// participation mode — so a declaration and a later assignment are both seen
 /// without a duplicate boolean in [`LegendTracks`].
-fn legend_declared(
-    track: &super::AnimationTrack,
-    first_seen_ms: u64,
-    world: Option<&super::World>,
-) -> bool {
-    let value = match world {
-        Some(world) => {
-            world.read_property_value(track.id, super::ActorField::Tagged("legend"), first_seen_ms)
-        },
-        None => super::dispatch::read_property_value(
-            track,
-            super::ActorField::Tagged("legend"),
-            first_seen_ms,
-        ),
-    };
-    value.is_some()
+fn legend_declared(id: super::EntityId, first_seen_ms: u64, world: &super::World) -> bool {
+    world
+        .read_property_value(id, super::ActorField::Tagged("legend"), first_seen_ms)
+        .is_some()
 }
 
 /// Scan completed actor tracks for color-bearing legend candidates.
@@ -219,14 +198,14 @@ fn legend_declared(
 pub fn scan_legend_entries(world: &super::World) -> Vec<(String, [f32; 4])> {
     let order = source_order(world);
     let mut candidates = Vec::new();
-    for (label, track) in &world.tracks {
-        let legend = world.legend(track.id);
-        let first_seen_ms = world.meta(track.id).first_seen_ms;
-        let mode = legend_mode_for_track(track, first_seen_ms, Some(world));
-        if !legend_eligible(&world.caps(track.id))
+    for (label, id) in world.tracks.iter() {
+        let legend = world.legend(id);
+        let first_seen_ms = world.meta(id).first_seen_ms;
+        let mode = legend_mode_for_track(id, first_seen_ms, world);
+        if !legend_eligible(&world.caps(id))
             || mode == LegendMode::Hidden
-            || (is_full_viewport_background(world.geometry(track.id))
-                && !legend_declared(track, first_seen_ms, Some(world)))
+            || (is_full_viewport_background(world.geometry(id))
+                && !legend_declared(id, first_seen_ms, world))
         {
             continue;
         }

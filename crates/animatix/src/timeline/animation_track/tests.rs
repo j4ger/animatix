@@ -52,8 +52,7 @@ fn track_identity_derives_caps_from_registry() {
     let mut world = crate::timeline::World::new();
     for meta in primitive_catalog().iter() {
         let label = meta.type_name.to_string();
-        let track = super::AnimationTrack::new(label.clone());
-        let id = world.spawn_with_track(&label, meta.type_name.as_ref(), track);
+        let id = world.spawn(&label, meta.type_name.as_ref());
         assert_eq!(world.actor_type(id), meta.type_name.as_ref());
         if let Some(expected) = animatix_std::caps_for_type(meta.type_name.as_ref()) {
             assert_eq!(world.caps(id), expected, "caps drifted for {}", meta.type_name);
@@ -141,8 +140,7 @@ fn create_world_vec2_keyframe(
 /// `World` field bundle.
 ///
 /// The text tier is a `World` component, so its typed slots are reachable only
-/// through `World::fields_mut`; `AnimationTrack::field_mut` has no destination
-/// for them.
+/// through `World::fields_mut`.
 fn create_world_f32_keyframe(
     field: ActorField,
     time_ms: u64,
@@ -279,15 +277,6 @@ fn test_field_ref_max_height_returns_f32() {
 }
 
 #[test]
-fn test_field_ref_vector_paths_is_world_owned() {
-    // vector_paths moved to the shape component store, so the track-only
-    // accessor has no field to hand back; world-aware readers use
-    // World::fields.
-    let track = AnimationTrack::placeholder("test".to_string());
-    assert!(track.field_ref(ActorField::VectorPaths).is_none());
-}
-
-#[test]
 fn test_field_ref_text_paths_returns_text_paths() {
     // The text tier lives in the `World.text` component, so the typed slot is
     // reachable through the world field bundle and not from a bare track.
@@ -297,9 +286,6 @@ fn test_field_ref_text_paths_returns_text_paths() {
     let rf = fields.field_ref(ActorField::TextPaths);
     assert!(rf.is_some());
     assert!(matches!(rf.unwrap(), TrackFieldRef::TextPaths(_)));
-
-    let track = AnimationTrack::placeholder("test".to_string());
-    assert!(track.field_ref(ActorField::TextPaths).is_none());
 }
 
 #[test]
@@ -310,13 +296,6 @@ fn test_field_ref_position_binding_returns_position_binding() {
     let rf = fields.field_ref(ActorField::PositionBinding);
     assert!(rf.is_some());
     assert!(matches!(rf.unwrap(), TrackFieldRef::PositionBinding(_)));
-}
-
-#[test]
-fn test_field_ref_svg_paths_returns_none() {
-    let track = AnimationTrack::placeholder("test".to_string());
-    let rf = track.field_ref(ActorField::SvgPaths);
-    assert!(rf.is_none());
 }
 
 #[test]
@@ -362,8 +341,7 @@ fn test_field_mut_returns_correct_type_for_font_style() {
 #[test]
 fn test_max_keyframe_time_with_transform() {
     let mut timeline = Timeline::new();
-    let track = AnimationTrack::placeholder("test".to_string());
-    let id = timeline.world_mut().spawn_with_track("test", "Rect", track);
+    let id = timeline.world_mut().spawn("test", "Rect");
     timeline
         .world_mut()
         .geometry_mut(id)
@@ -389,8 +367,7 @@ fn test_max_keyframe_time_with_highlight_color() {
 #[test]
 fn test_max_keyframe_time_returns_max_across_all_fields() {
     let mut timeline = Timeline::new();
-    let track = AnimationTrack::placeholder("test".to_string());
-    let id = timeline.world_mut().spawn_with_track("test", "Rect", track);
+    let id = timeline.world_mut().spawn("test", "Rect");
     timeline
         .world_mut()
         .style_mut(id)
@@ -413,8 +390,9 @@ fn test_max_keyframe_time_returns_max_across_all_fields() {
 
 #[test]
 fn test_max_keyframe_time_returns_none_for_empty_track() {
-    let track = AnimationTrack::placeholder("test".to_string());
-    assert_eq!(track.max_keyframe_time(), None);
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    assert_eq!(timeline.world().max_keyframe_time(id), None);
 }
 
 #[test]
@@ -431,10 +409,10 @@ fn test_has_any_keyframes_returns_true_for_highlight_fields() {
 }
 
 #[test]
-fn test_font_metrics_reach_the_world_tier_not_the_track_scan() {
-    // Font metrics are text-tier traffic now. `AnimationTrack::has_any_keyframes`
-    // scans the registry through the track, which has no text fields left; the
-    // keyframes are visible through the `World` field bundle instead.
+fn test_font_metrics_reach_the_world_tier() {
+    // Font metrics are text-tier traffic: the keyframes live on the
+    // `World.text` component and are visible through the field bundle and the
+    // registry-level scans alike.
     let mut timeline = Timeline::new();
     let id = timeline.world_mut().spawn("test", "Text");
     timeline
@@ -444,17 +422,16 @@ fn test_font_metrics_reach_the_world_tier_not_the_track_scan() {
         .ensure(0.0)
         .add_keyframe(500, 10.0, Easing::Linear);
 
-    let track = timeline.world().track(id).expect("track");
-    assert!(!track.has_any_keyframes());
-
+    assert!(timeline.world().has_any_keyframes(id));
     let fields = timeline.world().fields(id).expect("entity fields");
     assert_eq!(fields.property_keyframe_times(ActorField::Ascent), vec![500]);
 }
 
 #[test]
 fn test_has_any_keyframes_returns_false_for_empty_track() {
-    let track = AnimationTrack::placeholder("test".to_string());
-    assert!(!track.has_any_keyframes());
+    let mut timeline = Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
+    assert!(!timeline.world().has_any_keyframes(id));
 }
 
 #[test]
@@ -607,8 +584,7 @@ fn test_interpolation_segment_with_single_keyframe_returns_none() {
 #[test]
 fn test_max_keyframe_time_iterates_through_all_registry_fields() {
     let mut timeline = Timeline::new();
-    let track = AnimationTrack::placeholder("test".to_string());
-    let id = timeline.world_mut().spawn_with_track("test", "Rect", track);
+    let id = timeline.world_mut().spawn("test", "Rect");
     // Expect max_keyframe_time to iterate registry-driven fields
     // Put a keyframe on an unconventional registry field
     timeline.world_mut().geometry_mut(id).min_width.ensure(0.0).add_keyframe(
@@ -635,8 +611,7 @@ fn test_has_any_keyframes_iterates_through_all_registry_fields() {
 #[test]
 fn test_registry_driven_max_keyframe_time_finds_min_width() {
     let mut timeline = Timeline::new();
-    let track = AnimationTrack::placeholder("test".to_string());
-    let id = timeline.world_mut().spawn_with_track("test", "Rect", track);
+    let id = timeline.world_mut().spawn("test", "Rect");
     timeline.world_mut().geometry_mut(id).min_height.ensure(0.0).add_keyframe(
         4000,
         200.0,
@@ -647,8 +622,8 @@ fn test_registry_driven_max_keyframe_time_finds_min_width() {
 
 #[test]
 fn test_registry_driven_max_keyframe_time_finds_letter_spacing() {
-    // `letter_spacing` is text-tier storage: the track-only scan cannot see it,
-    // the `World` field bundle can.
+    // `letter_spacing` is text-tier storage: the World-level registry scan
+    // (which used to run against the bare track and miss the tier) sees it.
     let mut timeline = Timeline::new();
     let id = timeline.world_mut().spawn("test", "Text");
     timeline.world_mut().text_mut(id).letter_spacing.ensure(0.0).add_keyframe(
@@ -657,8 +632,7 @@ fn test_registry_driven_max_keyframe_time_finds_letter_spacing() {
         Easing::Linear,
     );
 
-    let track = timeline.world().track(id).expect("track");
-    assert_eq!(track.max_keyframe_time(), None);
+    assert_eq!(timeline.world().max_keyframe_time(id), Some(2500));
 
     let fields = timeline.world().fields(id).expect("entity fields");
     assert_eq!(fields.property_keyframe_times(ActorField::LetterSpacing), vec![2500]);
@@ -666,6 +640,7 @@ fn test_registry_driven_max_keyframe_time_finds_letter_spacing() {
 
 #[test]
 fn test_registry_driven_has_any_keyframes_finds_word_spacing() {
+    // The World-level registry scan sees text-tier keyframes.
     let mut timeline = Timeline::new();
     let id = timeline.world_mut().spawn("test", "Text");
     timeline.world_mut().text_mut(id).word_spacing.ensure(0.0).add_keyframe(
@@ -674,8 +649,7 @@ fn test_registry_driven_has_any_keyframes_finds_word_spacing() {
         Easing::Linear,
     );
 
-    let track = timeline.world().track(id).expect("track");
-    assert!(!track.has_any_keyframes());
+    assert!(timeline.world().has_any_keyframes(id));
 
     let fields = timeline.world().fields(id).expect("entity fields");
     assert_eq!(fields.property_keyframe_times(ActorField::WordSpacing), vec![1000]);
@@ -780,13 +754,6 @@ fn test_track_field_ref_keyframe_count_none_for_empty() {
     let fields = timeline.world().fields(id).expect("entity fields");
     let rf = fields.field_ref(ActorField::Opacity).unwrap();
     assert_eq!(rf.keyframe_count(), 0);
-}
-
-#[test]
-fn test_track_field_ref_evaluate_value_none_for_vector_paths() {
-    // World-owned shape field: the track-only accessor has no field to read.
-    let track = AnimationTrack::placeholder("test".to_string());
-    assert!(track.field_ref(ActorField::VectorPaths).is_none());
 }
 
 #[test]

@@ -11,7 +11,7 @@ impl Timeline {
     /// helpers in place of the track's keyframed values.
     pub(crate) fn evaluate_node_transform(
         &self,
-        track: &AnimationTrack,
+        id: EntityId,
         time_ms: u64,
         parent_opacity: f32,
         parent_transform: kurbo::Affine,
@@ -32,13 +32,13 @@ impl Timeline {
             });
         let placement_mode = self
             .world
-            .geometry(track.id)
+            .geometry(id)
             .placement_mode
             .get(time_ms, PlacementMode::LayoutManaged);
         let mut base_position = if let Some(ov_pos) = override_position {
             ov_pos
         } else {
-            self.world.geometry(track.id).position.get(time_ms, [0.0, 0.0])
+            self.world.geometry(id).position.get(time_ms, [0.0, 0.0])
         };
         if let Some(layout_pos) = layout_position {
             if placement_mode == PlacementMode::LayoutManaged && override_position.is_none() {
@@ -51,10 +51,7 @@ impl Timeline {
         let binding = if override_position.is_some() {
             PositionBinding::Absolute
         } else {
-            self.world
-                .geometry(track.id)
-                .position_binding
-                .get(time_ms, PositionBinding::Absolute)
+            self.world.geometry(id).position_binding.get(time_ms, PositionBinding::Absolute)
         };
         let position =
             resolve_bound_position(binding, base_position, parent_transform, scene_dimensions);
@@ -66,16 +63,16 @@ impl Timeline {
             if let Some(Value::Vec2(v)) = node_overrides.and_then(|ov| ov.get("shift")) {
                 [v[0] as f32, v[1] as f32]
             } else {
-                self.world.geometry(track.id).motion_offset.get(time_ms, [0.0, 0.0])
+                self.world.geometry(id).motion_offset.get(time_ms, [0.0, 0.0])
             };
         // PF-4: the three scalar reads resolve their registry entries once per
         // process instead of hashing the property name on every node every
         // frame; semantics are unchanged (see `effective_f32_resolved`).
         let reads = crate::timeline::property_registry::transform_property_reads();
         let rotation = effective_f32_resolved(
-            track,
-            self.world.property_plan(track.id),
-            Some(&self.world),
+            id,
+            self.world.property_plan(id),
+            &self.world,
             node_overrides,
             time_ms,
             "rotation",
@@ -83,9 +80,9 @@ impl Timeline {
             0.0,
         ) as f64;
         let scale = effective_f32_resolved(
-            track,
-            self.world.property_plan(track.id),
-            Some(&self.world),
+            id,
+            self.world.property_plan(id),
+            &self.world,
             node_overrides,
             time_ms,
             "scale",
@@ -93,9 +90,9 @@ impl Timeline {
             1.0,
         ) as f64;
         let opacity = effective_f32_resolved(
-            track,
-            self.world.property_plan(track.id),
-            Some(&self.world),
+            id,
+            self.world.property_plan(id),
+            &self.world,
             node_overrides,
             time_ms,
             "opacity",
@@ -103,9 +100,9 @@ impl Timeline {
             1.0,
         );
         let half_size = effective_half_size_resolved(
-            track,
-            self.world.property_plan(track.id),
-            Some(&self.world),
+            id,
+            self.world.property_plan(id),
+            &self.world,
             node_overrides,
             time_ms,
             reads.size,
@@ -113,9 +110,9 @@ impl Timeline {
         );
 
         let transform = effective_transform(
-            track,
-            self.world.property_plan(track.id),
-            Some(&self.world),
+            id,
+            self.world.property_plan(id),
+            &self.world,
             node_overrides,
             time_ms,
             "transform",
@@ -132,7 +129,7 @@ impl Timeline {
         ]);
 
         let rotate_x = match self.world.read_property_value(
-            track.id,
+            id,
             crate::timeline::ActorField::Tagged("rotate_x"),
             time_ms,
         ) {
@@ -140,7 +137,7 @@ impl Timeline {
             _ => 0.0,
         };
         let rotate_y = match self.world.read_property_value(
-            track.id,
+            id,
             crate::timeline::ActorField::Tagged("rotate_y"),
             time_ms,
         ) {
@@ -243,8 +240,8 @@ impl Timeline {
     /// Extract all text glyph paths from every track in the timeline.
     pub fn extract_all_glyphs(&self) -> Vec<TextPath> {
         let mut glyphs = Vec::new();
-        for track in self.world.tracks.values() {
-            if let Some(text_paths) = &self.world.text(track.id).text_paths {
+        for (_, id) in self.world.tracks.iter() {
+            if let Some(text_paths) = &self.world.text(id).text_paths {
                 for (paths, _) in text_paths.keyframes.values() {
                     for glyph in paths {
                         glyphs.push(glyph.clone());

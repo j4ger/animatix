@@ -152,8 +152,8 @@ fn test_hierarchical_assignment_target() {
     let timeline = report.output;
 
     // At t=0s, circ.opacity should be 0.0 (pre-keyframe default is hidden)
-    let circ_track = timeline.world.tracks.get("circ").expect("circ track should exist");
-    let opacity_at_0 = timeline.world.style(circ_track.id).opacity.as_ref().unwrap().evaluate(0);
+    let circ_track = timeline.world.tracks.get_id("circ").expect("circ track should exist");
+    let opacity_at_0 = timeline.world.style(circ_track).opacity.as_ref().unwrap().evaluate(0);
     assert!(
         (opacity_at_0 - 0.0).abs() < 0.01,
         "Expected circ.opacity=0.0 at t=0 (pre-keyframe default), got {:?}",
@@ -161,8 +161,7 @@ fn test_hierarchical_assignment_target() {
     );
 
     // At t=1s, circ.opacity should be 0.5
-    let opacity_at_1s =
-        timeline.world.style(circ_track.id).opacity.as_ref().unwrap().evaluate(1000);
+    let opacity_at_1s = timeline.world.style(circ_track).opacity.as_ref().unwrap().evaluate(1000);
     assert!(
         (opacity_at_1s - 0.5).abs() < 0.01,
         "Expected circ.opacity=0.5 at t=1s, got {:?}",
@@ -188,8 +187,8 @@ fn explicit_opacity_before_keyframe_is_honored() {
         "Expected no build diagnostics, got: {:?}",
         report.diagnostics
     );
-    let track = report.output.world.tracks.get("box").expect("box track should exist");
-    let opacity_at_0 = report.output.world.style(track.id).opacity.as_ref().unwrap().evaluate(0);
+    let track = report.output.world.tracks.get_id("box").expect("box track should exist");
+    let opacity_at_0 = report.output.world.style(track).opacity.as_ref().unwrap().evaluate(0);
     assert_eq!(opacity_at_0, 0.0, "explicit opacity: 0 should apply at t=0");
 }
 
@@ -205,11 +204,11 @@ fn graph_axes_invisible_before_fadein() {
         crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
 
-    let track = timeline.world.tracks.get("g1").expect("g1 track should exist");
-    let opacity_at_0 = timeline.world.style(track.id).opacity.as_ref().map(|t| t.evaluate(0));
-    let opacity_at_500 = timeline.world.style(track.id).opacity.as_ref().map(|t| t.evaluate(500));
-    let opacity_at_900 = timeline.world.style(track.id).opacity.as_ref().map(|t| t.evaluate(900));
-    let opacity_at_1000 = timeline.world.style(track.id).opacity.as_ref().map(|t| t.evaluate(1000));
+    let track = timeline.world.tracks.get_id("g1").expect("g1 track should exist");
+    let opacity_at_0 = timeline.world.style(track).opacity.as_ref().map(|t| t.evaluate(0));
+    let opacity_at_500 = timeline.world.style(track).opacity.as_ref().map(|t| t.evaluate(500));
+    let opacity_at_900 = timeline.world.style(track).opacity.as_ref().map(|t| t.evaluate(900));
+    let opacity_at_1000 = timeline.world.style(track).opacity.as_ref().map(|t| t.evaluate(1000));
 
     assert_eq!(opacity_at_0, Some(0.0), "opacity should be 0 at t=0");
     assert_eq!(opacity_at_500, Some(0.0), "opacity should be 0 at t=500ms (fade-in start)");
@@ -239,13 +238,13 @@ fn container_fadein_reveals_graph_hosted_children() {
         crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
 
-    let child = timeline.world.tracks.get("c").expect("child curve track should exist");
+    let child = timeline.world.tracks.get_id("c").expect("child curve track should exist");
     assert!(
-        !timeline.world.meta(child.id).hidden_by_default,
+        !timeline.world.meta(child).hidden_by_default,
         "container fade-in must lift the child's hidden-by-default flag"
     );
-    let opacity_at_0 = timeline.world.style(child.id).opacity.as_ref().map(|t| t.evaluate(0));
-    let opacity_at_1000 = timeline.world.style(child.id).opacity.as_ref().map(|t| t.evaluate(1000));
+    let opacity_at_0 = timeline.world.style(child).opacity.as_ref().map(|t| t.evaluate(0));
+    let opacity_at_1000 = timeline.world.style(child).opacity.as_ref().map(|t| t.evaluate(1000));
     assert_eq!(
         opacity_at_0,
         Some(0.0),
@@ -283,15 +282,15 @@ fn pre_keyframe_graph_container_is_hidden_until_its_entrance() {
         crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
 
-    let graph = timeline.world.tracks.get("g").expect("graph track should exist");
+    let graph = timeline.world.tracks.get_id("g").expect("graph track should exist");
     assert!(
-        !timeline.world.meta(graph.id).hidden_by_default,
+        !timeline.world.meta(graph).hidden_by_default,
         "the entrance action consumes the flag"
     );
     let opacity = |ms: u64| {
         timeline
             .world
-            .style(graph.id)
+            .style(graph)
             .opacity
             .as_ref()
             .map(|t| t.evaluate(ms))
@@ -331,14 +330,14 @@ fn every_built_track_identity_is_consistent() {
         crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
 
-    for (label, track) in &timeline.world.tracks {
+    for (label, id) in timeline.world.tracks.iter() {
         let expected =
-            animatix_std::caps_for_type(timeline.world.actor_type(track.id)).unwrap_or_default();
+            animatix_std::caps_for_type(timeline.world.actor_type(id)).unwrap_or_default();
         assert_eq!(
-            timeline.world.caps(track.id),
+            timeline.world.caps(id),
             expected,
             "track '{label}' caps drifted from actor_type '{}'",
-            timeline.world.actor_type(track.id)
+            timeline.world.actor_type(id)
         );
     }
 }
@@ -402,8 +401,8 @@ fn plot_capture_of_always_written_var_is_dynamic() {
         "always bare assignment must register the written name, got: {:?}",
         timeline.frame_written_vars
     );
-    let track = timeline.world.tracks.get("curve").expect("curve track");
-    let plot = timeline.world.procedural_plot(track.id).expect("procedural plot");
+    let track = timeline.world.tracks.get_id("curve").expect("curve track");
+    let plot = timeline.world.procedural_plot(track).expect("procedural plot");
     assert!(
         plot.is_dynamic(&timeline.frame_written_vars),
         "closure capturing an always-written variable must be dynamic"
@@ -442,11 +441,11 @@ fade-in c [100ms]
     );
     let timeline = report.output;
 
-    let track = timeline.world.tracks.get("c").expect("curve track");
+    let track = timeline.world.tracks.get_id("c").expect("curve track");
     assert!(
         timeline
             .world
-            .procedural_plot(track.id)
+            .procedural_plot(track)
             .expect("procedural plot")
             .is_dynamic(&timeline.frame_written_vars),
         "body references t — the plot must be dynamic"
@@ -727,10 +726,10 @@ plain: Rect, size: (50, 50), color: text.primary, at: (600, 320)
     let timeline = report.output;
 
     use crate::timeline::TrackAccessor;
-    let glow = timeline.world.tracks.get("glow").expect("glow track");
-    assert_eq!(timeline.world.style(glow.id).blend.get(0, "normal".to_string()), "screen");
-    let plain = timeline.world.tracks.get("plain").expect("plain track");
-    assert_eq!(timeline.world.style(plain.id).blend.get(0, "normal".to_string()), "normal");
+    let glow = timeline.world.tracks.get_id("glow").expect("glow track");
+    assert_eq!(timeline.world.style(glow).blend.get(0, "normal".to_string()), "screen");
+    let plain = timeline.world.tracks.get_id("plain").expect("plain track");
+    assert_eq!(timeline.world.style(plain).blend.get(0, "normal".to_string()), "normal");
 }
 
 #[test]
@@ -763,9 +762,8 @@ label.text = format("facts={} arith={}", fact_sum, arith)
     let timeline = report.output;
     let text = timeline
         .world
-        .tracks
-        .get("label")
-        .and_then(|t| timeline.world.text(t.id).text_content.as_ref())
+        .get_id("label")
+        .and_then(|id| timeline.world.text(id).text_content.as_ref())
         .map(|track| track.evaluate(1000))
         .unwrap_or_default();
     assert_eq!(text, "facts=9 arith=10");
@@ -964,12 +962,11 @@ fn high_frequency_curve_meets_resolution_floor() {
         crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
 
-    let track = timeline.world.tracks.get("c").expect("curve track");
-    let paths = track.evaluate_vector_paths_value(
-        timeline.world.shape(track.id),
-        timeline.world.style(track.id),
-        500,
-    );
+    let track = timeline.world.get_id("c").expect("curve track");
+    let paths = timeline
+        .world
+        .shape(track)
+        .evaluate_vector_paths_value(timeline.world.style(track), 500);
     let point_count: usize = paths.iter().map(|vp| vp.path.elements().len()).sum();
     assert!(
         point_count >= 32,
@@ -1008,11 +1005,11 @@ fn equation_container_builds_with_fragment_children() {
     );
 
     // Fragment f1 track should exist with its body stored
-    let f1_track = report.output.world.tracks.get("f1").expect("f1 track should exist");
+    let f1_track = report.output.world.tracks.get_id("f1").expect("f1 track should exist");
     let f1_content = report
         .output
         .world
-        .text(f1_track.id)
+        .text(f1_track)
         .text_content
         .as_ref()
         .expect("f1 should have text_content")
@@ -1020,11 +1017,11 @@ fn equation_container_builds_with_fragment_children() {
     assert_eq!(f1_content, "x^2", "Expected f1 content 'x^2', got {:?}", f1_content);
 
     // Fragment f2 track should exist with content stored
-    let f2_track = report.output.world.tracks.get("f2").expect("f2 track should exist");
+    let f2_track = report.output.world.tracks.get_id("f2").expect("f2 track should exist");
     let f2_content = report
         .output
         .world
-        .text(f2_track.id)
+        .text(f2_track)
         .text_content
         .as_ref()
         .expect("f2 should have text_content")
@@ -1062,10 +1059,10 @@ fn equation_fragment_dot_path_assignment() {
     let timeline = report.output;
 
     // Fragment f1 should have highlight_opacity animated
-    let f1_track = timeline.world.tracks.get("f1").expect("f1 track should exist");
+    let f1_track = timeline.world.tracks.get_id("f1").expect("f1 track should exist");
     let highlight_opacity_at_1s = timeline
         .world
-        .highlight(f1_track.id)
+        .highlight(f1_track)
         .highlight_opacity
         .as_ref()
         .expect("f1 should have highlight_opacity track")
@@ -1078,7 +1075,7 @@ fn equation_fragment_dot_path_assignment() {
 
     let highlight_opacity_at_end = timeline
         .world
-        .highlight(f1_track.id)
+        .highlight(f1_track)
         .highlight_opacity
         .as_ref()
         .expect("f1 should have highlight_opacity track")
@@ -1090,10 +1087,10 @@ fn equation_fragment_dot_path_assignment() {
     );
 
     // Fragment f2 should have updated content
-    let f2_track = timeline.world.tracks.get("f2").expect("f2 track should exist");
+    let f2_track = timeline.world.tracks.get_id("f2").expect("f2 track should exist");
     let f2_content_at_1s = timeline
         .world
-        .text(f2_track.id)
+        .text(f2_track)
         .text_content
         .as_ref()
         .expect("f2 should have text_content")

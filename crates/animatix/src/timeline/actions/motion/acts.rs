@@ -59,8 +59,8 @@ impl BuiltinAction for Shift {
                 continue;
             }
 
-            let track_id = match timeline.world.tracks.get(target) {
-                Some(t) => t.id,
+            let track_id = match timeline.world.get_id(target) {
+                Some(id) => id,
                 None => continue,
             };
             let geometry = timeline.world.geometry_mut(track_id);
@@ -195,8 +195,8 @@ impl BuiltinAction for Rotate {
                 continue;
             }
 
-            let track_id = match timeline.world.tracks.get(target) {
-                Some(t) => t.id,
+            let track_id = match timeline.world.get_id(target) {
+                Some(id) => id,
                 None => continue,
             };
             let geometry = timeline.world.geometry_mut(track_id);
@@ -289,8 +289,8 @@ impl BuiltinAction for Scale {
                 continue;
             }
 
-            let track_id = match timeline.world.tracks.get(target) {
-                Some(t) => t.id,
+            let track_id = match timeline.world.get_id(target) {
+                Some(id) => id,
                 None => continue,
             };
             let geometry = timeline.world.geometry_mut(track_id);

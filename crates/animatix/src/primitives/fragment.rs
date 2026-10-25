@@ -15,7 +15,7 @@ use crate::primitives::{
 use crate::timeline::lookup::{
     evaluate_expr_with_lookup_diagnostic, parse_color_in_env_with_lookup_diagnostic,
 };
-use crate::timeline::{AnimationTrack, Environment, TrackAccessor};
+use crate::timeline::{Environment, TrackAccessor};
 
 /// The `Fragment` primitive.
 pub struct FragmentPrimitive;
@@ -125,7 +125,6 @@ impl Primitive for FragmentPrimitive {
 
     fn handle_assignment(
         &self,
-        _track: &mut AnimationTrack,
         property: &str,
         value: &Expr,
         ctx: &mut AssignmentCtx,

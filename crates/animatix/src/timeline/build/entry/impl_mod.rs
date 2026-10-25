@@ -323,13 +323,13 @@ impl Timeline {
                 || label.contains("_tick_y_")
                 || label.contains("_bar_label_")
         };
-        for (label, track) in &timeline.world.tracks {
-            if !timeline.world.meta.get(track.id).is_some_and(|m| m.hidden_by_default) {
+        for (label, id) in timeline.world.tracks.iter() {
+            if !timeline.world.meta.get(id).is_some_and(|m| m.hidden_by_default) {
                 continue;
             }
             if is_generated_sub(label)
                 || revealed_via_ancestor(label)
-                || timeline.world.style(track.id).opacity.as_ref().is_some_and(opacity_reveals)
+                || timeline.world.style(id).opacity.as_ref().is_some_and(opacity_reveals)
             {
                 continue;
             }
@@ -346,7 +346,7 @@ impl Timeline {
                     ),
                 )
                 .with_subject(label)
-                .with_ast_span(timeline.world.decl_span(track.id).copied()),
+                .with_ast_span(timeline.world.decl_span(id).copied()),
             );
         }
 
@@ -395,18 +395,17 @@ impl Timeline {
             let end_ms = (timeline.duration_seconds() * 1000.0).round() as u64;
             if end_ms > 0 {
                 let mut broken: Vec<String> = Vec::new();
-                for (label, track) in &timeline.world.tracks {
+                for (label, id) in timeline.world.tracks.iter() {
                     for idx in crate::timeline::property_registry::allowed_property_indices(
-                        &timeline.world.caps(track.id),
-                        timeline.world.actor_type(track.id),
+                        &timeline.world.caps(id),
+                        timeline.world.actor_type(id),
                     ) {
                         let schema = &crate::timeline::property_registry::PROPERTY_REGISTRY[idx];
-                        if !timeline.world.property_has_keyframes(track.id, schema.field) {
+                        if !timeline.world.property_has_keyframes(id, schema.field) {
                             continue;
                         }
-                        let first = timeline.world.read_property_value(track.id, schema.field, 0);
-                        let last =
-                            timeline.world.read_property_value(track.id, schema.field, end_ms);
+                        let first = timeline.world.read_property_value(id, schema.field, 0);
+                        let last = timeline.world.read_property_value(id, schema.field, end_ms);
                         let wraps = match (&first, &last) {
                             (Some(a), Some(b)) => crate::timeline::values_wrap(a, b),
                             // One side never sampled: the property is constant
@@ -483,8 +482,8 @@ impl Timeline {
         // when the entity is spawned, so a miss means the declared primitive is
         // not registered (typically an extension whose plugin is not loaded).
         // Warn once here rather than silently rendering nothing every frame.
-        for (label, track) in &timeline.world.tracks {
-            let actor_type = timeline.world.actor_type(track.id);
+        for (label, id) in timeline.world.tracks.iter() {
+            let actor_type = timeline.world.actor_type(id);
             if timeline.primitive_registry.find(actor_type).is_none() {
                 diagnostics.push(
                     Diagnostic::warning(
@@ -510,7 +509,7 @@ impl Timeline {
             } = stmt
             {
                 let actor_key = crate::timeline::assignment_target_key(target);
-                if let Some(track) = timeline.world.tracks.get(&actor_key) {
+                if let Some(id) = timeline.world.get_id(&actor_key) {
                     // A per-frame write only lands on an animatable property; for
                     // anything else the modifier runtime has nowhere to put it and
                     // the write is dropped. Say so instead of dropping it quietly
@@ -537,7 +536,7 @@ impl Timeline {
                             )
                             .with_subject(property),
                         );
-                    } else if timeline.world.is_property_animated(track.id, property) {
+                    } else if timeline.world.is_property_animated(id, property) {
                         // Only a property that actually *moves* is worth warning
                         // about: the build seeds a constant keyframe for most
                         // declared properties, and a frame-time write over a
@@ -568,10 +567,10 @@ impl Timeline {
 
         // Validate Callout `target` references after all actors are built.
         // This is a post-build pass so forward declarations are visible.
-        for (label, track) in &timeline.world.tracks {
-            if timeline.world.caps(track.id).callout {
+        for (label, id) in timeline.world.tracks.iter() {
+            if timeline.world.caps(id).callout {
                 use crate::timeline::TrackAccessor;
-                let target = timeline.world.geometry(track.id).callout_target.get(0, String::new());
+                let target = timeline.world.geometry(id).callout_target.get(0, String::new());
                 if !target.is_empty() && !timeline.world.tracks.contains_key(&target) {
                     diagnostics.push(
                         Diagnostic::error(
@@ -593,11 +592,11 @@ impl Timeline {
         // actor it would read as a HUD that keeps moving, so say now that the
         // declaration has no effect instead of leaving it to be discovered in a
         // render.
-        for (label, track) in &timeline.world.tracks {
-            let meta = timeline.world.meta.get(track.id);
+        for (label, id) in timeline.world.tracks.iter() {
+            let meta = timeline.world.meta.get(id);
             let camera_follow = meta.is_none_or(|m| m.camera_follow);
             let parallax = meta.map_or(1.0, |m| m.parallax);
-            if !camera_follow && !timeline.world.is_root(track.id) {
+            if !camera_follow && !timeline.world.is_root(id) {
                 diagnostics.push(
                     Diagnostic::warning(
                         DiagnosticCode::InapplicableProperty,
@@ -610,7 +609,7 @@ impl Timeline {
                     )
                     .with_subject(label),
                 );
-            } else if parallax != 1.0 && !timeline.world.is_root(track.id) {
+            } else if parallax != 1.0 && !timeline.world.is_root(id) {
                 diagnostics.push(
                     Diagnostic::warning(
                         DiagnosticCode::InapplicableProperty,
@@ -635,8 +634,8 @@ impl Timeline {
             .world
             .tracks
             .iter()
-            .filter(|(_, track)| timeline.world.caps(track.id).legend_host)
-            .map(|(_, track)| track.id)
+            .filter(|&(_, id)| timeline.world.caps(id).legend_host)
+            .map(|(_, id)| id)
             .collect::<Vec<_>>();
         if !legend_ids.is_empty() {
             let entries = crate::timeline::legend::scan_legend_entries(&timeline.world);
@@ -664,8 +663,8 @@ impl Timeline {
         timeline.has_effect_scopes = timeline
             .world
             .tracks
-            .values()
-            .any(|track| timeline.world.caps(track.id).is_effect_scope());
+            .iter()
+            .any(|(_, id)| timeline.world.caps(id).is_effect_scope());
         timeline.refresh_blend_used();
         timeline.refresh_camera_used();
         // Resolve any hierarchy link whose child track was created by a path

@@ -663,7 +663,7 @@ pub fn handle_ungroup_selected_actors(
                 .document
                 .active_timeline()
                 .and_then(|tl| {
-                    tl.get_track(a).map(|t| crate::app::actions::track_is_group_like(tl, t))
+                    tl.get_entity_id(a).map(|id| crate::app::actions::track_is_group_like(tl, id))
                 })
                 .unwrap_or(false)
         })

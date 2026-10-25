@@ -115,28 +115,22 @@ pub fn build_vector_shape_vello_path(
     crate::primitives::find_primitive(type_name)
         .and_then(|primitive| {
             // Build-time helper (vector-path assignments): a thread-local scratch
-            // track provides the memo home. `AnimationTrack::new` allocates a
-            // dozen property tracks, and this runs inside `Timeline::build` —
-            // allocating one per call showed up as a rebuild regression in the
+            // shape tier provides the memo home. This runs inside `Timeline::build`
+            // — allocating one per call showed up as a rebuild regression in the
             // 2026-09-04 full-suite gate. The memo is self-validating (keyed on
-            // the sampled `KurboShape`), so cross-call reuse is safe. The
-            // scratch track's declared type is irrelevant — `render()` reads
-            // only the memoized shape, never the track's identity.
+            // the sampled `KurboShape`), so cross-call reuse is safe. `render()`
+            // reads only the memoized shape, never an entity identity.
             thread_local! {
-                static SCRATCH_TRACK: crate::timeline::AnimationTrack =
-                    crate::timeline::AnimationTrack::new(String::new());
                 static SCRATCH_SHAPE: crate::timeline::animation_track::ShapeTracks =
                     crate::timeline::animation_track::ShapeTracks::default();
             }
-            SCRATCH_TRACK.with(|scratch| {
-                SCRATCH_SHAPE.with(|shape| {
-                    primitive.render(&crate::primitives::RenderCtx {
-                        state,
-                        style,
-                        time_ms: 0,
-                        track: scratch,
-                        shape: Some(shape),
-                    })
+            SCRATCH_SHAPE.with(|shape| {
+                primitive.render(&crate::primitives::RenderCtx {
+                    state,
+                    style,
+                    time_ms: 0,
+                    id: crate::timeline::EntityId::INVALID,
+                    shape: Some(shape),
                 })
             })
         })

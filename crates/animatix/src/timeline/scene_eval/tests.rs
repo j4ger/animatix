@@ -1,14 +1,13 @@
 use super::containers::equation_markup_escaped;
 use super::*;
 use crate::easing::Easing;
-use crate::timeline::{AnimationTrack, PropertyTrack, ShapeType};
+use crate::timeline::{PropertyTrack, ShapeType};
 
 /// Helper to create a minimal Timeline with one root track.
 fn make_minimal_timeline() -> Timeline {
     let mut timeline = Timeline::new();
-    let track = AnimationTrack::placeholder("test_box".to_string());
 
-    let id = spawn_seen(&mut timeline, "test_box", "Rect", track);
+    let id = spawn_seen(&mut timeline, "test_box", "Rect");
     // Add a color so it renders something visible
     timeline.world.style_mut(id).color = Some({
         let mut t = PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);
@@ -379,8 +378,7 @@ fn hit_regions_cover_actors_without_draw_commands() {
     let mut timeline = Timeline::new();
 
     // A Group container: evaluate() -> Some(vec![]) (empty command list).
-    let group = AnimationTrack::placeholder("grp".to_string());
-    let group_id = spawn_seen(&mut timeline, "grp", "Group", group);
+    let group_id = spawn_seen(&mut timeline, "grp", "Group");
     timeline.world.geometry_mut(group_id).size = {
         let mut t = PropertyTrack::new([40.0, 30.0]);
         t.add_keyframe(0, [40.0, 30.0], Easing::Linear);
@@ -388,8 +386,7 @@ fn hit_regions_cover_actors_without_draw_commands() {
     };
 
     // An empty Text actor: evaluate() -> Ok(None), no content glyphs.
-    let empty_text = AnimationTrack::placeholder("empty".to_string());
-    let empty_id = spawn_seen(&mut timeline, "empty", "Text", empty_text);
+    let empty_id = spawn_seen(&mut timeline, "empty", "Text");
     timeline.world.geometry_mut(empty_id).size = {
         let mut t = PropertyTrack::new([60.0, 20.0]);
         t.add_keyframe(0, [60.0, 20.0], Easing::Linear);
@@ -453,8 +450,7 @@ fn mask_clips_children_to_own_bounds() {
     let mut timeline = Timeline::new();
 
     // Create child actor
-    let child_track = AnimationTrack::placeholder("child".to_string());
-    let child_id = spawn_seen(&mut timeline, "child", "Rect", child_track);
+    let child_id = spawn_seen(&mut timeline, "child", "Rect");
     timeline.world.style_mut(child_id).color = Some({
         let mut t = PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);
         t.add_keyframe(0, [1.0, 0.0, 0.0, 1.0], Easing::Linear);
@@ -472,8 +468,7 @@ fn mask_clips_children_to_own_bounds() {
     });
 
     // Create Mask actor
-    let mask_track = AnimationTrack::placeholder("mask".to_string());
-    let mask_id = spawn_seen(&mut timeline, "mask", "Mask", mask_track);
+    let mask_id = spawn_seen(&mut timeline, "mask", "Mask");
     timeline.world.geometry_mut(mask_id).size = Some({
         let mut t = PropertyTrack::new([100.0, 100.0]);
         t.add_keyframe(0, [100.0, 100.0], Easing::Linear);
@@ -550,10 +545,6 @@ fn equation_fragment_leading_marker_is_escaped() {
     assert_eq!(equation_markup_escaped("y(x) = "), "y(x) = ");
 }
 
-fn make_root_track(label: &str) -> AnimationTrack {
-    AnimationTrack::placeholder(label.to_string())
-}
-
 /// A root-level filter may only take the zero-readback post-render blit
 /// when it is the LAST root node; otherwise later siblings would render
 /// underneath the blit. (Regression: the last-among-siblings check only
@@ -561,8 +552,8 @@ fn make_root_track(label: &str) -> AnimationTrack {
 #[test]
 fn root_filter_post_composite_requires_last_root_node() {
     let mut timeline = Timeline::new();
-    spawn_seen(&mut timeline, "fx", "Rect", make_root_track("fx"));
-    spawn_seen(&mut timeline, "late", "Rect", make_root_track("late"));
+    spawn_seen(&mut timeline, "fx", "Rect");
+    spawn_seen(&mut timeline, "late", "Rect");
 
     let fx_id = timeline.get_entity_id("fx").expect("fx");
     assert!(
@@ -571,8 +562,8 @@ fn root_filter_post_composite_requires_last_root_node() {
     );
 
     let mut timeline = Timeline::new();
-    spawn_seen(&mut timeline, "late", "Rect", make_root_track("late"));
-    spawn_seen(&mut timeline, "fx", "Rect", make_root_track("fx"));
+    spawn_seen(&mut timeline, "late", "Rect");
+    spawn_seen(&mut timeline, "fx", "Rect");
 
     let fx_id = timeline.get_entity_id("fx").expect("fx");
     assert!(
@@ -581,13 +572,8 @@ fn root_filter_post_composite_requires_last_root_node() {
     );
 }
 
-fn spawn_seen(
-    timeline: &mut Timeline,
-    label: &str,
-    actor_type: &str,
-    track: AnimationTrack,
-) -> EntityId {
-    let id = timeline.world.spawn_with_track(label, actor_type, track);
+fn spawn_seen(timeline: &mut Timeline, label: &str, actor_type: &str) -> EntityId {
+    let id = timeline.world.spawn(label, actor_type);
     timeline.world.meta_mut(id).first_seen_ms = 0;
     id
 }

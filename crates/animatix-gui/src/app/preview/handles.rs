@@ -16,11 +16,11 @@ use crate::app::design_tokens::spatial::preview::{
 
 pub(crate) fn is_layout_managed(actor: &str, timeline: &Timeline, time_ms: u64) -> bool {
     timeline
-        .get_track(actor)
-        .map(|t| {
+        .get_entity_id(actor)
+        .map(|id| {
             timeline
                 .world()
-                .geometry(t.id)
+                .geometry(id)
                 .placement_mode
                 .get(time_ms, PlacementMode::LayoutManaged)
                 == PlacementMode::LayoutManaged

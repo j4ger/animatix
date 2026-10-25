@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use animatix::timeline::{AnimationTrack, Timeline, collect_all_keyframe_times};
+use animatix::timeline::{EntityId, Timeline, collect_all_keyframe_times};
 use egui::{Color32, Pos2, RichText, ScrollArea, Vec2};
 use eparts::widget::Select;
 use eparts::{Button, NumberField, TextField};
@@ -206,14 +206,14 @@ fn render_property_stream(
 fn render_actor_header(
     ui: &mut egui::Ui,
     timeline: &Timeline,
-    track: &AnimationTrack,
+    id: EntityId,
     current_time_s: f64,
     commands: &mut ActionQueue,
 ) {
     let sp = spatial(ui);
     let theme = eparts::theme(ui);
     let current_time_ms = (current_time_s * 1000.0) as u64;
-    let actor_label = timeline.world().label(track.id).unwrap_or("");
+    let actor_label = timeline.world().label(id).unwrap_or("");
     let available = ui.available_width();
     let row_h = sp.base.row_l;
     let (row_rect, _) = ui.allocate_exact_size(Vec2::new(available, row_h), egui::Sense::hover());
@@ -227,7 +227,7 @@ fn render_actor_header(
             |ui| {
                 ui.add(
                     egui::Label::new(
-                        RichText::new(crate::app::icons::actor_icon_for_track(track, timeline))
+                        RichText::new(crate::app::icons::actor_icon_for_track(id, timeline))
                             .size(TextRole::Heading.size())
                             .color(theme.palette.status.warning),
                     )
@@ -290,7 +290,7 @@ fn render_actor_header(
         ui.with_layout(
             egui::Layout::right_to_left(egui::Align::Center).with_main_wrap(false),
             |ui| {
-                let first_seen_ms = timeline.world().meta(track.id).first_seen_ms;
+                let first_seen_ms = timeline.world().meta(id).first_seen_ms;
                 if first_seen_ms > 0 && first_seen_ms != u64::MAX {
                     ui.add(
                         egui::Label::new(
@@ -303,7 +303,7 @@ fn render_actor_header(
                     ui.add_space(sp.base.space_3);
                 }
 
-                if let Some(shape_pt) = &timeline.world().shape(track.id).shape_type {
+                if let Some(shape_pt) = &timeline.world().shape(id).shape_type {
                     let shape = shape_pt.evaluate(current_time_ms);
                     ui.add(
                         egui::Label::new(

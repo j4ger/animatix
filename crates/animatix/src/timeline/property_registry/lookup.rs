@@ -33,9 +33,66 @@ pub fn property_id(name: &str) -> Option<animatix_syntax::schema::PropertyId> {
     schema_property_ids().get(name).copied()
 }
 
-/// Resolve a property name to its schema *and* the runtime plan slot id in one
-/// lookup.
+/// The one `property name → ActorField` table for the string-keyed introspection
+/// APIs (keyframe queries, GUI property edits).
 ///
+/// Three introspection queries (`has_keyframe_at`, `has_keyframes_for`,
+/// `list_keyframes`) used to carry a copy of this mapping each, verified
+/// identical apart from the fall-through arm. One table keeps the queries
+/// answering consistently.
+pub fn field_for_property(property: &str) -> Option<ActorField> {
+    use ActorField::*;
+    Some(match property {
+        "position" => Position,
+        "motion_offset" => MotionOffset,
+        "size" => Size,
+        "layout_size" => LayoutSize,
+        "rotation" => Rotation,
+        "scale" => Scale,
+        "transform" => Transform,
+        "color" => Color,
+        "opacity" => Opacity,
+        "stroke_width" => StrokeWidth,
+        "stroke_progress" => StrokeProgress,
+        "dash_offset" => DashOffset,
+        "dash_pattern" => DashPattern,
+        "fill_gradient" => FillGradient,
+        "stroke_gradient" => StrokeGradient,
+        "gradient_extend" => GradientExtend,
+        "gradient_space" => GradientSpace,
+        "blend" => Blend,
+        "fill_opacity" => FillOpacity,
+        "shape_type" => ShapeType,
+        "line_from" => LineFrom,
+        "line_to" => LineTo,
+        "arc_angles" => ArcAngles,
+        "corner_radius" => CornerRadius,
+        "points" => Points,
+        "commands" => Commands,
+        "head_size" => HeadSize,
+        "text_content" => TextContent,
+        "font_family" => FontFamily,
+        "font_size" => FontSize,
+        "font_weight" => FontWeight,
+        "font_style" => FontStyle,
+        "line_height" => LineHeight,
+        "letter_spacing" => LetterSpacing,
+        "word_spacing" => WordSpacing,
+        "max_width" => TextMaxWidth,
+        "text_align" => TextAlign,
+        "text_anchor" => TextAnchor,
+        "overflow" => Overflow,
+        "language" => Language,
+        "placement_mode" => PlacementMode,
+        "morph_options" => MorphOptions,
+        "legend" => Tagged("legend"),
+        "url" => ImageData,
+        _ => return None,
+    })
+}
+
+/// Resolve a property name to its schema *and* the runtime plan slot id in one
+/// lookup.///
 /// `effective_*` needs both on every property read — at least five per actor
 /// per frame — and each used to cost its own lookup (a binary search over the
 /// sorted registry, then a hash into the id map). Folding them into one

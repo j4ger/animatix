@@ -92,24 +92,22 @@ unsafe extern "C" fn record_build_children(ctx: *mut NativePrimitiveBuildCtx) ->
 }
 
 fn sample_evaluate_ctx<'a>(
-    track: &'a crate::timeline::AnimationTrack,
     asset_cache: &'a crate::timeline::assets::AssetCache,
 ) -> EvaluateCtx<'a> {
-    sample_evaluate_ctx_with_payload(track, asset_cache, None)
+    sample_evaluate_ctx_with_payload(asset_cache, None)
 }
 
 /// Like [`sample_evaluate_ctx`], but with the entity's payload component so
 /// native commands that read primitive state (e.g. the actor image) can see it.
 fn sample_evaluate_ctx_with_payload<'a>(
-    track: &'a crate::timeline::AnimationTrack,
     asset_cache: &'a crate::timeline::assets::AssetCache,
     payload: Option<&'a crate::primitives::PrimitivePayload>,
 ) -> EvaluateCtx<'a> {
     EvaluateCtx {
-        track,
+        id: crate::timeline::EntityId(0),
         label: "pulse",
-        // These tests build bare placeholder tracks (no World identity), whose
-        // implied type is Rect.
+        // These helper contexts carry no World identity; the implied type is
+        // Rect.
         caps: animatix_std::caps_for_type("Rect").unwrap_or_default(),
         time_ms: 0,
         local_transform: kurbo::Affine::IDENTITY,
@@ -128,7 +126,7 @@ fn sample_evaluate_ctx_with_payload<'a>(
         property_plan: None,
         world: None,
         // The shape, text, geometry and style tiers live in World; these helper
-        // contexts sample a bare track, so only a default style is attached.
+        // contexts build no World, so only a default style is attached.
         style: Some(Box::leak(Box::new(crate::timeline::animation_track::StyleTracks::default()))),
         shape: None,
         text: None,
@@ -142,11 +140,10 @@ fn sample_evaluate_ctx_with_payload<'a>(
 /// Like [`sample_evaluate_ctx`], but with the entity's property plan so native
 /// property reads can resolve registry-driven slots.
 fn sample_evaluate_ctx_with_plan<'a>(
-    track: &'a crate::timeline::AnimationTrack,
     asset_cache: &'a crate::timeline::assets::AssetCache,
     property_plan: Option<&'a crate::timeline::plan::PropertyPlan>,
 ) -> EvaluateCtx<'a> {
-    let mut ctx = sample_evaluate_ctx(track, asset_cache);
+    let mut ctx = sample_evaluate_ctx(asset_cache);
     ctx.property_plan = property_plan;
     ctx
 }

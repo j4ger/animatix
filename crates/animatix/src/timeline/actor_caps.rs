@@ -1,6 +1,6 @@
 //! Actor capabilities: the engine-visible projection of a primitive kind.
 //!
-//! Identity lives in `AnimationTrack::actor_type` — the authored type name.
+//! Identity lives in `World::actor_type` — the authored type name.
 //! [`ActorCaps`] is the matchable projection the engine dispatches on,
 //! derived once at identity time from the primitive, so frame-time checks are
 //! `Copy` field reads and adding a primitive never requires extending an

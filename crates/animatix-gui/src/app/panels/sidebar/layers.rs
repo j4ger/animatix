@@ -192,7 +192,7 @@ fn render_actor_tree(
 ) {
     let t = eparts::theme(ui);
     let sp = crate::app::design_tokens::spatial::spatial(ui);
-    let Some(track) = timeline.get_track(label) else {
+    let Some(id) = timeline.get_entity_id(label) else {
         return;
     };
 
@@ -242,7 +242,7 @@ fn render_actor_tree(
             Some(t.palette.text.muted),
         )
     } else {
-        let icon = Some(crate::app::icons::actor_icon_for_track(track, timeline));
+        let icon = Some(crate::app::icons::actor_icon_for_track(id, timeline));
         (icon, label, None)
     };
 

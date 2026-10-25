@@ -489,10 +489,8 @@ fade-in g [100ms]
     // is content-dependent — a smooth curve can rasterize identically at both
     // tolerances — so it is not asserted here.)
     let elements = |timeline: &Timeline| -> usize {
-        let track = timeline.tracks().get("rose").expect("rose track");
         let id = timeline.get_entity_id("rose").expect("rose id");
-        let paths =
-            track.evaluate_vector_paths(timeline.world().shape(id), timeline.world().style(id), 0);
+        let paths = timeline.world().shape(id).evaluate_vector_paths(timeline.world().style(id), 0);
         paths.iter().map(|p| p.path.elements().len()).sum()
     };
     let draft_timeline = build(animatix::timeline::BuildQuality::Draft);

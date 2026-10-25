@@ -1,11 +1,10 @@
 use super::lookup::parse_numeric_vec2_with_lookup_diagnostic;
 use super::{
-    AnimationTrack, DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, Diagnostic, Easing, Environment,
-    ModifierHost, ParsedTimingModifiers, PositionBinding, ShapeType, Timeline, Value,
-    VectorShapeState, VectorShapeStyle, assignment_target_key, best_path_suggestion,
-    build_shape_vello_path, build_vector_shape_vello_path, evaluate_expr,
-    evaluate_expr_with_lookup_diagnostic, mark_track_manual_position,
-    parse_color_in_env_with_lookup_diagnostic, parse_timing_modifiers,
+    DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE, Diagnostic, Easing, Environment, ModifierHost,
+    ParsedTimingModifiers, PositionBinding, ShapeType, Timeline, Value, VectorShapeState,
+    VectorShapeStyle, assignment_target_key, best_path_suggestion, build_shape_vello_path,
+    build_vector_shape_vello_path, evaluate_expr, evaluate_expr_with_lookup_diagnostic,
+    mark_track_manual_position, parse_color_in_env_with_lookup_diagnostic, parse_timing_modifiers,
     preserve_discrete_position_state_before, preserve_instant_delayed_value,
     push_unknown_target_path_diagnostic, resolve_position_binding_with_lookup_diagnostic,
     set_track_position_binding,
@@ -217,13 +216,10 @@ impl Timeline {
             .get_id(&target_key)
             .map(|id| self.world.actor_type(id).to_string())
             .unwrap_or_default();
-        let Some(track) = self.world.tracks.get_mut(&target_key) else {
+        let Some(track_id) = self.world.get_id(&target_key) else {
             tracing::warn!("assignment target '{target_key}' has no track; skipping");
             return;
         };
-        // Entity handle for the payload accessors: the mutable track borrow
-        // above ends before each `self.world` payload read/write below.
-        let track_id = track.id;
 
         // ── Special cases that can't go through the generic engine ──
 
@@ -353,21 +349,20 @@ impl Timeline {
                 font_context: self.font_context.as_ref(),
                 text_compiler: &mut self.text_compiler.borrow_mut(),
                 asset_cache: std::sync::Arc::make_mut(&mut self.asset_cache),
-                highlight: self.world.highlight.try_get_mut(track.id),
-                style: self.world.style.try_get_mut(track.id),
+                highlight: self.world.highlight.try_get_mut(track_id),
+                style: self.world.style.try_get_mut(track_id),
                 caps,
-                geometry: self.world.geometry.try_get_mut(track.id),
-                shape: self.world.shape.try_get_mut(track.id),
-                text: self.world.text.try_get_mut(track.id),
-                property_plan: Some(self.world.property_plan.get_mut(track.id)),
+                geometry: self.world.geometry.try_get_mut(track_id),
+                shape: self.world.shape.try_get_mut(track_id),
+                text: self.world.text.try_get_mut(track_id),
+                property_plan: Some(self.world.property_plan.get_mut(track_id)),
                 payload: Some(
                     self.world
                         .payload
-                        .get_or_insert_with(track.id, crate::primitives::PrimitivePayload::default),
+                        .get_or_insert_with(track_id, crate::primitives::PrimitivePayload::default),
                 ),
             };
             if primitive.handle_assignment(
-                track,
                 property,
                 value,
                 &mut ctx,
@@ -515,7 +510,6 @@ impl Timeline {
                     self.world.geometry.get(track_id).size.last(DEFAULT_LAYOUT_HALF_SIZE);
 
                 let new_half_size = handle_size_assignment(
-                    track,
                     &actor_type,
                     self.world.style.get(track_id),
                     self.world.geometry.get_mut(track_id),
@@ -545,11 +539,13 @@ impl Timeline {
                             continue;
                         };
                         let child_caps = self.world.caps(child_id);
-                        if let Some(child_track) = self.world.tracks.get_mut(child_label) {
+                        // Scope the two child rewrites (the old
+                        // `tracks.get_mut` guard is now the id resolution
+                        // above); they are independent of each other.
+                        {
                             // Scale PlotCurve paths
                             if child_caps.plot_geometry {
                                 scale_plot_curve_paths(
-                                    child_track,
                                     self.world.style.get(child_id),
                                     self.world.shape.get_mut(child_id),
                                     scale_x,
@@ -641,13 +637,7 @@ impl Timeline {
 
                 // If this property affects shape geometry, rebuild vector paths
                 if affects_shape_geometry(property) {
-                    let track = self
-                        .world
-                        .tracks
-                        .get_mut(&target_key)
-                        .expect("assignment target track exists");
                     rebuild_vector_paths(
-                        track,
                         actor_type.as_str(),
                         self.world.style.get(track_id),
                         self.world.geometry.get(track_id),
@@ -676,7 +666,7 @@ impl Timeline {
                         )
                     {
                         crate::timeline::property_engine::write_extension_property_slot(
-                            self.world.property_plan.get_mut(track.id),
+                            self.world.property_plan.get_mut(track_id),
                             &ctx,
                             &spec.actor_type,
                             property,

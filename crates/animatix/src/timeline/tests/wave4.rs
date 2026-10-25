@@ -39,9 +39,9 @@ move b [to: (400, 200), 1s, ease: spring(15, 20)]
     assert!(non_lints.is_empty(), "unexpected diagnostics: {non_lints:?}");
 
     let timeline = report.output;
-    let track = timeline.world.tracks.get("b").expect("actor track b");
+    let track = timeline.world.tracks.get_id("b").expect("actor track b");
 
-    let geometry = timeline.world.geometry(track.id);
+    let geometry = timeline.world.geometry(track);
 
     // Sample positions before and after the 1.5s interruption
     let pos_1490 = geometry.position.get(1490, [0.0, 0.0]);

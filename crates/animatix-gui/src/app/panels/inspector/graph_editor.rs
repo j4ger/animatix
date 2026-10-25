@@ -5,7 +5,7 @@
 //! [`crate::app::panels::curve_plot`]; this module only owns the Inspector's
 //! fixed-height frame and legend chrome.
 
-use animatix::timeline::{AnimationTrack, Timeline};
+use animatix::timeline::{EntityId, Timeline};
 use egui::{Sense, Vec2};
 
 use crate::app::commands::ActionQueue;
@@ -17,7 +17,7 @@ use crate::app::panels::curve_plot;
 pub fn render_multi_fcurve(
     ui: &mut egui::Ui,
     timeline: &Timeline,
-    track: &AnimationTrack,
+    id: EntityId,
     duration_s: f64,
     current_time_s: f64,
     _commands: &mut ActionQueue,
@@ -38,8 +38,8 @@ pub fn render_multi_fcurve(
         egui::StrokeKind::Outside,
     );
 
-    let actor_label = timeline.world().label(track.id).unwrap_or("");
-    let curves = curve_plot::collect_curves(timeline, actor_label, track, theme);
+    let actor_label = timeline.world().label(id).unwrap_or("");
+    let curves = curve_plot::collect_curves(timeline, actor_label, id, theme);
 
     if curves.is_empty() {
         painter.text(

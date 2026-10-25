@@ -11,8 +11,7 @@ use crate::timeline::callout_geometry::derive_callout_geometry;
 use crate::timeline::property_engine::parse_property_value;
 use crate::timeline::property_registry::ValueType;
 use crate::timeline::{
-    ActorCaps, AnimationTrack, Environment, SceneDimensions, TrackAccessor, Value,
-    VectorShapeState, VelloPath,
+    ActorCaps, Environment, SceneDimensions, TrackAccessor, Value, VectorShapeState, VelloPath,
 };
 
 /// Resolve an actor reference at assignment time, including runtime indices
@@ -67,7 +66,6 @@ impl Primitive for CalloutPrimitive {
 
     fn handle_assignment(
         &self,
-        _track: &mut AnimationTrack,
         property: &str,
         value: &Expr,
         ctx: &mut AssignmentCtx,

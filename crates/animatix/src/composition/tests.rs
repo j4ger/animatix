@@ -993,14 +993,14 @@ fn test_plot_curve_carry() {
         "SceneB: PlotCurve child 'curve' must be carried"
     );
 
-    let curve_track = scene_b.timeline.world.tracks.get("curve").unwrap();
+    let curve_track = scene_b.timeline.world.tracks.get_id("curve").unwrap();
     assert_eq!(
-        scene_b.timeline.world.actor_type(curve_track.id),
+        scene_b.timeline.world.actor_type(curve_track),
         "PlotCurve",
         "carried PlotCurve track must retain PlotCurve kind"
     );
     assert!(
-        scene_b.timeline.world.procedural_plot(curve_track.id).is_some(),
+        scene_b.timeline.world.procedural_plot(curve_track).is_some(),
         "carried PlotCurve track must retain procedural_plot"
     );
 }
@@ -1030,9 +1030,9 @@ fn test_svg_actor_carry() {
         scene_b.timeline.world.tracks.contains_key("icon"),
         "SceneB: carried Svg 'icon' track must exist"
     );
-    let icon_track = scene_b.timeline.world.tracks.get("icon").unwrap();
+    let icon_track = scene_b.timeline.world.tracks.get_id("icon").unwrap();
     assert_eq!(
-        scene_b.timeline.world.actor_type(icon_track.id),
+        scene_b.timeline.world.actor_type(icon_track),
         "Svg",
         "carried Svg track must retain Svg kind"
     );
@@ -1063,9 +1063,9 @@ fn test_image_actor_carry() {
         scene_b.timeline.world.tracks.contains_key("pic"),
         "SceneB: carried Image 'pic' track must exist"
     );
-    let pic_track = scene_b.timeline.world.tracks.get("pic").unwrap();
+    let pic_track = scene_b.timeline.world.tracks.get_id("pic").unwrap();
     assert_eq!(
-        scene_b.timeline.world.actor_type(pic_track.id),
+        scene_b.timeline.world.actor_type(pic_track),
         "Image",
         "carried Image track must retain Image kind"
     );

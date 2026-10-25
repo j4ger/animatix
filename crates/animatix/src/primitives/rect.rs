@@ -42,7 +42,7 @@ impl Primitive for RectPrimitive {
         } else {
             KurboShape::Rect { x0, y0, x1, y1 }
         };
-        let path = ctx.track.shape_path_memoized(ctx.shape.expect("shape tier"), &shape);
+        let path = ctx.shape.expect("shape tier").shape_path_memoized(&shape);
         Some(vec![crate::timeline::shapes::build_vello_path(
             path,
             ctx.style.color,

@@ -2,7 +2,6 @@
 
 use animatix_text::transcript::SpeechTranscript;
 
-use crate::timeline::AnimationTrack;
 use crate::timeline::Timeline;
 use crate::timeline::{ContainerMetadata, Easing, EntityId, LayoutType, PropertyTrack};
 
@@ -81,9 +80,7 @@ fn persistence_auto_color_transcript_components_roundtrip() {
 
     // Replacement (`spawn_replacing`, the carry-injection path) clears the
     // optional components and does not inherit the previous entity's state.
-    timeline
-        .world
-        .spawn_replacing("card", "Rect", AnimationTrack::new("card".to_string()));
+    timeline.world.spawn_replacing("card", "Rect");
     let entity = timeline.entity("card").expect("card must exist");
     assert!(entity.persistence().is_none());
     assert!(entity.auto_color().is_none());
@@ -146,9 +143,7 @@ fn container_layout_component_roundtrip() {
 
     // Replacement (`spawn_replacing`, the carry-injection path) clears the
     // optional component and does not inherit the previous entity's state.
-    timeline
-        .world
-        .spawn_replacing("row", "Rect", AnimationTrack::new("row".to_string()));
+    timeline.world.spawn_replacing("row", "Rect");
     assert!(timeline.container_layout("row").is_none());
     assert!(timeline.container_layout_ids().is_empty());
 }
@@ -218,9 +213,7 @@ fn child_order_component_roundtrip() {
 
     // Replacement (`spawn_replacing`, the carry-injection path) clears the
     // optional component and does not inherit the previous entity's state.
-    timeline
-        .world
-        .spawn_replacing("row", "Rect", AnimationTrack::new("row".to_string()));
+    timeline.world.spawn_replacing("row", "Rect");
     assert!(timeline.child_order("row").is_none());
     assert_eq!(timeline.child_orders_iter().count(), 0);
     assert!(!timeline.world.has_child_orders());
@@ -291,8 +284,6 @@ fn effects_component_roundtrip() {
     assert_eq!(timeline.duration_seconds(), 0.5);
 
     // Replacement (carry injection path) clears the optional component.
-    timeline
-        .world
-        .spawn_replacing("scope", "Rect", AnimationTrack::new("scope".to_string()));
+    timeline.world.spawn_replacing("scope", "Rect");
     assert!(timeline.entity("scope").expect("scope").effects().is_none());
 }

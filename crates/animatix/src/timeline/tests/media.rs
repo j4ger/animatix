@@ -55,18 +55,18 @@ icon.url = "{}" [1s]
     let (timeline, diagnostics) = build_svg_timeline(&source);
     assert!(diagnostics.is_empty(), "Expected no build diagnostics, got: {:?}", diagnostics);
 
-    let track = timeline.world.tracks.get("icon").expect("icon track should exist");
-    let geometry = timeline.world.geometry(track.id);
+    let track = timeline.world.tracks.get_id("icon").expect("icon track should exist");
+    let geometry = timeline.world.geometry(track);
     assert!(
-        timeline.world.svg_paths_at(track.id, 0).is_some(),
+        timeline.world.svg_paths_at(track, 0).is_some(),
         "static SVG should be available at t=0"
     );
     assert!(
-        timeline.world.svg_paths_at(track.id, 1000).is_some(),
+        timeline.world.svg_paths_at(track, 1000).is_some(),
         "start keyframe should preserve paths"
     );
     assert!(
-        timeline.world.svg_paths_at(track.id, 2000).is_some(),
+        timeline.world.svg_paths_at(track, 2000).is_some(),
         "assignment should provide new paths"
     );
 
@@ -80,14 +80,14 @@ icon.url = "{}" [1s]
     );
 
     assert_eq!(
-        timeline.world.property_keyframe_times(track.id, ActorField::ImageData),
+        timeline.world.property_keyframe_times(track, ActorField::ImageData),
         vec![1000, 2000],
         "timed Svg.url assignment should expose its keyframes through the url property"
     );
-    assert!(timeline.world.property_has_keyframe_at(track.id, ActorField::ImageData, 1000));
-    assert_eq!(timeline.world.property_keyframe_count(track.id, ActorField::ImageData), 2);
+    assert!(timeline.world.property_has_keyframe_at(track, ActorField::ImageData, 1000));
+    assert_eq!(timeline.world.property_keyframe_count(track, ActorField::ImageData), 2);
 
-    let collected = collect_all_keyframe_times(track, None, Some(&timeline.world));
+    let collected = collect_all_keyframe_times(track, None, &timeline.world);
     assert!(collected.iter().any(|t| (*t - 1.0).abs() < 0.001));
     assert!(collected.iter().any(|t| (*t - 2.0).abs() < 0.001));
 }
@@ -115,11 +115,11 @@ icon.url = "{}" [500ms]
     let (timeline, diagnostics) = build_svg_timeline(&source);
     assert!(diagnostics.is_empty(), "Expected no build diagnostics, got: {:?}", diagnostics);
 
-    let track = timeline.world.tracks.get("icon").expect("icon track should exist");
-    assert!(timeline.world.property_has_keyframe_at(track.id, ActorField::ImageData, 500));
-    assert!(timeline.world.property_has_keyframes(track.id, ActorField::ImageData));
+    let track = timeline.world.tracks.get_id("icon").expect("icon track should exist");
+    assert!(timeline.world.property_has_keyframe_at(track, ActorField::ImageData, 500));
+    assert!(timeline.world.property_has_keyframes(track, ActorField::ImageData));
     assert_eq!(
-        timeline.world.property_keyframe_times(track.id, ActorField::ImageData),
+        timeline.world.property_keyframe_times(track, ActorField::ImageData),
         vec![500, 1000, 1500]
     );
 }
@@ -145,9 +145,9 @@ icon.url = "/nonexistent/animatix-missing.svg"
         diagnostics
     );
 
-    let track = timeline.world.tracks.get("icon").expect("icon track should exist");
+    let track = timeline.world.tracks.get_id("icon").expect("icon track should exist");
     assert_eq!(
-        timeline.world.property_keyframe_count(track.id, ActorField::ImageData),
+        timeline.world.property_keyframe_count(track, ActorField::ImageData),
         0,
         "failed assignment should not add Svg.url keyframes"
     );

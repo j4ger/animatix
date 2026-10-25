@@ -43,11 +43,7 @@ impl Primitive for Gauge {
         _modifiers: &[crate::ast::Modifier],
         _children: &[crate::ast::InlineItem],
     ) -> Result<(), Vec<Diagnostic>> {
-        let track_id = ctx.timeline.world.spawn_with_track(
-            label,
-            "Gauge",
-            crate::timeline::AnimationTrack::placeholder(label.to_string()),
-        );
+        let track_id = ctx.timeline.world.spawn(label, "Gauge");
         // The fixture historically claimed the `Text` kind so its plan carries
         // text slots; override caps while keeping the extension's own actor type.
         ctx.timeline
@@ -209,11 +205,11 @@ fn extension_bool_property_roundtrips() {
         "unexpected diagnostics: {:?}",
         report.diagnostics
     );
-    let track = report.output.world.tracks.get("r").expect("rect track");
+    let id = report.output.world.get_id("r").expect("rect track");
     let slot = report
         .output
         .world
-        .property_plan(track.id)
+        .property_plan(id)
         .get(PropertyId(1_000_000))
         .expect("bool slot");
     assert_eq!(slot.track.sample(0), Some(crate::timeline::PropertyValue::Bool(true)));
@@ -465,9 +461,9 @@ fn build_with_context_writes_extension_properties() {
         report.diagnostics
     );
 
-    let track = report.output.world.tracks.get("g").expect("gauge track");
-    assert_eq!(report.output.world.actor_type(track.id), "Gauge");
-    let plan = report.output.world.property_plan(track.id);
+    let id = report.output.world.get_id("g").expect("gauge track");
+    assert_eq!(report.output.world.actor_type(id), "Gauge");
+    let plan = report.output.world.property_plan(id);
     let level = animatix_syntax::schema::PropertyId(1_000_000);
     assert_eq!(
         plan.get(level).and_then(|slot| slot.track.sample(0)),
@@ -514,8 +510,8 @@ fn build_with_context_writes_extension_property_on_builtin_actor() {
         "unexpected diagnostics: {:?}",
         report.diagnostics
     );
-    let track = report.output.world.tracks.get("r").expect("rect track");
-    let plan = report.output.world.property_plan(track.id);
+    let id = report.output.world.get_id("r").expect("rect track");
+    let plan = report.output.world.property_plan(id);
     assert_eq!(
         plan.get(animatix_syntax::schema::PropertyId(1_000_000))
             .and_then(|slot| slot.track.sample(500)),
@@ -606,6 +602,6 @@ fn build_with_context_dispatches_custom_actions() {
         "unexpected diagnostics: {:?}",
         report.diagnostics
     );
-    let track = report.output.world.tracks.get("target").expect("actor track");
-    assert_eq!(report.output.world.style(track.id).opacity.get(0, 1.0), 0.25);
+    let id = report.output.world.get_id("target").expect("actor track");
+    assert_eq!(report.output.world.style(id).opacity.get(0, 1.0), 0.25);
 }

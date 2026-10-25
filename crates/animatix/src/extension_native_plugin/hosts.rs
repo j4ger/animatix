@@ -652,7 +652,7 @@ pub(crate) unsafe extern "C" fn native_action_write_keyframe(
     let Some(name) = (unsafe { read_c_string(name) }) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
-    let Some(track) = host.timeline.world.tracks.get_mut(&target) else {
+    let Some(track_id) = host.timeline.world.get_id(&target) else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
     let Some(id) = host.property_ids.get(&name) else {
@@ -671,7 +671,7 @@ pub(crate) unsafe extern "C" fn native_action_write_keyframe(
         return NATIVE_STATUS_TYPE_ERROR;
     };
     crate::timeline::property_engine::write_property_plan_slot(
-        host.timeline.world.property_plan.get_mut(track.id),
+        host.timeline.world.property_plan.get_mut(track_id),
         *id,
         crate::timeline::PropertyKind::from(*kind),
         property_value,

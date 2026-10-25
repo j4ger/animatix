@@ -25,7 +25,7 @@ pub(crate) fn apply_fade_out_opacity(
     delay_ms: f64,
     easing: Easing,
 ) {
-    let Some(id) = timeline.world.tracks.get_id(target) else {
+    let Some(id) = timeline.world.get_id(target) else {
         return;
     };
     let style = timeline.world.style_mut(id);
@@ -269,8 +269,7 @@ mod tests {
     #[test]
     fn persist_sets_flag() {
         let mut timeline = Timeline::new();
-        let track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
-        let id = timeline.world.spawn_with_track("actor", "Rect", track);
+        let id = timeline.world.spawn("actor", "Rect");
         timeline.world.style_mut(id).opacity.ensure(1.0);
 
         let action = Action {
@@ -293,8 +292,7 @@ mod tests {
     fn persist_supports_multiple_targets() {
         let mut timeline = Timeline::new();
         for label in ["a", "b", "c"] {
-            let track = crate::timeline::AnimationTrack::placeholder(label.to_string());
-            let id = timeline.world.spawn_with_track(label, "Rect", track);
+            let id = timeline.world.spawn(label, "Rect");
             timeline.world.style_mut(id).opacity.ensure(1.0);
         }
 
@@ -319,8 +317,7 @@ mod tests {
     #[test]
     fn persist_emits_warning_for_duration_modifier() {
         let mut timeline = Timeline::new();
-        let track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
-        let id = timeline.world.spawn_with_track("actor", "Rect", track);
+        let id = timeline.world.spawn("actor", "Rect");
         timeline.world.style_mut(id).opacity.ensure(1.0);
 
         let action = Action {
@@ -377,8 +374,7 @@ mod tests {
     #[test]
     fn remove_clears_persistence_flag() {
         let mut timeline = Timeline::new();
-        let track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
-        let id = timeline.world.spawn_with_track("actor", "Rect", track);
+        let id = timeline.world.spawn("actor", "Rect");
         timeline.world.style_mut(id).opacity.ensure(1.0);
         timeline.set_persistence_flag("actor", true);
 
@@ -405,8 +401,7 @@ mod tests {
     #[test]
     fn remove_instant_sets_opacity_to_zero() {
         let mut timeline = Timeline::new();
-        let track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
-        let id = timeline.world.spawn_with_track("actor", "Rect", track);
+        let id = timeline.world.spawn("actor", "Rect");
         timeline
             .world
             .style_mut(id)
@@ -427,16 +422,15 @@ mod tests {
         Remove.execute(&action, 0.0, &mut timeline, &mut diagnostics);
 
         assert!(diagnostics.is_empty());
-        let track = timeline.world.tracks.get("actor").unwrap();
-        let style = timeline.world.style(track.id);
+        let actor_id = timeline.world.get_id("actor").unwrap();
+        let style = timeline.world.style(actor_id);
         assert_eq!(style.opacity.get(0, 1.0), 0.0);
     }
 
     #[test]
     fn remove_animated_sets_fade_out_keyframes() {
         let mut timeline = Timeline::new();
-        let track = crate::timeline::AnimationTrack::placeholder("actor".to_string());
-        let id = timeline.world.spawn_with_track("actor", "Rect", track);
+        let id = timeline.world.spawn("actor", "Rect");
         timeline
             .world
             .style_mut(id)
@@ -460,8 +454,8 @@ mod tests {
         Remove.execute(&action, 0.0, &mut timeline, &mut diagnostics);
 
         assert!(diagnostics.is_empty());
-        let track = timeline.world.tracks.get("actor").unwrap();
-        let style = timeline.world.style(track.id);
+        let actor_id = timeline.world.get_id("actor").unwrap();
+        let style = timeline.world.style(actor_id);
         assert_eq!(style.opacity.get(0, 1.0), 1.0);
         assert!(style.opacity.get(500, 1.0) > 0.0);
         assert!(style.opacity.get(500, 1.0) < 1.0);
@@ -559,8 +553,8 @@ mod tests {
             Some(false),
             "remove should clear persistence flag"
         );
-        let track = report.output.world.tracks.get("headline").unwrap();
-        let style = report.output.world.style(track.id);
+        let headline_id = report.output.world.get_id("headline").unwrap();
+        let style = report.output.world.style(headline_id);
         assert_eq!(
             style.opacity.get(1000, 1.0),
             0.0,

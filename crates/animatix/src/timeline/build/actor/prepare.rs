@@ -103,11 +103,11 @@ impl Timeline {
                 parent_label,
                 diagnostics,
             );
-            if let Some(track) = self.world.tracks.get_mut(label) {
-                if self.world.decl_span.get(track.id).is_none()
+            if let Some(id) = self.world.get_id(label) {
+                if self.world.decl_span.get(id).is_none()
                     && let Some(span) = decl_span
                 {
-                    self.world.decl_span.get_or_insert_with(track.id, || span);
+                    self.world.decl_span.get_or_insert_with(id, || span);
                 }
             }
             return true;
@@ -132,13 +132,13 @@ impl Timeline {
                     diagnostics.append(&mut diags);
                 }
                 let mut extension_id = None;
-                if let Some(track) = self.world.tracks.get_mut(label) {
-                    if self.world.decl_span.get(track.id).is_none()
+                if let Some(id) = self.world.get_id(label) {
+                    if self.world.decl_span.get(id).is_none()
                         && let Some(span) = decl_span
                     {
-                        self.world.decl_span.get_or_insert_with(track.id, || span);
+                        self.world.decl_span.get_or_insert_with(id, || span);
                     }
-                    extension_id = Some(track.id);
+                    extension_id = Some(id);
                 }
                 if let Some(id) = extension_id {
                     // Identity lives in `World`; set it from the registration
@@ -231,13 +231,6 @@ impl Timeline {
             .info_of(ty)
             .map(PrimitiveFamilyDescriptor::from_info)
             .unwrap_or_default();
-        let existing_track = self
-            .world
-            .tracks
-            .get(label)
-            .cloned()
-            .unwrap_or_else(|| AnimationTrack::new(label.to_string()));
-
         // Math coordinate auto-mapping: if the parent carries a coordinate
         // frame component, map child positions from math coordinates to screen
         // pixels.
@@ -252,14 +245,7 @@ impl Timeline {
         };
         let props_ref: &[Property] = &mapped_props;
 
-        let extracted = self.extract_actor_properties(
-            label,
-            ty,
-            props_ref,
-            time_ms,
-            &existing_track,
-            diagnostics,
-        );
+        let extracted = self.extract_actor_properties(label, ty, props_ref, time_ms, diagnostics);
 
         if primitive.is_graph_host() {
             let frame = crate::timeline::CoordinateFrameComponent {

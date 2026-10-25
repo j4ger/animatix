@@ -140,12 +140,12 @@ const PROPERTY_LANES: &[(&str, ActorField)] = &[
 ];
 /// Keyframe times for one lane's storage field.
 ///
-/// Shape-owned fields moved out of `AnimationTrack` into the shape component
-/// store, and the geometry and style tiers now live in `World` component
-/// stores; read those from the tiers the caller passes in. Everything else
-/// still lives on the track.
+/// Geometry, style, shape and text tiers live in `World` component stores; read
+/// those from the tiers the caller passes in. Everything else resolves through
+/// the entity's field view.
 fn lane_keyframe_times(
-    track: &animatix::timeline::AnimationTrack,
+    world: &animatix::timeline::World,
+    id: animatix::timeline::EntityId,
     geometry: &animatix::timeline::animation_track::GeometryTracks,
     style: &animatix::timeline::animation_track::StyleTracks,
     shape: &animatix::timeline::animation_track::ShapeTracks,
@@ -197,7 +197,7 @@ fn lane_keyframe_times(
         ActorField::TextContent => times(&text.text_content),
         ActorField::FontFamily => times(&text.font_family),
         ActorField::FontSize => times(&text.font_size),
-        _ => animatix::timeline::property_keyframe_times(track, field),
+        _ => world.property_keyframe_times(id, field),
     }
 }
 /// Collect every animatable property lane for an actor kind, including lanes
@@ -208,8 +208,8 @@ fn lane_keyframe_times(
 /// unique and match [`collect_per_property_keyframes`], which remains the
 /// authority for actual keyframe times.
 pub(crate) fn collect_property_lanes(
-    track: &animatix::timeline::AnimationTrack,
-    actor_type: &str,
+    world: &animatix::timeline::World,
+    id: animatix::timeline::EntityId,
     geometry: &animatix::timeline::animation_track::GeometryTracks,
     style: &animatix::timeline::animation_track::StyleTracks,
     shape: &animatix::timeline::animation_track::ShapeTracks,
@@ -218,9 +218,9 @@ pub(crate) fn collect_property_lanes(
 ) -> Vec<(String, Vec<u64>)> {
     use animatix::timeline::{PROPERTY_REGISTRY, allowed_property_indices};
 
+    let actor_type = world.actor_type(id);
     // Storage fields the registry allows for this actor kind. Keying by field
-    // dedupes aliases that share one storage location. Capabilities derive from
-    // the actor type here: this helper receives a bare track, not a `World`.
+    // dedupes aliases that share one storage location.
     let caps = animatix::timeline::caps_for_type(actor_type).unwrap_or_default();
     let allowed_fields: Vec<ActorField> = allowed_property_indices(&caps, actor_type)
         .into_iter()
@@ -242,7 +242,7 @@ pub(crate) fn collect_property_lanes(
         .map(|&(property, field)| {
             (
                 property.to_string(),
-                lane_keyframe_times(track, geometry, style, shape, text, field),
+                lane_keyframe_times(world, id, geometry, style, shape, text, field),
             )
         })
         .collect();
@@ -341,18 +341,18 @@ impl TimelineFingerprint {
         if let Some(timeline) = &document.timeline {
             actors.extend(timeline.tracks().keys().cloned());
             actors_by_scene.insert(None, timeline.tracks().keys().cloned().collect());
-            for track in timeline.tracks().values() {
+            for (_label, id) in timeline.tracks().iter() {
                 for (property, times) in collect_per_property_keyframes(
-                    timeline.world().geometry(track.id),
-                    timeline.world().style(track.id),
-                    timeline.world().shape(track.id),
-                    timeline.world().text(track.id),
+                    timeline.world().geometry(id),
+                    timeline.world().style(id),
+                    timeline.world().shape(id),
+                    timeline.world().text(id),
                     None,
                 ) {
                     for time_ms in times {
                         keyframes.insert(KeyframeId {
                             scene: None,
-                            actor: timeline.world().label(track.id).unwrap_or("").to_string(),
+                            actor: timeline.world().label(id).unwrap_or("").to_string(),
                             property: property.to_string(),
                             time_ms,
                         });
@@ -368,23 +368,18 @@ impl TimelineFingerprint {
                     scene.timeline.tracks().keys().cloned().collect();
                 actors.extend(scene_actors.iter().cloned());
                 actors_by_scene.insert(Some(scene_name.clone()), scene_actors);
-                for track in scene.timeline.tracks().values() {
+                for (_label, id) in scene.timeline.tracks().iter() {
                     for (property, times) in collect_per_property_keyframes(
-                        scene.timeline.world().geometry(track.id),
-                        scene.timeline.world().style(track.id),
-                        scene.timeline.world().shape(track.id),
-                        scene.timeline.world().text(track.id),
+                        scene.timeline.world().geometry(id),
+                        scene.timeline.world().style(id),
+                        scene.timeline.world().shape(id),
+                        scene.timeline.world().text(id),
                         None,
                     ) {
                         for time_ms in times {
                             keyframes.insert(KeyframeId {
                                 scene: Some(scene_name.clone()),
-                                actor: scene
-                                    .timeline
-                                    .world()
-                                    .label(track.id)
-                                    .unwrap_or("")
-                                    .to_string(),
+                                actor: scene.timeline.world().label(id).unwrap_or("").to_string(),
                                 property: property.to_string(),
                                 time_ms,
                             });
@@ -675,15 +670,15 @@ mod tests {
     fn property_lanes_are_unique_and_cover_unkeyframed_properties() {
         let document = load_session("#0s\nbox: Rect, size: (100, 100)\n#2s\nbox.color = red\n");
         let timeline = document.active_timeline().expect("single-scene timeline");
-        let track = timeline.get_track("box").expect("box track");
+        let id = timeline.get_entity_id("box").expect("box entity");
 
         let lanes = collect_property_lanes(
-            track,
-            timeline.world().actor_type(track.id),
-            timeline.world().geometry(track.id),
-            timeline.world().style(track.id),
-            timeline.world().shape(track.id),
-            timeline.world().text(track.id),
+            timeline.world(),
+            id,
+            timeline.world().geometry(id),
+            timeline.world().style(id),
+            timeline.world().shape(id),
+            timeline.world().text(id),
             None,
         );
 
@@ -697,10 +692,10 @@ mod tests {
         // Every keyframed property has a lane whose times match the typed
         // collector exactly.
         for (property, times) in collect_per_property_keyframes(
-            timeline.world().geometry(track.id),
-            timeline.world().style(track.id),
-            timeline.world().shape(track.id),
-            timeline.world().text(track.id),
+            timeline.world().geometry(id),
+            timeline.world().style(id),
+            timeline.world().shape(id),
+            timeline.world().text(id),
             None,
         ) {
             let lane = lanes
@@ -722,18 +717,18 @@ mod tests {
     fn property_lanes_dedupe_registry_alias_fields() {
         let document = load_session("#0s\nbox: Rect\n");
         let timeline = document.active_timeline().expect("single-scene timeline");
-        let track = timeline.get_track("box").expect("box track");
+        let id = timeline.get_entity_id("box").expect("box entity");
 
         // `background_color` aliases `ActorField::Color`, so the alias must not
         // surface as its own lane.
         assert!(
             !collect_property_lanes(
-                track,
-                timeline.world().actor_type(track.id),
-                timeline.world().geometry(track.id),
-                timeline.world().style(track.id),
-                timeline.world().shape(track.id),
-                timeline.world().text(track.id),
+                timeline.world(),
+                id,
+                timeline.world().geometry(id),
+                timeline.world().style(id),
+                timeline.world().shape(id),
+                timeline.world().text(id),
                 None,
             )
             .iter()

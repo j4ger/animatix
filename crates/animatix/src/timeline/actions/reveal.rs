@@ -27,10 +27,10 @@ fn ensure_reveal_stroke(
 }
 
 /// Returns true when a primitive emits text glyph paths.
-fn is_text_like(timeline: &Timeline, track: &crate::timeline::AnimationTrack) -> bool {
+fn is_text_like(timeline: &Timeline, id: crate::timeline::EntityId) -> bool {
     timeline
         .primitive_registry
-        .info_of(timeline.world.actor_type(track.id))
+        .info_of(timeline.world.actor_type(id))
         .is_some_and(|info| info.capabilities.text_paths)
 }
 
@@ -177,17 +177,14 @@ impl BuiltinAction for DrawIn {
                 continue;
             }
 
-            let is_text = timeline
-                .world
-                .tracks
-                .get(target)
-                .is_some_and(|track| is_text_like(timeline, track));
-            let caps = match timeline.world.tracks.get_id(target) {
+            let is_text =
+                timeline.world.get_id(target).is_some_and(|id| is_text_like(timeline, id));
+            let caps = match timeline.world.get_id(target) {
                 Some(id) => timeline.world.caps(id),
                 None => continue,
             };
 
-            let Some(id) = timeline.world.tracks.get_id(target) else {
+            let Some(id) = timeline.world.get_id(target) else {
                 continue;
             };
             let style = timeline.world.style.get_mut(id);
@@ -375,17 +372,14 @@ impl BuiltinAction for RevealIn {
                 continue;
             }
 
-            let is_text = timeline
-                .world
-                .tracks
-                .get(target)
-                .is_some_and(|track| is_text_like(timeline, track));
-            let caps = match timeline.world.tracks.get_id(target) {
+            let is_text =
+                timeline.world.get_id(target).is_some_and(|id| is_text_like(timeline, id));
+            let caps = match timeline.world.get_id(target) {
                 Some(id) => timeline.world.caps(id),
                 None => continue,
             };
 
-            let Some(id) = timeline.world.tracks.get_id(target) else {
+            let Some(id) = timeline.world.get_id(target) else {
                 continue;
             };
             let style = timeline.world.style.get_mut(id);
@@ -541,7 +535,7 @@ impl BuiltinAction for WipeOut {
                 continue;
             }
 
-            let Some(id) = timeline.world.tracks.get_id(target) else {
+            let Some(id) = timeline.world.get_id(target) else {
                 continue;
             };
             let style = timeline.world.style_mut(id);
@@ -618,7 +612,7 @@ impl BuiltinAction for RevealOut {
                 continue;
             }
 
-            let Some(id) = timeline.world.tracks.get_id(target) else {
+            let Some(id) = timeline.world.get_id(target) else {
                 continue;
             };
             let style = timeline.world.style_mut(id);
@@ -690,7 +684,7 @@ impl BuiltinAction for DrawOut {
                 continue;
             }
 
-            let Some(id) = timeline.world.tracks.get_id(target) else {
+            let Some(id) = timeline.world.get_id(target) else {
                 continue;
             };
             let style = timeline.world.style_mut(id);

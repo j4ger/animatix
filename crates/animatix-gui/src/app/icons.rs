@@ -3,21 +3,18 @@
 //! The `PrimitiveInfo.icon_id` field already contains the concrete glyph string
 //! (defined in the core crate's `icon_glyphs` module to avoid a GUI dependency).
 
-use animatix::timeline::{AnimationTrack, Timeline};
+use animatix::timeline::{EntityId, Timeline};
 
 // ── Icon + Label pair ───────────────────────────────────────────────────
 
 // ── Primary API ─────────────────────────────────────────────────────────
 
-/// Icon for a track, resolved from the live registry via its required
+/// Icon for an entity, resolved from the live registry via its required
 /// `actor_type` (so extension primitives participate); unregistered type
 /// names get a generic extension glyph.
-pub fn actor_icon_for_track(
-    track: &AnimationTrack,
-    timeline: &Timeline,
-) -> std::borrow::Cow<'static, str> {
+pub fn actor_icon_for_track(id: EntityId, timeline: &Timeline) -> std::borrow::Cow<'static, str> {
     let snapshot = timeline.primitive_registry_snapshot();
-    match snapshot.info_of(timeline.world().actor_type(track.id)) {
+    match snapshot.info_of(timeline.world().actor_type(id)) {
         // Built-in rows keep their literal; extension icons are host-owned.
         Some(info) => match info.static_icon_id() {
             Some(icon) => std::borrow::Cow::Borrowed(icon),

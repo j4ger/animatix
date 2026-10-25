@@ -5,7 +5,7 @@ use super::*;
 pub(super) fn synthesize_idle_tracks(timeline: &mut Timeline) {
     use crate::timeline::TrackAccessor;
     let duration_ms = ((timeline.duration_seconds() * 1000.0).round() as u64).max(3000);
-    let ids: Vec<_> = timeline.world.tracks.values().map(|track| track.id).collect();
+    let ids: Vec<_> = timeline.world.tracks.iter().map(|(_, id)| id).collect();
     for id in ids {
         let idle =
             timeline

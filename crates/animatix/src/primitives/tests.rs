@@ -237,9 +237,8 @@ fn runtime_text_content_crossfade_compiles_both_endpoints() {
     use crate::renderer::text::{FontContext, TextCompiler, TextKind};
     use crate::timeline::animation_track::TextTracks;
     use crate::timeline::property_track::PropertyTrack;
-    use crate::timeline::{AnimationTrack, SceneDimensions};
+    use crate::timeline::{EntityId, SceneDimensions};
 
-    let track = AnimationTrack::placeholder("label".to_string());
     let style_tracks = crate::timeline::animation_track::StyleTracks::default();
     let mut content = PropertyTrack::new("Hello".to_string());
     content.add_keyframe(0, "Hello".to_string(), Easing::Linear);
@@ -255,7 +254,7 @@ fn runtime_text_content_crossfade_compiles_both_endpoints() {
     let mut text_compiler = TextCompiler::new();
     let asset_cache = crate::timeline::assets::AssetCache::new();
     let ctx = EvaluateCtx {
-        track: &track,
+        id: EntityId(0),
         label: "label",
         time_ms: 1500,
         local_transform: kurbo::Affine::IDENTITY,

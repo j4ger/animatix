@@ -446,12 +446,12 @@ pub(crate) fn preview_panel_ui(ctx: &mut PreviewContext<'_>, ui: &mut egui::Ui) 
                             tl.world()
                                 .root_entities()
                                 .iter()
-                                .filter_map(|&id| tl.get_track_by_id(id))
-                                .flat_map(|track| {
+                                .copied()
+                                .flat_map(|id| {
                                     animatix::timeline::collect_all_keyframe_times(
-                                        track,
-                                        tl.world().effects(track.id),
-                                        Some(tl.world()),
+                                        id,
+                                        tl.world().effects(id),
+                                        tl.world(),
                                     )
                                 })
                                 .collect()

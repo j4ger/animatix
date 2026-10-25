@@ -8,7 +8,7 @@
 //! Instead, `func` transitions use a **side-channel** pattern:
 //!
 //! - `FuncTransition` records a time range, easing, blend mode, and the `from`/`to` `FuncSource`
-//!   closures in a parallel `Vec` on `AnimationTrack`.
+//!   closures in a parallel `Vec` on the plot payload.
 //! - At frame time, `sample_procedural_plot_at` checks for active transitions. Output blending
 //!   evaluates both sources and lerps their outputs at each sample point; opacity blending renders
 //!   the two generated path sets at partial opacity.
@@ -17,7 +17,7 @@
 //!
 //! This pattern is intentional. Future property types whose values cannot
 //! implement `Interpolate` (e.g., AST nodes, resource handles) should use
-//! the same pattern. See `AnimationTrack::func_transitions` in `dispatch.rs`
+//! the same pattern. See `PlotPayload::func_transitions` in `primitives/payload.rs`
 //! for the full implementation checklist.
 
 pub mod adaptive;
@@ -90,7 +90,7 @@ impl PlotCurveKind {
 ///
 /// This type is part of the **side-channel pattern** for non-interpolatable
 /// properties — see
-/// [`AnimationTrack::func_transitions`](crate::timeline::dispatch::AnimationTrack::func_transitions)
+/// [`PlotPayload::func_transitions`](crate::primitives::PlotPayload::func_transitions)
 /// in `dispatch.rs` and the module-level documentation for the full
 /// explanation of why closures cannot use `PropertyTrack<T>`.
 ///
@@ -155,7 +155,7 @@ pub enum FuncBlendMode {
 /// This is the core unit of the **side-channel pattern** for the `func`
 /// property on plot actors. Because closures cannot implement
 /// [`crate::timeline::Interpolate`], `func` transitions are stored
-/// in a parallel `Vec<FuncTransition>` on `AnimationTrack` (the
+/// in a parallel `Vec<FuncTransition>` on the plot payload (the
 /// `func_transitions` field in `dispatch.rs`) rather than in a standard
 /// `PropertyTrack<T>`.
 ///

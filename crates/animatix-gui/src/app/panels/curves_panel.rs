@@ -15,7 +15,7 @@
 
 use std::collections::HashSet;
 
-use animatix::timeline::{ActorField, AnimationTrack, Timeline};
+use animatix::timeline::{ActorField, EntityId, Timeline};
 use egui::{Pos2, Response, Sense, Stroke, Vec2};
 use eparts::Theme;
 use eparts::widget::UiExt;
@@ -140,9 +140,9 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
         return;
     }
 
-    let tracks: Vec<(&str, &AnimationTrack)> = actors
+    let tracks: Vec<(&str, EntityId)> = actors
         .iter()
-        .filter_map(|label| timeline.get_track(label).map(|track| (label.as_str(), track)))
+        .filter_map(|label| timeline.get_entity_id(label).map(|id| (label.as_str(), id)))
         .collect();
     let Some(actor) = tracks.first().map(|(label, _)| *label) else {
         layout::empty_state(
@@ -165,7 +165,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
 
     let scene = ctx.active_scene.map(ToOwned::to_owned);
     let mut curves: Vec<CurveChannel> = Vec::new();
-    for (index, (label, track)) in tracks.iter().enumerate() {
+    for (index, (label, id)) in tracks.iter().enumerate() {
         // The first actor keeps the canonical channel colours; the rest get a
         // deterministic shade so two actors' `position.X` stay told apart.
         let shade = if index == 0 {
@@ -174,7 +174,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
             curve_plot::actor_shade_factor(label)
         };
         curves.extend(curve_plot::collect_curves_for_actor(
-            timeline, label, track, theme, qualify, shade,
+            timeline, label, *id, theme, qualify, shade,
         ));
     }
 
@@ -501,14 +501,13 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
 fn emit_drag_commands(
     commands: &mut ActionQueue,
     drag: &CurveDrag,
-    tracks: &[(&str, &AnimationTrack)],
+    tracks: &[(&str, EntityId)],
     scene: &Option<String>,
     timeline: &Timeline,
 ) {
     // A drag can carry ids from several actors; each edit reads the value out
-    // of the track that owns it.
-    let track_for =
-        |actor: &str| tracks.iter().find(|(label, _)| *label == actor).map(|(_, track)| *track);
+    // of the entity that owns it.
+    let id_for = |actor: &str| tracks.iter().find(|(label, _)| *label == actor).map(|(_, id)| *id);
     match drag.mode {
         Some(DragMode::Time) => {
             let delta = drag.time_delta_s();
@@ -545,15 +544,14 @@ fn emit_drag_commands(
                 return;
             }
             let time_ms = edit.id.time_ms;
-            let Some(track) = track_for(&edit.id.actor) else {
+            let Some(entity) = id_for(&edit.id.actor) else {
                 tracing::warn!(
                     actor = %edit.id.actor,
                     "curves value drag: no track for actor; skipping edit"
                 );
                 return;
             };
-            let Some(mut value) =
-                timeline.world().read_property_value(track.id, edit.field, time_ms)
+            let Some(mut value) = timeline.world().read_property_value(entity, edit.field, time_ms)
             else {
                 tracing::warn!(
                     actor = %edit.id.actor,
@@ -714,8 +712,8 @@ b.at = (0, 200)
         let theme = eparts::Theme::default();
         let mut curves: Vec<CurveChannel> = Vec::new();
         for actor in ["a", "b"] {
-            let track = timeline.get_track(actor).expect("track");
-            curves.extend(collect_curves_for_actor(&timeline, actor, track, theme, true, 1.0));
+            let id = timeline.get_entity_id(actor).expect("actor");
+            curves.extend(collect_curves_for_actor(&timeline, actor, id, theme, true, 1.0));
         }
         assert!(curves.len() >= 2, "both actors must contribute channels");
 

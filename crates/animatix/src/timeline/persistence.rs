@@ -12,9 +12,8 @@
 //! - `CarryBag` — bag holding snapshot entries keyed by actor label.
 //! - `CarryEntry` — a single snapshotted actor plus its recursive subtree.
 //! - [`Timeline::compute_carry_bag`] — snapshots all `persistent == true` actors and their children
-//!   at a given time.
-//! - `snapshot_track_at` — collapses all keyframes of a single track to a single frame at `t=0`
-//!   sampled at `time_ms`.
+//!   at a given time (each property tier collapses to a single keyframe at `t=0`
+//!   holding the value sampled at `time_ms`).
 
 use std::collections::BTreeMap;
 
@@ -31,8 +30,8 @@ use crate::timeline::animation_track::{
 use crate::timeline::effects::EffectChainTrack;
 use crate::timeline::property_track::{PropertyTrack, TrackAccessor};
 use crate::timeline::{
-    AnimationTrack, ContainerMetadata, CoordinateFrameComponent, PlacementMode, PositionBinding,
-    SceneDimensions, Timeline,
+    ContainerMetadata, CoordinateFrameComponent, PlacementMode, PositionBinding, SceneDimensions,
+    Timeline,
 };
 
 // ---------------------------------------------------------------------------
@@ -69,13 +68,11 @@ pub struct CarriedCamera {
 /// A single actor to carry, with its snapshot and recursive subtree.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CarryEntry {
-    /// Single-keyframe snapshot of the actor at t=0.
-    pub track: AnimationTrack,
     /// Primitive identity of the actor (`World.actor_types`).
     ///
-    /// Track snapshots no longer store the identity, so the bag records it
-    /// explicitly and re-installs it through `World::set_identity` on inject.
-    /// Empty only across a legacy deserialization boundary.
+    /// Entities are identified by label on the wire; the bag records the
+    /// authored type explicitly so injection can re-install it. Empty only
+    /// across a legacy deserialization boundary.
     #[cfg_attr(feature = "serde", serde(default))]
     pub actor_type: String,
     /// Recursive subtree of carried children (keyed by child label).
@@ -162,30 +159,28 @@ fn collect_persistent_entries(
         );
     }
 
-    let Some(track) = timeline.world.tracks.get(label) else {
-        tracing::warn!("Skipping persistent entry for missing track '{}'", label);
+    let Some(id) = timeline.world.get_id(label) else {
+        tracing::warn!("Skipping persistent entry for missing actor '{}'", label);
         return;
     };
-    let effects = timeline.world.effects(track.id).map(|chain| snapshot_effects(chain, time_ms));
-    let highlight = snapshot_highlight_at(timeline.world.highlight(track.id), time_ms);
-    let property_plan = snapshot_property_plan_at(timeline.world.property_plan(track.id), time_ms);
-    let shape = snapshot_shape_at(timeline.world.shape(track.id), time_ms);
-    let text = snapshot_text_at(timeline.world.text(track.id), time_ms);
-    let geometry = snapshot_geometry_at(timeline.world.geometry(track.id), time_ms);
-    let style = snapshot_style_at(timeline.world.style(track.id), time_ms);
+    let effects = timeline.world.effects(id).map(|chain| snapshot_effects(chain, time_ms));
+    let highlight = snapshot_highlight_at(timeline.world.highlight(id), time_ms);
+    let property_plan = snapshot_property_plan_at(timeline.world.property_plan(id), time_ms);
+    let shape = snapshot_shape_at(timeline.world.shape(id), time_ms);
+    let text = snapshot_text_at(timeline.world.text(id), time_ms);
+    let geometry = snapshot_geometry_at(timeline.world.geometry(id), time_ms);
+    let style = snapshot_style_at(timeline.world.style(id), time_ms);
     let payload = timeline
         .world
-        .payload(track.id)
+        .payload(id)
         .map_or_else(crate::primitives::PrimitivePayload::default, |payload| {
             snapshot_payload_at(payload, time_ms)
         });
-    let actor_type = timeline.world.actor_type(track.id).to_string();
-    let track = snapshot_track_at(track, time_ms);
+    let actor_type = timeline.world.actor_type(id).to_string();
 
     entries.insert(
         label.to_string(),
         CarryEntry {
-            track,
             actor_type,
             children: child_entries,
             persistent: timeline.persistence_flag(label),
@@ -209,8 +204,8 @@ impl Timeline {
     /// Snapshot the timeline at a given time, returning a `CarryBag`.
     ///
     /// Iterates the entities' [`crate::timeline::PersistenceComponent`]s, finds
-    /// entries where `persistent == true`, snapshots the tracks via
-    /// `snapshot_track_at`, and recursively snapshots children.
+    /// entries where `persistent == true`, collapses each property tier to a
+    /// single keyframe, and recursively snapshots children.
     ///
     /// `has_successor` — when `false`, any persisted actors will emit a
     /// `PersistTargetNotCarried` warning since there is no next scene.
@@ -270,7 +265,6 @@ fn inject_entry(
     dims: [f64; 2],
     _diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let track = entry.track.clone();
     let mut geometry = entry.geometry.clone();
 
     // ── Phase 3: re-root layout-managed entries to absolute world position ──
@@ -336,10 +330,10 @@ fn inject_entry(
         );
     }
 
-    // Insert the (possibly rewritten) snapshot track. `spawn_replacing` keeps
-    // the label's entity id and resets its hierarchy component, matching the
-    // old `TrackStore::insert` replacement semantics.
-    let id = dest.world.spawn_replacing(label, &entry.actor_type, track);
+    // (Re-)create the entity from the snapshot's per-tier data. `spawn_replacing`
+    // keeps the label's entity id and resets its components, matching the old
+    // insert-replacement semantics.
+    let id = dest.world.spawn_replacing(label, &entry.actor_type);
     // Identity lives in `World` and `spawn_replacing` reset it; restore the
     // carried primitive type so caps and plan lookups resolve again.
     dest.world.set_identity(id, &entry.actor_type);
@@ -481,7 +475,7 @@ impl Timeline {
 // ---------------------------------------------------------------------------
 
 /// Snapshot a primitive payload at `time_ms` (plot params collapsed, live
-/// transitions dropped), mirroring [`snapshot_track_at`] for the payload tier.
+/// transitions dropped), mirroring the per-tier collapse helpers.
 pub fn snapshot_payload_at(
     payload: &crate::primitives::PrimitivePayload,
     time_ms: u64,
@@ -496,9 +490,6 @@ pub fn snapshot_payload_at(
     snapshot
 }
 
-/// Snapshot all animated tiers of a track at `time_ms`, collapsing each to a
-/// single t=0 keyframe. Primitive payload state lives in a component and is
-/// snapshotted separately by [`snapshot_payload_at`].
 /// Snapshot the highlight tier at `time_ms` (single keyframe per track).
 pub fn snapshot_highlight_at(
     highlight: &crate::timeline::animation_track::HighlightTracks,
@@ -507,15 +498,6 @@ pub fn snapshot_highlight_at(
     let mut snapshot = highlight.clone();
     collapse_highlight_tracks(&mut snapshot, time_ms);
     snapshot
-}
-
-/// Snapshot all animated tiers of a track at `time_ms`, collapsing each to a
-/// single t=0 keyframe. Highlight and payload components are snapshotted
-/// separately by [`snapshot_highlight_at`] and [`snapshot_payload_at`].
-pub fn snapshot_track_at(track: &AnimationTrack, _time_ms: u64) -> AnimationTrack {
-    // The animated tiers are component stores now; their snapshots are taken
-    // by the per-tier helpers and carried alongside the header DTO.
-    track.clone()
 }
 
 fn snapshot_effects(chain: &EffectChainTrack, time_ms: u64) -> EffectChainTrack {

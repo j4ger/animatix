@@ -4,10 +4,10 @@ use super::grid::compute_grid_layout_results_with_specs;
 use super::linear::compute_linear_layout_results_with_specs;
 use super::positions::LayoutPositions;
 use super::{ChildExtent, compute_stack_layout_results};
+use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::taffy_layout::{ChildSizeSpec, SizeConstraints, TaffyLayoutResult};
 use crate::timeline::{
     ContainerLayoutChild, ContainerMetadata, LayoutEngine, LayoutType, PlacementMode,
-    TrackAccessor, TrackStore,
 };
 
 /// Cached layout computation result for a single container.
@@ -182,7 +182,6 @@ impl LayoutEngine {
         metadata: &ContainerMetadata,
         layout_children: &[ContainerLayoutChild],
         time_ms: u64,
-        tracks: &TrackStore,
         world: &crate::timeline::World,
     ) -> std::sync::Arc<LayoutPositions> {
         // PF-4: sample the per-frame dynamic inputs WITHOUT owning labels —
@@ -209,20 +208,20 @@ impl LayoutEngine {
         let mut baselines: Vec<f32> = Vec::with_capacity(layout_children.len());
         let mut children_are_keyframe_free = true;
         for child in layout_children {
-            let Some(track) = tracks.get(&child.label) else {
+            let Some(child_id) = world.tracks.get_id(&child.label) else {
                 baselines.push(0.0);
                 continue;
             };
             // `layout_size`/`baseline` without keyframes sample to a constant;
             // any keyframe makes the container dynamic for this fast path.
             children_are_keyframe_free &= world
-                .geometry(track.id)
+                .geometry(child_id)
                 .layout_size
                 .as_ref()
                 .is_none_or(|t| t.keyframes.is_empty())
-                && world.text(track.id).baseline.as_ref().is_none_or(|t| t.keyframes.is_empty());
-            baselines.push(track.baseline_get(world.text(track.id), time_ms));
-            if let Some(half_size) = track.layout_size_get(world.geometry(track.id), time_ms) {
+                && world.text(child_id).baseline.as_ref().is_none_or(|t| t.keyframes.is_empty());
+            baselines.push(world.text(child_id).baseline_get(time_ms));
+            if let Some(half_size) = world.geometry(child_id).layout_size_get(time_ms) {
                 fingerprints.push((half_size.map(f32_bits), child.placement_mode as u8));
             }
         }
@@ -246,8 +245,8 @@ impl LayoutEngine {
         let child_extents: Vec<ChildExtent> = layout_children
             .iter()
             .filter_map(|child| {
-                let track = tracks.get(&child.label)?;
-                let half_size = track.layout_size_get(world.geometry(track.id), time_ms)?;
+                let child_id = world.tracks.get_id(&child.label)?;
+                let half_size = world.geometry(child_id).layout_size_get(time_ms)?;
                 Some(ChildExtent {
                     label: child.label.clone(),
                     half_size,
@@ -257,24 +256,24 @@ impl LayoutEngine {
             .collect();
 
         let (size_specs, constraints, parent_content_size) = {
-            let p_size = tracks
-                .get(container_label)
-                .and_then(|t| {
-                    let geometry = world.geometry(t.id);
-                    t.layout_size_get(geometry, time_ms)
-                        .or_else(|| t.layout_size_last(geometry))
-                        .or_else(|| geometry.size.get_or_default(time_ms))
-                        .or_else(|| {
-                            geometry.size.last_time().map(|_| geometry.size.last([0.0, 0.0]))
-                        })
+            let p_size = world
+                .tracks
+                .get_id(container_label)
+                .and_then(|container_id| {
+                    let geometry = world.geometry(container_id);
+                    geometry
+                        .layout_size_get(time_ms)
+                        .or_else(|| geometry.layout_size_last())
+                        .or_else(|| geometry.size.as_ref().map(|t| t.evaluate(time_ms)))
+                        .or_else(|| geometry.size.as_ref().map(|t| t.last_value()))
                 })
                 .map(|s| [s[0] * 2.0, s[1] * 2.0])
                 .unwrap_or([0.0, 0.0]);
             let mut specs = Vec::with_capacity(layout_children.len());
             let mut cons = Vec::with_capacity(layout_children.len());
             for child in layout_children {
-                if let Some(t) = tracks.get(&child.label) {
-                    let geometry = world.geometry(t.id);
+                if let Some(child_id) = world.tracks.get_id(&child.label) {
+                    let geometry = world.geometry(child_id);
                     specs.push(geometry.size_spec);
                     let min_w = geometry.min_width.get(time_ms, 0.0);
                     let min_h = geometry.min_height.get(time_ms, 0.0);
@@ -310,7 +309,7 @@ impl LayoutEngine {
         let mut result = LayoutPositions::new();
         for (i, child) in child_extents.iter().enumerate() {
             if child.placement_mode == PlacementMode::LayoutManaged {
-                if let Some(id) = tracks.get_id(&child.label) {
+                if let Some(id) = world.tracks.get_id(&child.label) {
                     result.insert_with_id(id, child.label.clone(), positions[i]);
                 } else {
                     result.insert(child.label.clone(), positions[i]);

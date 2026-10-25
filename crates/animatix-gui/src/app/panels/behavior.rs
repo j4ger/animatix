@@ -158,13 +158,13 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                             .iter()
                             .filter_map(|name| {
                                 let scene = comp.scenes.get(name)?;
-                                let mut times: Vec<f64> = scene.timeline.tracks().values()
-                                .flat_map(|track| {
+                                let mut times: Vec<f64> = scene.timeline.tracks().iter()
+                                .flat_map(|(_, id)| {
                                     crate::app::document::timeline_diff::collect_actor_keyframes(
-                                        scene.timeline.world().geometry(track.id),
-                                        scene.timeline.world().style(track.id),
-                                        scene.timeline.world().shape(track.id),
-                                        scene.timeline.world().text(track.id),
+                                        scene.timeline.world().geometry(id),
+                                        scene.timeline.world().style(id),
+                                        scene.timeline.world().shape(id),
+                                        scene.timeline.world().text(id),
                                         None,
                                     )
                                     .into_iter()

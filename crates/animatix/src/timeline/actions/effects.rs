@@ -87,8 +87,8 @@ impl BuiltinAction for Shake {
                 continue;
             }
 
-            let track_id = match timeline.world.tracks.get(target) {
-                Some(t) => t.id,
+            let track_id = match timeline.world.get_id(target) {
+                Some(id) => id,
                 None => continue,
             };
             let geometry = timeline.world.geometry_mut(track_id);
@@ -181,8 +181,8 @@ impl BuiltinAction for Pulse {
                 continue;
             }
 
-            let track_id = match timeline.world.tracks.get(target) {
-                Some(t) => t.id,
+            let track_id = match timeline.world.get_id(target) {
+                Some(id) => id,
                 None => continue,
             };
             let geometry = timeline.world.geometry_mut(track_id);
@@ -305,8 +305,8 @@ impl BuiltinAction for Bounce {
                 continue;
             }
 
-            let track_id = match timeline.world.tracks.get(target) {
-                Some(t) => t.id,
+            let track_id = match timeline.world.get_id(target) {
+                Some(id) => id,
                 None => continue,
             };
             let geometry = timeline.world.geometry_mut(track_id);
@@ -397,8 +397,8 @@ mod tests {
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.world.tracks.get("badge").expect("badge track");
-        let geometry = report.output.world.geometry(track.id);
+        let badge_id = report.output.world.get_id("badge").expect("badge id");
+        let geometry = report.output.world.geometry(badge_id);
 
         // Check that multiple motion offset keyframes were added
         assert!(
@@ -442,8 +442,8 @@ mod tests {
         }];
 
         let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        let track = report.output.world.tracks.get("badge").expect("badge track");
-        let geometry = report.output.world.geometry(track.id);
+        let badge_id = report.output.world.get_id("badge").expect("badge id");
+        let geometry = report.output.world.geometry(badge_id);
 
         // Check that scale keyframes were added
         assert!(geometry.scale.as_ref().map(|t| t.keyframes.len() >= 2).unwrap_or(false));

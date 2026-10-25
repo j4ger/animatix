@@ -10,8 +10,8 @@ use crate::primitives::{
 use crate::renderer::error::RenderError;
 use crate::timeline::callout_geometry::TargetResolver;
 use crate::timeline::{
-    ActorCaps, AnimationTrack, ConnectorEndpoint, ConnectorRouting, Environment, SceneAnchor,
-    SceneDimensions, TrackAccessor, Value, VelloPath,
+    ActorCaps, ConnectorEndpoint, ConnectorRouting, Environment, SceneAnchor, SceneDimensions,
+    TrackAccessor, Value, VelloPath,
 };
 
 /// Helper to parse a `ConnectorEndpoint` from an expression in the build environment.
@@ -360,7 +360,6 @@ impl Primitive for ConnectorPrimitive {
 
     fn handle_assignment(
         &self,
-        _track: &mut AnimationTrack,
         property: &str,
         value: &Expr,
         ctx: &mut AssignmentCtx,

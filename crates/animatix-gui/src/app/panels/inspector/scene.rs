@@ -478,7 +478,7 @@ pub(super) fn inspector_ui(
     }
 
     if let Some(sel) = selected_actors.iter().next() {
-        let Some(track) = timeline.get_track(sel) else {
+        let Some(id) = timeline.get_entity_id(sel) else {
             layout::empty_state(
                 ui,
                 egui_phosphor::regular::WARNING,
@@ -520,7 +520,7 @@ pub(super) fn inspector_ui(
 
         // Single-actor selection
         ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
-            render_actor_header(ui, timeline, track, current_time_s, commands);
+            render_actor_header(ui, timeline, id, current_time_s, commands);
             ui.add_space(sp.base.space_3);
 
             // ── Parent ──
@@ -588,7 +588,7 @@ pub(super) fn inspector_ui(
                 }
 
                 let current_time_ms = (current_time_s * 1000.0) as u64;
-                let groups = build_property_groups(timeline, track, current_time_ms);
+                let groups = build_property_groups(timeline, id, current_time_ms);
                 if groups.is_empty() {
                     ui.vertical_centered(|ui| {
                         ui.add_space(sp.base.space_3);
@@ -704,11 +704,8 @@ pub(super) fn inspector_ui(
             // ── Mini Timeline ──
             layout::group_box(ui, format!("{} Timeline", egui_phosphor::regular::CLOCK), |ui| {
                 let duration_s = timeline.duration_seconds().max(0.1);
-                let all_kf = collect_all_keyframe_times(
-                    track,
-                    timeline.world().effects(track.id),
-                    Some(timeline.world()),
-                );
+                let all_kf =
+                    collect_all_keyframe_times(id, timeline.world().effects(id), timeline.world());
                 let strip = timeline::TimelineStrip {
                     duration_s,
                     current_time_s,
@@ -723,7 +720,7 @@ pub(super) fn inspector_ui(
             ui.add_space(sp.base.space_3);
 
             // ── Keyframes ──
-            let kf_count = count_keyframes(timeline, track);
+            let kf_count = count_keyframes(timeline, id);
             layout::card(ui, |ui| {
                 let kf_view = *keyframe_view_mode;
 
@@ -767,7 +764,7 @@ pub(super) fn inspector_ui(
                         render_dope_sheet(
                             ui,
                             timeline,
-                            track,
+                            id,
                             (current_time_s * 1000.0) as u64,
                             sel,
                             commands,
@@ -778,7 +775,7 @@ pub(super) fn inspector_ui(
                         graph_editor::render_multi_fcurve(
                             ui,
                             timeline,
-                            track,
+                            id,
                             timeline.duration_seconds(),
                             current_time_s,
                             commands,

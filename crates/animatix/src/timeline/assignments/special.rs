@@ -32,12 +32,9 @@ impl Timeline {
                 .world
                 .tracks
                 .iter()
-                .filter(|(_, track)| self.world.caps(track.id).is_effect_scope())
-                .filter(|(_, track)| {
-                    self.world
-                        .effects(track.id)
-                        .and_then(|chain| chain.stage(stage_label))
-                        .is_some()
+                .filter(|(_, id)| self.world.caps(*id).is_effect_scope())
+                .filter(|(_, id)| {
+                    self.world.effects(*id).and_then(|chain| chain.stage(stage_label)).is_some()
                 })
                 .map(|(label, _)| label.clone())
                 .collect();
@@ -59,9 +56,8 @@ impl Timeline {
             if let Some(scope_label) = owners.pop() {
                 let stage_kind = self
                     .world
-                    .tracks
-                    .get(&scope_label)
-                    .and_then(|track| self.world.effects(track.id))
+                    .get_id(&scope_label)
+                    .and_then(|id| self.world.effects(id))
                     .and_then(|chain| chain.stage(stage_label))
                     .map(|stage| stage.kind.clone());
                 if let Some(kind) = stage_kind {
@@ -89,10 +85,9 @@ impl Timeline {
             let stage_label = target[1].label_str();
             let stage_kind = self
                 .world
-                .tracks
-                .get(scope_label)
-                .filter(|track| self.world.caps(track.id).is_effect_scope())
-                .and_then(|track| self.world.effects(track.id))
+                .get_id(scope_label)
+                .filter(|id| self.world.caps(*id).is_effect_scope())
+                .and_then(|id| self.world.effects(id))
                 .and_then(|chain| chain.stage(stage_label))
                 .map(|stage| stage.kind.clone());
             if let Some(kind) = stage_kind {
@@ -244,8 +239,8 @@ impl Timeline {
                     })
                     .unwrap_or(40.0);
 
-                if let Some(track) = self.world.tracks.get(&label) {
-                    let geometry = self.world.geometry.get(track.id);
+                if let Some(id) = self.world.get_id(&label) {
+                    let geometry = self.world.geometry.get(id);
                     let pos = geometry.position.get(t_start_ms, [0.0, 0.0]);
                     let half_size = geometry.size.get(t_start_ms, [50.0, 50.0]);
                     let w = (half_size[0] * 2.0).max(1.0);

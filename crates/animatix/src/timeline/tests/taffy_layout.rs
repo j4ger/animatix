@@ -160,27 +160,12 @@ row: Row, gap: 16, padding: 20, size: (900, 120), at: (640, 380) {
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
 
-    let track_a = timeline
-        .world
-        .tracks
-        .get("row.a")
-        .or_else(|| timeline.world.tracks.get("a"))
-        .expect("track a");
-    let geometry_a = timeline.world.geometry(track_a.id);
-    let track_b = timeline
-        .world
-        .tracks
-        .get("row.b")
-        .or_else(|| timeline.world.tracks.get("b"))
-        .expect("track b");
-    let geometry_b = timeline.world.geometry(track_b.id);
-    let track_c = timeline
-        .world
-        .tracks
-        .get("row.c")
-        .or_else(|| timeline.world.tracks.get("c"))
-        .expect("track c");
-    let geometry_c = timeline.world.geometry(track_c.id);
+    let track_a = timeline.world.get_id("a").expect("track a");
+    let geometry_a = timeline.world.geometry(track_a);
+    let track_b = timeline.world.get_id("b").expect("track b");
+    let geometry_b = timeline.world.geometry(track_b);
+    let track_c = timeline.world.get_id("c").expect("track c");
+    let geometry_c = timeline.world.geometry(track_c);
 
     let size_a = geometry_a.size.get(0, [0.0, 0.0]);
     let size_b = geometry_b.size.get(0, [0.0, 0.0]);

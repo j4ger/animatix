@@ -1,12 +1,11 @@
 //! Borrowed bundles of the per-entity property tiers.
 //!
-//! The property engine still reads and writes the tier structs through
-//! `AnimationTrack` today. [`TrackFields`] / [`TrackFieldsMut`] are the seam
-//! that lets a caller assemble the same view from `World` components once a
-//! tier moves out of the track: `World::fields(id)` is the only constructor,
-//! so moving a tier changes this file and nothing else.
+//! Borrowed bundles of one entity's property tiers (geometry, style, shape,
+//! text, highlight, tagged unions, payload) plus its label, caps and plan.
+//! `World::fields(id)` / `World::fields_mut(id)` are the only constructors,
+//! so the storage layout behind a tier can change without touching callers.
 //!
-//! See `docs/ecs.md` §6 ("Tier-migration prerequisite").
+//! See `docs/ecs.md` §3 (access layer).
 
 use crate::primitives::PrimitivePayload;
 use crate::timeline::actor_caps::ActorCaps;
@@ -70,7 +69,9 @@ pub struct TrackFieldsMut<'a> {
 impl World {
     /// Assemble the immutable tier bundle for `id`, when the entity exists.
     pub fn fields(&self, id: EntityId) -> Option<TrackFields<'_>> {
-        self.tracks.get_by_id(id)?;
+        if !self.tracks.exists(id) {
+            return None;
+        }
         Some(TrackFields {
             geometry: self.geometry.try_get(id),
             style: self.style.try_get(id),
@@ -89,10 +90,12 @@ impl World {
     pub fn fields_mut(&mut self, id: EntityId) -> Option<TrackFieldsMut<'_>> {
         self.ensure_len();
         // The capability projection is `Copy`; resolve it before the mutable
-        // track borrow so the bundle can carry it.
+        // borrow so the bundle can carry it.
         let label = self.label(id).unwrap_or("").to_string();
         let caps = self.caps(id);
-        self.tracks.get_by_id_mut(id)?;
+        if !self.tracks.exists(id) {
+            return None;
+        }
         Some(TrackFieldsMut {
             geometry: self.geometry.try_get_mut(id),
             style: self.style.try_get_mut(id),
@@ -145,26 +148,6 @@ mod tests {
 }
 
 impl<'a> TrackFields<'a> {
-    /// Bundle the tiers of one track.
-    ///
-    /// The geometry, shape and text tiers are separate `World` components, so a
-    /// track-only bundle carries `geometry: None`, `shape: None` and
-    /// `text: None`; `World::fields` is the component-aware constructor.
-    pub fn from_track(_track: &'a crate::timeline::AnimationTrack) -> Self {
-        Self {
-            geometry: None,
-            style: None,
-            shape: None,
-            text: None,
-            highlight: None,
-            tagged_tracks: None,
-            payload: None,
-            label: "",
-            caps: ActorCaps::default(),
-            property_plan: None,
-        }
-    }
-
     /// Immutable reference to one registry-backed property field.
     pub fn field_ref(
         &self,
@@ -252,26 +235,6 @@ impl<'a> TrackFields<'a> {
 }
 
 impl<'a> TrackFieldsMut<'a> {
-    /// Bundle the tiers of one track, mutably.
-    ///
-    /// The geometry, shape and text tiers are separate `World` components, so a
-    /// track-only bundle carries `geometry: None`, `shape: None` and
-    /// `text: None`; `World::fields_mut` is the component-aware constructor.
-    pub fn from_track(_track: &'a mut crate::timeline::AnimationTrack) -> Self {
-        Self {
-            geometry: None,
-            style: None,
-            shape: None,
-            text: None,
-            highlight: None,
-            tagged_tracks: None,
-            payload: None,
-            caps: ActorCaps::default(),
-            label: String::new(),
-            property_plan: None,
-        }
-    }
-
     /// Mutable reference to one registry-backed property field.
     pub fn field_mut(
         &mut self,
@@ -367,8 +330,6 @@ impl<'a> TrackFieldsMut<'a> {
 
 #[cfg(test)]
 mod field_access_tests {
-    use super::*;
-    use crate::timeline::AnimationTrack;
     use crate::timeline::Timeline;
     use crate::timeline::dispatch::{TrackFieldMut, TrackFieldRef};
     use crate::timeline::property_registry::ActorField;
@@ -382,10 +343,6 @@ mod field_access_tests {
         assert!(matches!(fields.field_ref(ActorField::Opacity), Some(TrackFieldRef::F32(_))));
         assert!(matches!(fields.field_ref(ActorField::Size), Some(TrackFieldRef::Vec2(_))));
         assert!(fields.field_ref(ActorField::NoStorage).is_none());
-
-        // The geometry tier is a `World` component; a bare-track bundle has none.
-        let track = AnimationTrack::new("box".into());
-        assert!(TrackFields::from_track(&track).field_ref(ActorField::Size).is_none());
     }
 
     #[test]
@@ -745,10 +702,7 @@ impl World {
     /// Whether two or more distinct keyframe values make `property` animated.
     pub fn is_property_animated(&self, id: EntityId, property: &str) -> bool {
         let Some(schema) = crate::timeline::property_registry::lookup_property(property) else {
-            return self
-                .tracks
-                .get_by_id(id)
-                .is_some_and(|track| track.is_property_animated(property));
+            return false;
         };
         let times = self.property_keyframe_times(id, schema.field);
         if times.len() < 2 {

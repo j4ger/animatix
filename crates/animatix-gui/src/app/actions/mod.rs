@@ -1,8 +1,6 @@
 mod property_edit;
 use property_edit::{apply_property_edit_to_entity, apply_shape_angle_edit};
 
-use animatix::timeline::TrackAccessor;
-
 use super::{panels, *};
 
 impl GuiShell {
@@ -591,15 +589,15 @@ fn parse_gui_color(text: &str) -> Option<[f32; 4]> {
 
 /// Whether the GUI may offer to nest a new actor inside `track`.
 ///
-/// Resolved from the live registry via the track's required `actor_type`, so
+/// Resolved from the live registry via the entity's required `actor_type`, so
 /// extension containers with generic child processing participate.
 pub(crate) fn track_is_nestable_container(
     timeline: &animatix::timeline::Timeline,
-    track: &animatix::timeline::AnimationTrack,
+    id: animatix::timeline::EntityId,
 ) -> bool {
     timeline
         .primitive_registry_snapshot()
-        .info_of(timeline.world().actor_type(track.id))
+        .info_of(timeline.world().actor_type(id))
         .map(animatix::timeline::caps_from_info)
         .is_some_and(|caps| caps.is_nestable_container())
 }
@@ -607,9 +605,9 @@ pub(crate) fn track_is_nestable_container(
 /// Whether `track` is a plain structural group (the ungroup action target).
 pub(crate) fn track_is_group_like(
     timeline: &animatix::timeline::Timeline,
-    track: &animatix::timeline::AnimationTrack,
+    id: animatix::timeline::EntityId,
 ) -> bool {
-    timeline.world().caps(track.id).is_group_like()
+    timeline.world().caps(id).is_group_like()
 }
 
 #[cfg(test)]

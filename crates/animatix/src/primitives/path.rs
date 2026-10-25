@@ -79,11 +79,13 @@ impl Primitive for PathPrimitive {
 
         let geometry = ctx.geometry.expect("Path evaluation requires the geometry tier");
         let half_size = geometry.size.get(ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
-        let vector_paths = ctx.track.evaluate_vector_paths(
-            ctx.shape.expect("Path evaluation requires the shape tier"),
-            ctx.style.expect("Path evaluation requires the style tier"),
-            ctx.time_ms,
-        );
+        let vector_paths = ctx
+            .shape
+            .expect("Path evaluation requires the shape tier")
+            .evaluate_vector_paths(
+                ctx.style.expect("Path evaluation requires the style tier"),
+                ctx.time_ms,
+            );
 
         let mut state = PathState {
             size: half_size,

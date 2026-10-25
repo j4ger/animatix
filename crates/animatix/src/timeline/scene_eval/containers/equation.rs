@@ -1,5 +1,5 @@
 use crate::renderer::types::TextPath;
-use crate::timeline::{AnimationTrack, DEFAULT_WHITE, EntityId, Timeline, TrackAccessor};
+use crate::timeline::{DEFAULT_WHITE, EntityId, Timeline, TrackAccessor};
 
 /// Escape a Fragment's content for embedding in one #box() markup block.
 ///
@@ -33,12 +33,12 @@ impl Timeline {
         let time_ms = frame.time_ms;
         let scene_dimensions = frame.scene_dimensions;
         let overrides = frame.overrides;
-        let Some(track) = self
-            .world
-            .tracks
-            .get_by_id(node_id)
-            .or_else(|| self.world.tracks.get(node_label))
-        else {
+        // Resolve the scope's entity id: trust `node_id`, fall back to the label.
+        let node_id = if self.world.exists(node_id) {
+            node_id
+        } else if let Some(id) = self.world.get_id(node_label) {
+            id
+        } else {
             return;
         };
 
@@ -58,47 +58,40 @@ impl Timeline {
         }
         let mut frags: Vec<FragInfo> = Vec::new();
 
-        let child_tracks: Vec<&AnimationTrack> = self
-            .world
-            .hierarchy(node_id)
-            .children
-            .iter()
-            .filter_map(|id| self.world.tracks.get_by_id(*id))
-            .collect();
+        let child_ids: Vec<EntityId> = self.world.hierarchy(node_id).children.to_vec();
 
-        for child_track in child_tracks {
+        for &child_id in &child_ids {
             // A fragment is any child whose primitive opts into
             // `equation_fragment` — never a hard-coded type name.
-            let Some(primitive) = self.track_primitive_at(child_track, time_ms) else {
+            let Some(primitive) = self.track_primitive_at(child_id, time_ms) else {
                 continue;
             };
-            let child_vector_paths = child_track.evaluate_vector_paths(
-                self.world.shape(child_track.id),
-                self.world.style(child_track.id),
-                time_ms,
-            );
+            let child_vector_paths = self
+                .world
+                .shape(child_id)
+                .evaluate_vector_paths(self.world.style(child_id), time_ms);
             let ctx = crate::primitives::EvaluateCtx {
-                track: child_track,
-                label: self.world.label(child_track.id).unwrap_or(""),
+                id: child_id,
+                label: self.world.label(child_id).unwrap_or(""),
                 time_ms,
                 local_transform: kurbo::Affine::IDENTITY,
                 opacity: 1.0,
                 scene_dimensions,
                 background_color: self.eval_caches.background_color.get(),
-                overrides: overrides.get(self.world.label(child_track.id).unwrap_or("")),
+                overrides: overrides.get(self.world.label(child_id).unwrap_or("")),
                 vector_paths: &child_vector_paths,
                 asset_cache: &self.asset_cache,
                 target_resolver: Some(self),
-                legend: self.world.legend(child_track.id),
+                legend: self.world.legend(child_id),
                 world: Some(&self.world),
-                highlight: self.world.highlight(child_track.id),
-                style: Some(self.world.style(child_track.id)),
-                shape: Some(self.world.shape(child_track.id)),
-                geometry: Some(self.world.geometry(child_track.id)),
-                text: Some(self.world.text(child_track.id)),
-                property_plan: Some(self.world.property_plan(child_track.id)),
-                caps: self.world.caps(child_track.id),
-                payload: self.world.payload(child_track.id),
+                highlight: self.world.highlight(child_id),
+                style: Some(self.world.style(child_id)),
+                shape: Some(self.world.shape(child_id)),
+                geometry: Some(self.world.geometry(child_id)),
+                text: Some(self.world.text(child_id)),
+                property_plan: Some(self.world.property_plan(child_id)),
+                caps: self.world.caps(child_id),
+                payload: self.world.payload(child_id),
             };
             if let Some(fragment) = primitive.equation_fragment(&ctx) {
                 frags.push(FragInfo {
@@ -122,9 +115,9 @@ impl Timeline {
                 .join(" ");
 
             // Use equation-level font_size and color from the Equation track.
-            let text = self.world.text(track.id);
+            let text = self.world.text(node_id);
             let font_size = text.font_size.get(time_ms, 48.0);
-            let eq_color = self.world.style(track.id).color.get(time_ms, DEFAULT_WHITE);
+            let eq_color = self.world.style(node_id).color.get(time_ms, DEFAULT_WHITE);
             let font_family = text.font_family.get(time_ms, String::new());
             let font_weight = text.font_weight.get(time_ms, 400.0);
             let font_style = text.font_style.get(time_ms, "normal".to_string());

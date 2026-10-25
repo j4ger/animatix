@@ -51,8 +51,6 @@ fn build_legend_timeline() -> Timeline {
 #[test]
 fn test_legend_wrapped_label_respects_max_width() {
     use kurbo::{Affine, Shape};
-
-    let track = AnimationTrack::placeholder("legend".to_string());
     let legend = crate::timeline::LegendTracks {
         entries: vec![(
             "A very long series label that should wrap".to_string(),
@@ -66,7 +64,7 @@ fn test_legend_wrapped_label_respects_max_width() {
     let geometry = crate::timeline::animation_track::GeometryTracks::default();
     let style = crate::timeline::animation_track::StyleTracks::default();
     let ctx = EvaluateCtx {
-        track: &track,
+        id: crate::timeline::EntityId::INVALID,
         label: "legend",
         caps: animatix_std::caps_for_type("Legend").unwrap_or_default(),
         time_ms: 0,
@@ -172,21 +170,21 @@ fn test_legend_union_property_sets_actor_mode() {
     );
     let timeline = report.output;
 
-    let hidden = timeline.get_track("hidden_series").expect("hidden series track");
+    let hidden = timeline.get_entity_id("hidden_series").expect("hidden series track");
     assert_eq!(
         crate::timeline::legend::legend_mode_for_track(
             hidden,
-            timeline.world.meta(hidden.id).first_seen_ms,
-            Some(&timeline.world),
+            timeline.world.meta(hidden).first_seen_ms,
+            &timeline.world,
         ),
         super::super::LegendMode::Hidden
     );
-    let named = timeline.get_track("named_series").expect("named series track");
+    let named = timeline.get_entity_id("named_series").expect("named series track");
     assert_eq!(
         crate::timeline::legend::legend_mode_for_track(
             named,
-            timeline.world.meta(named.id).first_seen_ms,
-            Some(&timeline.world),
+            timeline.world.meta(named).first_seen_ms,
+            &timeline.world,
         ),
         super::super::LegendMode::Label("Revenue".to_string())
     );
@@ -197,8 +195,8 @@ fn test_legend_basic_rendering() {
     // Test that a Legend renders color swatches and labels
     let timeline = build_legend_timeline();
 
-    let track = timeline.get_track("legend").expect("legend track should exist");
-    assert_eq!(timeline.world.actor_type(track.id), "Legend", "track kind should be Legend");
+    let track = timeline.get_entity_id("legend").expect("legend track should exist");
+    assert_eq!(timeline.world.actor_type(track), "Legend", "track kind should be Legend");
 
     // A legend-only scene has no color-bearing candidates.
     assert!(
@@ -232,8 +230,6 @@ fn test_legend_empty() {
     // Build a track manually and call evaluate directly to bypass
     // the build-time placeholder insertion.
     use kurbo::Affine;
-
-    let track = AnimationTrack::placeholder("empty_legend".to_string());
     let legend = crate::timeline::LegendTracks::default();
 
     // Ensure entries are empty (default)
@@ -243,7 +239,7 @@ fn test_legend_empty() {
     let geometry = crate::timeline::animation_track::GeometryTracks::default();
     let style = crate::timeline::animation_track::StyleTracks::default();
     let ctx = EvaluateCtx {
-        track: &track,
+        id: crate::timeline::EntityId::INVALID,
         label: "empty_legend",
         caps: animatix_std::caps_for_type("Legend").unwrap_or_default(),
         time_ms: 0,
@@ -406,7 +402,7 @@ fn test_legend_style_properties_are_parsed() {
         report.diagnostics
     );
     let timeline = report.output;
-    let track = timeline.get_track("legend").expect("legend track");
+    let track = timeline.get_entity_id("legend").expect("legend track");
     assert_eq!(legend_component(&timeline, "legend").title, "Metrics");
     assert_eq!(legend_component(&timeline, "legend").font_size, 18.0);
     assert_eq!(legend_component(&timeline, "legend").label_color, Some([1.0, 1.0, 1.0, 1.0]));
@@ -416,9 +412,8 @@ fn test_legend_style_properties_are_parsed() {
 
     use crate::timeline::property_engine::PropertyValue;
     use crate::timeline::property_registry::ActorField;
-    let read = |key: &'static str| {
-        timeline.world.read_property_value(track.id, ActorField::Tagged(key), 0)
-    };
+    let read =
+        |key: &'static str| timeline.world.read_property_value(track, ActorField::Tagged(key), 0);
     assert_eq!(read("legend_title"), Some(PropertyValue::String("Metrics".to_string())));
     assert_eq!(read("legend_font_size"), Some(PropertyValue::F32(18.0)));
     assert_eq!(read("legend_label_color"), Some(PropertyValue::Color([1.0, 1.0, 1.0, 1.0])));
@@ -633,8 +628,8 @@ fn example_legend_entries_are_scanned() {
         report.diagnostics
     );
     let timeline = report.output;
-    let track = timeline.get_track("legend").expect("legend track should exist");
-    let geometry = timeline.world.geometry(track.id);
+    let track = timeline.get_entity_id("legend").expect("legend track should exist");
+    let geometry = timeline.world.geometry(track);
     assert_eq!(
         legend_component(&timeline, "legend").entries,
         vec![
@@ -655,8 +650,6 @@ fn test_legend_render_commands_produced() {
     // Create a track with entries and verify evaluate returns Some(commands)
     use kurbo::Affine;
 
-    let track = AnimationTrack::placeholder("legend".to_string());
-
     // Set manual entries to exercise label rendering without a scene build.
     let legend = crate::timeline::LegendTracks {
         entries: vec![
@@ -671,7 +664,7 @@ fn test_legend_render_commands_produced() {
     let geometry = crate::timeline::animation_track::GeometryTracks::default();
     let style = crate::timeline::animation_track::StyleTracks::default();
     let ctx = EvaluateCtx {
-        track: &track,
+        id: crate::timeline::EntityId::INVALID,
         label: "legend",
         caps: animatix_std::caps_for_type("Legend").unwrap_or_default(),
         time_ms: 0,

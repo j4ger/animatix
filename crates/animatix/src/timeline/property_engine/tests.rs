@@ -2,9 +2,8 @@ use super::*;
 use crate::easing::Easing;
 use crate::timeline::PlacementMode;
 use crate::timeline::animation_track::CalloutPlace;
-use crate::timeline::dispatch::read_property_value_or_default;
 use crate::timeline::property_registry::ActorField;
-use crate::timeline::{AnimationTrack, Interpolate, ShapeType, TrackAccessor};
+use crate::timeline::{Interpolate, ShapeType, TrackAccessor};
 
 #[test]
 fn enum_boundary_shape_type_roundtrips() {
@@ -70,8 +69,7 @@ fn tagged_property_routes_through_actor_plan() {
 #[test]
 fn property_plan_slot_writes_and_reads_without_string_lookup() {
     let mut timeline = crate::timeline::Timeline::new();
-    let track = AnimationTrack::placeholder("test".to_string());
-    let id = timeline.world_mut().spawn_with_track("test", "Rect", track);
+    let id = timeline.world_mut().spawn("test", "Rect");
     timeline.world_mut().rebuild_property_plan(id);
     let position = crate::timeline::property_id("position").expect("position is registered");
 
@@ -410,9 +408,10 @@ fn test_write_read_roundtrip_with_duration_uses_linear_easing_at_start() {
 
 #[test]
 fn test_read_property_value_or_default_falls_back() {
-    let track = AnimationTrack::placeholder("test".to_string());
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("test", "Rect");
     let schema = crate::timeline::property_registry::lookup_property("opacity").unwrap();
-    let val = read_property_value_or_default(&track, schema, 0, "Rect");
+    let val = timeline.world().read_property_value_or_default(id, schema, 0);
     assert_eq!(val, PropertyValue::F32(1.0));
 }
 

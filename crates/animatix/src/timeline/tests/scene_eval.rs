@@ -139,7 +139,7 @@ fn static_scene_cache_is_keyed_by_debug_options() {
     let _debug = timeline.evaluate_with_debug(0.0, dims, debug_opts, &mut None);
 
     let cache = timeline.eval_caches.static_subtree_cache.borrow();
-    let box1_id = timeline.world.tracks.get_entity_id("box1").expect("box1 id");
+    let box1_id = timeline.world.get_id("box1").expect("box1 id");
     assert!(cache.contains_key(&(box1_id, dims, false, DebugRenderOptions::default())));
     assert!(cache.contains_key(&(box1_id, dims, false, debug_opts)));
     assert_eq!(cache.len(), 2, "debug options must not reuse the default scene");
@@ -248,7 +248,7 @@ fn static_scene_only_cache_does_not_collect_items() {
 
     let _scene = timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default(), &mut None);
     let cache = timeline.eval_caches.static_subtree_cache.borrow();
-    let box1_id = timeline.world.tracks.get_entity_id("box1").expect("box1 id");
+    let box1_id = timeline.world.get_id("box1").expect("box1 id");
     let scene_only_key = (box1_id, dims, false, DebugRenderOptions::default());
     let (_, _, items, _) =
         cache.get(&scene_only_key).expect("scene-only static subtree should be cached");
@@ -306,7 +306,7 @@ fn static_program_after_scene_only_still_collects_items() {
     );
 
     let cache = timeline.eval_caches.static_subtree_cache.borrow();
-    let box1_id = timeline.world.tracks.get_entity_id("box1").expect("box1 id");
+    let box1_id = timeline.world.get_id("box1").expect("box1 id");
     let program_key = (box1_id, dims, true, DebugRenderOptions::default());
     let (_, _, items, _) = cache
         .get(&program_key)
@@ -409,7 +409,7 @@ fn static_scene_cache_is_keyed_by_dimensions() {
         timeline.evaluate_with_debug(0.0, dims_2, DebugRenderOptions::default(), &mut None);
 
     let cache = timeline.eval_caches.static_subtree_cache.borrow();
-    let box1_id = timeline.world.tracks.get_entity_id("box1").expect("box1 id");
+    let box1_id = timeline.world.get_id("box1").expect("box1 id");
     assert!(cache.contains_key(&(box1_id, dims_1, false, DebugRenderOptions::default())));
     assert!(cache.contains_key(&(box1_id, dims_2, false, DebugRenderOptions::default())));
     assert_eq!(cache.len(), 2, "dimensions must not reuse a static subtree scene");
@@ -718,12 +718,12 @@ fn text_content_assignment_crossfades_paths_at_midpoint() {
         report.diagnostics
     );
 
-    let track = report.output.get_track("label").expect("label track should exist");
-    let paths_mid = track.evaluate_text_paths(
-        report.output.world().text(track.id),
-        report.output.world().style(track.id),
-        1500,
-    );
+    let track = report.output.get_entity_id("label").expect("label track should exist");
+    let paths_mid = report
+        .output
+        .world()
+        .text(track)
+        .evaluate_paths(report.output.world().style(track), 1500);
 
     // The default path-track morph would return one set of glyphs at the
     // midpoint. The content-assignment path stores a Fade morph so both
@@ -792,17 +792,17 @@ fn time_dependent_caps_prevent_static_subtree_caching() {
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let timeline = report.output;
 
-    let subs = timeline.world.tracks.get("subs").expect("subs track must exist");
+    let subs = timeline.world.tracks.get_id("subs").expect("subs track must exist");
     assert!(
-        timeline.world.caps(subs.id).time_dependent,
+        timeline.world.caps(subs).time_dependent,
         "Captions must have time_dependent capability"
     );
     let subs_id = timeline.get_entity_id("subs").expect("subs id");
     assert!(!timeline.is_static_subtree_id(subs_id), "Captions must not be a static subtree");
 
-    let cue = timeline.world.tracks.get("c1").expect("c1 cue track must exist");
+    let cue = timeline.world.tracks.get_id("c1").expect("c1 cue track must exist");
     assert!(
-        timeline.world.caps(cue.id).time_dependent,
+        timeline.world.caps(cue).time_dependent,
         "Cue must have time_dependent capability"
     );
     let cue_id = timeline.get_entity_id("c1").expect("c1 id");
