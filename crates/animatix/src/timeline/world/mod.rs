@@ -49,7 +49,7 @@ pub struct World {
         RequiredStore<std::cell::RefCell<Box<crate::primitives::ShapeCommandMemo>>>,
     /// Memo bounds handoff slot per entity.
     pub(crate) pending_shape_bounds: RequiredStore<std::cell::Cell<Option<Option<kurbo::Rect>>>>,
-    /// Dense precise-bounds table slot per entity (`u32::MAX` until stamped).
+    /// Dense precise-bounds table slot per entity (`0` until `EvalCaches::ensure_bounds_registry` stamps it).
     pub(crate) bounds_slots: RequiredStore<std::cell::Cell<u32>>,
     /// Style tier for every entity.
     pub(crate) style: RequiredStore<crate::timeline::animation_track::StyleTracks>,
@@ -219,6 +219,7 @@ impl World {
         *self.actor_types.get_mut(id) = actor_type.to_string();
         self.hierarchy.reset_at(id);
         self.highlight.reset_at(id);
+        self.tagged_tracks.reset_at(id);
         self.shape_memos.reset_at(id);
         self.pending_shape_bounds.reset_at(id);
         self.bounds_slots.reset_at(id);
@@ -237,7 +238,6 @@ impl World {
         self.transcript.reset_at(id);
         self.effects.reset_at(id);
         self.legend.reset_at(id);
-        self.effects.reset_at(id);
         self.payload.reset_at(id);
         self.decl_span.reset_at(id);
         self.attach_pending_auto_color(id, label);

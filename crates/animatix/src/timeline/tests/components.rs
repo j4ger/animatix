@@ -331,3 +331,72 @@ fn every_entity_has_required_components() {
     assert!(world.property_plan.try_get(b).is_some());
     assert!(world.geometry.try_get(b).is_some());
 }
+
+// `World::spawn_replacing` must reset every authored-data required store
+// (`docs/ecs.md` §2.1): `tagged_tracks` once survived a replacement because
+// no test pinned its reset. The memo stores (`shape_memos`,
+// `pending_shape_bounds` is reset here, `shape_memos` has private fields and
+// is covered by the presence invariant above) hold no authored state.
+#[test]
+fn spawn_replacing_resets_every_authored_required_store() {
+    use crate::timeline::DynTrack;
+    use crate::timeline::plan::{PropertyKind, PropertyPlan, PropertySlot};
+
+    let mut timeline = Timeline::new();
+    let parent = timeline.spawn_entity("parent", "Rect");
+    let id = timeline.spawn_entity("card", "Rect");
+
+    // Dirty every required store that holds authored state.
+    timeline.world_mut().link(parent, id);
+    timeline.world_mut().set_bounds_slot(id, 7);
+    timeline
+        .world_mut()
+        .pending_shape_bounds
+        .get_mut(id)
+        .set(Some(Some(kurbo::Rect::ZERO)));
+    {
+        let world = timeline.world_mut();
+        world.highlight.get_mut(id).highlight_color = Some({
+            let mut track = PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);
+            track.add_keyframe(0, [1.0, 0.0, 0.0, 1.0], Easing::Linear);
+            track
+        });
+        world.tagged_tracks_mut(id).insert("legend".to_string(), None);
+        world.style_mut(id).color = Some(PropertyTrack::new([0.0, 0.0, 0.0, 1.0]));
+        world.geometry_mut(id).position = Some(PropertyTrack::new([1.0, 2.0]));
+        world.text_mut(id).text_content = Some(PropertyTrack::new("hi".to_string()));
+        world.shape_mut(id).shape_type = Some(PropertyTrack::new(crate::timeline::ShapeType::Rect));
+        *world.property_plan.get_mut(id) = PropertyPlan::new(vec![PropertySlot {
+            id: animatix_core::property::PropertyId(0),
+            kind: PropertyKind::F32,
+            track: DynTrack::empty(PropertyKind::F32),
+        }]);
+    }
+
+    // The bounds slot is stamped lazily by `EvalCaches::ensure_bounds_registry`
+    // (a fresh spawn reads `0`), so pin "back to fresh-spawn state", not a
+    // sentinel value.
+    let fresh = timeline.spawn_entity("fresh", "Rect");
+    timeline.world_mut().spawn_replacing("card", "Ellipse");
+
+    let world = timeline.world();
+    assert_eq!(world.actor_type(id), "Ellipse");
+    assert_eq!(world.hierarchy(parent).children, Vec::new(), "unlink ran first");
+    assert!(world.hierarchy(id).parent.is_none(), "hierarchy resets");
+    assert_eq!(
+        world.bounds_slot(id),
+        world.bounds_slot(fresh),
+        "bounds slot resets to unstamped state"
+    );
+    assert!(
+        world.pending_shape_bounds.get(id).get().is_none(),
+        "pending bounds handoff resets"
+    );
+    assert!(world.highlight.get(id).highlight_color.is_none(), "highlight resets");
+    assert!(world.tagged_tracks(id).is_empty(), "tagged tracks reset");
+    assert!(world.style.get(id).color.is_none(), "style resets");
+    assert!(world.geometry.get(id).position.is_none(), "geometry resets");
+    assert!(world.text.get(id).text_content.is_none(), "text resets");
+    assert!(world.shape.get(id).shape_type.is_none(), "shape resets");
+    assert!(world.property_plan.get(id).is_empty(), "property plan resets");
+}
