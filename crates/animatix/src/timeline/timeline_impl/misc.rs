@@ -32,6 +32,10 @@ impl Timeline {
             // Flat-vec clear: no string keys to recycle (PF-6 slot-id table).
             self.eval_caches.precise_bounds.borrow_mut().clear_frame();
         }
+        // Hit regions describe the last evaluated frame; an edit makes them
+        // stale. Every consumer reads them after an evaluate, so clearing is
+        // safe and prevents picking against pre-edit geometry.
+        self.eval_caches.hit_regions.borrow_mut().clear();
         // Bounds slots are registry-stamped; a track mutation can change the
         // label set, so drop the registry and let it rebuild lazily.
         *self.eval_caches.bounds_registry.borrow_mut() = None;
