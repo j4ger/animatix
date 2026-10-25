@@ -1,6 +1,99 @@
 use crate::timeline::*;
 
+/// One label's frame-env injection decision, borrowing the referenced
+/// property filter. The single source of truth for the decision is
+/// [`Timeline::env_inject_decision`]; the cached [`EnvInjectionPlan`] and the
+/// mid-build path both consume it.
+pub(crate) enum EnvInjectDecision<'a> {
+    /// Actor not referenced by any expression: no property injection.
+    Skip,
+    /// Referenced, but no property of it is read: only per-frame overrides
+    /// are applied when present.
+    NoProps,
+    /// Full injection (wildcard target, or no referenced-roots analysis).
+    Wildcard(bool),
+    /// Filtered injection: only these property names are read.
+    Props(&'a std::collections::HashSet<String>, bool),
+}
+
+/// Build-fixed per-entity decision for frame-env property injection,
+/// derived once from the referenced-roots analysis (see
+/// `Timeline::env_injection_plan`) instead of re-derived per frame.
+#[derive(Clone)]
+pub(crate) enum EnvInjectEntry {
+    /// Actor not referenced by any expression: no property injection.
+    Skip,
+    /// Referenced, but no property of it is read: only per-frame overrides
+    /// are applied when present.
+    NoProps,
+    /// Full injection (wildcard target, or no referenced-roots analysis).
+    Wildcard { animating: bool },
+    /// Filtered injection: only these property names are read.
+    Props {
+        allowed: std::sync::Arc<std::collections::HashSet<String>>,
+        animating: bool,
+    },
+}
+
+/// The precomputed frame-env injection plan (see `EnvInjectEntry`): one entry
+/// per entity in `World::tracks` order, the pooled-env capacity estimate,
+/// and whether runtime injection is needed at all.
+pub(crate) struct EnvInjectionPlan {
+    pub(crate) entries: Vec<EnvInjectEntry>,
+    pub(crate) estimated_prop_entries: usize,
+    pub(crate) runtime_injection: bool,
+}
+
+impl EnvInjectionPlan {
+    /// The borrowing decision for `id`, or `None` for entities spawned after
+    /// the plan was computed (unreachable through the invalidation funnel);
+    /// callers fall back to a fresh [`Timeline::env_inject_decision`], whose
+    /// answer for unknown labels errs toward over-injection.
+    pub(crate) fn decision(&self, id: EntityId) -> Option<EnvInjectDecision<'_>> {
+        Some(match self.entries.get(id.index())? {
+            EnvInjectEntry::Skip => EnvInjectDecision::Skip,
+            EnvInjectEntry::NoProps => EnvInjectDecision::NoProps,
+            EnvInjectEntry::Wildcard { animating } => EnvInjectDecision::Wildcard(*animating),
+            EnvInjectEntry::Props { allowed, animating } => {
+                EnvInjectDecision::Props(allowed.as_ref(), *animating)
+            },
+        })
+    }
+}
+
 impl Timeline {
+    /// The per-label injection decision, recomputed on demand. The frame path
+    /// serves this from the cached [`EnvInjectionPlan`]; the build path (where
+    /// the referenced-roots analysis is still converging) calls it directly —
+    /// the same cost the per-frame loop paid before the plan existed.
+    pub(crate) fn env_inject_decision(&self, label: &str) -> EnvInjectDecision<'_> {
+        let Some(roots) = &self.referenced_roots else {
+            // No referenced-roots analysis: every track injects fully.
+            return EnvInjectDecision::Wildcard(true);
+        };
+        if !roots.contains(label) {
+            return EnvInjectDecision::Skip;
+        }
+        // A wildcard actor or any `{wildcard}__`-prefixed label injects fully.
+        let is_wildcard = self.wildcard_actors.contains(label)
+            || self
+                .wildcard_actors
+                .iter()
+                .any(|w| label.starts_with(&format!("{w}__")));
+        if is_wildcard {
+            return EnvInjectDecision::Wildcard(self.is_animating_used);
+        }
+        let base = label.split_once("__").map(|(b, _)| b).unwrap_or(label);
+        match self
+            .referenced_properties
+            .get(label)
+            .or_else(|| self.referenced_properties.get(base))
+        {
+            Some(p) => EnvInjectDecision::Props(p, self.is_animating_used),
+            None => EnvInjectDecision::NoProps,
+        }
+    }
+
     pub(crate) fn collect_frame_written_vars(
         modifiers: &[Stmt],
     ) -> std::collections::HashSet<String> {
@@ -48,12 +141,68 @@ impl Timeline {
         })
     }
 
-    /// Returns true if frame environment is needed for evaluation.
-    /// Frame environment is needed when modifiers or procedural plots exist.
+    /// Memoized [`Self::needs_frame_env`]: the underlying answer only changes
+    /// with the timeline's compiled statements, and the raw computation walks
+    /// every entity's payload — the frame path used to pay that walk up to
+    /// three times per frame (restore probe, miss, env build). Cleared by
+    /// `invalidate_frame_cache`.
     pub(crate) fn needs_frame_env(&self) -> bool {
-        !self.modifiers.is_empty()
+        if let Some(cached) = self.eval_caches.needs_frame_env.get() {
+            return cached;
+        }
+        let needed = !self.modifiers.is_empty()
             || !self.modifier_programs.is_empty()
-            || self.has_procedural_plots()
+            || self.has_procedural_plots();
+        self.eval_caches.needs_frame_env.set(Some(needed));
+        needed
+    }
+
+    /// The build-fixed frame-env injection plan (see [`EnvInjectionPlan`]):
+    /// which entities participate in runtime injection, with which property
+    /// filter, plus the pooled env's capacity estimate. Computed once from
+    /// the referenced-roots analysis and cleared by `invalidate_frame_cache`,
+    /// so the per-frame env build stops re-deriving wildcard membership
+    /// (`format!` per label) and the capacity walk. Only valid once the build
+    /// has converged — the build path itself calls
+    /// [`Self::env_inject_decision`] per label instead.
+    pub(crate) fn env_injection_plan(&self) -> std::sync::Arc<EnvInjectionPlan> {
+        if let Some(plan) = self.eval_caches.env_injection_plan.borrow().clone() {
+            return plan;
+        }
+        let plan = std::sync::Arc::new(self.compute_env_injection_plan());
+        *self.eval_caches.env_injection_plan.borrow_mut() = Some(std::sync::Arc::clone(&plan));
+        plan
+    }
+
+    fn compute_env_injection_plan(&self) -> EnvInjectionPlan {
+        let mut entries: Vec<EnvInjectEntry> = Vec::with_capacity(self.world.tracks.len());
+        let mut estimated_prop_entries = 0usize;
+        for (label, _) in self.world.tracks.iter() {
+            let entry = match self.env_inject_decision(label) {
+                EnvInjectDecision::Skip => EnvInjectEntry::Skip,
+                EnvInjectDecision::NoProps => EnvInjectEntry::NoProps,
+                EnvInjectDecision::Wildcard(animating) => {
+                    estimated_prop_entries += 120;
+                    EnvInjectEntry::Wildcard { animating }
+                },
+                EnvInjectDecision::Props(allowed, animating) => {
+                    estimated_prop_entries += allowed.len() * 4;
+                    EnvInjectEntry::Props {
+                        allowed: std::sync::Arc::new(allowed.clone()),
+                        animating,
+                    }
+                },
+            };
+            entries.push(entry);
+        }
+        let runtime_injection = !self.modifier_programs.is_empty()
+            || !self.modifiers.is_empty()
+            || self.has_procedural_plots();
+        EnvInjectionPlan {
+            entries,
+            estimated_prop_entries,
+            runtime_injection,
+        }
     }
 
     /// Returns true if the actor and all its descendants have no keyframes

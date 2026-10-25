@@ -93,7 +93,10 @@ impl Timeline {
                 env.set(name, value);
             }
         }
-        self.inject_runtime_lookup_values(&mut env, time_ms, None, None);
+        // Build path: the referenced-roots analysis is not final while the
+        // declaration walk is still running, so no cached plan — the
+        // injection loop falls back to per-label decisions.
+        self.inject_runtime_lookup_values(&mut env, time_ms, None, None, None);
         env
     }
 
@@ -105,53 +108,18 @@ impl Timeline {
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> Environment {
         let _stage = crate::perf::ScopedStage::new(crate::perf::stage::BUILD_FRAME_ENV);
-        // Estimate capacity: t/scene_width/scene_height + scene anchors +
-        // variable tracks + ~120 properties per *injected* actor. The build
-        // env is shared through `with_base` and never copied into `overrides`,
-        // so sizing from `self.env.len()` massively over-reserved: the
-        // 2026-09-04 allocation profile (`alloc_driver`, PF-6) measured one
-        // ~430 KB hashbrown table allocation per frame on a 60-actor scene
-        // whose overrides hold 131 entries, because referenced-roots filtering
-        // skips 59 of the 60 tracks inside `inject_runtime_lookup_values`.
-        // 120 = measured inserts for one Rect track (registry properties with
-        // defaults + `_animating_` flags + override sub-keys, 117 in total)
-        // rounded up; under-estimating triggers a SipHash rehash that costs
-        // more than the mmap it avoids, so err on the generous side while
-        // staying ~30× below the old `env.len()`-sized reservation.
-        let has_modifiers = !self.modifier_programs.is_empty() || !self.modifiers.is_empty();
-        let has_runtime_injection = has_modifiers || self.has_procedural_plots();
-        let estimated_prop_entries = if has_runtime_injection {
-            match &self.referenced_roots {
-                Some(_) => {
-                    let mut count = 0;
-                    for label in self.world.tracks.keys() {
-                        let is_wildcard = self.wildcard_actors.contains(label.as_str())
-                            || self
-                                .wildcard_actors
-                                .iter()
-                                .any(|w| label.starts_with(&format!("{w}__")));
-                        if is_wildcard {
-                            count += 120;
-                        } else {
-                            let base =
-                                label.split_once("__").map(|(b, _)| b).unwrap_or(label.as_str());
-                            let props_count = self
-                                .referenced_properties
-                                .get(label.as_str())
-                                .or_else(|| self.referenced_properties.get(base))
-                                .map(|p| p.len())
-                                .unwrap_or(0);
-                            count += props_count * 4;
-                        }
-                    }
-                    count
-                },
-                None => self.world.tracks.len() * 120,
-            }
-        } else {
-            0
-        };
-        let estimated_capacity = 16 + self.variable_tracks.len() + estimated_prop_entries;
+        // The capacity estimate and every per-actor injection decision are
+        // build-fixed (referenced-roots analysis, wildcard targets, registry
+        // property counts). The injection plan computes them once after each
+        // invalidation; the old per-frame walk rebuilt them every frame and
+        // alone did a `format!` allocation per label for wildcard membership.
+        // 120 = measured inserts for one fully-injected Rect track (registry
+        // properties with defaults + `_animating_` flags + override sub-keys,
+        // 117 in total) rounded up; under-reserving triggers a rehash that
+        // costs more than the mmap it avoids, so err generous (see PF-6).
+        let plan = self.env_injection_plan();
+        let estimated_capacity = 16 + self.variable_tracks.len() + plan.estimated_prop_entries;
+        let has_runtime_injection = plan.runtime_injection;
         // PF-6 pool: the override-layer key set is identical frame-to-frame
         // (actor labels × registry properties are build-time-fixed), so the
         // environment is retained and its keys overwritten in place via
@@ -226,6 +194,7 @@ impl Timeline {
             time_ms,
             Some(scene_dimensions),
             Some(overrides),
+            Some(&plan),
         );
         env
     }
@@ -256,6 +225,7 @@ impl Timeline {
         overrides: Option<
             &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
         >,
+        plan: Option<&crate::timeline::timeline_impl::EnvInjectionPlan>,
     ) {
         let background_color = overrides
             .and_then(|map| map.get("scene"))
@@ -298,72 +268,61 @@ impl Timeline {
         }
 
         for (label, id) in self.world.tracks.iter() {
-            // Referenced-root filtering: expressions can only reference actor
-            // labels that appear textually in the program (see
-            // build::referenced_roots), so unreferenced actors' properties are
-            // not needed in the environment. Over-injection is safe; the
-            // filter only skips work.
-            if let Some(roots) = &self.referenced_roots {
-                if !roots.contains(label.as_str()) {
-                    continue;
-                }
-            }
-
-            let (allowed_props, inject_animating_flags) = if self.referenced_roots.is_some() {
-                let is_wildcard = self.wildcard_actors.contains(label.as_str())
-                    || self.wildcard_actors.iter().any(|w| label.starts_with(&format!("{w}__")));
-                if is_wildcard {
-                    (None, self.is_animating_used)
-                } else {
-                    let base = label.split_once("__").map(|(b, _)| b).unwrap_or(label.as_str());
-                    let props = self
-                        .referenced_properties
-                        .get(label.as_str())
-                        .or_else(|| self.referenced_properties.get(base));
-                    match props {
-                        Some(p) => (Some(p), self.is_animating_used),
-                        None => {
-                            // Actor's properties are not read by any expression.
-                            // Apply explicit node overrides if present, then skip base property
-                            // injection.
-                            let node_overrides = overrides.and_then(|map| map.get(label));
-                            if let Some(overrides) = node_overrides {
-                                for (okey, val) in overrides {
-                                    crate::timeline::env_keys::property_into(label, okey, &mut key);
-                                    env.set(&key, val.clone());
-                                    match val {
-                                        Value::Vec2([x, y]) => {
-                                            let base_len = key.len();
-                                            key.push_str(".x");
-                                            env.set(&key, Value::Num(*x));
-                                            key.truncate(base_len);
-                                            key.push_str(".y");
-                                            env.set(&key, Value::Num(*y));
-                                        },
-                                        Value::Color([r, g, b, a]) => {
-                                            let base_len = key.len();
-                                            key.push_str(".r");
-                                            env.set(&key, Value::Num(*r));
-                                            key.truncate(base_len);
-                                            key.push_str(".g");
-                                            env.set(&key, Value::Num(*g));
-                                            key.truncate(base_len);
-                                            key.push_str(".b");
-                                            env.set(&key, Value::Num(*b));
-                                            key.truncate(base_len);
-                                            key.push_str(".a");
-                                            env.set(&key, Value::Num(*a));
-                                        },
-                                        _ => {},
-                                    }
-                                }
+            // Referenced-root filtering, wildcard membership, and the
+            // referenced-property filter are all build-fixed; the injection
+            // plan (see `Timeline::env_injection_plan`) answers them with one
+            // indexed read instead of the per-label `format!`/`split_once`/
+            // `HashSet` walk this loop used to run every frame.
+            // Over-injection is safe; the filter only skips work.
+            let decision = plan
+                .and_then(|plan| plan.decision(id))
+                .unwrap_or_else(|| self.env_inject_decision(label));
+            let (allowed_props, inject_animating_flags) = match decision {
+                crate::timeline::timeline_impl::EnvInjectDecision::Skip => continue,
+                crate::timeline::timeline_impl::EnvInjectDecision::NoProps => {
+                    // Actor's properties are not read by any expression.
+                    // Apply explicit node overrides if present, then skip base property
+                    // injection.
+                    let node_overrides = overrides.and_then(|map| map.get(label));
+                    if let Some(overrides) = node_overrides {
+                        for (okey, val) in overrides {
+                            crate::timeline::env_keys::property_into(label, okey, &mut key);
+                            env.set(&key, val.clone());
+                            match val {
+                                Value::Vec2([x, y]) => {
+                                    let base_len = key.len();
+                                    key.push_str(".x");
+                                    env.set(&key, Value::Num(*x));
+                                    key.truncate(base_len);
+                                    key.push_str(".y");
+                                    env.set(&key, Value::Num(*y));
+                                },
+                                Value::Color([r, g, b, a]) => {
+                                    let base_len = key.len();
+                                    key.push_str(".r");
+                                    env.set(&key, Value::Num(*r));
+                                    key.truncate(base_len);
+                                    key.push_str(".g");
+                                    env.set(&key, Value::Num(*g));
+                                    key.truncate(base_len);
+                                    key.push_str(".b");
+                                    env.set(&key, Value::Num(*b));
+                                    key.truncate(base_len);
+                                    key.push_str(".a");
+                                    env.set(&key, Value::Num(*a));
+                                },
+                                _ => {},
                             }
-                            continue;
-                        },
+                        }
                     }
-                }
-            } else {
-                (None, true)
+                    continue;
+                },
+                crate::timeline::timeline_impl::EnvInjectDecision::Wildcard(animating) => {
+                    (None, animating)
+                },
+                crate::timeline::timeline_impl::EnvInjectDecision::Props(allowed, animating) => {
+                    (Some(allowed), animating)
+                },
             };
 
             // Use the centralized injector for base track values (key buffer

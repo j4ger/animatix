@@ -478,10 +478,9 @@ pub(crate) struct FrameCacheEntry {
 #[derive(Default)]
 pub(crate) struct EvalCaches {
     frame_cache: std::cell::RefCell<Option<FrameCacheEntry>>,
-    /// Bumped by `invalidate_frame_cache`, which every in-place mutation of the
-    /// document funnels through. Exported as `Timeline::content_epoch` so a
-    /// driver can put "has the document changed under this time?" into its
-    /// frame signature (`frame_signature`).
+    /// Bumped by `invalidate_frame_cache` (every in-place mutation funnels
+    /// through it); exported as `Timeline::content_epoch` for frame
+    /// signatures.
     content_epoch: std::cell::Cell<u64>,
     transform_cache: std::cell::RefCell<Vec<Option<scene_eval::TransformCacheEntry>>>,
     /// Memoized `is_transform_static` answers (`has_any_keyframes` negated),
@@ -502,15 +501,11 @@ pub(crate) struct EvalCaches {
     hit_regions: std::cell::RefCell<Vec<(EntityId, kurbo::Rect)>>,
     overrides_buffer: std::cell::RefCell<crate::timeline::modifier_runtime::ir::ModifierOverrides>,
     /// Precise world-space bounds for the current frame, indexed by
-    /// `World::bounds_slots` slot ids instead of actor label (PF-6 slot-id
-    /// design: the per-node write is a `Vec` store, the frame-cache stash and
-    /// restore are flat `Vec<(u32, Rect)>` copies, and the string-keyed map
-    /// machinery — per-node hashing, pooled-key bookkeeping, per-key `String`
-    /// clones on restore — is gone entirely).
+    /// `World::bounds_slots` slot ids (PF-6: per-node write is a `Vec` store,
+    /// stash/restore are flat copies, no string keys).
     precise_bounds: std::cell::RefCell<BoundsTable>,
     /// Label↔slot identity for [`Self::precise_bounds`]: sorted track labels,
-    /// rebuilt lazily (cleared by `invalidate_frame_cache`, whose funnel
-    /// invariant covers every track mutation). `None` until first needed.
+    /// rebuilt lazily after invalidation. `None` until first needed.
     bounds_registry: std::cell::RefCell<Option<BoundsRegistry>>,
     pub(crate) runtime_diagnostics: std::cell::RefCell<Vec<crate::diagnostics::Diagnostic>>,
     /// Authored solo gate for the current frame. Empty (and allocation-free)
@@ -527,13 +522,17 @@ pub(crate) struct EvalCaches {
     /// reports `true` — an always block can write the flag per frame
     /// without going through a mutation.
     pub(crate) solo_scan_needed: std::cell::Cell<Option<bool>>,
+    /// Memoized [`Self::needs_frame_env`] answers (the raw computation walks
+    /// every entity's payload; the frame path consulted it up to 3×/frame).
+    needs_frame_env: std::cell::Cell<Option<bool>>,
+    /// Precomputed frame-env injection plan; see `timeline_impl::cache`.
+    env_injection_plan: std::cell::RefCell<Option<std::sync::Arc<timeline_impl::EnvInjectionPlan>>>,
     /// Resolved primitive handles per entity, keyed by the actor type each
     /// was resolved from; see `timeline_impl::primitive_cache`.
     primitive_handles: std::cell::RefCell<Vec<crate::primitives::PrimitiveCacheEntry>>,
-    /// The scene's evaluated background color for the current frame. Sampled
-    /// once per frame in `evaluate_program_inner` and read by the primitive
-    /// `EvaluateCtx` (used only by legend label-contrast); avoids re-sampling
-    /// the constant background track once per node.
+    /// The scene's evaluated background color for the current frame, sampled
+    /// once and read per node by the primitive `EvaluateCtx` (legend
+    /// label-contrast).
     background_color: std::cell::Cell<[f32; 4]>,
 }
 
