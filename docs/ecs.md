@@ -42,16 +42,22 @@ serialization / UI boundary.**
 ## 2. Model
 
 ```text
-EntityId(u32) ── entities: EntityStore { meta: Vec<EntityMeta>, label maps }
+EntityId(u32) ── entities: EntityStore { label ↔ id maps }
                    │
                    ├── hierarchy:    RequiredStore<SceneHierarchyComponent>
+                   ├── actor_types:  RequiredStore<String>
                    ├── geometry:     RequiredStore<GeometryTracks>
                    ├── style:        RequiredStore<StyleTracks>
-                   ├── shape:        RequiredStore<ShapeComponent>
+                   ├── shape:        RequiredStore<ShapeTracks>
                    ├── text:         RequiredStore<TextTracks>
                    ├── highlight:    RequiredStore<HighlightTracks>
                    ├── property_plan:RequiredStore<PropertyPlan>
                    ├── tagged_tracks:RequiredStore<TaggedTracksComponent>
+                   ├── memo cells:   shape_memos / pending_shape_bounds /
+                   │                 bounds_slots (see §2.1 "memo cells")
+                   ├── meta:         ComponentStore<EntityMeta>
+                   ├── decl_span:    ComponentStore<Span>
+                   ├── caps_overrides: ComponentStore<ActorCaps>
                    ├── legend:       ComponentStore<LegendTracks>
                    ├── effects:      ComponentStore<EffectChainTrack>
                    ├── payload:      ComponentStore<PrimitivePayload>
@@ -105,10 +111,17 @@ Rules:
   calls `invalidate_frame_cache` first. Build-time writes go through the same
   entry points; there is no cache to invalidate yet, but the invariant is
   uniform.
-- **Frame caches are not components.** `bounds_slot`, `shape_command_memo`,
-  `pending_shape_command_bounds`, `vector_paths_memo`, `shape_path_memo`,
-  `shape_type_switches` belong to `EvalCaches`, indexed by `EntityId.index()`.
-  A component is authored/build data; a cache is disposable per-frame state.
+- **Frame caches are not components — but memo cells live in `World`.**
+  Timeline-level caches (frame cache, transform/static-subtree flags,
+  precise-bounds table, env-injection plan, layout caches) belong to
+  `EvalCaches` and reset on `Clone`. Per-node memo cells (`bounds_slots`,
+  `shape_memos`, `pending_shape_bounds` on `World`;
+  `vector_paths_epoch`/`shape_path_memo`/`shape_type_switches` on
+  `ShapeTracks`) must be reachable from `&World`, because frame-path systems
+  write memos through a shared borrow — so they sit next to the data they
+  memoize as interior-mutable cells. A component is authored/build data; a
+  cache or memo cell is disposable state invalidated by
+  `invalidate_frame_cache`.
 
 ### 2.2 Components
 
@@ -152,6 +165,15 @@ are the identity accessors, and `visible`, `locked`, `camera_follow`,
 - `background_color`, `camera`, colorschemes, asset cache, font context,
   layout engine/caches, `variable_tracks`, `action_events`, config/duration,
   modifier programs.
+- `referenced_roots` / `wildcard_actors` / `referenced_properties`: the
+  build's expression-analysis tables, keyed by label because expressions name
+  actors by label; they seed the frame-env injection plan.
+- `modifier_written_targets` / `frame_written_vars`: which actor labels and
+  variables modifier blocks write — the label set is authored in the source.
+- `block_scope`: `let` names bound per `Stmt::Block` expansion.
+- Layout admission (`ContainerLayoutChild`) and resolved positions
+  (`LayoutPositions`) are keyed by `EntityId` end to end; labels appear only
+  at the GUI/action boundary.
 
 Adding a resource instead of a component is a decision to document in the PR:
 "looked up by label/order, not by entity id".
@@ -198,15 +220,21 @@ if let Some(mut e) = timeline.entity_mut("card") {
 
 Evaluation must never allocate a label `String` or hash a label per node. The
 only label touch points are build, expression env construction, diagnostics and
-serialization.
+serialization. Two label-keyed structures deliberately remain at frame
+boundaries: `SceneProgram::items`/`precise_bounds` (the observable frame
+description names actors by label for tooling and the GUI, built once per
+evaluated frame, never consulted by the per-node walk) and modifier
+`Overrides` (keyed by authored expression targets, including synthesized
+array labels).
 
 ## 5. Snapshots and serialization
 
 `CarryBag`/`CarryEntry` serialize one entry per actor. There is no aggregate
 runtime snapshot struct: each property tier rides the bag as its own field
 (`CarryEntry::style`, `geometry`, `shape`, `text`, `highlight`,
-`property_plan`, `payload`, …), each collapsed to a single t=0 keyframe by its
-per-tier collapse helper (`snapshot_style_at`, `snapshot_geometry_at`, …).
+`property_plan`, `tagged`, `payload`, …), each collapsed to a single t=0
+keyframe by its per-tier collapse helper (`snapshot_style_at`,
+`snapshot_geometry_at`, …).
 
 - The container-layout component rides the carry bag as a whole
   (`CarryEntry::container_layout`) rather than through the per-property

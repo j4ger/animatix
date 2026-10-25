@@ -2921,3 +2921,43 @@ suite-neighbour GPU contamination already documented for
 demo suite the same day its tier split moved it out of the default guard.
 Also re-learned: piping `perf-bench.sh compare` through `tail` swallows
 its exit code — the script exited FAIL while the pipeline read green.
+
+## ECS post-migration audit: carry gaps, layout label plumbing, doc drift (2026-10-26)
+
+An architecture review against `docs/ecs.md` after the migration closed found
+four classes of residue, all fixed the same day:
+
+- **`spawn_replacing` did not reset `tagged_tracks`** (and reset `effects`
+  twice). Masked in practice because carry injection runs on a fresh world,
+  but a contract break per §2.1; pinned now by a per-store reset guard test
+  (`spawn_replacing_resets_every_authored_required_store`). The same audit
+  caught a `bounds_slots` comment lie: "u32::MAX until stamped" described a
+  sentinel that never existed — the store default is `0`, and the lazily
+  rebuilt registry is the real invalidation.
+- **`CarryEntry` did not snapshot the tagged tier**: a persistent actor using
+  tagged-union properties (`legend`, extension tags) lost them across a
+  `play` edge. The tier now rides the bag with `#[serde(default)]` (old bags
+  still deserialize), collapses through `snapshot_tagged_at`, and injects
+  alongside `property_plan`.
+- **The layout pipeline was still label-keyed end to end**: per-frame label
+  hashes per container (`layout_children_for`, `LayoutEngine.cache`), a
+  label/id dual-keyed `LayoutPositions`, and a child-order interpolation path
+  that allocated a `String` per child per frame. All `EntityId`-keyed now
+  (`ContainerLayoutChild` carries the id; the render walk's two label
+  fallbacks are gone; `compute_static_subtree` lost its id→label→id detour).
+  `perf-bench quick`: 0/72 regressions, `stage__sample` −10.9%,
+  `stage__eval_total` −10.1%, `scrub_layout_scene_100frames` −3.0%. The
+  first compare flagged 6 `evaluate_*_actors_no_cache` "regressions"
+  (+12–16%) that did not survive isolated back-to-back A/B (changed tree
+  6.13→5.35 µs across reruns vs HEAD 5.31 µs): drift between full-suite
+  runs, the same lesson as the suite-neighbour note above.
+- **Funnel and doc gaps**: `hit_regions` now clear in
+  `invalidate_frame_cache` (every consumer reads after an evaluate, so
+  clearing beats serving pre-edit geometry to the picker);
+  `inject_entry` writes through one `world_mut()` borrow, making §2.1's
+  "build-time writes go through the same entry points" literally true;
+  `docs/ecs.md` §2/§2.1/§2.3/§4/§5 updated (complete store diagram incl.
+  memo cells, memo-cell ownership rule, label-keyed resource rationale,
+  frame-boundary label exceptions, tagged tier on the carry list), and the
+  phantom `Timeline::tracks_mut` doc reference (deleted with `TrackStore`)
+  removed.

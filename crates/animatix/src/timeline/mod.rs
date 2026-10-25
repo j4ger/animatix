@@ -292,10 +292,10 @@ pub struct Timeline {
     /// The ECS world: dense entity storage plus every component store.
     ///
     /// Mutating entity data after the first evaluation must invalidate the
-    /// frame cache, so post-build code goes through [`Self::entity_mut`],
-    /// [`Self::world_mut`] or [`Self::tracks_mut`] (all invalidate). Direct
-    /// access to the inner store is for the build phase, which runs before any
-    /// cached frame exists.
+    /// frame cache, so post-build code goes through [`Self::entity_mut`] or
+    /// [`Self::world_mut`] (both invalidate). Direct access to the inner
+    /// store is for the build phase, which runs before any cached frame
+    /// exists.
     pub(crate) world: World,
     pub(crate) background_color: PropertyTrack<[f32; 4]>,
     pub(crate) env: Environment,

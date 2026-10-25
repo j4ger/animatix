@@ -95,34 +95,37 @@ fn inject_entry(
 
     // (Re-)create the entity from the snapshot's per-tier data. `spawn_replacing`
     // keeps the label's entity id and resets its components, matching the old
-    // insert-replacement semantics.
-    let id = dest.world.spawn_replacing(label, &entry.actor_type);
+    // insert-replacement semantics. Every component write goes through one
+    // `world_mut()` borrow so the invalidation funnel holds on the injection
+    // path too (`docs/ecs.md` §2.1).
+    let world = dest.world_mut();
+    let id = world.spawn_replacing(label, &entry.actor_type);
     // Identity lives in `World` and `spawn_replacing` reset it; restore the
     // carried primitive type so caps and plan lookups resolve again.
-    dest.world.set_identity(id, &entry.actor_type);
-    dest.world.meta_mut(id).first_seen_ms = 0;
-    dest.world.payload.insert(id, entry.payload.clone());
-    *dest.world.highlight.get_mut(id) = entry.highlight.clone();
-    *dest.world.property_plan.get_mut(id) = entry.property_plan.clone();
-    *dest.world.tagged_tracks_mut(id) = entry.tagged.clone();
-    *dest.world.shape.get_mut(id) = entry.shape.clone();
-    *dest.world.text.get_mut(id) = entry.text.clone();
-    *dest.world.geometry.get_mut(id) = geometry.clone();
-    *dest.world.style.get_mut(id) = entry.style.clone();
+    world.set_identity(id, &entry.actor_type);
+    world.meta_mut(id).first_seen_ms = 0;
+    world.payload.insert(id, entry.payload.clone());
+    *world.highlight.get_mut(id) = entry.highlight.clone();
+    *world.property_plan.get_mut(id) = entry.property_plan.clone();
+    *world.tagged_tracks_mut(id) = entry.tagged.clone();
+    *world.shape.get_mut(id) = entry.shape.clone();
+    *world.text.get_mut(id) = entry.text.clone();
+    *world.geometry.get_mut(id) = geometry.clone();
+    *world.style.get_mut(id) = entry.style.clone();
     if let Some(effects) = entry.effects.clone() {
-        dest.world.effects.insert(id, effects);
+        world.effects.insert(id, effects);
     }
 
     // Re-root top-level entries only. `adopt` already placed the entity in the
     // root set; the call makes the intent explicit and keeps the ordering rule
     // (append on declaration) in one place.
     if is_root {
-        dest.world.set_parent_label(label, None);
+        world.set_parent_label(label, None);
     }
 
     for child_label in entry.children.keys() {
-        if let Some(child_id) = dest.world.get_id(child_label) {
-            dest.world.link(id, child_id);
+        if let Some(child_id) = world.get_id(child_label) {
+            world.link(id, child_id);
         }
     }
 
@@ -135,7 +138,7 @@ fn inject_entry(
     if let Some(source_id) = source_timeline.world.get_id(label)
         && let Some(legend) = source_timeline.world.legend(source_id)
     {
-        dest.world.ensure_legend(id).clone_from(legend);
+        world.ensure_legend(id).clone_from(legend);
     }
 
     // Seed the persistence flag so chain-persistence works automatically.
