@@ -827,4 +827,37 @@ tracked.
 - **Target**: Offload parametric curve evaluation and line-strip generation to the `InstancedLinePipeline` on GPU shaders, generating anti-aliased geometry directly on the GPU without round-tripping through Kurbo CPU tessellation.
 - **Verification**: Compare CPU frame time on dense curve scenes (`30_effects_catalog`, complex epicycles) before and after offload.
 
+### 3. In-frame parallel root-subtree evaluation (deferred, trigger-gated)
+
+- **Scope**: `scene_eval/frame.rs` root loop, `EvalCaches`.
+- **Current behaviour**: The frame walk is single-threaded. Export is already
+  frame-parallel (`render_pipeline` chunks frames across threads), so this
+  only matters for interactive scrubbing latency and very large single scenes.
+- **Trigger**: a real content scene whose evaluate-only CPU cost (no GPU
+  readback — `stage_breakdown`, not `demos_frame_cost`) approaches a few
+  milliseconds. At the 2026-10-26 measurements a 60-actor modifier scene
+  evaluates in ~15 µs; the frame budget is nowhere near threatened.
+- **Blocker**: `EvalCaches` and the per-entity memos are `RefCell`/`Cell`
+  (`&self` interior mutability, not `Sync`), so a frame-parallel walk needs a
+  thread-safety audit plus per-thread scratch caches. The static-subtree
+  cache already proves the required vello pattern (render each subtree into a
+  temp scene, append in authored order).
+
+### 4. Slot-table frame environment (deep IR change)
+
+- **Scope**: `modifier_runtime/ir` lowering, `env/`, `property_engine`.
+- **Current behaviour**: The frame env is a `HashMap<String, Value>` (FxHash
+  since 2026-10-25) whose keys are written by name each frame and read back
+  by name (`CompiledExpr::LoadEnv(String)`). The build-fixed parts of that
+  work (injection plan, capacity, hashing) are already precomputed; the
+  remaining cost is the name→value indirection itself in expression-heavy
+  scenes.
+- **Target**: resolve every free variable in lowered modifier IR to a
+  `(entity, PropertyId)` slot at lower time; the frame env becomes a dense
+  `Vec<Value>` sampled by index, with names surviving only at the GUI and
+  diagnostics boundary. Plot-closure captures (let-scopes, bare param names)
+  are the design edge that needs its own resolution scheme.
+- **Verification**: `stage/build_frame_env` and `vm_vs_ir` suites; the
+  `is_animating` and closure parity tests are the behavior pins.
+
 

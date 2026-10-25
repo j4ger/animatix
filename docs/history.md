@@ -2842,3 +2842,82 @@ else — no new lookups — and the uncached evaluate benches show the removed
 indirection as a real win at 25/100/200 actors. Content-sync notes the slim
 wasm bundle grew 5.5 → 6.8 MB raw (README updated); code-size, not per-frame
 cost, and dominated by the committed P5 tier work, not P6.
+
+## The frame path learns to use the ECS: per-entity caches, plan, FxHash (2026-10-25)
+
+The ECS migration made entity identity dense and stable but the frame walk
+still *addressed work by name*: every node re-scanned the primitive
+registry's 36 type names per frame, every entity re-sampled its spatial
+properties per frame regardless of keyframes, and the frame env re-derived
+build-fixed answers (capacity estimate, wildcard membership — a `format!`
+per label per frame, referenced-property filters) plus re-hashed every key
+with SipHash on write and read. Three commits, each with its own A/B:
+
+- `5465703e` — per-entity primitive handles (`timeline_impl::primitive_cache`,
+  keyed by the actor type each resolved from, bypassed while a cross-type
+  morph picks another primitive) and a two-tier transform cache
+  (`TransformCacheEntry::Timed | Static`: keyframe-free entities key on
+  parent transform + parent opacity + layout position instead of time).
+  `stage__sample` 28.26 → 13.50 µs (−52%), `stage__eval_total` 34.15 →
+  19.80 µs (−42%).
+- `affcef6e` — the frame-env injection plan (`EnvInjectionPlan`, one entry
+  per entity, computed once per invalidation) and a memoized
+  `needs_frame_env` (previously an every-entity payload walk up to 3×/frame).
+  `stage__build_frame_env` 4.69 → 0.92 µs (−80%).
+- `194e11` — FxHash for the environment maps (keys are build-fixed
+  interpreter strings, not attacker-controlled). `build_frame_env` 0.92 →
+  0.67 µs, `stage__modifier_exec` 0.88 → 0.68 µs (−23%), `stage__rebuild`
+  1.32 → 1.17 ms (−11% — build-time expression eval shares the maps).
+
+Cumulative on the 60-actor modifier + dynamic-layout miss-frame bench:
+eval_total 34.15 → 15.20 µs (−55%). Two traps worth recording:
+
+1. **A cached plan poisoned by the build path.** The first cut called
+   `env_injection_plan()` from `build_eval_env`, which runs once per
+   *declaration* — mid-build, the referenced-roots analysis has not
+   converged, so the cache froze a wrong answer. Symptom: one failing test
+   (`is_animating_guards_on_property_state` — the `_animating_` flag of an
+   injected property went missing), not a compile error. The committed shape
+   keeps the plan frame-path-only; the build path consumes the borrowing
+   `env_inject_decision` helper directly (single source of truth, no second
+   copy to drift).
+2. **The same first cut regressed `rebuild` +14%** by recomputing the full
+   plan (HashSet clones included) per declaration. The borrowing helper also
+   fixed this — the build path now pays exactly what the old inline loop
+   paid.
+
+Instrument notes: `demos_frame_cost` is GPU-readback-bound (~640 µs floor,
+±10–20% run-to-run) and cannot resolve sub-µs CPU deltas — an early
+before/after of it read as "median +8.6%" while the CPU benches measured
+−42%; the CPU suites (`stage_breakdown`, `scaling_breakdown`, `vm_*`) are
+the instruments, and the full-suite A/B below is the verdict of record.
+Static-scene scaling benches sit within noise: their same-time evaluations
+hit `Timed` entries in both trees, and fully-static scenes are served by the
+static-subtree cache before the node walk matters.
+
+Deferred with a written trigger (see roadmap §"Performance & Pipeline
+Optimization" items 3–4): in-frame parallel root subtrees (blocked on the
+`RefCell` cache audit; matters only when evaluate-only cost approaches
+milliseconds) and the slot-table frame env (resolve `LoadEnv` names to
+`(entity, PropertyId)` slots at lower time — the deep version of what FxHash
+papered over).
+
+Full-suite A/B: a fresh 132-bench baseline built in a worktree at
+`9c2e12ab` (the commit before this round) and compared with
+`PERF_BASELINE_DIR=… scripts/perf-bench.sh compare`:
+**125 of 127 benches within noise or better; the 2 flags did not survive
+isolation.** Beyond the stage numbers above (confirmed on the full suite:
+`stage__eval_total` −55.3%, `stage__sample` −53.7%,
+`stage__build_frame_env` −86.2%, `stage__modifier_exec` −30.4%), the full
+run surfaced wins the stage scene cannot see: `equation_frame_100frames`
+−40.0%, `reactive_playback_100frames` −15.1%, `full_100` −19.2%,
+`env_50` −35.6%, `offscreen_100_actors` −19.3%. The two flagged benches
+(`demo_frame__projects_callout_example` +139%, `demo_frame__projects_
+legend_example` +53%) read clean in back-to-back isolated runs of both
+trees (callout 978/1028 µs baseline vs 1040/1060 µs current; legend
+970/875 vs 1012/886 — overlapping intervals, single-digit deltas): the
+suite-neighbour GPU contamination already documented for
+`equation_frame` in the ECS A/B above, this time on the readback-bound
+demo suite the same day its tier split moved it out of the default guard.
+Also re-learned: piping `perf-bench.sh compare` through `tail` swallows
+its exit code — the script exited FAIL while the pipeline read green.
