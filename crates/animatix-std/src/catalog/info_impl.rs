@@ -209,7 +209,7 @@ pub static TYPST: PrimitiveInfo =
         .with_doc("Typst markup and mathematical document fragment.")
         .with_stub("text: \"x^2 + y^2 = r^2\"");
 pub static COUNTER: PrimitiveInfo =
-    PrimitiveInfo::text("Counter", "Counter", icon_glyphs::HASH, TextKind::Text)
+    PrimitiveInfo::text("Counter", "Counter", icon_glyphs::HASH, TextKind::Counter)
         .with_doc("Animated numerical counter with formatting and decimals.")
         .with_stub("value: 100");
 
@@ -223,11 +223,16 @@ pub static SVG: PrimitiveInfo =
         .advanced()
         .with_doc("SVG image element.")
         .with_stub("url: \"graphic.svg\"");
-pub static AUDIO: PrimitiveInfo =
-    PrimitiveInfo::new("Audio", "Audio", icon_glyphs::SPEAKER_HIGH, ActorCategory::Media, NO_CAPS)
-        .advanced()
-        .with_doc("Audio track playback and synchronization element.")
-        .with_stub("source: \"sound.mp3\"");
+pub static AUDIO: PrimitiveInfo = PrimitiveInfo::new(
+    "Audio",
+    "Audio",
+    icon_glyphs::SPEAKER_HIGH,
+    ActorCategory::Media,
+    AUDIO_CAPS,
+)
+.advanced()
+.with_doc("Audio track playback and synchronization element.")
+.with_stub("source: \"sound.mp3\"");
 
 // Plots
 pub static GRAPH: PrimitiveInfo =

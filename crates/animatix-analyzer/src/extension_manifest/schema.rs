@@ -416,6 +416,10 @@ impl ExtensionManifest {
                         callout: false,
                         legend_host: false,
                         time_dependent: false,
+                        // The manifest schema has no transcript flag yet;
+                        // parsed transcripts are a built-in (Audio/Captions)
+                        // surface until a manifest field is designed.
+                        transcript: false,
                     },
                     child_processing: primitive
                         .child_processing

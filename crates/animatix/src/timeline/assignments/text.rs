@@ -40,7 +40,9 @@ pub(crate) fn recompile_text_at_assignment(
     // Extension overrides live in `World` and are applied by callers that
     // have one.
     let text_kind = match caps.text {
-        Some(crate::timeline::TextKind::Text) => crate::renderer::text::TextKind::Text,
+        Some(crate::timeline::TextKind::Text) | Some(crate::timeline::TextKind::Counter) => {
+            crate::renderer::text::TextKind::Text
+        },
         Some(crate::timeline::TextKind::Code) => crate::renderer::text::TextKind::Code,
         Some(crate::timeline::TextKind::Typst) => crate::renderer::text::TextKind::Typst,
         // `Math` never recompiled on `text` assignment (no plain-text body).

@@ -75,6 +75,7 @@ const fn caps(
     callout: bool,
     legend_host: bool,
     time_dependent: bool,
+    transcript: bool,
 ) -> PrimitiveCapabilities {
     PrimitiveCapabilities {
         text_paths,
@@ -90,29 +91,30 @@ const fn caps(
         callout,
         legend_host,
         time_dependent,
+        transcript,
     }
 }
 
 const SHAPE_CAPS: PrimitiveCapabilities = caps(
-    false, true, false, false, false, false, false, true, true, false, false, false, false,
+    false, true, false, false, false, false, false, true, true, false, false, false, false, false,
 );
 const TEXT_CAPS: PrimitiveCapabilities = caps(
-    true, false, false, false, false, false, false, false, true, false, false, false, false,
+    true, false, false, false, false, false, false, false, true, false, false, false, false, false,
 );
 const PLOT_CAPS: PrimitiveCapabilities = caps(
-    false, true, false, false, true, false, false, false, true, false, false, false, false,
+    false, true, false, false, true, false, false, false, true, false, false, false, false, false,
 );
 const CONTAINER_CAPS: PrimitiveCapabilities = caps(
-    false, false, false, true, false, false, true, false, false, false, false, false, false,
+    false, false, false, true, false, false, true, false, false, false, false, false, false, false,
 );
 const EQUATION_CAPS: PrimitiveCapabilities = caps(
-    false, false, false, true, false, false, true, false, true, false, false, false, false,
+    false, false, false, true, false, false, true, false, true, false, false, false, false, false,
 );
 const CAPTIONS_CAPS: PrimitiveCapabilities = caps(
-    true, false, false, true, false, false, true, false, true, false, false, false, true,
+    true, false, false, true, false, false, true, false, true, false, false, false, true, true,
 );
 const CUE_CAPS: PrimitiveCapabilities = caps(
-    true, false, false, false, false, false, false, false, true, false, false, false, true,
+    true, false, false, false, false, false, false, false, true, false, false, false, true, false,
 );
 /// `Glass` is a container with a rectangular *region*, not a surface. It carries
 /// no `ShapeKind` — the same choice `Filter` and `Mask` make — so the shape
@@ -121,25 +123,31 @@ const CUE_CAPS: PrimitiveCapabilities = caps(
 /// through its own actor list because it is the frost's clip, and `is_shape` stays
 /// set because the region and its anchors need a bounded actor.
 const GLASS_CAPS: PrimitiveCapabilities = caps(
-    false, false, false, true, false, false, true, true, false, false, false, false, false,
+    false, false, false, true, false, false, true, true, false, false, false, false, false, false,
 );
 const GROUP_CAPS: PrimitiveCapabilities = caps(
-    false, false, false, false, false, false, true, false, false, false, false, false, false,
+    false, false, false, false, false, false, true, false, false, false, false, false, false, false,
 );
 const NO_CAPS: PrimitiveCapabilities = caps(
     false, false, false, false, false, false, false, false, false, false, false, false, false,
+    false,
+);
+/// `Audio` carries the `transcript` property the build's speech pre-pass
+/// parses; it paints nothing itself.
+const AUDIO_CAPS: PrimitiveCapabilities = caps(
+    false, false, false, false, false, false, false, false, false, false, false, false, false, true,
 );
 const IMAGE_CAPS: PrimitiveCapabilities = caps(
-    false, false, true, false, false, false, false, false, true, false, false, false, false,
+    false, false, true, false, false, false, false, false, true, false, false, false, false, false,
 );
 const SVG_CAPS: PrimitiveCapabilities = caps(
-    false, true, false, false, false, false, false, false, true, false, false, false, false,
+    false, true, false, false, false, false, false, false, true, false, false, false, false, false,
 );
 const GRAPH_CAPS: PrimitiveCapabilities = caps(
-    false, true, false, false, true, true, false, false, true, false, false, false, false,
+    false, true, false, false, true, true, false, false, true, false, false, false, false, false,
 );
 const ANNOTATION_CAPS: PrimitiveCapabilities = caps(
-    false, true, false, false, false, false, false, false, true, false, false, false, false,
+    false, true, false, false, false, false, false, false, true, false, false, false, false, false,
 );
 
 mod caps_impl;

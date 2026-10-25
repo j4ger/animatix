@@ -23,6 +23,7 @@ pub fn caps_from_info(info: &PrimitiveInfo) -> ActorCaps {
         plot_geometry: info.capabilities.plot_geometry,
         plot_host: info.capabilities.plot_host,
         time_dependent: info.capabilities.time_dependent,
+        transcript: info.capabilities.transcript,
         has_visual_content: info.capabilities.has_visual_content
             || (!info.capabilities.is_container
                 && (info.capabilities.is_shape

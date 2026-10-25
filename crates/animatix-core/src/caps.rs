@@ -39,6 +39,9 @@ pub struct PrimitiveCapabilities {
     pub legend_host: bool,
     /// Intrinsically time-dependent evaluation (e.g. Captions, Cue).
     pub time_dependent: bool,
+    /// Carries a `transcript` file property that the build's speech pre-pass
+    /// parses (Audio, Captions).
+    pub transcript: bool,
 }
 
 /// Child-rendering strategy selected by a primitive.
@@ -60,6 +63,12 @@ pub enum ChildProcessingKind {
     Equation,
     /// Aggregate Cue children and speech-synced text rendering.
     Captions,
+}
+
+impl Default for TextKind {
+    fn default() -> Self {
+        Self::Text
+    }
 }
 
 /// Specific shape geometry variant.
@@ -127,6 +136,9 @@ pub enum PlotKind {
 pub enum TextKind {
     /// Plain styled text.
     Text,
+    /// Prebaked rolling counter (`Counter`): its content is a formatted
+    /// number, so the text declaration handler prebakes the digit strip.
+    Counter,
     /// Typst markup.
     Typst,
     /// Typst math (`Math` primitive).
@@ -214,6 +226,9 @@ pub struct ActorCaps {
     pub legend_host: bool,
     /// Intrinsically time-dependent evaluation (e.g. Captions, Cue).
     pub time_dependent: bool,
+    /// Carries a `transcript` file property that the build's speech pre-pass
+    /// parses and attaches (Audio, Captions).
+    pub transcript: bool,
 }
 
 impl ActorCaps {

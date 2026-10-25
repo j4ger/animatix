@@ -222,10 +222,11 @@ impl Timeline {
         let child_id = self.world.get_id(child_label)?;
 
         // Check if this is a text-type actor (Text, Typst, Code)
+        use crate::timeline::TextKind as CapsText;
         let text_kind = match self.world.caps(child_id).text {
-            Some(crate::timeline::TextKind::Text) => TextKind::Text,
-            Some(crate::timeline::TextKind::Typst) => TextKind::Typst,
-            Some(crate::timeline::TextKind::Code) => TextKind::Code,
+            Some(CapsText::Text | CapsText::Counter) => TextKind::Text,
+            Some(CapsText::Typst) => TextKind::Typst,
+            Some(CapsText::Code) => TextKind::Code,
             _ => return None,
         };
 

@@ -697,13 +697,8 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Result<(), RenderError> {
         let kind = match animatix_std::caps_for_type(actor_type).and_then(|c| c.text) {
-            Some(animatix_core::caps::TextKind::Text) => {
-                if actor_type == "Counter" {
-                    TextDeclarationKind::Counter
-                } else {
-                    TextDeclarationKind::Text
-                }
-            },
+            Some(animatix_core::caps::TextKind::Counter) => TextDeclarationKind::Counter,
+            Some(animatix_core::caps::TextKind::Text) => TextDeclarationKind::Text,
             Some(animatix_core::caps::TextKind::Math) => TextDeclarationKind::Math,
             Some(animatix_core::caps::TextKind::Code) => TextDeclarationKind::Code,
             Some(animatix_core::caps::TextKind::Typst) => TextDeclarationKind::Typst,

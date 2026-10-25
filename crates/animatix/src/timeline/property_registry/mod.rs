@@ -289,7 +289,8 @@ static BINDINGS: &[PropertyBinding] = &[
         val!(
             caps | caps | {
                 match caps.text {
-                    Some(crate::timeline::actor_caps::TextKind::Text) => {
+                    Some(crate::timeline::actor_caps::TextKind::Text)
+                    | Some(crate::timeline::actor_caps::TextKind::Counter) => {
                         super::property_engine::PropertyValue::F32(48.0)
                     },
                     Some(crate::timeline::actor_caps::TextKind::Typst) => {

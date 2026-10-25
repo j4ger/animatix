@@ -198,6 +198,9 @@ pub(crate) fn native_capabilities(flags: u32) -> animatix_syntax::schema::Primit
         callout: false,
         legend_host: false,
         time_dependent: false,
+        // The ABI's capability flags have no transcript bit (snapshot 9);
+        // native primitives cannot carry a parsed transcript yet.
+        transcript: false,
     }
 }
 

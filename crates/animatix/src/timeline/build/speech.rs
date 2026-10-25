@@ -24,7 +24,10 @@ pub fn collect_transcripts_from_ast(
             Stmt::ActorDecl {
                 label, ty, props, ..
             } => {
-                if ty == "Audio" || ty == "Captions" {
+                // Catalog data, not a `ty == "Audio"` compare: the pre-pass
+                // follows whatever the capability projection marks as
+                // transcript-bearing (today Audio and Captions).
+                if animatix_std::caps_for_type(ty).is_some_and(|caps| caps.transcript) {
                     for prop in props {
                         if prop.name == "transcript" {
                             if let Expr::Str(ref path) = prop.value {
