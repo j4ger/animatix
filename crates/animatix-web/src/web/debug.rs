@@ -76,15 +76,18 @@ impl AmxPlayer {
         let mut tracks: Vec<SvgTrackEntry> = timeline
             .tracks()
             .iter()
-            .map(|(label, track)| SvgTrackEntry {
-                label: label.clone(),
-                paths: track.svg_paths().len(),
-                paths_at_t: track.svg_paths_at(time_ms).map(|paths| paths.len()),
-                opacity_at_t: animatix::timeline::TrackAccessor::get(
-                    &track.style.opacity,
-                    time_ms,
-                    1.0,
-                ),
+            .map(|(label, id)| {
+                let world = timeline.world();
+                SvgTrackEntry {
+                    label: label.clone(),
+                    paths: world.svg_paths(id).len(),
+                    paths_at_t: world.svg_paths_at(id, time_ms).map(|paths| paths.len()),
+                    opacity_at_t: animatix::timeline::TrackAccessor::get(
+                        &world.style(id).opacity,
+                        time_ms,
+                        1.0,
+                    ),
+                }
             })
             .collect();
         tracks.sort_by(|a, b| a.label.cmp(&b.label));

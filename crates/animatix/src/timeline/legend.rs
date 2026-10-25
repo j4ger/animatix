@@ -103,7 +103,7 @@ impl super::Timeline {
     /// The legend component attached to `label`.
     ///
     /// Label-boundary helper: the frame path resolves the entity once and then
-    /// uses [`Timeline::legend`].
+    /// uses `Timeline::legend`.
     pub fn legend_for(&self, label: &str) -> Option<&LegendTracks> {
         let id = self.world.get_id(label)?;
         self.world.legend(id)
