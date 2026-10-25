@@ -199,25 +199,24 @@ impl GestureHandler for CalloutGesture {
 
                         // Snap the absolute label point to guides/edges, then
                         // convert the snapped point back to a label offset.
-                        if snap_enabled {
-                            if let Some(timeline) = ctx.timeline
-                                && let Some(id) = timeline.get_entity_id(&actor)
-                            {
-                                let geo = derive_callout_geometry(
-                                    timeline.world().geometry(id),
-                                    timeline.world().shape(id),
-                                    time_ms,
-                                    Some(timeline),
-                                    ctx.scene_dimensions,
-                                );
-                                let snapped = drag_utils::resolve_point_snap(
-                                    geo.to[0] + new_label_at[0],
-                                    geo.to[1] + new_label_at[1],
-                                    snap_threshold,
-                                    ctx,
-                                );
-                                new_label_at = [snapped.nx - geo.to[0], snapped.ny - geo.to[1]];
-                            }
+                        if snap_enabled
+                            && let Some(timeline) = ctx.timeline
+                            && let Some(id) = timeline.get_entity_id(&actor)
+                        {
+                            let geo = derive_callout_geometry(
+                                timeline.world().geometry(id),
+                                timeline.world().shape(id),
+                                time_ms,
+                                Some(timeline),
+                                ctx.scene_dimensions,
+                            );
+                            let snapped = drag_utils::resolve_point_snap(
+                                geo.to[0] + new_label_at[0],
+                                geo.to[1] + new_label_at[1],
+                                snap_threshold,
+                                ctx,
+                            );
+                            new_label_at = [snapped.nx - geo.to[0], snapped.ny - geo.to[1]];
                         }
 
                         ctx.commands.push_back(
@@ -244,43 +243,40 @@ impl GestureHandler for CalloutGesture {
 
                         // For targeted callouts the authored value is an offset,
                         // so snap the derived world-space tip and convert back.
-                        if snap_enabled {
-                            if let Some(timeline) = ctx.timeline
-                                && let Some(id) = timeline.get_entity_id(&actor)
-                            {
-                                let geo = derive_callout_geometry(
-                                    timeline.world().geometry(id),
-                                    timeline.world().shape(id),
-                                    time_ms,
-                                    Some(timeline),
-                                    ctx.scene_dimensions,
+                        if snap_enabled
+                            && let Some(timeline) = ctx.timeline
+                            && let Some(id) = timeline.get_entity_id(&actor)
+                        {
+                            let geo = derive_callout_geometry(
+                                timeline.world().geometry(id),
+                                timeline.world().shape(id),
+                                time_ms,
+                                Some(timeline),
+                                ctx.scene_dimensions,
+                            );
+                            if geo.is_targeted {
+                                let current_offset = timeline
+                                    .world()
+                                    .geometry(id)
+                                    .callout_to_offset
+                                    .get(time_ms, [0.0, 0.0]);
+                                let attach =
+                                    [geo.to[0] - current_offset[0], geo.to[1] - current_offset[1]];
+                                let snapped = drag_utils::resolve_point_snap(
+                                    attach[0] + new_value[0],
+                                    attach[1] + new_value[1],
+                                    snap_threshold,
+                                    ctx,
                                 );
-                                if geo.is_targeted {
-                                    let current_offset = timeline
-                                        .world()
-                                        .geometry(id)
-                                        .callout_to_offset
-                                        .get(time_ms, [0.0, 0.0]);
-                                    let attach = [
-                                        geo.to[0] - current_offset[0],
-                                        geo.to[1] - current_offset[1],
-                                    ];
-                                    let snapped = drag_utils::resolve_point_snap(
-                                        attach[0] + new_value[0],
-                                        attach[1] + new_value[1],
-                                        snap_threshold,
-                                        ctx,
-                                    );
-                                    new_value = [snapped.nx - attach[0], snapped.ny - attach[1]];
-                                } else {
-                                    let snapped = drag_utils::resolve_point_snap(
-                                        new_value[0],
-                                        new_value[1],
-                                        snap_threshold,
-                                        ctx,
-                                    );
-                                    new_value = [snapped.nx, snapped.ny];
-                                }
+                                new_value = [snapped.nx - attach[0], snapped.ny - attach[1]];
+                            } else {
+                                let snapped = drag_utils::resolve_point_snap(
+                                    new_value[0],
+                                    new_value[1],
+                                    snap_threshold,
+                                    ctx,
+                                );
+                                new_value = [snapped.nx, snapped.ny];
                             }
                         }
 
