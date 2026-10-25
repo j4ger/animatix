@@ -14,10 +14,8 @@ The timeline entity/component redesign and the large-file split programme are
 tracked in [`ecs.md`](ecs.md) §6 (phase status) and §8 (the `file-size` gate).
 That document is the single source for what remains:
 
-- **ECS:** Phases 0–5 are done. Phase 6 is in progress: `AnimationTrack` now
-  holds only `id`; remaining work is the entity-storage swap, deleting
-  `AnimationTrack`/`TrackStore`, the snapshot DTO and GUI call sites — see the
-  P6 checklist in [`ecs.md`](ecs.md) §6. Phase 7 (perf + full gates) follows.
+- **ECS:** the migration is complete (Phases 0–7); [`ecs.md`](ecs.md) is the
+  normative description of the storage as it now exists.
 
 - **Splits:** the allowlist is a ratchet; `scripts/file-size.sh` fails on a new
   >800-line production file (tests >1500) or on growth past a frozen row.

@@ -1,7 +1,8 @@
 # Timeline ECS Architecture
 
-**Status:** migration in progress. Phase 0 (guardrails + baseline) is in place;
-Phases 1–7 are tracked in the status table at the bottom of this file.
+**Status:** complete. Phases 1–7 are tracked in the status table at the bottom
+of this file; this document is the normative description of the timeline's
+entity/component storage as it now exists.
 
 This document is the normative design for the timeline's entity/component
 storage. `docs/architecture.md` §2 is the summary; when the two disagree, this
@@ -70,36 +71,35 @@ font context, layout engine, `audio_segments`, …) and the frame caches.
 
 | Store | Layout | Use |
 |---|---|---|
-| `EntityStore` | `Vec<EntityMeta>` + `HashMap<String, EntityId>` + `Vec<String>` | entity header; append-only |
+| `EntityStore` | `HashMap<String, EntityId>` + `Vec<String>` | entity identity (label ↔ id); append-only |
 | `RequiredStore<C>` | `Vec<C>` | components every entity has (default-initialised on spawn) |
 | `ComponentStore<C>` | `Vec<Option<C>>` | components only some entities have |
 
-**Transitional state (Phase 1–5).** `World` still owns a `TrackStore` whose dense
-element is `AnimationTrack`; the header and the not-yet-migrated tiers live there
-until their domain moves. `SceneHierarchyComponent`, `World::roots`, and the
-build-time `pending_parents`/`pending_roots` buffers are the first ECS stores.
-`add_node` records the relation before the primitive creates the child's track,
-so the link is buffered by label and adopted (as an id) by
-`World::spawn_with_track`; `World::finish_hierarchy()` resolves anything created
-by direct `TrackStore` insertion. The buffer is empty after a completed build and
-is not runtime storage.
+An entity's identity *is* its slot index: a label is live exactly while its
+index is below `EntityStore::len()`, so there is no dense element to keep in
+sync and no free list. All per-entity data lives in `World`'s component stores.
+`SceneHierarchyComponent`, `World::roots`, and the build-time
+`pending_parents`/`pending_roots` buffers carry the scene graph. `add_node`
+records the relation before the primitive creates the child's entity, so the
+link is buffered by label and adopted (as an id) by `World::spawn`;
+`World::finish_hierarchy()` resolves anything created outside `World::spawn`.
+The buffers are empty after a completed build and are not runtime storage.
 
 Rules:
 
-- **Append-only.** `TrackStore` has no removal API today and the GUI rebuilds a
-  whole `Timeline` for structural deletes, so entity slots are never reused and
-  `EntityId.index()` stays valid for the life of the timeline. `World::clear()`
-  is for a whole rebuild only. There is no free list or generation counter.
+- **Append-only.** The GUI rebuilds a whole `Timeline` for structural deletes,
+  so entity slots are never reused and `EntityId.index()` stays valid for the
+  life of the timeline. `World::clear()` is for a whole rebuild only. There is
+  no free list or generation counter.
 - **Aligned stores.** `World::spawn` grows every store to `entities.len()` and
   fills required stores with `C::default()`. `spawn_replacing(label, ...)`
   clears the entity's optional components and resets required components,
-  matching the old `TrackStore::insert` replacement semantics used by carry
-  injection.
+  matching the old insert-replacement semantics used by carry injection.
 - **Required means present.** An entity that exists has every `RequiredStore`
   entry. Tests pin this (`every_entity_has_required_components`).
-- **One source of truth per domain.** A field moves to a component and is
-  deleted from `AnimationTrack` in the same change. No dual writes across a
-  merge boundary.
+- **One source of truth per domain.** Per-entity state exists in exactly one
+  component store; a new label-keyed `Timeline` map or a duplicate field is a
+  design bug. No dual writes across a merge boundary.
 - **Mutation invalidates the frame cache.** Every writable entry point
   (`Timeline::world_mut`, `entity_mut`, `spawn_entity`, component helpers)
   calls `invalidate_frame_cache` first. Build-time writes go through the same
@@ -135,15 +135,12 @@ Rules:
 | `ChildOrderComponent` | `PropertyTrack<Vec<EntityId>>` | optional |
 | `TranscriptComponent` | speech transcript | optional |
 
-`caps` is not on the track either: `World::caps(id)` derives it from the
-actor type, and extension primitives install an explicit override with
-`World::set_caps`. `hidden_by_default` and `first_seen_ms` moved with the other header fields:
-the entrance-action helpers (`lift_hidden_by_default*`) now take
-`&mut AnimationTrack` and `&mut EntityMeta` side by side. By the P6 checkpoint
-`actor_type` and `label` are World data too (`World::actor_type`,
-`World::label`); `AnimationTrack` holds only `id`. `visible`, `locked`,
-`camera_follow`, `parallax`, `hidden_by_default` and `first_seen_ms` are live
-in `EntityMeta`.
+`caps` is not stored: `World::caps(id)` derives it from the actor type, and
+extension primitives install an explicit override with `World::set_caps`.
+All `EntityMeta` fields are live: `World::actor_type(id)` and `World::label(id)`
+are the identity accessors, and `visible`, `locked`, `camera_follow`,
+`parallax`, `hidden_by_default` and `first_seen_ms` read through
+`World::meta(id)`.
 
 ### 2.3 Resources (deliberately not components)
 
@@ -166,11 +163,13 @@ call sites outside `world/`:
 
 ```rust
 let e = timeline.entity("card").unwrap();
-let size = e.geometry().size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
+let size = timeline.world().geometry(e.id()).size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
 let children = e.hierarchy().children.clone();
 
 if let Some(mut e) = timeline.entity_mut("card") {
-    e.geometry_mut().size.ensure(default).add_keyframe(t, v, Easing::Linear);
+    e.meta_mut().locked = true;
+    timeline.world_mut().geometry_mut(e.id()).size.ensure(default)
+        .add_keyframe(t, v, Easing::Linear);
 }
 ```
 
@@ -181,10 +180,10 @@ if let Some(mut e) = timeline.entity_mut("card") {
 - Code that needs two components mutably at once uses the narrow
   `World::split_*_mut(id)` helpers rather than fighting the borrow checker with
   interior mutability.
-- `AnimationTrack` is not part of the end-state API. During the migration the
-  `EntityRef` accessors forward to `AnimationTrack` fields, so a call site can
-  adopt the accessor before the backing store moves. When the domain moves, the
-  accessor changes and the field disappears; call sites do not change again.
+- Tier data (geometry/style/shape/text/highlight/tagged/payload) is reached
+  through `World` id accessors or the `TrackFields`/`TrackFieldsMut` bundle
+  (`World::fields(id)`); `EntityRef`/`EntityMut` expose the components that
+  are meaningful per view. There is no aggregate per-actor struct.
 
 ## 4. Systems
 
@@ -203,13 +202,12 @@ serialization.
 
 ## 5. Snapshots and serialization
 
-`CarryBag`/`CarryEntry` serialize an `EntitySnapshot` per actor. The snapshot is
-the only aggregate struct left after Phase 6; it exists for serde, tests and
-cross-scene carry, not for runtime storage.
+`CarryBag`/`CarryEntry` serialize one entry per actor. There is no aggregate
+runtime snapshot struct: each property tier rides the bag as its own field
+(`CarryEntry::style`, `geometry`, `shape`, `text`, `highlight`,
+`property_plan`, `payload`, …), each collapsed to a single t=0 keyframe by its
+per-tier collapse helper (`snapshot_style_at`, `snapshot_geometry_at`, …).
 
-- `snapshot_entity_at(world, id, time_ms)` samples every property track to a
-  single t=0 keyframe (the old `snapshot_track_at` behaviour, extended to all
-  components and `DynTrack` slots).
 - The container-layout component rides the carry bag as a whole
   (`CarryEntry::container_layout`) rather than through the per-property
   snapshot, so a re-rooted container keeps its layout in the successor scene.
@@ -217,10 +215,11 @@ cross-scene carry, not for runtime storage.
   (`CarryEntry::coordinate_frame`): a persistent `Graph` keeps its domains,
   scales and padding in the successor scene, so its child plots resolve there.
   Domain values are scene-relative, so carry needs no `EntityId` remap.
-- `restore_entity` is two-pass: create every entity and component first, then
+- `inject_entry` is two-pass: create every entity and component first, then
   link hierarchy / child order by label so ids are resolved once.
 - `CarryBag` stays label-keyed on the wire; `EntityId` is an in-memory handle
-  and is never part of the `.amx` source or `PropertyPlan` serialization.
+  and is never part of the `.amx` source, the carry wire format, or
+  `PropertyPlan` serialization.
 - New snapshot fields carry `#[serde(default)]`. The `persistence.rs` and
   `extension_context.rs` round-trip tests are extended, not replaced.
 
@@ -235,54 +234,31 @@ cross-scene carry, not for runtime storage.
 | P3b | container-layout + child-order stores | done |
 | P4 | coordinate-frame store, no env fallback, carry across scenes | done |
 | P5 | header fields + legend + effects + payload + highlight + geometry/style/shape/text tiers + tagged + plan done | done |
-| P6 | delete `AnimationTrack`/`TrackStore` (identity: id only), migrate GUI, snapshot DTO | in progress — `AnimationTrack` is now `{ id: EntityId }`; see the P6 checklist below |
-| P7 | perf + full gate matrix + docs close-out | pending (starts after P6) |
+| P6 | delete `AnimationTrack`/`TrackStore` (identity: id only), migrate GUI, snapshot DTO | done |
+| P7 | perf + full gate matrix + docs close-out | done |
 
-**P6 remaining (checkpoint).** `AnimationTrack` now holds only `id`; all tiers,
-label, actor type, bounds slot and shape-command memos live in `World`. The
-remaining work, in order:
+**P6 close-out notes.** `TrackStore` became the maps-only `EntityStore`
+(`entity.rs`): a label is live exactly while its index is below `len()`, and
+there is no dense element to keep in sync. `AnimationTrack` was deleted along
+with `timeline/track/mod.rs`; its former surface now lives where it belongs:
 
-1. Move the dense entity storage and label maps from `TrackStore` into
-   `EntityStore`; expose entity lookup as `EntityId`/`EntityRef` only.
-2. Delete `AnimationTrack` and every `&AnimationTrack` parameter; replace with
-   `EntityId` (or `EntityRef`/`EntityMut` where a World borrow is needed).
-3. Remove the track-only free wrappers (`TrackFields::from_track`,
-   `read_property_value(track, ...)`, `property_keyframe_*(track, ...)`) and move
-   their callers to the World APIs.
-4. Replace `CarryEntry.track` (the snapshot DTO) with `EntityId` + header data;
-   update persistence and snapshot tests.
-5. Migrate GUI call sites that still take `&AnimationTrack` to entity ids.
-6. Delete `timeline/track/mod.rs`; run the full gate matrix and close P6.
+- tier helpers on the tier structs (`GeometryTracks::layout_size_*`,
+  `TextTracks::{ascent_get,descent_get,baseline_get,set_metrics,evaluate_paths*}`,
+  `ShapeTracks::{render_type_name,evaluate_vector_paths*,shape_path_memoized}`);
+- plan sampling on `PropertyPlan` (`sample_property_named`, `sample_*_prop`);
+- registry iteration and keyframe aggregation on `World`
+  (`max_keyframe_time`, `has_any_keyframes`, `read_property_value(_or_default)`,
+  `property_keyframe_*`, and the property-name boundary in
+  `world/keyframes.rs` backed by `property_registry::field_for_property`);
+- frame-path property injection and effective reads
+  (`property_engine::read`) take `EntityId` + `&World`, with
+  `ReadSource::read(id, world, t)` in the registry;
+- `CarryEntry` carries `actor_type` plus the per-tier snapshots; the empty
+  `{id}` placeholder field is gone from the wire format (serde ignores the
+  legacy key, so old bags deserialize).
 
-
-**Tier-migration prerequisite.** `TrackFieldRef` / `TrackFieldMut` construction
-and the property read/write path now go through `TrackFields` / `World`
-(`World::read_property_value` and `World::write_property_field`), so the
-registry-backed tiers can move one at a time. The remaining blocker is call
-sites: the `AnimationTrack`-taking free wrappers still exist for compatibility.
-`plan` now has entity-id accessors (`World::property_plan` / `property_plan_mut` /
-`rebuild_property_plan`) so its call sites can move before the storage does.
-
-`payload` moved with them: storage is `World.payload`, accessed by entity id
-through `world/payload.rs` (plot, SVG, image, and their transitions).
-`AssignmentCtx` and `EvaluateCtx` carry an optional payload reference so
-primitives no longer need the track for it; carry snapshots it via
-`snapshot_payload_at`.
-
-Direction for unlocking the rest: a borrowed `TrackFields<'a>` /
-`TrackFieldsMut<'a>` bundle (geometry/style/shape/text/highlight/tagged/payload
-refs) now exists in `timeline/world/fields.rs`, assembled by `World::fields(id)`
-and `World::fields_mut(id)`. `TrackFieldRef` / `TrackFieldMut` construction has
-moved onto the bundle (`TrackFields::field_ref` / `TrackFieldsMut::field_mut`),
-and both property directions now go through it:
-`TrackFields::read_property_value` / `World::read_property_value(id, field, t)`
-and `write_property_fields` / `World::write_property_field(id, …)`. Keyframe
-introspection now has the same shape (`TrackFields::property_has_keyframes` /
-`property_keyframe_count` / `property_keyframe_times` /
-`property_keyframe_easing`, mirrored on `World`). The `AnimationTrack`-taking
-free functions are forwarding wrappers, so existing call sites keep compiling
-while they migrate per domain; deleting those wrappers is what removes the last
-path that assumes the tiers live on the track.
+The access layer is `EntityId` + `World` everywhere; `EntityRef`/`EntityMut`
+remain the label→id boundary views for call sites outside `world/`.
 
 ## 7. Adding a component
 
@@ -295,7 +271,8 @@ path that assumes the tiers live on the track.
    accessor `#[inline]`.
 4. Remove the old field/table and its label lookup in the same change; update
    every call site to the accessor. `rustc` is the checklist.
-5. Extend `snapshot_entity_at` / `restore_entity` and the round-trip test.
+5. Extend the per-tier snapshot helper (`snapshot_*_at`) / `inject_entry` and
+   the round-trip test.
 6. Add a test for the invariant: component presence, snapshot round-trip, and
    frame-cache invalidation on write.
 7. Update this table and `docs/architecture.md` §2; if it is a new resource

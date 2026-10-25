@@ -127,17 +127,16 @@ World {
 }
 ```
 
-Entities are append-only and identified by `EntityId(u32)`; `TrackStore` has no
-removal API and structural GUI deletes rebuild the whole timeline, so ids are
-never reused. Required components exist on every entity; optional components are
+Entities are append-only and identified by `EntityId(u32)`; structural GUI
+deletes rebuild the whole timeline, so ids are never reused. Required components exist on every entity; optional components are
 looked up with `Option`. `EntityRef`/`EntityMut` are the access surface, and
 labels are converted to ids at the build/expression/serialization/GUI boundary.
 Frame caches (`bounds_slot`, shape/vector-path memos) live in `EvalCaches`, not
 in components.
 
-Per-actor keyframed data is split into the component domains listed above. The
-old monolithic `AnimationTrack` survives only as the serializable
-`EntitySnapshot` DTO used by `CarryBag`; see `docs/ecs.md` §5.
+Per-actor keyframed data is split into the component domains listed above;
+there is no aggregate per-actor struct left. `CarryBag` serializes the per-tier
+snapshots directly; see `docs/ecs.md` §5.
 
 The plot host's `CoordinateFrameComponent` is the sole source for a hosted
 child's coordinate resolution. The `{label}_x_domain` / `_y_domain` / `_padding`
@@ -516,8 +515,8 @@ meaningfully implement `Interpolate`:
 Instead of forcing these types into the `Interpolate` model, Animatix uses a
 **parallel side-channel** for transitions. The key idea is to store transition
 metadata (time range, easing, from/to values) in a separate `Vec<YourTransition>`
-field on `AnimationTrack`, completely outside the standard `PropertyTrack<T>`
-keyframe system.
+field on the owning payload component (`PlotPayload` for plot actors),
+completely outside the standard `PropertyTrack<T>` keyframe system.
 
 At frame evaluation time, the evaluation code checks for active transitions,
 evaluates both the `from` and `to` sources independently, and blends their
@@ -529,7 +528,7 @@ themselves.
 The `func` property on plot actors is the primary example of this pattern:
 
 ```rust
-// On AnimationTrack (dispatch.rs):
+// On PlotPayload (primitives/payload.rs):
 pub func_transitions: Vec<FuncTransition>,
 ```
 
@@ -564,9 +563,9 @@ To add transitions for a new non-interpolatable property type:
 
 1. Define a transition struct with `start_ms`, `end_ms`, `easing`, `from`, `to`.
 2. Define a source enum with variants for raw values and mid-transition blends.
-3. Add a `Vec<YourTransition>` field to `AnimationTrack`.
-4. Include transition end times in `max_keyframe_time()`.
-5. Include non-empty transitions in `has_any_keyframes()`.
+3. Add a `Vec<YourTransition>` field to the owning payload component.
+4. Include transition end times in `World::max_keyframe_time(id)`.
+5. Include non-empty transitions in `World::has_any_keyframes(id)`.
 6. At frame evaluation, find the active transition and blend the *outputs*
    of `from` and `to` by eased progress.
 
@@ -709,8 +708,7 @@ animatix-gui (direct calls)    animatix-lsp (tower-lsp, JSON-RPC)
 
 Actors and effects share one identity model:
 
-- **Identity is the authored type name** (`AnimationTrack::actor_type`,
-  `EffectId`). It is what `.amx` source writes, what the registry keys on, and
+- **Identity is the authored type name** (`World::actor_type`, `EffectId`). It is what `.amx` source writes, what the registry keys on, and
   what persistence (`CarryBag`) stores — so a saved project keeps resolving to
   the same primitive or plugin effect across runs. There are no identity
   enums to extend when a new primitive or effect is added.
@@ -872,7 +870,7 @@ Scene persistence uses a **build-time carry bag** mechanism to transport actors 
 ### Carry Bag
 
 A `CarryBag` (`timeline/persistence.rs`) is a collection of `CarryEntry` objects, each containing:
-- A snapshot of the actor's `AnimationTrack` at the scene's end time (all keyframes collapsed to t=0)
+- Per-tier snapshots of the actor at the scene's end time (all keyframes collapsed to t=0)
 - Recursive snapshots of child actors (for containers)
 - The persistence flag (sticky — propagates automatically until `remove`)
 - Optional auto-color slot index (for `color: auto` actors)
@@ -888,11 +886,11 @@ A `CarryBag` (`timeline/persistence.rs`) is a collection of `CarryEntry` objects
 4. **Walk-order carry loop** (`Composition::build`, step 3.5): For each scene (index ≥ 1):
    - Compute carry bag from predecessor timeline at its exit time.
    - If bag is non-empty, rebuild the scene's timeline with `build_with_carry`, which calls `inject_carry_bag` before processing statements.
-5. **Carry injection** (`inject_carry_bag`): Inserts carried tracks into `timeline.world`, adds to the root set, restores the `ContainerMetadata`, `PersistenceComponent`, `AutoColorComponent`, `TranscriptComponent`, and `CoordinateFrameComponent` components on each carried entity.
+5. **Carry injection** (`inject_carry_bag`): Re-creates the carried entities in `timeline.world` via `spawn_replacing`, adds them to the root set, restores the per-tier snapshots and the `ContainerMetadata`, `PersistenceComponent`, `AutoColorComponent`, `TranscriptComponent`, and `CoordinateFrameComponent` components on each carried entity.
 
 ### Snapshot Semantics
 
-`snapshot_track_at(track, time_ms)` collapses all keyframes of each property track to a single t=0 keyframe holding the sampled value at `time_ms`. Non-animated metadata (`kind`, `procedural_plot`, `svg_paths`, `text_paths`, `image`) is preserved by clone. `func_transitions` are cleared (they represent live animation transitions, not static state).
+`snapshot_{style,geometry,shape,text,highlight,payload,property_plan}_at(..., time_ms)` each collapse all keyframes of their tier to a single t=0 keyframe holding the sampled value at `time_ms`. Non-animated payload metadata (`procedural_plot`, `svg_paths`, `image`) is preserved by clone. `func_transitions` are cleared (they represent live animation transitions, not static state).
 
 ### Layout Re-rooting
 
