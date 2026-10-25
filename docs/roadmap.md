@@ -8,19 +8,14 @@ closed work lives in [`history.md`](history.md) — do not re-add it here.
 ## Backlog & Prioritization
 
 
-### Timeline ECS migration + file-size ratchet (active)
+### File-size ratchet (active)
 
-The timeline entity/component redesign and the large-file split programme are
-tracked in [`ecs.md`](ecs.md) §6 (phase status) and §8 (the `file-size` gate).
-That document is the single source for what remains:
-
-- **ECS:** the migration is complete (Phases 0–7); [`ecs.md`](ecs.md) is the
-  normative description of the storage as it now exists.
-
-- **Splits:** the allowlist is a ratchet; `scripts/file-size.sh` fails on a new
-  >800-line production file (tests >1500) or on growth past a frozen row.
-
-Do not duplicate the phase list here — update `ecs.md` §6 when a phase lands.
+The large-file split programme is governed by the ratchet in [`ecs.md`](ecs.md)
+§8: `scripts/file-size.sh` fails on a new >800-line production file (tests
+>1500) or on growth past a frozen allowlist row; a split deletes its row and
+never raises one. The timeline ECS migration itself is complete —
+[`ecs.md`](ecs.md) is the normative description of the storage as it now
+exists, not a work list.
 
 ### Web playback performance (active)
 
@@ -319,8 +314,9 @@ the language is missing:
   (content 56.8% → 12.6%, edges only −64.6% — the data leaves, the type stays
   crisp to the end), `glass` fogs over, `light_camera` ends on the light itself.
   The remaining sections deliberately keep the shared reverse-order wipe; the
-  larger design question — palette, chrome, page structure — is owned by
-  `handoff_web_redesign.md`, and the demo-poster deletion is the owner's call.
+  palette/chrome/page-structure direction they follow is recorded in
+  `docs/history.md` ("The instrument redesign"), and the demo-poster deletion
+  is the owner's call.
 - **The scope-property rule is now a convention, not a mechanism.** `color`
   carries an explicit `Applicable::Except(&["Glass", "Filter", "Mask"])` list and
   the scopes have no `ShapeKind`, so today they report — but a *new* container

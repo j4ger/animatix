@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Extract keyframe timestamps from an .amx scene and render frames to images.
 #
-# Follows the review pipeline described in docs/handoff_web_redesign.md:
+# Part of the web review pipeline (see docs/history.md, "The instrument redesign"):
 # Renders at each `#N.Ns` keyframe timestamp + 0.45s (settled beat),
 # plus the initial (0s) and final resting frames.
 #

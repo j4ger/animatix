@@ -1134,7 +1134,8 @@ superseded by later implementation.
 
 Five phases shipped on `feat/demo-gallery` / `feat/demo-gallery-p3` and merged
 into `main` (both branches appear in `git branch --merged main`). Source plan:
-`docs/demo_gallery_plan.md`.
+`docs/demo_gallery_plan.md` (removed 2026-10-25 — the suite is absorbed into
+`examples/README.md`, and this entry is the record).
 
 | Phase | Deliverable | Outcome |
 |---|---|---|
@@ -2351,8 +2352,11 @@ answered (the pin needs a wgpu 29→30 bump, which is outside this round), leavi
   proposal. The lints in M2 (loop-perfect, motion-vocabulary, the anti-pattern
   table) should be expressed as facts in *that* exporter's schema rather than as
   a second, parallel checker.
-- `docs/handoff_web_redesign.md` — kept as the locked design-direction reference
-  (palette, chrome spec, review pipeline); the M2 content/skin work builds on it.
+- `docs/handoff_web_redesign.md` — was the locked design-direction reference
+  (palette, chrome spec, review pipeline); the M2 content/skin work built on
+  it. Removed 2026-10-25 — the direction is summarized in "The instrument
+  redesign" above and the scheme/registry facts live in `web/demos/lib/theme.amx`
+  and `web/site-chrome.js`.
 
 ## Decisions (resolved 2026-10-04, with the choices each implementation made)
 

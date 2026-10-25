@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Stitch keyframe frames into a tiled contact sheet grid using ffmpeg.
 #
-# Follows the review pipeline described in docs/handoff_web_redesign.md:
+# Part of the web review pipeline (see docs/history.md, "The instrument redesign"):
 # Generates a contact sheet per scene for visual inspection and audit.
 #
 # Usage:
