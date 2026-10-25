@@ -540,12 +540,13 @@ pub(crate) struct EvalCaches {
 ///
 /// `visible` holds every soloed actor *and its ancestors*, so traversal still
 /// reaches a soloed descendant through a container that does not draw itself;
-/// `soloed` names the actors that actually draw. Both are `None` when nothing
-/// is soloed, which keeps the common path free of set lookups.
+/// `soloed` names the actors that actually draw. Both are id-keyed
+/// (`docs/ecs.md` §4) and `None` when nothing is soloed, which keeps the
+/// common path free of set lookups.
 #[derive(Default)]
 pub(crate) struct SoloState {
-    visible: Option<std::collections::HashSet<String>>,
-    soloed: Option<std::collections::HashSet<String>>,
+    visible: Option<std::collections::HashSet<EntityId>>,
+    soloed: Option<std::collections::HashSet<EntityId>>,
 }
 
 impl SoloState {
@@ -553,14 +554,14 @@ impl SoloState {
         self.visible.is_some()
     }
 
-    /// `true` when `label` is a soloed actor itself.
-    pub(crate) fn is_soloed(&self, label: &str) -> bool {
-        self.soloed.as_ref().is_some_and(|set| set.contains(label))
+    /// `true` when `id` is a soloed actor itself.
+    pub(crate) fn is_soloed(&self, id: EntityId) -> bool {
+        self.soloed.as_ref().is_some_and(|set| set.contains(&id))
     }
 
-    /// `true` when `label` is a soloed actor or an ancestor of one.
-    pub(crate) fn is_reachable(&self, label: &str) -> bool {
-        self.visible.as_ref().is_some_and(|set| set.contains(label))
+    /// `true` when `id` is a soloed actor or an ancestor of one.
+    pub(crate) fn is_reachable(&self, id: EntityId) -> bool {
+        self.visible.as_ref().is_some_and(|set| set.contains(&id))
     }
 }
 

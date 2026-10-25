@@ -216,10 +216,10 @@ impl Timeline {
         // draw their own commands.
         let draws_self = if self.eval_caches.solo_active.get() {
             let solo = self.eval_caches.solo.borrow();
-            if !solo.is_reachable(node_label) {
+            if !solo.is_reachable(node_id) {
                 return (parent_transform, parent_opacity);
             }
-            solo.is_soloed(node_label)
+            solo.is_soloed(node_id)
         } else {
             true
         };

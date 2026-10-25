@@ -16,21 +16,33 @@ impl Timeline {
         if !self.solo_scan_needed() {
             return crate::timeline::SoloState::default();
         }
-        let mut soloed: Option<std::collections::HashSet<String>> = None;
-        for label in self.world.tracks.keys() {
-            if !self.track_is_soloed(label, time_ms) {
+        let mut soloed: Option<std::collections::HashSet<EntityId>> = None;
+        for (_, id) in self.world.tracks.iter() {
+            // `visible: false` wins: an explicitly hidden actor is not soloed
+            // back into view, and a hidden actor must not keep the rest of
+            // the scene suppressed.
+            if !self.world.meta(id).visible {
                 continue;
             }
-            soloed.get_or_insert_with(std::collections::HashSet::new).insert(label.clone());
+            if !self.track_declares_solo(id, time_ms) {
+                continue;
+            }
+            soloed.get_or_insert_with(std::collections::HashSet::new).insert(id);
         }
         let Some(soloed) = soloed else {
             return crate::timeline::SoloState::default();
         };
+        // Ancestors stay traversable (so a soloed descendant of a non-soloed
+        // container still renders). The parent chain *is* the ancestor set —
+        // walked by id, no label allocation or tree search.
         let mut visible = soloed.clone();
-        for label in &soloed {
-            if let Some(path) = self.find_path_to_actor(label) {
-                // The path ends at the actor itself; ancestors are its prefix.
-                visible.extend(path.into_iter().take_while(|step| step != label));
+        for &id in &soloed {
+            let mut ancestor = self.world.hierarchy(id).parent;
+            while let Some(parent) = ancestor {
+                if !visible.insert(parent) {
+                    break;
+                }
+                ancestor = self.world.hierarchy(parent).parent;
             }
         }
         crate::timeline::SoloState {
@@ -67,20 +79,6 @@ impl Timeline {
             || self.world.tracks.iter().any(|(_, id)| self.track_declares_solo(id, 0));
         self.eval_caches.solo_scan_needed.set(Some(needed));
         needed
-    }
-
-    /// Read one actor's `solo` flag at `time_ms`; the visibility rule applies.
-    pub(crate) fn track_is_soloed(&self, label: &str, time_ms: u64) -> bool {
-        let Some(id) = self.world.get_id(label) else {
-            return false;
-        };
-        // `visible: false` wins: an explicitly hidden actor is not soloed back
-        // into view, and a hidden actor must not keep the rest of the scene
-        // suppressed.
-        if !self.world.meta(id).visible {
-            return false;
-        }
-        self.track_declares_solo(id, time_ms)
     }
 
     /// The raw flag read, without the visibility rule: the scan asks whether

@@ -2961,3 +2961,32 @@ four classes of residue, all fixed the same day:
   frame-boundary label exceptions, tagged tier on the carry list), and the
   phantom `Timeline::tracks_mut` doc reference (deleted with `TrackStore`)
   removed.
+
+## ECS audit, second pass: carry completeness and the solo gate (2026-10-26)
+
+The audit's second sweep closed the remaining fix-or-document items:
+
+- **Carry coverage vs. §2.2, fixed**: `CarryEntry` now also rides the caps
+  override (injection's `set_identity` re-derives caps from the actor type,
+  which silently downgraded carried extension primitives to default caps),
+  the declaration-authored `EntityMeta` subset (`visible`, `camera_follow`,
+  `parallax`, `hidden_by_default` — `locked`/`first_seen_ms` stay behind as
+  editor/per-scene state), and the animated child-order track. The last one
+  is behavioural: a completed `swap`/`reorder` lives only on
+  `ChildOrderComponent`'s track (`ContainerMetadata::child_order` keeps the
+  authored order), so a carried container used to visually undo its reorder
+  at a `play` edge. Ids never touch the wire — the track travels as labels
+  and inject remaps them, the same contract as `container_layout`.
+- **Solo gate id-keyed, fixed**: while solo was active the render walk did
+  two label hashes per node (`is_reachable`/`is_soloed` took `&str`), and
+  resolution allocated a `String` per soloed actor plus a DFS path per
+  actor. `SoloState` is now id-keyed and ancestors come from the parent
+  chain (O(depth), no search); the common no-solo case was and remains a
+  single `Cell<bool>` read.
+- **Documented, not changed**: `Timeline::clone` copies `World`'s memo cells
+  (unlike `EvalCaches`, which resets on clone) — measured callers are cold
+  (composition snapshot, GUI export/undo), recorded in ecs.md §2.1 rather
+  than paying a hand-written `Clone` that must mirror every future store.
+  `EnvInjectionPlan` gained a `debug_assert` pinning "the plan covers every
+  entity", making the previously comment-only unreachability claim fail
+  loudly in debug builds.
