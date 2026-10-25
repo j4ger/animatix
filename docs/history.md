@@ -2809,3 +2809,36 @@ without frame-time accumulators or GPU readbacks:
   tracking (`wash.at = (fx, fy)`) and `legend: false`; `examples/animation/39_ambience.amx`
   demonstrates reactive lighting following moving actors with easing. Added to `bundled_library()`
   in `animatix-web` for browser parity.
+
+## The timeline ECS migration closes: performance evidence (2026-10-25)
+
+P6 (delete `AnimationTrack`/`TrackStore`) and P7 closed with a full-criterion
+A/B: a 132-bench baseline built in a worktree at `7c16df62` (the pre-swap
+checkpoint) on the same machine, compared against the migrated tree with
+`PERF_BASELINE_DIR=… scripts/perf-bench.sh compare`. **131 of 132 benches
+measured within noise or better.** The notable gains, all beyond their
+noise limits: `evaluate_25_actors` −23%, `evaluate_100_actors_no_cache`
+−31%, `evaluate_200_actors_no_cache` −13% (the uncached per-entity sampling
+path — the one that pays the storage swap directly), `full_pipeline__simple_full`
+−11%, `stage__modifier_exec` −10%, `demo_frame__data_26_data_math` −22%,
+`scrub_text_scene_100frames` −9%. The three benches re-baselined during the
+P6 close-out agree: `stage__sample` −2.0%, `sample_all_tracks` −5.5%,
+`property_plan_lookup_and_sample` −3.4%.
+
+The single flagged regression, `equation_frame_100frames` +44.8% inside the
+suite, did not survive isolation: back-to-back standalone runs measured
+557.9 µs (pre-swap) vs 564.0 µs (migrated) — +1.1% with overlapping
+intervals. This is the suite-neighbour contamination already documented in
+PF-4 ("one-time setup + suite neighbours contaminate the capture"); the bench
+is kept as-is because its guard (the Typst per-frame compile memo) is what
+matters, and that memo is untouched by the migration.
+
+Why the swap is perf-neutral-to-positive rather than a gamble: `AnimationTrack`
+had already been reduced to `{ id }` by the P5 tier migrations, so the dense
+`Vec<AnimationTrack>` it lived in was one wasted pointer slot per entity and
+one indirection on every read; the label maps moved verbatim into
+`EntityStore`. Frame-path code lost the `track.id` dance but gained nothing
+else — no new lookups — and the uncached evaluate benches show the removed
+indirection as a real win at 25/100/200 actors. Content-sync notes the slim
+wasm bundle grew 5.5 → 6.8 MB raw (README updated); code-size, not per-frame
+cost, and dominated by the committed P5 tier work, not P6.
