@@ -39,7 +39,6 @@ crates/animatix/src/timeline/declarations_text/text_impl.rs	717
 crates/animatix/src/timeline/layout.rs	719
 crates/animatix/src/timeline/modifier_runtime/ir/eval.rs	704
 crates/animatix/src/timeline/mod.rs	660
-crates/animatix/src/timeline/persistence.rs	680
 crates/animatix/src/timeline/plot/procedural.rs	799
 crates/animatix/src/timeline/property_engine/declaration.rs	690
 crates/animatix/src/timeline/scene_eval/frame.rs	676
