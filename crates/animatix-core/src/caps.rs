@@ -65,12 +65,6 @@ pub enum ChildProcessingKind {
     Captions,
 }
 
-impl Default for TextKind {
-    fn default() -> Self {
-        Self::Text
-    }
-}
-
 /// Specific shape geometry variant.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -131,10 +125,11 @@ pub enum PlotKind {
 /// Mirrors the renderer's compile-time text kinds (which are
 /// `text`-feature-gated) so capabilities stay available in render-independent
 /// builds; conversion to the renderer kind happens at the text compile sites.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum TextKind {
     /// Plain styled text.
+    #[default]
     Text,
     /// Prebaked rolling counter (`Counter`): its content is a formatted
     /// number, so the text declaration handler prebakes the digit strip.
