@@ -15,7 +15,7 @@ use super::Value;
 const SEED: u64 = 0x517c_c1b7_2722_0a95;
 
 #[derive(Default)]
-pub(crate) struct FxHasher {
+pub struct FxHasher {
     hash: u64,
 }
 
@@ -72,4 +72,4 @@ impl Hasher for FxHasher {
 
 /// The environment's `HashMap<String, Value>` flavor: std `hashbrown` with
 /// FxHash instead of SipHash.
-pub(crate) type EnvMap = std::collections::HashMap<String, Value, BuildHasherDefault<FxHasher>>;
+pub type EnvMap = std::collections::HashMap<String, Value, BuildHasherDefault<FxHasher>>;

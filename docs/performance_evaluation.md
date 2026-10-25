@@ -145,8 +145,16 @@ Policy changes over the current state:
   - `modifier.*` (IR executor, fn calls)
 - **Baselines are saved to `criterion/<branch>/*.json`** (gitignored) via
   Criterion's `--save-baseline` / `--load-baseline` pairing. A dedicated
-  `perf-bench.sh` runs the full suite, compares to the last saved baseline, and
+  `perf-bench.sh` runs the suite, compares to the last saved baseline, and
   exits non-zero on any bench that regressed beyond a threshold.
+  Since 2026-10-26 the harness is tiered: `quick` (the default — every CPU
+  bench target plus the analyzer suite at `--warm-up-time 1
+  --measurement-time 2`, ~4-6 min warm) is the per-change regression guard;
+  `full` adds the GPU `demos_frame_cost` suite for release-scale A/B.
+  Baselines live under `$PERF_BASELINE_DIR/<tier>/`. The GPU demo suite has
+  ±10-20% run-to-run variance (readback-bound) — it guards ms-level GPU
+  pipeline health, not sub-µs CPU deltas, which is why it is not in the
+  default guard.
 
 ### 3.3 Layer 2 — Scenario suite (new)
 

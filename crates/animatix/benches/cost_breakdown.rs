@@ -1,5 +1,5 @@
-use animatix::timeline::{SceneDimensions, Timeline, TrackAccessor};
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use animatix::timeline::{Timeline, TrackAccessor};
+use criterion::{Criterion, criterion_group, criterion_main};
 
 mod common;
 
@@ -22,27 +22,12 @@ fn build_many_actors_scene() -> Timeline {
 
 fn bench_cost_breakdown(c: &mut Criterion) {
     let timeline = build_many_actors_scene();
-    let dims = SceneDimensions {
-        width: 1920,
-        height: 1080,
-    };
 
-    // Baseline: full evaluate
-    c.bench_function("full_evaluate", |b| {
-        b.iter(|| {
-            black_box(timeline.evaluate(black_box(0.5), dims));
-        })
-    });
-
-    // Just frame env setup (no rendering)
-    c.bench_function("frame_env_only", |b| {
-        b.iter(|| {
-            let env = timeline.build_frame_env(500, dims, &std::collections::HashMap::new());
-            black_box(env);
-        })
-    });
-
-    // Property sampling for all tracks
+    // `full_evaluate` and `frame_env_only` were removed 2026-10-26: they
+    // duplicate `stage__eval_total` / `stage__build_frame_env` and the
+    // `full_N` / `env_N` benches in scaling_breakdown, which measure the same
+    // paths through the shared stage tracer. This file keeps the one probe no
+    // other suite isolates: raw per-actor property sampling.
     c.bench_function("sample_all_tracks", |b| {
         let time_ms = 500;
         b.iter(|| {

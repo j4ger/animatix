@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::timeline::modifier_runtime::ir::CompiledExpr;
 
 mod fx;
-pub(crate) use fx::EnvMap;
+pub use fx::EnvMap;
 
 /// Error produced during expression evaluation in the timeline environment.
 #[derive(Debug, Clone)]
