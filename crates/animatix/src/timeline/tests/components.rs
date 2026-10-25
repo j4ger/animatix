@@ -287,3 +287,47 @@ fn effects_component_roundtrip() {
     timeline.world.spawn_replacing("scope", "Rect");
     assert!(timeline.entity("scope").expect("scope").effects().is_none());
 }
+
+// The ECS storage contract (`docs/ecs.md` §2.1, "Required means present"): an
+// entity that exists has every `RequiredStore` entry. This is the rebuilt
+// pin for the invariant the `TrackStore` test suite used to carry.
+#[test]
+fn every_entity_has_required_components() {
+    let mut timeline = Timeline::new();
+    timeline.world_mut().spawn("a", "Rect");
+    timeline.world_mut().spawn("b", "Text");
+    timeline.world_mut().spawn("c", "Equation");
+    let world = timeline.world();
+
+    for (label, id) in world.tracks.iter() {
+        let required: Vec<(&str, bool)> = vec![
+            ("hierarchy", world.hierarchy.try_get(id).is_some()),
+            ("highlight", world.highlight.try_get(id).is_some()),
+            ("tagged_tracks", world.tagged_tracks.try_get(id).is_some()),
+            ("actor_types", world.actor_types.try_get(id).is_some()),
+            ("shape_memos", world.shape_memos.try_get(id).is_some()),
+            ("pending_shape_bounds", world.pending_shape_bounds.try_get(id).is_some()),
+            ("bounds_slots", world.bounds_slots.try_get(id).is_some()),
+            ("style", world.style.try_get(id).is_some()),
+            ("geometry", world.geometry.try_get(id).is_some()),
+            ("text", world.text.try_get(id).is_some()),
+            ("shape", world.shape.try_get(id).is_some()),
+            ("property_plan", world.property_plan.try_get(id).is_some()),
+        ];
+        let missing: Vec<&str> =
+            required.iter().filter(|(_, ok)| !ok).map(|(name, _)| *name).collect();
+        assert!(
+            missing.is_empty(),
+            "entity '{label}' (e{}) is missing required stores: {missing:?}",
+            id.index()
+        );
+    }
+
+    // And replacement keeps the invariant: spawn_replacing resets components
+    // but must never leave a store slot empty.
+    timeline.world_mut().spawn_replacing("b", "Graph");
+    let world = timeline.world();
+    let b = world.get_id("b").expect("b still exists");
+    assert!(world.property_plan.try_get(b).is_some());
+    assert!(world.geometry.try_get(b).is_some());
+}
