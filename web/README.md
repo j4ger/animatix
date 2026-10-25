@@ -79,7 +79,7 @@ The demo pages serve the playback-only profile, so build **both** or just slim:
 scripts/ensure-web-pkg.sh             # release build (or --dev for ~20s debug rebuild)
 
 # Or manual profile builds:
-scripts/build-web.sh --slim          # playback-only (~5.5 MB raw / ~1.7 MB brotli)
+scripts/build-web.sh --slim          # playback-only (~6.8 MB raw / ~2.4 MB brotli)
 scripts/build-web.sh                 # full profile  (~29.1 MB raw / ~8.5 MB brotli)
 python3 scripts/serve-web.py 8124    # serves web/ with live-reload no-cache headers
 # open http://127.0.0.1:8124/
