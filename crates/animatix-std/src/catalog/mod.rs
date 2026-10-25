@@ -128,10 +128,6 @@ const GLASS_CAPS: PrimitiveCapabilities = caps(
 const GROUP_CAPS: PrimitiveCapabilities = caps(
     false, false, false, false, false, false, true, false, false, false, false, false, false, false,
 );
-const NO_CAPS: PrimitiveCapabilities = caps(
-    false, false, false, false, false, false, false, false, false, false, false, false, false,
-    false,
-);
 /// `Audio` carries the `transcript` property the build's speech pre-pass
 /// parses; it paints nothing itself.
 const AUDIO_CAPS: PrimitiveCapabilities = caps(
