@@ -195,6 +195,12 @@ impl Timeline {
         let runtime_injection = !self.modifier_programs.is_empty()
             || !self.modifiers.is_empty()
             || self.has_procedural_plots();
+        debug_assert_eq!(
+            entries.len(),
+            self.world.tracks.len(),
+            "the injection plan must cover every entity (a spawn after the plan was \
+             computed is unreachable through the invalidation funnel)"
+        );
         EnvInjectionPlan {
             entries,
             estimated_prop_entries,

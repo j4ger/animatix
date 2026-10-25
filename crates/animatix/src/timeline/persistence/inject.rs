@@ -141,6 +141,35 @@ fn inject_entry(
         world.ensure_legend(id).clone_from(legend);
     }
 
+    // Caps override and declaration-authored meta flags ride the bag:
+    // `set_identity` above re-derives caps from the type (clearing any
+    // override) and `spawn_replacing` reset `EntityMeta`.
+    if let Some(caps) = entry.caps {
+        world.set_caps(id, caps);
+    }
+    if let Some(meta) = entry.meta {
+        let entity_meta = world.meta_mut(id);
+        entity_meta.visible = meta.visible;
+        entity_meta.camera_follow = meta.camera_follow;
+        entity_meta.parallax = meta.parallax;
+        entity_meta.hidden_by_default = meta.hidden_by_default;
+    }
+
+    // The animated child-order track holds a completed reorder's end state;
+    // its keyframes store scene-local ids, so remap the carried labels back
+    // through this scene's entities (a label that was not carried drops out,
+    // matching the layout admission's missing-child behaviour).
+    if let Some(carried) = &entry.child_order {
+        let resolve = |labels: &[String]| -> Vec<EntityId> {
+            labels.iter().filter_map(|l| world.get_id(l)).collect()
+        };
+        let mut track = PropertyTrack::new(resolve(&carried.default_order));
+        for (time, labels, easing) in &carried.keyframes {
+            track.add_keyframe(*time, resolve(labels), *easing);
+        }
+        world.child_order.insert(id, ChildOrderComponent { track });
+    }
+
     // Seed the persistence flag so chain-persistence works automatically.
     dest.set_persistence_flag(label, entry.persistent);
 

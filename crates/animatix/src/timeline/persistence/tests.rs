@@ -762,3 +762,72 @@ fn legacy_carry_bag_without_tagged_key_deserializes() {
         "missing key falls back to the default tier"
     );
 }
+
+#[test]
+fn carry_bag_carries_caps_meta_and_child_order() {
+    use crate::timeline::{ContainerMetadata, LayoutType, PropertyTrack};
+
+    let mut source = Timeline::new();
+    let row = source.world.spawn("row", "Row");
+    let a = source.world.spawn("a", "Rect");
+    let b = source.world.spawn("b", "Rect");
+    source.world.link(row, a);
+    source.world.link(row, b);
+    for child in [a, b] {
+        source.world.geometry_mut(child).layout_size = Some(PropertyTrack::new([10.0, 10.0]));
+    }
+    source.set_container_layout(
+        "row",
+        ContainerMetadata {
+            layout_type: LayoutType::Row,
+            gap: [0.0; 2],
+            padding: [0.0; 4],
+            align: "center".to_string(),
+            vertical_align: "center".to_string(),
+            cols: None,
+            child_order: vec![a, b],
+        },
+    );
+    // A swap that completed at t=500: the end state lives on the track only.
+    let mut track = PropertyTrack::new(vec![a, b]);
+    track.add_keyframe(500, vec![b, a], Easing::Linear);
+    assert!(source.set_child_order_track("row", track));
+    source.world_mut().set_caps(
+        row,
+        animatix_core::caps::ActorCaps {
+            time_dependent: true,
+            ..Default::default()
+        },
+    );
+    source.world_mut().meta_mut(row).parallax = 0.5;
+    source.world_mut().meta_mut(row).camera_follow = false;
+    source.set_persistence_flag("row", true);
+
+    let bag = source.compute_carry_bag(1000, true);
+    let entry = bag.entries.get("row").expect("carried");
+    let carried = entry.child_order.as_ref().expect("child-order track carried");
+    assert_eq!(carried.default_order, vec!["a".to_string(), "b".to_string()]);
+    assert_eq!(
+        carried.keyframes.last().map(|(_, order, _)| order.clone()),
+        Some(vec!["b".to_string(), "a".to_string()]),
+        "the completed swap's end state rides the bag"
+    );
+    assert_eq!(entry.meta.map(|meta| meta.parallax), Some(0.5));
+
+    let mut dest = Timeline::new();
+    dest.inject_carry_bag(&bag, &source, 0, [1280.0, 720.0], &mut Vec::new());
+    let row2 = dest.get_entity_id("row").expect("injected");
+    let a2 = dest.get_entity_id("a").expect("child a injected");
+    let b2 = dest.get_entity_id("b").expect("child b injected");
+    assert!(
+        dest.world.caps(row2).time_dependent,
+        "the caps override survives (set_identity would otherwise re-derive default caps)"
+    );
+    assert_eq!(dest.world.meta(row2).parallax, 0.5);
+    assert!(!dest.world.meta(row2).camera_follow);
+    assert_eq!(
+        dest.get_child_order_ids("row", 1000),
+        vec![b2, a2],
+        "the completed swap's end state is remapped to destination ids"
+    );
+}

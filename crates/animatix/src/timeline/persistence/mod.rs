@@ -30,8 +30,8 @@ use crate::timeline::animation_track::{
 use crate::timeline::effects::EffectChainTrack;
 use crate::timeline::property_track::{PropertyTrack, TrackAccessor};
 use crate::timeline::{
-    ContainerMetadata, CoordinateFrameComponent, PlacementMode, PositionBinding, SceneDimensions,
-    Timeline,
+    ChildOrderComponent, ContainerMetadata, CoordinateFrameComponent, EntityId, PlacementMode,
+    PositionBinding, SceneDimensions, Timeline,
 };
 
 // ---------------------------------------------------------------------------
@@ -132,6 +132,66 @@ pub struct CarryEntry {
     /// that uses tagged properties would lose them on scene change.
     #[cfg_attr(feature = "serde", serde(default))]
     pub tagged: crate::timeline::world::TaggedTracksComponent,
+    /// Capability override for extension primitives, if one was installed.
+    ///
+    /// Injection calls `World::set_identity`, which re-derives caps from the
+    /// actor type; an extension actor carried into a scene that never declares
+    /// it would otherwise fall back to default caps.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub caps: Option<animatix_core::caps::ActorCaps>,
+    /// Declaration-authored `EntityMeta` flags (see [`CarriedMeta`]).
+    ///
+    /// These live on no property track, so without carrying them a persisted
+    /// actor resets to scene defaults (`camera_follow: true`, `parallax: 1.0`)
+    /// in the successor scene.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub meta: Option<CarriedMeta>,
+    /// Animated child-order track (`swap` / `reorder`), as child labels.
+    ///
+    /// The end state of a completed reorder lives on this track, not on
+    /// [`ContainerMetadata::child_order`], so a carried container that skips it
+    /// would visually undo the reorder. Ids are scene-local, so the wire form
+    /// stores labels and injection remaps them.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub child_order: Option<CarriedChildOrder>,
+}
+
+/// The `EntityMeta` subset that survives a carry (see [`CarryEntry::meta`]).
+///
+/// `locked` is editor state and `first_seen_ms` is per-scene; neither rides
+/// the bag. Defaults mirror `EntityMeta`'s live defaults.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CarriedMeta {
+    /// Whether the actor is rendered at all.
+    pub visible: bool,
+    /// Whether the camera transform applies to the actor.
+    pub camera_follow: bool,
+    /// Camera parallax factor (`1.0` is none).
+    pub parallax: f32,
+    /// Whether the actor was declared before the first keyframe un-revealed.
+    pub hidden_by_default: bool,
+}
+
+impl Default for CarriedMeta {
+    fn default() -> Self {
+        Self {
+            visible: true,
+            camera_follow: true,
+            parallax: 1.0,
+            hidden_by_default: false,
+        }
+    }
+}
+
+/// An animated child-order track with scene-local ids replaced by labels.
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug, Default)]
+pub struct CarriedChildOrder {
+    /// Labels of the track's default order.
+    pub default_order: Vec<String>,
+    /// `(time_ms, order labels, easing)` in track order.
+    pub keyframes: Vec<(u64, Vec<String>, Easing)>,
 }
 
 // ---------------------------------------------------------------------------
@@ -184,6 +244,29 @@ fn collect_persistent_entries(
             snapshot_payload_at(payload, time_ms)
         });
     let actor_type = timeline.world.actor_type(id).to_string();
+    let caps = timeline.world.caps_overrides.get(id).copied();
+    let meta = timeline.world.meta.get(id).map(|meta| CarriedMeta {
+        visible: meta.visible,
+        camera_follow: meta.camera_follow,
+        parallax: meta.parallax,
+        hidden_by_default: meta.hidden_by_default,
+    });
+    let child_order = timeline.world.child_order.get(id).map(|component| {
+        let order_labels = |ids: &[EntityId]| -> Vec<String> {
+            ids.iter()
+                .filter_map(|child_id| timeline.world.label(*child_id).map(str::to_string))
+                .collect()
+        };
+        CarriedChildOrder {
+            default_order: order_labels(&component.track.default_value),
+            keyframes: component
+                .track
+                .keyframes
+                .iter()
+                .map(|(time, (ids, easing))| (*time, order_labels(ids), *easing))
+                .collect(),
+        }
+    });
 
     entries.insert(
         label.to_string(),
@@ -204,6 +287,9 @@ fn collect_persistent_entries(
             style,
             property_plan,
             tagged,
+            caps,
+            meta,
+            child_order,
         },
     );
 }

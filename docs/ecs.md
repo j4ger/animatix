@@ -121,7 +121,11 @@ Rules:
   write memos through a shared borrow — so they sit next to the data they
   memoize as interior-mutable cells. A component is authored/build data; a
   cache or memo cell is disposable state invalidated by
-  `invalidate_frame_cache`.
+  `invalidate_frame_cache`. Consequence: `Timeline::clone` copies the memo
+  cells with the `World` (unlike `EvalCaches`, which resets). Measured
+  callers are cold paths only (composition's per-scene snapshot, GUI
+  export/undo targets), so the copy cost is accepted rather than paying a
+  hand-written `Clone` that must mirror every future store.
 
 ### 2.2 Components
 
@@ -239,6 +243,16 @@ keyframe by its per-tier collapse helper (`snapshot_style_at`,
 - The container-layout component rides the carry bag as a whole
   (`CarryEntry::container_layout`) rather than through the per-property
   snapshot, so a re-rooted container keeps its layout in the successor scene.
+- The animated child-order track rides the bag as labels
+  (`CarryEntry::child_order`): the end state of a completed `swap`/`reorder`
+  lives on that track, not on `ContainerMetadata::child_order`, so skipping it
+  would visually undo the reorder at a `play` edge. Injection remaps the
+  labels back to destination ids.
+- `CarryEntry::caps` carries an extension primitive's capability override
+  (injection's `set_identity` would otherwise re-derive default caps), and
+  `CarryEntry::meta` carries the declaration-authored `EntityMeta` subset
+  (`visible`, `camera_follow`, `parallax`, `hidden_by_default` — not `locked`
+  or `first_seen_ms`, which are editor/per-scene state).
 - The same holds for a plot host's coordinate frame
   (`CarryEntry::coordinate_frame`): a persistent `Graph` keeps its domains,
   scales and padding in the successor scene, so its child plots resolve there.
