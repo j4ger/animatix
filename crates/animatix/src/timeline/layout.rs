@@ -51,7 +51,6 @@ pub(crate) use positions::empty_layout_positions;
 /// Represents a child's layout-relevant size at a specific point in time.
 #[derive(Clone, Debug)]
 pub struct ChildExtent {
-    pub label: String,
     pub half_size: [f32; 2],
     pub placement_mode: PlacementMode,
 }
@@ -549,7 +548,7 @@ impl Timeline {
 
             if is_admitted {
                 layout_children.push(ContainerLayoutChild {
-                    label: child_label.clone(),
+                    id: child_id,
                     placement_mode,
                 });
             }
@@ -561,53 +560,45 @@ impl Timeline {
     /// Collect size specs and constraints for a container's children from tracks.
     pub(crate) fn collect_child_layout_specs(
         &self,
-        container_label: &str,
+        container_id: crate::timeline::EntityId,
         children: &[ContainerLayoutChild],
         time_ms: u64,
     ) -> (Vec<Option<ChildSizeSpec>>, Vec<SizeConstraints>, [f32; 2]) {
         let mut size_specs: Vec<Option<ChildSizeSpec>> = Vec::with_capacity(children.len());
         let mut constraints: Vec<SizeConstraints> = Vec::with_capacity(children.len());
 
-        let parent_content_size = self
-            .world
-            .get_id(container_label)
-            .and_then(|container_id| {
-                let geometry = self.world.geometry(container_id);
-                geometry
-                    .layout_size_get(time_ms)
-                    .or_else(|| geometry.layout_size_last())
-                    .or_else(|| geometry.size.as_ref().map(|t| t.evaluate(time_ms)))
-                    .or_else(|| geometry.size.as_ref().map(|t| t.last_value()))
-            })
-            .map(|s| [s[0] * 2.0, s[1] * 2.0])
-            .unwrap_or([0.0, 0.0]);
+        let parent_content_size = {
+            let geometry = self.world.geometry(container_id);
+            geometry
+                .layout_size_get(time_ms)
+                .or_else(|| geometry.layout_size_last())
+                .or_else(|| geometry.size.as_ref().map(|t| t.evaluate(time_ms)))
+                .or_else(|| geometry.size.as_ref().map(|t| t.last_value()))
+                .map(|s| [s[0] * 2.0, s[1] * 2.0])
+                .unwrap_or([0.0, 0.0])
+        };
 
         for cl in children {
-            if let Some(child_id) = self.world.get_id(&cl.label) {
-                let geometry = self.world.geometry(child_id);
-                size_specs.push(geometry.size_spec);
-                let min_w = geometry.min_width.get(time_ms, 0.0);
-                let max_w = f32::INFINITY;
-                let min_h = geometry.min_height.get(time_ms, 0.0);
-                let max_h = geometry.max_height.get(time_ms, f32::INFINITY);
-                constraints.push(SizeConstraints {
-                    min_width: if min_w > 0.0 { Some(min_w) } else { None },
-                    max_width: if !max_w.is_infinite() && !max_w.is_nan() {
-                        Some(max_w)
-                    } else {
-                        None
-                    },
-                    min_height: if min_h > 0.0 { Some(min_h) } else { None },
-                    max_height: if !max_h.is_infinite() && !max_h.is_nan() {
-                        Some(max_h)
-                    } else {
-                        None
-                    },
-                });
-            } else {
-                size_specs.push(None);
-                constraints.push(SizeConstraints::default());
-            }
+            let geometry = self.world.geometry(cl.id);
+            size_specs.push(geometry.size_spec);
+            let min_w = geometry.min_width.get(time_ms, 0.0);
+            let max_w = f32::INFINITY;
+            let min_h = geometry.min_height.get(time_ms, 0.0);
+            let max_h = geometry.max_height.get(time_ms, f32::INFINITY);
+            constraints.push(SizeConstraints {
+                min_width: if min_w > 0.0 { Some(min_w) } else { None },
+                max_width: if !max_w.is_infinite() && !max_w.is_nan() {
+                    Some(max_w)
+                } else {
+                    None
+                },
+                min_height: if min_h > 0.0 { Some(min_h) } else { None },
+                max_height: if !max_h.is_infinite() && !max_h.is_nan() {
+                    Some(max_h)
+                } else {
+                    None
+                },
+            });
         }
         (size_specs, constraints, parent_content_size)
     }
@@ -618,11 +609,14 @@ impl Timeline {
         time_ms: f64,
         _diagnostics: &mut Vec<Diagnostic>,
     ) {
+        let Some(container_id) = self.world.get_id(container_label) else {
+            return;
+        };
         let Some(metadata) = self.container_layout(container_label).cloned() else {
             return;
         };
 
-        let children = self.layout_children_for(container_label);
+        let children = self.layout_children_for(container_id);
 
         // Layout containers consume child-local half-extents from the dedicated
         // layout-size track. Authored shapes seed this track from declared geometry;
@@ -632,10 +626,8 @@ impl Timeline {
         let child_extents: Vec<ChildExtent> = children
             .iter()
             .filter_map(|cl| {
-                let child_id = self.world.get_id(&cl.label)?;
-                let half_size = self.world.geometry(child_id).layout_size_last()?;
+                let half_size = self.world.geometry(cl.id).layout_size_last()?;
                 Some(ChildExtent {
-                    label: cl.label.clone(),
                     half_size,
                     placement_mode: cl.placement_mode,
                 })
@@ -645,19 +637,12 @@ impl Timeline {
         let t_ms = time_ms as u64;
 
         // Sample child baselines for baseline alignment
-        let child_baselines: Vec<f32> = children
-            .iter()
-            .map(|cl| {
-                self.world
-                    .get_id(&cl.label)
-                    .map(|child_id| self.world.text(child_id).baseline_get(t_ms))
-                    .unwrap_or(0.0)
-            })
-            .collect();
+        let child_baselines: Vec<f32> =
+            children.iter().map(|cl| self.world.text(cl.id).baseline_get(t_ms)).collect();
 
         // Collect size specs and constraints for phase 7
         let (size_specs, constraints, parent_content_size) =
-            self.collect_child_layout_specs(container_label, &children, t_ms);
+            self.collect_child_layout_specs(container_id, &children, t_ms);
 
         let layout_results = LayoutEngine::compute_layout_with_specs(
             &metadata,
@@ -671,35 +656,31 @@ impl Timeline {
         // Write positions and resolved sizes to tracks, only for LayoutManaged children
         for (i, child) in children.iter().enumerate() {
             if child.placement_mode == PlacementMode::LayoutManaged {
-                if let Some(child_id) = self.world.get_id(&child.label) {
-                    let geometry = self.world.geometry.get_mut(child_id);
-                    geometry.position.ensure([0.0, 0.0]).add_keyframe(
+                let geometry = self.world.geometry.get_mut(child.id);
+                geometry.position.ensure([0.0, 0.0]).add_keyframe(
+                    t_ms,
+                    layout_results[i].position,
+                    Easing::Linear,
+                );
+
+                let resolved_half_size = [
+                    layout_results[i].size[0] / 2.0,
+                    layout_results[i].size[1] / 2.0,
+                ];
+                let has_dynamic_sizing =
+                    size_specs.get(i).copied().flatten().is_some_and(|spec| !spec.is_fixed());
+                if has_dynamic_sizing && resolved_half_size[0] > 0.0 && resolved_half_size[1] > 0.0
+                {
+                    geometry.ensure_layout_size(resolved_half_size).add_keyframe(
                         t_ms,
-                        layout_results[i].position,
+                        resolved_half_size,
                         Easing::Linear,
                     );
-
-                    let resolved_half_size = [
-                        layout_results[i].size[0] / 2.0,
-                        layout_results[i].size[1] / 2.0,
-                    ];
-                    let has_dynamic_sizing =
-                        size_specs.get(i).copied().flatten().is_some_and(|spec| !spec.is_fixed());
-                    if has_dynamic_sizing
-                        && resolved_half_size[0] > 0.0
-                        && resolved_half_size[1] > 0.0
-                    {
-                        geometry.ensure_layout_size(resolved_half_size).add_keyframe(
-                            t_ms,
-                            resolved_half_size,
-                            Easing::Linear,
-                        );
-                        geometry.size.ensure(resolved_half_size).add_keyframe(
-                            t_ms,
-                            resolved_half_size,
-                            Easing::Linear,
-                        );
-                    }
+                    geometry.size.ensure(resolved_half_size).add_keyframe(
+                        t_ms,
+                        resolved_half_size,
+                        Easing::Linear,
+                    );
                 }
             }
         }

@@ -7,12 +7,10 @@ fn test_stack_align_start_and_end() {
 
     let children = vec![
         ChildExtent {
-            label: "a".to_string(),
             half_size: [50.0, 30.0],
             placement_mode: PlacementMode::LayoutManaged,
         },
         ChildExtent {
-            label: "b".to_string(),
             half_size: [40.0, 20.0],
             placement_mode: PlacementMode::LayoutManaged,
         },
@@ -42,12 +40,10 @@ fn test_baseline_alignment_via_layout_engine() {
 
     let children = vec![
         ChildExtent {
-            label: "a".to_string(),
             half_size: [50.0, 30.0],
             placement_mode: PlacementMode::LayoutManaged,
         },
         ChildExtent {
-            label: "b".to_string(),
             half_size: [40.0, 20.0],
             placement_mode: PlacementMode::LayoutManaged,
         },
@@ -132,12 +128,10 @@ fn test_fixed_size_layout_still_works() {
     // Backward compatibility: fixed-size layout should work unchanged
     let children = vec![
         ChildExtent {
-            label: "a".into(),
             half_size: [50.0, 25.0],
             placement_mode: PlacementMode::LayoutManaged,
         },
         ChildExtent {
-            label: "b".into(),
             half_size: [50.0, 25.0],
             placement_mode: PlacementMode::LayoutManaged,
         },

@@ -47,16 +47,15 @@ impl Timeline {
 
         // Compute container size for width propagation.
         // The container_size comes from the Taffy layout we just computed.
-        let child_extents: Vec<ChildExtent> = child_labels
+        let child_extents: Vec<ChildExtent> = metadata
+            .child_order
             .iter()
-            .filter_map(|cl| {
-                let child_id = self.world.get_id(cl)?;
-                let geometry = self.world.geometry(child_id);
+            .filter_map(|child_id| {
+                let geometry = self.world.geometry(*child_id);
                 // Use layout_size_last() to get the most recently keyframed value,
                 // consistent with apply_container_layout().
                 let half_size = geometry.layout_size_last()?;
                 Some(ChildExtent {
-                    label: cl.clone(),
                     half_size,
                     placement_mode: geometry
                         .placement_mode
@@ -65,8 +64,17 @@ impl Timeline {
             })
             .collect();
 
-        let (size_specs, constraints, parent_content_size) =
-            self.collect_child_layout_specs(label, &self.layout_children_for(label), time_ms);
+        let (size_specs, constraints, parent_content_size) = self
+            .world
+            .get_id(label)
+            .map(|container_id| {
+                self.collect_child_layout_specs(
+                    container_id,
+                    &self.layout_children_for(container_id),
+                    time_ms,
+                )
+            })
+            .unwrap_or((Vec::new(), Vec::new(), [0.0, 0.0]));
 
         let container_size = crate::timeline::layout::compute_container_size_with_specs(
             &child_extents,

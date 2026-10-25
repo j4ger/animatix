@@ -692,7 +692,7 @@ pub(super) fn inspector_ui(
                         ui,
                         egui_phosphor::regular::ROWS,
                         "Children",
-                        Some(timeline.layout_children_for(sel).len()),
+                        Some(timeline.layout_children_for(id).len()),
                     );
                     let time_ms = (current_time_s * 1000.0) as u64;
                     let order = timeline.get_child_order(sel, time_ms);

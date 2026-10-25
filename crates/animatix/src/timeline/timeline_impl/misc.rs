@@ -138,10 +138,7 @@ impl Timeline {
             let mut base_position = self.world.geometry(node_id).position.get(time_ms, [0.0, 0.0]);
 
             if self.dynamic_layout {
-                if let Some(layout_pos) = current_layout_positions
-                    .get_by_id(node_id)
-                    .or_else(|| current_layout_positions.get(node_label.as_str()))
-                {
+                if let Some(layout_pos) = current_layout_positions.get_by_id(node_id) {
                     if placement_mode == PlacementMode::LayoutManaged {
                         base_position = *layout_pos;
                     }
@@ -169,10 +166,10 @@ impl Timeline {
 
             // Compute layout positions for this node's children (needed for next iteration)
             if self.dynamic_layout {
-                if let Some(metadata) = self.container_layout(node_label.as_str()) {
-                    let layout_children = self.layout_children_for(node_label.as_str());
+                if let Some(metadata) = self.world.container_layout.get(node_id) {
+                    let layout_children = self.layout_children_for(node_id);
                     current_layout_positions = self.layout_engine.compute_layout_for_time(
-                        node_label.as_str(),
+                        node_id,
                         metadata,
                         &layout_children,
                         time_ms,

@@ -58,11 +58,12 @@ pub fn layout_debug_ops(
             style.container_color,
         );
 
-        let layout_children = timeline.layout_children_for(container_label);
+        let layout_children = timeline
+            .get_entity_id(container_label)
+            .map(|container_id| timeline.layout_children_for(container_id))
+            .unwrap_or_default();
         for child in layout_children.iter() {
-            let Some(child_id) = timeline.get_entity_id(&child.label) else {
-                continue;
-            };
+            let child_id = child.id;
             let child_pos = timeline
                 .world()
                 .geometry(child_id)
@@ -113,8 +114,8 @@ pub fn layout_debug_ops(
             let gap = metadata.gap;
             let children_ordered: Vec<([f32; 2], [f32; 2])> = layout_children
                 .iter()
-                .filter_map(|child| {
-                    let child_id = timeline.get_entity_id(&child.label)?;
+                .map(|child| {
+                    let child_id = child.id;
                     let child_pos = timeline
                         .world()
                         .geometry(child_id)
@@ -129,7 +130,7 @@ pub fn layout_debug_ops(
                         .as_ref()
                         .map(|s| s.evaluate(time_ms))
                         .unwrap_or([0.0, 0.0]);
-                    Some((child_pos, child_size))
+                    (child_pos, child_size)
                 })
                 .collect();
             if children_ordered.len() >= 2 && gap.iter().any(|&g| g > 0.0) {

@@ -8,12 +8,10 @@ fn test_percentage_child_sizing_row() {
     // Row with two children: a at 50% width, b fills remainder
     let children = vec![
         ChildExtent {
-            label: "a".into(),
             half_size: [50.0, 25.0],
             placement_mode: PlacementMode::LayoutManaged,
         },
         ChildExtent {
-            label: "b".into(),
             half_size: [50.0, 25.0],
             placement_mode: PlacementMode::LayoutManaged,
         },
@@ -72,12 +70,10 @@ fn test_min_max_constraints() {
     // Child with min_width: 100, max_width: 200
     let children = vec![
         ChildExtent {
-            label: "a".into(),
             half_size: [150.0, 25.0],
             placement_mode: PlacementMode::LayoutManaged,
         },
         ChildExtent {
-            label: "b".into(),
             half_size: [150.0, 25.0],
             placement_mode: PlacementMode::LayoutManaged,
         },

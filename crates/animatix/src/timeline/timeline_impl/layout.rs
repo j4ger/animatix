@@ -2,23 +2,23 @@ use crate::timeline::*;
 
 impl Timeline {
     /// Authored layout children for a container at the current frame.
-    pub fn layout_children_for(&self, container_label: &str) -> Arc<Vec<ContainerLayoutChild>> {
-        if let Some(cached) = self.layout_children_cache.borrow().get(container_label) {
+    pub fn layout_children_for(&self, container_id: EntityId) -> Arc<Vec<ContainerLayoutChild>> {
+        if let Some(cached) = self.layout_children_cache.borrow().get(&container_id) {
             return Arc::clone(cached);
         }
-        let computed = Arc::new(self.compute_layout_children(container_label));
+        let computed = Arc::new(self.compute_layout_children(container_id));
         self.layout_children_cache
             .borrow_mut()
-            .insert(container_label.to_string(), Arc::clone(&computed));
+            .insert(container_id, Arc::clone(&computed));
         computed
     }
 
     /// Uncached admission computation behind [`Timeline::layout_children_for`].
     pub(crate) fn compute_layout_children(
         &self,
-        container_label: &str,
+        container_id: EntityId,
     ) -> Vec<ContainerLayoutChild> {
-        let Some(metadata) = self.container_layout(container_label) else {
+        let Some(metadata) = self.world.container_layout.get(container_id) else {
             return Vec::new();
         };
         metadata.layout_children(&self.world)
@@ -33,13 +33,17 @@ impl Timeline {
     ) -> layout::LayoutPositions {
         use crate::timeline::layout::ChildExtent;
 
+        // Extents drop children without a sampled `layout_size`; the parallel
+        // id list keeps the result map aligned with the computed positions.
+        let mut admitted_ids: Vec<EntityId> = Vec::with_capacity(order.len());
         let child_extents: Vec<ChildExtent> = order
             .iter()
             .filter_map(|child_id| {
                 let geometry = self.world.geometry(*child_id);
+                let half_size = geometry.layout_size_get(time_ms)?;
+                admitted_ids.push(*child_id);
                 Some(ChildExtent {
-                    label: self.world.label(*child_id)?.to_string(),
-                    half_size: geometry.layout_size_get(time_ms)?,
+                    half_size,
                     placement_mode: geometry
                         .placement_mode
                         .get(time_ms, PlacementMode::LayoutManaged),
@@ -50,13 +54,9 @@ impl Timeline {
         let positions = LayoutEngine::compute_positions(metadata, &child_extents);
 
         let mut result = layout::LayoutPositions::new();
-        for (i, child) in child_extents.iter().enumerate() {
-            if child.placement_mode == PlacementMode::LayoutManaged {
-                if let Some(id) = self.world.tracks.get_id(&child.label) {
-                    result.insert_with_id(id, child.label.clone(), positions[i]);
-                } else {
-                    result.insert(child.label.clone(), positions[i]);
-                }
+        for (i, extent) in child_extents.iter().enumerate() {
+            if extent.placement_mode == PlacementMode::LayoutManaged {
+                result.insert_id(admitted_ids[i], positions[i]);
             }
         }
         result
@@ -67,10 +67,10 @@ impl Timeline {
     /// the old and new orders. Otherwise delegates to static layout.
     pub fn compute_animated_layout(
         &self,
-        container_label: &str,
+        container_id: EntityId,
         time_ms: u64,
     ) -> Arc<layout::LayoutPositions> {
-        let Some(metadata) = self.container_layout(container_label) else {
+        let Some(metadata) = self.world.container_layout.get(container_id) else {
             // Shared empty table: this early return fires once per
             // non-container node per frame (alloc_driver 2026-09-04 measured
             // ~60 fresh empty `LayoutPositions` allocations per frame on a
@@ -79,7 +79,7 @@ impl Timeline {
         };
 
         // Check for an animated child order on the container entity
-        if let Some(component) = self.child_order(container_label) {
+        if let Some(component) = self.world.child_order.get(container_id) {
             let track = &component.track;
             let prev = track.keyframes.prev_keyframe(time_ms);
             let next = track.keyframes.next_keyframe(time_ms);
@@ -95,13 +95,10 @@ impl Timeline {
 
                     let mut result = layout::LayoutPositions::new();
                     for id in order1.iter().chain(order2.iter()) {
-                        let Some(label) = self.world.label(*id) else {
-                            continue;
-                        };
-                        let p1 = pos1.get(label).copied().unwrap_or([0.0, 0.0]);
-                        let p2 = pos2.get(label).copied().unwrap_or([0.0, 0.0]);
+                        let p1 = pos1.get_by_id(*id).copied().unwrap_or([0.0, 0.0]);
+                        let p2 = pos2.get_by_id(*id).copied().unwrap_or([0.0, 0.0]);
                         let pos = p1.interpolate(&p2, eased_t);
-                        result.insert_with_id(*id, label.to_string(), pos);
+                        result.insert_id(*id, pos);
                     }
                     return Arc::new(result);
                 },
@@ -125,13 +122,10 @@ impl Timeline {
 
                     let mut result = layout::LayoutPositions::new();
                     for id in track.default_value.iter().chain(order.iter()) {
-                        let Some(label) = self.world.label(*id) else {
-                            continue;
-                        };
-                        let p1 = pos1.get(label).copied().unwrap_or([0.0, 0.0]);
-                        let p2 = pos2.get(label).copied().unwrap_or([0.0, 0.0]);
+                        let p1 = pos1.get_by_id(*id).copied().unwrap_or([0.0, 0.0]);
+                        let p2 = pos2.get_by_id(*id).copied().unwrap_or([0.0, 0.0]);
                         let pos = p1.interpolate(&p2, eased_t);
-                        result.insert_with_id(*id, label.to_string(), pos);
+                        result.insert_id(*id, pos);
                     }
                     return Arc::new(result);
                 },
@@ -142,9 +136,9 @@ impl Timeline {
         }
 
         // No child-order track — delegate to static layout
-        let layout_children = self.layout_children_for(container_label);
+        let layout_children = self.layout_children_for(container_id);
         self.layout_engine.compute_layout_for_time(
-            container_label,
+            container_id,
             metadata,
             &layout_children,
             time_ms,

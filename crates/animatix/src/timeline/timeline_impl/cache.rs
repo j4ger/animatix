@@ -300,7 +300,7 @@ impl Timeline {
         if !self.world.exists(id) {
             return true;
         }
-        let is_static = self.compute_static_subtree(self.world.label(id).unwrap_or(""));
+        let is_static = self.compute_static_subtree(id);
         let mut flags = self.eval_caches.static_subtree_flags.borrow_mut();
         if idx >= flags.len() {
             flags.resize(idx + 1, None);
@@ -345,23 +345,24 @@ impl Timeline {
         false
     }
 
-    /// Uncached static-subtree computation ([`Self::is_static_subtree`] wraps
-    /// this in a memo).
-    pub(crate) fn compute_static_subtree(&self, label: &str) -> bool {
+    /// Uncached static-subtree computation ([`Self::is_static_subtree_id`]
+    /// wraps this in a memo). The label is borrowed only for the
+    /// modifier-target check — no `String` is allocated per node.
+    pub(crate) fn compute_static_subtree(&self, id: EntityId) -> bool {
+        if !self.world.exists(id) {
+            return true;
+        }
         // Animated child orders live in a component, outside property keyframe
         // detection, and can change layout output, so they disable
         // static caching.
-        if self.world.get_id(label).is_some_and(|id| self.world.child_order.contains(id)) {
+        if self.world.child_order.contains(id) {
             return false;
         }
         // If this actor is written to by any modifier (always block), it changes
         // at frame time and cannot be statically cached.
-        if self.is_targeted_by_modifier(label) {
+        if self.world.label(id).is_some_and(|label| self.is_targeted_by_modifier(label)) {
             return false;
         }
-        let Some(id) = self.world.get_id(label) else {
-            return true;
-        };
         if self.world.caps(id).time_dependent
             || self.world.transcript.contains(id)
             || self.world.effects(id).is_some_and(|chain| chain.has_any_keyframes())

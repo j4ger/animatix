@@ -5,9 +5,8 @@ use super::*;
 
 use crate::timeline::PlacementMode;
 
-fn make_child(label: &str, w: f32, h: f32, mode: PlacementMode) -> ChildExtent {
+fn make_child(w: f32, h: f32, mode: PlacementMode) -> ChildExtent {
     ChildExtent {
-        label: label.to_string(),
         half_size: [w / 2.0, h / 2.0],
         placement_mode: mode,
     }
@@ -16,8 +15,8 @@ fn make_child(label: &str, w: f32, h: f32, mode: PlacementMode) -> ChildExtent {
 #[test]
 fn test_row_layout_basic() {
     let children = vec![
-        make_child("a", 100.0, 50.0, PlacementMode::LayoutManaged),
-        make_child("b", 100.0, 50.0, PlacementMode::LayoutManaged),
+        make_child(100.0, 50.0, PlacementMode::LayoutManaged),
+        make_child(100.0, 50.0, PlacementMode::LayoutManaged),
     ];
 
     let output = compute_taffy_linear_layout(
@@ -44,8 +43,8 @@ fn test_row_layout_basic() {
 #[test]
 fn test_col_layout_basic() {
     let children = vec![
-        make_child("a", 50.0, 100.0, PlacementMode::LayoutManaged),
-        make_child("b", 50.0, 100.0, PlacementMode::LayoutManaged),
+        make_child(50.0, 100.0, PlacementMode::LayoutManaged),
+        make_child(50.0, 100.0, PlacementMode::LayoutManaged),
     ];
 
     let output = compute_taffy_linear_layout(
@@ -71,9 +70,9 @@ fn test_col_layout_basic() {
 #[test]
 fn test_manual_child_excluded_from_positions() {
     let children = vec![
-        make_child("a", 100.0, 50.0, PlacementMode::LayoutManaged),
-        make_child("b", 100.0, 50.0, PlacementMode::Manual),
-        make_child("c", 100.0, 50.0, PlacementMode::LayoutManaged),
+        make_child(100.0, 50.0, PlacementMode::LayoutManaged),
+        make_child(100.0, 50.0, PlacementMode::Manual),
+        make_child(100.0, 50.0, PlacementMode::LayoutManaged),
     ];
 
     let output = compute_taffy_linear_layout(
@@ -202,8 +201,8 @@ fn test_compute_container_size_row() {
     use crate::timeline::{ContainerMetadata, EntityId, LayoutType};
 
     let children = vec![
-        make_child("a", 100.0, 50.0, PlacementMode::LayoutManaged),
-        make_child("b", 200.0, 50.0, PlacementMode::LayoutManaged),
+        make_child(100.0, 50.0, PlacementMode::LayoutManaged),
+        make_child(200.0, 50.0, PlacementMode::LayoutManaged),
     ];
 
     let metadata = ContainerMetadata {
@@ -227,8 +226,8 @@ fn test_compute_container_size_col() {
     use crate::timeline::{ContainerMetadata, EntityId, LayoutType};
 
     let children = vec![
-        make_child("a", 150.0, 100.0, PlacementMode::LayoutManaged),
-        make_child("b", 100.0, 100.0, PlacementMode::LayoutManaged),
+        make_child(150.0, 100.0, PlacementMode::LayoutManaged),
+        make_child(100.0, 100.0, PlacementMode::LayoutManaged),
     ];
 
     let metadata = ContainerMetadata {
@@ -281,8 +280,8 @@ fn test_text_child_props_struct_clone_debug() {
 fn test_baseline_alignment_row() {
     // Verify that baseline alignment adjusts Y positions in a Row
     let children = vec![
-        make_child("large", 100.0, 80.0, PlacementMode::LayoutManaged),
-        make_child("small", 80.0, 40.0, PlacementMode::LayoutManaged),
+        make_child(100.0, 80.0, PlacementMode::LayoutManaged),
+        make_child(80.0, 40.0, PlacementMode::LayoutManaged),
     ];
 
     let layout_type = LayoutType::Row;
@@ -341,8 +340,8 @@ fn test_baseline_alignment_row() {
 fn test_baseline_alignment_col() {
     // Verify that baseline alignment adjusts Y positions in a Col
     let children = vec![
-        make_child("a", 80.0, 60.0, PlacementMode::LayoutManaged),
-        make_child("b", 80.0, 40.0, PlacementMode::LayoutManaged),
+        make_child(80.0, 60.0, PlacementMode::LayoutManaged),
+        make_child(80.0, 40.0, PlacementMode::LayoutManaged),
     ];
 
     let layout_type = LayoutType::Col;
@@ -387,8 +386,8 @@ fn test_baseline_alignment_col() {
 fn test_baseline_alignment_empty_baselines_falls_back_to_center() {
     // When no baselines are provided, baseline alignment should behave like center
     let children = vec![
-        make_child("a", 100.0, 50.0, PlacementMode::LayoutManaged),
-        make_child("b", 100.0, 50.0, PlacementMode::LayoutManaged),
+        make_child(100.0, 50.0, PlacementMode::LayoutManaged),
+        make_child(100.0, 50.0, PlacementMode::LayoutManaged),
     ];
 
     let layout_type = LayoutType::Row;
@@ -488,8 +487,8 @@ fn test_linear_layout_with_percent_spec() {
     // Create two children: one with 50% width, one with fill
     // in a Row. The parent content size is 400px.
     let children = vec![
-        make_child("a", 50.0, 50.0, PlacementMode::LayoutManaged),
-        make_child("b", 50.0, 50.0, PlacementMode::LayoutManaged),
+        make_child(50.0, 50.0, PlacementMode::LayoutManaged),
+        make_child(50.0, 50.0, PlacementMode::LayoutManaged),
     ];
     let specs = vec![
         Some(ChildSizeSpec::from_parts(SizeSpec::Percent(0.5), SizeSpec::Fixed(50.0))),
@@ -524,7 +523,7 @@ fn test_linear_layout_with_percent_spec() {
 
 #[test]
 fn test_linear_layout_with_constraints() {
-    let children = vec![make_child("a", 200.0, 50.0, PlacementMode::LayoutManaged)];
+    let children = vec![make_child(200.0, 50.0, PlacementMode::LayoutManaged)];
     let specs = vec![None];
     let constraints = vec![SizeConstraints {
         min_width: None,
@@ -557,9 +556,9 @@ fn test_linear_layout_with_constraints() {
 #[test]
 fn test_grid_layout_with_specs() {
     let children = vec![
-        make_child("a", 100.0, 50.0, PlacementMode::LayoutManaged),
-        make_child("b", 100.0, 50.0, PlacementMode::LayoutManaged),
-        make_child("c", 100.0, 50.0, PlacementMode::LayoutManaged),
+        make_child(100.0, 50.0, PlacementMode::LayoutManaged),
+        make_child(100.0, 50.0, PlacementMode::LayoutManaged),
+        make_child(100.0, 50.0, PlacementMode::LayoutManaged),
     ];
     let specs = vec![None, None, None];
     let constraints = vec![

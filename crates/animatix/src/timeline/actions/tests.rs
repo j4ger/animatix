@@ -600,15 +600,16 @@ fn swap_action_bounds_transition_to_duration() {
 
     // At 600ms (after first swap ends, before second starts) the order
     // should be stable — not interpolating toward the second swap.
-    let layout_600 = timeline.compute_animated_layout("row", 600);
-    let layout_500 = timeline.compute_animated_layout("row", 500);
+    let row = timeline.get_entity_id("row").unwrap();
+    let layout_600 = timeline.compute_animated_layout(row, 600);
+    let layout_500 = timeline.compute_animated_layout(row, 500);
     assert_eq!(layout_600, layout_500, "order should be stable between swaps");
 
     // At 1250ms (midway through second swap) the order should be
     // interpolating, not already finished.
-    let layout_1000 = timeline.compute_animated_layout("row", 1000);
-    let layout_1500 = timeline.compute_animated_layout("row", 1500);
-    let layout_1250 = timeline.compute_animated_layout("row", 1250);
+    let layout_1000 = timeline.compute_animated_layout(row, 1000);
+    let layout_1500 = timeline.compute_animated_layout(row, 1500);
+    let layout_1250 = timeline.compute_animated_layout(row, 1250);
     assert_ne!(layout_1250, layout_1000, "should be mid-transition at 1250ms");
     assert_ne!(layout_1250, layout_1500, "should not be finished at 1250ms");
 }
@@ -655,13 +656,16 @@ fn swap_action_animates_positions_smoothly() {
     process_action(&action, 2000.0, &mut timeline, &mut Vec::new(), None);
 
     // Positions at start (2000ms) and end (2500ms) should differ for swapped bars
-    let layout_start = timeline.compute_animated_layout("bars", 2000);
-    let layout_end = timeline.compute_animated_layout("bars", 2500);
+    let bars = timeline.get_entity_id("bars").unwrap();
+    let bar1 = timeline.get_entity_id("bar1").unwrap();
+    let bar2 = timeline.get_entity_id("bar2").unwrap();
+    let layout_start = timeline.compute_animated_layout(bars, 2000);
+    let layout_end = timeline.compute_animated_layout(bars, 2500);
 
-    let bar1_start = layout_start.get("bar1").copied().unwrap();
-    let bar1_end = layout_end.get("bar1").copied().unwrap();
-    let bar2_start = layout_start.get("bar2").copied().unwrap();
-    let bar2_end = layout_end.get("bar2").copied().unwrap();
+    let bar1_start = layout_start.get_by_id(bar1).copied().unwrap();
+    let bar1_end = layout_end.get_by_id(bar1).copied().unwrap();
+    let bar2_start = layout_start.get_by_id(bar2).copied().unwrap();
+    let bar2_end = layout_end.get_by_id(bar2).copied().unwrap();
 
     assert_ne!(
         bar1_start, bar1_end,
@@ -675,9 +679,9 @@ fn swap_action_animates_positions_smoothly() {
     );
 
     // Mid-transition position should be between start and end
-    let layout_mid = timeline.compute_animated_layout("bars", 2250);
-    let bar1_mid = layout_mid.get("bar1").copied().unwrap();
-    let bar2_mid = layout_mid.get("bar2").copied().unwrap();
+    let layout_mid = timeline.compute_animated_layout(bars, 2250);
+    let bar1_mid = layout_mid.get_by_id(bar1).copied().unwrap();
+    let bar2_mid = layout_mid.get_by_id(bar2).copied().unwrap();
 
     assert_ne!(bar1_mid, bar1_start, "bar1 should have left start position");
     assert_ne!(bar1_mid, bar1_end, "bar1 should not yet be at end position");

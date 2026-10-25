@@ -106,12 +106,12 @@ impl LayoutType {
 /// A child actor admitted into a container's layout system.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ContainerLayoutChild {
-    /// Layout-admitted child label.
+    /// Layout-admitted child entity.
     ///
     /// This is a validated subset of scene-graph children used only for layout
     /// membership/order. Children excluded here still remain in the entity's
     /// `SceneHierarchyComponent` for scene traversal/rendering.
-    pub label: String,
+    pub id: EntityId,
     /// Cached placement mode from build time to avoid repeated track lookups.
     pub placement_mode: PlacementMode,
 }
@@ -157,10 +157,11 @@ pub fn padding_uniform(v: f32) -> [f32; 4] {
 impl ContainerMetadata {
     /// Compute layout-admitted children on demand from `child_order` + the world.
     ///
-    /// `child_order` holds entity ids; Taffy/layout admission consumes labels,
-    /// so each id is mapped once here and the child's track supplies its
-    /// placement mode. Ids without a live track (a stale carried order) are
-    /// dropped, matching the old label lookup's missing-label behaviour.
+    /// `child_order` holds entity ids and so does the admission result, so the
+    /// layout pipeline stays id-keyed end to end (`docs/ecs.md` §4). Each
+    /// child's track supplies its placement mode. Ids without a live track (a
+    /// stale carried order) are dropped, matching the old label lookup's
+    /// missing-label behaviour.
     pub fn layout_children(&self, world: &World) -> Vec<ContainerLayoutChild> {
         self.child_order
             .iter()
@@ -171,7 +172,7 @@ impl ContainerMetadata {
                 let geometry = world.geometry(*child_id);
                 geometry.layout_size.as_ref()?;
                 Some(ContainerLayoutChild {
-                    label: world.label(*child_id)?.to_string(),
+                    id: *child_id,
                     placement_mode: geometry.placement_mode.last(PlacementMode::LayoutManaged),
                 })
             })
@@ -185,12 +186,12 @@ impl ContainerMetadata {
 /// when children's layout sizes haven't changed between frames.
 #[derive(Clone, Debug)]
 pub struct LayoutEngine {
-    /// Per-container cache bucket keyed by container label (PF-4: the label is
-    /// borrowed for lookup — no `String` is allocated per frame). Static layout
-    /// inputs are implied by the bucket; only per-frame dynamic inputs
-    /// (`layout_size`, baselines) are compared inside it.
+    /// Per-container cache bucket keyed by container entity id (PF-4: the id is
+    /// a copy lookup — no `String` is hashed per frame). Static layout inputs
+    /// are implied by the bucket; only per-frame dynamic inputs (`layout_size`,
+    /// baselines) are compared inside it.
     pub(crate) cache: std::cell::RefCell<
-        std::collections::HashMap<String, crate::timeline::layout::LayoutContainerCache>,
+        std::collections::HashMap<EntityId, crate::timeline::layout::LayoutContainerCache>,
     >,
 }
 

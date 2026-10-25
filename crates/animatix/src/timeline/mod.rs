@@ -361,7 +361,7 @@ pub struct Timeline {
     /// `Timeline::layout_children_for`). Cleared by `invalidate_frame_cache`
     /// alongside the layout engine cache, whose admission contract it shares.
     pub(crate) layout_children_cache:
-        std::cell::RefCell<std::collections::HashMap<String, Arc<Vec<ContainerLayoutChild>>>>,
+        std::cell::RefCell<std::collections::HashMap<EntityId, Arc<Vec<ContainerLayoutChild>>>>,
     pub(crate) layout_engine: LayoutEngine,
     pub(crate) dynamic_layout: bool,
     /// Declared via `config { seamless_loop: true }`: the scene is replayed, so

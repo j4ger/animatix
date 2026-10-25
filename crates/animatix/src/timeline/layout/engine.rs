@@ -171,14 +171,14 @@ impl LayoutEngine {
     }
 
     /// Computes layout positions for all children of a container at a specific time.
-    /// Returns a BTreeMap mapping child labels to their computed positions.
+    /// Returns positions keyed by child entity id.
     ///
     /// Uses a per-container cache keyed on children's layout sizes. If the
     /// children's half-sizes and placement modes haven't changed since the last
     /// call, the cached positions are returned without recomputing via Taffy.
     pub fn compute_layout_for_time(
         &self,
-        container_label: &str,
+        container_id: crate::timeline::EntityId,
         metadata: &ContainerMetadata,
         layout_children: &[ContainerLayoutChild],
         time_ms: u64,
@@ -195,7 +195,7 @@ impl LayoutEngine {
             // result is served directly and the per-child `tracks.get`
             // BTreeMap navigation disappears from the steady-state frame.
             let cache = self.cache.borrow();
-            if let Some(bucket) = cache.get(container_label) {
+            if let Some(bucket) = cache.get(&container_id) {
                 if bucket.children_are_keyframe_free {
                     if let Some(positions) = &bucket.static_result {
                         return std::sync::Arc::clone(positions);
@@ -208,10 +208,7 @@ impl LayoutEngine {
         let mut baselines: Vec<f32> = Vec::with_capacity(layout_children.len());
         let mut children_are_keyframe_free = true;
         for child in layout_children {
-            let Some(child_id) = world.tracks.get_id(&child.label) else {
-                baselines.push(0.0);
-                continue;
-            };
+            let child_id = child.id;
             // `layout_size`/`baseline` without keyframes sample to a constant;
             // any keyframe makes the container dynamic for this fast path.
             children_are_keyframe_free &= world
@@ -232,23 +229,26 @@ impl LayoutEngine {
 
         {
             let cache = self.cache.borrow();
-            if let Some(bucket) = cache.get(container_label) {
+            if let Some(bucket) = cache.get(&container_id) {
                 if let Some((_, entry)) = bucket.entries.iter().find(|(key, _)| *key == dyn_key) {
                     // Hit: share the cached positions (refcount bump, no clone
-                    // of the child-label-keyed map).
+                    // of the child map).
                     return std::sync::Arc::clone(&entry.positions);
                 }
             }
         }
 
-        // Miss: rebuild extents with owned labels and compute.
+        // Miss: rebuild extents and compute. Extents drop children without a
+        // sampled `layout_size`; the parallel id list keeps the result map
+        // aligned with the computed positions.
+        let mut admitted_ids: Vec<crate::timeline::EntityId> =
+            Vec::with_capacity(layout_children.len());
         let child_extents: Vec<ChildExtent> = layout_children
             .iter()
             .filter_map(|child| {
-                let child_id = world.tracks.get_id(&child.label)?;
-                let half_size = world.geometry(child_id).layout_size_get(time_ms)?;
+                let half_size = world.geometry(child.id).layout_size_get(time_ms)?;
+                admitted_ids.push(child.id);
                 Some(ChildExtent {
-                    label: child.label.clone(),
                     half_size,
                     placement_mode: child.placement_mode,
                 })
@@ -256,42 +256,34 @@ impl LayoutEngine {
             .collect();
 
         let (size_specs, constraints, parent_content_size) = {
-            let p_size = world
-                .tracks
-                .get_id(container_label)
-                .and_then(|container_id| {
-                    let geometry = world.geometry(container_id);
-                    geometry
-                        .layout_size_get(time_ms)
-                        .or_else(|| geometry.layout_size_last())
-                        .or_else(|| geometry.size.as_ref().map(|t| t.evaluate(time_ms)))
-                        .or_else(|| geometry.size.as_ref().map(|t| t.last_value()))
-                })
-                .map(|s| [s[0] * 2.0, s[1] * 2.0])
-                .unwrap_or([0.0, 0.0]);
+            let p_size = {
+                let geometry = world.geometry(container_id);
+                geometry
+                    .layout_size_get(time_ms)
+                    .or_else(|| geometry.layout_size_last())
+                    .or_else(|| geometry.size.as_ref().map(|t| t.evaluate(time_ms)))
+                    .or_else(|| geometry.size.as_ref().map(|t| t.last_value()))
+            }
+            .map(|s| [s[0] * 2.0, s[1] * 2.0])
+            .unwrap_or([0.0, 0.0]);
             let mut specs = Vec::with_capacity(layout_children.len());
             let mut cons = Vec::with_capacity(layout_children.len());
             for child in layout_children {
-                if let Some(child_id) = world.tracks.get_id(&child.label) {
-                    let geometry = world.geometry(child_id);
-                    specs.push(geometry.size_spec);
-                    let min_w = geometry.min_width.get(time_ms, 0.0);
-                    let min_h = geometry.min_height.get(time_ms, 0.0);
-                    let max_h = geometry.max_height.get(time_ms, f32::INFINITY);
-                    cons.push(SizeConstraints {
-                        min_width: if min_w > 0.0 { Some(min_w) } else { None },
-                        max_width: None,
-                        min_height: if min_h > 0.0 { Some(min_h) } else { None },
-                        max_height: if !max_h.is_infinite() && !max_h.is_nan() {
-                            Some(max_h)
-                        } else {
-                            None
-                        },
-                    });
-                } else {
-                    specs.push(None);
-                    cons.push(SizeConstraints::default());
-                }
+                let geometry = world.geometry(child.id);
+                specs.push(geometry.size_spec);
+                let min_w = geometry.min_width.get(time_ms, 0.0);
+                let min_h = geometry.min_height.get(time_ms, 0.0);
+                let max_h = geometry.max_height.get(time_ms, f32::INFINITY);
+                cons.push(SizeConstraints {
+                    min_width: if min_w > 0.0 { Some(min_w) } else { None },
+                    max_width: None,
+                    min_height: if min_h > 0.0 { Some(min_h) } else { None },
+                    max_height: if !max_h.is_infinite() && !max_h.is_nan() {
+                        Some(max_h)
+                    } else {
+                        None
+                    },
+                });
             }
             (specs, cons, p_size)
         };
@@ -307,13 +299,9 @@ impl LayoutEngine {
 
         // Build result map, only including LayoutManaged children
         let mut result = LayoutPositions::new();
-        for (i, child) in child_extents.iter().enumerate() {
-            if child.placement_mode == PlacementMode::LayoutManaged {
-                if let Some(id) = world.tracks.get_id(&child.label) {
-                    result.insert_with_id(id, child.label.clone(), positions[i]);
-                } else {
-                    result.insert(child.label.clone(), positions[i]);
-                }
+        for (i, extent) in child_extents.iter().enumerate() {
+            if extent.placement_mode == PlacementMode::LayoutManaged {
+                result.insert_id(admitted_ids[i], positions[i]);
             }
         }
         let positions = std::sync::Arc::new(result);
@@ -321,14 +309,11 @@ impl LayoutEngine {
         // Store in cache. Keyframe-free containers also get the static fast
         // path: their inputs (and therefore their result) are frame-invariant.
         let mut cache = self.cache.borrow_mut();
-        let bucket =
-            cache
-                .entry(container_label.to_string())
-                .or_insert_with(|| LayoutContainerCache {
-                    entries: Vec::new(),
-                    static_result: None,
-                    children_are_keyframe_free: false,
-                });
+        let bucket = cache.entry(container_id).or_insert_with(|| LayoutContainerCache {
+            entries: Vec::new(),
+            static_result: None,
+            children_are_keyframe_free: false,
+        });
         bucket.entries.push((
             dyn_key,
             LayoutCacheEntry {
