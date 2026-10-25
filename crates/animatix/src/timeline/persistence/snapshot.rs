@@ -164,6 +164,18 @@ pub fn snapshot_property_plan_at(
     snapshot
 }
 
+/// Snapshot the tagged-union tier at `time_ms` (single keyframe per track).
+pub fn snapshot_tagged_at(
+    tagged: &crate::timeline::world::TaggedTracksComponent,
+    time_ms: u64,
+) -> crate::timeline::world::TaggedTracksComponent {
+    let mut snapshot = tagged.clone();
+    for track in snapshot.0.values_mut().flatten() {
+        collapse_property_track_inner(track, time_ms);
+    }
+    snapshot
+}
+
 /// Snapshot the shape tier at `time_ms` (single keyframe per track).
 pub fn snapshot_shape_at(
     shape: &crate::timeline::animation_track::ShapeTracks,

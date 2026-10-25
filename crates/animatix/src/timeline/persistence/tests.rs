@@ -702,3 +702,63 @@ fn carry_bag_preserves_primitive_payload() {
         "injection must restore the payload component"
     );
 }
+
+// The tagged tier rides the carry bag like every other authored tier: without
+// it, a persistent actor using tagged properties (`legend`, extension tags)
+// would silently lose them across a scene change.
+#[test]
+fn carry_bag_roundtrips_tagged_tracks() {
+    use crate::timeline::{PropertyTrack, PropertyValue};
+
+    let mut source = Timeline::new();
+    let id = source.world.spawn("card", "Rect");
+    let mut track = PropertyTrack::new(PropertyValue::F32(0.0));
+    track.add_keyframe(0, PropertyValue::F32(1.0), Easing::Linear);
+    track.add_keyframe(1000, PropertyValue::F32(5.0), Easing::Linear);
+    source
+        .world_mut()
+        .tagged_tracks_mut(id)
+        .insert("legend".to_string(), Some(track));
+    source.set_persistence_flag("card", true);
+
+    let bag = source.compute_carry_bag(500, true);
+    let entry = bag.entries.get("card").expect("carried");
+    let carried = entry
+        .tagged
+        .get("legend")
+        .and_then(|track| track.as_ref())
+        .expect("tagged entry carried");
+    assert_eq!(carried.keyframes.len(), 1, "collapsed to a single keyframe");
+    assert_eq!(carried.keyframes.get(&0).expect("collapsed at t=0").0, PropertyValue::F32(3.0));
+
+    let mut dest = Timeline::new();
+    dest.inject_carry_bag(&bag, &source, 0, [1280.0, 720.0], &mut Vec::new());
+    let restored = dest.world.get_id("card").expect("injected");
+    let track = dest
+        .world
+        .tagged_tracks(restored)
+        .get("legend")
+        .and_then(|track| track.as_ref())
+        .expect("tagged restored");
+    assert_eq!(track.keyframes.get(&0).expect("collapsed at t=0").0, PropertyValue::F32(3.0));
+}
+
+#[cfg(feature = "serde")]
+#[test]
+fn legacy_carry_bag_without_tagged_key_deserializes() {
+    let mut source = Timeline::new();
+    source.world.spawn("card", "Rect");
+    source.set_persistence_flag("card", true);
+    let bag = source.compute_carry_bag(0, true);
+
+    // Strip the (empty) tagged member to imitate a bag serialized before the
+    // tier existed; `serde(default)` must fill it back in.
+    let json = serde_json::to_string(&bag).expect("serialize");
+    let stripped = json.replace(",\"tagged\":{}", "");
+    assert_ne!(stripped, json, "the serialized bag mentions the tagged tier");
+    let restored: CarryBag = serde_json::from_str(&stripped).expect("legacy bag deserializes");
+    assert!(
+        restored.entries.get("card").expect("entry").tagged.is_empty(),
+        "missing key falls back to the default tier"
+    );
+}

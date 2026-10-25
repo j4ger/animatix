@@ -126,6 +126,12 @@ pub struct CarryEntry {
     /// Registry-driven property slots snapshot.
     #[cfg_attr(feature = "serde", serde(default))]
     pub property_plan: crate::timeline::plan::PropertyPlan,
+    /// Tagged-union property tracks snapshot (`legend`, extension tags).
+    ///
+    /// Carried like every other authored tier: without it, a persistent actor
+    /// that uses tagged properties would lose them on scene change.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub tagged: crate::timeline::world::TaggedTracksComponent,
 }
 
 // ---------------------------------------------------------------------------
@@ -166,6 +172,7 @@ fn collect_persistent_entries(
     let effects = timeline.world.effects(id).map(|chain| snapshot_effects(chain, time_ms));
     let highlight = snapshot_highlight_at(timeline.world.highlight(id), time_ms);
     let property_plan = snapshot_property_plan_at(timeline.world.property_plan(id), time_ms);
+    let tagged = snapshot_tagged_at(timeline.world.tagged_tracks(id), time_ms);
     let shape = snapshot_shape_at(timeline.world.shape(id), time_ms);
     let text = snapshot_text_at(timeline.world.text(id), time_ms);
     let geometry = snapshot_geometry_at(timeline.world.geometry(id), time_ms);
@@ -196,6 +203,7 @@ fn collect_persistent_entries(
             geometry,
             style,
             property_plan,
+            tagged,
         },
     );
 }
@@ -245,7 +253,7 @@ mod snapshot;
 use snapshot::snapshot_effects;
 pub use snapshot::{
     snapshot_geometry_at, snapshot_highlight_at, snapshot_payload_at, snapshot_property_plan_at,
-    snapshot_shape_at, snapshot_style_at, snapshot_text_at,
+    snapshot_shape_at, snapshot_style_at, snapshot_tagged_at, snapshot_text_at,
 };
 
 #[cfg(test)]

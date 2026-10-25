@@ -104,6 +104,7 @@ fn inject_entry(
     dest.world.payload.insert(id, entry.payload.clone());
     *dest.world.highlight.get_mut(id) = entry.highlight.clone();
     *dest.world.property_plan.get_mut(id) = entry.property_plan.clone();
+    *dest.world.tagged_tracks_mut(id) = entry.tagged.clone();
     *dest.world.shape.get_mut(id) = entry.shape.clone();
     *dest.world.text.get_mut(id) = entry.text.clone();
     *dest.world.geometry.get_mut(id) = geometry.clone();
