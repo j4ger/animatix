@@ -316,3 +316,74 @@ fn collect_rust_sources(dir: &Path, out: &mut Vec<String>) {
         }
     }
 }
+
+/// Where a `Applicable::Everything` property is actually applied.
+///
+/// The `Everything` rows are the ones the `inapplicable-property` lint can
+/// never flag, because they pass on every actor by construction — so the
+/// question "who applies this?" is exactly what nobody was forced to answer.
+/// The two silent drops found in the plot family (`opacity`) and `Arrow`
+/// (`color`) were both in this set.
+///
+/// The audit result is that the rows themselves are correct: these properties
+/// are applied by the frame path or the build, not by an individual primitive,
+/// which is why narrowing them to name lists would be wrong (it would drop
+/// them from extension actors and from the inspector). What was missing is a
+/// written record of *which* stage applies each one, and a gate that makes a
+/// new universal declaration justify itself.
+fn universal_applier(property: &str) -> Option<&'static str> {
+    Some(match property {
+        // Frame path: the transform/visibility pipeline samples these once per
+        // node, so every primitive gets them without reading anything.
+        "opacity" => "frame path: `evaluate_node_transform` / `RenderOutputs` global opacity",
+        "position" => "frame path: `evaluate_node_transform` position resolution",
+        "rotation" => "frame path: `evaluate_node_transform` rotation",
+        "scale" => "frame path: `evaluate_node_transform` scale",
+        "shift" => "frame path: `evaluate_node_transform` motion offset",
+        "transform" => "frame path: `evaluate_node_transform` matrix",
+        "rotate_x" | "rotate_y" => "frame path: 2.5D orthographic tilt",
+        "at" => "frame path: `evaluate_node_transform` anchor resolution",
+        "solo" => "frame path: `resolve_solo_state` draw gate",
+        "blend" => "frame path: `track_blend_mode` layer selection",
+        "legend" => "frame path: legend label/contrast sampling",
+        "idle" => "build: `build/post.rs` idle-program attachment",
+        "shared_id" => "build: `Timeline::shared_id_actors` grouping",
+
+        // Build path: consumed while the declaration is processed.
+        "anchor" => "build: `build/actor/extensions.rs` anchor resolution",
+        "offset" => "build: `build/actor/extensions.rs` offset application",
+        "camera_follow" => "build: `build/entry/impl_mod.rs` camera participant set",
+        "parallax" => "build: `build/actor/helpers.rs` camera parallax factor",
+
+        // Declared for the planned 2.5D tilt; `unimplemented-property` warns.
+        "perspective" => "deferred: focal length, warns when authored",
+        _ => return None,
+    })
+}
+
+/// Every `Applicable::Everything` row must say which stage applies it.
+#[test]
+fn every_universal_property_declares_its_applier() {
+    let mut unclassified: Vec<&str> = Vec::new();
+    for desc in animatix_core::property::PROPERTY_DESCRIPTORS {
+        if !matches!(desc.applicable, animatix_core::caps::Applicable::Everything) {
+            continue;
+        }
+        // The `PROPERTY_DESCRIPTORS` table also carries a self-test property.
+        if desc.name.starts_with("test_") {
+            continue;
+        }
+        if universal_applier(desc.name).is_none() {
+            unclassified.push(desc.name);
+        }
+    }
+    assert!(
+        unclassified.is_empty(),
+        "these `Applicable::Everything` properties do not say which stage applies them:\n  {}\n\
+         The `Everything` rows can never be caught by the `inapplicable-property` lint, so a \
+         universal declaration that nothing applies reads as \"works everywhere\" in the \
+         inspector and silently does nothing. Add each to `universal_applier` with the stage \
+         that consumes it, or narrow its `Applicable` row.",
+        unclassified.join("\n  ")
+    );
+}

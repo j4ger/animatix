@@ -3062,3 +3062,34 @@ a container-only layout constraint does not belong there.
 
 Three watched files were kept at their frozen rows by trimming redundant
 wording rather than raising a row.
+
+## The `Applicable::Everything` audit: the rows were right, the record was missing (2026-10-26)
+
+The roadmap asked to "narrow each `Everything` row to the primitives that read
+it". Auditing all 19 non-test universal properties found that **narrowing would
+be wrong**: these properties are applied by a *stage*, not by an individual
+primitive, which is precisely why they belong on every actor.
+
+- **Frame path** applies `opacity`, `position`, `rotation`, `scale`, `shift`,
+  `transform`, `rotate_x`/`rotate_y`, `at`, `solo`, `blend` and `legend` once
+  per node in `evaluate_node_transform` / the draw gate, so every primitive
+  receives them without reading a property name. Replacing the row with a name
+  list would remove them from extension actors and from the inspector.
+- **Build path** applies `anchor` and `offset` (`build/actor/extensions.rs`),
+  `camera_follow` (`build/entry/impl_mod.rs`), `parallax`
+  (`build/actor/helpers.rs`), `idle` (`build/post.rs`) and `shared_id`
+  (`Timeline::shared_id_actors`).
+- A name-string scan sees none of the frame-path set, which is why the earlier
+  `every_bound_property_has_a_reader` gate had to exempt them.
+
+The genuine gap was that nothing recorded *which* stage applies each universal
+property, so a new `Everything` row could claim universality while nothing
+consumed it — the shape of the two silent drops previously found in the plot
+family (`opacity`) and `Arrow` (`color`). New
+`every_universal_property_declares_its_applier` in
+`tests/applicability_table_agrees_with_reads.rs` requires every `Everything`
+(method: `universal_applier`) row to name its applying stage, so the list is
+now an explicit, reviewable contract rather than an unchecked claim.
+
+Verified non-vacuous: deleting any one entry fails the test with that property
+named.
