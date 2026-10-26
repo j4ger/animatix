@@ -118,7 +118,7 @@ impl Timeline {
             let geometry = self.world.geometry(cl.id);
             size_specs.push(geometry.size_spec);
             let min_w = geometry.min_width.get(time_ms, 0.0);
-            let max_w = f32::INFINITY;
+            let max_w = geometry.max_item_width.get(time_ms, f32::INFINITY);
             let min_h = geometry.min_height.get(time_ms, 0.0);
             let max_h = geometry.max_height.get(time_ms, f32::INFINITY);
             constraints.push(SizeConstraints {

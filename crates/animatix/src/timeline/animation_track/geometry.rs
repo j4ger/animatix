@@ -320,6 +320,10 @@ pub struct GeometryTracks {
     pub min_width: Option<PropertyTrack<f32>>,
     /// Minimum height constraint.
     pub min_height: Option<PropertyTrack<f32>>,
+    /// Maximum width constraint for layout items (`max_item_width`).
+    ///
+    /// Distinct from `max_width`, which is the text wrap width.
+    pub max_item_width: Option<PropertyTrack<f32>>,
     /// Maximum height constraint.
     pub max_height: Option<PropertyTrack<f32>>,
     /// Label position offset for callout annotations.

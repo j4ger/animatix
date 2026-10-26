@@ -1,7 +1,5 @@
 //! Borrowed bundles of the per-entity property tiers.
 //!
-//! Borrowed bundles of one entity's property tiers (geometry, style, shape,
-//! text, highlight, tagged unions, payload) plus its label, caps and plan.
 //! `World::fields(id)` / `World::fields_mut(id)` are the only constructors,
 //! so the storage layout behind a tier can change without touching callers.
 //!
@@ -211,6 +209,7 @@ impl<'a> TrackFields<'a> {
             WordSpacing => TrackFieldRef::F32(&self.text?.word_spacing),
             MinWidth => TrackFieldRef::F32(&self.geometry?.min_width),
             MinHeight => TrackFieldRef::F32(&self.geometry?.min_height),
+            MaxItemWidth => TrackFieldRef::F32(&self.geometry?.max_item_width),
             MaxHeight => TrackFieldRef::F32(&self.geometry?.max_height),
             LabelAt => TrackFieldRef::Vec2(&self.geometry?.label_at),
             CalloutTarget => TrackFieldRef::String(&self.geometry?.callout_target),
@@ -305,6 +304,7 @@ impl<'a> TrackFieldsMut<'a> {
             WordSpacing => TrackFieldMut::F32(&mut self.text.as_mut()?.word_spacing),
             MinWidth => TrackFieldMut::F32(&mut self.geometry.as_mut()?.min_width),
             MinHeight => TrackFieldMut::F32(&mut self.geometry.as_mut()?.min_height),
+            MaxItemWidth => TrackFieldMut::F32(&mut self.geometry.as_mut()?.max_item_width),
             MaxHeight => TrackFieldMut::F32(&mut self.geometry.as_mut()?.max_height),
             LabelAt => TrackFieldMut::Vec2(&mut self.geometry.as_mut()?.label_at),
             CalloutTarget => TrackFieldMut::String(&mut self.geometry.as_mut()?.callout_target),

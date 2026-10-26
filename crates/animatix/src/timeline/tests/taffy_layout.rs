@@ -263,3 +263,23 @@ row: Row, gap: 16, padding: 20 {
         report.diagnostics.iter().map(|d| d.code).collect::<Vec<_>>()
     );
 }
+
+/// `max_item_width` is the layout item width cap. It is deliberately a
+/// distinct name from `max_width`, which is the text wrap width and is not a
+/// layout constraint (`docs/roadmap.md`).
+#[test]
+fn max_item_width_caps_a_row_item() {
+    let source = r#"
+#0s
+row: Row, gap: 0, padding: 0, size: (900, 120) {
+    a: Rect, size: (50%, 80), max_item_width: 200
+}
+"#;
+    let (stmts, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let timeline = Timeline::build(&stmts.expect("parsed AST"));
+    let a = timeline.world.get_id("a").expect("a");
+    let width = timeline.world.geometry(a).size.get(0, [0.0, 0.0])[0] * 2.0;
+    // 50% of 900 = 450, capped by max_item_width: 200.
+    assert!((width - 200.0).abs() < 5.0, "expected the 200px cap to apply, got {width}");
+}

@@ -384,6 +384,8 @@ pub enum ActorField {
     MinWidth,
     /// Minimum height constraint.
     MinHeight,
+    /// Maximum width constraint (layout item width; not the text wrap width).
+    MaxItemWidth,
     /// Maximum height constraint.
     MaxHeight,
 
@@ -498,6 +500,7 @@ impl ActorField {
             // ── Min/Max size constraints ──
             ActorField::MinWidth => PropertyValue::F32(0.0),
             ActorField::MinHeight => PropertyValue::F32(0.0),
+            ActorField::MaxItemWidth => PropertyValue::F32(f32::INFINITY),
             ActorField::MaxHeight => PropertyValue::F32(f32::INFINITY),
 
             // ── Group fields ──

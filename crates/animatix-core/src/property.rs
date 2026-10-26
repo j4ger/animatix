@@ -184,6 +184,7 @@ declare_property_descriptors! {
     "max_width" => (Applicable::Actors(&[
             "Code", "Math", "Text", "Typst",
         ]), F32),
+    "max_item_width" => (Applicable::SizedActors, F32),
     "min_height" => (Applicable::SizedActors, F32),
     "min_width" => (Applicable::SizedActors, F32),
     "offset" => (Applicable::Everything, Vec2),

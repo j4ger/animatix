@@ -606,11 +606,9 @@ impl Timeline {
             ));
         }
 
-        // Registry-backed properties that the legacy per-primitive build loop
-        // does not reach are written through the generic engine. `Scale` belongs
-        // here: an authored `scale:` was dropped on the floor for every actor
-        // kind, so `scale: 4.0` on a declaration rendered at 1.0 while
-        // `x.scale = 4.0` in a keyframe worked.
+        // Registry-backed properties the legacy per-primitive build loop does
+        // not reach are written through the generic engine (`Scale` was dropped
+        // for every actor kind before this list existed).
         for prop in props {
             if let Some(schema) = crate::timeline::property_registry::lookup_property(&prop.name)
                 && matches!(
@@ -625,6 +623,7 @@ impl Timeline {
                         | crate::timeline::ActorField::MinWidth
                         | crate::timeline::ActorField::MinHeight
                         | crate::timeline::ActorField::MaxHeight
+                        | crate::timeline::ActorField::MaxItemWidth
                         | crate::timeline::ActorField::AudioVolume
                 )
             {

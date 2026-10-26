@@ -274,9 +274,14 @@ impl LayoutEngine {
                 let min_w = geometry.min_width.get(time_ms, 0.0);
                 let min_h = geometry.min_height.get(time_ms, 0.0);
                 let max_h = geometry.max_height.get(time_ms, f32::INFINITY);
+                let max_w = geometry.max_item_width.get(time_ms, f32::INFINITY);
                 cons.push(SizeConstraints {
                     min_width: if min_w > 0.0 { Some(min_w) } else { None },
-                    max_width: None,
+                    max_width: if !max_w.is_infinite() && !max_w.is_nan() {
+                        Some(max_w)
+                    } else {
+                        None
+                    },
                     min_height: if min_h > 0.0 { Some(min_h) } else { None },
                     max_height: if !max_h.is_infinite() && !max_h.is_nan() {
                         Some(max_h)

@@ -3040,3 +3040,25 @@ size are indistinguishable; the authored spec can.
 application trio (`build_layout_children`, `collect_child_layout_specs`,
 `apply_container_layout`, plus the two diagnostics helpers) moved to
 `timeline/layout/container.rs` and the `layout.rs` row was deleted.
+
+## `max_item_width`: a layout width cap with an available name (2026-10-26)
+
+`animation_track/`'s geometry tier had `min_width`, `min_height` and
+`max_height` but no maximum width, and `max_width` was already bound to the
+text wrap width (`ActorField::TextMaxWidth`) — which is why an example carried
+`max_width: 400` on a `Rect` for as long as it existed and capped nothing.
+
+Added `max_item_width` as a distinct registry property (`Applicable::
+SizedActors`, `SPATIAL_AI`, default `f32::INFINITY`), wired through the full
+touch-point set: descriptor → schema/kind table → `ActorField::MaxItemWidth` →
+`TrackFields`/`TrackFieldsMut` → `GeometryTracks::max_item_width` → the
+declaration write list → both constraint readers (`collect_child_layout_specs`
+and the frame-path constraint block in `layout/engine.rs`, which previously
+hardcoded `max_width: None`).
+
+Deliberately *not* added to `schema::common_property_names`: that list is
+inherited by extension actors as near-universal transform/size properties, and
+a container-only layout constraint does not belong there.
+
+Three watched files were kept at their frozen rows by trimming redundant
+wording rather than raising a row.

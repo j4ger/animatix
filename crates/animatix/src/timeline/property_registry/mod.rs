@@ -360,6 +360,7 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("line_join", V::U32, F::ASSIGNABLE_AI, LineJoin, val!(u32 0)),
     b!("max_depth", V::F32, F::empty(), PlotDomainGroup, val!(f32 12.0)),
     b!("max_height", V::F32, F::SPATIAL_AI, MaxHeight, val!(f32 f32::INFINITY)),
+    b!("max_item_width", V::F32, F::SPATIAL_AI, MaxItemWidth, val!(f32 f32::INFINITY)),
     b!("max_lines", V::U32, F::ASSIGNABLE_AI, Tagged, val!(u32 2)),
     b!("max_value", V::F32, F::empty(), NoStorage, val!(f32 0.0)),
     b!("max_width", V::F32, F::ASSIGNABLE_A, TextMaxWidth, val!(f32 0.0)),
