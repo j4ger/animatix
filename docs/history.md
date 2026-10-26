@@ -3093,3 +3093,19 @@ now an explicit, reviewable contract rather than an unchecked claim.
 
 Verified non-vacuous: deleting any one entry fails the test with that property
 named.
+
+### Correction: `max_item_width` had to be appended, not inserted (2026-10-26)
+
+The `max_item_width` row first landed between `max_height` and `min_height`,
+which is where it reads alphabetically — but `PropertyId` is the descriptor
+row index and serialized plans store it, so a mid-table insert renumbers every
+property after it. `animatix-syntax`'s `property_id_order_is_pinned` caught it:
+the count moved 139 → 140 and the dense-id assertion then showed the shift.
+The row now sits at the end of `PROPERTY_DESCRIPTORS` (id 139) so existing ids
+are untouched, and `common_property_names()` lists it beside its
+`min_width`/`min_height`/`max_height` siblings, which is where the table's own
+convention puts size constraints.
+
+`cargo test -p animatix` was green through both mistakes; only the workspace
+`test` gate sees `animatix-syntax`'s pins — the documented reason the gates run
+`--workspace --all-targets`.

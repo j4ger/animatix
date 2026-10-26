@@ -184,7 +184,6 @@ declare_property_descriptors! {
     "max_width" => (Applicable::Actors(&[
             "Code", "Math", "Text", "Typst",
         ]), F32),
-    "max_item_width" => (Applicable::SizedActors, F32),
     "min_height" => (Applicable::SizedActors, F32),
     "min_width" => (Applicable::SizedActors, F32),
     "offset" => (Applicable::Everything, Vec2),
@@ -339,6 +338,8 @@ declare_property_descriptors! {
     "end" => (Applicable::Actors(&["Cue"]), F32),
     // Horizontal text anchor placement relative to 'at' ("left", "center", "right").
     "text_anchor" => (Applicable::TextLike, String),
+    // Layout item maximum width (distinct from `max_width`, the text wrap width).
+    "max_item_width" => (Applicable::SizedActors, F32),
 }
 
 /// The descriptor for `name`, when it is a built-in property.

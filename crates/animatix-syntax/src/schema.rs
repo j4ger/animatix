@@ -366,9 +366,8 @@ pub fn property_specs() -> Vec<PropertySpec> {
 /// `color`, `size`, ...) as unknown on a custom primitive. `solo` is in the
 /// list for the same reason as the transform set: the render gate is
 /// actor-type-agnostic, so any primitive can be soloed. Kept as an explicit,
-/// reviewable list instead of a count threshold over `actor_types`; the
-/// `common_property_list_stays_in_sync` test pins it against the schema so
-/// adding a new near-universal property forces a deliberate update here.
+/// reviewable list rather than a count threshold; `common_property_list_stays_in_sync`
+/// pins it against the schema so adding a near-universal property is deliberate.
 pub fn common_property_names() -> &'static [&'static str] {
     &[
         "anchor",
@@ -380,6 +379,7 @@ pub fn common_property_names() -> &'static [&'static str] {
         "idle",
         "legend",
         "max_height",
+        "max_item_width",
         "min_height",
         "min_width",
         "offset",
@@ -500,7 +500,7 @@ mod tests {
         let specs = property_specs();
         assert_eq!(
             specs.len(),
-            139,
+            140,
             "the built-in property count changed; update this pin deliberately (ids are persisted)"
         );
         // Dense, unique ids starting at zero — no gaps for a join to fall into.
