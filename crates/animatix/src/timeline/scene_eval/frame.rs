@@ -434,6 +434,8 @@ impl Timeline {
             // It is read *after* the modifier pass above, so an
             // `always { camera.at = … }` write is already in the override map.
             // The background fill deliberately stays un-camerad.
+            // Roots have no layout parent: one shared empty table per frame.
+            let empty_positions = crate::timeline::layout::empty_layout_positions();
             let camera_affine = if self.camera_used.get() {
                 self.camera.affine(
                     time_ms,
@@ -531,9 +533,6 @@ impl Timeline {
                             None
                         };
                         let subtree_hits_before = out.hit_regions.len();
-                        // The scratch subtree swaps both the draw target and the
-                        // item sink, so it builds its own outputs rather than
-                        // reusing the frame's.
                         // The scratch subtree swaps both the draw target and
                         // the item sink, so it runs through its own outputs.
                         out.with_scene_and_items(
@@ -544,7 +543,7 @@ impl Timeline {
                                     root_id,
                                     root_affine,
                                     1.0,
-                                    &crate::timeline::layout::LayoutPositions::new(),
+                                    &empty_positions,
                                     true,
                                     &frame,
                                     temp_out,
@@ -585,7 +584,7 @@ impl Timeline {
                         root_id,
                         root_affine,
                         1.0,
-                        &crate::timeline::layout::LayoutPositions::new(), // empty for roots
+                        &empty_positions, // shared empty: roots carry no layout parent
                         allow_pending,
                         &frame,
                         &mut out,

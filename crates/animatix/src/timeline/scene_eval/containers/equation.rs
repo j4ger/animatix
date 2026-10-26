@@ -45,7 +45,7 @@ impl Timeline {
         let child_layout_positions = if self.dynamic_layout {
             self.compute_animated_layout(node_id, time_ms)
         } else {
-            std::sync::Arc::new(crate::timeline::layout::LayoutPositions::new())
+            crate::timeline::layout::empty_layout_positions()
         };
         // Collect Fragment children with their content and highlight state.
         struct FragInfo {

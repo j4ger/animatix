@@ -2990,3 +2990,19 @@ The audit's second sweep closed the remaining fix-or-document items:
   `EnvInjectionPlan` gained a `debug_assert` pinning "the plan covers every
   entity", making the previously comment-only unreachability claim fail
   loudly in debug builds.
+
+## New perf baseline, and an allocation micro-cleanup (2026-10-26)
+
+The audit's `quick` baseline was re-recorded at `673de4` (the migration-audit
+HEAD) so future work is measured against the post-audit tree; the previous
+baseline is preserved at `target/perf/baseline/quick-pre-ecs-audit`.
+
+One follow-up landed with it: seven per-frame sites built a fresh empty
+`LayoutPositions` (five container render paths, the non-dynamic branch of
+`render.rs`, and both root branches in the frame loop) although the shared
+`empty_layout_positions()` `Arc` exists for exactly that case. All seven now
+share one instance per frame. Honest measurement: the mixed ±2% swings on
+`static_100_actors`/`evaluate_100_actors_no_cache` are inside this bench
+tier's noise (`perf-bench quick`: 0/72 regressions), so the change is
+justified by the removed allocations, not by a measured speedup — the same
+caution applies to any future 1-2% claim on the actor-count benches.
