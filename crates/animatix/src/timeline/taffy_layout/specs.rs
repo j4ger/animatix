@@ -71,6 +71,17 @@ impl ChildSizeSpec {
     pub fn is_fixed(&self) -> bool {
         matches!(self.width, SizeSpec::Fixed(_)) && matches!(self.height, SizeSpec::Fixed(_))
     }
+
+    /// Return true when a dimension is a share of the parent content box
+    /// (`Percent`/`Fill`) and therefore needs a declared parent size.
+    ///
+    /// `Auto`/`Fit` size to content and resolve fine inside a shrink-wrapped
+    /// container, so they do not count here — and neither does an unrecognized
+    /// expression, which parses to `Auto`.
+    pub fn needs_parent_box(&self) -> bool {
+        matches!(self.width, SizeSpec::Percent(_) | SizeSpec::Fill)
+            || matches!(self.height, SizeSpec::Percent(_) | SizeSpec::Fill)
+    }
 }
 
 /// Parse a single dimension expression (Expr) into a SizeSpec.

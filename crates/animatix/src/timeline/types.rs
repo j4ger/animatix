@@ -170,7 +170,16 @@ impl ContainerMetadata {
                     return None;
                 }
                 let geometry = world.geometry(*child_id);
-                geometry.layout_size.as_ref()?;
+                // A child needs a measured `layout_size`, OR a size spec the
+                // layout pass can resolve (`Percent`/`Fill`/`Auto`/`Fit`). The
+                // spec case enters at zero extent and is sized by Taffy against
+                // the parent content box; excluding it left percentage children
+                // invisible to layout, so the container shrank to its fixed
+                // siblings and the percentage resolved against that.
+                let resolvable = geometry.size_spec.is_some_and(|spec| spec.needs_parent_box());
+                if geometry.layout_size.is_none() && !resolvable {
+                    return None;
+                }
                 Some(ContainerLayoutChild {
                     id: *child_id,
                     placement_mode: geometry.placement_mode.last(PlacementMode::LayoutManaged),

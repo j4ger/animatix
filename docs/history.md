@@ -3006,3 +3006,37 @@ share one instance per frame. Honest measurement: the mixed ±2% swings on
 tier's noise (`perf-bench quick`: 0/72 regressions), so the change is
 justified by the removed allocations, not by a measured speedup — the same
 caution applies to any future 1-2% claim on the actor-count benches.
+
+## Percentage and `fill` child sizing in a Row (2026-10-26)
+
+The roadmap's "percentage and `fill` child sizes collapse in a `Row`" bug is
+fixed. Two defects compounded:
+
+1. `ContainerMetadata::layout_children` admitted a child only when it already
+   had a `layout_size` track. A `Percent`/`Fill` child has none until the
+   layout pass measures it — which is the same pass being gated — so those
+   children were invisible to layout. The container then shrink-wrapped to its
+   fixed siblings.
+2. `collect_child_layout_specs` derived the parent content box from the
+   container's *resolved* `layout_size` first, so `25%` resolved against the
+   container that had just shrunk to that child (25% of 50px instead of 25% of
+   900px), and the authored `size` was consulted last.
+
+Admission now also accepts a child whose size spec is a share of the parent
+box (`ChildSizeSpec::needs_parent_box`, i.e. `Percent`/`Fill` — deliberately
+not `Auto`/`Fit` or an unrecognized expression, which parse to `Auto` and
+resolve fine inside a shrink-wrapped container), and the parent box prefers the
+container's authored size spec. `27_layout_text.amx`'s PercentSizing row now
+renders three distinct bars (225px / 500px floor / fill), confirmed by
+storyboard.
+
+A container that sizes children by percentage but declares no `size` has no
+box to resolve against; that case now emits `layout-size-fallback` instead of
+silently resolving against its own content. The `size` *track* cannot be used
+to detect this — the layout pass writes it too, so an authored and a derived
+size are indistinguishable; the authored spec can.
+
+`timeline/layout.rs` crossed its watch row during this work, so the container
+application trio (`build_layout_children`, `collect_child_layout_specs`,
+`apply_container_layout`, plus the two diagnostics helpers) moved to
+`timeline/layout/container.rs` and the `layout.rs` row was deleted.

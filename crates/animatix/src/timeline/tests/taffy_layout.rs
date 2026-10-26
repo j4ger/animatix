@@ -208,3 +208,58 @@ row: Row, gap: 16, padding: 20, size: (900, 120), at: (640, 380) {
         pos_c[0]
     );
 }
+
+/// Percentage and `fill` children must be admitted even before they have a
+/// measured `layout_size`: the layout pass is what measures them. Dropping
+/// them made the container shrink to its fixed siblings, so `25%` resolved
+/// against that shrunken box instead of the container's declared width
+/// (`docs/roadmap.md`, "Percentage and `fill` child sizes collapse in a Row").
+#[test]
+fn percentage_children_are_admitted_before_they_are_measured() {
+    let source = r#"
+#0s
+row: Row, gap: 16, padding: 20, size: (900, 120) {
+    a: Rect, size: (25%, 80)
+    b: Rect, size: (fill, 80)
+}
+"#;
+    let (stmts, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let timeline = Timeline::build(&stmts.expect("parsed AST"));
+
+    let width = |label: &str| {
+        let id = timeline.world.get_id(label).expect(label);
+        timeline.world.geometry(id).size.get(0, [0.0, 0.0])[0] * 2.0
+    };
+    // 25% of the declared 900px content width.
+    assert!((width("a") - 225.0).abs() < 5.0, "a should be ~225px, got {}", width("a"));
+    // fill = the rest of the declared width.
+    assert!(width("b") > 100.0, "fill child must not collapse, got {}", width("b"));
+}
+
+/// A container that sizes children by percentage but declares no `size` has no
+/// parent box to resolve against. It must say so rather than silently
+/// resolving against its own content-driven width.
+#[test]
+fn percent_child_without_container_size_reports_a_fallback() {
+    let source = r#"
+#0s
+row: Row, gap: 16, padding: 20 {
+    a: Rect, size: (25%, 80)
+}
+"#;
+    let (stmts, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report = Timeline::build_with_diagnostics(
+        &stmts.expect("parsed AST"),
+        &std::collections::HashMap::new(),
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == animatix_syntax::diagnostics::DiagnosticCode::LayoutSizeFallback),
+        "expected a layout-size-fallback warning, got {:?}",
+        report.diagnostics.iter().map(|d| d.code).collect::<Vec<_>>()
+    );
+}
