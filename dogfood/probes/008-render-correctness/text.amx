@@ -9,7 +9,7 @@ wrap:  Text, at: (320,  380), text: "This is a fairly long line of English text 
 bold:  Text, at: (900,  120), text: "Bold 粗体", font_size: 40, font_weight: 700, color: (0.6,0.9,1,1)
 cjkw:  Text, at: (900,  300), text: "显式宽度下的中文自动换行测试内容应当按设置宽度折行而不是塌缩成两三个字", font_size: 28, color: (1,0.7,0.8,1), text_max_width: 260, text_align: "left"
 code:  Code, at: (640,  520), code: "fn animate() { let x = 5; x + 1 }", font_size: 28, color: (0.4,1,0.7,1)
-typst: Typst, at: (1000, 520), text: "$x^2 + \\sqrt{y}$", font_size: 40, color: (0.8,0.7,1,1)
+typst: Typst, at: (1000, 520), text: "$x^2 + sqrt(y)$", font_size: 40, color: (0.8,0.7,1,1)
 
 #0s
 stagger [60ms] {
