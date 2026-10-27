@@ -420,7 +420,7 @@ fn draw_in_on_text_animates_char_progress() {
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     let id = report.output.world.get_id("headline").expect("headline entity");
-    let text = report.output.world.text(id);
+    let text = report.output.world.text_or_default(id);
 
     // char_progress should be 0 at start, 1 at end
     assert_eq!(text.char_progress.get(0, 1.0), 0.0);
@@ -459,7 +459,10 @@ fn draw_in_on_text_does_not_set_stroke_progress() {
             || style.fill_opacity.as_ref().map(|t| t.keyframes.is_empty()).unwrap_or(true)
     );
     // Only char_progress should be tracked
-    let text = report.output.world.text(report.output.world.get_id("msg").expect("msg entity"));
+    let text = report
+        .output
+        .world
+        .text_or_default(report.output.world.get_id("msg").expect("msg entity"));
     assert!(text.char_progress.is_some());
     assert!(!text.char_progress.as_ref().unwrap().keyframes.is_empty());
     assert!(report.diagnostics.is_empty());
@@ -486,7 +489,7 @@ fn draw_in_on_regular_shape_still_animates_stroke_progress() {
     let text = report
         .output
         .world
-        .text(report.output.world.get_id("shape").expect("shape entity"));
+        .text_or_default(report.output.world.get_id("shape").expect("shape entity"));
     assert!(text.char_progress.is_none());
     assert!(report.diagnostics.is_empty());
 }
@@ -540,7 +543,7 @@ fn draw_in_uses_text_capability_for_extension_primitives() {
     assert!(diagnostics.is_empty(), "unexpected diagnostics: {:?}", diagnostics);
     let id = timeline.world.get_id("p").expect("text extension entity");
     let style = timeline.world.style(id);
-    let text = timeline.world.text(id);
+    let text = timeline.world.text_or_default(id);
     assert!(text.char_progress.is_some());
     assert!(
         style.stroke_progress.is_none()

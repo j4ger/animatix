@@ -374,8 +374,8 @@ impl Timeline {
             || self.world.effects(id).is_some_and(|chain| chain.has_any_keyframes())
             || self.world.has_any_keyframes(id)
             || self.world.procedural_plot(id).is_some()
-            || self.world.shape.try_get(id).is_some_and(|shape| shape.from_anchor.is_some())
-            || self.world.shape.try_get(id).is_some_and(|shape| shape.to_anchor.is_some())
+            || self.world.shape.get(id).is_some_and(|shape| shape.from_anchor.is_some())
+            || self.world.shape.get(id).is_some_and(|shape| shape.to_anchor.is_some())
         {
             return false;
         }

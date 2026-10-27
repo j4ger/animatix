@@ -86,8 +86,9 @@ impl Timeline {
             let primitive = handle.as_dyn();
             let child_vector_paths = self
                 .world
-                .shape(child_id)
+                .shape_or_default(child_id)
                 .evaluate_vector_paths(self.world.style(child_id), time_ms);
+            let payload = self.world.payload(child_id);
             let ctx = crate::primitives::EvaluateCtx {
                 id: child_id,
                 label: self.world.label(child_id).unwrap_or(""),
@@ -109,7 +110,7 @@ impl Timeline {
                 text: self.world.text(child_id),
                 property_plan: self.world.property_plan(child_id),
                 caps: self.world.caps(child_id),
-                payload: self.world.payload(child_id),
+                payload: payload.as_ref(),
             };
             if let Some(cue) = primitive.caption_cue(&ctx) {
                 let start_s = cue.start_ms as f64 / 1000.0;
@@ -190,7 +191,7 @@ impl Timeline {
                     cue.start_s,
                     transition_s,
                 );
-            let text = self.world.text(node_id);
+            let text = self.world.text_or_default(node_id);
             let font_size = text.font_size.get(time_ms, 32.0);
             let font_family = text.font_family.get(time_ms, String::new());
             let font_style = text.font_style.get(time_ms, "normal".to_string());

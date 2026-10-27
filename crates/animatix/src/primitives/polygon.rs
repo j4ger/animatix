@@ -92,7 +92,7 @@ impl Primitive for PolygonPrimitive {
             geometry.size.get(ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE),
             ctx.overrides,
         );
-        let shape = ctx.shape;
+        let shape = ctx.shape.expect("polygon primitive requires shape component");
         let points = shape.points.get(ctx.time_ms, Vec::new());
         let rot = geometry.rotation.get(ctx.time_ms, 0.0);
         let vector_paths = shape.evaluate_vector_paths(ctx.style, ctx.time_ms);

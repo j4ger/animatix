@@ -104,12 +104,32 @@ fn inject_entry(
     // carried primitive type so caps and plan lookups resolve again.
     world.set_identity(id, &entry.actor_type);
     world.meta_mut(id).first_seen_ms = 0;
-    world.payload.insert(id, entry.payload.clone());
-    *world.highlight.get_mut(id) = entry.highlight.clone();
+    world.set_payload(id, entry.payload.clone());
+    let caps = world.caps(id);
+    if caps.is_shape
+        || caps.shape.is_some()
+        || caps.connector
+        || caps.callout
+        || entry.shape.has_any_keyframes()
+        || entry.shape.shape_type.is_some()
+    {
+        world.shape.insert(id, entry.shape.clone());
+    }
+    if caps.text.is_some()
+        || caps.text_paths
+        || entry.text.has_any_keyframes()
+        || entry.text.text_content.is_some()
+    {
+        world.text.insert(id, entry.text.clone());
+    }
+    if entry.highlight.has_any_keyframes()
+        || entry.highlight.highlight_color.is_some()
+        || entry.highlight.highlight_opacity.is_some()
+    {
+        world.highlight.insert(id, entry.highlight.clone());
+    }
     *world.property_plan.get_mut(id) = entry.property_plan.clone();
     *world.tagged_tracks_mut(id) = entry.tagged.clone();
-    *world.shape.get_mut(id) = entry.shape.clone();
-    *world.text.get_mut(id) = entry.text.clone();
     *world.geometry.get_mut(id) = geometry.clone();
     *world.style.get_mut(id) = entry.style.clone();
     if let Some(effects) = entry.effects.clone() {

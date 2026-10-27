@@ -338,6 +338,10 @@ impl Timeline {
         // ── Primitive dispatch: let each primitive handle its own special cases ──
         let primitive = self.primitive_registry.find(&actor_type);
         if let Some(primitive) = primitive {
+            let mut payload = self
+                .world
+                .payload(track_id)
+                .unwrap_or(crate::primitives::PrimitivePayload::None);
             let mut ctx = AssignmentCtx {
                 t_start_ms,
                 time_ms: time_ms as u64,
@@ -350,18 +354,14 @@ impl Timeline {
                 font_context: self.font_context.as_ref(),
                 text_compiler: &mut self.text_compiler.borrow_mut(),
                 asset_cache: std::sync::Arc::make_mut(&mut self.asset_cache),
-                highlight: self.world.highlight.try_get_mut(track_id),
+                highlight: self.world.highlight.get_mut(track_id),
                 style: self.world.style.try_get_mut(track_id),
                 caps,
                 geometry: self.world.geometry.try_get_mut(track_id),
-                shape: self.world.shape.try_get_mut(track_id),
-                text: self.world.text.try_get_mut(track_id),
+                shape: self.world.shape.get_mut(track_id),
+                text: self.world.text.get_mut(track_id),
                 property_plan: Some(self.world.property_plan.get_mut(track_id)),
-                payload: Some(
-                    self.world
-                        .payload
-                        .get_or_insert_with(track_id, crate::primitives::PrimitivePayload::default),
-                ),
+                payload: Some(&mut payload),
             };
             if primitive.handle_assignment(
                 property,
@@ -371,6 +371,9 @@ impl Timeline {
                 diagnostics,
                 &assignment_subject,
             ) {
+                if !matches!(payload, crate::primitives::PrimitivePayload::None) {
+                    self.world.set_payload(track_id, payload);
+                }
                 return;
             }
         }
@@ -397,11 +400,12 @@ impl Timeline {
                 let old_half_size =
                     self.world.geometry.get(track_id).size.last(DEFAULT_LAYOUT_HALF_SIZE);
 
+                self.world.ensure_shape(track_id);
                 let new_half_size = handle_size_assignment(
                     &actor_type,
                     self.world.style.get(track_id),
                     self.world.geometry.get_mut(track_id),
-                    self.world.shape.get_mut(track_id),
+                    self.world.shape.get_mut(track_id).expect("shape component"),
                     property,
                     value,
                     &eval_env,
@@ -417,7 +421,8 @@ impl Timeline {
                 // For Graph actors, also rebuild PlotCurve children whose
                 // paths depend on the parent's size (p_size), and scale
                 // tick label positions to match the new axis positions.
-                let shape_type = self.world.shape.get(track_id).shape_type.last(ShapeType::Rect);
+                let shape_type =
+                    self.world.shape_or_default(track_id).shape_type.last(ShapeType::Rect);
                 if shape_type == ShapeType::Graph && old_half_size != new_half_size {
                     let scale_x = new_half_size[0] / old_half_size[0];
                     let scale_y = new_half_size[1] / old_half_size[1];
@@ -433,9 +438,10 @@ impl Timeline {
                         {
                             // Scale PlotCurve paths
                             if child_caps.plot_geometry {
+                                self.world.ensure_shape(child_id);
                                 scale_plot_curve_paths(
                                     self.world.style.get(child_id),
-                                    self.world.shape.get_mut(child_id),
+                                    self.world.shape.get_mut(child_id).expect("shape component"),
                                     scale_x,
                                     scale_y,
                                     t_start_ms,
@@ -525,11 +531,12 @@ impl Timeline {
 
                 // If this property affects shape geometry, rebuild vector paths
                 if affects_shape_geometry(property) {
+                    self.world.ensure_shape(track_id);
                     rebuild_vector_paths(
                         actor_type.as_str(),
                         self.world.style.get(track_id),
                         self.world.geometry.get(track_id),
-                        self.world.shape.get_mut(track_id),
+                        self.world.shape.get_mut(track_id).expect("shape component"),
                         t_start_ms,
                         t_end_ms,
                         easing,

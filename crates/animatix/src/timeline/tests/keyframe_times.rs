@@ -50,13 +50,13 @@ fn test_keyframe_times_s_includes_highlight_fields() {
     let id = timeline.world_mut().spawn("test", "Equation");
     timeline
         .world_mut()
-        .highlight_mut(id)
+        .ensure_highlight(id)
         .highlight_color
         .ensure([0.3, 0.5, 1.0, 1.0])
         .add_keyframe(500, [1.0, 0.0, 0.0, 1.0], Easing::Linear);
     timeline
         .world_mut()
-        .highlight_mut(id)
+        .ensure_highlight(id)
         .highlight_opacity
         .ensure(0.0)
         .add_keyframe(2500, 0.8, Easing::Linear);

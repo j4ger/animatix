@@ -167,52 +167,36 @@ impl BuiltinAction for Highlight {
             };
 
             // Set highlight color keyframe if specified
+            let hl = timeline.world.ensure_highlight(id);
             if let Some(c) = color {
-                timeline
-                    .world
-                    .highlight
-                    .get_mut(id)
-                    .highlight_color
-                    .ensure([1.0, 1.0, 1.0, 1.0])
-                    .add_keyframe(t_start_ms, c, Easing::Linear);
+                hl.highlight_color.ensure([1.0, 1.0, 1.0, 1.0]).add_keyframe(
+                    t_start_ms,
+                    c,
+                    Easing::Linear,
+                );
             }
 
             // Set highlight padding keyframe if specified
             if let Some(p) = padding {
-                timeline.world.highlight.get_mut(id).highlight_padding.ensure(4.0).add_keyframe(
-                    t_start_ms,
-                    p,
-                    Easing::Linear,
-                );
+                hl.highlight_padding.ensure(4.0).add_keyframe(t_start_ms, p, Easing::Linear);
             }
 
             // Set highlight radius keyframe if specified
             if let Some(r) = radius {
-                timeline.world.highlight.get_mut(id).highlight_radius.ensure(2.0).add_keyframe(
-                    t_start_ms,
-                    r,
-                    Easing::Linear,
-                );
+                hl.highlight_radius.ensure(2.0).add_keyframe(t_start_ms, r, Easing::Linear);
             }
 
             // Set blend mode (non-animated configuration value)
-            timeline.world.highlight.get_mut(id).highlight_blend = blend;
+            hl.highlight_blend = blend;
 
             // Animate highlight opacity: 0 → 1
-            let start_opacity =
-                timeline.world.highlight.get_mut(id).highlight_opacity.get(t_start_ms, 0.0);
-            timeline.world.highlight.get_mut(id).highlight_opacity.ensure(0.0).add_keyframe(
+            let start_opacity = hl.highlight_opacity.get(t_start_ms, 0.0);
+            hl.highlight_opacity.ensure(0.0).add_keyframe(
                 t_start_ms,
                 start_opacity,
                 Easing::Linear,
             );
-            timeline
-                .world
-                .highlight
-                .get_mut(id)
-                .highlight_opacity
-                .ensure(0.0)
-                .add_keyframe(t_end_ms, 1.0, easing);
+            hl.highlight_opacity.ensure(0.0).add_keyframe(t_end_ms, 1.0, easing);
         }
 
         // ── Exclusive group logic ──────────────────────────────────
@@ -243,18 +227,14 @@ impl BuiltinAction for Highlight {
         };
         for (sibling, t_start, t_end) in siblings_to_unhighlight {
             if let Some(id) = timeline.world.get_id(&sibling) {
-                let start_opacity =
-                    timeline.world.highlight.get_mut(id).highlight_opacity.get(t_start, 1.0);
-                timeline.world.highlight.get_mut(id).highlight_opacity.ensure(0.0).add_keyframe(
+                let hl = timeline.world.ensure_highlight(id);
+                let start_opacity = hl.highlight_opacity.get(t_start, 1.0);
+                hl.highlight_opacity.ensure(0.0).add_keyframe(
                     t_start,
                     start_opacity,
                     Easing::Linear,
                 );
-                timeline.world.highlight.get_mut(id).highlight_opacity.ensure(0.0).add_keyframe(
-                    t_end,
-                    0.0,
-                    Easing::Linear,
-                );
+                hl.highlight_opacity.ensure(0.0).add_keyframe(t_end, 0.0, Easing::Linear);
             }
         }
     }
@@ -304,20 +284,14 @@ impl BuiltinAction for Unhighlight {
             };
 
             // Animate highlight opacity: current → 0
-            let start_opacity =
-                timeline.world.highlight.get_mut(id).highlight_opacity.get(t_start_ms, 1.0);
-            timeline.world.highlight.get_mut(id).highlight_opacity.ensure(0.0).add_keyframe(
+            let hl = timeline.world.ensure_highlight(id);
+            let start_opacity = hl.highlight_opacity.get(t_start_ms, 1.0);
+            hl.highlight_opacity.ensure(0.0).add_keyframe(
                 t_start_ms,
                 start_opacity,
                 Easing::Linear,
             );
-            timeline
-                .world
-                .highlight
-                .get_mut(id)
-                .highlight_opacity
-                .ensure(0.0)
-                .add_keyframe(t_end_ms, 0.0, easing);
+            hl.highlight_opacity.ensure(0.0).add_keyframe(t_end_ms, 0.0, easing);
         }
     }
 }

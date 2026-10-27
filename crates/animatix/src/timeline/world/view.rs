@@ -117,8 +117,26 @@ impl<'w> EntityRef<'w> {
 
     /// The entity's primitive payload (plot/SVG/image), when present.
     #[inline(always)]
-    pub fn payload(self) -> Option<&'w crate::primitives::PrimitivePayload> {
-        self.world.payload.get(self.id)
+    pub fn payload(self) -> Option<crate::primitives::PrimitivePayload> {
+        self.world.payload(self.id)
+    }
+
+    /// The entity's plot payload, when present.
+    #[inline(always)]
+    pub fn plot_payload(self) -> Option<&'w crate::primitives::PlotPayload> {
+        self.world.plot_payload(self.id)
+    }
+
+    /// The entity's SVG payload, when present.
+    #[inline(always)]
+    pub fn svg_payload(self) -> Option<&'w crate::primitives::SvgPayload> {
+        self.world.svg_payload(self.id)
+    }
+
+    /// The entity's image payload, when present.
+    #[inline(always)]
+    pub fn image_payload(self) -> Option<&'w crate::primitives::ImagePayload> {
+        self.world.image_payload(self.id)
     }
 }
 
@@ -237,9 +255,21 @@ impl<'w> EntityMut<'w> {
         self.world.effects.get_mut(self.id)
     }
 
-    /// Mutably borrow the entity's primitive payload, if present.
+    /// Mutably borrow the entity's plot payload, if present.
     #[inline(always)]
-    pub fn payload_mut(&mut self) -> Option<&mut crate::primitives::PrimitivePayload> {
-        self.world.payload.get_mut(self.id)
+    pub fn plot_payload_mut(&mut self) -> Option<&mut crate::primitives::PlotPayload> {
+        self.world.plot_payload_mut(self.id)
+    }
+
+    /// Mutably borrow the entity's SVG payload, if present.
+    #[inline(always)]
+    pub fn svg_payload_mut(&mut self) -> Option<&mut crate::primitives::SvgPayload> {
+        self.world.svg_payload_mut(self.id)
+    }
+
+    /// Mutably borrow the entity's image payload, if present.
+    #[inline(always)]
+    pub fn image_payload_mut(&mut self) -> Option<&mut crate::primitives::ImagePayload> {
+        self.world.image_payload_mut(self.id)
     }
 }

@@ -118,7 +118,7 @@ impl Primitive for RectPrimitive {
         );
         let mut state = RectState {
             size: half_size,
-            corner_radius: ctx.shape.corner_radius.get(ctx.time_ms, 0.0),
+            corner_radius: ctx.shape.map(|s| s.corner_radius.get(ctx.time_ms, 0.0)).unwrap_or(0.0),
         };
 
         if let Some(overrides) = ctx.overrides {

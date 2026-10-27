@@ -121,16 +121,17 @@ impl Primitive for CalloutPrimitive {
 
         // Derive geometry using the shared helper (handles both manual and targeted mode).
         let geometry = ctx.geometry;
+        let shape = ctx.shape.expect("callout has shape");
         let geom = derive_callout_geometry(
             geometry,
-            ctx.shape,
+            shape,
             ctx.time_ms,
             ctx.target_resolver,
             ctx.scene_dimensions,
         );
         let mut from = geom.from;
         let mut to = geom.to;
-        let mut head_size = ctx.shape.head_size.get(ctx.time_ms, 10.0);
+        let mut head_size = shape.head_size.get(ctx.time_ms, 10.0);
 
         // Warn when targeted but resolver didn't find the target.
         let target_name = geometry.callout_target.get(ctx.time_ms, String::new());
@@ -193,7 +194,10 @@ impl Primitive for CalloutPrimitive {
         }];
 
         // Sample label text and position
-        let mut label_text = ctx.text.text_content.get(ctx.time_ms, String::new());
+        let mut label_text = ctx
+            .text
+            .map(|t| t.text_content.get(ctx.time_ms, String::new()))
+            .unwrap_or_default();
         let mut label_at = geometry.label_at.get(ctx.time_ms, [0.0, 50.0]);
 
         if let Some(overrides) = ctx.overrides {

@@ -155,7 +155,7 @@ impl Timeline {
         let [a, b, ..] = global_transform.as_coeffs();
         let scale = (a * a + b * b).sqrt().max(0.0);
         let corner_radius =
-            self.world.shape(node_id).corner_radius.get(time_ms, 0.0) as f64 * scale;
+            self.world.shape_or_default(node_id).corner_radius.get(time_ms, 0.0) as f64 * scale;
         let Some(backend) = out.filter_backend.as_mut() else {
             return;
         };

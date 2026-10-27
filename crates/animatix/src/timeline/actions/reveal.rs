@@ -204,7 +204,7 @@ impl BuiltinAction for DrawIn {
             }
 
             if is_text {
-                let text = timeline.world.text.get_mut(id);
+                let text = timeline.world.ensure_text(id);
                 let by_opt = reveal_granularity(&action.modifiers);
                 let stagger_opt = reveal_stagger(&action.modifiers);
                 let offset_y_opt = reveal_offset_y(&action.modifiers);
@@ -399,7 +399,7 @@ impl BuiltinAction for RevealIn {
             }
 
             if is_text {
-                let text = timeline.world.text.get_mut(id);
+                let text = timeline.world.ensure_text(id);
                 let by_opt = reveal_granularity(&action.modifiers);
                 let stagger_opt = reveal_stagger(&action.modifiers);
                 let offset_y_opt = reveal_offset_y(&action.modifiers);

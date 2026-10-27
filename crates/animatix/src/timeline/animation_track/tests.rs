@@ -357,7 +357,7 @@ fn test_max_keyframe_time_with_highlight_color() {
     let id = timeline.world_mut().spawn("test", "Rect");
     timeline
         .world_mut()
-        .highlight_mut(id)
+        .ensure_highlight(id)
         .highlight_color
         .ensure([0.3, 0.5, 1.0, 1.0])
         .add_keyframe(3000, [1.0, 0.0, 0.0, 0.5], Easing::Linear);
@@ -381,7 +381,7 @@ fn test_max_keyframe_time_returns_max_across_all_fields() {
     );
     timeline
         .world_mut()
-        .highlight_mut(id)
+        .ensure_highlight(id)
         .highlight_opacity
         .ensure(0.0)
         .add_keyframe(3000, 0.8, Easing::Linear);
@@ -401,7 +401,7 @@ fn test_has_any_keyframes_returns_true_for_highlight_fields() {
     let id = timeline.world_mut().spawn("test", "Rect");
     timeline
         .world_mut()
-        .highlight_mut(id)
+        .ensure_highlight(id)
         .highlight_color
         .ensure([0.3, 0.5, 1.0, 1.0])
         .add_keyframe(1000, [1.0, 0.0, 0.0, 0.5], Easing::Linear);
@@ -417,7 +417,7 @@ fn test_font_metrics_reach_the_world_tier() {
     let id = timeline.world_mut().spawn("test", "Text");
     timeline
         .world_mut()
-        .text_mut(id)
+        .ensure_text(id)
         .ascent
         .ensure(0.0)
         .add_keyframe(500, 10.0, Easing::Linear);
@@ -601,7 +601,7 @@ fn test_has_any_keyframes_iterates_through_all_registry_fields() {
     let id = timeline.world_mut().spawn("test", "Rect");
     timeline
         .world_mut()
-        .highlight_mut(id)
+        .ensure_highlight(id)
         .highlight_padding
         .ensure(4.0)
         .add_keyframe(500, 8.0, Easing::Linear);
@@ -626,7 +626,7 @@ fn test_registry_driven_max_keyframe_time_finds_letter_spacing() {
     // (which used to run against the bare track and miss the tier) sees it.
     let mut timeline = Timeline::new();
     let id = timeline.world_mut().spawn("test", "Text");
-    timeline.world_mut().text_mut(id).letter_spacing.ensure(0.0).add_keyframe(
+    timeline.world_mut().ensure_text(id).letter_spacing.ensure(0.0).add_keyframe(
         2500,
         1.0,
         Easing::Linear,
@@ -643,7 +643,7 @@ fn test_registry_driven_has_any_keyframes_finds_word_spacing() {
     // The World-level registry scan sees text-tier keyframes.
     let mut timeline = Timeline::new();
     let id = timeline.world_mut().spawn("test", "Text");
-    timeline.world_mut().text_mut(id).word_spacing.ensure(0.0).add_keyframe(
+    timeline.world_mut().ensure_text(id).word_spacing.ensure(0.0).add_keyframe(
         1000,
         5.0,
         Easing::Linear,

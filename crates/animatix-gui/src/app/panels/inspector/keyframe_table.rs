@@ -578,7 +578,7 @@ mod tests {
         let id = timeline.world_mut().spawn("test", "Text");
         timeline.world_mut().style_mut(id).stroke_width = Some(sw);
         timeline.world_mut().geometry_mut(id).position = Some(pos);
-        timeline.world_mut().text_mut(id).text_content = Some(txt);
+        timeline.world_mut().ensure_text(id).text_content = Some(txt);
 
         // Only position and text_content should count (stroke_width is not applicable)
         assert_eq!(count_keyframes(&timeline, id), 2);

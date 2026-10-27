@@ -230,18 +230,18 @@ fn collect_persistent_entries(
         return;
     };
     let effects = timeline.world.effects(id).map(|chain| snapshot_effects(chain, time_ms));
-    let highlight = snapshot_highlight_at(timeline.world.highlight(id), time_ms);
+    let highlight = snapshot_highlight_at(timeline.world.highlight_or_default(id), time_ms);
     let property_plan = snapshot_property_plan_at(timeline.world.property_plan(id), time_ms);
     let tagged = snapshot_tagged_at(timeline.world.tagged_tracks(id), time_ms);
-    let shape = snapshot_shape_at(timeline.world.shape(id), time_ms);
-    let text = snapshot_text_at(timeline.world.text(id), time_ms);
+    let shape = snapshot_shape_at(timeline.world.shape_or_default(id), time_ms);
+    let text = snapshot_text_at(timeline.world.text_or_default(id), time_ms);
     let geometry = snapshot_geometry_at(timeline.world.geometry(id), time_ms);
     let style = snapshot_style_at(timeline.world.style(id), time_ms);
     let payload = timeline
         .world
         .payload(id)
         .map_or_else(crate::primitives::PrimitivePayload::default, |payload| {
-            snapshot_payload_at(payload, time_ms)
+            snapshot_payload_at(&payload, time_ms)
         });
     let actor_type = timeline.world.actor_type(id).to_string();
     let caps = timeline.world.caps_overrides.get(id).copied();

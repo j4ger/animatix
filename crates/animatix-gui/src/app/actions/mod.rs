@@ -288,7 +288,7 @@ impl GuiShell {
                 // component: apply them before borrowing the track and its
                 // sibling components.
                 let angle_edited = apply_shape_angle_edit(
-                    timeline.world_mut().shape_mut(id),
+                    timeline.world_mut().ensure_shape(id),
                     &edit.property,
                     &edit.value,
                     time_ms,

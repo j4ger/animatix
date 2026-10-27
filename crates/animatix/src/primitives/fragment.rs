@@ -31,14 +31,15 @@ impl Primitive for FragmentPrimitive {
     /// content and highlight state to the parent `Equation`'s document. Any
     /// other primitive (including an extension) can opt in by overriding this.
     fn equation_fragment(&self, ctx: &EvaluateCtx) -> Option<EquationFragment> {
-        let text = ctx.text;
+        let text = ctx.text.expect("fragment has text");
+        let highlight = ctx.highlight.expect("fragment has highlight");
         Some(EquationFragment {
             content: text.text_content.get(ctx.time_ms, String::new()),
-            highlight_color: ctx.highlight.highlight_color.get(ctx.time_ms, [0.3, 0.5, 1.0, 1.0]),
-            highlight_opacity: ctx.highlight.highlight_opacity.get(ctx.time_ms, 0.0),
-            highlight_padding: ctx.highlight.highlight_padding.get(ctx.time_ms, 4.0),
-            highlight_radius: ctx.highlight.highlight_radius.get(ctx.time_ms, 3.0),
-            highlight_blend: ctx.highlight.highlight_blend,
+            highlight_color: highlight.highlight_color.get(ctx.time_ms, [0.3, 0.5, 1.0, 1.0]),
+            highlight_opacity: highlight.highlight_opacity.get(ctx.time_ms, 0.0),
+            highlight_padding: highlight.highlight_padding.get(ctx.time_ms, 4.0),
+            highlight_radius: highlight.highlight_radius.get(ctx.time_ms, 3.0),
+            highlight_blend: highlight.highlight_blend,
         })
     }
 
@@ -56,6 +57,8 @@ impl Primitive for FragmentPrimitive {
         // Ensure the track exists.
         let track_id = ctx.timeline.world.spawn(label, "Fragment");
         ctx.timeline.world.meta_mut(track_id).first_seen_ms = ctx.time_ms as u64;
+        ctx.timeline.world.ensure_text(track_id);
+        ctx.timeline.world.ensure_highlight(track_id);
 
         // Extract the text body and store it as text_content.
         for prop in props {
@@ -73,8 +76,7 @@ impl Primitive for FragmentPrimitive {
                     };
                     ctx.timeline
                         .world
-                        .text
-                        .get_mut(track_id)
+                        .ensure_text(track_id)
                         .text_content
                         .ensure(String::new())
                         .add_keyframe(ctx.time_ms as u64, content_str, Easing::Linear);
@@ -86,8 +88,7 @@ impl Primitive for FragmentPrimitive {
                             // Use default highlight color
                             ctx.timeline
                                 .world
-                                .highlight
-                                .get_mut(track_id)
+                                .ensure_highlight(track_id)
                                 .highlight_color
                                 .ensure([0.3, 0.5, 1.0, 1.0])
                                 .add_keyframe(
@@ -109,8 +110,7 @@ impl Primitive for FragmentPrimitive {
                     ) {
                         ctx.timeline
                             .world
-                            .highlight
-                            .get_mut(track_id)
+                            .ensure_highlight(track_id)
                             .highlight_color
                             .ensure([0.3, 0.5, 1.0, 1.0])
                             .add_keyframe(ctx.time_ms as u64, color, Easing::Linear);

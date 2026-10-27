@@ -19,7 +19,7 @@ impl Timeline {
         let had_text_paths = self
             .world
             .get_id(&label_str)
-            .and_then(|id| self.world.text(id).text_paths.as_ref())
+            .and_then(|id| self.world.text(id)?.text_paths.as_ref())
             .map(|t| !t.keyframes.is_empty())
             .unwrap_or(false);
         let ParsedTimingModifiers {
@@ -388,12 +388,12 @@ impl Timeline {
                 diagnostics,
             );
         }
+        self.world.ensure_text(track_id);
         let style = self.world.style.get_mut(track_id);
-        let text = self.world.text.get_mut(track_id);
+        let text = self.world.text.get_mut(track_id).expect("text component");
         let geometry = self.world.geometry.get_mut(track_id);
 
-        // Store text_content, font_family and font_size on the track so Phase-2 runtime
-        // recompilation knows what text and font to use when color or other properties change.
+        // Store text_content, font_family and font_size for runtime recompilation.
         text.text_content.ensure(String::new()).add_keyframe(
             t_end_ms,
             text_content.clone(),

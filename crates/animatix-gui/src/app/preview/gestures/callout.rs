@@ -62,7 +62,7 @@ impl GestureHandler for CalloutGesture {
                 let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
                 let geo = derive_callout_geometry(
                     timeline.world().geometry(id),
-                    timeline.world().shape(id),
+                    timeline.world().shape_or_default(id),
                     time_ms,
                     Some(timeline),
                     ctx.scene_dimensions,
@@ -205,7 +205,7 @@ impl GestureHandler for CalloutGesture {
                         {
                             let geo = derive_callout_geometry(
                                 timeline.world().geometry(id),
-                                timeline.world().shape(id),
+                                timeline.world().shape_or_default(id),
                                 time_ms,
                                 Some(timeline),
                                 ctx.scene_dimensions,
@@ -249,7 +249,7 @@ impl GestureHandler for CalloutGesture {
                         {
                             let geo = derive_callout_geometry(
                                 timeline.world().geometry(id),
-                                timeline.world().shape(id),
+                                timeline.world().shape_or_default(id),
                                 time_ms,
                                 Some(timeline),
                                 ctx.scene_dimensions,

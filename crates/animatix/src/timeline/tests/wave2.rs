@@ -16,7 +16,7 @@ title: Text, text: "Hello World", at: (100, 100), split_by: "word", split_stagge
         &std::collections::HashMap::new(),
     );
     let track = report.output.world.tracks.get_id("title").expect("title track");
-    let text = report.output.world.text(track);
+    let text = report.output.world.text_or_default(track);
     assert_eq!(text.split_by.as_ref().map(|t| t.evaluate(0)), Some("word".to_string()));
     assert_eq!(text.split_stagger.as_ref().map(|t| t.evaluate(0)), Some(0.05));
     assert_eq!(text.split_offset_y.as_ref().map(|t| t.evaluate(0)), Some(24.0));
@@ -36,7 +36,7 @@ draw-in title [1s, by: word, offset_y: 30, mask: baseline, stagger: 0.1s]
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
     let track = timeline.world.tracks.get_id("title").expect("title track");
-    let text = timeline.world.text(track);
+    let text = timeline.world.text_or_default(track);
     let style = timeline.world.style(track);
 
     assert!(text.char_progress.is_some());
@@ -86,7 +86,7 @@ reveal-in sub [500ms, by: line, offset_y: 15, mask: baseline]
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
     let track = timeline.world.tracks.get_id("sub").expect("sub track");
-    let text = timeline.world.text(track);
+    let text = timeline.world.text_or_default(track);
     let style = timeline.world.style(track);
 
     assert!(text.char_progress.is_some());
@@ -111,7 +111,7 @@ c: Counter, value: 1234, prefix: "$", suffix: " /mo", decimals: 2, comma: true, 
         &std::collections::HashMap::new(),
     );
     let track = report.output.world.tracks.get_id("c").expect("counter track");
-    let text = report.output.world.text(track);
+    let text = report.output.world.text_or_default(track);
     let geometry = report.output.world.geometry(track);
 
     let data = text.counter_data.as_ref().expect("prebaked counter data");
@@ -161,7 +161,7 @@ cnt.value = 100 [1s]
         overrides: None,
         vector_paths: &[],
         asset_cache: &asset_cache,
-        highlight: &highlight,
+        highlight: Some(&highlight),
         property_plan: timeline.world.property_plan(track),
         world: None,
         shape: timeline.world.shape(track),
@@ -224,7 +224,7 @@ label.color = (0.0, 1.0, 0.0, 1.0) [1s]
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
     let track = timeline.world.tracks.get_id("label").expect("label track");
-    let text = timeline.world.text(track);
+    let text = timeline.world.text_or_default(track);
     assert!(text.static_paths.is_some(), "Static text paths should be pre-cached");
 
     use crate::primitives::Primitive;
@@ -246,7 +246,7 @@ label.color = (0.0, 1.0, 0.0, 1.0) [1s]
         overrides: None,
         vector_paths: &[],
         asset_cache: &asset_cache,
-        highlight: &highlight,
+        highlight: Some(&highlight),
         property_plan: timeline.world.property_plan(track),
         world: None,
         shape: timeline.world.shape(track),
@@ -292,7 +292,7 @@ draw-in title [1s, by: word, offset_y: 30, mask: baseline, stagger: 0.1s]
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
     let track = timeline.world.tracks.get_id("title").expect("title track");
-    let text = timeline.world.text(track);
+    let text = timeline.world.text_or_default(track);
     let style = timeline.world.style(track);
 
     let (paths_mid, clip_mid) = text.evaluate_paths_and_clip(style, 1500);
@@ -320,7 +320,7 @@ t: Text, text: "Hardware Stream", at: (300, 200), font_size: 32
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
     let track = timeline.world.tracks.get_id("t").expect("track t exists");
 
-    let text = timeline.world.text(track);
+    let text = timeline.world.text_or_default(track);
     assert!(text.hardware_layout.is_some(), "Hardware text layout should be populated");
     let hw = text.hardware_layout.as_ref().unwrap();
     assert!(!hw.runs.is_empty(), "Should contain at least one glyph run");
@@ -345,7 +345,7 @@ t: Text, text: "Hardware Stream", at: (300, 200), font_size: 32
         overrides: None,
         vector_paths: &[],
         asset_cache: &asset_cache,
-        highlight: &highlight,
+        highlight: Some(&highlight),
         property_plan: timeline.world.property_plan(track),
         world: None,
         shape: timeline.world.shape(track),

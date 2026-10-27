@@ -292,7 +292,7 @@ box: Ellipse, size: (140, 140), color: accent.success [900ms, strategy: match]
     let timeline = report.output;
     let track = timeline.world.tracks.get_id("box").expect("box track exists");
 
-    let shape = timeline.world.shape(track);
+    let shape = timeline.world.shape_or_default(track);
     let radius_pre = shape.corner_radius.get(500, 0.0);
     assert_eq!(
         radius_pre, 0.0,
@@ -504,7 +504,7 @@ fn a_redeclaration_starts_from_what_it_replaces_not_from_its_target() {
         assert_eq!(
             timeline
                 .world
-                .shape(track)
+                .shape_or_default(track)
                 .shape_type
                 .get(999, crate::timeline::ShapeType::Rect),
             crate::timeline::ShapeType::Ellipse,
@@ -519,7 +519,7 @@ fn a_redeclaration_starts_from_what_it_replaces_not_from_its_target() {
         assert_eq!(
             timeline
                 .world
-                .shape(track)
+                .shape_or_default(track)
                 .shape_type
                 .get(1500, crate::timeline::ShapeType::Ellipse),
             crate::timeline::ShapeType::Rect,
@@ -555,7 +555,7 @@ t.text = \"second\"
         Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new())
             .output;
     let text_track = timeline.world.tracks.get_id("t").expect("text track");
-    let text = timeline.world.text(text_track);
+    let text = timeline.world.text_or_default(text_track);
 
     for ms in [0u64, 500, 1000, 1999] {
         assert_eq!(
@@ -1142,7 +1142,7 @@ fn icon_property_expands_to_commands_geometry() {
         let paths = report
             .output
             .world
-            .shape(track)
+            .shape_or_default(track)
             .evaluate_vector_paths_value(report.output.world.style(track), 0);
         let mut elements = Vec::new();
         for vp in paths {
@@ -1323,7 +1323,7 @@ draw-in line [4s{extra}]
     };
     let progress_at = |timeline: &crate::timeline::Timeline, ms: u64| -> f32 {
         let track = timeline.world.tracks.get_id("line").unwrap();
-        timeline.world.text(track).char_progress.get(ms, 1.0)
+        timeline.world.text_or_default(track).char_progress.get(ms, 1.0)
     };
 
     let words = build(", by: word");

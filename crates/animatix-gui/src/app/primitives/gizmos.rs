@@ -29,7 +29,8 @@ pub fn actor_gizmo_affordances(id: EntityId, timeline: &Timeline) -> Vec<GizmoAf
     affordances.push(GizmoAffordance::BoundingBox { resize_mode });
 
     // 2. Control points for shapes with editable vertices
-    if timeline.world().shape(id).points.is_some() || matches!(caps.shape, Some(ShapeKind::Polygon))
+    if timeline.world().shape(id).is_some_and(|s| s.points.is_some())
+        || matches!(caps.shape, Some(ShapeKind::Polygon))
     {
         affordances.push(GizmoAffordance::ControlPoints);
     }

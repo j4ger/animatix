@@ -1,11 +1,9 @@
 //! Borrowed bundles of the per-entity property tiers.
-//!
 //! `World::fields(id)` / `World::fields_mut(id)` are the only constructors,
 //! so the storage layout behind a tier can change without touching callers.
-//!
 //! See `docs/ecs.md` §3 (access layer).
 
-use crate::primitives::PrimitivePayload;
+use crate::primitives::{ImagePayload, SvgPayload};
 use crate::timeline::actor_caps::ActorCaps;
 use crate::timeline::animation_track::{
     GeometryTracks, HighlightTracks, ShapeTracks, StyleTracks, TextTracks,
@@ -30,8 +28,10 @@ pub struct TrackFields<'a> {
     pub highlight: Option<&'a HighlightTracks>,
     /// Tagged union tracks keyed by property name.
     pub tagged_tracks: Option<&'a super::TaggedTracksComponent>,
-    /// Primitive payload (plot/SVG/image).
-    pub payload: Option<&'a PrimitivePayload>,
+    /// Image payload.
+    pub image_payload: Option<&'a ImagePayload>,
+    /// SVG payload.
+    pub svg_payload: Option<&'a SvgPayload>,
     /// Actor label (diagnostics).
     pub label: &'a str,
     /// Capability projection for this entity.
@@ -54,8 +54,8 @@ pub struct TrackFieldsMut<'a> {
     pub highlight: Option<&'a mut HighlightTracks>,
     /// Tagged union tracks.
     pub tagged_tracks: Option<&'a mut super::TaggedTracksComponent>,
-    /// Primitive payload.
-    pub payload: Option<&'a mut PrimitivePayload>,
+    /// Image payload.
+    pub image_payload: Option<&'a mut ImagePayload>,
     /// Actor label (diagnostics).
     pub label: String,
     /// Capability projection for this entity.
@@ -73,11 +73,12 @@ impl World {
         Some(TrackFields {
             geometry: self.geometry.try_get(id),
             style: self.style.try_get(id),
-            shape: self.shape.try_get(id),
-            text: self.text.try_get(id),
-            highlight: self.highlight.try_get(id),
+            shape: self.shape.get(id),
+            text: self.text.get(id),
+            highlight: self.highlight.get(id),
             tagged_tracks: self.tagged_tracks.try_get(id),
-            payload: self.payload.get(id),
+            image_payload: self.image_payload.get(id),
+            svg_payload: self.svg_payload.get(id),
             label: self.label(id).unwrap_or(""),
             caps: self.caps(id),
             property_plan: self.property_plan.try_get(id),
@@ -87,8 +88,6 @@ impl World {
     /// Assemble the mutable tier bundle for `id`, when the entity exists.
     pub fn fields_mut(&mut self, id: EntityId) -> Option<TrackFieldsMut<'_>> {
         self.ensure_len();
-        // The capability projection is `Copy`; resolve it before the mutable
-        // borrow so the bundle can carry it.
         let label = self.label(id).unwrap_or("").to_string();
         let caps = self.caps(id);
         if !self.tracks.exists(id) {
@@ -97,11 +96,11 @@ impl World {
         Some(TrackFieldsMut {
             geometry: self.geometry.try_get_mut(id),
             style: self.style.try_get_mut(id),
-            shape: self.shape.try_get_mut(id),
-            text: self.text.try_get_mut(id),
-            highlight: self.highlight.try_get_mut(id),
+            shape: self.shape.get_mut(id),
+            text: self.text.get_mut(id),
+            highlight: self.highlight.get_mut(id),
             tagged_tracks: self.tagged_tracks.try_get_mut(id),
-            payload: self.payload.get_mut(id),
+            image_payload: self.image_payload.get_mut(id),
             label,
             caps,
             property_plan: self.property_plan.try_get_mut(id),
@@ -218,7 +217,7 @@ impl<'a> TrackFields<'a> {
             CalloutToOffset => TrackFieldRef::Vec2(&self.geometry?.callout_to_offset),
             VectorPaths => TrackFieldRef::VectorPaths(&self.shape?.vector_paths),
             TextPaths => TrackFieldRef::TextPaths(&self.text?.text_paths),
-            ImageData => return self.payload?.as_image().map(|p| TrackFieldRef::Image(&p.image)),
+            ImageData => return self.image_payload.map(|p| TrackFieldRef::Image(&p.image)),
             PositionBinding => TrackFieldRef::PositionBinding(&self.geometry?.position_binding),
             Tagged(name) => {
                 return self
@@ -314,8 +313,8 @@ impl<'a> TrackFieldsMut<'a> {
             VectorPaths => TrackFieldMut::VectorPaths(&mut self.shape.as_mut()?.vector_paths),
             TextPaths => TrackFieldMut::TextPaths(&mut self.text.as_mut()?.text_paths),
             ImageData => {
-                let payload = self.payload.as_mut()?;
-                TrackFieldMut::Image(&mut payload.ensure_image().image)
+                let payload = self.image_payload.as_mut()?;
+                TrackFieldMut::Image(&mut payload.image)
             },
             PositionBinding => {
                 TrackFieldMut::PositionBinding(&mut self.geometry.as_mut()?.position_binding)
@@ -485,7 +484,7 @@ impl<'a> TrackFields<'a> {
         if self.caps.vector_paths
             && field == crate::timeline::property_registry::ActorField::ImageData
         {
-            self.payload?.as_svg().and_then(|p| p.svg_paths_track.as_ref())
+            self.svg_payload.and_then(|p| p.svg_paths_track.as_ref())
         } else {
             None
         }

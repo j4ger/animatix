@@ -434,7 +434,7 @@ impl Primitive for ConnectorPrimitive {
             geometry.connector_to.get(ctx.time_ms, ConnectorEndpoint::Point([100.0, 100.0]));
         let routing = geometry.connector_routing.get(ctx.time_ms, ConnectorRouting::Elbow);
         let mut arrow = geometry.connector_arrow.get(ctx.time_ms, true);
-        let shape = ctx.shape;
+        let shape = ctx.shape.expect("connector has shape");
         let mut corner_radius = shape.corner_radius.get(ctx.time_ms, 8.0);
         let mut head_size = shape.head_size.get(ctx.time_ms, 10.0);
 

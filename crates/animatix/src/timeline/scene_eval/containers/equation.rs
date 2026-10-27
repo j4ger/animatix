@@ -69,8 +69,9 @@ impl Timeline {
             let primitive = handle.as_dyn();
             let child_vector_paths = self
                 .world
-                .shape(child_id)
+                .shape_or_default(child_id)
                 .evaluate_vector_paths(self.world.style(child_id), time_ms);
+            let payload = self.world.payload(child_id);
             let ctx = crate::primitives::EvaluateCtx {
                 id: child_id,
                 label: self.world.label(child_id).unwrap_or(""),
@@ -92,7 +93,7 @@ impl Timeline {
                 text: self.world.text(child_id),
                 property_plan: self.world.property_plan(child_id),
                 caps: self.world.caps(child_id),
-                payload: self.world.payload(child_id),
+                payload: payload.as_ref(),
             };
             if let Some(fragment) = primitive.equation_fragment(&ctx) {
                 frags.push(FragInfo {
@@ -116,7 +117,7 @@ impl Timeline {
                 .join(" ");
 
             // Use equation-level font_size and color from the Equation track.
-            let text = self.world.text(node_id);
+            let text = self.world.text_or_default(node_id);
             let font_size = text.font_size.get(time_ms, 48.0);
             let eq_color = self.world.style(node_id).color.get(time_ms, DEFAULT_WHITE);
             let font_family = text.font_family.get(time_ms, String::new());

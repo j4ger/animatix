@@ -50,7 +50,7 @@ impl Timeline {
         // epoch: every mutation funnels through this invalidation, so the
         // bump is the single memo-invalidation point.
         for (_, id) in self.world.tracks.iter() {
-            let Some(shape) = self.world.shape.try_get(id) else {
+            let Some(shape) = self.world.shape.get(id) else {
                 continue;
             };
             shape.vector_paths_epoch.set(shape.vector_paths_epoch.get().wrapping_add(1));

@@ -21,7 +21,7 @@ fn make_minimal_timeline() -> Timeline {
         t
     });
     // Give it a shape type
-    timeline.world.shape_mut(id).shape_type = Some({
+    timeline.world.ensure_shape(id).shape_type = Some({
         let mut t = PropertyTrack::new(ShapeType::Rect);
         t.add_keyframe(0, ShapeType::Rect, Easing::Linear);
         t
@@ -461,7 +461,7 @@ fn mask_clips_children_to_own_bounds() {
         t.add_keyframe(0, [50.0, 50.0], Easing::Linear);
         t
     });
-    timeline.world.shape_mut(child_id).shape_type = Some({
+    timeline.world.ensure_shape(child_id).shape_type = Some({
         let mut t = PropertyTrack::new(ShapeType::Rect);
         t.add_keyframe(0, ShapeType::Rect, Easing::Linear);
         t

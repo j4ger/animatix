@@ -380,7 +380,7 @@ impl Primitive for CounterPrimitive {
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<RenderCommand>>, RenderError> {
         let style = ctx.style;
-        let Some(ref data) = ctx.text.counter_data else {
+        let Some(data) = ctx.text.and_then(|t| t.counter_data.as_ref()) else {
             return Ok(None);
         };
 

@@ -297,7 +297,7 @@ impl Timeline {
         // bump instead of a full path-list clone per node per frame.
         let mut vector_paths = self
             .world
-            .shape(node_id)
+            .shape_or_default(node_id)
             .evaluate_vector_paths(self.world.style(node_id), time_ms);
         // `BarChart` data transitions: once a `data = {…}` assignment has begun,
         // the declaration's paths are stale, so rebuild the bars from the dataset
@@ -423,6 +423,7 @@ impl Timeline {
             // Clear the shape-memo bounds handoff: a non-shape
             // primitive must never observe the previous node's data.
             self.world.begin_shape_commands(node_id);
+            let payload = self.world.payload(node_id);
             let ctx = crate::primitives::EvaluateCtx {
                 id: node_id,
                 label: node_label,
@@ -444,7 +445,7 @@ impl Timeline {
                 text: self.world.text(node_id),
                 property_plan: self.world.property_plan(node_id),
                 caps: self.world.caps(node_id),
-                payload: self.world.payload(node_id),
+                payload: payload.as_ref(),
             };
             let mut text_ctx = crate::primitives::TextCompileCtx {
                 text_compiler: &mut self.text_compiler.borrow_mut(),
@@ -544,8 +545,10 @@ impl Timeline {
             // Debug overlays
             if debug_options.draw_bounds {
                 let svg_paths = self.world.svg_paths_at(node_id, time_ms).unwrap_or_default();
-                let text_paths =
-                    self.world.text(node_id).evaluate_paths(self.world.style(node_id), time_ms);
+                let text_paths = self
+                    .world
+                    .text_or_default(node_id)
+                    .evaluate_paths(self.world.style(node_id), time_ms);
                 let _ = self.add_node_debug_overlays(
                     &svg_paths,
                     half_size,
@@ -592,9 +595,10 @@ impl Timeline {
         let primitive = handle.as_dyn();
         let vector_paths = self
             .world
-            .shape(child_id)
+            .shape_or_default(child_id)
             .evaluate_vector_paths(self.world.style(child_id), time_ms);
         self.world.begin_shape_commands(child_id);
+        let payload = self.world.payload(child_id);
         let ctx = crate::primitives::EvaluateCtx {
             id: child_id,
             label: self.world.label(child_id).unwrap_or(""),
@@ -616,7 +620,7 @@ impl Timeline {
             text: self.world.text(child_id),
             property_plan: self.world.property_plan(child_id),
             caps: self.world.caps(child_id),
-            payload: self.world.payload(child_id),
+            payload: payload.as_ref(),
         };
         let path = primitive.clip_path(&ctx, &ctx.caps);
         // Consume the memo-bounds handoff so it can't leak into the next node.

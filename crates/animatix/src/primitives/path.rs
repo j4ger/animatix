@@ -79,7 +79,10 @@ impl Primitive for PathPrimitive {
 
         let geometry = ctx.geometry;
         let half_size = geometry.size.get(ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
-        let vector_paths = ctx.shape.evaluate_vector_paths(ctx.style, ctx.time_ms);
+        let vector_paths = ctx
+            .shape
+            .expect("path primitive requires shape component")
+            .evaluate_vector_paths(ctx.style, ctx.time_ms);
 
         let mut state = PathState {
             size: half_size,

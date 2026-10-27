@@ -302,7 +302,6 @@ fn every_entity_has_required_components() {
     for (label, id) in world.tracks.iter() {
         let required: Vec<(&str, bool)> = vec![
             ("hierarchy", world.hierarchy.try_get(id).is_some()),
-            ("highlight", world.highlight.try_get(id).is_some()),
             ("tagged_tracks", world.tagged_tracks.try_get(id).is_some()),
             ("actor_types", world.actor_types.try_get(id).is_some()),
             ("caps", world.caps.try_get(id).is_some()),
@@ -312,8 +311,6 @@ fn every_entity_has_required_components() {
             ("bounds_slots", world.bounds_slots.try_get(id).is_some()),
             ("style", world.style.try_get(id).is_some()),
             ("geometry", world.geometry.try_get(id).is_some()),
-            ("text", world.text.try_get(id).is_some()),
-            ("shape", world.shape.try_get(id).is_some()),
             ("property_plan", world.property_plan.try_get(id).is_some()),
         ];
         let missing: Vec<&str> =
@@ -358,7 +355,7 @@ fn spawn_replacing_resets_every_authored_required_store() {
         .set(Some(Some(kurbo::Rect::ZERO)));
     {
         let world = timeline.world_mut();
-        world.highlight.get_mut(id).highlight_color = Some({
+        world.ensure_highlight(id).highlight_color = Some({
             let mut track = PropertyTrack::new([1.0, 0.0, 0.0, 1.0]);
             track.add_keyframe(0, [1.0, 0.0, 0.0, 1.0], Easing::Linear);
             track
@@ -366,8 +363,9 @@ fn spawn_replacing_resets_every_authored_required_store() {
         world.tagged_tracks_mut(id).insert("legend".to_string(), None);
         world.style_mut(id).color = Some(PropertyTrack::new([0.0, 0.0, 0.0, 1.0]));
         world.geometry_mut(id).position = Some(PropertyTrack::new([1.0, 2.0]));
-        world.text_mut(id).text_content = Some(PropertyTrack::new("hi".to_string()));
-        world.shape_mut(id).shape_type = Some(PropertyTrack::new(crate::timeline::ShapeType::Rect));
+        world.ensure_text(id).text_content = Some(PropertyTrack::new("hi".to_string()));
+        world.ensure_shape(id).shape_type =
+            Some(PropertyTrack::new(crate::timeline::ShapeType::Rect));
         *world.property_plan.get_mut(id) = PropertyPlan::new(vec![PropertySlot {
             id: animatix_core::property::PropertyId(0),
             kind: PropertyKind::F32,
@@ -394,11 +392,11 @@ fn spawn_replacing_resets_every_authored_required_store() {
         world.pending_shape_bounds.get(id).get().is_none(),
         "pending bounds handoff resets"
     );
-    assert!(world.highlight.get(id).highlight_color.is_none(), "highlight resets");
+    assert!(world.highlight(id).is_none(), "highlight resets");
     assert!(world.tagged_tracks(id).is_empty(), "tagged tracks reset");
     assert!(world.style.get(id).color.is_none(), "style resets");
     assert!(world.geometry.get(id).position.is_none(), "geometry resets");
-    assert!(world.text.get(id).text_content.is_none(), "text resets");
-    assert!(world.shape.get(id).shape_type.is_none(), "shape resets");
+    assert!(world.text(id).is_none(), "text resets");
+    assert!(world.shape(id).is_none(), "shape resets");
     assert!(world.property_plan.get(id).is_empty(), "property plan resets");
 }

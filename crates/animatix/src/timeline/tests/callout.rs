@@ -110,14 +110,14 @@ fn test_callout_basic_rendering() {
     assert_eq!(timeline.world.actor_type(track), "Callout", "track kind should be Callout");
 
     // Verify line_from and line_to tracks are populated
-    let from = timeline.world().shape(track).line_from.get(0, [0.0; 2]);
+    let from = timeline.world().shape_or_default(track).line_from.get(0, [0.0; 2]);
     assert_eq!(from, [0.0, 0.0], "from should be (0, 0)");
 
-    let to = timeline.world().shape(track).line_to.get(0, [0.0; 2]);
+    let to = timeline.world().shape_or_default(track).line_to.get(0, [0.0; 2]);
     assert_eq!(to, [100.0, 0.0], "to should be (100, 0)");
 
     // Verify label was stored
-    let label_val = timeline.world().text(track).text_content.get(0, String::new());
+    let label_val = timeline.world().text_or_default(track).text_content.get(0, String::new());
     assert_eq!(label_val, "Test", "label should be 'Test'");
 
     // Verify label_at
@@ -125,7 +125,7 @@ fn test_callout_basic_rendering() {
     assert_eq!(label_at, [10.0, 5.0], "label_at should be (10, 5)");
 
     // Verify head_size
-    let head = timeline.world().shape(track).head_size.get(0, 0.0);
+    let head = timeline.world().shape_or_default(track).head_size.get(0, 0.0);
     assert_eq!(head, 10.0, "head_size should be 10.0");
 
     // Evaluate at another time — should still succeed
@@ -236,7 +236,7 @@ fn test_callout_animation() {
     // Verify the 'to' track has keyframes (initial + animated)
     let to_track = timeline
         .world()
-        .shape(track)
+        .shape_or_default(track)
         .line_to
         .as_ref()
         .expect("line_to track should exist");
@@ -253,7 +253,7 @@ fn test_callout_animation() {
     };
 
     // At time 0s, to should be (100, 100)
-    let to_0s = timeline.world().shape(track).line_to.get(0, [0.0; 2]);
+    let to_0s = timeline.world().shape_or_default(track).line_to.get(0, [0.0; 2]);
     assert_eq!(to_0s, [100.0, 100.0], "to at 0s should be (100, 100)");
 
     // Evaluate at both times — should not panic
@@ -276,8 +276,8 @@ fn test_callout_arrowhead_size() {
     let track_small = timeline_small.get_entity_id("callout").expect("callout track should exist");
     let track_large = timeline_large.get_entity_id("callout").expect("callout track should exist");
 
-    let head_small = timeline_small.world().shape(track_small).head_size.get(0, 0.0);
-    let head_large = timeline_large.world().shape(track_large).head_size.get(0, 0.0);
+    let head_small = timeline_small.world().shape_or_default(track_small).head_size.get(0, 0.0);
+    let head_large = timeline_large.world().shape_or_default(track_large).head_size.get(0, 0.0);
 
     assert_eq!(head_small, 5.0, "small head_size should be 5.0");
     assert_eq!(head_large, 20.0, "large head_size should be 20.0");
@@ -329,7 +329,7 @@ fn test_callout_no_label_does_not_set_text_content() {
     assert_eq!(timeline.world.actor_type(track), "Callout");
 
     // The text_content should be empty string (default)
-    let label_val = timeline.world().text(track).text_content.get(0, String::new());
+    let label_val = timeline.world().text_or_default(track).text_content.get(0, String::new());
     assert_eq!(label_val, "", "label should be empty when not provided");
 
     // Evaluate should not panic
@@ -1032,7 +1032,7 @@ fn test_callout_target_translated_world_bounds() {
     let note = timeline.get_entity_id("note").unwrap();
     let geom = crate::timeline::callout_geometry::derive_callout_geometry(
         timeline.world().geometry(note),
-        timeline.world().shape(note),
+        timeline.world().shape_or_default(note),
         0,
         Some(&timeline),
         dims,
@@ -1066,7 +1066,7 @@ fn test_callout_target_scaled_world_bounds() {
     let note = timeline.get_entity_id("note").unwrap();
     let geom = crate::timeline::callout_geometry::derive_callout_geometry(
         timeline.world().geometry(note),
-        timeline.world().shape(note),
+        timeline.world().shape_or_default(note),
         0,
         Some(&timeline),
         dims,
@@ -1105,7 +1105,7 @@ fn test_callout_target_rotated_aabb() {
     let note = timeline.get_entity_id("note").unwrap();
     let geom = crate::timeline::callout_geometry::derive_callout_geometry(
         timeline.world().geometry(note),
-        timeline.world().shape(note),
+        timeline.world().shape_or_default(note),
         0,
         Some(&timeline),
         dims,
@@ -1149,7 +1149,7 @@ fn test_callout_target_nested_child_world_bounds() {
     let note = timeline.get_entity_id("note").unwrap();
     let geom = crate::timeline::callout_geometry::derive_callout_geometry(
         timeline.world().geometry(note),
-        timeline.world().shape(note),
+        timeline.world().shape_or_default(note),
         0,
         Some(&timeline),
         dims,

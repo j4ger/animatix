@@ -345,8 +345,8 @@ impl TimelineFingerprint {
                 for (property, times) in collect_per_property_keyframes(
                     timeline.world().geometry(id),
                     timeline.world().style(id),
-                    timeline.world().shape(id),
-                    timeline.world().text(id),
+                    timeline.world().shape_or_default(id),
+                    timeline.world().text_or_default(id),
                     None,
                 ) {
                     for time_ms in times {
@@ -372,8 +372,8 @@ impl TimelineFingerprint {
                     for (property, times) in collect_per_property_keyframes(
                         scene.timeline.world().geometry(id),
                         scene.timeline.world().style(id),
-                        scene.timeline.world().shape(id),
-                        scene.timeline.world().text(id),
+                        scene.timeline.world().shape_or_default(id),
+                        scene.timeline.world().text_or_default(id),
                         None,
                     ) {
                         for time_ms in times {
@@ -677,8 +677,8 @@ mod tests {
             id,
             timeline.world().geometry(id),
             timeline.world().style(id),
-            timeline.world().shape(id),
-            timeline.world().text(id),
+            timeline.world().shape_or_default(id),
+            timeline.world().text_or_default(id),
             None,
         );
 
@@ -694,8 +694,8 @@ mod tests {
         for (property, times) in collect_per_property_keyframes(
             timeline.world().geometry(id),
             timeline.world().style(id),
-            timeline.world().shape(id),
-            timeline.world().text(id),
+            timeline.world().shape_or_default(id),
+            timeline.world().text_or_default(id),
             None,
         ) {
             let lane = lanes
@@ -727,8 +727,8 @@ mod tests {
                 id,
                 timeline.world().geometry(id),
                 timeline.world().style(id),
-                timeline.world().shape(id),
-                timeline.world().text(id),
+                timeline.world().shape_or_default(id),
+                timeline.world().text_or_default(id),
                 None,
             )
             .iter()

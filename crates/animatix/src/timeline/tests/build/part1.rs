@@ -763,7 +763,7 @@ label.text = format("facts={} arith={}", fact_sum, arith)
     let text = timeline
         .world
         .get_id("label")
-        .and_then(|id| timeline.world.text(id).text_content.as_ref())
+        .and_then(|id| timeline.world.text_or_default(id).text_content.as_ref())
         .map(|track| track.evaluate(1000))
         .unwrap_or_default();
     assert_eq!(text, "facts=9 arith=10");
@@ -965,7 +965,7 @@ fn high_frequency_curve_meets_resolution_floor() {
     let track = timeline.world.get_id("c").expect("curve track");
     let paths = timeline
         .world
-        .shape(track)
+        .shape_or_default(track)
         .evaluate_vector_paths_value(timeline.world.style(track), 500);
     let point_count: usize = paths.iter().map(|vp| vp.path.elements().len()).sum();
     assert!(
@@ -1009,7 +1009,7 @@ fn equation_container_builds_with_fragment_children() {
     let f1_content = report
         .output
         .world
-        .text(f1_track)
+        .text_or_default(f1_track)
         .text_content
         .as_ref()
         .expect("f1 should have text_content")
@@ -1021,7 +1021,7 @@ fn equation_container_builds_with_fragment_children() {
     let f2_content = report
         .output
         .world
-        .text(f2_track)
+        .text_or_default(f2_track)
         .text_content
         .as_ref()
         .expect("f2 should have text_content")
@@ -1062,7 +1062,7 @@ fn equation_fragment_dot_path_assignment() {
     let f1_track = timeline.world.tracks.get_id("f1").expect("f1 track should exist");
     let highlight_opacity_at_1s = timeline
         .world
-        .highlight(f1_track)
+        .highlight_or_default(f1_track)
         .highlight_opacity
         .as_ref()
         .expect("f1 should have highlight_opacity track")
@@ -1075,7 +1075,7 @@ fn equation_fragment_dot_path_assignment() {
 
     let highlight_opacity_at_end = timeline
         .world
-        .highlight(f1_track)
+        .highlight_or_default(f1_track)
         .highlight_opacity
         .as_ref()
         .expect("f1 should have highlight_opacity track")
@@ -1090,7 +1090,7 @@ fn equation_fragment_dot_path_assignment() {
     let f2_track = timeline.world.tracks.get_id("f2").expect("f2 track should exist");
     let f2_content_at_1s = timeline
         .world
-        .text(f2_track)
+        .text_or_default(f2_track)
         .text_content
         .as_ref()
         .expect("f2 should have text_content")

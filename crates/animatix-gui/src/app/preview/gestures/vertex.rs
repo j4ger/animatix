@@ -56,7 +56,10 @@ impl GestureHandler for VertexGesture {
                 let time_ms = (ctx.preview.playback.current_time_s() * 1000.0) as u64;
                 let points = match ctx.timeline.and_then(|t| {
                     let id = t.get_entity_id(&actor)?;
-                    t.world().shape(id).points.as_ref().map(|pt| pt.evaluate(time_ms))
+                    t.world()
+                        .shape(id)
+                        .and_then(|s| s.points.as_ref())
+                        .map(|pt| pt.evaluate(time_ms))
                 }) {
                     Some(pts) if !pts.is_empty() => pts,
                     _ => return GestureResult::Ignored,

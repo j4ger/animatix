@@ -107,7 +107,7 @@ mod tests {
             t.add_keyframe(0, [50.0, 50.0], crate::timeline::Easing::Linear);
             t
         });
-        *timeline.world.shape_mut(id) = shape;
+        *timeline.world.ensure_shape(id) = shape;
         timeline.world.meta_mut(id).first_seen_ms = 0;
 
         let mut fb = None;

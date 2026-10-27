@@ -1,4 +1,4 @@
-//! Entity-id keyed payload accessors over `World::payload`.
+//! Entity-id keyed payload accessors over dedicated component stores.
 
 use super::EntityId;
 use super::World;
@@ -11,48 +11,89 @@ use std::collections::HashMap;
 
 impl World {
     /// Plot payload for an entity, when present.
+    #[inline(always)]
     pub fn plot_payload(&self, id: EntityId) -> Option<&PlotPayload> {
-        self.payload.get(id)?.as_plot()
+        self.plot_payload.get(id)
     }
 
     /// Mutable plot payload for an entity, when present.
+    #[inline(always)]
     pub fn plot_payload_mut(&mut self, id: EntityId) -> Option<&mut PlotPayload> {
-        self.payload.get_mut(id)?.as_plot_mut()
+        self.plot_payload.get_mut(id)
     }
 
     /// Ensure and borrow an entity's plot payload.
+    #[inline(always)]
     pub fn ensure_plot_payload(&mut self, id: EntityId) -> &mut PlotPayload {
-        self.payload.get_or_insert_with(id, PrimitivePayload::default).ensure_plot()
+        self.plot_payload.get_or_insert_with(id, PlotPayload::default)
     }
 
     /// SVG payload for an entity, when present.
+    #[inline(always)]
     pub fn svg_payload(&self, id: EntityId) -> Option<&SvgPayload> {
-        self.payload.get(id)?.as_svg()
+        self.svg_payload.get(id)
     }
 
     /// Mutable SVG payload for an entity, when present.
+    #[inline(always)]
     pub fn svg_payload_mut(&mut self, id: EntityId) -> Option<&mut SvgPayload> {
-        self.payload.get_mut(id)?.as_svg_mut()
+        self.svg_payload.get_mut(id)
     }
 
     /// Ensure and borrow an entity's SVG payload.
+    #[inline(always)]
     pub fn ensure_svg_payload(&mut self, id: EntityId) -> &mut SvgPayload {
-        self.payload.get_or_insert_with(id, PrimitivePayload::default).ensure_svg()
+        self.svg_payload.get_or_insert_with(id, SvgPayload::default)
     }
 
     /// Image payload for an entity, when present.
+    #[inline(always)]
     pub fn image_payload(&self, id: EntityId) -> Option<&ImagePayload> {
-        self.payload.get(id)?.as_image()
+        self.image_payload.get(id)
     }
 
     /// Mutable image payload for an entity, when present.
+    #[inline(always)]
     pub fn image_payload_mut(&mut self, id: EntityId) -> Option<&mut ImagePayload> {
-        self.payload.get_mut(id)?.as_image_mut()
+        self.image_payload.get_mut(id)
     }
 
     /// Ensure and borrow an entity's image payload.
+    #[inline(always)]
     pub fn ensure_image_payload(&mut self, id: EntityId) -> &mut ImagePayload {
-        self.payload.get_or_insert_with(id, PrimitivePayload::default).ensure_image()
+        self.image_payload.get_or_insert_with(id, ImagePayload::default)
+    }
+
+    /// Read the entity's primitive payload converted to a [`PrimitivePayload`] DTO for carry/snapshot compatibility.
+    pub fn payload(&self, id: EntityId) -> Option<PrimitivePayload> {
+        if let Some(plot) = self.plot_payload.get(id) {
+            Some(PrimitivePayload::Plot(Box::new(plot.clone())))
+        } else if let Some(svg) = self.svg_payload.get(id) {
+            Some(PrimitivePayload::Svg(Box::new(svg.clone())))
+        } else {
+            self.image_payload
+                .get(id)
+                .map(|image| PrimitivePayload::Image(Box::new(image.clone())))
+        }
+    }
+
+    /// Set an entity's primitive payload from a [`PrimitivePayload`] DTO for carry/snapshot compatibility.
+    pub fn set_payload(&mut self, id: EntityId, payload: PrimitivePayload) {
+        self.plot_payload.reset_at(id);
+        self.svg_payload.reset_at(id);
+        self.image_payload.reset_at(id);
+        match payload {
+            PrimitivePayload::None => {},
+            PrimitivePayload::Plot(p) => {
+                self.plot_payload.insert(id, *p);
+            },
+            PrimitivePayload::Svg(s) => {
+                self.svg_payload.insert(id, *s);
+            },
+            PrimitivePayload::Image(i) => {
+                self.image_payload.insert(id, *i);
+            },
+        }
     }
 
     /// Procedural plot generator for an entity.

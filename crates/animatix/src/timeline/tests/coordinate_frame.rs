@@ -46,7 +46,7 @@ fn plot_child_uses_component_domain() {
     // the curve in the middle of the box instead.
     let paths = timeline
         .world
-        .shape(track)
+        .shape_or_default(track)
         .vector_paths
         .as_ref()
         .expect("generated curve paths")
@@ -102,7 +102,7 @@ fn assignment_rebuild_uses_coordinate_frame() {
     let track = timeline.get_entity_id("g").expect("graph track");
     let paths = timeline
         .world()
-        .shape(track)
+        .shape_or_default(track)
         .vector_paths
         .as_ref()
         .expect("graph axis paths")

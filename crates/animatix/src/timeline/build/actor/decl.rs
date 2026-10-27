@@ -56,7 +56,7 @@ impl Timeline {
         let existing_shape = self
             .world
             .get_id(label)
-            .map(|id| self.world.shape(id))
+            .map(|id| self.world.shape_or_default(id))
             .cloned()
             .unwrap_or_default();
         let existing_geometry = self
@@ -364,7 +364,7 @@ impl Timeline {
         if matches!(caps.shape, Some(super::ShapeKind::Line | super::ShapeKind::Arrow))
             && let Some(id) = self.world.get_id(label)
         {
-            let shape = self.world.shape_mut(id);
+            let shape = self.world.ensure_shape(id);
             for prop in props {
                 if prop.name == "from" || prop.name == "to" {
                     if let Expr::Path(segments) = &prop.value {
@@ -501,8 +501,9 @@ impl Timeline {
         // Catalog data decides this (via the descriptor already built above),
         // not a `ty == "Connector"` compare.
         if primitive.connector {
+            self.world.ensure_shape(track_id);
             let geometry = self.world.geometry.get_mut(track_id);
-            let shape = self.world.shape.get_mut(track_id);
+            let shape = self.world.shape.get_mut(track_id).expect("shape component");
             geometry.connector_arrow.ensure(true).add_keyframe(t_start_ms, true, easing);
             geometry
                 .connector_routing
@@ -696,8 +697,9 @@ impl Timeline {
             }
         }
 
+        self.world.ensure_shape(track_id);
         let style = self.world.style.get_mut(track_id);
-        let shape = self.world.shape.get_mut(track_id);
+        let shape = self.world.shape.get_mut(track_id).expect("shape component");
         let geometry = self.world.geometry.get_mut(track_id);
 
         apply_size_spec(geometry, &primitive, props, label, parent_label, diagnostics);

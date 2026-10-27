@@ -164,7 +164,7 @@ fn opacity_keyframe_count(
         .output
         .world
         .get_id(label)
-        .map(|id| report.output.world.highlight(id).highlight_opacity.as_ref())
+        .map(|id| report.output.world.highlight_or_default(id).highlight_opacity.as_ref())
         .and_then(|v| v)
         .map(|t| t.keyframes.len())
         .unwrap_or(0)
@@ -202,7 +202,7 @@ fn highlight_adds_opacity_keyframes() {
         report
             .output
             .world
-            .highlight(f1_id)
+            .highlight_or_default(f1_id)
             .highlight_opacity
             .as_ref()
             .map(|t| !t.keyframes.is_empty())
@@ -246,7 +246,7 @@ fn unhighlight_adds_opacity_keyframes() {
             report
                 .output
                 .world
-                .highlight(f1_id)
+                .highlight_or_default(f1_id)
                 .highlight_opacity
                 .as_ref()
                 .map(|t| !t.keyframes.is_empty())

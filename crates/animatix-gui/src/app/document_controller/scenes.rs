@@ -240,8 +240,8 @@ impl DocumentController<'_> {
                             id,
                             timeline.world().geometry(id),
                             timeline.world().style(id),
-                            timeline.world().shape(id),
-                            timeline.world().text(id),
+                            timeline.world().shape_or_default(id),
+                            timeline.world().text_or_default(id),
                         ))
                     },
                 )

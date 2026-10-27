@@ -490,7 +490,10 @@ fade-in g [100ms]
     // tolerances — so it is not asserted here.)
     let elements = |timeline: &Timeline| -> usize {
         let id = timeline.get_entity_id("rose").expect("rose id");
-        let paths = timeline.world().shape(id).evaluate_vector_paths(timeline.world().style(id), 0);
+        let paths = timeline
+            .world()
+            .shape_or_default(id)
+            .evaluate_vector_paths(timeline.world().style(id), 0);
         paths.iter().map(|p| p.path.elements().len()).sum()
     };
     let draft_timeline = build(animatix::timeline::BuildQuality::Draft);

@@ -106,16 +106,16 @@ pub struct EvaluateCtx<'a> {
     pub vector_paths: &'a [VelloPath],
     /// Shared image cache for native render commands that specify a URL.
     pub asset_cache: &'a crate::timeline::assets::AssetCache,
-    /// Equation-highlight component for this actor.
-    pub highlight: &'a crate::timeline::animation_track::HighlightTracks,
-    /// Shape geometry tier for this actor.
-    pub shape: &'a crate::timeline::animation_track::ShapeTracks,
+    /// Equation-highlight component for this actor, when present.
+    pub highlight: Option<&'a crate::timeline::animation_track::HighlightTracks>,
+    /// Shape geometry tier for this actor, when present.
+    pub shape: Option<&'a crate::timeline::animation_track::ShapeTracks>,
     /// Geometry tier for this actor.
     pub geometry: &'a crate::timeline::animation_track::GeometryTracks,
     /// Style tier for this actor.
     pub style: &'a crate::timeline::animation_track::StyleTracks,
-    /// Text tier for this actor.
-    pub text: &'a crate::timeline::animation_track::TextTracks,
+    /// Text tier for this actor, when present.
+    pub text: Option<&'a crate::timeline::animation_track::TextTracks>,
     /// Registry-driven property plan for this actor.
     pub property_plan: &'a crate::timeline::plan::PropertyPlan,
     /// Capability projection for this actor.
@@ -514,7 +514,11 @@ impl AssignmentCtx<'_> {
 impl EvaluateCtx<'_> {
     /// SVG payload for this actor, when present.
     pub fn svg_payload(&self) -> Option<&crate::primitives::SvgPayload> {
-        self.payload.as_ref().and_then(|payload| payload.as_svg())
+        if let Some(world) = self.world {
+            world.svg_payload(self.id)
+        } else {
+            self.payload.as_ref().and_then(|payload| payload.as_svg())
+        }
     }
 
     /// Evaluate the actor's SVG paths at `time_ms`.
@@ -528,7 +532,11 @@ impl EvaluateCtx<'_> {
     ) -> Option<
         &crate::timeline::property_track::PropertyTrack<Option<crate::timeline::image::SceneImage>>,
     > {
-        self.payload.as_ref().and_then(|payload| payload.as_image())?.image.as_ref()
+        if let Some(world) = self.world {
+            world.image_payload(self.id).and_then(|p| p.image.as_ref())
+        } else {
+            self.payload.as_ref().and_then(|payload| payload.as_image())?.image.as_ref()
+        }
     }
 }
 

@@ -229,7 +229,7 @@ pub(crate) fn evaluate_shape_render(
 
     let style_tracks = ctx.style;
     let style = sample_shape_style(style_tracks, ctx.caps, ctx.time_ms, ctx.overrides);
-    let shape = ctx.shape;
+    let shape = ctx.shape.expect("shape styling requires shape component");
     let epoch = shape.vector_paths_epoch.get();
 
     let progress = f64::from(style_tracks.stroke_progress.get(ctx.time_ms, 1.0)).clamp(0.0, 1.0);

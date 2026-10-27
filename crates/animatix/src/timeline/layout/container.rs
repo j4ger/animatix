@@ -196,8 +196,10 @@ impl Timeline {
         let t_ms = time_ms as u64;
 
         // Sample child baselines for baseline alignment
-        let child_baselines: Vec<f32> =
-            children.iter().map(|cl| self.world.text(cl.id).baseline_get(t_ms)).collect();
+        let child_baselines: Vec<f32> = children
+            .iter()
+            .map(|cl| self.world.text_or_default(cl.id).baseline_get(t_ms))
+            .collect();
 
         // Collect size specs and constraints for phase 7
         let (size_specs, constraints, parent_content_size) =

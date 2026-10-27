@@ -315,8 +315,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             id,
                             tl.world().geometry(id),
                             tl.world().style(id),
-                            tl.world().shape(id),
-                            tl.world().text(id),
+                            tl.world().shape_or_default(id),
+                            tl.world().text_or_default(id),
                             None,
                         )
                         .len();
@@ -469,8 +469,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                         ui,
                         tl.world().geometry(id),
                         tl.world().style(id),
-                        tl.world().shape(id),
-                        tl.world().text(id),
+                        tl.world().shape_or_default(id),
+                        tl.world().text_or_default(id),
                         actor_label,
                         track_idx,
                         bar_area,
@@ -522,8 +522,8 @@ fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
                             id,
                             tl.world().geometry(id),
                             tl.world().style(id),
-                            tl.world().shape(id),
-                            tl.world().text(id),
+                            tl.world().shape_or_default(id),
+                            tl.world().text_or_default(id),
                             None,
                         );
                         for (prop_name, kf_times) in &prop_lanes {

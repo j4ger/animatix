@@ -158,8 +158,7 @@ pub(crate) fn ensure_vector_reveal_target(
                 && timeline
                     .world
                     .shape(id)
-                    .vector_paths
-                    .as_ref()
+                    .and_then(|s| s.vector_paths.as_ref())
                     .map(|t| t.default_value.is_empty() && t.keyframes.is_empty())
                     .unwrap_or(true)
                 && !timeline.world.has_svg_path_content(id)

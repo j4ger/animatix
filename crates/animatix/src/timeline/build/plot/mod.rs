@@ -596,7 +596,7 @@ impl Timeline {
         let existing_shape = self
             .world
             .get_id(label)
-            .map(|id| self.world.shape(id))
+            .map(|id| self.world.shape_or_default(id))
             .cloned()
             .unwrap_or_default();
         let line_from = existing_shape.line_from.last([-50.0, 0.0]);

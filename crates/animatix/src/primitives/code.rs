@@ -122,7 +122,7 @@ impl Primitive for CodePrimitive {
                 crate::renderer::text::default_font_size(TextKind::Code),
             )
         } else {
-            let text = ctx.text;
+            let text = ctx.text.expect("code primitive requires text component");
             let (paths, clip) = text.evaluate_paths_and_clip(style, ctx.time_ms);
             Ok((std::sync::Arc::from(paths), clip))
         }?;

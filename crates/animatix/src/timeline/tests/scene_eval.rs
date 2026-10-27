@@ -722,7 +722,7 @@ fn text_content_assignment_crossfades_paths_at_midpoint() {
     let paths_mid = report
         .output
         .world()
-        .text(track)
+        .text_or_default(track)
         .evaluate_paths(report.output.world().style(track), 1500);
 
     // The default path-track morph would return one set of glyphs at the

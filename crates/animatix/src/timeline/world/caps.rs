@@ -25,10 +25,23 @@ impl World {
     pub fn set_identity(&mut self, id: EntityId, actor_type: &str) {
         self.ensure_len();
         *self.actor_types.get_mut(id) = actor_type.to_string();
-        *self.caps.get_mut(id) = animatix_std::caps_for_type(actor_type).unwrap_or_default();
+        let caps = animatix_std::caps_for_type(actor_type).unwrap_or_default();
+        *self.caps.get_mut(id) = caps;
         *self.behavior.get_mut(id) = crate::timeline::behavior::behavior_id_for_builtin(actor_type)
             .unwrap_or(crate::timeline::behavior::BehaviorId::UNKNOWN);
         self.caps_overrides.remove(id);
+        if caps.is_shape || caps.shape.is_some() || caps.connector || caps.callout {
+            self.ensure_shape(id);
+        }
+        if caps.text.is_some() || caps.text_paths || caps.callout {
+            self.ensure_text(id);
+        }
+        if actor_type == "Fragment"
+            || actor_type == "Equation"
+            || caps.child_processing == animatix_core::caps::ChildProcessingKind::Equation
+        {
+            self.ensure_highlight(id);
+        }
     }
 
     /// Whether the entity is a group-like structural actor.

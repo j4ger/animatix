@@ -162,8 +162,7 @@ impl PreviewContext<'_> {
                 let points = timeline
                     .world()
                     .shape(id)
-                    .points
-                    .as_ref()
+                    .and_then(|s| s.points.as_ref())
                     .map(|pt| pt.evaluate(time_ms))
                     .filter(|pts| !pts.is_empty());
                 if let (Some(ref p), Some(pts)) = (props, points) {
@@ -201,7 +200,7 @@ impl PreviewContext<'_> {
             if affordances.contains(&crate::app::primitives::GizmoAffordance::Callout) {
                 let geo = animatix::timeline::callout_geometry::derive_callout_geometry(
                     timeline.world().geometry(id),
-                    timeline.world().shape(id),
+                    timeline.world().shape_or_default(id),
                     time_ms,
                     Some(timeline),
                     self.scene_dimensions,

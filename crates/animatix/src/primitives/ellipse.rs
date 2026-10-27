@@ -80,7 +80,11 @@ impl Primitive for EllipsePrimitive {
             geometry.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE),
             ctx.overrides,
         );
-        let arc_angles = ctx.shape.arc_angles.get(ctx.time_ms, [0.0, 0.0]);
+        let arc_angles = ctx
+            .shape
+            .expect("ellipse primitive requires shape component")
+            .arc_angles
+            .get(ctx.time_ms, [0.0, 0.0]);
         let rot = geometry.rotation.get(ctx.time_ms, 0.0);
 
         let mut state = EllipseState {

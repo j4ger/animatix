@@ -120,16 +120,14 @@ fn sample_evaluate_ctx_with_payload<'a>(
         overrides: None,
         vector_paths: &[],
         asset_cache,
-        highlight: Box::leak(
-            Box::new(crate::timeline::animation_track::HighlightTracks::default()),
-        ),
+        highlight: None,
         property_plan: Box::leak(Box::new(crate::timeline::plan::PropertyPlan::default())),
         world: None,
         // The shape, text, geometry and style tiers live in World; these helper
         // contexts build no World, so default tiers are attached.
         style: Box::leak(Box::new(crate::timeline::animation_track::StyleTracks::default())),
-        shape: Box::leak(Box::new(crate::timeline::animation_track::ShapeTracks::default())),
-        text: Box::leak(Box::new(crate::timeline::animation_track::TextTracks::default())),
+        shape: Some(Box::leak(Box::new(crate::timeline::animation_track::ShapeTracks::default()))),
+        text: Some(Box::leak(Box::new(crate::timeline::animation_track::TextTracks::default()))),
         geometry: Box::leak(Box::new(crate::timeline::animation_track::GeometryTracks::default())),
         payload,
         target_resolver: None,

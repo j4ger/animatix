@@ -397,7 +397,7 @@ fn hosted_bar_chart_spans_graph_axis() {
     let paths = report
         .output
         .world
-        .shape(track)
+        .shape_or_default(track)
         .evaluate_vector_paths(report.output.world.style(track), 0);
     assert!(!paths.is_empty(), "hosted bars should be baked");
     use kurbo::Shape as _;
@@ -482,7 +482,7 @@ card: Card, width: 240, height: 150 {
         report
             .output
             .world
-            .text(t)
+            .text_or_default(t)
             .text_content
             .get(0, String::new())
             .contains("SLOT FILLED")
@@ -678,7 +678,7 @@ fn plot_curve_color_drives_stroke() {
     let paths = report
         .output
         .world
-        .shape(track)
+        .shape_or_default(track)
         .evaluate_vector_paths(report.output.world.style(track), 0);
     let strokes: Vec<_> = paths.iter().filter_map(|p| p.stroke).collect();
     assert!(!strokes.is_empty(), "curve strokes should be baked");
@@ -717,7 +717,7 @@ fn single_bar_colors_value_is_uniform() {
     let paths = report
         .output
         .world
-        .shape(track)
+        .shape_or_default(track)
         .evaluate_vector_paths(report.output.world.style(track), 0);
     let fills: Vec<_> = paths.iter().filter_map(|p| p.fill).collect();
     assert!(fills.len() >= 3, "expected three bar fills, got {fills:?}");
@@ -762,7 +762,7 @@ fn size_property_drives_bar_chart_geometry() {
     let paths = report
         .output
         .world
-        .shape(track)
+        .shape_or_default(track)
         .evaluate_vector_paths(report.output.world.style(track), 0);
     assert!(!paths.is_empty(), "bar paths should be baked");
     use kurbo::Shape as _;

@@ -123,7 +123,7 @@ impl Primitive for TypstPrimitive {
                 crate::renderer::text::default_font_size(TextKind::Typst),
             )
         } else {
-            let text = ctx.text;
+            let text = ctx.text.expect("typst primitive requires text component");
             let (paths, clip) = text.evaluate_paths_and_clip(style, ctx.time_ms);
             Ok((std::sync::Arc::from(paths), clip))
         }?;
@@ -131,8 +131,10 @@ impl Primitive for TypstPrimitive {
             Ok(None)
         } else {
             // Check highlight properties for optional highlight overlay.
-            let hl_opacity = ctx.highlight.highlight_opacity.get(ctx.time_ms, 0.0);
+            let hl_opacity =
+                ctx.highlight.map(|h| h.highlight_opacity.get(ctx.time_ms, 0.0)).unwrap_or(0.0);
             if hl_opacity > 0.001 {
+                let highlight = ctx.highlight.unwrap();
                 // Compute bounding box of all glyph paths.
                 use kurbo::Shape;
                 let mut min_x = f64::INFINITY;
@@ -148,10 +150,10 @@ impl Primitive for TypstPrimitive {
                 }
                 if min_x.is_finite() && max_x.is_finite() {
                     let hl_color_arr =
-                        ctx.highlight.highlight_color.get(ctx.time_ms, [0.3, 0.5, 1.0, 1.0]);
-                    let hl_padding = ctx.highlight.highlight_padding.get(ctx.time_ms, 4.0);
-                    let hl_radius = ctx.highlight.highlight_radius.get(ctx.time_ms, 3.0);
-                    let hl_blend = ctx.highlight.highlight_blend;
+                        highlight.highlight_color.get(ctx.time_ms, [0.3, 0.5, 1.0, 1.0]);
+                    let hl_padding = highlight.highlight_padding.get(ctx.time_ms, 4.0);
+                    let hl_radius = highlight.highlight_radius.get(ctx.time_ms, 3.0);
+                    let hl_blend = highlight.highlight_blend;
 
                     let pad = hl_padding as f64;
                     let hl_rect =

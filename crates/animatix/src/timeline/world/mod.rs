@@ -33,14 +33,14 @@ use super::effects::EffectChainTrack;
 use super::entity::{EntityId, EntityStore};
 use super::legend::LegendTracks;
 use super::types::ContainerMetadata;
-use crate::primitives::PrimitivePayload;
+use crate::primitives::{ImagePayload, PlotPayload, SvgPayload};
 
 /// Entities and component stores for one scene timeline.
 #[derive(Clone, Debug, Default)]
 pub struct World {
     pub(crate) tracks: EntityStore,
     pub(crate) hierarchy: RequiredStore<SceneHierarchyComponent>,
-    pub(crate) highlight: RequiredStore<crate::timeline::animation_track::HighlightTracks>,
+    pub(crate) highlight: ComponentStore<crate::timeline::animation_track::HighlightTracks>,
     pub(crate) tagged_tracks: RequiredStore<TaggedTracksComponent>,
     /// Primitive identity (registry key) for every entity.
     pub(crate) actor_types: RequiredStore<String>,
@@ -56,10 +56,14 @@ pub struct World {
     /// Style tier for every entity.
     pub(crate) style: RequiredStore<crate::timeline::animation_track::StyleTracks>,
     pub(crate) geometry: RequiredStore<crate::timeline::animation_track::GeometryTracks>,
-    /// Text tier for every entity.
-    pub(crate) text: RequiredStore<crate::timeline::animation_track::TextTracks>,
-    /// Shape geometry tier for every entity.
-    pub(crate) shape: RequiredStore<crate::timeline::animation_track::ShapeTracks>,
+    /// Text tier for entities with text behavior.
+    pub(crate) text: ComponentStore<crate::timeline::animation_track::TextTracks>,
+    /// Shape geometry tier for entities with shape behavior.
+    pub(crate) shape: ComponentStore<crate::timeline::animation_track::ShapeTracks>,
+    /// Fallback static defaults for optional tiers.
+    pub(crate) default_shape: crate::timeline::animation_track::ShapeTracks,
+    pub(crate) default_text: crate::timeline::animation_track::TextTracks,
+    pub(crate) default_highlight: crate::timeline::animation_track::HighlightTracks,
     /// Explicit capability overrides for extension primitives.
     pub(crate) caps_overrides: ComponentStore<animatix_core::caps::ActorCaps>,
     /// Registry-driven property slots for every entity.
@@ -99,8 +103,10 @@ pub struct World {
     pub(crate) decl_span: ComponentStore<animatix_syntax::ast::Span>,
     /// Post-processing effect chain for a compositing scope.
     pub(crate) effects: ComponentStore<EffectChainTrack>,
-    /// Primitive-specific payload (plots, SVG assets, raster images).
-    pub(crate) payload: ComponentStore<PrimitivePayload>,
+    /// Dedicated component stores for primitive payloads.
+    pub(crate) plot_payload: ComponentStore<PlotPayload>,
+    pub(crate) svg_payload: ComponentStore<SvgPayload>,
+    pub(crate) image_payload: ComponentStore<ImagePayload>,
     /// Root entities in authored/insertion order.
     pub(crate) roots: Vec<EntityId>,
     /// Build-time command buffer: a child label whose track has not been
@@ -200,10 +206,23 @@ impl World {
         }
         let id = self.tracks.insert(label.to_string());
         self.ensure_len();
-        *self.caps.get_mut(id) = animatix_std::caps_for_type(&actor_type).unwrap_or_default();
+        let caps = animatix_std::caps_for_type(&actor_type).unwrap_or_default();
+        *self.caps.get_mut(id) = caps;
         *self.behavior.get_mut(id) =
             crate::timeline::behavior::behavior_id_for_builtin(&actor_type)
                 .unwrap_or(crate::timeline::behavior::BehaviorId::UNKNOWN);
+        if caps.is_shape || caps.shape.is_some() || caps.connector || caps.callout {
+            self.ensure_shape(id);
+        }
+        if caps.text.is_some() || caps.text_paths || caps.callout {
+            self.ensure_text(id);
+        }
+        if actor_type == "Fragment"
+            || actor_type == "Equation"
+            || caps.child_processing == animatix_core::caps::ChildProcessingKind::Equation
+        {
+            self.ensure_highlight(id);
+        }
         *self.actor_types.get_mut(id) = actor_type;
         self.attach_pending_auto_color(id, label);
         self.adopt(id, label);
@@ -249,7 +268,9 @@ impl World {
         self.transcript.reset_at(id);
         self.effects.reset_at(id);
         self.legend.reset_at(id);
-        self.payload.reset_at(id);
+        self.plot_payload.reset_at(id);
+        self.svg_payload.reset_at(id);
+        self.image_payload.reset_at(id);
         self.decl_span.reset_at(id);
         self.attach_pending_auto_color(id, label);
         self.adopt(id, label);
@@ -311,23 +332,6 @@ impl World {
     #[inline(always)]
     pub fn effects_mut(&mut self, id: EntityId) -> Option<&mut EffectChainTrack> {
         self.effects.get_mut(id)
-    }
-
-    /// Borrow an entity's primitive payload, when present.
-    #[inline(always)]
-    pub fn payload(&self, id: EntityId) -> Option<&PrimitivePayload> {
-        self.payload.get(id)
-    }
-
-    /// Mutably borrow an entity's primitive payload.
-    #[inline(always)]
-    pub fn payload_mut(&mut self, id: EntityId) -> Option<&mut PrimitivePayload> {
-        self.payload.get_mut(id)
-    }
-
-    /// Insert a default payload when absent and borrow it.
-    pub fn ensure_payload(&mut self, id: EntityId) -> &mut PrimitivePayload {
-        self.payload.get_or_insert_with(id, PrimitivePayload::default)
     }
 
     /// Insert a default effect chain when absent and borrow it.
@@ -545,7 +549,9 @@ impl World {
         self.transcript.ensure_len(len);
         self.legend.ensure_len(len);
         self.effects.ensure_len(len);
-        self.payload.ensure_len(len);
+        self.plot_payload.ensure_len(len);
+        self.svg_payload.ensure_len(len);
+        self.image_payload.ensure_len(len);
         self.decl_span.ensure_len(len);
     }
 
@@ -576,7 +582,9 @@ impl World {
         self.transcript.clear();
         self.legend.clear();
         self.effects.clear();
-        self.payload.clear();
+        self.plot_payload.clear();
+        self.svg_payload.clear();
+        self.image_payload.clear();
         self.decl_span.clear();
         self.roots.clear();
         self.pending_parents.clear();

@@ -467,15 +467,10 @@ impl Timeline {
             // BarChart), so it owns the plot payload outright: assigning all
             // three fields mirrors the old flat-field overwrite, including the
             // clear on a re-declaration that resolves no plot.
-            {
-                let payload = self.world.ensure_plot_payload(track_id);
-                payload.procedural_plot = procedural_plot;
-                // The bar chart's side channel: a `data = {…}` assignment needs
-                // the layout to rebuild paths per frame, and the dataset it
-                // replaces.
-                payload.bar_layout = bar_layout;
-                payload.bar_data = bar_data;
-            }
+            let payload = self.world.ensure_plot_payload(track_id);
+            payload.procedural_plot = procedural_plot;
+            payload.bar_layout = bar_layout;
+            payload.bar_data = bar_data;
 
             // Seed plot_param_tracks with initial declaration values.
             // Only create tracks that don't already exist so re-declarations
@@ -498,8 +493,9 @@ impl Timeline {
 
             self.world.meta.record_first_seen(track_id, t_start_ms);
 
+            self.world.ensure_shape(track_id);
             let style = self.world.style.get_mut(track_id);
-            let shape = self.world.shape.get_mut(track_id);
+            let shape = self.world.shape.get_mut(track_id).expect("shape component");
             let geometry = self.world.geometry.get_mut(track_id);
 
             // Pre-seed opacity for pre-keyframe first declarations so that

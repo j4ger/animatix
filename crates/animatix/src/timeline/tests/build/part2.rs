@@ -800,18 +800,13 @@ b: Code, text: "hello code"
     assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
     let ast = ast.expect("AST");
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let typst_track = report.output.world.tracks.get_id("a").expect("a track");
-    assert_eq!(
-        report.output.world.text(typst_track).text_content.get(0, String::new()),
-        "hello typst",
-        "Typst should read content from `text:`"
-    );
-    let code_track = report.output.world.tracks.get_id("b").expect("b track");
-    assert_eq!(
-        report.output.world.text(code_track).text_content.get(0, String::new()),
-        "hello code",
-        "Code should read content from `text:`"
-    );
+    let world = &report.output.world;
+    let typst_track = world.tracks.get_id("a").expect("a track");
+    let typst_text = world.text_or_default(typst_track).text_content.get(0, String::new());
+    assert_eq!(typst_text, "hello typst", "Typst should read content from `text:`");
+    let code_track = world.tracks.get_id("b").expect("b track");
+    let code_text = world.text_or_default(code_track).text_content.get(0, String::new());
+    assert_eq!(code_text, "hello code", "Code should read content from `text:`");
 }
 
 /// `Code, language: "rust"` reaches the text lane through the generic property
@@ -835,11 +830,12 @@ b: Code, code: "x = 1"
         report.diagnostics
     );
 
-    let a_track = report.output.world.tracks.get_id("a").expect("a track");
-    assert_eq!(report.output.world.text(a_track).language.get(0, String::new()), "rust");
-    let b_track = report.output.world.tracks.get_id("b").expect("b track");
+    let world = &report.output.world;
+    let a_track = world.tracks.get_id("a").expect("a track");
+    assert_eq!(world.text_or_default(a_track).language.get(0, String::new()), "rust");
+    let b_track = world.tracks.get_id("b").expect("b track");
     assert_eq!(
-        report.output.world.text(b_track).language.get(0, String::new()),
+        world.text_or_default(b_track).language.get(0, String::new()),
         "",
         "default is plain"
     );
@@ -923,7 +919,8 @@ label.text = format("step(2)={} base={}", step(2), base)
     let text = timeline
         .world
         .get_id("label")
-        .and_then(|id| timeline.world.text(id).text_content.as_ref())
+        .and_then(|id| timeline.world.text(id))
+        .and_then(|t| t.text_content.as_ref())
         .map(|track| track.evaluate(1000))
         .unwrap_or_default();
     // step(2) = (4*10)+2 = 42; the outer `base` must still be 4 afterwards.
@@ -1128,7 +1125,8 @@ label.text = format("add20(4) = {}", add20(4))
     let text = timeline
         .world
         .get_id("label")
-        .and_then(|id| timeline.world.text(id).text_content.as_ref())
+        .and_then(|id| timeline.world.text(id))
+        .and_then(|t| t.text_content.as_ref())
         .map(|track| track.evaluate(1000))
         .unwrap_or_default();
     // maker(2) binds a=20; add20(4) = 4 + 20.

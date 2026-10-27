@@ -230,7 +230,7 @@ impl Timeline {
             _ => return None,
         };
 
-        let text = self.world.text(child_id);
+        let text = self.world.text(child_id)?;
 
         let content = text.text_content.get(time_ms, String::new());
         if content.is_empty() {
@@ -354,7 +354,8 @@ impl Timeline {
         let Some(child_id) = self.world.get_id(child_label) else {
             return;
         };
-        let text = self.world.text.get_mut(child_id);
+        self.world.ensure_text(child_id);
+        let text = self.world.text.get_mut(child_id).expect("text component");
 
         // Update max_width track
         text.text_max_width

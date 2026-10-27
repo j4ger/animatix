@@ -19,7 +19,7 @@ impl Timeline {
         time_ms: u64,
     ) -> Option<&crate::timeline::behavior::BehaviorDef> {
         let actor_type = self.world.actor_type(node_id);
-        let name = self.world.shape(node_id).render_type_name(actor_type, time_ms);
+        let name = self.world.shape_or_default(node_id).render_type_name(actor_type, time_ms);
         if name != actor_type {
             return self.behavior_registry.find(name);
         }
@@ -43,7 +43,7 @@ impl Timeline {
         time_ms: u64,
     ) -> Option<crate::primitives::PrimitiveHandle> {
         let actor_type = self.world.actor_type(node_id);
-        let name = self.world.shape(node_id).render_type_name(actor_type, time_ms);
+        let name = self.world.shape_or_default(node_id).render_type_name(actor_type, time_ms);
         if name != actor_type {
             if let Some(def) = self.behavior_registry.find(name) {
                 return Some(crate::primitives::PrimitiveHandle::from_behavior(def));

@@ -122,7 +122,7 @@ impl Primitive for MathPrimitive {
                 crate::renderer::text::default_font_size(TextKind::Math),
             )
         } else {
-            let text = ctx.text;
+            let text = ctx.text.expect("math primitive requires text component");
             let (paths, clip) = text.evaluate_paths_and_clip(style, ctx.time_ms);
             Ok((std::sync::Arc::from(paths), clip))
         }?;

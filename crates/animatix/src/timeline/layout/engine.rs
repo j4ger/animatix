@@ -216,8 +216,12 @@ impl LayoutEngine {
                 .layout_size
                 .as_ref()
                 .is_none_or(|t| t.keyframes.is_empty())
-                && world.text(child_id).baseline.as_ref().is_none_or(|t| t.keyframes.is_empty());
-            baselines.push(world.text(child_id).baseline_get(time_ms));
+                && world
+                    .text_or_default(child_id)
+                    .baseline
+                    .as_ref()
+                    .is_none_or(|t| t.keyframes.is_empty());
+            baselines.push(world.text_or_default(child_id).baseline_get(time_ms));
             if let Some(half_size) = world.geometry(child_id).layout_size_get(time_ms) {
                 fingerprints.push((half_size.map(f32_bits), child.placement_mode as u8));
             }

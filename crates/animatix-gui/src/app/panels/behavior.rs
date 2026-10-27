@@ -163,8 +163,8 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                                     crate::app::document::timeline_diff::collect_actor_keyframes(
                                         scene.timeline.world().geometry(id),
                                         scene.timeline.world().style(id),
-                                        scene.timeline.world().shape(id),
-                                        scene.timeline.world().text(id),
+                                        scene.timeline.world().shape_or_default(id),
+                                        scene.timeline.world().text_or_default(id),
                                         None,
                                     )
                                     .into_iter()

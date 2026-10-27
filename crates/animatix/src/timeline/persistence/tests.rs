@@ -88,7 +88,7 @@ fn snapshot_preserves_svg_paths() {
     let mut timeline = Timeline::new();
     let id = timeline.world.spawn("test", "Rect");
     timeline.world.ensure_svg_payload(id).svg_paths.push(VelloPath::default());
-    let payload = timeline.world.payload(id).cloned().unwrap_or_default();
+    let payload = timeline.world.payload(id).unwrap_or_default();
     let snapshot = snapshot_payload_at(&payload, 0);
     assert_eq!(snapshot.as_svg().expect("svg payload").svg_paths.len(), 1);
 }
@@ -120,7 +120,7 @@ fn snapshot_clears_func_transitions() {
             ),
             blend_mode: crate::timeline::plot::FuncBlendMode::Output,
         });
-    let payload = timeline.world.payload(id).cloned().unwrap_or_default();
+    let payload = timeline.world.payload(id).unwrap_or_default();
     let snapshot = snapshot_payload_at(&payload, 0);
     assert!(snapshot.as_plot().expect("plot payload").func_transitions.is_empty());
 }
@@ -159,7 +159,7 @@ fn snapshot_preserves_procedural_plot() {
             params: vec![],
             extra_captures: CapturedEnv::default(),
         });
-    let payload = timeline.world.payload(id).cloned().unwrap_or_default();
+    let payload = timeline.world.payload(id).unwrap_or_default();
     let snapshot = snapshot_payload_at(&payload, 0);
     assert!(snapshot.as_plot().and_then(|plot| plot.procedural_plot.as_ref()).is_some());
 }
@@ -522,7 +522,7 @@ fn snapshot_preserves_svg_actor_kind() {
 
     assert_eq!(timeline.world.actor_type(id), "Svg");
 
-    let payload = timeline.world.payload(id).cloned().unwrap_or_default();
+    let payload = timeline.world.payload(id).unwrap_or_default();
     let payload_snapshot = snapshot_payload_at(&payload, 0);
     assert_eq!(
         payload_snapshot.as_svg().expect("svg payload").svg_paths.len(),

@@ -18,7 +18,10 @@ impl Primitive for CuePrimitive {
     }
 
     fn caption_cue(&self, ctx: &EvaluateCtx) -> Option<CaptionCue> {
-        let text = ctx.text.text_content.get(ctx.time_ms, String::new());
+        let text = ctx
+            .text
+            .map(|t| t.text_content.get(ctx.time_ms, String::new()))
+            .unwrap_or_default();
         let start_s = ctx.sample_f32_prop("start", ctx.time_ms, 0.0);
         let end_s = ctx.sample_f32_prop("end", ctx.time_ms, 0.0);
         let start_ms = (start_s * 1000.0).round() as u64;
@@ -50,6 +53,7 @@ impl Primitive for CuePrimitive {
         ctx.timeline.add_node(label.to_string(), ctx.parent_label);
         let track_id = ctx.timeline.world.spawn(label, "Cue");
         ctx.timeline.world.set_first_seen(track_id, ctx.time_ms as u64);
+        ctx.timeline.world.ensure_text(track_id);
 
         for prop in props {
             if prop.name == "text" {
@@ -61,8 +65,7 @@ impl Primitive for CuePrimitive {
                 };
                 ctx.timeline
                     .world
-                    .text
-                    .get_mut(track_id)
+                    .ensure_text(track_id)
                     .text_content
                     .ensure(String::new())
                     .add_keyframe(ctx.time_ms as u64, content, crate::easing::Easing::Linear);

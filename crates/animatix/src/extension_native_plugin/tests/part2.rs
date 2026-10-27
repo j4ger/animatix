@@ -227,7 +227,8 @@ fn native_append_image_uses_actor_image() {
         crate::easing::Easing::Linear,
     );
     let asset_cache = crate::timeline::assets::AssetCache::new();
-    let eval_ctx = sample_evaluate_ctx_with_payload(&asset_cache, timeline.world.payload(id));
+    let payload = timeline.world.payload(id);
+    let eval_ctx = sample_evaluate_ctx_with_payload(&asset_cache, payload.as_ref());
     let property_ids = HashMap::new();
     let service_values = HashMap::new();
     let mut host = NativePrimitiveEvaluateHost {
@@ -280,7 +281,8 @@ fn native_append_image_rejects_uncached_explicit_url() {
         crate::easing::Easing::Linear,
     );
     let asset_cache = crate::timeline::assets::AssetCache::new();
-    let eval_ctx = sample_evaluate_ctx_with_payload(&asset_cache, timeline.world.payload(id));
+    let payload = timeline.world.payload(id);
+    let eval_ctx = sample_evaluate_ctx_with_payload(&asset_cache, payload.as_ref());
     let property_ids = HashMap::new();
     let service_values = HashMap::new();
     let mut host = NativePrimitiveEvaluateHost {

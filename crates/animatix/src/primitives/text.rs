@@ -122,7 +122,7 @@ impl Primitive for TextPrimitive {
                 crate::renderer::text::default_font_size(TextKind::Text),
             )
         } else {
-            let text = ctx.text;
+            let text = ctx.text.expect("text primitive requires text component");
             let (paths, clip) = text.evaluate_paths_and_clip(style, ctx.time_ms);
             Ok((std::sync::Arc::from(paths), clip))
         }?;
@@ -142,7 +142,7 @@ impl Primitive for TextPrimitive {
             use crate::timeline::TrackAccessor;
             let col = style.color.get(ctx.time_ms, [1.0, 1.0, 1.0, 1.0]);
             let tint_color = Some(crate::renderer::text::f32_color_to_rgba8(&col));
-            let text = ctx.text;
+            let text = ctx.text.expect("text primitive requires text component");
             let hardware_layout = if text.char_progress.is_none()
                 && text.text_anchor.get(ctx.time_ms, "center".to_string()) == "center"
             {

@@ -95,9 +95,18 @@ t_right: Text, text: "Animatix", text_anchor: "right", at: (300, 200)
     let center = timeline.world.tracks.get_id("t_center").unwrap();
     let left = timeline.world.tracks.get_id("t_left").unwrap();
     let right = timeline.world.tracks.get_id("t_right").unwrap();
-    let center_paths = timeline.world.text(center).evaluate_paths(timeline.world.style(center), 0);
-    let left_paths = timeline.world.text(left).evaluate_paths(timeline.world.style(left), 0);
-    let right_paths = timeline.world.text(right).evaluate_paths(timeline.world.style(right), 0);
+    let center_paths = timeline
+        .world
+        .text_or_default(center)
+        .evaluate_paths(timeline.world.style(center), 0);
+    let left_paths = timeline
+        .world
+        .text_or_default(left)
+        .evaluate_paths(timeline.world.style(left), 0);
+    let right_paths = timeline
+        .world
+        .text_or_default(right)
+        .evaluate_paths(timeline.world.style(right), 0);
 
     let (c_min, c_max) = x_bounds(&center_paths);
     let (l_min, l_max) = x_bounds(&left_paths);
@@ -161,7 +170,7 @@ t.text_anchor = "right"
     }
 
     let t_track = timeline.world.tracks.get_id("t").unwrap();
-    let t_text = timeline.world.text(t_track);
+    let t_text = timeline.world.text_or_default(t_track);
     let t_style = timeline.world.style(t_track);
     let paths_0 = t_text.evaluate_paths(t_style, 0);
     let paths_1000 = t_text.evaluate_paths(t_style, 1000);
@@ -209,6 +218,7 @@ always {
         text_compiler: &mut text_compiler,
     };
     let asset_cache = crate::timeline::assets::AssetCache::new();
+    let payload = timeline.world.payload(t_track);
     let eval_ctx = crate::primitives::EvaluateCtx {
         id: t_track,
         label: "t",
@@ -220,7 +230,7 @@ always {
         text: timeline.world.text(t_track),
         style: timeline.world.style(t_track),
         geometry: timeline.world.geometry(t_track),
-        payload: timeline.world.payload(t_track),
+        payload: payload.as_ref(),
         time_ms: 0,
         local_transform: kurbo::Affine::IDENTITY,
         opacity: 1.0,
