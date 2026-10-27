@@ -1,23 +1,19 @@
-use animatix_core::caps::ActorCategory;
+use animatix_core::caps::{ActorCaps, ActorCategory};
 
 use crate::primitives::ChildProcessing;
+pub use crate::timeline::behavior::BehaviorFamily;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PrimitiveFamily {
-    TextLike,
-    VectorShape,
-    Media,
-    Plot,
-    Container,
-    Group,
-}
+/// Backward-compatibility alias for [`BehaviorFamily`].
+#[allow(dead_code)] // Backward-compatibility alias for BehaviorFamily
+pub type PrimitiveFamily = BehaviorFamily;
 
 /// Capability flags shared with schema/tooling descriptors.
 pub type PrimitiveCapabilities = animatix_syntax::schema::PrimitiveCapabilities;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PrimitiveFamilyDescriptor {
-    pub family: PrimitiveFamily,
+    pub family: BehaviorFamily,
+    pub caps: ActorCaps,
     pub capabilities: PrimitiveCapabilities,
     pub child_processing: ChildProcessing,
     /// Which plot family this primitive is, carried from the catalog card so the
@@ -32,7 +28,14 @@ pub struct PrimitiveFamilyDescriptor {
 impl Default for PrimitiveFamilyDescriptor {
     fn default() -> Self {
         Self {
-            family: PrimitiveFamily::VectorShape,
+            family: BehaviorFamily::Shape,
+            caps: ActorCaps {
+                vector_paths: true,
+                category: ActorCategory::Shape,
+                shape: Some(animatix_core::caps::ShapeKind::Rect),
+                has_visual_content: true,
+                ..Default::default()
+            },
             capabilities: PrimitiveCapabilities {
                 vector_paths: true,
                 is_shape: true,
@@ -52,28 +55,8 @@ impl PrimitiveFamilyDescriptor {
     /// built-in so extension primitives participate in the same classification.
     pub fn from_info(info: &animatix_std::PrimitiveInfo) -> Self {
         let caps = info.capabilities;
-        let family = if caps.text_paths {
-            PrimitiveFamily::TextLike
-        } else if caps.plot_geometry {
-            PrimitiveFamily::Plot
-        } else if caps.image_payload {
-            PrimitiveFamily::Media
-        } else if caps.vector_paths {
-            PrimitiveFamily::VectorShape
-        } else if caps.layout_container {
-            PrimitiveFamily::Container
-        } else if caps.is_container {
-            PrimitiveFamily::Group
-        } else {
-            match info.category {
-                ActorCategory::Shape => PrimitiveFamily::VectorShape,
-                ActorCategory::Text => PrimitiveFamily::TextLike,
-                ActorCategory::Media => PrimitiveFamily::Media,
-                ActorCategory::Plot => PrimitiveFamily::Plot,
-                ActorCategory::Container => PrimitiveFamily::Group,
-                ActorCategory::Annotation => PrimitiveFamily::VectorShape,
-            }
-        };
+        let mut actor_caps = animatix_std::caps_from_info(info);
+        let family = BehaviorFamily::from_caps(&actor_caps);
 
         // Keep the primitive's own capability flags (shared-schema defaults
         // for built-ins, plugin ABI flags for extensions) instead of rebuilding
@@ -81,12 +64,14 @@ impl PrimitiveFamilyDescriptor {
         // normalization is a fallback for sloppy plugins that declare a
         // category without any container capability, mirroring the previous
         // per-family default rows.
-        let capabilities = if family == PrimitiveFamily::Container && !caps.layout_container {
+        let capabilities = if family == BehaviorFamily::Container && !caps.layout_container {
+            actor_caps.layout_container = true;
             PrimitiveCapabilities {
                 layout_container: true,
                 ..caps
             }
-        } else if family == PrimitiveFamily::Group && !caps.is_container {
+        } else if family == BehaviorFamily::Group && !caps.is_container {
+            actor_caps.is_container = true;
             PrimitiveCapabilities {
                 is_container: true,
                 ..caps
@@ -96,6 +81,7 @@ impl PrimitiveFamilyDescriptor {
         };
         Self {
             family,
+            caps: actor_caps,
             capabilities,
             child_processing: info.child_processing,
             plot: info.plot,
@@ -103,28 +89,32 @@ impl PrimitiveFamilyDescriptor {
         }
     }
 
+    #[inline]
     pub fn is_plot(&self) -> bool {
-        self.family == PrimitiveFamily::Plot
+        self.caps.is_plot()
     }
 
+    #[inline]
     pub fn is_graph_host(&self) -> bool {
-        self.capabilities.plot_host
+        self.caps.is_graph_host()
     }
 
+    #[inline]
     pub fn is_plot_curve(&self) -> bool {
-        self.is_plot() && !self.is_graph_host()
+        self.caps.is_plot_curve()
     }
 
+    #[inline]
     pub fn is_layout_container(&self) -> bool {
-        self.capabilities.layout_container
+        self.caps.is_layout_container()
     }
 
     /// Container semantics used by group-target expansion: layout containers
     /// and structural groups recurse into children, while equation containers
     /// aggregate children into one renderable document.
+    #[inline]
     pub fn is_recursive_container(&self) -> bool {
-        (self.capabilities.layout_container || self.capabilities.is_container)
-            && self.child_processing != ChildProcessing::Equation
+        self.caps.is_recursive_container()
     }
 }
 
@@ -132,13 +122,13 @@ impl PrimitiveFamilyDescriptor {
 mod tests {
     use animatix_std::catalog_lookup;
 
-    use super::{PrimitiveFamily, PrimitiveFamilyDescriptor};
+    use super::{BehaviorFamily, PrimitiveFamilyDescriptor};
 
     #[test]
     fn classifies_text_like_primitives() {
         let info = catalog_lookup("Text").expect("Text built-in");
         let descriptor = PrimitiveFamilyDescriptor::from_info(info);
-        assert_eq!(descriptor.family, PrimitiveFamily::TextLike);
+        assert_eq!(descriptor.family, BehaviorFamily::Text);
         assert!(descriptor.capabilities.text_paths);
     }
 
@@ -146,7 +136,7 @@ mod tests {
     fn classifies_plot_primitives() {
         let info = catalog_lookup("PlotCurve").expect("PlotCurve built-in");
         let descriptor = PrimitiveFamilyDescriptor::from_info(info);
-        assert_eq!(descriptor.family, PrimitiveFamily::Plot);
+        assert_eq!(descriptor.family, BehaviorFamily::Plot);
         assert!(descriptor.capabilities.plot_geometry);
     }
 
@@ -154,7 +144,7 @@ mod tests {
     fn classifies_layout_containers() {
         let info = catalog_lookup("Row").expect("Row built-in");
         let descriptor = PrimitiveFamilyDescriptor::from_info(info);
-        assert_eq!(descriptor.family, PrimitiveFamily::Container);
+        assert_eq!(descriptor.family, BehaviorFamily::Container);
         assert!(descriptor.is_layout_container());
         assert!(descriptor.is_recursive_container());
     }
@@ -163,6 +153,7 @@ mod tests {
     fn classifies_structural_groups_as_recursive_containers() {
         let info = catalog_lookup("Group").expect("Group built-in");
         let descriptor = PrimitiveFamilyDescriptor::from_info(info);
+        assert_eq!(descriptor.family, BehaviorFamily::Group);
         assert!(!descriptor.is_layout_container());
         assert!(descriptor.is_recursive_container());
     }
@@ -186,7 +177,7 @@ mod tests {
     fn treats_circle_as_vector_shape() {
         let info = catalog_lookup("Ellipse").expect("Ellipse built-in");
         let descriptor = PrimitiveFamilyDescriptor::from_info(info);
-        assert_eq!(descriptor.family, PrimitiveFamily::VectorShape);
+        assert_eq!(descriptor.family, BehaviorFamily::Shape);
         assert!(descriptor.capabilities.vector_paths);
     }
 
@@ -239,7 +230,7 @@ mod tests {
         container_info.capabilities.layout_container = true;
         container_info.capabilities.is_container = true;
         let descriptor = PrimitiveFamilyDescriptor::from_info(&container_info);
-        assert_eq!(descriptor.family, PrimitiveFamily::Container);
+        assert_eq!(descriptor.family, BehaviorFamily::Container);
         assert!(descriptor.is_layout_container());
         assert!(descriptor.is_recursive_container());
 

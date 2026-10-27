@@ -625,41 +625,26 @@ impl Timeline {
                         | crate::timeline::ActorField::MaxHeight
                         | crate::timeline::ActorField::MaxItemWidth
                         | crate::timeline::ActorField::AudioVolume
+                        | crate::timeline::ActorField::HeadSize
+                        | crate::timeline::ActorField::LabelAt
+                        | crate::timeline::ActorField::CalloutTarget
+                        | crate::timeline::ActorField::CalloutStandoff
+                        | crate::timeline::ActorField::CalloutToOffset
+                        | crate::timeline::ActorField::LineFrom
+                        | crate::timeline::ActorField::LineTo
+                        | crate::timeline::ActorField::TextContent
                 )
             {
-                let prop_subject = format!("{label}.{}", prop.name);
-                if let Some(pv) = crate::timeline::property_engine::parse_property_value(
-                    schema.value_type,
-                    &prop.value,
-                    &eval_env,
-                    diagnostics,
-                    &prop_subject,
-                ) {
-                    self.world.write_property_field(
-                        track_id,
-                        schema.field,
-                        pv,
-                        t_start_ms,
-                        t_end_ms,
-                        easing,
-                        diagnostics,
-                    );
-                }
-            }
-        }
-
-        // Callout annotation properties that live outside the tagged storage map.
-        // These are handled by the generic build path now; the primitive no longer
-        if caps.callout {
-            for prop in props {
-                let prop_subject = format!("{label}.{}", prop.name);
-                if prop.name == "target" {
-                    if let Some(target) =
-                        crate::timeline::lookup::parse_actor_ref_literal(&prop.value)
-                    {
+                if schema.field == crate::timeline::ActorField::CalloutTarget {
+                    let target_str = crate::timeline::lookup::parse_actor_ref_literal(&prop.value)
+                        .or_else(|| match crate::timeline::evaluate_expr(&prop.value, &eval_env) {
+                            Ok(Value::Str(s)) => Some(s),
+                            _ => None,
+                        });
+                    if let Some(target) = target_str {
                         self.world.write_property_field(
                             track_id,
-                            crate::timeline::property_registry::ActorField::CalloutTarget,
+                            schema.field,
                             crate::timeline::property_engine::PropertyValue::String(target),
                             t_start_ms,
                             t_end_ms,
@@ -669,55 +654,38 @@ impl Timeline {
                     }
                     continue;
                 }
+                if primitive.connector
+                    && (schema.field == crate::timeline::ActorField::LineFrom
+                        || schema.field == crate::timeline::ActorField::LineTo)
+                {
+                    continue;
+                }
                 if matches!(caps.shape, Some(super::ShapeKind::Line | super::ShapeKind::Arrow))
                     && (prop.name == "from" || prop.name == "to")
+                    && let Expr::Path(segments) = &prop.value
+                    && segments.len() == 2
+                    && SceneAnchor::from_str(&segments[1]).is_some()
                 {
-                    if let Expr::Path(segments) = &prop.value {
-                        if segments.len() == 2 && SceneAnchor::from_str(&segments[1]).is_some() {
-                            continue;
-                        }
-                    }
+                    continue;
                 }
-                let (value_type, field) = match prop.name.as_str() {
-                    "from" => (
-                        crate::timeline::property_registry::ValueType::Vec2,
-                        crate::timeline::property_registry::ActorField::LineFrom,
-                    ),
-                    "to" => (
-                        crate::timeline::property_registry::ValueType::Vec2,
-                        crate::timeline::property_registry::ActorField::LineTo,
-                    ),
-                    "head_size" => (
-                        crate::timeline::property_registry::ValueType::F32,
-                        crate::timeline::property_registry::ActorField::HeadSize,
-                    ),
-                    "label" => (
-                        crate::timeline::property_registry::ValueType::String,
-                        crate::timeline::property_registry::ActorField::TextContent,
-                    ),
-                    "label_at" => (
-                        crate::timeline::property_registry::ValueType::Vec2,
-                        crate::timeline::property_registry::ActorField::LabelAt,
-                    ),
-                    _ => continue,
-                };
+                let prop_subject = format!("{label}.{}", prop.name);
                 if let Some(pv) = crate::timeline::property_engine::parse_property_value(
-                    value_type,
+                    schema.value_type,
                     &prop.value,
                     &eval_env,
                     diagnostics,
                     &prop_subject,
                 ) {
                     if let crate::timeline::property_engine::PropertyValue::Vec2(v) = &pv {
-                        if field == crate::timeline::property_registry::ActorField::LineFrom {
+                        if schema.field == crate::timeline::ActorField::LineFrom {
                             line_from = *v;
-                        } else if field == crate::timeline::property_registry::ActorField::LineTo {
+                        } else if schema.field == crate::timeline::ActorField::LineTo {
                             line_to = *v;
                         }
                     }
                     self.world.write_property_field(
                         track_id,
-                        field,
+                        schema.field,
                         pv,
                         t_start_ms,
                         t_end_ms,

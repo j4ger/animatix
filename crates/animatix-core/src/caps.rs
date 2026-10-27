@@ -217,6 +217,8 @@ pub struct ActorCaps {
     pub stroke_primary: bool,
     /// Has callout-style targeted leader line and label geometry.
     pub callout: bool,
+    /// Has smart connector geometry lanes.
+    pub connector: bool,
     /// Manages and displays a series legend.
     pub legend_host: bool,
     /// Intrinsically time-dependent evaluation (e.g. Captions, Cue).
@@ -261,6 +263,37 @@ impl ActorCaps {
     /// edge artifacts.
     pub fn default_stroke_width(&self) -> f32 {
         if self.stroke_primary { 2.0 } else { 0.0 }
+    }
+
+    /// Returns `true` if this actor is a layout container (e.g. Row, Col, Grid, Stack).
+    #[inline]
+    pub fn is_layout_container(&self) -> bool {
+        self.layout_container
+    }
+
+    /// Returns `true` if this actor hosts plot curves in a math coordinate system (`Graph`).
+    #[inline]
+    pub fn is_graph_host(&self) -> bool {
+        self.plot_host
+    }
+
+    /// Returns `true` if this actor is a plot or chart primitive.
+    #[inline]
+    pub fn is_plot(&self) -> bool {
+        self.plot_geometry || self.plot_host
+    }
+
+    /// Returns `true` if this actor is a plot curve (not the coordinate host).
+    #[inline]
+    pub fn is_plot_curve(&self) -> bool {
+        self.plot_geometry && !self.plot_host
+    }
+
+    /// Returns `true` if this container recurses into children for action expansion.
+    #[inline]
+    pub fn is_recursive_container(&self) -> bool {
+        (self.layout_container || self.is_container)
+            && self.child_processing != ChildProcessingKind::Equation
     }
 }
 

@@ -312,9 +312,9 @@ impl Timeline {
         }
     }
 
-    // === ActorKind Dispatch Methods ===
+    // === Plot Dispatch Methods ===
 
-    /// Dispatch method for plot actor kinds (called from ActorKind trait impl)
+    /// Dispatch method for plot actor kinds (called from Primitive::build impl)
     pub fn process_plot_actor_dispatch(
         &mut self,
         label: &str,

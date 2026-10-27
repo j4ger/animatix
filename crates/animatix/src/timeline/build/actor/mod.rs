@@ -1,5 +1,5 @@
 //! Actor building logic: processes actor declarations, generates VelloPaths,
-//! inserts keyframes, and dispatches to ActorKind implementations.
+//! inserts keyframes, and dispatches primitive builds.
 
 use super::*;
 

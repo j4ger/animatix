@@ -148,7 +148,6 @@ pub mod utils;
 pub mod vello_path;
 
 use actions::process_action_with_extensions;
-pub use actor_caps::ActorKind;
 pub(crate) use assignments::recompile_text_at_assignment;
 pub use builtins::load_standard_library;
 use colorscheme::{BuiltInColorscheme, ResolvedColorscheme};

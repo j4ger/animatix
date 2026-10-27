@@ -41,6 +41,7 @@ pub fn caps_from_info(info: &PrimitiveInfo) -> ActorCaps {
                     ))),
         stroke_primary,
         callout: info.capabilities.callout,
+        connector: info.connector,
         legend_host: info.capabilities.legend_host,
     }
 }

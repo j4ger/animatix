@@ -36,7 +36,7 @@ fn exactly_one_card_declares_connector_geometry() {
     assert_eq!(
         flagged,
         vec!["Connector"],
-        "the connector-geometry card set changed; update `find_actor_kind` and the \
+        "the connector-geometry card set changed; update `try_dispatch_prior` and the \
              generic body's connector block together"
     );
 }

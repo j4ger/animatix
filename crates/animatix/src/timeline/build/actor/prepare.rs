@@ -2,7 +2,6 @@
 
 use super::*;
 use crate::ast::{InlineItem, Property};
-use crate::timeline::actor_caps::find_actor_kind;
 use crate::timeline::animation_track::GeometryTracks;
 
 pub(super) fn apply_size_spec(
@@ -91,26 +90,45 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
         decl_span: Option<crate::ast::Span>,
     ) -> bool {
-        if let Some(kind) = find_actor_kind(ty) {
-            kind.build(
-                self,
-                label,
-                ty,
-                props,
-                modifiers,
-                children,
-                time_ms,
-                parent_label,
-                diagnostics,
-            );
-            if let Some(id) = self.world.get_id(label) {
-                if self.world.decl_span.get(id).is_none()
-                    && let Some(span) = decl_span
+        if let Some(def) = self.behavior_registry.find(ty).cloned() {
+            // Shapes, layout containers, and connector/callout annotations are handled
+            // inline by the generic `process_actor_decl` pipeline.
+            let is_inline = matches!(
+                def.family,
+                crate::timeline::behavior::BehaviorFamily::Shape
+                    | crate::timeline::behavior::BehaviorFamily::Container
+                    | crate::timeline::behavior::BehaviorFamily::Group
+                    | crate::timeline::behavior::BehaviorFamily::Effect
+                    | crate::timeline::behavior::BehaviorFamily::Equation
+                    | crate::timeline::behavior::BehaviorFamily::Captions
+            ) || def.caps.category == animatix_core::caps::ActorCategory::Container
+                || def.caps.callout
+                || def.caps.connector;
+
+            if !is_inline {
+                let coordinate_context = self.resolve_coordinate_context(parent_label);
+                let mut ctx = crate::primitives::BuildCtx {
+                    timeline: self,
+                    label,
+                    time_ms,
+                    parent_label,
+                    diagnostics,
+                    coordinate_context,
+                };
+                if let Err(mut diags) =
+                    def.primitive().build(&mut ctx, label, props, modifiers, children)
                 {
-                    self.world.decl_span.get_or_insert_with(id, || span);
+                    diagnostics.append(&mut diags);
                 }
+                if let Some(id) = self.world.get_id(label) {
+                    if self.world.decl_span.get(id).is_none()
+                        && let Some(span) = decl_span
+                    {
+                        self.world.decl_span.get_or_insert_with(id, || span);
+                    }
+                }
+                return true;
             }
-            return true;
         }
 
         // Extension primitives are dispatched through the active runtime
