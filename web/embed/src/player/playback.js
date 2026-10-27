@@ -170,7 +170,10 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
         this._canvas.width = curBackingW;
         this._canvas.height = curBackingH;
       }
-      const curWanted = Math.min(2.0, Math.max(0.25, curDisplay * QUALITY_STEPS[qualityStep]));
+      // `core.qualityStep` is read through the module namespace on purpose: it
+      // is a `let` reassigned by `setQualityStep`, and a destructured copy
+      // would freeze at the value captured when this module first evaluated.
+      const curWanted = Math.min(2.0, Math.max(0.25, curDisplay * QUALITY_STEPS[core.qualityStep]));
       this._renderScale = player.set_render_scale(curWanted);
       if (!this._playing && this._state === "ready") {
         this._renderScene();
