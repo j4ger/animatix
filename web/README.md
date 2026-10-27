@@ -80,7 +80,7 @@ scripts/ensure-web-pkg.sh             # release build (or --dev for ~20s debug r
 
 # Or manual profile builds:
 scripts/build-web.sh --slim          # playback-only (~6.8 MB raw / ~2.4 MB brotli)
-scripts/build-web.sh                 # full profile  (~29.1 MB raw / ~8.5 MB brotli)
+scripts/build-web.sh                 # full profile  (~29.5 MB raw / ~10.0 MB brotli)
 python3 scripts/serve-web.py 8124    # serves web/ with live-reload no-cache headers
 # open http://127.0.0.1:8124/
 ```
@@ -119,16 +119,26 @@ brotli resolve fine) while the build still fails. Confirm before building:
 ls "$(rustc --print sysroot)/lib/rustlib/"   # must list wasm32-unknown-unknown
 ```
 
-The script also wants `wasm-bindgen-cli` at **exactly** the version
+The script also needs `wasm-bindgen-cli` at **exactly** the version
 `crates/animatix-web/Cargo.toml` pins (`wasm-bindgen-futures` releases in
 lockstep, so a mismatch is a hard failure at glue generation, several build
-minutes later). nixpkgs ships an older one, which is why the CLI is not in the
-flake. The pin is read from the manifest, never copied, by
-`scripts/wasm-tools.sh` — so do not write the number into a command or a doc:
+minutes later). `.#web-build` carries that CLI as a fixed-output derivation
+(hash-verified, no GitHub fetch or `sudo` during the build), so entering the
+shell is all a Nix user on x86_64 Linux needs; other platforms use the fallback.
+The pin is read from the manifest, never copied, by `scripts/wasm-tools.sh` — do
+not write the number into a command or a doc.
+Outside Nix, the fallback verifies the release tarball and installs into a
+user-writable directory:
 
 ```bash
-scripts/ci.sh setup wasm-bindgen     # installs exactly the pinned version
+scripts/ci.sh setup wasm-bindgen     # ~/.local/bin, checksum-verified
 ```
+
+`scripts/ci.sh gate web-smoke` (run it in `nix develop .#web-ci`, after
+`web-build`) loads the home, transformer and matrix pages in headless Chromium
+and fails unless every `<amx-player>` reaches `ready` with a painted canvas. It
+is the gate that notices a runtime wiring break which `web-build`/`site-scenes`
+cannot see.
 
 Nix users have a lighter option for *serving* — a single static-web-server
 binary, no Python (`nix run .#serve`, port/root overridable via `SERVE_PORT` /
@@ -144,7 +154,7 @@ time is unchanged (the browser frame is GPU-bound, and an A/B of the two builds
 could not separate them).
 
 The seven demo scenes use plain text only, so they run on the slim engine —
-~1.7 MB over the wire instead of ~8.5 MB. The transformer and gallery pages
+~2.3 MB over the wire instead of ~10 MB. The transformer and gallery pages
 still point `data-runtime-base` at `pkg-slim` (the legacy exact-directory
 form) and the other demo pages rely on the default; new pages don't need the
 attribute at all — an embed without `profile` uses slim. The
@@ -167,20 +177,24 @@ It runs four gates from `scripts/ci.sh` and then one assembler:
 embed-drift     the web/embed/amx-player.js bundle builds from its src
 site-scenes     every scene the pages embed builds, in both profiles
 web-build       both engine bundles, in the .#web-build shell
+web-smoke       every player on three pages reaches ready in headless Chromium
+                (runs in the same job as web-build: pkg/ is gitignored)
 site-artifact   scripts/site-artifact.sh assembles _site
 ```
 
 `site-artifact` is the same script the release pipeline zips with, and it encodes
 the parts of "what the artifact is" that are easy to get wrong: both `pkg*`
-directories must exist (an empty one deploys pages whose embeds cannot load), the
-`.br` twins are dropped because Pages does not negotiate brotli — so the raw wasm
-is what gets served, and the slim profile's ~5.5 MB is why the site's live figures
-play on slim — and `.nojekyll` is written because otherwise Pages runs the tree
-through Jekyll, which silently drops any directory beginning with `_`.
+directories must be **release** builds (a `.dev` marker or a non-release `.build`
+stamp is refused, because a debug bundle is several times larger), the `.br` twins
+are dropped because Pages does not negotiate brotli — so the raw wasm is what gets
+served, and the slim profile's ~6.5 MB is why the site's live figures play on slim
+— and `.nojekyll` is written because otherwise Pages runs the tree through Jekyll,
+which silently drops any directory beginning with `_`.
 
-The wasm-bindgen-cli version CI installs is read from the pin in
-`crates/animatix-web/Cargo.toml` by `scripts/wasm-tools.sh`, so bumping that pin is
-the only version bump needed. Pages itself must be enabled once in the repo settings
+The wasm-bindgen-cli version is read from the pin in
+`crates/animatix-web/Cargo.toml` by `scripts/wasm-tools.sh`; `.#web-build` carries
+that exact CLI and CI's non-Nix fallback verifies the same tarball, so bumping the
+pin (and the hash in `flake.nix`) is the only version bump needed. Pages itself must be enabled once in the repo settings
 (Source: "GitHub Actions"); the site lives at
 `https://<owner>.github.io/animatix/` and every page uses relative paths, so the
 subpath just works.

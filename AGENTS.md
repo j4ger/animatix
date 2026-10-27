@@ -64,7 +64,8 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
    | --- | --- | --- |
    | `native` | `scripts/ci.sh gate <name>` | pure-Rust checks (fmt, meta-version, eparts on non-Linux); stays off nix |
    | `nix` | `nix develop --command scripts/ci.sh gate <name>` | ALSA + FFmpeg headers, Mesa/Vulkan, `cog`, `cargo-audit` |
-   | `web` | `nix develop .#web-build --command scripts/ci.sh gate <name>` | the only toolchain with a wasm32 std |
+   | `web` | `nix develop .#web-build --command scripts/ci.sh gate <name>` | wasm32 std, binaryen/brotli, the pinned wasm-bindgen |
+   | `web-ci` | `nix develop .#web-ci --command scripts/ci.sh gate <name>` | the `web` toolchain plus headless Chromium (lavapipe) and Node; `web-build` and `web-smoke` share this job because `web/pkg` is gitignored |
    | `none` | anywhere | checks that need no toolchain (`content-sync`, `file-size`, `workflows`) |
 
    Use `env -i` if your shell already loaded a dev shell (see the `.#web-build`
@@ -104,6 +105,14 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
    `animatix-web` changes. It also carries the slim-profile clippy
    (`-p animatix --no-default-features`), which is the only look the profile the
    web playback build uses ever gets.
+
+   `web-smoke` loads the home, transformer and matrix pages in headless Chromium
+   (WebGPU on lavapipe) and fails unless every `<amx-player>` reaches `ready`
+   with a painted canvas. It is the only gate that exercises the embed's module
+   wiring and the wasm glue together; the `qualityStep` regression passed every
+   static gate while every page showed a load error. It runs in the same job as
+   `web-build` (shell `web-ci`) because `web/pkg` is gitignored and a fresh
+   checkout has nothing to load.
 
    `site-scenes` builds every scene an `<amx-player>` on the site references, in
    the profile that player asks for, both times. A scene that only the full engine

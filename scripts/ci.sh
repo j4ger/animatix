@@ -74,7 +74,8 @@ eparts|native|windows-latest|rust-stable|pr
 audit|nix|ubuntu-latest|nix|pr
 commit|nix|ubuntu-latest|nix|pr
 wasm-check|web|ubuntu-latest|nix|pr
-web-build|web|ubuntu-latest|nix wasm-bindgen|pr
+web-build|web|ubuntu-latest|nix|pr
+web-smoke|web-ci|ubuntu-latest|nix|pr
 site-artifact|native|ubuntu-latest|none|site
 dist-site|native|ubuntu-latest|none|site
 dist-wasm|native|ubuntu-latest|none|site
@@ -103,7 +104,7 @@ Test & Examples|test examples|nix|ubuntu-latest|nix|pr
 Render Smoke & Scenes|render-smoke site-scenes|nix|ubuntu-latest|nix|pr
 Benchmarks|ext-bench|nix|ubuntu-latest|nix|pr
 Web Check|wasm-check|web|ubuntu-latest|nix|pr
-Web Build|web-build|web|ubuntu-latest|nix wasm-bindgen|pr
+Web Build|web-build web-smoke|web-ci|ubuntu-latest|nix|pr
 dist-linux|dist-linux|nix|ubuntu-latest|nix|release
 dist-macos|dist-macos|native|macos-latest|rust-stable|release
 dist-windows|dist-windows|native|windows-latest|rust-stable|release
@@ -116,6 +117,7 @@ shell_for() {
     native) echo '' ;;
     nix) echo 'nix develop --command' ;;
     web) echo 'nix develop .#web-build --command' ;;
+    web-ci) echo 'nix develop .#web-ci --command' ;;
     none) echo '' ;;
     *) echo "unknown shell: $1" >&2; return 1 ;;
   esac
@@ -132,6 +134,18 @@ gate_stage() { awk -F'|' -v g="$1" '$1==g {print $5; exit}' <<<"$GATE_TABLE"; }
 # against unstable rustfmt options, a rustc whose sysroot has no wasm32 std.
 want_cargo() {
   command -v cargo >/dev/null 2>&1 || { echo "error: no cargo on PATH" >&2; return 1; }
+}
+
+want_node() {
+  command -v node >/dev/null 2>&1 || { echo "error: no node on PATH" >&2; return 1; }
+}
+
+want_chromium() {
+  command -v chromium >/dev/null 2>&1 || {
+    echo "error: chromium is not on PATH — the web-smoke gate needs it." >&2
+    echo "       Run it as: $(shell_for web-ci) scripts/ci.sh gate web-smoke" >&2
+    return 1
+  }
 }
 
 want_nix_shell() {
@@ -244,7 +258,19 @@ gate_web_build() {
   for d in web/pkg-slim web/pkg; do
     [ -f "$d/animatix_web_bg.wasm" ] || { echo "error: $d/animatix_web_bg.wasm missing after build" >&2; return 1; }
     [ -f "$d/animatix_web.js" ] || { echo "error: $d/animatix_web.js missing after build" >&2; return 1; }
+    [ -f "$d/.build" ] || { echo "error: $d/.build stamp missing after build" >&2; return 1; }
+    [ ! -f "$d/.dev" ] || { echo "error: $d is a --dev bundle after a release build" >&2; return 1; }
   done
+}
+
+gate_web_smoke() {
+  want_nix_shell 'web-smoke'
+  want_node
+  want_chromium
+  # Loading the real pages is the only thing that exercises the embed's module
+  # wiring and the wasm glue together. The static gates all passed while every
+  # player on the site was throwing `ReferenceError: qualityStep is not defined`.
+  node scripts/web-smoke.mjs
 }
 
 gate_wasm_check() {
@@ -520,9 +546,18 @@ setup_one() {
     wasm-bindgen)
       # The CLI must equal the crate's `=0.2.128` pin exactly; a mismatch fails
       # at glue generation, several build minutes in. Version read from the pin.
+      # .#web-build already carries the verified pinned CLI, so this is a no-op
+      # inside that shell; the non-Nix fallback downloads and checks the tarball.
       # shellcheck source=scripts/wasm-tools.sh
       . scripts/wasm-tools.sh
-      install_wbg
+      local want
+      want="$(wbg_pin)"
+      if command -v wasm-bindgen >/dev/null 2>&1 && \
+         [ "$(wasm-bindgen --version | awk '{print $NF}')" = "$want" ]; then
+        echo "setup wasm-bindgen: $(wasm-bindgen --version) already on PATH"
+      else
+        install_wbg
+      fi
       ;;
     rust-stable|rust-nightly|node|nix|none)
       echo "setup $1: provided by the workflow's own steps; nothing to install here"

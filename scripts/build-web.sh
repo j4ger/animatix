@@ -8,16 +8,23 @@
 #   --slim    playback-only profile: drops the Typst rich-text stack, raster
 #             image decoding, and SVG loading (~smaller wasm; Text degrades to
 #             the plain fast path, Code/Math/Svg assets report diagnostics)
-#   --dev     debug build    — faster iterate, larger wasm, no opt
+#   --dev     debug build    — faster iterate, larger wasm, no opt, no brotli
 #
 # Release builds use the `wasm-release` profile (see the root Cargo.toml: fat
 # LTO, one codegen unit, panic=abort) and enable wasm SIMD128. Neither touches
 # the `release` profile the native benchmarks build through.
 #
-# Prereqs: rustup target wasm32-unknown-unknown, wasm-bindgen-cli matching the
+# Prereqs: the `.#web-build` dev shell (wasm32 std + the pinned wasm-bindgen),
+# or a rustc with wasm32-unknown-unknown plus a wasm-bindgen-cli matching the
 # `wasm-bindgen` version pinned in crates/animatix-web/Cargo.toml.
-# wasm-opt (binaryen) and brotli are fetched through `nix shell` when
-# available; missing tools skip their step with a warning instead of failing.
+# wasm-opt (binaryen) and brotli are release-only; outside `.#web-build` they
+# are fetched through `nix shell` when available.
+#
+# The build is staged in target/web-build/ and swapped into place only after
+# every step succeeds, so a failed build can never leave a half-written pkg/
+# that the freshness check would call current. The swap also writes `.build`,
+# the stamp `scripts/ensure-web-pkg.sh` reads (HEAD, dirty, profile, variant,
+# wasm-bindgen version).
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -26,11 +33,12 @@ cd "$root"
 profile_args=(--profile wasm-release)
 out_profile="wasm-release"
 feature_args=()
+variant="full"
 out_dir="web/pkg"
 for arg in "$@"; do
   case "$arg" in
     --dev) profile_args=(); out_profile="debug" ;;
-    --slim) feature_args=(--no-default-features); out_dir="web/pkg-slim" ;;
+    --slim) feature_args=(--no-default-features); variant="slim"; out_dir="web/pkg-slim" ;;
   esac
 done
 
@@ -56,80 +64,104 @@ if ! ls "$(rustc --print sysroot)/lib/rustlib/wasm32-unknown-unknown" >/dev/null
   exit 1
 fi
 
-want_wbg=$(sed -nE 's/^[[:space:]]*wasm-bindgen = "=[0-9.]*/&/p' crates/animatix-web/Cargo.toml \
-  | sed -nE 's/.*"=([0-9.]+)".*/\1/p' | head -1)
-if ! command -v wasm-bindgen >/dev/null 2>&1; then
-  echo "error: wasm-bindgen not on PATH; this crate pins wasm-bindgen =$want_wbg." >&2
-  echo "       cargo install --version $want_wbg --locked wasm-bindgen-cli" >&2
-  exit 1
-fi
-have_wbg=$(wasm-bindgen --version | awk '{print $NF}')
-if [ -n "$want_wbg" ] && [ "$have_wbg" != "$want_wbg" ]; then
-  echo "error: wasm-bindgen $have_wbg is on PATH but animatix-web pins =$want_wbg." >&2
-  echo "       wasm-bindgen-futures releases in lockstep with it, so a mismatch" >&2
-  echo "       fails at glue generation. Install the pinned CLI:" >&2
-  echo "       cargo install --version $want_wbg --locked wasm-bindgen-cli" >&2
-  exit 1
-fi
+# One source of truth for the pin (scripts/wasm-tools.sh), shared with ci.sh.
+# shellcheck source=scripts/wasm-tools.sh
+. scripts/wasm-tools.sh
+check_wbg
+wbg_version="$(wasm-bindgen --version | awk '{print $NF}')"
 
 "${cargo_env[@]}" cargo build -p animatix-web --target wasm32-unknown-unknown "${feature_args[@]}" "${profile_args[@]}"
 
-mkdir -p "$out_dir"
-if [ "$out_profile" = "debug" ]; then
-  touch "$out_dir/.dev"
-else
-  rm -f "$out_dir/.dev"
-fi
-wasm-bindgen --target web --out-dir "$out_dir" \
+# Stage everything under target/ (gitignored, same filesystem as web/), then
+# rename it into place. A failed wasm-bindgen/wasm-opt/brotli leaves the old
+# pkg untouched instead of a partial one that looks fresh.
+stage_dir="target/web-build/${out_dir##*/}"
+rm -rf "$stage_dir"
+mkdir -p "$stage_dir"
+cleanup_stage() { [ -d "$stage_dir" ] && rm -rf "$stage_dir"; }
+trap cleanup_stage EXIT
+
+wasm-bindgen --target web --out-dir "$stage_dir" \
   "target/wasm32-unknown-unknown/$out_profile/animatix_web.wasm"
 
-# Size-optimize the wasm (binaryen). -Oz aggressively shrinks; the one-shot
-# cost is ~a minute, the payoff ~25-35% of the served bytes.
-if command -v wasm-opt >/dev/null 2>&1; then
-  wasm-opt -Oz --strip-debug -o "$out_dir/animatix_web_bg.wasm" "$out_dir/animatix_web_bg.wasm"
-elif [ -n "${IN_NIX_SHELL:-}" ] || command -v nix >/dev/null 2>&1; then
-  echo "wasm-opt not on PATH; trying nix shell nixpkgs#binaryen..."
-  if nix shell nixpkgs#binaryen -c bash -c \
-    'wasm-opt -Oz --strip-debug -o "$1" "$2"' _ \
-    "$out_dir/animatix_web_bg.wasm" "$out_dir/animatix_web_bg.wasm" 2>/dev/null; then
-    :
+if [ "$out_profile" = "debug" ]; then
+  touch "$stage_dir/.dev"
+else
+  rm -f "$stage_dir/.dev"
+fi
+
+if [ "$out_profile" != "debug" ]; then
+  # Size-optimize the wasm (binaryen). -Oz aggressively shrinks; the one-shot
+  # cost is ~a minute, the payoff ~25-35% of the served bytes.
+  if command -v wasm-opt >/dev/null 2>&1; then
+    wasm-opt -Oz --strip-debug -o "$stage_dir/animatix_web_bg.wasm" "$stage_dir/animatix_web_bg.wasm"
+  elif [ -n "${IN_NIX_SHELL:-}" ] || command -v nix >/dev/null 2>&1; then
+    echo "wasm-opt not on PATH; trying nix shell nixpkgs#binaryen..."
+    if nix shell nixpkgs#binaryen -c bash -c \
+      'wasm-opt -Oz --strip-debug -o "$1" "$2"' _ \
+      "$stage_dir/animatix_web_bg.wasm" "$stage_dir/animatix_web_bg.wasm" 2>/dev/null; then
+      :
+    else
+      echo "warning: wasm-opt unavailable — serving the unoptimized module"
+    fi
   else
     echo "warning: wasm-opt unavailable — serving the unoptimized module"
   fi
-else
-  echo "warning: wasm-opt unavailable — serving the unoptimized module"
-fi
 
-# Precompress the served artifacts (level 11 brotli). A static host or CDN
-# serves the `.br` twin when the client advertises brotli; scripts/serve-web.py
-# negotiates them locally to prove the setup end to end.
-if command -v brotli >/dev/null 2>&1; then
-  brotli_avail=true
-elif command -v nix >/dev/null 2>&1; then
+  # Precompress the served artifacts (level 11 brotli). A static host or CDN
+  # serves the `.br` twin when the client advertises brotli; scripts/serve-web.py
+  # negotiates them locally to prove the setup end to end.
   brotli_avail=false
-  if nix shell nixpkgs#brotli -c bash -c 'brotli --version' >/dev/null 2>&1; then
-    BROTLI="nix shell nixpkgs#brotli -c brotli"
+  if command -v brotli >/dev/null 2>&1; then
     brotli_avail=true
+  elif command -v nix >/dev/null 2>&1; then
+    if nix shell nixpkgs#brotli -c bash -c 'brotli --version' >/dev/null 2>&1; then
+      BROTLI="nix shell nixpkgs#brotli -c brotli"
+      brotli_avail=true
+    fi
   fi
+
+  if [ "$brotli_avail" = true ]; then
+    br_level="${ANIMATIX_BROTLI_LEVEL:-6}"
+    br() { if [ -n "${BROTLI:-}" ]; then $BROTLI -q "$br_level" -f -k "$1"; else brotli -q "$br_level" -f -k "$1"; fi; }
+    for f in "$stage_dir/animatix_web_bg.wasm" "$stage_dir/animatix_web.js"; do
+      [ -f "$f" ] && br "$f"
+    done
+  else
+    echo "warning: brotli unavailable — skipping precompression"
+  fi
+else
+  echo "--dev: skipping wasm-opt and brotli"
 fi
 
-if [ "${brotli_avail:-false}" = true ]; then
-  br_level="${ANIMATIX_BROTLI_LEVEL:-6}"
-  if [ "$out_profile" = "debug" ]; then
-    br_level=1
-  fi
-  br() { if [ -n "${BROTLI:-}" ]; then $BROTLI -q "$br_level" -f -k "$1"; else brotli -q "$br_level" -f -k "$1"; fi; }
-  for f in "$out_dir/animatix_web_bg.wasm" "$out_dir/animatix_web.js"; do
-    [ -f "$f" ] && br "$f"
-  done
-else
-  echo "warning: brotli unavailable — skipping precompression"
+# The freshness stamp. `head` + the `.build` mtime are what
+# scripts/ensure-web-pkg.sh compares: a later edit to crates/ or Cargo.* is
+# newer than the stamp, and a checkout changes HEAD. `dirty` is informational.
+head_sha=$(git rev-parse HEAD 2>/dev/null || echo unknown)
+dirty=0
+if command -v git >/dev/null 2>&1 && \
+   [ -n "$(git status --porcelain --untracked-files=normal -- crates Cargo.toml Cargo.lock 2>/dev/null)" ]; then
+  dirty=1
 fi
+cat > "$stage_dir/.build" <<EOF
+head=$head_sha
+dirty=$dirty
+profile=$([ "$out_profile" = "debug" ] && echo dev || echo release)
+variant=$variant
+wasm_bindgen=$wbg_version
+built_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+EOF
+
+# Same-filesystem rename: the published pkg is either the old complete build
+# or the new complete build, never a mix.
+rm -rf "$out_dir"
+mv "$stage_dir" "$out_dir"
+trap - EXIT
 
 wasm_bytes=$(wc -c < "$out_dir/animatix_web_bg.wasm")
 gz_bytes=$(gzip -9 -c "$out_dir/animatix_web_bg.wasm" | wc -c)
 br_bytes=$([ -f "$out_dir/animatix_web_bg.wasm.br" ] && wc -c < "$out_dir/animatix_web_bg.wasm.br" || echo "n/a")
-echo "wasm ready: $out_dir/"
+echo "wasm ready: $out_dir/ ($([ "$out_profile" = "debug" ] && echo dev || echo release), $variant)"
 echo "  raw:    $wasm_bytes"
 echo "  gzip:   $gz_bytes"
 echo "  brotli: $br_bytes"

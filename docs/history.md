@@ -14,6 +14,56 @@ mixed history and open work).
 Historical tracks are kept as evidence. New implementation work is tracked in
 [Backlog & Prioritization](#backlog--prioritization).
 
+### Web Build Hardening: Hermetic wasm-bindgen, Stamped Bundles, Browser Smoke (2026-10-27)
+
+The `qualityStep` regression proved the build could be green while every
+`<amx-player>` on the site failed at runtime: `web-build` only checked that two
+wasm files existed, `site-scenes` builds scenes natively, and `embed-drift` only
+bundles. A review of the build path found six related weaknesses and this pass
+closed all of them.
+
+1. **wasm-bindgen lived outside Nix.** `.#web-build` looked complete but the CLI
+   was fetched from GitHub at build time, piped to `tar` without a checksum, and
+   `sudo install`ed into `/usr/local/bin`. It is now a fixed-output derivation in
+   `flake.nix` (0.2.128, SHA-256 pinned) and part of `.#web-build`. The non-Nix
+   `scripts/ci.sh setup wasm-bindgen` fallback verifies the same tarball,
+   installs into `~/.local/bin`, and never uses sudo. `scripts/wasm-tools.sh` is
+   the only pin parser; `build-web.sh` sources it, and an unreadable pin is a
+   hard error instead of silently accepting any CLI version.
+2. **The freshness check could not see working-tree edits.** It compared the
+   wasm mtime with `git log -1 --format=%ct crates/`, so an uncommitted engine
+   change looked current, a docs-only commit forced a rebuild, and a debug
+   bundle counted as fresh for a release. `build-web.sh` now writes `.build`
+   (`head`, `dirty`, `profile`, `variant`, `wasm_bindgen`) after a successful
+   build, and `ensure-web-pkg.sh` checks HEAD, profile/variant, `.dev`, and any
+   build input newer than the stamp.
+3. **The build wrote in place.** A failed `wasm-bindgen`/`wasm-opt`/`brotli`
+   could leave a half-written `pkg/` that the timestamp check called current.
+   The build stages in `target/web-build/` and renames into `web/pkg*` only after
+   every step and the stamp succeed. `--dev` now skips `wasm-opt` and brotli, as
+   its usage line always claimed but the script did not do.
+4. **No gate loaded a page.** New `web-smoke` (`scripts/web-smoke.mjs`) serves
+   `web/`, drives headless Chromium through CDP with WebGPU on lavapipe, scrolls
+   each player into view (the loader deliberately drops offscreen queue
+   entries), and fails unless every `<amx-player>` reaches `ready` with a painted
+   canvas. It covers the home, transformer and matrix pages: 17 players, all
+   painted. Three consecutive runs were green.
+5. **The smoke has to share the build job.** `web/pkg` is gitignored, so a
+   separate smoke job on a fresh checkout has nothing to load. `web-smoke` runs
+   with `web-build` in the new `.#web-ci` shell (the wasm toolchain plus Chromium,
+   Node, Python and lavapipe); the matrix has one `Web Build` job with both gates.
+   Pages and the release site job run `web-build web-smoke` before assembling.
+6. **Release artifacts are release-only.** `site-artifact.sh` now refuses a
+   `.dev` marker or a non-release `.build` stamp, so a local debug bundle cannot
+   be deployed by accident. CI's Node setup caches `web/tools/package-lock.json`
+   for the `npm ci` in `embed-drift`.
+
+Measured: release bundles are 30,940,951 bytes raw / 10,528,009 brotli (full)
+and 6,769,799 / 2,362,789 (slim); `content-sync` agrees with the README's size
+claims, `site-artifact` assembles `_site`, and `web-smoke` reports 17/17 painted
+players. Inside `.#web-build` the build no longer reaches the network; the
+non-Nix fallback downloads one checksum-verified tarball.
+
 ### Follow-Up Audit: Dead Bindings, Silent Drops, Dispatch Cleanup (2026-10-19)
 
 A review pass over the `PrimitivePayload` migration found four *declared but never

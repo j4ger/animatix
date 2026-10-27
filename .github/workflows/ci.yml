@@ -66,10 +66,10 @@ jobs:
       # from the dev shell, so they must not install a rustup toolchain: PATH
       # order would then decide which rustc runs, and the answer differs per job.
       - name: Install Nix
-        if: matrix.shell == 'nix' || matrix.shell == 'web'
+        if: matrix.shell == 'nix' || matrix.shell == 'web' || matrix.shell == 'web-ci'
         uses: DeterminateSystems/determinate-nix-action@v3
       - name: Set up Cachix
-        if: matrix.shell == 'nix' || matrix.shell == 'web'
+        if: matrix.shell == 'nix' || matrix.shell == 'web' || matrix.shell == 'web-ci'
         uses: cachix/cachix-action@v17
         with:
           name: animatix
@@ -92,10 +92,12 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: web/tools/package-lock.json
 
-      # apt packages and the pinned wasm-bindgen CLI. The toolchain hints in the
-      # setup column (rust-*, node, nix, none) are handled by the steps above and
-      # are no-ops here on purpose.
+      # Environment hints from the setup column (rust-*, node, nix, none) are
+      # handled by the steps above; the wasm-bindgen CLI now comes from the
+      # .#web-build / .#web-ci dev shells, so this is a no-op for them.
       - name: Provision
         shell: bash
         env:
@@ -113,6 +115,7 @@ jobs:
         run: |
           case "$GATE_SHELL" in
             web) nix develop .#web-build --command scripts/ci.sh gate $GATE ;;
+            web-ci) nix develop .#web-ci --command scripts/ci.sh gate $GATE ;;
             nix) nix develop --command scripts/ci.sh gate $GATE ;;
             *)   scripts/ci.sh gate $GATE ;;
           esac

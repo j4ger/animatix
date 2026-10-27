@@ -62,6 +62,8 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: web/tools/package-lock.json
 
       # The two gates that used to live here as hand-written steps, plus the
       # bundle-drift check. Ordered cheap-first: embed-drift is an npm build,
@@ -70,14 +72,13 @@ jobs:
       - name: Gates (embed bundle drift, site scenes in both profiles)
         run: scripts/ci.sh gate embed-drift site-scenes
 
-      - name: Build engines (slim + full)
-        # `.#web-build` is the only shell with a wasm32 std, and the wasm-bindgen
-        # CLI must equal the pin in crates/animatix-web/Cargo.toml exactly. ci.sh
-        # never enters the shell itself — devshells prepend, so an outer rustc
-        # would win and the build would fail looking like a code fault.
-        run: |
-          scripts/ci.sh setup wasm-bindgen
-          nix develop .#web-build --command scripts/ci.sh gate web-build
+      - name: Build engines and smoke the pages
+        # `.#web-ci` is the only shell with a wasm32 std, the pinned
+        # wasm-bindgen CLI and a headless Chromium. Building and smoke-testing
+        # in one step is required: pkg/ is gitignored, so a separate job would
+        # have nothing to load. ci.sh never enters the shell itself — devshells
+        # prepend, so an outer rustc would win and the build would look broken.
+        run: nix develop .#web-ci --command scripts/ci.sh gate web-build web-smoke
 
       # The same assembler the release pipeline zips with (scripts/site-artifact.sh):
       # the .br twins dropped, .nojekyll written, both engine bundles required.

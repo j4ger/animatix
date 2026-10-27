@@ -129,7 +129,8 @@ jobs:
           if-no-files-found: error
 
   # The site and the two wasm runtimes. Ordered: web-build produces the bundles
-  # that both zips contain, and it needs the .#web-build shell for its wasm32 std.
+  # that both zips contain, and web-smoke loads them; both run in .#web-ci because
+  # pkg/ is gitignored and only exists after the build in the same job.
   site:
     name: Site and wasm
     needs: [gates, version]
@@ -146,10 +147,8 @@ jobs:
           name: animatix
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           extraPullNames: 'nix-community'
-      - name: Build engines (slim + full)
-        run: |
-          scripts/ci.sh setup wasm-bindgen
-          nix develop .#web-build --command scripts/ci.sh gate web-build
+      - name: Build engines (slim + full) and smoke the pages
+        run: nix develop .#web-ci --command scripts/ci.sh gate web-build web-smoke
       - name: Package site + wasm
         run: scripts/ci.sh gate site-artifact dist-site dist-wasm
       - name: Upload

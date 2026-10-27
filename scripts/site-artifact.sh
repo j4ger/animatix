@@ -10,7 +10,9 @@
 # The rules it encodes are not obvious:
 #   - the engine bundles (web/pkg, web/pkg-slim) are gitignored build output, so
 #     they must already exist. An empty pkg/ directory deploys a page whose every
-#     embed reports a load error, and nothing in the layout says so.
+#     embed reports a load error, and nothing in the layout says so. They must
+#     also be *release* builds: a .dev marker or a non-release .build stamp is a
+#     debug bundle several times the size.
 #   - the `.br` twins are dropped. GitHub Pages does not negotiate brotli
 #     precompression, so shipping them doubles the wasm bytes for no benefit.
 #   - `.nojekyll` must exist or Pages runs the tree through Jekyll, which silently
@@ -51,6 +53,14 @@ for d in web/pkg web/pkg-slim; do
     echo "       Deploying without it ships pages whose embeds cannot load." >&2
     exit 1
   }
+  # A debug bundle is valid for local iteration and wrong for every reader: it
+  # is several times larger and unoptimized. The stamp is what distinguishes
+  # them, so both the marker and the recorded profile must say release.
+  if [ -f "$d/.dev" ] || ! grep -qx 'profile=release' "$d/.build" 2>/dev/null; then
+    echo "error: $d is not a release build (missing/stale .build or a .dev marker)." >&2
+    echo "       Build it with: nix develop .#web-build --command scripts/ci.sh gate web-build" >&2
+    exit 1
+  fi
 done
 
 # Build the distributable embed player bundle if missing or older than src
