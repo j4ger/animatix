@@ -302,3 +302,51 @@ impl VariableTrack {
         self.keyframes.range(..=time_ms).next_back().map(|(_, v)| v.clone())
     }
 }
+
+/// Trait for types that have a notion of their maximum keyframe time.
+pub trait HasDuration {
+    /// Returns the maximum keyframe time in milliseconds.
+    fn max_keyframe_time_ms(&self) -> u64;
+}
+
+impl<T: crate::timeline::Interpolate> HasDuration for crate::timeline::PropertyTrack<T> {
+    fn max_keyframe_time_ms(&self) -> u64 {
+        self.last_keyframe_time().unwrap_or(0)
+    }
+}
+
+impl HasDuration for VariableTrack {
+    fn max_keyframe_time_ms(&self) -> u64 {
+        self.keyframes.keys().next_back().copied().unwrap_or(0)
+    }
+}
+
+/// Collect all keyframe times (in seconds) across all property tracks of an
+/// entity, using the property registry to discover all possible fields.
+/// Used by the GUI to show keyframe markers on the mini timeline and time lens.
+pub fn collect_all_keyframe_times(
+    id: EntityId,
+    effects: Option<&crate::timeline::effects::EffectChainTrack>,
+    world: &crate::timeline::World,
+) -> Vec<f64> {
+    let caps = world.caps(id);
+    let actor_type = world.actor_type(id);
+    let indices = crate::timeline::property_registry::allowed_property_indices(&caps, actor_type);
+    let mut times = std::collections::BTreeSet::new();
+
+    for &idx in &indices {
+        let schema = &crate::timeline::property_registry::PROPERTY_REGISTRY[idx];
+        for t in world.property_keyframe_times(id, schema.field) {
+            times.insert(t);
+        }
+    }
+
+    // Effect chain parameters live outside the property registry.
+    if let Some(effects) = effects {
+        for t in effects.keyframe_times() {
+            times.insert(t);
+        }
+    }
+
+    times.into_iter().map(|ms| ms as f64 / 1000.0).collect()
+}

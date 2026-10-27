@@ -42,6 +42,12 @@ impl<'w> EntityRef<'w> {
         self.world.tracks.get_label(self.id).unwrap_or("")
     }
 
+    /// The entity's behavior ID.
+    #[inline(always)]
+    pub fn behavior(self) -> crate::timeline::behavior::BehaviorId {
+        self.world.behavior(self.id)
+    }
+
     /// Source span of the entity's declaration.
     #[inline(always)]
     pub fn decl_span(self) -> Option<&'w animatix_syntax::ast::Span> {

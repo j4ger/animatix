@@ -11,7 +11,7 @@ use super::{BUILT_INS, BuiltIn, Primitive};
 /// `animatix-std` card), extension primitives own an `Arc` allocation plus
 /// the registration info.
 #[derive(Clone)]
-enum RegisteredPrimitive {
+pub(crate) enum RegisteredPrimitive {
     /// A built-in primitive from [`BUILT_INS`].
     Builtin(&'static BuiltIn),
     /// A runtime-registered (extension / plugin) primitive.
@@ -39,11 +39,21 @@ impl RegisteredPrimitive {
 /// per-entity render-path cache so the hot loop stops re-scanning the
 /// registry's type-name list once per node per frame.
 #[derive(Clone)]
-pub(crate) struct PrimitiveHandle(RegisteredPrimitive);
+pub(crate) enum PrimitiveHandle {
+    Registered(RegisteredPrimitive),
+    Behavior(crate::timeline::behavior::BehaviorSource),
+}
 
 impl PrimitiveHandle {
     pub(crate) fn as_dyn(&self) -> &dyn Primitive {
-        self.0.as_ref()
+        match self {
+            Self::Registered(reg) => reg.as_ref(),
+            Self::Behavior(source) => source.as_primitive(),
+        }
+    }
+
+    pub(crate) fn from_behavior(def: &crate::timeline::behavior::BehaviorDef) -> Self {
+        Self::Behavior(def.source.clone())
     }
 }
 
@@ -131,7 +141,7 @@ impl PrimitiveRegistry {
         self.primitives
             .iter()
             .find(|registered| registered.as_ref().type_name() == name)
-            .map(|registered| PrimitiveHandle(registered.clone()))
+            .map(|registered| PrimitiveHandle::Registered(registered.clone()))
     }
 
     /// Return whether `name` belongs to the built-in prefix of this registry.

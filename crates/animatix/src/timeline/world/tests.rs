@@ -10,6 +10,7 @@ fn spawn_returns_stable_ids_and_keeps_stores_aligned() {
     assert_eq!(world.len(), 2);
     assert_eq!(world.hierarchy.len(), 2);
     assert_eq!(world.caps.len(), 2, "caps stays slot-aligned");
+    assert_eq!(world.behavior.len(), 2, "behavior stays slot-aligned");
     assert_eq!(world.meta.len(), 2, "metadata stays slot-aligned");
     assert_eq!(world.payload.len(), 2, "payload stays slot-aligned");
     assert_eq!(world.container_layout.len(), 2);
@@ -82,6 +83,7 @@ fn clear_drops_entities_and_components() {
     assert!(world.is_empty());
     assert!(world.hierarchy.is_empty());
     assert!(world.caps.is_empty());
+    assert!(world.behavior.is_empty());
     assert!(world.container_layout.is_empty());
     assert!(world.coordinate_frame.is_empty());
 }

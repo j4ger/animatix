@@ -26,6 +26,8 @@ impl World {
         self.ensure_len();
         *self.actor_types.get_mut(id) = actor_type.to_string();
         *self.caps.get_mut(id) = animatix_std::caps_for_type(actor_type).unwrap_or_default();
+        *self.behavior.get_mut(id) = crate::timeline::behavior::behavior_id_for_builtin(actor_type)
+            .unwrap_or(crate::timeline::behavior::BehaviorId::UNKNOWN);
         self.caps_overrides.remove(id);
     }
 
@@ -73,10 +75,18 @@ mod tests {
         let id = world.spawn("node", "Rect");
         assert_eq!(world.caps(id), animatix_std::caps_for_type("Rect").unwrap());
         assert_eq!(world.actor_type(id), "Rect");
+        assert_eq!(
+            world.behavior(id),
+            crate::timeline::behavior::behavior_id_for_builtin("Rect").unwrap()
+        );
 
         world.set_identity(id, "Text");
         assert_eq!(world.caps(id), animatix_std::caps_for_type("Text").unwrap());
         assert_eq!(world.actor_type(id), "Text");
+        assert_eq!(
+            world.behavior(id),
+            crate::timeline::behavior::behavior_id_for_builtin("Text").unwrap()
+        );
     }
 
     #[test]

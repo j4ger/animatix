@@ -45,6 +45,7 @@ pub struct World {
     /// Primitive identity (registry key) for every entity.
     pub(crate) actor_types: RequiredStore<String>,
     pub(crate) caps: RequiredStore<animatix_core::caps::ActorCaps>,
+    pub(crate) behavior: RequiredStore<crate::timeline::behavior::BehaviorId>,
     /// Shape-command memo cells per entity.
     pub(crate) shape_memos:
         RequiredStore<std::cell::RefCell<Box<crate::primitives::ShapeCommandMemo>>>,
@@ -200,6 +201,9 @@ impl World {
         let id = self.tracks.insert(label.to_string());
         self.ensure_len();
         *self.caps.get_mut(id) = animatix_std::caps_for_type(&actor_type).unwrap_or_default();
+        *self.behavior.get_mut(id) =
+            crate::timeline::behavior::behavior_id_for_builtin(&actor_type)
+                .unwrap_or(crate::timeline::behavior::BehaviorId::UNKNOWN);
         *self.actor_types.get_mut(id) = actor_type;
         self.attach_pending_auto_color(id, label);
         self.adopt(id, label);
@@ -221,6 +225,9 @@ impl World {
         *self.actor_types.get_mut(id) = actor_type.to_string();
         self.caps.reset_at(id);
         *self.caps.get_mut(id) = animatix_std::caps_for_type(actor_type).unwrap_or_default();
+        self.behavior.reset_at(id);
+        *self.behavior.get_mut(id) = crate::timeline::behavior::behavior_id_for_builtin(actor_type)
+            .unwrap_or(crate::timeline::behavior::BehaviorId::UNKNOWN);
         self.hierarchy.reset_at(id);
         self.highlight.reset_at(id);
         self.tagged_tracks.reset_at(id);
@@ -247,6 +254,21 @@ impl World {
         self.attach_pending_auto_color(id, label);
         self.adopt(id, label);
         id
+    }
+
+    /// The behavior ID for an entity, or [`BehaviorId::UNKNOWN`](crate::timeline::behavior::BehaviorId::UNKNOWN) when unregistered.
+    #[inline(always)]
+    pub fn behavior(&self, id: EntityId) -> crate::timeline::behavior::BehaviorId {
+        self.behavior
+            .try_get(id)
+            .copied()
+            .unwrap_or(crate::timeline::behavior::BehaviorId::UNKNOWN)
+    }
+
+    /// Set an entity's behavior ID directly (extension registration / dynamic rebinding).
+    pub fn set_behavior(&mut self, id: EntityId, behavior: crate::timeline::behavior::BehaviorId) {
+        self.ensure_len();
+        *self.behavior.get_mut(id) = behavior;
     }
 
     /// Borrow an entity's coordinate frame, when it is a plot host.
@@ -504,6 +526,7 @@ impl World {
         self.tagged_tracks.ensure_len(len);
         self.actor_types.ensure_len(len);
         self.caps.ensure_len(len);
+        self.behavior.ensure_len(len);
         self.shape_memos.ensure_len(len);
         self.pending_shape_bounds.ensure_len(len);
         self.bounds_slots.ensure_len(len);
@@ -534,6 +557,7 @@ impl World {
         self.tagged_tracks.clear();
         self.actor_types.clear();
         self.caps.clear();
+        self.behavior.clear();
         self.shape_memos.clear();
         self.pending_shape_bounds.clear();
         self.bounds_slots.clear();

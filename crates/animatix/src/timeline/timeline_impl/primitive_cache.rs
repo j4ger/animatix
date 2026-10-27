@@ -26,6 +26,9 @@ impl Timeline {
         let actor_type = self.world.actor_type(node_id);
         let name = self.world.shape(node_id).render_type_name(actor_type, time_ms);
         if name != actor_type {
+            if let Some(def) = self.behavior_registry.find(name) {
+                return Some(crate::primitives::PrimitiveHandle::from_behavior(def));
+            }
             return self.primitive_registry.find_handle(name);
         }
         let idx = node_id.index();
@@ -37,7 +40,18 @@ impl Timeline {
                 }
             }
         }
-        let handle = self.primitive_registry.find_handle(actor_type)?;
+        let behavior_id = self.world.behavior(node_id);
+        let handle = if behavior_id.is_valid() {
+            if let Some(def) = self.behavior_registry.get(behavior_id) {
+                crate::primitives::PrimitiveHandle::from_behavior(def)
+            } else {
+                self.primitive_registry.find_handle(actor_type)?
+            }
+        } else if let Some(def) = self.behavior_registry.find(actor_type) {
+            crate::primitives::PrimitiveHandle::from_behavior(def)
+        } else {
+            self.primitive_registry.find_handle(actor_type)?
+        };
         let mut cache = self.eval_caches.primitive_handles.borrow_mut();
         if idx >= cache.len() {
             cache.resize(idx + 1, None);

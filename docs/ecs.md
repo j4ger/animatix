@@ -47,6 +47,7 @@ EntityId(u32) ── entities: EntityStore { label ↔ id maps }
                    ├── hierarchy:    RequiredStore<SceneHierarchyComponent>
                    ├── actor_types:  RequiredStore<String>
                    ├── caps:         RequiredStore<ActorCaps>
+                   ├── behavior:     RequiredStore<BehaviorId>
                    ├── geometry:     RequiredStore<GeometryTracks>
                    ├── style:        RequiredStore<StyleTracks>
                    ├── shape:        RequiredStore<ShapeTracks>
@@ -135,6 +136,7 @@ Rules:
 | `EntityMeta` | id, label, actor_type, first_seen_ms, visible, locked, camera_follow, parallax, hidden_by_default | optional (reads fall back to `EntityMeta::DEFAULT`) |
 | `DeclarationSpan` | `Span` of the actor declaration (absent when the parser had none) | optional |
 | `ActorCaps` | category, child_processing, shape, text, flags | every entity |
+| `BehaviorId` | 0..36 for built-ins, dynamically assigned for extensions | every entity |
 | `SceneHierarchyComponent` | `parent: Option<EntityId>`, `children: Vec<EntityId>` | every entity |
 | `RootSet` | `Vec<EntityId>` (insertion order) | resource |
 | `GeometryTracks` | position/size/layout_size/rotation/scale/transform/placement/callout/connector/volume | every entity |

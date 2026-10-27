@@ -37,6 +37,8 @@ pub mod actor_caps;
 /// Asset loading and caching.
 pub mod assets;
 mod assignments;
+pub mod behavior;
+pub use behavior::{BehaviorDef, BehaviorFamily, BehaviorId, BehaviorRegistry};
 mod build;
 mod builtins;
 pub mod callout_geometry;
@@ -58,7 +60,8 @@ pub use entity::{EntityId, EntityStore};
 mod types;
 pub use types::{
     AudioSegment, BuildQuality, ContainerLayoutChild, ContainerMetadata, DebugRenderOptions,
-    LayoutEngine, LayoutType, SceneDimensions, VariableTrack, gap_uniform, padding_uniform,
+    HasDuration, LayoutEngine, LayoutType, SceneDimensions, VariableTrack,
+    collect_all_keyframe_times, gap_uniform, padding_uniform,
 };
 /// The ECS world: entities, component stores, and entity views.
 pub mod world;
@@ -210,35 +213,6 @@ use timing::{
 };
 
 pub use crate::primitives::primitive_info_by_name;
-/// Collect all keyframe times (in seconds) across all property tracks of an
-/// entity, using the property registry to discover all possible fields.
-/// Used by the GUI to show keyframe markers on the mini timeline and time lens.
-pub fn collect_all_keyframe_times(
-    id: EntityId,
-    effects: Option<&crate::timeline::effects::EffectChainTrack>,
-    world: &crate::timeline::World,
-) -> Vec<f64> {
-    let caps = world.caps(id);
-    let actor_type = world.actor_type(id);
-    let indices = property_registry::allowed_property_indices(&caps, actor_type);
-    let mut times = std::collections::BTreeSet::new();
-
-    for &idx in &indices {
-        let schema = &property_registry::PROPERTY_REGISTRY[idx];
-        for t in world.property_keyframe_times(id, schema.field) {
-            times.insert(t);
-        }
-    }
-
-    // Effect chain parameters live outside the property registry.
-    if let Some(effects) = effects {
-        for t in effects.keyframe_times() {
-            times.insert(t);
-        }
-    }
-
-    times.into_iter().map(|ms| ms as f64 / 1000.0).collect()
-}
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -252,23 +226,6 @@ pub use vello_path::{GradientExtend, GradientShape, GradientSpace, GradientSpec,
 use crate::ast::{Expr, Modifier, Stmt};
 use crate::easing::*;
 use crate::timeline::modifier_runtime::ir::ModifierIrProgram;
-/// Trait for types that have a notion of their maximum keyframe time.
-pub trait HasDuration {
-    /// Returns the maximum keyframe time in milliseconds.
-    fn max_keyframe_time_ms(&self) -> u64;
-}
-
-impl<T: Interpolate> HasDuration for PropertyTrack<T> {
-    fn max_keyframe_time_ms(&self) -> u64 {
-        self.last_keyframe_time().unwrap_or(0)
-    }
-}
-
-impl HasDuration for VariableTrack {
-    fn max_keyframe_time_ms(&self) -> u64 {
-        self.keyframes.keys().next_back().copied().unwrap_or(0)
-    }
-}
 
 /// Static subtree cache value: cached scene, precise bounds, and observed items.
 ///
@@ -306,6 +263,8 @@ pub struct Timeline {
     pub(crate) block_scope: Vec<std::collections::HashSet<String>>,
     /// Runtime primitive registry used by builds that supply extensions.
     pub(crate) primitive_registry: std::sync::Arc<crate::primitives::PrimitiveRegistry>,
+    /// Dense, O(1) indexable behavior registry for built-ins and extensions.
+    pub(crate) behavior_registry: std::sync::Arc<crate::timeline::behavior::BehaviorRegistry>,
     /// Optional extension context used during build.
     extensions: Option<std::sync::Arc<crate::extension_context::ExtensionRegistry>>,
     /// Whether any actor here is an effect scope (`Filter`, `Mask`, and any

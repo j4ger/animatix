@@ -18,6 +18,9 @@ impl Timeline {
             env: Environment::new(),
             block_scope: Vec::new(),
             primitive_registry: std::sync::Arc::new(crate::primitives::PrimitiveRegistry::new()),
+            behavior_registry: std::sync::Arc::new(
+                crate::timeline::behavior::BehaviorRegistry::new(),
+            ),
             extensions: None,
             has_effect_scopes: false,
             env_base: std::sync::Arc::new(Default::default()),

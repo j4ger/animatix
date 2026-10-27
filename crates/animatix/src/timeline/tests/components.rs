@@ -306,6 +306,7 @@ fn every_entity_has_required_components() {
             ("tagged_tracks", world.tagged_tracks.try_get(id).is_some()),
             ("actor_types", world.actor_types.try_get(id).is_some()),
             ("caps", world.caps.try_get(id).is_some()),
+            ("behavior", world.behavior.try_get(id).is_some()),
             ("shape_memos", world.shape_memos.try_get(id).is_some()),
             ("pending_shape_bounds", world.pending_shape_bounds.try_get(id).is_some()),
             ("bounds_slots", world.bounds_slots.try_get(id).is_some()),
