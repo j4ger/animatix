@@ -29,6 +29,10 @@ pub struct BuildCtx<'a> {
 pub struct AssignmentCtx<'a> {
     /// Animation start time in milliseconds.
     pub t_start_ms: u64,
+    /// Current time in milliseconds.
+    pub time_ms: u64,
+    /// Function blend mode for plot transitions, when authored.
+    pub func_blend_mode: Option<crate::timeline::plot::FuncBlendMode>,
     /// This actor's label (identity lives in `World`).
     pub label: &'a str,
     /// Animation end time in milliseconds.
@@ -105,15 +109,15 @@ pub struct EvaluateCtx<'a> {
     /// Equation-highlight component for this actor.
     pub highlight: &'a crate::timeline::animation_track::HighlightTracks,
     /// Shape geometry tier for this actor.
-    pub shape: Option<&'a crate::timeline::animation_track::ShapeTracks>,
+    pub shape: &'a crate::timeline::animation_track::ShapeTracks,
     /// Geometry tier for this actor.
-    pub geometry: Option<&'a crate::timeline::animation_track::GeometryTracks>,
+    pub geometry: &'a crate::timeline::animation_track::GeometryTracks,
     /// Style tier for this actor.
-    pub style: Option<&'a crate::timeline::animation_track::StyleTracks>,
+    pub style: &'a crate::timeline::animation_track::StyleTracks,
     /// Text tier for this actor.
-    pub text: Option<&'a crate::timeline::animation_track::TextTracks>,
+    pub text: &'a crate::timeline::animation_track::TextTracks,
     /// Registry-driven property plan for this actor.
-    pub property_plan: Option<&'a crate::timeline::plan::PropertyPlan>,
+    pub property_plan: &'a crate::timeline::plan::PropertyPlan,
     /// Capability projection for this actor.
     pub caps: animatix_core::caps::ActorCaps,
     /// The owning world, when the caller has one (frame path); tests may omit it.
@@ -556,14 +560,12 @@ impl AssignmentCtx<'_> {
 impl EvaluateCtx<'_> {
     /// Sample an f32 plan property, falling back when no plan is attached.
     pub fn sample_f32_prop(&self, name: &str, time_ms: u64, default: f32) -> f32 {
-        self.property_plan
-            .map_or(default, |plan| plan.sample_f32_prop(name, time_ms, default))
+        self.property_plan.sample_f32_prop(name, time_ms, default)
     }
 
     /// Sample a color plan property, falling back when no plan is attached.
     pub fn sample_color_prop(&self, name: &str, time_ms: u64, default: [f32; 4]) -> [f32; 4] {
-        self.property_plan
-            .map_or(default, |plan| plan.sample_color_prop(name, time_ms, default))
+        self.property_plan.sample_color_prop(name, time_ms, default)
     }
 
     /// Sample an arbitrary plan property.
@@ -572,6 +574,6 @@ impl EvaluateCtx<'_> {
         name: &str,
         time_ms: u64,
     ) -> Option<crate::timeline::PropertyValue> {
-        self.property_plan.and_then(|plan| plan.sample_property_named(name, time_ms))
+        self.property_plan.sample_property_named(name, time_ms)
     }
 }

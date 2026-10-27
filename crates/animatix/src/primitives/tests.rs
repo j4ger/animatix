@@ -253,6 +253,9 @@ fn runtime_text_content_crossfade_compiles_both_endpoints() {
     let font_ctx = FontContext::new();
     let mut text_compiler = TextCompiler::new();
     let asset_cache = crate::timeline::assets::AssetCache::new();
+    let shape = crate::timeline::animation_track::ShapeTracks::default();
+    let geometry = crate::timeline::animation_track::GeometryTracks::default();
+    let property_plan = crate::timeline::plan::PropertyPlan::default();
     let ctx = EvaluateCtx {
         id: EntityId(0),
         label: "label",
@@ -268,11 +271,11 @@ fn runtime_text_content_crossfade_compiles_both_endpoints() {
         vector_paths: &[],
         asset_cache: &asset_cache,
         highlight: &crate::timeline::animation_track::HighlightTracks::default(),
-        shape: None,
-        geometry: None,
-        style: Some(&style_tracks),
-        text: Some(&text),
-        property_plan: None,
+        shape: &shape,
+        geometry: &geometry,
+        style: &style_tracks,
+        text: &text,
+        property_plan: &property_plan,
         caps: animatix_std::caps_for_type("Rect").unwrap_or_default(),
         world: None,
 

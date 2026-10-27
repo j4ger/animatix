@@ -120,21 +120,17 @@ impl Primitive for CalloutPrimitive {
         use crate::timeline::Value;
 
         // Derive geometry using the shared helper (handles both manual and targeted mode).
-        let geometry = ctx.geometry.expect("Callout evaluation requires the geometry tier");
+        let geometry = ctx.geometry;
         let geom = derive_callout_geometry(
             geometry,
-            ctx.shape.expect("callout shape tier"),
+            ctx.shape,
             ctx.time_ms,
             ctx.target_resolver,
             ctx.scene_dimensions,
         );
         let mut from = geom.from;
         let mut to = geom.to;
-        let mut head_size = ctx
-            .shape
-            .expect("Callout evaluation requires the shape tier")
-            .head_size
-            .get(ctx.time_ms, 10.0);
+        let mut head_size = ctx.shape.head_size.get(ctx.time_ms, 10.0);
 
         // Warn when targeted but resolver didn't find the target.
         let target_name = geometry.callout_target.get(ctx.time_ms, String::new());
@@ -162,12 +158,7 @@ impl Primitive for CalloutPrimitive {
         let path = build_arrow_path(from, to, head_size);
 
         // Sample style
-        let style = sample_shape_style(
-            ctx.style.expect("callout styling requires the style tier"),
-            ctx.caps,
-            ctx.time_ms,
-            ctx.overrides,
-        );
+        let style = sample_shape_style(ctx.style, ctx.caps, ctx.time_ms, ctx.overrides);
 
         let arrow_vello = VelloPath {
             path: std::sync::Arc::new(path),
@@ -202,11 +193,7 @@ impl Primitive for CalloutPrimitive {
         }];
 
         // Sample label text and position
-        let mut label_text = ctx
-            .text
-            .expect("Callout evaluated without a text tier")
-            .text_content
-            .get(ctx.time_ms, String::new());
+        let mut label_text = ctx.text.text_content.get(ctx.time_ms, String::new());
         let mut label_at = geometry.label_at.get(ctx.time_ms, [0.0, 50.0]);
 
         if let Some(overrides) = ctx.overrides {

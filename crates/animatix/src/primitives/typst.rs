@@ -112,7 +112,7 @@ impl Primitive for TypstPrimitive {
     {
         use crate::primitives::{RenderCommand, evaluate_text_paths};
         use crate::renderer::text::TextKind;
-        let style = ctx.style.expect("text actor evaluated without a style tier");
+        let style = ctx.style;
         use crate::timeline::TrackAccessor;
 
         let (paths, clip_path) = if let Some(text_ctx) = text_ctx {
@@ -123,7 +123,7 @@ impl Primitive for TypstPrimitive {
                 crate::renderer::text::default_font_size(TextKind::Typst),
             )
         } else {
-            let text = ctx.text.expect("text actor evaluated without a text tier");
+            let text = ctx.text;
             let (paths, clip) = text.evaluate_paths_and_clip(style, ctx.time_ms);
             Ok((std::sync::Arc::from(paths), clip))
         }?;

@@ -127,6 +127,25 @@ impl Primitive for PlotExt {
         Ok(())
     }
 
+    fn handle_assignment(
+        &self,
+        property: &str,
+        value: &crate::ast::Expr,
+        ctx: &mut crate::primitives::AssignmentCtx,
+        env: &crate::timeline::Environment,
+        diagnostics: &mut Vec<crate::diagnostics::Diagnostic>,
+        subject: &str,
+    ) -> bool {
+        crate::primitives::plot::handle_plot_assignment(
+            property,
+            value,
+            ctx,
+            env,
+            diagnostics,
+            subject,
+        )
+    }
+
     fn evaluate(
         &self,
         _ctx: &crate::primitives::EvaluateCtx,

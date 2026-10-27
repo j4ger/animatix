@@ -418,7 +418,7 @@ impl Timeline {
         // draws the commands and records a hit region; `None` means
         // "no drawable content" — nothing is drawn and no hit region or
         // precise bounds are recorded for it.
-        let primitive_dispatch = self.track_primitive_at(node_id, time_ms).and_then(|handle| {
+        let primitive_dispatch = self.cached_primitive_for(node_id, time_ms).and_then(|handle| {
             let primitive = handle.as_dyn();
             // Clear the shape-memo bounds handoff: a non-shape
             // primitive must never observe the previous node's data.
@@ -438,11 +438,11 @@ impl Timeline {
                 legend: self.world.legend(node_id),
                 world: Some(&self.world),
                 highlight: self.world.highlight(node_id),
-                style: Some(self.world.style(node_id)),
-                shape: Some(self.world.shape(node_id)),
-                geometry: Some(self.world.geometry(node_id)),
-                text: Some(self.world.text(node_id)),
-                property_plan: Some(self.world.property_plan(node_id)),
+                style: self.world.style(node_id),
+                shape: self.world.shape(node_id),
+                geometry: self.world.geometry(node_id),
+                text: self.world.text(node_id),
+                property_plan: self.world.property_plan(node_id),
                 caps: self.world.caps(node_id),
                 payload: self.world.payload(node_id),
             };
@@ -588,7 +588,7 @@ impl Timeline {
         scene_dimensions: SceneDimensions,
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> Option<kurbo::BezPath> {
-        let handle = self.track_primitive_at(child_id, time_ms)?;
+        let handle = self.cached_primitive_for(child_id, time_ms)?;
         let primitive = handle.as_dyn();
         let vector_paths = self
             .world
@@ -610,11 +610,11 @@ impl Timeline {
             legend: self.world.legend(child_id),
             world: Some(&self.world),
             highlight: self.world.highlight(child_id),
-            style: Some(self.world.style(child_id)),
-            shape: Some(self.world.shape(child_id)),
-            geometry: Some(self.world.geometry(child_id)),
-            text: Some(self.world.text(child_id)),
-            property_plan: Some(self.world.property_plan(child_id)),
+            style: self.world.style(child_id),
+            shape: self.world.shape(child_id),
+            geometry: self.world.geometry(child_id),
+            text: self.world.text(child_id),
+            property_plan: self.world.property_plan(child_id),
             caps: self.world.caps(child_id),
             payload: self.world.payload(child_id),
         };
@@ -680,7 +680,7 @@ impl Timeline {
         // The primitive is the single child-rendering entry point; the pipeline
         // no longer branches on the child-processing strategy. A primitive
         // without a registered type renders nothing (validated at build time).
-        let Some(handle) = self.track_primitive_at(node_id, time_ms) else {
+        let Some(handle) = self.cached_primitive_for(node_id, time_ms) else {
             return;
         };
         let primitive = handle.as_dyn();

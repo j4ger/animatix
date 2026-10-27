@@ -227,9 +227,9 @@ pub(crate) fn evaluate_shape_render(
 ) -> Result<Option<Vec<RenderCommand>>, crate::renderer::error::RenderError> {
     use crate::timeline::TrackAccessor;
 
-    let style_tracks = ctx.style.expect("shape evaluation requires the style tier");
+    let style_tracks = ctx.style;
     let style = sample_shape_style(style_tracks, ctx.caps, ctx.time_ms, ctx.overrides);
-    let shape = ctx.shape.expect("shape evaluation requires the shape tier");
+    let shape = ctx.shape;
     let epoch = shape.vector_paths_epoch.get();
 
     let progress = f64::from(style_tracks.stroke_progress.get(ctx.time_ms, 1.0)).clamp(0.0, 1.0);
@@ -342,7 +342,7 @@ pub(crate) fn stamp_stroke_decoration(commands: &mut [RenderCommand], ctx: &Eval
 fn stamp_shape_dash(commands: &mut [RenderCommand], ctx: &EvaluateCtx) {
     use crate::timeline::TrackAccessor;
 
-    let style = ctx.style.expect("dash styling requires the style tier");
+    let style = ctx.style;
     let pattern = style.dash_pattern.get(ctx.time_ms, Vec::new());
     if pattern.is_empty() {
         return;
@@ -379,7 +379,7 @@ fn stamp_shape_gradient(commands: &mut [RenderCommand], ctx: &EvaluateCtx) {
     use crate::renderer::types::{GradientExtend, GradientSpace, GradientSpec};
     use crate::timeline::TrackAccessor;
 
-    let style = ctx.style.expect("gradient styling requires the style tier");
+    let style = ctx.style;
     let fill = style.fill_gradient.get(ctx.time_ms, GradientSpec::default());
     let stroke = style.stroke_gradient.get(ctx.time_ms, GradientSpec::default());
     if fill.stops.is_empty() && stroke.stops.is_empty() {

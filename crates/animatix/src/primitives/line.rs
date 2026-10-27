@@ -90,7 +90,7 @@ impl Primitive for LinePrimitive {
         use crate::timeline::callout_geometry::bounds_anchor_point;
         use crate::timeline::shapes::LineState;
 
-        let shape = ctx.shape.expect("Line evaluation requires the shape tier");
+        let shape = ctx.shape;
         let mut line_from = shape.line_from.get(ctx.time_ms, [-50.0, 0.0]);
         let mut line_to = shape.line_to.get(ctx.time_ms, [50.0, 0.0]);
 

@@ -66,6 +66,18 @@ impl Primitive for GraphPrimitive {
             Property::new("y_domain", Expr::Tuple(vec![Expr::Num(-10.0), Expr::Num(10.0)])),
         ]
     }
+
+    fn handle_assignment(
+        &self,
+        property: &str,
+        value: &Expr,
+        ctx: &mut crate::primitives::AssignmentCtx,
+        env: &crate::timeline::Environment,
+        diagnostics: &mut Vec<Diagnostic>,
+        subject: &str,
+    ) -> bool {
+        handle_plot_assignment(property, value, ctx, env, diagnostics, subject)
+    }
 }
 
 impl Primitive for PlotCurvePrimitive {
@@ -87,7 +99,7 @@ impl Primitive for PlotCurvePrimitive {
             return Ok(None);
         }
 
-        let style = ctx.style.expect("plot evaluation requires the style tier");
+        let style = ctx.style;
         // Sample stroke_progress from the track
         let progress = style.stroke_progress.get(ctx.time_ms, 1.0) as f64;
         let progress = progress.clamp(0.0, 1.0);
@@ -161,6 +173,18 @@ impl Primitive for PlotCurvePrimitive {
             Property::new("resolution", Expr::Num(96.0)),
         ]
     }
+
+    fn handle_assignment(
+        &self,
+        property: &str,
+        value: &Expr,
+        ctx: &mut crate::primitives::AssignmentCtx,
+        env: &crate::timeline::Environment,
+        diagnostics: &mut Vec<Diagnostic>,
+        subject: &str,
+    ) -> bool {
+        handle_plot_assignment(property, value, ctx, env, diagnostics, subject)
+    }
 }
 
 /// The `VectorField` plot primitive.
@@ -226,6 +250,18 @@ impl Primitive for VectorFieldPrimitive {
             ),
         ]
     }
+
+    fn handle_assignment(
+        &self,
+        property: &str,
+        value: &Expr,
+        ctx: &mut crate::primitives::AssignmentCtx,
+        env: &crate::timeline::Environment,
+        diagnostics: &mut Vec<Diagnostic>,
+        subject: &str,
+    ) -> bool {
+        handle_plot_assignment(property, value, ctx, env, diagnostics, subject)
+    }
 }
 
 /// The `Heatmap` plot primitive.
@@ -287,6 +323,18 @@ impl Primitive for HeatmapPrimitive {
                 Expr::Closure(vec!["x".into(), "y".into()], Box::new(Expr::Num(0.0))),
             ),
         ]
+    }
+
+    fn handle_assignment(
+        &self,
+        property: &str,
+        value: &Expr,
+        ctx: &mut crate::primitives::AssignmentCtx,
+        env: &crate::timeline::Environment,
+        diagnostics: &mut Vec<Diagnostic>,
+        subject: &str,
+    ) -> bool {
+        handle_plot_assignment(property, value, ctx, env, diagnostics, subject)
     }
 }
 
@@ -354,6 +402,18 @@ impl Primitive for ContourSetPrimitive {
             ),
         ]
     }
+
+    fn handle_assignment(
+        &self,
+        property: &str,
+        value: &Expr,
+        ctx: &mut crate::primitives::AssignmentCtx,
+        env: &crate::timeline::Environment,
+        diagnostics: &mut Vec<Diagnostic>,
+        subject: &str,
+    ) -> bool {
+        handle_plot_assignment(property, value, ctx, env, diagnostics, subject)
+    }
 }
 
 pub struct NumberPlanePrimitive;
@@ -417,4 +477,18 @@ impl Primitive for NumberPlanePrimitive {
             ),
         ]
     }
+
+    fn handle_assignment(
+        &self,
+        property: &str,
+        value: &Expr,
+        ctx: &mut crate::primitives::AssignmentCtx,
+        env: &crate::timeline::Environment,
+        diagnostics: &mut Vec<Diagnostic>,
+        subject: &str,
+    ) -> bool {
+        handle_plot_assignment(property, value, ctx, env, diagnostics, subject)
+    }
 }
+
+pub(crate) use super::plot_assignment::handle_plot_assignment;

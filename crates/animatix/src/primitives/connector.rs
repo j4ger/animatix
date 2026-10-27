@@ -427,14 +427,14 @@ impl Primitive for ConnectorPrimitive {
         ctx: &EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<RenderCommand>>, RenderError> {
-        let geometry = ctx.geometry.expect("Connector evaluation requires the geometry tier");
+        let geometry = ctx.geometry;
         let ep_from =
             geometry.connector_from.get(ctx.time_ms, ConnectorEndpoint::Point([0.0, 0.0]));
         let ep_to =
             geometry.connector_to.get(ctx.time_ms, ConnectorEndpoint::Point([100.0, 100.0]));
         let routing = geometry.connector_routing.get(ctx.time_ms, ConnectorRouting::Elbow);
         let mut arrow = geometry.connector_arrow.get(ctx.time_ms, true);
-        let shape = ctx.shape.expect("Connector evaluation requires the shape tier");
+        let shape = ctx.shape;
         let mut corner_radius = shape.corner_radius.get(ctx.time_ms, 8.0);
         let mut head_size = shape.head_size.get(ctx.time_ms, 10.0);
 
@@ -478,12 +478,7 @@ impl Primitive for ConnectorPrimitive {
         let (shaft_path, arrowhead_path) =
             build_connector_path(&waypoints, corner_radius, arrow, head_size);
 
-        let style = sample_shape_style(
-            ctx.style.expect("connector styling requires the style tier"),
-            ctx.caps,
-            ctx.time_ms,
-            ctx.overrides,
-        );
+        let style = sample_shape_style(ctx.style, ctx.caps, ctx.time_ms, ctx.overrides);
         let mut paths = Vec::new();
 
         let shaft_vello = VelloPath {

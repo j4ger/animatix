@@ -123,14 +123,14 @@ fn sample_evaluate_ctx_with_payload<'a>(
         highlight: Box::leak(
             Box::new(crate::timeline::animation_track::HighlightTracks::default()),
         ),
-        property_plan: None,
+        property_plan: Box::leak(Box::new(crate::timeline::plan::PropertyPlan::default())),
         world: None,
         // The shape, text, geometry and style tiers live in World; these helper
-        // contexts build no World, so only a default style is attached.
-        style: Some(Box::leak(Box::new(crate::timeline::animation_track::StyleTracks::default()))),
-        shape: None,
-        text: None,
-        geometry: None,
+        // contexts build no World, so default tiers are attached.
+        style: Box::leak(Box::new(crate::timeline::animation_track::StyleTracks::default())),
+        shape: Box::leak(Box::new(crate::timeline::animation_track::ShapeTracks::default())),
+        text: Box::leak(Box::new(crate::timeline::animation_track::TextTracks::default())),
+        geometry: Box::leak(Box::new(crate::timeline::animation_track::GeometryTracks::default())),
         payload,
         target_resolver: None,
         legend: None,
@@ -141,7 +141,7 @@ fn sample_evaluate_ctx_with_payload<'a>(
 /// property reads can resolve registry-driven slots.
 fn sample_evaluate_ctx_with_plan<'a>(
     asset_cache: &'a crate::timeline::assets::AssetCache,
-    property_plan: Option<&'a crate::timeline::plan::PropertyPlan>,
+    property_plan: &'a crate::timeline::plan::PropertyPlan,
 ) -> EvaluateCtx<'a> {
     let mut ctx = sample_evaluate_ctx(asset_cache);
     ctx.property_plan = property_plan;

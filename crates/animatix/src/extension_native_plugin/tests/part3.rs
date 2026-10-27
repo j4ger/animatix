@@ -612,7 +612,7 @@ fn enum_extension_property_bare_identifier_roundtrips() {
     let property_ids = HashMap::from([("mode".to_string(), PropertyId(1_000_000))]);
     let service_values = HashMap::new();
     let asset_cache = crate::timeline::assets::AssetCache::new();
-    let eval_ctx = sample_evaluate_ctx_with_plan(&asset_cache, Some(plan));
+    let eval_ctx = sample_evaluate_ctx_with_plan(&asset_cache, plan);
     let mut host = NativePrimitiveEvaluateHost {
         ctx: &eval_ctx,
         property_ids: &property_ids,

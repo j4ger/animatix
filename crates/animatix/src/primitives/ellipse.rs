@@ -75,16 +75,12 @@ impl Primitive for EllipsePrimitive {
         use crate::primitives::evaluate_shape_render;
         use crate::timeline::shapes::EllipseState;
 
-        let geometry = ctx.geometry.expect("Ellipse evaluation requires the geometry tier");
+        let geometry = ctx.geometry;
         let half_size = crate::primitives::resolve_half_size(
             geometry.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE),
             ctx.overrides,
         );
-        let arc_angles = ctx
-            .shape
-            .expect("Ellipse evaluation requires the shape tier")
-            .arc_angles
-            .get(ctx.time_ms, [0.0, 0.0]);
+        let arc_angles = ctx.shape.arc_angles.get(ctx.time_ms, [0.0, 0.0]);
         let rot = geometry.rotation.get(ctx.time_ms, 0.0);
 
         let mut state = EllipseState {

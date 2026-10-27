@@ -427,7 +427,7 @@ fn native_get_property_reads_extension_slot() {
         crate::easing::Easing::Linear,
     );
     let asset_cache = crate::timeline::assets::AssetCache::new();
-    let eval_ctx = sample_evaluate_ctx_with_plan(&asset_cache, Some(&plan));
+    let eval_ctx = sample_evaluate_ctx_with_plan(&asset_cache, &plan);
     let property_ids = HashMap::from([("glow".to_string(), id)]);
     let service_values = HashMap::new();
     let mut host = NativePrimitiveEvaluateHost {

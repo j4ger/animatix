@@ -113,19 +113,12 @@ impl Primitive for RectPrimitive {
         use crate::timeline::{DEFAULT_LAYOUT_HALF_SIZE, VectorShapeState};
 
         let half_size = crate::primitives::resolve_half_size(
-            ctx.geometry
-                .expect("Rect evaluation requires the geometry tier")
-                .size
-                .get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE),
+            ctx.geometry.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE),
             ctx.overrides,
         );
         let mut state = RectState {
             size: half_size,
-            corner_radius: ctx
-                .shape
-                .expect("Rect evaluation requires the shape tier")
-                .corner_radius
-                .get(ctx.time_ms, 0.0),
+            corner_radius: ctx.shape.corner_radius.get(ctx.time_ms, 0.0),
         };
 
         if let Some(overrides) = ctx.overrides {

@@ -89,9 +89,7 @@ pub(crate) unsafe extern "C" fn native_get_property(
         return NATIVE_STATUS_TYPE_ERROR;
     };
     let value = if let Some(id) = host.property_ids.get(&name) {
-        let Some(plan) = host.ctx.property_plan else {
-            return NATIVE_STATUS_TYPE_ERROR;
-        };
+        let plan = host.ctx.property_plan;
         crate::timeline::property_engine::read_property_plan_slot(plan, *id, host.ctx.time_ms)
     } else if let Some(schema) = lookup_property(&name) {
         host.ctx.read_property_value(schema.field, host.ctx.time_ms)
@@ -232,10 +230,11 @@ pub(crate) unsafe extern "C" fn native_append_image(
             command.natural_size[1] as f32,
         ]
     } else {
-        let half =
-            host.ctx.geometry.map_or(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE, |geometry| {
-                geometry.size.get(host.ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
-            });
+        let half = host
+            .ctx
+            .geometry
+            .size
+            .get(host.ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
         [half[0] * 2.0, half[1] * 2.0]
     };
     host.commands.push(crate::primitives::RenderCommand::Image {

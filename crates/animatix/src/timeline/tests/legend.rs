@@ -63,6 +63,9 @@ fn test_legend_wrapped_label_respects_max_width() {
     let asset_cache = crate::timeline::assets::AssetCache::new();
     let geometry = crate::timeline::animation_track::GeometryTracks::default();
     let style = crate::timeline::animation_track::StyleTracks::default();
+    let shape = crate::timeline::animation_track::ShapeTracks::default();
+    let text = crate::timeline::animation_track::TextTracks::default();
+    let property_plan = crate::timeline::plan::PropertyPlan::default();
     let ctx = EvaluateCtx {
         id: crate::timeline::EntityId::INVALID,
         label: "legend",
@@ -79,12 +82,12 @@ fn test_legend_wrapped_label_respects_max_width() {
         vector_paths: &[],
         asset_cache: &asset_cache,
         highlight: &crate::timeline::animation_track::HighlightTracks::default(),
-        property_plan: None,
+        property_plan: &property_plan,
         world: None,
-        shape: None,
-        text: None,
-        geometry: Some(&geometry),
-        style: Some(&style),
+        shape: &shape,
+        text: &text,
+        geometry: &geometry,
+        style: &style,
 
         payload: None,
         target_resolver: None,
@@ -238,6 +241,9 @@ fn test_legend_empty() {
     let asset_cache = crate::timeline::assets::AssetCache::new();
     let geometry = crate::timeline::animation_track::GeometryTracks::default();
     let style = crate::timeline::animation_track::StyleTracks::default();
+    let shape = crate::timeline::animation_track::ShapeTracks::default();
+    let text = crate::timeline::animation_track::TextTracks::default();
+    let property_plan = crate::timeline::plan::PropertyPlan::default();
     let ctx = EvaluateCtx {
         id: crate::timeline::EntityId::INVALID,
         label: "empty_legend",
@@ -254,12 +260,12 @@ fn test_legend_empty() {
         vector_paths: &[],
         asset_cache: &asset_cache,
         highlight: &crate::timeline::animation_track::HighlightTracks::default(),
-        property_plan: None,
+        property_plan: &property_plan,
         world: None,
-        shape: None,
-        text: None,
-        geometry: Some(&geometry),
-        style: Some(&style),
+        shape: &shape,
+        text: &text,
+        geometry: &geometry,
+        style: &style,
         payload: None,
         target_resolver: None,
         legend: Some(&legend),
@@ -663,6 +669,9 @@ fn test_legend_render_commands_produced() {
     let asset_cache = crate::timeline::assets::AssetCache::new();
     let geometry = crate::timeline::animation_track::GeometryTracks::default();
     let style = crate::timeline::animation_track::StyleTracks::default();
+    let shape = crate::timeline::animation_track::ShapeTracks::default();
+    let text = crate::timeline::animation_track::TextTracks::default();
+    let property_plan = crate::timeline::plan::PropertyPlan::default();
     let ctx = EvaluateCtx {
         id: crate::timeline::EntityId::INVALID,
         label: "legend",
@@ -679,12 +688,12 @@ fn test_legend_render_commands_produced() {
         vector_paths: &[],
         asset_cache: &asset_cache,
         highlight: &crate::timeline::animation_track::HighlightTracks::default(),
-        property_plan: None,
+        property_plan: &property_plan,
         world: None,
-        shape: None,
-        text: None,
-        geometry: Some(&geometry),
-        style: Some(&style),
+        shape: &shape,
+        text: &text,
+        geometry: &geometry,
+        style: &style,
         payload: None,
         target_resolver: None,
         legend: Some(&legend),

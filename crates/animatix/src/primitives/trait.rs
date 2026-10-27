@@ -32,8 +32,8 @@ pub fn evaluate_text_paths(
 > {
     use crate::timeline::TrackAccessor;
 
-    let style = ctx.style.expect("text evaluation requires the style tier");
-    let text = ctx.text.expect("text primitive evaluated without a text tier");
+    let style = ctx.style;
+    let text = ctx.text;
     let mut content = text.text_content.get(ctx.time_ms, String::new());
     let mut font_family = text.font_family.get(ctx.time_ms, String::new());
     let mut font_size = text.font_size.get(ctx.time_ms, default_font_size);

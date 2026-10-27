@@ -18,11 +18,7 @@ impl Primitive for CuePrimitive {
     }
 
     fn caption_cue(&self, ctx: &EvaluateCtx) -> Option<CaptionCue> {
-        let text = ctx
-            .text
-            .expect("Cue evaluated without a text tier")
-            .text_content
-            .get(ctx.time_ms, String::new());
+        let text = ctx.text.text_content.get(ctx.time_ms, String::new());
         let start_s = ctx.sample_f32_prop("start", ctx.time_ms, 0.0);
         let end_s = ctx.sample_f32_prop("end", ctx.time_ms, 0.0);
         let start_ms = (start_s * 1000.0).round() as u64;

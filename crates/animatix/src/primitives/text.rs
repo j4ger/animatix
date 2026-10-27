@@ -112,7 +112,7 @@ impl Primitive for TextPrimitive {
     {
         use crate::primitives::{RenderCommand, evaluate_text_paths};
         use crate::renderer::text::TextKind;
-        let style = ctx.style.expect("text actor evaluated without a style tier");
+        let style = ctx.style;
 
         let (paths, clip_path) = if let Some(text_ctx) = text_ctx {
             evaluate_text_paths(
@@ -122,7 +122,7 @@ impl Primitive for TextPrimitive {
                 crate::renderer::text::default_font_size(TextKind::Text),
             )
         } else {
-            let text = ctx.text.expect("Text actor evaluated without a text tier");
+            let text = ctx.text;
             let (paths, clip) = text.evaluate_paths_and_clip(style, ctx.time_ms);
             Ok((std::sync::Arc::from(paths), clip))
         }?;
@@ -142,7 +142,7 @@ impl Primitive for TextPrimitive {
             use crate::timeline::TrackAccessor;
             let col = style.color.get(ctx.time_ms, [1.0, 1.0, 1.0, 1.0]);
             let tint_color = Some(crate::renderer::text::f32_color_to_rgba8(&col));
-            let text = ctx.text.expect("Text actor evaluated without a text tier");
+            let text = ctx.text;
             let hardware_layout = if text.char_progress.is_none()
                 && text.text_anchor.get(ctx.time_ms, "center".to_string()) == "center"
             {

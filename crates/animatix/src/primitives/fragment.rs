@@ -31,7 +31,7 @@ impl Primitive for FragmentPrimitive {
     /// content and highlight state to the parent `Equation`'s document. Any
     /// other primitive (including an extension) can opt in by overriding this.
     fn equation_fragment(&self, ctx: &EvaluateCtx) -> Option<EquationFragment> {
-        let text = ctx.text.expect("Fragment evaluated without a text tier");
+        let text = ctx.text;
         Some(EquationFragment {
             content: text.text_content.get(ctx.time_ms, String::new()),
             highlight_color: ctx.highlight.highlight_color.get(ctx.time_ms, [0.3, 0.5, 1.0, 1.0]),

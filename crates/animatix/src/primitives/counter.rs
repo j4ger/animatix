@@ -379,9 +379,8 @@ impl Primitive for CounterPrimitive {
         ctx: &EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<RenderCommand>>, RenderError> {
-        let style = ctx.style.expect("Counter evaluated without a style tier");
-        let Some(ref data) = ctx.text.expect("Counter evaluated without a text tier").counter_data
-        else {
+        let style = ctx.style;
+        let Some(ref data) = ctx.text.counter_data else {
             return Ok(None);
         };
 

@@ -87,18 +87,15 @@ impl Primitive for PolygonPrimitive {
         use crate::primitives::evaluate_shape_render;
         use crate::timeline::shapes::PolygonState;
 
-        let geometry = ctx.geometry.expect("Polygon evaluation requires the geometry tier");
+        let geometry = ctx.geometry;
         let half_size = crate::primitives::resolve_half_size(
             geometry.size.get(ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE),
             ctx.overrides,
         );
-        let shape = ctx.shape.expect("Polygon evaluation requires the shape tier");
+        let shape = ctx.shape;
         let points = shape.points.get(ctx.time_ms, Vec::new());
         let rot = geometry.rotation.get(ctx.time_ms, 0.0);
-        let vector_paths = shape.evaluate_vector_paths(
-            ctx.style.expect("Polygon evaluation requires the style tier"),
-            ctx.time_ms,
-        );
+        let vector_paths = shape.evaluate_vector_paths(ctx.style, ctx.time_ms);
 
         let mut state = PolygonState {
             size: half_size,
