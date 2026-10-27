@@ -17,14 +17,14 @@ bg: Ambience, tint: accent.danger, base_opacity: 0.14, seed: 60
 
 // ── Header / Narration (top-left) ───────────────────────────────────
 head_eyebrow: Text, text: "FIG 06 // DEEP LAYER STACK & LOGIT PROJECTION", font_size: 13,
-  color: accent.danger, text_align: "left", anchor: scene.top_left, offset: (80, 48)
+  color: accent.danger, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 48)
 
 phase1: Text, text: "1 · Token embeddings enter the base of the N-layer stack", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 phase2: Text, text: "2 · Hierarchical refinement: grammar -> coreference -> semantic intent", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 phase3: Text, text: "3 · LM Head projects 768-dim state to 50,257 vocabulary logits", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 
 stack_badge: Stack, at: (1080, 68) {
   s_bg: Rect, size: (260, 40), corner_radius: 10, color: surface.primary,

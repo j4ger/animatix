@@ -25,6 +25,11 @@ That is for figures whose resting frame is *meant* to be the page behind them
 (the home page's full-bleed hero), not for a bordered figure the reader is meant
 to take something away from.
 
+A multi-scene plate rests on its **last** scene, so that scene is the plateau:
+comparing its closing title card with the walkthrough's densest act (a plot, the
+hero figure) would fail every plate that ends on a deliberately sparser closing
+figure, even though nothing was erased.
+
 What this cannot see, on purpose: the measurement is whole-frame coverage, so it
 catches a closing beat that erases *the cast* (the defect it was written for) and
 is blind to one that erases a single actor sitting on busy pixels behind it — a
@@ -58,15 +63,31 @@ def players() -> list[pathlib.Path]:
     return scenes
 
 
-def total_seconds(path: pathlib.Path) -> float:
-    """The real cycle length — a plate's scenes add up, its first `duration:` does not."""
+def timeline_info(path: pathlib.Path) -> tuple[float, list[tuple[float, float, int]]]:
+    """The cycle length and the scene table of a plate.
+
+    A row carries `(start, duration, transition_ms_into_next)`. The transition
+    into the *last* scene is on the previous row, so the final scene's own
+    content starts after it — until then the outgoing scene is still on screen,
+    and sampling the cross-fade would call the walkthrough's densest act the
+    closing scene's plateau.
+    """
     out = subprocess.run(
         [str(BIN), "timeline", str(path)], capture_output=True, text=True
     ).stdout
+    total = 0.0
     if m := re.search(r"total:\s*([\d.]+)s", out):
-        return float(m.group(1))
-    m = re.search(r"duration:\s*([0-9.]+)", path.read_text())
-    return float(m.group(1)) if m else 0.0
+        total = float(m.group(1))
+    if total <= 0:
+        m = re.search(r"duration:\s*([0-9.]+)", path.read_text())
+        total = float(m.group(1)) if m else 0.0
+    scenes = []
+    for start, length, tail in re.findall(
+        r"(?m)^\s*\d+\s+\S+\s+([\d.]+)\s+([\d.]+)\s+(.*)$", out
+    ):
+        transition = re.search(r"\[[^,\]]+,\s*(\d+)ms\]", tail)
+        scenes.append((float(start), float(length), int(transition.group(1)) if transition else 0))
+    return total, scenes
 
 
 def beats(path: pathlib.Path) -> list[float]:
@@ -98,20 +119,41 @@ def exemption(path: pathlib.Path) -> str | None:
 
 def check(path: pathlib.Path) -> list[str]:
     rel = path.relative_to(ROOT.parent)
-    duration = total_seconds(path)
+    duration, scenes = timeline_info(path)
     if duration <= 0:
         return [f"{rel}: no duration found"]
-    stamp = [t for t in beats(path) if t <= duration + 0.01]
     held = round(duration - 0.05, 2)
-    # Sample the whole arc so the plateau is the real peak, not one beat's guess.
-    samples = sorted({0.0, *stamp, round(duration / 2, 2), held})
+    if len(scenes) > 1:
+        # A plate holds on its *last* scene. Comparing that frame with the
+        # densest moment of the whole walkthrough (the hero act, a plot) fails
+        # every plate that ends on a deliberately sparser closing figure, even
+        # though nothing was erased. The plateau is therefore the last scene's
+        # own peak. Sample it directly: `#Ns` stamps are scene-local, so
+        # shifting them into absolute time conflates the acts.
+        start, length, _ = scenes[-1]
+        # The transition into the last scene lives on the previous row; the
+        # outgoing act owns that window, not the closing figure.
+        content_start = start + scenes[-2][2] / 1000.0
+        content_start = min(content_start, held)
+        end = min(start + length, duration)
+        samples = [
+            round(content_start + i * 0.5, 2)
+            for i in range(int((end - content_start) / 0.5) + 1)
+        ]
+        samples = sorted({*samples, round(content_start, 2), held})
+    else:
+        stamp = [t for t in beats(path) if t <= duration + 0.01]
+        # Sample the whole arc so the plateau is the real peak, not one beat's guess.
+        samples = sorted({0.0, *stamp, round(duration / 2, 2), held})
     ink = measure(path, samples)
     if not ink:
         return [f"{rel}: verify produced no measurements"]
 
     peak = max(ink.values())
     problems: list[str] = []
-    if peak > 1.0 and ink.get(held, 0.0) < REST_FLOOR * peak:
+    # A sparse closing title card is a composition too: with a 1% floor its
+    # 0.7% text could be erased to 0 and still be skipped as "nearly blank".
+    if peak > 0.1 and ink.get(held, 0.0) < REST_FLOOR * peak:
         problems.append(
             f"{rel}: the held frame is {ink[held]:.1f}% ink against a {peak:.1f}% "
             f"plateau — a closing beat erases the cast (dur={duration:.2f}s)"

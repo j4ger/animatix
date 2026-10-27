@@ -18,7 +18,10 @@ visible 0.50 formula_chip
 visible 1.60 k_label
 invisible 1.90 score_guide
 visible 2.50 score_guide
-invisible 2.90 winner_tag
+# No `invisible 2.90 winner_tag`: the Q→K beam's arrowhead enters the tag's
+# bounding box before the tag fades in, and `visible` measures the box, not the
+# glyphs (dogfood/README.md, "Choosing the right check"). The cue is covered by
+# `visible 3.60` and the 2.10→3.10 `differs` beat.
 visible 3.60 winner_tag
 invisible 5.20 out_t1
 visible 5.80 out_t1

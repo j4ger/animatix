@@ -18,14 +18,14 @@ bg: Ambience, tint: accent.primary, base_opacity: 0.14, seed: 40
 
 // ── Header / Narration (top-left) ───────────────────────────────────
 head_eyebrow: Text, text: "FIG 04 // MULTI-HEAD ATTENTION SUBSPACES", font_size: 13,
-  color: accent.primary, text_align: "left", anchor: scene.top_left, offset: (80, 48)
+  color: accent.primary, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 48)
 
 phase1: Text, text: "1 · 768-dim state projects into 12 parallel 64-dim subspaces", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 phase2: Text, text: "2 · Heads specialize: coreference, syntax, and local context concurrently", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 phase3: Text, text: "3 · Concatenate 12 head vectors and synthesize via linear projection W_O", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 
 formula_chip: Stack, at: (1080, 68) {
   f_bg: Rect, size: (260, 40), corner_radius: 10, color: surface.primary,

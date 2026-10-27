@@ -17,18 +17,18 @@ bg: Ambience, tint: accent.primary, base_opacity: 0.14, seed: 70
 
 // ── Header / Narration (top-left) ───────────────────────────────────
 head_eyebrow: Text, text: "FIG 00 // FULL ARCHITECTURE BLUEPRINT", font_size: 13,
-  color: accent.primary, text_align: "left", anchor: scene.top_left, offset: (80, 48)
+  color: accent.primary, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 48)
 
 phase1: Text, text: "1 · Discrete sub-word tokens enter along the input baseline", font_size: 18, color: text.primary,
-  text_max_width: 520, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 520, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 phase2: Text, text: "2 · Coordinate injection: Token embeddings + positional encodings", font_size: 18, color: text.primary,
-  text_max_width: 520, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 520, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 phase3: Text, text: "3 · Repeated Transformer Block × N: Multi-Head Attention & FFN", font_size: 18, color: text.primary,
-  text_max_width: 520, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 520, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 phase4: Text, text: "4 · LM Head un-embeds hidden state into vocabulary logits", font_size: 18, color: text.primary,
-  text_max_width: 520, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 520, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 phase5: Text, text: "5 · Autoregressive feedback: predicted token appends to input sequence", font_size: 18, color: text.primary,
-  text_max_width: 520, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 520, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 
 blueprint_badge: Stack, at: (1110, 48) {
   b_bg: Rect, size: (260, 36), corner_radius: 10, color: surface.primary,

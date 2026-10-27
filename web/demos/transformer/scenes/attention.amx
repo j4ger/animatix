@@ -19,16 +19,16 @@ bg: Ambience, tint: accent.primary, base_opacity: 0.14, seed: 30
 
 // ── header / narration (top-left) ───────────────────────────────────
 head_eyebrow: Text, text: "FIG 03 // SCALED DOT-PRODUCT ATTENTION", font_size: 13,
-  color: accent.primary, text_align: "left", anchor: scene.top_left, offset: (80, 48)
+  color: accent.primary, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 48)
 
 phase1: Text, text: "1 · “it” projects Query probing prior Keys", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 phase2: Text, text: "2 · Affinities scored: Q * K^T / sqrt(d_k)", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 phase3: Text, text: "3 · Softmax normalizes into probability weights", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 phase4: Text, text: "4 · Values weighted & pooled: “it” absorbs “animal”", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 
 formula_chip: Stack, at: (1080, 68) {
   f_bg: Rect, size: (260, 40), corner_radius: 10, color: surface.primary,

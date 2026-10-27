@@ -805,12 +805,19 @@ eye/lock view toggles, `solo` round-trips through `.amx` and undo.
 | `Legend` | `at` |
 | `Polygon` | `points: {(x, y), ...}` |
 | `Path` | `commands: {move_to(...), line_to(...), curve_to(...), close()}` |
-| `Text` / `Typst` / `Code` | `text` / `code`, `font_size`, `font_family`, `font_weight`, `font_style`, `line_height`, `letter_spacing`, `word_spacing`, `text_max_width`, `text_align`, `overflow` |
+| `Text` / `Typst` / `Code` | `text` / `code`, `font_size`, `font_family`, `font_weight`, `font_style`, `line_height`, `letter_spacing`, `word_spacing`, `text_max_width`, `text_align`, `text_anchor`, `overflow` |
 | `Image` / `Svg` | `url` |
 | `Filter` | none directly; declares effect children (`Blur`, `ColorGrade`, `Sharpen`, `Vignette`, `MotionBlur`, `Grain`, `Levels`, …) whose parameters animate as `scope.stage.param` |
 | `Graph` / plots | `x_domain`, `y_domain`, `func`, `kind`, `resolution`, `density`, `levels` |
 | `Row` / `Col` / `Grid` / `Stack` | `gap` / `gap: (row, col)`, `padding` / `padding: (top, right, bottom, left)`, `align`, `vertical_align` (Row/Col), `cols` (Grid) |
 
+> **Anchoring text:** `at` / `anchor` position the **centre** of the text
+> block. That is easy to miss for left-aligned copy: a title at
+> `anchor: scene.top_left, offset: (80, 48)` is centred on x = 80, so half of it
+> hangs off-screen. Set `text_anchor: "left"` (or `"right"`) to put the block's
+> left/right edge on that point. `text_align` only aligns lines *inside* a
+> wrapped box (`text_max_width`); it does not move a single line.
+>
 > **Grid `cols`:** a `Grid` without an explicit `cols` lays its children out
 > in a **single column**. Always set `cols` for multi-column walls (e.g.
 > `cols: 3` for six cards in two rows).

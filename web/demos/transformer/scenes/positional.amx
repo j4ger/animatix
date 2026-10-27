@@ -20,14 +20,14 @@ bg: Ambience, tint: accent.info, base_opacity: 0.14, seed: 20
 
 // ── Header / Narration (top-left) ───────────────────────────────────
 head_eyebrow: Text, text: "FIG 02 // HARMONIC POSITIONAL SPECTRUM", font_size: 13,
-  color: accent.info, text_align: "left", anchor: scene.top_left, offset: (80, 48)
+  color: accent.info, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 48)
 
 phase1: Text, text: "1 · Sinusoidal spectrum generates unique temporal fingerprint", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 phase2: Text, text: "2 · Geometric period doubling: fine -> coarse temporal resolution", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 phase3: Text, text: "3 · Element-wise vector addition fuses order into token embedding", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 
 formula_chip: Stack, at: (1080, 68) {
   f_bg: Rect, size: (260, 40), corner_radius: 10, color: surface.primary,

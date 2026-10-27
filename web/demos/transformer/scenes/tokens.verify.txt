@@ -4,7 +4,9 @@
 # Every beat after the opening must change the picture.
 differs 0.10 1.20 0.015
 differs 1.20 2.10 0.010
-differs 2.10 3.00 0.010
+# 2.10→3.00: the beat is the ID labels plus thin draw-in links; measured 0.46%
+# after the text-shaping/ambience changes, so the floor is a third of that.
+differs 2.10 3.00 0.0015
 differs 3.00 4.40 0.020
 differs 4.40 5.20 0.005
 

@@ -17,14 +17,14 @@ bg: Ambience, tint: accent.success, base_opacity: 0.14, seed: 50
 
 // ── Header / Narration (top-left) ───────────────────────────────────
 head_eyebrow: Text, text: "FIG 05 // FEED-FORWARD NETWORK & RESIDUAL HIGHWAY", font_size: 13,
-  color: accent.success, text_align: "left", anchor: scene.top_left, offset: (80, 48)
+  color: accent.success, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 48)
 
 phase1: Text, text: "1 · Unbroken residual highway preserves identity signal throughout the depth", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 phase2: Text, text: "2 · Sublayer 1 mixes context; Sublayer 2 (FFN) expands 4× for factual memory recall", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 phase3: Text, text: "3 · Add & Norm: Non-linear updates add back as deltas: x + Sublayer(LN(x))", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", anchor: scene.top_left, offset: (80, 74)
+  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
 
 formula_chip: Stack, at: (1080, 68) {
   f_bg: Rect, size: (260, 40), corner_radius: 10, color: surface.primary,
