@@ -55,7 +55,6 @@ crates/animatix-syntax/src/easing.rs	612
 crates/animatix-syntax/src/format_core.rs	762
 crates/animatix-syntax/src/module/graph.rs	765
 crates/animatix-syntax/src/parser/stmt.rs	773
-crates/animatix-syntax/src/schema.rs	710
 crates/animatix/tests/ir_tests.rs	1230
 crates/animatix/tests/module_tests.rs	1314
 crates/animatix-text/src/compiler.rs	675
