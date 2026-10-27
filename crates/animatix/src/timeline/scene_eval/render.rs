@@ -412,14 +412,12 @@ impl Timeline {
             }
         }
 
-        // ── Phase 10b.3: Trait-dispatch scene evaluation ──
-        // The primitive's evaluate() is the only render path (no per-type
-        // dispatch table). `Some(commands)`
-        // draws the commands and records a hit region; `None` means
-        // "no drawable content" — nothing is drawn and no hit region or
-        // precise bounds are recorded for it.
-        let primitive_dispatch = self.cached_primitive_for(node_id, time_ms).and_then(|handle| {
-            let primitive = handle.as_dyn();
+        // ── Phase 10b.3: Behavior evaluation ──
+        // The behavior's evaluate() is the direct render path.
+        // `Some(commands)` draws the commands and records a hit region;
+        // `None` means "no drawable content" — nothing is drawn and no
+        // hit region or precise bounds are recorded for it.
+        let primitive_dispatch = self.behavior_for_node(node_id, time_ms).and_then(|def| {
             // Clear the shape-memo bounds handoff: a non-shape
             // primitive must never observe the previous node's data.
             self.world.begin_shape_commands(node_id);
@@ -451,7 +449,7 @@ impl Timeline {
                 text_compiler: &mut self.text_compiler.borrow_mut(),
                 font_context: self.font_context.as_ref(),
             };
-            match primitive.evaluate(&ctx, Some(&mut text_ctx)) {
+            match def.evaluate(&ctx, Some(&mut text_ctx)) {
                 Ok(commands) => commands,
                 Err(e) => {
                     self.eval_caches.runtime_diagnostics.borrow_mut().push(

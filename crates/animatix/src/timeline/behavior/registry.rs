@@ -2,7 +2,177 @@
 
 use std::sync::Arc;
 
-use super::def::{BehaviorDef, BehaviorFamily, BehaviorId, BehaviorSource};
+use super::builtin::*;
+use super::def::{BehaviorDef, BehaviorFamily, BehaviorId, BehaviorSource, FamilyBehavior};
+
+/// Return the canonical [`FamilyBehavior`] for a built-in primitive by type name.
+pub fn family_behavior_for_builtin(name: &str) -> Option<FamilyBehavior> {
+    match name {
+        // Shapes
+        "Rect" => Some(FamilyBehavior {
+            evaluate: shape::evaluate_rect,
+            build_extra: None,
+        }),
+        "Ellipse" => Some(FamilyBehavior {
+            evaluate: shape::evaluate_ellipse,
+            build_extra: None,
+        }),
+        "Line" => Some(FamilyBehavior {
+            evaluate: shape::evaluate_line,
+            build_extra: None,
+        }),
+        "Arrow" => Some(FamilyBehavior {
+            evaluate: shape::evaluate_arrow,
+            build_extra: None,
+        }),
+        "Polygon" => Some(FamilyBehavior {
+            evaluate: shape::evaluate_polygon,
+            build_extra: None,
+        }),
+        "Path" => Some(FamilyBehavior {
+            evaluate: shape::evaluate_path,
+            build_extra: None,
+        }),
+
+        // Text
+        "Text" => Some(FamilyBehavior {
+            evaluate: text::evaluate_text,
+            build_extra: Some(text::build_extra_text),
+        }),
+        "Code" => Some(FamilyBehavior {
+            evaluate: text::evaluate_code,
+            build_extra: Some(text::build_extra_code),
+        }),
+        "Math" => Some(FamilyBehavior {
+            evaluate: text::evaluate_math,
+            build_extra: Some(text::build_extra_math),
+        }),
+        "Typst" => Some(FamilyBehavior {
+            evaluate: text::evaluate_typst,
+            build_extra: Some(text::build_extra_typst),
+        }),
+        "Counter" => Some(FamilyBehavior {
+            evaluate: text::evaluate_counter,
+            build_extra: Some(text::build_extra_counter),
+        }),
+
+        // Media
+        "Image" => Some(FamilyBehavior {
+            evaluate: media::evaluate_image,
+            build_extra: Some(media::build_extra_image),
+        }),
+        "Svg" => Some(FamilyBehavior {
+            evaluate: media::evaluate_svg,
+            build_extra: Some(media::build_extra_svg),
+        }),
+        "Audio" => Some(FamilyBehavior {
+            evaluate: media::evaluate_audio,
+            build_extra: Some(media::build_extra_audio),
+        }),
+
+        // Plots
+        "Graph" => Some(FamilyBehavior {
+            evaluate: plot::evaluate_plot,
+            build_extra: Some(plot::build_extra_graph),
+        }),
+        "PlotCurve" => Some(FamilyBehavior {
+            evaluate: plot::evaluate_plot,
+            build_extra: Some(plot::build_extra_plot_curve),
+        }),
+        "VectorField" => Some(FamilyBehavior {
+            evaluate: plot::evaluate_plot,
+            build_extra: Some(plot::build_extra_vector_field),
+        }),
+        "Heatmap" => Some(FamilyBehavior {
+            evaluate: plot::evaluate_plot,
+            build_extra: Some(plot::build_extra_heatmap),
+        }),
+        "ContourSet" => Some(FamilyBehavior {
+            evaluate: plot::evaluate_plot,
+            build_extra: Some(plot::build_extra_contour_set),
+        }),
+        "NumberPlane" => Some(FamilyBehavior {
+            evaluate: plot::evaluate_plot,
+            build_extra: Some(plot::build_extra_number_plane),
+        }),
+        "BarChart" => Some(FamilyBehavior {
+            evaluate: plot::evaluate_plot,
+            build_extra: Some(plot::build_extra_bar_chart),
+        }),
+
+        // Containers
+        "Row" => Some(FamilyBehavior {
+            evaluate: container::evaluate_container,
+            build_extra: None,
+        }),
+        "Col" => Some(FamilyBehavior {
+            evaluate: container::evaluate_container,
+            build_extra: None,
+        }),
+        "Grid" => Some(FamilyBehavior {
+            evaluate: container::evaluate_container,
+            build_extra: None,
+        }),
+        "Stack" => Some(FamilyBehavior {
+            evaluate: container::evaluate_container,
+            build_extra: None,
+        }),
+        "Group" => Some(FamilyBehavior {
+            evaluate: container::evaluate_container,
+            build_extra: None,
+        }),
+
+        // Effects
+        "Mask" => Some(FamilyBehavior {
+            evaluate: effect::evaluate_effect,
+            build_extra: None,
+        }),
+        "Filter" => Some(FamilyBehavior {
+            evaluate: effect::evaluate_effect,
+            build_extra: None,
+        }),
+        "Glass" => Some(FamilyBehavior {
+            evaluate: effect::evaluate_effect,
+            build_extra: None,
+        }),
+
+        // Equations
+        "Equation" => Some(FamilyBehavior {
+            evaluate: equation::evaluate_equation,
+            build_extra: None,
+        }),
+        "Fragment" => Some(FamilyBehavior {
+            evaluate: equation::evaluate_fragment,
+            build_extra: Some(equation::build_extra_fragment),
+        }),
+
+        // Captions
+        "Captions" => Some(FamilyBehavior {
+            evaluate: captions::evaluate_captions,
+            build_extra: None,
+        }),
+        "Cue" => Some(FamilyBehavior {
+            evaluate: captions::evaluate_cue,
+            build_extra: Some(captions::build_extra_cue),
+        }),
+
+        // Annotations
+        "Callout" => Some(FamilyBehavior {
+            evaluate: annotation::evaluate_callout,
+            build_extra: None,
+        }),
+        "Legend" => Some(FamilyBehavior {
+            evaluate: annotation::evaluate_legend,
+            build_extra: Some(annotation::build_extra_legend),
+        }),
+        "Connector" => Some(FamilyBehavior {
+            evaluate: annotation::evaluate_connector,
+            build_extra: None,
+        }),
+
+        _ => None,
+    }
+}
 
 /// Static lookup table mapping built-in primitive type names to their canonical [`BehaviorId`].
 ///
@@ -74,13 +244,15 @@ impl BehaviorRegistry {
             let child_processing = caps.child_processing;
             let name: Box<str> = builtin.behavior.type_name().into();
             let id = BehaviorId(i as u16);
+            let family_behavior = family_behavior_for_builtin(&name)
+                .unwrap_or_else(|| panic!("missing FamilyBehavior for built-in '{name}'"));
             behaviors.push(BehaviorDef {
                 id,
                 name,
                 caps,
                 family,
                 child_processing,
-                source: BehaviorSource::Builtin(builtin.behavior),
+                source: BehaviorSource::Family(family_behavior),
             });
         }
         Self { behaviors }

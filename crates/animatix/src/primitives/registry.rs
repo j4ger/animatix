@@ -41,19 +41,27 @@ impl RegisteredPrimitive {
 #[derive(Clone)]
 pub(crate) enum PrimitiveHandle {
     Registered(RegisteredPrimitive),
-    Behavior(crate::timeline::behavior::BehaviorSource),
+    Extension(Arc<dyn Primitive>),
 }
 
 impl PrimitiveHandle {
     pub(crate) fn as_dyn(&self) -> &dyn Primitive {
         match self {
             Self::Registered(reg) => reg.as_ref(),
-            Self::Behavior(source) => source.as_primitive(),
+            Self::Extension(ext) => ext.as_ref(),
         }
     }
 
-    pub(crate) fn from_behavior(def: &crate::timeline::behavior::BehaviorDef) -> Self {
-        Self::Behavior(def.source.clone())
+    pub(crate) fn from_behavior(def: &crate::timeline::behavior::BehaviorDef) -> Option<Self> {
+        match &def.source {
+            crate::timeline::behavior::BehaviorSource::Family(_) => super::BUILT_INS
+                .iter()
+                .find(|b| b.behavior.type_name() == &*def.name)
+                .map(|b| PrimitiveHandle::Registered(RegisteredPrimitive::Builtin(b))),
+            crate::timeline::behavior::BehaviorSource::Extension(ext) => {
+                Some(Self::Extension(ext.clone()))
+            },
+        }
     }
 }
 

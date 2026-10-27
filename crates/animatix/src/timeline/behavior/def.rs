@@ -117,24 +117,43 @@ impl BehaviorFamily {
     }
 }
 
+/// Function pointer signature for behavior evaluation.
+pub type EvaluateFn = fn(
+    &crate::primitives::EvaluateCtx,
+    Option<&mut crate::primitives::TextCompileCtx>,
+) -> Result<
+    Option<Vec<crate::primitives::RenderCommand>>,
+    crate::renderer::error::RenderError,
+>;
+
+/// Function pointer signature for behavior custom build logic.
+pub type BuildExtraFn = fn(
+    &mut crate::timeline::Timeline,
+    label: &str,
+    props: &[crate::ast::Property],
+    modifiers: &[crate::ast::Modifier],
+    children: &[crate::ast::InlineItem],
+    time_ms: f64,
+    parent_label: Option<&str>,
+    diagnostics: &mut Vec<crate::diagnostics::Diagnostic>,
+) -> Result<(), Vec<crate::diagnostics::Diagnostic>>;
+
+/// Behavior implementation for a built-in primitive family.
+#[derive(Clone, Copy)]
+pub struct FamilyBehavior {
+    /// Function pointer for evaluating draw commands.
+    pub evaluate: EvaluateFn,
+    /// Optional function pointer for custom actor declaration build logic.
+    pub build_extra: Option<BuildExtraFn>,
+}
+
 /// Storage source for a primitive behavior implementation.
 #[derive(Clone)]
 pub(crate) enum BehaviorSource {
-    /// A static built-in primitive compiled into the binary.
-    Builtin(&'static dyn crate::primitives::Primitive),
+    /// A built-in primitive backed by a family behavior system.
+    Family(FamilyBehavior),
     /// A runtime-registered extension or plugin primitive.
     Extension(std::sync::Arc<dyn crate::primitives::Primitive>),
-}
-
-impl BehaviorSource {
-    /// Borrow the underlying primitive trait object.
-    #[inline(always)]
-    pub fn as_primitive(&self) -> &dyn crate::primitives::Primitive {
-        match self {
-            Self::Builtin(p) => *p,
-            Self::Extension(p) => p.as_ref(),
-        }
-    }
 }
 
 /// Complete immutable definition for an actor behavior in the engine.
@@ -154,10 +173,25 @@ pub struct BehaviorDef {
 }
 
 impl BehaviorDef {
-    /// The primitive implementation backing this behavior.
-    #[inline(always)]
-    pub fn primitive(&self) -> &dyn crate::primitives::Primitive {
-        self.source.as_primitive()
+    /// Evaluate this behavior's draw commands.
+    pub fn evaluate(
+        &self,
+        ctx: &crate::primitives::EvaluateCtx,
+        text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+    ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
+    {
+        match &self.source {
+            BehaviorSource::Family(fam) => (fam.evaluate)(ctx, text_ctx),
+            BehaviorSource::Extension(ext) => ext.evaluate(ctx, text_ctx),
+        }
+    }
+
+    /// If this behavior is backed by a runtime extension primitive, return a reference to it.
+    pub fn extension_primitive(&self) -> Option<&dyn crate::primitives::Primitive> {
+        match &self.source {
+            BehaviorSource::Family(_) => None,
+            BehaviorSource::Extension(ext) => Some(ext.as_ref()),
+        }
     }
 }
 

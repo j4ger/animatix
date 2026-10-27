@@ -110,54 +110,7 @@ impl Primitive for TextPrimitive {
         text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
     {
-        use crate::primitives::{RenderCommand, evaluate_text_paths};
-        use crate::renderer::text::TextKind;
-        let style = ctx.style;
-
-        let (paths, clip_path) = if let Some(text_ctx) = text_ctx {
-            evaluate_text_paths(
-                ctx,
-                text_ctx,
-                TextKind::Text,
-                crate::renderer::text::default_font_size(TextKind::Text),
-            )
-        } else {
-            let text = ctx.text.expect("text primitive requires text component");
-            let (paths, clip) = text.evaluate_paths_and_clip(style, ctx.time_ms);
-            Ok((std::sync::Arc::from(paths), clip))
-        }?;
-        if paths.is_empty() {
-            Ok(None)
-        } else {
-            let fill_gradient = if style.fill_gradient.is_some() {
-                use crate::timeline::TrackAccessor;
-                Some(Box::new(
-                    style
-                        .fill_gradient
-                        .get(ctx.time_ms, crate::renderer::types::GradientSpec::default()),
-                ))
-            } else {
-                None
-            };
-            use crate::timeline::TrackAccessor;
-            let col = style.color.get(ctx.time_ms, [1.0, 1.0, 1.0, 1.0]);
-            let tint_color = Some(crate::renderer::text::f32_color_to_rgba8(&col));
-            let text = ctx.text.expect("text primitive requires text component");
-            let hardware_layout = if text.char_progress.is_none()
-                && text.text_anchor.get(ctx.time_ms, "center".to_string()) == "center"
-            {
-                text.hardware_layout.clone()
-            } else {
-                None
-            };
-            Ok(Some(vec![RenderCommand::Text {
-                paths,
-                fill_gradient,
-                clip_path,
-                tint_color,
-                hardware_layout,
-            }]))
-        }
+        crate::timeline::behavior::builtin::text::evaluate_text(ctx, text_ctx)
     }
 
     fn default_props(&self, scene: &SceneDimensions) -> Vec<Property> {

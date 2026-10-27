@@ -5,9 +5,7 @@ use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::primitives::{BuildCtx, Primitive, RenderCtx};
 use crate::timeline::path_data::parse_svg_path_data;
 use crate::timeline::shapes::parse_path_commands_expr;
-use crate::timeline::{
-    Environment, SceneDimensions, TrackAccessor, Value, VectorShapeState, VelloPath,
-};
+use crate::timeline::{Environment, SceneDimensions, Value, VectorShapeState, VelloPath};
 
 /// The `Path` primitive.
 pub struct PathPrimitive;
@@ -33,19 +31,7 @@ impl Primitive for PathPrimitive {
     }
 
     fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
-        let VectorShapeState::Path(state) = ctx.state else {
-            return None;
-        };
-        let path =
-            std::sync::Arc::new(state.custom_path.clone().unwrap_or_else(kurbo::BezPath::new));
-        Some(vec![crate::timeline::shapes::build_vello_path(
-            path,
-            ctx.style.color,
-            ctx.style.stroke_color,
-            ctx.style.stroke_width,
-            ctx.style.fill_opacity,
-            false,
-        )])
+        crate::timeline::behavior::builtin::shape::render_path(ctx)
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
@@ -71,27 +57,10 @@ impl Primitive for PathPrimitive {
     fn evaluate(
         &self,
         ctx: &crate::primitives::EvaluateCtx,
-        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+        text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
     {
-        use crate::primitives::evaluate_shape_render;
-        use crate::timeline::shapes::PathState;
-
-        let geometry = ctx.geometry;
-        let half_size = geometry.size.get(ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE);
-        let vector_paths = ctx
-            .shape
-            .expect("path primitive requires shape component")
-            .evaluate_vector_paths(ctx.style, ctx.time_ms);
-
-        let mut state = PathState {
-            size: half_size,
-            custom_path: vector_paths.first().map(|vp| vp.path.as_ref().clone()),
-        };
-
-        state.size = crate::primitives::resolve_half_size(state.size, ctx.overrides);
-
-        evaluate_shape_render(self, ctx, &VectorShapeState::Path(state))
+        crate::timeline::behavior::builtin::shape::evaluate_path(ctx, text_ctx)
     }
 
     fn apply_property(

@@ -4,8 +4,8 @@ use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{BuildCtx, Primitive, RenderCtx};
 use crate::timeline::{
-    ActorCaps, Environment, SceneAnchor, SceneDimensions, TrackAccessor, VectorShapeState,
-    VelloPath, evaluate_expr,
+    ActorCaps, Environment, SceneAnchor, SceneDimensions, VectorShapeState, VelloPath,
+    evaluate_expr,
     lookup_parse_numeric_vec2_with_lookup_diagnostic as parse_numeric_vec2_with_lookup_diagnostic,
 };
 
@@ -90,44 +90,7 @@ impl Primitive for ArrowPrimitive {
     }
 
     fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
-        let VectorShapeState::Arrow(state) = ctx.state else {
-            return None;
-        };
-
-        let path = build_arrow_path(state.from, state.to, state.head_size);
-
-        // Arrow is stroke-only (shaft) with a filled arrowhead.
-        // The shaft uses stroke_color, the arrowhead triangle is filled with stroke_color.
-        Some(vec![VelloPath {
-            path: std::sync::Arc::new(path),
-            fill: Some(vello::peniko::Color::from_rgba8(
-                (ctx.style.stroke_color[0] * 255.0) as u8,
-                (ctx.style.stroke_color[1] * 255.0) as u8,
-                (ctx.style.stroke_color[2] * 255.0) as u8,
-                (ctx.style.stroke_color[3] * 255.0) as u8,
-            )),
-            stroke: crate::timeline::shapes::shape_stroke(
-                ctx.style.stroke_color,
-                ctx.style.stroke_width,
-            )
-            .or_else(|| {
-                Some((
-                    vello::peniko::Color::from_rgba8(
-                        (ctx.style.stroke_color[0] * 255.0) as u8,
-                        (ctx.style.stroke_color[1] * 255.0) as u8,
-                        (ctx.style.stroke_color[2] * 255.0) as u8,
-                        (ctx.style.stroke_color[3] * 255.0) as u8,
-                    ),
-                    1.0,
-                ))
-            }),
-            line_cap: 0,
-            line_join: 0,
-            dash_pattern: None,
-            dash_offset: 0.0,
-            fill_gradient: None,
-            stroke_gradient: None,
-        }])
+        crate::timeline::behavior::builtin::shape::render_arrow(ctx)
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
@@ -161,56 +124,10 @@ impl Primitive for ArrowPrimitive {
     fn evaluate(
         &self,
         ctx: &crate::primitives::EvaluateCtx,
-        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+        text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
     {
-        use crate::primitives::evaluate_shape_render;
-        use crate::timeline::Value;
-        use crate::timeline::callout_geometry::bounds_anchor_point;
-        use crate::timeline::shapes::ArrowState;
-
-        let shape = ctx.shape.expect("arrow primitive requires shape component");
-        let mut line_from = shape.line_from.get(ctx.time_ms, [-50.0, 0.0]);
-        let mut line_to = shape.line_to.get(ctx.time_ms, [50.0, 0.0]);
-        let head_size = shape.head_size.get(ctx.time_ms, 10.0);
-
-        // G6: Resolve anchor-point refs from the side-channel.
-        // Anchor refs are resolved first, then overrides may replace them.
-        if let Some((actor, anchor)) = shape.from_anchor.as_ref() {
-            if let Some(resolver) = ctx.target_resolver {
-                if let Some((centre, half)) =
-                    resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions)
-                {
-                    line_from = bounds_anchor_point(*anchor, centre, half);
-                }
-            }
-        }
-        if let Some((actor, anchor)) = shape.to_anchor.as_ref() {
-            if let Some(resolver) = ctx.target_resolver {
-                if let Some((centre, half)) =
-                    resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions)
-                {
-                    line_to = bounds_anchor_point(*anchor, centre, half);
-                }
-            }
-        }
-
-        if let Some(overrides) = ctx.overrides {
-            if let Some(Value::Vec2(from)) = overrides.get("from") {
-                line_from = [from[0] as f32, from[1] as f32];
-            }
-            if let Some(Value::Vec2(to)) = overrides.get("to") {
-                line_to = [to[0] as f32, to[1] as f32];
-            }
-        }
-
-        let state = VectorShapeState::Arrow(ArrowState {
-            from: line_from,
-            to: line_to,
-            head_size,
-        });
-
-        evaluate_shape_render(self, ctx, &state)
+        crate::timeline::behavior::builtin::shape::evaluate_arrow(ctx, text_ctx)
     }
 
     fn apply_property(

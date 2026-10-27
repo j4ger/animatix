@@ -3,10 +3,9 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{BuildCtx, Primitive, RenderCtx};
-use crate::timeline::kurbo_shapes::KurboShape;
 use crate::timeline::{
-    DEFAULT_LAYOUT_HALF_SIZE, Environment, SceneDimensions, TrackAccessor, Value, VectorShapeState,
-    VelloPath, lookup_evaluate_expr_with_lookup_diagnostic as evaluate_expr_with_lookup_diagnostic,
+    Environment, SceneDimensions, Value, VectorShapeState, VelloPath,
+    lookup_evaluate_expr_with_lookup_diagnostic as evaluate_expr_with_lookup_diagnostic,
 };
 
 /// The `Ellipse` primitive.
@@ -32,24 +31,7 @@ impl Primitive for EllipsePrimitive {
     }
 
     fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
-        let VectorShapeState::Ellipse(state) = ctx.state else {
-            return None;
-        };
-        // PF-6: static-size ellipses share one memoized BezPath per track.
-        let shape = KurboShape::Ellipse {
-            center: kurbo::Point::new(0.0, 0.0),
-            radii: kurbo::Vec2::new(state.size[0] as f64, state.size[1] as f64),
-            rotation: state.rotation as f64,
-        };
-        let path = ctx.shape.expect("shape tier").shape_path_memoized(&shape);
-        Some(vec![crate::timeline::shapes::build_vello_path(
-            path,
-            ctx.style.color,
-            ctx.style.stroke_color,
-            ctx.style.stroke_width,
-            ctx.style.fill_opacity,
-            false,
-        )])
+        crate::timeline::behavior::builtin::shape::render_ellipse(ctx)
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
@@ -69,37 +51,10 @@ impl Primitive for EllipsePrimitive {
     fn evaluate(
         &self,
         ctx: &crate::primitives::EvaluateCtx,
-        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+        text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
     {
-        use crate::primitives::evaluate_shape_render;
-        use crate::timeline::shapes::EllipseState;
-
-        let geometry = ctx.geometry;
-        let half_size = crate::primitives::resolve_half_size(
-            geometry.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE),
-            ctx.overrides,
-        );
-        let arc_angles = ctx
-            .shape
-            .expect("ellipse primitive requires shape component")
-            .arc_angles
-            .get(ctx.time_ms, [0.0, 0.0]);
-        let rot = geometry.rotation.get(ctx.time_ms, 0.0);
-
-        let mut state = EllipseState {
-            size: half_size,
-            arc_angles,
-            rotation: if rot != 0.0 { rot } else { 0.0 },
-        };
-
-        if let Some(overrides) = ctx.overrides {
-            if let Some(Value::Num(r)) = overrides.get("rotation") {
-                state.rotation = *r as f32;
-            }
-        }
-
-        evaluate_shape_render(self, ctx, &VectorShapeState::Ellipse(state))
+        crate::timeline::behavior::builtin::shape::evaluate_ellipse(ctx, text_ctx)
     }
 
     fn apply_property(

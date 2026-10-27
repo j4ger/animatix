@@ -3,10 +3,8 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{BuildCtx, Primitive, RenderCtx};
-use crate::timeline::kurbo_shapes::KurboShape;
 use crate::timeline::{
-    ActorCaps, Environment, SceneAnchor, SceneDimensions, TrackAccessor, Value, VectorShapeState,
-    VelloPath,
+    ActorCaps, Environment, SceneAnchor, SceneDimensions, VectorShapeState, VelloPath,
     lookup_parse_numeric_vec2_with_lookup_diagnostic as parse_numeric_vec2_with_lookup_diagnostic,
 };
 
@@ -33,24 +31,7 @@ impl Primitive for LinePrimitive {
     }
 
     fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
-        let VectorShapeState::Line(state) = ctx.state else {
-            return None;
-        };
-        // PF-6: static endpoints share one memoized BezPath per track.
-        let shape = KurboShape::Line {
-            p0: kurbo::Point::new(state.line_from[0] as f64, state.line_from[1] as f64),
-            p1: kurbo::Point::new(state.line_to[0] as f64, state.line_to[1] as f64),
-        };
-        let path = ctx.shape.expect("shape tier").shape_path_memoized(&shape);
-        // Line is stroke-only; override fill_opacity to 0
-        Some(vec![crate::timeline::shapes::build_vello_path(
-            path,
-            ctx.style.color,
-            ctx.style.stroke_color,
-            ctx.style.stroke_width,
-            0.0,
-            true,
-        )])
+        crate::timeline::behavior::builtin::shape::render_line(ctx)
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
@@ -83,54 +64,10 @@ impl Primitive for LinePrimitive {
     fn evaluate(
         &self,
         ctx: &crate::primitives::EvaluateCtx,
-        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+        text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
     {
-        use crate::primitives::evaluate_shape_render;
-        use crate::timeline::callout_geometry::bounds_anchor_point;
-        use crate::timeline::shapes::LineState;
-
-        let shape = ctx.shape.expect("line primitive requires shape component");
-        let mut line_from = shape.line_from.get(ctx.time_ms, [-50.0, 0.0]);
-        let mut line_to = shape.line_to.get(ctx.time_ms, [50.0, 0.0]);
-
-        // G6: Resolve anchor-point refs from the side-channel.
-        // Anchor refs are resolved first, then overrides may replace them.
-        if let Some((actor, anchor)) = shape.from_anchor.as_ref() {
-            if let Some(resolver) = ctx.target_resolver {
-                if let Some((centre, half)) =
-                    resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions)
-                {
-                    line_from = bounds_anchor_point(*anchor, centre, half);
-                }
-            }
-        }
-        if let Some((actor, anchor)) = shape.to_anchor.as_ref() {
-            if let Some(resolver) = ctx.target_resolver {
-                if let Some((centre, half)) =
-                    resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions)
-                {
-                    line_to = bounds_anchor_point(*anchor, centre, half);
-                }
-            }
-        }
-
-        if let Some(overrides) = ctx.overrides {
-            if let Some(Value::Vec2(from)) = overrides.get("from") {
-                line_from = [from[0] as f32, from[1] as f32];
-            }
-            if let Some(Value::Vec2(to)) = overrides.get("to") {
-                line_to = [to[0] as f32, to[1] as f32];
-            }
-        }
-
-        let state = VectorShapeState::Line(LineState {
-            size: [0.0, 0.0],
-            line_from,
-            line_to,
-        });
-
-        evaluate_shape_render(self, ctx, &state)
+        crate::timeline::behavior::builtin::shape::evaluate_line(ctx, text_ctx)
     }
 
     fn apply_property(

@@ -3,11 +3,11 @@
 use std::collections::HashMap;
 
 use crate::primitives::commands::RenderCommand;
-use crate::primitives::{EvaluateCtx, Primitive, RenderCtx};
+use crate::primitives::{EvaluateCtx, RenderCtx};
 use crate::timeline::animation_track::StyleTracks;
 use crate::timeline::{
     ActorCaps, DEFAULT_WHITE, EntityId, TrackAccessor, Value, VectorShapeState, VectorShapeStyle,
-    World,
+    VelloPath, World,
 };
 
 /// Helper to read a color override from an `always` block's assignment table.
@@ -137,45 +137,32 @@ impl World {
         None
     }
 
-    /// Build the fresh command `Vec` for this shape actor and stash a clone
-    /// in the memo slot (see [`ShapeCommandMemo`]).
+    /// Build the fresh command `Vec` for this shape actor via a direct render function pointer.
     pub(crate) fn build_shape_commands(
         &self,
         id: EntityId,
         epoch: u64,
         style: VectorShapeStyle,
         state: &VectorShapeState,
-        primitive: &dyn Primitive,
+        render_fn: fn(&RenderCtx) -> Option<Vec<VelloPath>>,
+        type_name: &str,
         time_ms: u64,
         shape: &crate::timeline::animation_track::ShapeTracks,
     ) -> Result<Vec<RenderCommand>, crate::renderer::error::RenderError> {
-        let paths = primitive
-            .render(&RenderCtx {
-                state,
-                style,
-                time_ms,
-                id,
-                shape: Some(shape),
-            })
-            .unwrap_or_default();
+        let paths = render_fn(&RenderCtx {
+            state,
+            style,
+            time_ms,
+            id,
+            shape: Some(shape),
+        })
+        .unwrap_or_default();
         if paths.is_empty() {
-            // A shape producing no paths means "nothing to draw" — not an
-            // error. Log at debug so a silently invisible shape is observable
-            // in trace output without spamming per-frame warn logs.
-            tracing::debug!(
-                "shape primitive '{}' produced no paths at t={time_ms}ms",
-                primitive.type_name()
-            );
+            tracing::debug!("shape primitive '{type_name}' produced no paths at t={time_ms}ms");
         }
         let commands = vec![RenderCommand::Paths { paths }];
-        // Stash only when the slot is empty: a full slot means the previous
-        // frame's payload was never taken (dynamic inputs) — keeping the
-        // older valid payload avoids a clone per frame on dynamic actors
-        // (the key match still guards staleness).
         let mut memo = self.shape_memos.get(id).borrow_mut();
         if memo.commands.is_none() {
-            // Shape commands never carry images, so `display_size` is
-            // irrelevant here (None).
             let bounds = commands
                 .iter()
                 .filter_map(|cmd| cmd.local_bounds(None))
@@ -215,13 +202,10 @@ impl World {
     }
 }
 
-/// Helper: sample style, render shape, wrap in RenderCommand::Paths.
-///
-/// Static-shape actors hit [`ShapeCommandMemo`] and get the cached command
-/// `Vec` back allocation-free (take / encode / recycle); only a changed
-/// `(style, state)` rebuilds.
+/// Helper: sample style, render shape via function pointer, wrap in RenderCommand::Paths.
 pub(crate) fn evaluate_shape_render(
-    primitive: &dyn Primitive,
+    render_fn: fn(&RenderCtx) -> Option<Vec<VelloPath>>,
+    type_name: &str,
     ctx: &EvaluateCtx,
     state: &VectorShapeState,
 ) -> Result<Option<Vec<RenderCommand>>, crate::renderer::error::RenderError> {
@@ -241,7 +225,8 @@ pub(crate) fn evaluate_shape_render(
             epoch,
             style,
             state,
-            primitive,
+            render_fn,
+            type_name,
             ctx.time_ms,
             shape,
         )?;
@@ -255,7 +240,8 @@ pub(crate) fn evaluate_shape_render(
             epoch,
             style,
             state,
-            primitive,
+            render_fn,
+            type_name,
             ctx.time_ms,
             shape,
         )?;
@@ -281,7 +267,8 @@ pub(crate) fn evaluate_shape_render(
             epoch,
             style,
             state,
-            primitive,
+            render_fn,
+            type_name,
             ctx.time_ms,
             shape,
         )?

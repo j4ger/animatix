@@ -46,7 +46,9 @@ impl Timeline {
         let name = self.world.shape_or_default(node_id).render_type_name(actor_type, time_ms);
         if name != actor_type {
             if let Some(def) = self.behavior_registry.find(name) {
-                return Some(crate::primitives::PrimitiveHandle::from_behavior(def));
+                if let Some(handle) = crate::primitives::PrimitiveHandle::from_behavior(def) {
+                    return Some(handle);
+                }
             }
             return self.primitive_registry.find_handle(name);
         }
@@ -60,7 +62,11 @@ impl Timeline {
             }
         }
         let handle = if let Some(def) = self.behavior_for_node(node_id, time_ms) {
-            crate::primitives::PrimitiveHandle::from_behavior(def)
+            if let Some(handle) = crate::primitives::PrimitiveHandle::from_behavior(def) {
+                handle
+            } else {
+                self.primitive_registry.find_handle(actor_type)?
+            }
         } else {
             self.primitive_registry.find_handle(actor_type)?
         };

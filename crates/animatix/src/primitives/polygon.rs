@@ -5,7 +5,7 @@ use crate::diagnostics::Diagnostic;
 use crate::primitives::{BuildCtx, Primitive, RenderCtx};
 use crate::timeline::kurbo_shapes::KurboShape;
 use crate::timeline::shapes::parse_point_list_expr;
-use crate::timeline::{Environment, SceneDimensions, TrackAccessor, VectorShapeState, VelloPath};
+use crate::timeline::{Environment, SceneDimensions, VectorShapeState, VelloPath};
 
 /// The `Polygon` primitive.
 pub struct PolygonPrimitive;
@@ -30,34 +30,7 @@ impl Primitive for PolygonPrimitive {
     }
 
     fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
-        let VectorShapeState::Polygon(state) = ctx.state else {
-            return None;
-        };
-        // PF-6: each branch memoizes through the track — the sampled shape is
-        // the key, so static polygons share one BezPath across frames.
-        let shape = if !state.points.is_empty() {
-            let points = state
-                .points
-                .iter()
-                .map(|p| kurbo::Point::new(p[0] as f64, p[1] as f64))
-                .collect();
-            KurboShape::Polygon { points }
-        } else if let Some(custom_path) = &state.custom_path {
-            KurboShape::Path {
-                path: custom_path.clone(),
-            }
-        } else {
-            KurboShape::Polygon { points: Vec::new() }
-        };
-        let path = ctx.shape.expect("shape tier").shape_path_memoized(&shape);
-        Some(vec![crate::timeline::shapes::build_vello_path(
-            path,
-            ctx.style.color,
-            ctx.style.stroke_color,
-            ctx.style.stroke_width,
-            ctx.style.fill_opacity,
-            false,
-        )])
+        crate::timeline::behavior::builtin::shape::render_polygon(ctx)
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
@@ -81,38 +54,10 @@ impl Primitive for PolygonPrimitive {
     fn evaluate(
         &self,
         ctx: &crate::primitives::EvaluateCtx,
-        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+        text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
     {
-        use crate::primitives::evaluate_shape_render;
-        use crate::timeline::shapes::PolygonState;
-
-        let geometry = ctx.geometry;
-        let half_size = crate::primitives::resolve_half_size(
-            geometry.size.get(ctx.time_ms, crate::timeline::DEFAULT_LAYOUT_HALF_SIZE),
-            ctx.overrides,
-        );
-        let shape = ctx.shape.expect("polygon primitive requires shape component");
-        let points = shape.points.get(ctx.time_ms, Vec::new());
-        let rot = geometry.rotation.get(ctx.time_ms, 0.0);
-        let vector_paths = shape.evaluate_vector_paths(ctx.style, ctx.time_ms);
-
-        let mut state = PolygonState {
-            size: half_size,
-            regular_polygon_sides: 0,
-            regular_polygon_radius: half_size[0],
-            custom_path: vector_paths.first().map(|vp| vp.path.as_ref().clone()),
-            rotation: if rot != 0.0 { rot } else { 0.0 },
-            points,
-        };
-
-        if let Some(overrides) = ctx.overrides {
-            if let Some(crate::timeline::Value::Num(r)) = overrides.get("rotation") {
-                state.rotation = *r as f32;
-            }
-        }
-
-        evaluate_shape_render(self, ctx, &VectorShapeState::Polygon(state))
+        crate::timeline::behavior::builtin::shape::evaluate_polygon(ctx, text_ctx)
     }
 
     fn apply_property(

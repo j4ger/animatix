@@ -26,7 +26,7 @@ fn all_36_builtins_have_distinct_behavior_ids_names_families_and_caps() {
 
         assert_eq!(def.id, expected_id);
         assert_eq!(def.name.as_ref(), name);
-        assert_eq!(def.primitive().type_name(), name);
+        assert!(matches!(def.source, BehaviorSource::Family(_)));
 
         let expected_caps = animatix_std::caps_from_info(builtin.info);
         assert_eq!(def.caps, expected_caps, "caps mismatch for primitive '{name}'");
@@ -110,7 +110,7 @@ fn register_extension_assigns_ids_and_retrieves_def() {
     assert_eq!(def.id, BehaviorId(36));
     assert_eq!(def.name.as_ref(), "MockExt");
     assert_eq!(def.family, BehaviorFamily::Shape);
-    assert_eq!(def.primitive().type_name(), "MockExt");
+    assert_eq!(def.extension_primitive().unwrap().type_name(), "MockExt");
 
     let found = registry.find("MockExt").expect("find finds extension");
     assert_eq!(found.id, BehaviorId(36));
@@ -128,4 +128,48 @@ fn unknown_behavior_id_and_missing_builtin() {
     assert!(registry.get(BehaviorId::UNKNOWN).is_none());
     assert_eq!(behavior_id_for_builtin("NonExistent"), None);
     assert!(registry.find("NonExistent").is_none());
+}
+
+#[test]
+fn all_36_builtins_have_family_behavior_and_expected_build_extra() {
+    let registry = BehaviorRegistry::new();
+    let has_build_extra = [
+        "Text",
+        "Code",
+        "Math",
+        "Typst",
+        "Counter",
+        "Image",
+        "Svg",
+        "Audio",
+        "Graph",
+        "PlotCurve",
+        "VectorField",
+        "Heatmap",
+        "ContourSet",
+        "NumberPlane",
+        "BarChart",
+        "Legend",
+        "Fragment",
+        "Cue",
+    ];
+
+    for def in registry.iter() {
+        match &def.source {
+            BehaviorSource::Family(fam) => {
+                let name = def.name.as_ref();
+                if has_build_extra.contains(&name) {
+                    assert!(fam.build_extra.is_some(), "builtin '{name}' must have build_extra");
+                } else {
+                    assert!(
+                        fam.build_extra.is_none(),
+                        "builtin '{name}' should not have build_extra"
+                    );
+                }
+            },
+            BehaviorSource::Extension(_) => {
+                panic!("built-in '{}' registered as Extension instead of Family", def.name);
+            },
+        }
+    }
 }
