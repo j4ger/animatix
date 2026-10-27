@@ -44,6 +44,7 @@ pub struct World {
     pub(crate) tagged_tracks: RequiredStore<TaggedTracksComponent>,
     /// Primitive identity (registry key) for every entity.
     pub(crate) actor_types: RequiredStore<String>,
+    pub(crate) caps: RequiredStore<animatix_core::caps::ActorCaps>,
     /// Shape-command memo cells per entity.
     pub(crate) shape_memos:
         RequiredStore<std::cell::RefCell<Box<crate::primitives::ShapeCommandMemo>>>,
@@ -198,6 +199,7 @@ impl World {
         }
         let id = self.tracks.insert(label.to_string());
         self.ensure_len();
+        *self.caps.get_mut(id) = animatix_std::caps_for_type(&actor_type).unwrap_or_default();
         *self.actor_types.get_mut(id) = actor_type;
         self.attach_pending_auto_color(id, label);
         self.adopt(id, label);
@@ -217,6 +219,8 @@ impl World {
         }
         self.ensure_len();
         *self.actor_types.get_mut(id) = actor_type.to_string();
+        self.caps.reset_at(id);
+        *self.caps.get_mut(id) = animatix_std::caps_for_type(actor_type).unwrap_or_default();
         self.hierarchy.reset_at(id);
         self.highlight.reset_at(id);
         self.tagged_tracks.reset_at(id);
@@ -243,45 +247,6 @@ impl World {
         self.attach_pending_auto_color(id, label);
         self.adopt(id, label);
         id
-    }
-
-    /// Borrow an entity's metadata.
-    #[inline(always)]
-    pub fn meta(&self, id: EntityId) -> &EntityMeta {
-        self.meta.get(id).unwrap_or(&EntityMeta::DEFAULT)
-    }
-
-    /// First frame this entity appears, or `u64::MAX` when unseen.
-    #[inline(always)]
-    pub fn first_seen(&self, id: EntityId) -> u64 {
-        self.meta.get(id).map_or(u64::MAX, |meta| meta.first_seen_ms)
-    }
-
-    /// Record the first frame this entity appears.
-    #[inline(always)]
-    pub fn set_first_seen(&mut self, id: EntityId, time_ms: u64) {
-        let meta = self.meta.get_or_insert_with(id, EntityMeta::default);
-        if meta.first_seen_ms == u64::MAX {
-            meta.first_seen_ms = time_ms;
-        }
-    }
-
-    /// Mutably borrow an entity's metadata.
-    #[inline(always)]
-    pub fn meta_mut(&mut self, id: EntityId) -> &mut EntityMeta {
-        self.meta.get_or_insert_with(id, EntityMeta::default)
-    }
-
-    /// Borrow an entity's hierarchy component.
-    #[inline(always)]
-    pub fn hierarchy(&self, id: EntityId) -> &SceneHierarchyComponent {
-        self.hierarchy.get(id)
-    }
-
-    /// Mutably borrow an entity's hierarchy component.
-    #[inline(always)]
-    pub fn hierarchy_mut(&mut self, id: EntityId) -> &mut SceneHierarchyComponent {
-        self.hierarchy.get_mut(id)
     }
 
     /// Borrow an entity's coordinate frame, when it is a plot host.
@@ -538,6 +503,7 @@ impl World {
         self.highlight.ensure_len(len);
         self.tagged_tracks.ensure_len(len);
         self.actor_types.ensure_len(len);
+        self.caps.ensure_len(len);
         self.shape_memos.ensure_len(len);
         self.pending_shape_bounds.ensure_len(len);
         self.bounds_slots.ensure_len(len);
@@ -567,6 +533,7 @@ impl World {
         self.highlight.clear();
         self.tagged_tracks.clear();
         self.actor_types.clear();
+        self.caps.clear();
         self.shape_memos.clear();
         self.pending_shape_bounds.clear();
         self.bounds_slots.clear();
@@ -595,132 +562,4 @@ impl World {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn spawn_returns_stable_ids_and_keeps_stores_aligned() {
-        let mut world = World::new();
-        let a = world.spawn("a", "Rect");
-        let b = world.spawn("b", "Rect");
-        assert_eq!(a.index(), 0);
-        assert_eq!(b.index(), 1);
-        assert_eq!(world.len(), 2);
-        assert_eq!(world.hierarchy.len(), 2);
-        assert_eq!(world.meta.len(), 2, "metadata stays slot-aligned");
-        assert_eq!(world.payload.len(), 2, "payload stays slot-aligned");
-        assert_eq!(world.container_layout.len(), 2);
-        assert_eq!(world.coordinate_frame.len(), 2, "every store stays slot-aligned");
-        assert_eq!(world.label(a), Some("a"));
-        assert_eq!(world.get_id("b"), Some(b));
-
-        assert_eq!(world.spawn("a", "Ellipse"), a);
-        assert_eq!(world.len(), 2);
-        assert_eq!(world.actor_type(a), "Rect");
-    }
-
-    #[test]
-    fn spawn_replacing_keeps_the_id_and_resets_hierarchy() {
-        let mut world = World::new();
-        let parent = world.spawn("parent", "Rect");
-        let id = world.spawn("box", "Rect");
-        world.link(parent, id);
-        assert_eq!(world.hierarchy(id).parent, Some(parent));
-
-        world.spawn_replacing("box", "Ellipse");
-        assert_eq!(world.get_id("box"), Some(id));
-        assert_eq!(world.hierarchy(id), &SceneHierarchyComponent::default());
-        assert_eq!(world.actor_type(id), "Ellipse");
-        assert!(!world.hierarchy(parent).children.contains(&id));
-        assert!(world.is_root(id));
-    }
-
-    #[test]
-    fn spawn_replacing_clears_the_coordinate_frame() {
-        let mut world = World::new();
-        let id = world.spawn("g", "Graph");
-        world.coordinate_frame.insert(
-            id,
-            CoordinateFrameComponent {
-                x_domain: [0.0, 4.0],
-                ..CoordinateFrameComponent::default()
-            },
-        );
-        assert!(world.coordinate_frame(id).is_some());
-
-        let replacement = world.spawn_replacing("g", "Graph");
-        assert_eq!(replacement, id, "replacement keeps the entity id");
-        assert!(
-            world.coordinate_frame(id).is_none(),
-            "spawn_replacing must not inherit the previous scene's frame"
-        );
-    }
-
-    #[test]
-    fn views_resolve_by_label_and_id() {
-        let world = {
-            let mut world = World::new();
-            world.spawn("a", "Rect");
-            world.spawn("b", "Text");
-            world
-        };
-        assert_eq!(world.entity("b").unwrap().id().index(), 1);
-        assert_eq!(world.view(EntityId(0)).unwrap().label(), "a");
-        assert!(world.entity("missing").is_none());
-        assert!(world.view(EntityId(9)).is_none());
-        assert_eq!(world.views().count(), 2);
-    }
-
-    #[test]
-    fn clear_drops_entities_and_components() {
-        let mut world = World::new();
-        world.spawn("a", "Rect");
-        world.clear();
-        assert!(world.is_empty());
-        assert!(world.hierarchy.is_empty());
-        assert!(world.container_layout.is_empty());
-        assert!(world.coordinate_frame.is_empty());
-    }
-}
-
-#[cfg(test)]
-mod decl_span_tests {
-    use super::*;
-
-    #[test]
-    fn declaration_span_is_a_component_and_resets_on_replacement() {
-        let mut world = World::new();
-        let id = world.spawn("box", "Rect");
-        world.set_decl_span(id, animatix_syntax::ast::Span::new(1, 1, 1, 10));
-        assert_eq!(world.decl_span(id).map(|s| s.start_line), Some(1));
-
-        world.spawn_replacing("box", "Rect");
-        assert!(world.decl_span(id).is_none(), "replacement starts from a clean span");
-    }
-}
-
-#[cfg(test)]
-mod meta_tests {
-    use super::*;
-
-    #[test]
-    fn entity_meta_defaults_and_resets_on_replacement() {
-        let mut world = World::new();
-        let id = world.spawn("box", "Rect");
-        assert!(world.meta(id).visible);
-        assert!(!world.meta(id).locked);
-        assert!(world.meta(id).camera_follow);
-        assert_eq!(world.meta(id).parallax, 1.0);
-
-        world.meta_mut(id).visible = false;
-        world.meta_mut(id).locked = true;
-        world.meta_mut(id).hidden_by_default = true;
-        world.set_first_seen(id, 100);
-        world.spawn_replacing("box", "Rect");
-        let meta = world.meta(id);
-        assert!(meta.visible, "replacement starts visible");
-        assert!(!meta.locked, "replacement starts unlocked");
-        assert!(!meta.hidden_by_default, "replacement starts revealed");
-        assert_eq!(world.first_seen(id), u64::MAX, "replacement starts unseen");
-    }
-}
+mod tests;

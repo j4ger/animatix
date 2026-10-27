@@ -20,11 +20,8 @@ impl World {
         schema: &crate::timeline::property_registry::PropertySchema,
         time_ms: u64,
     ) -> crate::timeline::PropertyValue {
-        self.read_property_value(id, schema.field, time_ms).unwrap_or_else(|| {
-            (schema.default_value)(
-                &animatix_std::caps_for_type(self.actor_type(id)).unwrap_or_default(),
-            )
-        })
+        self.read_property_value(id, schema.field, time_ms)
+            .unwrap_or_else(|| (schema.default_value)(&self.caps(id)))
     }
 
     /// Check if a keyframe exists for the given property at exactly `time_ms`.

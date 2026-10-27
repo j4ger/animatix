@@ -45,3 +45,32 @@ impl super::component::ComponentStore<EntityMeta> {
         }
     }
 }
+
+impl super::World {
+    /// Borrow an entity's metadata.
+    #[inline(always)]
+    pub fn meta(&self, id: super::EntityId) -> &EntityMeta {
+        self.meta.get(id).unwrap_or(&EntityMeta::DEFAULT)
+    }
+
+    /// First frame this entity appears, or `u64::MAX` when unseen.
+    #[inline(always)]
+    pub fn first_seen(&self, id: super::EntityId) -> u64 {
+        self.meta.get(id).map_or(u64::MAX, |meta| meta.first_seen_ms)
+    }
+
+    /// Record the first frame this entity appears.
+    #[inline(always)]
+    pub fn set_first_seen(&mut self, id: super::EntityId, time_ms: u64) {
+        let meta = self.meta.get_or_insert_with(id, EntityMeta::default);
+        if meta.first_seen_ms == u64::MAX {
+            meta.first_seen_ms = time_ms;
+        }
+    }
+
+    /// Mutably borrow an entity's metadata.
+    #[inline(always)]
+    pub fn meta_mut(&mut self, id: super::EntityId) -> &mut EntityMeta {
+        self.meta.get_or_insert_with(id, EntityMeta::default)
+    }
+}

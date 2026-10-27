@@ -38,3 +38,17 @@ impl SceneHierarchyComponent {
         self.children.retain(|existing| *existing != child);
     }
 }
+
+impl super::World {
+    /// Borrow an entity's hierarchy component.
+    #[inline(always)]
+    pub fn hierarchy(&self, id: EntityId) -> &SceneHierarchyComponent {
+        self.hierarchy.get(id)
+    }
+
+    /// Mutably borrow an entity's hierarchy component.
+    #[inline(always)]
+    pub fn hierarchy_mut(&mut self, id: EntityId) -> &mut SceneHierarchyComponent {
+        self.hierarchy.get_mut(id)
+    }
+}

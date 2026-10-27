@@ -2,11 +2,11 @@
 //!
 //! Identity lives in `World::actor_type` — the authored type name.
 //! [`ActorCaps`] is the matchable projection the engine dispatches on,
-//! derived once at identity time from the primitive, so frame-time checks are
-//! `Copy` field reads and adding a primitive never requires extending an
-//! enum. The capability *vocabulary* ([`ActorCategory`], [`ShapeKind`],
-//! [`TextKind`], `ChildProcessing`) lives in `animatix-core::caps` and stays
-//! a small closed set: it only grows when the engine learns a new behaviour,
+//! stored on the entity at spawn/identity time (`World::caps`) from the primitive
+//! catalog, so frame-time checks are true `Copy` field reads and adding a primitive
+//! never requires extending an enum. The capability *vocabulary* ([`ActorCategory`],
+//! [`ShapeKind`], [`TextKind`], `ChildProcessing`) lives in `animatix-core::caps` and
+//! stays a small closed set: it only grows when the engine learns a new behaviour,
 //! which is exactly when the compiler should force every dispatch site to be
 //! revisited.
 
@@ -39,6 +39,7 @@ use crate::timeline::Timeline;
 
 /// Trait for actor type dispatch. Each primitive type implements this trait
 /// to provide its build logic.
+// Legacy build path (scheduled for removal in Stage 2 build unification).
 pub trait ActorKind {
     /// Build the actor into the timeline. Called during `Timeline::build()`.
     fn build(

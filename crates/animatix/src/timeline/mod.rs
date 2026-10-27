@@ -6,10 +6,10 @@
 //!
 //! ## Build-time vs frame-time boundary
 //!
-//! - **`Timeline::build()`** (in `build.rs`): one-time lowering pass that parses the AST, resolves
+//! - **`Timeline::build()`** (in `build/`): one-time lowering pass that parses the AST, resolves
 //!   imports, expands components, creates tracks, applies layout, compiles text/math/code paths,
 //!   and loads assets.
-//! - **`Timeline::evaluate()`** (in `runtime.rs` / `scene_eval.rs`): per-frame execution that
+//! - **`Timeline::evaluate()`** (in `scene_eval/`): per-frame execution that
 //!   samples tracks, runs `always` modifiers, resolves anchors/percent positions, and emits a
 //!   `vello::Scene`.
 //!
@@ -17,9 +17,9 @@
 //!
 //! | Module | Role |
 //! |--------|------|
-//! | `build.rs` | AST lowering into Timeline |
-//! | `frame_env.rs` / `scene_eval.rs` | Frame-time evaluation and render-scene assembly |
-//! | `property_track.rs`, `animation_track/`, `dispatch.rs`, `actor_kind.rs` | Keyframed property tracks, interpolation, and track dispatch |
+//! | `build/` | AST lowering into Timeline |
+//! | `frame_env.rs` / `scene_eval/` | Frame-time evaluation and render-scene assembly |
+//! | `property_track.rs`, `animation_track/`, `dispatch/`, `actor_caps.rs` | Keyframed property tracks, interpolation, and track dispatch |
 //! | `layout.rs` | Container placement (Row, Col, Grid, Stack) |
 //! | `colorscheme.rs` | Built-in and inline colorscheme resolution |
 //! | `morph.rs` | Path morphing between vector shapes |

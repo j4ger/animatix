@@ -50,7 +50,6 @@ crates/animatix/src/timeline/tests/build/part3.rs	1479
 crates/animatix/src/timeline/tests/callout.rs	1215
 crates/animatix/src/timeline/value_parser.rs	744
 crates/animatix/src/timeline/world/fields.rs	718
-crates/animatix/src/timeline/world/mod.rs	726
 crates/animatix-syntax/src/easing.rs	612
 crates/animatix-syntax/src/format_core.rs	762
 crates/animatix-syntax/src/module/graph.rs	765
