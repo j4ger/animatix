@@ -251,8 +251,10 @@ gate_web_build() {
   # shellcheck source=scripts/wasm-tools.sh
   . scripts/wasm-tools.sh
   check_wbg
-  bash scripts/build-web.sh --slim
-  bash scripts/build-web.sh
+  # A release artifact without wasm-opt/brotli is several times larger; fail
+  # here instead of publishing it (the tools are in .#web-build/.#web-ci).
+  ANIMATIX_REQUIRE_WASM_TOOLS=1 bash scripts/build-web.sh --slim
+  ANIMATIX_REQUIRE_WASM_TOOLS=1 bash scripts/build-web.sh
   # The two bundles are what the pages load; a build that "succeeds" without
   # writing both is how a --slim flag typo used to reach the site.
   for d in web/pkg-slim web/pkg; do

@@ -18,7 +18,9 @@
 # or a rustc with wasm32-unknown-unknown plus a wasm-bindgen-cli matching the
 # `wasm-bindgen` version pinned in crates/animatix-web/Cargo.toml.
 # wasm-opt (binaryen) and brotli are release-only; outside `.#web-build` they
-# are fetched through `nix shell` when available.
+# are fetched through `nix shell` when available. A release build invoked with
+# ANIMATIX_REQUIRE_WASM_TOOLS=1 fails rather than shipping an unoptimized or
+# uncompressed bundle (the web-build gate sets it).
 #
 # The build is staged in target/web-build/ and swapped into place only after
 # every step succeeds, so a failed build can never leave a half-written pkg/
@@ -102,9 +104,17 @@ if [ "$out_profile" != "debug" ]; then
       "$stage_dir/animatix_web_bg.wasm" "$stage_dir/animatix_web_bg.wasm" 2>/dev/null; then
       :
     else
+      if [ "${ANIMATIX_REQUIRE_WASM_TOOLS:-0}" = 1 ]; then
+        echo "error: wasm-opt is required for a release build but is unavailable" >&2
+        exit 1
+      fi
       echo "warning: wasm-opt unavailable — serving the unoptimized module"
     fi
   else
+    if [ "${ANIMATIX_REQUIRE_WASM_TOOLS:-0}" = 1 ]; then
+      echo "error: wasm-opt is required for a release build but is unavailable" >&2
+      exit 1
+    fi
     echo "warning: wasm-opt unavailable — serving the unoptimized module"
   fi
 
@@ -128,6 +138,10 @@ if [ "$out_profile" != "debug" ]; then
       [ -f "$f" ] && br "$f"
     done
   else
+    if [ "${ANIMATIX_REQUIRE_WASM_TOOLS:-0}" = 1 ]; then
+      echo "error: brotli is required for a release build but is unavailable" >&2
+      exit 1
+    fi
     echo "warning: brotli unavailable — skipping precompression"
   fi
 else

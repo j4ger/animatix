@@ -39,8 +39,26 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
+      web_changed: ${{ steps.changed.outputs.web }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          # The changed-path filter needs the base commit, not a shallow tip.
+          fetch-depth: 0
+      - id: changed
+        # The wasm build is the minutes-long job; skip it only when nothing that
+        # can affect the engine bundles changed. Unknown base or a called
+        # workflow (release) means "run it": a skipped correctness gate is worse
+        # than a redundant build.
+        run: |
+          base="${{ github.event.pull_request.base.sha || github.event.before }}"
+          changed=true
+          if [ -n "$base" ] && [ "$base" != "0000000000000000000000000000000000000000" ] && git cat-file -e "$base^{commit}" 2>/dev/null; then
+            if git diff --quiet "$base" HEAD -- crates web Cargo.toml Cargo.lock flake.nix flake.lock .cargo scripts .github/workflows; then
+              changed=false
+            fi
+          fi
+          echo "web=$changed" >> "$GITHUB_OUTPUT"
       - id: plan
         # pr-stage only. The release-stage rows (dist-linux, dist-macos,
         # dist-windows) build the shippable binaries — running them here would
@@ -54,6 +72,9 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
+    # `web-build` carries the browser smoke and is the only minutes-long gate;
+    # the other matrix entries always run.
+    if: ${{ !contains(matrix.gate, 'web-build') || needs.plan.outputs.web_changed == 'true' }}
     steps:
       - uses: actions/checkout@v5
         with:

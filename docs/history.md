@@ -57,6 +57,14 @@ closed all of them.
    `.dev` marker or a non-release `.build` stamp, so a local debug bundle cannot
    be deployed by accident. CI's Node setup caches `web/tools/package-lock.json`
    for the `npm ci` in `embed-drift`.
+7. **Optimization is not optional for a release.** `web-build` sets
+   `ANIMATIX_REQUIRE_WASM_TOOLS=1`, so a release build without `wasm-opt` or
+   `brotli` fails instead of silently shipping the unoptimized module; both tools
+   are in `.#web-build`/`.#web-ci`, so this only fires outside those shells.
+8. **The minutes-long web job is path-filtered.** CI skips `web-build`/`web-smoke`
+   only when the diff touches none of `crates/`, `web/`, `Cargo.*`, `flake.*`,
+   `.cargo/`, `scripts/` or the workflows. An unknown base (or a called release
+   workflow) runs it: a skipped correctness gate is worse than a redundant build.
 
 Measured: release bundles are 30,940,951 bytes raw / 10,528,009 brotli (full)
 and 6,769,799 / 2,362,789 (slim); `content-sync` agrees with the README's size
