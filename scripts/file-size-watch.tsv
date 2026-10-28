@@ -1,6 +1,5 @@
 # 1200). Ratchet: delete the row when the file drops under the threshold;
 crates/animatix-gui/src/app/actions/mod.rs	703
-crates/animatix-gui/src/app/commands/mod.rs	604
 crates/animatix-gui/src/app/document/timeline_diff.rs	795
 crates/animatix-gui/src/app/handlers/actor.rs	739
 crates/animatix-gui/src/app/handlers/file.rs	727
@@ -25,7 +24,6 @@ crates/animatix/src/composition/build/builder.rs	763
 crates/animatix/src/composition/tests.rs	1406
 crates/animatix/src/extension_native_plugin/convert.rs	609
 crates/animatix/src/extension_native_plugin/hosts.rs	704
-crates/animatix/src/primitives/trait.rs	602
 crates/animatix/src/timeline/actions/reveal.rs	723
 crates/animatix/src/timeline/build/actor/decl.rs	792
 crates/animatix/src/timeline/build/actor/extensions.rs	649
@@ -58,7 +56,6 @@ crates/animatix/tests/module_tests.rs	1314
 crates/animatix-text/src/compiler.rs	675
 crates/animatix-text/src/font_context.rs	684
 crates/eparts/src/widget/button.rs	695
-crates/eparts/src/widget/feedback.rs	666
 crates/eparts/src/widget/popover.rs	698
 # Frozen when the file crossed the watch threshold (production 600 / tests
 # path	max_lines
