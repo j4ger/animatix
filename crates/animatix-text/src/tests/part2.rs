@@ -1,5 +1,10 @@
 use super::*;
 
+// The crate root re-exports the deprecated flat entry point for the engine until
+// Phase 3; these tests exercise the request-based implementation directly.
+use crate::compiler::compile_text_cached;
+use crate::request::{TextCompileRequest, TextStyle};
+
 #[test]
 fn non_latin_text_routes_to_typst() {
     let font_ctx = test_font_ctx();
@@ -102,27 +107,11 @@ fn compile_cache_keys_on_wrapping_params() {
     clear_text_compile_cache();
 
     let common = |max_width: f32| {
-        compile_text_cached(
-            TextKind::Typst,
-            "$ x^2 $",
-            "",
-            None,
-            "Open Sans",
-            24.0,
-            400.0,
-            "normal",
-            1.2,
-            0.0,
-            0.0,
-            [1.0, 1.0, 1.0, 1.0],
+        let request = TextCompileRequest {
             max_width,
-            None,
-            "left",
-            "visible",
-            false,
-            &font_ctx,
-        )
-        .expect("cached typst compile should succeed")
+            ..TextCompileRequest::new(TextKind::Typst, "$ x^2 $", TextStyle::new("Open Sans", 24.0))
+        };
+        compile_text_cached(&request, &font_ctx).expect("cached typst compile should succeed")
     };
 
     let unwrapped = common(0.0);
@@ -145,6 +134,51 @@ fn compile_cache_keys_on_wrapping_params() {
 
     clear_text_compile_cache();
     assert_eq!(text_compile_cache_len(), 0, "clear must empty the cache");
+}
+
+/// The deprecated flat entry point must route through `TextCompileRequest`, or
+/// the engine's un-migrated call sites would start missing the entries the
+/// request-based path fills (and vice versa).
+#[test]
+#[allow(deprecated)] // Exercises the compatibility wrapper on purpose.
+fn legacy_entry_point_shares_the_request_cache_entry() {
+    let _cache = cache_test_guard();
+    let font_ctx = test_font_ctx();
+    clear_text_compile_cache();
+
+    let request = TextCompileRequest::new(
+        TextKind::Text,
+        "Shared Cache Entry",
+        TextStyle::new("Open Sans", 24.0),
+    );
+    let via_request = compile_text_cached(&request, &font_ctx).expect("request compile");
+    let via_legacy = crate::compile_text_cached(
+        TextKind::Text,
+        "Shared Cache Entry",
+        "",
+        None,
+        "Open Sans",
+        24.0,
+        400.0,
+        "normal",
+        1.2,
+        0.0,
+        0.0,
+        [1.0, 1.0, 1.0, 1.0],
+        0.0,
+        None,
+        "left",
+        "visible",
+        false,
+        &font_ctx,
+    )
+    .expect("legacy compile");
+    assert!(
+        std::sync::Arc::ptr_eq(&via_request, &via_legacy),
+        "the compatibility wrapper must build the same request key"
+    );
+
+    clear_text_compile_cache();
 }
 
 #[test]
@@ -244,27 +278,12 @@ fn font_epoch_invalidates_cache() {
     let _cache = cache_test_guard();
     clear_text_compile_cache();
     let compile_at_current_epoch = |font_ctx: &FontContext| {
-        compile_text_cached(
+        let request = TextCompileRequest::new(
             TextKind::Typst,
             "$ e^{i\\pi} $",
-            "",
-            None,
-            "Open Sans",
-            24.0,
-            400.0,
-            "normal",
-            1.2,
-            0.0,
-            0.0,
-            [1.0, 1.0, 1.0, 1.0],
-            0.0,
-            None,
-            "left",
-            "visible",
-            false,
-            font_ctx,
-        )
-        .expect("cached typst compile should succeed")
+            TextStyle::new("Open Sans", 24.0),
+        );
+        compile_text_cached(&request, font_ctx).expect("cached typst compile should succeed")
     };
 
     let before = compile_at_current_epoch(&test_font_ctx());

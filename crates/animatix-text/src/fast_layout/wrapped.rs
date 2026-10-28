@@ -1,13 +1,11 @@
 use animatix_core::error::RenderError;
-use kurbo::{Affine, BezPath, Shape};
 
-use crate::font_context::{BUNDLED_FONTS, FontContext, bundled_face, resolve_font_family};
-use crate::typst_world::{PathBuilder, center_text_paths, is_cjk_char};
-use crate::{CompiledText, TextMetrics, TextPath, f32_color_to_rgba8};
+use crate::font_context::FontContext;
+use crate::{CompiledText, TextPath, f32_color_to_rgba8};
 
 use super::{
-    FastPathFace, HardwareGlyph, HardwareGlyphRun, HardwarePendingGlyph, HardwareTextLayout,
-    ShapedGlyph, shape_token,
+    ShapedGlyph, emit_shaped_glyphs, finalize_layout, resolve_faces, shape_token, space_advance,
+    tokenize_words,
 };
 
 /// Compile plain text into glyph paths with word wrapping (fast path).
@@ -31,69 +29,24 @@ pub fn compile_text_fast_wrapped(
     text_align: &str,
     overflow: &str,
 ) -> Result<CompiledText, RenderError> {
-    let resolved_family = resolve_font_family(family, font_ctx);
-    let (primary_data, primary_index) = 'font: {
-        if let Some(bf) = bundled_face(&resolved_family, weight, style) {
-            break 'font (bf.data, 0);
-        }
-        if let Some((data, idx)) = font_ctx.load_face_data(&resolved_family, weight, style) {
-            break 'font (data, idx);
-        }
-        return Err(RenderError::TextCompilation(format!(
-            "Failed to load font '{}' (weight={}, style={}) for fast path wrapped",
-            resolved_family, weight, style
-        )));
-    };
-
-    let Some(primary_face) =
-        FastPathFace::from_data(primary_data, primary_index, resolved_family.clone())
-    else {
-        return Err(RenderError::TextCompilation(format!(
-            "Failed to parse font '{}' (weight={}, style={}) for fast path wrapped",
-            resolved_family, weight, style
-        )));
-    };
-
-    let units_per_em = primary_face.ttf.units_per_em() as f32;
-    let font_scale = size / units_per_em;
-
-    let ascent = primary_face.ttf.ascender() as f32;
-    let descent = primary_face.ttf.descender() as f32;
-    let line_gap = primary_face.ttf.line_gap() as f32;
-    let _metrics = TextMetrics {
-        ascent,
-        descent,
-        line_gap,
-        units_per_em,
-    };
-
-    let mut faces = vec![primary_face];
-    faces.extend(
-        BUNDLED_FONTS
-            .iter()
-            .filter(|bf| bf.family != resolved_family)
-            .filter_map(|bf| FastPathFace::from_data(bf.data, 0, bf.family.to_string())),
-    );
-
-    let rgba = f32_color_to_rgba8(&color);
+    let resolved = resolve_faces(family, weight, style, size, font_ctx, "fast path wrapped")?;
 
     // Line height in absolute points
     let lh_mult = if line_height > 0.0 { line_height } else { 1.2 };
-    let line_height_pts = (ascent - descent + line_gap) * font_scale * lh_mult;
+    let line_height_pts =
+        (resolved.ascent - resolved.descent + resolved.line_gap) * resolved.font_scale * lh_mult;
 
     if content.is_empty() {
         return Ok(CompiledText {
             glyphs: Vec::new(),
-            ascent: ascent * font_scale,
-            descent: descent * font_scale,
+            ascent: resolved.ascent * resolved.font_scale,
+            descent: resolved.descent * resolved.font_scale,
             baseline_offset: 0.0,
             hardware_layout: None,
         });
     }
 
     struct WordInfo {
-        #[allow(dead_code)]
-        text: String,
         width: f64, // total advance in scene coords
         glyphs: Vec<ShapedGlyph>,
         space_before: bool,
@@ -112,43 +65,12 @@ pub fn compile_text_fast_wrapped(
         f64::INFINITY
     };
 
-    let space_advance = {
-        let (w, _) = shape_token(" ", &faces, size, letter_spacing);
-        if w > 0.0 {
-            w + word_spacing as f64
-        } else {
-            (size as f64 * 0.25) + word_spacing as f64
-        }
-    };
+    let rgba = f32_color_to_rgba8(&color);
+    let space_width = space_advance(&resolved.faces, size, letter_spacing, word_spacing);
 
     for paragraph in content.split('\n') {
         let p = paragraph.strip_suffix('\r').unwrap_or(paragraph);
-        let mut char_indices = p.char_indices().peekable();
-        let mut pending_space = false;
-        let mut word_start: Option<usize> = None;
-        let mut raw_tokens: Vec<(&str, bool)> = Vec::new();
-
-        while let Some((idx, ch)) = char_indices.next() {
-            if ch == ' ' || ch == '\t' {
-                if let Some(start) = word_start.take() {
-                    raw_tokens.push((&p[start..idx], pending_space));
-                }
-                pending_space = true;
-            } else if is_cjk_char(ch) {
-                if let Some(start) = word_start.take() {
-                    raw_tokens.push((&p[start..idx], pending_space));
-                    pending_space = false;
-                }
-                let next_idx = char_indices.peek().map(|(i, _)| *i).unwrap_or(p.len());
-                raw_tokens.push((&p[idx..next_idx], pending_space));
-                pending_space = false;
-            } else if word_start.is_none() {
-                word_start = Some(idx);
-            }
-        }
-        if let Some(start) = word_start {
-            raw_tokens.push((&p[start..], pending_space));
-        }
+        let raw_tokens = tokenize_words(p);
 
         if raw_tokens.is_empty() {
             lines.push(LineInfo {
@@ -160,10 +82,10 @@ pub fn compile_text_fast_wrapped(
 
         let mut paragraph_word_indices = Vec::with_capacity(raw_tokens.len());
         for (w, space_before) in raw_tokens {
-            let (token_width, shaped_glyphs) = shape_token(w, &faces, size, letter_spacing);
+            let (token_width, shaped_glyphs) =
+                shape_token(w, &resolved.faces, size, letter_spacing);
             let wi_idx = word_infos.len();
             word_infos.push(WordInfo {
-                text: w.to_string(),
                 width: token_width,
                 glyphs: shaped_glyphs,
                 space_before,
@@ -181,7 +103,7 @@ pub fn compile_text_fast_wrapped(
             let space_needed = if current_line.words.is_empty() {
                 0.0
             } else if wi.space_before {
-                space_advance
+                space_width
             } else {
                 0.0
             };
@@ -197,7 +119,7 @@ pub fn compile_text_fast_wrapped(
             }
 
             if !current_line.words.is_empty() && wi.space_before {
-                current_line.total_width += space_advance;
+                current_line.total_width += space_width;
             }
             current_line.words.push(wi_idx);
             current_line.total_width += wi.width;
@@ -210,8 +132,8 @@ pub fn compile_text_fast_wrapped(
     if word_infos.is_empty() {
         return Ok(CompiledText {
             glyphs: Vec::new(),
-            ascent: ascent * font_scale,
-            descent: descent * font_scale,
+            ascent: resolved.ascent * resolved.font_scale,
+            descent: resolved.descent * resolved.font_scale,
             baseline_offset: 0.0,
             hardware_layout: None,
         });
@@ -240,7 +162,7 @@ pub fn compile_text_fast_wrapped(
 
     let mut glyphs: Vec<TextPath> = Vec::new();
     let mut y_curr: f64 = -(truncated_lines.len() as f64 * line_height_pts as f64) / 2.0; // start at top, centered vertically
-    let mut pending_hardware: Vec<HardwarePendingGlyph> = Vec::new();
+    let mut pending_hardware = Vec::new();
 
     for (line_idx, line) in truncated_lines.iter().enumerate() {
         let mut x_curr: f64 = 0.0;
@@ -270,52 +192,25 @@ pub fn compile_text_fast_wrapped(
             // Add space before word (except first)
             if wi_idx_in_line > 0 && wi.space_before {
                 if is_justify {
-                    x_curr += space_advance + extra_space_per_gap;
+                    x_curr += space_width + extra_space_per_gap;
                 } else {
-                    x_curr += space_advance;
+                    x_curr += space_width;
                 }
             }
 
             // Render each glyph in the word using pre-computed offsets that include kerning
-            for g in &wi.glyphs {
-                let face = &faces[g.face_idx];
-                let glyph_scale = size / (face.ttf.units_per_em() as f32);
-
-                pending_hardware.push(HardwarePendingGlyph {
-                    face_idx: g.face_idx,
-                    id: g.glyph_id as u32,
-                    x: (x_curr + x_offset + g.x_offset) as f32,
-                    y: (y_curr + g.y_offset) as f32,
-                });
-
-                let mut builder = PathBuilder(BezPath::new());
-                if face.ttf.outline_glyph(ttf_parser::GlyphId(g.glyph_id), &mut builder).is_some() {
-                    let path = builder.0;
-                    let scale_affine =
-                        Affine::scale_non_uniform(glyph_scale as f64, -glyph_scale as f64);
-                    let translate = Affine::translate(kurbo::Vec2::new(
-                        x_curr + x_offset + g.x_offset,
-                        y_curr + g.y_offset,
-                    ));
-                    let final_affine = translate * scale_affine;
-
-                    let mut final_path = path;
-                    final_path.apply_affine(final_affine);
-
-                    let c_idx = glyphs.len() as u16;
-                    let bounds = final_path.bounding_box();
-                    glyphs.push(TextPath {
-                        path: final_path,
-                        color: rgba,
-                        opacity: 1.0,
-                        line_idx: line_idx as u16,
-                        word_idx: wi_idx as u16,
-                        char_idx: c_idx,
-                        glyph_center: [0.0, 0.0],
-                        bounds,
-                    });
-                }
-            }
+            emit_shaped_glyphs(
+                &mut glyphs,
+                &mut pending_hardware,
+                &resolved.faces,
+                &wi.glyphs,
+                size,
+                rgba,
+                line_idx as u16,
+                wi_idx as u16,
+                x_curr + x_offset,
+                y_curr,
+            );
             // Advance x_curr by the total word width (includes kerning)
             x_curr += wi.width;
         }
@@ -325,124 +220,36 @@ pub fn compile_text_fast_wrapped(
             && line_idx == truncated_lines.len() - 1
             && lines.len() > truncated_lines.len()
         {
-            let (dot_w, dot_glyphs) = shape_token("…", &faces, size, 0.0);
+            let (dot_w, dot_glyphs) = shape_token("…", &resolved.faces, size, 0.0);
             let (_ell_w, ell_glyphs) = if dot_glyphs.is_empty() || dot_glyphs[0].glyph_id == 0 {
-                shape_token(".", &faces, size, 0.0)
+                shape_token(".", &resolved.faces, size, 0.0)
             } else {
                 (dot_w, dot_glyphs)
             };
-            for g in ell_glyphs {
-                let face = &faces[g.face_idx];
-                let glyph_scale = size / (face.ttf.units_per_em() as f32);
-
-                pending_hardware.push(HardwarePendingGlyph {
-                    face_idx: g.face_idx,
-                    id: g.glyph_id as u32,
-                    x: (x_curr + x_offset + g.x_offset) as f32,
-                    y: (y_curr + g.y_offset) as f32,
-                });
-
-                let mut builder = PathBuilder(BezPath::new());
-                if face.ttf.outline_glyph(ttf_parser::GlyphId(g.glyph_id), &mut builder).is_some() {
-                    let path = builder.0;
-                    let scale_affine =
-                        Affine::scale_non_uniform(glyph_scale as f64, -glyph_scale as f64);
-                    let translate = kurbo::Affine::translate(kurbo::Vec2::new(
-                        x_curr + x_offset + g.x_offset,
-                        y_curr + g.y_offset,
-                    ));
-                    let final_affine = translate * scale_affine;
-                    let mut final_path = path;
-                    final_path.apply_affine(final_affine);
-                    let c_idx = glyphs.len() as u16;
-                    let last_w_idx = line.words.last().copied().unwrap_or(0) as u16;
-                    let bounds = final_path.bounding_box();
-                    glyphs.push(TextPath {
-                        path: final_path,
-                        color: rgba,
-                        opacity: 1.0,
-                        line_idx: line_idx as u16,
-                        word_idx: last_w_idx,
-                        char_idx: c_idx,
-                        glyph_center: [0.0, 0.0],
-                        bounds,
-                    });
-                }
-            }
+            let last_w_idx = line.words.last().copied().unwrap_or(0) as u16;
+            emit_shaped_glyphs(
+                &mut glyphs,
+                &mut pending_hardware,
+                &resolved.faces,
+                &ell_glyphs,
+                size,
+                rgba,
+                line_idx as u16,
+                last_w_idx,
+                x_curr + x_offset,
+                y_curr,
+            );
         }
 
         y_curr += line_height_pts as f64;
     }
 
-    // Compute bounding box BEFORE centering to find center_x and center_y
-    let mut min_x = f64::INFINITY;
-    let mut max_x = f64::NEG_INFINITY;
-    let mut min_y = f64::INFINITY;
-    let mut max_y = f64::NEG_INFINITY;
-    for path in glyphs.iter() {
-        let b = path.bounds;
-        min_x = min_x.min(b.x0);
-        max_x = max_x.max(b.x1);
-        min_y = min_y.min(b.y0);
-        max_y = max_y.max(b.y1);
-    }
-
-    let center_x = if min_x.is_finite() && max_x.is_finite() {
-        (min_x + max_x) / 2.0
-    } else {
-        0.0
-    };
-    let center_y = if min_y.is_finite() && max_y.is_finite() {
-        (min_y + max_y) / 2.0
-    } else {
-        0.0
-    };
-
-    // Center all paths around origin
-    let baseline_offset = center_text_paths(&mut glyphs);
-
-    let ascent_scaled = ascent * font_scale;
-    let descent_scaled = descent * font_scale;
-
-    let hardware_layout = if !pending_hardware.is_empty() {
-        let mut runs: Vec<HardwareGlyphRun> = Vec::new();
-        for pg in pending_hardware {
-            let face = &faces[pg.face_idx];
-            let centered_x = pg.x - center_x as f32;
-            let centered_y = pg.y - center_y as f32;
-            if let Some(last_run) = runs.last_mut() {
-                if std::ptr::eq(last_run.font_data, face.font_data)
-                    && last_run.font_index == face.font_index
-                {
-                    last_run.glyphs.push(HardwareGlyph {
-                        id: pg.id,
-                        x: centered_x,
-                        y: centered_y,
-                    });
-                    continue;
-                }
-            }
-            runs.push(HardwareGlyphRun {
-                font_data: face.font_data,
-                font_index: face.font_index,
-                font_size: size,
-                glyphs: vec![HardwareGlyph {
-                    id: pg.id,
-                    x: centered_x,
-                    y: centered_y,
-                }],
-            });
-        }
-        Some(HardwareTextLayout { runs })
-    } else {
-        None
-    };
-
-    Ok(CompiledText {
+    Ok(finalize_layout(
         glyphs,
-        ascent: ascent_scaled,
-        descent: descent_scaled,
-        baseline_offset,
-        hardware_layout,
-    })
+        pending_hardware,
+        &resolved.faces,
+        size,
+        resolved.ascent * resolved.font_scale,
+        resolved.descent * resolved.font_scale,
+    ))
 }

@@ -2,6 +2,7 @@ use animatix_core::error::RenderError;
 
 use crate::fast_layout::{HardwareTextLayout, compile_text_fast, compile_text_fast_wrapped};
 use crate::font_context::FontContext;
+use crate::request::{TextCacheKey, TextCompileRequest, TextStyle};
 use crate::typst_world::{HighlightPalette, measure_text_paths};
 #[cfg(feature = "rich-text")]
 use crate::typst_world::{
@@ -11,7 +12,7 @@ use crate::typst_world::{
 use crate::{CompiledText, TextPath};
 
 // ─────────────────────────────────────────────────────────────
-// Runtime text recompilation (Phase 2)
+// Runtime text compilation
 // ─────────────────────────────────────────────────────────────
 
 /// Identifies the kind of text being compiled.
@@ -19,8 +20,7 @@ use crate::{CompiledText, TextPath};
 pub enum TextKind {
     /// Plain text.
     Text,
-    /// Typst math (kept for backward compatibility with old cached paths).
-    #[allow(dead_code)] // Kept for backward-compatible cached path decoding
+    /// Typst math.
     Math,
     /// Code text.
     Code,
@@ -38,45 +38,6 @@ pub fn default_font_size(kind: TextKind) -> f32 {
         TextKind::Code => 24.0,
         TextKind::Text | TextKind::Math | TextKind::Typst => 48.0,
     }
-}
-
-/// Cache key for compiled text paths.
-/// Since `f32` is not `Hash`, we bit-cast it to `u32` for the key.
-///
-/// The key must cover *every* input that can change the compiled output:
-/// content, typography, color, kind, the wrapping parameters
-/// (`max_width`/`text_align`/`overflow`), whether the plain-text fast path
-/// may be used (fast-path and Typst-engine output are visually equivalent but
-/// not bit-identical, so they are cached under distinct keys), and the
-/// font-environment epoch (see [`advance_font_env_epoch`]).
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-struct TextCacheKey {
-    content: String,
-    /// Syntax-highlighting language for `TextKind::Code` (part of the cache
-    /// key: highlighting changes glyph colors, so different languages must
-    /// not share an entry). Empty for every other kind.
-    language: String,
-    /// Highlight palette fingerprint (see [`HighlightPalette::cache_bits`]).
-    /// Two colorschemes recolour the same snippet differently, so they must not
-    /// share a cache entry. `None` for un-highlighted text.
-    palette_bits: Option<Vec<u32>>,
-    font_family: String,
-    font_size_bits: u32,
-    font_weight_bits: u32,
-    font_style: String,
-    line_height_bits: u32,
-    letter_spacing_bits: u32,
-    word_spacing_bits: u32,
-    color: [u8; 4],
-    kind: TextKind,
-    max_width_bits: u32,
-    /// Wrapped-line cap (`max_lines`). Part of the key: the same text capped at
-    /// two lines must not share a cache entry with the uncapped compile.
-    max_lines: Option<usize>,
-    text_align: String,
-    overflow: String,
-    fast_path: bool,
-    font_epoch: u64,
 }
 
 /// Memoized output of one text compilation: centered glyph paths plus the
@@ -199,62 +160,36 @@ pub fn grouped_text_compile_cache_len() -> usize {
 
 /// Compile text into glyph paths plus metrics, memoized process-wide.
 ///
-/// All Text / Code / Typst / Math compilation should funnel through here so
-/// identical inputs — within a build, across rebuilds, and across Timelines —
-/// pay the Typst engine cost exactly once. `allow_fast_path` only affects the
+/// All Text / Code / Typst / Math compilation funnels through here.
+/// [`TextCompileRequest`] is the whole input and the memo identity is derived
+/// from it (see [`TextCompileRequest::cache_key`]), so identical requests —
+/// within a build, across rebuilds, and across Timelines — pay the Typst engine
+/// cost exactly once. `request.allow_fast_path` only affects the
 /// `TextKind::Text` plain-Latin routing; callers that previously used the Typst
-/// engine unconditionally pass `false` to preserve output-identical behavior.
-#[allow(clippy::too_many_arguments)] // Mirrors the compile_* parameter sets it dispatches to.
+/// engine unconditionally set it to `false` to preserve output-identical
+/// behavior.
 pub fn compile_text_cached(
-    kind: TextKind,
-    content: &str,
-    language: &str,
-    palette: Option<&HighlightPalette>,
-    font_family: &str,
-    font_size: f32,
-    font_weight: f32,
-    font_style: &str,
-    line_height: f32,
-    letter_spacing: f32,
-    word_spacing: f32,
-    color: [f32; 4],
-    max_width: f32,
-    max_lines: Option<usize>,
-    text_align: &str,
-    overflow: &str,
-    allow_fast_path: bool,
+    request: &TextCompileRequest<'_>,
     font_ctx: &FontContext,
 ) -> Result<std::sync::Arc<CachedText>, RenderError> {
-    let key_color = if kind == TextKind::Text {
-        [255, 255, 255, 255]
-    } else {
-        [
-            (color[0] * 255.0) as u8,
-            (color[1] * 255.0) as u8,
-            (color[2] * 255.0) as u8,
-            (color[3] * 255.0) as u8,
-        ]
-    };
-    let key = TextCacheKey {
-        content: content.to_string(),
-        language: language.to_string(),
-        palette_bits: palette.map(HighlightPalette::cache_bits),
-        font_family: font_family.to_string(),
-        font_size_bits: font_size.to_bits(),
-        font_weight_bits: font_weight.to_bits(),
-        font_style: font_style.to_string(),
-        line_height_bits: line_height.to_bits(),
-        letter_spacing_bits: letter_spacing.to_bits(),
-        word_spacing_bits: word_spacing.to_bits(),
-        color: key_color,
-        kind,
-        max_width_bits: max_width.to_bits(),
-        max_lines,
-        text_align: text_align.to_string(),
-        overflow: overflow.to_string(),
-        fast_path: allow_fast_path,
-        font_epoch: font_ctx.epoch,
-    };
+    let kind = request.kind;
+    let content = request.content;
+    let style = &request.style;
+    let font_family = style.font_family;
+    let font_size = style.font_size;
+    let font_weight = style.font_weight;
+    let font_style = style.font_style;
+    let line_height = style.line_height;
+    let letter_spacing = style.letter_spacing;
+    let word_spacing = style.word_spacing;
+    let color = style.color;
+    let max_width = request.max_width;
+    let max_lines = request.max_lines;
+    let text_align = request.text_align;
+    let overflow = request.overflow;
+    let key = request.cache_key(font_ctx);
+    #[cfg(feature = "rich-text")]
+    let key_color = request.solid_rgba();
 
     if let Some(hit) = lock_compile_cache().get(&key) {
         return Ok(std::sync::Arc::clone(hit));
@@ -266,7 +201,7 @@ pub fn compile_text_cached(
     // per-kind probes below only exist in the rich-text build, so the slim build
     // binds the constant instead of computing it and discarding the result.
     #[cfg(feature = "rich-text")]
-    let use_fast_path = allow_fast_path
+    let use_fast_path = request.allow_fast_path
         && kind == TextKind::Text
         && is_plain_text(content)
         && is_latin_text(content);
@@ -337,10 +272,10 @@ pub fn compile_text_cached(
                 );
             }
             let typst_color = typst::visualize::Color::from_u8(
-                key.color[0],
-                key.color[1],
-                key.color[2],
-                key.color[3],
+                key_color[0],
+                key_color[1],
+                key_color[2],
+                key_color[3],
             );
             let frame = match kind {
                 TextKind::Text => compile_text(
@@ -370,8 +305,8 @@ pub fn compile_text_cached(
                 )?,
                 TextKind::Code => compile_code(
                     content,
-                    language,
-                    palette,
+                    request.language,
+                    request.palette,
                     font_size,
                     typst_color,
                     font_family,
@@ -471,8 +406,9 @@ pub fn compile_text_cached(
 /// back. Measured at ~2.5ms per frame per Equation before memoization
 /// (`benches/equation_frame.rs`).
 ///
-/// Keyed on the same inputs as [`crate::compile_text_cached`] (including the font
-/// epoch), so a hit is bit-identical to recompiling.
+/// Keyed through the same [`TextCompileRequest::cache_key`] derivation as
+/// [`compile_text_cached`] (including the font epoch), so a hit is
+/// bit-identical to recompiling.
 #[allow(clippy::too_many_arguments)] // Mirrors the compile_typst parameter set it wraps.
 pub fn compile_typst_grouped_cached(
     typst_markup: &str,
@@ -486,33 +422,31 @@ pub fn compile_typst_grouped_cached(
     letter_spacing: f32,
     word_spacing: f32,
 ) -> Result<std::sync::Arc<CachedGroupedText>, RenderError> {
-    let key = TextCacheKey {
-        content: typst_markup.to_string(),
-        // The grouped Typst path (Equation/Fragment) has no Code highlighting.
-        language: String::new(),
-        palette_bits: None,
-        font_family: font_family.to_string(),
-        font_size_bits: font_size.to_bits(),
-        font_weight_bits: font_weight.to_bits(),
-        font_style: font_style.to_string(),
-        line_height_bits: line_height.to_bits(),
-        letter_spacing_bits: letter_spacing.to_bits(),
-        word_spacing_bits: word_spacing.to_bits(),
-        color: [
-            (color[0] * 255.0) as u8,
-            (color[1] * 255.0) as u8,
-            (color[2] * 255.0) as u8,
-            (color[3] * 255.0) as u8,
-        ],
+    // The Equation path always compiles unwrapped, left-aligned and visible,
+    // with no Code highlighting. Recording that policy in a request keeps the
+    // grouped table in the same request-derived key space as the flat table.
+    let request = TextCompileRequest {
         kind: TextKind::Typst,
-        // The Equation path always compiles unwrapped, left-aligned, visible.
-        max_width_bits: 0.0f32.to_bits(),
+        content: typst_markup,
+        language: "",
+        palette: None,
+        style: TextStyle {
+            font_family,
+            font_size,
+            font_weight,
+            font_style,
+            line_height,
+            letter_spacing,
+            word_spacing,
+            color,
+        },
+        max_width: 0.0,
         max_lines: None,
-        text_align: "left".to_string(),
-        overflow: "visible".to_string(),
-        fast_path: false,
-        font_epoch: font_ctx.epoch,
+        text_align: "left",
+        overflow: "visible",
+        allow_fast_path: false,
     };
+    let key = request.cache_key(font_ctx);
 
     if let Some(hit) = lock_grouped_cache().get(&key) {
         return Ok(std::sync::Arc::clone(hit));
@@ -520,12 +454,8 @@ pub fn compile_typst_grouped_cached(
 
     #[cfg(feature = "rich-text")]
     {
-        let typst_color = typst::visualize::Color::from_u8(
-            key.color[0],
-            key.color[1],
-            key.color[2],
-            key.color[3],
-        );
+        let rgba = request.solid_rgba();
+        let typst_color = typst::visualize::Color::from_u8(rgba[0], rgba[1], rgba[2], rgba[3]);
         let frame = compile_typst(
             typst_markup,
             font_size,
@@ -596,7 +526,7 @@ pub fn compile_typst_grouped_cached(
 ///
 /// When text properties change at runtime (e.g. via `always` reactive blocks),
 /// this service recompiles glyph paths on-demand; identical inputs are served
-/// from the shared table (see [`crate::compile_text_cached`]), which also survives
+/// from the shared table (see [`compile_text_cached`]), which also survives
 /// `Timeline` rebuilds.
 #[derive(Clone)]
 pub struct TextCompiler {
@@ -629,9 +559,13 @@ impl TextCompiler {
     /// Cache hits return an `Arc<[TextPath]>` — a single refcount increment
     /// instead of cloning the entire vector of BezPath objects.
     ///
+    /// This flat-argument form is the engine-facing adapter until Phase 3: it
+    /// folds `self.text_fast_path` and the timeline's highlight palette into a
+    /// [`TextCompileRequest`] and delegates to [`compile_text_cached`].
+    ///
     /// `language` is the `Code` syntax-highlighting tag (empty for every other
     /// kind and for plain `Code`).
-    #[allow(clippy::too_many_arguments)] // Mirrors the compile_* parameter sets it dispatches to.
+    #[allow(clippy::too_many_arguments)] // Flat adapter for engine call sites until Phase 3.
     pub fn compile(
         &mut self,
         content: &str,
@@ -650,26 +584,28 @@ impl TextCompiler {
         text_align: &str,
         overflow: &str,
     ) -> Result<std::sync::Arc<[TextPath]>, RenderError> {
-        let cached = compile_text_cached(
+        let request = TextCompileRequest {
             kind,
             content,
             language,
-            self.highlight_palette.as_ref(),
-            font_family,
-            font_size,
-            font_weight,
-            font_style,
-            line_height,
-            letter_spacing,
-            word_spacing,
-            color,
+            palette: self.highlight_palette.as_ref(),
+            style: TextStyle {
+                font_family,
+                font_size,
+                font_weight,
+                font_style,
+                line_height,
+                letter_spacing,
+                word_spacing,
+                color,
+            },
             max_width,
-            None,
+            max_lines: None,
             text_align,
             overflow,
-            self.text_fast_path,
-            font_ctx,
-        )?;
+            allow_fast_path: self.text_fast_path,
+        };
+        let cached = compile_text_cached(&request, font_ctx)?;
         Ok(std::sync::Arc::clone(&cached.paths))
     }
 }

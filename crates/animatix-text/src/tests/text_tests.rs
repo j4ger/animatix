@@ -1,5 +1,10 @@
 use super::*;
 
+// The crate root re-exports the deprecated flat entry point for the engine until
+// Phase 3; these tests exercise the request-based implementation directly.
+use crate::compiler::compile_text_cached;
+use crate::request::{TextCompileRequest, TextStyle};
+
 /// The fast path chooses a bundled face the way a font database chooses a
 /// system one: style first (an italic is a different shape), then the
 /// nearest available weight. Before this existed the fast path took a
@@ -234,27 +239,13 @@ fn max_lines_caps_wrapped_lines() {
     let text = "the quick brown fox jumps over the lazy dog and keeps running";
 
     let line_count = |max_lines: Option<usize>| {
-        let compiled = compile_text_cached(
-            TextKind::Text,
-            text,
-            "",
-            None,
-            "Open Sans",
-            24.0,
-            400.0,
-            "normal",
-            1.2,
-            0.0,
-            0.0,
-            [1.0, 1.0, 1.0, 1.0],
-            120.0,
+        let request = TextCompileRequest {
+            max_width: 120.0,
             max_lines,
-            "left",
-            "visible",
-            true,
-            &font_ctx,
-        )
-        .expect("wrapped text compiles");
+            allow_fast_path: true,
+            ..TextCompileRequest::new(TextKind::Text, text, TextStyle::new("Open Sans", 24.0))
+        };
+        let compiled = compile_text_cached(&request, &font_ctx).expect("wrapped text compiles");
         let mut lines: Vec<u32> = compiled.paths.iter().map(|p| u32::from(p.line_idx)).collect();
         lines.sort_unstable();
         lines.dedup();
@@ -332,31 +323,26 @@ fn bundled_default_font_covers_bold_and_italic() {
     );
 }
 
+/// Request for a `Code` compile at the tests' default monospace typography.
+fn code_request<'a>(
+    code: &'a str,
+    language: &'a str,
+    palette: Option<&'a HighlightPalette>,
+) -> TextCompileRequest<'a> {
+    TextCompileRequest {
+        language,
+        palette,
+        ..TextCompileRequest::new(TextKind::Code, code, TextStyle::new("monospace", 24.0))
+    }
+}
+
 /// Distinct glyph fill colors produced by a `Code` compilation of the same
 /// snippet under `language` ("" = plain).
 fn distinct_code_colors(language: &str) -> usize {
     let font_ctx = test_font_ctx();
-    let cached = compile_text_cached(
-        TextKind::Code,
-        "fn main() { let x = 42; }",
-        language,
-        None,
-        "monospace",
-        24.0,
-        400.0,
-        "normal",
-        1.2,
-        0.0,
-        0.0,
-        [1.0, 1.0, 1.0, 1.0],
-        0.0,
-        None,
-        "left",
-        "visible",
-        false,
-        &font_ctx,
-    )
-    .expect("Code compiles");
+    let cached =
+        compile_text_cached(&code_request("fn main() { let x = 42; }", language, None), &font_ctx)
+            .expect("Code compiles");
     let mut colors: Vec<String> = cached.paths.iter().map(|p| format!("{:?}", p.color)).collect();
     colors.sort();
     colors.dedup();
@@ -390,27 +376,8 @@ fn highlight_preserves_spacing() {
     let font_ctx = test_font_ctx();
     let code = "fn main() {\n    let x = 42;\n}";
     let measure = |language: &str| {
-        let cached = compile_text_cached(
-            TextKind::Code,
-            code,
-            language,
-            None,
-            "monospace",
-            24.0,
-            400.0,
-            "normal",
-            1.2,
-            0.0,
-            0.0,
-            [1.0, 1.0, 1.0, 1.0],
-            0.0,
-            None,
-            "left",
-            "visible",
-            false,
-            &font_ctx,
-        )
-        .expect("Code compiles");
+        let cached = compile_text_cached(&code_request(code, language, None), &font_ctx)
+            .expect("Code compiles");
         let width = cached.paths.iter().map(|p| p.path.bounding_box().width()).sum::<f64>();
         (cached.paths.len(), width)
     };
@@ -430,27 +397,8 @@ fn language_is_part_of_text_cache_key() {
     let _cache = cache_test_guard();
     let font_ctx = test_font_ctx();
     let compile = |lang: &str| {
-        compile_text_cached(
-            TextKind::Code,
-            "def f(x): return x",
-            lang,
-            None,
-            "monospace",
-            24.0,
-            400.0,
-            "normal",
-            1.2,
-            0.0,
-            0.0,
-            [1.0, 1.0, 1.0, 1.0],
-            0.0,
-            None,
-            "left",
-            "visible",
-            false,
-            &font_ctx,
-        )
-        .expect("Code compiles")
+        compile_text_cached(&code_request("def f(x): return x", lang, None), &font_ctx)
+            .expect("Code compiles")
     };
     let python = compile("python");
     let rust = compile("rust");
@@ -484,27 +432,7 @@ fn compile_code_with(
     code: &str,
     palette: Option<&HighlightPalette>,
 ) -> std::sync::Arc<CachedText> {
-    compile_text_cached(
-        TextKind::Code,
-        code,
-        "rust",
-        palette,
-        "monospace",
-        24.0,
-        400.0,
-        "normal",
-        1.2,
-        0.0,
-        0.0,
-        [1.0, 1.0, 1.0, 1.0],
-        0.0,
-        None,
-        "left",
-        "visible",
-        false,
-        font_ctx,
-    )
-    .expect("Code compiles")
+    compile_text_cached(&code_request(code, "rust", palette), font_ctx).expect("Code compiles")
 }
 
 #[cfg(feature = "rich-text")]
