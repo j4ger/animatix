@@ -11,9 +11,7 @@
 //!   not regress when caching is added).
 
 use animatix::timeline::Timeline;
-use criterion::{Criterion, criterion_group, criterion_main};
-
-mod common;
+use criterion::Criterion;
 
 /// Generate a scene mixing `n` Text, Code, and Typst declarations with
 /// distinct content per actor (realistic: dedup should not collapse them).
@@ -38,7 +36,7 @@ fn text_scene_source(n_per_kind: usize) -> String {
     format!("config {{ colorscheme: \"editorial-dark\" }}\n\n#0s\n{decls}\n")
 }
 
-fn bench_text_rebuild(c: &mut Criterion) {
+pub(crate) fn bench_text_rebuild(c: &mut Criterion) {
     let source = text_scene_source(16); // 48 text actors total
     let (stmts, _) = animatix_syntax::parser::parse_source(&source);
     let stmts = stmts.expect("parse error in bench fixture");
@@ -62,6 +60,3 @@ fn bench_text_rebuild(c: &mut Criterion) {
 
     group.finish();
 }
-
-criterion_group!(benches, bench_text_rebuild);
-criterion_main!(benches);

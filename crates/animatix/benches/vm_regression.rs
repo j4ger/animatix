@@ -1,7 +1,7 @@
 use animatix::timeline::{SceneDimensions, Timeline};
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, black_box};
 
-mod common;
+use crate::common;
 
 fn build_reactive_timeline() -> Timeline {
     let source = r#"
@@ -23,7 +23,7 @@ always {
     common::parse_timeline(source)
 }
 
-fn bench_reactive_timeline(c: &mut Criterion) {
+pub(crate) fn bench_reactive_timeline(c: &mut Criterion) {
     let timeline = build_reactive_timeline();
     let dims = SceneDimensions {
         width: 1920,
@@ -47,6 +47,3 @@ fn bench_reactive_timeline(c: &mut Criterion) {
         })
     });
 }
-
-criterion_group!(benches, bench_reactive_timeline);
-criterion_main!(benches);

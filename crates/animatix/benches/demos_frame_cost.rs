@@ -19,7 +19,7 @@ use animatix::composition::BuildTarget;
 use animatix::timeline::{BuildOptions, SceneDimensions};
 use animatix_render::offscreen::{OffscreenRenderer, RenderedFrame};
 use animatix_syntax::module::ModuleGraph;
-use criterion::{Criterion, SamplingMode, criterion_group, criterion_main};
+use criterion::{Criterion, SamplingMode};
 
 const DIMS: SceneDimensions = SceneDimensions {
     width: 1280,
@@ -117,7 +117,7 @@ fn render_frame(target: &BuildTarget, renderer: &mut OffscreenRenderer, t: f64) 
     }
 }
 
-fn bench_demo_frame_cost(c: &mut Criterion) {
+pub(crate) fn bench_demo_frame_cost(c: &mut Criterion) {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
     let demos = collect_demos(&root);
     assert!(demos.len() > 30, "expected the full example corpus");
@@ -156,6 +156,3 @@ fn bench_demo_frame_cost(c: &mut Criterion) {
     }
     group.finish();
 }
-
-criterion_group!(benches, bench_demo_frame_cost);
-criterion_main!(benches);

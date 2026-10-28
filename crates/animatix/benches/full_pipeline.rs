@@ -7,9 +7,7 @@ use std::path::Path;
 
 use animatix::timeline::Timeline;
 use animatix_syntax::module::ModuleGraph;
-use criterion::{Criterion, criterion_group, criterion_main};
-
-mod common;
+use criterion::Criterion;
 
 /// Simple scene with no imports — isolates parse + build cost.
 fn simple_scene_source() -> String {
@@ -114,7 +112,7 @@ fn build_only(source: &str) {
     let _timeline = Timeline::build(&stmts);
 }
 
-fn bench_full_pipeline(c: &mut Criterion) {
+pub(crate) fn bench_full_pipeline(c: &mut Criterion) {
     let simple = simple_scene_source();
     let reactive = reactive_scene_source();
 
@@ -162,6 +160,3 @@ fn bench_full_pipeline(c: &mut Criterion) {
 
     group.finish();
 }
-
-criterion_group!(benches, bench_full_pipeline);
-criterion_main!(benches);

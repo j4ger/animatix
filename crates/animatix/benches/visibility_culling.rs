@@ -1,7 +1,7 @@
 use animatix::timeline::{SceneDimensions, Timeline};
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, black_box};
 
-mod common;
+use crate::common;
 
 fn build_visible_scene(actor_count: usize) -> Timeline {
     // All actors visible on screen
@@ -46,7 +46,7 @@ fn build_mixed_visibility_scene(visible: usize, offscreen: usize) -> Timeline {
     common::parse_timeline(&source)
 }
 
-fn bench_visibility(c: &mut Criterion) {
+pub(crate) fn bench_visibility(c: &mut Criterion) {
     let dims = SceneDimensions {
         width: 1920,
         height: 1080,
@@ -106,6 +106,3 @@ fn bench_visibility(c: &mut Criterion) {
         })
     });
 }
-
-criterion_group!(benches, bench_visibility);
-criterion_main!(benches);

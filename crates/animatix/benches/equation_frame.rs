@@ -10,9 +10,9 @@
 //! This bench pins that per-frame cost so the memoization is gated.
 
 use animatix::timeline::{SceneDimensions, Timeline};
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, black_box};
 
-mod common;
+use crate::common;
 
 const DIMS: SceneDimensions = SceneDimensions {
     width: 1920,
@@ -45,7 +45,7 @@ always {
     common::parse_timeline(source)
 }
 
-fn bench_equation_frame(c: &mut Criterion) {
+pub(crate) fn bench_equation_frame(c: &mut Criterion) {
     let scene = build_equation_scene();
 
     // Distinct times per frame guarantee a frame-cache miss every frame — the
@@ -59,6 +59,3 @@ fn bench_equation_frame(c: &mut Criterion) {
         })
     });
 }
-
-criterion_group!(benches, bench_equation_frame);
-criterion_main!(benches);

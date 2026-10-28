@@ -1,7 +1,7 @@
 use animatix::timeline::{SceneDimensions, Timeline};
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, black_box};
 
-mod common;
+use crate::common;
 
 fn build_text_scene() -> Timeline {
     let source = r#"
@@ -47,7 +47,7 @@ container: Row, at: (100, 100), gap: 20, align: "center" {
     common::parse_timeline(source)
 }
 
-fn bench_scrubbing(c: &mut Criterion) {
+pub(crate) fn bench_scrubbing(c: &mut Criterion) {
     let text_scene = build_text_scene();
     let many_actors = build_many_actors_scene();
     let layout_scene = build_layout_scene();
@@ -84,6 +84,3 @@ fn bench_scrubbing(c: &mut Criterion) {
         })
     });
 }
-
-criterion_group!(benches, bench_scrubbing);
-criterion_main!(benches);

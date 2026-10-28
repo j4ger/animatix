@@ -3,6 +3,10 @@ name = "animatix"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+# The six merged targets below are the only bench targets; the original
+# per-suite files are `mod`ules of them. Without this, Cargo would also
+# build each suite file as a target of its own.
+autobenches = false
 
 [features]
 # Rendering, text, and SVG are part of the engine, not options: the build and
@@ -68,86 +72,28 @@ criterion = { version = "0.5", features = ["html_reports"] }
 dhat = "0.3"
 serde_json = "1"
 
+# Six semantic targets; each is a wrapper over the original per-suite files in
+# `benches/`, which stay `mod`ules so benchmark IDs and groups do not change.
 [[bench]]
-name = "timeline_eval"
+name = "build"
 harness = false
 
 [[bench]]
-name = "property_interpolation"
+name = "frame"
 harness = false
 
 [[bench]]
-name = "modifier_runtime"
+name = "stage"
 harness = false
 
 [[bench]]
-name = "vm_regression"
+name = "vm"
 harness = false
 
 [[bench]]
-name = "vm_vs_ir"
+name = "text"
 harness = false
 
 [[bench]]
-name = "build_time"
-harness = false
-
-[[bench]]
-name = "scrubbing"
-harness = false
-
-[[bench]]
-name = "scene_costs"
-harness = false
-
-[[bench]]
-name = "cost_breakdown"
-harness = false
-
-[[bench]]
-name = "scaling"
-harness = false
-
-[[bench]]
-name = "scaling_no_cache"
-harness = false
-
-[[bench]]
-name = "scaling_breakdown"
-harness = false
-
-[[bench]]
-name = "visibility_culling"
-harness = false
-
-[[bench]]
-name = "static_scene"
-harness = false
-
-[[bench]]
-name = "static_scene_item_collection"
-harness = false
-
-[[bench]]
-name = "full_pipeline"
-harness = false
-
-[[bench]]
-name = "text_rebuild"
-harness = false
-
-[[bench]]
-name = "stage_breakdown"
-harness = false
-
-[[bench]]
-name = "equation_frame"
-harness = false
-
-[[bench]]
-name = "code_highlight"
-harness = false
-
-[[bench]]
-name = "demos_frame_cost"
+name = "gpu"
 harness = false

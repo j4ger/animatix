@@ -1,7 +1,7 @@
 use animatix::timeline::Timeline;
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, black_box};
 
-mod common;
+use crate::common;
 
 fn build_timeline_with_modifiers() -> Timeline {
     let source = r#"
@@ -22,7 +22,7 @@ always {
     common::parse_timeline(source)
 }
 
-fn bench_modifier_evaluation(c: &mut Criterion) {
+pub(crate) fn bench_modifier_evaluation(c: &mut Criterion) {
     let timeline = build_timeline_with_modifiers();
     let dims = animatix::timeline::SceneDimensions {
         width: 1920,
@@ -41,6 +41,3 @@ fn bench_modifier_evaluation(c: &mut Criterion) {
         })
     });
 }
-
-criterion_group!(benches, bench_modifier_evaluation);
-criterion_main!(benches);

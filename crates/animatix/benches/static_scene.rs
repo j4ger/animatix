@@ -1,7 +1,7 @@
 use animatix::timeline::{SceneDimensions, Timeline};
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, black_box};
 
-mod common;
+use crate::common;
 
 fn build_static_scene(actor_count: usize) -> Timeline {
     // Static scene: no keyframes, no modifiers
@@ -21,7 +21,7 @@ fn build_static_scene(actor_count: usize) -> Timeline {
     common::parse_timeline(&source)
 }
 
-fn bench_static(c: &mut Criterion) {
+pub(crate) fn bench_static(c: &mut Criterion) {
     let dims = SceneDimensions {
         width: 1920,
         height: 1080,
@@ -98,6 +98,3 @@ fn bench_static(c: &mut Criterion) {
         })
     });
 }
-
-criterion_group!(benches, bench_static);
-criterion_main!(benches);

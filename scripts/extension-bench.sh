@@ -7,6 +7,9 @@
 # --quick uses Criterion's quick mode, which is enough for local regression
 # checks but should not be treated as a release benchmark.
 # --max-plan-ns fails if property_plan_lookup_and_sample exceeds the threshold.
+#
+# The two benches live in the merged `vm` and `frame` targets, so this runs
+# them by Criterion filter rather than by target name.
 
 set -euo pipefail
 
@@ -18,7 +21,7 @@ MAX_PLAN_NS=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --quick)
-            ARGS+=(-- --quick)
+            ARGS+=(--quick)
             shift
             ;;
         --max-plan-ns)
@@ -32,10 +35,10 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-cargo bench -p animatix --bench property_interpolation --bench timeline_eval --no-run
-OUT="$(cargo bench -p animatix --bench property_interpolation "${ARGS[@]}" 2>&1)"
+cargo bench -p animatix --bench vm --bench frame --no-run
+OUT="$(cargo bench -p animatix --bench vm -- property_plan_lookup_and_sample "${ARGS[@]}" 2>&1)"
 echo "$OUT"
-cargo bench -p animatix --bench timeline_eval "${ARGS[@]}"
+cargo bench -p animatix --bench frame -- timeline_evaluate "${ARGS[@]}"
 
 if [[ -n "$MAX_PLAN_NS" ]]; then
     PLAN_NS="$(printf '%s\n' "$OUT" \

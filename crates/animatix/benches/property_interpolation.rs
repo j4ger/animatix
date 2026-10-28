@@ -1,8 +1,8 @@
 use animatix::timeline::{Interpolate, PropertyPlan, PropertyTrack, PropertyValue, property_id};
 use animatix_syntax::easing::Easing;
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, black_box};
 
-fn bench_property_interpolation(c: &mut Criterion) {
+pub(crate) fn bench_property_interpolation(c: &mut Criterion) {
     let mut track = PropertyTrack::new(0.0f32);
     track.add_keyframe(0, 0.0, Easing::Linear);
     track.add_keyframe(1000, 100.0, Easing::EaseInOut);
@@ -45,6 +45,3 @@ fn bench_property_interpolation(c: &mut Criterion) {
         })
     });
 }
-
-criterion_group!(benches, bench_property_interpolation);
-criterion_main!(benches);

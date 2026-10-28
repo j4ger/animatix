@@ -1,7 +1,7 @@
 use animatix::timeline::{Timeline, TrackAccessor};
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::Criterion;
 
-mod common;
+use crate::common;
 
 fn build_many_actors_scene() -> Timeline {
     let mut source = String::from(
@@ -20,7 +20,7 @@ fn build_many_actors_scene() -> Timeline {
     common::parse_timeline(&source)
 }
 
-fn bench_cost_breakdown(c: &mut Criterion) {
+pub(crate) fn bench_cost_breakdown(c: &mut Criterion) {
     let timeline = build_many_actors_scene();
 
     // `full_evaluate` and `frame_env_only` were removed 2026-10-26: they
@@ -43,6 +43,3 @@ fn bench_cost_breakdown(c: &mut Criterion) {
         })
     });
 }
-
-criterion_group!(benches, bench_cost_breakdown);
-criterion_main!(benches);

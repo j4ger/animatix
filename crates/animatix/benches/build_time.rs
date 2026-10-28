@@ -1,6 +1,6 @@
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::Criterion;
 
-mod common;
+use crate::common;
 
 fn build_reactive_source() -> String {
     r#"
@@ -22,7 +22,7 @@ always {
     .to_string()
 }
 
-fn bench_build_time(c: &mut Criterion) {
+pub(crate) fn bench_build_time(c: &mut Criterion) {
     let source = build_reactive_source();
 
     c.bench_function("build_reactive_timeline", |b| {
@@ -31,6 +31,3 @@ fn bench_build_time(c: &mut Criterion) {
         })
     });
 }
-
-criterion_group!(benches, bench_build_time);
-criterion_main!(benches);

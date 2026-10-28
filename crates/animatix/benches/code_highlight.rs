@@ -9,7 +9,7 @@
 use animatix::renderer::text::{
     FontContext, HighlightPalette, TextCompiler, TextKind, clear_text_compile_cache,
 };
-use criterion::{Criterion, Throughput, criterion_group, criterion_main};
+use criterion::{Criterion, Throughput};
 
 const CODE: &str = "fn evaluate_frame(t: f64) -> Vec<RenderItem> {\n    let items = collect(t);\n    if items.is_empty() { return vec![]; }\n    items.iter().map(render).collect()\n}";
 
@@ -49,7 +49,7 @@ fn compile_once(compiler: &mut TextCompiler, font_ctx: &FontContext, language: &
         .expect("Code compile should succeed")
 }
 
-fn bench_code_compile(c: &mut Criterion) {
+pub(crate) fn bench_code_compile(c: &mut Criterion) {
     let font_ctx = FontContext::with_fast_path(true);
     let mut group = c.benchmark_group("code_compile");
     group.throughput(Throughput::Bytes(CODE.len() as u64));
@@ -79,6 +79,3 @@ fn bench_code_compile(c: &mut Criterion) {
     }
     group.finish();
 }
-
-criterion_group!(benches, bench_code_compile);
-criterion_main!(benches);

@@ -1,7 +1,7 @@
 use animatix::timeline::{SceneDimensions, Timeline};
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, black_box};
 
-mod common;
+use crate::common;
 
 fn build_many_actors_scene() -> Timeline {
     let mut source = String::from(
@@ -20,7 +20,7 @@ fn build_many_actors_scene() -> Timeline {
     common::parse_timeline(&source)
 }
 
-fn bench_scene_costs(c: &mut Criterion) {
+pub(crate) fn bench_scene_costs(c: &mut Criterion) {
     let many_actors = build_many_actors_scene();
     let dims = SceneDimensions {
         width: 1920,
@@ -49,6 +49,3 @@ fn bench_scene_costs(c: &mut Criterion) {
         })
     });
 }
-
-criterion_group!(benches, bench_scene_costs);
-criterion_main!(benches);

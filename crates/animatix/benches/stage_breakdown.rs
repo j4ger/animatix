@@ -20,9 +20,9 @@ use std::time::Duration;
 
 use animatix::perf::{self, stage};
 use animatix::timeline::{SceneDimensions, Timeline};
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, black_box};
 
-mod common;
+use crate::common;
 
 const DIMS: SceneDimensions = SceneDimensions {
     width: 1920,
@@ -68,7 +68,7 @@ const EVAL_STAGES: [&str; 4] = [
     stage::LAYOUT,
 ];
 
-fn bench_stage_breakdown(c: &mut Criterion) {
+pub(crate) fn bench_stage_breakdown(c: &mut Criterion) {
     let timeline = scenario_timeline();
     let src = scenario_source();
 
@@ -148,6 +148,3 @@ fn bench_stage_breakdown(c: &mut Criterion) {
         group.finish();
     }
 }
-
-criterion_group!(benches, bench_stage_breakdown);
-criterion_main!(benches);

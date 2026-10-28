@@ -40,28 +40,31 @@ by evidence and not intuition.
 ### 2.1 What is already measured
 
 The project already ships a mature Criterion suite under `crates/animatix/benches/`
-(23 benches, all compile against the current API), plus a second suite under
-`crates/animatix-analyzer/benches/` for editor intelligence:
+(six merged targets covering 21 suite files, all compile against the current API),
+plus a second suite under `crates/animatix-analyzer/benches/` for editor
+intelligence. The original per-suite files remain as modules of the merged
+targets, so benchmark IDs and Criterion groups are unchanged:
 
-| Area | Bench | What it measures |
-|---|---|---|
-| Build/compile | `build_time.rs` | `Timeline::build` over synthetic workloads |
-| Text-heavy rebuild | `text_rebuild.rs` | `Timeline::build` for a 48-actor mixed Text/Code/Typst scene, warm (cache hits) vs cold (`clear_text_compile_cache` per iter) |
-| Code highlight compile | `code_highlight.rs` | `compile_text_cached` for a `Code` body: plain fence vs highlighted spans vs highlighted with a colorscheme palette (cache cleared per iter — the GUI rebuild-per-keystroke cost) |
-| Per-demo frame cost | `demos_frame_cost.rs` | steady-state GPU frame time for every example demo (evaluate → vello rasterize → effect chains → readback), loaded through the CLI's module path — the 30fps-preview gate |
-| Full editor path | `full_pipeline.rs` | parse → module load → typecheck → expand → build (incl. real examples) |
-| Parse-only / build-only | `full_pipeline.rs` | isolation of parse vs. build stage cost |
-| Frame evaluation | `timeline_eval.rs` | `Timeline::evaluate` at several times (cache hit) |
-| Frame evaluation (no cache) | `scene_costs.rs`, `scaling_no_cache.rs` | full re-evaluation cost |
-| Scene scaling | `scaling.rs` | `evaluate` vs. actor count (10→200) |
-| Cost breakdown | `cost_breakdown.rs` | frame-env setup vs. property sampling vs. full evaluate |
-| Property interpolation | `property_interpolation.rs` | track/existing keyframe sampling + easing lerp |
-| Modifier runtime | `modifier_runtime.rs`, `vm_vs_ir.rs`, `vm_regression.rs` | IR executor vs. VM, regression vs. reference |
-| Visibility | `visibility_culling.rs` | culling passes |
-| Static scene | `static_scene.rs`, `static_scene_item_collection.rs` | scene-only eval + item collection |
-| Scrubbing | `scrubbing.rs` | interactive scrub pattern (GUI-adjacent) |
-| Equation frames | `equation_frame.rs` | per-frame Typst recompilation of an `Equation`/`Fragment` subtree (dynamic scene, so the static-subtree cache does not apply) |
-| **Editor intelligence** | `animatix-analyzer/benches/editor_intelligence.rs` | **the per-keystroke analyzer path**: `Analyzer::update` (parse + symbols + typecheck), `Analyzer::diagnostics`, and `diagnostics_with_config`, over real example and dogfood files |
+| Area | Target | Suite file(s) | What it measures |
+|---|---|---|---|
+| Build/compile | `build` | `build_time.rs` | `Timeline::build` over synthetic workloads |
+| Full editor path | `build` | `full_pipeline.rs` | parse → module load → typecheck → expand → build (incl. real examples) |
+| Parse-only / build-only | `build` | `full_pipeline.rs` | isolation of parse vs. build stage cost |
+| Text-heavy rebuild | `text` | `text_rebuild.rs` | `Timeline::build` for a 48-actor mixed Text/Code/Typst scene, warm (cache hits) vs cold (`clear_text_compile_cache` per iter) |
+| Code highlight compile | `text` | `code_highlight.rs` | `compile_text_cached` for a `Code` body: plain fence vs highlighted spans vs highlighted with a colorscheme palette (cache cleared per iter — the GUI rebuild-per-keystroke cost) |
+| Per-demo frame cost | `gpu` | `demos_frame_cost.rs` | steady-state GPU frame time for every example demo (evaluate → vello rasterize → effect chains → readback), loaded through the CLI's module path — the 30fps-preview gate |
+| Frame evaluation | `frame` | `timeline_eval.rs` | `Timeline::evaluate` at several times (cache hit) |
+| Frame evaluation (no cache) | `frame` | `scaling_no_cache.rs` | full re-evaluation cost |
+| Scene scaling | `frame` | `scaling.rs`, `scaling_breakdown.rs` | `evaluate` vs. actor count (10→200), with a full/env split at 50/100/200 |
+| Visibility | `frame` | `visibility_culling.rs` | culling passes |
+| Static scene | `frame` | `static_scene.rs`, `static_scene_item_collection.rs` | scene-only eval + item collection |
+| Scrubbing | `frame` | `scrubbing.rs` | interactive scrub pattern (GUI-adjacent) |
+| Cost breakdown | `stage` | `cost_breakdown.rs`, `scene_costs.rs` | property sampling and full re-evaluation under miss-frame debug options |
+| Stage tracer | `stage` | `stage_breakdown.rs` | shared stage-tracer names (`build_frame_env`, `modifier_exec`, `sample`, `layout`, `rebuild`) over a dynamic scene |
+| Equation frames | `stage` | `equation_frame.rs` | per-frame Typst recompilation of an `Equation`/`Fragment` subtree (dynamic scene, so the static-subtree cache does not apply) |
+| Property interpolation | `vm` | `property_interpolation.rs` | track/existing keyframe sampling + easing lerp |
+| Modifier runtime | `vm` | `modifier_runtime.rs`, `vm_vs_ir.rs`, `vm_regression.rs` | IR executor vs. VM, regression vs. reference |
+| **Editor intelligence** | — | `animatix-analyzer/benches/editor_intelligence.rs` | **the per-keystroke analyzer path**: `Analyzer::update` (parse + symbols + typecheck), `Analyzer::diagnostics`, and `diagnostics_with_config`, over real example and dogfood files |
 
 The editor-intelligence suite lives in its own crate because the layering is
 one-way: the engine does not depend on `animatix-analyzer`, so the engine's
@@ -69,8 +72,9 @@ benches cannot reach it. `scripts/perf-bench.sh` covers both crates.
 
 ### 2.2 CI gate today
 
-`scripts/extension-bench.sh` runs only **two** benches
-(`property_interpolation`, `timeline_eval`) in Criterion *quick* mode and asserts
+`scripts/extension-bench.sh` runs only **two** benches — the `vm` target's
+`property_plan_lookup_and_sample` and the `frame` target's `timeline_evaluate_*`
+benches, selected by Criterion filter — in *quick* mode and asserts
 **one** absolute threshold (`property_plan_lookup_and_sample ≤ 10_000 ns`) in
 `.github/workflows/ci.yml`.
 
@@ -147,10 +151,11 @@ Policy changes over the current state:
   Criterion's `--save-baseline` / `--load-baseline` pairing. A dedicated
   `perf-bench.sh` runs the suite, compares to the last saved baseline, and
   exits non-zero on any bench that regressed beyond a threshold.
-  Since 2026-10-26 the harness is tiered: `quick` (the default — every CPU
-  bench target plus the analyzer suite at `--warm-up-time 1
-  --measurement-time 2`, ~4-6 min warm) is the per-change regression guard;
-  `full` adds the GPU `demos_frame_cost` suite for release-scale A/B.
+  Since 2026-10-26 the harness is tiered: `quick` (the default — the `build`,
+  `frame`, `stage`, `vm`, and `text` targets plus the analyzer suite at
+  `--warm-up-time 1 --measurement-time 2`, ~4-6 min warm) is the per-change
+  regression guard; `full` adds the GPU `gpu` target (`demos_frame_cost`) for
+  release-scale A/B.
   Baselines live under `$PERF_BASELINE_DIR/<tier>/`. The GPU demo suite has
   ±10-20% run-to-run variance (readback-bound) — it guards ms-level GPU
   pipeline health, not sub-µs CPU deltas, which is why it is not in the

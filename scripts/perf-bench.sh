@@ -8,14 +8,14 @@
 # Two tiers (2026-10-26 restructure; the flat 132-bench run took 40-50 min
 # per side, which made the guard too expensive to actually run):
 #
-#   quick  — the default. Every CPU bench target (frame walk, sampling, env,
-#            VM, build, text, analyzer intelligence), measured with
+#   quick  — the default. Every CPU bench target (`build`, `frame`, `stage`,
+#            `vm`, `text`) plus the analyzer suite, measured with
 #            --warm-up-time 1 --measurement-time 2. A warm tree runs in
 #            ~4-6 min. This is the regression guard: it resolved −20%…−50%
 #            moves cleanly during the frame-path cache work and is sensitive
 #            to everything the CPU path can regress.
-#   full   — quick plus `demos_frame_cost` (GPU offscreen + readback over
-#            every example demo). Demos measure GPU-pipeline health at the
+#   full   — quick plus the `gpu` target (offscreen + readback over every
+#            example demo). Demos measure GPU-pipeline health at the
 #            ms level with ±10-20% run-to-run variance; they cannot resolve
 #            sub-µs CPU deltas (measured 2026-10-26: a −42% CPU change read
 #            as +8.6% median there), so they guard a different failure class
@@ -58,29 +58,14 @@ BENCH_ARGS=(--warm-up-time 1 --measurement-time 2)
 
 # The quick tier: every engine CPU bench target plus the analyzer suite.
 QUICK_BENCHES=(
-    build_time
-    code_highlight
-    cost_breakdown
-    equation_frame
-    full_pipeline
-    modifier_runtime
-    property_interpolation
-    scaling
-    scaling_breakdown
-    scaling_no_cache
-    scene_costs
-    scrubbing
-    stage_breakdown
-    static_scene
-    static_scene_item_collection
-    text_rebuild
-    timeline_eval
-    visibility_culling
-    vm_regression
-    vm_vs_ir
+    build
+    frame
+    stage
+    vm
+    text
 )
 # The full tier adds the GPU demo suite.
-FULL_BENCHES=("${QUICK_BENCHES[@]}" demos_frame_cost)
+FULL_BENCHES=("${QUICK_BENCHES[@]}" gpu)
 
 BASELINE_DIR="${PERF_BASELINE_DIR:-target/perf/baseline}"
 LOG_DIR="${PERF_LOG_DIR:-target/perf/latest}"

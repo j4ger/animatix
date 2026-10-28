@@ -1,7 +1,7 @@
 use animatix::timeline::Timeline;
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, black_box};
 
-mod common;
+use crate::common;
 
 fn build_test_timeline() -> Timeline {
     let source = r#"
@@ -27,7 +27,7 @@ title.opacity = 1.0
     common::parse_timeline(source)
 }
 
-fn bench_timeline_evaluate(c: &mut Criterion) {
+pub(crate) fn bench_timeline_evaluate(c: &mut Criterion) {
     let timeline = build_test_timeline();
 
     let dims = animatix::timeline::SceneDimensions {
@@ -53,6 +53,3 @@ fn bench_timeline_evaluate(c: &mut Criterion) {
         })
     });
 }
-
-criterion_group!(benches, bench_timeline_evaluate);
-criterion_main!(benches);

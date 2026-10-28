@@ -1,7 +1,7 @@
 use animatix::timeline::{SceneDimensions, Timeline};
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, black_box};
 
-mod common;
+use crate::common;
 
 fn build_reactive_timeline() -> Timeline {
     let source = r#"
@@ -37,7 +37,7 @@ echo: Ellipse, size: (40, 40), color: accent.warning, at: pulse.at
     common::parse_timeline(source)
 }
 
-fn bench_modifier_overhead(c: &mut Criterion) {
+pub(crate) fn bench_modifier_overhead(c: &mut Criterion) {
     let reactive = build_reactive_timeline();
     let static_tl = build_static_timeline();
     let dims = SceneDimensions {
@@ -63,6 +63,3 @@ fn bench_modifier_overhead(c: &mut Criterion) {
         })
     });
 }
-
-criterion_group!(benches, bench_modifier_overhead);
-criterion_main!(benches);
