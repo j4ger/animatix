@@ -6,10 +6,7 @@ crates/animatix-gui/src/app/handlers/file.rs	727
 crates/animatix-gui/src/app/panels/curve_plot.rs	655
 crates/animatix-gui/src/app/panels/curves_panel.rs	740
 crates/animatix-gui/src/app/panels/inspector/keyframe_table.rs	621
-crates/animatix-gui/src/app/panels/inspector/property_groups/inputs.rs	634
 crates/animatix-gui/src/app/panels/inspector/property_groups/mod.rs	718
-crates/animatix-gui/src/app/panels/inspector/scene.rs	797
-crates/animatix-gui/src/app/panels/preview_panel/panel.rs	719
 crates/animatix-gui/src/app/panels/timeline_panel/keyframes.rs	612
 crates/animatix-gui/src/app/panels/timeline_panel/mod.rs	718
 crates/animatix-gui/src/app/preview/drag_utils.rs	606

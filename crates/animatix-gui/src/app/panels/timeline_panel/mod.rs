@@ -108,12 +108,7 @@ pub(crate) struct TimelineContext<'a> {
     pub timeline_focused: &'a mut bool,
 }
 
-/// Render the entire timeline panel.
-pub(crate) fn timeline_panel_ui(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
-    render_timeline_content(ctx, ui);
-}
-
-fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
+pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut egui::Ui) {
     let theme = eparts::theme(ui);
     let TimelineContext {
         preview,

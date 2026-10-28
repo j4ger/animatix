@@ -201,7 +201,7 @@ impl<'a> Behavior<WorkspaceTab> for WorkspaceBehavior<'a> {
                     snap_fps: self.snap_fps,
                     timeline_focused: self.timeline_focused,
                 };
-                timeline_panel::timeline_panel_ui(&mut ctx, ui);
+                timeline_panel::render_timeline_content(&mut ctx, ui);
             },
             WorkspaceTab::Curves => {
                 let resolved_timeline = self.document_store.source.document.active_timeline();
