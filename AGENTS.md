@@ -15,12 +15,12 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 - `crates/animatix-web`: wasm32 playback (no in-browser editor); `SourcesOnly` module reuse, offscreen vello blitted to WebGPU; site/embed docs in `web/README.md`.
 - `crates/animatix-plugin-api`, `-demo`, `-tooling`: native plugin C ABI, example, tooling. `crates/eparts`: themed egui widgets.
 - `crates/animatix-syntax/src/token.rs`: the single lossless tokenizer (parser input, LSP tokens, GUI highlighting).
-- `docs`: `roadmap.md` is remaining work only, `docs/history/` is the archive (`history.md` is a pointer), `docs/ecs.md` is normative ECS + file-size contract. `examples/` has demos; `dogfood/` has in-progress projects and probes.
+- `docs`: `roadmap.md` is remaining work only, `docs/history/` is the archive (`history.md` is a pointer), `docs/ecs.md` is normative ECS + structure contract. `examples/` has demos; `dogfood/` has in-progress projects and probes.
 
 ## Key Docs
 
 - `docs/spec.md` — language surface; `docs/primitives.md` and `docs/properties.md` are the quick reference tables.
-- `docs/architecture.md` — pipeline and crate layering; `docs/ecs.md` — timeline storage, component checklist, ratchet.
+- `docs/architecture.md` — pipeline and crate layering; `docs/ecs.md` — timeline storage, component checklist, structure gate.
 - `docs/effects.md` — effect chain/ABI; `docs/extension_authoring.md` — registering primitives, actions, functions, plugins.
 - `docs/contributing.md` — workflows, project structure, LSP, error model, release details; `docs/performance_evaluation.md` — measurement method.
 - `docs/roadmap.md` — what is left; `docs/history/` — evidence for what landed and why.
@@ -42,7 +42,7 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 
 - **GUI/tooling drift**: `cargo check -p animatix` does not compile the GUI, analyzer, or LSP; use `cargo check --workspace --all-targets`.
 - **Timeline data is ECS data**: per-entity state belongs in a `World` component store keyed by `EntityId` — never a new label-keyed `Timeline` map or aggregate per-actor struct. `ActorCaps`/`BehaviorId` are stored components and dispatch goes through `BehaviorDef` family systems. `docs/ecs.md` is normative: follow its "Adding a Component" checklist, update snapshot helpers in the same change, route writes through `Timeline`/`EntityMut` so the frame cache is invalidated, and never reintroduce a string-keyed frame-path fallback.
-- **Follow the file-size ratchet**: `scripts/ci.sh gate file-size` enforces `docs/ecs.md` §8 against `scripts/file-size-allowlist.tsv` and `scripts/file-size-watch.tsv`. Split the file, delete its row; never raise or add one.
+- **Follow the structure gate**: `scripts/ci.sh gate structure` enforces `docs/ecs.md` §8: production files <= 1000 lines, tests <= 2000, production functions <= 200 lines, tests <= 300. Over-limit functions and implementation-heavy `mod.rs` files are frozen in `scripts/function-size-allowlist.tsv` and `scripts/mod-rs-allowlist.tsv`; split the function/file, delete its row, and never add or raise one.
 - **Evaluation paths**: build-time expressions (`evaluate_expr`) and frame-time modifier/plot closures both use the unified IR VM (`compile_expr` → `evaluate_compiled_expr`, leaves shared via `eval_shared`). A new expression *semantic* follows the checklist in `docs/contributing.md`.
 - **`cog` is inside the dev shell**: if `cog` is missing, re-enter `nix develop` instead of preemptively using `git commit -m` (the linked-worktree `.git` quirk is the one genuine exception).
 - **Workspace-wide cargo needs the dev shell (ALSA)**: `animatix-gui` → `rodio` → `cpal` → `alsa-sys` probes ALSA via `pkg-config`; outside `nix develop` any `--workspace` command dies there. It is a missing system library, not a code fault — do not edit `Cargo.toml` or set `PKG_CONFIG_PATH`. A GUI-free single-crate run passing is not workspace evidence.

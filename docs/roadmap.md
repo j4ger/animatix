@@ -7,14 +7,14 @@ closed work lives in [`history/README.md`](history/README.md) — do not re-add 
 
 ## Backlog & Prioritization
 
-### File-size ratchet (active)
+### Structure gate (active)
 
-The large-file split programme is governed by the ratchet in [`ecs.md`](ecs.md)
-§8: `scripts/file-size.sh` fails on a new >800-line production file (tests
->1500) or on growth past a frozen allowlist row; a split deletes its row and
-never raises one. The timeline ECS migration itself is complete —
-[`ecs.md`](ecs.md) is the normative description of the storage as it now
-exists, not a work list.
+The large-file/large-function programme is governed by [`ecs.md`](ecs.md) §8:
+`scripts/structure.sh` fails on a production file >1000 lines (tests >2000), a
+production function >200 lines (tests >300), or a stale allowlist row. A split
+deletes its row and never raises one. The timeline ECS migration itself is
+complete — [`ecs.md`](ecs.md) is the normative description of the storage as it
+now exists, not a work list.
 
 ### Web playback performance (active)
 

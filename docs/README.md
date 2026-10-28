@@ -7,7 +7,7 @@
 | [`properties.md`](properties.md) | Users | Property reference table: all actor properties, types, and applicability |
 | [`effects.md`](effects.md) | Users | Effect chain model: built-in effects, parameters, support regions, and the second-input ABI |
 | [`architecture.md`](architecture.md) | Contributors | System architecture: pipeline, data structures, runtime, layout, rendering, property system, composition |
-| [`ecs.md`](ecs.md) | Contributors | Timeline entity/component design: `World` stores, label→id boundary, component checklist, snapshots, file-size ratchet |
+| [`ecs.md`](ecs.md) | Contributors | Timeline entity/component design: `World` stores, label→id boundary, component checklist, snapshots, structure gate |
 | [`primitive_abstraction.md`](primitive_abstraction.md) | Contributors | Primitive trait model: what is unified, accepted boundaries, remaining non-uniformity, deferred decisions, and a recommended order |
 | [`series_construction.md`](series_construction.md) | Contributors | LG-1 design note: building multi-part series from scenes, composition, and generated wrappers |
 | [`delightful_animation_plan.md`](delightful_animation_plan.md) | Contributors | Kinetic typography, physics handoff, camera, and transition plan (Waves 1–4) |

@@ -210,12 +210,12 @@ running one in the wrong shell looks like a compile error.
 - **animatix-lsp**: Compiles, manual testing with editors
 - **animatix-gui**: Integrated with workspace tests
 
-`scripts/ci.sh gate file-size` enforces the split programme. The thresholds and
-exemptions live in [`scripts/file-size.sh`](../scripts/file-size.sh) (with the
-ratchet contract in `docs/ecs.md` §8 and the short rule in `AGENTS.md`); they are
-not restated here so the two cannot drift. Treat both tiers as ratchets: split a
-file, then delete its row; never raise a row or add one for a new file without
-justifying it.
+`scripts/ci.sh gate structure` enforces the structure contract.
+The thresholds and allowlists live in [`scripts/structure.sh`](../scripts/structure.sh)
+(with the contract in `docs/ecs.md` §8 and the short rule in `AGENTS.md`); they
+are not restated here so the two cannot drift. Treat both allowlists as
+ratchets: split the function or file, then delete its row; never raise a row or
+add one for new code without justifying it.
 
 For demo work: keep runnable demos under `examples/`, verify with both `ast` and `image`/`video`. Use `dogfood/` for in-progress real-content projects and grammar probes; do not move known-broken probes into `examples/`.
 

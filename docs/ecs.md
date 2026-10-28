@@ -329,7 +329,7 @@ keyframe by its per-tier collapse helper (`snapshot_style_at`,
 
 | Phase | Scope | Status |
 |---|---|---|
-| P0 | `docs/ecs.md`, file-size ratchet, AGENTS/architecture docs, baseline | done |
+| P0 | `docs/ecs.md`, structure gate, AGENTS/architecture docs, baseline | done |
 | P1 | `world/` stores, `EntityStore`, `EntityRef`/`EntityMut`, `Timeline.world` | done |
 | P2 | hierarchy + roots (bounds slots deferred to P5h) | done |
 | P3a | persistence / auto-color / transcript stores + `EntityId` hit regions | done |
@@ -383,30 +383,11 @@ remain the label→id boundary views for call sites outside `world/`.
 7. Update this table and `docs/architecture.md` §2; if it is a new resource
    instead, record why in §2.3.
 
-## 8. File-size ratchet
+## 8. Structure gate
 
-`scripts/ci.sh gate file-size` runs `scripts/file-size.sh`, which enforces the
-split programme as **two tiers, both ratchets**: a ceiling tier frozen in
-`scripts/file-size-allowlist.tsv`, and a forward-guard watch tier frozen in
-`scripts/file-size-watch.tsv`. Exemptions are declared in the script. The
-current thresholds are defined by [`scripts/file-size.sh`](../scripts/file-size.sh)
-and summarized in `AGENTS.md` — they are deliberately not restated here, so this
-section and the gate cannot drift.
-
-`--seed-watch` rewrites the watch list from the current tree (only when a
-deliberate, reviewed change moves the threshold).
-
-Splitting rules: pure moves plus `pub use` re-exports, no behaviour change in
-the same commit; `foo.rs` becomes `foo/mod.rs` + modules named after the domain
-they hold, and `mod.rs` keeps only declarations, re-exports and the entry point.
-
-### Structure gate (planned)
-
-Phase 3 replaces mechanical splitting driven only by the file-size ceiling with
-direct limits on function length and file size. `scripts/structure.sh` is added
-in this phase but is **not wired into `scripts/ci.sh` yet**; the file-size
-contract above is unchanged, and both scripts can be run independently until
-the follow-up integration lands.
+`scripts/ci.sh gate structure` runs `scripts/structure.sh`. It replaces the old
+file-size ratchet: instead of splitting files mechanically to satisfy an
+800-line ceiling, it caps file size and function length directly.
 
 - **Files.** Production files are limited to 1000 lines and test files to 2000.
   Test paths are `*/tests/*`, `*/tests.rs` and `*_tests.rs`.
@@ -436,6 +417,6 @@ the follow-up integration lands.
   `FAIL stale row <allowlist>:<line>: …`; a clean run prints
   `structure: ok (X files, Y functions, Z allowlisted)`.
 
-Integration — adding the gate to `scripts/ci.sh`, its matrix job, and removing
-the superseded 800-line ratchet — is a separate follow-up, not part of this
-draft.
+Splitting rules: pure moves plus `pub use` re-exports, no behaviour change in
+the same commit; `foo.rs` becomes `foo/mod.rs` + modules named after the domain
+they hold, and `mod.rs` keeps only declarations, re-exports and the entry point.

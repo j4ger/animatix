@@ -65,7 +65,7 @@ doc|nix|ubuntu-latest|nix|pr
 site-scenes|nix|ubuntu-latest|nix|pr
 embed-drift|native|ubuntu-latest|node|pr
 content-sync|native|ubuntu-latest|none|pr
-file-size|native|ubuntu-latest|none|pr
+structure|native|ubuntu-latest|none|pr
 meta-version|native|ubuntu-latest|rust-stable|pr
 workflows|native|ubuntu-latest|none|pr
 eparts|native|ubuntu-latest|rust-stable|pr
@@ -95,7 +95,7 @@ dist-windows|native|windows-latest|rust-stable|release
 # Every gate listed here is defined above in GATE_TABLE and can still be run
 # individually via `scripts/ci.sh gate <name>`.
 JOB_TABLE='
-Fast Checks|fmt file-size workflows content-sync meta-version embed-drift|native|ubuntu-latest|rust-stable node|pr
+Fast Checks|fmt structure workflows content-sync meta-version embed-drift|native|ubuntu-latest|rust-stable node|pr
 eparts|eparts|native|ubuntu-latest|rust-stable|pr
 eparts|eparts|native|macos-latest|rust-stable|pr
 eparts|eparts|native|windows-latest|rust-stable|pr
@@ -291,11 +291,11 @@ gate_content_sync() {
   bash scripts/content-sync.sh
 }
 
-gate_file_size() {
-  # The split programme's ratchet (docs/ecs.md §5): production source <= 800
-  # lines, tests <= 1500, with every legacy offender frozen in the allowlist.
-  # A file may only leave the list by being split, never by raising its ceiling.
-  bash scripts/file-size.sh
+gate_structure() {
+  # Direct ceilings on file and function length (docs/ecs.md §8).  The
+  # allowlists freeze existing offenders at their current size; splitting a
+  # function or file deletes its row.
+  bash scripts/structure.sh
 }
 
 gate_meta_version() {
