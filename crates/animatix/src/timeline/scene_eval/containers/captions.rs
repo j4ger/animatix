@@ -84,11 +84,6 @@ impl Timeline {
                 continue;
             };
             let primitive = handle.as_dyn();
-            let child_vector_paths = self
-                .world
-                .shape_or_default(child_id)
-                .evaluate_vector_paths(self.world.style(child_id), time_ms);
-            let payload = self.world.payload(child_id);
             let ctx = crate::primitives::EvaluateCtx {
                 id: child_id,
                 label: self.world.label(child_id).unwrap_or(""),
@@ -98,7 +93,7 @@ impl Timeline {
                 scene_dimensions,
                 background_color: self.eval_caches.background_color.get(),
                 overrides: overrides.get(self.world.label(child_id).unwrap_or("")),
-                vector_paths: &child_vector_paths,
+                vector_paths: &[],
                 asset_cache: &self.asset_cache,
                 target_resolver: Some(self),
                 legend: self.world.legend(child_id),
@@ -110,7 +105,7 @@ impl Timeline {
                 text: self.world.text(child_id),
                 property_plan: self.world.property_plan(child_id),
                 caps: self.world.caps(child_id),
-                payload: payload.as_ref(),
+                payload: None,
             };
             if let Some(cue) = primitive.caption_cue(&ctx) {
                 let start_s = cue.start_ms as f64 / 1000.0;

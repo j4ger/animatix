@@ -418,10 +418,9 @@ impl Timeline {
         // `None` means "no drawable content" — nothing is drawn and no
         // hit region or precise bounds are recorded for it.
         let primitive_dispatch = self.behavior_for_node(node_id, time_ms).and_then(|def| {
-            // Clear the shape-memo bounds handoff: a non-shape
-            // primitive must never observe the previous node's data.
-            self.world.begin_shape_commands(node_id);
-            let payload = self.world.payload(node_id);
+            if def.caps.is_shape {
+                self.world.begin_shape_commands(node_id);
+            }
             let ctx = crate::primitives::EvaluateCtx {
                 id: node_id,
                 label: node_label,
@@ -442,8 +441,8 @@ impl Timeline {
                 geometry: self.world.geometry(node_id),
                 text: self.world.text(node_id),
                 property_plan: self.world.property_plan(node_id),
-                caps: self.world.caps(node_id),
-                payload: payload.as_ref(),
+                caps: def.caps,
+                payload: None,
             };
             let mut text_ctx = crate::primitives::TextCompileCtx {
                 text_compiler: &mut self.text_compiler.borrow_mut(),
@@ -512,11 +511,14 @@ impl Timeline {
             // shape commands never carry images), skipping the per-node
             // bezpath `bounding_box` unions entirely.
             let memo_bounds = self.world.take_shape_command_bounds(node_id);
-            let image_size = self
-                .world
-                .image_track(node_id)
-                .is_some_and(|t| t.evaluate(time_ms).is_some())
-                .then_some(half_size);
+            let image_size = if self.world.caps(node_id).image_payload {
+                self.world
+                    .image_track(node_id)
+                    .is_some_and(|t| t.evaluate(time_ms).is_some())
+                    .then_some(half_size)
+            } else {
+                None
+            };
             let local_bounds: Option<kurbo::Rect> = match memo_bounds {
                 Some(bounds) => bounds,
                 None => {
