@@ -46,7 +46,6 @@ pub(crate) mod utils;
 /// Extracted actor properties parsed from an actor declaration's props.
 /// Used internally by the build pipeline for graph/plot/container dispatch.
 #[derive(Clone, Debug)]
-#[allow(dead_code)] // Reserved for layout-extraction hooks
 struct ExtractedActorProperties {
     initial_size: [f32; 2],
     x_domain: [f64; 2],
@@ -64,14 +63,10 @@ struct ExtractedActorProperties {
     at_expr: Option<Expr>,
     anchor_expr: Option<Expr>,
     offset_expr: Option<Expr>,
-    gap: f32,
-    padding: f32,
     /// Graph plot-area padding [left, right, top, bottom] in pixels.
     graph_padding: [f64; 4],
     /// X-axis scale type.
     x_scale: utils::ScaleType,
     /// Y-axis scale type.
     y_scale: utils::ScaleType,
-    align: Option<String>,
-    cols: Option<usize>,
 }

@@ -1,9 +1,9 @@
-use crate::ast::{Expr, InlineItem, Modifier, Property, array_actor_label};
+use crate::ast::{Expr, Property, array_actor_label};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::arrow::build_arrow_path;
 use crate::primitives::{
-    AssignmentCtx, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx,
-    evaluate_text_paths, sample_shape_style,
+    AssignmentCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx, evaluate_text_paths,
+    sample_shape_style,
 };
 use crate::renderer::error::RenderError;
 use crate::renderer::text::TextKind;
@@ -51,17 +51,6 @@ pub const CALLOUT: CalloutPrimitive = CalloutPrimitive;
 impl Primitive for CalloutPrimitive {
     fn type_name(&self) -> &str {
         "Callout"
-    }
-    fn build(
-        &self,
-        _ctx: &mut BuildCtx,
-        _label: &str,
-        _props: &[Property],
-        _modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        // Callout now uses the generic actor build path in timeline/build/actor.rs.
-        Ok(())
     }
 
     fn handle_assignment(

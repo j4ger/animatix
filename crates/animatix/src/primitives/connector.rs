@@ -2,11 +2,9 @@
 
 use std::sync::Arc;
 
-use crate::ast::{Expr, InlineItem, Modifier, Property};
+use crate::ast::{Expr, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{
-    AssignmentCtx, BuildCtx, EvaluateCtx, Primitive, RenderCommand, sample_shape_style,
-};
+use crate::primitives::{AssignmentCtx, EvaluateCtx, Primitive, RenderCommand, sample_shape_style};
 use crate::renderer::error::RenderError;
 use crate::timeline::callout_geometry::TargetResolver;
 use crate::timeline::{
@@ -345,17 +343,6 @@ pub const CONNECTOR: ConnectorPrimitive = ConnectorPrimitive;
 impl Primitive for ConnectorPrimitive {
     fn type_name(&self) -> &str {
         "Connector"
-    }
-
-    fn build(
-        &self,
-        _ctx: &mut BuildCtx,
-        _label: &str,
-        _props: &[Property],
-        _modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        Ok(())
     }
 
     fn handle_assignment(

@@ -1,5 +1,5 @@
-use crate::ast::{Expr, InlineItem, Modifier, Property};
-use crate::primitives::{BuildCtx, Primitive};
+use crate::ast::{Expr, Property};
+use crate::primitives::Primitive;
 use crate::timeline::SceneDimensions;
 
 /// The singleton primitive descriptor for `Audio` actors.
@@ -10,24 +10,6 @@ pub const AUDIO: AudioPrimitive = AudioPrimitive;
 impl Primitive for AudioPrimitive {
     fn type_name(&self) -> &str {
         "Audio"
-    }
-    fn build(
-        &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<crate::diagnostics::Diagnostic>> {
-        ctx.timeline.process_audio_actor_decl(
-            label,
-            props,
-            modifiers,
-            ctx.time_ms,
-            ctx.parent_label,
-            ctx.diagnostics,
-        );
-        Ok(())
     }
 
     fn evaluate(

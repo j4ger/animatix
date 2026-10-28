@@ -126,19 +126,9 @@ impl World {
         self.plot_payload(id).map_or(&[], |p| &p.bar_data)
     }
 
-    /// Mutable bar dataset, initializing the plot payload.
-    pub fn bar_data_mut(&mut self, id: EntityId) -> &mut Vec<(String, f32)> {
-        &mut self.ensure_plot_payload(id).bar_data
-    }
-
     /// `data = {…}` transitions.
     pub fn bar_data_transitions(&self, id: EntityId) -> &[BarDataTransition] {
         self.plot_payload(id).map_or(&[], |p| &p.bar_data_transitions)
-    }
-
-    /// Mutable `data = {…}` transitions.
-    pub fn bar_data_transitions_mut(&mut self, id: EntityId) -> &mut Vec<BarDataTransition> {
-        &mut self.ensure_plot_payload(id).bar_data_transitions
     }
 
     /// Bar layout resolved at build time.

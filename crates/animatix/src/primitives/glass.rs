@@ -14,9 +14,8 @@
 //! at (93,27,32) instead of (255,0,0). The panel surface is the scope's first
 //! child, which composites above the blur and stays crisp.
 
-use crate::ast::{Expr, InlineItem, Modifier, Property};
-use crate::diagnostics::Diagnostic;
-use crate::primitives::{BuildCtx, Primitive, RenderCtx};
+use crate::ast::{Expr, Property};
+use crate::primitives::{Primitive, RenderCtx};
 use crate::renderer::error::RenderError;
 use crate::timeline::SceneDimensions;
 
@@ -31,16 +30,6 @@ impl Primitive for GlassPrimitive {
         "Glass"
     }
 
-    fn render_children(
-        &self,
-        ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,
-        _children: &[&str],
-    ) -> Result<(), RenderError> {
-        let timeline = ctx.timeline;
-        timeline.render_glass_children_ctx(ctx);
-        Ok(())
-    }
-
     fn render_children_by_id(
         &self,
         ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,
@@ -48,20 +37,6 @@ impl Primitive for GlassPrimitive {
     ) -> Result<(), RenderError> {
         let timeline = ctx.timeline;
         timeline.render_glass_children_ctx(ctx);
-        Ok(())
-    }
-
-    fn build(
-        &self,
-        _ctx: &mut BuildCtx,
-        _label: &str,
-        _props: &[Property],
-        _modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        // Property and effect-stage handling is the generic walk's; the backdrop
-        // chain is the scope's own effect stages, declared exactly like a
-        // `Filter`'s (`frost: Blur, radius: 18`).
         Ok(())
     }
 

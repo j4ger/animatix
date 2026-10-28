@@ -1,15 +1,10 @@
 //! Unified property descriptor shared by built-in and extension properties.
 
 pub use animatix_syntax::schema::PropertyDescriptor;
-use animatix_syntax::schema::{PropertyId, PropertySpec, PropertyValueKind};
+use animatix_syntax::schema::{PropertyId, PropertyValueKind};
 use animatix_syntax::typing::Type;
 
 use crate::extension_context::ExtensionPropertySpec;
-
-/// Build a descriptor from a shared schema spec and runtime flags.
-pub fn from_schema(spec: &PropertySpec, injectable: bool) -> PropertyDescriptor {
-    PropertyDescriptor::from_spec(spec, injectable)
-}
 
 /// Build a descriptor from an extension property spec.
 pub fn from_extension(spec: &ExtensionPropertySpec) -> PropertyDescriptor {
@@ -49,7 +44,7 @@ pub fn type_for_value_kind(kind: PropertyValueKind) -> Type {
 
 #[cfg(test)]
 mod tests {
-    use animatix_syntax::schema::{PropertyId, PropertyValueKind};
+    use animatix_syntax::schema::{PropertyId, PropertySpec, PropertyValueKind};
     use animatix_syntax::typing::Type;
 
     use super::*;
@@ -63,7 +58,7 @@ mod tests {
             ty: Type::Vec2,
             value_kind: PropertyValueKind::Vec2,
         };
-        let descriptor = from_schema(&spec, true);
+        let descriptor = PropertyDescriptor::from_spec(&spec, true);
         assert_eq!(descriptor.id, Some(PropertyId(7)));
         assert_eq!(descriptor.name, "size");
         assert_eq!(descriptor.actor_types, vec!["Rect".to_string()]);

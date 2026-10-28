@@ -1,8 +1,7 @@
 //! Group container primitive.
 
-use crate::ast::{InlineItem, Modifier, Property};
-use crate::diagnostics::Diagnostic;
-use crate::primitives::{BuildCtx, Primitive};
+use crate::ast::Property;
+use crate::primitives::Primitive;
 use crate::timeline::SceneDimensions;
 
 /// The `Group` primitive.
@@ -14,17 +13,6 @@ pub const GROUP: GroupPrimitive = GroupPrimitive;
 impl Primitive for GroupPrimitive {
     fn type_name(&self) -> &str {
         "Group"
-    }
-    fn build(
-        &self,
-        _ctx: &mut BuildCtx,
-        _label: &str,
-        _props: &[Property],
-        _modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        // Build handled by legacy dispatch
-        Ok(())
     }
 
     fn evaluate(

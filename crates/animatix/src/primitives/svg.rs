@@ -1,9 +1,9 @@
 //! SVG media primitive.
 
-use crate::ast::{Expr, InlineItem, Modifier, Property};
+use crate::ast::{Expr, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
-use crate::primitives::{AssignmentCtx, BuildCtx, Primitive};
+use crate::primitives::{AssignmentCtx, Primitive};
 use crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::property_track::TrackAccessor;
 #[cfg(feature = "svg")]
@@ -21,25 +21,6 @@ pub const SVG: SvgPrimitive = SvgPrimitive;
 impl Primitive for SvgPrimitive {
     fn type_name(&self) -> &str {
         "Svg"
-    }
-    fn build(
-        &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        ctx.timeline.process_media_actor_decl(
-            self.type_name(),
-            label,
-            props,
-            modifiers,
-            ctx.time_ms,
-            ctx.parent_label,
-            ctx.diagnostics,
-        );
-        Ok(())
     }
 
     fn handle_assignment(

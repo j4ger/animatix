@@ -1,8 +1,8 @@
 //! Arrow shape primitive with a dedicated arrowhead.
 
-use crate::ast::{Expr, InlineItem, Modifier, Property};
+use crate::ast::{Expr, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{BuildCtx, Primitive, RenderCtx};
+use crate::primitives::{Primitive, RenderCtx};
 use crate::timeline::{
     ActorCaps, Environment, SceneAnchor, SceneDimensions, VectorShapeState, VelloPath,
     evaluate_expr,
@@ -76,17 +76,6 @@ pub const ARROW: ArrowPrimitive = ArrowPrimitive;
 impl Primitive for ArrowPrimitive {
     fn type_name(&self) -> &str {
         "Arrow"
-    }
-
-    fn build(
-        &self,
-        _ctx: &mut BuildCtx,
-        _label: &str,
-        _props: &[Property],
-        _modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        Ok(())
     }
 
     fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {

@@ -1,8 +1,8 @@
 //! Plot primitives: graphs, curves, vector fields, heatmaps, contours, and number planes.
 
-use crate::ast::{Expr, InlineItem, Modifier, Property};
+use crate::ast::{Expr, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{BuildCtx, Primitive};
+use crate::primitives::Primitive;
 use crate::timeline::SceneDimensions;
 
 /// The `Graph` plot primitive.
@@ -35,27 +35,6 @@ impl Primitive for GraphPrimitive {
                 paths: ctx.vector_paths.to_vec(),
             }]))
         }
-    }
-
-    fn build(
-        &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        ctx.timeline.process_plot_actor_dispatch(
-            label,
-            self.type_name(),
-            props,
-            modifiers,
-            children,
-            ctx.time_ms,
-            ctx.parent_label,
-            ctx.diagnostics,
-        );
-        Ok(())
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
@@ -135,27 +114,6 @@ impl Primitive for PlotCurvePrimitive {
         Ok(Some(commands))
     }
 
-    fn build(
-        &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        ctx.timeline.process_plot_actor_dispatch(
-            label,
-            self.type_name(),
-            props,
-            modifiers,
-            children,
-            ctx.time_ms,
-            ctx.parent_label,
-            ctx.diagnostics,
-        );
-        Ok(())
-    }
-
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
         vec![
             Property::new("at", Expr::Tuple(vec![Expr::Num(960.0), Expr::Num(540.0)])),
@@ -211,27 +169,6 @@ impl Primitive for VectorFieldPrimitive {
                 paths: ctx.vector_paths.to_vec(),
             }]))
         }
-    }
-
-    fn build(
-        &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        ctx.timeline.process_plot_actor_dispatch(
-            label,
-            self.type_name(),
-            props,
-            modifiers,
-            children,
-            ctx.time_ms,
-            ctx.parent_label,
-            ctx.diagnostics,
-        );
-        Ok(())
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
@@ -290,27 +227,6 @@ impl Primitive for HeatmapPrimitive {
         }
     }
 
-    fn build(
-        &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        ctx.timeline.process_plot_actor_dispatch(
-            label,
-            self.type_name(),
-            props,
-            modifiers,
-            children,
-            ctx.time_ms,
-            ctx.parent_label,
-            ctx.diagnostics,
-        );
-        Ok(())
-    }
-
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
         vec![
             Property::new("at", Expr::Tuple(vec![Expr::Num(960.0), Expr::Num(540.0)])),
@@ -362,27 +278,6 @@ impl Primitive for ContourSetPrimitive {
                 paths: ctx.vector_paths.to_vec(),
             }]))
         }
-    }
-
-    fn build(
-        &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        ctx.timeline.process_plot_actor_dispatch(
-            label,
-            self.type_name(),
-            props,
-            modifiers,
-            children,
-            ctx.time_ms,
-            ctx.parent_label,
-            ctx.diagnostics,
-        );
-        Ok(())
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
@@ -438,27 +333,6 @@ impl Primitive for NumberPlanePrimitive {
                 paths: ctx.vector_paths.to_vec(),
             }]))
         }
-    }
-
-    fn build(
-        &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        ctx.timeline.process_plot_actor_dispatch(
-            label,
-            self.type_name(),
-            props,
-            modifiers,
-            children,
-            ctx.time_ms,
-            ctx.parent_label,
-            ctx.diagnostics,
-        );
-        Ok(())
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {

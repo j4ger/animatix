@@ -197,8 +197,6 @@ impl Timeline {
             at_expr,
             anchor_expr,
             offset_expr,
-            gap: 0.0,
-            padding: 0.0,
             graph_padding: {
                 // Parse graph padding directly from props so it's available before
                 // process_plot_actor runs (which stores it in env).
@@ -248,8 +246,6 @@ impl Timeline {
                 })
                 .map(|v| super::utils::ScaleType::from_str(&v.as_str()))
                 .unwrap_or(super::utils::ScaleType::Linear),
-            align: None,
-            cols: None,
         }
     }
 

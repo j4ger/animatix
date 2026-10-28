@@ -6,15 +6,11 @@
 //! Fragment content, compiles them together, and renders the glyphs with
 //! per-fragment highlight overlays.
 
-use crate::ast::{Expr, InlineItem, Modifier, Property};
+use crate::ast::Expr;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
-use crate::primitives::{
-    AssignmentCtx, BuildCtx, EquationFragment, EvaluateCtx, Primitive, RenderCommand,
-};
-use crate::timeline::lookup::{
-    evaluate_expr_with_lookup_diagnostic, parse_color_in_env_with_lookup_diagnostic,
-};
+use crate::primitives::{AssignmentCtx, EquationFragment, EvaluateCtx, Primitive, RenderCommand};
+use crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::{Environment, TrackAccessor};
 
 /// The `Fragment` primitive.
@@ -41,86 +37,6 @@ impl Primitive for FragmentPrimitive {
             highlight_radius: highlight.highlight_radius.get(ctx.time_ms, 3.0),
             highlight_blend: highlight.highlight_blend,
         })
-    }
-
-    fn build(
-        &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
-        _modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        // Clone env before mutable borrow of ctx.timeline.world.tracks
-        let env = ctx.timeline.env().clone();
-
-        // Ensure the track exists.
-        let track_id = ctx.timeline.world.spawn(label, "Fragment");
-        ctx.timeline.world.meta_mut(track_id).first_seen_ms = ctx.time_ms as u64;
-        ctx.timeline.world.ensure_text(track_id);
-        ctx.timeline.world.ensure_highlight(track_id);
-
-        // Extract the text body and store it as text_content.
-        for prop in props {
-            match prop.name.as_str() {
-                "text" => {
-                    let content_str = match &prop.value {
-                        Expr::Str(s) => s.clone(),
-                        other => {
-                            // Try evaluating with an empty env as fallback.
-                            let env = Environment::new();
-                            crate::timeline::evaluate_expr(other, &env)
-                                .map(|v| v.as_str().to_string())
-                                .unwrap_or_default()
-                        },
-                    };
-                    ctx.timeline
-                        .world
-                        .ensure_text(track_id)
-                        .text_content
-                        .ensure(String::new())
-                        .add_keyframe(ctx.time_ms as u64, content_str, Easing::Linear);
-                },
-                "highlight_color" => {
-                    // Initial highlight color (stored for later use by scene_eval).
-                    if let Expr::Ident(name) = &prop.value {
-                        if name == "auto" {
-                            // Use default highlight color
-                            ctx.timeline
-                                .world
-                                .ensure_highlight(track_id)
-                                .highlight_color
-                                .ensure([0.3, 0.5, 1.0, 1.0])
-                                .add_keyframe(
-                                    ctx.time_ms as u64,
-                                    [0.3, 0.5, 1.0, 1.0],
-                                    Easing::Linear,
-                                );
-                            continue;
-                        }
-                    }
-                    // Fall through to color parsing for non-auto values
-                    if let Some(color) = parse_color_in_env_with_lookup_diagnostic(
-                        label,
-                        "highlight_color",
-                        &prop.value,
-                        &env,
-                        ctx.diagnostics,
-                        label,
-                    ) {
-                        ctx.timeline
-                            .world
-                            .ensure_highlight(track_id)
-                            .highlight_color
-                            .ensure([0.3, 0.5, 1.0, 1.0])
-                            .add_keyframe(ctx.time_ms as u64, color, Easing::Linear);
-                    }
-                },
-                _ => {},
-            }
-        }
-
-        Ok(())
     }
 
     fn handle_assignment(

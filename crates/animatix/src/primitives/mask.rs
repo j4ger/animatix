@@ -1,8 +1,7 @@
 //! Mask container primitive.
 
-use crate::ast::{Expr, InlineItem, Modifier, Property};
-use crate::diagnostics::Diagnostic;
-use crate::primitives::{BuildCtx, Primitive};
+use crate::ast::{Expr, Property};
+use crate::primitives::Primitive;
 use crate::timeline::SceneDimensions;
 
 /// The `Mask` primitive.
@@ -15,15 +14,6 @@ impl Primitive for MaskPrimitive {
     fn type_name(&self) -> &str {
         "Mask"
     }
-    fn render_children(
-        &self,
-        ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,
-        _children: &[&str],
-    ) -> Result<(), crate::renderer::error::RenderError> {
-        let timeline = ctx.timeline;
-        timeline.render_mask_children_ctx(ctx);
-        Ok(())
-    }
 
     fn render_children_by_id(
         &self,
@@ -32,17 +22,6 @@ impl Primitive for MaskPrimitive {
     ) -> Result<(), crate::renderer::error::RenderError> {
         let timeline = ctx.timeline;
         timeline.render_mask_children_ctx(ctx);
-        Ok(())
-    }
-
-    fn build(
-        &self,
-        _ctx: &mut BuildCtx,
-        _label: &str,
-        _props: &[Property],
-        _modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
         Ok(())
     }
 

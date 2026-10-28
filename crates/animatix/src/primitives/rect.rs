@@ -1,8 +1,8 @@
 //! Rectangle shape primitive.
 
-use crate::ast::{Expr, InlineItem, Modifier, Property};
+use crate::ast::{Expr, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
-use crate::primitives::{BuildCtx, Primitive, RenderCtx};
+use crate::primitives::{Primitive, RenderCtx};
 use crate::timeline::{SceneDimensions, VectorShapeState, VelloPath};
 
 /// The `Rect` primitive.
@@ -14,17 +14,6 @@ pub const RECT: RectPrimitive = RectPrimitive;
 impl Primitive for RectPrimitive {
     fn type_name(&self) -> &str {
         "Rect"
-    }
-
-    fn build(
-        &self,
-        _ctx: &mut BuildCtx,
-        _label: &str,
-        _props: &[Property],
-        _modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        Ok(())
     }
 
     fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {

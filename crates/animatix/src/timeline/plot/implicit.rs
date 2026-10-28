@@ -1,8 +1,8 @@
 //! Implicit plot marching squares contour generation.
 
 use super::adaptive::math_to_screen_padded;
-use super::{CapturedEnv, Environment, FuncSource, Value, flatten_blend};
-use crate::timeline::modifier_runtime::ir::{CompiledExpr, evaluate_compiled_expr};
+use super::{Environment, FuncSource, Value, flatten_blend};
+use crate::timeline::modifier_runtime::ir::evaluate_compiled_expr;
 
 pub fn implicit_intersection(
     p0: (f64, f64, f64),
@@ -200,28 +200,4 @@ pub fn build_implicit_plot_path_from_source(
     }
 
     path
-}
-
-/// Legacy wrapper that builds an implicit plot path from args and a compiled body.
-/// Creates a `FuncSource::Compiled` and delegates to [`build_implicit_plot_path_from_source`].
-#[deprecated(
-    since = "0.5.0",
-    note = "use build_implicit_plot_path_from_source instead"
-)]
-#[allow(dead_code)] // Legacy public API shim; kept for backward compatibility.
-pub fn build_implicit_plot_path(
-    env: &mut Environment,
-    arg_names: &[String],
-    body: &CompiledExpr,
-    p_x_domain: &[f64; 2],
-    p_y_domain: &[f64; 2],
-    p_size: &[f64; 2],
-    resolution: usize,
-    padding: &[f64; 4],
-) -> kurbo::BezPath {
-    let source =
-        FuncSource::Compiled(arg_names.to_vec(), Box::new(body.clone()), CapturedEnv::default());
-    build_implicit_plot_path_from_source(
-        env, &source, p_x_domain, p_y_domain, p_size, resolution, padding,
-    )
 }

@@ -34,15 +34,13 @@ pub use adaptive::{
     sample_recursive_parametric, sample_recursive_parametric_impl, sample_recursive_polar,
     sample_recursive_polar_impl,
 };
-#[allow(unused_imports, deprecated)]
+#[allow(unused_imports)]
 pub use implicit::{
-    build_implicit_plot_path, build_implicit_plot_path_from_source, eval_implicit_source,
-    implicit_intersection,
+    build_implicit_plot_path_from_source, eval_implicit_source, implicit_intersection,
 };
-#[allow(unused_imports, deprecated)]
+#[allow(unused_imports)]
 pub use procedural::{
-    ProceduralPlot, ProceduralPlotKind, sample_plot_source, sample_procedural_plot,
-    sample_procedural_plot_at,
+    ProceduralPlot, ProceduralPlotKind, sample_plot_source, sample_procedural_plot_at,
 };
 
 use std::collections::HashMap;

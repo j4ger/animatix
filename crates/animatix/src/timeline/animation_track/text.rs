@@ -78,16 +78,6 @@ pub struct TextTracks {
 }
 
 impl TextTracks {
-    /// Evaluate `ascent` at `time_ms`.
-    pub fn ascent_get(&self, time_ms: u64) -> f32 {
-        self.ascent.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
-    }
-
-    /// Evaluate `descent` at `time_ms`.
-    pub fn descent_get(&self, time_ms: u64) -> f32 {
-        self.descent.as_ref().map(|t| t.evaluate(time_ms)).unwrap_or(0.0)
-    }
-
     /// Evaluate `baseline` at `time_ms`.
     /// This is the offset of the baseline from the text center (0,0) after centering paths.
     pub fn baseline_get(&self, time_ms: u64) -> f32 {

@@ -10,12 +10,6 @@ impl World {
         self.text.get(id)
     }
 
-    /// Mutable text tier for an entity, when present.
-    #[inline(always)]
-    pub fn text_mut(&mut self, id: EntityId) -> Option<&mut TextTracks> {
-        self.text.get_mut(id)
-    }
-
     /// Ensure an entity has a text tier and borrow it.
     #[inline(always)]
     pub fn ensure_text(&mut self, id: EntityId) -> &mut TextTracks {

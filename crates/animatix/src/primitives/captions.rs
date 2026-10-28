@@ -5,11 +5,10 @@
 //! word-pop, and kinetic line styling.
 //!
 //! The actual rendering is performed in `scene_eval.rs` (`render_captions_children`),
-//! reached through `render_children()`.
+//! reached through `render_children_by_id()`.
 
-use crate::ast::{Expr, InlineItem, Modifier, Property};
-use crate::diagnostics::Diagnostic;
-use crate::primitives::{BuildCtx, Primitive, RenderChildrenCtx, RenderCommand};
+use crate::ast::{Expr, Property};
+use crate::primitives::{Primitive, RenderChildrenCtx, RenderCommand};
 use crate::timeline::SceneDimensions;
 
 /// Opacity multiplier for the `transition_time` caption fade-in.
@@ -35,15 +34,6 @@ impl Primitive for CaptionsPrimitive {
         "Captions"
     }
 
-    fn render_children(
-        &self,
-        ctx: &mut RenderChildrenCtx<'_, '_, '_>,
-        _children: &[&str],
-    ) -> Result<(), crate::renderer::error::RenderError> {
-        ctx.timeline.render_captions_children_ctx(ctx);
-        Ok(())
-    }
-
     fn render_children_by_id(
         &self,
         ctx: &mut RenderChildrenCtx<'_, '_, '_>,
@@ -53,44 +43,13 @@ impl Primitive for CaptionsPrimitive {
         Ok(())
     }
 
-    fn build(
-        &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
-        _modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        ctx.timeline.add_node(label.to_string(), ctx.parent_label);
-        let track_id = ctx.timeline.world.spawn(label, "Captions");
-        ctx.timeline.world.set_first_seen(track_id, ctx.time_ms as u64);
-
-        // Check for direct transcript property on Captions
-        for prop in props {
-            if prop.name == "transcript" {
-                if let Expr::Str(ref path) = prop.value {
-                    let normalized = ctx.timeline.asset_cache.normalize_asset_url(path);
-                    if let Ok(content) = std::fs::read_to_string(&normalized) {
-                        if let Ok(transcript) =
-                            animatix_text::transcript::parse_transcript_auto(&content)
-                        {
-                            ctx.timeline.set_transcript(label, transcript);
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
-
     fn evaluate(
         &self,
         _ctx: &crate::primitives::EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<RenderCommand>>, crate::renderer::error::RenderError> {
         // Captions rendering is handled by `Timeline::render_captions_children_ctx`
-        // via `render_children()`. Return empty commands so hit regions are registered.
+        // via `render_children_by_id()`. Return empty commands so hit regions are registered.
         Ok(Some(vec![]))
     }
 

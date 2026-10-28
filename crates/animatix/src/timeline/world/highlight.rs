@@ -10,12 +10,6 @@ impl World {
         self.highlight.get(id)
     }
 
-    /// Mutable highlight tier for an entity, when present.
-    #[inline(always)]
-    pub fn highlight_mut(&mut self, id: EntityId) -> Option<&mut HighlightTracks> {
-        self.highlight.get_mut(id)
-    }
-
     /// Ensure an entity has a highlight tier and borrow it.
     #[inline(always)]
     pub fn ensure_highlight(&mut self, id: EntityId) -> &mut HighlightTracks {

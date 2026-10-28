@@ -399,14 +399,20 @@ pub trait Primitive: Send + Sync {
     // ── Build: AST → Timeline ──
 
     /// Build the actor into the timeline.
+    ///
+    /// Built-in primitives are lowered by their behavior family's
+    /// `build_extra` or by the generic actor pipeline, so only
+    /// runtime-registered extension primitives need to override this.
     fn build(
         &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>>;
+        _ctx: &mut BuildCtx,
+        _label: &str,
+        _props: &[Property],
+        _modifiers: &[Modifier],
+        _children: &[InlineItem],
+    ) -> Result<(), Vec<Diagnostic>> {
+        Ok(())
+    }
 
     // ── Render (optional, for shapes) ──
 
@@ -455,21 +461,10 @@ pub trait Primitive: Send + Sync {
 
     // ── Child rendering (containers) ──
 
-    /// Render this primitive's children.
-    ///
-    /// This is the legacy entry point; callers with `EntityId` handles should
-    /// call [`Primitive::render_children_by_id`].
-    fn render_children(
-        &self,
-        ctx: &mut RenderChildrenCtx<'_, '_, '_>,
-        children: &[&str],
-    ) -> Result<(), RenderError> {
-        ctx.render_children_default(children);
-        Ok(())
-    }
-
     /// Render this primitive's children directly by `EntityId`, avoiding string
     /// lookups on the hot render path.
+    ///
+    /// This is the only child-render entry point the scene evaluator calls.
     fn render_children_by_id(
         &self,
         ctx: &mut RenderChildrenCtx<'_, '_, '_>,

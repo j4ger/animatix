@@ -1,8 +1,8 @@
 //! Polygon shape primitive.
 
-use crate::ast::{Expr, InlineItem, Modifier, Property};
+use crate::ast::{Expr, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{BuildCtx, Primitive, RenderCtx};
+use crate::primitives::{Primitive, RenderCtx};
 use crate::timeline::kurbo_shapes::KurboShape;
 use crate::timeline::shapes::parse_point_list_expr;
 use crate::timeline::{Environment, SceneDimensions, VectorShapeState, VelloPath};
@@ -16,17 +16,6 @@ pub const POLYGON: PolygonPrimitive = PolygonPrimitive;
 impl Primitive for PolygonPrimitive {
     fn type_name(&self) -> &str {
         "Polygon"
-    }
-
-    fn build(
-        &self,
-        _ctx: &mut BuildCtx,
-        _label: &str,
-        _props: &[Property],
-        _modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        Ok(())
     }
 
     fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {

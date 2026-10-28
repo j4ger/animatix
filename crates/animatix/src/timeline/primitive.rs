@@ -3,10 +3,6 @@ use animatix_core::caps::{ActorCaps, ActorCategory};
 use crate::primitives::ChildProcessing;
 pub use crate::timeline::behavior::BehaviorFamily;
 
-/// Backward-compatibility alias for [`BehaviorFamily`].
-#[allow(dead_code)] // Backward-compatibility alias for BehaviorFamily
-pub type PrimitiveFamily = BehaviorFamily;
-
 /// Capability flags shared with schema/tooling descriptors.
 pub type PrimitiveCapabilities = animatix_syntax::schema::PrimitiveCapabilities;
 

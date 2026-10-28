@@ -1,8 +1,7 @@
 //! Cue leaf primitive for subtitles inside a Captions container.
 
-use crate::ast::{Expr, InlineItem, Modifier, Property};
-use crate::diagnostics::Diagnostic;
-use crate::primitives::{BuildCtx, CaptionCue, EvaluateCtx, Primitive, RenderCommand};
+use crate::ast::{Expr, Property};
+use crate::primitives::{CaptionCue, EvaluateCtx, Primitive, RenderCommand};
 use crate::timeline::SceneDimensions;
 use crate::timeline::TrackAccessor;
 
@@ -39,58 +38,6 @@ impl Primitive for CuePrimitive {
             end_ms,
             active_color,
         })
-    }
-
-    fn build(
-        &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
-        _modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        let env = ctx.timeline.env().clone();
-        ctx.timeline.add_node(label.to_string(), ctx.parent_label);
-        let track_id = ctx.timeline.world.spawn(label, "Cue");
-        ctx.timeline.world.set_first_seen(track_id, ctx.time_ms as u64);
-        ctx.timeline.world.ensure_text(track_id);
-
-        for prop in props {
-            if prop.name == "text" {
-                let content = match &prop.value {
-                    Expr::Str(s) => s.clone(),
-                    other => crate::timeline::evaluate_expr(other, &env)
-                        .map(|v| v.as_str().to_string())
-                        .unwrap_or_default(),
-                };
-                ctx.timeline
-                    .world
-                    .ensure_text(track_id)
-                    .text_content
-                    .ensure(String::new())
-                    .add_keyframe(ctx.time_ms as u64, content, crate::easing::Easing::Linear);
-            }
-        }
-
-        // A cue is only shown while `start <= t < end`. Both default to 0, so a
-        // cue that declares neither has an empty window and is invisible for the
-        // whole scene. Nothing else reports that, so say it here rather than
-        // letting the author wonder why their captions never appear.
-        let has_start = props.iter().any(|p| p.name == "start");
-        let has_end = props.iter().any(|p| p.name == "end");
-        if !has_start && !has_end {
-            ctx.diagnostics.push(crate::diagnostics::Diagnostic::warning(
-                crate::diagnostics::DiagnosticCode::NeverRevealed,
-                crate::diagnostics::DiagnosticPhase::Build,
-                format!(
-                    "Cue `{label}` declares no `start`/`end`, which default to 0, so its time \
-                     window is empty and it is never shown. Give it a window, e.g. \
-                     `{label}: Cue, text: \"…\", start: 0.0, end: 2.0`."
-                ),
-            ));
-        }
-
-        Ok(())
     }
 
     fn evaluate(

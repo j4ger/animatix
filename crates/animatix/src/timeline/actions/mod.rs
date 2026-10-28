@@ -93,18 +93,3 @@ pub fn process_action_with_extensions(
 pub fn get_action_signatures() -> Vec<ActionSignature> {
     get_builtin_actions().iter().map(|a| a.signature()).collect()
 }
-
-/// Exposes built-in and extension action signatures.
-pub fn get_action_signatures_with_extensions(
-    extensions: Option<&ExtensionContext>,
-) -> Vec<ActionSignature> {
-    let mut signatures = get_action_signatures();
-    if let Some(ctx) = extensions {
-        for signature in ctx.action_signatures() {
-            if !signatures.iter().any(|existing| existing.name == signature.name) {
-                signatures.push(signature);
-            }
-        }
-    }
-    signatures
-}

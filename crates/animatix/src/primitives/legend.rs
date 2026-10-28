@@ -124,7 +124,7 @@ fn tagged_color_opt(
     }
 }
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx};
+use crate::primitives::{EvaluateCtx, Primitive, RenderCommand, TextCompileCtx};
 use crate::renderer::error::RenderError;
 use crate::timeline::SceneDimensions;
 
@@ -453,26 +453,6 @@ pub fn evaluate_legend(
 impl Primitive for LegendPrimitive {
     fn type_name(&self) -> &str {
         "Legend"
-    }
-
-    fn build(
-        &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        build_extra_legend(
-            ctx.timeline,
-            label,
-            props,
-            modifiers,
-            children,
-            ctx.time_ms,
-            ctx.parent_label,
-            ctx.diagnostics,
-        )
     }
 
     fn evaluate(

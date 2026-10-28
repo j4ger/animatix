@@ -1,10 +1,10 @@
 use crate::timeline::{EntityId, Timeline};
 
 impl Timeline {
-    /// Adapter used by the [`crate::primitives::Primitive::render_children`]
+    /// Adapter used by the [`crate::primitives::Primitive::render_children_by_id`]
     /// Filter strategy: children render into an offscreen scene, the Filter's
     /// post-processing is applied, and the result is composited back. Reached
-    /// only through `FilterPrimitive::render_children`.
+    /// only through `FilterPrimitive::render_children_by_id`.
     fn render_filter_children(
         &self,
         node_id: EntityId,

@@ -1,8 +1,8 @@
 //! Math formula primitive (first-class Typst math).
 
-use crate::ast::{Expr, InlineItem, Modifier, Property};
+use crate::ast::{Expr, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{AssignmentCtx, BuildCtx, Primitive};
+use crate::primitives::{AssignmentCtx, Primitive};
 use crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::{Environment, SceneDimensions, TrackAccessor, Value};
 
@@ -15,35 +15,6 @@ pub const MATH: MathPrimitive = MathPrimitive;
 impl Primitive for MathPrimitive {
     fn type_name(&self) -> &str {
         "Math"
-    }
-
-    fn build(
-        &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        if let Err(e) = ctx.timeline.process_text_actor_decl(
-            self.type_name(),
-            label,
-            props,
-            modifiers,
-            ctx.time_ms,
-            ctx.parent_label,
-            ctx.diagnostics,
-        ) {
-            ctx.diagnostics.push(
-                Diagnostic::error(
-                    crate::diagnostics::DiagnosticCode::InvalidModifierValue,
-                    crate::diagnostics::DiagnosticPhase::Build,
-                    format!("{e}"),
-                )
-                .with_subject(label),
-            );
-        }
-        Ok(())
     }
 
     fn handle_assignment(

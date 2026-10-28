@@ -102,15 +102,6 @@ impl ProceduralPlot {
     }
 }
 
-/// Re-sample a procedural plot at frame time using the given environment.
-/// Compatibility shim for `scene_eval.rs` (pre-Task-4). Delegates to
-/// `sample_procedural_plot_at` with no active transitions.
-#[deprecated(since = "0.5.0", note = "use sample_procedural_plot_at instead")]
-#[allow(dead_code)] // Legacy public API shim; kept for backward compatibility.
-pub fn sample_procedural_plot(plot: &ProceduralPlot, env: &mut Environment) -> Vec<VelloPath> {
-    sample_procedural_plot_at(plot, env, 0, &[])
-}
-
 /// Re-sample a procedural plot at frame time, blending between function sources
 /// driven by `transitions` at `time_ms`.
 ///

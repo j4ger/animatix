@@ -25,7 +25,7 @@ impl PropertyRegistry {
                         if flags.contains(crate::timeline::property_registry::PropertyFlags::INJECTABLE)
                 );
                 PropertyEntry {
-                    descriptor: crate::property_descriptor::from_schema(&spec, injectable),
+                    descriptor: crate::property_descriptor::PropertyDescriptor::from_spec(&spec, injectable),
                     binding,
                 }
             })

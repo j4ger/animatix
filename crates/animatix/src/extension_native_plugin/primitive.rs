@@ -459,23 +459,6 @@ impl Primitive for NativePrimitiveAdapter {
         })
     }
 
-    fn render_children(
-        &self,
-        ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,
-        children: &[&str],
-    ) -> Result<(), crate::renderer::error::RenderError> {
-        let timeline = ctx.timeline;
-        match self.child_processing {
-            ChildProcessing::Filter => timeline.render_filter_children_ctx(ctx),
-            ChildProcessing::Glass => timeline.render_glass_children_ctx(ctx),
-            ChildProcessing::Mask => timeline.render_mask_children_ctx(ctx),
-            ChildProcessing::Equation => timeline.render_equation_children_ctx(ctx),
-            ChildProcessing::Captions => timeline.render_captions_children_ctx(ctx),
-            ChildProcessing::Generic => ctx.render_children_default(children),
-        }
-        Ok(())
-    }
-
     fn render_children_by_id(
         &self,
         ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,

@@ -6,9 +6,8 @@
 //! The actual rendering is performed in `scene_eval.rs` (special branch in
 //! `render_node_children`), so `evaluate()` returns an empty command list.
 
-use crate::ast::{Expr, InlineItem, Modifier, Property};
-use crate::diagnostics::Diagnostic;
-use crate::primitives::{BuildCtx, Primitive, RenderCommand};
+use crate::ast::{Expr, Property};
+use crate::primitives::{Primitive, RenderCommand};
 use crate::timeline::SceneDimensions;
 
 /// The `Equation` primitive.
@@ -21,15 +20,6 @@ impl Primitive for EquationPrimitive {
     fn type_name(&self) -> &str {
         "Equation"
     }
-    fn render_children(
-        &self,
-        ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,
-        _children: &[&str],
-    ) -> Result<(), crate::renderer::error::RenderError> {
-        let timeline = ctx.timeline;
-        timeline.render_equation_children_ctx(ctx);
-        Ok(())
-    }
 
     fn render_children_by_id(
         &self,
@@ -41,26 +31,13 @@ impl Primitive for EquationPrimitive {
         Ok(())
     }
 
-    fn build(
-        &self,
-        _ctx: &mut BuildCtx,
-        _label: &str,
-        _props: &[Property],
-        _modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        // Child Fragment actors are processed by the generic build path
-        // (process_actor_decl → process_inline_items). No extra work needed here.
-        Ok(())
-    }
-
     fn evaluate(
         &self,
         _ctx: &crate::primitives::EvaluateCtx,
         _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<RenderCommand>>, crate::renderer::error::RenderError> {
         // Equation rendering is handled by `Timeline::render_equation_children`
-        // (reached through this primitive's `render_children` override). Return
+        // (reached through this primitive's `render_children_by_id` override). Return
         // empty commands so the trait-dispatch path computes hit regions for the
         // container itself.
         Ok(Some(vec![]))

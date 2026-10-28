@@ -224,13 +224,6 @@ impl<'w> EntityMut<'w> {
         self.world.child_order.get_mut(self.id)
     }
 
-    /// Mutably borrow the entity's mathematical coordinate frame, when it is a
-    /// plot host.
-    #[inline(always)]
-    pub fn coordinate_frame_mut(&mut self) -> Option<&mut CoordinateFrameComponent> {
-        self.world.coordinate_frame.get_mut(self.id)
-    }
-
     /// Mutably borrow the entity's `persist`/`remove` state, if present.
     #[inline(always)]
     pub fn persistence_mut(&mut self) -> Option<&mut PersistenceComponent> {

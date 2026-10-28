@@ -1,6 +1,6 @@
 //! Grid layout container primitive.
 
-use crate::ast::{Expr, InlineItem, Modifier, Property};
+use crate::ast::{Expr, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{BuildCtx, Primitive};
 use crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic;
@@ -15,17 +15,6 @@ pub const GRID: GridPrimitive = GridPrimitive;
 impl Primitive for GridPrimitive {
     fn type_name(&self) -> &str {
         "Grid"
-    }
-    fn build(
-        &self,
-        _ctx: &mut BuildCtx,
-        _label: &str,
-        _props: &[Property],
-        _modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        // Container setup happens in finalize_container_build (after children are processed)
-        Ok(())
     }
 
     fn finalize_container_build(

@@ -1,8 +1,8 @@
 //! Line shape primitive.
 
-use crate::ast::{Expr, InlineItem, Modifier, Property};
+use crate::ast::{Expr, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{BuildCtx, Primitive, RenderCtx};
+use crate::primitives::{Primitive, RenderCtx};
 use crate::timeline::{
     ActorCaps, Environment, SceneAnchor, SceneDimensions, VectorShapeState, VelloPath,
     lookup_parse_numeric_vec2_with_lookup_diagnostic as parse_numeric_vec2_with_lookup_diagnostic,
@@ -17,17 +17,6 @@ pub const LINE: LinePrimitive = LinePrimitive;
 impl Primitive for LinePrimitive {
     fn type_name(&self) -> &str {
         "Line"
-    }
-
-    fn build(
-        &self,
-        _ctx: &mut BuildCtx,
-        _label: &str,
-        _props: &[Property],
-        _modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        Ok(())
     }
 
     fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {

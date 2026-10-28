@@ -3,10 +3,8 @@
 use super::*;
 
 impl Timeline {
-    /// Adapter used by the [`crate::primitives::Primitive::render_children`]
-    /// Filter strategy: children render into an offscreen scene, the Filter's
-    /// post-processing is applied, and the result is composited back. Reached
-    /// only through `FilterPrimitive::render_children`.
+    /// Evaluate the timeline at `time_s` and build the renderable scene at
+    /// the requested dimensions.
     pub fn evaluate(&self, time_s: f64, scene_dimensions: SceneDimensions) -> vello::Scene {
         let mut fb = None;
         self.evaluate_with_debug(time_s, scene_dimensions, DebugRenderOptions::default(), &mut fb)

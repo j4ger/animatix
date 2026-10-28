@@ -260,12 +260,6 @@ impl World {
             .unwrap_or(crate::timeline::behavior::BehaviorId::UNKNOWN)
     }
 
-    /// Set an entity's behavior ID directly (extension registration / dynamic rebinding).
-    pub fn set_behavior(&mut self, id: EntityId, behavior: crate::timeline::behavior::BehaviorId) {
-        self.ensure_len();
-        *self.behavior.get_mut(id) = behavior;
-    }
-
     /// Borrow an entity's coordinate frame, when it is a plot host.
     #[inline(always)]
     pub fn coordinate_frame(&self, id: EntityId) -> Option<&CoordinateFrameComponent> {

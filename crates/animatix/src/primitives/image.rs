@@ -1,9 +1,9 @@
 //! Image media primitive.
 
-use crate::ast::{Expr, InlineItem, Modifier, Property};
+use crate::ast::{Expr, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
-use crate::primitives::{AssignmentCtx, BuildCtx, Primitive};
+use crate::primitives::{AssignmentCtx, Primitive};
 use crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{Environment, SceneDimensions, Value, preserve_instant_delayed_value};
@@ -17,25 +17,6 @@ pub const IMAGE: ImagePrimitive = ImagePrimitive;
 impl Primitive for ImagePrimitive {
     fn type_name(&self) -> &str {
         "Image"
-    }
-    fn build(
-        &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        ctx.timeline.process_media_actor_decl(
-            self.type_name(),
-            label,
-            props,
-            modifiers,
-            ctx.time_ms,
-            ctx.parent_label,
-            ctx.diagnostics,
-        );
-        Ok(())
     }
 
     fn handle_assignment(

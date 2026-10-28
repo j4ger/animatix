@@ -10,12 +10,6 @@ impl World {
         self.shape.get(id)
     }
 
-    /// Mutable shape tier for an entity, when present.
-    #[inline(always)]
-    pub fn shape_mut(&mut self, id: EntityId) -> Option<&mut ShapeTracks> {
-        self.shape.get_mut(id)
-    }
-
     /// Ensure an entity has a shape tier and borrow it.
     #[inline(always)]
     pub fn ensure_shape(&mut self, id: EntityId) -> &mut ShapeTracks {

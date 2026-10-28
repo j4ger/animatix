@@ -215,7 +215,7 @@ impl RenderOutputs<'_, '_> {
     }
 }
 
-/// Mutable context passed to [`crate::primitives::Primitive::render_children`].
+/// Mutable context passed to [`crate::primitives::Primitive::render_children_by_id`].
 ///
 /// The scene-subtree renderer hands each container primitive this context so the
 /// primitive drives its own recursion, instead of the pipeline branching on a

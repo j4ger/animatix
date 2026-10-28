@@ -1,10 +1,8 @@
 //! Bar chart / column chart primitive.
 
-use crate::ast::{Expr, InlineItem, Modifier, Property};
+use crate::ast::{Expr, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
-use crate::primitives::{
-    AssignmentCtx, BuildCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx,
-};
+use crate::primitives::{AssignmentCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx};
 use crate::renderer::error::RenderError;
 use crate::timeline::{BarDataTransition, Environment, SceneDimensions, parse_bar_chart_data_expr};
 
@@ -17,27 +15,6 @@ pub const BAR_CHART: BarChartPrimitive = BarChartPrimitive;
 impl Primitive for BarChartPrimitive {
     fn type_name(&self) -> &str {
         "BarChart"
-    }
-
-    fn build(
-        &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        ctx.timeline.process_plot_actor_dispatch(
-            label,
-            self.type_name(),
-            props,
-            modifiers,
-            children,
-            ctx.time_ms,
-            ctx.parent_label,
-            ctx.diagnostics,
-        );
-        Ok(())
     }
 
     fn evaluate(

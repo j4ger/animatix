@@ -9,9 +9,9 @@ use std::sync::Arc;
 
 use kurbo::{Affine, Shape as _};
 
-use crate::ast::{Expr, InlineItem, Modifier, Property};
-use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
-use crate::primitives::{AssignmentCtx, BuildCtx, EvaluateCtx, Primitive, RenderCommand};
+use crate::ast::{Expr, Property};
+use crate::diagnostics::Diagnostic;
+use crate::primitives::{AssignmentCtx, EvaluateCtx, Primitive, RenderCommand};
 use crate::renderer::error::RenderError;
 use crate::renderer::text::TextKind;
 use crate::renderer::types::{GradientSpec, TextPath};
@@ -331,35 +331,6 @@ pub const COUNTER: CounterPrimitive = CounterPrimitive;
 impl Primitive for CounterPrimitive {
     fn type_name(&self) -> &str {
         "Counter"
-    }
-
-    fn build(
-        &self,
-        ctx: &mut BuildCtx,
-        label: &str,
-        props: &[Property],
-        modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        if let Err(e) = ctx.timeline.process_text_actor_decl(
-            self.type_name(),
-            label,
-            props,
-            modifiers,
-            ctx.time_ms,
-            ctx.parent_label,
-            ctx.diagnostics,
-        ) {
-            ctx.diagnostics.push(
-                Diagnostic::error(
-                    DiagnosticCode::InvalidModifierValue,
-                    DiagnosticPhase::Build,
-                    format!("{e}"),
-                )
-                .with_subject(label),
-            );
-        }
-        Ok(())
     }
 
     fn handle_assignment(

@@ -1,8 +1,8 @@
 //! Custom path shape primitive.
 
-use crate::ast::{Expr, InlineItem, Modifier, Property};
+use crate::ast::{Expr, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
-use crate::primitives::{BuildCtx, Primitive, RenderCtx};
+use crate::primitives::{Primitive, RenderCtx};
 use crate::timeline::path_data::parse_svg_path_data;
 use crate::timeline::shapes::parse_path_commands_expr;
 use crate::timeline::{Environment, SceneDimensions, Value, VectorShapeState, VelloPath};
@@ -16,18 +16,6 @@ pub const PATH: PathPrimitive = PathPrimitive;
 impl Primitive for PathPrimitive {
     fn type_name(&self) -> &str {
         "Path"
-    }
-
-    fn build(
-        &self,
-        _ctx: &mut BuildCtx,
-        _label: &str,
-        _props: &[Property],
-        _modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        // Build handled by legacy dispatch
-        Ok(())
     }
 
     fn render(&self, ctx: &RenderCtx) -> Option<Vec<VelloPath>> {

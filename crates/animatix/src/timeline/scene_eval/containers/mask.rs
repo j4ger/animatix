@@ -4,7 +4,7 @@ use crate::timeline::{DEFAULT_LAYOUT_HALF_SIZE, EntityId, Timeline, TrackAccesso
 
 impl Timeline {
     /// Mask strategy: children render inside the Mask's clip geometry. Reached
-    /// only through `MaskPrimitive::render_children`.
+    /// only through `MaskPrimitive::render_children_by_id`.
     fn render_mask_children(
         &self,
         node_id: EntityId,

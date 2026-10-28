@@ -3,9 +3,8 @@
 //! Renders children to an offscreen texture and applies post-processing
 //! filters (blur, brightness, contrast, saturate, hue-rotate, sepia).
 
-use crate::ast::{InlineItem, Modifier, Property};
-use crate::diagnostics::Diagnostic;
-use crate::primitives::{BuildCtx, Primitive};
+use crate::ast::Property;
+use crate::primitives::Primitive;
 use crate::timeline::SceneDimensions;
 
 /// The `Filter` primitive.
@@ -18,15 +17,6 @@ impl Primitive for FilterPrimitive {
     fn type_name(&self) -> &str {
         "Filter"
     }
-    fn render_children(
-        &self,
-        ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,
-        _children: &[&str],
-    ) -> Result<(), crate::renderer::error::RenderError> {
-        let timeline = ctx.timeline;
-        timeline.render_filter_children_ctx(ctx);
-        Ok(())
-    }
 
     fn render_children_by_id(
         &self,
@@ -35,18 +25,6 @@ impl Primitive for FilterPrimitive {
     ) -> Result<(), crate::renderer::error::RenderError> {
         let timeline = ctx.timeline;
         timeline.render_filter_children_ctx(ctx);
-        Ok(())
-    }
-
-    fn build(
-        &self,
-        _ctx: &mut BuildCtx,
-        _label: &str,
-        _props: &[Property],
-        _modifiers: &[Modifier],
-        _children: &[InlineItem],
-    ) -> Result<(), Vec<Diagnostic>> {
-        // Build handled by legacy dispatch
         Ok(())
     }
 
