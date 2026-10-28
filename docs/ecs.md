@@ -399,3 +399,43 @@ deliberate, reviewed change moves the threshold).
 Splitting rules: pure moves plus `pub use` re-exports, no behaviour change in
 the same commit; `foo.rs` becomes `foo/mod.rs` + modules named after the domain
 they hold, and `mod.rs` keeps only declarations, re-exports and the entry point.
+
+### Structure gate (planned)
+
+Phase 3 replaces mechanical splitting driven only by the file-size ceiling with
+direct limits on function length and file size. `scripts/structure.sh` is added
+in this phase but is **not wired into `scripts/ci.sh` yet**; the file-size
+contract above is unchanged, and both scripts can be run independently until
+the follow-up integration lands.
+
+- **Files.** Production files are limited to 1000 lines and test files to 2000.
+  Test paths are `*/tests/*`, `*/tests.rs` and `*_tests.rs`.
+  `crates/animatix-plugin-api/src/lib.rs` remains the one file-size exemption
+  (it is a single `repr(C)` ABI surface); its functions are still length
+  checked.
+- **Functions.** Production functions are limited to 200 lines and test
+  functions to 300. A function's length is the line span from its `fn` line
+  through the closing brace, inclusive, so a multi-line signature, generics and
+  a `where` clause count. A function is treated as a test when it is in a test
+  path, inside a lexically detected `#[cfg(test)] mod`, or carries a
+  `#[test]`-family attribute.
+- **Function allowlist.** An over-limit function is frozen in
+  `scripts/function-size-allowlist.tsv` as
+  `path<TAB>fn_name<TAB>max_lines`, at its current length. The actual length may
+  not exceed that row. This is a ratchet: a row is deleted when the function is
+  split, shortened below its threshold, renamed or moved, and a row is never
+  added for new code or raised. `scripts/structure.sh --seed` re-freezes the
+  tree but refuses to raise an existing row. Stale rows fail the gate.
+- **`mod.rs`.** A `mod.rs` over 100 lines that still declares `impl` or a
+  body-bearing `fn` is frozen in `scripts/mod-rs-allowlist.tsv`
+  (`path<TAB>max_lines`). A declaration-only `mod.rs` (modules, `use`/`pub use`
+  and other declarations only) is not limited. Rows are deleted when the
+  implementations move into a domain module or the file drops to 100 lines.
+- **Output.** Limit violations fail with
+  `FAIL path:line fn name: N lines > max M`; stale ratchet rows fail with
+  `FAIL stale row <allowlist>:<line>: …`; a clean run prints
+  `structure: ok (X files, Y functions, Z allowlisted)`.
+
+Integration — adding the gate to `scripts/ci.sh`, its matrix job, and removing
+the superseded 800-line ratchet — is a separate follow-up, not part of this
+draft.
