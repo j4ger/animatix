@@ -510,28 +510,37 @@ impl Timeline {
             // build-time-computed bounds (image_size is irrelevant —
             // shape commands never carry images), skipping the per-node
             // bezpath `bounding_box` unions entirely.
-            let memo_bounds = self.world.take_shape_command_bounds(node_id);
-            let image_size = if self.world.caps(node_id).image_payload {
-                self.world
-                    .image_track(node_id)
-                    .is_some_and(|t| t.evaluate(time_ms).is_some())
-                    .then_some(half_size)
+            let caps = self.world.caps(node_id);
+            let memo_bounds = if caps.is_shape {
+                self.world.take_shape_command_bounds(node_id)
             } else {
                 None
             };
             let local_bounds: Option<kurbo::Rect> = match memo_bounds {
                 Some(bounds) => bounds,
                 None => {
-                    let mut bounds: Option<kurbo::Rect> = None;
-                    for cmd in &commands {
-                        if let Some(cmd_bounds) = cmd.local_bounds(image_size) {
-                            bounds = Some(match bounds {
-                                Some(existing) => existing.union(cmd_bounds),
-                                None => cmd_bounds,
-                            });
+                    if let Some(lb) = self.world.local_bounds(node_id) {
+                        Some(lb)
+                    } else {
+                        let image_size = if caps.image_payload {
+                            self.world
+                                .image_track(node_id)
+                                .is_some_and(|t| t.evaluate(time_ms).is_some())
+                                .then_some(half_size)
+                        } else {
+                            None
+                        };
+                        let mut bounds: Option<kurbo::Rect> = None;
+                        for cmd in &commands {
+                            if let Some(cmd_bounds) = cmd.local_bounds(image_size) {
+                                bounds = Some(match bounds {
+                                    Some(existing) => existing.union(cmd_bounds),
+                                    None => cmd_bounds,
+                                });
+                            }
                         }
+                        bounds
                     }
-                    bounds
                 },
             };
             // Shape-primitive commands came from the track's command
@@ -549,6 +558,11 @@ impl Timeline {
                     .world
                     .text_or_default(node_id)
                     .evaluate_paths(self.world.style(node_id), time_ms);
+                let has_image = caps.image_payload
+                    && self
+                        .world
+                        .image_track(node_id)
+                        .is_some_and(|t| t.evaluate(time_ms).is_some());
                 let _ = self.add_node_debug_overlays(
                     &svg_paths,
                     half_size,
@@ -556,7 +570,7 @@ impl Timeline {
                     scene,
                     &vector_paths,
                     &text_paths,
-                    image_size.is_some(),
+                    has_image,
                 );
             }
 

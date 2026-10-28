@@ -215,3 +215,11 @@ pub fn snapshot_style_at(
     collapse_style_tracks(&mut snapshot, time_ms);
     snapshot
 }
+
+/// Snapshot the local bounds for an entity.
+pub fn snapshot_local_bounds(
+    world: &crate::timeline::World,
+    id: crate::timeline::EntityId,
+) -> Option<kurbo::Rect> {
+    world.local_bounds(id)
+}

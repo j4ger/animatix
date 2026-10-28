@@ -135,6 +135,9 @@ fn inject_entry(
     if let Some(effects) = entry.effects.clone() {
         world.effects.insert(id, effects);
     }
+    if let Some(bounds) = entry.local_bounds {
+        world.set_local_bounds(id, bounds);
+    }
 
     // Re-root top-level entries only. `adopt` already placed the entity in the
     // root set; the call makes the intent explicit and keeps the ordering rule

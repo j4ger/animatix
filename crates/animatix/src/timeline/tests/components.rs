@@ -371,6 +371,7 @@ fn spawn_replacing_resets_every_authored_required_store() {
             kind: PropertyKind::F32,
             track: DynTrack::empty(PropertyKind::F32),
         }]);
+        world.set_local_bounds(id, kurbo::Rect::new(-10.0, -10.0, 10.0, 10.0));
     }
 
     // The bounds slot is stamped lazily by `EvalCaches::ensure_bounds_registry`
@@ -399,4 +400,44 @@ fn spawn_replacing_resets_every_authored_required_store() {
     assert!(world.text(id).is_none(), "text resets");
     assert!(world.shape(id).is_none(), "shape resets");
     assert!(world.property_plan.get(id).is_empty(), "property plan resets");
+    assert!(world.local_bounds(id).is_none(), "local bounds resets");
+}
+
+#[test]
+fn static_actors_precompute_local_bounds() {
+    let (stmts, errors) = animatix_syntax::parser::parse_source(
+        r#"
+#0s
+box: Rect, size: (100, 60), color: accent.primary
+title: Text, text: "Hello World"
+"#,
+    );
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let timeline = Timeline::build(&stmts.expect("parsed AST"));
+
+    let box_id = timeline.world().get_id("box").expect("box exists");
+    let box_bounds = timeline.world().local_bounds(box_id).expect("box local bounds");
+    assert_eq!(box_bounds, kurbo::Rect::new(-50.0, -30.0, 50.0, 30.0));
+
+    let title_id = timeline.world().get_id("title").expect("title exists");
+    let title_bounds = timeline.world().local_bounds(title_id).expect("title local bounds");
+    assert!(title_bounds.width() > 0.0);
+    assert!(title_bounds.height() > 0.0);
+
+    let (stmts, errors) = animatix_syntax::parser::parse_source(
+        r#"
+#0s
+anim_box: Rect, size: (100, 60), color: accent.primary
+#1s
+anim_box.size = (200, 120) [500ms]
+"#,
+    );
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let timeline_anim = Timeline::build(&stmts.expect("parsed AST"));
+    let anim_id = timeline_anim.world().get_id("anim_box").expect("anim_box exists");
+    assert_eq!(
+        timeline_anim.world().local_bounds(anim_id),
+        None,
+        "animated size should not have precomputed local bounds"
+    );
 }

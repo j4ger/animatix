@@ -13,6 +13,9 @@ fn make_timeline_with_persistent_actors() -> Timeline {
     let rect_id = timeline.world.spawn("rect1", "Rect");
     timeline
         .world
+        .set_local_bounds(rect_id, kurbo::Rect::new(-50.0, -25.0, 50.0, 25.0));
+    timeline
+        .world
         .style_mut(rect_id)
         .opacity
         .ensure(1.0)
@@ -632,6 +635,24 @@ fn compute_carry_bag_propagates_child_persistence_flag() {
     assert!(!child_entry.persistent);
 }
 
+#[test]
+fn carry_preserves_local_bounds() {
+    let mut timeline = Timeline::new();
+    let id = timeline.world.spawn("rect1", "Rect");
+    let bounds = kurbo::Rect::new(-40.0, -20.0, 40.0, 20.0);
+    timeline.world.set_local_bounds(id, bounds);
+    timeline.set_persistence_flag("rect1", true);
+
+    let bag = timeline.compute_carry_bag(0, true);
+    let entry = bag.entries.get("rect1").expect("rect1 entry");
+    assert_eq!(entry.local_bounds, Some(bounds));
+
+    let mut dest = Timeline::new();
+    dest.inject_carry_bag(&bag, &timeline, 0, [800.0, 600.0], &mut Vec::new());
+    let dest_id = dest.world.get_id("rect1").expect("rect1 in dest");
+    assert_eq!(dest.world.local_bounds(dest_id), Some(bounds));
+}
+
 // -----------------------------------------------------------------------
 // Serde round-trip tests (feature-gated)
 // -----------------------------------------------------------------------
@@ -651,6 +672,7 @@ fn carry_bag_serde_round_trip() {
     let entry = bag2.entries.get("rect1").expect("rect1 must survive round-trip");
     assert!(entry.persistent);
     assert_eq!(entry.children.len(), 1);
+    assert_eq!(entry.local_bounds, Some(kurbo::Rect::new(-50.0, -25.0, 50.0, 25.0)));
 
     // Opacity should be ≈ 0.75 (interpolated at 500ms).
     let opacity = entry.style.opacity.as_ref().expect("opacity track must survive round-trip");

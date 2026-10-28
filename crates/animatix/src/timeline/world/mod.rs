@@ -71,20 +71,10 @@ pub struct World {
     /// Per-entity visibility/lock/camera metadata.
     pub(crate) meta: ComponentStore<EntityMeta>,
     /// Layout configuration for `Row`/`Col`/`Grid`/`Stack` actors.
-    ///
-    /// Presence means the entity is a layout container. The authored child
-    /// order lives on [`ContainerMetadata::child_order`] as entity ids;
-    /// animated child-order tracks are the separate
-    /// [`Self::child_order`] store.
     pub(crate) container_layout: ComponentStore<ContainerMetadata>,
     /// Animated child order for containers targeted by `swap` / `reorder`.
     pub(crate) child_order: ComponentStore<ChildOrderComponent>,
-    /// Mathematical coordinate frame for plot hosts (`Graph` and any primitive
-    /// with the `plot_host` capability).
-    ///
-    /// This is the sole source for a hosted child's coordinate resolution. The
-    /// `{label}_x_domain` / `_y_domain` / `_padding` env entries are derived
-    /// build-time expression variables, never a fallback.
+    /// Mathematical coordinate frame for plot hosts (`Graph` and any primitive with `plot_host`).
     pub(crate) coordinate_frame: ComponentStore<CoordinateFrameComponent>,
     /// `persist` / `remove` state for actors that were targeted by an action.
     pub(crate) persistence: ComponentStore<PersistenceComponent>,
@@ -92,12 +82,9 @@ pub struct World {
     pub(crate) auto_color: ComponentStore<AutoColorComponent>,
     /// Parsed speech transcript for `Audio` / `Captions` actors.
     pub(crate) transcript: ComponentStore<TranscriptComponent>,
+    /// Precomputed or cached local-space bounding box for an entity.
+    pub(crate) local_bounds: ComponentStore<crate::timeline::LocalBoundsComponent>,
     /// Legend data for actors that participate in a legend.
-    ///
-    /// A `Legend` host carries its presentation settings and the entries the
-    /// post-build scene scan generated; an ordinary actor carries only the
-    /// color that makes it an automatic candidate. Presence is optional: an
-    /// actor with no legend involvement has no component.
     pub(crate) legend: ComponentStore<LegendTracks>,
     /// Source span of the actor's declaration, for editor navigation.
     pub(crate) decl_span: ComponentStore<animatix_syntax::ast::Span>,
@@ -109,23 +96,9 @@ pub struct World {
     pub(crate) image_payload: ComponentStore<ImagePayload>,
     /// Root entities in authored/insertion order.
     pub(crate) roots: Vec<EntityId>,
-    /// Build-time command buffer: a child label whose track has not been
-    /// created yet, mapped to its already-existing parent entity.
-    ///
-    /// `add_node` runs before the primitive creates the child's track, so the
-    /// link cannot be written as an id yet. The pending entry is adopted by
-    /// `spawn` the moment the entity exists. This is build state,
-    /// not runtime storage: it is empty after a completed build.
+    /// Build-time command buffer: pending parent mappings.
     pub(crate) pending_parents: HashMap<String, EntityId>,
-    /// Build-time command buffer: an auto-color slot assigned while the
-    /// declaration's properties were evaluated, before its entity existed.
-    ///
-    /// `color: auto` is resolved during property evaluation, but the primitive
-    /// creates the track only afterwards (and build code between the two
-    /// deliberately observes the entity as *not yet spawned*, e.g.
-    /// `is_first_decl`). The slot is attached by `spawn`
-    /// when the entity appears. Empty after a completed build; not runtime
-    /// storage.
+    /// Build-time command buffer: pending auto-color slot.
     pub(crate) pending_auto_color: Option<(String, usize)>,
     /// Build-time root order for labels whose entity does not exist yet.
     pub(crate) pending_roots: Vec<String>,
@@ -266,6 +239,7 @@ impl World {
         self.persistence.reset_at(id);
         self.auto_color.reset_at(id);
         self.transcript.reset_at(id);
+        self.local_bounds.reset_at(id);
         self.effects.reset_at(id);
         self.legend.reset_at(id);
         self.plot_payload.reset_at(id);
@@ -547,6 +521,7 @@ impl World {
         self.persistence.ensure_len(len);
         self.auto_color.ensure_len(len);
         self.transcript.ensure_len(len);
+        self.local_bounds.ensure_len(len);
         self.legend.ensure_len(len);
         self.effects.ensure_len(len);
         self.plot_payload.ensure_len(len);
@@ -580,6 +555,7 @@ impl World {
         self.persistence.clear();
         self.auto_color.clear();
         self.transcript.clear();
+        self.local_bounds.clear();
         self.legend.clear();
         self.effects.clear();
         self.plot_payload.clear();

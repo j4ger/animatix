@@ -138,6 +138,12 @@ impl<'w> EntityRef<'w> {
     pub fn image_payload(self) -> Option<&'w crate::primitives::ImagePayload> {
         self.world.image_payload(self.id)
     }
+
+    /// Precomputed or cached local-space bounding box for the entity.
+    #[inline(always)]
+    pub fn local_bounds(self) -> Option<kurbo::Rect> {
+        self.world.local_bounds(self.id)
+    }
 }
 
 /// Borrowed mutable view of one entity.

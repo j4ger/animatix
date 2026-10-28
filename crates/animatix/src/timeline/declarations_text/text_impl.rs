@@ -1,3 +1,5 @@
+use kurbo::Shape;
+
 use super::*;
 
 impl Timeline {
@@ -88,14 +90,13 @@ impl Timeline {
                     .unwrap_or_default();
                 },
                 "font_size" => {
-                    let value = evaluate_expr_with_lookup_diagnostic(
+                    font_size = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
                         &eval_env,
                         diagnostics,
                         &prop_subject,
                     )
-                    .unwrap_or(super::Value::Num(0.0));
-                    font_size = value.as_num() as f32;
+                    .map_or(0.0, |v| v.as_num() as f32);
                 },
                 "font_weight" => {
                     let value = evaluate_expr_with_lookup_diagnostic(
@@ -125,45 +126,41 @@ impl Timeline {
                     .unwrap_or_else(|| "normal".to_string());
                 },
                 "line_height" => {
-                    let value = evaluate_expr_with_lookup_diagnostic(
+                    line_height = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
                         &eval_env,
                         diagnostics,
                         &prop_subject,
                     )
-                    .unwrap_or(super::Value::Num(1.2));
-                    line_height = value.as_num() as f32;
+                    .map_or(1.2, |v| v.as_num() as f32);
                 },
                 "letter_spacing" => {
-                    let value = evaluate_expr_with_lookup_diagnostic(
+                    letter_spacing = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
                         &eval_env,
                         diagnostics,
                         &prop_subject,
                     )
-                    .unwrap_or(super::Value::Num(0.0));
-                    letter_spacing = value.as_num() as f32;
+                    .map_or(0.0, |v| v.as_num() as f32);
                 },
                 "word_spacing" => {
-                    let value = evaluate_expr_with_lookup_diagnostic(
+                    word_spacing = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
                         &eval_env,
                         diagnostics,
                         &prop_subject,
                     )
-                    .unwrap_or(super::Value::Num(0.0));
-                    word_spacing = value.as_num() as f32;
+                    .map_or(0.0, |v| v.as_num() as f32);
                 },
                 // Canonical name per spec; `max_width` kept as a legacy alias.
                 "text_max_width" | "max_width" => {
-                    let value = evaluate_expr_with_lookup_diagnostic(
+                    max_width = evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
                         &eval_env,
                         diagnostics,
                         &prop_subject,
                     )
-                    .unwrap_or(super::Value::Num(0.0));
-                    max_width = value.as_num() as f32;
+                    .map_or(0.0, |v| v.as_num() as f32);
                 },
                 "text_align" => {
                     text_align = evaluate_expr_with_lookup_diagnostic(
@@ -233,17 +230,11 @@ impl Timeline {
                     let resolved_color = if matches!(&prop.value, Expr::Ident(name) if name == "auto")
                     {
                         self.auto_color_for_label(&label_str).or_else(|| {
-                            diagnostics.push(
-                                Diagnostic::warning(
-                                    DiagnosticCode::UnknownColorReference,
-                                    DiagnosticPhase::Build,
-                                    format!(
-                                        "Color value 'auto' on '{}.color' requests automatic colorscheme assignment, but the selected colorscheme has no auto-assignment colors; using the default color instead.",
-                                        label_str
-                                    ),
-                                )
-                                .with_subject(&prop_subject),
-                            );
+                            diagnostics.push(Diagnostic::warning(
+                                DiagnosticCode::UnknownColorReference,
+                                DiagnosticPhase::Build,
+                                format!("Color value 'auto' on '{label_str}.color' requests automatic colorscheme assignment, but the selected colorscheme has no auto-assignment colors; using the default color instead."),
+                            ).with_subject(&prop_subject));
                             None
                         })
                     } else {
@@ -575,11 +566,7 @@ impl Timeline {
             self.font_context.as_ref(),
         )?;
 
-        // Glyph-coverage probe: the render path, not this precompile, decides
-        // whether the fast path shapes the text (hence the compiler's
-        // `text_fast_path` flag here, not the declaration's `false` above).
-        // Warn when its face set cannot cover the content so tofu is
-        // diagnosed at build time instead of drawn in silence.
+        // Warn when fast path face set cannot cover glyphs to avoid silent tofu.
         let missing_glyphs = crate::renderer::text::missing_text_glyphs(
             text_kind,
             &text_content,
@@ -600,11 +587,7 @@ impl Timeline {
                 Diagnostic::warning(
                     DiagnosticCode::MissingGlyph,
                     DiagnosticPhase::Build,
-                    format!(
-                        "Text '{subject}' has no glyph for {listed} in the fast-path face set; \
-                         they will be skipped or drawn as boxes. Use characters the font \
-                         covers, or register a font that has them."
-                    ),
+                    format!("Text '{subject}' has no glyph for {listed} in the fast-path face set; they will be skipped or drawn as boxes. Use characters the font covers, or register a font that has them."),
                 )
                 .with_subject(subject),
             );
@@ -625,9 +608,7 @@ impl Timeline {
             }
         }
 
-        // Store font metrics on the track for baseline alignment
-        // Metrics are set at t_end_ms (when new text appears).
-        // For animated transitions, the metrics don't interpolate (text changes discretely).
+        // Store font metrics at t_end_ms for baseline alignment.
         text.set_metrics(t_end_ms, compiled.ascent, compiled.descent, compiled.baseline_offset);
 
         if duration_ms > 0.0 {
@@ -671,6 +652,19 @@ impl Timeline {
         } else {
             None
         };
+        let text_bounds = (duration_ms == 0.0)
+            .then(|| {
+                let mut text_bounds: Option<kurbo::Rect> = None;
+                for p in &new_paths {
+                    let b = p.path.bounding_box();
+                    text_bounds = Some(match text_bounds {
+                        Some(existing) => existing.union(b),
+                        None => b,
+                    });
+                }
+                text_bounds
+            })
+            .flatten();
         text.text_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths, easing);
         geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
             t_end_ms,
@@ -682,6 +676,9 @@ impl Timeline {
             new_half_size,
             easing,
         );
+        if let Some(b) = text_bounds {
+            self.world.set_local_bounds(track_id, b);
+        }
         Ok(())
     }
 

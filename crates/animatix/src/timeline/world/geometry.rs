@@ -31,3 +31,16 @@ impl World {
         self.bounds_slots.get(id).set(slot);
     }
 }
+
+impl World {
+    /// Precomputed or cached local-space bounding box for an entity.
+    #[inline(always)]
+    pub fn local_bounds(&self, id: EntityId) -> Option<kurbo::Rect> {
+        self.local_bounds.get(id).map(|b| b.0)
+    }
+
+    /// Set the precomputed or cached local-space bounding box for an entity.
+    pub fn set_local_bounds(&mut self, id: EntityId, bounds: kurbo::Rect) {
+        self.local_bounds.insert(id, crate::timeline::LocalBoundsComponent(bounds));
+    }
+}

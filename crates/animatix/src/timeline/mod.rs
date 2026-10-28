@@ -47,7 +47,7 @@ pub mod colorscheme;
 pub mod components;
 pub use components::{
     AutoColorComponent, ChildOrderComponent, CoordinateContext, CoordinateFrameComponent,
-    CoordinateFrameTarget, PersistenceComponent, TranscriptComponent,
+    CoordinateFrameTarget, LocalBoundsComponent, PersistenceComponent, TranscriptComponent,
 };
 mod declarations_text;
 /// Built-in post-processing effects, chain storage, and the compositing

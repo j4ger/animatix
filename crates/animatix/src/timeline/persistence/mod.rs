@@ -154,6 +154,9 @@ pub struct CarryEntry {
     /// stores labels and injection remaps them.
     #[cfg_attr(feature = "serde", serde(default))]
     pub child_order: Option<CarriedChildOrder>,
+    /// Precomputed or cached local-space bounding box for an entity.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub local_bounds: Option<kurbo::Rect>,
 }
 
 /// The `EntityMeta` subset that survives a carry (see [`CarryEntry::meta`]).
@@ -268,6 +271,8 @@ fn collect_persistent_entries(
         }
     });
 
+    let local_bounds = snapshot_local_bounds(&timeline.world, id);
+
     entries.insert(
         label.to_string(),
         CarryEntry {
@@ -290,6 +295,7 @@ fn collect_persistent_entries(
             caps,
             meta,
             child_order,
+            local_bounds,
         },
     );
 }
@@ -338,8 +344,9 @@ mod snapshot;
 
 use snapshot::snapshot_effects;
 pub use snapshot::{
-    snapshot_geometry_at, snapshot_highlight_at, snapshot_payload_at, snapshot_property_plan_at,
-    snapshot_shape_at, snapshot_style_at, snapshot_tagged_at, snapshot_text_at,
+    snapshot_geometry_at, snapshot_highlight_at, snapshot_local_bounds, snapshot_payload_at,
+    snapshot_property_plan_at, snapshot_shape_at, snapshot_style_at, snapshot_tagged_at,
+    snapshot_text_at,
 };
 
 #[cfg(test)]

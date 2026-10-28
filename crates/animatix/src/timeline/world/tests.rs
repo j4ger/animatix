@@ -17,6 +17,7 @@ fn spawn_returns_stable_ids_and_keeps_stores_aligned() {
     assert_eq!(world.image_payload.len(), 2, "image_payload stays slot-aligned");
     assert_eq!(world.container_layout.len(), 2);
     assert_eq!(world.coordinate_frame.len(), 2, "every store stays slot-aligned");
+    assert_eq!(world.local_bounds.len(), 2, "local_bounds stays slot-aligned");
     assert_eq!(world.label(a), Some("a"));
     assert_eq!(world.get_id("b"), Some(b));
 
@@ -88,6 +89,24 @@ fn clear_drops_entities_and_components() {
     assert!(world.behavior.is_empty());
     assert!(world.container_layout.is_empty());
     assert!(world.coordinate_frame.is_empty());
+    assert!(world.local_bounds.is_empty());
+}
+
+#[test]
+fn local_bounds_accessors_and_resets_on_replacement() {
+    let mut world = World::new();
+    let id = world.spawn("box", "Rect");
+    assert_eq!(world.local_bounds(id), None);
+    assert_eq!(world.view(id).unwrap().local_bounds(), None);
+
+    let rect = kurbo::Rect::new(-50.0, -25.0, 50.0, 25.0);
+    world.set_local_bounds(id, rect);
+    assert_eq!(world.local_bounds(id), Some(rect));
+    assert_eq!(world.view(id).unwrap().local_bounds(), Some(rect));
+
+    world.spawn_replacing("box", "Rect");
+    assert_eq!(world.local_bounds(id), None, "replacement clears local_bounds");
+    assert_eq!(world.view(id).unwrap().local_bounds(), None);
 }
 
 #[test]

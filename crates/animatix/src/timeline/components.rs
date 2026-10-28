@@ -156,3 +156,8 @@ pub struct ChildOrderComponent {
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TranscriptComponent(pub SpeechTranscript);
+
+/// Precomputed or cached local-space bounding box for an entity.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct LocalBoundsComponent(pub kurbo::Rect);

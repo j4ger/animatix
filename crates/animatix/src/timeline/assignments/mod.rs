@@ -200,15 +200,10 @@ impl Timeline {
         } else {
             Vec::new()
         };
-        // Path rebuilds need the host's coordinate frame, and both it and the
-        // track live in `World`. Resolve the immutable frame (a small clone)
-        // before the mutable track borrow instead of fighting the borrow
-        // checker with a second `&World`/`&Timeline`.
+        // Resolve coordinate frame and capabilities before mutable track borrows.
         let coordinate_frame = (is_size_property || affects_shape_geometry(property))
             .then(|| self.coordinate_frame_for(&target_key).cloned())
             .flatten();
-        // Capabilities live in `World`, so resolve them before the mutable
-        // track borrow (the projection is `Copy`).
         let caps = self.world.get_id(&target_key).map(|id| self.world.caps(id)).unwrap_or_default();
         let actor_type = self
             .world
@@ -400,6 +395,7 @@ impl Timeline {
                 let old_half_size =
                     self.world.geometry.get(track_id).size.last(DEFAULT_LAYOUT_HALF_SIZE);
 
+                self.world.local_bounds.reset_at(track_id);
                 self.world.ensure_shape(track_id);
                 let new_half_size = handle_size_assignment(
                     &actor_type,
@@ -531,6 +527,7 @@ impl Timeline {
 
                 // If this property affects shape geometry, rebuild vector paths
                 if affects_shape_geometry(property) {
+                    self.world.local_bounds.reset_at(track_id);
                     self.world.ensure_shape(track_id);
                     rebuild_vector_paths(
                         actor_type.as_str(),

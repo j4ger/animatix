@@ -754,6 +754,12 @@ impl Timeline {
             morph_options,
         );
 
+        if caps.is_shape && geometry.size.as_ref().is_none_or(|t| t.keyframes().len() <= 1) {
+            let bounds =
+                kurbo::Rect::new(-size[0] as f64, -size[1] as f64, size[0] as f64, size[1] as f64);
+            self.world.set_local_bounds(track_id, bounds);
+        }
+
         self.write_extension_properties_for_decl(label, ty, props, modifiers, time_ms, diagnostics);
 
         self.finalize_actor_container(label, ty, props, time_ms, parent_label, diagnostics);

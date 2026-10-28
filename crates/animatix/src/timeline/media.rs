@@ -108,6 +108,15 @@ fn seed_image_track(
                 Some(image),
                 Easing::Linear,
             );
+            if world.geometry(id).size.as_ref().is_none_or(|t| t.keyframes().len() <= 1) {
+                let bounds = kurbo::Rect::new(
+                    -display_size[0] as f64,
+                    -display_size[1] as f64,
+                    display_size[0] as f64,
+                    display_size[1] as f64,
+                );
+                world.set_local_bounds(id, bounds);
+            }
         },
         Err(error) => push_media_load_failure_diagnostic(
             diagnostics,
