@@ -10,10 +10,10 @@ impl TypeEnv {
     ///
     /// The built-ins are **not** copied into this environment: they live in the
     /// `STDLIB_*` tables below and are consulted by the lookups after the
-    /// environment's own maps. Seeding per environment used to insert ~60
-    /// `String` keys, and a keystroke rebuild constructs one per annotation
+    /// environment's own maps. Seeding would insert ~60 `String` keys, and a
+    /// keystroke rebuild constructs one environment per annotation
     /// (`SymbolTable::typed_resolve_annotation`) and per inferred expression
-    /// (`SymbolTable::infer_expr_type`), so the copy was a fixed cost on every
+    /// (`SymbolTable::infer_expr_type`), so that copy is a fixed cost on every
     /// analyzer update rather than a one-time one.
     pub fn with_stdlib() -> Self {
         Self::new()

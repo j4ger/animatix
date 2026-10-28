@@ -1,9 +1,7 @@
 //! Source index for mapping actor+property names to byte spans in source text.
 //!
-//! Originally used for surgical source edits (byte-span replacement), this is
-//! now primarily for diagnostics, editor navigation, and go-to-definition.
-//! The GUI inspector uses source edit (AST mutation +
-//! re-serialization) for write-back instead.
+//! Primarily for diagnostics, editor navigation, and go-to-definition. It is
+//! not a write-back path: the GUI inspector applies AST edits and re-serializes.
 
 use std::collections::HashMap;
 

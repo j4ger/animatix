@@ -525,9 +525,9 @@ pub(crate) fn parser<'src>(
                     // A comma-less list may still hold several targets
                     // (`swap bar1 bar2`), but each item has to stop at a
                     // statement boundary. The grammar has no newline tokens, so
-                    // the unguarded repeat used to run on into the *next*
-                    // statement: `persist t` followed by `t.opacity = 0.5` read
-                    // `t.opacity` as a second target and then failed on the `=`.
+                    // an unguarded repeat runs on into the *next* statement:
+                    // `persist t` followed by `t.opacity = 0.5` reads
+                    // `t.opacity` as a second target and then fails on the `=`.
                     // A dotted path followed by an assignment or a colon is that
                     // next statement's head — an assignment target, or an actor
                     // declaration's label — never another action target.

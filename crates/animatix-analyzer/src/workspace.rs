@@ -172,7 +172,7 @@ mod tests {
         let main_src = "import \"lib.amx\"\nbox: Rect, size: widget\n";
         let lib_src = "pub let widget = rgb(1, 0, 0)\n";
 
-        // Importer added first (the order that used to report false).
+        // Importer added first: resolution must not depend on insertion order.
         let mut first = Workspace::new();
         first.add_file(main.clone(), main_src);
         first.add_file(lib.clone(), lib_src);

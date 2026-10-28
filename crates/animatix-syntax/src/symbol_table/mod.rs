@@ -56,10 +56,10 @@ pub struct SymbolTable {
     pub component_defs: HashMap<String, crate::ast::ComponentDef>,
     /// Memoized type environment, rebuilt lazily after the table mutates.
     ///
-    /// `SymbolTable::infer_expr_type` used to construct a fresh environment per
-    /// call; a declaration-heavy file did that dozens of times per keystroke
-    /// rebuild. The cache lives and dies with the table, and every mutator
-    /// that changes labels/components/namespaces invalidates it.
+    /// Without the cache every `SymbolTable::infer_expr_type` call rebuilds the
+    /// environment, and a declaration-heavy file makes dozens of those per
+    /// keystroke rebuild. The cache lives and dies with the table, and every
+    /// mutator that changes labels/components/namespaces invalidates it.
     pub(crate) type_env_cache: std::sync::OnceLock<typing::TypeEnv>,
 }
 
@@ -81,9 +81,11 @@ pub struct LabelInfo {
     pub name: String,
     /// The kind of label (actor, let binding, etc.).
     pub kind: LabelKind,
-    /// The 1-based line number of the declaration.
+    /// The 1-based line number of the declaration; `0` until
+    /// `Analyzer::enrich_positions` fills it from the token stream.
     pub line: usize,
-    /// The 1-based column number of the declaration.
+    /// The 1-based column number of the declaration; `0` until
+    /// `Analyzer::enrich_positions` fills it from the token stream.
     pub col: usize,
     /// Full source span (line/col range) for precise source write-back.
     pub span: Option<Span>,

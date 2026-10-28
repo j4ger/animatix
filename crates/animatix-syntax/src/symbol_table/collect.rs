@@ -68,8 +68,8 @@ impl SymbolTable {
             LabelInfo {
                 name: label.to_string(),
                 kind: LabelKind::Actor,
-                line: 0, // populated by Analyzer::enrich_positions from the token stream
-                col: 0,  // populated by Analyzer::enrich_positions from the token stream
+                line: 0,
+                col: 0,
                 span,
                 ty,
                 inferred_type,
@@ -94,8 +94,8 @@ impl SymbolTable {
                     LabelInfo {
                         name: name.clone(),
                         kind: LabelKind::Let,
-                        line: 0, // populated by Analyzer::enrich_positions from the token stream
-                        col: 0,  // populated by Analyzer::enrich_positions from the token stream
+                        line: 0,
+                        col: 0,
                         span: *span,
                         ty: None,
                         inferred_type: Some(inferred),
@@ -159,16 +159,17 @@ impl SymbolTable {
                                 default: p.default.as_ref().map(|e| e.to_source()),
                             })
                             .collect(),
-                        line: 0, // populated by Analyzer::enrich_positions from the token stream
-                        col: 0,  // populated by Analyzer::enrich_positions from the token stream
+                        line: 0,
+                        col: 0,
                         span: *span,
                         is_pub: def.is_pub,
                     },
                 );
 
                 // Recurse into the component body. Labels declared inside a
-                // template are internal to it; tracking the depth here is what
-                // replaced a second full walk of every component body.
+                // template are internal to it, so tracking the depth here keeps
+                // the single declaration walk sufficient — no second pass over
+                // component bodies is needed.
                 for stmt in &def.body {
                     self.collect_stmt(stmt, component_depth + 1);
                 }
@@ -260,9 +261,8 @@ impl SymbolTable {
                         LabelInfo {
                             name: name.clone(),
                             kind: LabelKind::For,
-                            line: 0, /* populated by Analyzer::enrich_positions from the token
-                                      * stream */
-                            col: 0, // populated by Analyzer::enrich_positions from the token stream
+                            line: 0,
+                            col: 0,
                             span: *span,
                             ty: None,
                             inferred_type: element_types.get(index).cloned(),
@@ -278,9 +278,8 @@ impl SymbolTable {
                         LabelInfo {
                             name: iv.clone(),
                             kind: LabelKind::For,
-                            line: 0, /* populated by Analyzer::enrich_positions from the token
-                                      * stream */
-                            col: 0, // populated by Analyzer::enrich_positions from the token stream
+                            line: 0,
+                            col: 0,
                             span: *span,
                             ty: None,
                             inferred_type: None,
@@ -335,8 +334,8 @@ impl SymbolTable {
                     name.clone(),
                     SceneInfo {
                         name: name.clone(),
-                        line: 0, // populated by Analyzer::enrich_positions from the token stream
-                        col: 0,  // populated by Analyzer::enrich_positions from the token stream
+                        line: 0,
+                        col: 0,
                         span: *span,
                     },
                 );

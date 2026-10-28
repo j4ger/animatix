@@ -84,14 +84,14 @@ pub fn collect_semantic_diagnostics(
             }
             // An unreferenced *actor* is not a defect: every declared actor
             // paints, so `caption: Text, text: "…"` that nothing animates is
-            // ordinary source, not dead code. This used to report as a warning
-            // and fired 347 times across this repo's own `examples/`, `web/`
-            // and `dogfood/` — every one of them on an actor, which trained
-            // authors to skim the whole diagnostic list. It stays available as
-            // a hint, because the case it genuinely catches ("this was meant to
-            // be wired to something") is invisible to any other check:
-            // `never-revealed` covers actors that never show up, and nothing
-            // covers `clip_shape` declared as a mask source and never used.
+            // ordinary source, not dead code. Reporting it as a warning fires
+            // on nearly every example in this repo, and only ever on an actor,
+            // which trains authors to skim the whole diagnostic list. It stays
+            // available as a hint, because the case it genuinely catches ("this
+            // was meant to be wired to something") is invisible to any other
+            // check: `never-revealed` covers actors that never show up, and
+            // nothing covers `clip_shape` declared as a mask source and never
+            // used.
             // A `let` nobody reads has no such defence — it is simply dead.
             let severity = if info.kind == LabelKind::Actor {
                 DiagnosticSeverity::Hint

@@ -111,8 +111,7 @@ mod tests {
     // preservation, single-expression shapes) live here. Whole-document
     // roundtrip fidelity is covered by `tests/ast_format_coverage.rs`, which
     // probes every `Stmt` variant and compares scrubbed ASTs for structural
-    // equality; the weak `parsed.len() == reparsed.len()` cases that used to
-    // duplicate it here were removed in the formatter-test merge.
+    // equality, so a length-only comparison here would duplicate it weakly.
 
     const SHOWCASE_FIXTURE: &str = r#"// Animatix Showcase
 // A 5-second demonstration of layout, animation, primitives, and composition.

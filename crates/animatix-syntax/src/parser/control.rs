@@ -1,5 +1,5 @@
-//! Control-flow statement parsers (`if`, `match`, `for`) split out of the main
-//! statement parser. Each takes the parser handles it closes over.
+//! Control-flow statement parsers (`if`, `match`, `for`). Each takes the parser
+//! handles it closes over.
 
 use chumsky::prelude::*;
 

@@ -1,9 +1,9 @@
 //! Shared schema for actor properties and primitives.
 //!
-//! This module is the first migration target for metadata that previously
-//! lived only in runtime or analyzer-specific static tables. It intentionally
-//! contains no runtime logic so `animatix-analyzer` and LSP can consume it
-//! without depending on Vello/WGPU.
+//! This module owns metadata that would otherwise be duplicated in runtime or
+//! analyzer-specific static tables. It intentionally contains no runtime logic
+//! so `animatix-analyzer` and LSP can consume it without depending on
+//! Vello/WGPU.
 
 pub use animatix_core::caps::Applicable;
 pub use animatix_core::property::{PropertyId, PropertyValueKind};

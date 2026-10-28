@@ -270,19 +270,19 @@ pub(super) fn expand_component_instance(
         }
     }
 
-    // Multi-statement component bodies previously expanded into sibling
-    // top-level statements, orphaning the instance wrapper: the build created
-    // the instance track (e.g. `card`) as a root node with an empty children
-    // list while the remaining `card.*` statements became independent roots
-    // (each seeded with the hidden-by-default pre-keyframe opacity). Wrap the
-    // top-level actors in a Group labeled with the instance label so the build
-    // links them under one parent — a single root, with opacity and transform
-    // context shared across the whole subtree. The Group (not merely nesting
-    // under the first actor) is required because a shape root (e.g. a `Rect`
-    // frame) does not render children as a group; a generic Group container
-    // does. It also receives the instance root's authored `size` so a parent
-    // layout container sizes the instance cell correctly instead of collapsing
-    // a zero-sized wrapper.
+    // Multi-statement component bodies must not expand into sibling top-level
+    // statements: doing so orphans the instance wrapper, because the build
+    // creates the instance track (e.g. `card`) as a root node with an empty
+    // children list while the remaining `card.*` statements become independent
+    // roots (each seeded with the hidden-by-default pre-keyframe opacity). Wrap
+    // the top-level actors in a Group labeled with the instance label so the
+    // build links them under one parent — a single root, with opacity and
+    // transform context shared across the whole subtree. The Group (not merely
+    // nesting under the first actor) is required because a shape root (e.g. a
+    // `Rect` frame) does not render children as a group; a generic Group
+    // container does. It also receives the instance root's authored `size` so a
+    // parent layout container sizes the instance cell correctly instead of
+    // collapsing a zero-sized wrapper.
     if actors.len() > 1 {
         let mut children: Vec<InlineItem> = Vec::new();
         let mut root_size: Option<Property> = None;

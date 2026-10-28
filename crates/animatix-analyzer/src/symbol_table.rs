@@ -1,6 +1,6 @@
-//! Symbol table extraction moved to `animatix-syntax`.
+//! Symbol table extraction; the implementation lives in `animatix-syntax`.
 //!
-//! The analyzer re-exports the shared type so existing callers keep working
-//! while semantic symbols live in the syntax crate with the AST and type model.
+//! The analyzer re-exports the shared type so semantic symbols stay in the
+//! syntax crate with the AST and type model.
 
 pub use animatix_syntax::symbol_table::*;

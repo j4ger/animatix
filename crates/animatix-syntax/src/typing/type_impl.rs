@@ -96,8 +96,7 @@ impl Type {
     /// Parse a source/manifest type annotation string into a [`Type`].
     ///
     /// This is the single source of truth for the annotation grammar shared by
-    /// native plugin descriptors and analyzer manifests (previously duplicated
-    /// as `parse_native_type` / `parse_manifest_type`). Unknown or malformed
+    /// native plugin descriptors and analyzer manifests. Unknown or malformed
     /// strings return `None`; enum annotations
     /// (`Enum(left, right, top)` or `Enum<...>`) are parsed into [`Type::Enum`].
     pub fn parse(text: &str) -> Option<Type> {

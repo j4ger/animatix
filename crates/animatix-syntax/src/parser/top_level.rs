@@ -103,7 +103,7 @@ pub(crate) fn parser<'src>(
     // Recovery synchronization point: a token that can begin a fresh top-level
     // statement. When a statement fails to parse, the recovery strategy skips
     // forward to the next such token instead of abandoning the whole file, so
-    // one malformed statement no longer blinds the analyzer to everything after
+    // one malformed statement does not blind the analyzer to everything after
     // it.
     let statement_start = select! {
         TokenKind::Hash => (),
@@ -168,11 +168,11 @@ pub fn group_scenes(flat: Vec<Stmt>) -> Vec<Stmt> {
             },
             Stmt::Config { .. } => {
                 // A `config` block anywhere inside a scene is that scene's
-                // configuration, whatever precedes it. The gate used to require
-                // the scene still be empty, so one leading statement — an
-                // `import`, which belongs to no keyframe — demoted the block
-                // into the scene body, leaving `Scene.config` empty for the
-                // composition to fall back on keyframe-span duration.
+                // configuration, whatever precedes it. Requiring the scene to
+                // still be empty lets one leading statement — an `import`,
+                // which belongs to no keyframe — demote the block into the
+                // scene body, leaving `Scene.config` empty for the composition
+                // to fall back on keyframe-span duration.
                 if let Some(Stmt::Scene { ref mut config, .. }) = current_scene {
                     if let Stmt::Config { settings, .. } = stmt {
                         config.extend(settings);
