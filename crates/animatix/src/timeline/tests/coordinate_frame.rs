@@ -3,7 +3,7 @@
 
 use crate::ast::{Expr, TargetSegment};
 use crate::diagnostics::DiagnosticSeverity;
-use crate::timeline::{Timeline, Value};
+use crate::timeline::{BuildOptions, Timeline, Value};
 use kurbo::Shape as _;
 
 fn build(source: &str) -> Timeline {
@@ -144,7 +144,11 @@ fn carried_graph_keeps_coordinate_frame() {
     let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
     assert!(parse_errors.is_empty(), "parse errors: {parse_errors:?}");
     let ast = ast.expect("parsed AST");
-    let report = crate::composition::Composition::build(&ast, &std::collections::HashMap::new());
+    let report = crate::composition::Composition::build_with_options(
+        &ast,
+        &std::collections::HashMap::new(),
+        BuildOptions::default(),
+    );
 
     let errors: Vec<_> = report
         .diagnostics

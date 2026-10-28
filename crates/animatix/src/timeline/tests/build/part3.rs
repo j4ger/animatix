@@ -1025,8 +1025,8 @@ fade-in t [200ms]
         ("label".to_string(), "\"Overridden\"".to_string()),
         ("tint".to_string(), "(0.0, 1.0, 0.0, 1.0)".to_string()),
     ];
-    let report =
-        crate::timeline::Timeline::build_with_diagnostics_and_defines(&ast, &namespaces, &defines);
+    let options = crate::timeline::BuildOptions::default().with_defines(&defines);
+    let report = Timeline::build_with_options(&ast, &namespaces, options);
     let owned: Vec<String> = report.diagnostics.iter().map(|d| format!("{:?}", d.code)).collect();
     assert!(
         owned.iter().all(|c| c.contains("NeverRevealed")),

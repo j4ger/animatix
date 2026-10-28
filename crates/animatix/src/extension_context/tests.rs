@@ -335,11 +335,11 @@ fn build_target_accepts_extension_context() {
     })
     .expect("register function");
 
-    let report = BuildTarget::from_ast_with_context(
+    let report = BuildTarget::build_with_options(
         &ast,
         &std::collections::HashMap::new(),
         None,
-        Arc::new(ctx),
+        crate::timeline::BuildOptions::default().with_context(Arc::new(ctx)),
     );
     assert!(
         without_content_lints(&report.diagnostics).next().is_none(),
@@ -369,11 +369,11 @@ fn build_target_propagates_context_to_composition() {
     })
     .expect("register function");
 
-    let report = BuildTarget::from_ast_with_context(
+    let report = BuildTarget::build_with_options(
         &ast,
         &std::collections::HashMap::new(),
         None,
-        Arc::new(ctx),
+        crate::timeline::BuildOptions::default().with_context(Arc::new(ctx)),
     );
     assert!(
         without_content_lints(&report.diagnostics).next().is_none(),

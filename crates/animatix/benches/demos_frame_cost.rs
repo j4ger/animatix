@@ -16,7 +16,7 @@
 use std::path::{Path, PathBuf};
 
 use animatix::composition::BuildTarget;
-use animatix::timeline::SceneDimensions;
+use animatix::timeline::{BuildOptions, SceneDimensions};
 use animatix_render::offscreen::{OffscreenRenderer, RenderedFrame};
 use animatix_syntax::module::ModuleGraph;
 use criterion::{Criterion, SamplingMode, criterion_group, criterion_main};
@@ -77,7 +77,12 @@ fn build_target(path: &Path) -> BuildTarget {
         "{}: expansion errors {expansion_errors:?}",
         path.display()
     );
-    let report = BuildTarget::from_ast(&ast, &program.namespaces, Some(path));
+    let report = BuildTarget::build_with_options(
+        &ast,
+        &program.namespaces,
+        Some(path),
+        BuildOptions::default(),
+    );
     report.output
 }
 

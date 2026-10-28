@@ -20,14 +20,12 @@ crates/animatix-gui/src/app/stores/ui_store.rs	638
 crates/animatix-gui/src/editor.rs	729
 crates/animatix-plugin-demo/src/lib.rs	717
 crates/animatix-render/src/encode/video.rs	686
-crates/animatix/src/composition/build/builder.rs	763
 crates/animatix/src/composition/tests.rs	1406
 crates/animatix/src/extension_native_plugin/convert.rs	609
 crates/animatix/src/extension_native_plugin/hosts.rs	704
 crates/animatix/src/timeline/actions/reveal.rs	723
 crates/animatix/src/timeline/build/actor/decl.rs	792
 crates/animatix/src/timeline/build/actor/extensions.rs	649
-crates/animatix/src/timeline/build/entry/impl_mod.rs	677
 crates/animatix/src/timeline/build/plot/bars.rs	718
 crates/animatix/src/timeline/build/plot/mod.rs	723
 crates/animatix/src/timeline/build/process.rs	752

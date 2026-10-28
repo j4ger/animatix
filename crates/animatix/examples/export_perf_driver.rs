@@ -20,6 +20,7 @@
 
 use animatix::composition::BuildTarget;
 use animatix::perf;
+use animatix::timeline::BuildOptions;
 use animatix::timeline::{SceneDimensions, Timeline};
 use animatix_render::offscreen::{OffscreenRenderer, PendingFrame};
 use animatix_syntax::module::ModuleGraph;
@@ -40,8 +41,12 @@ fn main() {
     let mut expansion_errors = Vec::new();
     let expanded = program.expand_components(&mut expansion_errors);
     let context = std::sync::Arc::new(animatix::ExtensionRegistry::new());
-    let report =
-        BuildTarget::from_ast_with_context(&expanded, &program.namespaces, Some(&path), context);
+    let report = BuildTarget::build_with_options(
+        &expanded,
+        &program.namespaces,
+        Some(&path),
+        BuildOptions::default().with_context(context),
+    );
     let duration_s = report.output.duration_s().max(0.001);
     let (timelines, composition): (Vec<Timeline>, Option<animatix::composition::Composition>) =
         match &report.output {

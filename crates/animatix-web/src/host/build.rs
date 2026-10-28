@@ -4,12 +4,11 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use animatix::composition::{BuildTarget, Composition};
+use animatix::composition::BuildTarget;
 use animatix::extension_context::ExtensionContext;
 use animatix::renderer::text::FontContext;
 use animatix::timeline::assets::AssetCache;
-use animatix::timeline::{BuildQuality, SceneDimensions, Timeline};
-use animatix_syntax::ast::Stmt;
+use animatix::timeline::{BuildOptions, BuildQuality, SceneDimensions};
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use animatix_syntax::module::{ModuleError, ModuleGraph, Namespace, SourceAccess};
 
@@ -124,35 +123,24 @@ pub fn build_document_with_modules(
 
     let namespaces: HashMap<String, Namespace> = program.namespaces;
     let context = Arc::new(ExtensionContext::new());
-    let has_scenes = expanded.iter().any(|s| matches!(s, Stmt::Scene { .. }));
 
-    let (target, build_diagnostics) = if has_scenes {
-        let report = Composition::build_with_font_context_and_asset_cache_and_extension_context(
-            &expanded,
-            &namespaces,
-            font_context,
-            quality,
-            assets,
-            context,
-        );
-        (BuildTarget::MultiScene(report.output), report.diagnostics)
-    } else {
-        let report =
-            Timeline::build_with_diagnostics_and_font_context_and_asset_cache_and_extension_context(
-                &expanded,
-                &namespaces,
-                font_context,
-                quality,
-                assets,
-                context,
-            );
-        // `BuildTarget::from_ast*` adds a `PersistTargetNotCarried` warning
-        // here for persisted actors with no successor scene, but reads the
-        // timeline's persistence flags to do it. The web driver skips that
-        // nicety; persistence in a single-scene web document degrades to
-        // "state simply resets between loops".
-        (BuildTarget::SingleScene(report.output), report.diagnostics)
-    };
+    // `BuildTarget` detects single vs multi-scene mode. A single-scene document
+    // also gets the `PersistTargetNotCarried` warning for persisted actors:
+    // there is no successor scene, so their state simply resets between loops.
+    let report = BuildTarget::build_with_options(
+        &expanded,
+        &namespaces,
+        None,
+        BuildOptions {
+            font_context: Some(font_context),
+            quality: Some(quality),
+            asset_cache: assets,
+            extensions: Some(context),
+            ..Default::default()
+        },
+    );
+    let target = report.output;
+    let build_diagnostics = report.diagnostics;
 
     diagnostics.extend(build_diagnostics.iter().map(DiagnosticDto::from_diagnostic));
 

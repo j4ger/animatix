@@ -4,9 +4,12 @@
 //! It manages per-scene `Timeline` instances, scene ordering via `play` edges,
 //! global time mapping, and transition blending.
 //!
-//! Single-scene files (no `# SceneName` declarations) use the existing
-//! `Timeline::build_with_diagnostics` path — this module is only activated
-//! when `Stmt::Scene` markers are present in the parsed AST.
+//! Single-scene files (no `# SceneName` declarations) build through the plain
+//! [`Timeline::build_with_options`] path — this module is only activated when
+//! `Stmt::Scene` markers are present in the parsed AST.
+//!
+//! [`BuildTarget::build_with_options`] is the canonical entry point: it detects
+//! the mode and returns either a [`Timeline`] or a [`Composition`].
 
 mod build;
 mod time;
@@ -16,7 +19,7 @@ use std::collections::BTreeMap;
 use crate::ast::{Property, Span, Stmt, Transition};
 use crate::diagnostics::{BuildReport, Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::module::Namespace;
-use crate::timeline::Timeline;
+use crate::timeline::{BuildOptions, Timeline};
 
 // ---------------------------------------------------------------------------
 // Composition Data Structures
@@ -189,54 +192,87 @@ impl BuildTarget {
         }
     }
 
-    /// Build the appropriate target from parsed AST statements.
+    /// Build the appropriate target from parsed AST statements with explicit
+    /// options.
     ///
-    /// Detects `Stmt::Scene` markers to determine single vs multi-scene mode.
-    /// For single-scene files, delegates to `Timeline::build_with_diagnostics`.
-    /// For multi-scene files, delegates to `Composition::build`.
-    pub fn from_ast(
+    /// Detects `Stmt::Scene` markers to choose single- or multi-scene mode.
+    /// This is the one build implementation: every other entry point either
+    /// builds [`BuildOptions`] for it or reports a composition-only result.
+    ///
+    /// An asset cache is created from `source_path`'s directory when the caller
+    /// did not supply one, and every scene inherits it through `options`.
+    /// Single-scene programs get the `PersistTargetNotCarried` warning because a
+    /// lone timeline has no successor to carry into.
+    pub fn build_with_options(
         statements: &[Stmt],
         namespaces: &std::collections::HashMap<String, Namespace>,
         source_path: Option<&std::path::Path>,
+        options: BuildOptions<'_>,
     ) -> BuildReport<Self> {
-        Self::from_ast_with_quality(
-            statements,
-            namespaces,
-            source_path,
-            crate::timeline::BuildQuality::Production,
-        )
+        let asset_cache = options.asset_cache.clone().or_else(|| {
+            source_path.and_then(|path| path.parent()).map(|dir| {
+                let mut cache = crate::timeline::assets::AssetCache::new();
+                cache.set_base_dirs(Some(dir), None);
+                std::sync::Arc::new(cache)
+            })
+        });
+        let options = BuildOptions {
+            asset_cache,
+            ..options
+        };
+
+        let has_scenes = statements.iter().any(|s| matches!(s, Stmt::Scene { .. }));
+        let mut report = if has_scenes {
+            if !options.defines.is_empty() {
+                tracing::warn!(
+                    "--set overrides are not applied to a multi-scene program; the composition builds each scene from its own source"
+                );
+            }
+            let report = Composition::build_with_options(statements, namespaces, options);
+            BuildReport {
+                output: BuildTarget::MultiScene(report.output),
+                diagnostics: report.diagnostics,
+            }
+        } else {
+            let report = Timeline::build_with_options(statements, namespaces, options);
+            let mut diagnostics = report.diagnostics;
+            // Warn about persistent actors in a truly single-scene file (no successor).
+            for (label, flag) in report.output.persistence_flags_iter() {
+                if flag {
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::PersistTargetNotCarried,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Actor '{}' is persisted but there is no successor scene to carry into.",
+                                label,
+                            ),
+                        )
+                        .with_subject(label),
+                    );
+                }
+            }
+            BuildReport {
+                output: BuildTarget::SingleScene(report.output),
+                diagnostics,
+            }
+        };
+        if let Some(path) = source_path {
+            for diag in &mut report.diagnostics {
+                diag.location.path = Some(path.to_path_buf());
+            }
+            report.output.set_asset_source_base(path);
+        }
+        report
     }
 
-    /// Build from AST with explicit build quality.
-    pub fn from_ast_with_quality(
-        statements: &[Stmt],
-        namespaces: &std::collections::HashMap<String, Namespace>,
-        source_path: Option<&std::path::Path>,
-        build_quality: crate::timeline::BuildQuality,
-    ) -> BuildReport<Self> {
-        Self::from_ast_with_quality_and_asset_cache(
-            statements,
-            namespaces,
-            source_path,
-            build_quality,
-            None,
-        )
-    }
-
-    /// Build from AST with an extension context.
-    pub fn from_ast_with_context(
-        statements: &[Stmt],
-        namespaces: &std::collections::HashMap<String, Namespace>,
-        source_path: Option<&std::path::Path>,
-        context: std::sync::Arc<crate::extension_context::ExtensionContext>,
-    ) -> BuildReport<Self> {
-        Self::from_ast_with_context_and_defines(statements, namespaces, source_path, context, &[])
-    }
-
-    /// Build from AST with `--set NAME=VALUE` overrides applied to the build
-    /// environment. Overrides reach a single-scene program; a multi-scene
-    /// composition reports that they do not reach it yet rather than applying
-    /// them to some scenes only.
+    /// Build from AST with an extension context and `--set NAME=VALUE`
+    /// overrides applied to the build environment.
+    ///
+    /// Convenience for the CLI, whose documents are always built under an
+    /// extension context and may carry `--set` overrides. Overrides reach a
+    /// single-scene program; a multi-scene composition reports that they do not
+    /// reach it yet rather than applying them to some scenes only.
     pub fn from_ast_with_context_and_defines(
         statements: &[Stmt],
         namespaces: &std::collections::HashMap<String, Namespace>,
@@ -244,197 +280,17 @@ impl BuildTarget {
         context: std::sync::Arc<crate::extension_context::ExtensionContext>,
         defines: &[(String, String)],
     ) -> BuildReport<Self> {
-        let font_context = std::sync::Arc::new(crate::renderer::text::FontContext::new());
-        let asset_cache = source_path.and_then(|p| p.parent()).map(|dir| {
-            let mut cache = crate::timeline::assets::AssetCache::new();
-            cache.set_base_dirs(Some(dir), None);
-            std::sync::Arc::new(cache)
-        });
+        // Compatibility: a single-scene `--set` build used to bypass the
+        // extension context, because the old defines-only entry point had no
+        // place to pass one. Preserved across the entry-point collapse; the
+        // follow-up `fix(cli)` applies the whole option set instead.
         let has_scenes = statements.iter().any(|s| matches!(s, Stmt::Scene { .. }));
-        if has_scenes && !defines.is_empty() {
-            tracing::warn!(
-                "--set overrides are not applied to a multi-scene program; the composition builds each scene from its own source"
-            );
-        }
-        let mut report = if has_scenes {
-            let report = Composition::build_with_font_context_and_asset_cache_and_extension_context(
-                statements,
-                namespaces,
-                font_context,
-                crate::timeline::BuildQuality::Production,
-                asset_cache.clone(),
-                context.clone(),
-            );
-            BuildReport {
-                output: BuildTarget::MultiScene(report.output),
-                diagnostics: report.diagnostics,
-            }
+        let options = if !has_scenes && !defines.is_empty() {
+            BuildOptions::default().with_defines(defines)
         } else {
-            let report = if defines.is_empty() {
-                Timeline::build_with_diagnostics_and_font_context_and_asset_cache_and_extension_context(
-                    statements,
-                    namespaces,
-                    font_context,
-                    crate::timeline::BuildQuality::Production,
-                    asset_cache,
-                    context,
-                )
-            } else {
-                Timeline::build_with_diagnostics_and_defines(statements, namespaces, defines)
-            };
-            let mut diags = report.diagnostics;
-            for (label, flag) in report.output.persistence_flags_iter() {
-                if flag {
-                    diags.push(
-                        Diagnostic::warning(
-                            DiagnosticCode::PersistTargetNotCarried,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "Actor '{}' is persisted but there is no successor scene to carry into.",
-                                label,
-                            ),
-                        )
-                        .with_subject(label),
-                    );
-                }
-            }
-            BuildReport {
-                output: BuildTarget::SingleScene(report.output),
-                diagnostics: diags,
-            }
+            BuildOptions::default().with_context(context).with_defines(defines)
         };
-        if let Some(path) = source_path {
-            for diag in &mut report.diagnostics {
-                diag.location.path = Some(path.to_path_buf());
-            }
-        }
-        report
-    }
-
-    /// Build from AST with explicit build quality and an existing asset cache.
-    pub fn from_ast_with_quality_and_asset_cache(
-        statements: &[Stmt],
-        namespaces: &std::collections::HashMap<String, Namespace>,
-        source_path: Option<&std::path::Path>,
-        build_quality: crate::timeline::BuildQuality,
-        asset_cache: Option<std::sync::Arc<crate::timeline::assets::AssetCache>>,
-    ) -> BuildReport<Self> {
-        let font_context = std::sync::Arc::new(crate::renderer::text::FontContext::new());
-        let has_scenes = statements.iter().any(|s| matches!(s, Stmt::Scene { .. }));
-        let mut report = if has_scenes {
-            let report = Composition::build_with_font_context_and_asset_cache(
-                statements,
-                namespaces,
-                font_context,
-                build_quality,
-                asset_cache,
-            );
-            BuildReport {
-                output: BuildTarget::MultiScene(report.output),
-                diagnostics: report.diagnostics,
-            }
-        } else {
-            let report = Timeline::build_with_diagnostics_and_font_context_and_asset_cache(
-                statements,
-                namespaces,
-                font_context,
-                build_quality,
-                asset_cache,
-            );
-            // Warn about persistent actors in a truly single-scene file (no successor).
-            let mut diags = report.diagnostics;
-            for (label, flag) in report.output.persistence_flags_iter() {
-                if flag {
-                    diags.push(
-                        Diagnostic::warning(
-                            DiagnosticCode::PersistTargetNotCarried,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "Actor '{}' is persisted but there is no successor scene to carry into.",
-                                label,
-                            ),
-                        )
-                        .with_subject(label),
-                    );
-                }
-            }
-            BuildReport {
-                output: BuildTarget::SingleScene(report.output),
-                diagnostics: diags,
-            }
-        };
-        if let Some(path) = source_path {
-            for diag in &mut report.diagnostics {
-                diag.location.path = Some(path.to_path_buf());
-            }
-            report.output.set_asset_source_base(path);
-        }
-        report
-    }
-
-    /// Build from AST with explicit quality, asset cache, and extension context.
-    #[allow(clippy::too_many_arguments)]
-    pub fn from_ast_with_quality_and_asset_cache_and_extension_context(
-        statements: &[Stmt],
-        namespaces: &std::collections::HashMap<String, Namespace>,
-        source_path: Option<&std::path::Path>,
-        build_quality: crate::timeline::BuildQuality,
-        asset_cache: Option<std::sync::Arc<crate::timeline::assets::AssetCache>>,
-        context: std::sync::Arc<crate::extension_context::ExtensionContext>,
-    ) -> BuildReport<Self> {
-        let font_context = std::sync::Arc::new(crate::renderer::text::FontContext::new());
-        let has_scenes = statements.iter().any(|s| matches!(s, Stmt::Scene { .. }));
-        let mut report = if has_scenes {
-            let report = Composition::build_with_font_context_and_asset_cache_and_extension_context(
-                statements,
-                namespaces,
-                font_context,
-                build_quality,
-                asset_cache,
-                context,
-            );
-            BuildReport {
-                output: BuildTarget::MultiScene(report.output),
-                diagnostics: report.diagnostics,
-            }
-        } else {
-            let report =
-                Timeline::build_with_diagnostics_and_font_context_and_asset_cache_and_extension_context(
-                    statements,
-                    namespaces,
-                    font_context,
-                    build_quality,
-                    asset_cache,
-                    context,
-                );
-            let mut diags = report.diagnostics;
-            for (label, flag) in report.output.persistence_flags_iter() {
-                if flag {
-                    diags.push(
-                        Diagnostic::warning(
-                            DiagnosticCode::PersistTargetNotCarried,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "Actor '{}' is persisted but there is no successor scene to carry into.",
-                                label,
-                            ),
-                        )
-                        .with_subject(label),
-                    );
-                }
-            }
-            BuildReport {
-                output: BuildTarget::SingleScene(report.output),
-                diagnostics: diags,
-            }
-        };
-        if let Some(path) = source_path {
-            for diag in &mut report.diagnostics {
-                diag.location.path = Some(path.to_path_buf());
-            }
-            report.output.set_asset_source_base(path);
-        }
-        report
+        Self::build_with_options(statements, namespaces, source_path, options)
     }
 
     /// Returns the total duration in seconds, regardless of target type.
@@ -492,63 +348,10 @@ impl BuildTarget {
 }
 
 // ---------------------------------------------------------------------------
-// Build
+// Queries
 // ---------------------------------------------------------------------------
 
 impl Composition {
-    /// Build a `Composition` from parsed AST statements.
-    ///
-    /// If no `Stmt::Scene` markers exist, returns a build report with zero scenes.
-    /// Callers should check `has_scenes()` and fall back to the single-timeline path.
-    pub fn build(
-        statements: &[Stmt],
-        namespaces: &std::collections::HashMap<String, Namespace>,
-    ) -> BuildReport<Self> {
-        Self::build_with_font_context(
-            statements,
-            namespaces,
-            std::sync::Arc::new(crate::renderer::text::FontContext::new()),
-            crate::timeline::BuildQuality::Production,
-        )
-    }
-
-    /// Build a composition from AST statements with a shared `FontContext` and
-    /// an existing asset cache carried from a previous build.
-    pub fn build_with_font_context_and_asset_cache(
-        statements: &[Stmt],
-        namespaces: &std::collections::HashMap<String, Namespace>,
-        font_context: std::sync::Arc<crate::renderer::text::FontContext>,
-        build_quality: crate::timeline::BuildQuality,
-        asset_cache: Option<std::sync::Arc<crate::timeline::assets::AssetCache>>,
-    ) -> BuildReport<Self> {
-        Self::build_with_font_context_impl(
-            statements,
-            namespaces,
-            font_context,
-            build_quality,
-            asset_cache,
-        )
-    }
-
-    /// Build a composition with an extension context.
-    pub fn build_with_font_context_and_asset_cache_and_extension_context(
-        statements: &[Stmt],
-        namespaces: &std::collections::HashMap<String, Namespace>,
-        font_context: std::sync::Arc<crate::renderer::text::FontContext>,
-        build_quality: crate::timeline::BuildQuality,
-        asset_cache: Option<std::sync::Arc<crate::timeline::assets::AssetCache>>,
-        context: std::sync::Arc<crate::extension_context::ExtensionContext>,
-    ) -> BuildReport<Self> {
-        Self::build_with_font_context_impl_with_context(
-            statements,
-            namespaces,
-            font_context,
-            build_quality,
-            asset_cache,
-            Some(context),
-        )
-    }
-
     /// Returns true if the composition has at least one scene.
     pub fn has_scenes(&self) -> bool {
         !self.scenes.is_empty()
@@ -563,6 +366,28 @@ impl Composition {
         for scene in self.scenes.values_mut() {
             scene.timeline.set_asset_base_dirs(document_dir, workspace_root);
         }
+    }
+}
+
+/// Test-only shortcuts that keep the composition tests on the canonical build
+/// path without repeating the option set at every call site.
+#[cfg(test)]
+impl Composition {
+    fn build_test(
+        statements: &[Stmt],
+        namespaces: &std::collections::HashMap<String, Namespace>,
+    ) -> BuildReport<Self> {
+        Self::build_with_options(statements, namespaces, BuildOptions::default())
+    }
+}
+
+#[cfg(test)]
+impl BuildTarget {
+    fn build_test(
+        statements: &[Stmt],
+        namespaces: &std::collections::HashMap<String, Namespace>,
+    ) -> BuildReport<Self> {
+        Self::build_with_options(statements, namespaces, None, BuildOptions::default())
     }
 }
 

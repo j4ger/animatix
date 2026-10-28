@@ -527,7 +527,11 @@ fn draw_in_uses_text_capability_for_extension_primitives() {
     text_ext_info.capabilities.text_paths = true;
     text_ext_info.text = Some(animatix_core::caps::TextKind::Text);
     registry.register(Arc::new(TextExt), text_ext_info).expect("register TextExt");
-    let report = Timeline::build_with_primitive_registry(&ast, &HashMap::new(), Arc::new(registry));
+    let report = Timeline::build_with_options(
+        &ast,
+        &HashMap::new(),
+        crate::timeline::BuildOptions::default().with_primitive_registry(Arc::new(registry)),
+    );
     assert!(
         report.diagnostics.is_empty(),
         "unexpected diagnostics: {:?}",

@@ -25,6 +25,7 @@
 static ALLOC: dhat::Alloc = dhat::Alloc;
 
 use animatix::composition::BuildTarget;
+use animatix::timeline::BuildOptions;
 use animatix::timeline::{SceneDimensions, Timeline};
 use animatix_render::offscreen::OffscreenRenderer;
 use animatix_syntax::module::ModuleGraph;
@@ -51,8 +52,12 @@ fn main() {
         eprintln!("expansion: {e}");
     }
     let context = std::sync::Arc::new(animatix::ExtensionRegistry::new());
-    let report =
-        BuildTarget::from_ast_with_context(&expanded, &program.namespaces, Some(&path), context);
+    let report = BuildTarget::build_with_options(
+        &expanded,
+        &program.namespaces,
+        Some(&path),
+        BuildOptions::default().with_context(context),
+    );
     for d in &report.diagnostics {
         eprintln!("build: {}", d.message);
     }

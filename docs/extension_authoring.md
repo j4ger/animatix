@@ -37,7 +37,11 @@ let report = Timeline::build_with_context(&ast, &namespaces, Arc::new(ctx));
 let mut registry = PrimitiveRegistry::new();
 registry.register(Arc::new(MyPrimitive))?;
 
-let report = Timeline::build_with_primitive_registry(&ast, &namespaces, Arc::new(registry));
+let report = Timeline::build_with_options(
+    &ast,
+    &namespaces,
+    BuildOptions::default().with_primitive_registry(Arc::new(registry)),
+);
 ```
 
 A custom primitive implements the existing `Primitive` trait. The `actor_type`

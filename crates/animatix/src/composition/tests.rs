@@ -6,7 +6,7 @@ use super::*;
 fn test_no_scenes_returns_empty_composition() {
     let source = "#0s\ntitle: Text, text: \"Hello\"\n";
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
     assert!(!report.output.has_scenes());
     assert_eq!(report.output.global_duration_s, 0.0);
 }
@@ -27,7 +27,7 @@ fn test_two_scenes_implicit_order() {
         "graph.opacity = 1\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
     assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
     let comp = &report.output;
     assert!(comp.has_scenes());
@@ -45,7 +45,7 @@ fn test_scene_with_config() {
         "title: Text, text: \"Welcome\"\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
     assert!(report.diagnostics.is_empty());
     let comp = &report.output;
     let intro = comp.scenes.get("Intro").unwrap();
@@ -70,7 +70,7 @@ fn test_scene_with_play() {
         "graph.opacity = 1\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
     let comp = &report.output;
     assert!(comp.edges.contains_key("Intro"));
     let edge = comp.edges.get("Intro").unwrap();
@@ -89,7 +89,7 @@ fn test_play_target_not_found() {
     let source =
         concat!("# Intro\n", "#0s\n", "title: Text, text: \"Welcome\"\n", "play MissingScene\n",);
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
     let has_play_error = report
         .diagnostics
         .iter()
@@ -109,7 +109,7 @@ fn test_qualified_play_target_uses_namespace_alias() {
     let mut namespaces = std::collections::HashMap::new();
     namespaces.insert("module".to_string(), Namespace::default());
 
-    let report = Composition::build(&parsed, &namespaces);
+    let report = Composition::build_test(&parsed, &namespaces);
     let comp = &report.output;
     let edge = comp.edges.get("Intro").unwrap();
     assert_eq!(edge.to_scene, "module.SceneName");
@@ -130,7 +130,7 @@ fn test_qualified_play_target_requires_namespace_alias() {
         "play module.SceneName\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
     assert!(
         report
             .diagnostics
@@ -150,7 +150,7 @@ fn test_duplicate_scene_name() {
         "title: Text, text: \"Again\"\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
     let has_duplicate = report
         .diagnostics
         .iter()
@@ -175,7 +175,7 @@ fn test_global_time_mapping() {
         "graph.opacity = 1\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
     let comp = &report.output;
 
     // At t=0: should be in Intro at local time 0
@@ -204,7 +204,7 @@ fn test_local_time_for_scene() {
         "graph: Text, text: \"Graph\"\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
     let comp = &report.output;
 
     let local = comp.local_time_for_scene("Intro", 0.5);
@@ -250,7 +250,7 @@ fn test_multiple_play_targets_error() {
         "bye: Text, text: \"Bye\"\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
     let has_multi = report
         .diagnostics
         .iter()
@@ -279,7 +279,7 @@ fn test_orphan_scene_warning() {
         "solo: Text, text: \"Alone\"\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
     let has_orphan =
         report.diagnostics.iter().any(|d| matches!(d.code, DiagnosticCode::OrphanScene));
     assert!(has_orphan, "Expected OrphanScene warning");
@@ -302,7 +302,7 @@ fn an_authored_transition_ease_reaches_the_blend() {
         "graph: Text, text: \"Graph\"\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
     let comp = &report.output;
     let intro_dur = comp.scenes.get("Intro").unwrap().duration_s;
 
@@ -353,7 +353,7 @@ fn a_transition_without_an_eased_authored_stays_linear() {
         "graph: Text, text: \"Graph\"\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let comp = Composition::build(&parsed, &std::collections::HashMap::new()).output;
+    let comp = Composition::build_test(&parsed, &std::collections::HashMap::new()).output;
     let intro_dur = comp.scenes.get("Intro").unwrap().duration_s;
     let mut blend = None;
     for step in 0..40 {
@@ -390,7 +390,7 @@ fn test_scene_config_resolution_warning() {
         "graph: Rect, size: (400, 400)\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
     let has_resolution_warning = report.diagnostics.iter().any(|d| {
         matches!(d.code, DiagnosticCode::InvalidConfigValue)
             && d.message.contains("resolution")
@@ -412,7 +412,7 @@ fn test_scene_config_colorscheme_no_warning() {
         "title: Text, text: \"Welcome\"\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
     // colorscheme is scene-scoped — no warning expected
     let has_config_warning = report.diagnostics.iter().any(|d| {
         matches!(d.code, DiagnosticCode::InvalidConfigValue)
@@ -448,7 +448,7 @@ fn test_cross_file_scene_basic() {
     let mut graph = animatix_syntax::module::ModuleGraph::new();
     let program = graph.load_program(&main_file).unwrap();
 
-    let report = Composition::build(&program.statements, &program.namespaces);
+    let report = Composition::build_test(&program.statements, &program.namespaces);
     assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
     let comp = &report.output;
 
@@ -489,7 +489,7 @@ fn test_cross_file_scene_not_found() {
     let mut graph = animatix_syntax::module::ModuleGraph::new();
     let program = graph.load_program(&main_file).unwrap();
 
-    let report = Composition::build(&program.statements, &program.namespaces);
+    let report = Composition::build_test(&program.statements, &program.namespaces);
     // The play target "scenes.NonExistent" should produce a PlayTargetNotFound error
     // because the scene exists in the namespace under "ExistingScene", not "NonExistent".
     let has_play_error = report
@@ -533,7 +533,7 @@ fn test_cross_file_scene_duration_preserved() {
     let mut graph = animatix_syntax::module::ModuleGraph::new();
     let program = graph.load_program(&main_file).unwrap();
 
-    let report = Composition::build(&program.statements, &program.namespaces);
+    let report = Composition::build_test(&program.statements, &program.namespaces);
     assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
     let comp = &report.output;
 
@@ -563,7 +563,7 @@ fn test_persist_basic_carry() {
         "#0s\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
 
     let non_carry_diags: Vec<_> = report
         .diagnostics
@@ -606,7 +606,7 @@ fn test_persist_carry_then_assign() {
         "title.opacity = 1\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
 
     let errors: Vec<_> = report
         .diagnostics
@@ -645,7 +645,7 @@ fn test_persist_chain() {
         "#0s\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
 
     let errors: Vec<_> = report
         .diagnostics
@@ -691,7 +691,7 @@ fn test_remove_breaks_chain() {
         "#0s\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
 
     let errors: Vec<_> = report
         .diagnostics
@@ -744,7 +744,7 @@ fn test_persist_container_subtree() {
         "#0s\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
 
     let errors: Vec<_> = report
         .diagnostics
@@ -798,7 +798,7 @@ fn test_persist_in_single_scene_file_warns() {
         "persist title\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = BuildTarget::from_ast(&parsed, &std::collections::HashMap::new(), None);
+    let report = BuildTarget::build_test(&parsed, &std::collections::HashMap::new());
 
     let has_not_carried = report
         .diagnostics
@@ -823,7 +823,7 @@ fn test_persist_in_single_scene_composition_warns() {
         "persist badge\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
 
     let has_not_carried = report
         .diagnostics
@@ -855,7 +855,7 @@ fn test_persist_last_scene_warns() {
         "#1s\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
 
     // SceneB receives 'title' via carry with persistent=true; SceneB has no outgoing
     // edge, so PersistTargetNotCarried must be emitted.
@@ -890,7 +890,7 @@ fn test_persist_after_remove_warns_via_build() {
         "#0s\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
 
     let has_after_remove_warn =
         report.diagnostics.iter().any(|d| d.code == DiagnosticCode::PersistAfterRemove);
@@ -921,7 +921,7 @@ fn test_auto_color_slot_preserved_across_carry() {
         "#0s\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
 
     let errors: Vec<_> = report
         .diagnostics
@@ -970,7 +970,7 @@ fn test_plot_curve_carry() {
         "#0s\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
 
     let errors: Vec<_> = report
         .diagnostics
@@ -1020,7 +1020,7 @@ fn test_svg_actor_carry() {
         "#0s\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
 
     // Any diagnostics from missing file are OK; we only check that the carry happened.
     let comp = &report.output;
@@ -1053,7 +1053,7 @@ fn test_image_actor_carry() {
         "#0s\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
 
     // File loading failure diagnostics are expected; focus on the carry.
     let comp = &report.output;
@@ -1086,7 +1086,7 @@ fn sorting_visualizer_steps_scene_sorts() {
     let mut graph = animatix_syntax::module::ModuleGraph::new();
     let program = graph.load_program(&demo).expect("loads");
     let expanded = program.expand_components(&mut Vec::new());
-    let report = crate::composition::Composition::build(&expanded, &program.namespaces);
+    let report = crate::composition::Composition::build_test(&expanded, &program.namespaces);
     assert!(
         report.diagnostics.is_empty(),
         "demo must build cleanly: {:?}",
@@ -1128,7 +1128,7 @@ fn test_zero_duration_scene_does_not_collapse_composition() {
         "b: Rect, width: 100, height: 100\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
     assert!(
         report.diagnostics.is_empty(),
         "unexpected diagnostics: {:?}",
@@ -1172,7 +1172,7 @@ fn test_summary_reports_playback_order_and_edges() {
         "b: Text, text: \"B\", at: (200, 100)\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = BuildTarget::from_ast(&parsed, &std::collections::HashMap::new(), None);
+    let report = BuildTarget::build_test(&parsed, &std::collections::HashMap::new());
     let BuildTarget::MultiScene(comp) = report.output else {
         panic!("expected MultiScene");
     };
@@ -1213,7 +1213,7 @@ fn a_scene_config_written_after_an_import_still_sets_the_scene_duration() {
         "title.opacity = 1\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
     let comp = &report.output;
     assert_eq!(
         comp.scenes.get("Intro").expect("Intro scene").duration_s,
@@ -1242,7 +1242,7 @@ fn persist_camera_carries_the_transform() {
         "b: Rect, size: (100, 100), at: (200, 200), color: (0, 1, 0, 1)\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
     let errors: Vec<_> = report
         .diagnostics
         .iter()
@@ -1286,7 +1286,7 @@ fn a_scene_without_persist_camera_starts_at_identity() {
     let source =
         concat!("# SceneA\n", "#0s\n", "camera.zoom = 2.0\n", "\n", "# SceneB\n", "#0s\n",);
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
     let scene_b = report.output.scenes.get("SceneB").expect("SceneB");
     assert!(!scene_b.timeline.camera.is_authored());
     assert_eq!(scene_b.timeline.camera.values_at(0), ([0.0, 0.0], 1.0, 0.0));
@@ -1312,7 +1312,7 @@ fn a_carried_camera_keeps_being_carried_until_it_is_removed() {
         "c: Rect, size: (100, 100), at: (200, 200), color: (0, 0, 1, 1)\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
     let zoom_of =
         |name: &str| report.output.scenes.get(name).expect(name).timeline.camera.values_at(0).1;
     assert_eq!(zoom_of("SceneB"), 1.8, "the first boundary carries");
@@ -1337,7 +1337,7 @@ fn remove_camera_stops_the_carry_without_fading_anything() {
         "#0s\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = Composition::build(&parsed, &std::collections::HashMap::new());
+    let report = Composition::build_test(&parsed, &std::collections::HashMap::new());
     let errors: Vec<_> = report
         .diagnostics
         .iter()
@@ -1383,7 +1383,7 @@ fn test_composition_step_pause_points() {
         "#pause\n",
     );
     let parsed = parse_simple(source).0.unwrap();
-    let report = BuildTarget::from_ast(&parsed, &std::collections::HashMap::new(), None);
+    let report = BuildTarget::build_test(&parsed, &std::collections::HashMap::new());
     let BuildTarget::MultiScene(comp) = &report.output else {
         panic!("expected MultiScene");
     };

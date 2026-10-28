@@ -45,7 +45,11 @@ fn extension_layout_container_expands_for_leaf_actions() {
     registry
         .register(Arc::new(FlexContainer), flex_info)
         .expect("register FlexContainer");
-    let report = Timeline::build_with_primitive_registry(&ast, &HashMap::new(), Arc::new(registry));
+    let report = Timeline::build_with_options(
+        &ast,
+        &HashMap::new(),
+        crate::timeline::BuildOptions::default().with_primitive_registry(Arc::new(registry)),
+    );
     let build_unexpected: Vec<_> = report
         .diagnostics
         .iter()

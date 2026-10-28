@@ -243,9 +243,10 @@ fn inject_entry(
 impl Timeline {
     /// Inject a `CarryBag` into this timeline **before** statement processing.
     ///
-    /// Called by [`Timeline::build_with_carry`] immediately after construction
-    /// and configuration loading, so that carried actors are visible to
-    /// subsequent statements (assignments, action verbs, re-declarations).
+    /// Called by [`Timeline::build_with_options`] (via the carry input)
+    /// immediately after construction and configuration loading, so that
+    /// carried actors are visible to subsequent statements (assignments,
+    /// action verbs, re-declarations).
     ///
     /// `source_timeline` — the predecessor scene's timeline, used for Phase 3
     /// world-position resolution of layout-managed roots.

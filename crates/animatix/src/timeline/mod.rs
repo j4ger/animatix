@@ -40,6 +40,7 @@ mod assignments;
 pub mod behavior;
 pub use behavior::{BehaviorDef, BehaviorId, BehaviorRegistry};
 mod build;
+pub use build::{BuildOptions, CarryInput};
 mod builtins;
 pub mod callout_geometry;
 pub(crate) mod camera;

@@ -348,10 +348,10 @@ mod tests {
                 },
             )
             .expect("register Gauge");
-        let report = crate::timeline::Timeline::build_with_primitive_registry(
+        let report = crate::timeline::Timeline::build_with_options(
             &ast,
             &HashMap::new(),
-            Arc::new(registry),
+            crate::timeline::BuildOptions::default().with_primitive_registry(Arc::new(registry)),
         );
         assert!(
             report.diagnostics.is_empty(),

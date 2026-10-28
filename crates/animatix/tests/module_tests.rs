@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use animatix::composition::BuildTarget;
-use animatix::timeline::Timeline;
+use animatix::timeline::{BuildOptions, Timeline};
 use animatix_syntax::ast::{Expr, Stmt};
 use animatix_syntax::module::{ModuleError, ModuleGraph};
 
@@ -1255,9 +1255,9 @@ fade-in a [0ms]
         type_diagnostics.is_empty(),
         "transform declaration should typecheck: {type_diagnostics:?}"
     );
-
     let ast = program.expand_components(&mut Vec::new());
-    let report = BuildTarget::from_ast(&ast, &program.namespaces, Some(&entry));
+    let options = BuildOptions::default();
+    let report = BuildTarget::build_with_options(&ast, &program.namespaces, Some(&entry), options);
     assert!(
         report.diagnostics.is_empty(),
         "transform declaration should build: {:?}",

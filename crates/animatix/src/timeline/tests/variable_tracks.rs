@@ -996,11 +996,11 @@ p: StubPulse, at: (100, 100), size: (50, 50)
         ),
     )
     .expect("register");
-    let report = crate::composition::BuildTarget::from_ast_with_context(
+    let report = crate::composition::BuildTarget::build_with_options(
         parsed.statements.as_ref().expect("stmts"),
         &std::collections::HashMap::new(),
         None,
-        std::sync::Arc::new(ctx),
+        crate::timeline::BuildOptions::default().with_context(std::sync::Arc::new(ctx)),
     );
     assert!(report.diagnostics.is_empty(), "{:?}", report.diagnostics);
     let crate::composition::BuildTarget::SingleScene(timeline) = report.output else {

@@ -419,10 +419,11 @@ mod tests {
         let old_cache = first.output.asset_cache.clone();
         assert_eq!(old_cache.asset_usage().count(), 1);
 
-        let second = crate::timeline::Timeline::build_with_diagnostics_and_asset_cache(
+        let options = crate::timeline::BuildOptions::default().with_asset_cache(old_cache.clone());
+        let second = crate::timeline::Timeline::build_with_options(
             &ast,
             &std::collections::HashMap::new(),
-            Some(old_cache.clone()),
+            options,
         );
         assert_eq!(second.output.asset_cache().asset_usage().count(), 1);
         assert_eq!(second.output.asset_cache().assets_for("icon").count(), 1);

@@ -1,11 +1,12 @@
 //! # Build Module
 //!
-//! AST-to-`Timeline` lowering pass.  The public entry point is `Timeline::build()`
-//! (via `entry.rs`).  Lowering proceeds through several phases, each in its own file.
+//! AST-to-`Timeline` lowering pass.  The public entry points live in `entry/`
+//! and all delegate to `Timeline::build_with_options()`.  Lowering proceeds
+//! through several phases, each in its own file.
 //!
 //! | File | Phase |
 //! |------|-------|
-//! | `entry.rs` | Build entry points: `build()`, `build_with_diagnostics()` |
+//! | `entry/` | Build entry points and the `BuildOptions` carrier |
 //! | `colorscheme.rs` | Colorscheme seeding, config, auto-color |
 //! | `node.rs` | Scene-graph node creation |
 //! | `container.rs` | Container metadata, layout, inline items |
@@ -17,6 +18,7 @@
 //! | `post.rs` | Post-build passes: idle tracks, namespace exports |
 //! | `keyframe_utils.rs` | Keyframe insertion helpers (pre-existing) |
 
+pub use entry::{BuildOptions, CarryInput};
 pub(super) use keyframe_utils::{
     insert_end_keyframes, insert_start_keyframes, preserve_delayed_values,
 };

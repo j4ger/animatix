@@ -1,7 +1,9 @@
-//! Build entry points: AST-to-Timeline lowering pass infrastructure.
+//! Build entry points: AST-to-`Timeline` lowering pass infrastructure.
 //!
-//! Public entry points: `build()`, `build_with_font_context()`,
-//! `build_with_diagnostics()`, `build_with_diagnostics_and_font_context()`.
+//! Public entry points: [`Timeline::build`], [`Timeline::build_with_diagnostics`],
+//! [`Timeline::build_with_context`] and [`Timeline::build_with_options`]. The
+//! first three are conveniences; all of them delegate to
+//! [`Timeline::build_with_options`], which is the one lowering implementation.
 
 use tracing::instrument;
 
@@ -10,5 +12,12 @@ use super::*;
 use crate::timeline::layout::ChildExtent;
 
 mod builders;
+mod finalize;
 mod impl_mod;
 mod layout;
+mod options;
+mod seed;
+mod validate;
+mod walk;
+
+pub use options::{BuildOptions, CarryInput};

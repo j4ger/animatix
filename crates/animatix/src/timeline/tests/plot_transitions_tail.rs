@@ -599,10 +599,10 @@ fn extension_plot_capability_enables_func_assignments() {
     plot_info.capabilities.plot_geometry = true;
     plot_info.capabilities.vector_paths = true;
     registry.register(Arc::new(PlotExt), plot_info).expect("register PlotExt");
-    let report = Timeline::build_with_primitive_registry(
+    let report = Timeline::build_with_options(
         &ast,
         &std::collections::HashMap::new(),
-        Arc::new(registry),
+        crate::timeline::BuildOptions::default().with_primitive_registry(Arc::new(registry)),
     );
     assert!(
         without_content_lints(&report.diagnostics).next().is_none(),

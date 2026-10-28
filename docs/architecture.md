@@ -82,7 +82,7 @@ After parsing and module expansion, the gradual type checker validates component
 
 ### Timeline Compilation
 
-`Timeline::build_with_diagnostics(...)` is the main compilation entry for single-scene files. For multi-scene files, `Composition::build(...)` orchestrates per-scene timelines.
+`BuildTarget::build_with_options(...)` is the compilation entry for both shapes: it detects `# SceneName` markers and returns either a `Timeline` or a `Composition`. Underneath, `Timeline::build_with_options(...)` is the one lowering pass; `Composition` orchestrates one such build per scene.
 
 ### Composition (Multi-Scene)
 
@@ -878,7 +878,7 @@ Targeted `Callout` actors (those with a `target` property) need to compute the a
 
 Core concepts:
 - `# SceneName` declares a scene; `play SceneName [transition, duration]` declares edges.
-- `Composition::build()` creates per-scene `Timeline` instances, resolves `play` edges, detects cycles, and warns on orphan scenes and multiple play targets.
+- `BuildTarget::build_with_options()` routes single- vs multi-scene; the composition path (`Composition::build_with_options`) creates per-scene `Timeline` instances, resolves `play` edges, detects cycles, and warns on orphan scenes and multiple play targets.
 - `Composition::evaluate(global_time_s)` maps global time → `(scene_name, local_time_s, transition_blend)` with eased progress.
 - `BuildTarget` auto-routes single-scene vs multi-scene for CLI/GUI.
 
@@ -916,9 +916,9 @@ A `CarryBag` (`timeline/persistence/`) is a collection of `CarryEntry` objects, 
 1. **Parse scenes**: Extract scene declarations and play edges.
 2. **Compute walk order**: Topological sort of scenes via play edges (with cycle detection).
 3. **First-pass build**: Each scene is compiled without carry injection.
-4. **Walk-order carry loop** (`Composition::build`, step 3.5): For each scene (index ≥ 1):
+4. **Walk-order carry loop** (`composition::build::timing::resolve_timing`): For each scene (index ≥ 1):
    - Compute carry bag from predecessor timeline at its exit time.
-   - If bag is non-empty, rebuild the scene's timeline with `build_with_carry`, which calls `inject_carry_bag` before processing statements.
+   - If bag is non-empty, rebuild the scene's timeline through `Timeline::build_with_options` with carry input, which calls `inject_carry_bag` before processing statements.
 5. **Carry injection** (`inject_carry_bag`): Re-creates the carried entities in `timeline.world` via `spawn_replacing`, adds them to the root set, restores the per-tier snapshots and the `ContainerMetadata`, `PersistenceComponent`, `AutoColorComponent`, `TranscriptComponent`, and `CoordinateFrameComponent` components on each carried entity.
 
 ### Snapshot Semantics

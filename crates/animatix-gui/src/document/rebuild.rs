@@ -79,13 +79,16 @@ impl DocumentSession {
         // Build source index from raw (non-expanded) statements
         let source_index = SourceIndex::build(&result.raw_statements);
 
-        let report = BuildTarget::from_ast_with_quality_and_asset_cache_and_extension_context(
+        let report = BuildTarget::build_with_options(
             &result.expanded_statements,
             &result.namespaces,
             Some(&self.file_path),
-            animatix::timeline::BuildQuality::Draft,
-            asset_cache,
-            std::sync::Arc::clone(&self.extension_context),
+            animatix::timeline::BuildOptions {
+                quality: Some(animatix::timeline::BuildQuality::Draft),
+                asset_cache,
+                extensions: Some(std::sync::Arc::clone(&self.extension_context)),
+                ..Default::default()
+            },
         );
         self.last_rebuild_error = None;
         self.duration_s = report.output.duration_s().max(0.1);

@@ -54,7 +54,7 @@ Use these rules when generating `.amx` files:
 | Components | `@slot` markers with named slot fills | Yes | Runtime-real | Yes | Yes | Component-internal containers with `@slot`; instantiation via `@slotname { items }` |
 | Multi-Scene | `# SceneName` scene declarations | Yes | Runtime-real | Yes | Yes | Top-level scene markers; `group_scenes()` post-processing |
 | Multi-Scene | `play SceneName [transition, duration]` | Yes | Runtime-real | Yes | Yes | Scene-level play statements with transition types |
-| Multi-Scene | `Composition::build()` / `BuildTarget` | — | Runtime-real | Yes | Yes | Per-scene timeline building, edge resolution, global time mapping |
+| Multi-Scene | `BuildTarget::build_with_options()` | — | Runtime-real | Yes | Yes | Per-scene timeline building, edge resolution, global time mapping |
 | Multi-Scene | CLI export (video/GIF/image) | — | Runtime-real | Yes | Yes | `render_*_composition` functions; auto-routing via `BuildTarget` |
 | Multi-Scene | GUI scene list / composition timeline | Yes | Runtime-real | Yes | Yes | Sidebar scene tab, composition scene track, and scene source edits shipped |
 | Multi-Scene | Transition blending (dual render) | Yes | Runtime-real | Yes | Yes | Phase 7; `TransitionCompositor` + WGSL shader; wired in CLI preview, GUI preview, and export |

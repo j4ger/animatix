@@ -370,11 +370,10 @@ fade-in g [100ms]
     let build = |quality| {
         let (ast, errors) = animatix_syntax::parser::parse_source(source);
         assert!(errors.is_empty(), "parse errors: {errors:?}");
-        let report = animatix::timeline::Timeline::build_with_diagnostics_and_font_context(
+        let report = animatix::timeline::Timeline::build_with_options(
             &ast.expect("AST"),
             &std::collections::HashMap::new(),
-            std::sync::Arc::new(animatix::renderer::text::FontContext::new()),
-            quality,
+            animatix::timeline::BuildOptions::default().with_quality(quality),
         );
         assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
         report.output

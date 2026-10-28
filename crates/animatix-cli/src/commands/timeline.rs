@@ -26,7 +26,12 @@ pub fn run(input: &Path) {
         },
     };
     let context = std::sync::Arc::new(animatix::extension_context::ExtensionContext::new());
-    let report = BuildTarget::from_ast_with_context(&ast, &namespaces, Some(input), context);
+    let report = BuildTarget::build_with_options(
+        &ast,
+        &namespaces,
+        Some(input),
+        animatix::timeline::BuildOptions::default().with_context(context),
+    );
     match report.output {
         BuildTarget::MultiScene(comp) => {
             let summary = comp.summary();
