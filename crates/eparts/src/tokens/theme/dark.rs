@@ -2,21 +2,23 @@ use egui::{Color32, Shadow};
 
 use crate::tokens::semantic;
 
-use super::components::{ComponentSlots, Components, alert_level_slots, toast_level_slots};
+use super::components::{ComponentSlots, Components};
 use super::elevation::Elevation;
 use super::model::Theme;
-use super::palette::{Accent, Border, Lines, Overlay, Palette, Status, Surface, Text};
+use super::palette::{Border, Lines, Overlay, Palette, Surface, Text};
+use super::seeds;
 use super::slots::{
-    AlertSlots, ButtonSlots, ButtonStateSlots, ColorPickerSlots, EasingCurveSlots, Fill,
-    InputSlots, ListSlots, MenuItemSlots, ProgressSlots, ScrollbarSlots, SkeletonSlots, Slot,
-    TabSlot, TabSlots, TagSlots, ToastSlots, ToggleSlots,
+    ButtonSlots, ButtonStateSlots, ColorPickerSlots, EasingCurveSlots, Fill, InputSlots, ListSlots,
+    MenuItemSlots, ProgressSlots, ScrollbarSlots, SkeletonSlots, Slot, TabSlot, TabSlots, TagSlots,
+    ToggleSlots,
 };
 
 impl Theme {
     /// Seeded from the current `semantic` module consts/functions.
     ///
     /// Guarantees `Theme::dark() == tokens::semantic::*` field-for-field because every value
-    /// is sourced directly from `crate::tokens::semantic`.
+    /// is sourced from `crate::tokens::semantic` (colour roles that light mode
+    /// shares come from [`super::seeds`]).
     pub fn dark() -> Self {
         let slots = dark_component_slots();
         Self {
@@ -41,32 +43,8 @@ impl Theme {
                     hover: semantic::text::hover(),
                     dim: semantic::text::dim(),
                 },
-                accent: Accent {
-                    primary: semantic::accent::PRIMARY,
-                    cyan: semantic::accent::CYAN,
-                    primary_hover: semantic::accent::PRIMARY_HOVER,
-                    primary_active: semantic::accent::PRIMARY_ACTIVE,
-                    faint: semantic::accent::faint(),
-                    ghost: semantic::accent::ghost(),
-                    subtle: semantic::accent::subtle(),
-                    hover: semantic::accent::hover(),
-                    strong: semantic::accent::strong(),
-                    selection: semantic::accent::selection(),
-                },
-                status: Status {
-                    success: semantic::status::SUCCESS,
-                    warning: semantic::status::WARNING,
-                    error: semantic::status::ERROR,
-                    info: semantic::status::INFO,
-                    playing_text: semantic::status::PLAYING_TEXT,
-                    diagnostic_error: semantic::status::DIAGNOSTIC_ERROR,
-                    diagnostic_warning: semantic::status::DIAGNOSTIC_WARNING,
-                    success_faint: semantic::status::success_faint(),
-                    success_ultra_faint: semantic::status::success_ultra_faint(),
-                    warning_subtle: semantic::status::warning_subtle(),
-                    error_faint: semantic::status::error_faint(),
-                    error_ultra_faint: semantic::status::error_ultra_faint(),
-                },
+                accent: seeds::accent(),
+                status: seeds::status(),
                 border: Border {
                     default: semantic::border::DEFAULT,
                     strong: semantic::border::HOVER,
@@ -436,54 +414,12 @@ fn dark_component_slots() -> ComponentSlots {
             fg: semantic::text::PRIMARY,
             border: semantic::border::DEFAULT,
         },
-        alert: AlertSlots {
-            info: alert_level_slots(
-                semantic::accent::faint(),
-                semantic::status::INFO,
-                semantic::text::PRIMARY,
-            ),
-            success: alert_level_slots(
-                semantic::status::success_faint(),
-                semantic::status::SUCCESS,
-                semantic::text::PRIMARY,
-            ),
-            warning: alert_level_slots(
-                semantic::status::warning_subtle(),
-                semantic::status::WARNING,
-                semantic::text::PRIMARY,
-            ),
-            error: alert_level_slots(
-                semantic::status::error_faint(),
-                semantic::status::ERROR,
-                semantic::text::PRIMARY,
-            ),
-        },
-        toast: ToastSlots {
-            info: toast_level_slots(
-                semantic::surface::SURFACE,
-                semantic::text::PRIMARY,
-                semantic::border::DEFAULT,
-                semantic::accent::PRIMARY,
-            ),
-            success: toast_level_slots(
-                semantic::surface::SURFACE,
-                semantic::text::PRIMARY,
-                semantic::border::DEFAULT,
-                semantic::status::SUCCESS,
-            ),
-            warning: toast_level_slots(
-                semantic::surface::SURFACE,
-                semantic::text::PRIMARY,
-                semantic::border::DEFAULT,
-                semantic::status::WARNING,
-            ),
-            error: toast_level_slots(
-                semantic::surface::SURFACE,
-                semantic::text::PRIMARY,
-                semantic::border::DEFAULT,
-                semantic::status::ERROR,
-            ),
-        },
+        alert: seeds::alert_levels(semantic::text::PRIMARY),
+        toast: seeds::toast_levels(
+            semantic::surface::SURFACE,
+            semantic::text::PRIMARY,
+            semantic::border::DEFAULT,
+        ),
         skeleton: SkeletonSlots {
             base: semantic::surface::WIDGET,
             shimmer: semantic::accent::PRIMARY,

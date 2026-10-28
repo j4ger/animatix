@@ -212,6 +212,137 @@ fn finish_response(ui: &mut egui::Ui, response: Response, tooltip: &str) -> Resp
     response
 }
 
+impl ButtonVariant {
+    /// The slot group that paints this variant.
+    fn slots(self, slots: &theme::ButtonSlots) -> &theme::ButtonStateSlots {
+        match self {
+            Self::Primary => &slots.primary,
+            Self::Secondary => &slots.secondary,
+            Self::Ghost => &slots.ghost,
+            Self::Icon => &slots.icon,
+            Self::Danger => &slots.danger,
+        }
+    }
+}
+
+/// Resolve the state slot a variant paints with.
+///
+/// A ghost button's `active` is a persistent toggle (`selected` plus the
+/// underline); every other variant treats `active` and pointer-down alike.
+/// Loading freezes the disabled slot, so a spinner never paints over a live
+/// hover state.
+fn state_slot(
+    group: &theme::ButtonStateSlots,
+    variant: ButtonVariant,
+    loading: bool,
+    disabled: bool,
+    active: bool,
+    pressed: bool,
+    hovered: bool,
+) -> &theme::Slot {
+    if loading || disabled {
+        &group.disabled
+    } else if active {
+        if matches!(variant, ButtonVariant::Ghost) {
+            &group.selected
+        } else {
+            &group.active
+        }
+    } else if pressed {
+        &group.active
+    } else if hovered {
+        &group.hover
+    } else {
+        &group.normal
+    }
+}
+
+/// Measured icon + label content of a button, and the metrics layout needs.
+struct Content {
+    icon_width: f32,
+    gap: f32,
+    label_galley: Option<std::sync::Arc<egui::Galley>>,
+    /// Icon + gap + label, without padding.
+    width: f32,
+    /// Button width for this content, including horizontal padding.
+    natural_width: f32,
+    pad_x: f32,
+}
+
+/// Lay the label out and measure the content once. The icon-only variant is
+/// square, so its `natural_width` is unused.
+fn content_metrics(
+    ui: &egui::Ui,
+    t: theme::Theme,
+    label: Option<&str>,
+    icon_width: f32,
+    pad_x: f32,
+    row_height: f32,
+) -> Content {
+    let gap = if icon_width > 0.0 && label.is_some() {
+        SPACE_3
+    } else {
+        0.0
+    };
+    let label_galley = label.map(|l| {
+        ui.painter().layout_no_wrap(
+            l.to_string(),
+            TextRole::BodyS.font_id(),
+            t.palette.text.primary,
+        )
+    });
+    let label_width = label_galley.as_ref().map_or(0.0, |g| g.size().x);
+    let width = if icon_width > 0.0 {
+        icon_width + gap + label_width
+    } else {
+        label_width
+    };
+    let natural_width = if label.is_none() && icon_width > 0.0 {
+        row_height.max(icon_width + pad_x * 2.0)
+    } else {
+        width + pad_x * 2.0
+    };
+    Content {
+        icon_width,
+        gap,
+        label_galley,
+        width,
+        natural_width,
+        pad_x,
+    }
+}
+
+impl Button {
+    /// Outline the button while it has keyboard focus and, while loading, put a
+    /// spinner over its content. The button keeps its size in every state, so
+    /// the geometry does not jump.
+    fn paint_focus_and_loading(
+        &self,
+        ui: &mut egui::Ui,
+        painter: &egui::Painter,
+        rect: egui::Rect,
+        radius: f32,
+        row_height: f32,
+        response: &Response,
+        focus_color: Color32,
+    ) {
+        if !self.loading && !self.disabled && response.has_focus() {
+            painter.rect_stroke(
+                rect.shrink(1.0),
+                radius,
+                egui::Stroke::new(STROKE_WIDTH, focus_color),
+                egui::StrokeKind::Inside,
+            );
+        }
+        if self.loading {
+            let spinner_size = row_height * 0.6;
+            let spinner_rect =
+                egui::Rect::from_center_size(rect.center(), Vec2::splat(spinner_size));
+            ui.put(spinner_rect, Spinner::new().set_size(spinner_size));
+        }
+    }
+}
+
 impl egui::Widget for Button {
     fn ui(mut self, ui: &mut egui::Ui) -> Response {
         let d = density(ui);
@@ -232,351 +363,139 @@ impl egui::Widget for Button {
         };
 
         let icon_font = TextRole::Body.font_id();
-        let label_font = TextRole::BodyS.font_id();
-
-        let icon_galley = self.icon.map(|i| {
+        let icon_width = self.icon.map_or(0.0, |i| {
             ui.painter()
                 .layout_no_wrap(i.to_string(), icon_font.clone(), t.palette.text.primary)
+                .size()
+                .x
         });
+        let content = content_metrics(ui, t, label, icon_width, self.size.pad_x_for(d), row_height);
 
-        let response = match self.variant {
-            ButtonVariant::Icon => {
-                let size = Vec2::new(row_height, row_height);
-                let sense = if self.loading {
-                    Sense::hover()
-                } else {
-                    Sense::click()
-                };
-                let (rect, response) = ui.allocate_exact_size(size, sense);
+        // The icon variant is square; the labelled variants allocate their
+        // measured content plus padding.
+        let icon_only = matches!(self.variant, ButtonVariant::Icon);
+        let size = if icon_only {
+            Vec2::splat(row_height)
+        } else {
+            Vec2::new(content.natural_width, row_height)
+        };
+        let sense = if self.loading {
+            Sense::hover()
+        } else {
+            Sense::click()
+        };
+        let (rect, response) = ui.allocate_exact_size(size, sense);
 
-                let slot_group = &t.components.button.icon;
-                let slot = if self.loading || self.disabled {
-                    &slot_group.disabled
-                } else if self.active || response.is_pointer_button_down_on() {
-                    &slot_group.active
-                } else if response.hovered() {
-                    &slot_group.hover
-                } else {
-                    &slot_group.normal
-                };
+        let pressed = response.is_pointer_button_down_on();
+        let slot = state_slot(
+            self.variant.slots(&t.components.button),
+            self.variant,
+            self.loading,
+            self.disabled,
+            self.active,
+            pressed,
+            response.hovered(),
+        );
+        let painter = ui.painter().with_clip_rect(rect);
 
-                let painter = ui.painter().with_clip_rect(rect);
-
+        // Variant chrome. Ghost and icon rest on a transparent slot, so they only
+        // fill when the current state (hover/selected) has a background; the
+        // filled variants always paint and add the one-pixel top rim that reads
+        // as raised.
+        match self.variant {
+            ButtonVariant::Icon | ButtonVariant::Ghost => {
                 if slot.bg != Color32::TRANSPARENT {
                     painter.rect_filled(rect, radius, slot.bg);
                 }
-
-                if !self.loading {
-                    let icon_color = if self.disabled {
-                        slot.fg
-                    } else if response.hovered() {
-                        self.hover_icon_color.unwrap_or(slot.fg)
-                    } else {
-                        self.icon_color.unwrap_or(slot.fg)
-                    };
-
-                    let is_pressed = response.is_pointer_button_down_on();
-                    let y_shift = if is_pressed { 1.0 } else { 0.0 };
-
-                    if let Some(i) = self.icon {
-                        painter.text(
-                            rect.center() + Vec2::new(0.0, y_shift),
-                            egui::Align2::CENTER_CENTER,
-                            i,
-                            icon_font,
-                            icon_color,
-                        );
-                    }
-                }
-
-                if !self.loading && !self.disabled && response.has_focus() {
-                    painter.rect_stroke(
-                        rect.shrink(1.0),
-                        radius,
-                        egui::Stroke::new(STROKE_WIDTH, t.focus_ring()),
-                        egui::StrokeKind::Inside,
-                    );
-                }
-
-                if self.loading {
-                    let spinner_size = row_height * 0.6;
-                    let spinner_rect =
-                        egui::Rect::from_center_size(rect.center(), Vec2::splat(spinner_size));
-                    ui.put(spinner_rect, Spinner::new().set_size(spinner_size));
-                }
-
-                // Principle 3: override egui's default PointingHand with Default arrow.
-                finish_response(ui, response, self.tooltip)
-            },
-            ButtonVariant::Ghost => {
-                let icon_width = icon_galley.as_ref().map_or(0.0, |g| g.size().x);
-                let pad_x = self.size.pad_x_for(d);
-                let gap = if icon_width > 0.0 && label.is_some() {
-                    SPACE_3
-                } else {
-                    0.0
-                };
-                let mut label_galley = None;
-                let mut label_width = 0.0;
-                if let Some(l) = label {
-                    let galley = ui.painter().layout_no_wrap(
-                        l.to_string(),
-                        label_font.clone(),
-                        t.palette.text.primary,
-                    );
-                    label_width = galley.size().x;
-                    label_galley = Some(galley);
-                }
-
-                let content_width = if icon_width > 0.0 && label.is_some() {
-                    icon_width + gap + label_width
-                } else if icon_width > 0.0 {
-                    icon_width
-                } else {
-                    label_width
-                };
-
-                let natural_width = if label.is_none() && icon_width > 0.0 {
-                    row_height.max(icon_width + pad_x * 2.0)
-                } else {
-                    content_width + pad_x * 2.0
-                };
-                let size = Vec2::new(natural_width, row_height);
-                let sense = if self.loading {
-                    Sense::hover()
-                } else {
-                    Sense::click()
-                };
-                let (rect, response) = ui.allocate_exact_size(size, sense);
-
-                let slot_group = &t.components.button.ghost;
-                let slot = if self.loading || self.disabled {
-                    &slot_group.disabled
-                } else if self.active {
-                    &slot_group.selected
-                } else if response.is_pointer_button_down_on() {
-                    &slot_group.active
-                } else if response.hovered() {
-                    &slot_group.hover
-                } else {
-                    &slot_group.normal
-                };
-
-                let painter = ui.painter().with_clip_rect(rect);
-
-                if slot.bg != Color32::TRANSPARENT {
-                    painter.rect_filled(rect, radius, slot.bg);
-                }
-
-                if self.active && !self.loading && !self.disabled {
-                    let accent_rect = egui::Rect::from_min_size(
-                        egui::pos2(rect.min.x + 4.0, rect.max.y - 2.0),
-                        Vec2::new(rect.width() - 8.0, 2.0),
-                    );
-                    painter.rect_filled(accent_rect, RADIUS_S, slot.border);
-                }
-
-                if !self.loading {
-                    let icon_color = if self.disabled || self.active {
-                        slot.fg
-                    } else if response.hovered() {
-                        self.hover_icon_color.unwrap_or(slot.fg)
-                    } else {
-                        self.icon_color.unwrap_or(slot.fg)
-                    };
-
-                    let is_pressed = response.is_pointer_button_down_on();
-                    let y_shift = if is_pressed { 1.0 } else { 0.0 };
-                    let baseline_y = rect.center().y + y_shift;
-
-                    let start_x = match self.align {
-                        ButtonAlign::Center => {
-                            rect.min.x + ((rect.width() - content_width) * 0.5).max(pad_x)
-                        },
-                        ButtonAlign::Left => rect.min.x + pad_x,
-                    };
-                    let mut cursor_x = start_x;
-
-                    if let Some(icon) = self.icon {
-                        let icon_y = if label.is_some() {
-                            baseline_y + 1.0
-                        } else {
-                            baseline_y
-                        };
-                        painter.text(
-                            egui::pos2(cursor_x + icon_width / 2.0, icon_y),
-                            egui::Align2::CENTER_CENTER,
-                            icon,
-                            icon_font,
-                            icon_color,
-                        );
-                        cursor_x += icon_width + gap;
-                    }
-
-                    if let Some(galley) = label_galley {
-                        painter.galley(
-                            egui::pos2(cursor_x, baseline_y - galley.size().y / 2.0),
-                            galley,
-                            slot.fg,
-                        );
-                    }
-                }
-
-                if !self.loading && !self.disabled && response.has_focus() {
-                    painter.rect_stroke(
-                        rect.shrink(1.0),
-                        radius,
-                        egui::Stroke::new(STROKE_WIDTH, t.focus_ring()),
-                        egui::StrokeKind::Inside,
-                    );
-                }
-
-                if self.loading {
-                    let spinner_size = row_height * 0.6;
-                    let spinner_rect =
-                        egui::Rect::from_center_size(rect.center(), Vec2::splat(spinner_size));
-                    ui.put(spinner_rect, Spinner::new().set_size(spinner_size));
-                }
-
-                // Principle 3: override egui's default PointingHand with Default arrow.
-                finish_response(ui, response, self.tooltip)
             },
             ButtonVariant::Primary | ButtonVariant::Danger | ButtonVariant::Secondary => {
-                let slot_group = match self.variant {
-                    ButtonVariant::Primary => &t.components.button.primary,
-                    ButtonVariant::Danger => &t.components.button.danger,
-                    ButtonVariant::Secondary => &t.components.button.secondary,
-                    _ => unreachable!(),
-                };
-                let icon_width = icon_galley.as_ref().map_or(0.0, |g| g.size().x);
-                let pad_x = self.size.pad_x_for(d);
-                let gap = if icon_width > 0.0 && label.is_some() {
-                    SPACE_3
-                } else {
-                    0.0
-                };
-                let mut label_galley = None;
-                let mut label_width = 0.0;
-                if let Some(l) = label {
-                    let galley = ui.painter().layout_no_wrap(
-                        l.to_string(),
-                        label_font.clone(),
-                        t.palette.text.primary,
-                    );
-                    label_width = galley.size().x;
-                    label_galley = Some(galley);
-                }
-
-                let content_width = if icon_width > 0.0 && label.is_some() {
-                    icon_width + gap + label_width
-                } else if icon_width > 0.0 {
-                    icon_width
-                } else {
-                    label_width
-                };
-
-                let natural_width = if label.is_none() && icon_width > 0.0 {
-                    row_height.max(icon_width + pad_x * 2.0)
-                } else {
-                    content_width + pad_x * 2.0
-                };
-                let size = Vec2::new(natural_width, row_height);
-                let sense = if self.loading {
-                    Sense::hover()
-                } else {
-                    Sense::click()
-                };
-                let (rect, response) = ui.allocate_exact_size(size, sense);
-
-                let slot = if self.loading || self.disabled {
-                    &slot_group.disabled
-                } else if self.active || response.is_pointer_button_down_on() {
-                    &slot_group.active
-                } else if response.hovered() {
-                    &slot_group.hover
-                } else {
-                    &slot_group.normal
-                };
-
-                let is_pressed = response.is_pointer_button_down_on();
-                let y_shift = if is_pressed { 1.0 } else { 0.0 };
-                let painter = ui.painter().with_clip_rect(rect);
-
                 painter.rect_filled(rect, radius, slot.bg);
-
                 // Subtle top rim highlight for tactile elevated chassis
-                if !is_pressed && !self.disabled && radius >= 1.0 {
+                if !pressed && !self.disabled && radius >= 1.0 {
                     let top_edge = egui::Rect::from_min_max(
                         egui::pos2(rect.min.x + radius * 0.5, rect.min.y),
                         egui::pos2(rect.max.x - radius * 0.5, rect.min.y + 1.0),
                     );
                     painter.rect_filled(top_edge, 0.5, t.palette.border.rim_highlight);
                 }
-
-                if !self.loading {
-                    let baseline_y = rect.center().y + y_shift;
-                    let start_x = match self.align {
-                        ButtonAlign::Center => {
-                            rect.min.x + ((rect.width() - content_width) * 0.5).max(pad_x)
-                        },
-                        ButtonAlign::Left => rect.min.x + pad_x,
-                    };
-                    let mut cursor_x = start_x;
-
-                    if icon_width > 0.0 {
-                        if let Some(icon) = self.icon {
-                            let icon_fg = if self.disabled {
-                                slot.fg
-                            } else if response.hovered() {
-                                self.hover_icon_color.unwrap_or(slot.fg)
-                            } else {
-                                self.icon_color.unwrap_or(slot.fg)
-                            };
-                            let icon_y = if label.is_some() {
-                                baseline_y + 1.0
-                            } else {
-                                baseline_y
-                            };
-                            painter.text(
-                                egui::pos2(cursor_x + icon_width / 2.0, icon_y),
-                                egui::Align2::CENTER_CENTER,
-                                icon,
-                                icon_font,
-                                icon_fg,
-                            );
-                            cursor_x += icon_width + gap;
-                        }
-                    }
-
-                    if let Some(galley) = label_galley {
-                        painter.galley(
-                            egui::pos2(cursor_x, baseline_y - galley.size().y / 2.0),
-                            galley,
-                            slot.fg,
-                        );
-                    }
-                }
-
-                if !self.loading && !self.disabled && response.has_focus() {
-                    painter.rect_stroke(
-                        rect.shrink(1.0),
-                        radius,
-                        egui::Stroke::new(STROKE_WIDTH, t.focus_ring()),
-                        egui::StrokeKind::Inside,
-                    );
-                }
-
-                if self.loading {
-                    let spinner_size = row_height * 0.6;
-                    let spinner_rect =
-                        egui::Rect::from_center_size(rect.center(), Vec2::splat(spinner_size));
-                    ui.put(spinner_rect, Spinner::new().set_size(spinner_size));
-                }
-
-                // Principle 3: override egui's default PointingHand with Default arrow.
-                finish_response(ui, response, self.tooltip)
             },
-        };
+        }
+        if matches!(self.variant, ButtonVariant::Ghost)
+            && self.active
+            && !self.loading
+            && !self.disabled
+        {
+            let accent_rect = egui::Rect::from_min_size(
+                egui::pos2(rect.min.x + 4.0, rect.max.y - 2.0),
+                Vec2::new(rect.width() - 8.0, 2.0),
+            );
+            painter.rect_filled(accent_rect, RADIUS_S, slot.border);
+        }
+
+        // Icon + label. A pressed button sinks its content by one pixel; the
+        // icon-only variant centers it, the labelled ones lay out from the
+        // alignment edge.
+        if !self.loading {
+            let y_shift = if pressed { 1.0 } else { 0.0 };
+            let baseline_y = rect.center().y + y_shift;
+            let start_x = if icon_only {
+                rect.min.x + (rect.width() - content.width) * 0.5
+            } else {
+                match self.align {
+                    ButtonAlign::Center => {
+                        rect.min.x + ((rect.width() - content.width) * 0.5).max(content.pad_x)
+                    },
+                    ButtonAlign::Left => rect.min.x + content.pad_x,
+                }
+            };
+            // A ghost toggle keeps its active foreground rather than the hover
+            // accent, so it does not flash while toggled on; the filled variants
+            // let the hover accent override.
+            let toggled = matches!(self.variant, ButtonVariant::Ghost) && self.active;
+            let icon_color = if self.disabled || toggled {
+                slot.fg
+            } else if response.hovered() {
+                self.hover_icon_color.unwrap_or(slot.fg)
+            } else {
+                self.icon_color.unwrap_or(slot.fg)
+            };
+            let mut cursor_x = start_x;
+            if let Some(icon) = self.icon {
+                let icon_y = if label.is_some() {
+                    baseline_y + 1.0
+                } else {
+                    baseline_y
+                };
+                painter.text(
+                    egui::pos2(cursor_x + content.icon_width / 2.0, icon_y),
+                    egui::Align2::CENTER_CENTER,
+                    icon,
+                    icon_font,
+                    icon_color,
+                );
+                cursor_x += content.icon_width + content.gap;
+            }
+            if let Some(galley) = &content.label_galley {
+                painter.galley(
+                    egui::pos2(cursor_x, baseline_y - galley.size().y / 2.0),
+                    galley.clone(),
+                    slot.fg,
+                );
+            }
+        }
+
+        self.paint_focus_and_loading(
+            ui,
+            &painter,
+            rect,
+            radius,
+            row_height,
+            &response,
+            t.focus_ring(),
+        );
+
+        // Principle 3: override egui's default PointingHand with Default arrow.
+        let response = finish_response(ui, response, self.tooltip);
         if response.hovered() {
             if let Some(cb) = self.on_hover.take() {
                 cb();

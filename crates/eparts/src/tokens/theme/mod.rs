@@ -25,6 +25,7 @@ mod elevation;
 mod light;
 mod model;
 mod palette;
+mod seeds;
 #[cfg(feature = "theme-json")]
 mod serde_helpers;
 mod slots;
