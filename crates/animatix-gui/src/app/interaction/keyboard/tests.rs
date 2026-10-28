@@ -13,13 +13,10 @@ fn test_input(events: Vec<egui::Event>) -> egui::RawInput {
 fn canvas_focus(text_edit_focused: bool) -> FocusContext {
     FocusContext {
         text_edit_focused,
-        has_selection: false,
-        drag_active: false,
         inline_edit_active: false,
         command_palette_open: false,
         find_replace_open: false,
         unsaved_dialog_open: false,
-        tool_mode: crate::app::preview::ToolMode::Move,
     }
 }
 

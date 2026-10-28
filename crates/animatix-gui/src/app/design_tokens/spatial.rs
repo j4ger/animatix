@@ -11,15 +11,13 @@
 //! that existing paths like `design_tokens::spatial::SPACE_4` and
 //! `design_tokens::spatial::preview::HANDLE_SIZE` continue to resolve.
 //!
-//! Wave 3 of the density refactor adds the GUI `Spatial` resolver struct,
-//! which layers app-specific chrome dimensions on top of the eparts
-//! `Spatial` (mirroring how `design_tokens/semantic.rs` layers app color
-//! roles on top of eparts semantic roles).
+//! The GUI `Spatial` resolver layers app-specific chrome dimensions on top
+//! of the eparts `Spatial` (mirroring how `design_tokens/semantic.rs` layers
+//! app color roles on top of eparts semantic roles). Resolve it with
+//! [`spatial`] or [`spatial_from_ctx`].
 
-// ── Density API — re-exported from eparts ────────────────────────────────────
-// Corner radii
-// Row heights
 // ── Generic tokens — individually re-exported from eparts ─────────────────────
+// This covers the density API, corner radii, row heights, and stroke widths.
 // Individual re-exports (rather than `pub use …::spatial;`) are required
 // so that local submodules like `dialog` can resolve `super::SPACE_4`.
 
@@ -355,7 +353,7 @@ pub mod editor {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Unit tests — Wave 3
+// Unit tests — density resolution
 // ═══════════════════════════════════════════════════════════════════════════
 // Verifies that Density::Default produces byte-identical results to the
 // base consts for both the eparts portion (via base.space_n / base.row_n)

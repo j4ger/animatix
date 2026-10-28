@@ -175,13 +175,10 @@ impl AnimatixApp {
         let has_selection = !self.shell.ui_store.selection.selected_actors.is_empty();
         let focus = FocusContext {
             text_edit_focused: ctx.text_edit_focused(),
-            has_selection,
-            drag_active: self.shell.ui_store.interaction.is_dragging(),
             inline_edit_active: self.shell.preview_store.preview.inline_edit.is_some(),
             command_palette_open: self.shell.ui_store.view.command_palette_open,
             find_replace_open: self.shell.ui_store.view.find_replace_open,
             unsaved_dialog_open: self.shell.ui_store.unsaved_changes.is_open,
-            tool_mode: self.shell.ui_store.view.tool_mode,
         };
 
         if let Some(action) = self.shell.shortcut_registry.check(ctx, &focus) {

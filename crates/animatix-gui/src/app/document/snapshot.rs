@@ -33,13 +33,10 @@ pub enum BuildTargetSnapshot {
 /// An immutable snapshot of all derived document state after a rebuild.
 ///
 /// This is the single source of truth for all non-source document data.
-/// `DocumentStore` holds the latest snapshot (current) and the last good one.
-///
-/// Fields are written during construction but not yet read individually —
-/// panels currently consume `DocumentSession` directly. The snapshot API
-/// exists for the panel-migration path (see `panels/*_model.rs`).
+/// `DocumentStore` publishes the latest snapshot and retains the last
+/// renderable one for preview fallback.
 #[derive(Clone)]
-#[allow(dead_code)] // DocumentSnapshot is the panel-migration target; not yet consumed by panels
+#[allow(dead_code)] // Fields are published for rebuild consumers; several are not read individually yet.
 pub struct DocumentSnapshot {
     pub generation: DocumentGeneration,
     pub source_epoch: SourceEpoch,

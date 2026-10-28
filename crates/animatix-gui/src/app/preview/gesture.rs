@@ -2,7 +2,7 @@ use egui::{Pos2, Vec2};
 
 /// Mouse button for pointer events.
 #[derive(Debug, Clone, Copy, PartialEq)]
-#[allow(dead_code)] // Reserved for incremental gesture handler extraction (Phase 4, Steps 3-8)
+#[allow(dead_code)] // Primary is routed today; Secondary/Middle are reserved for pointer gestures not yet emitted.
 pub enum PointerButton {
     Primary,
     Secondary,
@@ -11,7 +11,7 @@ pub enum PointerButton {
 
 /// High-level gesture events produced by the gesture router.
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Reserved for incremental gesture handler extraction (Phase 4, Steps 3-8)
+#[allow(dead_code)] // Drag gestures are routed today; the remaining variants/fields are reserved for future pointer routing.
 pub enum Gesture {
     Tap {
         pos: Pos2,
@@ -56,14 +56,12 @@ pub enum Gesture {
 
 /// Result from a gesture handler indicating whether it claimed the gesture.
 #[derive(Debug, Clone, Copy, PartialEq)]
-#[allow(dead_code)] // Reserved for incremental gesture handler extraction (Phase 4, Steps 3-8)
 pub enum GestureResult {
     Claimed,
     Ignored,
 }
 
 /// Trait for gesture handlers. Handlers are checked in priority order by the router.
-#[allow(dead_code)] // Reserved for incremental gesture handler extraction (Phase 4, Steps 3-8)
 pub trait GestureHandler {
     /// Handle a gesture event. Return Claimed if the gesture was handled and should not be
     /// passed to lower-priority handlers.

@@ -86,16 +86,10 @@ pub enum KeyboardAction {
 pub struct FocusContext {
     /// True when an egui `TextEdit` currently owns keyboard focus.
     pub text_edit_focused: bool,
-    #[allow(dead_code)] // Reserved for future scope-gating logic
-    pub has_selection: bool,
-    #[allow(dead_code)] // Reserved for future scope-gating logic
-    pub drag_active: bool,
     pub inline_edit_active: bool,
     pub command_palette_open: bool,
     pub find_replace_open: bool,
     pub unsaved_dialog_open: bool,
-    #[allow(dead_code)] // Reserved for future scope-gating logic
-    pub tool_mode: crate::app::preview::ToolMode,
 }
 
 impl FocusContext {

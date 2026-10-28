@@ -18,9 +18,8 @@ impl GuiShell {
 
     /// Return a cloneable sender for commands submitted outside egui callbacks.
     ///
-    /// Reserved for integration tests and future remote control; the queue is
-    /// owned by the shell and drained every frame.
-    #[allow(dead_code)] // Exposed for integration tests and future remote-control wiring.
+    /// Used by the demo-script driver in `runtime/run.rs`; the queue is owned
+    /// by the shell and drained every frame.
     pub(crate) fn external_command_sender(&self) -> CommandSender {
         self.external_commands.sender()
     }

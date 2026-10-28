@@ -4,14 +4,14 @@
 //!
 //! ```text
 //! design_tokens/
-//!   ├── mod.rs       ← this file: re-exports public submodules + eparts shims
-//!   ├── primitive.rs ← re-exported from eparts::tokens::primitive (bridge)
+//!   ├── mod.rs       ← this file: eparts token re-exports + public submodules
 //!   ├── semantic.rs  ← public color role tokens (generic re-exports + app-specific)
-//!   ├── spatial.rs   ← spacing, row heights, radii, domain dimensions (generic + app-specific)
-//!   ├── typography.rs← re-exported from eparts::tokens::typography
-//!   ├── motion.rs    ← re-exported from eparts::tokens::motion
-//!   └── util.rs      ← re-exported from eparts::tokens::util
+//!   └── spatial.rs   ← spacing, row heights, radii, domain dimensions (generic + app-specific)
 //! ```
+//!
+//! `primitive`, `typography`, `motion`, and `util` have no local source file:
+//! they are re-exported from `eparts::tokens` below, so their historical
+//! `crate::app::design_tokens::…` paths keep resolving.
 //!
 //! ## Import convention
 //!
@@ -27,7 +27,7 @@
 // The `pub use` makes them reachable under their original `crate::app::design_tokens::…`
 // paths, so zero call-site changes are needed.
 
-/// Raw palette — bridge to eparts where primitive.rs now lives.
+/// Raw palette — re-exported from `eparts::tokens::primitive`.
 /// Also provides the `p::*` alias used by semantic.rs app-specific submodules.
 pub use eparts::tokens::primitive;
 pub use eparts::tokens::{motion, typography, util};

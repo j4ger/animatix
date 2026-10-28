@@ -53,7 +53,7 @@ impl CommandQueue {
     }
 
     /// Enqueue a shell action from the GUI's own code.
-    #[allow(dead_code)] // Reserved for GUI-owned callers; external senders use CommandSender.
+    #[allow(dead_code)] // Used by command-queue tests; kept as the GUI-owned enqueue path.
     pub fn push(&mut self, action: impl Into<ShellAction>) {
         let _ = self.sender.send(action.into());
     }
@@ -88,12 +88,6 @@ impl CommandSender {
         self.sender
             .send(ShellAction::Command(command))
             .map_err(|_| CommandQueueError::Closed)
-    }
-
-    /// Enqueue any shell action for the next shell frame.
-    #[allow(dead_code)] // External sender is exercised by headless tests and reserved for remote control.
-    pub fn send_action(&self, action: ShellAction) -> Result<(), CommandQueueError> {
-        self.sender.send(action).map_err(|_| CommandQueueError::Closed)
     }
 }
 
