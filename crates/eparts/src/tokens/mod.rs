@@ -14,18 +14,14 @@ pub mod theme_json;
 pub mod theme_registry;
 #[cfg(feature = "theme-json")]
 pub mod theme_registry_watcher;
-#[cfg(feature = "theme-json")]
-pub mod theme_watcher;
 pub mod typography;
 pub mod util;
 
 pub use theme::{Components, Palette, Theme, set_theme, theme, theme_from_ctx};
 #[cfg(feature = "theme-json")]
-pub use theme_json::{ThemeFile, theme_schema_json};
+pub use theme_json::ThemeFile;
 #[cfg(feature = "theme-json")]
 pub use theme_registry::{ThemeRegistry, ThemeRegistryError};
 #[cfg(feature = "theme-json")]
 pub use theme_registry_watcher::{ThemeRegistryWatcher, ThemeRegistryWatcherEvent};
-#[cfg(feature = "theme-json")]
-pub use theme_watcher::{ThemeWatcher, ThemeWatcherEvent};
 pub use util::{lerp_color, multiply_alpha, with_alpha};

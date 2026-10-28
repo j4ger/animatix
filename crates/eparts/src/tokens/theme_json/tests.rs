@@ -34,16 +34,6 @@ fn empty_partial_is_identity() {
 }
 
 #[test]
-fn builtin_theme_file_roundtrips_both_modes() {
-    let file = ThemeFile::builtin();
-    let json = file.to_json_pretty().expect("serialize");
-    let parsed = ThemeFile::from_json(&json).expect("parse");
-    assert_eq!(parsed.dark_theme(), Theme::dark());
-    assert_eq!(parsed.light_theme(), Theme::light());
-    assert_eq!(parsed.name.as_deref(), Some("Animatix"));
-}
-
-#[test]
 fn partial_override_keeps_unset_dark_tokens() {
     let json = r##"{
         "name": "Custom",
@@ -142,19 +132,6 @@ fn invalid_color_is_rejected() {
     assert!(ThemeFile::from_json(json).is_err());
 }
 
-#[test]
-fn save_and_load_roundtrip() {
-    let dir = std::env::temp_dir().join(format!("eparts-theme-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).expect("create temp dir");
-    let path = dir.join("theme.json");
-    let file = ThemeFile::builtin();
-    file.save(&path).expect("save");
-    let loaded = ThemeFile::load(&path).expect("load");
-    assert_eq!(loaded.dark_theme(), file.dark_theme());
-    assert_eq!(loaded.light_theme(), file.light_theme());
-    let _ = std::fs::remove_dir_all(&dir);
-}
-
 /// Serde-compat guard: the checked-in example theme file (which predates the
 /// macro refactor and the new component groups) must keep loading and
 /// merging over the built-in bases.
@@ -178,9 +155,12 @@ fn existing_example_theme_file_still_loads() {
 fn serialized_theme_json_stays_flat_after_grouping() {
     // The runtime `Theme` gained `palette`/`components` groups, but the
     // on-disk DTO must keep the historical flat shape so existing
-    // `theme.json` files (and the schema) stay valid.
-    let file = ThemeFile::builtin();
-    let json = file.to_json_pretty().expect("serialize");
+    // `theme.json` files stay valid.
+    let file = ThemeFile {
+        dark: Some(PartialTheme::full_from(Theme::dark())),
+        ..ThemeFile::default()
+    };
+    let json = serde_json::to_string_pretty(&file).expect("serialize");
     let value: serde_json::Value = serde_json::from_str(&json).expect("parse");
     let dark = value["dark"].as_object().expect("dark object");
     for key in [
@@ -191,13 +171,4 @@ fn serialized_theme_json_stays_flat_after_grouping() {
     assert!(!dark.contains_key("palette"), "JSON must not nest under `palette`");
     assert!(!dark.contains_key("components"), "JSON must not nest under `components`");
     assert!(dark["surface"]["base"].is_string());
-}
-
-#[test]
-fn schema_is_valid_json_and_describes_theme_file() {
-    let schema = theme_schema_json();
-    let value: serde_json::Value = serde_json::from_str(&schema).expect("valid JSON");
-    assert_eq!(value["$schema"], "https://json-schema.org/draft/2020-12/schema");
-    assert!(value["$defs"]["theme"].is_object());
-    assert!(value["$defs"]["elevation"].is_object());
 }

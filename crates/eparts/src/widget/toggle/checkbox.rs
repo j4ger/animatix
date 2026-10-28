@@ -145,5 +145,3 @@ impl<'a> egui::Widget for Checkbox<'a> {
         response
     }
 }
-
-// ── Radio ───────────────────────────────────────────────────────────

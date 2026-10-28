@@ -1,3 +1,4 @@
+use super::tree_impl::{row_rect_for, visible_row_range};
 use super::*;
 
 /// Simulate what a caller would produce: a flat list of 5 items
@@ -370,4 +371,40 @@ fn tree_row_click_claims_focus() {
         ctx.memory(|m| m.has_focus(Id::new("click_tree"))),
         "clicking a tree row must claim keyboard focus for the tree"
     );
+}
+
+/// `visible_row_range` spans the viewport with one row of overscan each side.
+#[test]
+fn visible_row_range_basic() {
+    let viewport = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(100.0, 100.0));
+    let range = visible_row_range(viewport, 20.0, 50);
+    assert_eq!(range.start, 0);
+    // 100/20 = 5 rows visible + 1 overscan.
+    assert_eq!(range.end, 6);
+}
+
+#[test]
+fn visible_row_range_scrolled_clamps_to_count() {
+    let viewport = egui::Rect::from_min_max(egui::pos2(0.0, 980.0), egui::pos2(100.0, 1080.0));
+    let range = visible_row_range(viewport, 20.0, 50);
+    assert_eq!(range.start, 49);
+    assert_eq!(range.end, 50, "range must not exceed the item count");
+}
+
+#[test]
+fn visible_row_range_empty_or_zero_height() {
+    let viewport = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(100.0, 100.0));
+    assert_eq!(visible_row_range(viewport, 20.0, 0), 0..0);
+    assert_eq!(visible_row_range(viewport, 0.0, 10), 0..0);
+}
+
+#[test]
+fn row_rect_for_offsets_by_row_height() {
+    let outer = egui::Rect::from_min_size(egui::pos2(10.0, 20.0), egui::vec2(100.0, 240.0));
+    let r0 = row_rect_for(outer, 24.0, 0);
+    let r2 = row_rect_for(outer, 24.0, 2);
+    assert_eq!(r0.min, egui::pos2(10.0, 20.0));
+    assert_eq!(r0.height(), 24.0);
+    assert_eq!(r2.min.y, 20.0 + 48.0);
+    assert_eq!(r2.width(), 100.0);
 }

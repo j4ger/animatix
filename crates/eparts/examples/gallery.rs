@@ -14,20 +14,18 @@ use eframe::egui::{self, Color32};
 use eparts::ThemeFile;
 use eparts::tokens::typography::TextRole;
 use eparts::widget::button::Button;
-use eparts::widget::feedback::{Alert, AlertLevel, Badge, ProgressBar, Skeleton, Tag};
+use eparts::widget::feedback::{Alert, AlertLevel, Badge, ProgressBar, Tag};
 use eparts::widget::form::{Field, Form};
 use eparts::widget::input::{NumberField, TextField};
 use eparts::widget::kbd::Kbd;
 use eparts::widget::label::Label;
 use eparts::widget::layout::{card, group_box, section_header, separator};
-use eparts::widget::link::Link;
-use eparts::widget::list::{List, SearchableList};
 use eparts::widget::popover::Popover;
 use eparts::widget::select::Select;
 use eparts::widget::slider::Slider;
 use eparts::widget::spinner::Spinner;
 use eparts::widget::tabs::TabBar;
-use eparts::widget::toggle::{Checkbox, Radio, Side, Switch};
+use eparts::widget::toggle::{Checkbox, Side, Switch};
 use eparts::widget::tooltip::text_tooltip;
 use eparts::widget::tree::{Tree, TreeAction, TreeItem};
 use eparts::widget::{self, UiExt};
@@ -49,7 +47,6 @@ struct GalleryApp {
     disabled: bool,
     checkbox: bool,
     switch: bool,
-    radio: u8,
 
     // Inputs
     text: String,
@@ -69,7 +66,6 @@ struct GalleryApp {
 
     // Layout
     tab_selected: usize,
-    accordion_open: Option<usize>,
 
     // Color
     color: Color32,
@@ -91,7 +87,6 @@ impl Default for GalleryApp {
             disabled: false,
             checkbox: true,
             switch: false,
-            radio: 0,
             text: String::new(),
             number: 50.0,
             slider: 0.5,
@@ -101,7 +96,6 @@ impl Default for GalleryApp {
             form_email: String::new(),
             progress: 0.42,
             tab_selected: 0,
-            accordion_open: Some(0),
             color: Color32::from_rgb(100, 150, 200),
             expanded: HashSet::new(),
             tree_selected: None,
@@ -234,20 +228,14 @@ impl GalleryApp {
                 section_header(ui, "\u{2611}", "Toggles", None);
                 ui.add(Checkbox::new(&mut self.checkbox).label("Checkbox"));
                 ui.add(Switch::new(&mut self.switch).label("Switch").label_side(Side::Right));
-                ui.horizontal(|ui| {
-                    ui.add(Radio::new(&mut self.radio, 0u8).label("One"));
-                    ui.add(Radio::new(&mut self.radio, 1u8).label("Two"));
-                    ui.add(Radio::new(&mut self.radio, 2u8).label("Three"));
-                });
                 ui.add_space(8.0);
 
-                // ── Labels + Kbd + Link ────────────────────────────────────
-                section_header(ui, "📝", "Labels, Kbd, Link", None);
+                // ── Labels + Kbd ──────────────────────────────────────────
+                section_header(ui, "📝", "Labels, Kbd", None);
                 ui.horizontal(|ui| {
                     ui.add(Label::new("Body label"));
                     ui.add(Label::new("Required").role(TextRole::BodyS).required(true));
                     ui.add(Kbd::new("Ctrl+S"));
-                    Link::new("Docs").url(Some("https://example.com".into())).show(ui);
                 });
                 ui.add_space(8.0);
 
@@ -279,19 +267,6 @@ impl GalleryApp {
                         Select::new("gallery_select", &mut self.select, &["Red", "Green", "Blue"])
                             .placeholder("Pick a color"),
                     );
-                });
-                ui.horizontal(|ui| {
-                    ui.label("List:");
-                    let list_items: Vec<&str> = vec!["Alpha", "Beta", "Gamma", "Delta", "Epsilon"];
-                    List::new(&list_items).row_height(24.0).show(ui, "gallery_list");
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Searchable:");
-                    let searchable_items: Vec<&str> =
-                        vec!["Apple", "Banana", "Cherry", "Date", "Elderberry"];
-                    SearchableList::new(&searchable_items)
-                        .placeholder("Filter fruits...")
-                        .show(ui, "gallery_searchable");
                 });
                 ui.add_space(8.0);
 
@@ -330,7 +305,6 @@ impl GalleryApp {
                 });
                 ui.add(ProgressBar::new(self.progress).show_percentage(true));
                 ui.horizontal(|ui| {
-                    ui.add(Skeleton::new(egui::vec2(120.0, 16.0)).width(200.0));
                     ui.add(Spinner::new());
                 });
                 ui.add_space(8.0);
@@ -353,16 +327,6 @@ impl GalleryApp {
                     ui.small("Titled bordered container.");
                 });
                 ui.add_space(4.0);
-
-                // Accordion
-                ui.label("Accordion:");
-                let accordion = widget::Accordion::new("gallery_accordion", self.accordion_open);
-                accordion.section(ui, 0, "Section A", |ui| {
-                    ui.label("Content for section A");
-                });
-                accordion.section(ui, 1, "Section B", |ui| {
-                    ui.label("Content for section B");
-                });
 
                 // TabBar
                 ui.add_space(4.0);

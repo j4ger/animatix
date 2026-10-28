@@ -1,5 +1,32 @@
 use super::*;
 
+/// The screen rect of row `idx` within a full-content `outer_rect`.
+pub(super) fn row_rect_for(outer_rect: egui::Rect, row_height: f32, idx: usize) -> egui::Rect {
+    let y = outer_rect.min.y + idx as f32 * row_height;
+    egui::Rect::from_min_max(
+        egui::pos2(outer_rect.min.x, y),
+        egui::pos2(outer_rect.max.x, y + row_height),
+    )
+}
+
+/// Row indices intersecting a scroll viewport.
+///
+/// `viewport` is content-relative (`viewport.min == ZERO` at the top of the
+/// content, per [`egui::ScrollArea::show_viewport`]). One row of overscan is
+/// added on each side so partially scrolled rows still paint.
+pub(super) fn visible_row_range(
+    viewport: egui::Rect,
+    row_height: f32,
+    count: usize,
+) -> std::ops::Range<usize> {
+    if count == 0 || row_height <= 0.0 {
+        return 0..0;
+    }
+    let first = ((viewport.min.y / row_height).floor().max(0.0) as usize).min(count);
+    let last = (((viewport.max.y / row_height).ceil() as usize) + 1).min(count);
+    first..last.max(first)
+}
+
 impl<'a> Tree<'a> {
     pub fn new(items: &'a [TreeItem]) -> Self {
         Self {
@@ -288,7 +315,7 @@ impl<'a> Tree<'a> {
         if ui.is_rect_visible(outer_rect) {
             // `viewport` is content-relative (min == ZERO at the top), matching
             // row offsets from `outer_rect.min.y`.
-            let window = crate::widget::list::visible_row_range(viewport, row_h, num_items);
+            let window = visible_row_range(viewport, row_h, num_items);
 
             // Clip row painting to the intersection of the content rect and the
             // scroll viewport; `painter_at(outer_rect)` alone would clip only to
@@ -298,7 +325,7 @@ impl<'a> Tree<'a> {
 
             for idx in window.clone() {
                 let item = &self.items[idx];
-                let row_rect = crate::widget::list::row_rect_for(outer_rect, row_h, idx);
+                let row_rect = row_rect_for(outer_rect, row_h, idx);
                 let is_selected = sel_idx == Some(idx);
                 let row_id = tree_id.with(idx);
 
@@ -325,10 +352,7 @@ impl<'a> Tree<'a> {
             // Keyboard navigation moved the selection: bring it into view.
             if nav_moved {
                 if let Some(idx) = sel_idx {
-                    ui.scroll_to_rect(
-                        crate::widget::list::row_rect_for(outer_rect, row_h, idx),
-                        None,
-                    );
+                    ui.scroll_to_rect(row_rect_for(outer_rect, row_h, idx), None);
                 }
             }
         }

@@ -26,16 +26,6 @@ pub struct ThemeFile {
 }
 
 impl ThemeFile {
-    /// Build a `ThemeFile` from the built-in dark and light themes.
-    pub fn builtin() -> Self {
-        Self {
-            name: Some("Animatix".to_string()),
-            extends: None,
-            dark: Some(PartialTheme::full_from(Theme::dark())),
-            light: Some(PartialTheme::full_from(Theme::light())),
-        }
-    }
-
     /// Resolve the dark theme, falling back to built-in dark.
     pub fn dark_theme(&self) -> Theme {
         self.dark.clone().unwrap_or_default().apply_to(Theme::dark())
@@ -51,21 +41,10 @@ impl ThemeFile {
         serde_json::from_str(json)
     }
 
-    /// Serialize this theme file as pretty JSON.
-    pub fn to_json_pretty(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string_pretty(self)
-    }
-
     /// Load a theme file from disk.
     pub fn load(path: &Path) -> Result<Self, ThemeJsonError> {
         let source = std::fs::read_to_string(path).map_err(ThemeJsonError::Io)?;
         Self::from_json(&source).map_err(ThemeJsonError::Json)
-    }
-
-    /// Save this theme file to disk.
-    pub fn save(&self, path: &Path) -> Result<(), ThemeJsonError> {
-        let source = self.to_json_pretty().map_err(ThemeJsonError::Json)?;
-        std::fs::write(path, source).map_err(ThemeJsonError::Io)
     }
 }
 

@@ -1,8 +1,7 @@
 //! Live theme-directory watching (`theme-json` feature).
 //!
-//! Unlike [`ThemeWatcher`](super::theme_watcher::ThemeWatcher), which watches a
-//! single file, this watcher watches every theme in a directory and reloads the
-//! full [`ThemeRegistry`]. That keeps inherited themes fresh when a base file
+//! This watcher watches every theme in a directory and reloads the full
+//! [`ThemeRegistry`]. That keeps inherited themes fresh when a base file
 //! changes.
 
 use std::path::PathBuf;

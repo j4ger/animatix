@@ -50,56 +50,6 @@ fn checkbox_builder_chaining() {
     assert_eq!(cb.tooltip, "T");
 }
 
-// ── Radio builder ──────────────────────────────────────────────
-
-#[test]
-fn radio_builder_defaults() {
-    let mut val = 0u32;
-    let r = Radio::new(&mut val, 1);
-    assert_eq!(r.this_value, 1);
-    assert!(r.label.is_none());
-    assert_eq!(r.label_side, Side::Right);
-    assert_eq!(r.tooltip, "");
-}
-
-#[test]
-fn radio_builder_label() {
-    let mut val = 0u32;
-    let r = Radio::new(&mut val, 1).label("Opt");
-    assert_eq!(r.label, Some("Opt"));
-}
-
-#[test]
-fn radio_builder_label_side() {
-    let mut val = 0u32;
-    let r = Radio::new(&mut val, 1).label_side(Side::Left);
-    assert_eq!(r.label_side, Side::Left);
-}
-
-#[test]
-fn radio_builder_tooltip() {
-    let mut val = 0u32;
-    let r = Radio::new(&mut val, 1).tooltip("tip");
-    assert_eq!(r.tooltip, "tip");
-}
-
-#[test]
-fn radio_builder_chaining() {
-    let mut val = 0u32;
-    let r = Radio::new(&mut val, 2).label("L").label_side(Side::Left).tooltip("T");
-    assert_eq!(r.this_value, 2);
-    assert_eq!(r.label, Some("L"));
-    assert_eq!(r.label_side, Side::Left);
-    assert_eq!(r.tooltip, "T");
-}
-
-#[test]
-fn radio_selection_logic() {
-    let mut val = 1u32;
-    let r = Radio::new(&mut val, 1);
-    assert_eq!(*r.value, r.this_value);
-}
-
 // ── Switch builder ─────────────────────────────────────────────
 
 #[test]
@@ -182,12 +132,10 @@ fn animation_id_is_namespaced_by_parent_ui() {
 fn toggle_widgets_render_with_namespaced_animation_ids() {
     let ctx = egui::Context::default();
     let mut flag = false;
-    let mut choice = 0u32;
     let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
         ui.push_id("ns_panel", |ui| {
             ui.add(Checkbox::new(&mut flag).label("Check"));
             ui.add(Switch::new(&mut flag).label("Switch"));
-            ui.add(Radio::new(&mut choice, 1).label("Radio"));
         });
     });
 }
@@ -222,11 +170,9 @@ fn toggle_widgets_render_in_both_themes() {
     for t in [theme::Theme::dark(), theme::Theme::light()] {
         crate::tokens::theme::set_theme(&ctx, t);
         let mut flag = false;
-        let mut choice = 0u32;
         let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
             ui.add(Checkbox::new(&mut flag).label("Check"));
             ui.add(Switch::new(&mut flag).label("Switch"));
-            ui.add(Radio::new(&mut choice, 1).label("Radio"));
             ui.add_enabled(false, Checkbox::new(&mut flag).label("Disabled"));
             ui.add_enabled(false, Switch::new(&mut flag).label("Disabled"));
         });

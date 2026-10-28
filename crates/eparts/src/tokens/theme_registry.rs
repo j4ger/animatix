@@ -52,20 +52,6 @@ impl ThemeRegistry {
         Ok(registry)
     }
 
-    /// Register a theme by name and re-resolve all inheritance.
-    pub fn register(
-        &mut self,
-        name: impl Into<String>,
-        theme: ThemeFile,
-    ) -> Result<(), ThemeRegistryError> {
-        let name = name.into();
-        if self.entries.contains_key(&name) {
-            return Err(ThemeRegistryError::Duplicate(name));
-        }
-        self.entries.insert(name, theme);
-        self.resolve_all()
-    }
-
     /// All registered theme names in stable sorted order.
     pub fn names(&self) -> Vec<String> {
         self.entries.keys().cloned().collect()
@@ -74,11 +60,6 @@ impl ThemeRegistry {
     /// The fully resolved theme for a registry name.
     pub fn resolved(&self, name: &str) -> Option<&ThemeFile> {
         self.resolved.get(name)
-    }
-
-    /// The raw registered theme for a registry name.
-    pub fn raw(&self, name: &str) -> Option<&ThemeFile> {
-        self.entries.get(name)
     }
 
     /// Resolve and install a named theme's dark or light mode.
@@ -97,11 +78,6 @@ impl ThemeRegistry {
             },
         );
         true
-    }
-
-    /// Re-resolve all registered themes after a file change.
-    pub fn reload(&mut self) -> Result<(), ThemeRegistryError> {
-        self.resolve_all()
     }
 
     fn resolve_all(&mut self) -> Result<(), ThemeRegistryError> {
@@ -245,16 +221,6 @@ mod tests {
         assert!(matches!(err, ThemeRegistryError::ExtensionLoop(cycle) if cycle.len() >= 2));
 
         let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
-    fn registry_rejects_duplicate_names() {
-        let mut registry = ThemeRegistry::new();
-        registry.register("dup", ThemeFile::default()).expect("first registration");
-        assert!(matches!(
-            registry.register("dup", ThemeFile::default()),
-            Err(ThemeRegistryError::Duplicate(_))
-        ));
     }
 
     #[test]

@@ -44,10 +44,10 @@ See the canonical work list at `docs/roadmap.md` for the eparts widget-adoption 
 ## Framework principles (reuse goal)
 
 7. **API stability / semver thinking.** While `0.x`, APIs may break freely. Mark intended-stable APIs;
-   keep experimental ones behind `#[doc(hidden)]` or an `unstable` feature. Changelog discipline begins at
+   keep experimental ones behind `#[doc(hidden)]`. Changelog discipline begins at
    the first external consumer.
 8. **Feature-flag optional heavy widgets.** Consumers pay only for what they use. Use Cargo features for
-   heavy/optional surfaces (`table`, `charts`, `webview`, `theme-json`, `i18n`). Core tokens + traits +
+   heavy/optional surfaces (`theme-json`). Core tokens + traits +
    common widgets stay default-on and dependency-light (today: only `egui` + `egui-phosphor`). The Linux
    system-theme detector (`dark-light`) is gated by `cfg(target_os = "linux")` and/or a feature.
 9. **Documentation + example expectations.** Every public widget gets a doc comment with a minimal usage
@@ -84,13 +84,13 @@ eparts widgets follow a deliberate two-tier convention. Pick the tier that match
 **Tier 1 — `impl egui::Widget`** (invoked with `ui.add(MyWidget::new(...))`). Use this for
 self-contained widgets that take only plain values/builder options and return an `egui::Response`.
 No content closures, no rich return struct. Examples: `Button`, `Label`, `Spinner`, `Slider`,
-`Select`, `Badge`, `Tag`, `Alert`, `ProgressBar`, `Skeleton`, `Kbd`.
+`Select`, `Badge`, `Tag`, `Alert`, `ProgressBar`, `Kbd`.
 
 **Tier 2 — `pub fn show(self, ui, ...) -> T`** (invoked as `MyWidget::new(...).show(ui, ...)`). Use
 this when the widget needs any of: a content/render closure (`FnOnce(&mut Ui)`), a rich return value
 (a `*Response`/action struct beyond `egui::Response`), or cross-frame state coordination. Examples:
-`Form`/`Field`, `Dialog::modal`, `Popover`, `Tooltip`, `Collapsible`, `Tree`, `List`, `ColorPicker`,
-`TextField`/`NumberField`, `Row`, `TabBar`, `ResizeHandle`, `Toast`.
+`Form`/`Field`, `Dialog::modal`, `Popover`, `Tooltip`, `Tree`, `ColorPicker`,
+`TextField`/`NumberField`, `Row`, `TabBar`, `Toast`.
 
 Rules:
 - A widget exposes exactly **one** primary entry point — either `impl Widget` OR `show()`, never both.
@@ -104,7 +104,7 @@ Rules:
 **Tier-2 rect-mode exception.** Container-driven widgets (e.g. `Row`) may expose a second entry
 `show_in_rect(rect, response, painter, …)` alongside `show()`. This is the SAME logical entry, not a
 competing API: `show()` allocates the widget rect then delegates to `show_in_rect`; container widgets
-(`Tree`, `List`) that pre-allocate the rect call `show_in_rect` directly.
+(`Tree`) that pre-allocate the rect call `show_in_rect` directly.
 
 ## Verification (per workspace AGENTS.md)
 

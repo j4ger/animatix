@@ -24,18 +24,4 @@ eframe        = { workspace = true }
 # egui + egui-phosphor, so the default build stays dependency-light.
 default = []
 
-# ── Archived feature seams (see docs/roadmap.md eparts backlog). ──
-# These remain empty by design and are not scheduled. Re-open one only when a
-# concrete consumer exists; `theme-json` is delivered and active.
-#
-# table      : data-table widget (would add egui_extras)
-# charts     : chart/plot widgets
-# webview    : embedded web content
-# i18n       : localization hooks (would add rust-i18n)
-# unstable   : experimental APIs not yet covered by semver
 theme-json = ["dep:serde", "dep:serde_json", "dep:thiserror", "dep:notify", "dep:tracing"]
-table = []
-charts = []
-webview = []
-i18n = []
-unstable = []

@@ -8,75 +8,6 @@ use egui::{Align2, Color32, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui,
 use crate::theme;
 use crate::tokens::spatial::{RADIUS_M, RADIUS_S, STROKE_WIDTH, spatial};
 use crate::tokens::typography::TextRole;
-use crate::tokens::util::with_alpha;
-
-// ── Skeleton (G2) ──────────────────────────────────────────────────
-
-/// A shimmer placeholder block used during loading/recompiles.
-///
-/// Paints a rounded rect filled with `theme.components.skeleton.base` and a subtle pulsing
-/// highlight from `theme.components.skeleton.shimmer` driven by `ui.input(|i| i.time)`.
-/// The widget requests a repaint every frame while visible so the animation
-/// stays smooth.
-///
-/// ## Examples
-/// ```ignore
-/// ui.add(Skeleton::new(vec2(120.0, 16.0)));
-/// ui.add(Skeleton::new(vec2(120.0, 16.0)).width(200.0));
-/// ```
-#[derive(Clone, Copy, Debug)]
-pub struct Skeleton {
-    size: Vec2,
-}
-
-impl Default for Skeleton {
-    fn default() -> Self {
-        Self {
-            size: Vec2::new(100.0, 16.0),
-        }
-    }
-}
-
-impl Skeleton {
-    /// Create a skeleton with the given size.
-    pub fn new(size: Vec2) -> Self {
-        Self { size }
-    }
-
-    /// Override the width (keeping the current height).
-    pub fn width(mut self, width: f32) -> Self {
-        self.size.x = width;
-        self
-    }
-
-    /// Override the height (keeping the current width).
-    pub fn height(mut self, height: f32) -> Self {
-        self.size.y = height;
-        self
-    }
-}
-
-impl Widget for Skeleton {
-    fn ui(self, ui: &mut Ui) -> Response {
-        let size = self.size.max(Vec2::splat(4.0));
-        let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
-        let t = theme(ui);
-        let radius = RADIUS_S as u8;
-
-        // Base fill.
-        ui.painter().rect_filled(rect, radius, t.components.skeleton.base);
-
-        // Subtle pulsing highlight using the `shimmer` slot at low alpha.
-        let time = ui.input(|i| i.time) as f32;
-        let alpha = 0.3 + 0.7 * ((time * 2.5).sin() * 0.5 + 0.5);
-        let shimmer = with_alpha(t.components.skeleton.shimmer, alpha * 0.15);
-        ui.painter().rect_filled(rect, radius, shimmer);
-
-        // Keep the shimmer alive.
-        ui.ctx().request_repaint();
-        response
-    }
-}
 
 // ── ProgressBar (G3) ───────────────────────────────────────────────
 
@@ -453,25 +384,6 @@ impl Widget for Alert {
 mod tests {
     use super::*;
 
-    // Skeleton
-    #[test]
-    fn skeleton_defaults() {
-        let s = Skeleton::default();
-        assert_eq!(s.size, Vec2::new(100.0, 16.0));
-    }
-
-    #[test]
-    fn skeleton_new_and_size() {
-        let s = Skeleton::new(Vec2::new(80.0, 24.0));
-        assert_eq!(s.size, Vec2::new(80.0, 24.0));
-    }
-
-    #[test]
-    fn skeleton_width_height() {
-        let s = Skeleton::new(Vec2::new(40.0, 10.0)).width(120.0).height(32.0);
-        assert_eq!(s.size, Vec2::new(120.0, 32.0));
-    }
-
     // ProgressBar
     #[test]
     fn progress_bar_defaults() {
@@ -642,7 +554,7 @@ mod tests {
         assert_eq!(dark_info, crate::tokens::semantic::accent::faint());
     }
 
-    /// The badge/tag/kbd/skeleton/progress slots are read by their widgets; this
+    /// The badge/tag/kbd/progress slots are read by their widgets; this
     /// confirms each widget renders in both modes with the slots wired (a render
     /// panic or missing slot would fail here).
     #[test]
@@ -654,7 +566,6 @@ mod tests {
         for t in [Theme::dark(), Theme::light()] {
             set_theme(&ctx, t);
             let _ = ctx.run_ui(base_input(), |ui| {
-                ui.add(Skeleton::new(Vec2::new(80.0, 12.0)));
                 ui.add(ProgressBar::new(0.6).show_percentage(true));
                 ui.add(Badge::new("3"));
                 ui.add(Tag::new("filter").removable(true));

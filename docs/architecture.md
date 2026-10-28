@@ -1064,7 +1064,7 @@ variant coverage is reviewed when new AST variants are added.
 
 ### eparts Widget Framework
 - Runtime theme lives in egui Memory and is read via `eparts::theme(ui)`; it stays `Copy`. Density and reduced-motion are sibling runtime preferences.
-- eparts keeps one crate with feature-gated heavy surfaces (`theme-json`, table, charts, webview, i18n); default deps are `egui` + `egui-phosphor`.
+- eparts keeps one crate with the feature-gated `theme-json` surface; default deps are `egui` + `egui-phosphor`.
 - Widgets expose one primary entry point: `impl egui::Widget` (Tier 1) or `pub fn show()` (Tier 2). Cross-frame state lives in `ctx.data` or app-owned structs.
 - Colors are only defined in the token layer; component-scoped slot taxonomy has no gradients in the core model. Density scales only spacing, row heights, and control dimensions (Default is identity; Compact is 0.875 rounded once).
 - Overlay layering is a managed priority ladder (`Dialog < Popover < Tooltip`); default cursor is arrow, `PointingHand` only for links.

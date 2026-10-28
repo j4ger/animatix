@@ -1,4 +1,4 @@
-//! JSON theme loading and schema support (`theme-json` feature).
+//! JSON theme loading (`theme-json` feature).
 //!
 //! The serialized format keeps the runtime [`Theme`](crate::tokens::theme::Theme)
 //! representation as a DTO: colors are hex strings (`#rrggbb` or `#rrggbbaa`)
@@ -16,7 +16,6 @@
 
 mod file;
 mod partial;
-mod schema;
 
 pub use file::{ThemeFile, ThemeJsonError};
 pub use partial::{
@@ -28,7 +27,6 @@ pub use partial::{
     PartialTabSlots, PartialTagSlots, PartialText, PartialTheme, PartialToastLevelSlots,
     PartialToastSlots, PartialToggleSlots, ShadowField,
 };
-pub use schema::theme_schema_json;
 
 #[cfg(test)]
 mod tests;

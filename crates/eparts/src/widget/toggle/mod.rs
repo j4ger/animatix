@@ -1,9 +1,9 @@
-//! Themed Checkbox, Radio, and Switch widgets with animated transitions.
+//! Themed Checkbox and Switch widgets with animated transitions.
 //!
-//! All three widgets are theme-driven, app-owned state, and use `animate_bool_eased`
+//! Both widgets are theme-driven, app-owned state, and use `animate_bool_eased`
 //! / `animate_lerp` for crossfades and thumb motion.
 
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 
 use egui::{Color32, Pos2, Response, Sense, Stroke, StrokeKind, Vec2, WidgetInfo, WidgetType};
 
@@ -33,7 +33,7 @@ fn non_empty_or(label: Option<&str>, fallback: &str) -> String {
     }
 }
 
-/// Build the animation-state base id shared by `Checkbox`/`Switch`/`Radio`.
+/// Build the animation-state base id shared by `Checkbox`/`Switch`.
 ///
 /// The salt is the address of the caller-owned value, but it is namespaced
 /// under the parent [`egui::Ui`]'s id: two controls can otherwise collide when
@@ -93,11 +93,9 @@ fn toggle_mark_color(t: &theme::Theme, enabled: bool) -> Color32 {
 /// ui.add(Checkbox::new(&mut enabled).label("Enable feature"));
 /// ```
 mod checkbox;
-mod radio;
 mod switch;
 #[cfg(test)]
 mod tests;
 
 pub use checkbox::Checkbox;
-pub use radio::Radio;
 pub use switch::Switch;
