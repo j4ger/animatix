@@ -42,7 +42,7 @@ pub use widget::toast::ToastQueue;
 pub use widget::toggle::{Checkbox, Side, Switch};
 pub use widget::tooltip::{Tooltip, text_tooltip};
 // ── Shared widget traits & Size (A1 + A2) ──────────────────────────
-pub use widget::traits::{Collapsible, Disableable, Selectable, Sizable, Size};
+pub use widget::traits::{Disableable, Selectable, Sizable, Size};
 // ── Tree (H1 + H2) ─────────────────────────────────────────────────
 pub use widget::tree::{Tree, TreeAction, TreeId, TreeItem, TreeResponse};
 

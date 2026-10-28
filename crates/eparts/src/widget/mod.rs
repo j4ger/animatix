@@ -50,5 +50,5 @@ pub use styled_ext::{ResponseExt, UiExt};
 pub use tabs::TabBar;
 pub use toggle::{Checkbox, Side, Switch};
 pub use tooltip::{Tooltip, text_tooltip};
-pub use traits::{Collapsible, Disableable, Selectable, Sizable, Size};
+pub use traits::{Disableable, Selectable, Sizable, Size};
 pub use tree::{Tree, TreeAction, TreeId, TreeItem, TreeResponse};

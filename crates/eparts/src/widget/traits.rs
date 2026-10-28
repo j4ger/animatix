@@ -1,6 +1,6 @@
 //! Shared widget traits — the composable building blocks for eparts widgets.
 //!
-//! Four marker/builder traits (`Sizable`, `Selectable`, `Disableable`, `Collapsible`)
+//! Three marker/builder traits (`Sizable`, `Selectable`, `Disableable`)
 //! plus the `Size` enum they share.  These replace per-widget size/state enums and
 //! keep widget APIs chainable and consistent.
 
@@ -129,12 +129,6 @@ pub trait Selectable: Sized {
 pub trait Disableable: Sized {
     fn disabled(self, yes: bool) -> Self;
     fn is_disabled(&self) -> bool;
-}
-
-/// Builder trait for collapsible widgets (e.g. accordion, tree rows).
-pub trait Collapsible: Sized {
-    fn collapsed(self, yes: bool) -> Self;
-    fn is_collapsed(&self) -> bool;
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────
