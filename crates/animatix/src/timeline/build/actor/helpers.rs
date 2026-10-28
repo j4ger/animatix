@@ -431,7 +431,6 @@ impl Timeline {
             .add_keyframe(t_end_ms, values.fill_opacity, easing);
     }
 
-    #[allow(clippy::too_many_arguments)]
     /// Read the build-time `camera_follow` declaration onto the track.
     ///
     /// Called from `process_body`'s actor arm rather than from
