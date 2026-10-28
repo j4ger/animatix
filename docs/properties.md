@@ -1,7 +1,7 @@
 # Animatix Property Reference
 
 > Canonical list of all actor properties, maintained as a reference table by hand.
-> (Phase 3 will wire it to a generator over `PROPERTY_REGISTRY`.)
+> The descriptor table and pin tests are authoritative; update this table in the same change.
 > For property value types and usage, see [`spec.md`](spec.md).
 
 ---

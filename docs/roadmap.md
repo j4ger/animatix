@@ -16,6 +16,14 @@ deletes its row and never raises one. The timeline ECS migration itself is
 complete — [`ecs.md`](ecs.md) is the normative description of the storage as it
 now exists, not a work list.
 
+### Property reference generator (deferred)
+
+[`properties.md`](properties.md) is hand-maintained. A generator over
+`animatix-core::property::PROPERTY_DESCRIPTORS` would remove the drift risk, but
+the reference is grouped by user-facing categories rather than descriptor order,
+so the generator needs a category map first. Until then the pin tests in
+`animatix-core` are authoritative.
+
 ### Web playback performance (active)
 
 > **Instrument warning, 2026-10-03.** `debug_bench_frames` on a *demo* page is
