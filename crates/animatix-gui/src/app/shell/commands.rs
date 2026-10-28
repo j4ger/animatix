@@ -119,9 +119,9 @@ impl GuiShell {
 
     /// Take a snapshot of the current source text for undo/redo.
     /// Call this BEFORE making a change to the source.
-    pub(crate) fn snapshot(&mut self, label: UndoLabel) {
+    pub(crate) fn snapshot(&mut self, command: Command) {
         let ui_before = self.ui_store.snapshot_with_preview(&self.preview_store);
-        self.document_store.snapshot(label, ui_before);
+        self.document_store.snapshot(command, ui_before);
     }
 
     pub(crate) fn sync_active_scene_from_time(&mut self) {

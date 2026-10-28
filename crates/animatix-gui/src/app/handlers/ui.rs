@@ -179,13 +179,13 @@ pub fn handle_undo(
     if let Some(entry) = document_store.history.undo_stack.pop_back() {
         // Push current state onto redo stack with correctly ordered before/after.
         let ui_after = ui_store.snapshot_with_preview(preview_store);
-        document_store.history.redo_stack.push_back(UndoEntry {
-            command: entry.command,
-            source_before: entry.source_before.clone(),
-            source_after: document_store.source.text().to_string(),
-            ui_before: entry.ui_before.clone(),
-            ui_after: ui_after.clone(),
-        });
+        document_store.history.redo_stack.push_back(UndoEntry::new(
+            entry.command.clone(),
+            entry.source_before.clone(),
+            document_store.source.text().to_string(),
+            entry.ui_before.clone(),
+            ui_after.clone(),
+        ));
         // Restore source via SourceStore to update epoch and invalidate caches.
         document_store.replace_text_with_ui(entry.source_before.clone(), ui_after);
         // Restore UI state from the recorded before-snapshot.
@@ -200,8 +200,8 @@ pub fn handle_undo(
             std::time::Instant::now()
                 + std::time::Duration::from_millis(ui_store.rebuild_debounce_ms),
         );
-        preview_store.preview.status = "Undo".to_string();
-        ui_store.toasts.push(Toast::info("Undo"));
+        preview_store.preview.status = format!("Undo: {}", entry.label);
+        ui_store.toasts.push(Toast::info(format!("Undo: {}", entry.label)));
     }
     vec![]
 }
@@ -218,13 +218,13 @@ pub fn handle_redo(
     if let Some(entry) = document_store.history.redo_stack.pop_back() {
         // Push current state onto undo stack with correctly ordered before/after.
         let ui_after = ui_store.snapshot_with_preview(preview_store);
-        document_store.history.undo_stack.push_back(UndoEntry {
-            command: entry.command,
-            source_before: entry.source_before.clone(),
-            source_after: document_store.source.text().to_string(),
-            ui_before: entry.ui_before.clone(),
-            ui_after: ui_after.clone(),
-        });
+        document_store.history.undo_stack.push_back(UndoEntry::new(
+            entry.command.clone(),
+            entry.source_before.clone(),
+            document_store.source.text().to_string(),
+            entry.ui_before.clone(),
+            ui_after.clone(),
+        ));
         // Restore source via SourceStore to update epoch and invalidate caches.
         document_store.replace_text_with_ui(entry.source_after.clone(), ui_after);
         // Restore UI state from the recorded after-snapshot.
@@ -239,8 +239,8 @@ pub fn handle_redo(
             std::time::Instant::now()
                 + std::time::Duration::from_millis(ui_store.rebuild_debounce_ms),
         );
-        preview_store.preview.status = "Redo".to_string();
-        ui_store.toasts.push(Toast::info("Redo"));
+        preview_store.preview.status = format!("Redo: {}", entry.label);
+        ui_store.toasts.push(Toast::info(format!("Redo: {}", entry.label)));
     }
     vec![]
 }

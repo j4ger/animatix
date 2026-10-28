@@ -4,7 +4,7 @@ use egui::{Color32, Pos2, Rect, RichText, Stroke, Vec2};
 use eparts::{Button, Checkbox, NumberField, TextField};
 
 use crate::app::GuiShell;
-use crate::app::commands::UndoLabel;
+use crate::app::commands::Command;
 use crate::app::components::{TabBar, text_tooltip};
 use crate::app::design_tokens::semantic::category;
 use crate::app::design_tokens::semantic::editor::SNIPPET_BLUE;

@@ -1,4 +1,4 @@
-use crate::app::commands::{Effect, UndoLabel};
+use crate::app::commands::{Command, Effect};
 use crate::app::document_controller::DocumentController;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore};
 
@@ -6,9 +6,9 @@ fn begin_snapshot(
     document_store: &mut DocumentStore,
     preview_store: &PreviewStore,
     ui_store: &UiStore,
-    label: UndoLabel,
+    command: Command,
 ) {
-    document_store.snapshot(label, ui_store.snapshot_with_preview(preview_store));
+    document_store.snapshot(command, ui_store.snapshot_with_preview(preview_store));
 }
 
 pub fn handle_set_transition(
@@ -22,7 +22,7 @@ pub fn handle_set_transition(
         document_store,
         preview_store,
         ui_store,
-        UndoLabel::SetTransition {
+        Command::SetTransition {
             from_scene: from_scene.clone(),
             transition: transition.clone(),
         },
@@ -47,7 +47,7 @@ pub fn handle_set_play_target(
         document_store,
         preview_store,
         ui_store,
-        UndoLabel::SetPlayTarget {
+        Command::SetPlayTarget {
             from_scene: from_scene.clone(),
             target: target.clone(),
         },
@@ -72,7 +72,7 @@ pub fn handle_set_scene_duration(
         document_store,
         preview_store,
         ui_store,
-        UndoLabel::SetSceneDuration {
+        Command::SetSceneDuration {
             scene: scene.clone(),
             duration_s,
         },
@@ -83,5 +83,48 @@ pub fn handle_set_scene_duration(
         ui_store,
     };
     ctrl.handle_set_scene_duration(&scene, duration_s);
+    vec![]
+}
+
+/// Change a document-level config property (for example `colorscheme`).
+pub fn handle_set_config_property(
+    document_store: &mut DocumentStore,
+    preview_store: &mut PreviewStore,
+    ui_store: &mut UiStore,
+    key: String,
+    value: animatix_syntax::ast::Expr,
+) -> Vec<Effect> {
+    begin_snapshot(
+        document_store,
+        preview_store,
+        ui_store,
+        Command::SetConfigProperty {
+            key: key.clone(),
+            value: value.clone(),
+        },
+    );
+    let Some(ref mut stmts) = document_store.source.document.raw_statements else {
+        document_store.abort_snapshot();
+        return vec![];
+    };
+    let edit = crate::source_edit::SourceEdit::SetConfigProperty {
+        key: key.clone(),
+        value,
+    };
+    if crate::source_edit::apply_edit(stmts, edit).is_err() {
+        document_store.abort_snapshot();
+        preview_store.preview.status = format!("Failed to set config '{}'", key);
+        return vec![];
+    }
+    if let Some(stmts) = document_store.source.document.raw_statements.take() {
+        crate::app::document_controller::commit_ast(
+            document_store,
+            preview_store,
+            ui_store,
+            stmts,
+            Vec::new(),
+        );
+    }
+    preview_store.preview.status = format!("Set config '{}'", key);
     vec![]
 }

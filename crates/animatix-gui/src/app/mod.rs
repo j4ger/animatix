@@ -1,6 +1,5 @@
 mod actions;
 pub(crate) mod audio;
-pub(crate) mod command_handlers;
 pub(crate) mod commands;
 pub(crate) mod components;
 pub mod design_tokens;
@@ -26,7 +25,7 @@ mod utils;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use animatix::timeline::SceneDimensions;
 use animatix_syntax::diagnostics::{
@@ -43,7 +42,7 @@ use persistence::{
 use preview::fit_preview;
 use serde::{Deserialize, Serialize};
 
-use crate::app::commands::{ActionQueue, CommandQueue, CommandSender, UndoLabel, ViewCommand};
+use crate::app::commands::{ActionQueue, CommandQueue, CommandSender, ViewCommand};
 use crate::app::components::button::Button;
 use crate::app::components::toast::Toast;
 use crate::app::components::{Alert, AlertLevel, text_tooltip};

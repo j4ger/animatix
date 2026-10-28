@@ -18,13 +18,7 @@ impl DocumentController<'_> {
         };
 
         if source_edit::apply_edit(stmts, edit).is_ok() {
-            let (new_source, source_index) = {
-                (
-                    animatix_syntax::to_source::stmts_to_source(stmts),
-                    animatix_syntax::source_index::SourceIndex::build(stmts),
-                )
-            };
-            self.apply_source(new_source, source_index);
+            self.commit_ast_in_place(Vec::new());
             if let Some(ref parent) = new_parent {
                 self.preview_store.preview.status =
                     format!("Reparented '{}' under '{}'", actor, parent);
@@ -57,13 +51,7 @@ impl DocumentController<'_> {
         };
 
         if source_edit::apply_edit(stmts, edit).is_ok() {
-            let (new_source, source_index) = {
-                (
-                    animatix_syntax::to_source::stmts_to_source(stmts),
-                    animatix_syntax::source_index::SourceIndex::build(stmts),
-                )
-            };
-            self.apply_source(new_source, source_index);
+            self.commit_ast_in_place(Vec::new());
             self.preview_store.preview.status = format!(
                 "Extracted {} actor(s) into scene '{}'",
                 actor_labels.len(),
@@ -91,13 +79,7 @@ impl DocumentController<'_> {
         };
 
         if source_edit::apply_edit(stmts, edit).is_ok() {
-            let (new_source, source_index) = {
-                (
-                    animatix_syntax::to_source::stmts_to_source(stmts),
-                    animatix_syntax::source_index::SourceIndex::build(stmts),
-                )
-            };
-            self.apply_source(new_source, source_index);
+            self.commit_ast_in_place(Vec::new());
             self.preview_store.preview.status =
                 format!("Moved {} actor(s) to scene '{}'", actor_labels.len(), target_scene);
         } else {
@@ -150,13 +132,7 @@ impl DocumentController<'_> {
             label_map.iter().map(|(_, new_label)| new_label.clone()).collect();
 
         // Commit source — scope block drops stmts borrow
-        let (new_source, source_index) = {
-            (
-                animatix_syntax::to_source::stmts_to_source(stmts),
-                animatix_syntax::source_index::SourceIndex::build(stmts),
-            )
-        };
-        self.apply_source(new_source, source_index);
+        self.commit_ast_in_place(Vec::new());
 
         // Select the pasted actors
         self.ui_store.selection.selected_actors.clear();

@@ -25,112 +25,6 @@ pub use playback::PlaybackCommand;
 pub use scene::SceneCommand;
 pub use view::ViewCommand;
 
-/// Label for undo/redo stack entries. A subset of `Command` variants that
-/// actually mutate the document and get stored in undo history.
-/// The `label` is diagnostic only — undo/redo restores source text directly.
-#[derive(Debug, Clone)]
-#[allow(dead_code)] // Payloads are diagnostic context on undo entries; they are not read after recording.
-pub enum UndoLabel {
-    // Document
-    FindReplaceAll,
-    InsertionFromPalette,
-    SetConfigProperty,
-    PropertyEdit(PropertyEdit),
-    /// Undo label for callout detach; constructed when undo integration is wired up.
-    #[allow(dead_code)] // Undo wiring for DetachCallout is planned but not yet connected.
-    DetachCallout {
-        actor: String,
-    },
-
-    // Actor
-    CreateActor {
-        ty: String,
-        label: String,
-        position: [f32; 2],
-        props: Vec<animatix_syntax::ast::Property>,
-    },
-    RenameActor {
-        old_label: String,
-        new_label: String,
-    },
-    DuplicateActor(String),
-    DeleteSelectedActors,
-    PasteActors,
-    ReparentActor {
-        actor: String,
-        new_parent: Option<String>,
-    },
-    ExtractScene {
-        actor_labels: Vec<String>,
-        new_scene_name: String,
-    },
-    MoveToScene {
-        actor_labels: Vec<String>,
-        target_scene: String,
-    },
-    AlignActors(Align),
-    DistributeActors(Axis),
-    GroupSelectedActors,
-    UngroupSelectedActors,
-
-    // Keyframe
-    SetKeyframeEasing {
-        scene: Option<String>,
-        actor: String,
-        property: String,
-        time_s: f64,
-        easing: animatix_syntax::easing::Easing,
-    },
-    DeleteKeyframe {
-        scene: Option<String>,
-        actor: String,
-        property: String,
-        time_s: f64,
-    },
-    MoveKeyframe {
-        scene: Option<String>,
-        actor: String,
-        property: String,
-        old_time_s: f64,
-        new_time_s: f64,
-    },
-    SetKeyframeValue {
-        scene: Option<String>,
-        actor: String,
-        property: String,
-        time_s: f64,
-    },
-    /// Undo label for a batched multi-keyframe drag.
-    MoveKeyframes,
-    /// Undo label for a batched multi-keyframe delete.
-    DeleteKeyframes,
-    ResizeAction {
-        verb: String,
-        targets: Vec<String>,
-        old_start_s: f64,
-        new_start_s: f64,
-        new_duration_s: f64,
-    },
-
-    // Scene
-    ReorderScenes,
-    AddScene(String),
-    DuplicateScene(String),
-    DeleteScene(String),
-    SetTransition {
-        from_scene: String,
-        transition: animatix_syntax::ast::Transition,
-    },
-    SetPlayTarget {
-        from_scene: String,
-        target: Option<String>,
-    },
-    SetSceneDuration {
-        scene: String,
-        duration_s: Option<f64>,
-    },
-}
-
 /// Effect enum reserved for future side-effect dispatch.
 #[derive(Debug, Clone)]
 pub enum Effect {
@@ -229,6 +123,11 @@ pub enum Command {
 
     // ── Property / Inspector ──────────────────────────────────────────
     PropertyEdit(PropertyEdit),
+    /// Change a document-level config property (for example `colorscheme`).
+    SetConfigProperty {
+        key: String,
+        value: animatix_syntax::ast::Expr,
+    },
     /// Detach a targeted callout: bake current from/to/label_at as manual props and remove
     /// `target`.
     DetachCallout {

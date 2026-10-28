@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use animatix_syntax::diagnostics::Diagnostic;
 
-use crate::app::commands::{UndoEntry, UndoLabel};
+use crate::app::commands::{Command, UndoEntry};
 use crate::app::document::history::UiSnapshot;
 
 /// Owns undo/redo history with UI state snapshots.
@@ -29,19 +29,19 @@ impl HistoryStore {
     /// Captures source text and UI state.
     pub fn snapshot(
         &mut self,
-        label: UndoLabel,
+        command: Command,
         source_before: &str,
         source_after: &str,
         ui_before: UiSnapshot,
         ui_after: UiSnapshot,
     ) {
-        self.undo_stack.push_back(UndoEntry {
-            command: label,
-            source_before: source_before.to_string(),
-            source_after: source_after.to_string(),
+        self.undo_stack.push_back(UndoEntry::new(
+            command,
+            source_before.to_string(),
+            source_after.to_string(),
             ui_before,
             ui_after,
-        });
+        ));
         self.redo_stack.clear();
         if self.undo_stack.len() > self.undo_limit {
             self.undo_stack.pop_front();

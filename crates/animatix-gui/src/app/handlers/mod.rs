@@ -23,3 +23,6 @@ pub mod playback;
 pub mod property;
 pub mod scene;
 pub mod ui;
+
+#[cfg(test)]
+mod tests;

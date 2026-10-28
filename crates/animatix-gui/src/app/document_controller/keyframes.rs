@@ -29,13 +29,7 @@ impl DocumentController<'_> {
         };
 
         if source_edit::apply_edit(stmts, edit).is_ok() {
-            let (new_source, source_index) = {
-                (
-                    animatix_syntax::to_source::stmts_to_source(stmts),
-                    animatix_syntax::source_index::SourceIndex::build(stmts),
-                )
-            };
-            self.apply_source(new_source, source_index);
+            self.commit_ast_in_place(Vec::new());
             self.preview_store.preview.status =
                 format!("Set easing on '{}.{}' @ {:.2}s", actor, property, time_s);
         } else {
@@ -72,13 +66,7 @@ impl DocumentController<'_> {
         };
 
         if source_edit::apply_edit(stmts, edit).is_ok() {
-            let (new_source, source_index) = {
-                (
-                    animatix_syntax::to_source::stmts_to_source(stmts),
-                    animatix_syntax::source_index::SourceIndex::build(stmts),
-                )
-            };
-            self.apply_source(new_source, source_index);
+            self.commit_ast_in_place(Vec::new());
             self.preview_store.preview.status =
                 format!("Deleted keyframe '{}.{}' @ {:.2}s", actor, property, time_s);
         } else {
@@ -132,11 +120,7 @@ impl DocumentController<'_> {
         };
 
         if source_edit::apply_edit(stmts, edit).is_ok() {
-            let (new_source, source_index) = (
-                animatix_syntax::to_source::stmts_to_source(stmts),
-                animatix_syntax::source_index::SourceIndex::build(stmts),
-            );
-            self.apply_source(new_source, source_index);
+            self.commit_ast_in_place(Vec::new());
             self.preview_store.preview.status =
                 format!("Set '{}.{}' @ {:.2}s", actor, property, time_s);
         } else {
@@ -213,9 +197,7 @@ impl DocumentController<'_> {
             return;
         }
 
-        let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
-        let source_index = animatix_syntax::source_index::SourceIndex::build(stmts);
-        self.apply_source(new_source, source_index);
+        self.commit_ast_in_place(Vec::new());
         self.preview_store.preview.status = format!("Moved {moved} keyframe(s)");
     }
 
@@ -262,9 +244,7 @@ impl DocumentController<'_> {
             return;
         }
 
-        let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
-        let source_index = animatix_syntax::source_index::SourceIndex::build(stmts);
-        self.apply_source(new_source, source_index);
+        self.commit_ast_in_place(Vec::new());
         self.preview_store.preview.status = format!("Deleted {deleted} keyframe(s)");
     }
 
@@ -294,13 +274,7 @@ impl DocumentController<'_> {
         };
 
         if source_edit::apply_edit(stmts, edit).is_ok() {
-            let (new_source, source_index) = {
-                (
-                    animatix_syntax::to_source::stmts_to_source(stmts),
-                    animatix_syntax::source_index::SourceIndex::build(stmts),
-                )
-            };
-            self.apply_source(new_source, source_index);
+            self.commit_ast_in_place(Vec::new());
             self.preview_store.preview.status =
                 format!("Resized action '{verb}' to {:.2}s", new_duration_s);
         } else {

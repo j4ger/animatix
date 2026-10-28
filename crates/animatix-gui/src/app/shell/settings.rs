@@ -246,40 +246,16 @@ impl GuiShell {
 
             if let Some(idx) = selected_idx {
                 let id = scheme_ids[idx];
-                let name = scheme_names[idx];
                 if id != current_scheme
                     && self.document_store.source.document.raw_statements.is_some()
                 {
-                    let ui_before = self.ui_store.snapshot_with_preview(&self.preview_store);
-                    self.document_store
-                        .snapshot(crate::app::commands::UndoLabel::SetConfigProperty, ui_before);
-                    let edit = crate::source_edit::SourceEdit::SetConfigProperty {
-                        key: "colorscheme".into(),
-                        value: animatix_syntax::ast::Expr::Str(id.into()),
-                    };
-                    if let Some(ref mut stmts) = self.document_store.source.document.raw_statements
-                    {
-                        if crate::source_edit::apply_edit(stmts, edit).is_ok() {
-                            let (new_source, source_index) = (
-                                animatix_syntax::to_source::stmts_to_source(stmts),
-                                animatix_syntax::source_index::SourceIndex::build(stmts),
-                            );
-                            let ui_after = self.ui_store.snapshot_with_preview(&self.preview_store);
-                            self.document_store.commit_source(new_source, source_index, ui_after);
-                            self.preview_store.pending_rebuild_at = Some(
-                                std::time::Instant::now()
-                                    + std::time::Duration::from_millis(
-                                        self.ui_store.rebuild_debounce_ms,
-                                    ),
-                            );
-                            self.preview_store.preview.status =
-                                format!("Colorscheme changed to {}", name);
-                        } else {
-                            self.document_store.abort_snapshot();
-                        }
-                    } else {
-                        self.document_store.abort_snapshot();
-                    }
+                    crate::app::handlers::property::handle_set_config_property(
+                        &mut self.document_store,
+                        &mut self.preview_store,
+                        &mut self.ui_store,
+                        "colorscheme".to_string(),
+                        animatix_syntax::ast::Expr::Str(id.into()),
+                    );
                 }
             }
             ui.add_space(sp.base.space_3);

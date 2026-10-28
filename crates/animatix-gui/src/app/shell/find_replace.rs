@@ -6,7 +6,7 @@
 use eparts::{Checkbox, TextField};
 
 use crate::app::GuiShell;
-use crate::app::commands::UndoLabel;
+use crate::app::commands::Command;
 use crate::app::components::button::Button;
 use crate::app::components::dialog;
 use crate::app::design_tokens::typography::TextRole;
@@ -177,7 +177,7 @@ impl GuiShell {
         };
 
         let ui_before = self.ui_store.snapshot_with_preview(&self.preview_store);
-        self.document_store.snapshot(UndoLabel::FindReplaceAll, ui_before);
+        self.document_store.snapshot(Command::FindReplaceAll, ui_before);
         let ui_after = self.ui_store.snapshot_with_preview(&self.preview_store);
         self.document_store.replace_text_with_ui(new_text, ui_after);
         self.document_store.source.document.raw_statements = None;

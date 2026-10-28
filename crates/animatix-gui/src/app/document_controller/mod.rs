@@ -23,23 +23,50 @@ pub(crate) struct DocumentController<'a> {
     pub ui_store: &'a mut UiStore,
 }
 
+/// Commit a mutated AST back to source text through the single edit-commit
+/// path.
+///
+/// Serializes `stmts`, rebuilds the source index, installs the AST, commits the
+/// source text with the post-edit UI snapshot, rescans keyframe lines, records
+/// adjustment flashes, and schedules the debounced rebuild.
+pub(crate) fn commit_ast(
+    document_store: &mut DocumentStore,
+    preview_store: &mut PreviewStore,
+    ui_store: &UiStore,
+    stmts: Vec<animatix_syntax::ast::Stmt>,
+    flashes: Vec<f64>,
+) {
+    let new_source = animatix_syntax::to_source::stmts_to_source(&stmts);
+    let source_index = animatix_syntax::source_index::SourceIndex::build(&stmts);
+    document_store.source.document.raw_statements = Some(stmts);
+
+    let ui_after = ui_store.snapshot_with_preview(preview_store);
+    document_store.commit_source(new_source, source_index, ui_after);
+    document_store.source.document.rescan_keyframe_lines();
+    for time in flashes {
+        preview_store
+            .preview
+            .flashed_keyframe_times
+            .push((time, std::time::Instant::now()));
+    }
+    preview_store.pending_rebuild_at =
+        Some(std::time::Instant::now() + Duration::from_millis(ui_store.rebuild_debounce_ms));
+}
+
 impl DocumentController<'_> {
-    /// Apply the mutated AST back to source_text + editor buffer, and schedule
-    /// a pending rebuild.
+    /// Commit a mutated AST through the shared edit-commit path.
+    pub(crate) fn commit_ast(&mut self, stmts: Vec<animatix_syntax::ast::Stmt>, flashes: Vec<f64>) {
+        commit_ast(self.document_store, self.preview_store, self.ui_store, stmts, flashes);
+    }
+
+    /// Commit the AST already installed in the document session.
     ///
-    /// This is called from a scope block that already owns the final
-    /// `stmts` slice, so we receive the pre-computed source/index to avoid
-    /// a second mutable borrow of `document_store`.
-    fn apply_source(
-        &mut self,
-        new_source: String,
-        source_index: animatix_syntax::source_index::SourceIndex,
-    ) {
-        let ui_after = self.ui_store.snapshot_with_preview(self.preview_store);
-        self.document_store.commit_source(new_source, source_index, ui_after);
-        self.preview_store.pending_rebuild_at = Some(
-            std::time::Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms),
-        );
+    /// Structural edits mutate `raw_statements` in place; this moves that AST
+    /// into [`commit_ast`] without cloning it.
+    fn commit_ast_in_place(&mut self, flashes: Vec<f64>) {
+        if let Some(stmts) = self.document_store.source.document.raw_statements.take() {
+            self.commit_ast(stmts, flashes);
+        }
     }
 
     // ── Actor management ────────────────────────────────────────────────
@@ -82,9 +109,7 @@ impl DocumentController<'_> {
             };
 
             if crate::source_edit::apply_edit(stmts, edit).is_ok() {
-                let new_source = animatix_syntax::to_source::stmts_to_source(stmts);
-                let source_index = animatix_syntax::source_index::SourceIndex::build(stmts);
-                self.apply_source(new_source, source_index);
+                self.commit_ast_in_place(Vec::new());
                 self.preview_store.preview.status = format!(
                     "Created {} ({}) at ({:.0}, {:.0})",
                     label, ty, position[0], position[1]
@@ -134,13 +159,7 @@ impl DocumentController<'_> {
         }
 
         // Commit source — scope block drops stmts borrow before accessing self
-        let (new_source, source_index) = {
-            (
-                animatix_syntax::to_source::stmts_to_source(stmts),
-                animatix_syntax::source_index::SourceIndex::build(stmts),
-            )
-        };
-        self.apply_source(new_source, source_index);
+        self.commit_ast_in_place(Vec::new());
 
         // Select new actor and start move drag
         self.ui_store.selection.selected_actors.clear();
@@ -201,16 +220,7 @@ impl DocumentController<'_> {
             return;
         }
 
-        let (new_source, source_index) = (
-            animatix_syntax::to_source::stmts_to_source(stmts),
-            animatix_syntax::source_index::SourceIndex::build(stmts),
-        );
-        let ui_after = self.ui_store.snapshot_with_preview(self.preview_store);
-        self.document_store.commit_source(new_source, source_index, ui_after);
-        self.preview_store.pending_rebuild_at = Some(
-            std::time::Instant::now()
-                + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),
-        );
+        self.commit_ast_in_place(Vec::new());
 
         // Clear selection
         self.ui_store.selection.selected_actors.clear();
@@ -229,12 +239,12 @@ impl DocumentController<'_> {
     ) {
         let ui_after = self.ui_store.snapshot_with_preview(self.preview_store);
         let ui_after_for_commit = ui_after.clone();
-        let label = crate::app::commands::UndoLabel::SetTransition {
+        let command = crate::app::commands::Command::SetTransition {
             from_scene: from_scene.to_string(),
             transition: transition.clone(),
         };
         let status = self.document_store.with_mutation(
-            label,
+            command,
             ui_after.clone(),
             ui_after,
             move |store| -> Result<String, String> {
@@ -279,13 +289,7 @@ impl DocumentController<'_> {
         };
 
         if source_edit::apply_edit(stmts, edit).is_ok() {
-            let (new_source, source_index) = {
-                (
-                    animatix_syntax::to_source::stmts_to_source(stmts),
-                    animatix_syntax::source_index::SourceIndex::build(stmts),
-                )
-            };
-            self.apply_source(new_source, source_index);
+            self.commit_ast_in_place(Vec::new());
             if let Some(ref t) = target {
                 self.preview_store.preview.status =
                     format!("Set play target: '{}' → '{}'", from_scene, t);
@@ -316,13 +320,7 @@ impl DocumentController<'_> {
         };
 
         if source_edit::apply_edit(stmts, edit).is_ok() {
-            let (new_source, source_index) = {
-                (
-                    animatix_syntax::to_source::stmts_to_source(stmts),
-                    animatix_syntax::source_index::SourceIndex::build(stmts),
-                )
-            };
-            self.apply_source(new_source, source_index);
+            self.commit_ast_in_place(Vec::new());
             match duration_s {
                 Some(d) => {
                     self.preview_store.preview.status =

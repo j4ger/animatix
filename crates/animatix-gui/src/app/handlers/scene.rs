@@ -1,13 +1,13 @@
-use crate::app::commands::{Effect, UndoLabel};
+use crate::app::commands::{Command, Effect};
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore};
 
 fn begin_snapshot(
     document_store: &mut DocumentStore,
     preview_store: &PreviewStore,
     ui_store: &UiStore,
-    label: UndoLabel,
+    command: Command,
 ) {
-    document_store.snapshot(label, ui_store.snapshot_with_preview(preview_store));
+    document_store.snapshot(command, ui_store.snapshot_with_preview(preview_store));
 }
 
 pub fn handle_reorder_scenes(
@@ -16,7 +16,12 @@ pub fn handle_reorder_scenes(
     ui_store: &mut UiStore,
     new_order: Vec<String>,
 ) -> Vec<Effect> {
-    begin_snapshot(document_store, preview_store, ui_store, UndoLabel::ReorderScenes);
+    begin_snapshot(
+        document_store,
+        preview_store,
+        ui_store,
+        Command::ReorderScenes(new_order.clone()),
+    );
     let Some(ref mut stmts) = document_store.source.document.raw_statements else {
         document_store.abort_snapshot();
         return vec![];
@@ -84,12 +89,7 @@ pub fn handle_duplicate_scene(
     ui_store: &mut UiStore,
     scene: String,
 ) -> Vec<Effect> {
-    begin_snapshot(
-        document_store,
-        preview_store,
-        ui_store,
-        UndoLabel::DuplicateScene(scene.clone()),
-    );
+    begin_snapshot(document_store, preview_store, ui_store, Command::DuplicateScene(scene.clone()));
     let Some(ref mut stmts) = document_store.source.document.raw_statements else {
         document_store.abort_snapshot();
         return vec![];
@@ -128,7 +128,7 @@ pub fn handle_delete_scene(
     ui_store: &mut crate::app::stores::UiStore,
     scene: String,
 ) -> Vec<Effect> {
-    begin_snapshot(document_store, preview_store, ui_store, UndoLabel::DeleteScene(scene.clone()));
+    begin_snapshot(document_store, preview_store, ui_store, Command::DeleteScene(scene.clone()));
     let Some(ref mut stmts) = document_store.source.document.raw_statements else {
         document_store.abort_snapshot();
         return vec![];
@@ -168,7 +168,7 @@ pub fn handle_add_scene(
     ui_store: &mut UiStore,
     scene: String,
 ) -> Vec<Effect> {
-    begin_snapshot(document_store, preview_store, ui_store, UndoLabel::AddScene(scene.clone()));
+    begin_snapshot(document_store, preview_store, ui_store, Command::AddScene(scene.clone()));
     let Some(ref mut stmts) = document_store.source.document.raw_statements else {
         document_store.abort_snapshot();
         return vec![];

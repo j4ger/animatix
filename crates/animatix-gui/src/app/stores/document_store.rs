@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use animatix_syntax::diagnostics::{Diagnostic, diagnostics_phase_summary};
 
-use crate::app::commands::UndoLabel;
+use crate::app::commands::Command;
 use crate::app::document::history::UiSnapshot;
 use crate::app::document::snapshot::{DocumentSnapshot, SnapshotStatus};
 use crate::app::document::version::DocumentGeneration;
@@ -12,7 +12,7 @@ use crate::editor::EditorBuffer;
 
 /// Pending undo snapshot state, captured before a mutation.
 struct PendingSnapshot {
-    command: UndoLabel,
+    command: Command,
     source_before: String,
     ui_before: UiSnapshot,
 }
@@ -77,9 +77,9 @@ impl DocumentStore {
 
     /// Begin an undo snapshot — captures source text before mutation.
     /// The snapshot is finalized when `commit_source()` or `replace_text()` is called.
-    pub fn snapshot(&mut self, label: UndoLabel, ui_before: UiSnapshot) {
+    pub fn snapshot(&mut self, command: Command, ui_before: UiSnapshot) {
         self.pending_snapshot = Some(PendingSnapshot {
-            command: label,
+            command,
             source_before: self.source.text().to_string(),
             ui_before,
         });
@@ -113,12 +113,12 @@ impl DocumentStore {
     /// remember to call `abort_snapshot` on each failure branch.
     pub fn with_mutation<T, E>(
         &mut self,
-        label: UndoLabel,
+        command: Command,
         ui_before: UiSnapshot,
         ui_after: UiSnapshot,
         mutate: impl FnOnce(&mut Self) -> Result<T, E>,
     ) -> Result<T, E> {
-        self.snapshot(label, ui_before);
+        self.snapshot(command, ui_before);
         let result = mutate(self);
         match result {
             Ok(value) => {
@@ -346,7 +346,7 @@ fn snapshot_from_session(doc: &DocumentSession, source_hash: u64) -> DocumentSna
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::commands::UndoLabel;
+    use crate::app::commands::Command;
     use crate::app::document::history::UiSnapshot;
     use crate::app::document::snapshot::{BuildTargetSnapshot, SnapshotStatus};
     use crate::app::document::version::{DocumentGeneration, SourceEpoch, SourceHash};
@@ -432,7 +432,7 @@ mod tests {
             timeline_scroll_offset: 4.0,
             tool_mode: ToolMode::Move,
         };
-        store.snapshot(UndoLabel::FindReplaceAll, ui.clone());
+        store.snapshot(Command::FindReplaceAll, ui.clone());
 
         let after = "rect(100, 100) at 0,0\n".to_string();
         let source_index = animatix_syntax::source_index::SourceIndex::build(&[]);
@@ -465,7 +465,7 @@ mod tests {
     #[test]
     fn test_abort_snapshot_does_not_push_history() {
         let mut store = make_store();
-        store.snapshot(UndoLabel::FindReplaceAll, UiSnapshot::default_with_tool(ToolMode::Move));
+        store.snapshot(Command::FindReplaceAll, UiSnapshot::default_with_tool(ToolMode::Move));
         store.abort_snapshot();
         store.replace_text("changed\n".to_string());
         assert!(store.history.undo_stack.is_empty());
@@ -475,7 +475,7 @@ mod tests {
     fn test_with_mutation_finalizes_on_changed_source() {
         let mut store = make_store();
         let result = store.with_mutation(
-            UndoLabel::FindReplaceAll,
+            Command::FindReplaceAll,
             UiSnapshot::default_with_tool(ToolMode::Move),
             UiSnapshot::default_with_tool(ToolMode::Select),
             |store| {
@@ -493,7 +493,7 @@ mod tests {
     fn test_with_mutation_aborts_on_error() {
         let mut store = make_store();
         let result = store.with_mutation(
-            UndoLabel::FindReplaceAll,
+            Command::FindReplaceAll,
             UiSnapshot::default_with_tool(ToolMode::Move),
             UiSnapshot::default_with_tool(ToolMode::Select),
             |_| Err::<(), _>("rejected"),
@@ -508,7 +508,7 @@ mod tests {
     fn test_with_mutation_aborts_without_source_change() {
         let mut store = make_store();
         let result = store.with_mutation(
-            UndoLabel::FindReplaceAll,
+            Command::FindReplaceAll,
             UiSnapshot::default_with_tool(ToolMode::Move),
             UiSnapshot::default_with_tool(ToolMode::Select),
             |_| Ok::<_, String>(()),
@@ -523,7 +523,7 @@ mod tests {
     fn test_replace_text_finalizes_pending_snapshot() {
         let mut store = make_store();
         let before = store.source.text().to_string();
-        store.snapshot(UndoLabel::FindReplaceAll, UiSnapshot::default_with_tool(ToolMode::Move));
+        store.snapshot(Command::FindReplaceAll, UiSnapshot::default_with_tool(ToolMode::Move));
         let after = "changed\n".to_string();
         store.replace_text(after.clone());
 

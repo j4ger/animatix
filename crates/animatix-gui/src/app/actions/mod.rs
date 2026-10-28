@@ -195,8 +195,8 @@ impl GuiShell {
         };
 
         match result {
-            Ok((new_source, source_index, flashes)) => {
-                self.commit_source(new_source, source_index, flashes);
+            Ok((stmts, flashes)) => {
+                self.commit_ast(stmts, flashes);
                 self.preview_store.preview.status = format!("Detached callout '{}'", actor);
             },
             Err(err) => {
@@ -264,7 +264,7 @@ impl GuiShell {
 
     fn maybe_snapshot(&mut self, edit: &panels::PropertyEdit, is_drag: bool) {
         if !is_drag || !self.ui_store.interaction.drag_snapshot_taken {
-            self.snapshot(crate::app::commands::UndoLabel::PropertyEdit(edit.clone()));
+            self.snapshot(crate::app::commands::Command::PropertyEdit(edit.clone()));
             if is_drag {
                 self.ui_store.interaction.drag_snapshot_taken = true;
             }
@@ -339,7 +339,7 @@ impl GuiShell {
         let prev_time_s = self.document_store.source.document.prev_keyframe_time(edit_time_s);
         let delta_s = edit_time_s - prev_time_s;
 
-        let (new_source, source_index, flashes) =
+        let (stmts, flashes) =
             if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
                 let scene = self.document_store.source.document.active_scene.clone();
                 let source_edit = if delta_s < self.ui_store.keyframe_merge_window_s {
@@ -370,7 +370,7 @@ impl GuiShell {
             };
 
         self.apply_timeline_edit(edit);
-        self.commit_source(new_source, source_index, flashes);
+        self.commit_ast(stmts, flashes);
         Ok(())
     }
 
@@ -381,7 +381,7 @@ impl GuiShell {
         let expr = crate::app::commands::property_value_to_expr(edit.value.clone())
             .map_err(crate::source_edit::SourceEditError::Generic)?;
 
-        let (new_source, source_index, flashes) =
+        let (stmts, flashes) =
             if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
                 let actor = edit.actor.clone();
                 let property = edit.property.clone();
@@ -428,7 +428,7 @@ impl GuiShell {
             };
 
         self.apply_timeline_edit(edit);
-        self.commit_source(new_source, source_index, flashes);
+        self.commit_ast(stmts, flashes);
         Ok(())
     }
 
@@ -438,7 +438,7 @@ impl GuiShell {
     ) -> Result<(), crate::source_edit::SourceEditError> {
         use crate::app::panels::PropertyValue as PV;
 
-        let (new_source, source_index, flashes) =
+        let (stmts, flashes) =
             if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
                 if let PV::StringList(order) = edit.value.clone() {
                     let edit_op = crate::source_edit::SourceEdit::ReorderContainerChildren {
@@ -460,7 +460,7 @@ impl GuiShell {
             };
 
         self.apply_child_order_component_edit(edit);
-        self.commit_source(new_source, source_index, flashes);
+        self.commit_ast(stmts, flashes);
         Ok(())
     }
 
@@ -482,20 +482,15 @@ impl GuiShell {
         }
     }
 
-    fn commit_source(
-        &mut self,
-        new_source: String,
-        source_index: animatix_syntax::source_index::SourceIndex,
-        flashes: Vec<f64>,
-    ) {
-        let ui_after = self.ui_store.snapshot_with_preview(&self.preview_store);
-        self.document_store.commit_source(new_source, source_index, ui_after);
-        self.document_store.source.document.rescan_keyframe_lines();
-        for time in flashes {
-            self.preview_store.preview.flashed_keyframe_times.push((time, Instant::now()));
-        }
-        self.preview_store.pending_rebuild_at =
-            Some(Instant::now() + Duration::from_millis(self.ui_store.rebuild_debounce_ms));
+    /// Commit a mutated inspector-edit AST through the shared edit path.
+    fn commit_ast(&mut self, stmts: Vec<animatix_syntax::ast::Stmt>, flashes: Vec<f64>) {
+        crate::app::document_controller::commit_ast(
+            &mut self.document_store,
+            &mut self.preview_store,
+            &self.ui_store,
+            stmts,
+            flashes,
+        );
     }
 }
 
@@ -507,34 +502,27 @@ impl GuiShell {
 ///
 /// 1. Clones `stmts`.
 /// 2. Calls `apply_fn` with the cloned statements.
-/// 3. If `apply_fn` returns `Ok(())`, serializes the trial AST back to source, builds a new source
-///    index, and commits the clone back to `stmts`.
-/// 4. If `apply_fn` returns `Err`, leaves `stmts` untouched and propagates the error.
+/// 3. If `apply_fn` returns `Ok(())`, returns the mutated trial AST and the
+///    adjustment flashes it produced for the caller to commit.
+/// 4. If `apply_fn` returns `Err`, leaves the document AST untouched and
+///    propagates the error.
 ///
 /// Callers should validate the edit (e.g. `PropertyValue → Expr` round-trip)
-/// *before* invoking this helper.
+/// *before* invoking this helper, and hand the returned statements to
+/// [`commit_ast`](super::document_controller::commit_ast).
 fn try_apply_source_edit<F>(
-    stmts: &mut Vec<animatix_syntax::ast::Stmt>,
+    stmts: &[animatix_syntax::ast::Stmt],
     apply_fn: F,
-) -> Result<
-    (String, animatix_syntax::source_index::SourceIndex, Vec<f64>),
-    crate::source_edit::SourceEditError,
->
+) -> Result<(Vec<animatix_syntax::ast::Stmt>, Vec<f64>), crate::source_edit::SourceEditError>
 where
     F: FnOnce(
         &mut Vec<animatix_syntax::ast::Stmt>,
     ) -> Result<(), crate::source_edit::SourceEditError>,
 {
     crate::source_edit::clear_adjust_flash_queue();
-    let mut trial = stmts.clone();
+    let mut trial = stmts.to_vec();
     apply_fn(&mut trial)?;
-
-    let new_source = animatix_syntax::to_source::stmts_to_source(&trial);
-    let source_index = animatix_syntax::source_index::SourceIndex::build(&trial);
-    let flashes = crate::source_edit::drain_adjust_flash_queue();
-
-    *stmts = trial;
-    Ok((new_source, source_index, flashes))
+    Ok((trial, crate::source_edit::drain_adjust_flash_queue()))
 }
 
 // ─────────────────────────────────────────────────────────────

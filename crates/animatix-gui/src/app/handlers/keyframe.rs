@@ -1,4 +1,4 @@
-use crate::app::commands::{Effect, UndoLabel};
+use crate::app::commands::{Command, Effect};
 use crate::app::document::timeline_diff::KeyframeId;
 use crate::app::document_controller::DocumentController;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore};
@@ -7,9 +7,9 @@ fn begin_snapshot(
     document_store: &mut DocumentStore,
     preview_store: &PreviewStore,
     ui_store: &UiStore,
-    label: UndoLabel,
+    command: Command,
 ) {
-    document_store.snapshot(label, ui_store.snapshot_with_preview(preview_store));
+    document_store.snapshot(command, ui_store.snapshot_with_preview(preview_store));
 }
 
 pub fn handle_set_keyframe_easing(
@@ -26,7 +26,7 @@ pub fn handle_set_keyframe_easing(
         document_store,
         preview_store,
         ui_store,
-        UndoLabel::SetKeyframeEasing {
+        Command::SetKeyframeEasing {
             scene: scene.clone(),
             actor: actor.clone(),
             property: property.clone(),
@@ -56,7 +56,7 @@ pub fn handle_delete_keyframe(
         document_store,
         preview_store,
         ui_store,
-        UndoLabel::DeleteKeyframe {
+        Command::DeleteKeyframe {
             scene: scene.clone(),
             actor: actor.clone(),
             property: property.clone(),
@@ -88,11 +88,12 @@ pub fn handle_set_keyframe_value(
         document_store,
         preview_store,
         ui_store,
-        UndoLabel::SetKeyframeValue {
+        Command::SetKeyframeValue {
             scene: scene.clone(),
             actor: actor.clone(),
             property: property.clone(),
             time_s,
+            value: value.clone(),
         },
     );
     let mut ctrl = DocumentController {
@@ -118,7 +119,7 @@ pub fn handle_move_keyframe(
         document_store,
         preview_store,
         ui_store,
-        UndoLabel::MoveKeyframe {
+        Command::MoveKeyframe {
             scene: scene.clone(),
             actor: actor.clone(),
             property: property.clone(),
@@ -152,7 +153,7 @@ pub fn handle_move_keyframes(
     if specs.is_empty() {
         return vec![];
     }
-    begin_snapshot(document_store, preview_store, ui_store, UndoLabel::MoveKeyframes);
+    begin_snapshot(document_store, preview_store, ui_store, Command::MoveKeyframes(specs.clone()));
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
@@ -173,7 +174,7 @@ pub fn handle_delete_keyframes(
     if ids.is_empty() {
         return vec![];
     }
-    begin_snapshot(document_store, preview_store, ui_store, UndoLabel::DeleteKeyframes);
+    begin_snapshot(document_store, preview_store, ui_store, Command::DeleteKeyframes(ids.clone()));
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
@@ -198,7 +199,7 @@ pub fn handle_resize_action(
         document_store,
         preview_store,
         ui_store,
-        UndoLabel::ResizeAction {
+        Command::ResizeAction {
             verb: verb.clone(),
             targets: targets.clone(),
             old_start_s,

@@ -1,4 +1,4 @@
-use crate::app::commands::{Effect, UndoLabel};
+use crate::app::commands::{Command, Effect};
 use crate::app::document_controller::DocumentController;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore};
 
@@ -6,9 +6,9 @@ fn begin_snapshot(
     document_store: &mut DocumentStore,
     preview_store: &PreviewStore,
     ui_store: &UiStore,
-    label: UndoLabel,
+    command: Command,
 ) {
-    document_store.snapshot(label, ui_store.snapshot_with_preview(preview_store));
+    document_store.snapshot(command, ui_store.snapshot_with_preview(preview_store));
 }
 
 pub fn handle_create_actor(
@@ -24,7 +24,7 @@ pub fn handle_create_actor(
         document_store,
         preview_store,
         ui_store,
-        UndoLabel::CreateActor {
+        Command::CreateActor {
             ty: ty.clone(),
             label: label.clone(),
             position,
@@ -66,7 +66,7 @@ pub fn handle_rename_actor(
         document_store,
         preview_store,
         ui_store,
-        UndoLabel::RenameActor {
+        Command::RenameActor {
             old_label: old_label.clone(),
             new_label: new_label.clone(),
         },
@@ -122,7 +122,7 @@ pub fn handle_duplicate_actor(
         document_store,
         preview_store,
         ui_store,
-        UndoLabel::DuplicateActor(original_label.clone()),
+        Command::DuplicateActor(original_label.clone()),
     );
     let mut ctrl = DocumentController {
         document_store,
@@ -138,7 +138,7 @@ pub fn handle_delete_selected_actors(
     preview_store: &mut PreviewStore,
     ui_store: &mut UiStore,
 ) -> Vec<Effect> {
-    begin_snapshot(document_store, preview_store, ui_store, UndoLabel::DeleteSelectedActors);
+    begin_snapshot(document_store, preview_store, ui_store, Command::DeleteSelectedActors);
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
@@ -153,7 +153,7 @@ pub fn handle_paste_actors(
     preview_store: &mut PreviewStore,
     ui_store: &mut UiStore,
 ) -> Vec<Effect> {
-    begin_snapshot(document_store, preview_store, ui_store, UndoLabel::PasteActors);
+    begin_snapshot(document_store, preview_store, ui_store, Command::PasteActors);
     let mut ctrl = DocumentController {
         document_store,
         preview_store,
@@ -174,7 +174,7 @@ pub fn handle_reparent_actor(
         document_store,
         preview_store,
         ui_store,
-        UndoLabel::ReparentActor {
+        Command::ReparentActor {
             actor: actor.clone(),
             new_parent: new_parent.clone(),
         },
@@ -199,7 +199,7 @@ pub fn handle_extract_scene(
         document_store,
         preview_store,
         ui_store,
-        UndoLabel::ExtractScene {
+        Command::ExtractScene {
             actor_labels: actor_labels.clone(),
             new_scene_name: new_scene_name.clone(),
         },
@@ -224,7 +224,7 @@ pub fn handle_move_to_scene(
         document_store,
         preview_store,
         ui_store,
-        UndoLabel::MoveToScene {
+        Command::MoveToScene {
             actor_labels: actor_labels.clone(),
             target_scene: target_scene.clone(),
         },
@@ -375,7 +375,7 @@ pub fn handle_align_actors(
         return vec![];
     }
 
-    begin_snapshot(document_store, preview_store, ui_store, UndoLabel::AlignActors(alignment));
+    begin_snapshot(document_store, preview_store, ui_store, Command::AlignActors(alignment));
     if let Some(ref mut stmts) = document_store.source.document.raw_statements {
         let snapshot = stmts.clone();
         for edit in &edits {
@@ -495,7 +495,7 @@ pub fn handle_distribute_actors(
         return vec![];
     }
 
-    begin_snapshot(document_store, preview_store, ui_store, UndoLabel::DistributeActors(axis));
+    begin_snapshot(document_store, preview_store, ui_store, Command::DistributeActors(axis));
     if let Some(ref mut stmts) = document_store.source.document.raw_statements {
         let snapshot = stmts.clone();
         for edit in &edits {
@@ -584,7 +584,7 @@ pub fn handle_group_selected_actors(
         [0.0, 0.0]
     };
 
-    begin_snapshot(document_store, preview_store, ui_store, UndoLabel::GroupSelectedActors);
+    begin_snapshot(document_store, preview_store, ui_store, Command::GroupSelectedActors);
 
     // Insert Group actor
     if let Some(ref mut stmts) = document_store.source.document.raw_statements {
@@ -675,7 +675,7 @@ pub fn handle_ungroup_selected_actors(
         return vec![];
     }
 
-    begin_snapshot(document_store, preview_store, ui_store, UndoLabel::UngroupSelectedActors);
+    begin_snapshot(document_store, preview_store, ui_store, Command::UngroupSelectedActors);
 
     // Collect children from timeline outside the mutable borrow on raw_statements.
     let mut group_children: Vec<(String, Vec<String>)> = Vec::new();

@@ -396,6 +396,13 @@ impl GuiShell {
                 self.handle_property_edit(edit);
                 vec![]
             },
+            Command::SetConfigProperty { key, value } => property::handle_set_config_property(
+                &mut self.document_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+                key,
+                value,
+            ),
             Command::DetachCallout {
                 actor,
                 from,
