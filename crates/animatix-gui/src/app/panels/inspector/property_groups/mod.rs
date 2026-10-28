@@ -443,15 +443,7 @@ fn read_inspector_property_value(
     // shape-tier properties (corner_radius, arc_angles, line_from/line_to,
     // head_size, shape_type, points, commands, vector_paths) no longer show
     // their schema default when the actor actually carries a value.
-    timeline
-        .world()
-        .read_property_value(id, schema.field, time_ms)
-        .unwrap_or_else(|| {
-            (schema.default_value)(
-                &animatix::timeline::caps_for_type(timeline.world().actor_type(id))
-                    .unwrap_or_default(),
-            )
-        })
+    timeline.world().read_property_value_or_default(id, schema, time_ms)
 }
 
 /// Map an effect parameter value to the inspector's editable kind.

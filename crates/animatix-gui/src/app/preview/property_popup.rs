@@ -132,14 +132,7 @@ pub fn show_property_popup(
                 let Some(schema) = lookup_property("opacity") else {
                     return 1.0;
                 };
-                let val = tl.world().read_property_value(id, schema.field, time_ms).unwrap_or_else(
-                    || {
-                        (schema.default_value)(
-                            &animatix::timeline::caps_for_type(tl.world().actor_type(id))
-                                .unwrap_or_default(),
-                        )
-                    },
-                );
+                let val = tl.world().read_property_value_or_default(id, schema, time_ms);
                 match val {
                     TlPropertyValue::F32(v) => v,
                     _ => 1.0,

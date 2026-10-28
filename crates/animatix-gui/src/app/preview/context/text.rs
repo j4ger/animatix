@@ -33,16 +33,7 @@ impl PreviewContext<'_> {
         let schema = animatix::timeline::lookup_property(property)?;
         // Shape-aware read: the World field bundle resolves whichever tier owns
         // the property instead of a shape-blind track accessor.
-        let value =
-            timeline
-                .world()
-                .read_property_value(id, schema.field, time_ms)
-                .unwrap_or_else(|| {
-                    (schema.default_value)(
-                        &animatix::timeline::caps_for_type(timeline.world().actor_type(id))
-                            .unwrap_or_default(),
-                    )
-                });
+        let value = timeline.world().read_property_value_or_default(id, schema, time_ms);
         match value {
             animatix::timeline::PropertyValue::String(s) => Some(s),
             _ => None,
