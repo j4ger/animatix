@@ -168,10 +168,11 @@ pub fn evaluate_counter(
 
 // ── Build extra functions ────────────────────────────────────────────────────
 
-fn build_extra_text_named(
-    ty: &'static str,
+/// Shared custom build logic for text-family actors.
+pub fn build_extra_text_named(
     timeline: &mut Timeline,
     label: &str,
+    ty: &'static str,
     props: &[Property],
     modifiers: &[Modifier],
     _children: &[InlineItem],
@@ -198,124 +199,4 @@ fn build_extra_text_named(
         );
     }
     Ok(())
-}
-
-/// Custom build logic for `Text` actors.
-pub fn build_extra_text(
-    timeline: &mut Timeline,
-    label: &str,
-    props: &[Property],
-    modifiers: &[Modifier],
-    children: &[InlineItem],
-    time_ms: f64,
-    parent_label: Option<&str>,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Result<(), Vec<Diagnostic>> {
-    build_extra_text_named(
-        "Text",
-        timeline,
-        label,
-        props,
-        modifiers,
-        children,
-        time_ms,
-        parent_label,
-        diagnostics,
-    )
-}
-
-/// Custom build logic for `Code` actors.
-pub fn build_extra_code(
-    timeline: &mut Timeline,
-    label: &str,
-    props: &[Property],
-    modifiers: &[Modifier],
-    children: &[InlineItem],
-    time_ms: f64,
-    parent_label: Option<&str>,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Result<(), Vec<Diagnostic>> {
-    build_extra_text_named(
-        "Code",
-        timeline,
-        label,
-        props,
-        modifiers,
-        children,
-        time_ms,
-        parent_label,
-        diagnostics,
-    )
-}
-
-/// Custom build logic for `Math` actors.
-pub fn build_extra_math(
-    timeline: &mut Timeline,
-    label: &str,
-    props: &[Property],
-    modifiers: &[Modifier],
-    children: &[InlineItem],
-    time_ms: f64,
-    parent_label: Option<&str>,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Result<(), Vec<Diagnostic>> {
-    build_extra_text_named(
-        "Math",
-        timeline,
-        label,
-        props,
-        modifiers,
-        children,
-        time_ms,
-        parent_label,
-        diagnostics,
-    )
-}
-
-/// Custom build logic for `Typst` actors.
-pub fn build_extra_typst(
-    timeline: &mut Timeline,
-    label: &str,
-    props: &[Property],
-    modifiers: &[Modifier],
-    children: &[InlineItem],
-    time_ms: f64,
-    parent_label: Option<&str>,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Result<(), Vec<Diagnostic>> {
-    build_extra_text_named(
-        "Typst",
-        timeline,
-        label,
-        props,
-        modifiers,
-        children,
-        time_ms,
-        parent_label,
-        diagnostics,
-    )
-}
-
-/// Custom build logic for `Counter` actors.
-pub fn build_extra_counter(
-    timeline: &mut Timeline,
-    label: &str,
-    props: &[Property],
-    modifiers: &[Modifier],
-    children: &[InlineItem],
-    time_ms: f64,
-    parent_label: Option<&str>,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Result<(), Vec<Diagnostic>> {
-    build_extra_text_named(
-        "Counter",
-        timeline,
-        label,
-        props,
-        modifiers,
-        children,
-        time_ms,
-        parent_label,
-        diagnostics,
-    )
 }

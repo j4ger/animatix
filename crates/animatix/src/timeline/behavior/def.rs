@@ -1,7 +1,6 @@
-//! BehaviorId, BehaviorFamily, BehaviorSource, and BehaviorDef.
+//! BehaviorId, BehaviorSource, and BehaviorDef.
 
-use animatix_core::caps::{ActorCaps, ActorCategory, ChildProcessingKind};
-use animatix_syntax::schema::ChildProcessingKind as SchemaChildProcessingKind;
+use animatix_core::caps::ActorCaps;
 
 /// Compact identifier for an actor behavior in the behavior table.
 ///
@@ -42,81 +41,6 @@ impl From<usize> for BehaviorId {
     }
 }
 
-/// Coarse architectural category of a behavior.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum BehaviorFamily {
-    /// Vector shape geometry (Rect, Ellipse, Line, Arrow, Polygon, Path).
-    Shape,
-    /// Textual and typographic rendering (Text, Code, Math, Typst, Fragment, Cue, Counter).
-    Text,
-    /// Image, audio, or external media assets (Image, SVG, Audio).
-    Media,
-    /// Numerical, function, and coordinate plots (Graph, PlotCurve, VectorField, etc.).
-    Plot,
-    /// Layout-constrained flex containers (Row, Col, Grid, Stack).
-    Container,
-    /// GPU shader and backdrop compositing scopes (Filter, Glass, Mask).
-    Effect,
-    /// Mathematical equation layout containers.
-    Equation,
-    /// Speech-synchronized subtitle and caption containers.
-    Captions,
-    /// Targeted callouts, legends, and connectors.
-    Annotation,
-    /// Structural scene-graph hierarchy grouping without layout constraints.
-    Group,
-}
-
-impl BehaviorFamily {
-    /// Classify a behavior family from actor capabilities.
-    ///
-    /// Mirrors the classification logic in `timeline::primitive::PrimitiveFamilyDescriptor::from_info`,
-    /// expanded to cover the full set of behavior families (including specialized effect scopes,
-    /// equations, captions, and annotations).
-    pub fn from_caps(caps: &ActorCaps) -> Self {
-        match caps.child_processing {
-            ChildProcessingKind::Equation => return Self::Equation,
-            ChildProcessingKind::Captions => return Self::Captions,
-            ChildProcessingKind::Filter
-            | ChildProcessingKind::Glass
-            | ChildProcessingKind::Mask => {
-                return Self::Effect;
-            },
-            ChildProcessingKind::Generic => {},
-        }
-
-        match caps.category {
-            ActorCategory::Annotation => return Self::Annotation,
-            ActorCategory::Media => return Self::Media,
-            _ => {},
-        }
-
-        if caps.text_paths {
-            Self::Text
-        } else if caps.plot_geometry {
-            Self::Plot
-        } else if caps.image_payload {
-            Self::Media
-        } else if caps.vector_paths {
-            Self::Shape
-        } else if caps.layout_container {
-            Self::Container
-        } else if caps.is_container {
-            Self::Group
-        } else {
-            match caps.category {
-                ActorCategory::Shape => Self::Shape,
-                ActorCategory::Text => Self::Text,
-                ActorCategory::Media => Self::Media,
-                ActorCategory::Plot => Self::Plot,
-                ActorCategory::Container => Self::Group,
-                ActorCategory::Annotation => Self::Annotation,
-            }
-        }
-    }
-}
-
 /// Function pointer signature for behavior evaluation.
 pub type EvaluateFn = fn(
     &crate::primitives::EvaluateCtx,
@@ -127,9 +51,13 @@ pub type EvaluateFn = fn(
 >;
 
 /// Function pointer signature for behavior custom build logic.
+///
+/// `ty` is the canonical built-in type name from the owning `BUILT_INS` row, so
+/// a shared family implementation can dispatch without re-deriving it.
 pub type BuildExtraFn = fn(
     &mut crate::timeline::Timeline,
     label: &str,
+    ty: &'static str,
     props: &[crate::ast::Property],
     modifiers: &[crate::ast::Modifier],
     children: &[crate::ast::InlineItem],
@@ -165,10 +93,6 @@ pub struct BehaviorDef {
     pub name: Box<str>,
     /// Capability projection for actors with this behavior.
     pub caps: ActorCaps,
-    /// Architectural behavior family.
-    pub family: BehaviorFamily,
-    /// Child-rendering strategy.
-    pub child_processing: SchemaChildProcessingKind,
     pub(crate) source: BehaviorSource,
 }
 
@@ -201,8 +125,6 @@ impl std::fmt::Debug for BehaviorDef {
             .field("id", &self.id)
             .field("name", &self.name)
             .field("caps", &self.caps)
-            .field("family", &self.family)
-            .field("child_processing", &self.child_processing)
             .finish()
     }
 }

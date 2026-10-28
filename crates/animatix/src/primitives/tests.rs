@@ -159,8 +159,8 @@ fn registry_matches_primitives() {
     // Each BUILT_INS row pairs a behaviour with the catalog card it
     // references by symbol, so positional drift is impossible; this test
     // pins the remaining failure mode — a name mismatch or a set drift
-    // (card added without a behaviour, or vice versa). Ordering of
-    // either list is presentation-only.
+    // (card added without a behaviour, or vice versa). Catalog order is
+    // presentation-only, while BUILT_INS row order defines behavior IDs.
     for entry in BUILT_INS.iter() {
         assert_eq!(
             &*entry.info.type_name,

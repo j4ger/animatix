@@ -32,6 +32,7 @@ pub fn evaluate_cue(
 pub fn build_extra_cue(
     timeline: &mut Timeline,
     label: &str,
+    _ty: &'static str,
     props: &[Property],
     _modifiers: &[Modifier],
     _children: &[InlineItem],

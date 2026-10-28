@@ -58,10 +58,14 @@ pub fn evaluate_audio(
 
 // ── Build extra functions ────────────────────────────────────────────────────
 
-/// Custom build logic for `Image` actors.
-pub fn build_extra_image(
+/// Shared custom build logic for media-family actors.
+///
+/// `Image`/`Svg` share the media declaration handler; `Audio` has its own
+/// transcript-aware path.
+pub fn build_extra_media_named(
     timeline: &mut Timeline,
     label: &str,
+    ty: &'static str,
     props: &[Property],
     modifiers: &[Modifier],
     _children: &[InlineItem],
@@ -69,52 +73,25 @@ pub fn build_extra_image(
     parent_label: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<(), Vec<Diagnostic>> {
-    timeline.process_media_actor_decl(
-        "Image",
-        label,
-        props,
-        modifiers,
-        time_ms,
-        parent_label,
-        diagnostics,
-    );
-    Ok(())
-}
-
-/// Custom build logic for `Svg` actors.
-pub fn build_extra_svg(
-    timeline: &mut Timeline,
-    label: &str,
-    props: &[Property],
-    modifiers: &[Modifier],
-    _children: &[InlineItem],
-    time_ms: f64,
-    parent_label: Option<&str>,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Result<(), Vec<Diagnostic>> {
-    timeline.process_media_actor_decl(
-        "Svg",
-        label,
-        props,
-        modifiers,
-        time_ms,
-        parent_label,
-        diagnostics,
-    );
-    Ok(())
-}
-
-/// Custom build logic for `Audio` actors.
-pub fn build_extra_audio(
-    timeline: &mut Timeline,
-    label: &str,
-    props: &[Property],
-    modifiers: &[Modifier],
-    _children: &[InlineItem],
-    time_ms: f64,
-    parent_label: Option<&str>,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> Result<(), Vec<Diagnostic>> {
-    timeline.process_audio_actor_decl(label, props, modifiers, time_ms, parent_label, diagnostics);
+    if ty == "Audio" {
+        timeline.process_audio_actor_decl(
+            label,
+            props,
+            modifiers,
+            time_ms,
+            parent_label,
+            diagnostics,
+        );
+    } else {
+        timeline.process_media_actor_decl(
+            ty,
+            label,
+            props,
+            modifiers,
+            time_ms,
+            parent_label,
+            diagnostics,
+        );
+    }
     Ok(())
 }

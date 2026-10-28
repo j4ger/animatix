@@ -7,14 +7,12 @@ use crate::diagnostics::Diagnostic;
 use crate::primitives::{BUILT_INS, BuildCtx, Primitive};
 
 #[test]
-fn all_36_builtins_have_distinct_behavior_ids_names_families_and_caps() {
+fn all_builtins_have_distinct_behavior_ids_names_and_caps() {
     let registry = BehaviorRegistry::new();
-    assert_eq!(registry.len(), 36, "registry must hold exactly 36 built-ins");
     assert_eq!(registry.len(), BUILT_INS.len());
 
     let mut seen_ids = HashSet::new();
     let mut seen_names = HashSet::new();
-    let mut seen_families = HashSet::new();
 
     for (i, builtin) in BUILT_INS.iter().enumerate() {
         let expected_id = BehaviorId(i as u16);
@@ -31,10 +29,6 @@ fn all_36_builtins_have_distinct_behavior_ids_names_families_and_caps() {
         let expected_caps = animatix_std::caps_from_info(builtin.info);
         assert_eq!(def.caps, expected_caps, "caps mismatch for primitive '{name}'");
 
-        let expected_family = BehaviorFamily::from_caps(&expected_caps);
-        assert_eq!(def.family, expected_family, "family mismatch for primitive '{name}'");
-        assert_eq!(def.child_processing, expected_caps.child_processing);
-
         assert_eq!(
             behavior_id_for_builtin(name),
             Some(expected_id),
@@ -49,30 +43,46 @@ fn all_36_builtins_have_distinct_behavior_ids_names_families_and_caps() {
 
         assert!(seen_ids.insert(def.id), "duplicate BehaviorId: {:?}", def.id);
         assert!(seen_names.insert(def.name.clone()), "duplicate name: {}", def.name);
-        seen_families.insert(def.family);
     }
 
-    assert_eq!(seen_ids.len(), 36);
-    assert_eq!(seen_names.len(), 36);
+    assert_eq!(seen_ids.len(), BUILT_INS.len());
+    assert_eq!(seen_names.len(), BUILT_INS.len());
+}
 
-    // All 10 families must be represented across the 36 built-ins.
-    let all_families = [
-        BehaviorFamily::Shape,
-        BehaviorFamily::Text,
-        BehaviorFamily::Media,
-        BehaviorFamily::Plot,
-        BehaviorFamily::Container,
-        BehaviorFamily::Effect,
-        BehaviorFamily::Equation,
-        BehaviorFamily::Captions,
-        BehaviorFamily::Annotation,
-        BehaviorFamily::Group,
-    ];
-    for family in all_families {
+/// Regression guard for the single registration table: every `BUILT_INS` row
+/// must produce a `Family` behavior, and every catalog primitive must have a
+/// row. A primitive added to the catalog without a row fails here instead of
+/// panicking while a `BehaviorRegistry` is constructed at runtime.
+#[test]
+fn every_builtin_row_builds_a_family_behavior_def() {
+    let registry = BehaviorRegistry::new();
+    assert_eq!(
+        registry.len(),
+        BUILT_INS.len(),
+        "BehaviorRegistry::new must create one def per BUILT_INS row"
+    );
+    assert_eq!(
+        registry.len(),
+        animatix_std::CATALOG.len(),
+        "catalog primitive missing a BUILT_INS row"
+    );
+
+    let catalog_names: HashSet<&str> =
+        animatix_std::CATALOG.iter().map(|info| &*info.type_name).collect();
+    let row_names: HashSet<&str> =
+        BUILT_INS.iter().map(|builtin| builtin.behavior.type_name()).collect();
+    assert_eq!(catalog_names, row_names, "catalog and BUILT_INS rows drifted apart");
+
+    for (i, builtin) in BUILT_INS.iter().enumerate() {
+        let def = registry
+            .get(BehaviorId(i as u16))
+            .unwrap_or_else(|| panic!("missing BehaviorDef for BUILT_INS row {i}"));
         assert!(
-            seen_families.contains(&family),
-            "BehaviorFamily::{family:?} not represented among built-ins"
+            matches!(def.source, BehaviorSource::Family(_)),
+            "built-in '{}' registered as Extension instead of Family",
+            def.name
         );
+        assert_eq!(def.name.as_ref(), &*builtin.info.type_name);
     }
 }
 
@@ -102,23 +112,23 @@ fn register_extension_assigns_ids_and_retrieves_def() {
         animatix_core::caps::ActorCategory::Shape,
     );
 
+    let first_extension_id = BehaviorId(BUILT_INS.len() as u16);
     let id = registry.register_extension(ext.clone(), info.clone());
-    assert_eq!(id, BehaviorId(36));
-    assert_eq!(registry.len(), 37);
+    assert_eq!(id, first_extension_id);
+    assert_eq!(registry.len(), BUILT_INS.len() + 1);
 
     let def = registry.get(id).expect("extension def exists");
-    assert_eq!(def.id, BehaviorId(36));
+    assert_eq!(def.id, first_extension_id);
     assert_eq!(def.name.as_ref(), "MockExt");
-    assert_eq!(def.family, BehaviorFamily::Shape);
     assert_eq!(def.extension_primitive().unwrap().type_name(), "MockExt");
 
     let found = registry.find("MockExt").expect("find finds extension");
-    assert_eq!(found.id, BehaviorId(36));
+    assert_eq!(found.id, first_extension_id);
 
     // Re-registering returns the existing id
     let id2 = registry.register_extension(ext, info);
-    assert_eq!(id2, BehaviorId(36));
-    assert_eq!(registry.len(), 37);
+    assert_eq!(id2, first_extension_id);
+    assert_eq!(registry.len(), BUILT_INS.len() + 1);
 }
 
 #[test]
@@ -131,7 +141,7 @@ fn unknown_behavior_id_and_missing_builtin() {
 }
 
 #[test]
-fn all_36_builtins_have_family_behavior_and_expected_build_extra() {
+fn all_builtins_have_family_behavior_and_expected_build_extra() {
     let registry = BehaviorRegistry::new();
     let has_build_extra = [
         "Text",

@@ -1,17 +1,8 @@
 use animatix_core::caps::{ActorCaps, ActorCategory};
 
-use crate::primitives::ChildProcessing;
-pub use crate::timeline::behavior::BehaviorFamily;
-
-/// Capability flags shared with schema/tooling descriptors.
-pub type PrimitiveCapabilities = animatix_syntax::schema::PrimitiveCapabilities;
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PrimitiveFamilyDescriptor {
-    pub family: BehaviorFamily,
     pub caps: ActorCaps,
-    pub capabilities: PrimitiveCapabilities,
-    pub child_processing: ChildProcessing,
     /// Which plot family this primitive is, carried from the catalog card so the
     /// plot builder never has to compare `ty == "VectorField"`.
     pub plot: Option<animatix_core::caps::PlotKind>,
@@ -24,7 +15,6 @@ pub struct PrimitiveFamilyDescriptor {
 impl Default for PrimitiveFamilyDescriptor {
     fn default() -> Self {
         Self {
-            family: BehaviorFamily::Shape,
             caps: ActorCaps {
                 vector_paths: true,
                 category: ActorCategory::Shape,
@@ -32,12 +22,6 @@ impl Default for PrimitiveFamilyDescriptor {
                 has_visual_content: true,
                 ..Default::default()
             },
-            capabilities: PrimitiveCapabilities {
-                vector_paths: true,
-                is_shape: true,
-                ..PrimitiveCapabilities::default()
-            },
-            child_processing: ChildProcessing::Generic,
             plot: None,
             connector: false,
         }
@@ -45,41 +29,25 @@ impl Default for PrimitiveFamilyDescriptor {
 }
 
 impl PrimitiveFamilyDescriptor {
-    /// Classify a primitive from the active runtime registry.
+    /// Classify a primitive from its registration info card.
     ///
-    /// This deliberately takes `&dyn Primitive` instead of looking up a static
+    /// This deliberately takes `&PrimitiveInfo` instead of looking up a static
     /// built-in so extension primitives participate in the same classification.
     pub fn from_info(info: &animatix_std::PrimitiveInfo) -> Self {
-        let caps = info.capabilities;
-        let mut actor_caps = animatix_std::caps_from_info(info);
-        let family = BehaviorFamily::from_caps(&actor_caps);
+        let mut caps = animatix_std::caps_from_info(info);
 
-        // Keep the primitive's own capability flags (shared-schema defaults
-        // for built-ins, plugin ABI flags for extensions) instead of rebuilding
-        // a family-inferred second set that can silently drift. The only
-        // normalization is a fallback for sloppy plugins that declare a
-        // category without any container capability, mirroring the previous
-        // per-family default rows.
-        let capabilities = if family == BehaviorFamily::Container && !caps.layout_container {
-            actor_caps.layout_container = true;
-            PrimitiveCapabilities {
-                layout_container: true,
-                ..caps
-            }
-        } else if family == BehaviorFamily::Group && !caps.is_container {
-            actor_caps.is_container = true;
-            PrimitiveCapabilities {
-                is_container: true,
-                ..caps
-            }
-        } else {
-            caps
-        };
+        // A plugin card that declares the `Container` category without any
+        // container capability flag still normalizes to a recursable group
+        // container, mirroring the historical per-family default. A card that
+        // marks `layout_container` already carries the flag, so the old
+        // `Container` fallback was unreachable.
+        if caps.category == ActorCategory::Container && !caps.layout_container && !caps.is_container
+        {
+            caps.is_container = true;
+        }
+
         Self {
-            family,
-            caps: actor_caps,
-            capabilities,
-            child_processing: info.child_processing,
+            caps,
             plot: info.plot,
             connector: info.connector,
         }
@@ -118,29 +86,27 @@ impl PrimitiveFamilyDescriptor {
 mod tests {
     use animatix_std::catalog_lookup;
 
-    use super::{BehaviorFamily, PrimitiveFamilyDescriptor};
+    use super::PrimitiveFamilyDescriptor;
 
     #[test]
     fn classifies_text_like_primitives() {
         let info = catalog_lookup("Text").expect("Text built-in");
         let descriptor = PrimitiveFamilyDescriptor::from_info(info);
-        assert_eq!(descriptor.family, BehaviorFamily::Text);
-        assert!(descriptor.capabilities.text_paths);
+        assert!(descriptor.caps.text_paths);
+        assert_eq!(descriptor.caps.category, animatix_core::caps::ActorCategory::Text);
     }
 
     #[test]
     fn classifies_plot_primitives() {
         let info = catalog_lookup("PlotCurve").expect("PlotCurve built-in");
         let descriptor = PrimitiveFamilyDescriptor::from_info(info);
-        assert_eq!(descriptor.family, BehaviorFamily::Plot);
-        assert!(descriptor.capabilities.plot_geometry);
+        assert!(descriptor.caps.plot_geometry);
     }
 
     #[test]
     fn classifies_layout_containers() {
         let info = catalog_lookup("Row").expect("Row built-in");
         let descriptor = PrimitiveFamilyDescriptor::from_info(info);
-        assert_eq!(descriptor.family, BehaviorFamily::Container);
         assert!(descriptor.is_layout_container());
         assert!(descriptor.is_recursive_container());
     }
@@ -149,7 +115,7 @@ mod tests {
     fn classifies_structural_groups_as_recursive_containers() {
         let info = catalog_lookup("Group").expect("Group built-in");
         let descriptor = PrimitiveFamilyDescriptor::from_info(info);
-        assert_eq!(descriptor.family, BehaviorFamily::Group);
+        assert!(descriptor.caps.is_container);
         assert!(!descriptor.is_layout_container());
         assert!(descriptor.is_recursive_container());
     }
@@ -173,23 +139,24 @@ mod tests {
     fn treats_circle_as_vector_shape() {
         let info = catalog_lookup("Ellipse").expect("Ellipse built-in");
         let descriptor = PrimitiveFamilyDescriptor::from_info(info);
-        assert_eq!(descriptor.family, BehaviorFamily::Shape);
-        assert!(descriptor.capabilities.vector_paths);
+        assert!(descriptor.caps.vector_paths);
+        assert_eq!(descriptor.caps.shape, Some(animatix_core::caps::ShapeKind::Ellipse));
     }
 
     #[test]
-    fn capabilities_pass_through_untouched_for_builtins() {
-        // The full schema capability set is preserved instead of being
-        // stripped down to a family-inferred subset.
+    fn caps_pass_through_untouched_for_builtins() {
+        // The full schema capability projection is preserved instead of being
+        // rebuilt from a coarse family classification.
         let info = catalog_lookup("Rect").expect("Rect built-in");
         let descriptor = PrimitiveFamilyDescriptor::from_info(info);
-        assert!(descriptor.capabilities.vector_paths);
-        assert!(descriptor.capabilities.is_shape);
+        assert_eq!(descriptor.caps, animatix_std::caps_from_info(info));
+        assert!(descriptor.caps.vector_paths);
+        assert!(descriptor.caps.is_shape);
 
         let info = catalog_lookup("PlotCurve").expect("PlotCurve built-in");
         let descriptor = PrimitiveFamilyDescriptor::from_info(info);
-        assert!(descriptor.capabilities.plot_geometry);
-        assert!(!descriptor.capabilities.is_shape);
+        assert!(descriptor.caps.plot_geometry);
+        assert!(!descriptor.caps.is_shape);
     }
 
     #[test]
@@ -199,8 +166,7 @@ mod tests {
 
         // A plugin that declares Container capabilities (layout_container +
         // is_container, as the schema defaults and the ABI describe) must
-        // classify as a layout container, and the flags pass through
-        // unstripped.
+        // classify as a layout container with its flags left intact.
         #[allow(dead_code)] // Referenced only through the registration info card below
         struct SloppyContainer;
         impl crate::primitives::Primitive for SloppyContainer {
@@ -226,8 +192,8 @@ mod tests {
         container_info.capabilities.layout_container = true;
         container_info.capabilities.is_container = true;
         let descriptor = PrimitiveFamilyDescriptor::from_info(&container_info);
-        assert_eq!(descriptor.family, BehaviorFamily::Container);
         assert!(descriptor.is_layout_container());
+        assert!(descriptor.caps.is_container);
         assert!(descriptor.is_recursive_container());
 
         // A genuinely sloppy card (Container category, no capability flags)
@@ -237,6 +203,8 @@ mod tests {
             crate::timeline::ActorCategory::Container,
         );
         let bare = PrimitiveFamilyDescriptor::from_info(&bare_info);
+        assert!(bare.caps.is_container);
+        assert!(!bare.caps.layout_container);
         assert!(bare.is_recursive_container());
     }
 }

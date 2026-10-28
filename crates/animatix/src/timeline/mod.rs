@@ -38,7 +38,7 @@ pub mod actor_caps;
 pub mod assets;
 mod assignments;
 pub mod behavior;
-pub use behavior::{BehaviorDef, BehaviorFamily, BehaviorId, BehaviorRegistry};
+pub use behavior::{BehaviorDef, BehaviorId, BehaviorRegistry};
 mod build;
 mod builtins;
 pub mod callout_geometry;

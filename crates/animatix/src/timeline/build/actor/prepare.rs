@@ -94,9 +94,15 @@ impl Timeline {
             match &def.source {
                 crate::timeline::behavior::BehaviorSource::Family(fam) => {
                     if let Some(build_extra) = fam.build_extra {
+                        let static_ty = crate::primitives::BUILT_INS
+                            .get(def.id.index())
+                            .expect("family behavior must map to a BUILT_INS row")
+                            .behavior
+                            .type_name();
                         if let Err(mut diags) = build_extra(
                             self,
                             label,
+                            static_ty,
                             props,
                             modifiers,
                             children,

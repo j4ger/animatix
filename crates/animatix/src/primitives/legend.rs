@@ -138,6 +138,7 @@ pub const LEGEND: LegendPrimitive = LegendPrimitive;
 pub fn build_extra_legend(
     timeline: &mut crate::timeline::Timeline,
     label: &str,
+    _ty: &'static str,
     props: &[Property],
     _modifiers: &[Modifier],
     _children: &[InlineItem],

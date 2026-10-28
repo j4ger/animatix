@@ -33,6 +33,7 @@ pub fn evaluate_fragment(
 pub fn build_extra_fragment(
     timeline: &mut Timeline,
     label: &str,
+    _ty: &'static str,
     props: &[Property],
     _modifiers: &[Modifier],
     _children: &[InlineItem],

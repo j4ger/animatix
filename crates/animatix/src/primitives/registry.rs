@@ -55,9 +55,8 @@ impl PrimitiveHandle {
     pub(crate) fn from_behavior(def: &crate::timeline::behavior::BehaviorDef) -> Option<Self> {
         match &def.source {
             crate::timeline::behavior::BehaviorSource::Family(_) => super::BUILT_INS
-                .iter()
-                .find(|b| b.behavior.type_name() == &*def.name)
-                .map(|b| PrimitiveHandle::Registered(RegisteredPrimitive::Builtin(b))),
+                .get(def.id.index())
+                .map(|builtin| PrimitiveHandle::Registered(RegisteredPrimitive::Builtin(builtin))),
             crate::timeline::behavior::BehaviorSource::Extension(ext) => {
                 Some(Self::Extension(ext.clone()))
             },
@@ -299,8 +298,8 @@ mod tests {
 
     /// The engine behaviour registry and the `animatix-std` catalog must name
     /// the same built-in set — the catalog is the author-visible half of
-    /// every registered behaviour. The comparison is set-based: registration
-    /// pairs by symbol in `BUILT_INS`, so list order is presentation-only.
+    /// every registered behaviour. The comparison is set-based because the
+    /// catalog order does not define behavior IDs; `BUILT_INS` row order does.
     #[test]
     fn registry_names_match_std_catalog() {
         let registry = PrimitiveRegistry::new();
