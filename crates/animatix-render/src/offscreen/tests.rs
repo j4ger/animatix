@@ -1,25 +1,13 @@
 use super::*;
 
+// Shared with `tests/offscreen_render.rs` so the two suites cannot drift.
+#[path = "../../tests/common/mod.rs"]
+mod common;
+
 mod readback_reuse_tests {
     use super::*;
 
-    /// Fixture built through the source pipeline so these tests exercise only
-    /// public engine API (the render crate has no access to engine internals).
-    fn solid_rect_timeline() -> Timeline {
-        let source = r#"
-#0s
-r: Rect, at: (50, 50), size: (100, 100), color: (1, 1, 1, 1)
-"#;
-        let (ast, errors) = animatix_syntax::parser::parse_source(source);
-        assert!(errors.is_empty(), "parse errors: {errors:?}");
-        let ast = ast.expect("AST");
-        let report = animatix::timeline::Timeline::build_with_diagnostics(
-            &ast,
-            &std::collections::HashMap::new(),
-        );
-        assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
-        report.output
-    }
+    use super::common::solid_rect_timeline;
 
     /// PF-6 round 9: the readback buffer is parked and reused. The second
     /// render from the same renderer walks the reuse path — its pixels must

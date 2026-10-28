@@ -207,10 +207,9 @@ where
     );
 
     // Create one renderer per chunk on the main thread.
-    let mut renderers = Vec::with_capacity(num_chunks);
-    for _ in 0..num_chunks {
-        renderers.push(OffscreenRenderer::new().map_err(ExportError::RendererCreation)?);
-    }
+    let renderers: Vec<OffscreenRenderer> = (0..num_chunks)
+        .map(|_| OffscreenRenderer::new().map_err(ExportError::RendererCreation))
+        .collect::<Result<Vec<_>, _>>()?;
 
     const CHANNEL_CAPACITY: usize = 2;
     let mut senders = Vec::with_capacity(num_chunks);
@@ -222,16 +221,14 @@ where
     }
 
     let mut handles = Vec::with_capacity(num_chunks);
-    for (chunk_idx, (renderer_unit, sender)) in
+    for (chunk_idx, (mut renderer, sender)) in
         renderers.into_iter().zip(senders.into_iter()).enumerate()
     {
-        let renderer = OffscreenRenderer::new().map_err(ExportError::RendererCreation)?;
         let start = chunk_idx * chunk_size;
         let end = ((chunk_idx + 1) * chunk_size).min(total_frames as usize);
         let composition = composition.clone();
 
         handles.push(std::thread::spawn(move || -> Result<(), ExportError> {
-            let mut renderer = renderer;
             let dims = SceneDimensions { width, height };
             let global_times: Vec<f64> =
                 (start..end).map(|frame| (frame as f64) / (fps as f64)).collect();

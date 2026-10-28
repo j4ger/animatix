@@ -594,7 +594,8 @@ impl Timeline {
         // `rotate_y` are implemented and they apply an *orthographic* tilt — no
         // focal length, no `1/w` foreshortening. So an authored `perspective`
         // is stored and never read. Say so instead of accepting a value that
-        // does nothing; the property lands with `PerspectiveBlitPipeline`.
+        // does nothing; the 2.5D perspective tilt is still on the roadmap
+        // (docs/roadmap.md) and has no renderer yet.
         if props.iter().any(|p| p.name == "perspective") {
             diagnostics.push(Diagnostic::warning(
                 crate::diagnostics::DiagnosticCode::UnimplementedProperty,
