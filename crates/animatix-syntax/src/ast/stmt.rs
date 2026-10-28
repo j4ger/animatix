@@ -146,6 +146,25 @@ pub fn is_array_member_label(s: &str) -> Option<&str> {
 /// Statement types for the Animatix language.
 /// Core logic units including declarations, timeline, reactive blocks, and
 /// control flow.
+///
+/// # Adding a variant
+///
+/// `Stmt` has 25 variants and no single semantic visitor: several passes are
+/// intentionally partial and live next to the behaviour they implement.
+/// `walk.rs` covers the context-free traversals (all statements, child bodies,
+/// expressions, inline items). The hand-written semantic matches that must be
+/// checked when a variant is added or removed are:
+///
+/// 1. `symbol_table::collect::SymbolTable::collect_stmt` — declarations
+/// 2. `symbol_table::refs::SymbolTable::collect_refs_from_stmt` — references
+/// 3. `typecheck::stmt::TypeEnv::check_stmt` — type checks and scopes
+/// 4. `semantic_diagnostics::checks::check_stmt` — label/property diagnostics
+/// 5. `format_core`/`to_source` (serialisation) and
+///    `module::discovery::strip_imports` (module rewriting)
+///
+/// A variant with a body must also be added to
+/// `walk::recurse_stmt_bodies` and `walk::collect_stmt_bodies_mut`, or the
+/// generic walkers silently stop descending into it.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Stmt {
     // === Actions ===

@@ -44,7 +44,7 @@ pub(crate) async fn code_action(
 
         match code {
             "undefined-label" => {
-                if let Some(misspelled) = misspelled_name(diagnostic) {
+                if let Some(misspelled) = diagnostic.subject.clone().filter(|s| !s.is_empty()) {
                     let candidates =
                         animatix_analyzer::suggest_label_names(analyzer.symbols(), &misspelled, 3);
                     // A single unambiguous correction is the preferred fix;
@@ -63,14 +63,14 @@ pub(crate) async fn code_action(
                         }));
                     }
                 }
-                if let Some(name) = undefined_label_name(diagnostic) {
+                if let Some(name) = diagnostic.subject.clone().filter(|s| !s.is_empty()) {
                     if let Some(action) = declare_actor_action(analyzer.source(), &url, &name) {
                         actions.push(CodeActionOrCommand::CodeAction(action));
                     }
                 }
             },
             "unknown-action" => {
-                if let Some(misspelled) = misspelled_name(diagnostic) {
+                if let Some(misspelled) = diagnostic.subject.clone().filter(|s| !s.is_empty()) {
                     let candidates =
                         animatix_analyzer::suggest_action_names(analyzer.symbols(), &misspelled, 3);
                     let unambiguous = candidates.len() == 1;
@@ -89,7 +89,7 @@ pub(crate) async fn code_action(
                 }
             },
             "unused-label" => {
-                if let Some(name) = unused_name(diagnostic) {
+                if let Some(name) = diagnostic.subject.clone().filter(|s| !s.is_empty()) {
                     if let Some(action) = remove_declaration_action(analyzer, &url, &name) {
                         actions.push(CodeActionOrCommand::CodeAction(action));
                     }
@@ -155,43 +155,9 @@ fn replace_range_edit(
     }
 }
 
-/// Extract the offending name from a spelling-related diagnostic message.
-///
-/// The analyzer phrases these as `Undefined label: NAME` and `Unknown action:
-/// NAME`; anything else yields `None` so unrelated diagnostics are skipped.
-fn misspelled_name(diagnostic: &animatix_analyzer::Diagnostic) -> Option<String> {
-    const PREFIXES: [&str; 2] = ["Undefined label: ", "Unknown action: "];
-    for prefix in PREFIXES {
-        if let Some(rest) = diagnostic.message.strip_prefix(prefix) {
-            let name = rest.trim();
-            if !name.is_empty() {
-                return Some(name.to_string());
-            }
-        }
-    }
-    None
-}
-
-/// Extract the name from an `undefined-label` diagnostic.
-fn undefined_label_name(diagnostic: &animatix_analyzer::Diagnostic) -> Option<String> {
-    diagnostic
-        .message
-        .strip_prefix("Undefined label: ")
-        .map(|rest| rest.trim().to_string())
-        .filter(|name| !name.is_empty())
-}
-
-/// Extract the name from an `unused-label` diagnostic (`Unused actor: 'x'`,
-/// `Unused binding: 'x'`, …).
-fn unused_name(diagnostic: &animatix_analyzer::Diagnostic) -> Option<String> {
-    for kind in ["actor", "binding", "label", "component"] {
-        let prefix = format!("Unused {kind}: '");
-        if let Some(rest) = diagnostic.message.strip_prefix(prefix.as_str()) {
-            return rest.strip_suffix('\'').map(str::to_string);
-        }
-    }
-    None
-}
+// Spelling and cleanup actions read the diagnostic's `subject` field, which
+// the analyzer fills from the emitting check; the English message text is
+// display-only and is never parsed.
 
 /// Build the "declare the missing actor" quick fix.
 ///
@@ -290,7 +256,7 @@ fn unused_removal_edits(
     let names: Vec<String> = diagnostics
         .iter()
         .filter(|d| d.code.as_deref() == Some("unused-label"))
-        .filter_map(unused_name)
+        .filter_map(|d| d.subject.clone())
         .collect();
     if names.len() < 2 {
         return Vec::new();

@@ -73,8 +73,8 @@ impl ActorTemplate {
             if let Some(info) = info {
                 if let Some(stub) = &info.default_stub {
                     let dummy_src = format!("_dummy: {type_name}, {stub}");
-                    if let (Some(stmts), _, _) =
-                        animatix_syntax::parser::parse_source_diagnostics(&dummy_src)
+                    if let Some(stmts) =
+                        animatix_syntax::parser::parse_source_complete(&dummy_src).ast
                     {
                         if let Some(animatix_syntax::ast::Stmt::ActorDecl {
                             props: parsed_props,

@@ -157,19 +157,15 @@ impl ModuleGraph {
             .get(&key)
             .map(str::to_owned)
             .ok_or_else(|| ModuleError::FileNotFound(key.clone()))?;
-        let parsed = parse_canonical(&source);
-        if !parsed.parse_errors.is_empty() {
-            return Err(ModuleError::ParseErrors(parsed.parse_errors));
+        let parsed = parse_source_complete(&source);
+        if !parsed.errors.is_empty() {
+            return Err(ModuleError::ParseErrors(parsed.errors));
         }
-        let mut statements = parsed.statements.unwrap_or_default();
+        let mut statements = parsed.ast.unwrap_or_default();
         set_action_spans(&mut statements, &source);
         let imports = collect_imports(&statements);
         let id = self.alloc_id();
-        let symbols = {
-            let mut symbols = crate::symbol_table::SymbolTable::build_from_ast(&statements);
-            symbols.collect_references(&statements);
-            symbols
-        };
+        let symbols = crate::symbol_table::SymbolTable::build(&statements);
         self.paths.insert(key.clone(), id);
         self.files.insert(
             id,
@@ -283,14 +279,14 @@ impl ModuleGraph {
             fs::read_to_string(&key).map_err(|_| ModuleError::FileNotFound(key.clone()))?
         };
 
-        let parsed = parse_canonical(&source);
-        let parse_errors = parsed.parse_errors;
+        let parsed = parse_source_complete(&source);
+        let parse_errors = parsed.errors;
 
         if !parse_errors.is_empty() {
             return Err(ModuleError::ParseErrors(parse_errors));
         }
 
-        let mut statements = parsed.statements.unwrap_or_default();
+        let mut statements = parsed.ast.unwrap_or_default();
 
         // Convert byte spans captured during parsing into line/col spans.
         set_action_spans(&mut statements, &source);
@@ -317,11 +313,7 @@ impl ModuleGraph {
             path: key.clone(),
             statements: statements.clone(),
             imports: imports.clone(),
-            symbols: {
-                let mut symbols = crate::symbol_table::SymbolTable::build_from_ast(&statements);
-                symbols.collect_references(&statements);
-                symbols
-            },
+            symbols: crate::symbol_table::SymbolTable::build(&statements),
         };
 
         self.files.insert(id, module);

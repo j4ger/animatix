@@ -19,6 +19,7 @@ use animatix_syntax::token::{Token, TokenKind, byte_to_line_col};
 use animatix_syntax::{builtins, easing};
 
 use crate::diagnostics::{Diagnostic, DiagnosticSeverity};
+use crate::references::resolve_scope;
 use crate::symbol_table::SymbolTable;
 
 /// Collect errors for imports that resolve to no file.
@@ -52,6 +53,7 @@ pub fn collect_unresolved_imports(symbols: &SymbolTable, path: Option<&Path>) ->
                 resolved.display()
             ),
             code: Some("unresolved-import".to_string()),
+            subject: Some(import.path.clone()),
         });
     }
     diagnostics
@@ -118,6 +120,7 @@ pub fn collect_unresolved_variables(
                 occurrence.name
             ),
             code: Some("unresolved-variable".to_string()),
+            subject: Some(occurrence.name.clone()),
         });
     }
 
@@ -254,24 +257,6 @@ fn collect_assignment_target_names(stmts: &[Stmt]) -> HashSet<String> {
         }
     });
     bound
-}
-
-/// Find the scope that declares `target.name`, walking outward through the
-/// parser-recorded scope chain (same resolution as find-references).
-fn resolve_scope(occurrences: &[Occurrence], target: &Occurrence) -> Option<u32> {
-    let mut scope = target.scope_id;
-    let mut parent = target.parent_scope_id;
-    while let Some(current) = scope {
-        if occurrences
-            .iter()
-            .any(|o| o.declaration && o.scope_id == Some(current) && o.name == target.name)
-        {
-            return Some(current);
-        }
-        scope = parent;
-        parent = occurrences.iter().find(|o| o.scope_id == scope).and_then(|o| o.parent_scope_id);
-    }
-    None
 }
 
 #[cfg(test)]

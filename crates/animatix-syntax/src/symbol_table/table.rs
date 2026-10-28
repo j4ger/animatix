@@ -56,6 +56,8 @@ impl SymbolTable {
         for name in &other.array_labels {
             self.array_labels.insert(name.clone());
         }
+        // Labels/components/namespaces feed the memoized type environment.
+        self.invalidate_type_env();
     }
 
     /// Return a table containing only exports visible through an aliased

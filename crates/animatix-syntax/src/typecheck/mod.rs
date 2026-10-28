@@ -22,7 +22,7 @@ use std::collections::HashMap;
 
 use crate::ast::Stmt;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
-use crate::typing::{self, Type as TypedType, TypeEnv as TypedEnv};
+use crate::typing::{self, TypeEnv as TypedEnv};
 
 /// Type-checking environment.
 pub struct TypeEnv<'a> {
@@ -46,18 +46,12 @@ impl<'a> TypeEnv<'a> {
     ) -> Self {
         let mut typed = TypedEnv::with_stdlib();
         for (name, entry) in components {
-            let mut signature = typing::ComponentSignature::default();
-            for param in &entry.definition.params {
-                if let Some(annotation) = &param.param_type {
-                    signature
-                        .params
-                        .insert(param.name.clone(), TypedType::from_annotation(annotation));
-                } else if let Some(default) = &param.default {
-                    signature
-                        .params
-                        .insert(param.name.clone(), typing::infer_expr_type(default, &typed));
-                }
-            }
+            let signature = crate::symbol_table::component_signature(
+                entry.definition.params.iter().map(|param| {
+                    (param.name.as_str(), param.param_type.as_ref(), param.default.as_ref())
+                }),
+                &mut |default| Some(typing::infer_expr_type(default, &typed)),
+            );
             typed.register_component(name, signature);
         }
         Self {
@@ -94,6 +88,11 @@ impl<'a> TypeEnv<'a> {
     }
 
     /// Check all statements in a program, returning any type errors.
+    ///
+    /// Two passes only: a top-level alias pre-registration (so forward alias
+    /// references resolve) and one recursive check. Unknown-alias warnings are
+    /// collected separately and emitted first, preserving the diagnostic order
+    /// the previous three-loop implementation produced.
     pub fn check_statements(&mut self, stmts: &[Stmt]) -> Vec<Diagnostic> {
         for stmt in stmts {
             if let Stmt::TypeAlias {
@@ -103,6 +102,7 @@ impl<'a> TypeEnv<'a> {
                 self.typed.register_alias(name, annotation);
             }
         }
+        let mut alias_diagnostics = Vec::new();
         let mut diagnostics = Vec::new();
         for stmt in stmts {
             if let Stmt::TypeAlias {
@@ -113,7 +113,7 @@ impl<'a> TypeEnv<'a> {
             } = stmt
             {
                 if let Some(alias) = self.typed.unresolved_alias(annotation) {
-                    diagnostics.push(
+                    alias_diagnostics.push(
                         Diagnostic::warning(
                             DiagnosticCode::UnknownTypeAlias,
                             DiagnosticPhase::Build,
@@ -124,10 +124,9 @@ impl<'a> TypeEnv<'a> {
                     );
                 }
             }
-        }
-        for stmt in stmts {
             self.check_stmt(stmt, &mut diagnostics);
         }
-        diagnostics
+        alias_diagnostics.extend(diagnostics);
+        alias_diagnostics
     }
 }

@@ -1,6 +1,7 @@
 //! Canonical semantic diagnostics emitted from the syntax layer.
 //!
-//! The analyzer and LSP convert these into their transport DTOs instead of
+//! The analyzer converts these once, span-first, into its transport DTO
+//! (`analyzer::diagnostics::convert_syntax_diagnostic`) instead of
 //! re-implementing label/property/type checks.
 
 use std::collections::HashSet;
@@ -11,6 +12,7 @@ use crate::diagnostics::{
 };
 use crate::symbol_table::{LabelKind, SymbolTable};
 use crate::token::{Token, TokenKind, byte_to_line_col};
+use crate::typing;
 use crate::walk;
 
 /// Plot family actors accept declaration-time runtime parameters — numeric
@@ -96,23 +98,26 @@ pub fn collect_semantic_diagnostics(
             } else {
                 DiagnosticSeverity::Warning
             };
-            diagnostics.push(span_diagnostic(
-                severity,
-                DiagnosticCode::UnusedLabel,
-                format!(
-                    "Unused {}: '{}'",
-                    match info.kind {
-                        LabelKind::Actor => "actor",
-                        LabelKind::Let => "binding",
-                        LabelKind::Component => "component",
-                        _ => "label",
-                    },
-                    name
-                ),
-                info.line,
-                info.col,
-                info.col + name.len(),
-            ));
+            diagnostics.push(
+                span_diagnostic(
+                    severity,
+                    DiagnosticCode::UnusedLabel,
+                    format!(
+                        "Unused {}: '{}'",
+                        match info.kind {
+                            LabelKind::Actor => "actor",
+                            LabelKind::Let => "binding",
+                            LabelKind::Component => "component",
+                            _ => "label",
+                        },
+                        name
+                    ),
+                    info.line,
+                    info.col,
+                    info.col + name.len(),
+                )
+                .with_subject(name.clone()),
+            );
         }
     }
 
@@ -146,6 +151,30 @@ fn span_diagnostic(
             subject: None,
         },
     }
+}
+
+/// A `type-mismatch` warning for `owner.property`.
+///
+/// Property assignments and effect-stage parameters all report the same shape;
+/// one constructor keeps the message and span rules from drifting between the
+/// actor-declaration, assignment, and stage paths.
+fn type_mismatch_diagnostic(
+    owner: &str,
+    property: &str,
+    expected: &typing::Type,
+    actual: &typing::Type,
+    line: usize,
+    col: usize,
+    end_col: usize,
+) -> Diagnostic {
+    span_diagnostic(
+        DiagnosticSeverity::Warning,
+        DiagnosticCode::TypeMismatch,
+        format!("Type mismatch for '{owner}.{property}': expected {expected:?}, found {actual:?}"),
+        line,
+        col,
+        end_col,
+    )
 }
 
 fn range_diagnostic(

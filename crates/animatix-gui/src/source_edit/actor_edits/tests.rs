@@ -1,5 +1,5 @@
 use animatix_syntax::ast::{ComponentDef, Expr, InlineItem, Property, Stmt};
-use animatix_syntax::parser::parse_simple;
+use animatix_syntax::parser::parse_source;
 
 use super::super::apply::{
     SourceEdit, apply_edit, find_actor_decl_mut, find_assignment_mut, find_prop_mut,
@@ -7,7 +7,7 @@ use super::super::apply::{
 };
 
 fn parse(source: &str) -> Vec<Stmt> {
-    parse_simple(source).0.expect("failed to parse test source")
+    parse_source(source).0.expect("failed to parse test source")
 }
 
 #[test]

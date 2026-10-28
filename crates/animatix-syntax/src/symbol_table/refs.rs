@@ -24,7 +24,7 @@ impl SymbolTable {
                     }
                 }
                 for child in children {
-                    self.collect_inline_item(child);
+                    self.collect_inline_references(child);
                 }
             },
             Stmt::FnDecl { body, .. } | Stmt::Block { body, .. } => {
@@ -188,164 +188,58 @@ impl SymbolTable {
         }
     }
 
-    /// Collect inline item children into the symbol table.
-    /// Walk an expression and mark any identifier references into `referenced_labels`.
+    /// Walk an expression and mark identifier references into `referenced_labels`.
+    ///
+    /// Delegates the recursion to [`crate::walk::walk_expr`] so a new `Expr`
+    /// variant is handled by the shared walker instead of a second hand-written
+    /// match here.
     fn collect_refs_from_expr(&mut self, expr: &Expr) {
-        match expr {
+        crate::walk::walk_expr(expr, &mut |expr| match expr {
             Expr::Ident(name) => {
                 self.referenced_labels.insert(name.clone());
             },
             Expr::Path(parts) => {
-                // First part is the receiver object (label reference)
+                // First part is the receiver object (label reference).
                 if let Some(first) = parts.first() {
                     self.referenced_labels.insert(first.clone());
                 }
             },
-            Expr::Index(target, index) => {
-                self.collect_refs_from_expr(target);
-                self.collect_refs_from_expr(index);
-            },
-            Expr::Tuple(items) | Expr::List(items) => {
-                for item in items {
-                    self.collect_refs_from_expr(item);
-                }
-            },
-            Expr::Binary(left, _, right) => {
-                self.collect_refs_from_expr(left);
-                self.collect_refs_from_expr(right);
-            },
-            Expr::Unary(_, inner) => {
-                self.collect_refs_from_expr(inner);
-            },
-            Expr::Call(_, args) => {
-                for arg in args {
-                    self.collect_refs_from_expr(arg);
-                }
-            },
-            Expr::Method(receiver, _, args) => {
-                self.collect_refs_from_expr(receiver);
-                for arg in args {
-                    self.collect_refs_from_expr(arg);
-                }
-            },
-            Expr::Closure(_, body) => {
-                self.collect_refs_from_expr(body);
-            },
-            Expr::Conditional(cond, then_branch, else_branch) => {
-                self.collect_refs_from_expr(cond);
-                self.collect_refs_from_expr(then_branch);
-                self.collect_refs_from_expr(else_branch);
-            },
-            Expr::Match(scrutinee, arms) => {
-                self.collect_refs_from_expr(scrutinee);
-                for (_pat, arm_expr) in arms {
-                    self.collect_refs_from_expr(arm_expr);
-                }
-            },
-            Expr::Construct(_, props) => {
-                for prop in props {
-                    self.collect_refs_from_expr(&prop.value);
-                }
-            },
-            // Literals (Num, Percent, Str, Bool, Null) have no identifier references
+            // Literals and operators own no identifier references.
             _ => {},
-        }
+        });
     }
 
-    /// Collect inline item children into the symbol table.
-    pub(super) fn collect_inline_item(&mut self, item: &InlineItem) {
+    /// Collect references owned by an inline item tree.
+    ///
+    /// Declarations in the same tree are registered by the declaration pass
+    /// (`SymbolTable::collect_inline_declarations`); this pass only reads
+    /// expressions.
+    fn collect_inline_references(&mut self, item: &InlineItem) {
         match item {
             InlineItem::Labeled {
-                label,
-                array_index,
-                ty,
-                props,
-                children,
-                ..
+                props, children, ..
             } => {
                 for prop in props {
                     self.collect_refs_from_expr(&prop.value);
                 }
-                self.labels.insert(
-                    label.clone(),
-                    LabelInfo {
-                        name: label.clone(),
-                        kind: LabelKind::Actor,
-                        line: 0,
-                        col: 0,
-                        span: None,
-                        ty: None,
-                        inferred_type: None,
-                        is_pub: false,
-                        plot_params: Vec::new(),
-                    },
-                );
-                // Declared types of inline children feed effect-stage
-                // validation; consumers gate on `is_effect_type`, so recording
-                // every label here is inert for non-effect children.
-                self.inline_child_types.insert(label.clone(), ty.clone());
-                if array_index.is_some() {
-                    self.array_labels.insert(label.clone());
-                }
                 for child in children {
-                    self.collect_inline_item(child);
+                    self.collect_inline_references(child);
                 }
             },
             InlineItem::Anonymous { children, .. } => {
                 for child in children {
-                    self.collect_inline_item(child);
+                    self.collect_inline_references(child);
                 }
             },
-            InlineItem::ForLoop {
-                var,
-                index_var,
-                body,
-                ..
-            } => {
-                let var_names: Vec<String> = match var {
-                    LoopPattern::Single(name) => vec![name.clone()],
-                    LoopPattern::Tuple(names) => names.clone(),
-                };
-                for name in &var_names {
-                    self.labels.insert(
-                        name.clone(),
-                        LabelInfo {
-                            name: name.clone(),
-                            kind: LabelKind::For,
-                            line: 0,
-                            col: 0,
-                            span: None,
-                            ty: None,
-                            inferred_type: None,
-                            is_pub: false,
-                            plot_params: Vec::new(),
-                        },
-                    );
-                }
-                if let Some(iv) = index_var {
-                    self.labels.insert(
-                        iv.clone(),
-                        LabelInfo {
-                            name: iv.clone(),
-                            kind: LabelKind::For,
-                            line: 0,
-                            col: 0,
-                            span: None,
-                            ty: None,
-                            inferred_type: None,
-                            is_pub: false,
-                            plot_params: Vec::new(),
-                        },
-                    );
-                }
+            InlineItem::ForLoop { body, .. } => {
                 for item in body {
-                    self.collect_inline_item(item);
+                    self.collect_inline_references(item);
                 }
             },
             InlineItem::SlotMarker => {},
             InlineItem::SlotFill { items, .. } => {
                 for item in items {
-                    self.collect_inline_item(item);
+                    self.collect_inline_references(item);
                 }
             },
         }

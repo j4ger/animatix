@@ -742,7 +742,7 @@ fn seeded_rand_is_deterministic() {
             c.position = (seeded_rand(1.0) * 100, seeded_rand(2.0) * 100)
         }
     "#;
-    let ast = animatix_syntax::parser::parse_simple(source).0.unwrap();
+    let ast = animatix_syntax::parser::parse_source(source).0.unwrap();
     let timeline = super::super::Timeline::build(&ast);
     let track = timeline.world.tracks.get_id("c").unwrap();
     let pos1 = timeline.world.geometry(track).position.get(0, [0.0, 0.0]);
@@ -762,7 +762,7 @@ fn seeded_rand_returns_value_in_range() {
             c.position = (seeded_rand(42.0) * 100, seeded_rand(42.0) * 100)
         }
     "#;
-    let ast = animatix_syntax::parser::parse_simple(source).0.unwrap();
+    let ast = animatix_syntax::parser::parse_source(source).0.unwrap();
     let timeline = super::super::Timeline::build(&ast);
     let track = timeline.world.tracks.get_id("c").unwrap();
     let pos = timeline.world.geometry(track).position.get(0, [0.0, 0.0]);
@@ -783,7 +783,7 @@ fn seeded_rand_different_seeds_produce_different_values() {
     let source = r#"
         c: Ellipse, radius: 50, color: red
     "#;
-    let ast = animatix_syntax::parser::parse_simple(source).0.unwrap();
+    let ast = animatix_syntax::parser::parse_source(source).0.unwrap();
     let timeline = super::super::Timeline::build(&ast);
 
     // Evaluate seeded_rand with different seeds directly in the timeline's env

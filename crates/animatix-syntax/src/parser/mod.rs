@@ -6,7 +6,16 @@
 //!
 //! ## Entry Points
 //!
-//! - [`parser()`] — parses a full `.amx` file into `Vec<Stmt>`
+//! Source parsing has exactly three entry points; each returns more of the
+//! same parse instead of re-lexing:
+//!
+//! - [`parse_source`] — AST plus structured errors
+//! - [`parse_source_with_occurrences`] — the same plus identifier occurrences
+//! - [`parse_source_complete`] — every artifact, including warnings and the
+//!   token stream
+//!
+//! [`parse_snippet`] and [`parser()`] are composition helpers, not additional
+//! source-parsing pipelines.
 //!
 //! ## Key Design Notes
 //!
@@ -28,14 +37,16 @@
 //! | `stmt` | Recursive statement parser (declarations, assignments, actions, composition) |
 //! | `top_level` | Top-level parser (`config`, scenes, keyframes, `group_scenes`) |
 //! | `comments` | Trailing-comment attachment and property-span collection |
-//! | `entry` | Parse entry implementation (`ParsedSource`, `ParseResult`) |
+//! | `entry` | Parse entry implementation (`ParsedSource` and the tokenizer-once pipeline) |
 //! | `error` | Structured parse errors (`ParseError`) |
 //!
 //! ## Relationship to Other Systems
 //!
 //! - [`crate::ast`] defines the AST nodes this parser produces.
 //! - The lossless tokenizer in [`crate::token`] is the single lexical definition.
-//! - Parser tests in `tests/parser_tests.rs` are the authority on accepted syntax.
+//! - The parser test corpus lives in `crates/animatix/tests/parser_tests/` and
+//!   `crates/animatix-syntax/src/parser/tests.rs`; it is the authority on
+//!   accepted syntax.
 
 mod comments;
 pub(crate) mod common;
@@ -60,19 +71,8 @@ use crate::diagnostics::Diagnostic;
 
 use entry::parse_impl;
 
-pub use entry::{ParseResult, ParsedSource, parse_canonical};
+pub use entry::ParsedSource;
 pub use error::ParseError;
-
-/// Parse source and return AST, parse errors, and diagnostics (warnings).
-///
-/// This is the full-diagnostics entry point that includes both syntax errors
-/// and semantic warnings (e.g. silently dropped brace-style properties).
-pub fn parse_source_diagnostics(
-    source: &str,
-) -> (Option<Vec<Stmt>>, Vec<ParseError>, Vec<Diagnostic>) {
-    let parsed = parse_impl(source);
-    (parsed.ast, parsed.errors, parsed.warnings)
-}
 
 /// Parse source and return AST, errors, and parser-recorded occurrences.
 pub fn parse_source_with_occurrences(
@@ -85,8 +85,8 @@ pub fn parse_source_with_occurrences(
 /// Parse source and return every artifact, including the token stream.
 ///
 /// Use this when the caller needs the tokens as well: the alternative is
-/// [`parse_source_diagnostics`] followed by a second `tokenize`, which lexes
-/// the same source twice.
+/// [`parse_source`] followed by a second `tokenize`, which lexes the same
+/// source twice.
 pub fn parse_source_complete(source: &str) -> ParsedSource {
     parse_impl(source)
 }
@@ -94,18 +94,12 @@ pub fn parse_source_complete(source: &str) -> ParsedSource {
 /// Parse source into an AST and structured parse errors.
 ///
 /// The tokenizer handles whitespace and comments, so this entry point accepts
-/// comments in all the same positions the lexer does.
+/// comments in all the same positions the lexer does. Diagnostics-free: use
+/// [`parse_source_complete`] when the caller also needs warnings, occurrences,
+/// or the token stream.
 pub fn parse_source(source: &str) -> (Option<Vec<Stmt>>, Vec<ParseError>) {
-    let (ast, errors, _warnings) = parse_source_diagnostics(source);
-    (ast, errors)
-}
-
-/// Parse source into an AST and structured parse errors without warnings.
-///
-/// This is a thin wrapper over [`parse_source`] kept for callers that only need
-/// the AST plus errors.
-pub fn parse_simple(source: &str) -> (Option<Vec<Stmt>>, Vec<ParseError>) {
-    parse_source(source)
+    let parsed = parse_impl(source);
+    (parsed.ast, parsed.errors)
 }
 
 /// Strip VS Code–style tab-stop placeholders from snippet text.

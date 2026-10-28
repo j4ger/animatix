@@ -70,7 +70,7 @@ GUI / CLI     engine examples (dev-dependency only)
      to_source::stmts_to_source()  (re-serialization for GUI write-back)
 ```
 
-The AST is round-trippable. The GUI inspector mutates the AST directly and re-serializes the entire file. Formatting is normalized during re-serialization. `parser::parse_canonical` is the semantic parser entry point used by module loading and the runtime. The analyzer tokenizes source and walks the same token stream plus AST for positions, completions, hover, and references.
+The AST is round-trippable. The GUI inspector mutates the AST directly and re-serializes the entire file. Formatting is normalized during re-serialization. `parser::parse_source_complete` is the semantic parse entry point used by module loading and the runtime (`parse_source`/`parse_source_with_occurrences` expose narrower views of the same parse). The analyzer keeps the token stream plus AST for positions, completions, hover, and references.
 
 ### Module System
 

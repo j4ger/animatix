@@ -15,13 +15,13 @@
 //!
 //! ```
 //! use animatix_syntax::formatter::{FormatConfig, Formatter};
-//! use animatix_syntax::parser::parse_simple;
+//! use animatix_syntax::parser::parse_source;
 //!
 //! let source = r#"#0s
 //! title: Text, text: "Hello"
 //! "#;
 //!
-//! let stmts = parse_simple(source).0.unwrap();
+//! let stmts = parse_source(source).0.unwrap();
 //! let formatter = Formatter::default();
 //! let formatted = formatter.format(&stmts);
 //! ```
@@ -107,10 +107,10 @@ impl Formatter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::parse_simple;
+    use crate::parser::parse_source;
 
     fn parse(source: &str) -> Vec<Stmt> {
-        parse_simple(source).0.expect("failed to parse")
+        parse_source(source).0.expect("failed to parse")
     }
 
     #[test]

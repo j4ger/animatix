@@ -198,3 +198,49 @@ fn indexed_assignment_marks_runtime_var_as_referenced() {
         "'bars' should be referenced as the array base"
     );
 }
+
+/// The two-phase `build` must produce exactly what the hand-written pair did,
+/// and the type environment must be reused until a mutation invalidates it.
+#[test]
+fn build_runs_declarations_then_references_and_caches_the_type_env() {
+    let source = "bars: Rect, array: 2\n#0s\nbars[sel].color = red";
+    let (ast, errors) = crate::parser::parse_source(source);
+    assert!(errors.is_empty(), "{errors:?}");
+    let stmts = ast.expect("statements");
+
+    let table = SymbolTable::build(&stmts);
+    let mut manual = SymbolTable::build_from_ast(&stmts);
+    manual.collect_references(&stmts);
+
+    assert_eq!(
+        table.labels.keys().collect::<Vec<_>>(),
+        manual.labels.keys().collect::<Vec<_>>()
+    );
+    assert_eq!(table.referenced_labels, manual.referenced_labels);
+    assert!(table.referenced_labels.contains("sel"), "reference pass must run");
+
+    let cached = table.type_env();
+    let same = table.type_env();
+    assert!(std::ptr::eq(cached, same), "type env must be cached for the table's lifetime");
+
+    let mut merged = table.clone();
+    merged.merge(&SymbolTable::default());
+    assert!(
+        !std::ptr::eq(merged.type_env(), cached),
+        "merge changes labels/namespaces, so it must invalidate the cache"
+    );
+}
+
+/// The declaration pass must see binding types accumulated so far; consulting
+/// the memoized environment mid-collection would freeze it before `a` exists.
+#[test]
+fn later_let_infers_from_an_earlier_let_during_collection() {
+    let (ast, errors) = crate::parser::parse_source("let a = 1\nlet b = a + 1");
+    assert!(errors.is_empty(), "{errors:?}");
+    let table = SymbolTable::build(&ast.expect("statements"));
+    assert_eq!(
+        table.labels["b"].inferred_type,
+        Some(typing::Type::Num),
+        "`a + 1` must infer Num from the earlier binding"
+    );
+}

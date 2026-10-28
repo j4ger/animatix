@@ -40,6 +40,8 @@ fn cell_analyzer_diagnostics(
             end_col: d.rel_end_col,
             message: d.message.clone(),
             code: None,
+            // Cell diagnostics only render text; no quick-fix subject.
+            subject: None,
         })
         .collect()
 }

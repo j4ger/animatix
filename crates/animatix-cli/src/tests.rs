@@ -33,6 +33,7 @@ fn check_and_lint_json_share_one_diagnostic_shape() {
         end_col: 9,
         message: "Unused actor: 'x'".to_string(),
         code: Some("unused-label".to_string()),
+        subject: Some("x".to_string()),
     });
     for key in [
         "line", "col", "end_line", "end_col", "message", "code", "severity", "phase",

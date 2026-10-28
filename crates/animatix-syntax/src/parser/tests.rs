@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn test_closure_parser() {
     let input = "let f = (x) => x ^ 2";
-    let res = parse_simple(input).0.unwrap();
+    let res = parse_source(input).0.unwrap();
 
     // Find the LetDecl stmt
     if let Stmt::LetDecl {
@@ -34,7 +34,7 @@ fn test_closure_parser() {
 #[test]
 fn test_text_shorthand_parser() {
     let input = r#"a: "hello world""#;
-    let res = parse_simple(input).0.unwrap();
+    let res = parse_source(input).0.unwrap();
 
     if let Stmt::ActorDecl {
         is_pub,
@@ -62,7 +62,7 @@ fn test_text_shorthand_parser() {
 #[test]
 fn test_text_shorthand_with_modifiers() {
     let input = r#"title: "Slide 1" [2s, ease: ease-in-out]"#;
-    let res = parse_simple(input).0.unwrap();
+    let res = parse_source(input).0.unwrap();
 
     if let Stmt::ActorDecl {
         label,
@@ -86,7 +86,7 @@ fn test_text_shorthand_with_modifiers() {
 #[test]
 fn test_typst_shorthand_parser() {
     let input = "eq: $$ x^2 + y^2 $$";
-    let res = parse_simple(input).0.unwrap();
+    let res = parse_source(input).0.unwrap();
 
     if let Stmt::ActorDecl {
         is_pub,
@@ -114,7 +114,7 @@ fn test_typst_shorthand_parser() {
 #[test]
 fn test_typst_shorthand_with_modifiers() {
     let input = "eq: $$ x^2 $$ [2s]";
-    let res = parse_simple(input).0.unwrap();
+    let res = parse_source(input).0.unwrap();
 
     if let Stmt::ActorDecl {
         label,
@@ -139,7 +139,7 @@ fn test_typst_shorthand_with_modifiers() {
 fn test_vec2_value_span_accuracy() {
     // Reproduce the bug: size: (2494.552, 1377.7778) should have correct span
     let input = r#"backdrop: Rect, size: (2494.552, 1377.7778), color: scene.background"#;
-    let res = parse_simple(input).0.unwrap();
+    let res = parse_source(input).0.unwrap();
 
     if let Stmt::ActorDecl { props, .. } = &res[0] {
         let size_prop = props.iter().find(|p| p.name == "size").unwrap();
@@ -165,7 +165,7 @@ fn test_vec2_value_span_accuracy() {
 fn test_vec2_value_span_with_trailing_comma() {
     // Test with trailing comma in tuple: (2494.552, 1377.7778,)
     let input = r#"backdrop: Rect, size: (2494.552, 1377.7778,), color: scene.background"#;
-    let res = parse_simple(input).0.unwrap();
+    let res = parse_source(input).0.unwrap();
 
     if let Stmt::ActorDecl { props, .. } = &res[0] {
         let size_prop = props.iter().find(|p| p.name == "size").unwrap();
@@ -189,7 +189,7 @@ fn test_vec2_value_span_with_trailing_comma() {
 fn test_multiple_properties_span_independence() {
     // Test that spans for multiple properties don't overlap
     let input = r#"backdrop: Rect, size: (100, 200), color: red, anchor: center"#;
-    let res = parse_simple(input).0.unwrap();
+    let res = parse_source(input).0.unwrap();
 
     if let Stmt::ActorDecl { props, .. } = &res[0] {
         let size_prop = props.iter().find(|p| p.name == "size").unwrap();
@@ -220,7 +220,7 @@ fn test_multiple_properties_span_independence() {
 #[test]
 fn test_reactive_binding_parser() {
     let input = r#"orbiter.at := tracker.at + (200 * cos(3 * t), 200 * sin(3 * t))"#;
-    let res = parse_simple(input).0.unwrap();
+    let res = parse_source(input).0.unwrap();
     assert_eq!(res.len(), 1);
     // Reactive bindings are not wrapped in a default keyframe
     if let Stmt::ReactiveBinding {

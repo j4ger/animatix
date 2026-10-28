@@ -99,10 +99,11 @@ impl Analyzer {
                 end_col: span.end_col.saturating_sub(1),
                 message: issue.kind.to_string(),
                 code: Some("unterminated-string".to_string()),
+                subject: None,
             });
         }
         for warning in &self.parse_warnings {
-            warnings.push(Self::convert_parse_warning(&self.source, warning.clone()));
+            warnings.push(diagnostics::convert_syntax_diagnostic(&self.source, warning.clone()));
         }
         for warning in warnings {
             let suppressed = warning.severity == diagnostics::DiagnosticSeverity::Warning

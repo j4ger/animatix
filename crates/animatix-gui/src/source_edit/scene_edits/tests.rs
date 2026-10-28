@@ -1,11 +1,11 @@
 use animatix_syntax::ast::{Stmt, Transition};
-use animatix_syntax::parser::parse_simple;
+use animatix_syntax::parser::parse_source;
 use animatix_syntax::to_source::stmts_to_source;
 
 use super::super::apply::{SourceEdit, apply_edit};
 
 fn parse(source: &str) -> Vec<Stmt> {
-    parse_simple(source).0.expect("failed to parse test source")
+    parse_source(source).0.expect("failed to parse test source")
 }
 
 #[test]

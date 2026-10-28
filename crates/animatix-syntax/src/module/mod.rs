@@ -21,7 +21,7 @@ use crate::ast::{
     Action, ComponentDef, Expr, InlineItem, MatchPattern, Modifier, ParamDef, Property, Span, Stmt,
     TargetSegment, TypeAnnotation,
 };
-use crate::parser::{ParseError, parse_canonical};
+use crate::parser::{ParseError, parse_source_complete};
 use crate::walk::walk_stmts_mut;
 
 /// Walk the AST and convert `Action.byte_span` into `Stmt::Action` line/col spans.

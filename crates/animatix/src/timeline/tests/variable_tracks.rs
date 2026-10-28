@@ -295,10 +295,10 @@ for i in {0} {
   let done = arr[0] == 1
 }
 "#;
-    let parsed = animatix_syntax::parser::parse_canonical(source);
-    assert!(parsed.parse_errors.is_empty(), "parse errors: {:?}", parsed.parse_errors);
+    let parsed = animatix_syntax::parser::parse_source_complete(source);
+    assert!(parsed.errors.is_empty(), "parse errors: {:?}", parsed.errors);
     let report = Timeline::build_with_diagnostics(
-        parsed.statements.as_ref().expect("statements"),
+        parsed.ast.as_ref().expect("statements"),
         &std::collections::HashMap::new(),
     );
     assert!(
@@ -343,10 +343,10 @@ for i in {0, 1} [step: 300ms] {
   }
 }
 "#;
-    let parsed = animatix_syntax::parser::parse_canonical(source);
-    assert!(parsed.parse_errors.is_empty(), "parse errors: {:?}", parsed.parse_errors);
+    let parsed = animatix_syntax::parser::parse_source_complete(source);
+    assert!(parsed.errors.is_empty(), "parse errors: {:?}", parsed.errors);
     let report = Timeline::build_with_diagnostics(
-        parsed.statements.as_ref().expect("statements"),
+        parsed.ast.as_ref().expect("statements"),
         &std::collections::HashMap::new(),
     );
     assert!(
@@ -392,10 +392,10 @@ for j in {0, 2} {
   row.b[j].color = red [200ms]
 }
 "#;
-    let parsed = animatix_syntax::parser::parse_canonical(source);
-    assert!(parsed.parse_errors.is_empty(), "parse errors: {:?}", parsed.parse_errors);
+    let parsed = animatix_syntax::parser::parse_source_complete(source);
+    assert!(parsed.errors.is_empty(), "parse errors: {:?}", parsed.errors);
     let report = Timeline::build_with_diagnostics(
-        parsed.statements.as_ref().expect("statements"),
+        parsed.ast.as_ref().expect("statements"),
         &std::collections::HashMap::new(),
     );
     assert!(
@@ -541,10 +541,10 @@ fn total(xs: List<Num>) -> Num {
 let sorted = dnf({3, 2, 1})
 let summed = total(sorted)
 "#;
-    let parsed = animatix_syntax::parser::parse_canonical(source);
-    assert!(parsed.parse_errors.is_empty(), "parse errors: {:?}", parsed.parse_errors);
+    let parsed = animatix_syntax::parser::parse_source_complete(source);
+    assert!(parsed.errors.is_empty(), "parse errors: {:?}", parsed.errors);
     let report = Timeline::build_with_diagnostics(
-        parsed.statements.as_ref().expect("statements"),
+        parsed.ast.as_ref().expect("statements"),
         &std::collections::HashMap::new(),
     );
     assert!(
@@ -814,10 +814,10 @@ let s = sum2({3, 4})
 let g = guard(-5)
 let h = guard(21)
 "#;
-    let parsed = animatix_syntax::parser::parse_canonical(source);
-    assert!(parsed.parse_errors.is_empty(), "parse errors: {:?}", parsed.parse_errors);
+    let parsed = animatix_syntax::parser::parse_source_complete(source);
+    assert!(parsed.errors.is_empty(), "parse errors: {:?}", parsed.errors);
     let report = Timeline::build_with_diagnostics(
-        parsed.statements.as_ref().expect("statements"),
+        parsed.ast.as_ref().expect("statements"),
         &std::collections::HashMap::new(),
     );
     assert!(
@@ -849,10 +849,10 @@ always {
   box.scale = double(3) [0ms]
 }
 "#;
-    let parsed = animatix_syntax::parser::parse_canonical(source);
-    assert!(parsed.parse_errors.is_empty(), "parse errors: {:?}", parsed.parse_errors);
+    let parsed = animatix_syntax::parser::parse_source_complete(source);
+    assert!(parsed.errors.is_empty(), "parse errors: {:?}", parsed.errors);
     let report = Timeline::build_with_diagnostics(
-        parsed.statements.as_ref().expect("statements"),
+        parsed.ast.as_ref().expect("statements"),
         &std::collections::HashMap::new(),
     );
     assert!(
@@ -985,8 +985,8 @@ fn extension_actor_at_position_regression() {
 config { colorscheme: "editorial-dark" }
 p: StubPulse, at: (100, 100), size: (50, 50)
 "#;
-    let parsed = animatix_syntax::parser::parse_canonical(source);
-    assert!(parsed.parse_errors.is_empty(), "{:?}", parsed.parse_errors);
+    let parsed = animatix_syntax::parser::parse_source_complete(source);
+    assert!(parsed.errors.is_empty(), "{:?}", parsed.errors);
     let mut ctx = crate::extension_context::ExtensionContext::new();
     ctx.register_primitive(
         std::sync::Arc::new(StubPrim),
@@ -997,7 +997,7 @@ p: StubPulse, at: (100, 100), size: (50, 50)
     )
     .expect("register");
     let report = crate::composition::BuildTarget::build_with_options(
-        parsed.statements.as_ref().expect("stmts"),
+        parsed.ast.as_ref().expect("stmts"),
         &std::collections::HashMap::new(),
         None,
         crate::timeline::BuildOptions::default().with_context(std::sync::Arc::new(ctx)),

@@ -102,6 +102,7 @@ impl<'a> Walker<'a> {
                      at a later keyframe is the supported morph form)"
                 ),
                 code: Some("duplicate-label".to_string()),
+                subject: Some(label.to_string()),
             });
         }
     }

@@ -2,6 +2,10 @@ use super::*;
 
 impl SymbolTable {
     /// Build a symbol table for one parsed AST.
+    ///
+    /// Declaration pass only: it records labels, components, scenes, imports,
+    /// and aliases. References are resolved by [`Self::collect_references`];
+    /// [`Self::build`] runs both passes.
     pub fn build_from_ast(stmts: &[Stmt]) -> Self {
         let mut table = Self {
             types: crate::builtins::types().iter().cloned().collect(),
@@ -38,13 +42,44 @@ impl SymbolTable {
         }
 
         for stmt in stmts {
-            table.collect_stmt(stmt);
+            table.collect_stmt(stmt, 0);
         }
 
         table
     }
 
-    fn collect_stmt(&mut self, stmt: &Stmt) {
+    /// Register a label that names an actor instance.
+    ///
+    /// Actor declarations and labeled inline children (`pix: Pixelate`) agree
+    /// on every field except the ones they pass here; keeping the `LabelInfo`
+    /// shape in one place is what stopped the two collection sites from
+    /// drifting apart.
+    pub(super) fn register_actor_like(
+        &mut self,
+        label: &str,
+        ty: Option<String>,
+        span: Option<Span>,
+        inferred_type: Option<typing::Type>,
+        is_pub: bool,
+        plot_params: Vec<String>,
+    ) {
+        self.labels.insert(
+            label.to_string(),
+            LabelInfo {
+                name: label.to_string(),
+                kind: LabelKind::Actor,
+                line: 0, // populated by Analyzer::enrich_positions from the token stream
+                col: 0,  // populated by Analyzer::enrich_positions from the token stream
+                span,
+                ty,
+                inferred_type,
+                is_pub,
+                plot_params,
+            },
+        );
+    }
+
+    fn collect_stmt(&mut self, stmt: &Stmt, component_depth: usize) {
         match stmt {
             Stmt::LetDecl {
                 is_pub,
@@ -53,7 +88,7 @@ impl SymbolTable {
                 span,
                 ..
             } => {
-                let inferred = self.infer_expr_type(value);
+                let inferred = self.infer_expr_type_snapshot(value);
                 self.labels.insert(
                     name.clone(),
                     LabelInfo {
@@ -81,35 +116,36 @@ impl SymbolTable {
                 ..
             } => {
                 let plot_params = crate::semantic_diagnostics::plot_runtime_params(ty, props);
-                self.labels.insert(
-                    label.clone(),
-                    LabelInfo {
-                        name: label.clone(),
-                        kind: LabelKind::Actor,
-                        line: 0, // populated by Analyzer::enrich_positions from the token stream
-                        col: 0,  // populated by Analyzer::enrich_positions from the token stream
-                        span: *span,
-                        ty: Some(ty.clone()),
-                        inferred_type: Some(if self.components.contains_key(ty) {
-                            typing::Type::Component(ty.clone())
-                        } else {
-                            typing::Type::Actor(ty.clone())
-                        }),
-                        is_pub: *is_pub,
-                        plot_params,
-                    },
+                let inferred = if self.components.contains_key(ty) {
+                    typing::Type::Component(ty.clone())
+                } else {
+                    typing::Type::Actor(ty.clone())
+                };
+                self.register_actor_like(
+                    label,
+                    Some(ty.clone()),
+                    *span,
+                    Some(inferred),
+                    *is_pub,
+                    plot_params,
                 );
+                if component_depth > 0 {
+                    // The actor is part of a component template, not a scene:
+                    // leave it out of unused-label reporting in the file that
+                    // instantiates the component.
+                    self.component_internal_labels.insert(label.clone());
+                }
                 if array_index.is_some() {
                     self.array_labels.insert(label.clone());
                 }
                 for child in children {
-                    self.collect_inline_item(child);
+                    self.collect_inline_declarations(child, component_depth);
                 }
             },
 
             Stmt::ComponentDef(def, span) => {
                 self.types.insert(def.name.clone());
-                collect_component_internal_labels(&def.body, &mut self.component_internal_labels);
+                self.component_defs.insert(def.name.clone(), def.clone());
                 self.components.insert(
                     def.name.clone(),
                     ComponentInfo {
@@ -130,9 +166,11 @@ impl SymbolTable {
                     },
                 );
 
-                // Recurse into component body
+                // Recurse into the component body. Labels declared inside a
+                // template are internal to it; tracking the depth here is what
+                // replaced a second full walk of every component body.
                 for stmt in &def.body {
-                    self.collect_stmt(stmt);
+                    self.collect_stmt(stmt, component_depth + 1);
                 }
             },
 
@@ -184,7 +222,7 @@ impl SymbolTable {
                     },
                 );
                 for stmt in body {
-                    self.collect_stmt(stmt);
+                    self.collect_stmt(stmt, component_depth);
                 }
             },
 
@@ -202,7 +240,7 @@ impl SymbolTable {
                 };
                 // Infer loop-variable types from the iterable so destructured
                 // variables resolve (e.g. `for (x, y), i in {(900,320), ...}`).
-                let iterable_ty = self.infer_expr_type(iterable);
+                let iterable_ty = self.infer_expr_type_snapshot(iterable);
                 let element_types: Vec<typing::Type> = match &iterable_ty {
                     typing::Type::List(element) => match element.as_ref() {
                         typing::Type::Vec2
@@ -253,21 +291,21 @@ impl SymbolTable {
                 }
 
                 for stmt in body {
-                    self.collect_stmt(stmt);
+                    self.collect_stmt(stmt, component_depth);
                 }
             },
 
             // Recurse into blocks
             Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
                 for stmt in body {
-                    self.collect_stmt(stmt);
+                    self.collect_stmt(stmt, component_depth);
                 }
             },
             Stmt::Sequence { body, .. }
             | Stmt::Stagger { body, .. }
             | Stmt::Always { body, .. } => {
                 for stmt in body {
-                    self.collect_stmt(stmt);
+                    self.collect_stmt(stmt, component_depth);
                 }
             },
             Stmt::Conditional {
@@ -276,18 +314,18 @@ impl SymbolTable {
                 ..
             } => {
                 for stmt in then_branch {
-                    self.collect_stmt(stmt);
+                    self.collect_stmt(stmt, component_depth);
                 }
                 if let Some(else_stmts) = else_branch {
                     for stmt in else_stmts {
-                        self.collect_stmt(stmt);
+                        self.collect_stmt(stmt, component_depth);
                     }
                 }
             },
             Stmt::Match { arms, .. } => {
                 for (_, body) in arms {
                     for stmt in body {
-                        self.collect_stmt(stmt);
+                        self.collect_stmt(stmt, component_depth);
                     }
                 }
             },
@@ -305,7 +343,7 @@ impl SymbolTable {
                 // Recurse into scene body
                 if let Stmt::Scene { body, .. } = stmt {
                     for s in body {
-                        self.collect_stmt(s);
+                        self.collect_stmt(s, component_depth);
                     }
                 }
             },
@@ -335,6 +373,94 @@ impl SymbolTable {
 
             // Actions, assignments, etc. — no symbols to extract
             _ => {},
+        }
+    }
+
+    /// Register the labels owned by an inline item tree.
+    ///
+    /// The reference half of the same tree is walked by
+    /// [`Self::collect_inline_references`] in the reference pass.
+    fn collect_inline_declarations(&mut self, item: &InlineItem, component_depth: usize) {
+        match item {
+            InlineItem::Labeled {
+                label,
+                array_index,
+                ty,
+                children,
+                ..
+            } => {
+                self.register_actor_like(label, Some(ty.clone()), None, None, false, Vec::new());
+                if component_depth > 0 {
+                    self.component_internal_labels.insert(label.clone());
+                }
+                // Declared types of inline children feed effect-stage
+                // validation; consumers gate on `is_effect_type`, so recording
+                // every label here is inert for non-effect children.
+                self.inline_child_types.insert(label.clone(), ty.clone());
+                if array_index.is_some() {
+                    self.array_labels.insert(label.clone());
+                }
+                for child in children {
+                    self.collect_inline_declarations(child, component_depth);
+                }
+            },
+            InlineItem::Anonymous { children, .. } => {
+                for child in children {
+                    self.collect_inline_declarations(child, component_depth);
+                }
+            },
+            InlineItem::ForLoop {
+                var,
+                index_var,
+                body,
+                ..
+            } => {
+                let var_names: Vec<String> = match var {
+                    LoopPattern::Single(name) => vec![name.clone()],
+                    LoopPattern::Tuple(names) => names.clone(),
+                };
+                for name in &var_names {
+                    self.labels.insert(
+                        name.clone(),
+                        LabelInfo {
+                            name: name.clone(),
+                            kind: LabelKind::For,
+                            line: 0,
+                            col: 0,
+                            span: None,
+                            ty: None,
+                            inferred_type: None,
+                            is_pub: false,
+                            plot_params: Vec::new(),
+                        },
+                    );
+                }
+                if let Some(iv) = index_var {
+                    self.labels.insert(
+                        iv.clone(),
+                        LabelInfo {
+                            name: iv.clone(),
+                            kind: LabelKind::For,
+                            line: 0,
+                            col: 0,
+                            span: None,
+                            ty: None,
+                            inferred_type: None,
+                            is_pub: false,
+                            plot_params: Vec::new(),
+                        },
+                    );
+                }
+                for item in body {
+                    self.collect_inline_declarations(item, component_depth);
+                }
+            },
+            InlineItem::SlotMarker => {},
+            InlineItem::SlotFill { items, .. } => {
+                for item in items {
+                    self.collect_inline_declarations(item, component_depth);
+                }
+            },
         }
     }
 }

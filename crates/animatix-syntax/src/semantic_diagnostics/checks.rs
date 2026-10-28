@@ -16,13 +16,16 @@ pub(super) fn check_stmt(
                 let (vstart, vend) =
                     find_ident_range(tokens, source, &action.verb, byte_range.clone())
                         .unwrap_or_else(|| ((line - 1, col - 1), (end_line - 1, end_col - 1)));
-                diagnostics.push(range_diagnostic(
-                    DiagnosticSeverity::Warning,
-                    DiagnosticCode::UnknownAction,
-                    format!("Unknown action: {}", action.verb),
-                    vstart,
-                    vend,
-                ));
+                diagnostics.push(
+                    range_diagnostic(
+                        DiagnosticSeverity::Warning,
+                        DiagnosticCode::UnknownAction,
+                        format!("Unknown action: {}", action.verb),
+                        vstart,
+                        vend,
+                    )
+                    .with_subject(action.verb.clone()),
+                );
             }
 
             for target in &action.targets {
@@ -46,13 +49,16 @@ pub(super) fn check_stmt(
                     let (tstart, tend) =
                         find_ident_range(tokens, source, source_text, byte_range.clone())
                             .unwrap_or_else(|| ((line - 1, col - 1), (end_line - 1, end_col - 1)));
-                    diagnostics.push(range_diagnostic(
-                        DiagnosticSeverity::Warning,
-                        DiagnosticCode::UndefinedLabel,
-                        format!("Undefined label: {}", check_label),
-                        tstart,
-                        tend,
-                    ));
+                    diagnostics.push(
+                        range_diagnostic(
+                            DiagnosticSeverity::Warning,
+                            DiagnosticCode::UndefinedLabel,
+                            format!("Undefined label: {}", check_label),
+                            tstart,
+                            tend,
+                        )
+                        .with_subject(check_label.to_string()),
+                    );
                 }
             }
         },
@@ -76,14 +82,17 @@ pub(super) fn check_stmt(
                         .is_some_and(|base| symbols.array_labels.contains(base))
                     || is_component_array_member(symbols, label);
                 if !is_defined {
-                    diagnostics.push(span_diagnostic(
-                        DiagnosticSeverity::Warning,
-                        DiagnosticCode::UndefinedLabel,
-                        format!("Undefined label: {}", label),
-                        line,
-                        col,
-                        end_col,
-                    ));
+                    diagnostics.push(
+                        span_diagnostic(
+                            DiagnosticSeverity::Warning,
+                            DiagnosticCode::UndefinedLabel,
+                            format!("Undefined label: {}", label),
+                            line,
+                            col,
+                            end_col,
+                        )
+                        .with_subject(label.to_string()),
+                    );
                 }
             }
 
@@ -115,13 +124,11 @@ pub(super) fn check_stmt(
                     if let Some(expected_type) = symbols.property_types.get(&key) {
                         let actual_type = symbols.infer_expr_type(value);
                         if !crate::typing::is_subtype(&actual_type, expected_type) {
-                            diagnostics.push(span_diagnostic(
-                                DiagnosticSeverity::Warning,
-                                DiagnosticCode::TypeMismatch,
-                                format!(
-                                    "Type mismatch for '{}.{}': expected {:?}, found {:?}",
-                                    effect_ty, property, expected_type, actual_type
-                                ),
+                            diagnostics.push(type_mismatch_diagnostic(
+                                &effect_ty,
+                                property,
+                                expected_type,
+                                &actual_type,
                                 line,
                                 col,
                                 end_col,
@@ -188,13 +195,11 @@ pub(super) fn check_stmt(
                             if let Some(expected_type) = symbols.property_types.get(&key) {
                                 let actual_type = symbols.infer_expr_type(value);
                                 if !crate::typing::is_subtype(&actual_type, expected_type) {
-                                    diagnostics.push(span_diagnostic(
-                                        DiagnosticSeverity::Warning,
-                                        DiagnosticCode::TypeMismatch,
-                                        format!(
-                                            "Type mismatch for '{}.{}': expected {:?}, found {:?}",
-                                            label, property, expected_type, actual_type
-                                        ),
+                                    diagnostics.push(type_mismatch_diagnostic(
+                                        label,
+                                        property,
+                                        expected_type,
+                                        &actual_type,
                                         line,
                                         col,
                                         end_col,
@@ -278,13 +283,11 @@ pub(super) fn check_stmt(
                     if let Some(expected_type) = symbols.property_types.get(&key) {
                         let actual_type = symbols.infer_expr_type(&prop.value);
                         if !crate::typing::is_subtype(&actual_type, expected_type) {
-                            diagnostics.push(span_diagnostic(
-                                DiagnosticSeverity::Warning,
-                                DiagnosticCode::TypeMismatch,
-                                format!(
-                                    "Type mismatch for '{}.{}': expected {:?}, found {:?}",
-                                    ty, prop.name, expected_type, actual_type
-                                ),
+                            diagnostics.push(type_mismatch_diagnostic(
+                                ty,
+                                &prop.name,
+                                expected_type,
+                                &actual_type,
                                 prop_line,
                                 prop_col,
                                 prop_end_col,

@@ -50,6 +50,17 @@ pub struct SymbolTable {
     /// container body). Container children are collected before the full
     /// `LabelInfo.ty` pipeline, so their declared type lives here.
     pub inline_child_types: HashMap<String, String>,
+    /// Component definitions collected in the same declaration pass as
+    /// [`Self::components`]. Consumers that need the body (the analyzer's
+    /// type-check registry) read it here instead of walking the AST again.
+    pub component_defs: HashMap<String, crate::ast::ComponentDef>,
+    /// Memoized type environment, rebuilt lazily after the table mutates.
+    ///
+    /// `SymbolTable::infer_expr_type` used to construct a fresh environment per
+    /// call; a declaration-heavy file did that dozens of times per keystroke
+    /// rebuild. The cache lives and dies with the table, and every mutator
+    /// that changes labels/components/namespaces invalidates it.
+    pub(crate) type_env_cache: std::sync::OnceLock<typing::TypeEnv>,
 }
 
 /// Information about an import declaration.
@@ -157,6 +168,31 @@ pub(crate) fn effect_param_type(kind: crate::schema::PropertyValueKind) -> Optio
     }
 }
 
+/// Build a type-env component signature from parameter declarations.
+///
+/// Shared by [`SymbolTable::type_env`] (annotations only, `infer_default`
+/// returns `None`) and the type checker (annotation first, inferred default
+/// second), so the two layers cannot disagree about a component parameter's
+/// type.
+pub(crate) fn component_signature<'a>(
+    params: impl Iterator<Item = (&'a str, Option<&'a TypeAnnotation>, Option<&'a Expr>)>,
+    infer_default: &mut dyn FnMut(&Expr) -> Option<typing::Type>,
+) -> typing::ComponentSignature {
+    let mut signature = typing::ComponentSignature::default();
+    for (name, annotation, default) in params {
+        if let Some(annotation) = annotation {
+            signature
+                .params
+                .insert(name.to_string(), typing::Type::from_annotation(annotation));
+        } else if let Some(default) = default {
+            if let Some(ty) = infer_default(default) {
+                signature.params.insert(name.to_string(), ty);
+            }
+        }
+    }
+    signature
+}
+
 impl SymbolTable {
     /// `true` when `ty` names a built-in or manifest-declared effect.
     pub fn is_effect_type(&self, ty: &str) -> bool {
@@ -191,8 +227,36 @@ impl SymbolTable {
 }
 
 impl SymbolTable {
+    /// Build a symbol table from one parsed AST in two passes.
+    ///
+    /// Pass 1 collects declarations (labels, components, scenes, aliases);
+    /// pass 2 resolves the occurrences that can only be classified once every
+    /// declaration exists (`Callout` targets, unused-label references). This is
+    /// the entry point consumers should use; calling [`Self::build_from_ast`]
+    /// and [`Self::collect_references`] by hand is the same work spelled out.
+    pub fn build(stmts: &[Stmt]) -> Self {
+        let mut table = Self::build_from_ast(stmts);
+        table.collect_references(stmts);
+        table
+    }
+
+    /// Drop the memoized type environment after a mutation that changes the
+    /// symbols it was built from.
+    fn invalidate_type_env(&mut self) {
+        self.type_env_cache = std::sync::OnceLock::new();
+    }
+
     /// Build a symbol-aware type environment from the current table.
-    pub fn type_env(&self) -> typing::TypeEnv {
+    ///
+    /// Cached for the table's lifetime: inference queries outnumber table
+    /// mutations by a wide margin (every property value in a semantic check is
+    /// one query), and rebuilding the environment per query made the analyzer's
+    /// per-keystroke path allocate the whole vocabulary repeatedly.
+    pub fn type_env(&self) -> &typing::TypeEnv {
+        self.type_env_cache.get_or_init(|| self.build_type_env())
+    }
+
+    fn build_type_env(&self) -> typing::TypeEnv {
         let mut env = typing::TypeEnv::with_stdlib();
         for (name, info) in &self.labels {
             if let Some(inferred) = &info.inferred_type {
@@ -216,14 +280,12 @@ impl SymbolTable {
             }
         }
         for (name, info) in &self.components {
-            let mut signature = typing::ComponentSignature::default();
-            for param in &info.params {
-                if let Some(annotation) = &param.param_type {
-                    signature
-                        .params
-                        .insert(param.name.clone(), typing::Type::from_annotation(annotation));
-                }
-            }
+            let signature = component_signature(
+                info.params
+                    .iter()
+                    .map(|param| (param.name.as_str(), param.param_type.as_ref(), None)),
+                &mut |_default| None,
+            );
             env.register_component(name, signature);
         }
         for (alias, namespace) in &self.namespaces {
@@ -234,30 +296,23 @@ impl SymbolTable {
 
     /// Infer an expression type using this table's symbols.
     pub fn infer_expr_type(&self, expr: &Expr) -> typing::Type {
-        let env = self.type_env();
-        typing::infer_expr_type(expr, &env)
+        typing::infer_expr_type(expr, self.type_env())
+    }
+
+    /// Infer against a fresh snapshot of the table.
+    ///
+    /// The declaration pass runs before the table is complete, so it must not
+    /// populate (or read) the memoized environment: a `let` later in the file
+    /// has to see the bindings collected before it, and caching mid-collection
+    /// would freeze the environment before those bindings exist.
+    pub(super) fn infer_expr_type_snapshot(&self, expr: &Expr) -> typing::Type {
+        typing::infer_expr_type(expr, &self.build_type_env())
     }
 
     /// Resolve a type annotation against the built-in type aliases.
     fn typed_resolve_annotation(&self, annotation: &TypeAnnotation) -> typing::Type {
         typing::TypeEnv::with_stdlib().resolve_annotation(annotation)
     }
-}
-
-fn collect_component_internal_labels(stmts: &[Stmt], out: &mut HashSet<String>) {
-    crate::walk::walk_stmts(stmts, &mut |stmt| {
-        if let Stmt::ActorDecl {
-            label, children, ..
-        } = stmt
-        {
-            out.insert(label.clone());
-            crate::walk::walk_inline_items(children, &mut |item| {
-                if let InlineItem::Labeled { label, .. } = item {
-                    out.insert(label.clone());
-                }
-            });
-        }
-    });
 }
 
 fn namespace_type_from_symbols(table: &SymbolTable) -> typing::NamespaceType {

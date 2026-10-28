@@ -105,7 +105,14 @@ pub fn stmts_to_source(stmts: &[Stmt]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{Expr, Stmt, Time};
+    use crate::ast::{Expr, Stmt};
+
+    // Negative-value checks for the serialiser (exact text, comment
+    // preservation, single-expression shapes) live here. Whole-document
+    // roundtrip fidelity is covered by `tests/ast_format_coverage.rs`, which
+    // probes every `Stmt` variant and compares scrubbed ASTs for structural
+    // equality; the weak `parsed.len() == reparsed.len()` cases that used to
+    // duplicate it here were removed in the formatter-test merge.
 
     const SHOWCASE_FIXTURE: &str = r#"// Animatix Showcase
 // A 5-second demonstration of layout, animation, primitives, and composition.
@@ -242,131 +249,6 @@ shift ending_beam_b [by: (0, -8), 2s, ease: ease-in-out]
 equation: Math, math: "E = mc^2", font_size: 48, color: accent.danger [1s, ease: ease-in-out]
 "#;
 
-    const REORDER_FIXTURE: &str = r#"// Reorder Demo
-// Demonstrates the reorder action for explicit full-order animation.
-
-config { colorscheme: "editorial-dark", resolution: (1280, 720), dynamic_layout: true }
-
-#0s
-title: Text, text: "Reorder Action", font_size: 48, color: text.primary, anchor: scene.top, offset: (0, 60)
-subtitle: Text, text: "Explicit full-order container animation", font_size: 20, color: text.secondary, anchor: scene.top, offset: (0, 120)
-
-#0s
-blocks: Row, anchor: scene.center, gap: 16, align: "center" {
-  red: Rect, size: (80, 80), color: accent.danger
-  yellow: Rect, size: (80, 80), color: accent.warning
-  green: Rect, size: (80, 80), color: accent.success
-  blue: Rect, size: (80, 80), color: accent.primary
-}
-
-#0.5s
-fade-in title [800ms, ease: ease-out]
-fade-in subtitle [600ms, delay: 200ms, ease: ease-out]
-
-#1.0s
-fade-in blocks [600ms, ease: ease-out]
-
-// Reverse the row
-#2.0s
-reorder blocks [order: (blue, green, yellow, red), 800ms, ease: ease-in-out]
-
-// Shuffle: every other
-#3.5s
-reorder blocks [order: (yellow, blue, red, green), 800ms, ease: ease-in-out]
-
-// Back to original
-#5.0s
-reorder blocks [order: (red, yellow, green, blue), 800ms, ease: ease-in-out]
-
-// Highlight completion
-#6.5s
-red.color = accent.success [300ms]
-yellow.color = accent.success [300ms]
-green.color = accent.success [300ms]
-blue.color = accent.success [300ms]
-
-#7.0s
-done: Text, text: "Done!", font_size: 32, color: accent.success, anchor: scene.bottom, offset: (0, -80)
-
-#7.0s
-fade-in done [400ms, ease: ease-out]
-"#;
-
-    #[test]
-    fn roundtrip_simple_actor_decl() {
-        let source = r#"backdrop: Rect, size: (1280, 720), color: scene.background"#;
-        let parsed = crate::parser::parse_simple(source).0.unwrap();
-        let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parse_simple(&serialized).0.unwrap();
-        assert_eq!(parsed.len(), reparsed.len());
-    }
-
-    #[test]
-    fn roundtrip_keyframe_block() {
-        let source = r#"#2s
-fade-in title [600ms, ease: ease-out]"#;
-        let parsed = crate::parser::parse_simple(source).0.unwrap();
-        let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parse_simple(&serialized).0.unwrap();
-        assert_eq!(parsed.len(), reparsed.len());
-        if let Stmt::Keyframe { time, .. } = &reparsed[0] {
-            assert_eq!(*time, Time::Seconds(2.0));
-        } else {
-            panic!("Expected Keyframe");
-        }
-    }
-
-    #[test]
-    fn roundtrip_actor_with_children() {
-        let source = r#"#0s
-features: Col, anchor: scene.left {
-    label: Text, text: "Features", font_size: 28
-}"#;
-        let parsed = crate::parser::parse_simple(source).0.unwrap();
-        let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parse_simple(&serialized).0.unwrap();
-        assert_eq!(parsed.len(), reparsed.len());
-    }
-
-    #[test]
-    fn roundtrip_assignment() {
-        let source = r#"orb.color = accent.success [600ms, ease: ease-in-out]"#;
-        let parsed = crate::parser::parse_simple(source).0.unwrap();
-        let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parse_simple(&serialized).0.unwrap();
-        assert_eq!(parsed.len(), reparsed.len());
-    }
-
-    #[test]
-    fn roundtrip_sequence() {
-        let source = r#"sequence {
-    fade-in a [400ms]
-    fade-in b [400ms]
-}"#;
-        let parsed = crate::parser::parse_simple(source).0.unwrap();
-        let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parse_simple(&serialized).0.unwrap();
-        assert_eq!(parsed.len(), reparsed.len());
-    }
-
-    #[test]
-    fn roundtrip_config() {
-        let source = r#"config { resolution: (1280, 720), dynamic_layout: true }"#;
-        let parsed = crate::parser::parse_simple(source).0.unwrap();
-        let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parse_simple(&serialized).0.unwrap();
-        assert_eq!(parsed.len(), reparsed.len());
-    }
-
-    #[test]
-    fn roundtrip_complex_expressions() {
-        let source = r#"let x = (a + b) * c"#;
-        let parsed = crate::parser::parse_simple(source).0.unwrap();
-        let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parse_simple(&serialized).0.unwrap();
-        assert_eq!(parsed.len(), reparsed.len());
-    }
-
     #[test]
     fn serialize_vec2() {
         let expr = Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(200.0)]);
@@ -387,15 +269,6 @@ features: Col, anchor: scene.left {
     }
 
     #[test]
-    fn roundtrip_comment() {
-        let source = r#"// This is a comment"#;
-        let parsed = crate::parser::parse_simple(source).0.unwrap();
-        let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parse_simple(&serialized).0.unwrap();
-        assert_eq!(parsed.len(), reparsed.len());
-    }
-
-    #[test]
     fn serialize_property() {
         let prop = Property {
             name: "size".into(),
@@ -409,9 +282,9 @@ features: Col, anchor: scene.left {
     #[test]
     fn roundtrip_full_showcase_file() {
         let source = SHOWCASE_FIXTURE;
-        let parsed = crate::parser::parse_simple(source).0.unwrap();
+        let parsed = crate::parser::parse_source(source).0.unwrap();
         let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parse_simple(&serialized).0.unwrap();
+        let reparsed = crate::parser::parse_source(&serialized).0.unwrap();
         assert_eq!(parsed.len(), reparsed.len());
     }
 
@@ -419,7 +292,7 @@ features: Col, anchor: scene.left {
     fn trailing_comment_preserved_on_property() {
         let source = r#"#0s
 btn: Rect, size: (100, 200) // half-extents, in scene space"#;
-        let parsed = crate::parser::parse_simple(source).0.unwrap();
+        let parsed = crate::parser::parse_source(source).0.unwrap();
         let serialized = stmts_to_source(&parsed);
         assert!(
             serialized.contains("// half-extents, in scene space"),
@@ -432,9 +305,9 @@ btn: Rect, size: (100, 200) // half-extents, in scene space"#;
     fn trailing_comment_roundtrips() {
         let source = r#"#0s
 btn: Rect, size: (100, 200) // half-extents"#;
-        let parsed = crate::parser::parse_simple(source).0.unwrap();
+        let parsed = crate::parser::parse_source(source).0.unwrap();
         let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parse_simple(&serialized).0.unwrap();
+        let reparsed = crate::parser::parse_source(&serialized).0.unwrap();
 
         if let Stmt::Keyframe { body, .. } = &reparsed[0] {
             if let Stmt::ActorDecl { props, .. } = &body[0] {
@@ -468,18 +341,9 @@ btn: Rect, size: (100, 200) // half-extents"#;
     }
 
     #[test]
-    fn parse_reorder_demo() {
-        let source = REORDER_FIXTURE;
-        let parsed = crate::parser::parse_simple(source).0.unwrap();
-        let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parse_simple(&serialized).0.unwrap();
-        assert_eq!(parsed.len(), reparsed.len());
-    }
-
-    #[test]
     fn roundtrip_reactive_binding() {
         let source = r#"orbiter.at := tracker.at + (200 * cos(3 * t), 200 * sin(3 * t))"#;
-        let parsed = crate::parser::parse_simple(source).0.unwrap();
+        let parsed = crate::parser::parse_source(source).0.unwrap();
         assert_eq!(parsed.len(), 1);
         if let Stmt::ReactiveBinding {
             target, property, ..
@@ -491,7 +355,7 @@ btn: Rect, size: (100, 200) // half-extents"#;
             panic!("Expected ReactiveBinding");
         }
         let serialized = stmts_to_source(&parsed);
-        let reparsed = crate::parser::parse_simple(&serialized).0.unwrap();
+        let reparsed = crate::parser::parse_source(&serialized).0.unwrap();
         assert_eq!(parsed.len(), reparsed.len());
     }
 }

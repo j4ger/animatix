@@ -57,7 +57,11 @@ fn references_for(
 
 /// Find the scope that declares `target.name`, walking outward through the
 /// parser-recorded scope chain.
-fn resolve_scope(occurrences: &[Occurrence], target: &Occurrence) -> Option<u32> {
+///
+/// Shared with unresolved-name analysis so find-references and the
+/// `unresolved-variable` warning cannot disagree about which binding an
+/// occurrence belongs to.
+pub(crate) fn resolve_scope(occurrences: &[Occurrence], target: &Occurrence) -> Option<u32> {
     let mut scope = target.scope_id;
     let mut parent = target.parent_scope_id;
     while let Some(current) = scope {

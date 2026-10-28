@@ -161,7 +161,7 @@ impl EditorBuffer {
     ///
     /// Returns `true` if the source was modified.
     pub fn format_source(&mut self) -> bool {
-        let (stmts, errs) = animatix_syntax::parser::parse_simple(&self.text);
+        let (stmts, errs) = animatix_syntax::parser::parse_source(&self.text);
         if let Some(stmts) = stmts {
             if errs.is_empty() {
                 let formatter = animatix_syntax::formatter::Formatter::default();

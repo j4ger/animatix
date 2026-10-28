@@ -1,65 +1,14 @@
-//! Position enrichment and diagnostic span conversion.
+//! Position enrichment: declaration positions recorded by the parser, plus
+//! the source range of a declaration for consumers that hold only a subject name.
 
 use animatix_syntax::ast::Span;
 use animatix_syntax::token::{Token, TokenKind};
 
 use crate::Analyzer;
-use crate::diagnostics;
 use crate::fixes;
 use crate::symbol_table::SymbolTable;
 
 impl Analyzer {
-    /// Convert a syntax-level diagnostic to an analyzer diagnostic.
-    ///
-    /// Position resolution prefers a byte span (resolved against `source`),
-    /// so producers that hold only a span — like the type checker, which sees
-    /// a property's `value_span` but not the text — still land on the right
-    /// line instead of the file start.
-    pub(super) fn convert_type_diagnostic(
-        source: &str,
-        d: animatix_syntax::diagnostics::Diagnostic,
-    ) -> diagnostics::Diagnostic {
-        let severity = match d.severity {
-            animatix_syntax::diagnostics::DiagnosticSeverity::Error => {
-                diagnostics::DiagnosticSeverity::Error
-            },
-            animatix_syntax::diagnostics::DiagnosticSeverity::Warning => {
-                diagnostics::DiagnosticSeverity::Warning
-            },
-            animatix_syntax::diagnostics::DiagnosticSeverity::Info => {
-                diagnostics::DiagnosticSeverity::Info
-            },
-            animatix_syntax::diagnostics::DiagnosticSeverity::Hint => {
-                diagnostics::DiagnosticSeverity::Hint
-            },
-        };
-        let (line, col, end_line, end_col) = match &d.location.span {
-            Some(span) if span.end <= source.len() => {
-                let s = Span::from_range(source, span.clone());
-                (
-                    s.start_line.saturating_sub(1),
-                    s.start_col.saturating_sub(1),
-                    s.end_line.saturating_sub(1),
-                    s.end_col.saturating_sub(1),
-                )
-            },
-            _ => {
-                let line = d.location.line.unwrap_or(1).saturating_sub(1);
-                let col = d.location.column.unwrap_or(1).saturating_sub(1);
-                (line, col, line, col + 1)
-            },
-        };
-        diagnostics::Diagnostic {
-            severity,
-            line,
-            col,
-            end_line,
-            end_col,
-            message: d.message,
-            code: Some(d.code.to_string()),
-        }
-    }
-
     /// Populate symbol table entries with declaration positions recorded by
     /// the parser, so declarations are distinguished from references.
     pub(super) fn enrich_positions(
@@ -119,55 +68,6 @@ impl Analyzer {
                     }
                 }
             }
-        }
-    }
-
-    /// Convert a parse-time warning into an analyzer diagnostic.
-    ///
-    /// Parse warnings carry a byte span with placeholder line/column values,
-    /// so resolve the position from the span when available.
-    pub(super) fn convert_parse_warning(
-        source: &str,
-        d: animatix_syntax::diagnostics::Diagnostic,
-    ) -> diagnostics::Diagnostic {
-        let severity = match d.severity {
-            animatix_syntax::diagnostics::DiagnosticSeverity::Error => {
-                diagnostics::DiagnosticSeverity::Error
-            },
-            animatix_syntax::diagnostics::DiagnosticSeverity::Warning => {
-                diagnostics::DiagnosticSeverity::Warning
-            },
-            animatix_syntax::diagnostics::DiagnosticSeverity::Info => {
-                diagnostics::DiagnosticSeverity::Info
-            },
-            animatix_syntax::diagnostics::DiagnosticSeverity::Hint => {
-                diagnostics::DiagnosticSeverity::Hint
-            },
-        };
-        let (line, col, end_line, end_col) = match &d.location.span {
-            Some(span) => {
-                let s = Span::from_range(source, span.clone());
-                (
-                    s.start_line.saturating_sub(1),
-                    s.start_col.saturating_sub(1),
-                    s.end_line.saturating_sub(1),
-                    s.end_col.saturating_sub(1),
-                )
-            },
-            None => {
-                let line = d.location.line.unwrap_or(1).saturating_sub(1);
-                let col = d.location.column.unwrap_or(1).saturating_sub(1);
-                (line, col, line, col + 1)
-            },
-        };
-        diagnostics::Diagnostic {
-            severity,
-            line,
-            col,
-            end_line,
-            end_col,
-            message: d.message,
-            code: Some(d.code.to_string()),
         }
     }
 

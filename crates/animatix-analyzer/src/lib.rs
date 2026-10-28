@@ -74,7 +74,7 @@ pub struct Analyzer {
     ast: Option<Vec<Stmt>>,
     parse_errors: Vec<ParseError>,
     /// Non-fatal parse-time warnings (e.g. `BracedPropertySilentDrop`).
-    /// Dropped by older parse entry points; surfaced in
+    /// Carried by `parse_source_complete`; surfaced in
     /// [`Analyzer::diagnostics_with_config`] so silent drops become visible.
     parse_warnings: Vec<animatix_syntax::diagnostics::Diagnostic>,
     tokens: Vec<Token>,

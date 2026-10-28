@@ -105,14 +105,25 @@ impl Analyzer {
     }
 
     /// Rebuild the symbol table from the current source and occurrence stream.
+    ///
+    /// **Traversal budget: three AST walks per edit.** This is the per-keystroke
+    /// hot path, so keep it that way:
+    ///
+    /// 1. `SymbolTable::build` declaration pass (labels, components, scenes).
+    /// 2. `SymbolTable::build` reference pass (`referenced_labels`).
+    /// 3. `TypeEnv::check_statements` (type diagnostics; its alias registration
+    ///    is top-level only).
+    ///
+    /// The component registry is read from the definitions collected in pass 1
+    /// instead of re-walking the AST, and `enrich_positions` reads occurrences
+    /// and tokens only. Adding another walk here needs a measurement.
     fn rebuild_symbols(&mut self) {
         let source = &self.source;
         let occurrences = &self.occurrences;
 
-        // Build symbol table from AST
+        // Build the symbol table: one declaration pass, one reference pass.
         let table = if let Some(ref stmts) = self.ast {
-            let mut table = SymbolTable::build_from_ast(stmts);
-            table.collect_references(stmts);
+            let mut table = SymbolTable::build(stmts);
             Self::enrich_positions(occurrences, &self.tokens, source, &mut table);
             table
         } else {
@@ -124,13 +135,13 @@ impl Analyzer {
 
         // Run type checker
         self.type_diagnostics = if let Some(ref stmts) = self.ast {
-            let components = Self::build_component_registry(stmts);
+            let components = Self::build_component_registry(&table);
             let module_fns = std::collections::HashMap::new();
             let mut env = animatix_syntax::typecheck::TypeEnv::new(&components, &module_fns);
             let syntax_diagnostics = env.check_statements(stmts);
             syntax_diagnostics
                 .into_iter()
-                .map(|d| Self::convert_type_diagnostic(source, d))
+                .map(|d| diagnostics::convert_syntax_diagnostic(source, d))
                 .collect()
         } else {
             Vec::new()
@@ -154,21 +165,26 @@ impl Analyzer {
         *self.diagnostics_cache.lock().unwrap_or_else(|e| e.into_inner()) = None;
     }
 
-    /// Build a component registry from AST statements for the type checker.
+    /// Build the type checker's component registry from the declarations the
+    /// symbol-table pass already collected.
+    ///
+    /// Reading [`SymbolTable::component_defs`] instead of walking the AST keeps
+    /// the component registry free: the definitions were cloned once during
+    /// declaration collection.
     fn build_component_registry(
-        stmts: &[Stmt],
+        table: &SymbolTable,
     ) -> std::collections::HashMap<String, animatix_syntax::module::ComponentEntry> {
         use std::collections::HashMap;
 
         use animatix_syntax::module::ComponentEntry;
 
         let mut registry = HashMap::new();
-        for def in animatix_syntax::module::discovery::collect_component_defs(stmts) {
-            let actions = animatix_syntax::module::discovery::collect_component_actions(&def);
+        for (name, def) in &table.component_defs {
+            let actions = animatix_syntax::module::discovery::collect_component_actions(def);
             registry.insert(
-                def.name.clone(),
+                name.clone(),
                 ComponentEntry {
-                    definition: def,
+                    definition: def.clone(),
                     source_path: std::path::PathBuf::new(),
                     actions,
                 },

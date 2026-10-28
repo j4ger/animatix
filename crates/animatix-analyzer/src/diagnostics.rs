@@ -24,6 +24,12 @@ pub struct Diagnostic {
     pub message: String,
     /// An optional error code for categorisation.
     pub code: Option<String>,
+    /// The identifier the diagnostic is about, when the producer recorded
+    /// one (`undefined-label` → the missing label, `unknown-action` → the
+    /// verb, `unused-label` → the declaration's name).
+    ///
+    /// Consumers must read this instead of re-parsing the English message.
+    pub subject: Option<String>,
 }
 
 /// The severity of a diagnostic.
@@ -199,6 +205,7 @@ pub fn collect_diagnostics_with_config(
             // One stable code so `lint-disable: parse-error` works regardless
             // of how many errors a file has.
             code: Some("parse-error".to_string()),
+            subject: None,
         });
     }
 
@@ -208,7 +215,8 @@ pub fn collect_diagnostics_with_config(
             animatix_syntax::semantic_diagnostics::collect_semantic_diagnostics(
                 stmts, symbols, tokens, source,
             );
-        diagnostics.extend(syntax_diagnostics.into_iter().map(convert_syntax_diagnostic));
+        diagnostics
+            .extend(syntax_diagnostics.into_iter().map(|d| convert_syntax_diagnostic(source, d)));
     }
 
     // 2b. Suppress semantic warnings that share a line with a parse error.
@@ -252,18 +260,44 @@ pub fn collect_diagnostics_with_config(
     diagnostics
 }
 
-/// Convert a syntax-level diagnostic into the analyzer DTO with 0-based ranges.
-fn convert_syntax_diagnostic(d: animatix_syntax::diagnostics::Diagnostic) -> Diagnostic {
+/// Convert a syntax-level diagnostic into the analyzer DTO.
+///
+/// This is the **only** syntax→analyzer boundary: syntax locations are 1-based
+/// and may carry either a byte span or line/column, while the analyzer DTO is
+/// 0-based. Byte spans win when the producer recorded one, because producers
+/// such as the type checker hold only a property's `value_span` and no text;
+/// resolving that span against `source` is what lands the diagnostic on the
+/// offending property instead of the file start.
+pub(crate) fn convert_syntax_diagnostic(
+    source: &str,
+    d: animatix_syntax::diagnostics::Diagnostic,
+) -> Diagnostic {
     let severity = match d.severity {
         animatix_syntax::diagnostics::DiagnosticSeverity::Error => DiagnosticSeverity::Error,
         animatix_syntax::diagnostics::DiagnosticSeverity::Warning => DiagnosticSeverity::Warning,
         animatix_syntax::diagnostics::DiagnosticSeverity::Info => DiagnosticSeverity::Info,
         animatix_syntax::diagnostics::DiagnosticSeverity::Hint => DiagnosticSeverity::Hint,
     };
-    let line = d.location.line.map(|v| v.saturating_sub(1)).unwrap_or(0);
-    let col = d.location.column.map(|v| v.saturating_sub(1)).unwrap_or(0);
-    let end_line = d.location.end_line.map(|v| v.saturating_sub(1)).unwrap_or(line);
-    let end_col = d.location.end_col.map(|v| v.saturating_sub(1)).unwrap_or(col + 1);
+    let (line, col, end_line, end_col) = match &d.location.span {
+        // A span that runs past the end of `source` is stale (the file was
+        // edited); fall back to the recorded line/column rather than panicking.
+        Some(span) if span.end <= source.len() => {
+            let s = Span::from_range(source, span.clone());
+            (
+                s.start_line.saturating_sub(1),
+                s.start_col.saturating_sub(1),
+                s.end_line.saturating_sub(1),
+                s.end_col.saturating_sub(1),
+            )
+        },
+        _ => {
+            let line = d.location.line.unwrap_or(1).saturating_sub(1);
+            let col = d.location.column.unwrap_or(1).saturating_sub(1);
+            let end_line = d.location.end_line.map(|v| v.saturating_sub(1)).unwrap_or(line);
+            let end_col = d.location.end_col.map(|v| v.saturating_sub(1)).unwrap_or(col + 1);
+            (line, col, end_line, end_col)
+        },
+    };
     Diagnostic {
         severity,
         line,
@@ -272,273 +306,9 @@ fn convert_syntax_diagnostic(d: animatix_syntax::diagnostics::Diagnostic) -> Dia
         end_col,
         message: d.message,
         code: Some(d.code.to_string()),
+        subject: d.location.subject,
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::symbol_table::SymbolTable;
-
-    #[test]
-    fn empty_source_has_no_diagnostics() {
-        let diagnostics = collect_diagnostics("", &[], &SymbolTable::default(), None, &[]);
-        assert!(diagnostics.is_empty());
-    }
-
-    #[test]
-    fn unknown_action_detected() {
-        let stmts = vec![Stmt::Action(
-            Action {
-                verb: "fly".to_string(),
-                targets: vec!["btn".to_string()],
-                args: vec![],
-                modifiers: vec![],
-                byte_span: None,
-                target_index: vec![],
-            },
-            None,
-        )];
-        let symbols = SymbolTable::build_from_ast(&[]);
-        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), &[]);
-
-        let unknown_actions: Vec<_> = diagnostics
-            .iter()
-            .filter(|d| d.code.as_deref() == Some("unknown-action"))
-            .collect();
-        assert_eq!(unknown_actions.len(), 1);
-        assert!(unknown_actions[0].message.contains("fly"));
-    }
-
-    #[test]
-    fn undefined_label_detected() {
-        let stmts = vec![Stmt::Action(
-            Action {
-                verb: "move".to_string(),
-                targets: vec!["nonexistent".to_string()],
-                args: vec![],
-                modifiers: vec![],
-                byte_span: None,
-                target_index: vec![],
-            },
-            None,
-        )];
-        let symbols = SymbolTable::build_from_ast(&[]);
-        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), &[]);
-
-        let undefined: Vec<_> = diagnostics
-            .iter()
-            .filter(|d| d.code.as_deref() == Some("undefined-label"))
-            .collect();
-        assert_eq!(undefined.len(), 1);
-        assert!(undefined[0].message.contains("nonexistent"));
-    }
-
-    /// `camera` is a reserved target, never a declared actor — but only the two
-    /// persistence actions have an engine path for it, so the exemption is
-    /// verb-gated and `move camera` stays the mistake it looks like.
-    #[test]
-    fn the_reserved_camera_is_a_target_only_for_persistence_actions() {
-        let undefined_for = |verb: &str| {
-            let stmts = vec![Stmt::Action(
-                Action {
-                    verb: verb.to_string(),
-                    targets: vec!["camera".to_string()],
-                    args: vec![],
-                    modifiers: vec![],
-                    byte_span: None,
-                    target_index: vec![],
-                },
-                None,
-            )];
-            let symbols = SymbolTable::build_from_ast(&[]);
-            collect_diagnostics("", &[], &symbols, Some(&stmts), &[])
-                .into_iter()
-                .filter(|d| d.code.as_deref() == Some("undefined-label"))
-                .count()
-        };
-
-        assert_eq!(undefined_for("persist"), 0, "`persist camera` is how the carry is written");
-        assert_eq!(undefined_for("remove"), 0, "`remove camera` is how the carry ends");
-        assert_eq!(undefined_for("move"), 1, "no other action routes the camera target");
-    }
-
-    #[test]
-    fn unknown_type_detected() {
-        let stmts = vec![Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "thing".to_string(),
-            array_index: None,
-            ty: "UnknownType".to_string(),
-            props: vec![],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        }];
-        let symbols = SymbolTable::build_from_ast(&stmts);
-        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), &[]);
-
-        let unknown_types: Vec<_> = diagnostics
-            .iter()
-            .filter(|d| d.code.as_deref() == Some("unknown-type"))
-            .collect();
-        assert_eq!(unknown_types.len(), 1);
-    }
-
-    #[test]
-    fn lint_config_from_source_parses_disable() {
-        let source = "// lint-disable: unused-label, unknown-action\n#0s\ntitle: Text";
-        let config = LintConfig::from_source(source);
-        assert!(config.is_disabled("unused-label"));
-        assert!(config.is_disabled("unknown-action"));
-        assert!(!config.is_disabled("unknown-type"));
-    }
-
-    #[test]
-    fn lint_config_from_source_parses_disable_all_warnings() {
-        let source = "// lint-disable-all-warnings\n#0s\ntitle: Text";
-        let config = LintConfig::from_source(source);
-        assert!(config.disable_all_warnings);
-    }
-
-    #[test]
-    fn lint_config_suppresses_specific_code() {
-        let source = "// lint-disable: unused-label\n#0s\ntitle: Text";
-        let stmts = vec![Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "title".to_string(),
-            array_index: None,
-            ty: "Text".to_string(),
-            props: vec![],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        }];
-        let mut symbols = SymbolTable::build_from_ast(&stmts);
-        // Don't add any references - should trigger unused-label
-        symbols.collect_references(&[]);
-        let config = LintConfig::from_source(source);
-        let diagnostics =
-            collect_diagnostics_with_config(source, &[], &symbols, Some(&stmts), &[], &config);
-
-        let unused: Vec<_> = diagnostics
-            .iter()
-            .filter(|d| d.code.as_deref() == Some("unused-label"))
-            .collect();
-        assert_eq!(unused.len(), 0, "unused-label should be suppressed");
-    }
-
-    #[test]
-    fn lint_config_suppresses_warnings_globally() {
-        let source = "// lint-disable-all-warnings\n#0s\ntitle: Text";
-        let stmts = vec![Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "title".to_string(),
-            array_index: None,
-            ty: "Text".to_string(),
-            props: vec![],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        }];
-        let mut symbols = SymbolTable::build_from_ast(&stmts);
-        symbols.collect_references(&[]);
-        let config = LintConfig::from_source(source);
-        let diagnostics =
-            collect_diagnostics_with_config(source, &[], &symbols, Some(&stmts), &[], &config);
-
-        let warnings: Vec<_> = diagnostics
-            .iter()
-            .filter(|d| d.severity == DiagnosticSeverity::Warning)
-            .collect();
-        assert_eq!(warnings.len(), 0, "all warnings should be suppressed");
-    }
-
-    #[test]
-    fn type_mismatch_detected() {
-        use animatix_syntax::ast::{Expr, Property};
-
-        let stmts = vec![Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "title".to_string(),
-            array_index: None,
-            ty: "Text".to_string(),
-            props: vec![Property {
-                name: "font_size".to_string(),
-                value: Expr::Str("hello".to_string()),
-                value_span: None,
-                trailing_comment: None,
-            }],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        }];
-        let symbols = SymbolTable::build_from_ast(&stmts);
-        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), &[]);
-
-        let type_mismatches: Vec<_> = diagnostics
-            .iter()
-            .filter(|d| d.code.as_deref() == Some("type-mismatch"))
-            .collect();
-        assert_eq!(type_mismatches.len(), 1);
-        assert!(type_mismatches[0].message.contains("font_size"));
-        assert!(type_mismatches[0].message.contains("Num"));
-        assert!(type_mismatches[0].message.contains("Str"));
-    }
-
-    #[test]
-    fn type_mismatch_not_triggered_for_any() {
-        use animatix_syntax::ast::{Expr, Property};
-
-        let stmts = vec![Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "title".to_string(),
-            array_index: None,
-            ty: "Text".to_string(),
-            props: vec![Property {
-                name: "font_size".to_string(),
-                value: Expr::Ident("my_var".to_string()),
-                value_span: None,
-                trailing_comment: None,
-            }],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        }];
-        let symbols = SymbolTable::build_from_ast(&stmts);
-        let diagnostics = collect_diagnostics("", &[], &symbols, Some(&stmts), &[]);
-
-        let type_mismatches: Vec<_> = diagnostics
-            .iter()
-            .filter(|d| d.code.as_deref() == Some("type-mismatch"))
-            .collect();
-        assert_eq!(type_mismatches.len(), 0, "Should not trigger for Any type");
-    }
-
-    #[test]
-    fn lint_config_does_not_suppress_errors() {
-        let source = "// lint-disable: parse-0\n#0s\ntitle: Text";
-        let parse_errors = vec![ParseError {
-            message: "test error".to_string(),
-            line: 1,
-            column: 1,
-            span: 0..10,
-            expected: vec![],
-            found: None,
-            context: vec![],
-        }];
-        let symbols = SymbolTable::build_from_ast(&[]);
-        let config = LintConfig::from_source(source);
-        let diagnostics =
-            collect_diagnostics_with_config(source, &parse_errors, &symbols, None, &[], &config);
-
-        let errors: Vec<_> =
-            diagnostics.iter().filter(|d| d.severity == DiagnosticSeverity::Error).collect();
-        assert_eq!(errors.len(), 1, "errors should not be suppressed");
-    }
-}
+mod tests;

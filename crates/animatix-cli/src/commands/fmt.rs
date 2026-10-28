@@ -47,7 +47,7 @@ pub fn format_file(
 ) -> Result<(), String> {
     let source = std::fs::read_to_string(path).map_err(|e| format!("Failed to read: {}", e))?;
 
-    let (stmts, errors) = animatix_syntax::parser::parse_simple(&source);
+    let (stmts, errors) = animatix_syntax::parser::parse_source(&source);
     let stmts = stmts.ok_or_else(|| format!("Parse error: {:?}", errors))?;
 
     let formatted = formatter.format(&stmts);

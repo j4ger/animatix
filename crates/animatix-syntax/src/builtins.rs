@@ -5,8 +5,6 @@
 //! checker, symbol table, completions, hover, diagnostics, and highlighting
 //! cannot drift.
 
-use crate::typing::Type;
-
 /// Structural keywords recognized by the tokenizer and parser.
 pub const KEYWORDS: &[&str] = &[
     "config",
@@ -85,7 +83,7 @@ pub const COLOR_CONSTRUCTOR_FUNCTIONS: &[&str] = &["rgb", "rgba", "hsv", "hsl", 
 ///
 /// This list is the language's declaration of what `eval_shared` implements:
 /// the analyzer exempts these names from `unresolved-variable`, and
-/// [`function_return_type`] types the call. A builtin missing here works at
+/// the static type layer types the call. A builtin missing here works at
 /// runtime and is still wrong — the editor flags it and completion never
 /// offers it. Checked against `eval_shared`'s dispatch in batch 3, which found
 /// eleven such names.
@@ -146,23 +144,6 @@ pub const COLOR_NAMES: &[&str] = &[
     "red", "RED", "green", "GREEN", "blue", "BLUE", "black", "BLACK", "white", "WHITE", "yellow",
     "YELLOW", "orange", "ORANGE",
 ];
-
-/// Return the static return type of a built-in function, if known.
-pub fn function_return_type(name: &str) -> Option<Type> {
-    if COLOR_CONSTRUCTOR_FUNCTIONS.contains(&name) {
-        Some(Type::Color)
-    } else if FORMAT_FUNCTIONS.contains(&name) {
-        Some(Type::Str)
-    } else if MATH_FUNCTIONS.contains(&name) {
-        Some(Type::Num)
-    } else if LIST_FUNCTIONS.contains(&name) {
-        // `Any` inner on purpose: the helpers preserve whatever the list
-        // held, and claiming `Num` would reject a list of strings.
-        Some(Type::List(Box::new(Type::Any)))
-    } else {
-        None
-    }
-}
 
 /// Named color literal values in RGBA order.
 pub fn named_color_rgba(name: &str) -> Option<[f64; 4]> {
