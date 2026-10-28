@@ -1,8 +1,7 @@
-//! The lowering pass itself: one orchestration function over the named phases.
+//! The lowering pass itself: one orchestration function over the named stages.
 //!
-//! Phase order is load-bearing and mirrors the original single-function build:
-//! seed the environment, walk statements, lower the `always` bodies, validate,
-//! then finalize derived state.
+//! Stage order is load-bearing: seed the environment, walk statements, lower
+//! the `always` bodies, validate, then finalize derived state.
 
 use super::*;
 
