@@ -30,7 +30,8 @@ pub struct CarryInput<'a> {
 ///
 /// `..Default::default()` reproduces [`Timeline::build_with_diagnostics`]:
 /// fresh font context, production quality, no carry, no asset cache, the
-/// built-in primitive registry, no extensions and no `--set` overrides.
+/// built-in primitive registry, no extensions, no `--set` overrides and
+/// persistence warnings enabled.
 ///
 /// Cheap to clone: the heavy inputs are `Arc`s and the rest are references.
 #[derive(Clone, Default)]
@@ -50,6 +51,15 @@ pub struct BuildOptions<'a> {
     pub extensions: Option<Arc<crate::extension_context::ExtensionContext>>,
     /// `--set NAME=VALUE` overrides applied to the build environment.
     pub defines: &'a [(String, String)],
+    /// Suppress the `PersistTargetNotCarried` warning that
+    /// [`crate::composition::BuildTarget::build_with_options`] emits for persisted actors in a
+    /// single-scene program.
+    ///
+    /// Defaults to `false` (warning emitted). The web player sets it because
+    /// its single-scene documents have no successor scene by construction and
+    /// it renders the diagnostic list to the user — it reports persistence
+    /// resetting between loops instead.
+    pub skip_persist_target_warning: bool,
 }
 
 impl<'a> BuildOptions<'a> {

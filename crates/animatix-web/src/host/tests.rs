@@ -375,3 +375,29 @@ fn missing_imports_close_the_graph_through_the_retry_protocol() {
     assert!(doc.result.ok, "the closed graph must build: {:?}", doc.result.diagnostics);
     assert!(doc.result.missing_imports.is_empty());
 }
+
+// The web player's contract predates the shared `BuildTarget` entry point: a
+// persisted actor in a single-scene document simply resets between loops, and
+// the player never surfaced `PersistTargetNotCarried`. Keep that quiet — the
+// embed renders this diagnostic list as user-facing output, so a refactor must
+// not start talking about a successor scene the player does not have.
+#[test]
+fn single_scene_persist_target_stays_unwarned() {
+    let doc = build_document(
+        "config { colorscheme: \"editorial-dark\", resolution: (320, 180) }\n\
+         #0s\n\
+         badge: Ellipse, size: (30, 30), at: (60, 60)\n\
+         fade-in badge [100ms]\n\
+         #1s\n\
+         persist badge\n",
+        Arc::new(FontContext::new()),
+        BuildQuality::Draft,
+    );
+    assert!(doc.result.ok, "diagnostics: {:?}", doc.result.diagnostics);
+    assert!(matches!(doc.target, Some(BuildTarget::SingleScene(_))));
+    assert!(
+        !doc.result.diagnostics.iter().any(|d| d.code == "persist-target-not-carried"),
+        "single-scene web documents keep persisted actors quiet, got {:?}",
+        doc.result.diagnostics
+    );
+}

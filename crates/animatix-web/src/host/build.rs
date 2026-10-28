@@ -124,9 +124,10 @@ pub fn build_document_with_modules(
     let namespaces: HashMap<String, Namespace> = program.namespaces;
     let context = Arc::new(ExtensionContext::new());
 
-    // `BuildTarget` detects single vs multi-scene mode. A single-scene document
-    // also gets the `PersistTargetNotCarried` warning for persisted actors:
-    // there is no successor scene, so their state simply resets between loops.
+    // `BuildTarget` detects single vs multi-scene mode. Single-scene documents
+    // opt out of the `PersistTargetNotCarried` warning: the player has no
+    // successor scene by construction, and a persisted actor simply resets
+    // between loops rather than being a mistake worth surfacing.
     let report = BuildTarget::build_with_options(
         &expanded,
         &namespaces,
@@ -136,6 +137,7 @@ pub fn build_document_with_modules(
             quality: Some(quality),
             asset_cache: assets,
             extensions: Some(context),
+            skip_persist_target_warning: true,
             ..Default::default()
         },
     );

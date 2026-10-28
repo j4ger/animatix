@@ -216,6 +216,7 @@ impl BuildTarget {
                 std::sync::Arc::new(cache)
             })
         });
+        let skip_persist_target_warning = options.skip_persist_target_warning;
         let options = BuildOptions {
             asset_cache,
             ..options
@@ -236,20 +237,24 @@ impl BuildTarget {
         } else {
             let report = Timeline::build_with_options(statements, namespaces, options);
             let mut diagnostics = report.diagnostics;
-            // Warn about persistent actors in a truly single-scene file (no successor).
-            for (label, flag) in report.output.persistence_flags_iter() {
-                if flag {
-                    diagnostics.push(
-                        Diagnostic::warning(
-                            DiagnosticCode::PersistTargetNotCarried,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "Actor '{}' is persisted but there is no successor scene to carry into.",
-                                label,
-                            ),
-                        )
-                        .with_subject(label),
-                    );
+            // Warn about persistent actors in a truly single-scene file (no
+            // successor), unless the caller speaks for persistence itself —
+            // the web player does, so it opts out (`skip_persist_target_warning`).
+            if !skip_persist_target_warning {
+                for (label, flag) in report.output.persistence_flags_iter() {
+                    if flag {
+                        diagnostics.push(
+                            Diagnostic::warning(
+                                DiagnosticCode::PersistTargetNotCarried,
+                                DiagnosticPhase::Build,
+                                format!(
+                                    "Actor '{}' is persisted but there is no successor scene to carry into.",
+                                    label,
+                                ),
+                            )
+                            .with_subject(label),
+                        );
+                    }
                 }
             }
             BuildReport {
