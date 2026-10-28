@@ -1,3 +1,9 @@
+//! Instant keyframe snapshots shared by the actor declaration paths.
+//!
+//! End values and declaration timing live with `insert_actor_keyframes` in
+//! `actor/helpers.rs`, the only consumer of the end-keyframe writer; this
+//! module keeps the start and delayed snapshots both paths reuse.
+
 use super::*;
 use crate::timeline::animation_track::{GeometryTracks, ShapeTracks, StyleTracks};
 
@@ -117,71 +123,4 @@ pub(crate) fn preserve_delayed_values(
     preserve_instant_delayed_value(&mut style.stroke_color, t_start_ms);
     preserve_instant_delayed_value(&mut style.stroke_progress, t_start_ms);
     preserve_instant_delayed_value(&mut style.fill_opacity, t_start_ms);
-}
-
-/// Insert end keyframes at `t_end_ms` with the given values and easing.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn insert_end_keyframes(
-    style: &mut StyleTracks,
-    geometry: &mut GeometryTracks,
-    shape: &mut ShapeTracks,
-    caps: ActorCaps,
-    t_end_ms: u64,
-    position: [f32; 2],
-    size: [f32; 2],
-    line_from: [f32; 2],
-    line_to: [f32; 2],
-    arc_angles: [f32; 2],
-    corner_radius: f32,
-    color: [f32; 4],
-    shape_type: ShapeType,
-    opacity: f32,
-    stroke_width: f32,
-    stroke_color: [f32; 4],
-    stroke_progress: f32,
-    fill_opacity: f32,
-    dash_pattern: Vec<f32>,
-    dash_offset: f32,
-    vello_paths: Vec<VelloPath>,
-    easing: Easing,
-) {
-    let default_size = DEFAULT_LAYOUT_HALF_SIZE;
-    let default_arc = [0.0, std::f32::consts::PI];
-
-    shape
-        .vector_paths
-        .ensure(Vec::new())
-        .add_keyframe(t_end_ms, vello_paths, easing);
-    geometry.position.ensure([0.0, 0.0]).add_keyframe(t_end_ms, position, easing);
-    geometry.size.ensure(default_size).add_keyframe(t_end_ms, size, easing);
-    geometry.ensure_layout_size(default_size).add_keyframe(t_end_ms, size, easing);
-    shape.line_from.ensure([-50.0, 0.0]).add_keyframe(t_end_ms, line_from, easing);
-    shape.line_to.ensure([50.0, 0.0]).add_keyframe(t_end_ms, line_to, easing);
-    shape.arc_angles.ensure(default_arc).add_keyframe(t_end_ms, arc_angles, easing);
-    shape.corner_radius.ensure(0.0).add_keyframe(t_end_ms, corner_radius, easing);
-    style.color.ensure(DEFAULT_WHITE).add_keyframe(t_end_ms, color, easing);
-    shape
-        .shape_type
-        .ensure(ShapeType::Rect)
-        .add_keyframe(t_end_ms, shape_type, easing);
-    style.opacity.ensure(1.0).add_keyframe(t_end_ms, opacity, easing);
-    style
-        .dash_pattern
-        .ensure(Vec::new())
-        .add_keyframe(t_end_ms, dash_pattern, easing);
-    style.dash_offset.ensure(0.0).add_keyframe(t_end_ms, dash_offset, easing);
-    style.stroke_width.ensure(caps.default_stroke_width()).add_keyframe(
-        t_end_ms,
-        stroke_width,
-        easing,
-    );
-    style
-        .stroke_color
-        .ensure(DEFAULT_WHITE)
-        .add_keyframe(t_end_ms, stroke_color, easing);
-    style
-        .stroke_progress
-        .ensure(1.0)
-        .add_keyframe(t_end_ms, stroke_progress, easing);
-    style.fill_opacity.ensure(1.0).add_keyframe(t_end_ms, fill_opacity, easing);
 }

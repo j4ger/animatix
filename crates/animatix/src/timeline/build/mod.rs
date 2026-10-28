@@ -12,16 +12,14 @@
 //! | `container.rs` | Container metadata, layout, inline items |
 //! | `property.rs` | Property extraction, graph coordinate mapping |
 //! | `shape.rs` | Vector shape state construction |
-//! | `actor.rs` | Actor declaration processing, VelloPath generation, keyframes |
+//! | `actor/` | Actor declaration lifecycle, VelloPath generation, keyframes |
 //! | `process.rs` | Main `process_body` AST statement dispatcher |
 //! | `plot/` | Plot actor lowering, graph/field/curve/bar path building |
 //! | `post.rs` | Post-build passes: idle tracks, namespace exports |
-//! | `keyframe_utils.rs` | Keyframe insertion helpers (pre-existing) |
+//! | `keyframe_utils.rs` | Start/delay keyframe snapshots (end values live in `actor/helpers.rs`) |
 
 pub use entry::{BuildOptions, CarryInput};
-pub(super) use keyframe_utils::{
-    insert_end_keyframes, insert_start_keyframes, preserve_delayed_values,
-};
+pub(super) use keyframe_utils::{insert_start_keyframes, preserve_delayed_values};
 pub(super) use plot::{PlotCurveParams, build_graph_axis_paths, build_plot_curve_paths};
 pub(crate) use process::{bind_loop_var, pattern_matches, remove_loop_vars};
 

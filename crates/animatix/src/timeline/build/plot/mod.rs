@@ -28,6 +28,7 @@ pub(crate) use fields::{build_contour_set_paths, build_heatmap_paths, build_vect
 pub(crate) use graph::{build_graph_axis_paths, build_number_plane_paths};
 pub(crate) use ticks::{TickLabelData, format_axis_tick_label};
 
+use super::property::PlotPropBag;
 use super::*;
 use crate::ast::{InlineItem, Property};
 use crate::timeline::plot::{PlotCurveKind, ProceduralPlot};
@@ -99,15 +100,18 @@ impl Timeline {
         existing_track_id: EntityId,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> PlotActorProps {
-        let mut x_domain = [-10.0, 10.0];
-        let mut y_domain = [-10.0, 10.0];
-        let mut t_domain = [0.0, std::f64::consts::TAU];
-        let mut func = None;
-        let mut initial_size = DEFAULT_LAYOUT_HALF_SIZE;
-        let mut tolerance = 0.5;
-        let mut max_depth = 10.0;
-        let mut resolution = 96.0;
-        let mut kind = PlotCurveKind::Cartesian;
+        let PlotPropBag {
+            initial_size,
+            x_domain,
+            y_domain,
+            t_domain,
+            func,
+            tolerance,
+            max_depth,
+            resolution,
+            kind,
+        } = PlotPropBag::from_props(props, label, initial_eval_env, diagnostics);
+        let kind = kind.unwrap_or(PlotCurveKind::Cartesian);
         let mut density = 16.0;
         let mut levels: Vec<f64> = vec![];
         let mut grid = false;
@@ -156,98 +160,11 @@ impl Timeline {
         }
 
         for prop in props {
+            if PlotPropBag::handles(&prop.name) {
+                continue; // parsed once above into the bag
+            }
             let prop_subject = format!("{}.{}", label, prop.name);
             match prop.name.as_str() {
-                "size" => {
-                    let size_val = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    if let Value::Vec2([w, h]) = size_val {
-                        initial_size[0] = w as f32 / 2.0;
-                        initial_size[1] = h as f32 / 2.0;
-                    }
-                },
-                "radius" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    let r = v.as_num() as f32;
-                    initial_size = [r, r];
-                },
-                "x_domain" => {
-                    match evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    ) {
-                        Some(Value::Vec2([min, max])) => x_domain = [min, max],
-                        Some(v) => tracing::warn!(
-                            "{}: 'x_domain' expects a (min, max) tuple, got {:?}",
-                            prop_subject,
-                            v
-                        ),
-                        None => {}, // eval error already reported as a diagnostic
-                    }
-                },
-                "y_domain" => {
-                    match evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    ) {
-                        Some(Value::Vec2([min, max])) => y_domain = [min, max],
-                        Some(v) => tracing::warn!(
-                            "{}: 'y_domain' expects a (min, max) tuple, got {:?}",
-                            prop_subject,
-                            v
-                        ),
-                        None => {}, // eval error already reported as a diagnostic
-                    }
-                },
-                "t_domain" => {
-                    match evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    ) {
-                        Some(Value::Vec2([min, max])) => t_domain = [min, max],
-                        Some(v) => tracing::warn!(
-                            "{}: 't_domain' expects a (min, max) tuple, got {:?}",
-                            prop_subject,
-                            v
-                        ),
-                        None => {}, // eval error already reported as a diagnostic
-                    }
-                },
-                "func" => {
-                    match evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    ) {
-                        Some(Value::Closure(args, body, captures)) => {
-                            func = Some((args, body, captures))
-                        },
-                        Some(v) => tracing::warn!(
-                            "{}: 'func' expects a closure, got {:?}",
-                            prop_subject,
-                            v
-                        ),
-                        None => {}, // eval error already reported as a diagnostic
-                    }
-                },
                 "color" => {
                     // resolve_color_in_env handles colorscheme tokens (Vec4),
                     // named colors, and tuples — the old `if let Value::Color`
@@ -288,36 +205,6 @@ impl Timeline {
                     if let Value::Num(n) = v {
                         stroke_progress = n.clamp(0.0, 1.0) as f32;
                     }
-                },
-                "tolerance" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    tolerance = v.as_num();
-                },
-                "max_depth" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    max_depth = v.as_num();
-                },
-                "resolution" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(96.0));
-                    resolution = v.as_num();
                 },
                 "density" => {
                     let v = evaluate_expr_with_lookup_diagnostic(
@@ -383,27 +270,6 @@ impl Timeline {
                     .unwrap_or(Value::Str("auto".to_string()));
                     tick_labels = v.as_str().to_lowercase();
                 },
-                "kind" => {
-                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    ) {
-                        if let Some(k) = PlotCurveKind::from_str(&v.as_str().to_lowercase()) {
-                            kind = k;
-                        } else {
-                            diagnostics.push(
-                                Diagnostic::warning(
-                                    DiagnosticCode::InvalidPropertyValue,
-                                    DiagnosticPhase::Build,
-                                    format!("Invalid plot kind: '{}'", v.as_str()),
-                                )
-                                .with_subject(&prop_subject),
-                            );
-                        }
-                    }
-                },
                 "x_range" => {
                     match evaluate_expr_with_lookup_diagnostic(
                         &prop.value,
@@ -460,8 +326,9 @@ impl Timeline {
                         y_scale = super::utils::ScaleType::from_str(&v.as_str());
                     }
                 },
-                _ => {}, /* Non-plot properties (color, stroke, etc.) are handled by the general
-                          * actor pipeline. */
+                // Plot-builder-specific keys only: the shared bag and the generic
+                // actor pipeline own everything else.
+                _ => {},
             }
         }
 

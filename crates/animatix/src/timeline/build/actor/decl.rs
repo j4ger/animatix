@@ -1,6 +1,7 @@
 //! Actor declaration pipeline.
 
-use super::prepare::{ActorPrep, apply_position_binding, apply_size_spec};
+use super::helpers::{ActorKeyframeTiming, ActorKeyframeValues};
+use super::prepare::{ActorPrep, apply_size_spec};
 use super::*;
 use crate::ast::{InlineItem, Property};
 
@@ -71,7 +72,7 @@ impl Timeline {
             .map(|id| self.world.style(id))
             .cloned()
             .unwrap_or_default();
-        let mut position = existing_geometry.position.last([0.0, 0.0]);
+        let position = existing_geometry.position.last([0.0, 0.0]);
         let mut size = existing_geometry.size.last(default_size);
         let mut line_from = existing_shape.line_from.last([-50.0, 0.0]);
         let mut line_to = existing_shape.line_to.last([50.0, 0.0]);
@@ -431,18 +432,8 @@ impl Timeline {
             label,
         );
 
-        let track_id = self.world.spawn(label, ty);
-        // The World form clears any capability override so caps re-derive from
-        // the declaration type on a re-declaration.
-        self.world.set_identity(track_id, ty);
-        let track_caps = self.world.caps(track_id);
-        self.world.property_plan.get_mut(track_id).rebuild_for(&track_caps, ty);
-        self.world.meta.record_first_seen(track_id, t_start_ms);
-        if let Some(span) = decl_span
-            && self.world.decl_span.get(track_id).is_none()
-        {
-            self.world.decl_span.get_or_insert_with(track_id, || span);
-        }
+        let frame = self.begin_actor_decl(label, ty, props, decl_span);
+        let track_id = frame.track_id;
         // Legend participation is a component, not a track field. Only actors
         // with an explicit color/stroke become automatic legend candidates, so
         // actors with nothing to contribute carry no component at all.
@@ -698,41 +689,22 @@ impl Timeline {
             }
         }
 
-        self.world.ensure_shape(track_id);
-        let style = self.world.style.get_mut(track_id);
-        let shape = self.world.shape.get_mut(track_id).expect("shape component");
-        let geometry = self.world.geometry.get_mut(track_id);
-
-        apply_size_spec(geometry, &primitive, props, label, parent_label, diagnostics);
-
-        // Pre-seed opacity for pre-keyframe first declarations so that
-        // insert_start_keyframes captures the correct invisible start value.
-        if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
-            self.world
-                .meta
-                .get_or_insert_with(track_id, crate::timeline::world::EntityMeta::default)
-                .hidden_by_default = true;
-            style.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
+        {
+            let geometry = self.world.geometry.get_mut(track_id);
+            apply_size_spec(geometry, &primitive, props, label, parent_label, diagnostics);
         }
 
-        if let Some(bound) = apply_position_binding(
-            geometry,
-            position_binding,
-            primitive.is_layout_container(),
-            parent_label,
-            t_start_ms,
-        ) {
-            position = bound;
-        }
-
-        Self::insert_actor_keyframes(
-            style,
-            geometry,
-            shape,
-            caps,
+        let timing = ActorKeyframeTiming {
             t_start_ms,
             t_end_ms,
-            [position[0], position[1]],
+            easing,
+            duration_ms,
+            delay_ms,
+            supports_morph_options,
+            morph_options,
+        };
+        let values = ActorKeyframeValues {
+            position,
             size,
             line_from,
             line_to,
@@ -748,18 +720,15 @@ impl Timeline {
             dash_pattern,
             dash_offset,
             vello_paths,
-            easing,
-            duration_ms,
-            delay_ms,
-            supports_morph_options,
-            morph_options,
+        };
+        self.finish_actor_decl(
+            &frame,
+            primitive.is_layout_container(),
+            position_binding,
+            parent_label,
+            &timing,
+            values,
         );
-
-        if caps.is_shape && geometry.size.as_ref().is_none_or(|t| t.keyframes().len() <= 1) {
-            let bounds =
-                kurbo::Rect::new(-size[0] as f64, -size[1] as f64, size[0] as f64, size[1] as f64);
-            self.world.set_local_bounds(track_id, bounds);
-        }
 
         self.write_extension_properties_for_decl(label, ty, props, modifiers, time_ms, diagnostics);
 

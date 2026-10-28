@@ -1,6 +1,7 @@
 //! Extension and plot actor build helpers.
 
 use super::super::plot::ProcessedPlotActor;
+use super::helpers::{ActorKeyframeTiming, ActorKeyframeValues};
 use super::*;
 use crate::ast::{InlineItem, Property};
 
@@ -338,19 +339,13 @@ impl Timeline {
             return;
         }
 
-        // First-declaration status must be captured BEFORE the track exists:
-        // a first declaration with children is seeded hidden-by-default.
-        let is_first_decl = !self.world.tracks.contains_key(label);
-
-        // Create the plot host's track before `process_plot_actor` runs: it
+        // The plot host's track must exist before `process_plot_actor` runs: it
         // processes children, and `add_node` requires the parent track to exist
-        // rather than defaulting one in.
-        let track_id = self.world.spawn(label, ty);
-        self.world.set_identity(track_id, ty);
-        let track_caps = self.world.caps(track_id);
-        self.world.property_plan.get_mut(track_id).rebuild_for(&track_caps, ty);
-        let existing_track_id =
-            self.world.get_id(label).expect("plot host track created immediately above");
+        // rather than defaulting one in. The shared prologue also captures
+        // first-declaration status and seeds the hidden-by-default opacity
+        // before any start snapshot is taken.
+        let frame = self.begin_actor_decl(label, ty, props, None);
+        let existing_track_id = frame.track_id;
 
         if let Some(ProcessedPlotActor {
             initial_size,
@@ -416,30 +411,30 @@ impl Timeline {
                 label,
             );
             let size = initial_size;
-            let authored_opacity = props.iter().find(|p| p.name == "opacity");
-            let has_explicit_opacity = authored_opacity.is_some();
-            // An authored `opacity:` used to be detected and then thrown away:
-            // `has_explicit_opacity` only ever pushed the value to the `1.0`
-            // branch, so `opacity: 0.05` on any plot actor rendered at full
-            // strength and warned about nothing. The render layer already
-            // multiplies fill/stroke alpha by node opacity — the parse was the
-            // only missing piece, and it is shared by Graph, BarChart,
-            // ContourSet and VectorField.
-            let opacity = match authored_opacity {
-                Some(prop) => {
-                    let subject = format!("{}.{}", label, prop.name);
-                    evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &eval_env,
-                        diagnostics,
-                        &subject,
-                    )
-                    .unwrap_or(Value::Num(1.0))
-                    .as_num() as f32
-                },
-                None if is_first_decl => self.default_opacity,
-                None => 1.0,
-            };
+            // Unified declaration rule (shared with the generic actor path):
+            // an explicit `opacity` wins; otherwise a first declaration starts
+            // at `default_opacity` and a re-declaration keeps its last authored
+            // value. This used to fall back to 1.0 on every re-declaration, so
+            // an authored `opacity: 0.05` on a plot actor silently reset on the
+            // next beat — the render layer already multiplies fill/stroke alpha
+            // by node opacity, so the retained value is what should apply.
+            let existing_opacity = self.world.style(frame.track_id).opacity.last(1.0);
+            let mut opacity = self.declaration_opacity(
+                frame.is_first_decl,
+                frame.has_explicit_opacity,
+                existing_opacity,
+            );
+            if let Some(prop) = props.iter().find(|p| p.name == "opacity") {
+                let subject = format!("{}.{}", label, prop.name);
+                opacity = evaluate_expr_with_lookup_diagnostic(
+                    &prop.value,
+                    &eval_env,
+                    diagnostics,
+                    &subject,
+                )
+                .unwrap_or(Value::Num(1.0))
+                .as_num() as f32;
+            }
 
             let ParsedTimingModifiers {
                 duration_ms,
@@ -456,12 +451,9 @@ impl Timeline {
             let t_start_ms = (time_ms + delay_ms) as u64;
             let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
-            let track_id = self.world.spawn(label, ty);
-            // The World form clears any capability override so caps re-derive
-            // from the declaration type on a re-declaration.
-            self.world.set_identity(track_id, ty);
-            let track_caps = self.world.caps(track_id);
-            self.world.property_plan.get_mut(track_id).rebuild_for(&track_caps, ty);
+            // The prologue above already spawned the track and rebuilt its
+            // plan; keep the same entity so a re-declaration writes onto it.
+            let track_id = existing_track_id;
             // Plot-family build path only (this dispatch serves Graph,
             // PlotCurve, VectorField, Heatmap, ContourSet, NumberPlane and
             // BarChart), so it owns the plot payload outright: assigning all
@@ -491,49 +483,16 @@ impl Timeline {
                 }
             }
 
-            self.world.meta.record_first_seen(track_id, t_start_ms);
-
-            self.world.ensure_shape(track_id);
-            let style = self.world.style.get_mut(track_id);
-            let shape = self.world.shape.get_mut(track_id).expect("shape component");
-            let geometry = self.world.geometry.get_mut(track_id);
-
-            // Pre-seed opacity for pre-keyframe first declarations so that
-            // insert_start_keyframes captures the correct invisible start value.
-            if is_first_decl && !has_explicit_opacity && self.default_opacity != 1.0 {
-                self.world
-                    .meta
-                    .get_or_insert_with(track_id, crate::timeline::world::EntityMeta::default)
-                    .hidden_by_default = true;
-                style.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
-            }
-
-            if let Some((binding, bound_position)) = position_binding {
-                preserve_discrete_position_state_before(geometry, t_start_ms);
-                set_track_position_binding(geometry, t_start_ms, binding);
-                if let Some(bound_position) = bound_position {
-                    position = bound_position;
-                }
-                mark_track_manual_position(geometry, t_start_ms);
-            }
-
-            // === Keyframe Insertion ===
-            if duration_ms > 0.0 {
-                insert_start_keyframes(style, geometry, shape, track_caps, t_start_ms);
-            } else if delay_ms > 0.0 {
-                preserve_delayed_values(style, geometry, shape, t_start_ms);
-            }
-
-            // Plot hosts are never `Rect`; carry the track value through.
-            let corner_radius = shape.corner_radius.last(0.0);
-            let dash_pattern = style.dash_pattern.last(Vec::new());
-            let dash_offset = style.dash_offset.last(0.0);
-            insert_end_keyframes(
-                style,
-                geometry,
-                shape,
-                track_caps,
-                t_end_ms,
+            // Shared tail: first-seen metadata, position binding, start/end
+            // keyframes and shape bounds. Plot hosts are never layout
+            // containers, so the container-default binding does not apply, and
+            // they are never `Rect`, so corner/dash carry the track values.
+            let corner_radius = self.world.shape_or_default(track_id).corner_radius.last(0.0);
+            let dash_pattern = self.world.style(track_id).dash_pattern.last(Vec::new());
+            let dash_offset = self.world.style(track_id).dash_offset.last(0.0);
+            let timing =
+                ActorKeyframeTiming::plain(t_start_ms, t_end_ms, easing, duration_ms, delay_ms);
+            let values = ActorKeyframeValues {
                 position,
                 size,
                 line_from,
@@ -550,7 +509,14 @@ impl Timeline {
                 dash_pattern,
                 dash_offset,
                 vello_paths,
-                easing,
+            };
+            self.finish_actor_decl(
+                &frame,
+                false, // plot hosts are never layout containers
+                position_binding,
+                parent_label,
+                &timing,
+                values,
             );
 
             Self::insert_plot_decoration_keyframes(
@@ -565,62 +531,34 @@ impl Timeline {
             );
 
             // === Tick Labels ===
+            // Axis x, axis y and bar labels differ only in suffix, position and
+            // text; build the three families once and lower them through one
+            // property construction.
             if let Some(ref tick_data) = tick_label_data {
-                // X-axis tick labels (positioned below the axis line)
+                let mut tick_actors: Vec<(String, f64, f64, String)> = Vec::new();
                 for (i, &(sx, sy, val)) in tick_data.x_labels.iter().enumerate() {
-                    let child_label = format!("{}_tick_x_{}", label, i);
-                    let label_str = crate::timeline::build::plot::format_axis_tick_label(val);
-                    let tick_props = vec![
-                        Property::new("text", Expr::Str(label_str)),
-                        Property::new("at", Expr::Tuple(vec![Expr::Num(sx), Expr::Num(sy)])),
-                        Property::new("font_size", Expr::Num(10.0)),
-                        Property::new(
-                            "color",
-                            Expr::Path(vec!["text".to_string(), "muted".to_string()]),
-                        ),
-                    ];
-                    self.process_text_actor_decl(
-                        "Text",
-                        &child_label,
-                        &tick_props,
-                        &[], // no modifiers
-                        time_ms,
-                        Some(label),
-                        diagnostics,
-                    )
-                    .ok();
+                    tick_actors.push((
+                        format!("{}_tick_x_{}", label, i),
+                        sx,
+                        sy,
+                        crate::timeline::build::plot::format_axis_tick_label(val),
+                    ));
                 }
-
-                // Y-axis tick labels (positioned to the left of the axis line)
                 for (i, &(sx, sy, val)) in tick_data.y_labels.iter().enumerate() {
-                    let child_label = format!("{}_tick_y_{}", label, i);
-                    let label_str = crate::timeline::build::plot::format_axis_tick_label(val);
-                    let tick_props = vec![
-                        Property::new("text", Expr::Str(label_str)),
-                        Property::new("at", Expr::Tuple(vec![Expr::Num(sx), Expr::Num(sy)])),
-                        Property::new("font_size", Expr::Num(10.0)),
-                        Property::new(
-                            "color",
-                            Expr::Path(vec!["text".to_string(), "muted".to_string()]),
-                        ),
-                    ];
-                    self.process_text_actor_decl(
-                        "Text",
-                        &child_label,
-                        &tick_props,
-                        &[], // no modifiers
-                        time_ms,
-                        Some(label),
-                        diagnostics,
-                    )
-                    .ok();
+                    tick_actors.push((
+                        format!("{}_tick_y_{}", label, i),
+                        sx,
+                        sy,
+                        crate::timeline::build::plot::format_axis_tick_label(val),
+                    ));
+                }
+                for (i, &(sx, sy, ref text)) in tick_data.bar_labels.iter().enumerate() {
+                    tick_actors.push((format!("{}_bar_label_{}", label, i), sx, sy, text.clone()));
                 }
 
-                // Bar labels (positioned below each bar)
-                for (i, &(sx, sy, ref text)) in tick_data.bar_labels.iter().enumerate() {
-                    let child_label = format!("{}_bar_label_{}", label, i);
+                for (child_label, sx, sy, text) in tick_actors {
                     let tick_props = vec![
-                        Property::new("text", Expr::Str(text.clone())),
+                        Property::new("text", Expr::Str(text)),
                         Property::new("at", Expr::Tuple(vec![Expr::Num(sx), Expr::Num(sy)])),
                         Property::new("font_size", Expr::Num(10.0)),
                         Property::new(
