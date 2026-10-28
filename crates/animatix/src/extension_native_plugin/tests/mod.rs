@@ -639,5 +639,5 @@ fn native_host_rollback_removes_partial_registrations() {
     assert!(env.get("double").is_none());
 }
 
-mod part2;
-mod part3;
+mod callbacks;
+mod commands;

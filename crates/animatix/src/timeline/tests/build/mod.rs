@@ -1,7 +1,7 @@
-//! Timeline build integration tests (split across parts for maintainability).
+//! Timeline build integration tests (split by topic for maintainability).
 
+mod actions;
+mod bindings;
+mod graph;
 mod opacity_lifecycle;
-mod part1;
-mod part2;
-mod part3;
-mod part4;
+mod text;

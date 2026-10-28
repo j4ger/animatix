@@ -1,5 +1,5 @@
 use super::super::tests::without_content_lints;
-use super::part2::build_timeline;
+use super::bindings::build_timeline;
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{Timeline, Value};
 

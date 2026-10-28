@@ -724,5 +724,5 @@ fn non_plain_text_routes_to_typst() {
     assert!(!paths.is_empty(), "Should produce glyph paths via Typst");
 }
 
-mod part2;
-mod part3;
+mod caching;
+mod layout;
