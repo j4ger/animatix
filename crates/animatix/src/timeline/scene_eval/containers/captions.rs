@@ -1,3 +1,4 @@
+use crate::renderer::text::{TextCompileRequest, TextStyle};
 use crate::timeline::{EntityId, Timeline, TrackAccessor};
 
 impl Timeline {
@@ -212,26 +213,28 @@ impl Timeline {
             let active_word_idx =
                 cue.words.iter().position(|w| w.start_s <= time_s && time_s < w.end_s);
 
-            if let Ok(compiled) = crate::renderer::text::compile_text_cached(
-                crate::renderer::text::TextKind::Text,
-                &cue.text,
-                "",
-                None,
-                &font_family,
-                font_size,
-                font_weight,
-                &font_style,
-                line_height,
-                letter_spacing,
-                word_spacing,
-                base_color,
-                text_max_width,
-                (max_lines > 0).then_some(max_lines as usize),
-                "center",
-                "visible",
-                true,
-                self.font_context.as_ref(),
-            ) {
+            let request = TextCompileRequest {
+                max_width: text_max_width,
+                max_lines: (max_lines > 0).then_some(max_lines as usize),
+                text_align: "center",
+                allow_fast_path: true,
+                ..TextCompileRequest::new(
+                    crate::renderer::text::TextKind::Text,
+                    &cue.text,
+                    TextStyle {
+                        font_weight,
+                        font_style: &font_style,
+                        line_height,
+                        letter_spacing,
+                        word_spacing,
+                        color: base_color,
+                        ..TextStyle::new(&font_family, font_size)
+                    },
+                )
+            };
+            if let Ok(compiled) =
+                crate::renderer::text::compile_text_cached(&request, self.font_context.as_ref())
+            {
                 use kurbo::Shape as _;
                 let mut bounds: Option<kurbo::Rect> = None;
                 for g in compiled.paths.iter() {

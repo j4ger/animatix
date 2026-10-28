@@ -1,7 +1,6 @@
 use super::*;
 
-// The crate root re-exports the deprecated flat entry point for the engine until
-// Phase 3; these tests exercise the request-based implementation directly.
+// Tests exercise the request-based entry point directly.
 use crate::compiler::compile_text_cached;
 use crate::request::{TextCompileRequest, TextStyle};
 
@@ -450,6 +449,9 @@ fn glyph_hexes(cached: &CachedText) -> Vec<String> {
 #[test]
 
 fn highlight_palette_recolours_tokens() {
+    // Shares this snippet's cache key with `palette_is_part_of_text_cache_key`;
+    // hold the guard so neither test observes the other's insert mid-assertion.
+    let _cache = cache_test_guard();
     let font_ctx = test_font_ctx();
     // `fn` is a keyword; the sentinel palette maps keyword → pure green.
     let with =

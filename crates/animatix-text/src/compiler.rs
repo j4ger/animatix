@@ -559,13 +559,13 @@ impl TextCompiler {
     /// Cache hits return an `Arc<[TextPath]>` — a single refcount increment
     /// instead of cloning the entire vector of BezPath objects.
     ///
-    /// This flat-argument form is the engine-facing adapter until Phase 3: it
-    /// folds `self.text_fast_path` and the timeline's highlight palette into a
-    /// [`TextCompileRequest`] and delegates to [`compile_text_cached`].
+    /// This flat-argument form is the adapter the engine's render path still
+    /// uses: it folds `self.text_fast_path` and the timeline's highlight palette
+    /// into a [`TextCompileRequest`] and delegates to [`compile_text_cached`].
     ///
     /// `language` is the `Code` syntax-highlighting tag (empty for every other
     /// kind and for plain `Code`).
-    #[allow(clippy::too_many_arguments)] // Flat adapter for engine call sites until Phase 3.
+    #[allow(clippy::too_many_arguments)] // Flat adapter for the engine render path.
     pub fn compile(
         &mut self,
         content: &str,

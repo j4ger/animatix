@@ -8,7 +8,6 @@
 
 use kurbo::BezPath;
 
-pub mod compat;
 pub mod compiler;
 pub mod fast_layout;
 pub mod font_context;
@@ -21,15 +20,6 @@ pub use fast_layout::*;
 pub use font_context::*;
 pub use request::*;
 pub use typst_world::*;
-
-// Compatibility surface for the engine's pre-Phase-3 call sites: they still
-// call the historical 18-parameter entry point under the crate-root name. The
-// explicit re-export shadows the request-based `compiler::compile_text_cached`
-// that the glob above brings in. Delete this re-export together with `compat`
-// once Phase 3 has migrated the engine; the root name then resolves to the
-// request-based function.
-#[allow(deprecated)]
-pub use compat::compile_text_cached;
 
 pub use kurbo::Shape;
 

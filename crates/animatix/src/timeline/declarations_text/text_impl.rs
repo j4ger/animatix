@@ -2,6 +2,8 @@ use kurbo::Shape;
 
 use super::*;
 
+use crate::renderer::text::{TextCompileRequest, TextStyle};
+
 impl Timeline {
     fn process_text_declaration(
         &mut self,
@@ -540,31 +542,38 @@ impl Timeline {
             TextDeclarationKind::Typst => crate::renderer::text::TextKind::Typst,
             TextDeclarationKind::Math => crate::renderer::text::TextKind::Math,
         };
-        let compiled = crate::renderer::text::compile_text_cached(
-            text_kind,
-            &text_content,
-            // The generic property loop above already wrote `language` into
-            // the track lane; read it back so the build-time precompile shares
-            // the render path's cache key (and highlights identically).
-            &text.language.get(t_end_ms, String::new()),
-            // Same palette the render path uses, so the precompile shares its
-            // cache entry and the build-time glyphs highlight identically.
-            self.text_compiler.borrow().highlight_palette.as_ref(),
-            &font_family,
-            font_size,
-            font_weight,
-            &font_style,
-            line_height,
-            letter_spacing,
-            word_spacing,
-            color_rgba,
-            max_width,
-            None,
-            &text_align,
-            &overflow,
-            self.text_compiler.borrow().text_fast_path,
-            self.font_context.as_ref(),
-        )?;
+        // The generic property loop above already wrote `language` into the
+        // track lane; read it back so the build-time precompile shares the
+        // render path's cache key (and highlights identically).
+        let language = text.language.get(t_end_ms, String::new());
+        let compiled = {
+            let text_compiler = self.text_compiler.borrow();
+            let request = TextCompileRequest {
+                kind: text_kind,
+                content: &text_content,
+                language: &language,
+                // Same palette the render path uses, so the precompile shares
+                // its cache entry and the build-time glyphs highlight
+                // identically.
+                palette: text_compiler.highlight_palette.as_ref(),
+                style: TextStyle {
+                    font_family: &font_family,
+                    font_size,
+                    font_weight,
+                    font_style: &font_style,
+                    line_height,
+                    letter_spacing,
+                    word_spacing,
+                    color: color_rgba,
+                },
+                max_width,
+                max_lines: None,
+                text_align: &text_align,
+                overflow: &overflow,
+                allow_fast_path: text_compiler.text_fast_path,
+            };
+            crate::renderer::text::compile_text_cached(&request, self.font_context.as_ref())?
+        };
 
         // Warn when fast path face set cannot cover glyphs to avoid silent tofu.
         let missing_glyphs = crate::renderer::text::missing_text_glyphs(

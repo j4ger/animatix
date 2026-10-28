@@ -37,7 +37,7 @@ use super::{
     Timeline, TrackAccessor,
 };
 use crate::diagnostics::{DiagnosticCode, DiagnosticPhase};
-use crate::renderer::text::TextKind;
+use crate::renderer::text::{TextCompileRequest, TextKind, TextStyle};
 
 mod container;
 mod engine;
@@ -310,28 +310,34 @@ impl Timeline {
         // re-runs on every rebuild with the same container geometry, so
         // unchanged text children are served from the cache. The fast path
         // stays disabled to match the previous engine routing exactly.
-        let compiled = match crate::renderer::text::compile_text_cached(
-            props.text_kind,
-            &props.content,
-            &props.language,
-            // Match the render path's palette so width-recompiles share its
-            // cache entry (and highlight identically).
-            self.text_compiler.borrow().highlight_palette.as_ref(),
-            &props.font_family,
-            props.font_size,
-            props.font_weight,
-            &props.font_style,
-            props.line_height,
-            props.letter_spacing,
-            props.word_spacing,
-            props.color,
-            effective_max_width,
-            None,
-            &props.text_align,
-            &props.overflow,
-            false,
-            self.font_context.as_ref(),
-        ) {
+        let recompiled = {
+            let text_compiler = self.text_compiler.borrow();
+            let request = TextCompileRequest {
+                kind: props.text_kind,
+                content: &props.content,
+                language: &props.language,
+                // Match the render path's palette so width-recompiles share its
+                // cache entry (and highlight identically).
+                palette: text_compiler.highlight_palette.as_ref(),
+                style: TextStyle {
+                    font_family: &props.font_family,
+                    font_size: props.font_size,
+                    font_weight: props.font_weight,
+                    font_style: &props.font_style,
+                    line_height: props.line_height,
+                    letter_spacing: props.letter_spacing,
+                    word_spacing: props.word_spacing,
+                    color: props.color,
+                },
+                max_width: effective_max_width,
+                max_lines: None,
+                text_align: &props.text_align,
+                overflow: &props.overflow,
+                allow_fast_path: false,
+            };
+            crate::renderer::text::compile_text_cached(&request, self.font_context.as_ref())
+        };
+        let compiled = match recompiled {
             Ok(cached) => cached,
             Err(e) => {
                 tracing::warn!(

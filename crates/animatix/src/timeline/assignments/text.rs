@@ -1,4 +1,5 @@
 use super::*;
+use crate::renderer::text::{TextCompileRequest, TextStyle};
 use crate::timeline::animation_track::{GeometryTracks, StyleTracks, TextTracks};
 
 pub(crate) fn recompile_text_at_assignment(
@@ -135,33 +136,36 @@ pub(crate) fn recompile_text_at_assignment(
     // Compute font metrics for baseline alignment. The inputs are identical to
     // the `text_compiler.compile` call above, so this is a process-wide cache
     // hit rather than a second Typst compilation.
-    let (ascent, descent, baseline_offset) = match crate::renderer::text::compile_text_cached(
-        text_kind,
-        &target_text,
-        &language,
+    let request = TextCompileRequest {
+        kind: text_kind,
+        content: &target_text,
+        language: &language,
         // Same palette the `text_compiler.compile` call above used, so this is
         // still a cache hit rather than a second compilation.
-        text_compiler.highlight_palette.as_ref(),
-        &font_family,
-        font_size,
-        font_weight,
-        &font_style,
-        line_height,
-        letter_spacing,
-        word_spacing,
-        color,
-        0.0,
-        None,
-        "left",
-        "visible",
-        text_compiler.text_fast_path,
-        font_ctx,
-    ) {
-        Ok(cached) => (cached.ascent, cached.descent, cached.baseline_offset),
-        // The same inputs already compiled successfully above; keep the
-        // previous behavior of defaulting metrics when that ever fails.
-        Err(_) => (0.0, 0.0, 0.0),
+        palette: text_compiler.highlight_palette.as_ref(),
+        style: TextStyle {
+            font_family: &font_family,
+            font_size,
+            font_weight,
+            font_style: &font_style,
+            line_height,
+            letter_spacing,
+            word_spacing,
+            color,
+        },
+        max_width: 0.0,
+        max_lines: None,
+        text_align: "left",
+        overflow: "visible",
+        allow_fast_path: text_compiler.text_fast_path,
     };
+    let (ascent, descent, baseline_offset) =
+        match crate::renderer::text::compile_text_cached(&request, font_ctx) {
+            Ok(cached) => (cached.ascent, cached.descent, cached.baseline_offset),
+            // The same inputs already compiled successfully above; keep the
+            // previous behavior of defaulting metrics when that ever fails.
+            Err(_) => (0.0, 0.0, 0.0),
+        };
 
     text.text_paths.ensure(Vec::new()).add_keyframe(t_end_ms, new_paths_vec, easing);
     geometry

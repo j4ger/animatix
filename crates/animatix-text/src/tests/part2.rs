@@ -1,7 +1,6 @@
 use super::*;
 
-// The crate root re-exports the deprecated flat entry point for the engine until
-// Phase 3; these tests exercise the request-based implementation directly.
+// Tests exercise the request-based entry point directly.
 use crate::compiler::compile_text_cached;
 use crate::request::{TextCompileRequest, TextStyle};
 
@@ -136,46 +135,48 @@ fn compile_cache_keys_on_wrapping_params() {
     assert_eq!(text_compile_cache_len(), 0, "clear must empty the cache");
 }
 
-/// The deprecated flat entry point must route through `TextCompileRequest`, or
-/// the engine's un-migrated call sites would start missing the entries the
-/// request-based path fills (and vice versa).
+/// The request-based cache and the `TextCompiler` adapter must agree: the
+/// adapter folds `text_fast_path` and the palette into a request, so a compiler
+/// compile is a cache hit on the request a caller would have built.
 #[test]
-#[allow(deprecated)] // Exercises the compatibility wrapper on purpose.
-fn legacy_entry_point_shares_the_request_cache_entry() {
+fn request_and_compiler_share_the_cache_entry() {
     let _cache = cache_test_guard();
     let font_ctx = test_font_ctx();
     clear_text_compile_cache();
 
-    let request = TextCompileRequest::new(
-        TextKind::Text,
-        "Shared Cache Entry",
-        TextStyle::new("Open Sans", 24.0),
-    );
+    let request = TextCompileRequest {
+        allow_fast_path: true,
+        ..TextCompileRequest::new(
+            TextKind::Text,
+            "Shared Cache Entry",
+            TextStyle::new("Open Sans", 24.0),
+        )
+    };
     let via_request = compile_text_cached(&request, &font_ctx).expect("request compile");
-    let via_legacy = crate::compile_text_cached(
-        TextKind::Text,
-        "Shared Cache Entry",
-        "",
-        None,
-        "Open Sans",
-        24.0,
-        400.0,
-        "normal",
-        1.2,
-        0.0,
-        0.0,
-        [1.0, 1.0, 1.0, 1.0],
-        0.0,
-        None,
-        "left",
-        "visible",
-        false,
-        &font_ctx,
-    )
-    .expect("legacy compile");
+
+    let mut compiler = TextCompiler::new();
+    let via_compiler = compiler
+        .compile(
+            "Shared Cache Entry",
+            "Open Sans",
+            24.0,
+            400.0,
+            "normal",
+            1.2,
+            0.0,
+            0.0,
+            [1.0, 1.0, 1.0, 1.0],
+            TextKind::Text,
+            "",
+            &font_ctx,
+            0.0,
+            "left",
+            "visible",
+        )
+        .expect("compiler compile");
     assert!(
-        std::sync::Arc::ptr_eq(&via_request, &via_legacy),
-        "the compatibility wrapper must build the same request key"
+        std::sync::Arc::ptr_eq(&via_request.paths, &via_compiler),
+        "the TextCompiler adapter must hit the request-built cache entry"
     );
 
     clear_text_compile_cache();

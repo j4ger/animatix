@@ -13,7 +13,7 @@ use crate::ast::{Expr, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{AssignmentCtx, EvaluateCtx, Primitive, RenderCommand};
 use crate::renderer::error::RenderError;
-use crate::renderer::text::TextKind;
+use crate::renderer::text::{TextCompileRequest, TextKind, TextStyle};
 use crate::renderer::types::{GradientSpec, TextPath};
 use crate::timeline::{ActorField, Environment, SceneDimensions, TrackAccessor};
 
@@ -74,26 +74,21 @@ pub fn prebake_counter(
 
     for d in 0..=9 {
         let text_s = d.to_string();
-        let compiled = crate::renderer::text::compile_text_cached(
-            TextKind::Text,
-            &text_s,
-            "",
-            None,
-            font_family,
-            font_size,
-            font_weight,
-            font_style,
-            line_height,
-            0.0,
-            0.0,
-            color_rgba,
-            0.0,
-            None,
-            "left",
-            "visible",
-            true,
-            font_ctx,
-        )?;
+        let request = TextCompileRequest {
+            allow_fast_path: true,
+            ..TextCompileRequest::new(
+                TextKind::Text,
+                &text_s,
+                TextStyle {
+                    font_weight,
+                    font_style,
+                    line_height,
+                    color: color_rgba,
+                    ..TextStyle::new(font_family, font_size)
+                },
+            )
+        };
+        let compiled = crate::renderer::text::compile_text_cached(&request, font_ctx)?;
         ascent = ascent.max(compiled.ascent);
         descent = descent.max(compiled.descent);
         let w = compiled.half_size[0] * 2.0;
@@ -119,26 +114,21 @@ pub fn prebake_counter(
         if sym.is_empty() {
             return Ok((Vec::new(), 0.0));
         }
-        let compiled = crate::renderer::text::compile_text_cached(
-            TextKind::Text,
-            sym,
-            "",
-            None,
-            font_family,
-            font_size,
-            font_weight,
-            font_style,
-            line_height,
-            0.0,
-            0.0,
-            color_rgba,
-            0.0,
-            None,
-            "left",
-            "visible",
-            true,
-            font_ctx,
-        )?;
+        let request = TextCompileRequest {
+            allow_fast_path: true,
+            ..TextCompileRequest::new(
+                TextKind::Text,
+                sym,
+                TextStyle {
+                    font_weight,
+                    font_style,
+                    line_height,
+                    color: color_rgba,
+                    ..TextStyle::new(font_family, font_size)
+                },
+            )
+        };
+        let compiled = crate::renderer::text::compile_text_cached(&request, font_ctx)?;
         Ok((compiled.paths.to_vec(), compiled.half_size[0] * 2.0))
     };
 
