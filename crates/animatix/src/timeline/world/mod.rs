@@ -104,6 +104,47 @@ pub struct World {
     pub(crate) pending_roots: Vec<String>,
 }
 
+/// Every slot-aligned component store on [`World`], in one list.
+///
+/// This is the single source for the three whole-world operations that must
+/// touch every store — [`World::ensure_len`], [`World::clear`] and the
+/// per-entity reset in [`World::spawn_replacing`] — so a new store is added
+/// here once instead of in three parallel enumerations.
+///
+/// `EntityStore` itself (`tracks`) is intentionally absent: it owns the slot
+/// count the other stores are aligned to, and has no `reset_at`.
+///
+/// The callback receives any extra tokens followed by the store list, which
+/// lets the operation macros below take call-site values (`len`, `id`) while
+/// the list stays in one place.
+macro_rules! for_each_store {
+    ($mac:ident $(, $arg:tt)*) => {
+        $mac! { $( $arg, )* hierarchy, highlight, tagged_tracks, actor_types, caps, behavior,
+        shape_memos, pending_shape_bounds, bounds_slots, style, geometry, text, shape,
+        property_plan, meta, caps_overrides, container_layout, child_order, coordinate_frame,
+        persistence, auto_color, transcript, local_bounds, legend, effects, plot_payload,
+        svg_payload, image_payload, decl_span, }
+    };
+}
+
+macro_rules! ensure_store_len {
+    ($world:tt, $len:expr, $($store:ident),* $(,)?) => {
+        $( $world.$store.ensure_len($len); )*
+    };
+}
+
+macro_rules! clear_stores {
+    ($world:tt, $($store:ident),* $(,)?) => {
+        $( $world.$store.clear(); )*
+    };
+}
+
+macro_rules! reset_stores_at {
+    ($world:tt, $id:expr, $($store:ident),* $(,)?) => {
+        $( $world.$store.reset_at($id); )*
+    };
+}
+
 impl World {
     /// Create an empty world.
     pub fn new() -> Self {
@@ -178,25 +219,7 @@ impl World {
             return id;
         }
         let id = self.tracks.insert(label.to_string());
-        self.ensure_len();
-        let caps = animatix_std::caps_for_type(&actor_type).unwrap_or_default();
-        *self.caps.get_mut(id) = caps;
-        *self.behavior.get_mut(id) =
-            crate::timeline::behavior::behavior_id_for_builtin(&actor_type)
-                .unwrap_or(crate::timeline::behavior::BehaviorId::UNKNOWN);
-        if caps.is_shape || caps.shape.is_some() || caps.connector || caps.callout {
-            self.ensure_shape(id);
-        }
-        if caps.text.is_some() || caps.text_paths || caps.callout {
-            self.ensure_text(id);
-        }
-        if actor_type == "Fragment"
-            || actor_type == "Equation"
-            || caps.child_processing == animatix_core::caps::ChildProcessingKind::Equation
-        {
-            self.ensure_highlight(id);
-        }
-        *self.actor_types.get_mut(id) = actor_type;
+        self.apply_identity(id, &actor_type);
         self.attach_pending_auto_color(id, label);
         self.adopt(id, label);
         id
@@ -206,7 +229,10 @@ impl World {
     ///
     /// This is the carry-injection path's old insert-replacement semantics:
     /// the label keeps its entity id, but every component starts fresh rather
-    /// than inheriting the previous scene's state.
+    /// than inheriting the previous scene's state. Identity (actor type, caps,
+    /// behavior) is re-derived from `actor_type`; the optional tiers
+    /// `apply_identity` would seed stay cleared, because a replacement clears
+    /// optional components (`docs/ecs.md` §2).
     pub fn spawn_replacing(&mut self, label: &str, actor_type: &str) -> EntityId {
         let replaced = self.tracks.contains_key(label);
         let id = self.spawn(label, actor_type);
@@ -214,38 +240,15 @@ impl World {
             self.unlink(id);
         }
         self.ensure_len();
-        *self.actor_types.get_mut(id) = actor_type.to_string();
-        self.caps.reset_at(id);
-        *self.caps.get_mut(id) = animatix_std::caps_for_type(actor_type).unwrap_or_default();
-        self.behavior.reset_at(id);
-        *self.behavior.get_mut(id) = crate::timeline::behavior::behavior_id_for_builtin(actor_type)
-            .unwrap_or(crate::timeline::behavior::BehaviorId::UNKNOWN);
-        self.hierarchy.reset_at(id);
+        for_each_store!(reset_stores_at, self, id);
+        self.apply_identity(id, actor_type);
+        // `apply_identity` seeds the optional tiers the new type requires, the
+        // same as a fresh `spawn`; a replacement's contract is that optional
+        // components are *cleared*, so undo those three seeds. The required
+        // stores (actor type, caps, behavior, …) keep the identity written above.
         self.highlight.reset_at(id);
-        self.tagged_tracks.reset_at(id);
-        self.shape_memos.reset_at(id);
-        self.pending_shape_bounds.reset_at(id);
-        self.bounds_slots.reset_at(id);
-        self.style.reset_at(id);
-        self.geometry.reset_at(id);
-        self.text.reset_at(id);
         self.shape.reset_at(id);
-        self.property_plan.reset_at(id);
-        self.meta.reset_at(id);
-        self.caps_overrides.reset_at(id);
-        self.container_layout.reset_at(id);
-        self.child_order.reset_at(id);
-        self.coordinate_frame.reset_at(id);
-        self.persistence.reset_at(id);
-        self.auto_color.reset_at(id);
-        self.transcript.reset_at(id);
-        self.local_bounds.reset_at(id);
-        self.effects.reset_at(id);
-        self.legend.reset_at(id);
-        self.plot_payload.reset_at(id);
-        self.svg_payload.reset_at(id);
-        self.image_payload.reset_at(id);
-        self.decl_span.reset_at(id);
+        self.text.reset_at(id);
         self.attach_pending_auto_color(id, label);
         self.adopt(id, label);
         id
@@ -493,69 +496,13 @@ impl World {
     /// Grow every component store to the entity count.
     pub(crate) fn ensure_len(&mut self) {
         let len = self.tracks.len();
-        self.hierarchy.ensure_len(len);
-        self.highlight.ensure_len(len);
-        self.tagged_tracks.ensure_len(len);
-        self.actor_types.ensure_len(len);
-        self.caps.ensure_len(len);
-        self.behavior.ensure_len(len);
-        self.shape_memos.ensure_len(len);
-        self.pending_shape_bounds.ensure_len(len);
-        self.bounds_slots.ensure_len(len);
-        self.style.ensure_len(len);
-        self.geometry.ensure_len(len);
-        self.text.ensure_len(len);
-        self.shape.ensure_len(len);
-        self.property_plan.ensure_len(len);
-        self.meta.ensure_len(len);
-        self.caps_overrides.ensure_len(len);
-        self.container_layout.ensure_len(len);
-        self.child_order.ensure_len(len);
-        self.coordinate_frame.ensure_len(len);
-        self.persistence.ensure_len(len);
-        self.auto_color.ensure_len(len);
-        self.transcript.ensure_len(len);
-        self.local_bounds.ensure_len(len);
-        self.legend.ensure_len(len);
-        self.effects.ensure_len(len);
-        self.plot_payload.ensure_len(len);
-        self.svg_payload.ensure_len(len);
-        self.image_payload.ensure_len(len);
-        self.decl_span.ensure_len(len);
+        for_each_store!(ensure_store_len, self, len);
     }
 
     /// Drop every entity and component.
     pub fn clear(&mut self) {
         self.tracks.clear();
-        self.hierarchy.clear();
-        self.highlight.clear();
-        self.tagged_tracks.clear();
-        self.actor_types.clear();
-        self.caps.clear();
-        self.behavior.clear();
-        self.shape_memos.clear();
-        self.pending_shape_bounds.clear();
-        self.bounds_slots.clear();
-        self.style.clear();
-        self.geometry.clear();
-        self.text.clear();
-        self.shape.clear();
-        self.property_plan.clear();
-        self.meta.clear();
-        self.caps_overrides.clear();
-        self.container_layout.clear();
-        self.child_order.clear();
-        self.coordinate_frame.clear();
-        self.persistence.clear();
-        self.auto_color.clear();
-        self.transcript.clear();
-        self.local_bounds.clear();
-        self.legend.clear();
-        self.effects.clear();
-        self.plot_payload.clear();
-        self.svg_payload.clear();
-        self.image_payload.clear();
-        self.decl_span.clear();
+        for_each_store!(clear_stores, self);
         self.roots.clear();
         self.pending_parents.clear();
         self.pending_auto_color = None;

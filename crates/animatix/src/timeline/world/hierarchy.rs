@@ -51,4 +51,35 @@ impl super::World {
     pub fn hierarchy_mut(&mut self, id: EntityId) -> &mut SceneHierarchyComponent {
         self.hierarchy.get_mut(id)
     }
+
+    /// Resolve a dotted path of static labels to a track key.
+    ///
+    /// The direct dotted label wins first (`"g.vec"` may itself be a declared
+    /// actor, matching the build path's flat-key lookup). Otherwise every
+    /// segment after the first is resolved as a child of the previous one and
+    /// the final label is returned. `None` when the path is empty or any step
+    /// does not resolve.
+    ///
+    /// This is the single build-time dotted-path resolver shared by action
+    /// targeting ([`resolve_action_target`](crate::timeline::actions)) and
+    /// assignment targeting.
+    pub fn resolve_path(&self, segments: &[&str]) -> Option<String> {
+        match segments {
+            [] => None,
+            [single] => self.tracks.contains_key(*single).then(|| (*single).to_string()),
+            _ => {
+                let direct = segments.join(".");
+                if self.tracks.contains_key(&direct) {
+                    return Some(direct);
+                }
+                let mut current = segments[0].to_string();
+                for segment in &segments[1..] {
+                    let current_id = self.get_id(&current)?;
+                    let next = self.child_labels(current_id).find(|child| *child == *segment)?;
+                    current = next.to_string();
+                }
+                Some(current)
+            },
+        }
+    }
 }

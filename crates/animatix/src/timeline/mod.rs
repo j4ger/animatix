@@ -277,10 +277,10 @@ pub struct Timeline {
     /// backend is merely *present*, and the web runtime passes one on every
     /// frame, which is how browsers ended up re-evaluating from scratch.
     pub(crate) has_effect_scopes: bool,
-    /// P2.22: Frozen Arc reference to the base environment entries (stdlib +
+    /// Frozen Arc reference to the base environment entries (stdlib +
     /// colorscheme). Avoids copying ~90 entries on every [`Timeline::build_frame_env`].
     env_base: std::sync::Arc<crate::timeline::env::EnvMap>,
-    /// PF-6: pooled frame environment handed back by the scene-eval path after
+    /// Pooled frame environment handed back by the scene-eval path after
     /// each frame (see `build_frame_env_internal`). Retaining the environment
     /// keeps the overrides map's table capacity and every key `String`
     /// allocation alive across frames, so a steady-state evaluate loop builds
@@ -335,7 +335,7 @@ pub struct Timeline {
     pub(crate) cli_defines: std::collections::HashSet<String>,
     pub(crate) asset_cache: std::sync::Arc<assets::AssetCache>,
     pub(crate) font_context: std::sync::Arc<crate::renderer::text::FontContext>,
-    /// Build quality level used during timeline construction (Phase 6.3).
+    /// Build quality level used during timeline construction.
     /// Affects plot sampling fidelity: Draft for GUI editing, Production for export.
     pub(crate) build_quality: BuildQuality,
     /// Default opacity for first actor declarations without explicit `opacity` property.
@@ -398,7 +398,7 @@ pub struct Timeline {
     pub(crate) audio_segments: Vec<AudioSegment>,
     /// Action events collected during build, for GUI timeline visualization.
     pub action_events: Vec<crate::timeline::animation_track::ActionEvent>,
-    /// Cache for static plot paths keyed by parameter hash (Phase 6.4).
+    /// Cache for static plot paths keyed by parameter hash.
     /// Survives across rebuilds when the GUI copies it from the old timeline.
     pub plot_path_cache:
         std::collections::HashMap<u64, Vec<crate::timeline::vello_path::VelloPath>>,
@@ -428,6 +428,21 @@ pub(crate) struct FrameCacheEntry {
     collect_items: bool,
 }
 
+/// Memoized static classification for one entity.
+///
+/// Two independent build-fixed questions are asked per node on the frame path
+/// — whether its transform inputs are time-invariant ([`Timeline::is_transform_static`])
+/// and whether its whole subtree is ([`Timeline::is_static_subtree_id`]) — and
+/// both survive until the next invalidation. Keeping them in one slot table
+/// halves the per-frame flag bookkeeping.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct EntityStaticFlags {
+    /// Memoized `is_transform_static` answer.
+    pub(crate) transform: Option<bool>,
+    /// Memoized `is_static_subtree_id` answer.
+    pub(crate) subtree: Option<bool>,
+}
+
 /// Per-frame evaluation caches and transient state.
 ///
 /// These are deliberately reset (not cloned) when a [`Timeline`] is cloned, so
@@ -442,25 +457,22 @@ pub(crate) struct EvalCaches {
     /// signatures.
     content_epoch: std::cell::Cell<u64>,
     transform_cache: std::cell::RefCell<Vec<Option<scene_eval::TransformCacheEntry>>>,
-    /// Memoized `is_transform_static` answers (`has_any_keyframes` negated),
-    /// cleared by `invalidate_frame_cache`. Indexed by `EntityId.index()`.
-    transform_static_flags: std::cell::RefCell<Vec<Option<bool>>>,
+    /// Memoized static answers for both the transform and the subtree
+    /// classification; cleared by `invalidate_frame_cache`.
+    static_flags: std::cell::RefCell<Vec<EntityStaticFlags>>,
     static_subtree_cache: std::cell::RefCell<
         std::collections::HashMap<
             (EntityId, SceneDimensions, bool, DebugRenderOptions),
             StaticSubtreeEntry,
         >,
     >,
-    /// Memoized `is_static_subtree` answers, cleared whenever the timeline is
-    /// mutated. Indexed by `EntityId.index()`.
-    static_subtree_flags: std::cell::RefCell<Vec<Option<bool>>>,
     scene_buffer: std::cell::RefCell<Option<vello::Scene>>,
     /// Per-frame hit regions keyed by entity id. The label view is materialized
     /// only by [`Timeline::hit_regions`] at the GUI boundary.
     hit_regions: std::cell::RefCell<Vec<(EntityId, kurbo::Rect)>>,
     overrides_buffer: std::cell::RefCell<crate::timeline::modifier_runtime::ir::ModifierOverrides>,
     /// Precise world-space bounds for the current frame, indexed by
-    /// `World::bounds_slots` slot ids (PF-6: per-node write is a `Vec` store,
+    /// `World::bounds_slots` slot ids (per-node write is a `Vec` store,
     /// stash/restore are flat copies, no string keys).
     precise_bounds: std::cell::RefCell<BoundsTable>,
     /// Label↔slot identity for [`Self::precise_bounds`]: sorted track labels,
@@ -524,7 +536,7 @@ impl SoloState {
     }
 }
 
-/// Dense per-frame precise-bounds storage (PF-6 slot-id design).
+/// Dense per-frame precise-bounds storage (slot-id design).
 ///
 /// `slots` is indexed by the `World::bounds_slots` slot id, which `ensure_bounds_registry`
 /// stamps once per rebuild (sorted `tracks` order — deterministic and stable for the
@@ -585,7 +597,6 @@ struct BoundsRegistry {
 }
 
 impl EvalCaches {
-    /// Stamp `World::bounds_slots` for every entity and (re)build the
     /// label registry. Cheap no-op while the registry is valid; invalidated by
     /// `invalidate_frame_cache` (the single mutation funnel) and by
     /// `Clone` (EvalCaches reset to `Default`).

@@ -33,8 +33,6 @@ crates/animatix/src/timeline/modifier_runtime/ir/eval.rs	704
 crates/animatix/src/timeline/mod.rs	660
 crates/animatix/src/timeline/plot/procedural.rs	799
 crates/animatix/src/timeline/property_engine/declaration.rs	690
-crates/animatix/src/timeline/scene_eval/frame.rs	676
-crates/animatix/src/timeline/scene_eval/render.rs	764
 crates/animatix/src/timeline/svg_import/defs.rs	604
 crates/animatix/src/timeline/svg_import/shapes.rs	634
 crates/animatix/src/timeline/tests/build/part1.rs	1320

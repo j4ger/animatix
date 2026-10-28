@@ -4,25 +4,8 @@ use super::guards::push_unsupported_action_target_diagnostic;
 use super::*;
 
 pub(crate) fn resolve_action_target(timeline: &Timeline, target: &str) -> Option<String> {
-    // Fast path: direct lookup (handles plain identifiers and pre-built keys)
-    if timeline.world.tracks.contains_key(target) {
-        return Some(target.to_string());
-    }
-
-    // Dotted path: walk hierarchy
     let segments: Vec<&str> = target.split('.').collect();
-    if segments.len() < 2 {
-        return None;
-    }
-
-    let mut current = segments[0].to_string();
-    for &segment in &segments[1..] {
-        let current_id = timeline.world.get_id(&current)?;
-        let next = timeline.world.child_labels(current_id).find(|child| *child == segment)?;
-        current = next.to_string();
-    }
-
-    Some(current)
+    timeline.world.resolve_path(&segments)
 }
 
 pub(crate) fn ensure_target_exists(

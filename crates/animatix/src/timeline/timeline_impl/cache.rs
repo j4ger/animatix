@@ -36,12 +36,13 @@ pub(crate) enum EnvInjectEntry {
 }
 
 /// The precomputed frame-env injection plan (see `EnvInjectEntry`): one entry
-/// per entity in `World::tracks` order, the pooled-env capacity estimate,
-/// and whether runtime injection is needed at all.
+/// per entity in `World::tracks` order plus the pooled-env capacity estimate.
+/// Whether runtime injection is needed at all is
+/// [`Timeline::needs_frame_env`], the single memoized answer both the frame
+/// cache key and the env builder consult.
 pub(crate) struct EnvInjectionPlan {
     pub(crate) entries: Vec<EnvInjectEntry>,
     pub(crate) estimated_prop_entries: usize,
-    pub(crate) runtime_injection: bool,
 }
 
 impl EnvInjectionPlan {
@@ -192,9 +193,6 @@ impl Timeline {
             };
             entries.push(entry);
         }
-        let runtime_injection = !self.modifier_programs.is_empty()
-            || !self.modifiers.is_empty()
-            || self.has_procedural_plots();
         debug_assert_eq!(
             entries.len(),
             self.world.tracks.len(),
@@ -204,15 +202,11 @@ impl Timeline {
         EnvInjectionPlan {
             entries,
             estimated_prop_entries,
-            runtime_injection,
         }
     }
 
-    /// Returns true if the actor and all its descendants have no keyframes
-    /// and the timeline has no modifiers that could affect them.
-    /// Fully-static subtrees can have their rendered output cached (P2.17).
-    /// Stamp `World::bounds_slots` values and (re)build the label
-    /// registry if invalid. See [`EvalCaches::ensure_bounds_registry`].
+    /// Stamp `World::bounds_slots` values and (re)build the label registry if
+    /// invalid. See [`EvalCaches::ensure_bounds_registry`].
     pub(crate) fn ensure_bounds_registry(&self) {
         self.eval_caches.ensure_bounds_registry(&self.world);
     }
@@ -253,16 +247,16 @@ impl Timeline {
         self.eval_caches.precise_bounds.borrow_mut().write(slot, rect);
     }
 
-    /// Recompute [`Timeline::blend_used`] from the tracks. Called from
-    /// `invalidate_frame_cache` (every public mutation funnels through it)
-    /// and once at the end of the build walk.
-    /// Length of one beat in milliseconds: the scene's `config { bpm: … }` when
-    /// declared, the documented default tempo otherwise.
+    /// Length of one beat in milliseconds: the scene's `config { bpm: … }`
+    /// when declared, the documented default tempo otherwise.
     pub(crate) fn beat_duration_ms(&self) -> f64 {
         self.beat_ms
             .unwrap_or(crate::ast::beat_seconds(crate::ast::DEFAULT_BPM) * 1000.0)
     }
 
+    /// Recompute [`Timeline::blend_used`] from the tracks. Called from
+    /// `invalidate_frame_cache` (every public mutation funnels through it)
+    /// and once at the end of the build walk.
     pub(crate) fn refresh_blend_used(&self) {
         let any = self.world.style.iter().any(|(_, style)| style.blend.is_some());
         self.blend_used.set(any);
@@ -299,19 +293,14 @@ impl Timeline {
     }
 
     pub(crate) fn is_static_subtree_id(&self, id: EntityId) -> bool {
-        let idx = id.index();
-        if let Some(&Some(cached)) = self.eval_caches.static_subtree_flags.borrow().get(idx) {
+        if let Some(cached) = self.eval_caches.subtree_static(id) {
             return cached;
         }
         if !self.world.exists(id) {
             return true;
         }
         let is_static = self.compute_static_subtree(id);
-        let mut flags = self.eval_caches.static_subtree_flags.borrow_mut();
-        if idx >= flags.len() {
-            flags.resize(idx + 1, None);
-        }
-        flags[idx] = Some(is_static);
+        self.eval_caches.set_subtree_static(id, is_static);
         is_static
     }
 
@@ -322,16 +311,11 @@ impl Timeline {
     /// every frame. Memoized like `is_static_subtree_id`; the same
     /// invalidation funnel clears it.
     pub(crate) fn is_transform_static(&self, id: EntityId) -> bool {
-        let idx = id.index();
-        if let Some(&Some(cached)) = self.eval_caches.transform_static_flags.borrow().get(idx) {
+        if let Some(cached) = self.eval_caches.transform_static(id) {
             return cached;
         }
         let is_static = self.world.exists(id) && !self.world.has_any_keyframes(id);
-        let mut flags = self.eval_caches.transform_static_flags.borrow_mut();
-        if idx >= flags.len() {
-            flags.resize(idx + 1, None);
-        }
-        flags[idx] = Some(is_static);
+        self.eval_caches.set_transform_static(id, is_static);
         is_static
     }
 
@@ -403,5 +387,73 @@ impl Timeline {
             collect_items,
             debug_options,
         ))
+    }
+}
+
+impl EvalCaches {
+    /// Reset every per-frame cache, keeping the allocations worth recycling.
+    ///
+    /// This is the single invalidation body used by
+    /// [`Timeline::invalidate_frame_cache`]: the frame's encoded scene is
+    /// recycled into the scene buffer, flat per-entity tables are cleared, and
+    /// build-fixed memos drop so they re-derive from the mutated world. The
+    /// content epoch is *not* reset here — the caller advances it, and the
+    /// diagnostics/solo state are resolved per evaluation rather than cached
+    /// invalidations.
+    pub(crate) fn clear(&self) {
+        // Recycle the invalidated entry's encoded scene into the scene buffer
+        // so the next evaluation reuses its allocation instead of starting
+        // from an empty encoding (every GUI edit calls this).
+        if let Some(entry) = self.frame_cache.borrow_mut().take() {
+            *self.scene_buffer.borrow_mut() = Some(entry.program.scene);
+        }
+        self.transform_cache.borrow_mut().clear();
+        self.static_flags.borrow_mut().clear();
+        self.static_subtree_cache.borrow_mut().clear();
+        // Hit regions describe the last evaluated frame; an edit makes them
+        // stale.
+        self.hit_regions.borrow_mut().clear();
+        self.overrides_buffer.borrow_mut().clear();
+        // Flat-vec clear: no string keys to recycle (slot-id table).
+        self.precise_bounds.borrow_mut().clear_frame();
+        // Bounds slots are registry-stamped; a track mutation can change the
+        // label set, so drop the registry and let it rebuild lazily.
+        *self.bounds_registry.borrow_mut() = None;
+        // The env-path answers are as build-fixed as the ones above.
+        self.needs_frame_env.set(None);
+        *self.env_injection_plan.borrow_mut() = None;
+        // Mutations can add or remove `solo` (and add modifiers), so the
+        // cached "does solo need a scan" answer is no longer trustworthy.
+        self.solo_scan_needed.set(None);
+        self.primitive_handles.borrow_mut().clear();
+    }
+
+    /// Memoized `is_static_subtree_id` answer for `id`, when computed.
+    pub(crate) fn subtree_static(&self, id: EntityId) -> Option<bool> {
+        self.static_flags.borrow().get(id.index()).and_then(|flags| flags.subtree)
+    }
+
+    /// Record the `is_static_subtree_id` answer for `id`.
+    pub(crate) fn set_subtree_static(&self, id: EntityId, value: bool) {
+        self.update_static_flags(id, |flags| flags.subtree = Some(value));
+    }
+
+    /// Memoized `is_transform_static` answer for `id`, when computed.
+    pub(crate) fn transform_static(&self, id: EntityId) -> Option<bool> {
+        self.static_flags.borrow().get(id.index()).and_then(|flags| flags.transform)
+    }
+
+    /// Record the `is_transform_static` answer for `id`.
+    pub(crate) fn set_transform_static(&self, id: EntityId, value: bool) {
+        self.update_static_flags(id, |flags| flags.transform = Some(value));
+    }
+
+    fn update_static_flags(&self, id: EntityId, update: impl FnOnce(&mut EntityStaticFlags)) {
+        let mut flags = self.static_flags.borrow_mut();
+        let index = id.index();
+        if index >= flags.len() {
+            flags.resize(index + 1, EntityStaticFlags::default());
+        }
+        update(&mut flags[index]);
     }
 }

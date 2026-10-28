@@ -2,6 +2,30 @@
 
 use super::*;
 
+/// Mutable state threaded through the frame-evaluation phases
+/// (`prepare_frame` → `run_frame_modifiers` → `render_frame_roots` →
+/// `store_frame`).
+///
+/// These are the same locals the monolithic evaluation used, in the same
+/// order; the split is mechanical.
+pub(super) struct FrameEvaluation<'a> {
+    pub(super) time_ms: u64,
+    pub(super) scene_dimensions: SceneDimensions,
+    pub(super) debug_options: DebugRenderOptions,
+    pub(super) collect_items: bool,
+    pub(super) suppressed_actors: &'a [String],
+    pub(super) transient_overrides:
+        &'a std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
+    pub(super) needs_frame_env: bool,
+    pub(super) has_child_orders: bool,
+    pub(super) bg_color: [f32; 4],
+    pub(super) scene: vello::Scene,
+    pub(super) hit_regions: Vec<(EntityId, kurbo::Rect)>,
+    pub(super) program_items: Option<Vec<crate::timeline::scene_program::SceneItem>>,
+    pub(super) overrides: crate::timeline::modifier_runtime::ir::ModifierOverrides,
+    pub(super) frame_env: Option<crate::timeline::env::Environment>,
+}
+
 impl Timeline {
     /// Evaluate the timeline at `time_s` and build the renderable scene at
     /// the requested dimensions.
@@ -78,7 +102,7 @@ impl Timeline {
     /// one (the web player passes it on every frame) would otherwise never
     /// cache anything. Debug options are a separate matter: they change what is
     /// drawn, so they always block.
-    fn backend_can_run(
+    pub(super) fn backend_can_run(
         &self,
         filter_backend: &Option<&mut dyn crate::timeline::effects::FilterBackend>,
     ) -> bool {
@@ -263,7 +287,38 @@ impl Timeline {
                 return program;
             }
         }
+        // The four phases below are the original monolithic body in order:
+        // prepare (buffers, per-frame state, env) → modifiers → render →
+        // store (program + frame cache).
+        let mut state = self.prepare_frame(
+            time_s,
+            scene_dimensions,
+            debug_options,
+            filter_backend,
+            collect_items,
+            suppressed_actors,
+            transient_overrides,
+        );
+        self.run_frame_modifiers(&mut state);
+        self.render_frame_roots(&mut state, filter_backend);
+        self.store_frame(state, filter_backend)
+    }
 
+    /// Phase 1 — reuse the encoded-scene buffers, reset per-frame state, stamp
+    /// bounds slots, resolve solo/hit-region scratch, and build the frame env.
+    fn prepare_frame<'a>(
+        &self,
+        time_s: f64,
+        scene_dimensions: SceneDimensions,
+        debug_options: DebugRenderOptions,
+        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
+        collect_items: bool,
+        suppressed_actors: &'a [String],
+        transient_overrides: &'a std::collections::HashMap<
+            String,
+            std::collections::HashMap<String, Value>,
+        >,
+    ) -> FrameEvaluation<'a> {
         let time_ms = (time_s * 1000.0) as u64;
         let needs_frame_env = self.needs_frame_env();
         let has_child_orders = self.world.has_child_orders();
@@ -271,7 +326,7 @@ impl Timeline {
         // Clear stale runtime diagnostics from previous frame.
         self.clear_runtime_diagnostics();
 
-        // PF-4: Reuse a previously encoded scene buffer instead of allocating.
+        // Reuse a previously encoded scene buffer instead of allocating.
         // On a plain miss the replaced frame-cache entry is stale by
         // definition (restore_frame_cache just rejected it), so its encoded
         // scene is moved out — no clone — and becomes this frame's encode
@@ -294,7 +349,7 @@ impl Timeline {
         };
         scene.reset();
         // Precise bounds are only valid for the frame that computed them.
-        // PF-6 slot-id table: sparse clear of the previous frame's slots, then
+        // Slot-id table: sparse clear of the previous frame's slots, then
         // stamp every track's slot for this frame (registry rebuilds lazily
         // after invalidation).
         self.eval_caches.precise_bounds.borrow_mut().clear_frame();
@@ -333,27 +388,46 @@ impl Timeline {
             }
         }
 
-        // P2.16: Skip frame environment creation when no modifiers or procedural plots exist.
-        // For static scenes, this eliminates ~95% of evaluation overhead.
-        let mut frame_env = if needs_frame_env {
+        // Skip frame environment creation when no modifiers or procedural
+        // plots exist. For static scenes, this eliminates ~95% of evaluation
+        // overhead.
+        let frame_env = if needs_frame_env {
             Some(self.build_frame_env_internal(time_ms, scene_dimensions, &overrides))
         } else {
             None
         };
 
-        // Execute lowered modifier IR only. Lowering is total for all modifier
-        // statements; if lowering failed at build time, the build already
-        // emitted a ModifierCompilationError diagnostic.
+        FrameEvaluation {
+            time_ms,
+            scene_dimensions,
+            debug_options,
+            collect_items,
+            suppressed_actors,
+            transient_overrides,
+            needs_frame_env,
+            has_child_orders,
+            bg_color,
+            scene,
+            hit_regions,
+            program_items: None,
+            overrides,
+            frame_env,
+        }
+    }
+
+    /// Phase 2 — execute lowered modifier IR, re-apply transient overrides, and
+    /// record modifier errors as runtime diagnostics.
+    fn run_frame_modifiers(&self, state: &mut FrameEvaluation<'_>) {
         let mut modifier_errors: Vec<EvalError> = Vec::new();
         if !self.modifier_programs.is_empty() {
-            if let Some(ref mut env) = frame_env {
+            if let Some(env) = state.frame_env.as_mut() {
                 for program in &self.modifier_programs {
                     if let Err(e) = self.apply_modifier_program(
                         program,
-                        time_ms,
-                        scene_dimensions,
+                        state.time_ms,
+                        state.scene_dimensions,
                         env,
-                        &mut overrides,
+                        &mut state.overrides,
                     ) {
                         modifier_errors.push(e);
                     }
@@ -367,9 +441,9 @@ impl Timeline {
         }
 
         // Re-apply transient overrides so user interaction wins over modifier execution.
-        if !transient_overrides.is_empty() {
-            for (label, props) in transient_overrides {
-                let entry = overrides.entry(label.clone()).or_default();
+        if !state.transient_overrides.is_empty() {
+            for (label, props) in state.transient_overrides {
+                let entry = state.overrides.entry(label.clone()).or_default();
                 for (prop, val) in props {
                     entry.insert(prop.clone(), val.clone());
                 }
@@ -378,223 +452,27 @@ impl Timeline {
 
         // Collect modifier evaluation errors as runtime diagnostics.
         for err in &modifier_errors {
-            tracing::warn!("Modifier evaluation error at t={time_ms}ms: {err}");
+            tracing::warn!("Modifier evaluation error at t={}ms: {err}", state.time_ms);
             self.eval_caches.runtime_diagnostics.borrow_mut().push(
                 crate::diagnostics::Diagnostic::error(
                     crate::diagnostics::DiagnosticCode::ModifierRuntimeError,
                     crate::diagnostics::DiagnosticPhase::Render,
-                    format!("Modifier evaluation error at t={time_ms}ms: {err}"),
+                    format!("Modifier evaluation error at t={}ms: {err}", state.time_ms),
                 ),
             );
         }
+    }
 
-        let bg = vello::peniko::Color::new([bg_color[0], bg_color[1], bg_color[2], bg_color[3]]);
-        scene.fill(
-            vello::peniko::Fill::NonZero,
-            kurbo::Affine::IDENTITY,
-            bg,
-            None,
-            &kurbo::Rect::new(
-                0.0,
-                0.0,
-                scene_dimensions.width as f64,
-                scene_dimensions.height as f64,
-            ),
-        );
-
-        let mut program_items = if collect_items {
-            Some(Vec::new())
-        } else {
-            None
-        };
-        // The frame-invariant bundle and the mutable outputs are built once and
-        // threaded through the whole recursion (see `RenderFrame`).
-        let frame = crate::primitives::RenderFrame {
-            time_ms,
-            scene_dimensions,
-            debug_options,
-            overrides: &overrides,
-            frame_env: frame_env.as_ref(),
-        };
-        // `sample` covers per-frame property sampling and node evaluation; the
-        // vello encoding is currently interleaved inside it (see `stage::ENCODE_SCENE`).
-        let _sample_stage = crate::perf::ScopedStage::new(crate::perf::stage::SAMPLE);
-        // Scoped so the output borrows end with the loop: the code below reuses
-        // `scene` / `hit_regions` / `program_items` directly.
-        {
-            let mut out = crate::primitives::RenderOutputs {
-                scene: &mut scene,
-                hit_regions: &mut hit_regions,
-                program_items: &mut program_items,
-                filter_backend: &mut *filter_backend,
-            };
-            // The scene camera wraps every root subtree (see `timeline::camera`).
-            // It is read *after* the modifier pass above, so an
-            // `always { camera.at = … }` write is already in the override map.
-            // The background fill deliberately stays un-camerad.
-            // Roots have no layout parent: one shared empty table per frame.
-            let empty_positions = crate::timeline::layout::empty_layout_positions();
-            let camera_affine = if self.camera_used.get() {
-                self.camera.affine(
-                    time_ms,
-                    scene_dimensions,
-                    overrides.get(crate::timeline::camera::CAMERA_TARGET),
-                )
-            } else {
-                kurbo::Affine::IDENTITY
-            };
-            let camera_exempt = self.camera_used.get() && self.camera_exempt_present.get();
-            let allow_static = !self.backend_can_run(out.filter_backend)
-                && !self.camera_used.get()
-                && suppressed_actors.is_empty()
-                && transient_overrides.is_empty();
-            for &root_id in self.world.root_entities() {
-                if !self.world.exists(root_id) {
-                    continue;
-                }
-                // `camera_follow: false` keeps a root subtree out of the camera
-                // entirely — the HUD that must not move while the scene pushes
-                // in. Only roots are consulted: the camera is applied here, once,
-                // and a nested actor inherits its container's transform, so an
-                // opt-out deeper in the tree would have nothing to undo (and is
-                // reported at build). Short-circuited on `camera_exempt` so a
-                // scene that never uses the flag does no track lookup per root.
-                let root_affine = if camera_exempt {
-                    let root_meta = self.world.meta(root_id);
-                    if !root_meta.camera_follow || root_meta.parallax == 0.0 {
-                        kurbo::Affine::IDENTITY
-                    } else if (root_meta.parallax - 1.0).abs() < f32::EPSILON {
-                        camera_affine
-                    } else {
-                        let p = root_meta.parallax as f64;
-                        let cam = camera_affine.as_coeffs();
-                        kurbo::Affine::new([
-                            1.0 + p * (cam[0] - 1.0),
-                            p * cam[1],
-                            p * cam[2],
-                            1.0 + p * (cam[3] - 1.0),
-                            p * cam[4],
-                            p * cam[5],
-                        ])
-                    }
-                } else {
-                    camera_affine
-                };
-                // P2.17: Static subtree cache — fully-static subtrees are evaluated once
-                // and their vello encoding is reused on subsequent frames. Dimensions
-                // and item collection are part of the key so different canvas sizes or
-                // observable-program requests cannot reuse an incompatible entry.
-                // PF-11: hit regions no longer opt out — the entry captures the
-                // subtree's (label, rect) pairs once and restores them on hits, so
-                // the GUI (which always requests `compute_hit_regions` for picking)
-                // keeps its static-subtree reuse.
-                // A camera move invalidates it: the cached encoding is appended
-                // verbatim and cannot be re-transformed, so the frame must
-                // re-evaluate the subtree instead.
-                let is_static = allow_static && self.is_static_subtree_id(root_id);
-                if is_static {
-                    let cache_key = (root_id, scene_dimensions, collect_items, debug_options);
-                    let cache = self.eval_caches.static_subtree_cache.borrow_mut();
-                    if let Some((cached_scene, cached_bounds, cached_items, cached_hit_regions)) =
-                        cache.get(&cache_key)
-                    {
-                        // Fast path: append cached encoding directly and restore the
-                        // precise bounds that were computed for this subtree.
-                        out.scene.encoding_mut().append(cached_scene.encoding(), &None);
-                        if !cached_bounds.is_empty() {
-                            let mut table = self.eval_caches.precise_bounds.borrow_mut();
-                            for &(slot, rect) in cached_bounds {
-                                table.write(slot, rect);
-                            }
-                        }
-                        if debug_options.compute_hit_regions && !cached_hit_regions.is_empty() {
-                            out.hit_regions.extend(cached_hit_regions.iter().cloned());
-                        }
-                        if let Some(items) = out.program_items.as_mut() {
-                            if !cached_items.is_empty() {
-                                items.reserve(cached_items.len());
-                                items.extend(cached_items.iter().cloned());
-                            }
-                        }
-                    } else {
-                        drop(cache);
-                        let mut temp_scene = vello::Scene::new();
-                        // Snapshot offset into the frame's `written` list: entries
-                        // appended during this subtree's evaluation are exactly its
-                        // bounds (deterministic, unlike the old count-based skip
-                        // over unordered HashMap iteration).
-                        let subtree_written_before =
-                            self.eval_caches.precise_bounds.borrow().written.len();
-                        let mut subtree_items_slot = if collect_items {
-                            Some(Vec::new())
-                        } else {
-                            None
-                        };
-                        let subtree_hits_before = out.hit_regions.len();
-                        // The scratch subtree swaps both the draw target and
-                        // the item sink, so it runs through its own outputs.
-                        out.with_scene_and_items(
-                            &mut temp_scene,
-                            &mut subtree_items_slot,
-                            |temp_out| {
-                                self.evaluate_node_by_id(
-                                    root_id,
-                                    root_affine,
-                                    1.0,
-                                    &empty_positions,
-                                    true,
-                                    &frame,
-                                    temp_out,
-                                );
-                            },
-                        );
-                        let subtree_items = subtree_items_slot.take().unwrap_or_default();
-                        if let Some(items) = out.program_items.as_mut() {
-                            items.extend(subtree_items.iter().cloned());
-                        }
-                        // Capture the subtree's hit regions once (only collected
-                        // when requested; see the cache-key's debug_options).
-                        let new_hit_regions: Vec<(EntityId, kurbo::Rect)> =
-                            if debug_options.compute_hit_regions {
-                                out.hit_regions[subtree_hits_before..].to_vec()
-                            } else {
-                                Vec::new()
-                            };
-                        // Append to main out.scene and cache for next time.
-                        out.scene.encoding_mut().append(temp_scene.encoding(), &None);
-                        let new_bounds: Vec<(u32, kurbo::Rect)> = self
-                            .eval_caches
-                            .precise_bounds
-                            .borrow()
-                            .pairs_from(subtree_written_before);
-                        self.eval_caches.static_subtree_cache.borrow_mut().insert(
-                            cache_key,
-                            (temp_scene, new_bounds, subtree_items, new_hit_regions),
-                        );
-                    }
-                } else {
-                    // A filter scope may only take the zero-readback pending path
-                    // when nothing renders after it (`can_post_composite_filter`);
-                    // otherwise its post-render blit would cover later siblings.
-                    // Mid-out.scene filters fall back to the inline readback path.
-                    let allow_pending = self.can_post_composite_filter(root_id);
-                    self.evaluate_node_by_id(
-                        root_id,
-                        root_affine,
-                        1.0,
-                        &empty_positions, // shared empty: roots carry no layout parent
-                        allow_pending,
-                        &frame,
-                        &mut out,
-                    );
-                }
-            }
-        }
-
-        // P2.24: Only store hit regions when explicitly requested.
-        // Saves bounding-box computation for frames where click-to-select is not needed.
-        if debug_options.compute_hit_regions {
-            *self.eval_caches.hit_regions.borrow_mut() = hit_regions;
+    /// Phase 4 — build the observable program, stash bounds, and publish the
+    /// frame cache or scene buffer.
+    fn store_frame(
+        &self,
+        mut state: FrameEvaluation<'_>,
+        filter_backend: &Option<&mut dyn crate::timeline::effects::FilterBackend>,
+    ) -> crate::timeline::scene_program::SceneProgram {
+        // Only store hit regions when explicitly requested.
+        if state.debug_options.compute_hit_regions {
+            *self.eval_caches.hit_regions.borrow_mut() = std::mem::take(&mut state.hit_regions);
         } else {
             self.eval_caches.hit_regions.borrow_mut().clear();
         }
@@ -603,13 +481,12 @@ impl Timeline {
         // for restore, and filter/debug frames park their copy in scene_buffer.
         // The slot table builds `program.precise_bounds` (label-keyed, for the
         // public `SceneProgram` surface) only on the observable path — it has
-        // no production reader outside tooling/tests (checked 2026-09-05), so
-        // the scene-only path skips the label materialization entirely. On the
-        // scene-only path the frame cache gets the flat `(slot, rect)` pairs;
-        // on the observable path the pairs stay empty (the cloned program
-        // carries the label map, and its rare hits re-derive slots from it —
-        // avoids allocating both representations per observable miss).
-        let (program_bounds, cached_bounds) = if collect_items {
+        // no production reader outside tooling/tests, so the scene-only path
+        // skips the label materialization entirely. On the scene-only path the
+        // frame cache gets the flat `(slot, rect)` pairs; on the observable
+        // path the pairs stay empty (the cloned program carries the label map,
+        // and its rare hits re-derive slots from it).
+        let (program_bounds, cached_bounds) = if state.collect_items {
             // One pass over the written slots builds the label-keyed map; the
             // pre-sized map avoids rehash growth. Registry borrowed in place.
             let table = self.eval_caches.precise_bounds.borrow();
@@ -629,27 +506,27 @@ impl Timeline {
             (std::collections::HashMap::new(), b)
         };
         let program = crate::timeline::scene_program::SceneProgram {
-            dimensions: scene_dimensions,
-            background: bg_color,
-            scene,
-            items: program_items.take().unwrap_or_default(),
+            dimensions: state.scene_dimensions,
+            background: state.bg_color,
+            scene: state.scene,
+            items: state.program_items.take().unwrap_or_default(),
             suppressed_items: Vec::new(),
             precise_bounds: program_bounds,
             diagnostics: self.eval_caches.runtime_diagnostics.borrow().clone(),
         };
         if !self.backend_can_run(filter_backend)
-            && debug_options == DebugRenderOptions::default()
-            && transient_overrides.is_empty()
+            && state.debug_options == DebugRenderOptions::default()
+            && state.transient_overrides.is_empty()
         {
             *self.eval_caches.frame_cache.borrow_mut() = Some(crate::timeline::FrameCacheEntry {
-                time_ms,
-                dimensions: scene_dimensions,
-                has_modifiers: needs_frame_env,
+                time_ms: state.time_ms,
+                dimensions: state.scene_dimensions,
+                has_modifiers: state.needs_frame_env,
                 has_dynamic_layout: self.dynamic_layout,
-                has_child_orders,
+                has_child_orders: state.has_child_orders,
                 program: program.clone(),
                 precise_bounds: cached_bounds,
-                collect_items,
+                collect_items: state.collect_items,
             });
         } else {
             // Filter/debug frames bypass the frame cache (its entry stays
@@ -658,15 +535,15 @@ impl Timeline {
             *self.eval_caches.scene_buffer.borrow_mut() = Some(program.scene.clone());
         }
 
-        // PF-6: hand the finished frame environment back to the pool — its
+        // Hand the finished frame environment back to the pool — its
         // overrides map keeps the table capacity and every key `String` alive
         // for the next frame's in-place rebuild. Only the plain evaluate path
-        // pools; callers that received a cloned env (`local_env` in the plot
+        // pools; callers that received a cloned env (local_env in the plot
         // path) or built one on demand return nothing here.
-        if let Some(env) = frame_env {
+        if let Some(env) = state.frame_env {
             *self.env_pool.borrow_mut() = Some(env);
         }
-        *self.eval_caches.overrides_buffer.borrow_mut() = overrides;
+        *self.eval_caches.overrides_buffer.borrow_mut() = state.overrides;
 
         program
     }

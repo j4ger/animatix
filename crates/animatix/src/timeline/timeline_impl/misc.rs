@@ -10,41 +10,15 @@ impl Timeline {
         self.eval_caches.content_epoch.set(self.eval_caches.content_epoch.get() + 1);
         self.refresh_blend_used();
         self.refresh_camera_used();
-        // Recycle the invalidated entry's encoded scene into the scene buffer
-        // so the next evaluation reuses its allocation instead of starting
-        // from an empty encoding (PF-4: every GUI edit calls this).
-        if let Some(entry) = self.eval_caches.frame_cache.borrow_mut().take() {
-            *self.eval_caches.scene_buffer.borrow_mut() = Some(entry.program.scene);
-        }
-        // Mutations can add or remove `solo` (and add modifiers), so the
-        // cached "does solo need a scan" answer is no longer trustworthy.
-        self.eval_caches.solo_scan_needed.set(None);
-        self.eval_caches.static_subtree_cache.borrow_mut().clear();
-        self.eval_caches.static_subtree_flags.borrow_mut().clear();
-        self.eval_caches.transform_cache.borrow_mut().clear();
-        self.eval_caches.transform_static_flags.borrow_mut().clear();
-        self.eval_caches.primitive_handles.borrow_mut().clear();
-        // The env-path answers are as build-fixed as the ones above.
-        self.eval_caches.needs_frame_env.set(None);
-        *self.eval_caches.env_injection_plan.borrow_mut() = None;
-        self.eval_caches.overrides_buffer.borrow_mut().clear();
-        {
-            // Flat-vec clear: no string keys to recycle (PF-6 slot-id table).
-            self.eval_caches.precise_bounds.borrow_mut().clear_frame();
-        }
-        // Hit regions describe the last evaluated frame; an edit makes them
-        // stale. Every consumer reads them after an evaluate, so clearing is
-        // safe and prevents picking against pre-edit geometry.
-        self.eval_caches.hit_regions.borrow_mut().clear();
-        // Bounds slots are registry-stamped; a track mutation can change the
-        // label set, so drop the registry and let it rebuild lazily.
-        *self.eval_caches.bounds_registry.borrow_mut() = None;
+        // All per-frame caches (including the recycled scene buffer, the static
+        // flags, the env plan and the bounds registry) reset in one place.
+        self.eval_caches.clear();
         self.layout_children_cache.borrow_mut().clear();
         self.layout_engine.invalidate_cache();
         // Drop the pooled frame environment: timeline mutation may change the
         // injected key set (referenced roots, variable tracks, modifiers), and
         // every mutation funnels through here, so this single line restores
-        // fresh-build semantics for the PF-6 env pool.
+        // fresh-build semantics for the env pool.
         *self.env_pool.borrow_mut() = None;
         // Per-track hot-path memos (vector-path Arc sharing) key on this
         // epoch: every mutation funnels through this invalidation, so the

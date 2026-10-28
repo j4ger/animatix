@@ -23,6 +23,17 @@ impl World {
 
     /// Set the actor type and clear any capability override so caps re-derive.
     pub fn set_identity(&mut self, id: EntityId, actor_type: &str) {
+        self.apply_identity(id, actor_type);
+    }
+
+    /// Write an entity's identity: actor type, catalog-derived caps and
+    /// behavior, plus the optional tier stores those caps require.
+    ///
+    /// The single identity-initialization path shared by [`World::spawn`],
+    /// [`World::spawn_replacing`] and [`World::set_identity`]; it also clears
+    /// any capability override. The `Highlight`/`Equation` tier condition lives
+    /// here once instead of in each caller.
+    pub(crate) fn apply_identity(&mut self, id: EntityId, actor_type: &str) {
         self.ensure_len();
         *self.actor_types.get_mut(id) = actor_type.to_string();
         let caps = animatix_std::caps_for_type(actor_type).unwrap_or_default();

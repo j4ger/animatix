@@ -119,7 +119,7 @@ impl Timeline {
         // costs more than the mmap it avoids, so err generous (see PF-6).
         let plan = self.env_injection_plan();
         let estimated_capacity = 16 + self.variable_tracks.len() + plan.estimated_prop_entries;
-        let has_runtime_injection = plan.runtime_injection;
+        let has_runtime_injection = self.needs_frame_env();
         // PF-6 pool: the override-layer key set is identical frame-to-frame
         // (actor labels × registry properties are build-time-fixed), so the
         // environment is retained and its keys overwritten in place via
@@ -168,9 +168,11 @@ impl Timeline {
         // lookups at frame time. Skip the per-track property evaluation entirely.
         // Procedural plots still need actor property keys (e.g. `curve.freq`)
         // injected so their closures can resolve runtime parameters.
-        // `has_runtime_injection` is computed once above and reused here:
-        // `has_procedural_plots` walks every track, and a second call was a
-        // measurable regression on the env_50/100/200 benches (2026-09-04).
+        // `has_runtime_injection` is the memoized `needs_frame_env` answer:
+        // `has_procedural_plots` walks every track, and the memo keeps that
+        // walk to once per invalidation rather than once per frame (a second
+        // per-frame call was a measurable regression on the env_50/100/200
+        // benches, 2026-09-04).
         if !has_runtime_injection {
             // PF-6: one shared key buffer for the whole injection pass — the
             // per-track `String::with_capacity` calls were an allocation each.

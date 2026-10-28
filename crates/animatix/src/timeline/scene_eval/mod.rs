@@ -5,7 +5,11 @@ mod tests;
 
 pub(crate) use bounds::{node_local_bounds, transform_rect_bbox};
 
+mod actor_behavior;
+mod actor_draw;
+mod actor_paths;
 mod frame;
+mod frame_render;
 mod render;
 mod solo;
 mod transform;

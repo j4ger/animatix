@@ -243,7 +243,7 @@ impl Timeline {
             return (parent_transform, parent_opacity);
         }
 
-        // ── Evaluate transform first for visibility culling (P2.19) ──
+        // ── Evaluate transform first for visibility culling ──
         // Extract node overrides from modifier (always block) so spatial
         // properties (position, rotation, scale, opacity, shift, size, transform)
         // are applied rather than being silently ignored.
@@ -255,7 +255,7 @@ impl Timeline {
             None
         };
 
-        // P2.18: Temporal coherence — cache node transforms to avoid
+        // Temporal coherence — cache node transforms to avoid
         // re-sampling properties when the same (time, parent_transform) is
         // evaluated again; keyframe-free entities reuse across times (see
         // `cached_node_transform`).
@@ -278,7 +278,7 @@ impl Timeline {
             return (local_transform, opacity);
         }
 
-        // P2.19: Viewport culling — skip rendering for off-screen actors.
+        // Viewport culling — skip rendering for off-screen actors.
         // Compute a conservative world-space bounding box and check intersection
         // with the viewport. Children are still evaluated since they may extend
         // back into view even when the parent is off-screen.
@@ -293,287 +293,41 @@ impl Timeline {
             return (local_transform, opacity);
         }
 
-        // PF-6: shared Arc — the common static-track case returns a refcount
-        // bump instead of a full path-list clone per node per frame.
-        let mut vector_paths = self
-            .world
-            .shape_or_default(node_id)
-            .evaluate_vector_paths(self.world.style(node_id), time_ms);
-        // `BarChart` data transitions: once a `data = {…}` assignment has begun,
-        // the declaration's paths are stale, so rebuild the bars from the dataset
-        // in effect. Gated on the side channel being non-empty, so a chart whose
-        // data never animates pays nothing.
-        if !self.world.bar_data_transitions(node_id).is_empty() {
-            if let Some(layout) = self.world.bar_layout(node_id) {
-                let data = crate::timeline::plot::bar_data_at(
-                    self.world.bar_data(node_id),
-                    self.world.bar_data_transitions(node_id),
-                    time_ms,
-                );
-                vector_paths = std::sync::Arc::new(layout.paths_for(&data).0);
-            }
-        }
-        // Re-sample procedural plots at frame time so they can reference `t`.
-        // Use the shared frame_env if available; fall back to creating one on-demand
-        // (should only happen when frame_env was created at top level).
-        if let Some(procedural_plot) = self.world.procedural_plot(node_id) {
-            // Guard: only resample per-frame when the plot is dynamic (references `t`
-            // or has animated params) or a func transition is currently active.
-            // Static, non-transitioning plots keep the cached build-time vector_paths.
-            let transitioning = self
-                .world
-                .func_transitions(node_id)
-                .iter()
-                .any(|t| time_ms >= t.start_ms && time_ms <= t.end_ms);
-            // Also use per-frame sampling once all transitions are complete so that
-            // the final `to` function (not the original declaration) is rendered.
-            let has_completed_transitions =
-                self.world.func_transitions(node_id).iter().any(|t| t.is_complete_at(time_ms));
-
-            if procedural_plot.is_dynamic(&self.frame_written_vars)
-                || transitioning
-                || has_completed_transitions
-            {
-                let fallback_env;
-                let env = if let Some(env) = frame_env {
-                    env
-                } else {
-                    fallback_env =
-                        self.build_frame_env_internal(time_ms, scene_dimensions, overrides);
-                    &fallback_env
-                };
-
-                // Inject plot parameter values from keyframe tracks into a
-                // scoped let-chain overlay on the frame environment, so that
-                // `sample_procedural_plot_at` sees animated values without
-                // deep-cloning the entire Environment hash map.
-                let mut param_bindings = Vec::new();
-                for name in &procedural_plot.param_names {
-                    if let Some(param_track) = self.world.plot_param_track(node_id, name) {
-                        let val = param_track.evaluate(time_ms);
-                        let num_val = crate::timeline::Value::Num(val);
-                        // Set the dotted key (e.g. "curve.freq") for explicit references
-                        let mut key = String::new();
-                        crate::timeline::env_keys::property_into(
-                            &procedural_plot.actor_label,
-                            name,
-                            &mut key,
-                        );
-                        param_bindings.push((key, num_val.clone()));
-                        // Set the bare name (e.g. "freq") for closure captures,
-                        // but don't shadow closure sample arguments.
-                        if !procedural_plot.func_args.contains(name) {
-                            param_bindings.push((name.clone(), num_val));
-                        }
-                    }
-                }
-                let has_params = !param_bindings.is_empty();
-                if has_params {
-                    env.push_let_scope(param_bindings);
-                }
-
-                vector_paths =
-                    std::sync::Arc::new(crate::timeline::plot::sample_procedural_plot_at(
-                        procedural_plot,
-                        env,
-                        time_ms,
-                        self.world.func_transitions(node_id),
-                    ));
-
-                if has_params {
-                    env.pop_let_scope();
-                }
-                // Surface silent sample failures once per actor per frame: a
-                // closure whose evaluation fails renders NaN gaps with no
-                // other trace (the sampler memoizes per-sample errors, so the
-                // path itself is the only signal). PathElement scan is cheap
-                // relative to sampling; one diagnostic per frame per actor
-                // cannot spam the panel.
-                // The path assembler drops NaN points entirely (they only
-                // reset the pen), so a failed closure produces an EMPTY
-                // BezPath inside a present VelloPath — that emptiness is the
-                // observable signal. (Per-point NaN scans never see it.)
-                let has_nan_gap = vector_paths
-                    .iter()
-                    .any(|vp| vp.path.elements().is_empty() && vp.stroke.is_some());
-                if has_nan_gap {
-                    self.eval_caches.runtime_diagnostics.borrow_mut().push(
-                        crate::diagnostics::Diagnostic::warning(
-                            crate::diagnostics::DiagnosticCode::RenderFailure,
-                            crate::diagnostics::DiagnosticPhase::Render,
-                            format!(
-                                "plot '{}' produced non-finite samples at t={time_ms}ms; \
-                                 the func closure likely failed — rendering gaps",
-                                procedural_plot.actor_label
-                            ),
-                        ),
-                    );
-                }
-            }
-        }
-
-        // ── Phase 10b.3: Behavior evaluation ──
-        // The behavior's evaluate() is the direct render path.
-        // `Some(commands)` draws the commands and records a hit region;
-        // `None` means "no drawable content" — nothing is drawn and no
-        // hit region or precise bounds are recorded for it.
-        let primitive_dispatch = self.behavior_for_node(node_id, time_ms).and_then(|def| {
-            if def.caps.is_shape {
-                self.world.begin_shape_commands(node_id);
-            }
-            let ctx = crate::primitives::EvaluateCtx {
-                id: node_id,
-                label: node_label,
+        // Vector-path sampling (shape tier, bar-chart transitions, procedural
+        // plots) and behavior dispatch live in their own phases; both are pure
+        // reads of this node's frame state.
+        let vector_paths = self.evaluate_node_vector_paths(
+            node_id,
+            time_ms,
+            scene_dimensions,
+            overrides,
+            frame_env,
+        );
+        let primitive_dispatch = self.evaluate_behavior_commands(
+            node_id,
+            node_label,
+            time_ms,
+            local_transform,
+            opacity,
+            scene_dimensions,
+            node_overrides,
+            &vector_paths,
+        );
+        if let Some(commands) = primitive_dispatch {
+            self.draw_node_commands(
+                node_id,
+                node_label,
                 time_ms,
+                debug_options,
                 local_transform,
                 opacity,
-                scene_dimensions,
-                background_color: self.eval_caches.background_color.get(),
-                overrides: node_overrides,
-                vector_paths: &vector_paths,
-                asset_cache: &self.asset_cache,
-                target_resolver: Some(self),
-                legend: self.world.legend(node_id),
-                world: Some(&self.world),
-                highlight: self.world.highlight(node_id),
-                style: self.world.style(node_id),
-                shape: self.world.shape(node_id),
-                geometry: self.world.geometry(node_id),
-                text: self.world.text(node_id),
-                property_plan: self.world.property_plan(node_id),
-                caps: def.caps,
-                payload: None,
-            };
-            let mut text_ctx = crate::primitives::TextCompileCtx {
-                text_compiler: &mut self.text_compiler.borrow_mut(),
-                font_context: self.font_context.as_ref(),
-            };
-            match def.evaluate(&ctx, Some(&mut text_ctx)) {
-                Ok(commands) => commands,
-                Err(e) => {
-                    self.eval_caches.runtime_diagnostics.borrow_mut().push(
-                        crate::diagnostics::Diagnostic::error(
-                            crate::diagnostics::DiagnosticCode::RenderFailure,
-                            crate::diagnostics::DiagnosticPhase::Render,
-                            format!("failed to evaluate '{node_label}' at t={time_ms}ms: {e}"),
-                        ),
-                    );
-                    None
-                },
-            }
-        });
-        // Record the hit region for this actor (used by GUI picking and
-        // precise-bounds consumers). Command-derived bounds when commands
-        // exist; otherwise the actor's layout half-size box — this keeps
-        // container shells (which return `Some(vec![])`) clickable at the
-        // box they occupy. Actors whose `evaluate()` returned `None` have
-        // no drawable content (e.g. empty text), so they intentionally
-        // record nothing (semantics pinned by
-        // `runtime_empty_text_override_clears_stale_glyphs`).
-        let mut record_hit_region = |local_bounds: Option<kurbo::Rect>| {
-            let world_bounds = if let Some(lb) = local_bounds {
-                transform_rect_bbox(&local_transform, lb)
-            } else {
-                let default_bounds = kurbo::Rect::new(
-                    (-half_size[0]) as f64,
-                    (-half_size[1]) as f64,
-                    half_size[0] as f64,
-                    half_size[1] as f64,
-                );
-                transform_rect_bbox(&local_transform, default_bounds)
-            };
-            // `hit_regions` is only read back when picking was requested
-            // (`evaluate_program_inner` discards it otherwise). The id is the
-            // entity handle, so no label is materialized per node per frame.
-            if debug_options.compute_hit_regions {
-                hit_regions.push((node_id, world_bounds));
-            }
-            // PF-6 slot-id bounds: the frame start stamped every track's
-            // slot, so the write is a `Vec` store — no string key, no hash.
-            let slot = self.world.bounds_slot(node_id);
-            self.record_precise_bounds(slot, node_label, world_bounds);
-        };
-        if let Some(commands) = primitive_dispatch {
-            for cmd in &commands {
-                cmd.execute(scene, &local_transform, opacity);
-            }
-            if let Some(items) = program_items.as_mut() {
-                items.push(crate::timeline::scene_program::SceneItem {
-                    label: node_label.to_string(),
-                    transform: local_transform,
-                    opacity,
-                    commands: commands.clone(),
-                });
-            }
-            // Hit region — compute from commands, not stale vector_paths.
-            // PF-4 scoped item: a shape-command memo hit hands over the
-            // build-time-computed bounds (image_size is irrelevant —
-            // shape commands never carry images), skipping the per-node
-            // bezpath `bounding_box` unions entirely.
-            let caps = self.world.caps(node_id);
-            let memo_bounds = if caps.is_shape {
-                self.world.take_shape_command_bounds(node_id)
-            } else {
-                None
-            };
-            let local_bounds: Option<kurbo::Rect> = match memo_bounds {
-                Some(bounds) => bounds,
-                None => {
-                    if let Some(lb) = self.world.local_bounds(node_id) {
-                        Some(lb)
-                    } else {
-                        let image_size = if caps.image_payload {
-                            self.world
-                                .image_track(node_id)
-                                .is_some_and(|t| t.evaluate(time_ms).is_some())
-                                .then_some(half_size)
-                        } else {
-                            None
-                        };
-                        let mut bounds: Option<kurbo::Rect> = None;
-                        for cmd in &commands {
-                            if let Some(cmd_bounds) = cmd.local_bounds(image_size) {
-                                bounds = Some(match bounds {
-                                    Some(existing) => existing.union(cmd_bounds),
-                                    None => cmd_bounds,
-                                });
-                            }
-                        }
-                        bounds
-                    }
-                },
-            };
-            // Shape-primitive commands came from the track's command
-            // memo on a hit — hand the buffers back so the next frame
-            // can take them again (PF-6 round 8; `take_shape_commands`
-            // returns `None` for non-memo actors, so a recycle of a
-            // foreign `Vec` is simply dropped by the memo).
-            self.world.recycle_shape_commands(node_id, commands);
-            record_hit_region(local_bounds);
-
-            // Debug overlays
-            if debug_options.draw_bounds {
-                let svg_paths = self.world.svg_paths_at(node_id, time_ms).unwrap_or_default();
-                let text_paths = self
-                    .world
-                    .text_or_default(node_id)
-                    .evaluate_paths(self.world.style(node_id), time_ms);
-                let has_image = caps.image_payload
-                    && self
-                        .world
-                        .image_track(node_id)
-                        .is_some_and(|t| t.evaluate(time_ms).is_some());
-                let _ = self.add_node_debug_overlays(
-                    &svg_paths,
-                    half_size,
-                    &local_transform,
-                    scene,
-                    &vector_paths,
-                    &text_paths,
-                    has_image,
-                );
-            }
-
+                half_size,
+                &vector_paths,
+                commands,
+                scene,
+                hit_regions,
+                program_items,
+            );
             return (local_transform, opacity);
         }
 

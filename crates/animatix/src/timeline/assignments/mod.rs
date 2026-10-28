@@ -20,6 +20,7 @@ use crate::timeline::property_registry::{PropertyFlags, lookup_property};
 use crate::timeline::property_track::TrackAccessor;
 
 mod effects;
+mod position;
 mod rebuild;
 
 use effects::write_effect_stage_param;
@@ -28,39 +29,40 @@ use rebuild::{
     push_unsupported_assignment_property_diagnostic, rebuild_vector_paths, scale_plot_curve_paths,
 };
 
+/// Build-fixed inputs of one assignment statement, resolved once before any
+/// mutable component borrow by [`Timeline::prepare_assignment`].
+struct AssignmentPlan {
+    target_key: String,
+    subject: String,
+    eval_env: Environment,
+    /// Build time of the statement in milliseconds (the un-offset clock the
+    /// primitive context carries alongside `t_start_ms`).
+    time_ms: u64,
+    func_blend_mode: crate::timeline::plot::FuncBlendMode,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    duration_ms: f64,
+    instant_delayed: bool,
+    easing: Easing,
+    is_size_property: bool,
+    child_labels: Vec<String>,
+    coordinate_frame: Option<crate::timeline::CoordinateFrameComponent>,
+    caps: animatix_core::caps::ActorCaps,
+    actor_type: String,
+    track_id: crate::timeline::EntityId,
+}
+
 impl Timeline {
     /// Resolve an assignment target path that may traverse the scene hierarchy.
     ///
-    /// For a path like `["g", "vec"]`:
-    /// - First checks if a track named `"g.vec"` exists directly.
-    /// - If not, walks the hierarchy: finds `"g"`, checks if `"vec"` is its child, and returns
-    ///   `"vec"` as the resolved track key.
-    /// - Returns `None` if the path cannot be resolved.
+    /// Delegates to [`crate::timeline::World::resolve_path`], the single
+    /// dotted-path resolver shared with action targeting: a direct track named
+    /// `"g.vec"` wins, otherwise the path walks the scene hierarchy.
     fn resolve_hierarchical_target(&self, target: &[TargetSegment]) -> Option<String> {
-        if target.is_empty() {
-            return None;
-        }
-
-        let direct_key = assignment_target_key(target);
-        if self.world.tracks.contains_key(&direct_key) {
-            return Some(direct_key);
-        }
-
-        if target.len() == 1 {
-            return None;
-        }
-
-        // Walk the hierarchy — all segments must be static at build time.
-        let mut current = target[0].label_str().to_string();
-        for segment in &target[1..] {
-            let seg_str = segment.label_str();
-            let current_id = self.world.get_id(&current)?;
-            let next = self.world.child_labels(current_id).find(|child| *child == seg_str)?;
-            current = next.to_string();
-        }
-
-        Some(current)
+        let segments: Vec<&str> = target.iter().map(TargetSegment::label_str).collect();
+        self.world.resolve_path(&segments)
     }
+
     pub(super) fn process_assignment_statement(
         &mut self,
         target: &[TargetSegment],
@@ -79,6 +81,54 @@ impl Timeline {
             ));
             return;
         }
+        // Phase 1: resolve the target, timing and the special-case dispatch
+        // (effect/scene, variable/camera) that must precede track resolution.
+        let Some(plan) = self.prepare_assignment(
+            target,
+            property,
+            value,
+            modifiers,
+            explicit_easing,
+            time_ms,
+            diagnostics,
+        ) else {
+            return;
+        };
+
+        // Phase 2: position/offset need compound-binding handling, then the
+        // actor's primitive gets first refusal on the property, and the
+        // registry engine handles everything else.
+        if matches!(property, "position" | "at") {
+            self.assign_position(&plan, value, diagnostics);
+            return;
+        }
+        if property == "offset" {
+            self.assign_offset(&plan, value, diagnostics);
+            return;
+        }
+        if self.assign_primitive(&plan, property, value, diagnostics) {
+            return;
+        }
+        self.assign_generic(&plan, property, value, diagnostics);
+    }
+
+    /// Resolve everything the per-property steps need before a mutable track
+    /// borrow: normalized target segments, timing, the special-case dispatch,
+    /// the hierarchy-resolved track key, and the actor context (caps, type,
+    /// child labels, coordinate frame).
+    ///
+    /// `None` means the statement was consumed by a special case or rejected
+    /// with a diagnostic.
+    fn prepare_assignment(
+        &mut self,
+        target: &[TargetSegment],
+        property: &str,
+        value: &super::Expr,
+        modifiers: &[super::Modifier],
+        explicit_easing: Option<super::Easing>,
+        time_ms: f64,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Option<AssignmentPlan> {
         let eval_env = self.build_eval_env(time_ms as u64);
         // Resolve `name[expr]` segments against the build environment before
         // walking the scene hierarchy (loop variables and `let` bindings are
@@ -157,7 +207,7 @@ impl Timeline {
             diagnostics,
             &assignment_subject,
         ) {
-            return;
+            return None;
         }
         if self.assign_variable_or_camera(
             &target,
@@ -172,7 +222,7 @@ impl Timeline {
             diagnostics,
             &assignment_subject,
         ) {
-            return;
+            return None;
         }
         let target_key = match self.resolve_hierarchical_target(&target) {
             Some(key) => key,
@@ -187,7 +237,7 @@ impl Timeline {
                     &assignment_target_key(&target),
                     suggestion,
                 );
-                return;
+                return None;
             },
         };
 
@@ -212,374 +262,318 @@ impl Timeline {
             .unwrap_or_default();
         let Some(track_id) = self.world.get_id(&target_key) else {
             tracing::warn!("assignment target '{target_key}' has no track; skipping");
-            return;
+            return None;
         };
 
-        // ── Special cases that can't go through the generic engine ──
+        Some(AssignmentPlan {
+            target_key,
+            subject: assignment_subject,
+            eval_env,
+            time_ms: time_ms as u64,
+            func_blend_mode,
+            t_start_ms,
+            t_end_ms,
+            duration_ms,
+            instant_delayed,
+            easing,
+            is_size_property,
+            child_labels,
+            coordinate_frame,
+            caps,
+            actor_type,
+            track_id,
+        })
+    }
 
-        // Position / at — uses position binding resolution (compound property)
-        if matches!(property, "position" | "at") {
-            let default_pos = [0.0, 0.0];
-            let default_binding = PositionBinding::Absolute;
-            let geometry = self.world.geometry.get_mut(track_id);
-            let target_pos = if let Some((binding, position)) =
-                resolve_position_binding_with_lookup_diagnostic(
-                    Some(value),
-                    None,
-                    None,
-                    &eval_env,
-                    diagnostics,
-                    &assignment_subject,
-                ) {
-                preserve_discrete_position_state_before(geometry, t_start_ms);
-                if instant_delayed {
-                    preserve_instant_delayed_value(&mut geometry.position, t_start_ms);
-                }
-                mark_track_manual_position(geometry, t_start_ms);
-                if duration_ms > 0.0 {
-                    let start_binding = geometry.position_binding.get(t_start_ms, default_binding);
-                    geometry.position_binding.ensure(default_binding).add_keyframe(
-                        t_start_ms,
-                        start_binding,
-                        Easing::Linear,
-                    );
-                    geometry
-                        .position_binding
-                        .ensure(default_binding)
-                        .add_keyframe(t_end_ms, binding, easing);
-                } else {
-                    set_track_position_binding(geometry, t_start_ms, binding);
-                }
-                position.unwrap_or_else(|| geometry.position.last(default_pos))
-            } else {
-                geometry.position.last(default_pos)
-            };
-            if duration_ms > 0.0 {
-                let start_val = geometry.position.get(t_start_ms, default_pos);
-                geometry.position.ensure(default_pos).add_keyframe(
-                    t_start_ms,
-                    start_val,
-                    Easing::Linear,
-                );
-            } else if instant_delayed {
-                preserve_instant_delayed_value(&mut geometry.position, t_start_ms);
+    /// Let the actor's primitive handle its own special cases. `true` when the
+    /// primitive recognized and consumed the property.
+    fn assign_primitive(
+        &mut self,
+        plan: &AssignmentPlan,
+        property: &str,
+        value: &super::Expr,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> bool {
+        let primitive = self.primitive_registry.find(&plan.actor_type);
+        let Some(primitive) = primitive else {
+            return false;
+        };
+        let mut payload = self
+            .world
+            .payload(plan.track_id)
+            .unwrap_or(crate::primitives::PrimitivePayload::None);
+        let mut ctx = AssignmentCtx {
+            t_start_ms: plan.t_start_ms,
+            time_ms: plan.time_ms,
+            func_blend_mode: Some(plan.func_blend_mode),
+            label: &plan.target_key,
+            t_end_ms: plan.t_end_ms,
+            easing: plan.easing,
+            instant_delayed: plan.instant_delayed,
+            duration_ms: plan.duration_ms,
+            font_context: self.font_context.as_ref(),
+            text_compiler: &mut self.text_compiler.borrow_mut(),
+            asset_cache: std::sync::Arc::make_mut(&mut self.asset_cache),
+            highlight: self.world.highlight.get_mut(plan.track_id),
+            style: self.world.style.try_get_mut(plan.track_id),
+            caps: plan.caps,
+            geometry: self.world.geometry.try_get_mut(plan.track_id),
+            shape: self.world.shape.get_mut(plan.track_id),
+            text: self.world.text.get_mut(plan.track_id),
+            property_plan: Some(self.world.property_plan.get_mut(plan.track_id)),
+            payload: Some(&mut payload),
+        };
+        if primitive.handle_assignment(
+            property,
+            value,
+            &mut ctx,
+            &plan.eval_env,
+            diagnostics,
+            &plan.subject,
+        ) {
+            if !matches!(payload, crate::primitives::PrimitivePayload::None) {
+                self.world.set_payload(plan.track_id, payload);
             }
-            geometry.position.ensure(default_pos).add_keyframe(t_end_ms, target_pos, easing);
-            return;
+            return true;
         }
+        false
+    }
 
-        // Offset — rewrites the offset component of the *current* position
-        // binding, keeping the anchor or percentage base it hangs off. An
-        // offset only exists relative to an anchor/percent base, so on an
-        // absolute or container-default binding it is ignored with the same
-        // `IgnoredOffset` warning the declaration path uses.
-        if property == "offset" {
-            let Some(new_offset) = parse_numeric_vec2_with_lookup_diagnostic(
-                value,
-                &eval_env,
-                diagnostics,
-                &assignment_subject,
-            ) else {
-                return;
-            };
-            let default_binding = PositionBinding::Absolute;
-            let geometry = self.world.geometry.get_mut(track_id);
-            let current = geometry.position_binding.get(t_start_ms, default_binding);
-            let rebased = match current {
-                PositionBinding::SceneAnchor { anchor, .. } => PositionBinding::SceneAnchor {
-                    anchor,
-                    offset: new_offset,
-                },
-                PositionBinding::ScenePercent { x, y, .. } => PositionBinding::ScenePercent {
-                    x,
-                    y,
-                    offset: new_offset,
-                },
-                PositionBinding::Absolute
-                | PositionBinding::ContainerDefault { .. }
-                | PositionBinding::ContainerPercent { .. } => {
-                    diagnostics.push(
-                        Diagnostic::warning(
-                            DiagnosticCode::IgnoredOffset,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "`offset` has no effect on '{assignment_subject}' without `at`/`anchor`; the value is ignored.",
-                            ),
-                        )
-                        .with_subject(&assignment_subject),
-                    );
-                    return;
-                },
-            };
-            preserve_discrete_position_state_before(geometry, t_start_ms);
-            mark_track_manual_position(geometry, t_start_ms);
-            if duration_ms > 0.0 {
-                let start_binding = geometry.position_binding.get(t_start_ms, default_binding);
-                geometry.position_binding.ensure(default_binding).add_keyframe(
-                    t_start_ms,
-                    start_binding,
-                    Easing::Linear,
-                );
-                geometry
-                    .position_binding
-                    .ensure(default_binding)
-                    .add_keyframe(t_end_ms, rebased, easing);
-            } else {
-                set_track_position_binding(geometry, t_start_ms, rebased);
-            }
-            return;
-        }
-
-        // ── Primitive dispatch: let each primitive handle its own special cases ──
-        let primitive = self.primitive_registry.find(&actor_type);
-        if let Some(primitive) = primitive {
-            let mut payload = self
-                .world
-                .payload(track_id)
-                .unwrap_or(crate::primitives::PrimitivePayload::None);
-            let mut ctx = AssignmentCtx {
-                t_start_ms,
-                time_ms: time_ms as u64,
-                func_blend_mode: Some(func_blend_mode),
-                label: &target_key,
-                t_end_ms,
-                easing,
-                instant_delayed,
-                duration_ms,
-                font_context: self.font_context.as_ref(),
-                text_compiler: &mut self.text_compiler.borrow_mut(),
-                asset_cache: std::sync::Arc::make_mut(&mut self.asset_cache),
-                highlight: self.world.highlight.get_mut(track_id),
-                style: self.world.style.try_get_mut(track_id),
-                caps,
-                geometry: self.world.geometry.try_get_mut(track_id),
-                shape: self.world.shape.get_mut(track_id),
-                text: self.world.text.get_mut(track_id),
-                property_plan: Some(self.world.property_plan.get_mut(track_id)),
-                payload: Some(&mut payload),
-            };
-            if primitive.handle_assignment(
-                property,
-                value,
-                &mut ctx,
-                &eval_env,
-                diagnostics,
-                &assignment_subject,
-            ) {
-                if !matches!(payload, crate::primitives::PrimitivePayload::None) {
-                    self.world.set_payload(track_id, payload);
-                }
-                return;
-            }
-        }
-
-        // ── Generic engine for all other properties ──
-
+    /// Schema-registry dispatch: size/geometry special cases, the standard
+    /// property-field write, then extension properties and the unknown-property
+    /// diagnostic.
+    fn assign_generic(
+        &mut self,
+        plan: &AssignmentPlan,
+        property: &str,
+        value: &super::Expr,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
         let schema = lookup_property(property);
-
         if let Some(schema) = schema {
             // Check if the property is assignable
             if !schema.flags.contains(PropertyFlags::ASSIGNABLE) {
                 push_unsupported_assignment_property_diagnostic(
                     diagnostics,
-                    &assignment_subject,
-                    &target_key,
+                    &plan.subject,
+                    &plan.target_key,
                     property,
                 );
                 return;
             }
-
             // Special handling for properties that write to size + layout_size together
-            if is_size_property {
-                // Save parent's old size before assignment (for scaling children)
-                let old_half_size =
-                    self.world.geometry.get(track_id).size.last(DEFAULT_LAYOUT_HALF_SIZE);
-
-                self.world.local_bounds.reset_at(track_id);
-                self.world.ensure_shape(track_id);
-                let new_half_size = handle_size_assignment(
-                    &actor_type,
-                    self.world.style.get(track_id),
-                    self.world.geometry.get_mut(track_id),
-                    self.world.shape.get_mut(track_id).expect("shape component"),
-                    property,
-                    value,
-                    &eval_env,
-                    &assignment_subject,
-                    t_start_ms,
-                    t_end_ms,
-                    easing,
-                    instant_delayed,
-                    diagnostics,
-                    coordinate_frame.as_ref(),
-                );
-
-                // For Graph actors, also rebuild PlotCurve children whose
-                // paths depend on the parent's size (p_size), and scale
-                // tick label positions to match the new axis positions.
-                let shape_type =
-                    self.world.shape_or_default(track_id).shape_type.last(ShapeType::Rect);
-                if shape_type == ShapeType::Graph && old_half_size != new_half_size {
-                    let scale_x = new_half_size[0] / old_half_size[0];
-                    let scale_y = new_half_size[1] / old_half_size[1];
-                    for child_label in &child_labels {
-                        // Capabilities are a `World` projection, not a track field.
-                        let Some(child_id) = self.world.get_id(child_label) else {
-                            continue;
-                        };
-                        let child_caps = self.world.caps(child_id);
-                        // Scope the two child rewrites (the old
-                        // `tracks.get_mut` guard is now the id resolution
-                        // above); they are independent of each other.
-                        {
-                            // Scale PlotCurve paths
-                            if child_caps.plot_geometry {
-                                self.world.ensure_shape(child_id);
-                                scale_plot_curve_paths(
-                                    self.world.style.get(child_id),
-                                    self.world.shape.get_mut(child_id).expect("shape component"),
-                                    scale_x,
-                                    scale_y,
-                                    t_start_ms,
-                                    t_end_ms,
-                                    easing,
-                                );
-                            }
-                            // Scale tick label positions (Text children named {label}_tick_x_N /
-                            // _tick_y_N)
-                            if child_caps.text.is_some()
-                                && (child_label.contains("_tick_x_")
-                                    || child_label.contains("_tick_y_"))
-                            {
-                                let child_geometry = self.world.geometry.get_mut(child_id);
-                                let old_pos = child_geometry.position.last([0.0, 0.0]);
-                                let new_pos = [old_pos[0] * scale_x, old_pos[1] * scale_y];
-                                let child_has_duration = t_end_ms > t_start_ms;
-                                if child_has_duration {
-                                    let start_pos =
-                                        child_geometry.position.get(t_start_ms, [0.0, 0.0]);
-                                    child_geometry.position.ensure([0.0, 0.0]).add_keyframe(
-                                        t_start_ms,
-                                        start_pos,
-                                        Easing::Linear,
-                                    );
-                                } else if instant_delayed {
-                                    preserve_instant_delayed_value(
-                                        &mut child_geometry.position,
-                                        t_start_ms,
-                                    );
-                                }
-                                child_geometry
-                                    .position
-                                    .ensure([0.0, 0.0])
-                                    .add_keyframe(t_end_ms, new_pos, easing);
-                            }
-                        }
-                    }
-                }
-
+            if plan.is_size_property {
+                self.assign_size_property(plan, property, value, diagnostics);
                 return;
             }
+            self.assign_standard_property(plan, property, value, schema, diagnostics);
+        } else {
+            self.assign_extension_property(plan, property, value, diagnostics);
+        }
+    }
 
-            // Standard engine dispatch for everything else. Capture what the
-            // track borrow still owes us, then end it so the write can go
-            // through `World` (which needs the whole world mutably).
-            let stroke_only = caps.shape.is_some_and(|s| s.is_stroke_only());
-            let pv = parse_property_value(
+    /// `size` / `radius_x` / `radius_y`: write both the geometry and shape
+    /// halves, then rescale a `Graph`'s plot-curve and tick-label children.
+    fn assign_size_property(
+        &mut self,
+        plan: &AssignmentPlan,
+        property: &str,
+        value: &super::Expr,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        // Save parent's old size before assignment (for scaling children)
+        let old_half_size =
+            self.world.geometry.get(plan.track_id).size.last(DEFAULT_LAYOUT_HALF_SIZE);
+
+        self.world.local_bounds.reset_at(plan.track_id);
+        self.world.ensure_shape(plan.track_id);
+        let new_half_size = handle_size_assignment(
+            &plan.actor_type,
+            self.world.style.get(plan.track_id),
+            self.world.geometry.get_mut(plan.track_id),
+            self.world.shape.get_mut(plan.track_id).expect("shape component"),
+            property,
+            value,
+            &plan.eval_env,
+            &plan.subject,
+            plan.t_start_ms,
+            plan.t_end_ms,
+            plan.easing,
+            plan.instant_delayed,
+            diagnostics,
+            plan.coordinate_frame.as_ref(),
+        );
+
+        // For Graph actors, also rebuild PlotCurve children whose paths
+        // depend on the parent's size (p_size), and scale tick label positions
+        // to match the new axis positions.
+        let shape_type =
+            self.world.shape_or_default(plan.track_id).shape_type.last(ShapeType::Rect);
+        if shape_type != ShapeType::Graph || old_half_size == new_half_size {
+            return;
+        }
+        let scale_x = new_half_size[0] / old_half_size[0];
+        let scale_y = new_half_size[1] / old_half_size[1];
+        for child_label in &plan.child_labels {
+            // Capabilities are a `World` projection, not a track field.
+            let Some(child_id) = self.world.get_id(child_label) else {
+                continue;
+            };
+            let child_caps = self.world.caps(child_id);
+            // Scale PlotCurve paths
+            if child_caps.plot_geometry {
+                self.world.ensure_shape(child_id);
+                scale_plot_curve_paths(
+                    self.world.style.get(child_id),
+                    self.world.shape.get_mut(child_id).expect("shape component"),
+                    scale_x,
+                    scale_y,
+                    plan.t_start_ms,
+                    plan.t_end_ms,
+                    plan.easing,
+                );
+            }
+            // Scale tick label positions (Text children named {label}_tick_x_N /
+            // _tick_y_N)
+            if child_caps.text.is_some()
+                && (child_label.contains("_tick_x_") || child_label.contains("_tick_y_"))
+            {
+                let child_geometry = self.world.geometry.get_mut(child_id);
+                let old_pos = child_geometry.position.last([0.0, 0.0]);
+                let new_pos = [old_pos[0] * scale_x, old_pos[1] * scale_y];
+                let child_has_duration = plan.t_end_ms > plan.t_start_ms;
+                if child_has_duration {
+                    let start_pos = child_geometry.position.get(plan.t_start_ms, [0.0, 0.0]);
+                    child_geometry.position.ensure([0.0, 0.0]).add_keyframe(
+                        plan.t_start_ms,
+                        start_pos,
+                        Easing::Linear,
+                    );
+                } else if plan.instant_delayed {
+                    preserve_instant_delayed_value(&mut child_geometry.position, plan.t_start_ms);
+                }
+                child_geometry.position.ensure([0.0, 0.0]).add_keyframe(
+                    plan.t_end_ms,
+                    new_pos,
+                    plan.easing,
+                );
+            }
+        }
+    }
+
+    /// Standard property write through the registry field table, including the
+    /// stroke-only `color` mirror and the shape-geometry rebuild.
+    fn assign_standard_property(
+        &mut self,
+        plan: &AssignmentPlan,
+        property: &str,
+        value: &super::Expr,
+        schema: &crate::timeline::property_registry::PropertySchema,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let stroke_only = plan.caps.shape.is_some_and(|s| s.is_stroke_only());
+        let pv = parse_property_value(
+            schema.value_type,
+            value,
+            &plan.eval_env,
+            diagnostics,
+            &plan.subject,
+        );
+        let Some(pv) = pv else {
+            return;
+        };
+        self.world.write_property_field(
+            plan.track_id,
+            schema.field,
+            pv,
+            plan.t_start_ms,
+            plan.t_end_ms,
+            plan.easing,
+            diagnostics,
+        );
+
+        // For stroke-only shapes, a `color` assignment also sets
+        // `stroke_color` — they paint from it and nothing else.
+        if property == "color" && stroke_only {
+            if let Some(spv) = parse_property_value(
                 schema.value_type,
                 value,
-                &eval_env,
+                &plan.eval_env,
                 diagnostics,
-                &assignment_subject,
-            );
-            if let Some(pv) = pv {
+                &plan.subject,
+            ) {
                 self.world.write_property_field(
-                    track_id,
-                    schema.field,
-                    pv,
-                    t_start_ms,
-                    t_end_ms,
-                    easing,
+                    plan.track_id,
+                    crate::timeline::ActorField::StrokeColor,
+                    spv,
+                    plan.t_start_ms,
+                    plan.t_end_ms,
+                    plan.easing,
                     diagnostics,
                 );
-
-                // For stroke-only shapes, a `color` assignment also sets
-                // `stroke_color` — they paint from it and nothing else.
-                if property == "color" && stroke_only {
-                    if let Some(spv) = parse_property_value(
-                        schema.value_type,
-                        value,
-                        &eval_env,
-                        diagnostics,
-                        &assignment_subject,
-                    ) {
-                        self.world.write_property_field(
-                            track_id,
-                            crate::timeline::ActorField::StrokeColor,
-                            spv,
-                            t_start_ms,
-                            t_end_ms,
-                            easing,
-                            diagnostics,
-                        );
-                    }
-                }
-
-                // If this property affects shape geometry, rebuild vector paths
-                if affects_shape_geometry(property) {
-                    self.world.local_bounds.reset_at(track_id);
-                    self.world.ensure_shape(track_id);
-                    rebuild_vector_paths(
-                        actor_type.as_str(),
-                        self.world.style.get(track_id),
-                        self.world.geometry.get(track_id),
-                        self.world.shape.get_mut(track_id).expect("shape component"),
-                        t_start_ms,
-                        t_end_ms,
-                        easing,
-                        diagnostics,
-                        coordinate_frame.as_ref(),
-                    );
-                }
             }
-        } else {
-            // Extension properties registered on this actor type.
-            if let Some(ctx) = self.extensions.clone() {
-                let spec = ctx.property_spec(&actor_type, property).cloned();
-                if let Some(spec) = spec {
-                    if let Some(pv) =
-                        crate::timeline::property_engine::parse_extension_property_value(
-                            spec.kind,
-                            spec.ty.as_ref(),
-                            value,
-                            &eval_env,
-                            diagnostics,
-                            &assignment_subject,
-                        )
-                    {
-                        crate::timeline::property_engine::write_extension_property_slot(
-                            self.world.property_plan.get_mut(track_id),
-                            &ctx,
-                            &spec.actor_type,
-                            property,
-                            pv,
-                            t_start_ms,
-                            t_end_ms,
-                            easing,
-                        );
-                    }
-                    return;
-                }
-            }
+        }
 
-            // Unknown property — report diagnostic
-            push_unsupported_assignment_property_diagnostic(
+        // If this property affects shape geometry, rebuild vector paths
+        if affects_shape_geometry(property) {
+            self.world.local_bounds.reset_at(plan.track_id);
+            self.world.ensure_shape(plan.track_id);
+            rebuild_vector_paths(
+                plan.actor_type.as_str(),
+                self.world.style.get(plan.track_id),
+                self.world.geometry.get(plan.track_id),
+                self.world.shape.get_mut(plan.track_id).expect("shape component"),
+                plan.t_start_ms,
+                plan.t_end_ms,
+                plan.easing,
                 diagnostics,
-                &assignment_subject,
-                &target_key,
-                property,
+                plan.coordinate_frame.as_ref(),
             );
         }
+    }
+
+    /// Extension properties registered on this actor type, or the unknown
+    /// property diagnostic when neither the registry nor an extension owns it.
+    fn assign_extension_property(
+        &mut self,
+        plan: &AssignmentPlan,
+        property: &str,
+        value: &super::Expr,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        if let Some(ctx) = self.extensions.clone() {
+            let spec = ctx.property_spec(&plan.actor_type, property).cloned();
+            if let Some(spec) = spec {
+                if let Some(pv) = crate::timeline::property_engine::parse_extension_property_value(
+                    spec.kind,
+                    spec.ty.as_ref(),
+                    value,
+                    &plan.eval_env,
+                    diagnostics,
+                    &plan.subject,
+                ) {
+                    crate::timeline::property_engine::write_extension_property_slot(
+                        self.world.property_plan.get_mut(plan.track_id),
+                        &ctx,
+                        &spec.actor_type,
+                        property,
+                        pv,
+                        plan.t_start_ms,
+                        plan.t_end_ms,
+                        plan.easing,
+                    );
+                }
+                return;
+            }
+        }
+
+        // Unknown property — report diagnostic
+        push_unsupported_assignment_property_diagnostic(
+            diagnostics,
+            &plan.subject,
+            &plan.target_key,
+            property,
+        );
     }
 }
 

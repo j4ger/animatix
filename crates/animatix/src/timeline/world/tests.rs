@@ -140,3 +140,21 @@ fn entity_meta_defaults_and_resets_on_replacement() {
     assert!(!meta.hidden_by_default, "replacement starts revealed");
     assert_eq!(world.first_seen(id), u64::MAX, "replacement starts unseen");
 }
+
+#[test]
+fn resolve_path_prefers_direct_labels_then_walks_the_hierarchy() {
+    let mut world = World::new();
+    let parent = world.spawn("card", "Group");
+    let child = world.spawn("title", "Text");
+    world.link(parent, child);
+
+    assert_eq!(world.resolve_path(&["title"]).as_deref(), Some("title"));
+    assert_eq!(world.resolve_path(&["card", "title"]).as_deref(), Some("title"));
+    assert_eq!(world.resolve_path(&["missing"]), None);
+    assert_eq!(world.resolve_path(&["card", "missing"]), None);
+    assert_eq!(world.resolve_path(&[]), None);
+
+    // A flat label that itself contains dots wins over the hierarchy walk.
+    world.spawn("card.title", "Text");
+    assert_eq!(world.resolve_path(&["card", "title"]).as_deref(), Some("card.title"));
+}
