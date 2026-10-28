@@ -6,7 +6,7 @@ fn property_index(name: &str) -> Option<usize> {
 
 /// Look up a property schema by name.
 ///
-/// Goes through the process-wide [`Resolved`] map, so the name → index join is
+/// Goes through the process-wide `Resolved` map, so the name → index join is
 /// computed once. Returns `None` if no property with that name exists.
 pub fn lookup_property(name: &str) -> Option<&'static PropertySchema> {
     property_index(name).map(|i| &PROPERTY_REGISTRY[i])
@@ -87,7 +87,7 @@ pub fn field_for_property(property: &str) -> Option<ActorField> {
 ///
 /// `effective_*` needs both on every property read — at least five per actor
 /// per frame — and each used to cost its own lookup (a name map probe, then a
-/// second hash into the id map). The one [`Resolved`] table carries both.
+/// second hash into the id map). The one `Resolved` table carries both.
 pub fn resolve_property(
     name: &str,
 ) -> Option<(&'static PropertySchema, Option<animatix_syntax::schema::PropertyId>)> {

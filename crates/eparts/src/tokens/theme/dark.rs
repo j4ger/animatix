@@ -18,7 +18,7 @@ impl Theme {
     ///
     /// Guarantees `Theme::dark() == tokens::semantic::*` field-for-field because every value
     /// is sourced from `crate::tokens::semantic` (colour roles that light mode
-    /// shares come from [`super::seeds`]).
+    /// shares come from `super::seeds`).
     pub fn dark() -> Self {
         let slots = dark_component_slots();
         Self {

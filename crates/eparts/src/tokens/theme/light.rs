@@ -19,7 +19,7 @@ impl Theme {
     /// Light-mode values are authored directly here (not derived from the
     /// dark-oriented `primitive` palette). All raw `Color32` literals below are
     /// intentional light-palette entries. Accent and status hues come from the
-    /// shared [`super::seeds`] so the brand identity matches dark mode; surfaces
+    /// shared `super::seeds` so the brand identity matches dark mode; surfaces
     /// are near-white with subtle gray steps and text is dark for contrast.
     pub fn light() -> Self {
         // Surfaces (light grays / near-white).
