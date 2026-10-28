@@ -15,8 +15,7 @@
 //!
 //! ## Dispatch flow
 //!
-//! Instead of 7+ match blocks over string property names, all property dispatch
-//! goes through two steps:
+//! Property dispatch is two steps:
 //!
 //! 1. `lookup_property(name)` → `&PropertySchema`  (one process-wide name map)
 //! 2. Match over `schema.field` / `schema.flags`  (exhaustive enum)
@@ -28,8 +27,10 @@
 //!    is needed)
 //! 3. Add the type-system row in `animatix-syntax::schema`
 //!
-//! For simple animated properties (80% of cases), that's all — the generic engine
-//! handles parsing, keyframing, assignments, and environment injection automatically.
+//! For most animated properties that is all — the generic engine handles
+//! parsing, keyframing, assignments, and environment injection automatically.
+//! The descriptor row index is the serialized `PropertyId`: append rows, never
+//! reorder or remove them.
 
 // ─────────────────────────────────────────────────────────────
 // Value types

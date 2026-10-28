@@ -12,9 +12,9 @@ use crate::timeline::{
 
 /// Cached layout computation result for a single container.
 ///
-/// Positions are shared through an `Arc` so a cache hit hands back a
-/// refcount bump instead of cloning the whole per-child `String`-keyed map
-/// (PF-4: the clone was one heap allocation per child per frame).
+/// Positions are shared through an `Arc` so a cache hit hands back a refcount
+/// bump instead of cloning the whole per-child `String`-keyed map (one heap
+/// allocation per child per frame).
 #[derive(Clone, Debug)]
 pub(crate) struct LayoutCacheEntry {
     /// Cached output positions.
@@ -24,12 +24,11 @@ pub(crate) struct LayoutCacheEntry {
 /// Per-frame dynamic layout inputs for one container, compared by exact value.
 ///
 /// Only these inputs vary between frames: child `layout_size` fingerprints and
-/// baselines. Everything else that the previous structured
-/// [`LayoutCacheKey`](..) carried (container identity, metadata strings, child
+/// baselines. Everything else (container identity, metadata strings, child
 /// membership/order) is fixed at build time and therefore implied by the
-/// per-container cache bucket this key lives in — carrying it here again cost
-/// 3N+3 `String` allocations per container per frame purely to look up a
-/// cached result.
+/// per-container cache bucket this key lives in — carrying it here again would
+/// allocate 3N+3 `String`s per container per frame just to look up a cached
+/// result.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct LayoutDynKey {
     /// Child size/placement fingerprints, in admitted order.
@@ -41,7 +40,7 @@ pub(crate) struct LayoutDynKey {
 /// Per-container cache bucket: memoized admitted children plus the results
 /// computed for the dynamic input states seen since the last invalidation.
 ///
-/// The container label is the bucket key and the static identity: metadata
+/// The container entity id is the bucket key and the static identity: metadata
 /// (`gap`/`padding`/`align`/`cols`), admitted membership, and child order are
 /// fixed between invalidations — every public mutable accessor funnels through
 /// `invalidate_frame_cache`, which clears this cache. Child `layout_size` MAY
@@ -50,12 +49,11 @@ pub(crate) struct LayoutDynKey {
 pub(crate) struct LayoutContainerCache {
     /// Cached results per dynamic input state (usually one).
     entries: Vec<(LayoutDynKey, LayoutCacheEntry)>,
-    /// PF-6 round 13: for containers whose children's `layout_size` and
-    /// `baseline` tracks carry no keyframes, the fingerprint pass output is
-    /// identical every frame — serve the result directly and skip the
-    /// per-child `tracks.get` BTreeMap navigation (60-child containers
-    /// measured 1.85% of the evaluate frame). Cleared by
-    /// `invalidate_cache`, the same mutation funnel as `entries`.
+    /// For containers whose children's `layout_size` and `baseline` tracks
+    /// carry no keyframes, the fingerprint pass output is identical every
+    /// frame — serve the result directly and skip the per-child `tracks.get`
+    /// BTreeMap navigation. Cleared by `invalidate_cache`, the same mutation
+    /// funnel as `entries`.
     static_result: Option<std::sync::Arc<LayoutPositions>>,
     /// Whether the fast path above has been validated for this bucket (all
     /// children keyframe-free at install time).
@@ -184,16 +182,15 @@ impl LayoutEngine {
         time_ms: u64,
         world: &crate::timeline::World,
     ) -> std::sync::Arc<LayoutPositions> {
-        // PF-4: sample the per-frame dynamic inputs WITHOUT owning labels —
-        // the hit path needs no child labels at all, so no `String` is
-        // allocated here. Baselines keep the legacy shape: one entry per
-        // `layout_children` element (0.0 when the track is missing), while
-        // fingerprints cover only admitted children.
+        // Sample the per-frame dynamic inputs WITHOUT owning labels — the hit
+        // path needs no child labels at all, so no `String` is allocated here.
+        // Baselines keep one entry per `layout_children` element (0.0 when the
+        // track is missing), while fingerprints cover only admitted children.
         {
-            // PF-6 round 13 fast path: for a keyframe-free container the
-            // fingerprint pass output is constant, so the first computed
-            // result is served directly and the per-child `tracks.get`
-            // BTreeMap navigation disappears from the steady-state frame.
+            // Fast path: for a keyframe-free container the fingerprint pass
+            // output is constant, so the first computed result is served
+            // directly and the per-child `tracks.get` BTreeMap navigation
+            // disappears from the steady-state frame.
             let cache = self.cache.borrow();
             if let Some(bucket) = cache.get(&container_id) {
                 if bucket.children_are_keyframe_free {

@@ -19,11 +19,10 @@ pub enum Value {
     Color([f64; 4]),
     /// Ordered list of values.
     ///
-    /// PF-6 round 10: shared as `Arc<[Value]>` — plot closures capture lists
-    /// (an FFT sample array) and the per-sample-point inject/merge cycle
-    /// deep-cloned the whole list per sample (85 KB/frame on `fft_explain`);
-    /// with the `Arc` those clones are refcount bumps, same as the
-    /// `VelloPath.path: Arc<BezPath>` memo.
+    /// Shared as `Arc<[Value]>`: plot closures capture large lists (an FFT
+    /// sample array), and the per-sample-point inject/merge cycle would
+    /// otherwise deep-clone the whole list; with the `Arc` those clones are
+    /// refcount bumps, matching the `VelloPath.path: Arc<BezPath>` memo.
     List(std::sync::Arc<[Value]>),
     /// Object(type_name, fields) — constructed value with named fields.
     Object(String, HashMap<String, Value>),
@@ -204,8 +203,8 @@ impl Value {
 /// `(instance, version)` is part of the `evaluate_expr` memoization key: two
 /// environments with equal stamps are guaranteed to be the same instance in an
 /// unmutated state, so their contents are equal and cached values can be
-/// shared. This replaces hashing every override entry on each evaluation,
-/// which cost O(env size) per expression.
+/// shared. Cheaper than hashing every override entry on each evaluation, which
+/// would cost O(env size) per expression.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct EnvStamp {
     pub(crate) instance: u32,

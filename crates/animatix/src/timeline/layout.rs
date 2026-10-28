@@ -492,10 +492,9 @@ impl Timeline {
         time_ms: u64,
         _diagnostics: &mut Vec<Diagnostic>,
     ) {
-        // Phase 1: Collect recompile jobs (immutable borrow)
+        // Collect first (immutable borrow), then execute (mutable borrow).
         let jobs = self.collect_text_child_recompile_jobs(container_label, container_size, time_ms);
 
-        // Phase 2: Execute recompile jobs (mutable borrow)
         for job in jobs {
             self.recompile_text_with_width(&job.label, job.props, job.available_width, time_ms);
         }

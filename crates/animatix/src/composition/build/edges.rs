@@ -1,4 +1,4 @@
-//! Composition phase 3 — resolve `play` edges and their walk order.
+//! Resolve `play` edges and their walk order.
 //!
 //! Validation lives next to resolution because every edge the build keeps is an
 //! edge whose target resolved; an unresolved target is reported here and never
@@ -9,7 +9,7 @@ use std::collections::{BTreeMap, HashMap};
 use super::builder::SceneCollection;
 use super::*;
 
-/// Phase 3a — turn each scene's stored play target into a validated edge.
+/// Turn each scene's stored play target into a validated edge.
 pub(super) fn resolve_edges(namespaces: &HashMap<String, Namespace>, state: &mut SceneCollection) {
     for name in &state.declaration_order {
         if let Some((target, transition, _play_time)) = state.play_targets.get(name) {

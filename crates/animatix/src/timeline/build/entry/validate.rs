@@ -1,4 +1,4 @@
-//! Build phase 3 — post-walk validation passes.
+//! Post-walk validation passes.
 //!
 //! Each pass only reads the lowered timeline (except the scene-statistics bake)
 //! and emits warnings/errors for states that would otherwise fail silently at
@@ -117,8 +117,8 @@ pub(super) fn validate_duration_and_seam(
         }
     }
 
-    // Bake scene statistics (STAT-1) before loop seam check and before
-    // env_base is frozen.
+    // Bake scene statistics before the loop seam check and before env_base is
+    // frozen.
     if timeline.stats_used {
         crate::timeline::scene_stats::bake_scene_stats(timeline);
     }

@@ -257,7 +257,7 @@ pub struct PropertyTrack<T> {
     pub(crate) keyframes: Keyframes<T>,
     /// Value used when no keyframes are defined.
     pub(crate) default_value: T,
-    /// P2.20: Memoization cache for repeated time queries.
+    /// Memoization cache for repeated time queries.
     #[cfg_attr(feature = "serde", serde(skip))]
     last_evaluated: std::cell::RefCell<Option<(u64, T)>>,
 }
@@ -334,7 +334,8 @@ impl<T: Interpolate> PropertyTrack<T> {
     }
     /// Core evaluation logic parameterized by clone strategy.
     fn evaluate_with(&self, time_ms: u64, clone_val: impl Fn(&T) -> T) -> T {
-        // P2.20: Memoization - return cached value if time matches
+        // Exact-time queries repeat within a frame; return the memoized value
+        // and clone it according to the caller's strategy.
         if let Some((cached_time, cached_value)) = self.last_evaluated.borrow().as_ref() {
             if *cached_time == time_ms {
                 return clone_val(cached_value);

@@ -268,8 +268,8 @@ pub(crate) fn make_vec_value(values: Vec<Value>) -> Result<Value, EvalError> {
 }
 
 /// Pre-indexed compiled expression for high-throughput scalar math evaluation (curve plot
-/// sampling). Replaces recursive AST matching and string identifier lookups with direct hardware
-/// floating point operations and direct slot indexing against a contiguous `&[f64]` slice.
+/// sampling): direct floating-point operations and slot indexing against a contiguous
+/// `&[f64]` slice, with no AST matching or string identifier lookups.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum FastScalarExpr {
     Const(f64),

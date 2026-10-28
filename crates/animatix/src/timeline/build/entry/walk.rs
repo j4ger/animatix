@@ -1,4 +1,4 @@
-//! Build phase 2 — walk the statements and lower frame-time `always` bodies.
+//! Walk the statements and lower frame-time `always` bodies.
 
 use super::*;
 

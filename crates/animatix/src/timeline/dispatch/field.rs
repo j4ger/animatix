@@ -95,8 +95,8 @@ pub enum TrackFieldMut<'a> {
 /// `$track` binds the variant's `&Option<PropertyTrack<T>>`; the body is
 /// expanded once per variant, so each resampling call stays statically
 /// dispatched and type-checked against its own payload. `Tagged` binds only
-/// its payload — every caller of this macro ignores the tag. This generalizes
-/// the `animating!` macro that used to cover `is_currently_animating` alone.
+/// its payload — every caller of this macro ignores the tag. The same
+/// expansion serves every per-track query (for example `is_currently_animating`).
 macro_rules! map_track {
     ($self:expr, |$track:ident| $body:expr) => {
         match $self {

@@ -72,9 +72,8 @@ impl Timeline {
     ) -> Arc<layout::LayoutPositions> {
         let Some(metadata) = self.world.container_layout.get(container_id) else {
             // Shared empty table: this early return fires once per
-            // non-container node per frame (alloc_driver 2026-09-04 measured
-            // ~60 fresh empty `LayoutPositions` allocations per frame on a
-            // 60-actor scene), and callers only ever read through the Arc.
+            // non-container node per frame, and callers only ever read through
+            // the Arc.
             return layout::empty_layout_positions();
         };
 

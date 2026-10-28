@@ -72,9 +72,8 @@ impl PropertyPlan {
 
     /// Build the default plan for an actor from the property registry.
     ///
-    /// This is the first registry-driven producer for plans. Later phases can
-    /// replace it with per-primitive descriptors while keeping the same
-    /// `PropertyId`/slot access model.
+    /// A slot's kind comes from the registry binding; slots are appended for
+    /// every applicable property and addressed by `PropertyId`.
     ///
     /// `legend` and `callout_place` are skipped: neither is stored in a plan
     /// slot (the former lives in the tagged tier as a sum, the latter in the

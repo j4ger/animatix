@@ -38,16 +38,16 @@ pub struct ShapeTracks {
     /// Pre-built vector paths for shape rendering.
     #[cfg_attr(feature = "serde", serde(skip))]
     pub vector_paths: Option<PropertyTrack<Vec<VelloPath>>>,
-    /// Memoized shape→path conversion for the render path (PF-6): the key is
-    /// the sampled `KurboShape` (self-validating — any geometry change misses
-    /// and rebuilds; the fixed default tolerance is part of the conversion),
-    /// the value is the shared `Arc<BezPath>` the render wraps with fresh
-    /// style. Never serialized (recomputed on demand).
+    /// Memoized shape→path conversion for the render path: the key is the
+    /// sampled `KurboShape` (self-validating — any geometry change misses and
+    /// rebuilds; the fixed default tolerance is part of the conversion), the
+    /// value is the shared `Arc<BezPath>` the render wraps with fresh style.
+    /// Never serialized (recomputed on demand).
     #[cfg_attr(feature = "serde", serde(skip))]
     pub shape_path_memo: std::cell::RefCell<Option<(KurboShape, Arc<kurbo::BezPath>)>>,
-    /// Shared memo of the last `evaluate_vector_paths` result (PF-4/PF-6:
-    /// a static track re-clones its whole path `Vec` every frame; this shares
-    /// it as an `Arc` instead). Guarded by [`Self::vector_paths_epoch`], which
+    /// Shared memo of the last `evaluate_vector_paths` result: a static track
+    /// would re-clone its whole path `Vec` every frame, so the result is shared
+    /// as an `Arc` instead. Guarded by [`Self::vector_paths_epoch`], which
     /// `invalidate_frame_cache` bumps because every keyframe/assignment/action
     /// mutation funnels through it. Never serialized (recomputed on demand).
     #[cfg_attr(feature = "serde", serde(skip))]
@@ -139,23 +139,15 @@ impl ShapeTracks {
 
     /// Evaluate vector paths at `time_ms`, applying morphing if configured.
     ///
-    /// PF-4: when the actor has no `vector_paths` track (every geometric shape
-    /// whose path the primitive derives from `shape_type` + size), the previous
-    /// code constructed two throwaway `PropertyTrack`s per call, fed them
-    /// through the morph evaluator, and got an empty `Vec` back — measurable
-    /// per-node overhead on the frame path. Returning early is exactly
-    /// equivalent: the empty track's evaluation is `default_value.clone()`,
-    /// which is an empty `Vec`.
+    /// A track with no `vector_paths` evaluates to an empty list; geometric
+    /// shapes derive their path from `shape_type` + size instead.
     ///
-    /// PF-6 (2026-09-04): the result is returned as a shared `Arc` — when the
-    /// track is time-independent (no keyframes, or `time_ms` past the last
-    /// keyframe, where the evaluator returns the frozen `last_value`), the
-    /// value is memoized and re-clones become refcount bumps.
-    /// `alloc_driver` measured ~61 allocations / ~21 KB per frame on a
-    /// 60-actor scene from every static shape actor cloning its whole path
-    /// list per frame. The memo is guarded by `vector_paths_epoch` (bumped by
-    /// `invalidate_frame_cache`, the funnel every mutation goes through) and
-    /// must never observe a track mutated without that bump.
+    /// Returns a shared `Arc`: when the track is time-independent (no
+    /// keyframes, or `time_ms` past the last keyframe, where the evaluator
+    /// returns the frozen `last_value`) the value is memoized and re-clones
+    /// become refcount bumps. The memo is guarded by `vector_paths_epoch`
+    /// (bumped by `invalidate_frame_cache`, the funnel every mutation goes
+    /// through) and must never observe a track mutated without that bump.
     pub fn evaluate_vector_paths(&self, style: &StyleTracks, time_ms: u64) -> Arc<Vec<VelloPath>> {
         if let Some(paths_track) = self.vector_paths.as_ref() {
             let constant = paths_track
@@ -202,16 +194,15 @@ impl ShapeTracks {
         )
     }
 
-    /// Memoized `KurboShape → BezPath` conversion for the render path (PF-6).
+    /// Memoized `KurboShape → BezPath` conversion for the render path.
     ///
     /// `render()` rebuilds identical geometry every frame for any actor whose
     /// geometry is static while a sibling animates (forcing a frame-cache
     /// miss). The memo compares the sampled `KurboShape` — an allocation-free
-    /// equality check — and shares the converted path as an `Arc`, so a
-    /// 60-actor scene with one animated actor stops rebuilding 59 identical
-    /// `Rect` paths per frame (alloc_driver 2026-09-04: ~70 blocks /
-    /// 23.5 KB per frame). The shape value fully determines the path (fixed
-    /// default tolerance), so the memo is self-validating and needs no epoch.
+    /// equality check — and shares the converted path as an `Arc`, so static
+    /// actors do not rebuild their paths per frame. The shape value fully
+    /// determines the path (fixed default tolerance), so the memo is
+    /// self-validating and needs no epoch.
     pub fn shape_path_memoized(&self, shape: &KurboShape) -> Arc<kurbo::BezPath> {
         if let Some((cached_shape, shared)) = self.shape_path_memo.borrow().as_ref() {
             if cached_shape == shape {

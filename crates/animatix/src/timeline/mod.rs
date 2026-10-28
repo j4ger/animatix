@@ -273,9 +273,9 @@ pub struct Timeline {
     /// A frame-cache entry replays a built vello scene, which cannot carry the
     /// filter backend's pending-composite side channel — so replaying is only
     /// safe while nothing in the scene would have consulted the backend at all,
-    /// and that is exactly this flag. Without it the cache has to bail whenever a
-    /// backend is merely *present*, and the web runtime passes one on every
-    /// frame, which is how browsers ended up re-evaluating from scratch.
+    /// and that is exactly this flag. Without it the cache has to bail whenever
+    /// a backend is merely *present*, which would disable caching for a runtime
+    /// that always passes one.
     pub(crate) has_effect_scopes: bool,
     /// Frozen Arc reference to the base environment entries (stdlib +
     /// colorscheme). Avoids copying ~90 entries on every [`Timeline::build_frame_env`].
@@ -307,8 +307,8 @@ pub struct Timeline {
     /// Duration declared via `config { duration: N }`, in seconds. When present
     /// it *overrides* the keyframe-inferred length rather than extending it, so
     /// the timeline ends there even if keyframes continue past it — the
-    /// contract `docs/spec.md` documents and the composition path has always
-    /// honoured per scene. See [`Timeline::playback_duration_seconds`].
+    /// contract `docs/spec.md` documents, applied per scene. See
+    /// [`Timeline::playback_duration_seconds`].
     pub(crate) declared_duration_s: Option<f64>,
     /// Next auto-color slot handed out to a `color: auto` declaration.
     ///
@@ -384,7 +384,7 @@ pub struct Timeline {
     /// O(declarations²) into O(declarations × referenced). `None` disables
     /// filtering (inject everything) for Timelines built without an AST scan.
     pub(crate) referenced_roots: Option<std::collections::HashSet<String>>,
-    /// Whether any expression in the scene references `scene.stats` (STAT-1).
+    /// Whether any expression in the scene references `scene.stats`.
     pub(crate) stats_used: bool,
     /// Whether `is_animating` or a property reference (`&actor.prop`) was used.
     pub(crate) is_animating_used: bool,
@@ -493,8 +493,8 @@ pub(crate) struct EvalCaches {
     /// reports `true` — an always block can write the flag per frame
     /// without going through a mutation.
     pub(crate) solo_scan_needed: std::cell::Cell<Option<bool>>,
-    /// Memoized [`Self::needs_frame_env`] answers (the raw computation walks
-    /// every entity's payload; the frame path consulted it up to 3×/frame).
+    /// Memoized [`Self::needs_frame_env`] answer; cleared by
+    /// `invalidate_frame_cache`.
     needs_frame_env: std::cell::Cell<Option<bool>>,
     /// Precomputed frame-env injection plan; see `timeline_impl::cache`.
     env_injection_plan: std::cell::RefCell<Option<std::sync::Arc<timeline_impl::EnvInjectionPlan>>>,
@@ -597,9 +597,11 @@ struct BoundsRegistry {
 }
 
 impl EvalCaches {
-    /// label registry. Cheap no-op while the registry is valid; invalidated by
-    /// `invalidate_frame_cache` (the single mutation funnel) and by
-    /// `Clone` (EvalCaches reset to `Default`).
+    /// Build the label registry and stamp each track's bounds slot.
+    ///
+    /// Cheap no-op while the registry is valid; invalidated by
+    /// `invalidate_frame_cache` (the single mutation funnel) and by `Clone`
+    /// (`EvalCaches` resets to `Default`).
     fn ensure_bounds_registry(&self, world: &crate::timeline::World) {
         if self.bounds_registry.borrow().is_some() {
             return;

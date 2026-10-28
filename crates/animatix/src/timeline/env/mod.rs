@@ -120,10 +120,9 @@ impl CapturedEnv {
     /// build-time closure captures, then removes only the newly inserted keys
     /// so captures do not leak between plot actors sharing one env.
     ///
-    /// PF-6 round 10: the presence test borrows (`get_ref`) instead of
-    /// cloning — captures can be large lists (an FFT sample array captured by
-    /// a plot closure was deep-cloned per sample point: 85 KB/frame on
-    /// `fft_explain` measured by `export_alloc_driver`).
+    /// The presence test borrows (`get_ref`) instead of cloning — captures can
+    /// be large lists (an FFT sample array captured by a plot closure), and the
+    /// merge runs once per sample point.
     pub fn merge_missing_into(&self, env: &mut Environment) -> Vec<String> {
         let mut inserted = Vec::new();
         for (k, v) in &self.0 {

@@ -39,11 +39,10 @@ impl LayoutPositions {
 
 /// One shared empty `Arc<LayoutPositions>`.
 ///
-/// "This actor has no layout-managed children" paths used to allocate a fresh
-/// empty map per call — once per non-container node per frame on typical
-/// scenes (~60 allocations/frame on a 60-actor scene, `alloc_driver`
-/// 2026-09-04). Callers only ever read through the `Arc`, so sharing one
-/// instance is equivalent and allocation-free.
+/// "This actor has no layout-managed children" paths would otherwise allocate a
+/// fresh empty map per call — once per non-container node per frame. Callers
+/// only ever read through the `Arc`, so sharing one instance is equivalent and
+/// allocation-free.
 pub(crate) fn empty_layout_positions() -> std::sync::Arc<LayoutPositions> {
     use std::sync::{Arc, OnceLock};
     static EMPTY: OnceLock<Arc<LayoutPositions>> = OnceLock::new();

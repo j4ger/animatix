@@ -304,8 +304,9 @@ impl Timeline {
         self.store_frame(state, filter_backend)
     }
 
-    /// Phase 1 — reuse the encoded-scene buffers, reset per-frame state, stamp
-    /// bounds slots, resolve solo/hit-region scratch, and build the frame env.
+    /// Prepare the frame: reuse the encoded-scene buffers, reset per-frame
+    /// state, stamp bounds slots, resolve solo/hit-region scratch, and build
+    /// the frame env.
     fn prepare_frame<'a>(
         &self,
         time_s: f64,
@@ -415,8 +416,8 @@ impl Timeline {
         }
     }
 
-    /// Phase 2 — execute lowered modifier IR, re-apply transient overrides, and
-    /// record modifier errors as runtime diagnostics.
+    /// Execute lowered modifier IR, re-apply transient overrides, and record
+    /// modifier errors as runtime diagnostics.
     fn run_frame_modifiers(&self, state: &mut FrameEvaluation<'_>) {
         let mut modifier_errors: Vec<EvalError> = Vec::new();
         if !self.modifier_programs.is_empty() {
@@ -463,8 +464,8 @@ impl Timeline {
         }
     }
 
-    /// Phase 4 — build the observable program, stash bounds, and publish the
-    /// frame cache or scene buffer.
+    /// Build the observable program, stash bounds, and publish the frame cache
+    /// or scene buffer.
     fn store_frame(
         &self,
         mut state: FrameEvaluation<'_>,

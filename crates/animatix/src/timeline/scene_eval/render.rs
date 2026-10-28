@@ -450,8 +450,8 @@ impl Timeline {
         let overrides = frame.overrides;
         let frame_env = frame.frame_env;
         // The primitive is the single child-rendering entry point; the pipeline
-        // no longer branches on the child-processing strategy. A primitive
-        // without a registered type renders nothing (validated at build time).
+        // does not branch on the child-processing strategy. A primitive without
+        // a registered type renders nothing (validated at build time).
         let Some(handle) = self.cached_primitive_for(node_id, time_ms) else {
             return;
         };

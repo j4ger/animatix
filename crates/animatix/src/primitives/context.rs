@@ -77,8 +77,8 @@ pub struct RenderCtx<'a> {
     pub time_ms: u64,
     /// The rendered entity's id (identity lives in `World`).
     pub id: EntityId,
-    /// Shape geometry tier — memoization home for the shape→path conversion
-    /// (PF-6); see `ShapeTracks::shape_path_memoized`.
+    /// Shape geometry tier — memoization home for the shape→path conversion;
+    /// see `ShapeTracks::shape_path_memoized`.
     pub shape: Option<&'a crate::timeline::animation_track::ShapeTracks>,
 }
 
@@ -125,7 +125,6 @@ pub struct EvaluateCtx<'a> {
     /// Primitive payload for this entity (plot/SVG/image state).
     pub payload: Option<&'a crate::primitives::PrimitivePayload>,
     /// Narrow resolver for target actor bounds (targeted callout mode).
-    /// Replaces the previous broad `Option<&Timeline>` field.
     pub target_resolver: Option<&'a dyn TargetResolver>,
     /// The actor's legend component, when it participates in a legend.
     ///
@@ -136,12 +135,11 @@ pub struct EvaluateCtx<'a> {
 
 /// Frame-invariant, read-only state shared by every node rendered this frame.
 ///
-/// Bundling these is what keeps the render recursion's argument list short:
-/// `evaluate_node` and friends used to take fourteen positional arguments, and a
-/// mis-ordered argument there is a silent semantic change rather than a compile
-/// error. Per-container values (`layout_positions`) and per-call values
-/// (`allow_pending_composites`) deliberately stay parameters — they are not
-/// frame-invariant.
+/// Bundling these keeps the render recursion's argument list short: a
+/// mis-ordered positional argument there would be a silent semantic change
+/// rather than a compile error. Per-container values (`layout_positions`) and
+/// per-call values (`allow_pending_composites`) deliberately stay parameters —
+/// they are not frame-invariant.
 #[derive(Clone, Copy)]
 pub(crate) struct RenderFrame<'a> {
     /// Current time in milliseconds.

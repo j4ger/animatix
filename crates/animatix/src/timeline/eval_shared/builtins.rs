@@ -186,7 +186,7 @@ pub fn eval_builtin_fn(name: &str, args: &[Value]) -> Result<Value, EvalError> {
     }
 }
 
-// ─── Curve functions (STAT-1) ────────────────────────────────────────────────
+// ─── Curve functions ────────────────────────────────────────────────────────
 
 /// Zero-allocation view over a piecewise-linear curve stored in a Value::List.
 #[derive(Clone, Copy)]

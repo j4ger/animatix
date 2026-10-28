@@ -134,9 +134,9 @@ impl Timeline {
             } else {
                 self.world.geometry(id).motion_offset.get(time_ms, [0.0, 0.0])
             };
-        // PF-4: the three scalar reads resolve their registry entries once per
-        // process instead of hashing the property name on every node every
-        // frame; semantics are unchanged (see `effective_f32_resolved`).
+        // The transform path reads these properties on every node every frame,
+        // so their registry entries are resolved once per process instead of
+        // hashing the name per read (see `effective_f32_resolved`).
         let reads = crate::timeline::property_registry::transform_property_reads();
         let rotation = effective_f32_resolved(
             id,

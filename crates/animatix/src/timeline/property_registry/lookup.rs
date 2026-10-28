@@ -86,8 +86,8 @@ pub fn field_for_property(property: &str) -> Option<ActorField> {
 /// lookup.
 ///
 /// `effective_*` needs both on every property read — at least five per actor
-/// per frame — and each used to cost its own lookup (a name map probe, then a
-/// second hash into the id map). The one `Resolved` table carries both.
+/// per frame — and separate lookups would hash the name once for the schema and
+/// once for the id. The one `Resolved` table carries both.
 pub fn resolve_property(
     name: &str,
 ) -> Option<(&'static PropertySchema, Option<animatix_syntax::schema::PropertyId>)> {
@@ -118,10 +118,9 @@ pub(crate) struct TransformPropertyReads {
 
 /// Pre-resolved registry entries, built once per process.
 ///
-/// This replaces the four separate `OnceLock`s the module used to carry
-/// (`resolved_properties`, `schema_property_ids`, `property_schema_by_id_cache`,
-/// and `transform_property_reads`): they all walked the same two tables, and
-/// each new lookup added another process-wide cache to keep coherent.
+/// All name-keyed lookups walk the same two tables, so one table keeps the
+/// schema map, the id map, and the pre-resolved transform reads coherent
+/// instead of adding another process-wide cache for each new lookup.
 struct Resolved {
     /// Every shared-schema row: name → stable id (the descriptor row index).
     ids: std::collections::HashMap<&'static str, animatix_syntax::schema::PropertyId>,
@@ -181,8 +180,9 @@ pub(crate) fn transform_property_reads() -> &'static TransformPropertyReads {
 /// The plan-slot id for a property's storage field, or `None` when the field is
 /// not a tagged slot the runtime plan can serve.
 ///
-/// Mirrors the guard in `dispatch::read_property_value`: `legend` and
-/// `callout_place` are tagged but deliberately excluded from plan reads.
+/// Mirrors the guard in [`crate::timeline::World::read_property_value`]:
+/// `legend` and `callout_place` are tagged but have dedicated storage, so they
+/// are deliberately excluded from plan reads (see `PropertyPlan::for_actor`).
 fn plan_slot_id(
     field: &ActorField,
     ids: &std::collections::HashMap<&'static str, animatix_syntax::schema::PropertyId>,
@@ -325,26 +325,12 @@ mod tests {
         }
     }
 
-    /// Descriptors the runtime deliberately does not bind.
-    ///
-    /// Empty since 2026-09-14: every built-in property now has a binding. The
-    /// list stays as the gate — a new descriptor without a binding fails
-    /// `unbound_descriptors_are_pinned`, so accepting a property the runtime
-    /// cannot store has to be a deliberate, reviewed act rather than an
-    /// oversight. The eight names that used to be listed here were either pure
-    /// second names for an existing field (`content`, `stroke_color`) or had no
-    /// consumer at all (`fill`, `radius`, `start`, `end`, `function`,
-    /// `language`); they were removed from the table instead, so the analyzer
-    /// rejects them with a clear "unknown property" rather than accepting a
-    /// drop that never reaches the screen.
     /// Properties the per-frame override path actually consumes.
     ///
     /// `primitives::apply_text_style_overrides` (and the shape equivalent) read
     /// exactly these keys out of the frame override map an `always` block
     /// writes. Each must therefore be flagged `ANIMATED`, or the engine tells
-    /// the author "the per-frame write is ignored" about a write that works —
-    /// which is what every entry here used to do, while `text_max_width` was
-    /// flagged ANIMATED but unread and so silently did nothing.
+    /// the author "the per-frame write is ignored" about a write that works.
     ///
     /// Adding a key here without flagging it ANIMATED, or flagging a property
     /// ANIMATED that no frame path reads, both fail this test.
@@ -398,6 +384,12 @@ mod tests {
         }
     }
 
+    /// Descriptors the runtime deliberately does not bind.
+    ///
+    /// Empty: every built-in property has a binding. The list stays as the gate
+    /// — a new descriptor without a binding fails
+    /// `unbound_descriptors_are_pinned`, so accepting a property the runtime
+    /// cannot store has to be deliberate.
     const UNBOUND_DESCRIPTORS: &[&str] = &[];
 
     #[test]
@@ -468,7 +460,7 @@ mod tests {
     }
 
     /// The composed registry must expose the applicability from the descriptor
-    /// table (the engine no longer declares it), for every bound property.
+    /// table (the engine takes it from there), for every bound property.
     #[test]
     fn applicability_comes_from_the_descriptor_table() {
         for schema in PROPERTY_REGISTRY.iter() {

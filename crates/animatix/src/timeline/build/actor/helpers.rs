@@ -440,8 +440,7 @@ impl Timeline {
     /// primitives, extensions — return before the generic property walk gets
     /// there. A read placed there would work on a `Rect` and be silently ignored
     /// on a `Text`, which is the actor that most wants a HUD pinned to the
-    /// viewport. (Measured: the first version of this did exactly that, and the
-    /// text overlay in `examples/animation/37_hud_overlay.amx` still moved.)
+    /// viewport.
     pub(crate) fn apply_camera_follow_decl(
         &mut self,
         label: &str,

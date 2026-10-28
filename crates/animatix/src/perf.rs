@@ -1,4 +1,4 @@
-//! Shared hierarchical stage tracing (PF-8).
+//! Shared hierarchical stage tracing.
 //!
 //! One lightweight, always-available instrumentation layer so the Criterion
 //! benches, the GUI HUD, and future perf reporting measure the *same* stages
@@ -54,7 +54,7 @@ pub mod stage {
     pub const ENCODE_SCENE: &str = "encode_scene";
     /// GPU rasterization of an encoded scene (`Renderer::render_vello_scene*`).
     pub const RASTERIZE: &str = "rasterize";
-    /// Reserved for the export-pipeline seam (PF-7 Layer-3 work).
+    /// Reserved for the export-pipeline seam; unused by the engine today.
     pub const EXPORT: &str = "export";
 }
 

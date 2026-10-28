@@ -81,7 +81,7 @@ impl Timeline {
             ));
             return;
         }
-        // Phase 1: resolve the target, timing and the special-case dispatch
+        // Resolve the target, timing and the special-case dispatch
         // (effect/scene, variable/camera) that must precede track resolution.
         let Some(plan) = self.prepare_assignment(
             target,
@@ -95,9 +95,9 @@ impl Timeline {
             return;
         };
 
-        // Phase 2: position/offset need compound-binding handling, then the
-        // actor's primitive gets first refusal on the property, and the
-        // registry engine handles everything else.
+        // Position/offset need compound-binding handling, then the actor's
+        // primitive gets first refusal on the property, and the registry engine
+        // handles everything else.
         if matches!(property, "position" | "at") {
             self.assign_position(&plan, value, diagnostics);
             return;

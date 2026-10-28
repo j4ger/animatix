@@ -2,9 +2,9 @@
 //!
 //! The build/eval env is a flat `String → Value` map, but several distinct
 //! key conventions coexist inside it. Every site that constructs or looks up
-//! one of these keys MUST go through the constructors below — the
-//! `graph.map`-in-`always` bug (fixed 2026-08-26) happened because the
-//! registration site and the lookup site each spelled the key their own way.
+//! one of these keys goes through the constructors below: if the registration
+//! site and the lookup site each spell the key their own way, the lookup
+//! silently misses.
 //!
 //! | Constructor | Shape | Used for |
 //! |---|---|---|
@@ -14,11 +14,8 @@
 //! | [`animating_flag`] | `label.__anim__prop` | Internal per-frame animation-state flags, consumed by `is_animating(&label.prop)`. Internal shape — user code spells `&label.prop` |
 //! | *(syntax crate)* | `base__index` | Array actor tracks use `animatix_syntax::ast::array_actor_label` — that constructor is canonical, do not re-spell the shape |
 //!
-//! **Rule:** every site that constructs or looks up one of these keys goes
-//! through a constructor above. Known past violations (each fixed by routing
-//! through the constructor): graph.map registration/lookup drift (2026-08-26),
-//! plot-param injection in scene_eval (2026-09-08). If you are about to write
-//! `format!("{label}.{...}")` for an env key, add or use a constructor here.
+//! If you are about to write `format!("{label}.{...}")` for an env key, add or
+//! use a constructor here instead.
 
 /// Env key for a NativeFn registered on a label (`g.map`, `g.map_inverse`).
 /// Modifier-IR method calls with a plain path/ident receiver join the
@@ -28,11 +25,11 @@ pub(crate) fn native_fn(label: &str, method: &str) -> String {
 }
 
 /// Env key for an injected frame-time property (`ring.radius_x`), written
-/// into a reusable buffer (PF-6: the frame-env injection path builds every
-/// key through this so the steady-state frame performs zero key allocations
-/// — `out` is cleared, never read before write). Callers append sub-key
-/// suffixes (`.x`, `.y`, …) to the same buffer. The key shape is
-/// `{label}.{prop}` — modifier-IR and expression lookups must match it.
+/// into a reusable buffer: the frame-env injection path builds every key
+/// through this so the steady-state frame performs no key allocation — `out`
+/// is cleared, never read before write. Callers append sub-key suffixes
+/// (`.x`, `.y`, …) to the same buffer. The key shape is `{label}.{prop}` —
+/// modifier-IR and expression lookups must match it.
 pub(crate) fn property_into(label: &str, prop: &str, out: &mut String) {
     out.clear();
     out.push_str(label);

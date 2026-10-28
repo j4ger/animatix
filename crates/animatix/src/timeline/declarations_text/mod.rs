@@ -60,11 +60,11 @@ impl TextDeclarationKind {
 
     fn content_matches(self, property_name: &str) -> bool {
         // Uniform content property across text-like kinds: `text`, which the
-        // schema now lists for every text-like actor. `Code` also accepts its
-        // own spelling. The `content`/`latex`/`math` aliases were removed from
-        // the property table on 2026-09-14 — each was a second name for the
-        // same storage field, so the analyzer warned about the uniform spelling
-        // while the runtime honoured it.
+        // schema lists for every text-like actor. `Code` also accepts its own
+        // spelling. The `content`/`latex`/`math` aliases are absent from the
+        // property table — each was a second name for the same storage field,
+        // so the analyzer warned about the uniform spelling while the runtime
+        // honoured it.
         match self {
             Self::Text | Self::Typst | Self::Math => property_name == "text",
             Self::Code => matches!(property_name, "text" | "code"),

@@ -379,7 +379,7 @@ pub enum ActorField {
     /// 2D affine transform matrix.
     Transform,
 
-    // ── Min/Max size constraints (Phase 7) ──
+    // ── Min/Max size constraints ──
     /// Minimum width constraint.
     MinWidth,
     /// Minimum height constraint.

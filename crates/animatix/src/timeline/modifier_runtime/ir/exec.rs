@@ -1,7 +1,6 @@
 //! Direct interpreter for modifier IR programs.
 //!
-//! This replaces the previous stack-machine bytecode VM. Modifier bodies
-//! (`always`, `drive`, reactive bindings) are lowered once to
+//! Modifier bodies (`always`, `drive`, reactive bindings) are lowered once to
 //! [`ModifierIrProgram`] at build time and interpreted per frame here. All
 //! expression evaluation delegates to [`super::evaluate_compiled_expr`], which
 //! is also used by the plot sampling path, so there is a single expression

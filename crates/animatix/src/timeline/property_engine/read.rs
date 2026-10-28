@@ -31,9 +31,9 @@ pub(crate) fn inject_property_into_env(
 ) {
     use crate::timeline::property_registry::{PROPERTY_REGISTRY, PropertyFlags, ReadSource};
 
-    // Reusable key buffer threaded in from the injection caller (PF-6: one
-    // `String::with_capacity` per track per frame was 60 allocations on a
-    // 60-actor scene); the buffer is cleared and reshaped in place.
+    // Reusable key buffer threaded in from the injection caller: on the pooled
+    // environment every key already exists, so reshaping one buffer in place
+    // keeps the steady-state write allocation-free.
     key.clear();
     key.push_str(label);
     key.push('.');
@@ -108,7 +108,7 @@ pub(crate) fn inject_extension_properties_into_env(
         return;
     };
 
-    // Same shared-buffer discipline as `inject_property_into_env` (PF-6).
+    // Same shared-buffer discipline as `inject_property_into_env`.
     key.clear();
     key.push_str(label);
     key.push('.');
@@ -118,8 +118,7 @@ pub(crate) fn inject_extension_properties_into_env(
         // Identity lives in `World.actor_types`, which this injector does not
         // receive. The plan is the per-entity projection of the owning actor
         // type, so a spec with no slot in it belongs to another primitive (or
-        // was never registered for this actor) — the same set the old
-        // `spec.actor_type` comparison selected.
+        // was never registered for this actor).
         if !spec.injectable || plan.get(spec.id).is_none() {
             continue;
         }
@@ -223,8 +222,8 @@ fn inject_value(
 
 /// Read a property value using a pre-resolved schema / plan-slot pair.
 ///
-/// Same semantics as `dispatch::read_property_value`, including the fallback to
-/// the track's own field, but skips the name → id lookup that
+/// Same semantics as [`crate::timeline::World::read_property_value`], including
+/// the fallback to the track's own field, but skips the name → id lookup that
 /// `property_registry::resolve_property` has already done for this call.
 pub(crate) fn read_property_value_resolved(
     id: EntityId,
@@ -247,8 +246,8 @@ pub(crate) fn read_property_value_resolved(
 ///
 /// The registry lookup is a process-constant string hash; the transform path
 /// reads the same five properties on every node every frame and resolves them
-/// once instead (PF-4). Semantics are identical: the modifier override wins
-/// first — so an override still applies even if the property were somehow
+/// once instead. Precedence is identical to a plain read: the modifier override
+/// wins first — so an override still applies even if the property were somehow
 /// unregistered — then the schema/slot read, then `default`.
 pub(crate) fn effective_f32_resolved(
     id: EntityId,

@@ -599,9 +599,9 @@ impl Timeline {
             ));
         }
 
-        // Registry-backed properties the legacy per-primitive build loop does
-        // not reach are written through the generic engine (`Scale` was dropped
-        // for every actor kind before this list existed).
+        // Registry-backed properties the per-primitive build path does not
+        // reach are written through the generic engine; without this list they
+        // would be dropped for every actor kind.
         for prop in props {
             if let Some(schema) = crate::timeline::property_registry::lookup_property(&prop.name)
                 && matches!(

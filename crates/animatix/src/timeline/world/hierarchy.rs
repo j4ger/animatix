@@ -1,8 +1,8 @@
 //! Scene-graph hierarchy component.
 //!
-//! Replaces the duplicated `children`/`children_ids` and `parent`/`parent_id`
-//! fields on the old monolithic track. `children` is the single authoritative
-//! order; `parent` is a back-reference kept in sync by `World`.
+//! `children` is the single authoritative order; `parent` is a back-reference
+//! kept in sync by `World`. Keeping both in one component prevents the two
+//! from disagreeing.
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};

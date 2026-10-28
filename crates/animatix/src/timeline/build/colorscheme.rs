@@ -270,9 +270,10 @@ impl Timeline {
 
             if setting.name != "colorscheme" {
                 // Every key this builder handles was `continue`d above;
-                // `strict_types` belongs to the typechecker phase. Anything else
-                // reaching here is a key no phase reads, and used to be dropped
-                // without a word — indistinguishable from a working one.
+                // `strict_types` belongs to the typechecker pass. Anything else
+                // reaching here is a key no pass reads, so report it rather than
+                // dropping it silently — silence is indistinguishable from a
+                // working key.
                 let known_keys = animatix_syntax::config_keys::config_key_names();
                 if !known_keys.contains(&setting.name.as_str()) {
                     diagnostics.push(

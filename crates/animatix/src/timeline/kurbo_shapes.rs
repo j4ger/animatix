@@ -17,7 +17,7 @@ pub const DEFAULT_TOLERANCE: f64 = 0.1;
 
 /// Enum representing all supported kurbo shapes
 ///
-/// `PartialEq` exists for the per-track shape→path memo (PF-6): comparing the
+/// `PartialEq` exists for the per-track shape→path memo: comparing the
 /// sampled `KurboShape` fingerprint is allocation-free, and inequality means
 /// the memoized `Arc<BezPath>` must be rebuilt.
 #[derive(Clone, Debug, PartialEq)]

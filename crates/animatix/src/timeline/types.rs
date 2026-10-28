@@ -16,10 +16,7 @@ use crate::timeline::env::Value;
 use crate::timeline::property_track::TrackAccessor;
 
 // ─────────────────────────────────────────────────────────────
-// Build quality levels (Phase 6.3)
-// ─────────────────────────────────────────────────────────────
-
-// Build quality levels (Phase 6.3)
+// Build quality levels
 // ─────────────────────────────────────────────────────────────
 
 /// Controls plot sampling fidelity during timeline build.
@@ -195,9 +192,9 @@ impl ContainerMetadata {
 /// when children's layout sizes haven't changed between frames.
 #[derive(Clone, Debug)]
 pub struct LayoutEngine {
-    /// Per-container cache bucket keyed by container entity id (PF-4: the id is
-    /// a copy lookup — no `String` is hashed per frame). Static layout inputs
-    /// are implied by the bucket; only per-frame dynamic inputs (`layout_size`,
+    /// Per-container cache bucket keyed by container entity id: the lookup is a
+    /// copy, so no label `String` is hashed per frame. Static layout inputs are
+    /// implied by the bucket; only per-frame dynamic inputs (`layout_size`,
     /// baselines) are compared inside it.
     pub(crate) cache: std::cell::RefCell<
         std::collections::HashMap<EntityId, crate::timeline::layout::LayoutContainerCache>,
@@ -224,7 +221,7 @@ pub struct SceneDimensions {
 pub struct DebugRenderOptions {
     /// Draw bounding-box outlines around actors.
     pub draw_bounds: bool,
-    /// P2.24: When true, compute hit regions during evaluation.
+    /// When true, compute hit regions during evaluation.
     /// The GUI sets this to true when it needs click-to-select data.
     pub compute_hit_regions: bool,
     /// Show layout-specific debug info (container labels, slot outlines, sizes).

@@ -113,9 +113,9 @@ impl EffectChainTrack {
     ///
     /// Each stage's support is evaluated at every parametric keyframe time
     /// (plus t=0) and the per-stage maxima are summed, so a padded region of
-    /// interest stays valid for the whole animation. This is the PF-7-friendly
-    /// "worst-case support" from `docs/effects.md` §3: constant per track, no
-    /// per-frame reallocation.
+    /// interest stays valid for the whole animation. This is the "worst-case
+    /// support" from `docs/effects.md` §3: constant per track, no per-frame
+    /// reallocation.
     pub fn worst_case_support(&self) -> f32 {
         let mut total = 0.0f32;
         for stage in &self.stages {

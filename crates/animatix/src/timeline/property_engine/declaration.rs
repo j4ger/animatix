@@ -40,8 +40,8 @@ macro_rules! write_typed_field {
 /// Write a parsed property value into a bundle of tier fields, handling
 /// keyframe timing (snapshot start, preserve delayed, write end).
 ///
-/// This is the central dispatch that replaces the repetitive per-property
-/// pattern in build.rs, assignments.rs, and declarations_text.rs.
+/// This is the central dispatch for declaration- and assignment-time property
+/// writes, so every property gets the same timing and drop behavior.
 ///
 /// The dispatch works in two tiers:
 /// 1. Special cases that need custom extraction/conversion (ShapeType, no-ops, group diagnostics)
@@ -183,16 +183,16 @@ pub fn write_property_fields(
         callout_track
             .ensure(crate::timeline::animation_track::CalloutPlace::Right)
             .add_keyframe(t_end_ms, place, easing);
-        // `callout_place` is read from the typed geometry track, so also writing
-        // the legacy tagged copy only created a second, unread track. The tagged
-        // tier survives as a read-only fallback for persisted files that predate
-        // the typed field (see `world::TaggedTracksComponent`).
+        // `callout_place` is read from the typed geometry track; the tagged
+        // tier survives only as a read-only fallback for persisted files that
+        // predate the typed field (see `PropertyPlan::for_actor`). Writing both
+        // would create a second, unread track.
         return;
     }
 
     // Route registry-backed tagged properties through the actor plan before
-    // falling back to the legacy tagged_tracks map. `legend` stays on the
-    // tagged path: its value is a sum (auto/hidden/label), not a plan track.
+    // falling back to the tagged track map. `legend` stays on the tagged path:
+    // its value is a sum (auto/hidden/label), not a plan track.
     if let ActorField::Tagged(name) = field
         && name != "legend"
         && name != "callout_place"

@@ -1,4 +1,4 @@
-//! Build phase 4 — finalize derived state.
+//! Finalize derived state.
 //!
 //! Everything here runs after validation because it either consumes the whole
 //! world (legend entries, idle tracks, pause points) or freezes state the frame
@@ -13,9 +13,9 @@ use super::*;
 /// collected before idle tracks could add generated actors, and hierarchy links
 /// are resolved last so carry-injected tracks join the tree.
 pub(super) fn finalize_assets_legend(timeline: &mut Timeline, diagnostics: &mut Vec<Diagnostic>) {
-    // P2.22: Freeze the base environment into an Arc for cheap sharing.
-    // After build, env is stable; build_frame_env will reference this Arc
-    // instead of copying all entries.
+    // Freeze the base environment into an Arc for cheap sharing: after build
+    // the env is stable, so build_frame_env references this Arc instead of
+    // copying all entries.
     timeline.env_base = std::sync::Arc::new(std::mem::take(&mut timeline.env.overrides));
     // Restore env with the frozen base layer
     timeline.env.base = Some(std::sync::Arc::clone(&timeline.env_base));

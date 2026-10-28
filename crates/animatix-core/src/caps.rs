@@ -99,10 +99,9 @@ impl ShapeKind {
 
 /// Which plot family a plot primitive belongs to.
 ///
-/// The plot builder used to decide this with `ty == "VectorField"`-style string
-/// compares. The family is a property of the primitive, so it lives on the
-/// catalog card and is carried to the engine through
-/// `PrimitiveFamilyDescriptor`.
+/// The family is a property of the primitive, so it lives on the catalog card
+/// and is carried to the engine through `PrimitiveFamilyDescriptor` — no
+/// `ty == "VectorField"`-style string compares in the plot builder.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum PlotKind {

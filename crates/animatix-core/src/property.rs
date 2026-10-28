@@ -215,16 +215,16 @@ declare_property_descriptors! {
     "t_domain" => (Applicable::Actors(&["PlotCurve"]), Vec2),
     "target" => (Applicable::Callout, Generic),
     // The uniform body property for every text-like actor (`Text`, `Typst`,
-    // `Code`, `Math`); `code` remains the `Code` spelling. It used to list only
-    // Text and Math, which left `Typst` with no body property the analyzer
-    // recognised once the redundant `content` alias was removed.
+    // `Code`, `Math`); `code` remains the `Code` spelling. Every text-like
+    // actor needs a body property the analyzer recognizes.
     "text" => (Applicable::TextLike, String),
     "text_align" => (Applicable::TextLike, String),
-    "text_max_width" => (// `Legend` has its own legend label wrapping, and the text engine reads
-        // this as the canonical wrap width (`declarations_text.rs`: "Canonical
-        // name per spec; `max_width` kept as a legacy alias"). The row used to
-        // list only `Legend`, which is why 94 site scenes could set a wrap width
-        // on a `Text` that the table claimed did not take one.
+    // `Legend` has its own legend label wrapping, and the text engine reads
+    // this as the canonical wrap width (`declarations_text.rs`: "Canonical
+    // name per spec; `max_width` kept as a legacy alias"). Every host that can
+    // set a wrap width must be listed, or the table claims a `Text` does not
+    // take one.
+    "text_max_width" => (
         Applicable::Any(&[
             Applicable::LegendHost,
             Applicable::TextLike,

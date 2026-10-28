@@ -15,9 +15,9 @@ use super::*;
 /// the snapshot track is inserted — a `CarryEntry` stores only the track, the
 /// links are re-established from `entry.children`.
 ///
-/// Phase 3 re-rooting: if a root entry has a layout-managed or container-
-/// relative position binding, we resolve its world-space position from the
-/// source timeline and rewrite the binding to `Absolute`.
+/// Re-rooting: if a root entry has a layout-managed or container-relative
+/// position binding, resolve its world-space position from the source timeline
+/// and rewrite the binding to `Absolute`.
 fn inject_entry(
     dest: &mut Timeline,
     label: &str,
@@ -30,7 +30,7 @@ fn inject_entry(
 ) {
     let mut geometry = entry.geometry.clone();
 
-    // ── Phase 3: re-root layout-managed entries to absolute world position ──
+    // ── Re-root layout-managed entries to absolute world position ──
     if is_root {
         let placement_mode = geometry
             .placement_mode
@@ -248,7 +248,7 @@ impl Timeline {
     /// carried actors are visible to subsequent statements (assignments,
     /// action verbs, re-declarations).
     ///
-    /// `source_timeline` — the predecessor scene's timeline, used for Phase 3
+    /// `source_timeline` — the predecessor scene's timeline, used for
     /// world-position resolution of layout-managed roots.
     ///
     /// `source_duration_ms` — the predecessor scene's duration, sampled as the

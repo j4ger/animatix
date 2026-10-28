@@ -98,9 +98,9 @@ impl Timeline {
         // 1. an authored `bounds: (x, y, w, h)`;
         // 2. derived from the content bounds the sub-scene evaluation just recorded
         //    (`docs/effects.md` §3), expanded by worst-case support;
-        // 3. `None` — the historical full-scene path.
+        // 3. `None` — the full-scene path.
         // The GPU textures stay at full scene capacity in every case, so
-        // varying regions never reallocate (PF-7).
+        // varying regions never reallocate.
         // Authored bounds are scene coordinates, and the camera moves the
         // picture under them. Recompute the same affine the root subtrees were
         // wrapped in (see the camera application in `evaluate_scene`) rather

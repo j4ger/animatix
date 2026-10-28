@@ -11,12 +11,11 @@ use super::{
 };
 
 thread_local! {
-    /// Reusable env-key buffer for `apply_override_incremental` (PF-6): each
-    /// modifier-IR assignment `format!`-built its key plus one owned clone per
-    /// sub-key; on the pooled env all of those keys already exist, so writing
-    /// through one buffer makes the whole write allocation-free. The buffer
-    /// never escapes and there is no reentrancy (`env.set` cannot call back
-    /// into this function while it is borrowed).
+    /// Reusable env-key buffer for `apply_override_incremental`: on the pooled
+    /// env every key already exists, so writing through one buffer makes the
+    /// whole override write allocation-free. The buffer never escapes and there
+    /// is no reentrancy (`env.set` cannot call back into this function while it
+    /// is borrowed).
     static OVERRIDE_KEY: std::cell::RefCell<String> =
         std::cell::RefCell::new(String::with_capacity(96));
 }
@@ -110,24 +109,22 @@ impl Timeline {
         let _stage = crate::perf::ScopedStage::new(crate::perf::stage::BUILD_FRAME_ENV);
         // The capacity estimate and every per-actor injection decision are
         // build-fixed (referenced-roots analysis, wildcard targets, registry
-        // property counts). The injection plan computes them once after each
-        // invalidation; the old per-frame walk rebuilt them every frame and
-        // alone did a `format!` allocation per label for wildcard membership.
-        // 120 = measured inserts for one fully-injected Rect track (registry
-        // properties with defaults + `_animating_` flags + override sub-keys,
-        // 117 in total) rounded up; under-reserving triggers a rehash that
-        // costs more than the mmap it avoids, so err generous (see PF-6).
+        // property counts), so the injection plan computes them once after each
+        // invalidation instead of rebuilding them per frame.
+        // 120 is a generous upper bound for one fully-injected track (registry
+        // properties with defaults + `_animating_` flags + override sub-keys);
+        // under-reserving triggers a rehash, so err generous.
         let plan = self.env_injection_plan();
         let estimated_capacity = 16 + self.variable_tracks.len() + plan.estimated_prop_entries;
         let has_runtime_injection = self.needs_frame_env();
-        // PF-6 pool: the override-layer key set is identical frame-to-frame
-        // (actor labels × registry properties are build-time-fixed), so the
-        // environment is retained and its keys overwritten in place via
-        // `set`'s `get_mut` fast path; the only cross-frame key-set variance
-        // is a variable track evaluating to `None` before its first keyframe,
-        // which removes the stale key below. `invalidate_frame_cache` drops
-        // the pool on every mutation, and capacity is re-checked as cheap
-        // insurance against a mismatched pooled environment.
+        // The override-layer key set is identical frame-to-frame (actor labels ×
+        // registry properties are build-time-fixed), so the environment is
+        // retained and its keys overwritten in place via `set`'s `get_mut` fast
+        // path; the only cross-frame key-set variance is a variable track
+        // evaluating to `None` before its first keyframe, which removes the
+        // stale key below. `invalidate_frame_cache` drops the pool on every
+        // mutation, and capacity is re-checked as cheap insurance against a
+        // mismatched pooled environment.
         let mut env = match self.env_pool.borrow_mut().take() {
             Some(mut pooled) if pooled.overrides.capacity() >= estimated_capacity => {
                 pooled.reset_for_reuse();
@@ -169,13 +166,11 @@ impl Timeline {
         // Procedural plots still need actor property keys (e.g. `curve.freq`)
         // injected so their closures can resolve runtime parameters.
         // `has_runtime_injection` is the memoized `needs_frame_env` answer:
-        // `has_procedural_plots` walks every track, and the memo keeps that
-        // walk to once per invalidation rather than once per frame (a second
-        // per-frame call was a measurable regression on the env_50/100/200
-        // benches, 2026-09-04).
+        // `has_procedural_plots` walks every track, so the memo keeps that walk
+        // to once per invalidation rather than once per frame.
         if !has_runtime_injection {
-            // PF-6: one shared key buffer for the whole injection pass — the
-            // per-track `String::with_capacity` calls were an allocation each.
+            // One shared key buffer for the whole injection pass; per-track
+            // buffers would allocate once per track.
             let mut key = String::with_capacity(96);
             for (label, id) in self.world.tracks.iter() {
                 crate::timeline::property_engine::inject_extension_properties_into_env(
@@ -241,11 +236,9 @@ impl Timeline {
                 let [r, g, b, a] = self.background_color.evaluate_copy(time_ms);
                 [r as f64, g as f64, b as f64, a as f64]
             });
-        // PF-6: one shared key buffer across background color, anchors, and
-        // the track loop below — every `format!`/`with_capacity` here was a
-        // per-frame allocation. Sub-key writes reuse the same buffer in place;
-        // on a pooled env `set`'s get_mut-first path makes them
-        // allocation-free.
+        // One shared key buffer across background color, anchors, and the track
+        // loop below; sub-key writes reuse the same buffer in place, and on a
+        // pooled env `set`'s get_mut-first path makes them allocation-free.
         let mut key = String::with_capacity(96);
         set_lookup_color_into(env, &mut key, background_color);
 
@@ -273,9 +266,9 @@ impl Timeline {
             // Referenced-root filtering, wildcard membership, and the
             // referenced-property filter are all build-fixed; the injection
             // plan (see `Timeline::env_injection_plan`) answers them with one
-            // indexed read instead of the per-label `format!`/`split_once`/
-            // `HashSet` walk this loop used to run every frame.
-            // Over-injection is safe; the filter only skips work.
+            // indexed read instead of a per-label `format!`/`split_once`/
+            // `HashSet` walk. Over-injection is safe; the filter only skips
+            // work.
             let decision = plan
                 .and_then(|plan| plan.decision(id))
                 .unwrap_or_else(|| self.env_inject_decision(label));
@@ -357,7 +350,7 @@ impl Timeline {
                     crate::timeline::env_keys::property_into(label, okey, &mut key);
                     env.set(&key, val.clone());
                     // Also inject typed sub-keys for known properties, reusing
-                    // the buffer (PF-6: these were `format!` allocations).
+                    // the buffer in place.
                     match val {
                         Value::Vec2([x, y]) => {
                             let base_len = key.len();
@@ -408,10 +401,9 @@ impl Timeline {
                 }
             }
 
-            // G5/G6: Actor anchor points (`{label}.right`, etc.) are now
-            // resolved lazily from the frame environment at evaluation time
-            // (see `env_anchor_point` in callout_geometry.rs).  This replaces
-            // the old eager-injection approach, making anchor points reflect
+            // Actor anchor points (`{label}.right`, etc.) are resolved lazily
+            // from the frame environment at evaluation time (see
+            // `env_anchor_point` in callout_geometry.rs), so they reflect
             // `always`-block position overrides.
         }
     }

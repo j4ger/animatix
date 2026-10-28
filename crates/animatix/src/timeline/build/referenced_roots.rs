@@ -1,9 +1,9 @@
 //! Pre-scan of the expanded AST for actor labels referenced by expressions.
 //!
-//! Build-time evaluation environments historically injected every property of
-//! every declared track on every [`Timeline::build_eval_env`] call, making
-//! environment construction O(declarations²). Expressions, however, can only
-//! reference an actor label that appears textually in the program: member
+//! Without a pre-scan, a build-time evaluation environment would inject every
+//! property of every declared track on every [`Timeline::build_eval_env`] call,
+//! making environment construction O(declarations²). Expressions, however, can
+//! only reference an actor label that appears textually in the program: member
 //! access like `pulse.size.x` parses to `Expr::Path(["pulse", "size", "x"])`.
 //!
 //! Collecting those roots once per build lets the build environment inject

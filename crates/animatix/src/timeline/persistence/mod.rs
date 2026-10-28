@@ -5,7 +5,7 @@
 //! `persist` are snapshotted at exit time and injected into the next scene's
 //! timeline.
 //!
-//! ## Phase 1 scope
+//! ## Scope
 //!
 //! This module provides:
 //!

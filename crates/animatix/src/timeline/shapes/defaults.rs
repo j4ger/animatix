@@ -119,11 +119,10 @@ pub fn build_vector_shape_vello_path(
     crate::primitives::find_primitive(type_name)
         .and_then(|primitive| {
             // Build-time helper (vector-path assignments): a thread-local scratch
-            // shape tier provides the memo home. This runs inside `Timeline::build`
-            // — allocating one per call showed up as a rebuild regression in the
-            // 2026-09-04 full-suite gate. The memo is self-validating (keyed on
-            // the sampled `KurboShape`), so cross-call reuse is safe. `render()`
-            // reads only the memoized shape, never an entity identity.
+            // shape tier provides the memo home. Allocating one per call is
+            // measurable on rebuild-heavy scenes. The memo is self-validating
+            // (keyed on the sampled `KurboShape`), so cross-call reuse is safe.
+            // `render()` reads only the memoized shape, never an entity identity.
             thread_local! {
                 static SCRATCH_SHAPE: crate::timeline::animation_track::ShapeTracks =
                     crate::timeline::animation_track::ShapeTracks::default();

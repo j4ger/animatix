@@ -201,7 +201,7 @@ impl Timeline {
             .map(|cl| self.world.text_or_default(cl.id).baseline_get(t_ms))
             .collect();
 
-        // Collect size specs and constraints for phase 7
+        // Collect size specs and constraints for the layout pass.
         let (size_specs, constraints, parent_content_size) =
             self.collect_child_layout_specs(container_id, &children, t_ms);
 

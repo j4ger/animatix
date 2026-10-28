@@ -2,9 +2,8 @@ use super::*;
 
 /// Per-shape state enum that only holds fields relevant to each shape type.
 ///
-/// Previously `VectorShapeState` was a flat struct with dead fields
-/// (e.g. `arc_angles` on Rect, `regular_polygon_sides` on Ellipse).
-/// Now each variant carries exactly the fields it needs.
+/// Each variant carries exactly the fields it needs, so a shape cannot read a
+/// field its own geometry does not define (e.g. no `arc_angles` on Rect).
 #[derive(Clone, Debug, PartialEq)]
 pub enum VectorShapeState {
     /// Rectangle shape state.

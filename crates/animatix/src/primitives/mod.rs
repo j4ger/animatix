@@ -29,17 +29,16 @@
 //!    from the card.
 //! 2. Create `primitives/<name>.rs` implementing `Primitive` (behaviour only — no metadata
 //!    methods).
-//! 3. Add a `BuiltIn::new(&catalog::<NAME>, &<NAME>::CONST, <family>::evaluate_<name>, <build_extra>)`
-//!    row to the `BUILT_INS` array below. The row carries the catalog card by symbol,
-//!    the compiled-in behaviour, and the evaluate/build_extra function pointers in one
-//!    place, so the metadata and behaviour cannot drift positionally; a primitive
-//!    added to the catalog without a row fails the pairing test instead of panicking
-//!    when `BehaviorRegistry` is constructed.
-//! 4. If the primitive has properties, add the descriptor row to
-//!    `animatix-core::property::PROPERTY_DESCRIPTORS` (name + applicability + value kind), its type
-//!    row to `animatix-syntax/src/schema.rs::raw_property_types()`, and the runtime binding to
-//!    `timeline/property_registry.rs::BINDINGS`; the tests in those modules fail until all three
-//!    line up. Append descriptor rows — the row index is the serialized `PropertyId`.
+//! 3. Append a `BuiltIn::new(&catalog::<NAME>, &<NAME>::CONST, <family>::evaluate_<name>, <build_extra>)`
+//!    row to `BUILT_INS`. The row carries the catalog card by symbol, the compiled-in
+//!    behaviour, and the evaluate/build_extra function pointers in one place, so metadata
+//!    and behaviour cannot drift positionally; a primitive added to the catalog without a
+//!    row fails the pairing test instead of panicking when `BehaviorRegistry` is
+//!    constructed.
+//! 4. If the primitive has properties, add the three aligned rows (core descriptor, syntax
+//!    type row, engine binding); `timeline::property_registry` documents the join and the
+//!    tests that fail until they agree. Append descriptor rows — the row index is the
+//!    serialized `PropertyId`.
 //! 5. Document it (docs/primitives.md, docs/spec.md) and add render/hit-region coverage if it
 //!    draws.
 //!
@@ -168,10 +167,6 @@ pub(crate) fn actor_category_to_primitive_category(
 /// A built-in primitive: its `animatix-std` identity card paired by symbol
 /// with the engine behaviour that implements it, plus the family function
 /// pointers used by evaluation and custom declaration build logic.
-///
-/// One row per primitive in [`BUILT_INS`]; referencing the card directly is
-/// what removes the positional coupling between the catalog and the
-/// behaviour list.
 pub struct BuiltIn {
     /// The identity card from the `animatix-std` catalog (metadata source).
     pub info: &'static PrimitiveInfo,
@@ -183,9 +178,6 @@ pub struct BuiltIn {
 
 impl BuiltIn {
     /// Pair a catalog card with its behaviour implementation and family hooks.
-    ///
-    /// The card and behaviour are paired by symbol in the row, so the type name
-    /// is never repeated as a separate argument.
     pub const fn new(
         info: &'static PrimitiveInfo,
         behavior: &'static dyn Primitive,

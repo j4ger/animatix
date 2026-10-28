@@ -414,10 +414,10 @@ impl Timeline {
             // Unified declaration rule (shared with the generic actor path):
             // an explicit `opacity` wins; otherwise a first declaration starts
             // at `default_opacity` and a re-declaration keeps its last authored
-            // value. This used to fall back to 1.0 on every re-declaration, so
-            // an authored `opacity: 0.05` on a plot actor silently reset on the
-            // next beat — the render layer already multiplies fill/stroke alpha
-            // by node opacity, so the retained value is what should apply.
+            // value. Falling back to 1.0 on re-declaration would silently reset
+            // an authored `opacity: 0.05` on the next beat — the render layer
+            // already multiplies fill/stroke alpha by node opacity, so the
+            // retained value is what should apply.
             let existing_opacity = self.world.style(frame.track_id).opacity.last(1.0);
             let mut opacity = self.declaration_opacity(
                 frame.is_first_decl,

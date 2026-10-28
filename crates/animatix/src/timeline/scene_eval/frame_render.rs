@@ -1,13 +1,13 @@
 //! Frame render phase: background fill and root-subtree encoding.
 //!
-//! Split out of `evaluate_program_inner` so the entry point stays a phase
-//! dispatcher; the execution order (background → roots → caches) is unchanged.
+//! The evaluation entry point dispatches the frame stages; the execution order
+//! here is background → roots → caches.
 
 use super::frame::FrameEvaluation;
 use super::*;
 
 impl Timeline {
-    /// Phase 3 — encode the frame: background fill, then every root subtree
+    /// Encode the frame: background fill, then every root subtree
     /// (static-subtree fast path or full node evaluation).
     pub(super) fn render_frame_roots(
         &self,

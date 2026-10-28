@@ -1,4 +1,4 @@
-//! Build phase 1 — seed the build environment.
+//! Seed the build environment.
 //!
 //! Fills the timeline with everything the statement walk expects to find:
 //! build quality and extension wiring, the standard library and pure `fn`s,

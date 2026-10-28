@@ -141,9 +141,8 @@ impl Timeline {
 
     /// Memoized [`Self::needs_frame_env`]: the underlying answer only changes
     /// with the timeline's compiled statements, and the raw computation walks
-    /// every entity's payload — the frame path used to pay that walk up to
-    /// three times per frame (restore probe, miss, env build). Cleared by
-    /// `invalidate_frame_cache`.
+    /// every entity's payload, so the answer is cached until the next
+    /// invalidation. Cleared by `invalidate_frame_cache`.
     pub(crate) fn needs_frame_env(&self) -> bool {
         if let Some(cached) = self.eval_caches.needs_frame_env.get() {
             return cached;
@@ -159,9 +158,9 @@ impl Timeline {
     /// which entities participate in runtime injection, with which property
     /// filter, plus the pooled env's capacity estimate. Computed once from
     /// the referenced-roots analysis and cleared by `invalidate_frame_cache`,
-    /// so the per-frame env build stops re-deriving wildcard membership
-    /// (`format!` per label) and the capacity walk. Only valid once the build
-    /// has converged — the build path itself calls
+    /// so the per-frame env build does not re-derive wildcard membership
+    /// (`format!` per label) or the capacity estimate. Only valid once the
+    /// build has converged — the build path itself calls
     /// [`Self::env_inject_decision`] per label instead.
     pub(crate) fn env_injection_plan(&self) -> std::sync::Arc<EnvInjectionPlan> {
         if let Some(plan) = self.eval_caches.env_injection_plan.borrow().clone() {
@@ -395,11 +394,16 @@ impl EvalCaches {
     ///
     /// This is the single invalidation body used by
     /// [`Timeline::invalidate_frame_cache`]: the frame's encoded scene is
-    /// recycled into the scene buffer, flat per-entity tables are cleared, and
-    /// build-fixed memos drop so they re-derive from the mutated world. The
-    /// content epoch is *not* reset here — the caller advances it, and the
-    /// diagnostics/solo state are resolved per evaluation rather than cached
-    /// invalidations.
+    /// recycled into the scene buffer; per-entity tables (transform, static
+    /// flags, static-subtree entries, hit regions, override buffer, bounds
+    /// table/registry, primitive handles) are cleared; and build-fixed memos
+    /// (`needs_frame_env`, the env injection plan, `solo_scan_needed`) drop so
+    /// they re-derive from the mutated world.
+    ///
+    /// The caller owns two obligations: it advances the content epoch, and it
+    /// drops the pooled frame environment because the injected key set may have
+    /// changed. Diagnostics and solo state are resolved per evaluation rather
+    /// than cached across invalidations.
     pub(crate) fn clear(&self) {
         // Recycle the invalidated entry's encoded scene into the scene buffer
         // so the next evaluation reuses its allocation instead of starting

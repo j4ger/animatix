@@ -207,8 +207,8 @@ impl Composition {
     }
 }
 
-/// Phase 1 — separate the shared prelude from the entry file's scene blocks and
-/// build each scene's first-pass timeline.
+/// Separate the shared prelude from the entry file's scene blocks and build
+/// each scene's first-pass timeline.
 ///
 /// The first pass is not throwaway: it produces the diagnostics the user sees
 /// and the duration/carry source for scenes that never get rebuilt. A scene
@@ -324,7 +324,7 @@ fn collect_scenes(
     }
 }
 
-/// Phase 2 — collect scenes from imported namespaces, transitively.
+/// Collect scenes from imported namespaces, transitively.
 ///
 /// When a play target references an imported scene (e.g. `play alias.SceneName`),
 /// build a timeline from the imported scene's data and register it — then

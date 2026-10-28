@@ -1,8 +1,7 @@
 //! Payload access tests.
 //!
-//! The keyframe introspection free functions that used to live here were
-//! track-taking compatibility wrappers; their id-keyed home is
-//! `world::fields` and the property-name boundary is `world::keyframes`.
+//! Keyframe introspection lives in `world::fields` (id-keyed) and
+//! `world::keyframes` (property-name boundary).
 
 #[test]
 fn rect_track_carries_no_payload() {

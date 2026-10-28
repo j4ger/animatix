@@ -157,7 +157,7 @@ impl BuiltinAction for FadeIn {
                 };
                 let style = timeline.world.style_mut(id);
                 // Settle on the authored opacity. Only an authored 0 is a seed
-                // the entrance has to lift past; a hardcoded 1.0 here used to
+                // the entrance has to lift past; a hardcoded 1.0 here would
                 // discard an authored `opacity: 0.25` without a diagnostic.
                 let end_opacity = super::entrance_opacity_target(style, t_start_ms);
                 style.opacity.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);

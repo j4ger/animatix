@@ -1,4 +1,4 @@
-//! Composition phase 4 — timing: duration floors, walk order, carry, global map.
+//! Timing: duration floors, walk order, carry, global map.
 //!
 //! Turns the collected scene graph into playback timing. Two things here are
 //! load-bearing beyond arithmetic: the duration floor (a zero-duration scene
@@ -12,7 +12,7 @@ use super::builder::SceneCollection;
 use super::edges::compute_walk_order;
 use super::*;
 
-/// Phase 3b/4a — floor durations, order the walk, inject carried state.
+/// Floor durations, order the walk, inject carried state.
 ///
 /// Mutates `state.scenes` in place: durations are floored so every transition
 /// fits, and a scene with carried state is rebuilt (its first-pass diagnostics
@@ -106,7 +106,7 @@ fn inject_carried_state(
     reverse_edges: &BTreeMap<String, Vec<String>>,
     state: &mut SceneCollection,
 ) {
-    // Default scene dimensions used for Phase 3 layout re-rooting.
+    // Default scene dimensions used for layout re-rooting.
     let default_dims = [
         crate::timeline::SceneDimensions::default().width as f64,
         crate::timeline::SceneDimensions::default().height as f64,
@@ -222,7 +222,7 @@ fn inject_carried_state(
     }
 }
 
-/// Phase 5 — compute global start times, total duration and pause points.
+/// Compute global start times, total duration and pause points.
 pub(super) fn finalize_global_timeline(
     scenes: BTreeMap<String, CompositionScene>,
     walk_order: &[String],

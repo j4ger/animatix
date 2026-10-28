@@ -3,8 +3,8 @@
 //! `Timeline::evaluate_program_with_debug` returns a [`SceneProgram`] instead of
 //! only an encoded Vello scene. Primitive actors become [`SceneItem`]s, while
 //! the authoritative encoded scene remains the exact render target for filters,
-//! masks, static subtrees, and legacy paths. The existing `evaluate_with_debug`
-//! API remains as a thin scene-only wrapper over the same program, so preview,
+//! masks, static subtrees, and scene-only paths. `evaluate_with_debug` remains
+//! as a thin scene-only wrapper over the same program, so preview,
 //! offscreen rendering, and export all consume the same frame description.
 
 use std::collections::HashMap;
@@ -24,7 +24,7 @@ pub struct SceneProgram {
     /// Authoritative encoded Vello scene for this frame.
     ///
     /// Kept as the exact render target because static-subtree, filter, mask,
-    /// and legacy render paths encode directly to Vello. The structured
+    /// and scene-only render paths encode directly to Vello. The structured
     /// `items` field is observable for tooling/testing while `scene` remains
     /// what is actually drawn.
     pub scene: vello::Scene,

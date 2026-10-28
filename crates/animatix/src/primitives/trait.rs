@@ -18,9 +18,7 @@ use super::{
 ///
 /// This is the single frame-time text compile path: every text-like
 /// primitive (Text, Math, Code, Typst) dispatches through
-/// [`Primitive::evaluate`] into this function. It supersedes the former
-/// inline `evaluate_text_node` logic in `scene_eval.rs` (removed during the
-/// trait-dispatch migration).
+/// [`Primitive::evaluate`] into this function.
 pub fn evaluate_text_paths(
     ctx: &EvaluateCtx,
     text_ctx: &mut TextCompileCtx,
@@ -77,10 +75,10 @@ pub fn evaluate_text_paths(
             word_spacing = *n as f32;
         }
         // `text_max_width` is the canonical descriptor name (animatix-core) and
-        // `max_width` the legacy alias; the frame path used to read only the
-        // alias, so `always { t.text_max_width = 60 }` wrote an override key
-        // nobody consumed — silently, because the canonical row is flagged
-        // ANIMATED. Same two-name handling as `text`/`code` above.
+        // `max_width` the legacy alias. Both must be read: an `always` block
+        // that writes the canonical key would otherwise be silently ignored
+        // because the canonical row is flagged ANIMATED. Same two-name handling
+        // as `text`/`code` above.
         if let Some(Value::Num(n)) = ov.get("text_max_width").or_else(|| ov.get("max_width")) {
             max_width = *n as f32;
         }
@@ -286,14 +284,6 @@ pub fn evaluate_text_paths(
     }
 }
 
-/// Read a `size` override written by an `always` block.
-///
-/// The authored value is a full width/height, but every geometry track stores
-/// half-extents — so this halves, matching the declaration path
-/// (`timeline/build/shape.rs`) and the keyframe path
-/// (`assignments::rebuild::handle_size_assignment`). Without it
-/// `always { r.size = (100.0, 60.0) }` paints a 200×120 box where
-/// `size: (100, 60)` paints a 100×60 one.
 /// Resolve a shape's half-size (its radius) for this frame.
 ///
 /// The three sources do not share units, and mixing them up made the same
@@ -305,6 +295,9 @@ pub fn evaluate_text_paths(
 ///   here.
 /// - `radius_x` / `radius_y` overrides are **half-size components** and each replace one axis. They
 ///   are applied after `size`, so a scene can set the box and then nudge a single radius.
+///
+/// Without the halving, `always { r.size = (100.0, 60.0) }` would paint a
+/// 200×120 box where `size: (100, 60)` paints a 100×60 one.
 ///
 /// A wrongly-typed override keeps the keyframed size. This runs for every shape
 /// every frame, so the drop is logged at debug rather than warn, which would
@@ -554,8 +547,6 @@ pub trait Primitive: Send + Sync {
     ) -> bool {
         false
     }
-
-    // ── Trait-dispatch scene evaluation (Phase 10b.3) ──
 
     // ── Post-children build finalization (for containers) ──
 

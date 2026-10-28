@@ -2,9 +2,9 @@
 //!
 //! Generic `Expr → PropertyValue` dispatch driven by `ValueType`.
 //!
-//! This module implements the per-type parsing logic that replaces the old
-//! N×M match-block explosion. It is the single source of truth for converting
-//! an AST expression to a typed `PropertyValue`.
+//! This module is the single source of truth for converting an AST expression
+//! to a typed `PropertyValue`: one dispatch on `ValueType`, not per-property
+//! match blocks.
 //!
 //! ## Usage
 //!

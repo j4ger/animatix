@@ -2,19 +2,23 @@
 //!
 //! AST-to-`Timeline` lowering pass.  The public entry points live in `entry/`
 //! and all delegate to `Timeline::build_with_options()`.  Lowering proceeds
-//! through several phases, each in its own file.
+//! through several stages, each in its own file.
 //!
-//! | File | Phase |
-//! |------|-------|
-//! | `entry/` | Build entry points and the `BuildOptions` carrier |
+//! | File | Role |
+//! |------|------|
+//! | `entry/` | Build entry points, options, validation, finalize order |
 //! | `colorscheme.rs` | Colorscheme seeding, config, auto-color |
 //! | `node.rs` | Scene-graph node creation |
 //! | `container.rs` | Container metadata, layout, inline items |
 //! | `property.rs` | Property extraction, graph coordinate mapping |
 //! | `shape.rs` | Vector shape state construction |
+//! | `effect.rs` | Effect-chain lowering for compositing scopes |
+//! | `defines.rs` | `--set NAME=VALUE` overrides |
 //! | `actor/` | Actor declaration lifecycle, VelloPath generation, keyframes |
 //! | `process.rs` | Main `process_body` AST statement dispatcher |
 //! | `plot/` | Plot actor lowering, graph/field/curve/bar path building |
+//! | `referenced_roots.rs` | Expression-reference pre-scan for env injection |
+//! | `speech.rs` | Speech transcript pre-pass and anchored keyframes |
 //! | `post.rs` | Post-build passes: idle tracks, namespace exports |
 //! | `keyframe_utils.rs` | Start/delay keyframe snapshots (end values live in `actor/helpers.rs`) |
 

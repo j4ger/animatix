@@ -49,7 +49,7 @@ pub(crate) fn build_plot_curve_paths(
 ) -> Vec<VelloPath> {
     let mut vello_paths = vec![];
 
-    // Apply build-quality scaling to plot sampling parameters (Phase 6.3)
+    // Apply build-quality scaling to plot sampling parameters.
     let mut tolerance = params.tolerance;
     let mut max_depth = params.max_depth as usize;
     let mut resolution = params.resolution as usize;
@@ -452,7 +452,7 @@ impl Timeline {
 
         let eval_env = self.build_eval_env(time_ms as u64);
 
-        // Phase 6.4: Check cache for static plot paths before rebuilding.
+        // Check the static-path cache before rebuilding.
         let is_static = parsed.func.as_ref().is_none_or(|(_, body, _)| !body.references_ident("t"));
         let cache_key = if is_static {
             use std::collections::hash_map::DefaultHasher;

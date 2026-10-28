@@ -1,4 +1,4 @@
-//! Build-time scene statistics bake pass (STAT-1).
+//! Build-time scene statistics bake pass.
 //!
 //! Pre-samples authored tracks to derive aggregate scene facts:
 //! - `scene.stats.motion`: aggregate motion energy across the cast

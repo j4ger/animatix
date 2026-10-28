@@ -130,18 +130,15 @@ impl ModifierHost {
 }
 
 /// Easing names have one source of truth: `animatix_syntax::easing`, which
-/// the engine re-exports as `crate::easing`. This used to carry its own copy
-/// of the table, and the two had already drifted (the engine's was missing
-/// `custom`). Re-export instead of duplicating.
+/// the engine re-exports as `crate::easing`. Duplicating the table risks the
+/// parser and the evaluator disagreeing on a name.
 pub use crate::easing::parse_easing_name;
 
 /// Whether the action named by `subject` declares this modifier key.
 ///
-/// The timing parser used to keep its own list of effect keys
-/// (`intensity`, `frequency`, `color`, …) and went stale the first time an
-/// action grew a parameter — `bounce [restitution: …]` warned despite being
-/// legal. The signatures are the single source, and `validate_action_modifiers`
-/// is what reports a real typo.
+/// The action signatures are the single source for accepted keys, so an action
+/// that grows a parameter cannot go stale here; `validate_action_modifiers` is
+/// what reports a real typo.
 fn action_declares_modifier(subject: Option<&str>, name: &str) -> bool {
     let Some(verb) = subject else {
         return false;

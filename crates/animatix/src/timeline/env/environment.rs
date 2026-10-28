@@ -12,11 +12,12 @@ fn fresh_env_instance() -> u32 {
 /// large stdlib maps on every frame.
 pub struct Environment {
     pub(crate) overrides: EnvMap,
-    /// P2.22: Shared base layer. `get()` checks overrides first, then falls back
-    /// to base. This avoids copying ~90 stdlib entries on every [`Timeline::build_frame_env`].
+    /// Shared base layer. `get()` checks overrides first, then falls back to
+    /// base. Keeps the ~90-entry stdlib map out of every
+    /// [`Timeline::build_frame_env`] copy.
     pub(crate) base: Option<Arc<EnvMap>>,
-    /// P6.2+: Dual-variable binding overlay for plot sampling.
-    /// Avoids cloning the entire overrides HashMap for every sample point.
+    /// Dual-variable binding overlay for plot sampling.
+    /// Avoids cloning the entire overrides map for every sample point.
     /// Two slots allow setting both `x` and `y` for scalar/vector field evaluation.
     pub(crate) bindings: [Option<(String, Value)>; 2],
     /// Memoization identity; see [`EnvStamp`]. Bumped on every mutation.
@@ -144,10 +145,10 @@ impl Environment {
 
     /// Insert or overwrite a variable in the override layer.
     ///
-    /// PF-6: on a pooled environment (see
-    /// `Timeline::build_frame_env_internal`) the key already exists, so
-    /// `get_mut`-first overwrites the stored value in place — no key copy at
-    /// all. The `insert` path only fires for keys the pool has not seen.
+    /// On a pooled environment (see `Timeline::build_frame_env_internal`) the
+    /// key already exists, so `get_mut`-first overwrites the stored value in
+    /// place — no key copy at all. The `insert` path only fires for keys the
+    /// pool has not seen.
     pub fn set(&mut self, name: &str, value: Value) {
         self.mark_mutated();
         match self.overrides.get_mut(name) {
@@ -158,8 +159,8 @@ impl Environment {
         }
     }
 
-    /// [`Self::set`] taking an owned key (PF-6: callers that already built a
-    /// `String` key move it in instead of paying a second copy inside `set`).
+    /// [`Self::set`] taking an owned key: callers that already built a `String`
+    /// key move it in instead of paying a second copy inside `set`.
     pub fn set_owned(&mut self, name: String, value: Value) {
         self.mark_mutated();
         match self.overrides.get_mut(name.as_str()) {
