@@ -171,7 +171,7 @@ pub(super) fn handle_canvas_interaction(
         ctx,
         ui,
         preview_rect,
-        &response,
+        response,
     );
 
     let pointer_pos =
@@ -202,7 +202,7 @@ pub(super) fn handle_canvas_interaction(
         ctx.selection.hovered_actor = None;
     }
 
-    ctx.handle_preview_selection(ui, preview_rect, &response);
+    ctx.handle_preview_selection(ui, preview_rect, response);
     ctx.render_preview_cursor_feedback(ui, preview_rect);
     ctx.render_preview_overlays(ui, preview_rect);
 }

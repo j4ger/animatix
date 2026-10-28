@@ -165,7 +165,7 @@ impl GuiShell {
             ui.separator();
 
             let save_btn = ui.button(format!("{} Save", egui_phosphor::regular::FLOPPY_DISK));
-            text_tooltip(ui, save_btn.id.with("save_tip"), &save_btn, &save_tip);
+            text_tooltip(ui, save_btn.id.with("save_tip"), &save_btn, save_tip);
             if save_btn.clicked() {
                 commands.push_back(DocumentCommand::Save.into());
                 ui.close();
@@ -190,14 +190,14 @@ impl GuiShell {
             ui.separator();
             let reload_btn =
                 ui.button(format!("{} Reload from disk", egui_phosphor::regular::ARROW_CLOCKWISE));
-            text_tooltip(ui, reload_btn.id.with("reload_tip"), &reload_btn, &reload_tip);
+            text_tooltip(ui, reload_btn.id.with("reload_tip"), &reload_btn, reload_tip);
             if reload_btn.clicked() {
                 commands.push_back(DocumentCommand::Reload.into());
                 ui.close();
             }
             let rebuild_btn =
                 ui.button(format!("{} Rebuild timeline", egui_phosphor::regular::HARD_DRIVES));
-            text_tooltip(ui, rebuild_btn.id.with("rebuild_tip"), &rebuild_btn, &rebuild_tip);
+            text_tooltip(ui, rebuild_btn.id.with("rebuild_tip"), &rebuild_btn, rebuild_tip);
             if rebuild_btn.clicked() {
                 commands.push_back(DocumentCommand::Rebuild.into());
                 ui.close();

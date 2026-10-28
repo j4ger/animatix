@@ -12,21 +12,21 @@ pub(super) fn draw_preview_overlays(
     let overlay_tx = ctx.preview_transform(preview_rect);
     // ── Scene bounds overlay ──
     if ctx.preview.overlay.show_scene_bounds {
-        let ops = crate::app::preview::overlay_ops::scene_bounds_ops(&theme, overlay_tx);
+        let ops = crate::app::preview::overlay_ops::scene_bounds_ops(theme, overlay_tx);
         crate::app::preview::overlay_ops::execute_overlay_ops(ui.painter(), &ops, &overlay_tx);
     }
 
     // ── Actor labels overlay ──
     if ctx.preview.overlay.show_actor_labels {
         let ops =
-            crate::app::preview::overlay_ops::actor_label_ops(&theme, ctx.hit_regions, overlay_tx);
+            crate::app::preview::overlay_ops::actor_label_ops(theme, ctx.hit_regions, overlay_tx);
         crate::app::preview::overlay_ops::execute_overlay_ops(ui.painter(), &ops, &overlay_tx);
     }
 
     // Draw grid overlay
     if ctx.preview.overlay.show_grid {
         let ops = crate::app::preview::overlay_ops::grid_ops(
-            &theme,
+            theme,
             overlay_tx,
             ctx.preview.overlay.grid_size,
         );

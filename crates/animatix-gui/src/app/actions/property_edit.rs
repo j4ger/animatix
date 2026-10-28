@@ -166,25 +166,22 @@ pub(super) fn apply_property_edit_to_entity(
             ("text_max_width", text_max_width, "legend_text_max_width", F32),
         );
 
-        match property {
-            "label_color" => {
-                if let PV::String(v) = value {
-                    let parsed = parse_gui_color(v);
-                    legend.label_color = parsed;
-                    if let Some(color) = parsed {
-                        write_tagged_value(
-                            "legend_label_color",
-                            animatix::timeline::PropertyValue::Color(color),
-                            time_ms,
-                            linear,
-                            legacy_tagged,
-                            field_writes,
-                        );
-                    }
+        if property == "label_color" {
+            if let PV::String(v) = value {
+                let parsed = parse_gui_color(v);
+                legend.label_color = parsed;
+                if let Some(color) = parsed {
+                    write_tagged_value(
+                        "legend_label_color",
+                        animatix::timeline::PropertyValue::Color(color),
+                        time_ms,
+                        linear,
+                        legacy_tagged,
+                        field_writes,
+                    );
                 }
-                return;
-            },
-            _ => {},
+            }
+            return;
         }
     }
 

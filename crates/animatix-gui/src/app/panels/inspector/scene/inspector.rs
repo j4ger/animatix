@@ -99,7 +99,6 @@ fn render_multi_selection(
                     );
                 });
             });
-    return;
 }
 
 fn render_actor_identity(
@@ -245,7 +244,7 @@ fn render_actor_footer(
     ui: &mut egui::Ui,
     timeline: &Timeline,
     id: EntityId,
-    sel: &String,
+    sel: &str,
     current_time_s: f64,
     commands: &mut ActionQueue,
     keyframe_mode: bool,
@@ -255,7 +254,7 @@ fn render_actor_footer(
 ) {
     if multi_count == 1 {
         layout::group_box(ui, format!("{} Pivot", egui_phosphor::regular::CROSSHAIR), |ui| {
-            let pivot = pivot_offsets.entry(sel.clone()).or_insert([0.0, 0.0]);
+            let pivot = pivot_offsets.entry(sel.to_owned()).or_insert([0.0, 0.0]);
             layout::labeled_row(ui, "X", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
                 let mut px = pivot[0] as f64;
                 if NumberField::new(&mut px)
@@ -329,7 +328,7 @@ fn render_keyframes_card(
     ui: &mut egui::Ui,
     timeline: &Timeline,
     id: EntityId,
-    sel: &String,
+    sel: &str,
     commands: &mut ActionQueue,
     current_time_s: f64,
     keyframe_view_mode: &mut KeyframeViewMode,
@@ -455,7 +454,6 @@ fn render_empty_scene(
             );
         }
     });
-    return;
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -487,12 +485,12 @@ fn render_single_actor_selection(
         let multi_count = selected_actors.len();
 
         if multi_count > 1 {
-            render_multi_selection(ui, selected_actors, multi_count, &sp, &theme);
+            render_multi_selection(ui, selected_actors, multi_count, sp, theme);
             return;
         }
 
         ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
-            render_actor_identity(ui, timeline, id, sel, current_time_s, commands, &sp, &theme);
+            render_actor_identity(ui, timeline, id, sel, current_time_s, commands, sp, theme);
             ui.add_space(sp.base.space_3);
             render_properties_card(
                 ui,
@@ -504,8 +502,8 @@ fn render_single_actor_selection(
                 current_time_s,
                 property_view_mode,
                 active_scene,
-                &sp,
-                &theme,
+                sp,
+                theme,
             );
             ui.add_space(sp.base.space_3);
             render_actor_footer(
@@ -518,7 +516,7 @@ fn render_single_actor_selection(
                 keyframe_mode,
                 pivot_offsets,
                 multi_count,
-                &sp,
+                sp,
             );
             ui.add_space(sp.base.space_3);
             render_keyframes_card(
@@ -530,7 +528,7 @@ fn render_single_actor_selection(
                 current_time_s,
                 keyframe_view_mode,
                 active_scene,
-                &sp,
+                sp,
             );
         });
     } else {
