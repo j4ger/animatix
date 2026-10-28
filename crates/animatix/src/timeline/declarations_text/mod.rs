@@ -93,4 +93,36 @@ impl TextDeclarationKind {
     }
 }
 
+impl Timeline {
+    /// Process a text actor declaration (Text, Math, Code, Typst) and add it to the timeline.
+    pub fn process_text_actor_decl(
+        &mut self,
+        actor_type: &str,
+        label: &str,
+        props: &[Property],
+        modifiers: &[Modifier],
+        time_ms: f64,
+        parent_label: Option<&str>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Result<(), RenderError> {
+        let kind = match animatix_std::caps_for_type(actor_type).and_then(|c| c.text) {
+            Some(animatix_core::caps::TextKind::Counter) => TextDeclarationKind::Counter,
+            Some(animatix_core::caps::TextKind::Text) => TextDeclarationKind::Text,
+            Some(animatix_core::caps::TextKind::Math) => TextDeclarationKind::Math,
+            Some(animatix_core::caps::TextKind::Code) => TextDeclarationKind::Code,
+            Some(animatix_core::caps::TextKind::Typst) => TextDeclarationKind::Typst,
+            None => return Ok(()),
+        };
+        self.process_text_declaration(
+            kind,
+            Some(label),
+            props,
+            modifiers,
+            time_ms,
+            parent_label,
+            diagnostics,
+        )
+    }
+}
+
 mod text_impl;
