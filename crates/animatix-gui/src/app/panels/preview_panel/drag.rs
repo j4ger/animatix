@@ -1,6 +1,5 @@
 //! Library drag-and-drop over the preview.
 
-use super::coords::*;
 use super::*;
 
 pub(super) fn library_drag_drop_ui(
@@ -49,13 +48,7 @@ pub(super) fn library_drag_drop_ui(
 
     if over_preview {
         if let Some(mouse) = pointer {
-            let scene = preview_screen_to_scene(
-                ctx.scene_dimensions,
-                preview_rect,
-                mouse,
-                ctx.preview.viewport.preview_zoom,
-                ctx.preview.viewport.preview_pan,
-            );
+            let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
             let label = crate::app::utils::labels::unique_label(
                 ctx.timeline,
                 &crate::app::panels::library_drag_label_base(&payload),

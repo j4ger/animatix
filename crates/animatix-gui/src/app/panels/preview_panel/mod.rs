@@ -1,6 +1,5 @@
 //! Preview panel: canvas with rulers, zoom/pan, drag interaction, and overlays.
 
-use animatix::timeline::SceneDimensions;
 use egui::{RichText, Vec2};
 use eparts::widget::UiExt;
 
@@ -14,7 +13,6 @@ pub(crate) use crate::app::preview::context::PreviewContext;
 use crate::app::preview::{self, DragState, ToolMode, fit_preview, selection};
 
 /// Floating Presentation HUD: pill hovering at the bottom center of the canvas in presentation mode.
-mod coords;
 mod drag;
 mod hud;
 mod panel;

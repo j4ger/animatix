@@ -124,82 +124,49 @@ pub(super) fn apply_property_edit_to_entity(
         return;
     }
 
-    // World-aware capabilities: the projection carries any per-entity
-    // overrides the catalog derivation alone would miss.
+    // Legend scalar fields share one shape: assign the struct field and
+    // mirror it into the tagged-property plan. Kept as one table so a new
+    // legend field cannot drift between the two writes.
+
     let caps = world.caps(id);
     if caps.legend_host {
         let legend = world.ensure_legend(id);
+
+        macro_rules! legend_scalar_fields {
+        ($(($name:literal, $field:ident, $tag:literal, $variant:ident)),* $(,)?) => {
+            match property {
+                $(
+                    $name => {
+                        if let PV::$variant(v) = value {
+                            legend.$field = v.clone();
+                            write_tagged_value(
+                                $tag,
+                                animatix::timeline::PropertyValue::$variant(v.clone()),
+                                time_ms,
+                                linear,
+                                legacy_tagged,
+                                field_writes,
+                            );
+                        }
+                        return;
+                    }
+                )*
+                _ => {},
+            }
+        };
+    }
+
+        // World-aware capabilities: the projection carries any per-entity
+        // overrides the catalog derivation alone would miss.
+        legend_scalar_fields!(
+            ("title", title, "legend_title", String),
+            ("font_size", font_size, "legend_font_size", F32),
+            ("swatch_size", swatch_size, "legend_swatch_size", F32),
+            ("gap", gap, "legend_gap", F32),
+            ("text_max_width", text_max_width, "legend_text_max_width", F32),
+        );
+
         match property {
-            "title" => {
-                if let PV::String(v) = value {
-                    legend.title = v.clone();
-                    write_tagged_value(
-                        "legend_title",
-                        animatix::timeline::PropertyValue::String(v.clone()),
-                        time_ms,
-                        linear,
-                        legacy_tagged,
-                        field_writes,
-                    );
-                }
-                return;
-            },
-            "font_size" => {
-                if let PV::F32(v) = value {
-                    legend.font_size = *v;
-                    write_tagged_value(
-                        "legend_font_size",
-                        animatix::timeline::PropertyValue::F32(*v),
-                        time_ms,
-                        linear,
-                        legacy_tagged,
-                        field_writes,
-                    );
-                }
-                return;
-            },
-            "swatch_size" => {
-                if let PV::F32(v) = value {
-                    legend.swatch_size = *v;
-                    write_tagged_value(
-                        "legend_swatch_size",
-                        animatix::timeline::PropertyValue::F32(*v),
-                        time_ms,
-                        linear,
-                        legacy_tagged,
-                        field_writes,
-                    );
-                }
-                return;
-            },
-            "gap" => {
-                if let PV::F32(v) = value {
-                    legend.gap = *v;
-                    write_tagged_value(
-                        "legend_gap",
-                        animatix::timeline::PropertyValue::F32(*v),
-                        time_ms,
-                        linear,
-                        legacy_tagged,
-                        field_writes,
-                    );
-                }
-                return;
-            },
-            "text_max_width" => {
-                if let PV::F32(v) = value {
-                    legend.text_max_width = *v;
-                    write_tagged_value(
-                        "legend_text_max_width",
-                        animatix::timeline::PropertyValue::F32(*v),
-                        time_ms,
-                        linear,
-                        legacy_tagged,
-                        field_writes,
-                    );
-                }
-                return;
-            },
             "label_color" => {
                 if let PV::String(v) = value {
                     let parsed = parse_gui_color(v);

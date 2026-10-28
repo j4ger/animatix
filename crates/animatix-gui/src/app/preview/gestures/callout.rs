@@ -70,7 +70,6 @@ impl GestureHandler for CalloutGesture {
 
                 let zoom = ctx.preview.viewport.preview_zoom;
                 let pan = ctx.preview.viewport.preview_pan;
-                let desired = preview_rect.size();
 
                 let tx = crate::app::preview::PreviewTransform::new(
                     ctx.scene_dimensions,
@@ -127,14 +126,13 @@ impl GestureHandler for CalloutGesture {
                 // Targeted-only handles
                 if geo.is_targeted {
                     // Priority 3: standoff handle (at `from`)
-                    let from_screen = crate::app::preview::scene_to_screen(
-                        kurbo::Point::new(geo.from[0] as f64, geo.from[1] as f64),
-                        preview_rect,
+                    let from_screen = crate::app::preview::PreviewTransform::new(
                         ctx.scene_dimensions,
-                        desired,
+                        preview_rect,
                         zoom,
                         pan,
-                    );
+                    )
+                    .scene_to_screen(kurbo::Point::new(geo.from[0] as f64, geo.from[1] as f64));
                     if pos.distance(from_screen) <= hit_r {
                         ctx.selection.clear_tapped_place();
                         *ctx.drag_state = DragState::CalloutStandoff {
@@ -151,7 +149,6 @@ impl GestureHandler for CalloutGesture {
                         &geo,
                         preview_rect,
                         ctx.scene_dimensions,
-                        desired,
                         zoom,
                         pan,
                     );

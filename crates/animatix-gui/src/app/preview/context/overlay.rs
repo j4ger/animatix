@@ -113,7 +113,6 @@ impl PreviewContext<'_> {
                         self.hit_regions,
                         preview_rect,
                         self.scene_dimensions,
-                        preview_rect.size(),
                         self.preview.viewport.preview_zoom,
                         self.preview.viewport.preview_pan,
                     ) {
@@ -216,14 +215,7 @@ impl PreviewContext<'_> {
             let mut max_y = f32::NEG_INFINITY;
             for corner in &corners {
                 let world = preview::local_to_world(*corner, p.position, p.rotation);
-                let screen = preview::scene_to_screen(
-                    world,
-                    preview_rect,
-                    self.scene_dimensions,
-                    preview_rect.size(),
-                    self.preview.viewport.preview_zoom,
-                    self.preview.viewport.preview_pan,
-                );
+                let screen = self.preview_scene_to_screen(preview_rect, world);
                 min_x = min_x.min(screen.x);
                 min_y = min_y.min(screen.y);
                 max_x = max_x.max(screen.x);
@@ -235,21 +227,13 @@ impl PreviewContext<'_> {
                 .iter()
                 .find(|(l, _)| l == primary)
                 .map(|(_, bounds)| {
-                    let tl = preview::scene_to_screen(
+                    let tl = self.preview_scene_to_screen(
+                        preview_rect,
                         kurbo::Point::new(bounds.x0, bounds.y0),
-                        preview_rect,
-                        self.scene_dimensions,
-                        preview_rect.size(),
-                        self.preview.viewport.preview_zoom,
-                        self.preview.viewport.preview_pan,
                     );
-                    let br = preview::scene_to_screen(
-                        kurbo::Point::new(bounds.x1, bounds.y1),
+                    let br = self.preview_scene_to_screen(
                         preview_rect,
-                        self.scene_dimensions,
-                        preview_rect.size(),
-                        self.preview.viewport.preview_zoom,
-                        self.preview.viewport.preview_pan,
+                        kurbo::Point::new(bounds.x1, bounds.y1),
                     );
                     egui::Rect::from_min_max(tl, br)
                 })
@@ -265,22 +249,10 @@ impl PreviewContext<'_> {
             if label == primary || self.selected_actors.contains(label) {
                 continue;
             }
-            let tl = preview::scene_to_screen(
-                kurbo::Point::new(bounds.x0, bounds.y0),
-                preview_rect,
-                self.scene_dimensions,
-                preview_rect.size(),
-                self.preview.viewport.preview_zoom,
-                self.preview.viewport.preview_pan,
-            );
-            let br = preview::scene_to_screen(
-                kurbo::Point::new(bounds.x1, bounds.y1),
-                preview_rect,
-                self.scene_dimensions,
-                preview_rect.size(),
-                self.preview.viewport.preview_zoom,
-                self.preview.viewport.preview_pan,
-            );
+            let tl =
+                self.preview_scene_to_screen(preview_rect, kurbo::Point::new(bounds.x0, bounds.y0));
+            let br =
+                self.preview_scene_to_screen(preview_rect, kurbo::Point::new(bounds.x1, bounds.y1));
             let other_rect = egui::Rect::from_min_max(tl, br);
 
             let px = [

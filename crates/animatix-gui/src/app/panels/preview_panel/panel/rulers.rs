@@ -1,6 +1,5 @@
 //! Preview panel body.
 
-use super::coords::*;
 use super::*;
 
 pub(super) fn draw_rulers(
@@ -62,20 +61,8 @@ pub(super) fn draw_horizontal_ruler(
         egui::pos2(preview_rect.min.x, preview_rect.min.y - RULER_SIZE),
         Vec2::new(preview_rect.width(), RULER_SIZE),
     );
-    let scene_tl = preview_screen_to_scene(
-        ctx.scene_dimensions,
-        preview_rect,
-        preview_rect.left_top(),
-        ctx.preview.viewport.preview_zoom,
-        ctx.preview.viewport.preview_pan,
-    );
-    let scene_br = preview_screen_to_scene(
-        ctx.scene_dimensions,
-        preview_rect,
-        preview_rect.right_bottom(),
-        ctx.preview.viewport.preview_zoom,
-        ctx.preview.viewport.preview_pan,
-    );
+    let scene_tl = ctx.preview_screen_to_scene(preview_rect, preview_rect.left_top());
+    let scene_br = ctx.preview_screen_to_scene(preview_rect, preview_rect.right_bottom());
     let visible_w = (scene_br.x - scene_tl.x) as f32;
     // Horizontal ruler
     ui.painter().rect_filled(h_ruler_rect, 0.0, ruler_bg);
@@ -86,13 +73,8 @@ pub(super) fn draw_horizontal_ruler(
     let h_end = ((scene_br.x as f32) / h_interval).ceil() as i32 * h_interval as i32;
     let mut tick_x = h_start as f32;
     while tick_x <= h_end as f32 {
-        let screen_pt = preview_scene_to_screen(
-            ctx.scene_dimensions,
-            preview_rect,
-            kurbo::Point::new(tick_x as f64, scene_tl.y),
-            ctx.preview.viewport.preview_zoom,
-            ctx.preview.viewport.preview_pan,
-        );
+        let screen_pt =
+            ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(tick_x as f64, scene_tl.y));
         if screen_pt.x >= h_ruler_rect.min.x && screen_pt.x <= h_ruler_rect.max.x {
             let rel_x = screen_pt.x - h_ruler_rect.min.x;
             let is_major = (tick_x as i32) % (h_interval as i32 * 5) == 0;
@@ -144,20 +126,8 @@ pub(super) fn draw_vertical_ruler(
         egui::pos2(preview_rect.min.x - RULER_SIZE, preview_rect.min.y),
         Vec2::new(RULER_SIZE, preview_rect.height()),
     );
-    let scene_tl = preview_screen_to_scene(
-        ctx.scene_dimensions,
-        preview_rect,
-        preview_rect.left_top(),
-        ctx.preview.viewport.preview_zoom,
-        ctx.preview.viewport.preview_pan,
-    );
-    let scene_br = preview_screen_to_scene(
-        ctx.scene_dimensions,
-        preview_rect,
-        preview_rect.right_bottom(),
-        ctx.preview.viewport.preview_zoom,
-        ctx.preview.viewport.preview_pan,
-    );
+    let scene_tl = ctx.preview_screen_to_scene(preview_rect, preview_rect.left_top());
+    let scene_br = ctx.preview_screen_to_scene(preview_rect, preview_rect.right_bottom());
     let visible_h = (scene_br.y - scene_tl.y) as f32;
     // Vertical ruler
     ui.painter().rect_filled(v_ruler_rect, 0.0, ruler_bg);
@@ -168,13 +138,8 @@ pub(super) fn draw_vertical_ruler(
     let v_end = ((scene_br.y as f32) / v_interval).ceil() as i32 * v_interval as i32;
     let mut tick_y = v_start as f32;
     while tick_y <= v_end as f32 {
-        let screen_pt = preview_scene_to_screen(
-            ctx.scene_dimensions,
-            preview_rect,
-            kurbo::Point::new(scene_tl.x, tick_y as f64),
-            ctx.preview.viewport.preview_zoom,
-            ctx.preview.viewport.preview_pan,
-        );
+        let screen_pt =
+            ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(scene_tl.x, tick_y as f64));
         if screen_pt.y >= v_ruler_rect.min.y && screen_pt.y <= v_ruler_rect.max.y {
             let rel_y = screen_pt.y - v_ruler_rect.min.y;
             let is_major = (tick_y as i32) % (v_interval as i32 * 5) == 0;

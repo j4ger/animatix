@@ -73,7 +73,6 @@ impl GestureHandler for VertexGesture {
                     &points,
                     preview_rect,
                     ctx.scene_dimensions,
-                    preview_rect.size(),
                     hit_radius,
                     ctx.preview.viewport.preview_zoom,
                     ctx.preview.viewport.preview_pan,

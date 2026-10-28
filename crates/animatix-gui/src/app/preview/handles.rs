@@ -104,19 +104,6 @@ pub(crate) fn rotation_handle_world(props: &ActorProps) -> kurbo::Point {
 
 // ─── Scene ↔ Screen mapping ─────────────────────────────────────────────────
 
-/// Convert scene coordinates to screen coordinates for the preview canvas.
-pub(crate) fn scene_to_screen(
-    scene_pos: kurbo::Point,
-    preview_rect: egui::Rect,
-    scene_dimensions: SceneDimensions,
-    _desired: Vec2,
-    zoom: f32,
-    pan: Vec2,
-) -> Pos2 {
-    let tx = PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan);
-    tx.scene_to_screen(scene_pos)
-}
-
 // ─── Selection Bounds (fallback when props unavailable) ─────────────────────
 
 /// Compute the screen-space bounding box for the selected actor using hit_regions.
@@ -126,28 +113,15 @@ pub(crate) fn selection_screen_rect(
     hit_regions: &[(String, kurbo::Rect)],
     preview_rect: egui::Rect,
     scene_dimensions: SceneDimensions,
-    desired: Vec2,
     zoom: f32,
     pan: Vec2,
 ) -> Option<egui::Rect> {
     let first = selected_actors.iter().next()?;
     let (_, bounds) = hit_regions.iter().find(|(l, _)| l == first)?;
-    let top_left = scene_to_screen(
-        kurbo::Point::new(bounds.x0, bounds.y0),
-        preview_rect,
-        scene_dimensions,
-        desired,
-        zoom,
-        pan,
-    );
-    let bottom_right = scene_to_screen(
-        kurbo::Point::new(bounds.x1, bounds.y1),
-        preview_rect,
-        scene_dimensions,
-        desired,
-        zoom,
-        pan,
-    );
+    let top_left = PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan)
+        .scene_to_screen(kurbo::Point::new(bounds.x0, bounds.y0));
+    let bottom_right = PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan)
+        .scene_to_screen(kurbo::Point::new(bounds.x1, bounds.y1));
     Some(egui::Rect::from_min_max(top_left, bottom_right))
 }
 
@@ -195,14 +169,14 @@ pub(crate) fn hit_test_vertex(
     points: &[[f32; 2]],
     preview_rect: egui::Rect,
     scene_dimensions: SceneDimensions,
-    desired: Vec2,
     hit_radius: f32,
     zoom: f32,
     pan: Vec2,
 ) -> Option<usize> {
     for (i, &pt) in points.iter().enumerate() {
         let world = local_to_world(pt, props.position, props.rotation);
-        let screen = scene_to_screen(world, preview_rect, scene_dimensions, desired, zoom, pan);
+        let screen =
+            PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan).scene_to_screen(world);
         if screen_point.distance(screen) <= hit_radius + PREVIEW_VERTEX_HIT_BUFFER {
             return Some(i);
         }
@@ -219,7 +193,6 @@ pub(crate) fn draw_vertex_handles(
     points: &[[f32; 2]],
     preview_rect: egui::Rect,
     scene_dimensions: SceneDimensions,
-    desired: Vec2,
     active_vertex: Option<usize>,
     pixels_per_point: f32,
     zoom: f32,
@@ -228,7 +201,8 @@ pub(crate) fn draw_vertex_handles(
     const VERTEX_RADIUS: f32 = 4.0;
     for (i, &pt) in points.iter().enumerate() {
         let world = local_to_world(pt, props.position, props.rotation);
-        let screen = scene_to_screen(world, preview_rect, scene_dimensions, desired, zoom, pan);
+        let screen =
+            PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan).scene_to_screen(world);
         let is_active = active_vertex == Some(i);
         let fill = if is_active {
             theme.palette.accent.primary
@@ -334,7 +308,6 @@ pub(crate) fn callout_place_handle_screens(
     geo: &animatix::timeline::callout_geometry::CalloutGeometry,
     preview_rect: egui::Rect,
     scene_dimensions: SceneDimensions,
-    desired: Vec2,
     zoom: f32,
     pan: Vec2,
 ) -> [Pos2; 4] {
@@ -347,14 +320,8 @@ pub(crate) fn callout_place_handle_screens(
         [c[0] + h[0], c[1]], // Right
     ];
     points.map(|p| {
-        scene_to_screen(
-            kurbo::Point::new(p[0] as f64, p[1] as f64),
-            preview_rect,
-            scene_dimensions,
-            desired,
-            zoom,
-            pan,
-        )
+        PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan)
+            .scene_to_screen(kurbo::Point::new(p[0] as f64, p[1] as f64))
     })
 }
 

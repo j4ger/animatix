@@ -1,6 +1,5 @@
 //! Preview panel body.
 
-use super::coords::*;
 use super::drag::*;
 use super::hud::*;
 use super::*;
@@ -180,8 +179,9 @@ pub(super) fn handle_canvas_interaction(
     let scene_dimensions = ctx.scene_dimensions;
     let zoom = ctx.preview.viewport.preview_zoom;
     let pan = ctx.preview.viewport.preview_pan;
-    let screen_to_scene = move |screen: egui::Pos2| {
-        preview_screen_to_scene(scene_dimensions, preview_rect, screen, zoom, pan)
+    let screen_to_scene = {
+        let tx = preview::PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan);
+        move |screen: egui::Pos2| tx.screen_to_scene(screen)
     };
 
     if !ctx.selection.context_menu_open {
@@ -242,13 +242,7 @@ pub(super) fn handle_file_drop(
                 }
 
                 let drop_pos = if let Some(mouse) = ui.ctx().input(|i| i.pointer.latest_pos()) {
-                    let scene = preview_screen_to_scene(
-                        ctx.scene_dimensions,
-                        preview_rect,
-                        mouse,
-                        ctx.preview.viewport.preview_zoom,
-                        ctx.preview.viewport.preview_pan,
-                    );
+                    let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
                     [scene.x as f32, scene.y as f32]
                 } else {
                     [
@@ -313,13 +307,9 @@ pub(super) fn show_selection_editors(
     if !is_dragging && ctx.selected_actors.len() == 1 && ctx.preview.inline_edit.is_none() {
         if let Some(actor) = ctx.selected_actors.iter().next() {
             if let Some(props) = ctx.get_actor_props(actor) {
-                let screen_pos = preview::scene_to_screen(
-                    kurbo::Point::new(props.position[0] as f64, props.position[1] as f64),
+                let screen_pos = ctx.preview_scene_to_screen(
                     preview_rect,
-                    ctx.scene_dimensions,
-                    preview_rect.size(),
-                    ctx.preview.viewport.preview_zoom,
-                    ctx.preview.viewport.preview_pan,
+                    kurbo::Point::new(props.position[0] as f64, props.position[1] as f64),
                 );
                 preview::property_popup::show_property_popup(
                     ui,

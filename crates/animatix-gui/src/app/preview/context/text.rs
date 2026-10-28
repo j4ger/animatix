@@ -6,7 +6,6 @@ use crate::app::InlineTextEditState;
 use crate::app::commands::{DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue};
 use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;
-use crate::app::preview;
 
 use super::PreviewContext;
 
@@ -52,34 +51,18 @@ impl PreviewContext<'_> {
             return;
         };
 
-        let screen_pos = preview::scene_to_screen(
-            kurbo::Point::new(props.position[0] as f64, props.position[1] as f64),
+        let screen_pos = self.preview_scene_to_screen(
             preview_rect,
-            self.scene_dimensions,
-            preview_rect.size(),
-            self.preview.viewport.preview_zoom,
-            self.preview.viewport.preview_pan,
+            kurbo::Point::new(props.position[0] as f64, props.position[1] as f64),
         );
 
         // Estimate screen size from actor bounds
         let screen_size =
             if let Some((_, bounds)) = self.hit_regions.iter().find(|(l, _)| l == actor) {
-                let tl = preview::scene_to_screen(
-                    kurbo::Point::new(bounds.x0, bounds.y0),
-                    preview_rect,
-                    self.scene_dimensions,
-                    preview_rect.size(),
-                    self.preview.viewport.preview_zoom,
-                    self.preview.viewport.preview_pan,
-                );
-                let br = preview::scene_to_screen(
-                    kurbo::Point::new(bounds.x1, bounds.y1),
-                    preview_rect,
-                    self.scene_dimensions,
-                    preview_rect.size(),
-                    self.preview.viewport.preview_zoom,
-                    self.preview.viewport.preview_pan,
-                );
+                let tl = self
+                    .preview_scene_to_screen(preview_rect, kurbo::Point::new(bounds.x0, bounds.y0));
+                let br = self
+                    .preview_scene_to_screen(preview_rect, kurbo::Point::new(bounds.x1, bounds.y1));
                 egui::vec2(br.x - tl.x, br.y - tl.y).max(egui::vec2(100.0, 24.0))
             } else {
                 egui::vec2(200.0, 24.0)

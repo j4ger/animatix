@@ -187,7 +187,6 @@ impl PreviewContext<'_> {
                         &pts,
                         preview_rect,
                         self.scene_dimensions,
-                        preview_rect.size(),
                         active_vertex,
                         ui.ctx().pixels_per_point(),
                         self.preview.viewport.preview_zoom,
@@ -207,26 +206,11 @@ impl PreviewContext<'_> {
                 );
                 let zoom = self.preview.viewport.preview_zoom;
                 let pan = self.preview.viewport.preview_pan;
-                let desired = preview_rect.size();
                 let tip_world = kurbo::Point::new(geo.to[0] as f64, geo.to[1] as f64);
                 let label_world =
                     kurbo::Point::new(geo.label_point[0] as f64, geo.label_point[1] as f64);
-                let tip_screen = preview::scene_to_screen(
-                    tip_world,
-                    preview_rect,
-                    self.scene_dimensions,
-                    desired,
-                    zoom,
-                    pan,
-                );
-                let label_screen = preview::scene_to_screen(
-                    label_world,
-                    preview_rect,
-                    self.scene_dimensions,
-                    desired,
-                    zoom,
-                    pan,
-                );
+                let tip_screen = self.preview_scene_to_screen(preview_rect, tip_world);
+                let label_screen = self.preview_scene_to_screen(preview_rect, label_world);
                 let active_tip = matches!(&self.drag_state, DragState::CalloutTip { actor: a, .. } if a == actor);
                 let active_label = matches!(&self.drag_state, DragState::CalloutLabel { actor: a, .. } if a == actor);
                 preview::draw_callout_handles(
@@ -244,7 +228,6 @@ impl PreviewContext<'_> {
                         &geo,
                         preview_rect,
                         self.scene_dimensions,
-                        desired,
                         zoom,
                         pan,
                     );
@@ -266,14 +249,7 @@ impl PreviewContext<'_> {
                     );
                     // Standoff handle at `from`
                     let from_world = kurbo::Point::new(geo.from[0] as f64, geo.from[1] as f64);
-                    let standoff_screen = preview::scene_to_screen(
-                        from_world,
-                        preview_rect,
-                        self.scene_dimensions,
-                        desired,
-                        zoom,
-                        pan,
-                    );
+                    let standoff_screen = self.preview_scene_to_screen(preview_rect, from_world);
                     let active_standoff = matches!(&self.drag_state, DragState::CalloutStandoff { actor: a, .. } if a == actor);
                     preview::draw_callout_standoff_handle(
                         ui.painter(),
@@ -296,24 +272,16 @@ impl PreviewContext<'_> {
                         start_scene,
                     } => {
                         if let Some(props) = self.get_actor_props(primary) {
-                            let start_screen = preview::scene_to_screen(
-                                kurbo::Point::new(start_scene.x, start_scene.y),
+                            let start_screen = self.preview_scene_to_screen(
                                 preview_rect,
-                                self.scene_dimensions,
-                                preview_rect.size(),
-                                self.preview.viewport.preview_zoom,
-                                self.preview.viewport.preview_pan,
+                                kurbo::Point::new(start_scene.x, start_scene.y),
                             );
-                            let current_screen = preview::scene_to_screen(
+                            let current_screen = self.preview_scene_to_screen(
+                                preview_rect,
                                 kurbo::Point::new(
                                     props.position[0] as f64,
                                     props.position[1] as f64,
                                 ),
-                                preview_rect,
-                                self.scene_dimensions,
-                                preview_rect.size(),
-                                self.preview.viewport.preview_zoom,
-                                self.preview.viewport.preview_pan,
                             );
                             let y = (start_screen.y + current_screen.y) / 2.0;
                             ui.painter().line_segment(
@@ -351,27 +319,19 @@ impl PreviewContext<'_> {
                         actor, start_size, ..
                     } => {
                         if let Some(props) = self.get_actor_props(actor) {
-                            let screen_pos = preview::scene_to_screen(
+                            let screen_pos = self.preview_scene_to_screen(
+                                preview_rect,
                                 kurbo::Point::new(
                                     props.position[0] as f64,
                                     props.position[1] as f64,
                                 ),
-                                preview_rect,
-                                self.scene_dimensions,
-                                preview_rect.size(),
-                                self.preview.viewport.preview_zoom,
-                                self.preview.viewport.preview_pan,
                             );
-                            let br = preview::scene_to_screen(
+                            let br = self.preview_scene_to_screen(
+                                preview_rect,
                                 kurbo::Point::new(
                                     props.position[0] as f64 + props.size[0] as f64 / 2.0,
                                     props.position[1] as f64 + props.size[1] as f64 / 2.0,
                                 ),
-                                preview_rect,
-                                self.scene_dimensions,
-                                preview_rect.size(),
-                                self.preview.viewport.preview_zoom,
-                                self.preview.viewport.preview_pan,
                             );
                             ui.painter().text(
                                 Pos2::new(screen_pos.x, br.y + 12.0),
@@ -395,16 +355,12 @@ impl PreviewContext<'_> {
                         ..
                     } => {
                         if let Some(props) = self.get_actor_props(actor) {
-                            let screen_pos = preview::scene_to_screen(
+                            let screen_pos = self.preview_scene_to_screen(
+                                preview_rect,
                                 kurbo::Point::new(
                                     props.position[0] as f64,
                                     props.position[1] as f64,
                                 ),
-                                preview_rect,
-                                self.scene_dimensions,
-                                preview_rect.size(),
-                                self.preview.viewport.preview_zoom,
-                                self.preview.viewport.preview_pan,
                             );
                             ui.painter().text(
                                 Pos2::new(screen_pos.x, screen_pos.y - props.size[1] / 2.0 - 16.0),
