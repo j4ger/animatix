@@ -27,7 +27,7 @@ impl Timeline {
         // `Some(commands)` draws the commands and records a hit region;
         // `None` means "no drawable content" — nothing is drawn and no
         // hit region or precise bounds are recorded for it.
-        let primitive_dispatch = self.behavior_for_node(node_id, time_ms).and_then(|def| {
+        self.behavior_for_node(node_id, time_ms).and_then(|def| {
             if def.caps.is_shape {
                 self.world.begin_shape_commands(node_id);
             }
@@ -71,7 +71,6 @@ impl Timeline {
                     None
                 },
             }
-        });
-        primitive_dispatch
+        })
     }
 }

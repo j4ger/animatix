@@ -66,7 +66,7 @@ impl super::World {
     pub fn resolve_path(&self, segments: &[&str]) -> Option<String> {
         match segments {
             [] => None,
-            [single] => self.tracks.contains_key(*single).then(|| (*single).to_string()),
+            [single] => self.tracks.contains_key(single).then(|| (*single).to_string()),
             _ => {
                 let direct = segments.join(".");
                 if self.tracks.contains_key(&direct) {

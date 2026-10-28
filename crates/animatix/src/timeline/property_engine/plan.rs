@@ -185,5 +185,5 @@ pub(crate) fn write_extension_property_slot(
         (PropertyValueKind::U32, PropertyValue::F32(v)) => PropertyValue::U32(v.max(0.0) as u32),
         _ => value,
     };
-    write_property_plan_slot(plan, spec.id, spec.kind.into(), value, t_start_ms, t_end_ms, easing)
+    write_property_plan_slot(plan, spec.id, spec.kind, value, t_start_ms, t_end_ms, easing)
 }
