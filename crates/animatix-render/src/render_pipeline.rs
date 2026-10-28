@@ -94,7 +94,7 @@ where
         handles.push(std::thread::spawn(move || -> Result<(), ExportError> {
             let mut renderer = renderer;
             let dims = SceneDimensions { width, height };
-            // PF-7 pipelined readback: queue frame N+1's GPU work BEFORE
+            // pipelined readback: queue frame N+1's GPU work BEFORE
             // waiting on frame N's pixels, so the GPU renders while the CPU
             // copies/sends/encodes. One frame of latency, wall time drops
             // from CPU+GPU to ~max(CPU, GPU).
@@ -233,7 +233,7 @@ where
             let dims = SceneDimensions { width, height };
             let global_times: Vec<f64> =
                 (start..end).map(|frame| (frame as f64) / (fps as f64)).collect();
-            // PF-7 pipelined readback: queue frame N+1's GPU work BEFORE
+            // pipelined readback: queue frame N+1's GPU work BEFORE
             // waiting on frame N's pixels (see the single-scene loop).
             let queue_frame = |renderer: &mut OffscreenRenderer,
                                frame: usize,

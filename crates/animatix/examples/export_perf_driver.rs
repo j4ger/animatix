@@ -1,10 +1,10 @@
-//! Layer-3 throughput driver for the **export/render path** (PF-7,
+//! Layer-3 throughput driver for the **export/render path** (,
 //! `docs/performance_evaluation.md` §5 P4).
 //!
 //! `export_alloc_driver` ranks the export path by *allocations*; this driver
 //! ranks it by *time*: the same real-project pipeline (module load → build →
 //! per-frame evaluate → vello encode → wgpu render → CPU readback) with the
-//! PF-8 shared stage tracer drained per frame, so `sample` /
+//! shared stage tracer drained per frame, so `sample` /
 //! `build_frame_env` / `rasterize` and the unaccounted remainder (readback
 //! wait, encode glue) split every frame wall-clock.
 //!
@@ -16,7 +16,7 @@
 //! ```
 //!
 //! Prints total FPS, frame wall-time percentiles, and per-stage means —
-//! the PF-7 baseline for "is export GPU-bound or CPU-bound".
+//! the baseline for "is export GPU-bound or CPU-bound".
 
 use animatix::composition::BuildTarget;
 use animatix::perf;
@@ -68,7 +68,7 @@ fn main() {
         });
 
     let mut renderer = OffscreenRenderer::new().expect("offscreen renderer");
-    // Queue one frame's GPU work without blocking (PF-7 pipelining).
+    // Queue one frame's GPU work without blocking (pipelining).
     let queue_frame = |renderer: &mut OffscreenRenderer, t: f64| -> PendingFrame {
         if let Some(composition) = &composition {
             let (scene_name, local_time_s, transition_blend) = composition.evaluate(t);

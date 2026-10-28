@@ -110,7 +110,7 @@ impl OffscreenRenderer {
         Ok(frame)
     }
 
-    /// PF-7 pipelined variant of [`Self::render_timeline_with_debug`]:
+    /// pipelined variant of [`Self::render_timeline_with_debug`]:
     /// evaluate, render, and queue the readback copy WITHOUT blocking. Pair
     /// with [`Self::wait_frame`], submitting the NEXT frame before waiting on
     /// this one, so the GPU renders while the CPU copies/encodes:
@@ -433,7 +433,7 @@ impl OffscreenRenderer {
             .map_err(|err| format!("Failed to map preview frame: {err}"))?;
 
         let data = buffer_slice.get_mapped_range();
-        // PF-6 round 9: reuse the previous frame's readback buffer when the
+        // Reuse the previous frame's readback buffer when the
         // encoder has already consumed it (strong count back to our handle);
         // `Arc::make_mut` clones only when someone still holds a reference.
         let mut rgba = match self.readback_buffer.take() {
@@ -529,7 +529,7 @@ impl OffscreenRenderer {
         self.output_texture = Some(output_texture);
         self.output_view = Some(output_view);
 
-        // PF-7: two rotating MAP_READ buffers — frame N's pixels are read
+        // Two rotating MAP_READ buffers — frame N's pixels are read
         // (mapped) from slot A while frame N+1's copy lands in slot B.
         for (i, slot) in self.readback_buffers.iter_mut().enumerate() {
             *slot = Some(self.device.create_buffer(&wgpu::BufferDescriptor {

@@ -408,7 +408,7 @@ fn test_baseline_alignment_empty_baselines_falls_back_to_center() {
     assert!((baseline_output.positions[1].position[1]).abs() < 0.01);
 }
 
-// ── Phase 7: SizeSpec and constraints tests ──
+// ── SizeSpec and constraints tests ──
 
 #[test]
 fn test_size_spec_fixed() {

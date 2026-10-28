@@ -9,7 +9,7 @@ mod readback_reuse_tests {
 
     use super::common::solid_rect_timeline;
 
-    /// PF-6 round 9: the readback buffer is parked and reused. The second
+    /// The readback buffer is parked and reused. The second
     /// render from the same renderer walks the reuse path — its pixels must
     /// be byte-identical to a fresh renderer's (no stale-buffer bleed, no
     /// unzeroed padding), and its `Arc` must share the renderer's parked
@@ -88,7 +88,7 @@ mod readback_reuse_tests {
         assert!(held.rgba[mid] > 200, "held frame was clobbered by the next render");
     }
 
-    /// PF-7: the pipelined begin/wait pair must produce pixels identical to
+    /// The pipelined begin/wait pair must produce pixels identical to
     /// the blocking path, across the rotating buffer pair (frame A in slot 0,
     /// frame B in slot 1, frame C back in slot 0 after A was unmapped).
     #[test]

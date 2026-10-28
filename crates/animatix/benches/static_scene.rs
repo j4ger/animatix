@@ -29,7 +29,7 @@ pub(crate) fn bench_static(c: &mut Criterion) {
 
     // The GUI's exact frame path: hit regions are always requested for
     // picking, so this bench pins the static-subtree-cache-under-hit-regions
-    // behavior (PF-11: the cache used to be bypassed entirely here).
+    // behavior: hit regions must not disable the static subtree cache.
     let timeline_50_hits = build_static_scene(50);
     c.bench_function("static_50_actors_hit_regions", |b| {
         let mut counter = 0u64;

@@ -1,6 +1,6 @@
 use super::*;
 
-// ── Phase 7: Percentage & intrinsic sizing tests ──
+// ── Percentage & intrinsic sizing tests ──
 
 #[test]
 fn test_percentage_child_sizing_row() {

@@ -24,7 +24,7 @@ use crate::widget::overlay::{
 pub struct DialogCtx {
     /// Set to `true` on the very first frame the dialog is rendered.
     /// Useful for requesting initial focus on a widget.
-    #[allow(dead_code)] // Reserved for CommandPalette/FindReplace focus-on-open (Phase 5)
+    #[allow(dead_code)] // Reserved for CommandPalette/FindReplace focus-on-open
     pub first_frame: bool,
 }
 

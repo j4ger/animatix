@@ -1,4 +1,4 @@
-//! Phase 4: plot-host coordinate frames live on the entity, carry across
+//! Plot-host coordinate frames live on the entity, carry across
 //! scenes, and are the only source for hosted-child coordinate resolution.
 
 use crate::ast::{Expr, TargetSegment};

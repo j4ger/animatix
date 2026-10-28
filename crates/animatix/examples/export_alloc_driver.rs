@@ -1,5 +1,5 @@
 //! Steady-state allocation + peak-heap driver for the **export/render path**
-//! (PF-6 / `docs/performance_evaluation.md` §5 P3).
+//! (/ `docs/performance_evaluation.md` §5 P3).
 //!
 //! `alloc_driver` measures the timeline `evaluate` loop on a synthetic
 //! 60-actor scene; this driver measures the *whole export frame pipeline* on
@@ -19,7 +19,7 @@
 //! Defaults to `examples/gallery/dashboard_story.amx` (multi-file imports,
 //! dynamic layout, components, charts) at 30 fps for 90 frames. Output:
 //! steady-state per-frame blocks/bytes (post-settle) plus the peak live heap
-//! over the measured window — the PF-6 "peak RSS on real scenarios" proxy.
+//! over the measured window — the "peak RSS on real scenarios" proxy.
 
 #[global_allocator]
 static ALLOC: dhat::Alloc = dhat::Alloc;

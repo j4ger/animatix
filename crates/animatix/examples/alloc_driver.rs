@@ -1,4 +1,4 @@
-//! Steady-state allocation driver for the frame-evaluation hot path (PF-6,
+//! Steady-state allocation driver for the frame-evaluation hot path (,
 //! `docs/performance_evaluation.md` §5 P3).
 //!
 //! Time profiles rank where cycles go, but the hot path's dominant slice is

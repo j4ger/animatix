@@ -114,7 +114,7 @@ pub struct GpuFilterBackend {
     pending_composites: Vec<PendingLayer>,
     /// Region-scoped scratch targets, keyed by quantized size. Region paths
     /// render, seed, ping-pong, and harvest entirely inside these textures so
-    /// per-scope cost scales with the scope, not the canvas (PF-7's
+    /// per-scope cost scales with the scope, not the canvas; the
     /// no-reallocation guarantee is preserved by quantizing sizes and capping
     /// the cache: steady-state scenes reuse one entry per distinct ROI).
     region_scratch: HashMap<(u32, u32), RegionScratch>,

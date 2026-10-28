@@ -1,4 +1,4 @@
-//! Per-frame cost of `Equation` / `Fragment` scenes (PF-4).
+//! Per-frame cost of `Equation` / `Fragment` scenes.
 //!
 //! Equation children are compiled as one Typst document on every frame (the
 //! `ChildProcessing::Equation` branch of `render_node_children`). Unlike

@@ -14,7 +14,7 @@
 //! captures steady-state `evaluate` only. Build with
 //! `cargo build --release --example perf_driver -p animatix`.
 //!
-//! For allocation attribution (PF-6) use `alloc_driver`, which runs the same
+//! For allocation attribution use `alloc_driver`, which runs the same
 //! scenario through the dhat allocator.
 
 use std::time::Duration;

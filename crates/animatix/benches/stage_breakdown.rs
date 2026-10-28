@@ -1,4 +1,4 @@
-//! Stage-tracer consumer bench (PF-8 shared stage names, end-to-end).
+//! Stage-tracer consumer bench (shared stage names, end-to-end).
 //!
 //! Unlike the hand-rolled stage isolation in `cost_breakdown.rs`, this suite
 //! measures the *shared* stage tracer (`animatix::perf`, `ScopedStage`) so the

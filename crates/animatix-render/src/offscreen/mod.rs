@@ -16,8 +16,8 @@ mod transitions;
 /// the previous frame's allocation and reuses it in place on the next
 /// readback (`Arc::make_mut` is a no-op clone once the encoder drops its
 /// reference), so a steady-state video export performs zero per-frame
-/// allocations for the multi-megabyte readback (PF-6 round 9: dhat measured
-/// 3.7 MB/frame on a 720p export — 93% of the export path's churn).
+/// allocations for the multi-megabyte readback (a 720p RGBA frame is
+/// 3.7 MB — 93% of the export path's churn).
 
 #[derive(Debug, Clone)]
 pub struct RenderedFrame {
@@ -37,7 +37,7 @@ pub struct OffscreenRenderer {
     pub(super) core: RendererCore,
     pub(super) output_texture: Option<wgpu::Texture>,
     pub(super) output_view: Option<wgpu::TextureView>,
-    /// Two rotating MAP_READ buffers for the pipelined readback (PF-7): while
+    /// Two rotating MAP_READ buffers for the pipelined readback: while
     /// frame N's copy is mapped/encoded, frame N+1's copy lands in the other
     /// buffer — one-frame GPU/CPU overlap without corrupting a mapped buffer.
     pub(super) readback_buffers: [Option<wgpu::Buffer>; 2],
@@ -57,7 +57,7 @@ pub struct OffscreenRenderer {
     pub(super) filter_backend_dimensions: Option<SceneDimensions>,
     pub(super) dimensions: SceneDimensions,
     pub(super) bytes_per_row: u32,
-    /// Recycled CPU readback buffer (PF-6 round 9): parked between frames and
+    /// Recycled CPU readback buffer: parked between frames and
     /// handed out again once the encoder drops its reference — the 720p RGBA
     /// readback was 3.7 MB allocated per frame (93% of export-path churn).
     pub(super) readback_buffer: Option<std::sync::Arc<Vec<u8>>>,

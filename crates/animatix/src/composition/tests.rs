@@ -545,7 +545,7 @@ fn test_cross_file_scene_duration_preserved() {
 }
 
 // -----------------------------------------------------------------------
-// Phase 2 + 3: Scene persistence carry tests
+// Scene persistence carry tests
 // -----------------------------------------------------------------------
 
 /// Basic carry: `title` persisted from SceneA → SceneB.
@@ -784,7 +784,7 @@ fn test_persist_container_subtree() {
 }
 
 // -----------------------------------------------------------------------
-// Phase 4: Edge case tests
+// Edge case tests
 // -----------------------------------------------------------------------
 
 /// Persist in a truly single-scene file (no `# SceneName` markers) must emit

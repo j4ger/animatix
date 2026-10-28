@@ -1,4 +1,4 @@
-//! Round-trip tests for the non-layout components migrated in Phase 3a.
+//! Round-trip tests for the non-layout components.
 
 use animatix_text::transcript::SpeechTranscript;
 
