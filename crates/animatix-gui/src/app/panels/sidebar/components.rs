@@ -43,8 +43,8 @@ pub(super) fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut eg
                         if let Some(line) = found_line {
                             ctx.commands
                                 .push_back(ShellAction::Command(Command::ScrollToLine(line, 0)));
-                            // The editor is no longer a sidebar tab; open the
-                            // Code tab in the detail region instead.
+                            // The editor lives in the detail region's Code tab,
+                            // not the sidebar; open that tab instead.
                             ctx.commands.push_back(ShellAction::View(ViewAction::ShowCode));
                         }
                     }

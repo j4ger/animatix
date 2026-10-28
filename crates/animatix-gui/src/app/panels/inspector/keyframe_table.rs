@@ -93,10 +93,9 @@ pub(super) fn render_dope_sheet(
 // ─── Compact Track Row ────────────────────────────────────────────────────
 
 fn easing_display_name(easing: Easing) -> String {
-    // Resolved through the registry rather than a local table: this used to be
-    // a fourth copy of the name list, which went stale every time a curve was
-    // added. Curves the registry does not name (a hand-authored bezier) fall
-    // back to their source form, which is readable and round-trips.
+    // Resolved through the registry so a curve added to `EASING_REGISTRY` shows
+    // up here; curves it does not name (a hand-authored bezier) fall back to
+    // their source form, which is readable and round-trips.
     animatix_syntax::easing::EASING_REGISTRY
         .iter()
         .find(|(id, _)| animatix_syntax::easing::parse_easing_name(id) == Some(easing))
@@ -585,8 +584,8 @@ mod tests {
     }
 
     /// The dope sheet must list shape-tier lanes: `to` lives on the World shape
-    /// component, not on the track, so a track-only read used to report no
-    /// keyframes for it.
+    /// component, not on the track, so a track-only read reports no keyframes
+    /// for it.
     #[test]
     fn shape_tier_keyframes_are_counted_and_listed() {
         let source = r#"

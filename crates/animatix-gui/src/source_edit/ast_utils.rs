@@ -1,7 +1,7 @@
 //! AST utility functions: searching/filtering/transforming statement trees.
 //!
-//! These were extracted from the app module; they operate purely on the AST
-//! and belong in the source_edit crate alongside other AST-manipulation helpers.
+//! These operate purely on the AST and belong with the other source-edit
+//! helpers rather than with any UI state.
 
 use std::cell::RefCell;
 

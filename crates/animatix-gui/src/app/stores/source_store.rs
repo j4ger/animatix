@@ -48,7 +48,6 @@ impl SourceStore {
 
     /// Apply pre-computed source text and source index to the document.
     ///
-    /// Centralizes the boilerplate that was previously duplicated across handlers.
     /// Callers compute `(stmts_to_source(stmts), SourceIndex::build(stmts))` while
     /// holding the `stmts` borrow, then call this after the borrow ends.
     pub fn commit_source(

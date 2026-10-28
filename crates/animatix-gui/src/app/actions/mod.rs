@@ -650,7 +650,7 @@ mod tests {
     }
 
     /// A GUI edit of a shape-tier property must reach the shape component
-    /// store: the track itself no longer carries a `shape` field.
+    /// store: the track itself does not carry a `shape` field.
     #[test]
     fn gui_shape_edit_reaches_the_shape_tier() {
         let mut timeline = animatix::timeline::Timeline::new();

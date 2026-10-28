@@ -1,7 +1,7 @@
 //! PreviewContext: shared state and helper methods for the preview canvas.
 //!
 //! The struct lives here so it can be imported by both the main preview panel
-//! UI function (`preview_panel_ui`) and the extracted drag handler.
+//! UI function (`preview_panel_ui`) and the gesture handlers.
 
 mod camera;
 mod handles;

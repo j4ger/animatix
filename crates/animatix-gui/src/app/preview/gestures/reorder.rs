@@ -1,6 +1,5 @@
 //! Gesture handler for layout-managed child reordering — drag within a Row/Col container.
 //!
-//! Extracted from the legacy `drag_handler.rs` Reorder match arms.
 //! Only activates for layout-managed children when Shift is NOT held (Shift detaches).
 //! Projects mouse position onto the Row/Col main axis to determine the target insertion index.
 

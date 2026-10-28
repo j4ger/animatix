@@ -1,5 +1,5 @@
-//! Shared utilities extracted from the legacy drag handler.
-//! These are pure helper functions that can be reused by gesture handlers.
+//! Shared utilities for gesture handlers: pure helpers with no egui state of
+//! their own, reusable across drag gestures.
 
 use std::collections::HashSet;
 

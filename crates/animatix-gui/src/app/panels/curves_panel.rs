@@ -704,8 +704,8 @@ b.at = (0, 200)
     }
 
     /// The shared keyframe selection spans actors, so pruning must keep every
-    /// id that still has a drawn keyframe — the single-actor filter used to
-    /// drop the other actors' ids on the first edit.
+    /// id that still has a drawn keyframe — a single-actor filter drops the
+    /// other actors' ids on the first edit.
     #[test]
     fn prune_selection_keeps_ids_from_every_graphed_actor() {
         let timeline = two_actor_timeline();

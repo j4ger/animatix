@@ -9,9 +9,8 @@ pub(super) fn set_keyframe_easing_inner(
     easing: animatix_syntax::easing::Easing,
 ) -> Result<(), SourceEditError> {
     let source_prop = canonical_to_source(property);
-    // The name table this used to carry was a fourth copy of the easing names,
-    // in unhyphenated forms the hand-written corpus never uses, and its
-    // `CubicBezier` arm overwrote the user's curve with `linear`.
+    // Build through the shared builder; see `easing_to_expr` for why an editor
+    // must not invent its own name table.
     let easing_expr = animatix_syntax::easing::easing_to_expr(easing);
 
     // Walk through keyframes looking for the match

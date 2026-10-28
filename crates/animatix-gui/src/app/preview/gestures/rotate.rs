@@ -1,6 +1,4 @@
 //! Gesture handler for rotation — ToolMode::Rotate and Select rotation handle.
-//!
-//! Extracted from the legacy `drag_handler.rs` Rotate match arms.
 
 use crate::app::commands::{DocumentCommand, PropertyEdit, PropertyValue};
 use crate::app::design_tokens::spatial::preview::HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS;

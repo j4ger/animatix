@@ -441,7 +441,7 @@ fn read_inspector_property_value(
     }
     // Read through the World field bundle: it is the shape-aware view, so
     // shape-tier properties (corner_radius, arc_angles, line_from/line_to,
-    // head_size, shape_type, points, commands, vector_paths) no longer show
+    // head_size, shape_type, points, commands, vector_paths) do not show
     // their schema default when the actor actually carries a value.
     timeline.world().read_property_value_or_default(id, schema, time_ms)
 }

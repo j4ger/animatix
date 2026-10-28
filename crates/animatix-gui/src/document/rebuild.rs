@@ -102,7 +102,9 @@ impl DocumentSession {
         let mut all_diagnostics = result.type_diagnostics;
         all_diagnostics.extend(report.diagnostics);
         self.diagnostics = all_diagnostics;
-        // Phase 6.4: Preserve plot path cache across rebuilds.
+        // Carry the plot path cache across rebuilds. It is keyed by parameter
+        // hash, so entries for unchanged plots survive and only edited
+        // parameters are re-evaluated.
         let old_plot_cache = self
             .timeline
             .as_ref()
@@ -191,7 +193,9 @@ impl DocumentSession {
         output: crate::app::document::rebuild_output::RebuildOutput,
         source_hash: u64,
     ) {
-        // Phase 6.4: Preserve plot path cache across rebuilds.
+        // Carry the plot path cache across rebuilds. It is keyed by parameter
+        // hash, so entries for unchanged plots survive and only edited
+        // parameters are re-evaluated.
         let old_plot_cache = self
             .timeline
             .as_ref()

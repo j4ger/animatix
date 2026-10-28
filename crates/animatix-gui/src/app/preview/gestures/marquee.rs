@@ -5,8 +5,6 @@
 //! was hit). It updates `selection.marquee_start` / `selection.marquee_current`
 //! during the drag and, on release, computes the scene-space marquee rectangle
 //! to select intersecting actors.
-//!
-//! Extracted from the legacy `drag_handler.rs` marquee/selection arms.
 
 use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
 

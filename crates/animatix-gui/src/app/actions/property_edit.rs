@@ -312,8 +312,8 @@ pub(super) fn apply_property_edit_to_entity(
     // ── Registry-driven dispatch for standard properties ──
     if let Some(schema) = animatix::timeline::property_registry::lookup_property(property) {
         // Tagged properties have no `TrackFieldMut` arm below — `field_mut`
-        // hands back the legacy map entry, which nothing here used to write.
-        // Route them through the one tagged writer instead.
+        // hands back the legacy map entry, which this path never wrote. Route
+        // them through the one tagged writer instead.
         if let animatix::timeline::ActorField::Tagged(tag) = schema.field {
             write_tagged_value(tag, value.clone(), time_ms, linear, legacy_tagged, field_writes);
             return;

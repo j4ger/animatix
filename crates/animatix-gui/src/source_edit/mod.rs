@@ -1,10 +1,10 @@
 //! AST-based source editing for the GUI inspector.
 //!
-//! Replaces the old byte-span surgery model with semantic
-//! edits applied directly to the AST. After mutation, the entire AST is
-//! re-serialized via [`animatix_syntax::to_source::stmts_to_source`].
+//! Edits are semantic: they mutate the AST directly rather than splicing byte
+//! spans. After mutation, the entire AST is re-serialized via
+//! [`animatix_syntax::to_source::stmts_to_source`].
 //!
-//! This module has been split into sub-modules:
+//! Sub-modules:
 //! - `apply` — core `SourceEdit` enum, `apply_edit` dispatch, shared traversal helpers
 //! - `actor_edits` — property changes, actor insertion, reordering, reparenting, renaming
 //! - `keyframe_edits` — keyframe insert/merge/delete/easing

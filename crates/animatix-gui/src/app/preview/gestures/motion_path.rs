@@ -2,8 +2,6 @@
 //!
 //! Allows the user to reposition keyframes on the motion path by clicking and
 //! dragging the keyframe dots shown when motion paths are visible.
-//!
-//! Extracted from the legacy `drag_handler.rs` MotionPath match arms.
 
 use crate::app::commands::{DocumentCommand, DragEvent, PropertyEdit, PropertyValue, ShellAction};
 use crate::app::design_tokens::spatial::preview::HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS;

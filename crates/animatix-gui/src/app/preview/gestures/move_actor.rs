@@ -1,6 +1,5 @@
 //! Gesture handler for body-move interactions — ToolMode::Move and Select body drag.
 //!
-//! Extracted from the legacy `drag_handler.rs` Move match arms.
 //! Handles: hit-test actor body, Alt duplicate, Shift detach from layout,
 //! multi-actor move with snap, grid, shift-lock, and keyframe finalization.
 

@@ -591,7 +591,7 @@ mod tests {
     }
 
     /// Shape-tier properties graph like any other tier: `to` lives on the World
-    /// shape component, which the track-only sampler used to miss entirely.
+    /// shape component, which a track-only read misses entirely.
     #[test]
     fn shape_tier_channel_is_graphed() {
         let source = r#"

@@ -1,5 +1,4 @@
 //! Shared utilities for gesture handlers.
-//! Extracted helpers that multiple handlers need.
 
 use super::super::context::PreviewContext;
 use crate::app::commands::{DragEvent, ShellAction};

@@ -267,9 +267,6 @@ pub(crate) fn draw_context_menu(
     (selected_actor, action, close, Some(menu_rect))
 }
 
-// Hover/cycle drawing now lives in `overlay_ops.rs` so overlay behavior can be
-// tested without a live egui painter.
-
 #[cfg(test)]
 mod tests {
     use super::*;

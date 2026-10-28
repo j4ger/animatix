@@ -1,6 +1,4 @@
 //! Gesture handler for ToolMode::Pivot – dragging the pivot crosshair.
-//!
-//! Extracted from the legacy `drag_handler.rs` MovePivot match arms.
 
 use crate::app::commands::{DragEvent, ShellAction};
 use crate::app::design_tokens::spatial::preview::HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS;

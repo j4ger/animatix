@@ -1,4 +1,4 @@
-//! Document-level AST mutation operations extracted from `GuiShell`.
+//! Document-level AST mutation operations.
 //!
 //! `DocumentController` borrows the three core stores and provides focused
 //! methods for manipulating the AST, source text, editor buffer, and UI state.

@@ -1,8 +1,8 @@
-//! JSONL performance sink for real-authoring telemetry (PF-9).
+//! JSONL performance sink for real-authoring telemetry.
 //!
 //! Opt-in via `animatix-gui --perf-log <path>.jsonl`. One JSON line is appended
 //! per UI frame with the HUD metrics (`PerformanceMetrics`) plus the per-stage
-//! durations drained from the shared stage tracer (`animatix::perf`, PF-8) so
+//! durations drained from the shared stage tracer (`animatix::perf`) so
 //! collected data uses the exact same stage names as the bench suite.
 //!
 //! Threading note: the stage tracer is thread-local. The GUI drains it on the

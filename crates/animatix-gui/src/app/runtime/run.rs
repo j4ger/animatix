@@ -1,8 +1,8 @@
 use super::*;
 
 pub fn run_gui(path: Option<PathBuf>, perf_log_path: Option<PathBuf>, script: Option<PathBuf>) {
-    // Open the optional JSONL perf sink (PF-9) before the event loop starts; a
-    // bad path must not take the GUI down — log and continue without telemetry.
+    // Open the optional JSONL perf sink before the event loop starts; a bad
+    // path must not take the GUI down — log and continue without telemetry.
     let perf_log = perf_log_path.and_then(|p| {
         crate::app::perf_log::PerfLogSink::open(&p)
             .map_err(|e| tracing::error!("--perf-log: cannot open {}: {e}", p.display()))
@@ -41,10 +41,10 @@ pub fn run_gui(path: Option<PathBuf>, perf_log_path: Option<PathBuf>, script: Op
         options,
         Box::new(move |cc| {
             let app = AnimatixApp::new(cc, initial_path, show_welcome, perf_log)?;
-            // Demo-script driver (PF-11 follow-up): inject commands from a
-            // script at fixed wall-clock times — the scripted form of the
-            // external-command queue, used to drive scripted seek/playback
-            // sessions for `--perf-log` capture.
+            // Demo-script driver: inject commands from a script at fixed
+            // wall-clock times — the scripted form of the external-command
+            // queue, used to drive scripted seek/playback sessions for
+            // `--perf-log` capture.
             if let Some(script) = script {
                 let sender = app.shell.external_command_sender();
                 let ctx = cc.egui_ctx.clone();

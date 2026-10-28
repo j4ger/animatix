@@ -1,6 +1,4 @@
 //! Gesture handler for scaling — ToolMode::Scale and Select scale handles.
-//!
-//! Extracted from the legacy `drag_handler.rs` Scale match arms.
 
 use egui::Pos2;
 

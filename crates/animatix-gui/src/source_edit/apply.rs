@@ -1,8 +1,7 @@
 //! AST-based source editing — core types, dispatch, and shared traversal helpers.
 //!
-//! Replaces the old byte-span surgery model with semantic
-//! edits applied directly to the AST. After mutation, the entire AST is
-//! re-serialized via [`animatix_syntax::to_source::stmts_to_source`].
+//! A [`SourceEdit`] names a semantic change; [`apply_edit`] mutates the AST and
+//! the caller re-serializes it.
 
 use animatix_syntax::ast::{Expr, Modifier, Property, Stmt, Transition};
 

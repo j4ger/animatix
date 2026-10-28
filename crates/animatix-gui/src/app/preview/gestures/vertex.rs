@@ -1,6 +1,5 @@
 //! Gesture handler for vertex editing — dragging individual polygon vertices.
 //!
-//! Extracted from the legacy `drag_handler.rs` `EditVertices` match arms.
 //! Active in both `ToolMode::Vertex` (generous hit zone) and `ToolMode::Select`
 //! (standard hit zone, after other handle checks).
 

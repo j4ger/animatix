@@ -10,7 +10,7 @@ pub struct PreviewStore {
     pub preview_dirty: bool,
     pub pending_rebuild_at: Option<Instant>,
     pub last_frame_at: Instant,
-    /// True while a timeline rebuild is running. Shown in preview status (Phase 6.5).
+    /// True while a timeline rebuild is running. Shown in preview status.
     pub rebuild_in_progress: bool,
     /// Token of the latest in-flight background rebuild, if any.
     pub in_flight_rebuild: Option<RebuildToken>,

@@ -38,9 +38,9 @@ impl eframe::App for AnimatixApp {
         // Record frame tick for performance HUD
         self.shell.preview_store.performance_metrics.record_tick();
 
-        // PF-9: drain shared stage measurements and append the JSONL perf line
-        // when the sink is active. Stages execute on this UI thread; the
-        // end-to-end rebuild time arrives separately via record_rebuild.
+        // Drain shared stage measurements and append the JSONL perf line when
+        // the sink is active. Stages execute on this UI thread; the end-to-end
+        // rebuild time arrives separately via record_rebuild.
         if let Some(sink) = self.perf_log.as_mut() {
             let stages = animatix::perf::take_measurements();
             let actor_count = self

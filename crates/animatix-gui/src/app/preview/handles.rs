@@ -127,8 +127,8 @@ pub(crate) fn selection_screen_rect(
 
 // ─── Selection Overlay ──────────────────────────────────────────────────────
 //
-// Selection/ghost/reorder overlay generation now lives in `overlay_ops.rs` so
-// overlay behavior can be tested without a live egui painter.
+// Overlay generation lives in `overlay_ops.rs` so it can be tested without a
+// live egui painter.
 
 // ─── Hit testing ────────────────────────────────────────────────────────────
 

@@ -38,7 +38,7 @@ struct AnimatixApp {
     /// Last theme registry error, surfaced in Settings.
     #[cfg(feature = "theme-json")]
     theme_error: Option<String>,
-    /// Opt-in JSONL perf telemetry sink (`--perf-log`, PF-9).
+    /// Opt-in JSONL perf telemetry sink (`--perf-log`).
     perf_log: Option<crate::app::perf_log::PerfLogSink>,
     /// Bounded whole-window screenshot session (`ANIMATIX_SCREENSHOT`), used for
     /// visual layout review. Only compiled with `dev-screenshots`.
