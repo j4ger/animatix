@@ -44,31 +44,36 @@ serialization / UI boundary.**
 ```text
 EntityId(u32) ── entities: EntityStore { label ↔ id maps }
                    │
-                   ├── hierarchy:    RequiredStore<SceneHierarchyComponent>
-                   ├── actor_types:  RequiredStore<String>
-                   ├── caps:         RequiredStore<ActorCaps>
-                   ├── behavior:     RequiredStore<BehaviorId>
-                   ├── geometry:     RequiredStore<GeometryTracks>
-                   ├── style:        RequiredStore<StyleTracks>
-                   ├── shape:        RequiredStore<ShapeTracks>
-                   ├── text:         RequiredStore<TextTracks>
-                   ├── highlight:    RequiredStore<HighlightTracks>
-                   ├── property_plan:RequiredStore<PropertyPlan>
-                   ├── tagged_tracks:RequiredStore<TaggedTracksComponent>
-                   ├── memo cells:   shape_memos / pending_shape_bounds /
-                   │                 bounds_slots (see §2.1 "memo cells")
-                   ├── meta:         ComponentStore<EntityMeta>
-                   ├── decl_span:    ComponentStore<Span>
-                   ├── caps_overrides: ComponentStore<ActorCaps>
-                   ├── legend:       ComponentStore<LegendTracks>
-                   ├── effects:      ComponentStore<EffectChainTrack>
-                   ├── payload:      ComponentStore<PrimitivePayload>
-                   ├── container_layout: ComponentStore<ContainerMetadata>
-                   ├── coordinate:   ComponentStore<CoordinateFrameComponent>
-                   ├── persistence:  ComponentStore<PersistenceComponent>
-                   ├── auto_color:   ComponentStore<AutoColorComponent>
-                   ├── child_order:  ComponentStore<ChildOrderComponent>
-                   └── transcript:   ComponentStore<TranscriptComponent>
+                   ├── Required stores:
+                   │   ├── hierarchy:       RequiredStore<SceneHierarchyComponent>
+                   │   ├── actor_types:     RequiredStore<String>
+                   │   ├── caps:            RequiredStore<ActorCaps>
+                   │   ├── behavior:        RequiredStore<BehaviorId>
+                   │   ├── geometry:        RequiredStore<GeometryTracks>
+                   │   ├── style:           RequiredStore<StyleTracks>
+                   │   ├── property_plan:   RequiredStore<PropertyPlan>
+                   │   ├── tagged_tracks:   RequiredStore<TaggedTracksComponent>
+                   │   └── memo cells:      shape_memos / pending_shape_bounds /
+                   │                        bounds_slots (see §2.1 "memo cells")
+                   │
+                   └── Optional stores:
+                       ├── text:            ComponentStore<TextTracks>
+                       ├── shape:           ComponentStore<ShapeTracks>
+                       ├── highlight:       ComponentStore<HighlightTracks>
+                       ├── plot_payload:    ComponentStore<PlotPayload>
+                       ├── svg_payload:     ComponentStore<SvgPayload>
+                       ├── image_payload:   ComponentStore<ImagePayload>
+                       ├── container_layout:ComponentStore<ContainerMetadata>
+                       ├── child_order:     ComponentStore<ChildOrderComponent>
+                       ├── coordinate:      ComponentStore<CoordinateFrameComponent>
+                       ├── persistence:     ComponentStore<PersistenceComponent>
+                       ├── auto_color:      ComponentStore<AutoColorComponent>
+                       ├── transcript:      ComponentStore<TranscriptComponent>
+                       ├── legend:          ComponentStore<LegendTracks>
+                       ├── effects:         ComponentStore<EffectChainTrack>
+                       ├── meta:            ComponentStore<EntityMeta>
+                       ├── decl_span:       ComponentStore<Span>
+                       └── caps_overrides:  ComponentStore<ActorCaps>
 ```
 
 `World` owns the entity store and the component stores. `Timeline` owns the
@@ -135,30 +140,42 @@ Rules:
 |---|---|---|
 | `EntityMeta` | id, label, actor_type, first_seen_ms, visible, locked, camera_follow, parallax, hidden_by_default | optional (reads fall back to `EntityMeta::DEFAULT`) |
 | `DeclarationSpan` | `Span` of the actor declaration (absent when the parser had none) | optional |
-| `ActorCaps` | category, child_processing, shape, text, flags | every entity |
-| `BehaviorId` | 0..36 for built-ins, dynamically assigned for extensions | every entity |
-| `SceneHierarchyComponent` | `parent: Option<EntityId>`, `children: Vec<EntityId>` | every entity |
+| `ActorCaps` | category, child_processing, shape, text, flags | every entity (`RequiredStore<ActorCaps>`) |
+| `BehaviorId` | 0..36 for built-ins, dynamically assigned for extensions | every entity (`RequiredStore<BehaviorId>`) |
+| `SceneHierarchyComponent` | `parent: Option<EntityId>`, `children: Vec<EntityId>` | every entity (`RequiredStore<SceneHierarchyComponent>`) |
 | `RootSet` | `Vec<EntityId>` (insertion order) | resource |
-| `GeometryTracks` | position/size/layout_size/rotation/scale/transform/placement/callout/connector/volume | every entity |
-| `StyleTracks` | color/opacity/stroke/fill/gradient/blend/morph_options | every entity |
-| `ShapeComponent` | shape type, from/to, arc, points, commands, vector paths | every entity |
-| `TextTracks` | text content, typography, paths, metrics, split reveal | every entity |
-| `HighlightTracks` | equation highlight color/opacity/padding/radius/blend | every entity (empty default) |
-| `PropertyPlan` | extension/registry property slots | every entity |
-| `TaggedTracksComponent` | tagged-union property tracks by canonical name | every entity |
-| `LegendTracks` | legend entries | optional |
-| `EffectChainTrack` | effect stages for Filter/Mask/Glass scopes | optional |
-| `PrimitivePayload` | Plot/Svg/Image payload | optional |
-| `ContainerMetadata` | layout type/gap/padding/align/cols/child order (`EntityId`s) | optional containers |
+| `GeometryTracks` | position/size/layout_size/rotation/scale/transform/placement/callout/connector/volume | every entity (`RequiredStore<GeometryTracks>`) |
+| `StyleTracks` | color/opacity/stroke/fill/gradient/blend/morph_options | every entity (`RequiredStore<StyleTracks>`) |
+| `ShapeTracks` | shape type, from/to, arc, points, commands, vector paths | optional (`ComponentStore<ShapeTracks>`; falls back to `default_shape`) |
+| `TextTracks` | text content, typography, paths, metrics, split reveal | optional (`ComponentStore<TextTracks>`; falls back to `default_text`) |
+| `HighlightTracks` | equation highlight color/opacity/padding/radius/blend | optional (`ComponentStore<HighlightTracks>`; falls back to `default_highlight`) |
+| `PropertyPlan` | extension/registry property slots | every entity (`RequiredStore<PropertyPlan>`) |
+| `TaggedTracksComponent` | tagged-union property tracks by canonical name | every entity (`RequiredStore<TaggedTracksComponent>`) |
+| `PlotPayload` | plot curves, surfaces, fields, domains, axis options | optional (`ComponentStore<PlotPayload>`) |
+| `SvgPayload` | parsed SVG tree and asset source metadata | optional (`ComponentStore<SvgPayload>`) |
+| `ImagePayload` | texture asset handle, dimensions, image source metadata | optional (`ComponentStore<ImagePayload>`) |
+| `ContainerMetadata` | layout type/gap/padding/align/cols/child order (`EntityId`s) | optional containers (`ComponentStore<ContainerMetadata>`) |
 | `CoordinateFrameComponent` | domain/scale/padding/grid/ticks/tick labels | optional (plot hosts; sole source for hosted-child coordinate resolution) |
-| `PersistenceComponent` | `persistent: bool` | optional |
-| `AutoColorComponent` | auto-color slot | optional |
-| `ChildOrderComponent` | `PropertyTrack<Vec<EntityId>>` | optional |
-| `TranscriptComponent` | speech transcript | optional |
+| `PersistenceComponent` | `persistent: bool` | optional (`ComponentStore<PersistenceComponent>`) |
+| `AutoColorComponent` | auto-color slot | optional (`ComponentStore<AutoColorComponent>`) |
+| `ChildOrderComponent` | `PropertyTrack<Vec<EntityId>>` | optional (`ComponentStore<ChildOrderComponent>`) |
+| `TranscriptComponent` | speech transcript | optional (`ComponentStore<TranscriptComponent>`) |
+| `LegendTracks` | legend entries | optional (`ComponentStore<LegendTracks>`) |
+| `EffectChainTrack` | effect stages for Filter/Mask/Glass scopes | optional (`ComponentStore<EffectChainTrack>`) |
+| `ActorCaps` (overrides) | explicit capability overrides for extension primitives | optional (`ComponentStore<ActorCaps>`, `caps_overrides`) |
 
 `caps` is stored as `RequiredStore<ActorCaps>` initialized at `spawn`/`set_identity`
 from the catalog, making frame-time checks true `Copy` field reads without catalog
 scans; `caps_overrides` remains available for extension overrides with `World::set_caps`.
+`behavior` is stored as `RequiredStore<BehaviorId>` initialized at `spawn`/`set_identity`,
+providing $O(1)$ indexable lookup of `BehaviorDef` in `BehaviorRegistry`.
+`TextTracks`, `ShapeTracks`, and `HighlightTracks` are optional component stores populated
+only when an entity's behavior family requires them (`ShapeTracks` for vector shapes, `TextTracks`
+for text/code/math/equation/captions, `HighlightTracks` for equation actors). Fallback static default
+tracks (`default_shape`, `default_text`, `default_highlight`) serve unchanged read accessors when absent.
+The former monolithic `PrimitivePayload` enum is split into dedicated optional component stores
+(`ComponentStore<PlotPayload>`, `ComponentStore<SvgPayload>`, `ComponentStore<ImagePayload>`),
+removing variant wrapping overhead and enabling independent access.
 All `EntityMeta` fields are live: `World::actor_type(id)` and `World::label(id)`
 are the identity accessors, and `visible`, `locked`, `camera_follow`,
 `parallax`, `hidden_by_default` and `first_seen_ms` read through
@@ -186,6 +203,46 @@ are the identity accessors, and `visible`, `locked`, `camera_follow`,
 
 Adding a resource instead of a component is a decision to document in the PR:
 "looked up by label/order, not by entity id".
+
+### 2.4 Behavior Layer: Family Systems and Extension Adapter
+
+The behavior layer decouples actor identity and lifecycle from monolithic trait objects. Every entity in `World` has a required `BehaviorId` component that maps in $O(1)$ time to an immutable `BehaviorDef` stored in `BehaviorRegistry`.
+
+#### BehaviorId and BehaviorDef
+- `BehaviorId(u16)`: A compact, Copy-friendly integer handle. Indices `0..36` are statically reserved for built-in primitives in canonical order; runtime extension primitives receive dynamically allocated indices `>= 36`.
+- `BehaviorDef`: Stores the immutable definition of an actor behavior:
+  - `id: BehaviorId`
+  - `name: Box<str>` (authored type name, e.g. `"Rect"`, `"Text"`, `"Graph"`)
+  - `caps: ActorCaps` (derived capability projection)
+  - `family: BehaviorFamily` (coarse architectural grouping: `Shape`, `Text`, `Media`, `Plot`, `Container`, `Effect`, `Equation`, `Captions`, `Annotation`, `Group`)
+  - `child_processing: ChildProcessingKind` (child evaluation strategy)
+  - `source: BehaviorSource` (`Family(FamilyBehavior)` for built-ins, `Extension(Arc<dyn Primitive>)` for plugins)
+
+#### Family Systems (`timeline/behavior/builtin/`)
+Built-in primitives are organized into family systems under `timeline/behavior/builtin/`:
+1. **`shape`**: Vector shape geometry rendering and state evaluation (`Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`).
+2. **`text`**: Typographic rendering and font compilation (`Text`, `Code`, `Math`, `Typst`, `Counter`).
+3. **`media`**: Asset and streaming payloads (`Image`, `Svg`, `Audio`).
+4. **`plot`**: Mathematical function and coordinate plotting (`Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`, `BarChart`).
+5. **`container`**: Layout-constrained flex containers (`Row`, `Col`, `Grid`, `Stack`) and structural grouping (`Group`).
+6. **`effect`**: GPU shader compositing and offscreen filter scopes (`Filter`, `Glass`, `Mask`).
+7. **`equation`**: Math equation layout containers and fragment animations (`Equation`, `Fragment`).
+8. **`captions`**: Speech-synchronized subtitles and cues (`Captions`, `Cue`).
+9. **`annotation`**: Targeted UI and diagram elements (`Callout`, `Legend`, `Connector`).
+10. **`group`**: Structural scene-graph hierarchy grouping without layout constraints.
+
+#### Direct Function Pointers vs. Extension Adapter
+- **Built-in primitives**: Execute via direct, unboxed function pointers stored in `FamilyBehavior`:
+  - `EvaluateFn`: `fn(&EvaluateCtx, Option<&mut TextCompileCtx>) -> Result<Option<Vec<RenderCommand>>, RenderError>`
+  - `BuildExtraFn`: `Option<fn(&mut Timeline, label, props, modifiers, children, time_ms, parent_label, diagnostics) -> Result<(), Vec<Diagnostic>>>`
+  Dispatching built-in evaluation through direct function pointers eliminates dynamic trait object dispatch on the inner frame loop.
+- **Extension primitives**: External plugins implement the `Primitive` trait and are registered at runtime via `BehaviorRegistry::register_extension`. They are stored in `BehaviorSource::Extension(Arc<dyn Primitive>)`. When `BehaviorDef::evaluate` is called, it adapts the plugin by invoking its `Primitive::evaluate` method, providing complete backward compatibility with plugin ecosystems while keeping the internal engine hot path monomorphic and inlineable.
+
+#### Retention of Render Recursion
+While entity data and evaluation contexts are flattened into ECS component stores, the scene evaluation walk (`render_actor_node_by_id`, `evaluate_node_by_id`) deliberately retains hierarchical tree recursion rather than adopting a flat linear entity loop. This design is retained for three architectural reasons:
+1. **Static Subtree Caching**: Entire subtrees with no animated properties or active modifier targets are cached into pre-rendered static `vello::Scene` buffers. Recursion allows the evaluator to test the static subtree flag at a parent node and blit the cached scene in a single operation, skipping child traversals entirely.
+2. **Camera and Coordinate Scopes**: Ancestor coordinate transformations, camera projections, and layout offsets accumulate along the tree hierarchy. Recursive descent naturally manages the transformation stack (`parent_transform * local_transform`) and opacity blending without intermediate stack allocations.
+3. **Filter and Offscreen Composite Order**: Effects like `Filter`, `Mask`, and `Glass` establish compositing scopes that require rendering all descendant children into an offscreen target before applying GPU shader pipelines and blitting the result back to the parent target. Recursive structure strictly preserves painter's algorithm composite ordering and enables zero-readback optimizations (e.g. `can_post_composite_filter`) for tail nodes.
 
 ## 3. Access layer
 
@@ -283,6 +340,9 @@ keyframe by its per-tier collapse helper (`snapshot_style_at`,
 | P5 | header fields + legend + effects + payload + highlight + geometry/style/shape/text tiers + tagged + plan done | done |
 | P6 | delete `AnimationTrack`/`TrackStore` (identity: id only), migrate GUI, snapshot DTO | done |
 | P7 | perf + full gate matrix + docs close-out | done |
+| Stage 1 | Actor capabilities componentization (`ActorCaps`), `BehaviorId`/`BehaviorDef` table, eliminate `ActorKind` | done |
+| Stage 2 | `BehaviorDef` frame dispatch, split payload stores (`PlotPayload`, `SvgPayload`, `ImagePayload`), optional `shape`/`text`/`highlight` stores | done |
+| Stage 3 | Built-in primitive migration to family systems, extension adapter (`BehaviorSource::Extension`), deprecation notes, normative docs | done |
 
 **P6 close-out notes.** `TrackStore` became the maps-only `EntityStore`
 (`entity.rs`): a label is live exactly while its index is below `len()`, and

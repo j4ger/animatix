@@ -35,6 +35,7 @@ impl ActorTemplate {
     }
 
     /// Create an actor template with an optional suggested label and extra property overrides.
+    #[allow(deprecated)]
     pub fn with_suggested_label(
         type_name: &str,
         suggested_label: Option<String>,

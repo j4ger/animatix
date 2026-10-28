@@ -10,6 +10,7 @@ use crate::timeline::shapes::ShapeType;
 /// Every built-in primitive must appear in the metadata registry and
 /// derive a complete capability projection.
 #[test]
+#[allow(deprecated)]
 fn primitive_catalog_is_complete() {
     use crate::primitives::find_primitive;
 

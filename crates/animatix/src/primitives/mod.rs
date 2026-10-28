@@ -266,8 +266,14 @@ pub fn primitive_specs() -> Vec<animatix_syntax::schema::PrimitiveSpec> {
 
 /// Look up a built-in primitive by type name.
 ///
-/// This compatibility helper is backed by the same [`PrimitiveRegistry`] used
-/// by timeline builds, not by a separate static lookup.
+/// # Deprecated
+/// Built-in runtime evaluation and build behaviors have moved to family systems
+/// under `timeline::behavior::builtin`. This compatibility helper remains for
+/// tooling and extension inspection.
+#[deprecated(
+    since = "0.5.0",
+    note = "built-in runtime behavior moved to timeline::behavior::builtin"
+)]
 pub fn find_primitive(ty: &str) -> Option<&'static dyn Primitive> {
     builtin_primitive_registry().find(ty)
 }

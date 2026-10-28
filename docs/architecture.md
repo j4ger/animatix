@@ -102,28 +102,49 @@ See [§16 Multi-Scene Composition](#16-multi-scene-composition) below.
 
 ### Timeline and the ECS world
 
-Timeline data is migrating to an entity/component model. `docs/ecs.md` is the
-normative design; this section is the summary.
+Timeline data is organized as a dependency-free Entity-Component-System (ECS) paired with a behavior family system layer. `docs/ecs.md` is the normative design; this section is the summary.
 
 ```
 Timeline {
-    world: World,          // entities + typed component stores
+    world: World,                      // entities + typed component stores
+    behaviors: BehaviorRegistry,       // BehaviorId -> BehaviorDef table
     background_color, env, camera, colorscheme, assets, font context,
     layout engine, duration/config, frame caches, modifiers …
 }
 
 World {
-    entities: EntityStore,                  // EntityId -> EntityMeta + label maps
-    roots: RootSet,                         // Vec<EntityId>, insertion order
-    hierarchy: RequiredStore<SceneHierarchyComponent>,
-    geometry:  RequiredStore<GeometryTracks>,
-    style:     RequiredStore<StyleTracks>,
-    shape:     RequiredStore<ShapeComponent>,
-    text:      RequiredStore<TextTracks>,
-    highlight: RequiredStore<HighlightTracks>,
-    property_plan / tagged_tracks: RequiredStore<…>,
-    container_layout / coordinate_frame / persistence / auto_color /
-    child_order / transcript / legend / effects / payload: ComponentStore<…>,
+    entities: EntityStore,                  // EntityId -> label maps + alive check
+    roots: Vec<EntityId>,                   // root entities in insertion order
+    
+    // Required stores (every entity has an entry):
+    hierarchy:       RequiredStore<SceneHierarchyComponent>,
+    actor_types:     RequiredStore<String>,
+    caps:            RequiredStore<ActorCaps>,
+    behavior:        RequiredStore<BehaviorId>,
+    geometry:        RequiredStore<GeometryTracks>,
+    style:           RequiredStore<StyleTracks>,
+    property_plan:   RequiredStore<PropertyPlan>,
+    tagged_tracks:   RequiredStore<TaggedTracksComponent>,
+    memo cells:      shape_memos / pending_shape_bounds / bounds_slots,
+
+    // Optional stores (sparse, ComponentStore<T> / Vec<Option<T>>):
+    shape:           ComponentStore<ShapeTracks>,
+    text:            ComponentStore<TextTracks>,
+    highlight:       ComponentStore<HighlightTracks>,
+    plot_payload:    ComponentStore<PlotPayload>,
+    svg_payload:     ComponentStore<SvgPayload>,
+    image_payload:   ComponentStore<ImagePayload>,
+    container_layout:ComponentStore<ContainerMetadata>,
+    child_order:     ComponentStore<ChildOrderComponent>,
+    coordinate_frame:ComponentStore<CoordinateFrameComponent>,
+    persistence:     ComponentStore<PersistenceComponent>,
+    auto_color:      ComponentStore<AutoColorComponent>,
+    transcript:      ComponentStore<TranscriptComponent>,
+    legend:          ComponentStore<LegendTracks>,
+    effects:         ComponentStore<EffectChainTrack>,
+    meta:            ComponentStore<EntityMeta>,
+    decl_span:       ComponentStore<Span>,
+    caps_overrides:  ComponentStore<ActorCaps>,
 }
 ```
 
@@ -143,6 +164,15 @@ child's coordinate resolution. The `{label}_x_domain` / `_y_domain` / `_padding`
 env entries are derived from it at build time and exist only as authored
 expression variables; build and rebuild paths never fall back to them.
 
+### Behavior Family Systems and Extension Adapter
+
+Actor evaluation and build-time customization are decoupled from monolithic trait objects:
+- **`BehaviorId`**: A compact integer stored on every entity (`RequiredStore<BehaviorId>`). Indices `0..36` represent built-in primitives in canonical order; runtime plugins receive dynamically allocated indices `>= 36`.
+- **`BehaviorDef`**: Immutable behavior descriptor registered in `BehaviorRegistry`, containing capability projections (`ActorCaps`), coarse family grouping (`BehaviorFamily`), child-processing strategies, and evaluation sources.
+- **Family Systems (`timeline/behavior/builtin/`)**: Built-ins are organized into 10 domain family systems (`shape`, `text`, `media`, `plot`, `container`, `effect`, `equation`, `captions`, `annotation`, `group`). Built-in behaviors evaluate through direct, unboxed function pointers (`EvaluateFn`, `BuildExtraFn`), eliminating dynamic dispatch overhead on frame hot paths.
+- **Extension Adapter**: Plugins implement `Primitive` and are adapted as `BehaviorSource::Extension(Arc<dyn Primitive>)`, preserving backward compatibility with extension ecosystems.
+- **Tree Recursion**: Frame evaluation retains hierarchical tree traversal (`render_actor_node_by_id`) to support static subtree caching, hierarchical coordinate/camera accumulation, and offscreen compositing order for GPU effects (`Filter`, `Mask`, `Glass`).
+
 ### PropertyTrack
 
 ```rust
@@ -161,10 +191,13 @@ struct PropertyTrack<T> {
 ```
 evaluate(time_s):
   1. clear scene
-  2. background color
-  3. for track in timeline:
-       sample properties at time_ms
-       build RenderCommand
+  2. sample scene background color
+  3. recursively evaluate scene hierarchy from root entities:
+       accumulate transform and opacity
+       if static subtree cached: blit cached scene
+       else:
+         evaluate node via BehaviorDef (direct function pointer or extension adapter)
+         recurse into children
   4. flatten to render list
   5. push to vello::Scene
 ```

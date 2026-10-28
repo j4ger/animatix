@@ -14,6 +14,39 @@ mixed history and open work).
 Historical tracks are kept as evidence. New implementation work is tracked in
 [Backlog & Prioritization](#backlog--prioritization).
 
+### Timeline ECS Refactor: Behavioral Systems, Componentized Caps, and Payload Split (2026-10-28)
+
+The timeline architecture had migrated to an ECS data model for entity identity and storage, but several architectural tensions and performance bottlenecks remained:
+1. **Catalog scans for actor capabilities**: Capability checks (`is_shape`, `is_container`, `child_processing`, etc.) repeatedly looked up type strings in `animatix_std::caps_for_type(actor_type)` during frame evaluation and build passes, paying hash lookups and string matching on hot paths.
+2. **Monolithic and trait-object evaluation dispatch**: Primitives were evaluated through trait objects (`dyn Primitive`) or parallel string matches on `actor_type`, incurring virtual calls, boxing, and preventing compiler inlining on critical draw command generation.
+3. **Coarse and heavyweight component allocations**: `ShapeTracks`, `TextTracks`, and `HighlightTracks` were stored as `RequiredStore`s on every entity, forcing empty track allocations and zero-initialization even for simple container or media entities. Concurrently, `PrimitivePayload` was a coarse enum (`Plot`, `Svg`, `Image`), requiring variant wrapping and preventing independent borrowing or querying of specific media/plot data.
+
+The refactor was completed across 3 coordinated stages:
+
+- **Stage 1: Capability Componentization and Behavior Table**
+  - Componentized `ActorCaps` into `RequiredStore<ActorCaps>` on `World`, initialized at `spawn` / `set_identity`. Capability queries became true $O(1)$ `Copy` field accesses without string table lookups.
+  - Introduced `BehaviorId(u16)` as a required component on every entity, with canonical indices `0..36` reserved for built-ins and `>= 36` for extension primitives.
+  - Introduced `BehaviorDef` and `BehaviorRegistry`, establishing an immutable descriptor containing capabilities, behavior family categorization (`BehaviorFamily`), child-processing strategies, and evaluation sources.
+  - Eliminated the redundant `ActorKind` enum, unifying actor declaration dispatch through `BehaviorDef`.
+
+- **Stage 2: Behavior Frame Dispatch and Payload Store Split**
+  - Dispatched frame-time evaluation directly via `BehaviorDef::evaluate` with narrowed contexts (`EvaluateCtx`, `TextCompileCtx`).
+  - Demoted `ShapeTracks`, `TextTracks`, and `HighlightTracks` from required stores to sparse optional `ComponentStore<T>`s, backed by static fallback defaults (`default_shape`, `default_text`, `default_highlight`) for non-allocated entities.
+  - Split the monolithic `PrimitivePayload` enum into dedicated optional component stores: `ComponentStore<PlotPayload>`, `ComponentStore<SvgPayload>`, and `ComponentStore<ImagePayload>`, eliminating enum wrapping overhead and enabling independent access.
+
+- **Stage 3: Family Systems, Extension Adapter, and Deprecation**
+  - Migrated all 36 built-in primitives to dedicated family systems in `timeline/behavior/builtin/` (`shape`, `text`, `media`, `plot`, `container`, `effect`, `equation`, `captions`, `annotation`, `group`).
+  - Implemented built-in execution via direct, unboxed function pointers (`EvaluateFn`, `BuildExtraFn`), bypassing trait object dynamic dispatch completely.
+  - Implemented the extension adapter via `BehaviorSource::Extension(Arc<dyn Primitive>)`, ensuring external plugins implementing `Primitive` integrate seamlessly with full backward compatibility.
+  - Maintained scene-graph tree recursion (`render_actor_node_by_id`) to retain static subtree caching, camera/coordinate transform accumulation, and proper offscreen compositing order for GPU effects (`Filter`, `Mask`, `Glass`).
+  - Deprecated `primitives::find_primitive` in favor of `timeline::behavior::builtin` family systems, retaining it strictly as a compatibility helper for tooling and extension inspection.
+  - Updated normative architecture and ECS specifications (`docs/ecs.md`, `docs/architecture.md`, `AGENTS.md`).
+
+**Verification & Results:**
+- Pure static function pointer dispatch eliminated virtual call overhead across all built-in frame evaluations.
+- Memory footprint per non-shape/non-text entity was reduced by omitting unused tracks.
+- Full gate matrix verified: all unit and integration tests passing (`cargo test -p animatix --lib`), clippy and formatting clean, and file-size ratchets satisfied.
+
 ### Web Build Hardening: Hermetic wasm-bindgen, Stamped Bundles, Browser Smoke (2026-10-27)
 
 The `qualityStep` regression proved the build could be green while every

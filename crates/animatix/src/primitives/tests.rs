@@ -120,6 +120,7 @@ fn image_display_transform_maps_pixels_to_display_box() {
 }
 
 #[test]
+#[allow(deprecated)]
 fn find_primitive_roundtrips() {
     for entry in BUILT_INS.iter() {
         let ty = entry.behavior.type_name();

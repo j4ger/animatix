@@ -13,6 +13,7 @@ fn build_timeline(source: &str) -> Timeline {
 }
 
 #[test]
+#[allow(deprecated)]
 fn handle_cache_serves_the_registry_answer() {
     let timeline = build_timeline(
         r#"

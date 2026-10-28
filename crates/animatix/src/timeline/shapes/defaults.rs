@@ -28,6 +28,7 @@ fn shape_kind_to_shape_type(kind: ShapeKind) -> ShapeType {
 }
 
 /// Apply primitive-specific default values to a `VectorShapeState`.
+#[allow(deprecated)]
 pub fn apply_vector_shape_defaults(actor_type: &str, state: &mut VectorShapeState) {
     if let Some(primitive) = crate::primitives::find_primitive(actor_type) {
         primitive.apply_defaults(state);
@@ -37,6 +38,7 @@ pub fn apply_vector_shape_defaults(actor_type: &str, state: &mut VectorShapeStat
 /// Apply a single property expression to a `VectorShapeState`.
 ///
 /// Returns `true` if the property was recognised and applied.
+#[allow(deprecated)]
 pub fn apply_vector_shape_property(
     actor_type: &str,
     name: &str,
@@ -54,6 +56,7 @@ pub fn apply_vector_shape_property(
 
 /// Run any post-processing / cleanup on a `VectorShapeState` after all properties have been
 /// applied.
+#[allow(deprecated)]
 pub fn finalize_vector_shape_state(actor_type: &str, state: &mut VectorShapeState) {
     if let Some(primitive) = crate::primitives::find_primitive(actor_type) {
         primitive.finalize_state(state);
@@ -97,6 +100,7 @@ pub fn extract_shape_state_values(
 }
 
 /// Build a `VelloPath` for a vector shape via the primitive renderer.
+#[allow(deprecated)]
 pub fn build_vector_shape_vello_path(
     shape_type: ShapeType,
     state: &VectorShapeState,
