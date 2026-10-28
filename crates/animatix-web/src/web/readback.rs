@@ -5,7 +5,7 @@ use animatix_render::filter_backend::GpuFilterBackend;
 use animatix_render::transition::TransitionCompositor;
 use wasm_bindgen::prelude::*;
 
-use super::frame::render_document;
+use super::frame::{FrameCtx, Targets, render_document};
 use super::{AmxPlayer, EngineContext, OffscreenTarget, with_engine};
 
 /// Everything the map_async callback needs to own: the mapped buffer plus
@@ -166,20 +166,24 @@ fn readback_with(
     // not inherit whatever scale the presentation path is currently using.
     let mut scratch = vello::Scene::new();
     let frame = render_document(
-        &mut core,
-        &mut filter_backend,
-        &mut filter_backend_to,
-        &ctx.device,
-        &ctx.queue,
-        &mut primary,
-        &mut secondary,
-        &mut composite,
-        target.as_ref(),
-        time_s,
-        dims,
-        1.0,
-        &mut scratch,
-        player.compositor.as_ref(),
+        &mut FrameCtx {
+            core: &mut core,
+            device: &ctx.device,
+            queue: &ctx.queue,
+            dims,
+            scale: 1.0,
+            scratch: &mut scratch,
+            compositor: player.compositor.as_ref(),
+            target: target.as_ref(),
+            time_s,
+        },
+        Targets {
+            primary: &mut primary,
+            primary_backend: &mut filter_backend,
+            secondary: &mut secondary,
+            secondary_backend: &mut filter_backend_to,
+            composite: &mut composite,
+        },
     )?;
 
     let buffer = ctx.device.create_buffer(&wgpu::BufferDescriptor {

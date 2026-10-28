@@ -5,8 +5,11 @@ use super::core::RendererCore;
 use super::filter_backend::GpuFilterBackend;
 use super::transition::TransitionCompositor;
 
+mod renderer;
 #[cfg(test)]
 mod tests;
+mod transitions;
+
 /// A single frame rendered to CPU-accessible RGBA memory.
 ///
 /// The pixel buffer is shared (`Arc`): the renderer keeps its own handle to
@@ -15,7 +18,6 @@ mod tests;
 /// reference), so a steady-state video export performs zero per-frame
 /// allocations for the multi-megabyte readback (PF-6 round 9: dhat measured
 /// 3.7 MB/frame on a 720p export — 93% of the export path's churn).
-mod transitions;
 
 #[derive(Debug, Clone)]
 pub struct RenderedFrame {
@@ -77,14 +79,75 @@ pub struct PendingFrame {
     bytes_per_row: u32,
 }
 
-/// Evaluate one frame of `timeline` with `backend` (lazily created) and draw
-/// the result — the encoded scene *plus* the scope's pending filter
-/// composites — into `view`.
+/// How a scene is mapped onto its raster target.
 ///
-/// This is the per-target tail of the single-scene path
-/// (`render_to_output_texture_inner`), shared with the transition path so
-/// both scenes of a blend keep their `Filter` scopes. Free-standing so a
-/// call site can borrow the core and one backend slot off `self` disjointly.
+/// Vello draws a scene 1:1 — `RenderParams` carries no transform in the pinned
+/// revision — so a target smaller than the scene is produced by re-encoding the
+/// scene with an affine scale. `append` is the only place that transform can be
+/// applied, and it costs one O(paths) copy against a per-frame fill-rate cost
+/// that is several times larger (see `docs/performance_evaluation.md`, "Web
+/// playback").
+pub enum RasterFit<'a> {
+    /// Scene units are target pixels: draw the scene exactly as encoded.
+    OneToOne,
+    /// Re-encode the scene at `scale` into `scratch` (reused across frames) and
+    /// draw that.
+    Scaled {
+        /// Target pixels per scene pixel.
+        scale: f32,
+        /// Re-encode buffer, reset by the rasterizer.
+        scratch: &'a mut vello::Scene,
+    },
+}
+
+impl RasterFit<'_> {
+    /// The factor the scene is re-encoded at.
+    fn scale(&self) -> f32 {
+        match self {
+            Self::OneToOne => 1.0,
+            Self::Scaled { scale, .. } => *scale,
+        }
+    }
+}
+
+/// Rasterise one evaluated scene into `view` and composite the filter
+/// backend's pending layers on top.
+///
+/// This is *the* per-target tail: the offscreen renderer, the transition
+/// renderer and the web player's scaled raster all end here, so a `Glass`
+/// panel's backdrop and its children are composited identically everywhere.
+#[allow(clippy::too_many_arguments)]
+pub fn rasterize_scene(
+    core: &mut RendererCore,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    view: &wgpu::TextureView,
+    scene: &vello::Scene,
+    raster: SceneDimensions,
+    fit: RasterFit<'_>,
+    backend: Option<&mut GpuFilterBackend>,
+    backdrop_target: Option<&wgpu::Texture>,
+) -> Result<(), String> {
+    let scale = fit.scale();
+    let encoded = match fit {
+        RasterFit::OneToOne => scene,
+        RasterFit::Scaled { scratch, .. } => {
+            scratch.reset();
+            scratch.append(scene, Some(vello::kurbo::Affine::scale(scale as f64)));
+            &*scratch
+        },
+    };
+    core.render_vello_scene(device, queue, view, raster.width, raster.height, encoded)
+        .map_err(|e| e.to_string())?;
+
+    let Some(backend) = backend else {
+        return Ok(());
+    };
+    let pending = backend.take_pending_composites();
+    drain_pending_layers(core, device, queue, backend, pending, backdrop_target, view, scale);
+    Ok(())
+}
+
 /// Composite every queued layer onto `view`, in queue order.
 ///
 /// A `Backdrop` layer is served here rather than during evaluation: its input is
@@ -221,6 +284,13 @@ pub fn drain_pending_layers(
     flush_batch(&mut batch, backend);
 }
 
+/// Evaluate one frame of `timeline` with `backend` (lazily created) and draw
+/// the result — the encoded scene *plus* the scope's pending filter
+/// composites — into `view`.
+///
+/// Free-standing so a call site can borrow the core and one backend slot off
+/// `self` disjointly; the raster itself is [`rasterize_scene`], shared with the
+/// web player and the export readback path.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn render_timeline_into_view(
     core: &mut RendererCore,
@@ -256,14 +326,15 @@ pub(super) fn render_timeline_into_view(
             .scene
     };
 
-    core.render_vello_scene(device, queue, view, dimensions.width, dimensions.height, &scene)
-        .map_err(|e| e.to_string())?;
-
-    let pending = backend.as_mut().map(|fb| fb.take_pending_composites()).unwrap_or_default();
-    if let (Some(backend), Some(target)) = (backend.as_mut(), backdrop_target) {
-        drain_pending_layers(core, device, queue, backend, pending, Some(target), view, 1.0);
-    }
-    Ok(())
+    rasterize_scene(
+        core,
+        device,
+        queue,
+        view,
+        &scene,
+        dimensions,
+        RasterFit::OneToOne,
+        backend.as_mut(),
+        backdrop_target,
+    )
 }
-
-mod renderer;

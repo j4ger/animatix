@@ -103,8 +103,9 @@ pub struct AmxPlayer {
     /// offscreen holds up to the surface, so a scale below 1 trades detail for
     /// fill rate without touching layout.
     render_scale: f32,
-    /// Reusable re-encode buffer for [`frame::scaled_scene`]; owned here so a scaled
-    /// frame does not allocate a scene per render.
+    /// Reusable re-encode buffer for a scaled raster
+    /// ([`animatix_render::offscreen::RasterFit::Scaled`]); owned here so a
+    /// scaled frame does not allocate a scene per render.
     scaled: vello::Scene,
     /// Guards against re-rasterizing a frame the canvas already shows. A looping
     /// embed spends its whole `hold` window drawing the same finished frame —
