@@ -127,12 +127,6 @@ impl std::fmt::Display for TargetSegment {
     }
 }
 
-/// Join static-only target segments with `"."`.
-/// Panics if any segment is `Indexed`.
-pub fn target_segments_static_key(target: &[TargetSegment]) -> String {
-    target.iter().map(|s| s.expect_static()).collect::<Vec<&str>>().join(".")
-}
-
 /// Build an array-indexed actor label (e.g. `bars[0]` → `"bars__0"`).
 pub fn array_actor_label(base: &str, n: usize) -> String {
     format!("{}__{}", base, n)

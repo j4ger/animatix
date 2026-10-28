@@ -94,18 +94,8 @@ pub fn display_name(id: &str) -> &'static str {
     find(id).map(|d| d.display_name).unwrap_or("unknown")
 }
 
-/// All registered transition IDs.
+/// All registered transition IDs, derived from [`REGISTRY`].
 pub fn all_ids() -> &'static [&'static str] {
-    &[
-        "cut",
-        "fade",
-        "wipe-left",
-        "wipe-right",
-        "wipe-up",
-        "wipe-down",
-        "push-left",
-        "push-right",
-        "push-up",
-        "push-down",
-    ]
+    static IDS: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+    IDS.get_or_init(|| REGISTRY.iter().map(|def| def.id).collect())
 }

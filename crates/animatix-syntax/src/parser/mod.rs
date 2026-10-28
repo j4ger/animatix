@@ -82,28 +82,11 @@ pub fn parse_source_with_occurrences(
     (parsed.ast, parsed.errors, parsed.occurrences)
 }
 
-/// Parse source and return AST, errors, parser warnings, and occurrences.
-///
-/// This is the entry point for consumers that surface parse-time warnings
-/// (currently `BracedPropertySilentDrop`) alongside the rest of the
-/// diagnostics pipeline.
-pub fn parse_source_full(
-    source: &str,
-) -> (
-    Option<Vec<Stmt>>,
-    Vec<ParseError>,
-    Vec<Diagnostic>,
-    Vec<crate::occurrence::Occurrence>,
-) {
-    let parsed = parse_impl(source);
-    (parsed.ast, parsed.errors, parsed.warnings, parsed.occurrences)
-}
-
 /// Parse source and return every artifact, including the token stream.
 ///
 /// Use this when the caller needs the tokens as well: the alternative is
-/// [`parse_source_full`] followed by a second `tokenize`, which lexes the
-/// same source twice.
+/// [`parse_source_diagnostics`] followed by a second `tokenize`, which lexes
+/// the same source twice.
 pub fn parse_source_complete(source: &str) -> ParsedSource {
     parse_impl(source)
 }
@@ -111,8 +94,7 @@ pub fn parse_source_complete(source: &str) -> ParsedSource {
 /// Parse source into an AST and structured parse errors.
 ///
 /// The tokenizer handles whitespace and comments, so this entry point accepts
-/// comments in all the same positions the lexer does. Test code may call
-/// [`parser_simple`] directly when warnings are not needed.
+/// comments in all the same positions the lexer does.
 pub fn parse_source(source: &str) -> (Option<Vec<Stmt>>, Vec<ParseError>) {
     let (ast, errors, _warnings) = parse_source_diagnostics(source);
     (ast, errors)
@@ -184,14 +166,6 @@ pub fn parse_snippet(snippet: &str) -> Option<Vec<Stmt>> {
     let cleaned = strip_snippet_tabstops(snippet);
     let (ast, _errors) = parse_source(&cleaned);
     ast
-}
-
-/// Build the top-level `.amx` file parser that discards warnings.
-///
-/// Convenience wrapper for tests and contexts where diagnostics are not needed.
-pub fn parser_simple<'src>()
--> impl Parser<'src, token_parser::TokInput<'src>, Vec<Stmt>, token_parser::TokErr<'src>> {
-    parser(Rc::new(RefCell::new(Vec::new())))
 }
 
 /// Build the top-level `.amx` file parser.

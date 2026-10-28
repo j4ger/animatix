@@ -84,20 +84,6 @@ fn extract_source_snippet(source: &str, span: &Range<usize>) -> Option<(String, 
     Some((line_text, caret_offset, caret_len))
 }
 
-/// Returns a summary string counting total warnings and errors.
-pub fn diagnostics_summary(diagnostics: &[Diagnostic]) -> String {
-    let warnings = diagnostics
-        .iter()
-        .filter(|diagnostic| diagnostic.severity == DiagnosticSeverity::Warning)
-        .count();
-    let errors = diagnostics
-        .iter()
-        .filter(|diagnostic| diagnostic.severity == DiagnosticSeverity::Error)
-        .count();
-
-    severity_summary(warnings, errors)
-}
-
 /// Returns a per-phase summary of diagnostics, omitting phases with no issues.
 pub fn diagnostics_summary_by_phase(diagnostics: &[Diagnostic]) -> Vec<DiagnosticPhaseSummary> {
     [

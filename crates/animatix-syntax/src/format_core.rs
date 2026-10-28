@@ -17,11 +17,6 @@
 //! because they return `String` and must propagate formatted output up the
 //! recursion. The walk primitives use a `&mut dyn FnMut(&T) -> ()` visitor
 //! pattern which cannot propagate return values.
-//!
-//! Guardrail tests at the bottom of this file (`format_expr_covers_all_expr_variants`,
-//! `format_inline_item_covers_all_inline_item_variants`,
-//! `format_stmt_raw_covers_all_stmt_variants`) ensure that all AST variants are
-//! reviewed when new variants are added.
 
 use crate::ast::*;
 

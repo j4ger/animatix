@@ -178,11 +178,6 @@ impl SymbolTable {
         self.caps_of(ty).is_some_and(|c| c.is_container || c.is_effect_scope())
     }
 
-    /// True when `ty` hosts plot geometry or runtime math closures.
-    pub fn is_plot_host_type(&self, ty: &str) -> bool {
-        self.caps_of(ty).is_some_and(|c| c.plot_geometry || c.plot_host)
-    }
-
     /// Retrieve author-facing documentation for this type.
     pub fn doc_of(&self, ty: &str) -> Option<&str> {
         animatix_std::catalog_lookup(ty).and_then(|info| {

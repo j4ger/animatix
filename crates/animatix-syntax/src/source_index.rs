@@ -61,31 +61,6 @@ impl SourceIndex {
             .copied()
     }
 
-    /// Return the byte span of the **last** property value for `actor`
-    /// (the one with the greatest `end` offset).
-    ///
-    /// Useful for inserting a brand-new property after the last existing one
-    /// in a declaration line.
-    pub fn last_property_span(&self, actor: &str) -> Option<ByteSpan> {
-        let mut best: Option<ByteSpan> = None;
-        let mut consider = |span: &ByteSpan| {
-            if best.is_none_or(|b| span.end > b.end) {
-                best = Some(*span);
-            }
-        };
-        for ((label, _), span) in &self.decl_props {
-            if label == actor {
-                consider(span);
-            }
-        }
-        for ((label, _), span) in &self.assignments {
-            if label == actor {
-                consider(span);
-            }
-        }
-        best
-    }
-
     fn walk(&mut self, stmts: &[Stmt]) {
         crate::walk::walk_stmts(stmts, &mut |stmt| {
             match stmt {

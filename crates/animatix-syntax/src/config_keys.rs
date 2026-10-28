@@ -107,11 +107,6 @@ pub static CONFIG_KEYS: &[ConfigKeyInfo] = &[
     },
 ];
 
-/// Look up a key by name.
-pub fn config_key(name: &str) -> Option<&'static ConfigKeyInfo> {
-    CONFIG_KEYS.iter().find(|key| key.name == name)
-}
-
 /// Every recognised key name, sorted — the timeline build's allow-list.
 pub fn config_key_names() -> Vec<&'static str> {
     let mut names: Vec<&'static str> = CONFIG_KEYS.iter().map(|key| key.name).collect();

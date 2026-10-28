@@ -178,19 +178,6 @@ pub fn named_color_rgba(name: &str) -> Option<[f64; 4]> {
     }
 }
 
-/// Documentation for a built-in type.
-pub fn type_documentation(name: &str) -> &'static str {
-    if let Some(info) = animatix_std::catalog_lookup(name) {
-        if !info.doc.is_empty() {
-            return info.doc;
-        }
-    }
-    if name == "Button" {
-        return "Interactive button element.";
-    }
-    "Unknown type."
-}
-
 /// Documentation for a built-in action.
 pub fn action_documentation(name: &str) -> &'static str {
     match name {

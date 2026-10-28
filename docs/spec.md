@@ -2526,7 +2526,7 @@ play Diagram [fade, 300ms]
 graph: Rect, size: (400, 400)
 ```
 
-**Supported transitions:** `cut`, `fade`, `wipe-left`, `wipe-right`, `wipe-up`, `wipe-down`. Transition blending uses a dual offscreen render path with the `TransitionCompositor` WGSL shader.
+**Supported transitions:** `cut`, `fade`, `wipe-left`, `wipe-right`, `wipe-up`, `wipe-down`, `push-left`, `push-right`, `push-up`, `push-down`. Transition blending uses a dual offscreen render path with the `TransitionCompositor` WGSL shader.
 
 ### Per-Scene Configuration
 

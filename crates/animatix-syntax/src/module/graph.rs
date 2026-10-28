@@ -22,11 +22,6 @@ impl ModuleGraph {
         self
     }
 
-    /// Return the current source access policy.
-    pub fn source_access(&self) -> SourceAccess {
-        self.source_access
-    }
-
     /// Register an in-memory source for a path.
     ///
     /// Paths must be absolute. Imports resolve against the same source map, so
@@ -394,19 +389,6 @@ impl ModuleGraph {
             None => self.clear_source_for_path(path),
         }
         result
-    }
-
-    /// Load an entry file with optional source override and return all flattened top-level
-    /// statements.
-    pub fn load_entry_with_source(
-        &mut self,
-        path: &Path,
-        source: Option<&str>,
-    ) -> Result<Vec<Stmt>, ModuleError> {
-        match source {
-            Some(source) => self.with_source(path, source, |graph| graph.load_entry_inner(path)),
-            None => self.load_entry(path),
-        }
     }
 
     /// Load an entry file and return a fully resolved `LoadedProgram`.
