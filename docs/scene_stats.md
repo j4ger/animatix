@@ -2,7 +2,7 @@
 
 Status: **proposal, not started**. Not yet tracked in `roadmap.md`; a row is the
 first landing step. Related: `series_construction.md` (LG-1, the registration-route
-precedent), `effects.md` (why this is not an effect), `history.md` ("M1 — light/color
+precedent), `effects.md` (why this is not an effect), `history/2026-10.md` ("M1 — light/color
 vocabulary", the recipe-not-mechanism decision).
 
 ## Motivation
@@ -223,7 +223,7 @@ the seamless-loop pass samples *keyframed properties* and its comment at
 `build/entry.rs:708-712` is explicit that `always`-computed values are invisible to it.
 Baked curves are data, so add them to that walk: compare `curve_at(c, 0)` against
 `curve_at(c, end_ms)`. Absent this, a scene whose ambience jumps at the seam fails
-invisibly — which is precisely how the next `history.md` entry gets written.
+invisibly — which is precisely how the next `history/` entry gets written.
 
 ### Bake policy
 
@@ -263,11 +263,11 @@ so a background scope takes the inline readback path every frame.
 ## The consumer: a recipe, not a mechanism
 
 Ambience ships as `examples/lib/ambience.amx`, in the lineage of `examples/lib/slide.amx`
-— the deliberate choice recorded in `history.md`: the three background recipes were
+— the deliberate choice recorded in `history/2026-10.md`: the three background recipes were
 catalogued and then landed as *primitives + builtins + recipes*, "product forms of the
 light vocabulary"; the particle item closed as *"no new primitive, no state model"*
-(`history.md:1925`) and count-up as *"Deliverable is a recipe + example"*
-(`history.md:1901`). STAT-1 supplies the one thing genuinely missing from that
+(`history/2026-10.md`, "Item inventory and feasibility") and count-up as *"Deliverable is a recipe + example"*
+(`history/2026-10.md`, "Item inventory and feasibility"). STAT-1 supplies the one thing genuinely missing from that
 decision — a way to read the scene — and stops there.
 
 Illustrative shape, using only what exists today plus the two builtins:
@@ -307,7 +307,7 @@ nothing and looks correct in source.
 | `Ambience` **primitive** | Every visual it would emit is already expressible as `Rect`/`Ellipse` + `fill_gradient` + `blend`; a primitive adds a catalog row, an identity card, an applicability row, and a spec table | The recipe set grows a shared parameter vocabulary worth pinning |
 | Ambience as **parent container** of the cast | A parent evaluates before its children, so `TargetResolver::target_bounds` (`timeline/callout_geometry.rs:34-77`) can only reach its 2nd/3rd fallback — declared size × world affine — never the `precise_bounds` that reflect text/path/image ink. And full-viewport-under-content compositing is documented as absent: *"there is no way to put content underneath it"* (`roadmap.md:167-170`) | Compositing gains a below-scope pass |
 | Frame-time **stat accumulation** (`prev = lerp(prev, now, k)`) | Impossible, not merely discouraged: cache hits skip recomputation (`scene_eval.rs:1913`) and export threads start mid-timeline. `curve_smooth` provides the identical response for free | Never — this is the constraint the design is built on |
-| Rendered-ink statistics (pixel/luminance) | Readback hard-errors on wasm and is the recorded perf landmine (`history.md:776-789`) | A GPU-side reduction with no CPU round-trip exists |
+| Rendered-ink statistics (pixel/luminance) | Readback hard-errors on wasm and is the recorded perf landmine (`docs/performance_evaluation.md` §3.7) | A GPU-side reduction with no CPU round-trip exists |
 | `stat("name")` string lookup | Would need the env route and a name registry; passing the curve as an argument is strictly more general (author-built curves work too) | — |
 
 ## Landing order

@@ -270,7 +270,7 @@ Standard easing curves (`Linear`, `EaseIn`, `EaseOut`, `EaseInOut`, `Bounce`, et
 
 ### Path Morphing
 
-Re-declaring an actor at a later keyframe triggers automatic path interpolation. The pipeline runs at 4 levels in `timeline/morph.rs`:
+Re-declaring an actor at a later keyframe triggers automatic path interpolation. The pipeline runs at 4 levels in `timeline/morph/`:
 
 1. **List alignment** — match path count between source/target
 2. **Subpath alignment** — match subpath count (centroid sort when `strategy: match`)
@@ -341,7 +341,7 @@ the `EFFECTS` bootstrap array. Plugin effects wrap FFI-declared data
 | `timeline/effects/chain.rs` | `EffectChain`, `EffectRegion`, `PendingComposite`, `FilterBackend` |
 | `timeline/build/effect.rs` | Lowering: effect children become stages on the owning scope's chain |
 | `animatix-render/src/filter_backend.rs` | `GpuFilterBackend` — GPU render, N-pass dispatch, readback / zero-readback composite |
-| `timeline/scene_eval.rs` | Renders the scope's content to a sub-scene, samples the chain, derives the ROI, dispatches the backend |
+| `timeline/scene_eval/` | Renders the scope's content to a sub-scene, samples the chain, derives the ROI, dispatches the backend |
 
 Adding a built-in effect is one new file plus one `EFFECTS` entry: the identity
 is the authored type name (`EffectId` is a name newtype), and the parser's
@@ -831,7 +831,7 @@ Steps:
    - `animatix-syntax` adds the type-system view (`raw_property_types()`, same
      order, pinned by `property_types_line_up_with_descriptors`);
    - `animatix` adds the runtime binding (`BINDINGS` in
-     `timeline/property_registry.rs`: plan-slot `ValueType`, flags, storage
+     `timeline/property_registry/`: plan-slot `ValueType`, flags, storage
      field, default, read source), joined into `PROPERTY_REGISTRY` by name.
 
    A capability-shaped predicate means new actor types matching it pick the
@@ -902,7 +902,7 @@ Scene persistence uses a **build-time carry bag** mechanism to transport actors 
 
 ### Carry Bag
 
-A `CarryBag` (`timeline/persistence.rs`) is a collection of `CarryEntry` objects, each containing:
+A `CarryBag` (`timeline/persistence/`) is a collection of `CarryEntry` objects, each containing:
 - Per-tier snapshots of the actor at the scene's end time (all keyframes collapsed to t=0)
 - Recursive snapshots of child actors (for containers)
 - The persistence flag (sticky — propagates automatically until `remove`)
@@ -957,24 +957,24 @@ No changes to the GPU compositor. During a fade transition, the carried actor is
 
 ```
 crates/
+├── animatix-core/         # Shared vocabulary: capabilities, effect contract, icons, RenderError
+├── animatix-std/          # Built-in catalog: effect definitions, primitive identity cards
 ├── animatix-syntax/       # Syntax layer — parser, AST, module system
 │   └── src/
-│       ├── ast.rs         # AST types
+│       ├── ast/           # AST types (expr, stmt, span, types)
 │       ├── parser/        # Chumsky parser (consumes the token stream)
 │       ├── token.rs       # Lossless tokenizer
-│       ├── diagnostics.rs # Diagnostic types
+│       ├── diagnostics/   # Diagnostic model + formatting
 │       ├── easing.rs      # Easing function registry
 │       ├── source_index.rs# Source location mapping
 │       ├── to_source.rs   # AST re-serialization
 │       ├── formatter.rs   # Source formatting
 │       ├── transition_registry.rs
 │       ├── icon_glyphs.rs
-│       ├── typecheck.rs   # Gradual type checker
+│       ├── typecheck/     # Gradual type checker (action, expr, property, stmt)
 │       ├── walk.rs        # Shared AST traversal primitives
 │       └── module/        # Module system (discovery, expand, rewrite)
 │
-├── animatix-core/         # Shared vocabulary: capabilities, effect contract, icons, RenderError
-├── animatix-std/          # Built-in catalog: effect definitions, primitive identity cards
 ├── animatix-text/         # Typst/fontdb text compilation service
 ├── animatix/              # Runtime engine — timeline, build/evaluate, primitives
 │   └── src/
@@ -982,8 +982,6 @@ crates/
 │       ├── composition/   # Multi-scene composition engine (mod, build, time, tests)
 │       ├── timeline/      # Timeline compilation, actions, morphing, plotting
 │       │   ├── world/     # EntityStore, component stores, EntityRef/EntityMut
-│       │   ├── components/# Per-domain component types (geometry, style, text, …)
-│       │   ├── snapshot/  # EntitySnapshot + carry sampling/restore
 │       │   └── …          # build/, scene_eval/, actions/, layout, property_engine
 │       ├── renderer/      # Frame vocabulary only (error, types, text re-export)
 │       ├── primitives/    # Actor primitive system
@@ -992,7 +990,12 @@ crates/
 ├── animatix-render/       # GPU presentation — Vello/WGPU core, filters, encoders
 ├── animatix-analyzer/     # Shared language intelligence (depends on syntax)
 ├── animatix-lsp/          # LSP server (tower-lsp)
+├── animatix-cli/          # CLI binaries (`animatix` check/build/image/video/...)
 ├── animatix-gui/          # Desktop GUI (eframe/egui)
+├── animatix-web/          # wasm32 playback driver + `<amx-player>` glue
+├── animatix-plugin-api/   # Native plugin C ABI (cdylib surface)
+├── animatix-plugin-demo/  # Example plugin built against that ABI
+├── animatix-plugin-tooling/ # Plugin packaging/inspection helpers
 └── eparts/                # Themed egui widget framework
 ```
 
@@ -1019,7 +1022,7 @@ variant coverage is reviewed when new AST variants are added.
 
 ### Modules in `animatix-syntax`
 
-`ast`, `parser/`, `module/`, `diagnostics`, `semantic_diagnostics`, `easing`, `source_index`, `source_map`, `to_source`, `formatter`, `transition_registry`, `icon_glyphs`, `token`, `typecheck`, `typing`, `walk`
+`ast/`, `parser/`, `module/`, `diagnostics/`, `semantic_diagnostics/`, `easing`, `source_index`, `module/source_map`, `to_source`, `formatter`, `transition_registry`, `icon_glyphs`, `token/`, `typecheck/`, `typing`, `walk`
 
 ### Modules That Stay in `animatix`
 

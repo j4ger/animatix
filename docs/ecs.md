@@ -387,30 +387,16 @@ remain the label→id boundary views for call sites outside `world/`.
 
 ## 8. File-size ratchet
 
-`scripts/file-size.sh` enforces the split programme as **two tiers, both
-ratchets**:
+`scripts/ci.sh gate file-size` runs `scripts/file-size.sh`, which enforces the
+split programme as **two tiers, both ratchets**: a ceiling tier frozen in
+`scripts/file-size-allowlist.tsv`, and a forward-guard watch tier frozen in
+`scripts/file-size-watch.tsv`. Exemptions are declared in the script. The
+current thresholds are defined by [`scripts/file-size.sh`](../scripts/file-size.sh)
+and summarized in `AGENTS.md` — they are deliberately not restated here, so this
+section and the gate cannot drift.
 
-- **Ceiling** — production source (`*.rs`, `*.js`, `*.css`, `*.html`) ≤ **800**
-  lines, test source (`*/tests/*`, `tests.rs`) ≤ **1500**. A file over its
-  ceiling must be frozen in `scripts/file-size-allowlist.tsv` (legacy rows;
-  the split campaign took the list from 64 rows to zero, so it is empty
-  today). Rows are deleted when a file is split; raising a row or adding a
-  new one fails review.
-- **Watch** — production ≤ **600** lines, tests ≤ **1200**. The forward
-  guard: a file that crosses the watch threshold must be frozen at that size
-  in `scripts/file-size-watch.tsv` in the same commit, and may not grow past
-  its frozen row afterwards — growth beyond 600 lines is always a deliberate,
-  reviewed act, never silent drift. A row is deleted when the file drops back
-  under the threshold; raising one requires a commit that justifies the
-  growth. This tier is what keeps files from ever *reaching* the ceiling, so
-  the split campaign does not have to be re-run.
-- Exemptions (both tiers): `crates/animatix-plugin-api/src/lib.rs` (one C ABI
-  surface), wasm-bindgen/esbuild output (`web/pkg*`, `web/embed/amx-player.js`),
-  `web/tools/node_modules`, `dist/`.
-
-`scripts/ci.sh gate file-size` runs both tiers. `--seed-watch` rewrites the
-watch list from the current tree (only when a deliberate, reviewed change
-moves the threshold).
+`--seed-watch` rewrites the watch list from the current tree (only when a
+deliberate, reviewed change moves the threshold).
 
 Splitting rules: pure moves plus `pub use` re-exports, no behaviour change in
 the same commit; `foo.rs` becomes `foo/mod.rs` + modules named after the domain

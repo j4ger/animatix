@@ -1,6 +1,7 @@
 # Animatix Property Reference
 
-> Canonical list of all actor properties, generated from `PROPERTY_REGISTRY`.
+> Canonical list of all actor properties, maintained as a reference table by hand.
+> (Phase 3 will wire it to a generator over `PROPERTY_REGISTRY`.)
 > For property value types and usage, see [`spec.md`](spec.md).
 
 ---

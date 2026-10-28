@@ -201,21 +201,21 @@ scripts/ci.sh gates                      # every gate and the shell each needs
 `scripts/ci.sh` is the single definition of "is this green": every check is a named
 gate there, PR CI generates its job matrix from that file, and `release.yml` runs
 the same gates as its release blocker. Adding a check means adding a gate — not
-editing a workflow. See `AGENTS.md` (Workflow §3) for the shell each gate needs and
-why running one in the wrong shell looks like a compile error.
+editing a workflow. `AGENTS.md` (Workflow 3) records the gate discipline; run
+`scripts/ci.sh gates` to see the shell each gate needs, and see that script's note on why
+running one in the wrong shell looks like a compile error.
 
 - **animatix**: Core timeline, parser, and rendering tests
 - **animatix-analyzer**: 48+ unit tests (symbol extraction, type inference, completions, diagnostics)
 - **animatix-lsp**: Compiles, manual testing with editors
 - **animatix-gui**: Integrated with workspace tests
 
-`scripts/ci.sh gate file-size` enforces the two-tier split programme described
-in `docs/ecs.md` §8: the **ceiling** (production ≤ 800 lines, tests ≤ 1500,
-legacy offenders frozen in `scripts/file-size-allowlist.tsv`) and the **watch**
-tier (production ≤ 600, tests ≤ 1200, frozen in `scripts/file-size-watch.tsv`).
-Both are ratchets — a file that crosses the watch threshold must be frozen in
-the same commit and cannot grow past its row; split a file, then delete its
-row; never raise a row or add one for a new file without justifying it.
+`scripts/ci.sh gate file-size` enforces the split programme. The thresholds and
+exemptions live in [`scripts/file-size.sh`](../scripts/file-size.sh) (with the
+ratchet contract in `docs/ecs.md` §8 and the short rule in `AGENTS.md`); they are
+not restated here so the two cannot drift. Treat both tiers as ratchets: split a
+file, then delete its row; never raise a row or add one for a new file without
+justifying it.
 
 For demo work: keep runnable demos under `examples/`, verify with both `ast` and `image`/`video`. Use `dogfood/` for in-progress real-content projects and grammar probes; do not move known-broken probes into `examples/`.
 
@@ -244,9 +244,9 @@ parallel, and attaches them to one GitHub Release whose notes are
 `post_bump_hook` that pushes — publishes a release from a command run at a desk.
 
 Two files record a release and they are not interchangeable. `CHANGELOG.md` is
-generated, per-version, never hand-edited. `docs/history.md` is the hand-written
+generated, per-version, never hand-edited. `docs/history/` is the hand-written
 evidence archive: the decision, the measurement, the post-mortem. A paragraph
-explaining *why* belongs in history.md; the commit line belongs to cog.
+explaining *why* belongs in the history archive; the commit line belongs to cog.
 
 Nightly builds are `nightly.yml` (`workflow_dispatch`), which tags
 `nightly-YYMMDD-HHMM` and names its files after that rather than pretending to be

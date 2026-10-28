@@ -609,7 +609,7 @@ the slim set).
   `render_scale()` / `raster_width()` / `raster_height()` are the raster scale
   the numbers are taken at.
 
-> Two probe traps have burned this pipeline before (see `docs/history.md`,
+> Two probe traps have burned this pipeline before (see `docs/history/2026-09.md`,
 > "The wasm-SVG item that never was"): a scene screenshot catches whatever
 > loop moment is on screen, so pin frames with `debug_readback(t)`; and
 > always compute a backdrop-only baseline before calling an average "empty".

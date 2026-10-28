@@ -1,12 +1,11 @@
 # Animatix Roadmap
 
 Canonical source of truth for **remaining** work. Completed, resolved, and
-closed work lives in [`history.md`](history.md) — do not re-add it here.
+closed work lives in [`history/README.md`](history/README.md) — do not re-add it here.
 
 ---
 
 ## Backlog & Prioritization
-
 
 ### File-size ratchet (active)
 
@@ -53,8 +52,7 @@ Remaining:
 | Attribute the GPU-side gap | Narrowed by a WebGPU microbenchmark (§3.7 "Where the gap is not"): not fill rate (a full-target colour write is 0.058 ms vs a 3.42 ms frame), not the present blit (0.003 ms), not pass count (pinned vello uses exactly two compute passes). It sits inside the execution of those passes in the browser — Dawn's dispatch/barrier handling, plus a per-frame encoding upload bounded at ~0.22 ms/MB. JS-side compute timing is unusable (it reports CPU submission), so the next step is a GPU capture: RenderDoc against a `--no-sandbox` Chromium, or Dawn tracing via `--enable-dawn-features`. | Not started |
 | Render vello directly into the canvas surface | Possible — measured 2026-10-06: Chromium honours a requested `usage` on `GPUCanvasContext.configure`, giving the surface texture `STORAGE_BINDING` (mask 24) — but not worth it. The blit this deletes measures 0.003 ms (§3.7), and it is the upscaling step: rendering into the surface means rasterizing at canvas resolution every frame, forfeiting `set_render_scale` and the adaptive quality controller. Only sane shape if revisited: direct at raster scale 1.0, blit below it, behind a capability probe (Firefox/Safari unverified for the `usage` member). See "The preview-lag round" for the full reasoning. | Closed, not worth it |
 | `wasm-opt` speed pass | Release builds are size-optimised (`-Oz`). The build-profile A/B says the whole wasm CPU slice is small and unmeasurable from JS, so this is unlikely to be where the gap is — but it is untested. | Not started |
-| Frame cache on the web path | **Resolved while doing the row below**: `restore_frame_cache` gates on `backend_can_run`, which asks whether the scene has effect scopes rather than whether a backend was passed, so unfiltered browser scenes already cache. The row was stale. | Done (was already done) |
-| Scale animated `Filter` scopes | Done: `FilterBackend::set_raster_scale`, with pixel-unit parameters declared as `EffectParamUnit::Pixel` so a radius shrinks with the raster. Measured, and pinned by a ramp-width test. Not yet re-measured in a browser after the change — see `docs/performance_evaluation.md` §The filter chain follows the raster. | Landed, needs the browser A/B |
+| Scale animated `Filter` scopes | Done: `FilterBackend::set_raster_scale`, with pixel-unit parameters declared as `EffectParamUnit::Pixel` so a radius shrinks with the raster. Measured, and pinned by a ramp-width test. Not yet re-measured in a browser after the change — see `docs/performance_evaluation.md` §The filter chain follows the raster. | Needs the browser A/B |
 | rAF-cadence sampling in automation | The quality-step logic is currently only exercisable in a foreground tab; the automated harness measures throughput, not smoothness. | Not started |
 | `debug_readback` intermittently traps the wasm | The readback probe is flaky rather than wrong at a particular time, and with `panic = "abort"` a trap takes the whole page's shared engine with it: after one, later probes in that tab fail (`error` states, `Runtime.evaluate` timeouts) until the browser restarts. Evidence from the 2026-10-01 sweep (flake `.#web` Chromium, `--webgpu`): the same call alternates — `tour/scenes/syntax.amx` `debug_readback(1.95)` timed out once and returned 27 distinct colours on the repeat; `web/demos/hash/scene.amx` `debug_readback(19.5)` hung twice while 19.0/20.0/20.5 were fine; one tour sweep surfaced `RuntimeError: unreachable` with frames inside `animatix_web_bg.wasm`. Meanwhile `render_frame` at the same time is fine and the transformer page's seven scenes, the hero and the hash/sorting compositions all read back — so the shipped demos render; only the probe path dies. Affects `web/demos/multi-probe.html?readback=1` and the `svg-probe/*` harnesses, which is why they need a fresh browser per probe until this is understood. | Not started |
 
@@ -78,7 +76,7 @@ Remaining:
 
 Wave 1 (`Sharpen`, `Vignette`, `MotionBlur`, `Grain`, `Levels`) shipped
 2026-09-13, wave 2 (`Duotone`, `Posterize`, `Edge`, `LensDistortion`,
-`DropShadow`) shipped 2026-09-14 — see `docs/history.md` for both.
+`DropShadow`) shipped 2026-09-14 — see `docs/history/2026-09.md` for both.
 
 The second-input-texture ABI bump shipped 2026-10-04 (`docs/effects.md` §4.1:
 binding 5 carries the pre-chain original), and with it `Bloom` and
@@ -117,23 +115,21 @@ path_arc, stretch.
 ## Web-demo review pass — engine findings (2026-10-02)
 
 Behaviour gaps found while polishing the site's scenes, each worked around
-scene-side first. Four of the nine are now fixed in the engine (see the resolved
-list at the end of the easing-pass section); what is left is below.
+scene-side first. Four of the nine were fixed in the engine and are archived in
+[`history/2026-10.md`](history/2026-10.md) ("Easing pass" and "Web-demo review
+pass"); what is left is below.
 
 | Item | What it is | Status |
 |---|---|---|
-| Plot actors' axes render pure white under `dynamic_layout` | `Graph`/`BarChart` axes come from `DEFAULT_WHITE` — fixed to fall back to primitive default stroke color. (Its companion finding — `Graph.map()` returning screen coords at half the px/unit the curve uses — is fixed; see below.) | Resolved |
 | `pulse intensity` is additive | `intensity: 1.04` means 2.04× scale (peak = start × (1 + N)) — three demo diagrams were destroyed at their thesis beat before the semantics were spotted. Now documented in `docs/spec.md`; a gentler authoring story (percentage semantics or a lint for `intensity > 1`) is open. | Documented |
 | Native `FontContext::new()` does not register `BUNDLED_FONTS` into its fontdb | The premise needs correcting: the **plain fast path never needed it** — `compile_text_fast` consults `BUNDLED_FONTS` by family before the database, which is how bundled faces reach text on a machine that has no Open Sans installed at all (`fc-match "Open Sans"` → Noto Sans CJK, measured 2026-10-05). What the native context *does* miss is the database entry, so (a) `resolve_font_family`/system-fallback questions and (b) the typst world's face list still depend on `with_fonts_and_fallback` being the embed-only path. The remaining question is narrower than written and worth re-asking before anyone bundle-registers into every native context. | Opened narrower |
 | Pixel A/B has no noise floor yet | The render-either-side-and-`cmp` method this round used for content checks cannot resolve a small change: **the same binary is not byte-stable across processes.** Measured 2026-10-03 on `dogfood/probes/008-render-correctness/text.amx` at 1 s — three renders of one binary differ from each other by 20, 36 and 46 raw RGBA bytes (of 3 686 400), while that binary's two builds (which really do differ) are 12 and 24 bytes apart. PNG file sizes drift as well, so comparing files is noisier still, and `web/demos/transformer/scenes/pipeline.amx @ 4` came out *identical* between builds but 8 bytes apart between two runs of one build. Text/glyph scenes show it and `web/demos/matrix/scene.amx` does not, so the suspect is glyph rasterization or shaping order. Until that is pinned down: any engine A/B claim needs (a) a same-binary control and (b) a positive control proving the change is live — the track-level probe above is the shape to copy. | Not started |
 
 ## Easing pass — what else it turned up (2026-10-02)
 
-Landed: one easing name table (there were four), `ease: cubic-bezier(…)` /
-`ease: spring(…)`, `expo-out` / `expo-in-out` / `spring`, `bounce` →
-`bounce-in`, a physical `bounce` action, and a formatter that stops deleting
-eases. What follows is everything the pass surfaced but did not fix, sorted by
-whether the behaviour is *wrong* or merely *shaped badly*.
+What follows is everything the pass surfaced but did not fix, sorted by whether
+the behaviour is *wrong* or merely *shaped badly*; what it did land is archived in
+[`history/2026-10.md`](history/2026-10.md) ("Easing pass — what else it resolved").
 
 ### Bugs — the behaviour is wrong
 
@@ -155,105 +151,9 @@ whether the behaviour is *wrong* or merely *shaped badly*.
 | 11 | **Nothing keeps the corpus on its motion vocabulary.** The site was 155-of-207 annotations on one quadratic curve, with ~880 timed statements carrying no ease at all (so: Linear). Fixed by convention plus `docs/spec.md`'s reference table, but nothing enforces it — a scene can slide back to monoculture unnoticed. A lint over "which role uses which curve" is the durable version of this pass. |
 | 12 | **The GUI cannot author a parameterized ease.** `ease: cubic-bezier(…)` / `spring(…)` parse, evaluate, plot in the curve panel and round-trip through source, but the inspector's dropdown is registry-driven and offers only named curves. Editing control points needs a small numeric editor in the keyframe table. |
 
-### Also resolved by this pass
+## Property values inside a container are not checked at all (2026-10-03)
 
-`ease: custom` silently ≈ ease-in-out (dead escape hatch) · a second
-`parse_easing_name` in the engine that had already drifted from the canonical
-table · the GUI's source-edit path overwriting any custom curve with `linear`
-· the formatter deleting `ease:` from property assignments ·
-`bounce [restitution: …]` warning about a modifier its own signature declares
-· the matrix scenes drawing +y downward against a `(cos, sin)` readout ·
-morph spans with mismatched point counts · the nav playhead hanging half off
-the page at scroll 0 · `figcaption` squeezing its caption to 12px below
-~500px.
-
-Resolved by the follow-up round (2026-10-03): #1 (`play` transition easing —
-parsed, printed, threaded to the compositor) · #6 (a `web-build` dev shell, and
-`build-web.sh` no longer overwrites the linker flags it is run with) · #7 (the
-`assert_eq!(arms, arms)` guardrails are gone; `ast_format_coverage.rs` now
-probes every `Stmt`/`Expr`/`InlineItem` variant and compares whole ASTs, and it
-was checked to fail when the deleted fields are restored) · and a defect #7's
-removal turned up immediately: **`animatix fmt` rewrote any positional action
-with two or more arguments into text the parser rejects**
-(`move b to (300, 200)` → `move b, to 300, 200`), so one format pass destroyed
-such a file; `format_action` now emits a reparseable form and
-`roundtrip_examples.rs` checks serializer stability across every `.amx` in
-`examples/`, `dogfood/` and `web/`.
-
-Also #4, whose real size the row understated: `unused-label` fired **347 times**
-across this repo's own corpus — every one of them on an *actor*, none on a
-binding or component — because an unreferenced actor still renders. A warning
-that is wrong on every legitimate file is not a warning, and it also made the
-column unreadable for any lint added later. The actor case is now a hint (a
-`let` nobody reads still warns), and `animatix check`/`lint` fold hints from
-their text output while `--format json` keeps them, so the 56 files carrying one
-still say so once. `never-revealed` in the build layer remains the lint that
-catches an actor that is declared and never shown.
-
-From the web-demo review pass, same round: **`Arrow` ignored an authored
-`color:`** (it is now one of the stroke-only shapes that inherit it, via a new
-`ShapeKind::is_stroke_only()` so the next such shape cannot be forgotten) ·
-**the plot family discarded authored `opacity`** (one fix in the shared dispatch
-covers Graph, BarChart, ContourSet and VectorField) · **`Graph.map()` returned
-screen coords at half the px/unit the curve it describes uses**, because it read
-the dotted half-size track while `map_inverse` read the side channel · and
-**an `import` written inside a scene block froze that scene's clock**, whose
-chain turned out to be worth writing down because nothing in it is obvious:
-`group_scenes` promoted a `config` block into `Scene.config` only while the
-scene was still empty, so the import demoted the block into the scene body →
-`Scene.config` empty → `extract_duration_from_config` found nothing → the
-duration fell back to keyframe-span inference → and the web player wraps its
-clock on that duration, so `always` blocks kept re-evaluating a truncated loop.
-Position no longer matters: any `config` inside a scene is now promoted, and
-multiple blocks merge.
-
-And the engine-level lint the round was meant to add: **
-`inapplicable-property`** (`build/actor/helpers.rs`, next to the existing typo warning, sharing
-its call sites so coverage matches). It asks the same `Applicable::includes`
-predicate the inspector filters with, so the editor and the build cannot
-disagree, and it carries the property's own byte span — the first build-phase
-property lint that does, which is why it does not need the CLI's
-label-to-position heuristic. Running it over the corpus found three things on
-its first pass:
-
-- `text_max_width`'s row listed only `Legend`, while the text engine reads it as
-  the canonical wrap width — 94 shipped scenes were being described to the
-  inspector as setting a property their actor ignores. The row is now
-  `Any[Actors(Legend), TextLike]`.
-- `font_size` omitted `Legend`, which reads it for its own labels — the same
-  class, on the false-positive side, and the reason `applicability_table_agrees_with_reads.rs`
-  now cross-checks every `Actors(&[…])` row against the primitives' own match
-  arms (verified to fail when a type is removed from a row it reads).
-- `examples/layout/27_layout_text.amx` declared `max_width: 400` on a `Rect` and
-  told readers it capped the item at 400px. It did nothing: layout has no width
-  ceiling at all, and the name belongs to the text wrap width. Both are open
-  items above; the example now demonstrates `min_width` and says so. See `docs/history.md`, "The Easing Pass".
-
-## Property value forms the checker rejects but the builders read
-
-**Resolved 2026-10-03** for the four rows below, kept because the shape is still
-live: `animatix_syntax::schema::raw_property_types()` is one `Type` per property
-*name*, so one property shared by two readers can only have one row. A property
-whose builder accepts `"auto"` therefore needs `Type::Union`, and widening a
-*shared* row is only safe once every other reader reports what it drops — which
-is exactly what unblocked `gap`:
-
-| Property | Row before | Also accepted at build | Now |
-|---|---|---|---|
-| `gap` | `Num` | `auto` / `"auto"` — BarChart bar spacing (`build/plot/`) | `Union(Num, Str)`, and each container now pushes `InvalidPropertyValue` for a value it cannot read (`container_layout_value_it_cannot_read_is_reported` covers Row/Col/Grid) |
-| `bar_width` | `Num` | same, BarChart only | `Union(Num, Str)` |
-| `max_value` | `Num` | same, BarChart only | `Union(Num, Str)` |
-| `show_axis` / `show_labels` | `Bool` | `"true"` / `"false"` | `Union(Bool, Str)`, plus a diagnostic for a string that is none of `true/1/false/0` — previously `show_axis: "yes"` silently read false |
-
-Wrong values still fail: they now produce the *consumer's* message
-(`BarChart 'c' bar_width expects a number or "auto", got Str("wide")`) instead of
-only a type warning, which is the stronger signal either way. Pinned by the
-golden `broken_corpus/19_bar_chart_documented_forms.amx`, which asserts zero
-analyzer diagnostics for every documented form.
-
-### Anything declared inside a container is not property-checked at all
-
-Found while writing that golden. The semantic walker (`crate::walk::walk_stmts`)
+Found while writing the resolved-forms golden (archived in `history/2026-10.md`). The semantic walker (`crate::walk::walk_stmts`)
 recurses into statement bodies but **not** into `ActorDecl.children`, so:
 
 ```
@@ -269,7 +169,7 @@ scene then gets checked for the first time — expect a real wave of findings
 that) and duplicates to dedupe first. Worth doing, not a drive-by.
 
 This came out of closing the last open item of the phase-2 gallery handoff
-(closure record in `docs/history.md`, "Phase 2 handoff — closed out";
+(closure record in `docs/history/2026-10.md`, "Phase 2 handoff — closed out";
 `BarChart` missing from the `gap` applicability row), which also produced
 `bar_chart_gap_is_applicable_to_bar_chart` in
 `crates/animatix/tests/applicability_table_agrees_with_reads.rs` — the generic
@@ -278,7 +178,7 @@ the shared plot builder rather than by a file in `src/primitives/`.
 
 ## Motion-vocabulary round — what it left open (2026-10-05)
 
-The round itself is recorded in [`history.md`](history.md) ("The Motion-Vocabulary
+The round itself is recorded in [`history/2026-10.md`](history/2026-10.md) ("The Motion-Vocabulary
 Round — Landed Work"). Four things are still owed, and none of them is a feature
 the language is missing:
 
@@ -312,7 +212,7 @@ the language is missing:
   crisp to the end), `glass` fogs over, `light_camera` ends on the light itself.
   The remaining sections deliberately keep the shared reverse-order wipe; the
   palette/chrome/page-structure direction they follow is recorded in
-  `docs/history.md` ("The instrument redesign"), and the demo-poster deletion
+  `docs/history/2026-10.md` ("The instrument redesign"), and the demo-poster deletion
   is the owner's call.
 - **The scope-property rule is now a convention, not a mechanism.** `color`
   carries an explicit `Applicable::Except(&["Glass", "Filter", "Mask"])` list and
@@ -328,7 +228,7 @@ the language is missing:
 
 ## Web delivery — the two claims a real browser still owes (2026-10-06)
 
-Batch 7 (`history.md`) fixed the engine fault behind the site's page errors and
+Batch 7 (`history/2026-10.md`) fixed the engine fault behind the site's page errors and
 made every delivered page verifiable headless. Two claims cannot be closed on
 this box, and the next session should not pretend the harness covers them:
 
@@ -460,73 +360,18 @@ safe one, and `site_scenes` now fails the build on any warning-or-worse
 diagnostic, naming the scene and the page — the assertion that would have caught
 this in the first place, verified by putting one scene's import back.
 
+## Preview-lag round — still owed (2026-10-06)
 
-## The preview-lag round — what landed, what the measurements killed (2026-10-06)
+The landed fixes and the three ideas the measurements killed are archived in
+[`history/2026-10.md`](history/2026-10.md) ("The preview-lag round"). Two claims
+still need the owner's hardware, because every number came off a software raster:
 
-"预览比较卡" turned into three shipped fixes and three ideas killed before code.
-Every one of them came out of measuring first; the killed ideas are here so
-nobody re-sells them.
-
-Landed:
-
-- **The filter chain follows the raster** (`performance_evaluation.md`,
-  "The filter chain follows the raster"). A filtered figure went 97.2 → 49.0 ms
-  at the bottom quality step, with the unfiltered control unchanged.
-- **Arrival scheduling** (`web/README.md`, "When a scene arrives"). Figures
-  build when the page settles rather than mid-scroll.
-- **Raster-level frame dedup** (`performance_evaluation.md`, "A frame already on
-  the screen is not a frame to draw"). The engine's scene cache memoized the 1%
-  of a frame that is cheap; a repeated frame now skips the raster too. Measured
-  13% of tour ticks, and the CPU guard came back clean.
-
-Killed by measurement:
-
-- **Round-robin the per-tick renders across players.** Sampled every ~380 px of
-  a full sweep of two pages, counting figures with `_playing && _visible`: the
-  maximum was **1**, on the tour (11 figures) and on the transformer page (7
-  figures, all `autoplay`). A budget scheduler that skips players to cap the
-  tick trades framerate for nothing when one figure already owns the tick.
-- **`scripts/serve-web.py`'s `max-age=300` on the 1.79 MB wasm.** The cache
-  decision costs bytes on a localhost reload, and the browser re-instantiates
-  the module per document regardless of the header, so it cannot be the felt
-  lag. The file's split (generated artifacts cache, scene sources revalidate) is
-  deliberate and stays.
-- **Rendering vello straight into the canvas instead of offscreen + blit.**
-  Feasible, and still not worth it. Vello's `render_to_texture` docs list two
-  ways to hit a surface: an intermediate texture plus `TextureBlitter` (what the
-  player does), or calling it on the `SurfaceTexture` "if it has the right
-  usages". A canvas configured the default way reports `GPUTextureUsage` =
-  `RENDER_ATTACHMENT` and nothing else (`usage === 16`, for rgba8unorm and
-  bgra8unorm, `opaque` and `premultiplied`, 64×64 and 1100×619 alike) — but
-  **asking works in Chromium**: passing the non-spec `usage` member to
-  `GPUCanvasContext.configure` produced a surface texture reporting 24
-  (`RENDER_ATTACHMENT | STORAGE_BINDING`), and asking for more produced 30. The
-  2026-09-30 note in the table above was right and my first reading of it today
-  was wrong twice over — first as "the browser never grants it" (measured a
-  default configure and generalised), then as "unprobed" when the probe was two
-  minutes away. An ignored dictionary member reads as "accepts", which is how the
-  distinction got lost the first time.
-  The decision does not turn on it. The blit being removed measures **0.003 ms**
-  (§3.7), and it is not overhead — it *is* the upscaling step. Rendering into the
-  surface means rasterizing at canvas resolution every frame, forfeiting
-  `set_render_scale`, the adaptive quality controller, and the
-  filter-chain-follows-raster win that was this round's other landing. If anyone
-  revisits it, the only sane shape is a hybrid — direct when the raster scale is
-  1.0, blit otherwise — behind a capability probe, because Firefox and Safari are
-  unverified for that `usage` member, plus vello's own warning that some GPUs
-  optimise a surface on the assumption nothing computes into it. The "~0.2 ms a
-  frame" estimate still written in that table is superseded by 0.003 ms.
-
-Still owed, and it needs the owner's hardware because every number above came
-off a software raster (composition is the site's own, absolute ms are inflated):
-
-- An A/B of the arrival gate on real GPU: does scrolling the tour feel
-  different, and does a figure you stop on reach `ready` within ~150 ms.
+- An A/B of the arrival gate on real GPU: does scrolling the tour feel different,
+  and does a figure you stop on reach `ready` within ~150 ms.
 - One 28 s single main-thread stall appeared in the sandbox during a gated tour
   sweep (`longtask` 28070 ms, with 3052 frames at ≤ 20 ms either side). Not
-  reproduced on the desktop, not reproduced a second time in the browser, and
-  every candidate explanation is SwiftShader. Worth a look only if it ever
-  appears on real hardware.
+  reproduced on the desktop or a second time in the browser; every candidate
+  explanation is SwiftShader. Worth a look only if it appears on real hardware.
 
 ## Found by the epicycles rewrite, left open (2026-10-07)
 
@@ -590,125 +435,13 @@ around in `web/demos/epicycles/` rather than fixed in the engine.
   left edge, which has no leading edge to miss; a scene that genuinely wants a
   growing trace still cannot land a marker on its end.
 
-## Frame-time geometry writes disagreed with their declarations (2026-10-07) — fixed
-
-Found while making the epicycles chain's circles grow in with their arms. All
-three findings are measured on rendered frames, one scene, `Ellipse`:
-
-| written | rendered |
-|---|---|
-| declaration `size: (100, 100)` | 101 × 101 px |
-| `always { e.size = (100, 100) }` | **201 × 201 px** |
-| declaration `radius_x: 50, radius_y: 50` | 101 × 101 px |
-| `always { e.radius_x = 100; e.radius_y = 100 }` | **101 × 101 px — the write does nothing** |
-
-- **Was: `actor.size = (v, v)` in an `always` block read as a radius while
-  the declaration `size: (v, v)` was a bounding box.** Same property, same value,
-  2× apart. `docs/primitives.md` documents `size` as "bounding box dimensions,
-  converted to radius_x = width / 2" with no caveat about the assignment path,
-  so content that sizes an actor per frame is quietly double. The fix is to
-  route both through the one conversion the declaration uses, and a test
-  asserting `declared size == frame-written size` for the same literal.
-- **Was: `radius_x` / `radius_y` were declared-only.** A timed or per-frame write
-  lands nowhere, with no `always-write-not-animatable` and no
-  `invalid-property-value` — the actor simply keeps its declared radius. Either
-  make them animatable (they are the same geometry as `size`, so this is the
-  better half) or reject the write the way every other unwritable property is
-  rejected. Silent is the one outcome that cannot be debugged from the source.
-**Fixed in `primitives::resolve_half_size`**, which every shape primitive now
-routes its frame-time geometry through, so the node transform and the
-primitives cannot disagree about what an override means; `radius_x`/`radius_y`
-are honoured there and compose over a `size` box one axis at a time. Covered by
-three unit tests and by rendered measurement: declared, timed and `always`
-writes of `size: (100, 100)` all render 101px, and `radius_x = 100` on a 100
-actor renders 201px.
-
-The bug was visible in shipped content and had been misattributed:
-`web/tour/scenes/reactive.amx` records that the reticle "turned into a 440px
-amber lollipop", blamed there on a solid fill — 440 is exactly 2× the authored
-220, i.e. this doubling. The scene's own comment states the intended semantics
-("`ring.size = (238, 238)` on a 220 actor grows it by 18 px, not 476"), which is
-what the fix now produces.
-
-## `PlotCurve`'s `resolution` knob was dead (2026-10-07) — fixed
-
-`resolution: 16` and `resolution: 256` on the same curve rendered
-**byte-identical**. Both the build-time sampler and the per-frame resampler
-computed the subdivision floor as `resolution.max(8).min(max_depth).ilog2() + 1`
-— clamping a **sample count** by a **recursion depth** before the log. With the
-default `max_depth` of 10 that discarded every request above 10 outright, and it
-also disabled the `resolution /= 4` and `/= 2` steps in
-`BuildQuality::scale_plot_params`, so Draft and Preview could not coarsen the
-base grid either.
-
-Fixed by `base_subdivision_depth()`: log2 first, clamp by `max_depth` after.
-The declared default (96) now yields a 64-segment base grid where the clamp
-forced 16.
-
-The visible symptom was on `web/demos/epicycles` §03, reported by frame number:
-442 clean, 443 with straight chords across the harmonic ripple, 444 with those
-flat spans shifted. The shallow 1/k ripple passes the chord-deviation test whole
-on a 41px base cell, so which cells rendered as one straight segment depended on
-where the scrolling wave happened to sit — measured against the analytic curve,
-p95 deviation on 443 was 3.96px against 1.69px on its neighbours, a 2.27px
-frame-to-frame swing; the fix takes the swing to 0.07px.
-
-Two measurement traps on the way there, both worth remembering:
-
-- **Segment count is the wrong observable.** A 16-segment and a 64-segment base
-  grid both emit ~104 segments for that wave, because `tolerance` adds refinement
-  wherever the curve is steep; what differs is *where* the vertices sit. The
-  regression test guards widest inter-vertex gap, and it is verified to fail
-  (10.3px vs 10.3px) if the clamp returns.
-- **Pixel-differencing across a small time step is also blind to it.** A chord
-  replacing a shallow arc moves a 3.5px stroke by well under a pixel, so the
-  frame-to-frame changed-pixel count stayed flat (~800 at dt=8ms) across a 32×
-  range of `resolution` — and I reported "fineness is not the cause" on that
-  evidence. The artifact is low-amplitude and high-contrast: a corner where a
-  curve was. Deviation from the *analytic* function is what sees it.
-
 ## Property-name / flag / default inversions found by the resolution-knob audit (2026-10-08)
 
 The `resolution` clamp was not a lone defect — it is one instance of a shape:
 **a property whose descriptor name, registry binding, frame-time consumer and
 documented default disagree.** Two sweeps over the registry found many more.
-One is fixed here; the rest are recorded rather than silently half-patched,
-because several would change shipped visuals.
-
-### Fixed in this pass — the text wrap width was inverted
-
-`text_max_width` is the canonical descriptor (`animatix-core/src/property.rs`),
-`max_width` the legacy alias, and both map to `ActorField::TextMaxWidth`. But
-the per-frame override path read only the key `"max_width"`, while the registry
-flagged the canonical `text_max_width` `ANIMATED` and the working `max_width`
-*not* `ANIMATED`. Rendered consequence, all three on one frame:
-
-| authored in `always` | before | warned |
-|---|---|---|
-| `t.letter_spacing = 8` | **worked** | "the per-frame write is ignored" |
-| `t.text_max_width = 60` | **did nothing** | nothing |
-| `t.max_width = 60` | **worked** | "the per-frame write is ignored" |
-
-So the one name that did nothing was the only one that did not complain. Fixed
-by reading the canonical key first with the alias as fallback (the same
-two-name handling `text`/`code` already used 25 lines earlier), and by flagging
-every property the frame path honours as `ANIMATED`: `font_family`,
-`font_style`, `font_weight`, `language`, `line_height`, `max_width`,
-`overflow`, `text_align`, `word_spacing`, `letter_spacing`.
-
-Pinned by `frame_consumed_properties_are_flagged_animated`, which lists the
-keys the override path consumes and asserts each is `ANIMATED` — verified to
-fail with "`max_width` is consumed by the per-frame override path but is not
-flagged ANIMATED" when the flag is reverted.
-
-Also found: `text_max_width`'s registry binding points at
-`ActorField::Tagged("legend_text_max_width")` — the **Legend** storage slot —
-because one descriptor row (`Applicable::Any(&[Legend, TextLike])`) serves two
-actors and a binding row can only name one field. The frame-path fix makes the
-canonical name work for `Text`, but reads through the registry (`is_animating`,
-the inspector) still resolve a `Text`'s wrap width against Legend's slot. The
-real fix is splitting the row or making bindings per-actor; that is a schema
-change, not a patch.
+The fixed one is archived in [`history/2026-10.md`](history/2026-10.md); the rest are
+recorded rather than silently half-patched, because several would change shipped visuals.
 
 ### Confirmed silent frame-time no-ops (accepted, no diagnostic, no consumer)
 
@@ -763,15 +496,10 @@ registry's default rather than restating a literal, the way
 `PROPERTY_DESCRIPTORS` already pins the name list. Not done here because every
 row above is a live behaviour change and several would move shipped scenes.
 
-## The unified pipeline: what is enforced, and what is only claimed (2026-10-08)
+## The unified pipeline — claims that still need a real run (2026-10-08)
 
-`scripts/ci.sh` is now the single gate definition, `ci.yml` generates its matrix
-from it, `release.yml` runs it as a release blocker, and the `workflows` gate fails
-any PR that types a `cargo`/`scripts/` command into YAML. That part is tested — the
-gate caught the 21 pre-existing workflow lines, and each new check was seen failing
-before it was seen passing.
-
-Five claims in the same work are **not** yet evidence, and each needs a real run:
+The enforcement design is archived in `history/2026-10.md`. Five claims in the same
+work are **not** yet evidence, and each needs a real run:
 
 - **`release.yml` has never executed.** It triggers on a `vX.Y.Z` tag, and the repo
   has no semver tag yet — the first `cog bump --auto --skip-ci` is its first run.
@@ -856,5 +584,4 @@ tracked.
   are the design edge that needs its own resolution scheme.
 - **Verification**: `stage/build_frame_env` and `vm_vs_ir` suites; the
   `is_animating` and closure parity tests are the behavior pins.
-
 

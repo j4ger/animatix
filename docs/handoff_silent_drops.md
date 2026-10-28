@@ -139,7 +139,7 @@ already solves "draw two things at complementary alpha".
 - **C5**: `docs/roadmap.md`'s GUI-UX section has a `Remaining:` table with a
   header and no rows. Delete it.
 - Then `docs/spec.md` (transition ease now really reaches the compositor;
-  `inapplicable-property`; the scene-config position rule), `docs/history.md`,
+  `inapplicable-property`; the scene-config position rule), `docs/history/`,
   and prune `docs/roadmap.md` to remaining work only.
 
 Also still open in the roadmap and found *by* this round's lint: percentage and

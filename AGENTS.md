@@ -4,248 +4,88 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 
 ## Map
 
-- `crates/animatix-core`: shared language vocabulary (capability enums, effect contract types, the built-in **property descriptor table**, icon glyphs, `RenderError`); zero engine/parser deps.
-- `crates/animatix-std`: built-in catalog — effect definitions (WGSL/pack/support) and primitive identity cards; the single source for built-in metadata.
-- `crates/animatix-syntax`: parser, AST, module system, diagnostics, formatter, property/type layer; derives its contract tables from `animatix-std`.
-- `crates/animatix-text`: the typst/fontdb text compiler behind the engine's `text` feature.
-- `crates/animatix`: runtime engine — timeline ECS world and component stores, build/evaluate pipelines, behavior family systems (`BehaviorDef`/`BehaviorRegistry`), composition, and the frame vocabulary the renderer consumes.
-- `crates/animatix-render`: GPU presentation above the engine — Vello/wgpu renderer core, filter backend, offscreen frames, transitions, and export encoders. One-way: it uses only the engine's public API.
-- `crates/animatix-gui`: eframe/egui IDE, preview, inspector, `SourceEdit`.
-- `crates/animatix-analyzer`: shared language intelligence; update for new syntax.
-- `crates/animatix-lsp`: LSP wrapper over analyzer.
-- `crates/animatix-web`: wasm32 driver for browser playback (no in-browser
-  editor — that is the desktop app). Parse/build reuses the module system in
-  `SourcesOnly` mode; frames render into an offscreen vello target that is
-  blitted to the WebGPU canvas surface. Embeds resolve their engine profile
-  (`slim` default / `full`) per element and share one WebGPU context per
-  loaded engine directory. `web/` is the static site: a light-editorial
-  homepage (`web/index.html`, hero scene in `web/scenes/`), the language tour
-  (`web/tour/`, its scenes in `web/tour/scenes/`, live editors in
-  `tour/editor.js` driven by the embed's `applySource`), the scene gallery
-  (`web/gallery.html`), the demo hub (`web/demos/index.html` with poster
-  cards) and the demo pages (`web/demos/transformer/`), all skinned by
-  `web/site.css` with shared nav/footer injected by `web/site-chrome.js`.
-  The `<amx-player>` embed component lives in `web/embed/`; build/serve
-  instructions, the attribute reference, and the GitHub Pages deployment
-  notes are in `web/README.md`.
-- `crates/eparts`: themed egui widget framework used by the GUI.
-- `crates/animatix-syntax/src/token.rs`: the single lossless tokenizer; drives parser input, LSP semantic tokens, and GUI highlighting.
-- `docs`: documentation (`docs/roadmap.md` is remaining work only; completed work is archived in `docs/history.md`). `docs/ecs.md` is the normative timeline entity/component design and the file-size ratchet contract. `examples`: runnable `.amx` demos. `dogfood`: in-progress real-content projects and grammar probes.
+- `crates/animatix-core`: shared vocabulary — capability enums, effect contract types, the built-in **property descriptor table**, icon glyphs, `RenderError`; zero engine/parser deps.
+- `crates/animatix-std`: built-in catalog (effect definitions, primitive identity cards); the single source for built-in metadata.
+- `crates/animatix-syntax`: parser, AST, module system, diagnostics, formatter, property/type layer; contract tables derive from `animatix-std`.
+- `crates/animatix-text`: typst/fontdb text compiler behind the engine's `text` feature.
+- `crates/animatix`: engine — timeline ECS world/stores, build/evaluate, `BehaviorDef` family systems, composition, frame vocabulary.
+- `crates/animatix-render`: GPU presentation above the engine — Vello/wgpu core, filter backend, offscreen frames, transitions, export encoders. One-way: public engine API only.
+- `crates/animatix-cli`, `crates/animatix-gui`: CLI and eframe/egui IDE (preview, inspector, `SourceEdit`).
+- `crates/animatix-analyzer`, `crates/animatix-lsp`: language intelligence and its LSP wrapper; update the analyzer when syntax changes.
+- `crates/animatix-web`: wasm32 playback (no in-browser editor); `SourcesOnly` module reuse, offscreen vello blitted to WebGPU; site/embed docs in `web/README.md`.
+- `crates/animatix-plugin-api`, `-demo`, `-tooling`: native plugin C ABI, example, tooling. `crates/eparts`: themed egui widgets.
+- `crates/animatix-syntax/src/token.rs`: the single lossless tokenizer (parser input, LSP tokens, GUI highlighting).
+- `docs`: `roadmap.md` is remaining work only, `docs/history/` is the archive (`history.md` is a pointer), `docs/ecs.md` is normative ECS + file-size contract. `examples/` has demos; `dogfood/` has in-progress projects and probes.
+
+## Key Docs
+
+- `docs/spec.md` — language surface; `docs/primitives.md` and `docs/properties.md` are the quick reference tables.
+- `docs/architecture.md` — pipeline and crate layering; `docs/ecs.md` — timeline storage, component checklist, ratchet.
+- `docs/effects.md` — effect chain/ABI; `docs/extension_authoring.md` — registering primitives, actions, functions, plugins.
+- `docs/contributing.md` — workflows, project structure, LSP, error model, release details; `docs/performance_evaluation.md` — measurement method.
+- `docs/roadmap.md` — what is left; `docs/history/` — evidence for what landed and why.
 
 ## Workflow
 
-0. **Background tasks need no polling.** The agent harness notifies when a
-   background command finishes — do not add a sentinel loop to "wait for it."
-   A `while pgrep -f '<pattern>'` loop self-matches its own command line (the
-   pattern string lives in the loop text) and never exits, leaving a zombie
-   task. If a wait guard is truly required, bound the iterations and exclude
-   self (`pgrep -f 'cargo bench' | grep -vx "$$"`).
-
-1. Read relevant docs before changing (`docs/spec.md`, `docs/architecture.md`, etc.).
-2. Keep tests green: run `scripts/ci.sh gate test` (or `cargo test -p animatix --lib -- --test-threads=1` and `cargo test -p animatix-gui` when working on one crate) before finishing.
-3. **Before committing**: run the gates. `scripts/ci.sh` is the single definition of
-   "is this green" — every check is a named gate in that file, PR CI generates its
-   job matrix from it, and `release.yml` runs the same gate list as its release
-   blocker. Do not type a cargo command into a workflow: the `workflows` gate fails
-   the build if you do.
-
-   ```bash
-   scripts/ci.sh gates                 # every gate, with the shell it needs
-   scripts/ci.sh gate fmt lint check   # run some gates in this shell
-   ```
-
-   Gates are split by **shell**, because the wrong environment fails in a way that
-   looks like a code fault. `ci.sh` never enters a shell itself: devshells *prepend*
-   to PATH, so entering one from inside another keeps the outer `rustc` first and
-   the wasm gates then die with "can't find crate for `std`" while wasm-opt and
-   brotli resolve correctly, which makes the shell look like it loaded.
-
-   | shell | run the gate as | provides |
-   | --- | --- | --- |
-   | `native` | `scripts/ci.sh gate <name>` | pure-Rust checks (fmt, meta-version, eparts on non-Linux); stays off nix |
-   | `nix` | `nix develop --command scripts/ci.sh gate <name>` | ALSA + FFmpeg headers, Mesa/Vulkan, `cog`, `cargo-audit` |
-   | `web` | `nix develop .#web-build --command scripts/ci.sh gate <name>` | wasm32 std, binaryen/brotli, the pinned wasm-bindgen |
-   | `web-ci` | `nix develop .#web-ci --command scripts/ci.sh gate <name>` | the `web` toolchain plus headless Chromium (lavapipe) and Node; `web-build` and `web-smoke` share this job because `web/pkg` is gitignored |
-   | `none` | anywhere | checks that need no toolchain (`content-sync`, `file-size`, `workflows`) |
-
-   Use `env -i` if your shell already loaded a dev shell (see the `.#web-build`
-   PATH note in `flake.nix`). A gate whose environment is missing says so and names
-   the shell, instead of reporting a build error.
-
-   Formatting uses standard stable `rustfmt`: `rustfmt.toml` uses only stable
-   configuration options, so `cargo fmt --all -- --check` runs consistently across
-   local development, `nix develop`, and CI with the single stable Rust toolchain.
-   **Always run `scripts/ci.sh gate fmt` before committing.** Inside `nix develop`
-   or native, the toolchain supplies `rustfmt` so `scripts/ci.sh gate fmt` runs
-   out-of-the-box. Never skip this gate.
-
-   These gates did not exist in PR CI before, and each one is for a defect that got
-   past the old ten jobs: `wasm-check`, `site-scenes`, `web-build`, `embed-drift`
-   (`web/embed/amx-player.js` is the esbuild output of
-   `web/embed/src/amx-player.js`, built on demand and gitignored),
-   `content-sync` (generated plates, bundled-library parity, the duplicated font
-   hash table, the bundle sizes `web/README.md` quotes), `file-size` (the
-   `docs/ecs.md` §8 ratchet: production source ≤ 800 lines, tests ≤ 1500, legacy
-   offenders frozen in `scripts/file-size-allowlist.tsv`) and `workflows`.
-
-   A `.amx` scene that a page embeds also owes one content check: it must rest on
-   a composition. `autoplay loop` cycles are `duration` + `hold`, so a closing
-   pixels behind it, so the fullest frame of a changed figure still needs an eye.
-
-   When authoring or modifying an `.amx` scene, do not rely on `check` alone or
-   hand-craft float floors for a `.verify.txt`. Instead, follow the fast 3-step loop:
-   1. `animatix check <file>`: fast CPU gate catching syntax, types, and `never-revealed` warnings.
-   2. `animatix storyboard <file> -o storyboard.png`: renders a single contact sheet grid sampling keyframe beats and the held resting frame.
-   3. Review the storyboard image in a single vision tool call to verify actor cues, spatial layouts (no overlapping labels or clipping), and resting frame completeness.
-
-   `wasm-check` is the gate that covers the wasm player: `animatix-web`'s render
-   module is `#[cfg(target_arch = "wasm32")]`, so a change to the frame-presenting
-   path can compile everywhere, pass every native test, and still break the site.
-   Run it whenever `FilterBackend`, `RendererCore`, `offscreen.rs` or
-   `animatix-web` changes. It also carries the slim-profile clippy
-   (`-p animatix --no-default-features`), which is the only look the profile the
-   web playback build uses ever gets.
-
-   `web-smoke` loads the home, transformer and matrix pages in headless Chromium
-   (WebGPU on lavapipe) and fails unless every `<amx-player>` reaches `ready`
-   with a painted canvas. It is the only gate that exercises the embed's module
-   wiring and the wasm glue together; the `qualityStep` regression passed every
-   static gate while every page showed a load error. It runs in the same job as
-   `web-build` (shell `web-ci`) because `web/pkg` is gitignored and a fresh
-   checkout has nothing to load.
-
-   `site-scenes` builds every scene an `<amx-player>` on the site references, in
-   the profile that player asks for, both times. A scene that only the full engine
-   can build, or an import/asset URL that resolves to nothing next to its page, is
-   a "Scene error" veil in the browser and invisible to every other gate. Run it
-   after touching `web/`, `web/embed/`, or the profile features in
-   `crates/animatix-web/Cargo.toml`.
-
-   Do not commit with a failing gate.
-
-   > **Why the `check`/`lint`/`test` gates use `--workspace --all-targets`?** So the GUI, analyzer and LSP cannot accumulate errors silently — `cargo check -p animatix` does not compile them. **Why clippy as its own gate?** `cargo check` does not surface lint-level problems, and CI fails the build on warnings; running it locally finds them before the push instead of after.
-4. Update docs for user-visible behavior; keep `docs/roadmap.md` as only remaining work (remove completed items). `CHANGELOG.md` is generated by `cog bump` and never hand-edited; `docs/history.md` is the hand-written evidence archive (decisions, post-mortems, measurements). A release note belongs in history.md, a commit line in CHANGELOG.md.
-5. Ask on unclear design choices and call out design flaws you notice.
-6. When committing, use `cog commit <type> "<summary>" [scope]` after staging files (example: `cog commit feat "add scrubbing" gui`). `cog` is provided by the flake dev shell (cocogitto), so **run the commit while inside `nix develop`**; outside the shell it's not on `PATH`. Use `cog commit --add ...` only if every unstaged change belongs in the commit. Fall back to `git commit -m "type(scope): summary"` only if `cog` is genuinely unavailable/blocked, and mention it.
-7. Conventional commit scopes come from `cog.toml`: `animatix`, `gui`, `analyzer`, `lsp`, `syntax`, `parser`, `renderer`, `timeline`, `ci`, `docs`.
-8. A release is one command on main, with the tree clean: `cog bump --auto --skip-ci`.
-   It writes the CHANGELOG entry, commits it, runs `scripts/bump-version.sh` (the
-   one `[workspace.package]` line, then `cargo metadata` to refresh `Cargo.lock`,
-   then the `meta-version` gate), and tags the result `v<version>`. Then push both,
-   which is what starts `release.yml`:
-
-   ```bash
-   git push && git push origin v<version>
-   ```
-
-   There are deliberately no `post_bump_hooks` that push — publishing is the step
-   that should stay a decision. `release.yml` runs the whole `pr` gate matrix as its
-   blocker, then builds site + both wasm profiles + Linux (`video`, from nix) +
-   macOS/Windows (no `video`) in parallel and publishes one GitHub Release whose
-   body is `cog changelog --at <tag>`. Nightlies moved to `nightly.yml`, so the
-   existing `nightly-*` tags keep their meaning and a version tag means a version.
+0. **Background tasks need no polling.** The harness notifies on completion; a `while pgrep -f '<pattern>'` loop self-matches and never exits. If a bound is truly needed, exclude self (`pgrep -f 'cargo bench' | grep -vx "$$"`).
+1. Read the relevant docs before changing (`spec.md`, `architecture.md`, `ecs.md`, etc.).
+2. Keep tests green: `scripts/ci.sh gate test` (or `cargo test -p animatix --lib -- --test-threads=1` plus `-p animatix-gui` for one crate).
+3. **Run the gates before committing.** `scripts/ci.sh` is the single definition of green; every check is a named gate there, CI's matrix comes from it, and `release.yml` uses the same list. Add a gate, never a cargo command in workflow YAML (`workflows` fails that). `scripts/ci.sh gates` lists every gate **and its required shell**; run it in that shell (`env -i` if a dev shell is already loaded, because devshells prepend to PATH). Always run `scripts/ci.sh gate fmt`; never commit with a failing gate. Rationale and shell/PATH traps: `docs/contributing.md`.
+4. **An embedded scene owes a resting composition.** `autoplay loop` cycles are `duration` + `hold`, so an outro may animate parameters but may not erase the cast: the held frame is what the page shows. `scripts/site-rest-check.py` enforces it, but cannot see one actor vanish over busy pixels — review the fullest frame. Author scenes with the 3-step loop, not `check` alone: `animatix check <file>`, `animatix storyboard <file> -o storyboard.png`, then review the storyboard for cues, overlaps/clipping, and the resting frame.
+5. Update docs for user-visible behavior. `docs/roadmap.md` is remaining work only; `CHANGELOG.md` is generated by `cog bump` and never hand-edited; a release note/post-mortem goes in `docs/history/`, a commit line in `CHANGELOG.md`.
+6. Ask on unclear design choices and call out design flaws you notice.
+7. Commit with `cog commit <type> "<summary>" [scope]` after staging, **inside `nix develop`** (that is where `cog` lives). Use `cog commit --add` only when every unstaged change belongs in the commit; fall back to `git commit -m "type(scope): summary"` only if `cog` is genuinely unavailable/blocked, and say so.
+8. Scopes from `cog.toml`: `animatix`, `gui`, `analyzer`, `lsp`, `syntax`, `parser`, `renderer`, `timeline`, `ci`, `docs`.
+9. Release: `cog bump --auto --skip-ci` on clean `main`, then push the commit and tag (publishing stays a decision). Details: `docs/contributing.md`.
 
 ## Common Pitfalls
 
-- **GUI/tooling drift**: `cargo check -p animatix` does not compile the GUI, analyzer, or LSP. Use `cargo check --workspace --all-targets` before committing so their errors cannot accumulate silently.
-- **Timeline data is ECS data**: per-entity state belongs in a `World` component store keyed by `EntityId`, not in a new label-keyed `Timeline` map and not in a new aggregate per-actor struct. Actor capabilities (`ActorCaps`) and behavior identity (`BehaviorId`) are stored components on every entity, making capability checks $O(1)$ and frame evaluation dispatch via `BehaviorDef` family systems (direct function pointers for built-ins, extension adapter for plugins). `docs/ecs.md` is normative; follow its "Adding a Component" checklist (`docs/contributing.md`) and update the snapshot helpers in the same change. Every component write must go through a `Timeline`/`EntityMut` entry point that invalidates the frame cache, and the frame path must not reintroduce a string-keyed fallback.
-- **Follow the file-size ratchet**: `scripts/ci.sh gate file-size` fails if a production source file grows past its `scripts/file-size-allowlist.tsv` row, if a new >800-line file appears (production; tests >1500), or if a split file's row is left behind. Split, then delete the row; never raise or add one.
-- **Evaluation paths**: Both build-time expressions (`evaluate_expr`) and frame-time modifier code / plot closures are evaluated through the unified IR VM. Build-time expressions lower to IR via `compile_expr` and execute via `evaluate_compiled_expr`. Leaf operators and builtins are shared through `eval_shared`. When adding a new expression *semantic* (not just a builtin), follow the touch-point checklist in `docs/contributing.md` ("Adding a New Expression Semantic to the IR").
-- **`cog` is inside the dev shell**: `nix develop` provides `cog` (cocogitto). If `cog` isn't found, you're outside the shell — re-enter `nix develop` before committing. Do not preemptively fall back to `git commit -m`; use it only when cog is genuinely blocked (e.g., the linked-worktree `.git` quirk for cross-worktree commits).
-- **Workspace-wide cargo commands need the dev shell (ALSA)**: `animatix-gui` pulls `rodio` → `cpal` → `alsa-sys`, whose build script probes the system for ALSA through `pkg-config`. Outside `nix develop`, any `--workspace` cargo command dies inside that dependency — `The system library 'alsa' required by crate 'alsa-sys' was not found … PKG_CONFIG_PATH … alsa.pc` — and `cargo check --workspace --all-targets` reports a build failure before it ever looks at this repo's code. It is a missing system library, not a code fault: enter `nix develop` instead of editing `Cargo.toml`, gating the crate behind a feature, or setting `PKG_CONFIG_PATH` by hand. Note the asymmetry — commands scoped to a crate that does not reach the GUI (e.g. `cargo test -p animatix-web`) build and pass outside the shell, so a green single-crate run is not evidence the workspace checks will pass.
-- **"Hidden by default" is position-dependent and invisible at the declaration site**: an actor declared **before the first keyframe** with no explicit `opacity` is seeded `opacity: 0` and stays invisible until an entrance action (`fade-in`, `wipe-in`, `draw-in`, `reveal-in`) or an explicit `opacity` assignment reveals it. One declared *inside* a keyframe is visible immediately. Nothing at the declaration hints at this, so it produces two failure modes: source that looks complete while rendering nothing, and a pixel / `debug_readback` measurement taken before the entrance runs that silently measures an empty stage. Before trusting any render measurement, confirm the actor is actually on screen at the time you sample: run `animatix check <file>` (a `never-revealed` warning means no entrance ever lifts it) and sample at or after the reveal. Related rule, same file: an actor with an *explicit* `opacity: 0` is a seed that any entrance lifts to 1.0, while any other authored opacity is what the entrance settles on — see `docs/history.md` ("Entrance opacity and declared duration").
-- **Layering is one-way**: `animatix-render` depends on `animatix`, never the reverse. The seam is the `FilterBackend` trait in `animatix::timeline`; the engine's renderer module holds only frame vocabulary (`error`, `types`, `text`). The engine's `animatix-render` dependency is a **dev-dependency for the export-path examples** — do not use `animatix-render` types inside engine unit tests, because Cargo then builds `animatix` twice (test-mode and normal) and the types stop unifying.
+- **GUI/tooling drift**: `cargo check -p animatix` does not compile the GUI, analyzer, or LSP; use `cargo check --workspace --all-targets`.
+- **Timeline data is ECS data**: per-entity state belongs in a `World` component store keyed by `EntityId` — never a new label-keyed `Timeline` map or aggregate per-actor struct. `ActorCaps`/`BehaviorId` are stored components and dispatch goes through `BehaviorDef` family systems. `docs/ecs.md` is normative: follow its "Adding a Component" checklist, update snapshot helpers in the same change, route writes through `Timeline`/`EntityMut` so the frame cache is invalidated, and never reintroduce a string-keyed frame-path fallback.
+- **Follow the file-size ratchet**: `scripts/ci.sh gate file-size` enforces `docs/ecs.md` §8 against `scripts/file-size-allowlist.tsv` and `scripts/file-size-watch.tsv`. Split the file, delete its row; never raise or add one.
+- **Evaluation paths**: build-time expressions (`evaluate_expr`) and frame-time modifier/plot closures both use the unified IR VM (`compile_expr` → `evaluate_compiled_expr`, leaves shared via `eval_shared`). A new expression *semantic* follows the checklist in `docs/contributing.md`.
+- **`cog` is inside the dev shell**: if `cog` is missing, re-enter `nix develop` instead of preemptively using `git commit -m` (the linked-worktree `.git` quirk is the one genuine exception).
+- **Workspace-wide cargo needs the dev shell (ALSA)**: `animatix-gui` → `rodio` → `cpal` → `alsa-sys` probes ALSA via `pkg-config`; outside `nix develop` any `--workspace` command dies there. It is a missing system library, not a code fault — do not edit `Cargo.toml` or set `PKG_CONFIG_PATH`. A GUI-free single-crate run passing is not workspace evidence.
+- **"Hidden by default" is position-dependent**: an actor declared **before the first keyframe** with no explicit `opacity` is seeded `opacity: 0` until an entrance (`fade-in`, `wipe-in`, `draw-in`, `reveal-in`) or explicit `opacity` reveals it; one declared *inside* a keyframe is visible at once. A pixel/`debug_readback` sample taken before the entrance measures an empty stage: run `animatix check` (a `never-revealed` warning means nothing lifts it) and sample at/after the reveal. An explicit `opacity: 0` is a seed any entrance lifts to 1.0; other authored opacities are where it settles. See `docs/history/2026-09.md` ("Entrance opacity and declared duration").
+- **Layering is one-way**: `animatix-render` depends on `animatix`, never the reverse. The seam is `FilterBackend` in `animatix::timeline`; the engine's renderer module holds only frame vocabulary. `animatix-render` is a **dev-dependency** for export-path examples — do not use its types in engine unit tests, or Cargo builds the engine twice and the types stop unifying.
 
-## Optional Features
+## Optional Features: Video Export
 
-### Video Export
+> **Build/test `video` inside `nix develop`.** The flake's `bindgenHook` regenerates the `rsmpeg`/`rusty_ffmpeg` bindings from the dev shell's FFmpeg headers. Outside it, `pkg-config` cannot find FFmpeg and a stale prebuilt `binding.rs` is used — an `rsmpeg` "field vs. accessor" error usually means you are outside the shell, not a version bug.
 
-> **Always build/test the `video` feature inside `nix develop`.** The flake's
-> `rustPlatform.bindgenHook` regenerates the `rsmpeg`/`rusty_ffmpeg` bindings
-> from the FFmpeg headers provided by the dev shell, so the build works even
-> though the pinned `rsmpeg` version's tag (`ffmpeg.8.0`) lags the FFmpeg
-> nixpkgs ships (8.1). Running any `--features video` cargo command **outside**
-> `nix develop` fails: `pkg-config` can't find FFmpeg and a stale prebuilt
-> `binding.rs` is used instead. If you hit an `rsmpeg`/FFmpeg "field vs.
-> accessor method" error, you are almost certainly outside the nix shell — not
-> looking at a real version-incompatibility bug.
-
-To enable video export, enter the dev shell first, then build with the `video` feature:
 ```bash
-nix develop                          # provides FFmpeg + pkg-config + bindgenHook
+nix develop                       # FFmpeg + pkg-config + bindgenHook
 cargo build -p animatix-cli --features video
-cargo build -p animatix-gui --features video
+cargo build -p animatix-gui --features video   # GUI has no video by default
 ```
 
-The FFmpeg code lives in `animatix-render`, so both `video` features forward to
-`animatix-render/video`; the engine itself has no `video` feature.
-(Non-Nix users: install FFmpeg system libraries + `pkg-config`, then build the
-same two targets with `--features video`.)
-
-To build the engine without video:
-```bash
-cargo build -p animatix
-```
-
-Rendering, text, and SVG are **not** feature-gated: the engine's build/evaluate
-paths and the `FilterBackend` seam need `vello`/`wgpu`/`typst`/`usvg`
-unconditionally, so those three features were removed rather than left as
-switches no supported build could turn off. The real feature switches are
-`perf-tracing` (default-on), `serde`, `plugin-loading`, and `video` on the
-CLI/GUI (which forwards to `animatix-render/video`).
-
-Without FFmpeg, the default build includes rendering, text, SVG support, and single-frame raster export (PNG/WebP), but not video/GIF export. Only the FFmpeg-dependent formats (MP4/WebM/MOV/GIF) require the `video` feature.
-
-The GUI crate (`animatix-gui`) does **not** include `video` by default, so `cargo test -p animatix-gui` runs without FFmpeg. To opt into video export:
-
-```bash
-# Build/test the GUI without FFmpeg (default — no video/GIF export)
-cargo build -p animatix-gui
-cargo test -p animatix-gui
-
-# Build/test the GUI with video export (run inside `nix develop`)
-cargo build -p animatix-gui --features video
-cargo check -p animatix-gui --features video
-```
-
-Without the `video` feature, PNG and WebP export work normally. The export dialog will only show a "requires the 'video' feature (FFmpeg)" message when attempting an FFmpeg-dependent format (MP4/WebM/MOV/GIF).
+Both features forward to `animatix-render/video`; the engine has none. Rendering, text, and SVG are **not** feature-gated; the real switches are `perf-tracing` (default-on), `serde`, `plugin-loading`, and `video` on CLI/GUI. Without FFmpeg, PNG/WebP still export; MP4/WebM/MOV/GIF require `video`.
 
 ## Adding or Changing a Property
 
-`animatix-core::property::PROPERTY_DESCRIPTORS` is the single declaration of the
-built-in property list (name, `Applicable` predicate, value kind). Two
-derivations must follow, and tests fail the build if they don't line up:
+`animatix-core::property::PROPERTY_DESCRIPTORS` is the single declaration (name, `Applicable`, value kind). Three things must line up, or tests fail:
 
-1. `animatix-syntax::schema::raw_property_types()` — the type-system view, index
-   aligned with the descriptor rows (`property_types_line_up_with_descriptors`).
-2. `animatix::timeline::property_registry::BINDINGS` — the engine binding
-   (plan-slot `ValueType`, flags, storage field, default, read source), joined
-   into `PROPERTY_REGISTRY` by name (`every_binding_has_a_descriptor`,
-   `value_kinds_agree_with_descriptors`). A descriptor with no binding must be
-   listed in `UNBOUND_DESCRIPTORS` with a reason.
+1. `animatix-syntax::schema::raw_property_types()` — the type-system view, index-aligned (`property_types_line_up_with_descriptors`).
+2. `animatix::timeline::property_registry::BINDINGS` — engine binding (plan-slot `ValueType`, flags, storage field, default, read source), joined into `PROPERTY_REGISTRY` by name (`every_binding_has_a_descriptor`, `value_kinds_agree_with_descriptors`); an unbound descriptor must appear in `UNBOUND_DESCRIPTORS` with a reason.
+3. The frame-time read path and its `ANIMATED` flag (`frame_consumed_properties_are_flagged_animated`).
 
-`PropertyId` is the descriptor row index and serialized plans store it: **append
-rows, never reorder or remove** (`property_id_order_is_pinned` pins the count
-and sentinel ids).
+`PropertyId` is the descriptor row index and serialized plans store it: **append rows, never reorder or remove** (`property_id_order_is_pinned`).
 
 ## Code Rules
 
-- Every `#[allow(dead_code)]` must have an inline justification comment explaining why the item is intentionally unused (e.g., `// Reserved for future X integration`). `#[allow(dead_code)]` without a comment is not allowed in committed code.
-- Remove truly dead code instead of marking it dead, unless there is a concrete forward-looking reason to keep it.
-- Never commit with `cargo check --workspace` errors. If a crate has pre-existing errors unrelated to your changes, document them in a comment in your commit message.
-- **`#[allow(unreachable_code)]` is banned.** It only ever appears when an early `return` made the rest of a function dead — which means the change disabled a code path rather than adding to it. Remove the early return or delete the dead path. (A committed debug experiment once left the whole multithreaded export loop unreachable behind this attribute; see `docs/history.md`, "Debug scaffolding that shipped as behaviour".)
-
-### Commit-Time Guards Beyond `cargo test`
-- **Hot-path changes need a benchmark.** Anything touching the per-frame render, scene-evaluation, or export loops must ship with the result of `scripts/perf-bench.sh compare` in the commit message. A committed investigation probe once added an unconditional full-canvas GPU readback to every filter scope, every frame; no test and no lint could see it, and the perf harness was not part of the checklist.
-- **Debug instrumentation is additive or it does not land.** Probes must be env-gated (`ANIMATIX_DUMP_STAGES`, `ANIMATIX_DUMP_FRAMES`, `ANIMATIX_PROBE`) and must never change what the default build renders, encodes, or how many threads it uses. If a probe needs a behavioural change to reach the bug, make that change a separate commit with its own justification.
-  Gating the *output* is not enough — the measurement has to be conditional too. `std::time::Instant::now()` traps on `wasm32-unknown-unknown` ("time not implemented on this platform"), so a probe that starts its clock unconditionally panics the web player: an `ANIMATIX_FILTER_TIMING` timer on the filter-scope path once killed every `Filter`/`Mask`/`Glass` figure in the browser while looking entirely correct on the desktop. Use `filter_backend::timing_probe()` there, and treat any new `Instant::now()` in a crate the wasm build reaches (`animatix-render`, the engine) as a bug in the same way.
-- **Pinned dependencies carry their reason.** Every git/rev pin in a `Cargo.toml` needs a comment naming what the pin protects against and what would lift it (see the `vello` pin), plus a test at the dependency boundary where one is feasible (`crates/animatix-render/tests/vello_img_probe.rs`).
+- Every `#[allow(dead_code)]` needs an inline justification; remove truly dead code unless a concrete forward-looking reason exists.
+- Never commit with `cargo check --workspace` errors; document pre-existing unrelated errors in the commit message.
+- **`#[allow(unreachable_code)]` is banned.** It only appears when an early `return` made the rest dead — remove the return or delete the dead path. (A debug experiment once left the export loop unreachable; see `docs/history/2026-09.md`, "Debug scaffolding that shipped as behaviour".)
+- **Hot-path changes need a benchmark.** Per-frame render, scene-evaluation, or export-loop changes ship with `scripts/perf-bench.sh compare` output in the commit message.
+- **Debug instrumentation is additive or it does not land.** Probes must be env-gated (`ANIMATIX_DUMP_STAGES`, `ANIMATIX_DUMP_FRAMES`, `ANIMATIX_PROBE`) and must never change what the default build renders/encodes or how many threads it uses. Gating output is not enough: `std::time::Instant::now()` traps on `wasm32-unknown-unknown`, so an unconditional timer panics the web player — use `filter_backend::timing_probe()` and treat a new `Instant::now()` in a wasm-reachable crate as a bug.
+- **Pinned dependencies carry their reason.** Every git/rev pin names what it protects against and what would lift it (see the `vello` pin), plus a boundary test where feasible (`crates/animatix-render/tests/vello_img_probe.rs`).
 
 ### Never Silently Drop Values
-- All property value drops must be logged with `tracing::warn!` or documented with a comment explaining why the drop is intentional.
-- All expression drops must be logged with `tracing::debug!` or documented.
-- Use evaluation helpers (`evaluate_expr`, `evaluate_expr_with_lookup_diagnostic`) instead of direct `Expr` matching where possible.
-- When a property receives an unrecognized or wrong-type value, log it before skipping:
+
+- Property value drops log `tracing::warn!` or a comment; expression drops log `tracing::debug!` or a comment.
+- Prefer `evaluate_expr` / `evaluate_expr_with_lookup_diagnostic` over matching `Expr` directly.
+- Log an unrecognized or wrong-type value before skipping it, then keep the diagnostic path intact:
+
   ```rust
   match evaluate_expr_with_lookup_diagnostic(&prop.value, env, diagnostics, &subject) {
       Some(Value::Vec2([min, max])) => x_domain = [min, max],
@@ -253,11 +93,11 @@ and sentinel ids).
       None => {} // eval error already reported as a diagnostic
   }
   ```
-- Intentional catch-all arms (`_ => {}`) must carry a comment, e.g.
-  `_ => {} // Non-plot properties are handled by the general actor pipeline.`
+
+- Intentional catch-all arms carry a comment, e.g. `_ => {} // Non-plot properties are handled by the general actor pipeline.`
 
 ## Code Style
 
-- Runtime paths return `Result`; `RenderError` lives in `animatix-core` and is re-exported as `animatix::renderer::error`.
+- Runtime paths return `Result`; `RenderError` lives in `animatix-core`, re-exported as `animatix::renderer::error`.
 - Test code may use `.unwrap()` / `.expect()`.
 - Use `tracing` (`info!`, `debug!`, `warn!`, `error!`), not `println!`.
