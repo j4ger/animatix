@@ -2,10 +2,13 @@
 //!
 //! This module defines:
 //! - [`ExportError`] — unified error type for all export paths
-//! - [`ExportSettings`], [`MaxRenderThreads`], [`VideoCodec`], [`H264Preset`] — configuration
+//! - [`ExportOptions`], [`ExportSettings`], [`MaxRenderThreads`], [`VideoCodec`],
+//!   [`H264Preset`] — configuration, progress and cancellation
 //! - `mux_audio_segments` — ffmpeg CLI-based audio integration
 //!
 //! Sub-modules contain the actual encoding implementations for each format.
+//! Each format exposes one `*_with_options` entry point per target shape plus a
+//! convenience wrapper that defaults the debug options and [`ExportOptions`].
 
 #[cfg(feature = "video")]
 pub mod gif;
@@ -18,14 +21,12 @@ pub mod video;
 
 #[cfg(feature = "video")]
 pub use gif::{
-    render_gif_composition, render_gif_composition_with_progress,
-    render_gif_composition_with_settings, render_gif_timeline, render_gif_timeline_with_debug,
-    render_gif_timeline_with_progress, render_gif_timeline_with_settings,
+    render_gif_composition, render_gif_composition_with_options, render_gif_timeline,
+    render_gif_timeline_with_options,
 };
 #[cfg(feature = "raster-encode")]
 pub use image::{
-    render_image, render_image_composition, render_image_timeline,
-    render_image_timeline_with_debug, render_image_timeline_with_progress,
+    render_image_composition, render_image_timeline, render_image_timeline_with_options,
 };
 #[cfg(feature = "raster-encode")]
 pub use storyboard::{
@@ -33,12 +34,13 @@ pub use storyboard::{
 };
 
 #[cfg(feature = "video")]
-pub use self::video::{
-    render_video, render_video_composition, render_video_composition_with_progress,
-    render_video_composition_with_settings, render_video_timeline,
-    render_video_timeline_with_debug, render_video_timeline_with_progress,
-    render_video_timeline_with_settings,
+pub use video::{
+    render_video_composition, render_video_composition_with_options, render_video_timeline,
+    render_video_timeline_with_options,
 };
+
+use std::sync::atomic::{AtomicBool, AtomicU32};
+
 // ---------------------------------------------------------------------------
 // Error types
 // ---------------------------------------------------------------------------
@@ -163,6 +165,31 @@ impl Default for ExportSettings {
             max_render_threads: MaxRenderThreads::Auto,
             video_codec: VideoCodec::Auto,
             h264_preset: H264Preset::Medium,
+        }
+    }
+}
+
+/// Everything an export needs besides the source, geometry and output path.
+///
+/// `progress` and `cancel` are borrowed from the caller's worker state: the GUI
+/// shares them with the UI thread, the CLI passes `None`. `None` means the
+/// export does not observe that channel, not that a default one is created.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ExportOptions<'a> {
+    /// Encoder and thread configuration.
+    pub settings: ExportSettings,
+    /// Number of frames completed so far, updated by the render threads.
+    pub progress: Option<&'a AtomicU32>,
+    /// Set by the caller to stop the export; the frame loop checks it per frame.
+    pub cancel: Option<&'a AtomicBool>,
+}
+
+impl<'a> ExportOptions<'a> {
+    /// Options for a settings-only export (no progress or cancellation).
+    pub fn with_settings(settings: ExportSettings) -> Self {
+        Self {
+            settings,
+            ..Self::default()
         }
     }
 }

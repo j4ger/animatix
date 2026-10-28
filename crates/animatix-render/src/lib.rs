@@ -18,5 +18,3 @@ pub mod offscreen;
 pub mod render_pipeline;
 pub mod testing;
 pub mod transition;
-#[cfg(feature = "video")]
-pub mod video;

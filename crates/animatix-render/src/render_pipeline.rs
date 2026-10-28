@@ -167,8 +167,9 @@ where
 /// single `Timeline`. At each global time step, resolves the active scene and
 /// its local time, then renders that scene's timeline.
 ///
-/// In Phase 1 (hard cuts only), a single scene is rendered per frame. Transition
-/// blending (two-scene composite) will be added in Phase 7.
+/// While a transition is active the frame is a composite of the outgoing and
+/// incoming scenes (`begin_transition`), the same blend the interactive
+/// preview shows.
 pub fn render_frames_streaming_composition<F>(
     composition: &Composition,
     width: u32,
@@ -241,7 +242,7 @@ where
                 let (scene_name, local_time_s, transition_blend) =
                     composition.evaluate(global_time);
                 if let Some(blend) = transition_blend {
-                    // Phase 7: transition blending — composite two scenes
+                    // Transition: render both scenes and blend them.
                     let from_scene =
                         composition.scenes.get(&blend.from_scene).ok_or_else(|| {
                             ExportError::FrameRender {

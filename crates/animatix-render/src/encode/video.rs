@@ -1,15 +1,12 @@
-//! Video encoding (MP4/H.264) export.
+//! Video encoding (MP4/H.264, WebM/VP9) export.
 //!
 //! Provides:
 //! - Encoder auto-detection (HW/SW)
 //! - Adaptive thread count computation
 //! - Single-timeline and multi-scene composition video encoding
-//! - Public wrapper functions with varying levels of control
 
 use std::ffi::CString;
-use std::sync::atomic::{AtomicBool, AtomicU32};
 
-use animatix::ast::Stmt;
 use animatix::composition::Composition;
 use animatix::timeline::{AudioSegment, DebugRenderOptions, Timeline};
 use rsmpeg::avcodec::{AVCodec, AVCodecContext};
@@ -19,7 +16,7 @@ use rsmpeg::error::RsmpegError;
 use rsmpeg::swscale::SwsContext;
 use tracing::info;
 
-use crate::encode::{ExportError, ExportSettings, VideoCodec, mux_audio_segments};
+use crate::encode::{ExportError, ExportOptions, ExportSettings, VideoCodec, mux_audio_segments};
 use crate::render_pipeline::{
     fill_rgba_frame, render_frames_streaming, render_frames_streaming_composition,
 };
@@ -28,30 +25,8 @@ use crate::render_pipeline::{
 // Public API: single-timeline video
 // ---------------------------------------------------------------------------
 
-/// Render AST statements directly to an MP4 video file.
-pub fn render_video(
-    ast: &[Stmt],
-    width: u32,
-    height: u32,
-    fps: u32,
-    duration: f32,
-    output_file: &std::path::Path,
-) -> Result<(), ExportError> {
-    pollster::block_on(render_video_async(
-        Timeline::build(ast),
-        width,
-        height,
-        fps,
-        duration,
-        output_file,
-        DebugRenderOptions::default(),
-        ExportSettings::default(),
-        None,
-        None,
-    ))
-}
-
-/// Render a single timeline to an MP4 video file.
+/// Render a single timeline to an MP4 video file with default debug options and
+/// export settings.
 pub fn render_video_timeline(
     timeline: Timeline,
     width: u32,
@@ -60,7 +35,7 @@ pub fn render_video_timeline(
     duration: f32,
     output_file: &std::path::Path,
 ) -> Result<(), ExportError> {
-    render_video_timeline_with_debug(
+    render_video_timeline_with_options(
         timeline,
         width,
         height,
@@ -68,11 +43,12 @@ pub fn render_video_timeline(
         duration,
         output_file,
         DebugRenderOptions::default(),
+        ExportOptions::default(),
     )
 }
 
-/// Render a single timeline to an MP4 video file with debug options.
-pub fn render_video_timeline_with_debug(
+/// Render a single timeline to an MP4 video file.
+pub fn render_video_timeline_with_options(
     timeline: Timeline,
     width: u32,
     height: u32,
@@ -80,81 +56,134 @@ pub fn render_video_timeline_with_debug(
     duration: f32,
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
+    options: ExportOptions<'_>,
 ) -> Result<(), ExportError> {
-    pollster::block_on(render_video_async(
-        timeline,
-        width,
-        height,
-        fps,
-        duration,
-        output_file,
-        debug_options,
-        ExportSettings::default(),
-        None,
-        None,
-    ))
-}
-
-/// Render a single timeline to an MP4 video file with debug options and export settings.
-pub fn render_video_timeline_with_settings(
-    timeline: Timeline,
-    width: u32,
-    height: u32,
-    fps: u32,
-    duration: f32,
-    output_file: &std::path::Path,
-    debug_options: DebugRenderOptions,
-    settings: ExportSettings,
-) -> Result<(), ExportError> {
-    pollster::block_on(render_video_async(
-        timeline,
-        width,
-        height,
-        fps,
-        duration,
-        output_file,
-        debug_options,
-        settings,
-        None,
-        None,
-    ))
-}
-
-/// Render a single timeline to an MP4 video file with full control: debug options,
-/// export settings, progress tracking, and cancellation.
-pub fn render_video_timeline_with_progress(
-    timeline: Timeline,
-    width: u32,
-    height: u32,
-    fps: u32,
-    duration: f32,
-    output_file: &std::path::Path,
-    debug_options: DebugRenderOptions,
-    settings: ExportSettings,
-    progress: Option<&AtomicU32>,
-    cancel: Option<&AtomicBool>,
-) -> Result<(), ExportError> {
-    pollster::block_on(render_video_async(
-        timeline,
-        width,
-        height,
-        fps,
-        duration,
-        output_file,
-        debug_options,
+    let ExportOptions {
         settings,
         progress,
         cancel,
-    ))
+    } = options;
+    let total_frames = (duration * fps as f32).ceil() as u32;
+    info!("Encoding {} frames to video...", total_frames);
+
+    let mut encoder = setup_video_encoder(output_file, width, height, fps, &settings)?;
+
+    let num_threads =
+        adaptive_thread_count(width, height, total_frames, false, encoder.is_hw_encoder, &settings);
+    info!("Using {num_threads} render thread(s) (adaptive).");
+
+    render_frames_streaming(
+        &timeline,
+        width,
+        height,
+        fps,
+        total_frames,
+        num_threads,
+        debug_options,
+        progress,
+        cancel,
+        |frame, scene_frame| encoder.push_frame(frame, total_frames, width, height, scene_frame),
+    )?;
+
+    encoder.finish()?;
+    mux_audio_if_present(timeline.audio_segments(), output_file)?;
+
+    info!("Render complete!");
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
-// Shared encoder setup helper
+// Multi-scene composition video
+// ---------------------------------------------------------------------------
+
+/// Render a multi-scene composition to an MP4 video file with default debug
+/// options and export settings.
+pub fn render_video_composition(
+    composition: &Composition,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+) -> Result<(), ExportError> {
+    render_video_composition_with_options(
+        composition,
+        width,
+        height,
+        fps,
+        duration,
+        output_file,
+        DebugRenderOptions::default(),
+        ExportOptions::default(),
+    )
+}
+
+/// Render a multi-scene composition to an MP4 video file.
+pub fn render_video_composition_with_options(
+    composition: &Composition,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
+    options: ExportOptions<'_>,
+) -> Result<(), ExportError> {
+    let ExportOptions {
+        settings,
+        progress,
+        cancel,
+    } = options;
+    let total_frames = (duration * fps as f32).ceil() as u32;
+    info!("Encoding {} frames to video...", total_frames);
+
+    let mut encoder = setup_video_encoder(output_file, width, height, fps, &settings)?;
+
+    let num_threads =
+        adaptive_thread_count(width, height, total_frames, false, encoder.is_hw_encoder, &settings);
+    info!("Using {num_threads} render thread(s) (adaptive).");
+
+    render_frames_streaming_composition(
+        composition,
+        width,
+        height,
+        fps,
+        total_frames,
+        num_threads,
+        debug_options,
+        progress,
+        cancel,
+        |frame, scene_frame| encoder.push_frame(frame, total_frames, width, height, scene_frame),
+    )?;
+
+    encoder.finish()?;
+
+    // Mux audio segments from all scenes in the composition, offset by scene start times
+    let audio_segments: Vec<AudioSegment> = composition
+        .scenes
+        .iter()
+        .flat_map(|(name, s)| {
+            let start_offset = composition.scene_start_times.get(name).copied().unwrap_or(0.0);
+            let mut segments: Vec<AudioSegment> = s.timeline.audio_segments().to_vec();
+            for seg in &mut segments {
+                seg.start_time_s += start_offset;
+            }
+            segments
+        })
+        .collect();
+    mux_audio_if_present(&audio_segments, output_file)?;
+
+    info!("Render complete!");
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Shared encoder setup
 // ---------------------------------------------------------------------------
 
 /// Result of video encoder initialization.
 /// Caller owns these fields for the frame encoding loop.
-struct VideoEncoderParts {
+struct VideoEncoder {
     format_context: AVFormatContextOutput,
     encode_context: AVCodecContext,
     sws_context: SwsContext,
@@ -165,14 +194,24 @@ struct VideoEncoderParts {
 }
 
 /// Initialize the video encoder, format context, and color converter.
-/// Returns the parts needed for frame encoding.
 fn setup_video_encoder(
     output_file: &std::path::Path,
     width: u32,
     height: u32,
     fps: u32,
     settings: &ExportSettings,
-) -> Result<VideoEncoderParts, ExportError> {
+) -> Result<VideoEncoder, ExportError> {
+    // WebM needs VP9; `Auto` means the portable H.264 default for everything else.
+    let is_webm = output_file.extension().map(|e| e == "webm").unwrap_or(false);
+    let settings = if is_webm && matches!(settings.video_codec, VideoCodec::Auto) {
+        ExportSettings {
+            video_codec: VideoCodec::Vp9,
+            ..*settings
+        }
+    } else {
+        *settings
+    };
+
     let filename = CString::new(
         output_file
             .to_str()
@@ -181,7 +220,7 @@ fn setup_video_encoder(
     let mut format_context = AVFormatContextOutput::create(&filename)
         .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
 
-    let (encoder, is_hw_encoder) = select_video_encoder(settings)?;
+    let (encoder, is_hw_encoder) = select_video_encoder(&settings)?;
     let mut encode_context = AVCodecContext::new(&encoder);
 
     encode_context.set_width(width as i32);
@@ -251,7 +290,7 @@ fn setup_video_encoder(
         .alloc_buffer()
         .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
 
-    Ok(VideoEncoderParts {
+    Ok(VideoEncoder {
         format_context,
         encode_context,
         sws_context,
@@ -262,33 +301,76 @@ fn setup_video_encoder(
     })
 }
 
-/// Drain pending packets and write trailer.
-fn finish_video_encoder(
-    encode_context: &mut AVCodecContext,
-    format_context: &mut AVFormatContextOutput,
-    stream_time_base: AVRational,
-    stream_index: i32,
-) -> Result<(), ExportError> {
-    encode_context
-        .send_frame(None)
-        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-    loop {
-        match encode_context.receive_packet() {
-            Ok(mut packet) => {
-                packet.rescale_ts(encode_context.time_base, stream_time_base);
-                packet.set_stream_index(stream_index);
-                format_context
-                    .interleaved_write_frame(&mut packet)
-                    .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-            },
-            Err(RsmpegError::EncoderDrainError) | Err(RsmpegError::EncoderFlushedError) => break,
-            Err(e) => return Err(ExportError::VideoEncode(format!("{e:?}"))),
+impl VideoEncoder {
+    /// Convert one rendered RGBA frame, encode it, and write every packet the
+    /// encoder has ready.
+    fn push_frame(
+        &mut self,
+        frame: usize,
+        total_frames: u32,
+        width: u32,
+        height: u32,
+        scene_frame: crate::offscreen::RenderedFrame,
+    ) -> Result<(), ExportError> {
+        let mut rgba_frame = AVFrame::new();
+        fill_rgba_frame(&mut rgba_frame, &scene_frame.rgba, width as i32, height as i32)
+            .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+
+        self.sws_context
+            .scale_frame(&rgba_frame, 0, height as i32, &mut self.yuv_frame)
+            .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+        self.yuv_frame.set_pts(frame as i64);
+
+        self.encode_context
+            .send_frame(Some(&self.yuv_frame))
+            .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+        loop {
+            match self.encode_context.receive_packet() {
+                Ok(mut packet) => {
+                    packet.rescale_ts(self.encode_context.time_base, self.stream_time_base);
+                    packet.set_stream_index(self.stream_index);
+                    self.format_context
+                        .interleaved_write_frame(&mut packet)
+                        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+                },
+                Err(RsmpegError::EncoderDrainError) | Err(RsmpegError::EncoderFlushedError) => {
+                    break;
+                },
+                Err(e) => return Err(ExportError::VideoEncode(format!("{e:?}"))),
+            }
         }
+
+        use std::io::Write;
+        print!("\rEncoding frame {}/{}", frame + 1, total_frames);
+        std::io::stdout().flush()?;
+        Ok(())
     }
-    format_context
-        .write_trailer()
-        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-    Ok(())
+
+    /// Drain pending packets and write the trailer.
+    fn finish(&mut self) -> Result<(), ExportError> {
+        self.encode_context
+            .send_frame(None)
+            .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+        loop {
+            match self.encode_context.receive_packet() {
+                Ok(mut packet) => {
+                    packet.rescale_ts(self.encode_context.time_base, self.stream_time_base);
+                    packet.set_stream_index(self.stream_index);
+                    self.format_context
+                        .interleaved_write_frame(&mut packet)
+                        .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+                },
+                Err(RsmpegError::EncoderDrainError) | Err(RsmpegError::EncoderFlushedError) => {
+                    break;
+                },
+                Err(e) => return Err(ExportError::VideoEncode(format!("{e:?}"))),
+            }
+        }
+        self.format_context
+            .write_trailer()
+            .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
+        Ok(())
+    }
 }
 
 /// Collect audio segments and mux into the output file.
@@ -300,291 +382,6 @@ fn mux_audio_if_present(
         super::require_ffmpeg()?;
         mux_audio_segments(output_file, audio_segments, output_file)?;
     }
-    Ok(())
-}
-
-// ---------------------------------------------------------------------------
-// Internal async video encoder
-// ---------------------------------------------------------------------------
-
-pub(super) async fn render_video_async(
-    timeline: Timeline,
-    width: u32,
-    height: u32,
-    fps: u32,
-    duration: f32,
-    output_file: &std::path::Path,
-    debug_options: DebugRenderOptions,
-    settings: ExportSettings,
-    progress: Option<&AtomicU32>,
-    cancel: Option<&AtomicBool>,
-) -> Result<(), ExportError> {
-    let total_frames = (duration * fps as f32).ceil() as u32;
-    info!("Encoding {} frames to video...", total_frames);
-
-    // Auto-detect WebM and select VP9 encoder
-    let is_webm = output_file.extension().map(|e| e == "webm").unwrap_or(false);
-    let settings = if is_webm && matches!(settings.video_codec, VideoCodec::Auto) {
-        ExportSettings {
-            video_codec: VideoCodec::Vp9,
-            ..settings
-        }
-    } else {
-        settings
-    };
-
-    let VideoEncoderParts {
-        mut format_context,
-        mut encode_context,
-        mut sws_context,
-        mut yuv_frame,
-        stream_index,
-        stream_time_base,
-        is_hw_encoder,
-    } = setup_video_encoder(output_file, width, height, fps, &settings)?;
-
-    // ------------------------------------------------------------------------
-    // 2. Parallel frame rendering with streaming to encoder
-    // ------------------------------------------------------------------------
-    let num_threads =
-        adaptive_thread_count(width, height, total_frames, false, is_hw_encoder, &settings);
-    info!("Using {num_threads} render thread(s) (adaptive).");
-
-    render_frames_streaming(
-        &timeline,
-        width,
-        height,
-        fps,
-        total_frames,
-        num_threads,
-        debug_options,
-        progress,
-        cancel,
-        |frame, scene_frame| {
-            let mut rgba_frame = AVFrame::new();
-            fill_rgba_frame(&mut rgba_frame, &scene_frame.rgba, width as i32, height as i32)
-                .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-
-            sws_context
-                .scale_frame(&rgba_frame, 0, height as i32, &mut yuv_frame)
-                .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-            yuv_frame.set_pts(frame as i64);
-
-            encode_context
-                .send_frame(Some(&yuv_frame))
-                .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-            loop {
-                match encode_context.receive_packet() {
-                    Ok(mut packet) => {
-                        packet.rescale_ts(encode_context.time_base, stream_time_base);
-                        packet.set_stream_index(stream_index);
-                        format_context
-                            .interleaved_write_frame(&mut packet)
-                            .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-                    },
-                    Err(RsmpegError::EncoderDrainError) | Err(RsmpegError::EncoderFlushedError) => {
-                        break;
-                    },
-                    Err(e) => return Err(ExportError::VideoEncode(format!("{e:?}"))),
-                }
-            }
-
-            use std::io::Write;
-            print!("\rEncoding frame {}/{}", frame + 1, total_frames);
-            std::io::stdout().flush()?;
-            Ok(())
-        },
-    )?;
-
-    finish_video_encoder(&mut encode_context, &mut format_context, stream_time_base, stream_index)?;
-    mux_audio_if_present(timeline.audio_segments(), output_file)?;
-
-    info!("Render complete!");
-    Ok(())
-}
-
-// ---------------------------------------------------------------------------
-// Multi-Scene Composition Video Export
-// ---------------------------------------------------------------------------
-
-/// Render a multi-scene composition to an MP4 video file.
-pub fn render_video_composition(
-    composition: &Composition,
-    width: u32,
-    height: u32,
-    fps: u32,
-    duration: f32,
-    output_file: &std::path::Path,
-) -> Result<(), ExportError> {
-    render_video_composition_with_settings(
-        composition,
-        width,
-        height,
-        fps,
-        duration,
-        output_file,
-        DebugRenderOptions::default(),
-        ExportSettings::default(),
-    )
-}
-
-/// Render a multi-scene composition to an MP4 video file with debug options and export settings.
-pub fn render_video_composition_with_settings(
-    composition: &Composition,
-    width: u32,
-    height: u32,
-    fps: u32,
-    duration: f32,
-    output_file: &std::path::Path,
-    debug_options: DebugRenderOptions,
-    settings: ExportSettings,
-) -> Result<(), ExportError> {
-    pollster::block_on(render_video_composition_async(
-        composition,
-        width,
-        height,
-        fps,
-        duration,
-        output_file,
-        debug_options,
-        settings,
-        None,
-        None,
-    ))
-}
-
-/// Render a multi-scene composition to an MP4 video file with full control: debug options,
-/// export settings, progress tracking, and cancellation.
-pub fn render_video_composition_with_progress(
-    composition: &Composition,
-    width: u32,
-    height: u32,
-    fps: u32,
-    duration: f32,
-    output_file: &std::path::Path,
-    debug_options: DebugRenderOptions,
-    settings: ExportSettings,
-    progress: Option<&AtomicU32>,
-    cancel: Option<&AtomicBool>,
-) -> Result<(), ExportError> {
-    pollster::block_on(render_video_composition_async(
-        composition,
-        width,
-        height,
-        fps,
-        duration,
-        output_file,
-        debug_options,
-        settings,
-        progress,
-        cancel,
-    ))
-}
-
-pub(super) async fn render_video_composition_async(
-    composition: &Composition,
-    width: u32,
-    height: u32,
-    fps: u32,
-    duration: f32,
-    output_file: &std::path::Path,
-    debug_options: DebugRenderOptions,
-    settings: ExportSettings,
-    progress: Option<&AtomicU32>,
-    cancel: Option<&AtomicBool>,
-) -> Result<(), ExportError> {
-    let total_frames = (duration * fps as f32).ceil() as u32;
-    info!("Encoding {} frames to video...", total_frames);
-
-    // Auto-detect WebM and select VP9 encoder
-    let is_webm = output_file.extension().map(|e| e == "webm").unwrap_or(false);
-    let settings = if is_webm && matches!(settings.video_codec, VideoCodec::Auto) {
-        ExportSettings {
-            video_codec: VideoCodec::Vp9,
-            ..settings
-        }
-    } else {
-        settings
-    };
-
-    let VideoEncoderParts {
-        mut format_context,
-        mut encode_context,
-        mut sws_context,
-        mut yuv_frame,
-        stream_index,
-        stream_time_base,
-        is_hw_encoder,
-    } = setup_video_encoder(output_file, width, height, fps, &settings)?;
-
-    let num_threads =
-        adaptive_thread_count(width, height, total_frames, false, is_hw_encoder, &settings);
-    info!("Using {num_threads} render thread(s) (adaptive).");
-
-    render_frames_streaming_composition(
-        composition,
-        width,
-        height,
-        fps,
-        total_frames,
-        num_threads,
-        debug_options,
-        progress,
-        cancel,
-        |frame, scene_frame| {
-            let mut rgba_frame = AVFrame::new();
-            fill_rgba_frame(&mut rgba_frame, &scene_frame.rgba, width as i32, height as i32)
-                .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-
-            sws_context
-                .scale_frame(&rgba_frame, 0, height as i32, &mut yuv_frame)
-                .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-            yuv_frame.set_pts(frame as i64);
-
-            encode_context
-                .send_frame(Some(&yuv_frame))
-                .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-            loop {
-                match encode_context.receive_packet() {
-                    Ok(mut packet) => {
-                        packet.rescale_ts(encode_context.time_base, stream_time_base);
-                        packet.set_stream_index(stream_index);
-                        format_context
-                            .interleaved_write_frame(&mut packet)
-                            .map_err(|e| ExportError::VideoEncode(format!("{e:?}")))?;
-                    },
-                    Err(RsmpegError::EncoderDrainError) | Err(RsmpegError::EncoderFlushedError) => {
-                        break;
-                    },
-                    Err(e) => return Err(ExportError::VideoEncode(format!("{e:?}"))),
-                }
-            }
-
-            use std::io::Write;
-            print!("\rEncoding frame {}/{}", frame + 1, total_frames);
-            std::io::stdout().flush()?;
-            Ok(())
-        },
-    )?;
-
-    finish_video_encoder(&mut encode_context, &mut format_context, stream_time_base, stream_index)?;
-
-    // Mux audio segments from all scenes in the composition, offset by scene start times
-    let audio_segments: Vec<AudioSegment> = composition
-        .scenes
-        .iter()
-        .flat_map(|(name, s)| {
-            let start_offset = composition.scene_start_times.get(name).copied().unwrap_or(0.0);
-            let mut segments: Vec<AudioSegment> = s.timeline.audio_segments().to_vec();
-            for seg in &mut segments {
-                seg.start_time_s += start_offset;
-            }
-            segments
-        })
-        .collect();
-    mux_audio_if_present(&audio_segments, output_file)?;
-
-    info!("Render complete!");
     Ok(())
 }
 

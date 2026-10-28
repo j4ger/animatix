@@ -1,42 +1,21 @@
 //! Image (PNG) single-frame export.
 //!
-//! Provides single-timeline and multi-scene composition image rendering
-//! to PNG files using the `image` crate.
-
-use std::sync::atomic::{AtomicBool, AtomicU32};
+//! Single-timeline and multi-scene composition image rendering to PNG files
+//! using the `image` crate.
 
 use animatix::composition::Composition;
 use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 use tracing::info;
 
-use crate::encode::ExportError;
+use crate::encode::{ExportError, ExportOptions};
 use crate::offscreen::OffscreenRenderer;
 
 // ---------------------------------------------------------------------------
-// Public API: single-timeline image
+// Single-timeline image
 // ---------------------------------------------------------------------------
 
-/// Render AST statements to a single PNG image at the given time.
-pub fn render_image(
-    ast: &[animatix::ast::Stmt],
-    width: u32,
-    height: u32,
-    time: f32,
-    output_file: &std::path::Path,
-) -> Result<(), ExportError> {
-    pollster::block_on(render_image_async(
-        Timeline::build(ast),
-        width,
-        height,
-        time,
-        output_file,
-        DebugRenderOptions::default(),
-        None,
-        None,
-    ))
-}
-
-/// Render a single timeline to a PNG image at the given time.
+/// Render a single timeline to a PNG image at the given time with default debug
+/// options.
 pub fn render_image_timeline(
     timeline: Timeline,
     width: u32,
@@ -44,75 +23,30 @@ pub fn render_image_timeline(
     time: f32,
     output_file: &std::path::Path,
 ) -> Result<(), ExportError> {
-    render_image_timeline_with_debug(
+    render_image_timeline_with_options(
         timeline,
         width,
         height,
         time,
         output_file,
         DebugRenderOptions::default(),
+        ExportOptions::default(),
     )
 }
 
-/// Render a single timeline to a PNG image at the given time with debug options.
-pub fn render_image_timeline_with_debug(
+/// Render a single timeline to a PNG image at the given time.
+pub fn render_image_timeline_with_options(
     timeline: Timeline,
     width: u32,
     height: u32,
     time: f32,
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
+    options: ExportOptions<'_>,
 ) -> Result<(), ExportError> {
-    pollster::block_on(render_image_async(
-        timeline,
-        width,
-        height,
-        time,
-        output_file,
-        debug_options,
-        None,
-        None,
-    ))
-}
-
-/// Render a single timeline to a PNG image at the given time with debug options,
-/// progress tracking, and cancellation.
-pub fn render_image_timeline_with_progress(
-    timeline: Timeline,
-    width: u32,
-    height: u32,
-    time: f32,
-    output_file: &std::path::Path,
-    debug_options: DebugRenderOptions,
-    progress: Option<&AtomicU32>,
-    cancel: Option<&AtomicBool>,
-) -> Result<(), ExportError> {
-    pollster::block_on(render_image_async(
-        timeline,
-        width,
-        height,
-        time,
-        output_file,
-        debug_options,
-        progress,
-        cancel,
-    ))
-}
-
-// ---------------------------------------------------------------------------
-// Internal async image renderer
-// ---------------------------------------------------------------------------
-
-pub(super) async fn render_image_async(
-    timeline: Timeline,
-    width: u32,
-    height: u32,
-    time: f32,
-    output_file: &std::path::Path,
-    debug_options: DebugRenderOptions,
-    _progress: Option<&AtomicU32>,
-    cancel: Option<&AtomicBool>,
-) -> Result<(), ExportError> {
+    // A single frame has no thread configuration to apply and no frames to
+    // count; cancellation is still honoured before the GPU work starts.
+    let ExportOptions { cancel, .. } = options;
     if cancel.is_some_and(|c| c.load(std::sync::atomic::Ordering::Relaxed)) {
         return Err(ExportError::Cancelled);
     }
@@ -148,10 +82,13 @@ pub(super) async fn render_image_async(
 }
 
 // ---------------------------------------------------------------------------
-// Multi-Scene Composition Image Export
+// Multi-scene composition image
 // ---------------------------------------------------------------------------
 
 /// Render a multi-scene composition to a PNG image at the given time.
+///
+/// A composition frame is a single raster with no frames to count, so there is
+/// no progress/cancel variant of this entry point.
 pub fn render_image_composition(
     composition: &Composition,
     width: u32,
@@ -159,32 +96,6 @@ pub fn render_image_composition(
     time: f32,
     output_file: &std::path::Path,
 ) -> Result<(), ExportError> {
-    pollster::block_on(render_image_composition_async(
-        composition,
-        width,
-        height,
-        time,
-        output_file,
-        DebugRenderOptions::default(),
-        None,
-        None,
-    ))
-}
-
-pub(super) async fn render_image_composition_async(
-    composition: &Composition,
-    width: u32,
-    height: u32,
-    time: f32,
-    output_file: &std::path::Path,
-    debug_options: DebugRenderOptions,
-    _progress: Option<&AtomicU32>,
-    cancel: Option<&AtomicBool>,
-) -> Result<(), ExportError> {
-    if cancel.is_some_and(|c| c.load(std::sync::atomic::Ordering::Relaxed)) {
-        return Err(ExportError::Cancelled);
-    }
-
     if !composition.has_scenes() {
         return Err(ExportError::FrameRender {
             frame: 0,
@@ -221,7 +132,7 @@ pub(super) async fn render_image_composition_async(
                     blend.id.clone(),
                     blend.easing,
                     dims,
-                    debug_options,
+                    DebugRenderOptions::default(),
                 )
                 .map_err(|e| ExportError::FrameRender {
                     frame: 0,
@@ -235,7 +146,12 @@ pub(super) async fn render_image_composition_async(
                 })?;
 
             renderer
-                .render_timeline_with_debug(&scene.timeline, local_time_s, dims, debug_options)
+                .render_timeline_with_debug(
+                    &scene.timeline,
+                    local_time_s,
+                    dims,
+                    DebugRenderOptions::default(),
+                )
                 .map_err(|e| ExportError::FrameRender {
                     frame: 0,
                     message: e,

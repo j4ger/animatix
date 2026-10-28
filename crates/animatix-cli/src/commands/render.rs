@@ -29,7 +29,7 @@ pub fn run_image(
         BuildTarget::MultiScene(comp) => {
             export::render_image_composition(comp, width, height, time, &output_file)
         },
-        BuildTarget::SingleScene(timeline) => export::render_image_timeline_with_debug(
+        BuildTarget::SingleScene(timeline) => export::render_image_timeline_with_options(
             timeline.clone(),
             width,
             height,
@@ -40,6 +40,7 @@ pub fn run_image(
                 draw_bounds: debug_bounds,
                 ..Default::default()
             },
+            export::ExportOptions::default(),
         ),
     };
     if let Err(e) = result {
@@ -114,42 +115,36 @@ pub fn run_video(
         effective_duration,
         output_file.display()
     );
+    let debug_options = DebugRenderOptions {
+        compute_hit_regions: false,
+        draw_bounds: debug_bounds,
+        ..Default::default()
+    };
+    let options = export::ExportOptions::with_settings(export::ExportSettings {
+        max_render_threads: threads,
+        video_codec: codec,
+        h264_preset: preset,
+    });
     let result = match &target {
-        BuildTarget::MultiScene(comp) => export::render_video_composition_with_settings(
+        BuildTarget::MultiScene(comp) => export::render_video_composition_with_options(
             comp,
             width,
             height,
             fps,
             effective_duration,
             &output_file,
-            DebugRenderOptions {
-                compute_hit_regions: false,
-                draw_bounds: debug_bounds,
-                ..Default::default()
-            },
-            export::ExportSettings {
-                max_render_threads: threads,
-                video_codec: codec,
-                h264_preset: preset,
-            },
+            debug_options,
+            options,
         ),
-        BuildTarget::SingleScene(timeline) => export::render_video_timeline_with_settings(
+        BuildTarget::SingleScene(timeline) => export::render_video_timeline_with_options(
             timeline.clone(),
             width,
             height,
             fps,
             effective_duration,
             &output_file,
-            DebugRenderOptions {
-                compute_hit_regions: false,
-                draw_bounds: debug_bounds,
-                ..Default::default()
-            },
-            export::ExportSettings {
-                max_render_threads: threads,
-                video_codec: codec,
-                h264_preset: preset,
-            },
+            debug_options,
+            options,
         ),
     };
     if let Err(e) = result {
@@ -217,40 +212,35 @@ pub fn run_gif(
         effective_duration,
         output_file.display()
     );
+    let debug_options = DebugRenderOptions {
+        compute_hit_regions: false,
+        draw_bounds: debug_bounds,
+        ..Default::default()
+    };
+    let options = export::ExportOptions::with_settings(export::ExportSettings {
+        max_render_threads: threads,
+        ..Default::default()
+    });
     let result = match &target {
-        BuildTarget::MultiScene(comp) => export::render_gif_composition_with_settings(
+        BuildTarget::MultiScene(comp) => export::render_gif_composition_with_options(
             comp,
             width,
             height,
             fps,
             effective_duration,
             &output_file,
-            DebugRenderOptions {
-                compute_hit_regions: false,
-                draw_bounds: debug_bounds,
-                ..Default::default()
-            },
-            export::ExportSettings {
-                max_render_threads: threads,
-                ..Default::default()
-            },
+            debug_options,
+            options,
         ),
-        BuildTarget::SingleScene(timeline) => export::render_gif_timeline_with_settings(
+        BuildTarget::SingleScene(timeline) => export::render_gif_timeline_with_options(
             timeline.clone(),
             width,
             height,
             fps,
             effective_duration,
             &output_file,
-            DebugRenderOptions {
-                compute_hit_regions: false,
-                draw_bounds: debug_bounds,
-                ..Default::default()
-            },
-            export::ExportSettings {
-                max_render_threads: threads,
-                ..Default::default()
-            },
+            debug_options,
+            options,
         ),
     };
     if let Err(e) = result {

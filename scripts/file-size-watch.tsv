@@ -16,7 +16,6 @@ crates/animatix-gui/src/app/stores/document_store.rs	660
 crates/animatix-gui/src/app/stores/ui_store.rs	638
 crates/animatix-gui/src/editor.rs	729
 crates/animatix-plugin-demo/src/lib.rs	717
-crates/animatix-render/src/encode/video.rs	686
 crates/animatix/src/composition/tests.rs	1406
 crates/animatix/src/extension_native_plugin/convert.rs	609
 crates/animatix/src/extension_native_plugin/hosts.rs	704
