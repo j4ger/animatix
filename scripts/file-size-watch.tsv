@@ -25,9 +25,7 @@ crates/animatix/src/extension_native_plugin/convert.rs	609
 crates/animatix/src/extension_native_plugin/hosts.rs	704
 crates/animatix/src/timeline/actions/reveal.rs	723
 crates/animatix/src/timeline/build/actor/decl.rs	792
-crates/animatix/src/timeline/build/actor/extensions.rs	649
 crates/animatix/src/timeline/build/plot/bars.rs	718
-crates/animatix/src/timeline/build/plot/mod.rs	723
 crates/animatix/src/timeline/build/process.rs	752
 crates/animatix/src/timeline/builtins.rs	625
 crates/animatix/src/timeline/declarations_text/text_impl.rs	717
