@@ -214,6 +214,9 @@ fn test_write_read_roundtrip_string() {
     assert_eq!(result, Some(PropertyValue::String("Arial".to_string())));
 }
 
+/// The tagged tier is still `legend`'s canonical storage (and the read-only
+/// fallback for persisted files that predate typed fields), so tagged writes
+/// and reads must keep round-tripping.
 #[test]
 fn test_write_read_roundtrip_tagged_bool() {
     let mut timeline = crate::timeline::Timeline::new();
@@ -230,6 +233,35 @@ fn test_write_read_roundtrip_tagged_bool() {
     assert_eq!(
         timeline.world().read_property_value(id, ActorField::Tagged("legend"), 500),
         Some(PropertyValue::Bool(false))
+    );
+}
+
+/// `callout_place` used to be written twice: into the typed geometry track and
+/// into the legacy tagged map. Frame reads only consult the typed track, so the
+/// tagged copy was a second, unread track that could drift.
+#[test]
+fn callout_place_writes_only_the_typed_geometry_track() {
+    let mut timeline = crate::timeline::Timeline::new();
+    let id = timeline.world_mut().spawn("callout", "Callout");
+    let mut diagnostics = Vec::new();
+
+    timeline.world_mut().write_property_field(
+        id,
+        ActorField::Tagged("callout_place"),
+        PropertyValue::Enum("left".to_string()),
+        0,
+        0,
+        Easing::Linear,
+        &mut diagnostics,
+    );
+
+    assert!(
+        timeline.world().tagged_tracks(id).is_empty(),
+        "callout_place must not create a legacy tagged track"
+    );
+    assert_eq!(
+        timeline.world().read_property_value(id, ActorField::CalloutPlace, 0),
+        Some(PropertyValue::Enum("left".to_string()))
     );
 }
 

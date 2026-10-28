@@ -33,6 +33,7 @@ pub struct PropertyId(pub u32);
 /// the expression-system types); both sides map onto it, and both mappings are
 /// pinned as *total* functions by tests.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum PropertyValueKind {
     /// 32-bit float.
     F32,

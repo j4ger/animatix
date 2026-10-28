@@ -15,41 +15,12 @@ use crate::timeline::property_track::PropertyTrack;
 use crate::timeline::{ActorCaps, PropertyValue};
 
 /// Finite value kinds understood by dynamic property tracks.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum PropertyKind {
-    /// 32-bit float.
-    F32,
-    /// 32-bit unsigned integer.
-    U32,
-    /// Boolean flag.
-    Bool,
-    /// 2D vector.
-    Vec2,
-    /// 4D vector / color.
-    Vec4,
-    /// String.
-    String,
-    /// List of 2D points.
-    PointList,
-    /// Any finite property value.
-    Generic,
-}
-
-impl From<PropertyValueKind> for PropertyKind {
-    fn from(kind: PropertyValueKind) -> Self {
-        match kind {
-            PropertyValueKind::F32 => Self::F32,
-            PropertyValueKind::U32 => Self::U32,
-            PropertyValueKind::Bool => Self::Bool,
-            PropertyValueKind::Vec2 => Self::Vec2,
-            PropertyValueKind::Vec4 => Self::Vec4,
-            PropertyValueKind::String => Self::String,
-            PropertyValueKind::PointList => Self::PointList,
-            PropertyValueKind::Generic => Self::Generic,
-        }
-    }
-}
+///
+/// This is the shared schema's [`PropertyValueKind`] under the plan-side name;
+/// one enum means the plan, the extension registry, and the analyzer cannot
+/// drift, and the serde wire shape (externally tagged variant names) is
+/// unchanged by the alias.
+pub type PropertyKind = PropertyValueKind;
 
 /// A property slot in an actor plan.
 #[derive(Clone, Debug)]
@@ -104,10 +75,22 @@ impl PropertyPlan {
     /// This is the first registry-driven producer for plans. Later phases can
     /// replace it with per-primitive descriptors while keeping the same
     /// `PropertyId`/slot access model.
+    ///
+    /// `legend` and `callout_place` are skipped: neither is stored in a plan
+    /// slot (the former lives in the tagged tier as a sum, the latter in the
+    /// typed `CalloutPlace` track), so a slot for them would stay empty forever
+    /// and be serialized into every persisted plan.
     pub fn for_actor(caps: &ActorCaps, actor_type: &str) -> Self {
         let slots = PROPERTY_REGISTRY
             .iter()
             .filter(|schema| schema.applicable.includes(caps, actor_type))
+            .filter(|schema| {
+                !matches!(
+                    schema.field,
+                    crate::timeline::property_registry::ActorField::Tagged("legend")
+                        | crate::timeline::property_registry::ActorField::Tagged("callout_place")
+                )
+            })
             .filter_map(|schema| {
                 let id = crate::timeline::property_id(schema.name)?;
                 let kind = property_kind_from_value_type(schema.value_type);
@@ -288,33 +271,148 @@ pub enum DynTrack {
     Generic(Option<PropertyTrack<PropertyValue>>),
 }
 
+/// Visit the inner track of any `DynTrack` variant.
+///
+/// Every storage-shaped method on [`DynTrack`] is the same eight-arm match over
+/// the variant and its `Option<PropertyTrack<_>>`; the macro keeps the variant
+/// list in one place. `$body` sees `$track` bound to `&PropertyTrack<_>`.
+macro_rules! with_dyn_track {
+    ($this:expr, $missing:expr, |$track:ident| $body:expr) => {
+        match $this {
+            DynTrack::F32(__track) => __track.as_ref().map_or($missing, |$track| $body),
+            DynTrack::U32(__track) => __track.as_ref().map_or($missing, |$track| $body),
+            DynTrack::Bool(__track) => __track.as_ref().map_or($missing, |$track| $body),
+            DynTrack::Vec2(__track) => __track.as_ref().map_or($missing, |$track| $body),
+            DynTrack::Vec4(__track) => __track.as_ref().map_or($missing, |$track| $body),
+            DynTrack::String(__track) => __track.as_ref().map_or($missing, |$track| $body),
+            DynTrack::PointList(__track) => __track.as_ref().map_or($missing, |$track| $body),
+            DynTrack::Generic(__track) => __track.as_ref().map_or($missing, |$track| $body),
+        }
+    };
+}
+
+/// Construct the empty track for a value kind.
+macro_rules! empty_dyn_track {
+    ($kind:expr) => {
+        match $kind {
+            PropertyKind::F32 => DynTrack::F32(None),
+            PropertyKind::U32 => DynTrack::U32(None),
+            PropertyKind::Bool => DynTrack::Bool(None),
+            PropertyKind::Vec2 => DynTrack::Vec2(None),
+            PropertyKind::Vec4 => DynTrack::Vec4(None),
+            PropertyKind::String => DynTrack::String(None),
+            PropertyKind::PointList => DynTrack::PointList(None),
+            PropertyKind::Generic => DynTrack::Generic(None),
+        }
+    };
+}
+
+/// Read the value kind back out of a track variant.
+macro_rules! dyn_track_kind {
+    ($this:expr) => {
+        match $this {
+            DynTrack::F32(_) => PropertyKind::F32,
+            DynTrack::U32(_) => PropertyKind::U32,
+            DynTrack::Bool(_) => PropertyKind::Bool,
+            DynTrack::Vec2(_) => PropertyKind::Vec2,
+            DynTrack::Vec4(_) => PropertyKind::Vec4,
+            DynTrack::String(_) => PropertyKind::String,
+            DynTrack::PointList(_) => PropertyKind::PointList,
+            DynTrack::Generic(_) => PropertyKind::Generic,
+        }
+    };
+}
+
+/// Sample the inner track of a `DynTrack`, wrapping the value back into its
+/// [`PropertyValue`] variant.
+macro_rules! sample_dyn_track {
+    ($this:expr, $time_ms:expr) => {
+        match $this {
+            DynTrack::F32(track) => {
+                track.as_ref().map(|track| PropertyValue::F32(track.evaluate($time_ms)))
+            },
+            DynTrack::U32(track) => {
+                track.as_ref().map(|track| PropertyValue::U32(track.evaluate($time_ms)))
+            },
+            DynTrack::Bool(track) => {
+                track.as_ref().map(|track| PropertyValue::Bool(track.evaluate($time_ms)))
+            },
+            DynTrack::Vec2(track) => {
+                track.as_ref().map(|track| PropertyValue::Vec2(track.evaluate($time_ms)))
+            },
+            DynTrack::Vec4(track) => {
+                track.as_ref().map(|track| PropertyValue::Vec4(track.evaluate($time_ms)))
+            },
+            DynTrack::String(track) => {
+                track.as_ref().map(|track| PropertyValue::String(track.evaluate($time_ms)))
+            },
+            DynTrack::PointList(track) => {
+                track.as_ref().map(|track| PropertyValue::PointList(track.evaluate($time_ms)))
+            },
+            DynTrack::Generic(track) => track.as_ref().map(|track| track.evaluate($time_ms)),
+        }
+    };
+}
+
+/// Insert a keyframe into the variant that stores this value kind, if any.
+macro_rules! insert_dyn_track {
+    ($this:expr, $time_ms:expr, $value:expr, $easing:expr) => {
+        match ($this, $value) {
+            (DynTrack::F32(track), PropertyValue::F32(value)) => {
+                let track = track.get_or_insert_with(|| PropertyTrack::new(0.0));
+                track.add_keyframe($time_ms, value, $easing);
+                Some(())
+            },
+            (DynTrack::U32(track), PropertyValue::U32(value)) => {
+                let track = track.get_or_insert_with(|| PropertyTrack::new(0));
+                track.add_keyframe($time_ms, value, $easing);
+                Some(())
+            },
+            (DynTrack::Bool(track), PropertyValue::Bool(value)) => {
+                let track = track.get_or_insert_with(|| PropertyTrack::new(false));
+                track.add_keyframe($time_ms, value, $easing);
+                Some(())
+            },
+            (DynTrack::Vec2(track), PropertyValue::Vec2(value)) => {
+                let track = track.get_or_insert_with(|| PropertyTrack::new([0.0, 0.0]));
+                track.add_keyframe($time_ms, value, $easing);
+                Some(())
+            },
+            (DynTrack::Vec4(track), PropertyValue::Vec4(value)) => {
+                let track = track.get_or_insert_with(|| PropertyTrack::new([0.0; 4]));
+                track.add_keyframe($time_ms, value, $easing);
+                Some(())
+            },
+            (DynTrack::String(track), PropertyValue::String(value)) => {
+                let track = track.get_or_insert_with(|| PropertyTrack::new(String::new()));
+                track.add_keyframe($time_ms, value, $easing);
+                Some(())
+            },
+            (DynTrack::PointList(track), PropertyValue::PointList(value)) => {
+                let track = track.get_or_insert_with(|| PropertyTrack::new(Vec::<[f32; 2]>::new()));
+                track.add_keyframe($time_ms, value, $easing);
+                Some(())
+            },
+            (DynTrack::Generic(track), value) => {
+                let track =
+                    track.get_or_insert_with(|| PropertyTrack::new(PropertyValue::F32(0.0)));
+                track.add_keyframe($time_ms, value, $easing);
+                Some(())
+            },
+            _ => None,
+        }
+    };
+}
+
 impl DynTrack {
     /// Create an empty track of the requested kind.
     pub fn empty(kind: PropertyKind) -> Self {
-        match kind {
-            PropertyKind::F32 => Self::F32(None),
-            PropertyKind::U32 => Self::U32(None),
-            PropertyKind::Bool => Self::Bool(None),
-            PropertyKind::Vec2 => Self::Vec2(None),
-            PropertyKind::Vec4 => Self::Vec4(None),
-            PropertyKind::String => Self::String(None),
-            PropertyKind::PointList => Self::PointList(None),
-            PropertyKind::Generic => Self::Generic(None),
-        }
+        empty_dyn_track!(kind)
     }
 
     /// Value kind of this track.
     pub fn kind(&self) -> PropertyKind {
-        match self {
-            Self::F32(_) => PropertyKind::F32,
-            Self::U32(_) => PropertyKind::U32,
-            Self::Bool(_) => PropertyKind::Bool,
-            Self::Vec2(_) => PropertyKind::Vec2,
-            Self::Vec4(_) => PropertyKind::Vec4,
-            Self::String(_) => PropertyKind::String,
-            Self::PointList(_) => PropertyKind::PointList,
-            Self::Generic(_) => PropertyKind::Generic,
-        }
+        dyn_track_kind!(self)
     }
 
     /// Insert an instant linear keyframe, or `None` when the value kind mismatches.
@@ -329,159 +427,51 @@ impl DynTrack {
         value: PropertyValue,
         easing: Easing,
     ) -> Option<()> {
-        match (self, value) {
-            (Self::F32(track), PropertyValue::F32(value)) => {
-                let track = track.get_or_insert_with(|| PropertyTrack::new(0.0));
-                track.add_keyframe(time_ms, value, easing);
-                Some(())
-            },
-            (Self::U32(track), PropertyValue::U32(value)) => {
-                let track = track.get_or_insert_with(|| PropertyTrack::new(0));
-                track.add_keyframe(time_ms, value, easing);
-                Some(())
-            },
-            (Self::Bool(track), PropertyValue::Bool(value)) => {
-                let track = track.get_or_insert_with(|| PropertyTrack::new(false));
-                track.add_keyframe(time_ms, value, easing);
-                Some(())
-            },
-            (Self::Vec2(track), PropertyValue::Vec2(value)) => {
-                let track = track.get_or_insert_with(|| PropertyTrack::new([0.0, 0.0]));
-                track.add_keyframe(time_ms, value, easing);
-                Some(())
-            },
-            (Self::Vec4(track), PropertyValue::Vec4(value)) => {
-                let track = track.get_or_insert_with(|| PropertyTrack::new([0.0; 4]));
-                track.add_keyframe(time_ms, value, easing);
-                Some(())
-            },
-            (Self::String(track), PropertyValue::String(value)) => {
-                let track = track.get_or_insert_with(|| PropertyTrack::new(String::new()));
-                track.add_keyframe(time_ms, value, easing);
-                Some(())
-            },
-            (Self::PointList(track), PropertyValue::PointList(value)) => {
-                let track = track.get_or_insert_with(|| PropertyTrack::new(Vec::<[f32; 2]>::new()));
-                track.add_keyframe(time_ms, value, easing);
-                Some(())
-            },
-            (Self::Generic(track), value) => {
-                let track =
-                    track.get_or_insert_with(|| PropertyTrack::new(PropertyValue::F32(0.0)));
-                track.add_keyframe(time_ms, value, easing);
-                Some(())
-            },
-            _ => None,
-        }
+        insert_dyn_track!(self, time_ms, value, easing)
     }
 
     /// Sample the track at `time_ms`, or `None` when the track has no storage.
     pub fn sample(&self, time_ms: u64) -> Option<PropertyValue> {
-        match self {
-            Self::F32(Some(track)) => Some(PropertyValue::F32(track.evaluate(time_ms))),
-            Self::U32(Some(track)) => Some(PropertyValue::U32(track.evaluate(time_ms))),
-            Self::Bool(Some(track)) => Some(PropertyValue::Bool(track.evaluate(time_ms))),
-            Self::Vec2(Some(track)) => Some(PropertyValue::Vec2(track.evaluate(time_ms))),
-            Self::Vec4(Some(track)) => Some(PropertyValue::Vec4(track.evaluate(time_ms))),
-            Self::String(Some(track)) => Some(PropertyValue::String(track.evaluate(time_ms))),
-            Self::PointList(Some(track)) => Some(PropertyValue::PointList(track.evaluate(time_ms))),
-            Self::Generic(Some(track)) => Some(track.evaluate(time_ms)),
-            _ => None,
-        }
+        sample_dyn_track!(self, time_ms)
     }
 
     /// Number of keyframes, if the track has storage.
     pub fn keyframe_count(&self) -> usize {
-        match self {
-            Self::F32(Some(track)) => track.keyframes.len(),
-            Self::U32(Some(track)) => track.keyframes.len(),
-            Self::Bool(Some(track)) => track.keyframes.len(),
-            Self::Vec2(Some(track)) => track.keyframes.len(),
-            Self::Vec4(Some(track)) => track.keyframes.len(),
-            Self::String(Some(track)) => track.keyframes.len(),
-            Self::PointList(Some(track)) => track.keyframes.len(),
-            Self::Generic(Some(track)) => track.keyframes.len(),
-            _ => 0,
-        }
+        with_dyn_track!(self, 0, |track| track.keyframes.len())
     }
 
     /// Keyframe times, sorted.
     pub fn keyframe_times(&self) -> Vec<u64> {
-        let mut times = match self {
-            Self::F32(Some(track)) => track.keyframes.keys().copied().collect(),
-            Self::U32(Some(track)) => track.keyframes.keys().copied().collect(),
-            Self::Bool(Some(track)) => track.keyframes.keys().copied().collect(),
-            Self::Vec2(Some(track)) => track.keyframes.keys().copied().collect(),
-            Self::Vec4(Some(track)) => track.keyframes.keys().copied().collect(),
-            Self::String(Some(track)) => track.keyframes.keys().copied().collect(),
-            Self::PointList(Some(track)) => track.keyframes.keys().copied().collect(),
-            Self::Generic(Some(track)) => track.keyframes.keys().copied().collect(),
-            _ => Vec::new(),
-        };
+        let mut times = with_dyn_track!(self, Vec::<u64>::new(), |track| track
+            .keyframes
+            .keys()
+            .copied()
+            .collect::<Vec<_>>());
         times.sort_unstable();
         times
     }
 
     /// Returns `true` when a keyframe exists at exactly `time_ms`.
     pub fn has_keyframe_at(&self, time_ms: u64) -> bool {
-        match self {
-            Self::F32(Some(track)) => track.keyframes.contains_key(&time_ms),
-            Self::U32(Some(track)) => track.keyframes.contains_key(&time_ms),
-            Self::Bool(Some(track)) => track.keyframes.contains_key(&time_ms),
-            Self::Vec2(Some(track)) => track.keyframes.contains_key(&time_ms),
-            Self::Vec4(Some(track)) => track.keyframes.contains_key(&time_ms),
-            Self::String(Some(track)) => track.keyframes.contains_key(&time_ms),
-            Self::PointList(Some(track)) => track.keyframes.contains_key(&time_ms),
-            Self::Generic(Some(track)) => track.keyframes.contains_key(&time_ms),
-            _ => false,
-        }
+        with_dyn_track!(self, false, |track| track.keyframes.contains_key(&time_ms))
     }
 
     /// Easing at a specific keyframe time.
     pub fn keyframe_easing(&self, time_ms: u64) -> Option<Easing> {
-        match self {
-            Self::F32(Some(track)) => track.keyframes.get(&time_ms).map(|(_, easing)| *easing),
-            Self::U32(Some(track)) => track.keyframes.get(&time_ms).map(|(_, easing)| *easing),
-            Self::Bool(Some(track)) => track.keyframes.get(&time_ms).map(|(_, easing)| *easing),
-            Self::Vec2(Some(track)) => track.keyframes.get(&time_ms).map(|(_, easing)| *easing),
-            Self::Vec4(Some(track)) => track.keyframes.get(&time_ms).map(|(_, easing)| *easing),
-            Self::String(Some(track)) => track.keyframes.get(&time_ms).map(|(_, easing)| *easing),
-            Self::PointList(Some(track)) => {
-                track.keyframes.get(&time_ms).map(|(_, easing)| *easing)
-            },
-            Self::Generic(Some(track)) => track.keyframes.get(&time_ms).map(|(_, easing)| *easing),
-            _ => None,
-        }
+        with_dyn_track!(self, None, |track| track
+            .keyframes
+            .get(&time_ms)
+            .map(|(_, easing)| *easing))
     }
 
     /// Latest keyframe time, if any.
     pub fn max_keyframe_time(&self) -> Option<u64> {
-        match self {
-            Self::F32(Some(track)) => track.last_keyframe_time(),
-            Self::U32(Some(track)) => track.last_keyframe_time(),
-            Self::Bool(Some(track)) => track.last_keyframe_time(),
-            Self::Vec2(Some(track)) => track.last_keyframe_time(),
-            Self::Vec4(Some(track)) => track.last_keyframe_time(),
-            Self::String(Some(track)) => track.last_keyframe_time(),
-            Self::PointList(Some(track)) => track.last_keyframe_time(),
-            Self::Generic(Some(track)) => track.last_keyframe_time(),
-            _ => None,
-        }
+        with_dyn_track!(self, None, |track| track.last_keyframe_time())
     }
 
     /// Returns `true` when the track has keyframes that could change value.
     pub fn has_any_keyframes(&self) -> bool {
-        match self {
-            Self::F32(Some(track)) => !track.is_effectively_static(),
-            Self::U32(Some(track)) => !track.is_effectively_static(),
-            Self::Bool(Some(track)) => !track.is_effectively_static(),
-            Self::Vec2(Some(track)) => !track.is_effectively_static(),
-            Self::Vec4(Some(track)) => !track.is_effectively_static(),
-            Self::String(Some(track)) => !track.is_effectively_static(),
-            Self::PointList(Some(track)) => !track.is_effectively_static(),
-            Self::Generic(Some(track)) => !track.is_effectively_static(),
-            _ => false,
-        }
+        with_dyn_track!(self, false, |track| !track.is_effectively_static())
     }
 }
 
@@ -556,6 +546,10 @@ mod tests {
         assert!(slot.track.add_keyframe(0, PropertyValue::String("ext".to_string())).is_some());
 
         let json = serde_json::to_string(&plan).expect("serialize property plan");
+        // `PropertyKind` is an alias of `PropertyValueKind`; this pins the wire
+        // shape (externally tagged variant name) so a future split back into two
+        // enums cannot silently change saved plans.
+        assert!(json.contains("\"kind\":\"String\""), "plan kind wire shape changed: {json}");
         let decoded: PropertyPlan = serde_json::from_str(&json).expect("deserialize property plan");
         assert_eq!(
             decoded.get(id).and_then(|slot| slot.track.sample(0)),
@@ -577,5 +571,20 @@ mod tests {
         let slot = plan.get_mut(position).expect("mutable position slot");
         assert_eq!(slot.track.add_keyframe(0, PropertyValue::Vec2([10.0, 20.0])), Some(()));
         assert_eq!(slot.track.sample(0), Some(PropertyValue::Vec2([10.0, 20.0])));
+    }
+
+    /// `legend` (tagged sum) and `callout_place` (typed `CalloutPlace` track)
+    /// have no plan storage; a generated slot for them would always be empty.
+    #[test]
+    fn actor_plan_skips_tagged_only_properties() {
+        let plan = PropertyPlan::for_actor(
+            &animatix_std::caps_for_type("Callout").expect("Callout is a built-in"),
+            "Callout",
+        );
+        for name in ["legend", "place"] {
+            let id = property_id(name).expect("registered property");
+            assert!(plan.get(id).is_none(), "`{name}` must not get an empty plan slot");
+        }
+        assert!(plan.get(property_id("position").expect("position")).is_some());
     }
 }

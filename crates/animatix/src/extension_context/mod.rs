@@ -80,43 +80,14 @@ impl std::fmt::Display for ExtensionRegistrationError {
 
 impl std::error::Error for ExtensionRegistrationError {}
 
-/// Runtime binding for a built-in property descriptor.
-#[derive(Clone, Debug)]
-pub enum PropertyBinding {
-    /// Property reads/writes through a typed track field.
-    Direct {
-        /// Typed storage field.
-        field: crate::timeline::property_registry::ActorField,
-        /// Frame-time read source.
-        read_source: crate::timeline::property_registry::ReadSource,
-        /// Optional compound resolution group.
-        /// Runtime feature flags.
-        flags: crate::timeline::property_registry::PropertyFlags,
-        /// Default value, potentially actor-kind dependent.
-        default_value: fn(&crate::timeline::ActorCaps) -> crate::timeline::PropertyValue,
-    },
-    /// Property lives in a dynamic `PropertyPlan` slot.
-    Plan {
-        /// Stable slot id.
-        id: PropertyId,
-    },
-    /// No runtime storage; metadata only (aliases/build-time descriptors).
-    None,
-}
-
-/// One registered property with its descriptor and runtime binding.
-#[derive(Clone, Debug)]
-pub struct PropertyEntry {
-    /// Shared descriptor.
-    pub descriptor: crate::property_descriptor::PropertyDescriptor,
-    /// Runtime binding.
-    pub binding: PropertyBinding,
-}
-
-/// Registry of built-in and extension property descriptors.
+/// Registry of extension-registered properties.
+///
+/// Built-in properties are not materialized here: they live in the shared
+/// descriptor table plus `timeline::property_registry::PROPERTY_REGISTRY`, and
+/// copying them into this context is what made a 140-row duplicate possible.
+/// Only properties registered by an extension are stored and queried here.
 #[derive(Default)]
 pub struct PropertyRegistry {
-    builtins: Vec<PropertyEntry>,
     extensions: Vec<ExtensionPropertySpec>,
     next_property_id: u32,
 }
@@ -126,7 +97,8 @@ mod registry;
 #[cfg(test)]
 mod tests;
 
-/// users.
+/// The unified extension registry: primitives, properties, actions, functions,
+/// and services registered by an extension for one build or document.
 #[derive(Default)]
 pub struct ExtensionRegistry {
     primitives: Arc<PrimitiveRegistry>,

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use super::{ExtensionContext, PropertyBinding, PropertyRegistry};
+use super::ExtensionContext;
 use crate::ast::Action;
 use crate::composition::BuildTarget;
 use crate::diagnostics::Diagnostic;
@@ -385,23 +385,6 @@ fn build_target_propagates_context_to_composition() {
     };
     let scene = composition.scenes.get("A").expect("scene A");
     assert_eq!(scene.timeline.env.get("answer"), Some(Value::Num(42.0)));
-}
-
-#[test]
-fn builtin_property_entries_cover_runtime_registry() {
-    let registry = PropertyRegistry::new();
-    for schema in crate::timeline::PROPERTY_REGISTRY.iter() {
-        let entry = registry
-            .builtins
-            .iter()
-            .find(|entry| entry.descriptor.name == schema.name)
-            .unwrap_or_else(|| panic!("missing property entry for {}", schema.name));
-        assert!(
-            matches!(entry.binding, PropertyBinding::Direct { .. }),
-            "runtime property {} must have a direct binding",
-            schema.name
-        );
-    }
 }
 
 #[test]

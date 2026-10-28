@@ -1,12 +1,13 @@
 use super::*;
+
 fn property_index(name: &str) -> Option<usize> {
-    resolved_properties().get(name).map(|(index, _)| *index)
+    resolved().schemas.get(name).map(|(index, _)| *index)
 }
 
 /// Look up a property schema by name.
 ///
-/// Uses binary search over the sorted `PROPERTY_REGISTRY`.
-/// Returns `None` if no property with that name exists.
+/// Goes through the process-wide [`Resolved`] map, so the name → index join is
+/// computed once. Returns `None` if no property with that name exists.
 pub fn lookup_property(name: &str) -> Option<&'static PropertySchema> {
     property_index(name).map(|i| &PROPERTY_REGISTRY[i])
 }
@@ -30,77 +31,67 @@ pub fn property_affects_scene_statistics(property: &str) -> bool {
 /// The id comes from the shared schema declaration order, so analyzer,
 /// typechecker, and runtime plans all address the same property namespace.
 pub fn property_id(name: &str) -> Option<animatix_syntax::schema::PropertyId> {
-    schema_property_ids().get(name).copied()
+    resolved().ids.get(name).copied()
+}
+
+/// Descriptors for the built-in properties, in shared-schema order.
+///
+/// Materialized from the shared spec table plus the runtime `INJECTABLE` flag;
+/// this is the tooling view, not a second registry. Extensions append their own
+/// descriptors through [`crate::extension_context::PropertyRegistry`].
+pub fn builtin_descriptors() -> Vec<animatix_syntax::schema::PropertyDescriptor> {
+    animatix_syntax::schema::property_specs()
+        .into_iter()
+        .map(|spec| {
+            let injectable = lookup_property(spec.name)
+                .is_some_and(|schema| schema.flags.contains(PropertyFlags::INJECTABLE));
+            animatix_syntax::schema::PropertyDescriptor::from_spec(&spec, injectable)
+        })
+        .collect()
 }
 
 /// The one `property name → ActorField` table for the string-keyed introspection
 /// APIs (keyframe queries, GUI property edits).
 ///
-/// Three introspection queries (`has_keyframe_at`, `has_keyframes_for`,
-/// `list_keyframes`) used to carry a copy of this mapping each, verified
-/// identical apart from the fall-through arm. One table keeps the queries
-/// answering consistently.
+/// Canonical names resolve through [`PROPERTY_REGISTRY`]; the match below adds
+/// only the internal typed-lane aliases that address a storage field directly
+/// and are not canonical source properties (`motion_offset` is written as
+/// `shift`, `line_from` as `from`, and the cached `vector_paths`/`text_paths`
+/// have no source name at all). Three introspection queries (`has_keyframe_at`,
+/// `has_keyframes_for`, `list_keyframes`) share this table so they cannot
+/// disagree.
 pub fn field_for_property(property: &str) -> Option<ActorField> {
+    if let Some(schema) = lookup_property(property) {
+        return Some(schema.field);
+    }
     use ActorField::*;
     Some(match property {
-        "position" => Position,
         "motion_offset" => MotionOffset,
-        "size" => Size,
         "layout_size" => LayoutSize,
-        "rotation" => Rotation,
-        "scale" => Scale,
-        "transform" => Transform,
-        "color" => Color,
-        "opacity" => Opacity,
-        "stroke_width" => StrokeWidth,
-        "stroke_progress" => StrokeProgress,
-        "dash_offset" => DashOffset,
-        "dash_pattern" => DashPattern,
-        "fill_gradient" => FillGradient,
-        "stroke_gradient" => StrokeGradient,
-        "gradient_extend" => GradientExtend,
-        "gradient_space" => GradientSpace,
-        "blend" => Blend,
-        "fill_opacity" => FillOpacity,
         "shape_type" => ShapeType,
         "line_from" => LineFrom,
         "line_to" => LineTo,
         "arc_angles" => ArcAngles,
-        "corner_radius" => CornerRadius,
-        "points" => Points,
-        "commands" => Commands,
-        "head_size" => HeadSize,
         "text_content" => TextContent,
-        "font_family" => FontFamily,
-        "font_size" => FontSize,
-        "font_weight" => FontWeight,
-        "font_style" => FontStyle,
-        "line_height" => LineHeight,
-        "letter_spacing" => LetterSpacing,
-        "word_spacing" => WordSpacing,
-        "max_width" => TextMaxWidth,
-        "text_align" => TextAlign,
-        "text_anchor" => TextAnchor,
-        "overflow" => Overflow,
-        "language" => Language,
         "placement_mode" => PlacementMode,
         "morph_options" => MorphOptions,
-        "legend" => Tagged("legend"),
-        "url" => ImageData,
+        "stroke_color" => StrokeColor,
+        "vector_paths" => VectorPaths,
+        "text_paths" => TextPaths,
         _ => return None,
     })
 }
 
 /// Resolve a property name to its schema *and* the runtime plan slot id in one
-/// lookup.///
+/// lookup.
+///
 /// `effective_*` needs both on every property read — at least five per actor
-/// per frame — and each used to cost its own lookup (a binary search over the
-/// sorted registry, then a hash into the id map). Folding them into one
-/// process-wide table removes a repeat lookup from the frame path.
+/// per frame — and each used to cost its own lookup (a name map probe, then a
+/// second hash into the id map). The one [`Resolved`] table carries both.
 pub fn resolve_property(
     name: &str,
 ) -> Option<(&'static PropertySchema, Option<animatix_syntax::schema::PropertyId>)> {
-    let (index, slot) = *resolved_properties().get(name)?;
+    let (index, slot) = *resolved().schemas.get(name)?;
     Some((&PROPERTY_REGISTRY[index], slot))
 }
 
@@ -125,82 +116,92 @@ pub(crate) struct TransformPropertyReads {
     pub transform: ResolvedPropertyRead,
 }
 
-pub(crate) fn transform_property_reads() -> &'static TransformPropertyReads {
-    static CACHE: std::sync::OnceLock<TransformPropertyReads> = std::sync::OnceLock::new();
-    CACHE.get_or_init(|| TransformPropertyReads {
-        rotation: resolve_property("rotation"),
-        scale: resolve_property("scale"),
-        opacity: resolve_property("opacity"),
-        size: resolve_property("size"),
-        transform: resolve_property("transform"),
+/// Pre-resolved registry entries, built once per process.
+///
+/// This replaces the four separate `OnceLock`s the module used to carry
+/// (`resolved_properties`, `schema_property_ids`, `property_schema_by_id_cache`,
+/// and `transform_property_reads`): they all walked the same two tables, and
+/// each new lookup added another process-wide cache to keep coherent.
+struct Resolved {
+    /// Every shared-schema row: name → stable id (the descriptor row index).
+    ids: std::collections::HashMap<&'static str, animatix_syntax::schema::PropertyId>,
+    /// Every composed registry row: name → registry index + plan slot id.
+    schemas: std::collections::HashMap<
+        &'static str,
+        (usize, Option<animatix_syntax::schema::PropertyId>),
+    >,
+    /// Stable id → composed schema, for id-keyed lookups.
+    by_id: std::collections::HashMap<animatix_syntax::schema::PropertyId, &'static PropertySchema>,
+    /// Transform-path reads resolved once, alongside the maps they come from.
+    transform: TransformPropertyReads,
+}
+
+fn resolved() -> &'static Resolved {
+    static CACHE: std::sync::OnceLock<Resolved> = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| {
+        let ids: std::collections::HashMap<_, _> = animatix_syntax::schema::property_specs()
+            .into_iter()
+            .map(|spec| (spec.name, spec.id))
+            .collect();
+        let schemas: std::collections::HashMap<_, _> = PROPERTY_REGISTRY
+            .iter()
+            .enumerate()
+            .map(|(index, schema)| (schema.name, (index, plan_slot_id(&schema.field, &ids))))
+            .collect();
+        let mut by_id = std::collections::HashMap::new();
+        for schema in PROPERTY_REGISTRY.iter() {
+            if let Some(id) = ids.get(schema.name) {
+                by_id.insert(*id, schema);
+            }
+        }
+        let resolve = |name: &str| {
+            let (index, slot) = *schemas.get(name)?;
+            Some((&PROPERTY_REGISTRY[index], slot))
+        };
+        let transform = TransformPropertyReads {
+            rotation: resolve("rotation"),
+            scale: resolve("scale"),
+            opacity: resolve("opacity"),
+            size: resolve("size"),
+            transform: resolve("transform"),
+        };
+        Resolved {
+            ids,
+            schemas,
+            by_id,
+            transform,
+        }
     })
 }
+
+pub(crate) fn transform_property_reads() -> &'static TransformPropertyReads {
+    &resolved().transform
+}
+
 /// The plan-slot id for a property's storage field, or `None` when the field is
 /// not a tagged slot the runtime plan can serve.
 ///
 /// Mirrors the guard in `dispatch::read_property_value`: `legend` and
 /// `callout_place` are tagged but deliberately excluded from plan reads.
-fn plan_slot_id(field: &ActorField) -> Option<animatix_syntax::schema::PropertyId> {
+fn plan_slot_id(
+    field: &ActorField,
+    ids: &std::collections::HashMap<&'static str, animatix_syntax::schema::PropertyId>,
+) -> Option<animatix_syntax::schema::PropertyId> {
     let ActorField::Tagged(name) = field else {
         return None;
     };
     if *name == "legend" || *name == "callout_place" {
         return None;
     }
-    property_id(name)
-}
-
-type ResolvedProperty = (usize, Option<animatix_syntax::schema::PropertyId>);
-
-fn resolved_properties() -> &'static std::collections::HashMap<&'static str, ResolvedProperty> {
-    static CACHE: std::sync::OnceLock<std::collections::HashMap<&'static str, ResolvedProperty>> =
-        std::sync::OnceLock::new();
-    CACHE.get_or_init(|| {
-        PROPERTY_REGISTRY
-            .iter()
-            .enumerate()
-            .map(|(index, schema)| (schema.name, (index, plan_slot_id(&schema.field))))
-            .collect()
-    })
-}
-
-fn schema_property_ids()
--> &'static std::collections::HashMap<&'static str, animatix_syntax::schema::PropertyId> {
-    static CACHE: std::sync::OnceLock<
-        std::collections::HashMap<&'static str, animatix_syntax::schema::PropertyId>,
-    > = std::sync::OnceLock::new();
-    CACHE.get_or_init(|| {
-        animatix_syntax::schema::property_specs()
-            .into_iter()
-            .map(|spec| (spec.name, spec.id))
-            .collect()
-    })
+    ids.get(name).copied()
 }
 
 /// Look up a property schema by stable shared-schema [`animatix_syntax::schema::PropertyId`].
 pub fn property_schema_by_id(
     id: animatix_syntax::schema::PropertyId,
 ) -> Option<&'static PropertySchema> {
-    property_schema_by_id_cache().get(&id).copied()
+    resolved().by_id.get(&id).copied()
 }
-
-fn property_schema_by_id_cache()
--> &'static std::collections::HashMap<animatix_syntax::schema::PropertyId, &'static PropertySchema>
-{
-    static CACHE: std::sync::OnceLock<
-        std::collections::HashMap<animatix_syntax::schema::PropertyId, &'static PropertySchema>,
-    > = std::sync::OnceLock::new();
-    CACHE.get_or_init(|| {
-        let mut map = std::collections::HashMap::new();
-        for schema in PROPERTY_REGISTRY.iter() {
-            if let Some(id) = property_id(schema.name) {
-                map.insert(id, schema);
-            }
-        }
-        map
-    })
-}
-
 /// Look up the canonical name for a stable shared-schema [`animatix_syntax::schema::PropertyId`].
 pub fn property_name(id: animatix_syntax::schema::PropertyId) -> Option<&'static str> {
     property_schema_by_id(id).map(|schema| schema.name)
@@ -229,7 +230,11 @@ pub fn allowed_property_indices(caps: &crate::timeline::ActorCaps, actor_type: &
 mod tests {
     use super::*;
 
-    /// Verify the registry is sorted by name (required for binary search).
+    /// Verify the registry is name-sorted.
+    ///
+    /// Lookups go through the name map, but the sorted order keeps the table
+    /// reviewable (and `allowed_property_indices` returns registry order), so a
+    /// new row still has an obvious place.
     #[test]
     fn registry_is_sorted() {
         for window in PROPERTY_REGISTRY.windows(2) {
@@ -260,6 +265,41 @@ mod tests {
         names.sort_unstable();
         names.dedup();
         assert_eq!(names.len(), original_len, "Duplicate property names detected");
+    }
+
+    /// The canonical `name → field` mapping is derived from the registry; only
+    /// typed-lane aliases (names with no source property) are spelled out. This
+    /// pins both halves so a new binding cannot silently fall out of the
+    /// keyframe-introspection table.
+    #[test]
+    fn field_for_property_agrees_with_the_registry() {
+        for schema in PROPERTY_REGISTRY.iter() {
+            assert_eq!(
+                field_for_property(schema.name),
+                Some(schema.field),
+                "`{}` must resolve to its registered field",
+                schema.name
+            );
+        }
+
+        for (alias, field) in [
+            ("motion_offset", ActorField::MotionOffset),
+            ("layout_size", ActorField::LayoutSize),
+            ("shape_type", ActorField::ShapeType),
+            ("line_from", ActorField::LineFrom),
+            ("line_to", ActorField::LineTo),
+            ("arc_angles", ActorField::ArcAngles),
+            ("text_content", ActorField::TextContent),
+            ("placement_mode", ActorField::PlacementMode),
+            ("morph_options", ActorField::MorphOptions),
+            ("stroke_color", ActorField::StrokeColor),
+            ("vector_paths", ActorField::VectorPaths),
+            ("text_paths", ActorField::TextPaths),
+        ] {
+            assert_eq!(field_for_property(alias), Some(field), "`{alias}` alias");
+        }
+
+        assert_eq!(field_for_property("not_a_property"), None);
     }
 
     #[test]

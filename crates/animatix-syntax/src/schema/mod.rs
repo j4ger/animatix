@@ -412,32 +412,26 @@ pub fn common_property_names() -> &'static [&'static str] {
 /// property.
 fn property_type_for_descriptor(desc: &animatix_core::property::PropertyDescriptor) -> Type {
     match desc.name {
-        "align" | "code" | "direction" | "font_family" | "font_style" | "grid" | "kind"
-        | "label" | "overflow" | "place" | "source" | "text" | "text_align" | "tick_labels"
-        | "ticks" | "title" | "url" | "vertical_align" | "x_scale" | "y_scale" | "language"
-        | "blend" | "gradient_extend" | "gradient_space" | "icon" | "routing" | "split_by"
-        | "prefix" | "suffix" | "idle" | "shared_id" | "caption_mode" | "transcript"
-        | "text_anchor" => Type::Str,
-
-        "background_color" | "color" | "highlight_color" | "label_color" | "stroke" => {
-            Type::Union(vec![Type::Color, Type::Str])
-        },
+        // `place` and `icon` carry enum/build-time names whose descriptor kind
+        // is `Generic` (it cannot distinguish a name from a structure), so their
+        // precise string type stays explicit.
+        "place" | "icon" => Type::Str,
+        // `Vec4` falls back to `Union(Color, Str)` (colour text is accepted
+        // everywhere), but these rows are colours only.
         "active_color" | "inactive_color" | "backdrop_color" | "shadow_color" => Type::Color,
-
+        // Numeric rows that also accept a string escape hatch (`gap: "auto"`).
         "bar_width" | "font_weight" | "gap" | "max_value" => {
             Type::Union(vec![Type::Num, Type::Str])
         },
-        // `legend` is a sum property, not a plain string: the engine's
-        // `LEGEND_SUM_VARIANTS` reads `true`/`false` as the auto/hidden
-        // variants and a string as the explicit label.
+        // A sum of `true`/`false` and an explicit label.
         "show_axis" | "show_labels" | "legend" => Type::Union(vec![Type::Bool, Type::Str]),
-
         "points" => Type::List(Box::new(Type::Vec2)),
         "dash_pattern" => Type::List(Box::new(Type::Num)),
         "transform" => transform_type(),
         "bounds" | "shadow" => Type::Vec4,
-        "anchor" | "bar_colors" | "commands" | "data" | "func" | "levels" | "target"
-        | "x_range" | "y_range" | "fill_gradient" | "stroke_gradient" => Type::Any,
+        // Plot domains are `Vec2` at runtime but authored as tuples or
+        // `"auto"`-style expressions, so tooling keeps the dynamic type.
+        "levels" | "x_range" | "y_range" => Type::Any,
 
         _ => match desc.value_kind {
             PropertyValueKind::F32 | PropertyValueKind::U32 => Type::Num,

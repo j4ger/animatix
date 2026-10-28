@@ -9,22 +9,24 @@
 //! - `value_type` — Which rust type the property value carries
 //! - `flags` — Feature flags (ANIMATED, ASSIGNABLE, INJECTABLE, LAYOUT_AFFECTING)
 //! - `field` — Which `ActorField` storage location this maps to
-//! - `group` — For compound properties: which resolution group they belong to
+//! - `applicable` — Which actor kinds the property is valid for (joined from the
+//!   core descriptor table)
+//! - `default_value` / `read_source` — Defaulting and frame-time reads
 //!
 //! ## Dispatch flow
 //!
 //! Instead of 7+ match blocks over string property names, all property dispatch
 //! goes through two steps:
 //!
-//! 1. `lookup_property(name)` → `&PropertySchema`  (O(log n) binary search)
+//! 1. `lookup_property(name)` → `&PropertySchema`  (one process-wide name map)
 //! 2. Match over `schema.field` / `schema.flags`  (exhaustive enum)
 //!
 //! ## Adding a new property
 //!
-//! 1. Add an `ActorField` variant if a new storage field is needed
-//! 2. Add storage to the appropriate tier in `track.rs`
-//! 3. Add a row to `PROPERTY_REGISTRY`
-//! 4. Add the property index to the actor kind's `allowed_properties()` list
+//! 1. Add a descriptor row to `animatix_core::property::PROPERTY_DESCRIPTORS`
+//! 2. Add a binding row to `BINDINGS` below (a new `ActorField` if new storage
+//!    is needed)
+//! 3. Add the type-system row in `animatix-syntax::schema`
 //!
 //! For simple animated properties (80% of cases), that's all — the generic engine
 //! handles parsing, keyframing, assignments, and environment injection automatically.
@@ -148,8 +150,8 @@ struct PropertyBinding {
 
 /// The composed registry: shared descriptors joined with engine bindings.
 ///
-/// Name-sorted, so the existing binary-search lookups and the indices returned
-/// by [`allowed_property_indices`] keep working. Composing (rather than
+/// Name-sorted, so the table stays reviewable and the indices returned by
+/// [`allowed_property_indices`] keep their order. Composing (rather than
 /// re-declaring) is what makes the descriptor table the single source for
 /// names and applicability; the join is checked by
 /// `every_binding_has_a_descriptor` and `unbound_descriptors_are_pinned`.
@@ -179,16 +181,14 @@ pub static PROPERTY_REGISTRY: std::sync::LazyLock<Vec<PropertySchema>> =
             .collect()
     });
 
-/// Registry of all built-in actor properties with their schemas.
-/// Engine-side bindings, name-sorted (binary search depends on it).
+/// Engine-side bindings for every built-in property, name-sorted.
 ///
 /// A binding carries only what the runtime adds to the shared descriptor in
 /// `animatix-core`: the finer [`ValueType`] its plan slot stores, the property
 /// flags, the storage field, the default value, and the frame-time read
 /// source. Names, applicability, and the finite value kind live in
 /// [`animatix_core::property::PROPERTY_DESCRIPTORS`] and are joined in by
-/// [`PROPERTY_REGISTRY`].
-/// The complete, authoritative registry of every property in Animatix.
+/// [`PROPERTY_REGISTRY`]; this is the complete, authoritative binding list.
 static BINDINGS: &[PropertyBinding] = &[
     b!(
         "active_color",

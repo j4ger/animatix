@@ -122,7 +122,7 @@ impl Timeline {
     pub fn property_descriptors(&self) -> Vec<crate::property_descriptor::PropertyDescriptor> {
         match self.extensions.as_ref() {
             Some(registry) => registry.property_descriptors(),
-            None => crate::extension_context::PropertyRegistry::builtin_descriptors(),
+            None => crate::timeline::property_registry::builtin_descriptors(),
         }
     }
 

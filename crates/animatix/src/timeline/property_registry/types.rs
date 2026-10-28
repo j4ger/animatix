@@ -515,15 +515,7 @@ impl ActorField {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Group resolution
-// ─────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────
 // Property schema
-// ─────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────
-// Applicability — which actor kinds a property is valid for
 // ─────────────────────────────────────────────────────────────
 
 /// Declares which actors a property applies to.
@@ -535,8 +527,9 @@ pub use animatix_core::caps::Applicable;
 
 /// The complete description of one property in the system.
 ///
-/// This is pure data — no function pointers. All dispatch logic is driven
-/// by matching over the enum fields (ValueType, ActorField).
+/// Everything is data except `default_value`, which is a function pointer
+/// because some defaults depend on actor kind. All other dispatch logic is
+/// driven by matching over the enum fields (`ValueType`, `ActorField`).
 #[derive(Clone, Copy, Debug)]
 pub struct PropertySchema {
     /// Canonical name as it appears in source text.
@@ -588,7 +581,3 @@ impl PropertySchema {
         self.flags.contains(PropertyFlags::PATH_AFFECTING)
     }
 }
-
-// ─────────────────────────────────────────────────────────────
-// The registry — sorted by name for binary search
-// ─────────────────────────────────────────────────────────────

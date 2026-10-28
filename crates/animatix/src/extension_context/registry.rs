@@ -118,8 +118,13 @@ impl ExtensionRegistry {
     }
 
     /// Return all built-in and extension property descriptors.
+    ///
+    /// Built-ins are materialized from the shared descriptor/binding tables on
+    /// demand; this context owns only the extension rows.
     pub fn property_descriptors(&self) -> Vec<crate::property_descriptor::PropertyDescriptor> {
-        self.properties.descriptors()
+        let mut descriptors = crate::timeline::property_registry::builtin_descriptors();
+        descriptors.extend(self.properties.extension_descriptors());
+        descriptors
     }
 
     /// Return extension-only property descriptors.
