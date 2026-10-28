@@ -280,17 +280,12 @@ impl BuildTarget {
         context: std::sync::Arc<crate::extension_context::ExtensionContext>,
         defines: &[(String, String)],
     ) -> BuildReport<Self> {
-        // Compatibility: a single-scene `--set` build used to bypass the
-        // extension context, because the old defines-only entry point had no
-        // place to pass one. Preserved across the entry-point collapse; the
-        // follow-up `fix(cli)` applies the whole option set instead.
-        let has_scenes = statements.iter().any(|s| matches!(s, Stmt::Scene { .. }));
-        let options = if !has_scenes && !defines.is_empty() {
-            BuildOptions::default().with_defines(defines)
-        } else {
-            BuildOptions::default().with_context(context).with_defines(defines)
-        };
-        Self::build_with_options(statements, namespaces, source_path, options)
+        Self::build_with_options(
+            statements,
+            namespaces,
+            source_path,
+            BuildOptions::default().with_context(context).with_defines(defines),
+        )
     }
 
     /// Returns the total duration in seconds, regardless of target type.

@@ -208,3 +208,49 @@ fade-out box [500ms]
     assert!(times.contains(&1.0), "must include intermediate keyframe");
     assert!(times.last().copied().unwrap() >= 3.0, "must include end/rest frame");
 }
+
+/// `--set NAME=VALUE` values are evaluated in the build environment, so they
+/// may call functions an extension registered. The pre-collapse defines-only
+/// entry point dropped the extension context and reported
+/// `InvalidPropertyValue` instead; the CLI always has a context, so its
+/// overrides must see it.
+#[test]
+fn set_overrides_evaluate_against_the_extension_context() {
+    let source = "#0s\nbadge: Ellipse, at: (50, 50), size: (30, 30)\n#1s\nfade-in badge\n";
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let ast = ast.expect("parsed AST");
+
+    let mut ctx = animatix::extension_context::ExtensionContext::new();
+    ctx.register_function("twice", |args, _env| {
+        let Some(animatix::timeline::Value::Num(n)) = args.first() else {
+            return Err(animatix::timeline::EvalError::TypeMismatch(
+                "twice expects one number".to_string(),
+            ));
+        };
+        Ok(animatix::timeline::Value::Num(*n * 2.0))
+    })
+    .expect("register function");
+
+    let defines = vec![("answer".to_string(), "twice(21)".to_string())];
+    let report = BuildTarget::from_ast_with_context_and_defines(
+        &ast,
+        &std::collections::HashMap::new(),
+        None,
+        std::sync::Arc::new(ctx),
+        &defines,
+    );
+
+    let BuildTarget::SingleScene(timeline) = report.output else {
+        panic!("expected a single-scene build target");
+    };
+    assert_eq!(timeline.env().get("answer"), Some(animatix::timeline::Value::Num(42.0)));
+    assert!(
+        !report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagnosticCode::InvalidPropertyValue),
+        "the override must evaluate with the extension context: {:?}",
+        report.diagnostics
+    );
+}
