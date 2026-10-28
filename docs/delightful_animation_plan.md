@@ -180,7 +180,7 @@ flowchart TD
 *   **可行性**：**中（局部离屏 + GPU 硬件齐次除法透视网格）**。
 *   **落地实现**：
     1. 声明 `rotate_x: deg(15)`, `rotate_y: deg(-20)`, `perspective: 800`。
-    2. 节点局部光栅化至离屏纹理后，通过 `PerspectiveBlitPipeline` 绘制带有 $4\times 4$ MVP 矩阵的双三角形 Quad。
+    2. 节点局部光栅化至离屏纹理后，通过 透视 blit（`PerspectiveBlitPipeline`，当前未实现，见 roadmap）。
     3. 利用 GPU 硬件光栅化器原生的 $\frac{uv}{w}$ 齐次透视除法完成数学上完美的透视缩放与梯形贴图映射。
 
 #### 4.3 柔和羽化与推挤转场 (Feathered Wipe & Push Transitions) [Tier 1]

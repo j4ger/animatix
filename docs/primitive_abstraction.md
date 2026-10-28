@@ -19,11 +19,11 @@ per-type branching in the pipeline:
 | Concern | Entry point | Notes |
 |---|---|---|
 | Per-actor drawing | `Primitive::evaluate()` | `scene_eval::evaluate_node` is the only draw path; the legacy manual `ActorKindId` match is gone. |
-| Child rendering | `Primitive::render_children(&mut RenderChildrenCtx, &[&str])` | `scene_eval::render_node_children` contains no `ChildProcessing` branch; `Filter`/`Mask`/`Equation` override it. |
+| Child rendering | `Primitive::render_children_by_id(&mut RenderChildrenCtx, &[EntityId])` | `scene_eval::render_node_children` contains no `ChildProcessing` branch; `Filter`/`Mask`/`Equation` override it. |
 | Mask clip geometry | `Primitive::clip_path(&EvaluateCtx)` | Plot geometry is excluded (`plot_geometry`); the Mask warns and falls back to a rect. |
 | Equation fragments | `Primitive::equation_fragment(&EvaluateCtx)` | No `ActorKindId::Fragment` check. |
 | Identity | `AnimationTrack::actor_type: String` | Required and registry-resolved; `kind` is derived by `set_identity` (extensions may override via `kind_id()`), with a build-time drift warning. |
-| Native extensions | `crates/animatix-plugin-api` + `extension_native_plugin.rs` | `repr(C)` callbacks: `build`, `evaluate`, `handle_assignment`, `finalize_container_build`, `default_props`, `default_color_key`, `clip_path`, `equation_fragment` (ABI snapshot 8). |
+| Native extensions | `crates/animatix-plugin-api` + `extension_native_plugin.rs` | `repr(C)` callbacks: `build`, `evaluate`, `handle_assignment`, `finalize_container_build`, `default_props`, `default_color_key`, `clip_path`, `equation_fragment` (ABI snapshot 9). |
 
 Invariants are pinned by tests: `every_built_track_identity_is_consistent`
 (`timeline/tests/build.rs`), `registry_matches_primitives` (card/behaviour
@@ -63,7 +63,7 @@ them without a concrete driver.
   is **source text, not handles**: a plugin can ship WGSL plus a parameter
   schema and let the host compile and run it on its own device (see §6).
 - **Container strategy bodies live in `Timeline`, not the primitive.** The
-  built-in `render_children` overrides (`primitives/filter.rs`, `mask.rs`,
+  built-in `render_children_by_id` overrides (`primitives/filter.rs`, `mask.rs`,
   `equation.rs`) are one-line delegations to `Timeline::render_*_children_ctx`
   (`timeline/scene_eval.rs`). Moving the bodies into `primitives/*` would pull
   `filter_backend` (a `&mut Option<&mut dyn FilterBackend>` with a nested

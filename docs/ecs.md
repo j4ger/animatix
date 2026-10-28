@@ -214,8 +214,6 @@ The behavior layer decouples actor identity and lifecycle from monolithic trait 
   - `id: BehaviorId`
   - `name: Box<str>` (authored type name, e.g. `"Rect"`, `"Text"`, `"Graph"`)
   - `caps: ActorCaps` (derived capability projection)
-  - `family: BehaviorFamily` (coarse architectural grouping: `Shape`, `Text`, `Media`, `Plot`, `Container`, `Effect`, `Equation`, `Captions`, `Annotation`, `Group`)
-  - `child_processing: ChildProcessingKind` (child evaluation strategy)
   - `source: BehaviorSource` (`Family(FamilyBehavior)` for built-ins, `Extension(Arc<dyn Primitive>)` for plugins)
 
 #### Family Systems (`timeline/behavior/builtin/`)

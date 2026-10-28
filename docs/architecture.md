@@ -168,7 +168,7 @@ expression variables; build and rebuild paths never fall back to them.
 
 Actor evaluation and build-time customization are decoupled from monolithic trait objects:
 - **`BehaviorId`**: A compact integer stored on every entity (`RequiredStore<BehaviorId>`). Indices `0..36` represent built-in primitives in canonical order; runtime plugins receive dynamically allocated indices `>= 36`.
-- **`BehaviorDef`**: Immutable behavior descriptor registered in `BehaviorRegistry`, containing capability projections (`ActorCaps`), coarse family grouping (`BehaviorFamily`), child-processing strategies, and evaluation sources.
+- **`BehaviorDef`**: Immutable behavior descriptor registered in `BehaviorRegistry`, containing capability projections (`ActorCaps`), the family function pointers or extension adapter, and the evaluation source.
 - **Family Systems (`timeline/behavior/builtin/`)**: Built-ins are organized into 10 domain family systems (`shape`, `text`, `media`, `plot`, `container`, `effect`, `equation`, `captions`, `annotation`, `group`). Built-in behaviors evaluate through direct, unboxed function pointers (`EvaluateFn`, `BuildExtraFn`), eliminating dynamic dispatch overhead on frame hot paths.
 - **Extension Adapter**: Plugins implement `Primitive` and are adapted as `BehaviorSource::Extension(Arc<dyn Primitive>)`, preserving backward compatibility with extension ecosystems.
 - **Tree Recursion**: Frame evaluation retains hierarchical tree traversal (`render_actor_node_by_id`) to support static subtree caching, hierarchical coordinate/camera accumulation, and offscreen compositing order for GPU effects (`Filter`, `Mask`, `Glass`).

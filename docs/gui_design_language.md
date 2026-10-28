@@ -584,15 +584,15 @@ incorrect and is corrected here.
 Use for self-contained widgets that take only plain values/builder options
 and return an `egui::Response`. No content closures, no rich return struct.
 Examples: `Button`, `Label`, `Spinner`, `Slider`, `Select`, `Badge`, `Tag`,
-`Alert`, `ProgressBar`, `Skeleton`, `Kbd`.
+`Alert`, `ProgressBar`, `Kbd`.
 
 **Tier 2 — `pub fn show(self, ui, ...) -> T`** (invoked
 `MyWidget::new(...).show(ui, ...)`). Use when the widget needs any of: a
 content/render closure (`FnOnce(&mut Ui)`), a rich return value (a `*Response`
 action struct beyond `egui::Response`), or cross-frame state coordination.
 Examples: `Form`/`Field`, `Dialog::modal`, `Popover`, `Tooltip`,
-`Collapsible`, `Tree`, `List`, `ColorPicker`, `TextField`/`NumberField`,
-`Row`, `TabBar`, `ResizeHandle`, `Toast`.
+`Tree`, `ColorPicker`, `TextField`/`NumberField`,
+`Row`, `TabBar`, `Toast`.
 
 **Rules:**
 - A widget exposes exactly **one** primary entry point — either `impl Widget`
@@ -607,7 +607,7 @@ Examples: `Form`/`Field`, `Dialog::modal`, `Popover`, `Tooltip`,
 
 **Exception — `Row::show_in_rect`.** `Row` exposes a second rect-mode entry
 point (`show_in_rect`) that takes a pre-allocated rect + response + painter.
-This is used by container widgets (`Tree`, `List`) that own allocation; it is
+This is used by container widgets (`Tree`) that own allocation; it is
 not a competing API — `show()` allocates and delegates to `show_in_rect`.
 Both paths render the same `Row`.
 
