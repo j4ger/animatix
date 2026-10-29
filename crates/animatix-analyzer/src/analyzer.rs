@@ -139,9 +139,10 @@ impl Analyzer {
             let module_fns = std::collections::HashMap::new();
             let mut env = animatix_syntax::typecheck::TypeEnv::new(&components, &module_fns);
             let syntax_diagnostics = env.check_statements(stmts);
+            let line_index = animatix_syntax::token::LineIndex::new(source);
             syntax_diagnostics
                 .into_iter()
-                .map(|d| diagnostics::convert_syntax_diagnostic(source, d))
+                .map(|d| diagnostics::convert_syntax_diagnostic_with_index(source, &line_index, d))
                 .collect()
         } else {
             Vec::new()

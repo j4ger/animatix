@@ -39,7 +39,7 @@ fn actual_diagnostics(source: &str) -> BTreeSet<ExpectedDiagnostic> {
         .diagnostics()
         .into_iter()
         .map(|d| ExpectedDiagnostic {
-            code: d.code.unwrap_or_default(),
+            code: d.code.map(|c| c.to_string()).unwrap_or_default(),
             severity: match d.severity {
                 animatix_analyzer::DiagnosticSeverity::Error => "error".into(),
                 animatix_analyzer::DiagnosticSeverity::Warning => "warning".into(),

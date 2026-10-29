@@ -23,13 +23,13 @@ pub struct Diagnostic {
     /// A human-readable description of the issue.
     pub message: String,
     /// An optional error code for categorisation.
-    pub code: Option<String>,
+    pub code: Option<std::sync::Arc<str>>,
     /// The identifier the diagnostic is about, when the producer recorded
     /// one (`undefined-label` → the missing label, `unknown-action` → the
     /// verb, `unused-label` → the declaration's name).
     ///
     /// Consumers must read this instead of re-parsing the English message.
-    pub subject: Option<String>,
+    pub subject: Option<std::sync::Arc<str>>,
 }
 
 /// The severity of a diagnostic.
@@ -204,7 +204,7 @@ pub fn collect_diagnostics_with_config(
             message: error.message.clone(),
             // One stable code so `lint-disable: parse-error` works regardless
             // of how many errors a file has.
-            code: Some("parse-error".to_string()),
+            code: Some("parse-error".into()),
             subject: None,
         });
     }
@@ -215,8 +215,12 @@ pub fn collect_diagnostics_with_config(
             animatix_syntax::semantic_diagnostics::collect_semantic_diagnostics(
                 stmts, symbols, tokens, source,
             );
-        diagnostics
-            .extend(syntax_diagnostics.into_iter().map(|d| convert_syntax_diagnostic(source, d)));
+        let line_index = animatix_syntax::token::LineIndex::new(source);
+        diagnostics.extend(
+            syntax_diagnostics
+                .into_iter()
+                .map(|d| convert_syntax_diagnostic_with_index(source, &line_index, d)),
+        );
     }
 
     // 2b. Suppress semantic warnings that share a line with a parse error.
@@ -272,6 +276,15 @@ pub(crate) fn convert_syntax_diagnostic(
     source: &str,
     d: animatix_syntax::diagnostics::Diagnostic,
 ) -> Diagnostic {
+    let index = animatix_syntax::token::LineIndex::new(source);
+    convert_syntax_diagnostic_with_index(source, &index, d)
+}
+
+pub(crate) fn convert_syntax_diagnostic_with_index(
+    source: &str,
+    index: &animatix_syntax::token::LineIndex<'_>,
+    d: animatix_syntax::diagnostics::Diagnostic,
+) -> Diagnostic {
     let severity = match d.severity {
         animatix_syntax::diagnostics::DiagnosticSeverity::Error => DiagnosticSeverity::Error,
         animatix_syntax::diagnostics::DiagnosticSeverity::Warning => DiagnosticSeverity::Warning,
@@ -282,13 +295,9 @@ pub(crate) fn convert_syntax_diagnostic(
         // A span that runs past the end of `source` is stale (the file was
         // edited); fall back to the recorded line/column rather than panicking.
         Some(span) if span.end <= source.len() => {
-            let s = Span::from_range(source, span.clone());
-            (
-                s.start_line.saturating_sub(1),
-                s.start_col.saturating_sub(1),
-                s.end_line.saturating_sub(1),
-                s.end_col.saturating_sub(1),
-            )
+            let (line, col) = index.byte_to_line_col(span.start);
+            let (end_line, end_col) = index.byte_to_line_col(span.end);
+            (line, col, end_line, end_col)
         },
         _ => {
             let line = d.location.line.unwrap_or(1).saturating_sub(1);
@@ -305,8 +314,8 @@ pub(crate) fn convert_syntax_diagnostic(
         end_line,
         end_col,
         message: d.message,
-        code: Some(d.code.to_string()),
-        subject: d.location.subject,
+        code: Some(d.code.to_string().into()),
+        subject: d.location.subject.map(std::sync::Arc::from),
     }
 }
 

@@ -189,7 +189,7 @@ pub fn semantic_diagnostic_to_json(d: &animatix_analyzer::Diagnostic) -> serde_j
         "end_line": d.end_line,
         "end_col": d.end_col,
         "message": d.message,
-        "code": d.code,
+        "code": d.code.as_deref(),
         "severity": format!("{:?}", d.severity).to_lowercase(),
         "phase": "build",
     })

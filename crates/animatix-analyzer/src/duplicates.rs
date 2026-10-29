@@ -101,8 +101,8 @@ impl<'a> Walker<'a> {
                     "Duplicate label '{label}' in this scope; rename one occurrence (re-declaration \
                      at a later keyframe is the supported morph form)"
                 ),
-                code: Some("duplicate-label".to_string()),
-                subject: Some(label.to_string()),
+                code: Some("duplicate-label".into()),
+                subject: Some(label.to_string().into()),
             });
         }
     }

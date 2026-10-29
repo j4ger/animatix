@@ -256,7 +256,7 @@ fn unused_removal_edits(
     let names: Vec<String> = diagnostics
         .iter()
         .filter(|d| d.code.as_deref() == Some("unused-label"))
-        .filter_map(|d| d.subject.clone())
+        .filter_map(|d| d.subject.as_deref().map(str::to_owned))
         .collect();
     if names.len() < 2 {
         return Vec::new();

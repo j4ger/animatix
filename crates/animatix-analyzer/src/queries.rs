@@ -98,7 +98,7 @@ impl Analyzer {
                 end_line: span.end_line.saturating_sub(1),
                 end_col: span.end_col.saturating_sub(1),
                 message: issue.kind.to_string(),
-                code: Some("unterminated-string".to_string()),
+                code: Some("unterminated-string".into()),
                 subject: None,
             });
         }

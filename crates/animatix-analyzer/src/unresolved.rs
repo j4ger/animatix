@@ -52,8 +52,8 @@ pub fn collect_unresolved_imports(symbols: &SymbolTable, path: Option<&Path>) ->
                 import.path,
                 resolved.display()
             ),
-            code: Some("unresolved-import".to_string()),
-            subject: Some(import.path.clone()),
+            code: Some("unresolved-import".into()),
+            subject: Some(import.path.clone().into()),
         });
     }
     diagnostics
@@ -119,8 +119,8 @@ pub fn collect_unresolved_variables(
                  default at runtime",
                 occurrence.name
             ),
-            code: Some("unresolved-variable".to_string()),
-            subject: Some(occurrence.name.clone()),
+            code: Some("unresolved-variable".into()),
+            subject: Some(occurrence.name.clone().into()),
         });
     }
 

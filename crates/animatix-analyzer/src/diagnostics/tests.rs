@@ -55,7 +55,7 @@ fn span_takes_precedence_over_stale_line_columns() {
             line: Some(1),
             column: Some(1),
             span: Some(source.len() - 3..source.len()),
-            subject: Some("nope".to_string()),
+            subject: Some("nope".into()),
             ..Default::default()
         },
     };

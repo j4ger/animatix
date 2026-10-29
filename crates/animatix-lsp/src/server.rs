@@ -244,7 +244,7 @@ impl Backend {
                         end: Position::new(d.end_line as u32, d.end_col as u32),
                     },
                     severity: Some(severity),
-                    code: d.code.map(NumberOrString::String),
+                    code: d.code.map(|c| NumberOrString::String(c.to_string())),
                     source: Some("animatix".to_string()),
                     message: d.message,
                     related_information: None,
