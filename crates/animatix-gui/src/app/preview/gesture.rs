@@ -3,15 +3,15 @@ use egui::Pos2;
 /// High-level gesture events produced by the gesture router.
 #[derive(Debug, Clone)]
 pub enum Gesture {
-    DragStart {
+    Start {
         pos: Pos2,
         modifiers: egui::Modifiers,
     },
-    DragMove {
+    Move {
         pos: Pos2,
         modifiers: egui::Modifiers,
     },
-    DragEnd {
+    End {
         modifiers: egui::Modifiers,
     },
 }

@@ -18,14 +18,14 @@ impl GestureHandler for MarqueeGesture {
         preview_rect: egui::Rect,
     ) -> GestureResult {
         match gesture {
-            Gesture::DragStart { pos, .. } => {
+            Gesture::Start { pos, .. } => {
                 // Lowest priority: if this handler is called, no actor/handle/
                 // pivot/keyframe claimed the drag, so start a marquee.
                 ctx.selection.marquee_start = Some(*pos);
                 ctx.selection.marquee_current = Some(*pos);
                 GestureResult::Claimed
             },
-            Gesture::DragMove { pos, .. } => {
+            Gesture::Move { pos, .. } => {
                 // Only update if marquee is active
                 if ctx.selection.marquee_start.is_some() {
                     ctx.selection.marquee_current = Some(*pos);
@@ -34,7 +34,7 @@ impl GestureHandler for MarqueeGesture {
                     GestureResult::Ignored
                 }
             },
-            Gesture::DragEnd { modifiers, .. } => {
+            Gesture::End { modifiers, .. } => {
                 // Only handle if marquee was active
                 if ctx.selection.marquee_start.is_some() {
                     if let (Some(start), Some(current)) =

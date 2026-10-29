@@ -18,7 +18,7 @@ impl GestureHandler for MoveActorGesture {
         preview_rect: egui::Rect,
     ) -> GestureResult {
         match gesture {
-            Gesture::DragStart { pos, modifiers, .. } => {
+            Gesture::Start { pos, modifiers, .. } => {
                 // Only handle Move or Select tool mode (NOT Rotate/Scale/Pivot/Vertex)
                 match *ctx.tool_mode {
                     ToolMode::Move | ToolMode::Select => {},
@@ -109,7 +109,7 @@ impl GestureHandler for MoveActorGesture {
 
                 GestureResult::Claimed
             },
-            Gesture::DragMove { pos, modifiers, .. } => {
+            Gesture::Move { pos, modifiers, .. } => {
                 // Only handle if we are already in Move state
                 let (_primary, actors, start_scene) = match &*ctx.drag_state {
                     DragState::Move {
@@ -166,7 +166,7 @@ impl GestureHandler for MoveActorGesture {
 
                 GestureResult::Claimed
             },
-            Gesture::DragEnd { .. } => {
+            Gesture::End { .. } => {
                 let old_drag_state = ctx.drag_state.clone();
 
                 // Only handle if we were in Move state

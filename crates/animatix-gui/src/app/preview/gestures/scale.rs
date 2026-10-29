@@ -20,7 +20,7 @@ impl GestureHandler for ScaleGesture {
         preview_rect: egui::Rect,
     ) -> GestureResult {
         match gesture {
-            Gesture::DragStart { pos, modifiers, .. } => {
+            Gesture::Start { pos, modifiers, .. } => {
                 // Only handle Scale tool mode or Select tool mode (handle hit)
                 match *ctx.tool_mode {
                     ToolMode::Scale | ToolMode::Select => {},
@@ -112,7 +112,7 @@ impl GestureHandler for ScaleGesture {
 
                 GestureResult::Claimed
             },
-            Gesture::DragMove { pos, modifiers, .. } => {
+            Gesture::Move { pos, modifiers, .. } => {
                 // Group scale: apply the union-box scale factor to every member.
                 let group = match &*ctx.drag_state {
                     DragState::GroupScale {
@@ -330,7 +330,7 @@ impl GestureHandler for ScaleGesture {
 
                 GestureResult::Claimed
             },
-            Gesture::DragEnd { .. } => {
+            Gesture::End { .. } => {
                 let old_drag_state = ctx.drag_state.clone();
 
                 // Only handle if we were in Scale state

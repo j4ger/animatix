@@ -18,7 +18,7 @@ impl GestureHandler for ReorderGesture {
         preview_rect: egui::Rect,
     ) -> GestureResult {
         match gesture {
-            Gesture::DragStart {
+            Gesture::Start {
                 pos: _, modifiers, ..
             } => {
                 // Reorder only fires on the drag start of the first real movement,
@@ -67,7 +67,7 @@ impl GestureHandler for ReorderGesture {
 
                 GestureResult::Claimed
             },
-            Gesture::DragMove { pos, .. } => {
+            Gesture::Move { pos, .. } => {
                 // Only handle if we are already in Reorder state
                 let (actor, container, layout_type) = match &*ctx.drag_state {
                     DragState::Reorder {
@@ -134,7 +134,7 @@ impl GestureHandler for ReorderGesture {
 
                 GestureResult::Claimed
             },
-            Gesture::DragEnd { .. } => {
+            Gesture::End { .. } => {
                 let old_drag_state = ctx.drag_state.clone();
 
                 // Only handle if we were in Reorder state

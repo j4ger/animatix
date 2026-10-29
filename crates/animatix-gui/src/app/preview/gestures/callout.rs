@@ -37,7 +37,7 @@ impl GestureHandler for CalloutGesture {
         preview_rect: egui::Rect,
     ) -> GestureResult {
         match gesture {
-            Gesture::DragStart { pos, modifiers, .. } => {
+            Gesture::Start { pos, modifiers, .. } => {
                 let actor = match ctx.selected_actors.iter().next().cloned() {
                     Some(a) => a,
                     None => return GestureResult::Ignored,
@@ -178,7 +178,7 @@ impl GestureHandler for CalloutGesture {
                 GestureResult::Ignored
             },
 
-            Gesture::DragMove { pos, modifiers, .. } => {
+            Gesture::Move { pos, modifiers, .. } => {
                 let scene = ctx.preview_screen_to_scene(preview_rect, *pos);
                 let snap_enabled = ctx.preview.snap.snap_enabled && !modifiers.alt;
                 let snap_threshold = ctx.preview.snap.snap_threshold;
@@ -350,7 +350,7 @@ impl GestureHandler for CalloutGesture {
                 }
             },
 
-            Gesture::DragEnd { .. } => {
+            Gesture::End { .. } => {
                 let state = ctx.drag_state.clone();
                 match &state {
                     DragState::CalloutLabel { .. }

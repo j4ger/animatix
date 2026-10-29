@@ -18,7 +18,7 @@ impl GestureHandler for MotionPathGesture {
         preview_rect: egui::Rect,
     ) -> GestureResult {
         match gesture {
-            Gesture::DragStart { pos, .. } => {
+            Gesture::Start { pos, .. } => {
                 // Get first selected (unlocked) actor
                 let actor = match ctx.selected_actors.iter().next().cloned() {
                     Some(a) => a,
@@ -60,7 +60,7 @@ impl GestureHandler for MotionPathGesture {
 
                 GestureResult::Ignored
             },
-            Gesture::DragMove { pos, .. } => {
+            Gesture::Move { pos, .. } => {
                 // Only handle if we are already in MotionPath state
                 let (actor, time_ms, start_position, start_scene) = match &*ctx.drag_state {
                     DragState::MotionPath {
@@ -90,7 +90,7 @@ impl GestureHandler for MotionPathGesture {
 
                 GestureResult::Claimed
             },
-            Gesture::DragEnd { .. } => {
+            Gesture::End { .. } => {
                 let old_drag_state = ctx.drag_state.clone();
 
                 // Only handle if we were in MotionPath state

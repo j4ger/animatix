@@ -18,7 +18,7 @@ impl GestureHandler for VertexGesture {
         preview_rect: egui::Rect,
     ) -> GestureResult {
         match gesture {
-            Gesture::DragStart { pos, .. } => {
+            Gesture::Start { pos, .. } => {
                 // Only handle Vertex or Select tool modes
                 match *ctx.tool_mode {
                     crate::app::preview::ToolMode::Vertex
@@ -87,7 +87,7 @@ impl GestureHandler for VertexGesture {
                     GestureResult::Ignored
                 }
             },
-            Gesture::DragMove { pos, .. } => {
+            Gesture::Move { pos, .. } => {
                 // Only handle if we are already in EditVertices state
                 let (actor, vertex, start_points, start_scene) = match &*ctx.drag_state {
                     DragState::EditVertices {
@@ -128,7 +128,7 @@ impl GestureHandler for VertexGesture {
 
                 GestureResult::Claimed
             },
-            Gesture::DragEnd { .. } => {
+            Gesture::End { .. } => {
                 let old_drag_state = ctx.drag_state.clone();
 
                 // Only handle if we were in EditVertices state

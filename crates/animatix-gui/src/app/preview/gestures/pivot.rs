@@ -15,7 +15,7 @@ impl GestureHandler for PivotGesture {
         preview_rect: egui::Rect,
     ) -> GestureResult {
         match gesture {
-            Gesture::DragStart { pos, .. } => {
+            Gesture::Start { pos, .. } => {
                 // Pivot only. Allowing this in Select mode meant a drag near an
                 // actor's centre silently moved the pivot instead of the actor.
                 if *ctx.tool_mode != crate::app::preview::ToolMode::Pivot {
@@ -64,7 +64,7 @@ impl GestureHandler for PivotGesture {
 
                 GestureResult::Claimed
             },
-            Gesture::DragMove { pos, .. } => {
+            Gesture::Move { pos, .. } => {
                 // Only handle if we are already in MovePivot state
                 let (actor, start_offset, start_scene) = match &*ctx.drag_state {
                     DragState::MovePivot {
@@ -90,7 +90,7 @@ impl GestureHandler for PivotGesture {
 
                 GestureResult::Claimed
             },
-            Gesture::DragEnd { .. } => {
+            Gesture::End { .. } => {
                 let old_drag_state = ctx.drag_state.clone();
 
                 // Only handle if we were in MovePivot state

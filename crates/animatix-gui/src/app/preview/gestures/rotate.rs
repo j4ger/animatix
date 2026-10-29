@@ -15,7 +15,7 @@ impl GestureHandler for RotateGesture {
         preview_rect: egui::Rect,
     ) -> GestureResult {
         match gesture {
-            Gesture::DragStart { pos, .. } => {
+            Gesture::Start { pos, .. } => {
                 // Only handle Rotate tool mode or Select tool mode (rotation handle only)
                 match *ctx.tool_mode {
                     ToolMode::Rotate | ToolMode::Select => {},
@@ -117,7 +117,7 @@ impl GestureHandler for RotateGesture {
 
                 GestureResult::Claimed
             },
-            Gesture::DragMove { pos, modifiers, .. } => {
+            Gesture::Move { pos, modifiers, .. } => {
                 // Group rotate: rotate every member around the union centre.
                 let group = match &*ctx.drag_state {
                     DragState::GroupRotate {
@@ -204,7 +204,7 @@ impl GestureHandler for RotateGesture {
 
                 GestureResult::Claimed
             },
-            Gesture::DragEnd { .. } => {
+            Gesture::End { .. } => {
                 let old_drag_state = ctx.drag_state.clone();
 
                 // Only handle if we were in Rotate state

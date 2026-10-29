@@ -78,12 +78,12 @@ impl GestureRouter {
 
         // ── Active extracted drags: route to handler ──
         let build_drag_end = || -> Gesture {
-            Gesture::DragEnd {
+            Gesture::End {
                 modifiers: frame.modifiers,
             }
         };
         let build_drag_move = |pos| -> Gesture {
-            Gesture::DragMove {
+            Gesture::Move {
                 pos,
                 modifiers: frame.modifiers,
             }
@@ -146,7 +146,7 @@ impl GestureRouter {
             ctx.selection.clear_tapped_place();
             if let Some(pos) = frame.screen_pos {
                 select_on_drag_start(ctx, pos, preview_rect, frame.modifiers);
-                let start_gesture = Gesture::DragStart {
+                let start_gesture = Gesture::Start {
                     pos,
                     modifiers: frame.modifiers,
                 };
