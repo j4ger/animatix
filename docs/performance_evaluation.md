@@ -7,8 +7,11 @@
 
 > **Current status:** CI integration is deliberately **paused** while the harness
 > is proven in local optimization rounds. Everything in this doc runs locally via
-> `scripts/perf-bench.sh` (`save` → optimize → `compare`). Re-enable CI only after
-> the gate is stable and non-flaky (roadmap PF-2).
+> `scripts/perf-bench.sh` (`save` → optimize → `compare`). That `compare` is
+> **manual evidence, not a PR gate** — no perf check is in `scripts/ci.sh`'s gate
+> table; the local workflow (idle-machine preflight, baseline metadata, reading a
+> failure) is §4.1. Re-enable CI only after the gate is stable and non-flaky
+> (roadmap PF-2).
 
 ## 1. Why this exists
 
@@ -156,7 +159,10 @@ Policy changes over the current state:
   `--warm-up-time 1 --measurement-time 2`, ~4-6 min warm) is the per-change
   regression guard; `full` adds the GPU `gpu` target (`demos_frame_cost`) for
   release-scale A/B.
-  Baselines live under `$PERF_BASELINE_DIR/<tier>/`. The GPU demo suite has
+  Baselines live under `$PERF_BASELINE_DIR/<tier>/`. Each `save` also writes
+  `<tier>/META.json` with the commit, tree state, `rustc`, CPU count, timestamp,
+  preflight load and taskset/allow-load settings; `compare` prints it for
+  context but never uses it in the verdict. The GPU demo suite has
   ±10-20% run-to-run variance (readback-bound) — it guards ms-level GPU
   pipeline health, not sub-µs CPU deltas, which is why it is not in the
   default guard.
@@ -1141,6 +1147,83 @@ after each verified optimization. Do not attempt to "fix" this with pinning,
 longer warm-ups, or an auto-re-run-in-isolation gate recheck: the last is biased
 because an isolated re-run is compared against a full-suite baseline and will
 dismiss genuine regressions.
+
+### 4.1 Manual baseline workflow (local; not a PR gate)
+
+`scripts/perf-bench.sh compare` is **manual evidence**, not a required check. It
+is absent from `scripts/ci.sh`'s gate table, PR CI does not run it, and a red
+`compare` does not block a merge — adding it as a gate is deliberately deferred
+(roadmap PF-2) because the false-positive rate on a loaded host is an environment
+problem, not a threshold problem. The rule in `AGENTS.md` is narrower: a change
+to the per-frame render, scene-evaluation, or export loop attaches the compare
+log to its commit message; everything else does not need one. A load-driven
+failure is therefore a statement about the machine, not about the change.
+
+**Prepare the machine.** A baseline is only comparable on the same machine, in
+the same power state, at comparable load:
+
+- Wait for an idle window: no `cargo build`/`test`, no parallel agent benches, no
+  editor indexing. Before every suite the script reads `/proc/loadavg` and exits
+  **2** when the 1-minute load exceeds `PERF_MAX_LOAD_RATIO` × CPUs (default
+  `0.5`). `PERF_ALLOW_LOAD=1` measures anyway after printing the observed load;
+  the override is recorded in the baseline metadata. Do not raise
+  `PERF_MAX_LOAD_RATIO` to make a red run pass.
+- Keep the CPU governor fixed for both runs (`cpupower frequency-set -g
+  performance` where available, or the desktop's performance mode). A governor
+  change between `save` and `compare` reads as a large regression or win.
+- Optionally pin the benchmark to a fixed CPU set with
+  `PERF_TASKSET_CPUS=0-3`; the script wraps `cargo bench` in `taskset -c`. This
+  is a per-machine setting, not a hard-coded default. Pinning can isolate a busy
+  host but does not make it quiet: §4's 2026-09-03 note measured *worse* spread
+  when pinned, so treat it as one more control, not a fix.
+
+**Save, then compare (same shell, same machine).**
+
+```bash
+# Record this machine's known-good baseline (one per tier; ~4-6 min warm).
+PERF_BASELINE_DIR=/path/to/animatix-perf \
+  nix develop --command bash scripts/perf-bench.sh save quick
+
+# Later, after the change, in an idle window:
+PERF_BASELINE_DIR=/path/to/animatix-perf \
+  nix develop --command bash scripts/perf-bench.sh compare quick
+```
+
+`quick` is the default; `full` adds the GPU demo target for release-scale
+checks. Baselines belong in `target/` (the default) or a scratch directory such
+as `/tmp/animatix-perf` — never in git; do not commit a `target/` or `/tmp`
+baseline.
+
+Each `save` writes `<tier>/META.json` with the git commit, whether the tree was
+dirty, `rustc --version`, CPU count, timestamp, the 1-minute load observed at
+start, and the `PERF_TASKSET_CPUS`/`PERF_ALLOW_LOAD` settings. `compare` prints
+that block before measuring so a stale or differently-configured baseline is
+visible, but the verdict uses only the `estimates.json` pairs; metadata is
+context and can never make a run pass or fail.
+
+**Reading the result.** Exit codes: `0` pass, `1` regression(s) flagged, `2`
+usage/preflight/environment, `3` no baseline. A `2` is never a regression: fix
+the environment and rerun. For a `1`:
+
+- Check the printed metadata first. A baseline from another commit, CPU count,
+  governor or pin is not evidence about this change; re-save before reading it.
+  A dirty-tree baseline is usable but should be labelled as such in the log.
+- If everything moved together — including untouched controls such as
+  `stage/build_frame_env` — the session drifted; apply the control-normalization
+  or adjacent-A/B protocol from §4 (2026-09-01 and 2026-09-03 notes).
+- A suite-wide `compare` is a screen, not a verdict. If it flags more benches
+  than the change can plausibly touch (a loaded host can flag a large fraction
+  of the quick tier with no code change), do **not** re-save until it looks
+  green. Record the failure count and the environment in the PR/commit
+  evidence, then A/B the single bench the change touches:
+
+  ```bash
+  # same command before and after (git stash between), on an idle machine
+  nix develop --command cargo bench -p animatix --bench frame -- 'eval_total'
+  ```
+
+  The adjacent single-bench A/B is the actionable evidence; the suite-wide
+  verdict is only a screen for finding candidates.
 
 ---
 

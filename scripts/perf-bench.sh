@@ -28,11 +28,27 @@
 #
 #   PERF_BASELINE_DIR=/path scripts/perf-bench.sh save full   # baselines live in
 #   PERF_BASELINE_DIR=/path scripts/perf-bench.sh compare     #   $DIR/<tier>/
-#     Use an explicit directory to persist baselines between CI runs.
+#     Use an explicit directory to persist baselines between CI runs. A save also
+#     writes <tier>/META.json (commit, rustc, CPU count, time, load, taskset);
+#     `compare` prints it for context but never uses it in the verdict.
+#
+# Load preflight:
+#   Before any suite runs, the script reads /proc/loadavg and refuses to measure
+#   when the 1-minute load exceeds PERF_MAX_LOAD_RATIO (default 0.5) x CPUs.
+#   A loaded host moves every bench, so the numbers are noise, not a verdict; the
+#   run exits 2 (environment, not regression). Use PERF_ALLOW_LOAD=1 to measure
+#   anyway; the override is printed and recorded in META.json.
+#
+#   PERF_TASKSET_CPUS=0-3  optional `taskset -c` CPU set wrapping cargo bench.
+#   PERF_MAX_LOAD_RATIO=0.5  load-per-CPU preflight ceiling.
+#   PERF_ALLOW_LOAD=1        override the preflight (explicit, logged).
 #
 # Thresholds:
 #   --thresh PCT  percentage (mean) a bench may regress before `compare` fails, e.g. 5 => +5%.
 #   Absolute guardrails are handled separately by scripts/extension-bench.sh.
+#
+# Exit codes: 0 pass, 1 regressions flagged, 2 usage/preflight/environment,
+#             3 no baseline to compare against.
 
 set -euo pipefail
 
@@ -45,8 +61,8 @@ cd "$ROOT"
 # result that means nothing. Refuse instead.
 if ! command -v python3 >/dev/null 2>&1; then
     echo "perf-bench: python3 not found — cannot compute regression verdicts." >&2
-    echo "           Run this inside a shell that provides python3 (the repo's dev" >&2
-    echo "           shell does not); refusing to report a green run without it." >&2
+    echo "           Run this inside a shell that provides python3, e.g. 'nix develop'." >&2
+    echo "           Refusing to report a green run without it." >&2
     exit 1
 fi
 
@@ -96,6 +112,90 @@ done
 
 mkdir -p "$BASELINE_DIR/$TIER" "$LOG_DIR"
 
+# ── environment guards ────────────────────────────────────────────────────────
+# The regression verdict assumes the machine is otherwise idle. That is the one
+# assumption the harness cannot check from within Criterion: on a loaded host
+# every bench shifts together, and the noise-adaptive bound then reports a pile
+# of false regressions. /proc/loadavg is the cheap, non-self-matching test (a
+# `pgrep` for the bench process would match the shell running this script).
+
+detect_cpu_count() {
+    if command -v nproc >/dev/null 2>&1; then
+        nproc
+    elif command -v getconf >/dev/null 2>&1; then
+        getconf _NPROCESSORS_ONLN
+    else
+        echo 1
+    fi
+}
+
+PREFLIGHT_LOAD1=""   # empty means "not observed" (non-Linux, or no /proc)
+PREFLIGHT_CORES=1
+PREFLIGHT_RATIO="0.5"
+
+preflight() {
+    PREFLIGHT_CORES="$(detect_cpu_count)"
+    if ! [[ "$PREFLIGHT_CORES" =~ ^[0-9]+$ ]] || [[ "$PREFLIGHT_CORES" -lt 1 ]]; then
+        PREFLIGHT_CORES=1
+    fi
+    PREFLIGHT_RATIO="${PERF_MAX_LOAD_RATIO:-0.5}"
+    if ! awk -v r="$PREFLIGHT_RATIO" 'BEGIN { exit !(r ~ /^[0-9]+([.][0-9]+)?$/ && r + 0 >= 0) }'; then
+        echo "perf-bench: PERF_MAX_LOAD_RATIO='$PREFLIGHT_RATIO' is not a non-negative number." >&2
+        exit 2
+    fi
+
+    if [[ ! -r /proc/loadavg ]]; then
+        echo "perf-bench: /proc/loadavg unavailable — skipping the load preflight (not Linux?)." >&2
+        return 0
+    fi
+
+    local load1 limit
+    read -r load1 _ < /proc/loadavg
+    PREFLIGHT_LOAD1="$load1"
+    limit="$(awk -v r="$PREFLIGHT_RATIO" -v c="$PREFLIGHT_CORES" 'BEGIN { printf "%.2f", r * c }')"
+
+    if awk -v l="$load1" -v r="$PREFLIGHT_RATIO" -v c="$PREFLIGHT_CORES" 'BEGIN { exit !(l > r * c) }'; then
+        if [[ "${PERF_ALLOW_LOAD:-0}" == "1" ]]; then
+            echo "perf-bench: WARNING — 1-min load $load1 exceeds ${PREFLIGHT_RATIO} x ${PREFLIGHT_CORES} CPUs (limit $limit); measuring anyway because PERF_ALLOW_LOAD=1." >&2
+        else
+            cat >&2 <<EOF
+perf-bench: refusing to measure: the machine is loaded, so the numbers would be noise.
+  /proc/loadavg 1-min load : $load1
+  CPUs                     : $PREFLIGHT_CORES
+  PERF_MAX_LOAD_RATIO      : $PREFLIGHT_RATIO (limit $limit)
+
+  Wait for an idle window (finish builds, tests, browser/editor indexing), or
+  rerun with PERF_ALLOW_LOAD=1 if you knowingly accept a noisy measurement.
+  A load-driven compare failure is an environment result, not a code regression.
+EOF
+            exit 2
+        fi
+    else
+        echo "perf-bench: load preflight ok (1-min load $load1 / $PREFLIGHT_CORES CPUs, limit $limit)."
+    fi
+}
+
+# Optional CPU pinning. Never hard-code a CPU list here: the right set differs
+# per machine, and pinning does not fix a genuinely busy host (see the
+# 2026-09-03 note in docs/performance_evaluation.md §4).
+TASKSET_PREFIX=()
+if [[ -n "${PERF_TASKSET_CPUS:-}" ]]; then
+    if ! command -v taskset >/dev/null 2>&1; then
+        echo "perf-bench: PERF_TASKSET_CPUS='$PERF_TASKSET_CPUS' is set but 'taskset' was not found." >&2
+        echo "           Install util-linux or unset PERF_TASKSET_CPUS." >&2
+        exit 2
+    fi
+    TASKSET_PREFIX=(taskset -c "$PERF_TASKSET_CPUS")
+fi
+
+run_cargo() {
+    if [[ ${#TASKSET_PREFIX[@]} -gt 0 ]]; then
+        "${TASKSET_PREFIX[@]}" "$@"
+    else
+        "$@"
+    fi
+}
+
 # One cargo invocation per package: `--bench` target selection is per package
 # (the analyzer suite lives only there, the engine suites only here), and one
 # invocation compiles/benches the whole tier without re-linking per target.
@@ -108,12 +208,12 @@ run_suite() {
     else
         bench_args=("${QUICK_BENCHES[@]}")
     fi
-    local engine_args=()
+    local cargo_args=()
     for bench in "${bench_args[@]}"; do
-        engine_args+=(--bench "$bench")
+        cargo_args+=(--bench "$bench")
     done
-    cargo bench -p animatix "${engine_args[@]}" -- "${BENCH_ARGS[@]}"
-    cargo bench -p animatix-analyzer --bench editor_intelligence -- "${BENCH_ARGS[@]}"
+    run_cargo cargo bench -p animatix "${cargo_args[@]}" -- "${BENCH_ARGS[@]}"
+    run_cargo cargo bench -p animatix-analyzer --bench editor_intelligence -- "${BENCH_ARGS[@]}"
 }
 
 # Collect fresh `new/estimates.json` -> a flat directory of <id>.json
@@ -142,6 +242,68 @@ collect_new() {
         echo "perf-bench: no new estimates collected under target/criterion — did the suite run?" >&2
         return 1
     fi
+}
+
+# Baseline metadata is context, not a verdict. A save records which build and
+# machine produced the estimates; compare prints it so a stale, dirty or
+# differently-pinned baseline is visible. META.json never enters the comparison
+# (only the estimates pairs do), and a missing/malformed one cannot fail a run.
+write_baseline_meta() {
+    local bench_count="$1"
+    local path="$BASELINE_DIR/$TIER/META.json"
+    local commit dirty rustc cpus created allow taskset
+    commit="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+    if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then dirty=true; else dirty=false; fi
+    rustc="$(rustc --version 2>/dev/null || echo unavailable)"
+    cpus="$PREFLIGHT_CORES"
+    created="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    allow=false
+    [[ "${PERF_ALLOW_LOAD:-0}" == "1" ]] && allow=true
+    taskset="${PERF_TASKSET_CPUS:-}"
+    python3 - "$path" "$TIER" "$commit" "$dirty" "$rustc" "$cpus" "$created" \
+        "$PREFLIGHT_LOAD1" "$PREFLIGHT_RATIO" "$allow" "$taskset" "$bench_count" <<'PY'
+import json, sys
+(path, tier, commit, dirty, rustc, cpus, created, load1, ratio,
+ allow, taskset, bench_count) = sys.argv[1:13]
+with open(path, "w", encoding="utf-8") as f:
+    json.dump({
+        "tier": tier,
+        "git_commit": commit,
+        "git_dirty": dirty == "true",
+        "rustc": rustc,
+        "cpu_count": int(cpus),
+        "created_utc": created,
+        "bench_count": int(bench_count),
+        "load_1m_at_start": float(load1) if load1 else None,
+        "max_load_ratio": float(ratio),
+        "allow_load": allow == "true",
+        "taskset_cpus": taskset or None,
+    }, f, indent=2, sort_keys=True)
+    f.write("\n")
+PY
+}
+
+show_baseline_meta() {
+    local meta="$BASELINE_DIR/$TIER/META.json"
+    if [[ ! -f "$meta" ]]; then
+        echo "perf-bench: baseline has no META.json (saved before metadata was recorded)."
+        return 0
+    fi
+    python3 - "$meta" <<'PY' || echo "perf-bench: could not read baseline metadata from $meta" >&2
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as f:
+    m = json.load(f)
+commit = str(m.get("git_commit", "unknown"))[:12]
+dirty = " (dirty tree)" if m.get("git_dirty") else ""
+load1 = m.get("load_1m_at_start")
+load = "unknown" if load1 is None else str(load1)
+taskset = ", taskset " + str(m["taskset_cpus"]) if m.get("taskset_cpus") else ""
+allow = ", PERF_ALLOW_LOAD=1" if m.get("allow_load") else ""
+print("perf-bench: baseline metadata: " + str(m.get("tier", "?")) + " saved "
+      + str(m.get("created_utc", "unknown")) + " at " + commit + dirty
+      + " with " + str(m.get("rustc", "rustc unknown")) + ", "
+      + str(m.get("cpu_count", "?")) + " CPUs, load " + load + taskset + allow)
+PY
 }
 
 # Python3 helper: compare two Criterion estimates files (baseline vs current).
@@ -189,23 +351,29 @@ print(f"{bm} {cm} {chg:.2f} {limit:.2f} {verdict}")
 
 case "$MODE" in
     save)
+        preflight
         echo "perf-bench: running the '$TIER' tier and recording its baseline..."
         run_suite
         collect_new "$BASELINE_DIR/$TIER"
-        echo "perf-bench: '$TIER' baseline saved to $BASELINE_DIR/$TIER ($(find "$BASELINE_DIR/$TIER" -name '*.json' | wc -l) benches)"
+        bench_count="$(find "$BASELINE_DIR/$TIER" -maxdepth 1 -name '*.json' ! -name 'META.json' | wc -l | tr -d ' ')"
+        write_baseline_meta "$bench_count"
+        echo "perf-bench: '$TIER' baseline saved to $BASELINE_DIR/$TIER ($bench_count benches; metadata: $BASELINE_DIR/$TIER/META.json)"
         ;;
 
     run)
+        preflight
         echo "perf-bench: running the '$TIER' tier without guard..."
         run_suite
         ;;
 
     compare)
-        if [[ -z "$(find "$BASELINE_DIR/$TIER" -name "*.json" -print -quit)" ]]; then
+        if [[ -z "$(find "$BASELINE_DIR/$TIER" -maxdepth 1 -name '*.json' ! -name 'META.json' -print -quit)" ]]; then
             echo "perf-bench: no '$TIER' baseline found under $BASELINE_DIR/$TIER." >&2
             echo "  Run 'scripts/perf-bench.sh save $TIER' first (ideally on a known-good commit)." >&2
             exit 3
         fi
+        show_baseline_meta
+        preflight
         echo "perf-bench: running the '$TIER' tier and comparing against its baseline (regression beyond combined-noise bound or +${THRESH}% floor fails)..."
         run_suite
         collect_new "$LOG_DIR"

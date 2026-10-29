@@ -205,6 +205,12 @@ editing a workflow. `AGENTS.md` (Workflow 3) records the gate discipline; run
 `scripts/ci.sh gates` to see the shell each gate needs, and see that script's note on why
 running one in the wrong shell looks like a compile error.
 
+Performance comparison is deliberately **not** one of those gates:
+`scripts/perf-bench.sh compare` is manual evidence for hot-path changes, not a
+PR check, and it exits 2 on a loaded machine instead of reporting a verdict. See
+`docs/performance_evaluation.md` §4.1 for the baseline and interpretation
+procedure.
+
 - **animatix**: Core timeline, parser, and rendering tests
 - **animatix-analyzer**: 48+ unit tests (symbol extraction, type inference, completions, diagnostics)
 - **animatix-lsp**: Compiles, manual testing with editors
