@@ -8,7 +8,7 @@ use animatix::ir::{
 use animatix::timeline::{
     Environment, EvalError, SceneDimensions, Timeline, Value, evaluate_expr, load_standard_library,
 };
-use animatix_syntax::ast::{BinaryOp, Expr, LoopPattern, Stmt, Time};
+use animatix_syntax::ast::{BinaryOp, Expr, LoopPattern, Property, Stmt, TargetSegment, Time};
 use animatix_syntax::module::ModuleGraph;
 
 fn evaluate_modifier_via_ir(value: CompiledExpr, env: &mut Environment) -> Value {
@@ -21,6 +21,83 @@ fn evaluate_modifier_via_ir(value: CompiledExpr, env: &mut Environment) -> Value
     let mut overrides = ModifierOverrides::default();
     execute_modifier_ir(&program, env, &mut overrides).expect("IR execution should succeed");
     env.get("__ir_test_result").expect("IR result should be stored")
+}
+
+fn num(value: f64) -> Expr {
+    Expr::Num(value)
+}
+
+fn ident(name: &str) -> Expr {
+    Expr::Ident(name.to_string())
+}
+
+fn bin(left: Expr, op: BinaryOp, right: Expr) -> Expr {
+    Expr::Binary(Box::new(left), op, Box::new(right))
+}
+
+fn path(segments: &[&str]) -> Expr {
+    Expr::Path(segments.iter().map(|segment| segment.to_string()).collect())
+}
+
+fn static_target(segments: &[&str]) -> Vec<TargetSegment> {
+    segments
+        .iter()
+        .map(|segment| TargetSegment::Static(segment.to_string()))
+        .collect()
+}
+
+fn indexed_target(base: &str, index: Expr) -> Vec<TargetSegment> {
+    vec![TargetSegment::Indexed {
+        base: base.to_string(),
+        index: Box::new(index),
+    }]
+}
+
+fn assignment(target: Vec<TargetSegment>, property: &str, value: Expr) -> Stmt {
+    Stmt::Assignment {
+        target,
+        property: property.to_string(),
+        value,
+        modifiers: vec![],
+        easing: None,
+        value_span: None,
+        span: None,
+    }
+}
+
+fn let_decl(name: &str, value: Expr) -> Stmt {
+    Stmt::LetDecl {
+        is_pub: false,
+        name: name.to_string(),
+        value,
+        span: None,
+    }
+}
+
+fn always(body: Vec<Stmt>) -> Vec<Stmt> {
+    vec![Stmt::Always { body, span: None }]
+}
+
+fn actor(label: &str, ty: &str, props: &[(&str, Expr)]) -> Stmt {
+    Stmt::ActorDecl {
+        is_pub: false,
+        is_anonymous: false,
+        label: label.to_string(),
+        array_index: None,
+        ty: ty.to_string(),
+        props: props
+            .iter()
+            .map(|(name, value)| Property {
+                name: name.to_string(),
+                value: value.clone(),
+                value_span: None,
+                trailing_comment: None,
+            })
+            .collect(),
+        modifiers: vec![],
+        children: vec![],
+        span: None,
+    }
 }
 
 const REACTIVE_FIXTURE: &str = r#"// Reactive: always, time-driven behavior, if/else.
@@ -53,20 +130,7 @@ dots: Row, anchor: scene.bottom, offset: (0, -120), gap: 30, align: "center" {
 
 #[test]
 fn ir_lowering_lowers_always_assignment_subset() {
-    let program = vec![Stmt::Always {
-        body: vec![Stmt::Assignment {
-            target: vec![animatix_syntax::ast::TargetSegment::Static(
-                "pulse".to_string(),
-            )],
-            property: "opacity".to_string(),
-            value: Expr::Num(1.0),
-            modifiers: vec![],
-            easing: None,
-            value_span: None,
-            span: None,
-        }],
-        span: None,
-    }];
+    let program = always(vec![assignment(static_target(&["pulse"]), "opacity", num(1.0))]);
 
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
     let rendered = format!("{ir}");
@@ -77,34 +141,15 @@ fn ir_lowering_lowers_always_assignment_subset() {
 
 #[test]
 fn ir_lowering_bare_always_assignment_writes_frame_variable() {
-    let program = vec![Stmt::Always {
-        body: vec![Stmt::Assignment {
-            target: vec![],
-            property: "freq".to_string(),
-            value: Expr::Binary(
-                Box::new(Expr::Ident("t".to_string())),
-                BinaryOp::Mul,
-                Box::new(Expr::Num(2.0)),
-            ),
-            modifiers: vec![],
-            easing: None,
-            value_span: None,
-            span: None,
-        }],
-        span: None,
-    }];
+    let value = bin(ident("t"), BinaryOp::Mul, num(2.0));
+    let program = always(vec![assignment(vec![], "freq", value.clone())]);
 
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
     assert_eq!(
         ir.statements,
         vec![ModifierIrStmt::Let {
             name: "freq".to_string(),
-            value: compile_expr(&Expr::Binary(
-                Box::new(Expr::Ident("t".to_string())),
-                BinaryOp::Mul,
-                Box::new(Expr::Num(2.0)),
-            ))
-            .expect("expression should compile"),
+            value: compile_expr(&value).expect("expression should compile"),
         }]
     );
 
@@ -118,51 +163,15 @@ fn ir_lowering_bare_always_assignment_writes_frame_variable() {
 
 #[test]
 fn ir_lowering_supports_conditionals_and_lets() {
-    let program = vec![Stmt::Always {
-        body: vec![
-            Stmt::LetDecl {
-                is_pub: false,
-                name: "x".to_string(),
-                value: Expr::Binary(
-                    Box::new(Expr::Ident("t".to_string())),
-                    BinaryOp::Mul,
-                    Box::new(Expr::Num(2.0)),
-                ),
-                span: None,
-            },
-            Stmt::Conditional {
-                condition: Expr::Binary(
-                    Box::new(Expr::Ident("x".to_string())),
-                    BinaryOp::Lt,
-                    Box::new(Expr::Num(1.0)),
-                ),
-                then_branch: vec![Stmt::Assignment {
-                    target: vec![animatix_syntax::ast::TargetSegment::Static(
-                        "pulse".to_string(),
-                    )],
-                    property: "opacity".to_string(),
-                    value: Expr::Num(1.0),
-                    modifiers: vec![],
-                    easing: None,
-                    value_span: None,
-                    span: None,
-                }],
-                else_branch: Some(vec![Stmt::Assignment {
-                    target: vec![animatix_syntax::ast::TargetSegment::Static(
-                        "pulse".to_string(),
-                    )],
-                    property: "opacity".to_string(),
-                    value: Expr::Num(0.0),
-                    modifiers: vec![],
-                    easing: None,
-                    value_span: None,
-                    span: None,
-                }]),
-                span: None,
-            },
-        ],
-        span: None,
-    }];
+    let program = always(vec![
+        let_decl("x", bin(ident("t"), BinaryOp::Mul, num(2.0))),
+        Stmt::Conditional {
+            condition: bin(ident("x"), BinaryOp::Lt, num(1.0)),
+            then_branch: vec![assignment(static_target(&["pulse"]), "opacity", num(1.0))],
+            else_branch: Some(vec![assignment(static_target(&["pulse"]), "opacity", num(0.0))]),
+            span: None,
+        },
+    ]);
 
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
     let rendered = format!("{ir}");
@@ -175,10 +184,7 @@ fn ir_lowering_supports_conditionals_and_lets() {
 
 #[test]
 fn ir_lowering_ignores_comments_in_always_blocks() {
-    let program = vec![Stmt::Always {
-        body: vec![Stmt::Comment("test".to_string(), None)],
-        span: None,
-    }];
+    let program = always(vec![Stmt::Comment("test".to_string(), None)]);
 
     let result = lower_modifier_ir(&program).expect("lowering should succeed");
     assert!(
@@ -198,17 +204,10 @@ fn ir_lowering_supports_construct_expression_forms() {
 #[test]
 fn ir_matches_evaluate_expr_for_supported_subset() {
     let expr = Expr::Conditional(
-        Box::new(Expr::Binary(
-            Box::new(Expr::Call("sin".to_string(), vec![Expr::Ident("t".to_string())])),
-            BinaryOp::Gt,
-            Box::new(Expr::Num(0.0)),
-        )),
+        Box::new(bin(Expr::Call("sin".to_string(), vec![ident("t")]), BinaryOp::Gt, num(0.0))),
         Box::new(Expr::Call(
             "format".to_string(),
-            vec![
-                Expr::Str("pulse={}".to_string()),
-                Expr::Ident("pulse".to_string()),
-            ],
+            vec![Expr::Str("pulse={}".to_string()), ident("pulse")],
         )),
         Box::new(Expr::Str("pulse=off".to_string())),
     );
@@ -228,29 +227,19 @@ fn ir_matches_evaluate_expr_for_supported_subset() {
 #[test]
 fn ir_matches_ast_for_extended_builtins() {
     let cases: Vec<Expr> = vec![
-        Expr::Call("signum".to_string(), vec![Expr::Num(-2.5)]),
-        Expr::Call("fract".to_string(), vec![Expr::Num(3.75)]),
-        Expr::Call("hypot".to_string(), vec![Expr::Num(3.0), Expr::Num(4.0)]),
-        Expr::Call("pow".to_string(), vec![Expr::Num(2.0), Expr::Num(10.0)]),
-        Expr::Call("rem".to_string(), vec![Expr::Num(7.0), Expr::Num(4.0)]),
-        Expr::Call("step".to_string(), vec![Expr::Num(1.0), Expr::Num(0.5)]),
-        Expr::Call("round".to_string(), vec![Expr::Num(2.6)]),
-        Expr::Call("seeded_rand".to_string(), vec![Expr::Num(42.0)]),
-        Expr::Call("factorial".to_string(), vec![Expr::Num(5.0)]),
-        Expr::Call(
-            "sum".to_string(),
-            vec![Expr::List(vec![
-                Expr::Num(1.0),
-                Expr::Num(2.0),
-                Expr::Num(3.5),
-            ])],
-        ),
+        Expr::Call("signum".to_string(), vec![num(-2.5)]),
+        Expr::Call("fract".to_string(), vec![num(3.75)]),
+        Expr::Call("hypot".to_string(), vec![num(3.0), num(4.0)]),
+        Expr::Call("pow".to_string(), vec![num(2.0), num(10.0)]),
+        Expr::Call("rem".to_string(), vec![num(7.0), num(4.0)]),
+        Expr::Call("step".to_string(), vec![num(1.0), num(0.5)]),
+        Expr::Call("round".to_string(), vec![num(2.6)]),
+        Expr::Call("seeded_rand".to_string(), vec![num(42.0)]),
+        Expr::Call("factorial".to_string(), vec![num(5.0)]),
+        Expr::Call("sum".to_string(), vec![Expr::List(vec![num(1.0), num(2.0), num(3.5)])]),
         // >4 numeric items stay a Value::List (not a Vec4), so the sum arm
         // actually takes the list branch through the IR too.
-        Expr::Call(
-            "sum".to_string(),
-            vec![Expr::List((0..8).map(|i| Expr::Num(i as f64)).collect())],
-        ),
+        Expr::Call("sum".to_string(), vec![Expr::List((0..8).map(|i| num(i as f64)).collect())]),
     ];
 
     for expr in cases {
@@ -268,11 +257,10 @@ fn factorial_and_sum_reject_invalid_args() {
     // Both paths must surface the same errors for bad SCALAR arguments (an
     // IR silent-degradation to CallEnv would turn these into UndefinedVariable
     // instead of the builtin's own type error).
-    use animatix::ir::{ModifierIrProgram, ModifierIrStmt, ModifierOverrides, execute_modifier_ir};
     let cases: Vec<Expr> = vec![
-        Expr::Call("factorial".to_string(), vec![Expr::Num(-1.0)]),
-        Expr::Call("factorial".to_string(), vec![Expr::Num(2.5)]),
-        Expr::Call("factorial".to_string(), vec![Expr::Num(171.0)]),
+        Expr::Call("factorial".to_string(), vec![num(-1.0)]),
+        Expr::Call("factorial".to_string(), vec![num(2.5)]),
+        Expr::Call("factorial".to_string(), vec![num(171.0)]),
     ];
     for expr in cases {
         let ast_result = evaluate_expr(&expr, &Environment::new());
@@ -317,10 +305,8 @@ fn sum_mixed_type_list_errors_on_both_paths() {
     // Lowering now distinguishes lists (MakeList, elements preserved) from
     // tuples (MakeVec, numeric), so both paths keep the Str and sum()
     // rejects it identically.
-    let expr = Expr::Call(
-        "sum".to_string(),
-        vec![Expr::List(vec![Expr::Num(1.0), Expr::Str("x".to_string())])],
-    );
+    let expr =
+        Expr::Call("sum".to_string(), vec![Expr::List(vec![num(1.0), Expr::Str("x".to_string())])]);
     assert!(evaluate_expr(&expr, &Environment::new()).is_err());
 
     let compiled = compile_expr(&expr).expect("builtin should compile");
@@ -335,8 +321,8 @@ fn brace_list_preserves_elements_through_ir() {
     // {1, 2, 3} lowered via MakeList must evaluate to Value::List([Num; 3])
     // — identical to the tree-walker — instead of the old MakeVec Vec3
     // coercion. Tuples stay on MakeVec.
-    let list_expr = Expr::List(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0)]);
-    let tuple_expr = Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0)]);
+    let list_expr = Expr::List(vec![num(1.0), num(2.0), num(3.0)]);
+    let tuple_expr = Expr::Tuple(vec![num(1.0), num(2.0), num(3.0)]);
 
     // Tree-walker expectations.
     let walker_list = evaluate_expr(&list_expr, &Environment::new()).expect("list eval");
@@ -367,19 +353,11 @@ fn brace_list_preserves_elements_through_ir() {
 #[test]
 fn ir_matches_ast_for_environment_functions() {
     let cases: Vec<Expr> = vec![
-        Expr::Call("rgb".to_string(), vec![Expr::Num(255.0), Expr::Num(0.0), Expr::Num(128.0)]),
-        Expr::Call(
-            "rgba".to_string(),
-            vec![
-                Expr::Num(1.0),
-                Expr::Num(0.5),
-                Expr::Num(0.0),
-                Expr::Num(0.25),
-            ],
-        ),
-        Expr::Call("vec2".to_string(), vec![Expr::Num(3.0), Expr::Num(4.0)]),
-        Expr::Call("hsv".to_string(), vec![Expr::Num(120.0), Expr::Num(1.0), Expr::Num(1.0)]),
-        Expr::Call("seeded_rand".to_string(), vec![Expr::Num(42.0)]),
+        Expr::Call("rgb".to_string(), vec![num(255.0), num(0.0), num(128.0)]),
+        Expr::Call("rgba".to_string(), vec![num(1.0), num(0.5), num(0.0), num(0.25)]),
+        Expr::Call("vec2".to_string(), vec![num(3.0), num(4.0)]),
+        Expr::Call("hsv".to_string(), vec![num(120.0), num(1.0), num(1.0)]),
+        Expr::Call("seeded_rand".to_string(), vec![num(42.0)]),
     ];
 
     for expr in cases {
@@ -397,24 +375,11 @@ fn modifier_ir_can_lower_post_expansion_program() {
     let program = vec![
         Stmt::Keyframe {
             time: Time::Seconds(0.0),
-            body: vec![Stmt::Always {
-                body: vec![Stmt::Assignment {
-                    target: vec![animatix_syntax::ast::TargetSegment::Static(
-                        "pulse".to_string(),
-                    )],
-                    property: "opacity".to_string(),
-                    value: Expr::Binary(
-                        Box::new(Expr::Ident("t".to_string())),
-                        BinaryOp::Mul,
-                        Box::new(Expr::Num(0.5)),
-                    ),
-                    modifiers: vec![],
-                    easing: None,
-                    value_span: None,
-                    span: None,
-                }],
-                span: None,
-            }],
+            body: always(vec![assignment(
+                static_target(&["pulse"]),
+                "opacity",
+                bin(ident("t"), BinaryOp::Mul, num(0.5)),
+            )]),
             span: None,
         },
         Stmt::Comment("ignored".to_string(), None),
@@ -427,21 +392,11 @@ fn modifier_ir_can_lower_post_expansion_program() {
 
 #[test]
 fn ir_indexed_override_executes() {
-    let program = vec![Stmt::Always {
-        body: vec![Stmt::Assignment {
-            target: vec![animatix_syntax::ast::TargetSegment::Indexed {
-                base: "bars".to_string(),
-                index: Box::new(Expr::Ident("i".to_string())),
-            }],
-            property: "scale".to_string(),
-            value: Expr::Num(1.5),
-            modifiers: vec![],
-            easing: None,
-            value_span: None,
-            span: None,
-        }],
-        span: None,
-    }];
+    let program = always(vec![assignment(
+        indexed_target("bars", ident("i")),
+        "scale",
+        num(1.5),
+    )]);
 
     let ir = lower_modifier_ir(&program).expect("IR lowering should succeed");
     let mut env = Environment::new();
@@ -453,51 +408,15 @@ fn ir_indexed_override_executes() {
 
 #[test]
 fn modifier_ir_executes_let_and_if() {
-    let program = vec![Stmt::Always {
-        body: vec![
-            Stmt::LetDecl {
-                is_pub: false,
-                name: "x".to_string(),
-                value: Expr::Binary(
-                    Box::new(Expr::Ident("t".to_string())),
-                    BinaryOp::Mul,
-                    Box::new(Expr::Num(2.0)),
-                ),
-                span: None,
-            },
-            Stmt::Conditional {
-                condition: Expr::Binary(
-                    Box::new(Expr::Ident("x".to_string())),
-                    BinaryOp::Lt,
-                    Box::new(Expr::Num(1.0)),
-                ),
-                then_branch: vec![Stmt::Assignment {
-                    target: vec![animatix_syntax::ast::TargetSegment::Static(
-                        "pulse".to_string(),
-                    )],
-                    property: "opacity".to_string(),
-                    value: Expr::Num(1.0),
-                    modifiers: vec![],
-                    easing: None,
-                    value_span: None,
-                    span: None,
-                }],
-                else_branch: Some(vec![Stmt::Assignment {
-                    target: vec![animatix_syntax::ast::TargetSegment::Static(
-                        "pulse".to_string(),
-                    )],
-                    property: "opacity".to_string(),
-                    value: Expr::Num(0.0),
-                    modifiers: vec![],
-                    easing: None,
-                    value_span: None,
-                    span: None,
-                }]),
-                span: None,
-            },
-        ],
-        span: None,
-    }];
+    let program = always(vec![
+        let_decl("x", bin(ident("t"), BinaryOp::Mul, num(2.0))),
+        Stmt::Conditional {
+            condition: bin(ident("x"), BinaryOp::Lt, num(1.0)),
+            then_branch: vec![assignment(static_target(&["pulse"]), "opacity", num(1.0))],
+            else_branch: Some(vec![assignment(static_target(&["pulse"]), "opacity", num(0.0))]),
+            span: None,
+        },
+    ]);
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
 
     let mut timeline = Timeline::new();
@@ -513,30 +432,10 @@ fn modifier_ir_executes_let_and_if() {
 
 #[test]
 fn ir_supports_runtime_object_field_writes() {
-    let program = vec![Stmt::Always {
-        body: vec![
-            Stmt::Assignment {
-                target: vec![animatix_syntax::ast::TargetSegment::Static("p".to_string())],
-                property: "x".to_string(),
-                value: Expr::Num(30.0),
-                modifiers: vec![],
-                easing: None,
-                value_span: None,
-                span: None,
-            },
-            Stmt::LetDecl {
-                is_pub: false,
-                name: "q".to_string(),
-                value: Expr::Binary(
-                    Box::new(Expr::Path(vec!["p".to_string(), "x".to_string()])),
-                    BinaryOp::Add,
-                    Box::new(Expr::Num(1.0)),
-                ),
-                span: None,
-            },
-        ],
-        span: None,
-    }];
+    let program = always(vec![
+        assignment(static_target(&["p"]), "x", num(30.0)),
+        let_decl("q", bin(path(&["p", "x"]), BinaryOp::Add, num(1.0))),
+    ]);
 
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
 
@@ -564,33 +463,10 @@ fn ir_supports_runtime_object_field_writes() {
 
 #[test]
 fn ir_supports_nested_object_field_writes() {
-    let program = vec![Stmt::Always {
-        body: vec![
-            Stmt::Assignment {
-                target: vec![
-                    animatix_syntax::ast::TargetSegment::Static("p".to_string()),
-                    animatix_syntax::ast::TargetSegment::Static("a".to_string()),
-                ],
-                property: "b".to_string(),
-                value: Expr::Num(30.0),
-                modifiers: vec![],
-                easing: None,
-                value_span: None,
-                span: None,
-            },
-            Stmt::LetDecl {
-                is_pub: false,
-                name: "q".to_string(),
-                value: Expr::Binary(
-                    Box::new(Expr::Path(vec!["p".to_string(), "a".to_string(), "b".to_string()])),
-                    BinaryOp::Add,
-                    Box::new(Expr::Num(1.0)),
-                ),
-                span: None,
-            },
-        ],
-        span: None,
-    }];
+    let program = always(vec![
+        assignment(static_target(&["p", "a"]), "b", num(30.0)),
+        let_decl("q", bin(path(&["p", "a", "b"]), BinaryOp::Add, num(1.0))),
+    ]);
 
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
 
@@ -624,20 +500,11 @@ fn ir_supports_nested_object_field_writes() {
 
 #[test]
 fn modifier_ir_executes_construct_expr() {
-    let program = vec![Stmt::Always {
-        body: vec![Stmt::Assignment {
-            target: vec![animatix_syntax::ast::TargetSegment::Static(
-                "pulse".to_string(),
-            )],
-            property: "opacity".to_string(),
-            value: Expr::Construct("Point".to_string(), vec![]),
-            modifiers: vec![],
-            easing: None,
-            value_span: None,
-            span: None,
-        }],
-        span: None,
-    }];
+    let program = always(vec![assignment(
+        static_target(&["pulse"]),
+        "opacity",
+        Expr::Construct("Point".to_string(), vec![]),
+    )]);
 
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
     let mut env = Environment::new();
@@ -680,99 +547,36 @@ fn ir_nested_modifier_targets_execute() {
     let ast = vec![Stmt::Keyframe {
         time: Time::Seconds(0.0),
         body: vec![
-            Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "panel.badge".to_string(),
-                array_index: None,
-                ty: "Ellipse".to_string(),
-                props: vec![
-                    animatix_syntax::ast::Property {
-                        name: "radius".to_string(),
-                        value: Expr::Num(12.0),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                    animatix_syntax::ast::Property {
-                        name: "color".to_string(),
-                        value: Expr::Ident("RED".to_string()),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                    animatix_syntax::ast::Property {
-                        name: "at".to_string(),
-                        value: Expr::Tuple(vec![Expr::Num(400.0), Expr::Num(300.0)]),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
+            actor(
+                "panel.badge",
+                "Ellipse",
+                &[
+                    ("radius", num(12.0)),
+                    ("color", ident("RED")),
+                    ("at", Expr::Tuple(vec![num(400.0), num(300.0)])),
                 ],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            },
-            Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "echo".to_string(),
-                array_index: None,
-                ty: "Ellipse".to_string(),
-                props: vec![
-                    animatix_syntax::ast::Property {
-                        name: "radius".to_string(),
-                        value: Expr::Num(10.0),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                    animatix_syntax::ast::Property {
-                        name: "color".to_string(),
-                        value: Expr::Ident("BLUE".to_string()),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                    animatix_syntax::ast::Property {
-                        name: "at".to_string(),
-                        value: Expr::Tuple(vec![Expr::Num(500.0), Expr::Num(300.0)]),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
+            ),
+            actor(
+                "echo",
+                "Ellipse",
+                &[
+                    ("radius", num(10.0)),
+                    ("color", ident("BLUE")),
+                    ("at", Expr::Tuple(vec![num(500.0), num(300.0)])),
                 ],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            },
+            ),
             Stmt::Always {
                 body: vec![
-                    Stmt::Assignment {
-                        target: vec![
-                            animatix_syntax::ast::TargetSegment::Static("panel".to_string()),
-                            animatix_syntax::ast::TargetSegment::Static("badge".to_string()),
-                        ],
-                        property: "radius".to_string(),
-                        value: Expr::Binary(
-                            Box::new(Expr::Ident("t".to_string())),
-                            BinaryOp::Add,
-                            Box::new(Expr::Num(10.0)),
-                        ),
-                        modifiers: vec![],
-                        easing: None,
-                        value_span: None,
-                        span: None,
-                    },
-                    Stmt::Assignment {
-                        target: vec![animatix_syntax::ast::TargetSegment::Static(
-                            "echo".to_string(),
-                        )],
-                        property: "radius".to_string(),
-                        value: Expr::Path(vec![
-                            "panel".to_string(),
-                            "badge".to_string(),
-                            "radius".to_string(),
-                        ]),
-                        modifiers: vec![],
-                        easing: None,
-                        value_span: None,
-                        span: None,
-                    },
+                    assignment(
+                        static_target(&["panel", "badge"]),
+                        "radius",
+                        bin(ident("t"), BinaryOp::Add, num(10.0)),
+                    ),
+                    assignment(
+                        static_target(&["echo"]),
+                        "radius",
+                        path(&["panel", "badge", "radius"]),
+                    ),
                 ],
                 span: None,
             },
@@ -801,30 +605,16 @@ fn ir_for_loop_binds_index_var() {
     let stmt = Stmt::ForLoop {
         var: LoopPattern::Single("v".to_string()),
         index_var: Some("i".to_string()),
-        iterable: Expr::List(vec![Expr::Num(10.0), Expr::Num(20.0), Expr::Num(30.0)]),
+        iterable: Expr::List(vec![num(10.0), num(20.0), num(30.0)]),
         modifiers: vec![],
-        body: vec![Stmt::LetDecl {
-            name: "z".to_string(),
-            value: Expr::Binary(
-                Box::new(Expr::Ident("v".to_string())),
-                BinaryOp::Mul,
-                Box::new(Expr::Binary(
-                    Box::new(Expr::Ident("i".to_string())),
-                    BinaryOp::Add,
-                    Box::new(Expr::Num(1.0)),
-                )),
-            ),
-            is_pub: false,
-            span: None,
-        }],
+        body: vec![let_decl(
+            "z",
+            bin(ident("v"), BinaryOp::Mul, bin(ident("i"), BinaryOp::Add, num(1.0))),
+        )],
         span: None,
     };
 
-    let program = vec![Stmt::Always {
-        body: vec![stmt],
-        span: None,
-    }];
-
+    let program = always(vec![stmt]);
     let ir = lower_modifier_ir(&program).expect("IR lowering should succeed");
 
     // Execute via the IR interpreter
@@ -937,12 +727,9 @@ fn ir_truthiness_handles_bool_literals() {
 fn ir_for_loop_tuple_destructures_color() {
     let program = ModifierIrProgram {
         statements: vec![ModifierIrStmt::For {
-            var: LoopPattern::Tuple(vec![
-                "r".to_string(),
-                "g".to_string(),
-                "b".to_string(),
-                "a".to_string(),
-            ]),
+            var: LoopPattern::Tuple(
+                ["r", "g", "b", "a"].iter().map(|name| name.to_string()).collect(),
+            ),
             index_var: None,
             iterable: CompiledExpr::Const(Value::Color([0.1, 0.2, 0.3, 1.0])),
             body: vec![ModifierIrStmt::Let {
@@ -1017,28 +804,18 @@ fn letchain_ir_matches_ast() {
 fn noise_family_and_oklab_lerp_agree_between_ir_and_ast() {
     let color = |r: f64, g: f64, b: f64| {
         // `rgb()` scales by 1/255, so pass 0–1 fractions through as byte values.
-        Expr::Call(
-            "rgb".to_string(),
-            vec![
-                Expr::Num(r * 255.0),
-                Expr::Num(g * 255.0),
-                Expr::Num(b * 255.0),
-            ],
-        )
+        Expr::Call("rgb".to_string(), vec![num(r * 255.0), num(g * 255.0), num(b * 255.0)])
     };
     let cases = vec![
-        Expr::Call("noise".to_string(), vec![Expr::Num(1.5)]),
-        Expr::Call("noise2".to_string(), vec![Expr::Num(1.5), Expr::Num(-2.0)]),
-        Expr::Call("seeded_noise".to_string(), vec![Expr::Num(7.0), Expr::Num(3.25)]),
-        Expr::Call(
-            "seeded_noise2".to_string(),
-            vec![Expr::Num(7.0), Expr::Num(3.25), Expr::Num(9.0)],
-        ),
-        Expr::Call("fbm".to_string(), vec![Expr::Num(1.5), Expr::Num(4.0)]),
-        Expr::Call("seeded_fbm".to_string(), vec![Expr::Num(7.0), Expr::Num(1.5), Expr::Num(3.0)]),
+        Expr::Call("noise".to_string(), vec![num(1.5)]),
+        Expr::Call("noise2".to_string(), vec![num(1.5), num(-2.0)]),
+        Expr::Call("seeded_noise".to_string(), vec![num(7.0), num(3.25)]),
+        Expr::Call("seeded_noise2".to_string(), vec![num(7.0), num(3.25), num(9.0)]),
+        Expr::Call("fbm".to_string(), vec![num(1.5), num(4.0)]),
+        Expr::Call("seeded_fbm".to_string(), vec![num(7.0), num(1.5), num(3.0)]),
         Expr::Call(
             "lerp_color_oklab".to_string(),
-            vec![color(1.0, 0.0, 0.0), color(0.0, 1.0, 0.0), Expr::Num(0.5)],
+            vec![color(1.0, 0.0, 0.0), color(0.0, 1.0, 0.0), num(0.5)],
         ),
     ];
 
@@ -1057,8 +834,8 @@ fn noise_family_and_oklab_lerp_agree_between_ir_and_ast() {
     let eval = |expr: &Expr| evaluate_expr(expr, &env).expect("eval");
 
     // Noise is deterministic and bounded.
-    let n = eval(&Expr::Call("noise".to_string(), vec![Expr::Num(1.5)]));
-    let n_again = eval(&Expr::Call("noise".to_string(), vec![Expr::Num(1.5)]));
+    let n = eval(&Expr::Call("noise".to_string(), vec![num(1.5)]));
+    let n_again = eval(&Expr::Call("noise".to_string(), vec![num(1.5)]));
     assert_eq!(n, n_again, "noise must be pure");
     let Value::Num(n) = n else {
         panic!("noise must return Num, got {n:?}")
@@ -1066,8 +843,8 @@ fn noise_family_and_oklab_lerp_agree_between_ir_and_ast() {
     assert!((0.0..=1.0).contains(&n), "noise in [0,1], got {n}");
 
     // More octaves change the mix but stay in range.
-    let f3 = eval(&Expr::Call("fbm".to_string(), vec![Expr::Num(1.5), Expr::Num(3.0)]));
-    let f6 = eval(&Expr::Call("fbm".to_string(), vec![Expr::Num(1.5), Expr::Num(6.0)]));
+    let f3 = eval(&Expr::Call("fbm".to_string(), vec![num(1.5), num(3.0)]));
+    let f6 = eval(&Expr::Call("fbm".to_string(), vec![num(1.5), num(6.0)]));
     assert_ne!(f3, f6, "octave count must matter");
     for v in [f3, f6] {
         let Value::Num(v) = v else {
@@ -1078,10 +855,9 @@ fn noise_family_and_oklab_lerp_agree_between_ir_and_ast() {
 
     // OKLab lerp: achromatic mixes stay achromatic and between; a saturated
     // midpoint stays in gamut (the raw sRGB lerp of red→green is muddy olive).
-    let white = Expr::Call("rgb".to_string(), vec![Expr::Num(255.0); 3]);
-    let black = Expr::Call("rgb".to_string(), vec![Expr::Num(0.0); 3]);
-    let gray =
-        eval(&Expr::Call("lerp_color_oklab".to_string(), vec![white, black, Expr::Num(0.5)]));
+    let white = Expr::Call("rgb".to_string(), vec![num(255.0); 3]);
+    let black = Expr::Call("rgb".to_string(), vec![num(0.0); 3]);
+    let gray = eval(&Expr::Call("lerp_color_oklab".to_string(), vec![white, black, num(0.5)]));
     let Value::Color(gray) = gray else {
         panic!("lerp_color_oklab must return Color, got {gray:?}")
     };
@@ -1097,7 +873,7 @@ fn noise_family_and_oklab_lerp_agree_between_ir_and_ast() {
 
     let mid = eval(&Expr::Call(
         "lerp_color_oklab".to_string(),
-        vec![color(1.0, 0.0, 0.0), color(0.0, 1.0, 0.0), Expr::Num(0.5)],
+        vec![color(1.0, 0.0, 0.0), color(0.0, 1.0, 0.0), num(0.5)],
     ));
     let Value::Color(mid) = mid else {
         panic!("lerp_color_oklab must return Color, got {mid:?}")
@@ -1115,7 +891,7 @@ fn noise_family_and_oklab_lerp_agree_between_ir_and_ast() {
     );
     let srgb_mid = eval(&Expr::Call(
         "lerp_color".to_string(),
-        vec![color(1.0, 0.0, 0.0), color(0.0, 1.0, 0.0), Expr::Num(0.5)],
+        vec![color(1.0, 0.0, 0.0), color(0.0, 1.0, 0.0), num(0.5)],
     ));
     let Value::Color(srgb_mid) = srgb_mid else {
         panic!("lerp_color must return Color, got {srgb_mid:?}")
@@ -1128,7 +904,7 @@ fn noise_family_and_oklab_lerp_agree_between_ir_and_ast() {
     // Endpoints survive the round trip exactly (up to encoding error).
     let back = eval(&Expr::Call(
         "lerp_color_oklab".to_string(),
-        vec![color(1.0, 0.0, 0.0), color(0.0, 1.0, 0.0), Expr::Num(0.0)],
+        vec![color(1.0, 0.0, 0.0), color(0.0, 1.0, 0.0), num(0.0)],
     ));
     let Value::Color(back) = back else {
         panic!("Color expected")
@@ -1141,22 +917,14 @@ fn color_builtins_accept_color_strings() {
     // `lerp_color_oklab("#30d158", "#ff2d55", t)` is the natural way to write a
     // frame-time color ramp once hex resolved in declarations — and it failed
     // until the builtin accepted `Value::Str` as well as `Value::Color`.
-    use animatix::timeline::{Environment, Value, evaluate_expr, load_standard_library};
     let lerp = |a: Expr, b: Expr| {
         let mut env = Environment::new();
         load_standard_library(&mut env);
-        evaluate_expr(&Expr::Call("lerp_color_oklab".to_string(), vec![a, b, Expr::Num(0.5)]), &env)
+        evaluate_expr(&Expr::Call("lerp_color_oklab".to_string(), vec![a, b, num(0.5)]), &env)
             .expect("lerp_color_oklab should evaluate")
     };
     let rgb = |r: f64, g: f64, b: f64| {
-        Expr::Call(
-            "rgb".to_string(),
-            vec![
-                Expr::Num(r * 255.0),
-                Expr::Num(g * 255.0),
-                Expr::Num(b * 255.0),
-            ],
-        )
+        Expr::Call("rgb".to_string(), vec![num(r * 255.0), num(g * 255.0), num(b * 255.0)])
     };
 
     let from_strings = lerp(Expr::Str("#ff0000".to_string()), Expr::Str("#00ff00".to_string()));
@@ -1189,7 +957,7 @@ fn color_builtins_accept_color_strings() {
             vec![
                 Expr::Str("not-a-color".to_string()),
                 Expr::Str("#00ff00".to_string()),
-                Expr::Num(0.5),
+                num(0.5),
             ],
         ),
         &env,
@@ -1200,23 +968,20 @@ fn color_builtins_accept_color_strings() {
 #[test]
 fn curve_at_and_curve_smooth_agree_between_ir_and_ast() {
     let curve_expr = Expr::List(vec![
-        Expr::Num(0.0),
-        Expr::Num(10.0),
-        Expr::Num(1.0),
-        Expr::Num(20.0),
-        Expr::Num(3.0),
-        Expr::Num(50.0),
+        num(0.0),
+        num(10.0),
+        num(1.0),
+        num(20.0),
+        num(3.0),
+        num(50.0),
     ]);
 
     let cases = vec![
-        Expr::Call("curve_at".to_string(), vec![curve_expr.clone(), Expr::Num(0.5)]),
-        Expr::Call("curve_at".to_string(), vec![curve_expr.clone(), Expr::Num(2.0)]),
-        Expr::Call("curve_at".to_string(), vec![curve_expr.clone(), Expr::Num(-1.0)]),
-        Expr::Call(
-            "curve_smooth".to_string(),
-            vec![curve_expr.clone(), Expr::Num(1.5), Expr::Num(0.6)],
-        ),
-        Expr::Call("curve_smooth".to_string(), vec![curve_expr, Expr::Num(2.0), Expr::Num(0.0)]),
+        Expr::Call("curve_at".to_string(), vec![curve_expr.clone(), num(0.5)]),
+        Expr::Call("curve_at".to_string(), vec![curve_expr.clone(), num(2.0)]),
+        Expr::Call("curve_at".to_string(), vec![curve_expr.clone(), num(-1.0)]),
+        Expr::Call("curve_smooth".to_string(), vec![curve_expr.clone(), num(1.5), num(0.6)]),
+        Expr::Call("curve_smooth".to_string(), vec![curve_expr, num(2.0), num(0.0)]),
     ];
 
     for expr in &cases {

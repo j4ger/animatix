@@ -5,7 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use animatix::composition::BuildTarget;
 use animatix::timeline::{BuildOptions, Timeline};
 use animatix_syntax::ast::{Expr, Stmt};
-use animatix_syntax::module::{ModuleError, ModuleGraph};
+use animatix_syntax::module::{LoadedProgram, ModuleError, ModuleGraph};
 
 fn temp_project_dir(name: &str) -> PathBuf {
     let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
@@ -22,15 +22,80 @@ fn write_file(path: &Path, contents: &str) {
     fs::write(path, contents).unwrap();
 }
 
+/// Write a throwaway project from `(relative_path, source)` pairs and return
+/// its root directory.
+fn project(name: &str, files: &[(&str, &str)]) -> PathBuf {
+    let dir = temp_project_dir(name);
+    for (relative, contents) in files {
+        write_file(&dir.join(relative), contents);
+    }
+    dir
+}
+
+fn load(entry: &Path) -> LoadedProgram {
+    ModuleGraph::new().load_program(entry).unwrap()
+}
+
+/// Load the `scene.amx` of a freshly written project.
+fn load_scene(name: &str, files: &[(&str, &str)]) -> LoadedProgram {
+    load(&project(name, files).join("scene.amx"))
+}
+
+/// Load a project whose only file is the entry scene.
+fn load_entry(name: &str, source: &str) -> LoadedProgram {
+    load_scene(name, &[("scene.amx", source)])
+}
+
+/// Component expansion, with the expander's diagnostics discarded so the
+/// tests can assert on the resulting shape alone.
+fn expanded(program: &LoadedProgram) -> Vec<Stmt> {
+    program.expand_components(&mut Vec::new())
+}
+
+fn expanded_debug(program: &LoadedProgram) -> String {
+    format!("{:#?}", expanded(program))
+}
+
+/// Assert the expanded program mentions every `present` needle and none of the
+/// `absent` ones. Each needle is checked independently.
+fn assert_contents(program: &LoadedProgram, present: &[&str], absent: &[&str]) {
+    let debug = expanded_debug(program);
+    for needle in present {
+        assert!(debug.contains(needle), "expanded program should contain {needle:?}:\n{debug}");
+    }
+    for needle in absent {
+        assert!(
+            !debug.contains(needle),
+            "expanded program should not contain {needle:?}:\n{debug}"
+        );
+    }
+}
+
+fn tuple_arity(expr: &Expr) -> usize {
+    match expr {
+        Expr::Tuple(vals) => vals.len(),
+        other => panic!("expected a resolved tuple, got {other:?}"),
+    }
+}
+
+const BUTTON_COMPONENT: &str = r#"
+pub component Button(text: "OK") {
+    fn pulse {
+        self.scale = 1.2 [100ms]
+        self.scale = 1.0 [100ms]
+    }
+    frame: Rect, size: (100, 40)
+}
+"#;
+
 #[test]
 fn load_program_collects_public_imported_components_only() {
-    let dir = temp_project_dir("public_components");
-    let entry = dir.join("scene.amx");
-    let library = dir.join("components.amx");
-
-    write_file(
-        &library,
-        r#"
+    let program = load_scene(
+        "public_components",
+        &[
+            (
+                "components.amx",
+                r#"
 pub component MetricCard(title: "Throughput") {
     label: Text, text: title
 }
@@ -39,65 +104,57 @@ component InternalCard(title: "Private") {
     private_label: Text, text: title
 }
 "#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+            ),
+            (
+                "scene.amx",
+                r#"
 import "./components.amx"
 
 dashboard: MetricCard, title: "Latency"
 "#,
+            ),
+        ],
     );
-
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
 
     assert!(program.components.contains_key("MetricCard"));
     assert!(!program.components.contains_key("InternalCard"));
-
-    let expanded = program.expand_components(&mut Vec::new());
-    let expanded_debug = format!("{expanded:#?}");
-    assert!(expanded_debug.contains("dashboard"));
-    assert!(expanded_debug.contains("Latency"));
-    assert!(!expanded_debug.contains("MetricCard"));
+    assert_contents(&program, &["dashboard", "Latency"], &["MetricCard"]);
 }
 
 #[test]
 fn load_program_rejects_duplicate_component_exports() {
-    let dir = temp_project_dir("duplicate_components");
-    let entry = dir.join("scene.amx");
-    let first = dir.join("first.amx");
-    let second = dir.join("second.amx");
-
-    write_file(
-        &first,
-        r#"
+    let dir = project(
+        "duplicate_components",
+        &[
+            (
+                "first.amx",
+                r#"
 pub component MetricCard(title: "One") {
     label: Text, text: title
 }
 "#,
-    );
-
-    write_file(
-        &second,
-        r#"
+            ),
+            (
+                "second.amx",
+                r#"
 pub component MetricCard(title: "Two") {
     label: Text, text: title
 }
 "#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+            ),
+            (
+                "scene.amx",
+                r#"
 import "./first.amx"
 import "./second.amx"
 
 dashboard: MetricCard
 "#,
+            ),
+        ],
     );
 
-    let error = ModuleGraph::new().load_program(&entry).unwrap_err();
+    let error = ModuleGraph::new().load_program(&dir.join("scene.amx")).unwrap_err();
     match error {
         ModuleError::DuplicateComponent { name, .. } => assert_eq!(name, "MetricCard"),
         other => panic!("expected duplicate component error, got {other:?}"),
@@ -106,65 +163,57 @@ dashboard: MetricCard
 
 #[test]
 fn load_program_expand_components_produces_build_input() {
-    let dir = temp_project_dir("compile_boundary");
-    let entry = dir.join("scene.amx");
-    let library = dir.join("components.amx");
-
-    write_file(
-        &library,
-        r#"
+    let program = load_scene(
+        "compile_boundary",
+        &[
+            (
+                "components.amx",
+                r#"
 pub component MetricCard(title: "Throughput") {
     title_text: Text, text: title
 }
 "#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+            ),
+            (
+                "scene.amx",
+                r#"
 import "./components.amx"
 
 card: MetricCard, title: "Latency"
 "#,
+            ),
+        ],
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
-    let expanded_debug = format!("{expanded:#?}");
+    assert_contents(&program, &["card", "Latency"], &["MetricCard"]);
 
-    assert!(!expanded_debug.contains("MetricCard"));
-    assert!(expanded_debug.contains("card"));
-    assert!(expanded_debug.contains("Latency"));
-
-    let timeline = Timeline::build(&expanded);
+    let timeline = Timeline::build(&expanded(&program));
     assert!(timeline.tracks().contains_key("card"));
 }
 
 #[test]
 fn load_program_collects_namespaced_pub_let_exports() {
-    let dir = temp_project_dir("namespaced_exports");
-    let entry = dir.join("scene.amx");
-    let theme = dir.join("theme.amx");
-
-    write_file(
-        &theme,
-        r#"
+    let program = load_scene(
+        "namespaced_exports",
+        &[
+            (
+                "theme.amx",
+                r#"
 pub let accent = (0.38, 0.78, 1.0, 1.0)
 pub let background = (0.04, 0.06, 0.09, 1.0)
 let private = (1.0, 0.0, 0.0, 1.0)
 "#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+            ),
+            (
+                "scene.amx",
+                r#"
 import "./theme.amx" as theme
 
 panel: Rect, size: (200, 100), color: theme.accent
 "#,
+            ),
+        ],
     );
-
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
 
     assert!(program.namespaces.contains_key("theme"));
     let theme_ns = program.namespaces.get("theme").unwrap();
@@ -172,27 +221,23 @@ panel: Rect, size: (200, 100), color: theme.accent
     assert!(theme_ns.exports.contains_key("background"));
     assert!(!theme_ns.exports.contains_key("private"));
 
-    // Verify the expanded statements do NOT include theme's statements
-    let expanded = program.expand_components(&mut Vec::new());
-    let expanded_debug = format!("{expanded:#?}");
-    assert!(!expanded_debug.contains("0.38")); // theme's pub let values not flattened
-    assert!(!expanded_debug.contains("background")); // theme's other pub let not flattened
-    assert!(expanded_debug.contains("panel"));
+    // Theme's statements are not flattened into the entry program.
+    assert_contents(&program, &["panel"], &["0.38", "background"]);
 }
 
 #[test]
 fn load_program_collects_and_typechecks_namespaced_type_aliases() {
-    let dir = temp_project_dir("namespaced_type_aliases");
-    let entry = dir.join("scene.amx");
-    let types = dir.join("types.amx");
-
-    write_file(
-        &types,
-        r#"
+    let dir = project(
+        "namespaced_type_aliases",
+        &[(
+            "types.amx",
+            r#"
 pub type Metric = Bool | Str
 let private = 1
 "#,
+        )],
     );
+    let entry = dir.join("scene.amx");
 
     write_file(
         &entry,
@@ -203,10 +248,8 @@ pub component Card(value: types::Metric) {}
 card: Card, value: "Revenue"
 "#,
     );
-
-    let mut program = ModuleGraph::new().load_program(&entry).unwrap();
-    let types_ns = program.namespaces.get("types").unwrap();
-    assert!(types_ns.type_exports.contains_key("Metric"));
+    let mut program = load(&entry);
+    assert!(program.namespaces.get("types").unwrap().type_exports.contains_key("Metric"));
     assert!(program.typecheck().is_empty(), "imported type alias should typecheck");
 
     write_file(
@@ -218,7 +261,7 @@ pub component Card(value: types::Metric) {}
 bad: Card, value: 42
 "#,
     );
-    let mut bad_program = ModuleGraph::new().load_program(&entry).unwrap();
+    let mut bad_program = load(&entry);
     assert!(
         !bad_program.typecheck().is_empty(),
         "namespaced alias should reject a non-matching value"
@@ -227,133 +270,95 @@ bad: Card, value: 42
 
 #[test]
 fn load_program_nested_aliased_namespace_depth() {
-    let dir = temp_project_dir("nested_namespace");
-    let entry = dir.join("scene.amx");
-    let lib = dir.join("lib.amx");
-    let inner = dir.join("inner.amx");
+    let program = load_scene(
+        "nested_namespace",
+        &[
+            ("inner.amx", "pub let accent = (1.0, 0.0, 0.0, 1.0)\n"),
+            ("lib.amx", "import \"./inner.amx\" as inner\n"),
+            ("scene.amx", "import \"./lib.amx\" as lib\n"),
+        ],
+    );
 
-    write_file(&inner, "pub let accent = (1.0, 0.0, 0.0, 1.0)\n");
-    write_file(&lib, "import \"./inner.amx\" as inner\n");
-    write_file(&entry, "import \"./lib.amx\" as lib\n");
-
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let lib_ns = program.namespaces.get("lib").unwrap();
-    let inner_ns = lib_ns.namespaces.get("inner").unwrap();
+    let inner_ns = program.namespaces.get("lib").unwrap().namespaces.get("inner").unwrap();
     assert!(inner_ns.exports.contains_key("accent"));
 }
 
 #[test]
 fn load_program_aliased_import_does_not_flatten() {
-    let dir = temp_project_dir("aliased_no_flatten");
-    let entry = dir.join("scene.amx");
-    let helper = dir.join("helper.amx");
-
-    write_file(
-        &helper,
-        r#"
+    let program = load_scene(
+        "aliased_no_flatten",
+        &[
+            (
+                "helper.amx",
+                r#"
 pub let offset = 120
 hidden: Ellipse, radius: 50
 "#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+            ),
+            (
+                "scene.amx",
+                r#"
 import "./helper.amx" as helper
 
 visible: Rect, size: (100, 100)
 "#,
+            ),
+        ],
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
-
-    // The hidden circle from helper should NOT be in expanded statements
-    let expanded_debug = format!("{expanded:#?}");
-    assert!(!expanded_debug.contains("hidden"));
-    assert!(expanded_debug.contains("visible"));
+    // The aliased helper's hidden circle must not leak into the entry program.
+    assert_contents(&program, &["visible"], &["hidden"]);
 }
 
 #[test]
 fn load_program_resolves_reexports() {
-    let dir = temp_project_dir("reexports");
-    let entry = dir.join("scene.amx");
-    let theme = dir.join("theme.amx");
-    let colors = dir.join("colors.amx");
-
-    write_file(
-        &colors,
-        r#"
+    let program = load_scene(
+        "reexports",
+        &[
+            (
+                "colors.amx",
+                r#"
  pub let primary = (0.38, 0.78, 1.0, 1.0)
  pub let danger = (1.0, 0.2, 0.2, 1.0)
- "#,
-    );
-
-    write_file(
-        &theme,
-        r#"
+  "#,
+            ),
+            (
+                "theme.amx",
+                r#"
  import "./colors.amx" as c
  pub let accent = c.primary
  pub let warning = c.danger
- "#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+  "#,
+            ),
+            (
+                "scene.amx",
+                r#"
  import "./theme.amx" as theme
 
  panel: Rect, size: (200, 100), color: theme.accent
- "#,
+  "#,
+            ),
+        ],
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-
-    assert!(program.namespaces.contains_key("theme"));
     let theme_ns = program.namespaces.get("theme").unwrap();
     assert!(theme_ns.exports.contains_key("accent"));
     assert!(theme_ns.exports.contains_key("warning"));
 
-    // Verify re-exported values are resolved (not just path expressions)
-    let accent_expr = theme_ns.exports.get("accent").unwrap();
-    match accent_expr {
-        Expr::Tuple(vals) => {
-            assert_eq!(vals.len(), 4);
-        },
-        other => panic!("Expected resolved tuple for accent, got: {:?}", other),
-    }
-
-    let warning_expr = theme_ns.exports.get("warning").unwrap();
-    match warning_expr {
-        Expr::Tuple(vals) => {
-            assert_eq!(vals.len(), 4);
-        },
-        other => panic!("Expected resolved tuple for warning, got: {:?}", other),
-    }
+    // Re-exported values are resolved, not left as path expressions.
+    assert_eq!(tuple_arity(theme_ns.exports.get("accent").unwrap()), 4);
+    assert_eq!(tuple_arity(theme_ns.exports.get("warning").unwrap()), 4);
 }
 
 #[test]
 fn load_program_custom_component_action_basic() {
-    let dir = temp_project_dir("custom_action");
-    let entry = dir.join("scene.amx");
-    let library = dir.join("button.amx");
-
-    write_file(
-        &library,
-        r#"
-pub component Button(text: "OK") {
-    fn pulse {
-        self.scale = 1.2 [100ms]
-        self.scale = 1.0 [100ms]
-    }
-    frame: Rect, size: (100, 40)
-}
-"#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+    let program = load_scene(
+        "custom_action",
+        &[
+            ("button.amx", BUTTON_COMPONENT),
+            (
+                "scene.amx",
+                r#"
 import "./button.amx"
 
 btn: Button, text: "Click"
@@ -361,58 +366,39 @@ btn: Button, text: "Click"
 #0s
 pulse btn [200ms]
 "#,
+            ),
+        ],
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
-
-    // The custom action should be inlined: btn.scale assignments
-    let expanded_debug = format!("{expanded:#?}");
-    // Custom action should inline scale assignments on btn
+    // The custom action is inlined onto the instance: btn.scale assignments.
+    let debug = expanded_debug(&program);
     assert!(
-        expanded_debug.contains("\"btn\""),
-        "Custom action should inline btn assignments, got: {}",
-        expanded_debug
+        debug.contains("\"btn\""),
+        "custom action should inline btn assignments: {debug}"
     );
     assert!(
-        expanded_debug.contains("\"scale\""),
-        "Custom action should inline scale property, got: {}",
-        expanded_debug
+        debug.contains("\"scale\""),
+        "custom action should inline scale property: {debug}"
     );
-    // ComponentAction should NOT be in output
     assert!(
-        !expanded_debug.contains("ComponentAction"),
+        !debug.contains("ComponentAction"),
         "ComponentAction should be removed after inlining"
     );
-    // pulse action invocation should be replaced
     assert!(
-        !expanded_debug.contains("pulse"),
+        !debug.contains("pulse"),
         "pulse invocation should be replaced with inlined body"
     );
 }
 
 #[test]
 fn load_program_custom_component_action_multi_target() {
-    let dir = temp_project_dir("custom_action_multi_target");
-    let entry = dir.join("scene.amx");
-    let library = dir.join("button.amx");
-
-    write_file(
-        &library,
-        r#"
-pub component Button(text: "OK") {
-    fn pulse {
-        self.scale = 1.2 [100ms]
-        self.scale = 1.0 [100ms]
-    }
-    frame: Rect, size: (100, 40)
-}
-"#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+    let program = load_scene(
+        "custom_action_multi_target",
+        &[
+            ("button.amx", BUTTON_COMPONENT),
+            (
+                "scene.amx",
+                r#"
 import "./button.amx"
 
 btn1: Button, text: "One"
@@ -422,36 +408,34 @@ rect: Rect
 #0s
 pulse btn1, btn2, rect [200ms]
 "#,
+            ),
+        ],
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
-    let expanded_debug = format!("{expanded:#?}");
-
-    let scale_count = expanded_debug.matches("\"scale\"").count();
+    let debug = expanded_debug(&program);
+    let scale_count = debug.matches("\"scale\"").count();
     assert!(
         scale_count >= 4,
         "Expected both custom action bodies inlined, got {scale_count} scale references"
     );
     assert!(
-        expanded_debug.contains("pulse"),
+        debug.contains("pulse"),
         "Builtin fallback action should remain for the non-component target"
     );
     assert!(
-        expanded_debug.contains("rect"),
+        debug.contains("rect"),
         "Remaining target should still be present in the fallback action"
     );
 }
 
 #[test]
 fn load_program_expands_component_for_loop_array_actors() {
-    let dir = temp_project_dir("component_for_loop_actors");
-    let entry = dir.join("scene.amx");
-    let library = dir.join("bars.amx");
-
-    write_file(
-        &library,
-        r#"
+    let program = load_scene(
+        "component_for_loop_actors",
+        &[
+            (
+                "bars.amx",
+                r#"
 pub component Bars(values: List<Num>) {
     row: Row, anchor: scene.center, gap: 24 {
         for v, i in values {
@@ -460,33 +444,31 @@ pub component Bars(values: List<Num>) {
     }
 }
 "#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+            ),
+            (
+                "scene.amx",
+                r#"
 import "./bars.amx"
 
 deck: Bars, values: {10, 20, 30}
 "#,
+            ),
+        ],
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
-    let timeline = Timeline::build(&expanded);
+    let timeline = Timeline::build(&expanded(&program));
     assert!(timeline.tracks().contains_key("deck.bar__0"));
     assert!(timeline.tracks().contains_key("deck.bar__2"));
 }
 
 #[test]
 fn load_program_custom_component_action_indexed_array_target() {
-    let dir = temp_project_dir("component_indexed_action");
-    let entry = dir.join("scene.amx");
-    let library = dir.join("bars.amx");
-
-    write_file(
-        &library,
-        r#"
+    let program = load_scene(
+        "component_indexed_action",
+        &[
+            (
+                "bars.amx",
+                r#"
 pub component Bars(values: List<Num>) {
     row: Row, anchor: scene.center, gap: 24 {
         for v, i in values {
@@ -500,11 +482,10 @@ pub component Bars(values: List<Num>) {
     }
 }
 "#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+            ),
+            (
+                "scene.amx",
+                r#"
 import "./bars.amx"
 
 deck: Bars, values: {10, 20, 30}
@@ -512,11 +493,11 @@ deck: Bars, values: {10, 20, 30}
 #0s
 pulseAt deck [index: 1]
 "#,
+            ),
+        ],
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
-    let timeline = Timeline::build(&expanded);
+    let timeline = Timeline::build(&expanded(&program));
     assert!(
         timeline.tracks().contains_key("deck.bar__1"),
         "indexed fn target should resolve to deck.bar__1 at build time"
@@ -525,13 +506,12 @@ pulseAt deck [index: 1]
 
 #[test]
 fn load_program_custom_component_action_self_keyword() {
-    let dir = temp_project_dir("custom_action_self");
-    let entry = dir.join("scene.amx");
-    let library = dir.join("card.amx");
-
-    write_file(
-        &library,
-        r#"
+    let program = load_scene(
+        "custom_action_self",
+        &[
+            (
+                "card.amx",
+                r#"
 pub component Card {
     fn glow {
         self.frame.color = accent.primary [300ms]
@@ -540,11 +520,10 @@ pub component Card {
     frame: Rect, size: (200, 120)
 }
 "#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+            ),
+            (
+                "scene.amx",
+                r#"
 import "./card.amx"
 
 card1: Card
@@ -552,40 +531,29 @@ card1: Card
 #0s
 glow card1 [500ms]
 "#,
+            ),
+        ],
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
-
-    let expanded_debug = format!("{expanded:#?}");
-    // self should rewrite to the instance label
+    let debug = expanded_debug(&program);
+    // self rewrites to the instance label; self.frame collapses to just card1
+    // because frame is the root label.
+    assert!(debug.contains("\"card1\""), "self should rewrite to instance label: {debug}");
     assert!(
-        expanded_debug.contains("\"card1\""),
-        "self should rewrite to instance label: {}",
-        expanded_debug
+        !debug.contains("\"frame\""),
+        "root label frame should be rewritten to instance label, not preserved: {debug}"
     );
-    // self.frame rewrites to just card1 when frame is the root label
-    assert!(
-        !expanded_debug.contains("\"frame\""),
-        "root label frame should be rewritten to instance label, not preserved: {}",
-        expanded_debug
-    );
-    assert!(
-        expanded_debug.contains("\"color\""),
-        "color property should exist: {}",
-        expanded_debug
-    );
+    assert!(debug.contains("\"color\""), "color property should exist: {debug}");
 }
 
 #[test]
 fn load_program_custom_component_action_inside_sequence() {
-    let dir = temp_project_dir("custom_action_sequence");
-    let entry = dir.join("scene.amx");
-    let library = dir.join("badge.amx");
-
-    write_file(
-        &library,
-        r#"
+    let program = load_scene(
+        "custom_action_sequence",
+        &[
+            (
+                "badge.amx",
+                r#"
 pub component Badge {
     fn bounce {
         self.scale = 1.5 [100ms]
@@ -594,11 +562,10 @@ pub component Badge {
     icon: Ellipse, radius: 12
 }
 "#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+            ),
+            (
+                "scene.amx",
+                r#"
 import "./badge.amx"
 
 badge1: Badge
@@ -609,18 +576,16 @@ sequence {
     fade-in badge1 [300ms]
 }
 "#,
+            ),
+        ],
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
-
-    // Build timeline to verify sequence timing works with inlined actions
-    let timeline = animatix::timeline::Timeline::build(&expanded);
-    let track_names: Vec<_> = timeline.tracks().keys().collect();
+    // Build a timeline to verify sequence timing works with inlined actions.
+    let timeline = Timeline::build(&expanded(&program));
     assert!(
         timeline.tracks().contains_key("badge1"),
         "badge1 should exist. Tracks: {:?}",
-        track_names
+        timeline.tracks().keys().collect::<Vec<_>>()
     );
     let badge_id = timeline.get_entity_id("badge1").expect("badge1 entity");
     // bounce: each inlined assignment gets the invocation [200ms] modifier,
@@ -652,24 +617,22 @@ sequence {
 
 #[test]
 fn load_program_expands_component_with_slots() {
-    let dir = temp_project_dir("slots_basic");
-    let entry = dir.join("scene.amx");
-    let library = dir.join("slides.amx");
-
-    write_file(
-        &library,
-        r#"
+    let program = load_scene(
+        "slots_basic",
+        &[
+            (
+                "slides.amx",
+                r#"
  pub component SlideLayout {
      header: Col {
          @slot
      }
  }
  "#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+            ),
+            (
+                "scene.amx",
+                r#"
  import "./slides.amx"
 
  slide: SlideLayout {
@@ -678,30 +641,21 @@ fn load_program_expands_component_with_slots() {
      }
  }
  "#,
+            ),
+        ],
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
-    let expanded_debug = format!("{expanded:#?}");
-
-    // Component should be expanded (no "SlideLayout" left)
-    assert!(!expanded_debug.contains("SlideLayout"));
-    // Instance should be there
-    assert!(expanded_debug.contains("slide"));
-    // Filled item should be present
-    assert!(expanded_debug.contains("\"title\""));
-    assert!(expanded_debug.contains("Hello"));
+    assert_contents(&program, &["slide", "\"title\"", "Hello"], &["SlideLayout"]);
 }
 
 #[test]
 fn load_program_slot_defaults_fallback() {
-    let dir = temp_project_dir("slots_defaults");
-    let entry = dir.join("scene.amx");
-    let library = dir.join("slides.amx");
-
-    write_file(
-        &library,
-        r#"
+    let program = load_scene(
+        "slots_defaults",
+        &[
+            (
+                "slides.amx",
+                r#"
  pub component SlideLayout {
      footer: Col {
          @slot
@@ -709,36 +663,29 @@ fn load_program_slot_defaults_fallback() {
      }
  }
  "#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+            ),
+            (
+                "scene.amx",
+                r#"
  import "./slides.amx"
 
   slide: SlideLayout {}
  "#,
+            ),
+        ],
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
-    let expanded_debug = format!("{expanded:#?}");
-
-    assert!(!expanded_debug.contains("SlideLayout"));
-    assert!(expanded_debug.contains("slide"));
-    // Default item should appear
-    assert!(expanded_debug.contains("Default Footer"));
+    assert_contents(&program, &["slide", "Default Footer"], &["SlideLayout"]);
 }
 
 #[test]
 fn load_program_slot_mixed_filled_and_unfilled() {
-    let dir = temp_project_dir("slots_mixed");
-    let entry = dir.join("scene.amx");
-    let library = dir.join("slides.amx");
-
-    write_file(
-        &library,
-        r#"
+    let program = load_scene(
+        "slots_mixed",
+        &[
+            (
+                "slides.amx",
+                r#"
  pub component SlideLayout {
      header: Col {
          @slot
@@ -753,11 +700,10 @@ fn load_program_slot_mixed_filled_and_unfilled() {
      }
  }
  "#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+            ),
+            (
+                "scene.amx",
+                r#"
  import "./slides.amx"
 
   slide: SlideLayout {
@@ -767,66 +713,55 @@ fn load_program_slot_mixed_filled_and_unfilled() {
   }
  // header and footer not filled — should use defaults
  "#,
+            ),
+        ],
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
-    let expanded_debug = format!("{expanded:#?}");
-
-    assert!(!expanded_debug.contains("SlideLayout"));
-    assert!(expanded_debug.contains("slide"));
-    // Default header and footer should appear
-    assert!(expanded_debug.contains("Default Header"));
-    assert!(expanded_debug.contains("Default Footer"));
-    // Filled body should appear
-    assert!(expanded_debug.contains("Ellipse"));
+    assert_contents(
+        &program,
+        &["slide", "Default Header", "Default Footer", "Ellipse"],
+        &["SlideLayout"],
+    );
 }
 
 #[test]
 fn load_program_slot_unfilled_required_becomes_empty() {
-    let dir = temp_project_dir("slots_unfilled");
-    let entry = dir.join("scene.amx");
-    let library = dir.join("slides.amx");
-
-    write_file(
-        &library,
-        r#"
+    let program = load_scene(
+        "slots_unfilled",
+        &[
+            (
+                "slides.amx",
+                r#"
  pub component SlideLayout {
      body: Group {
          @slot
      }
  }
  "#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+            ),
+            (
+                "scene.amx",
+                r#"
  import "./slides.amx"
 
   slide: SlideLayout {}
  "#,
+            ),
+        ],
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
-    let expanded_debug = format!("{expanded:#?}");
-
-    assert!(!expanded_debug.contains("SlideLayout"));
-    // The container should still exist (just empty)
-    assert!(expanded_debug.contains("slide"));
-    assert!(expanded_debug.contains("children: []"));
+    // The container still exists, just empty.
+    assert_contents(&program, &["slide", "children: []"], &["SlideLayout"]);
 }
 
 #[test]
 fn load_program_slot_multiple_instances_different_fills() {
-    let dir = temp_project_dir("slot_multi_instance");
-    let entry = dir.join("scene.amx");
-    let library = dir.join("slides.amx");
-
-    write_file(
-        &library,
-        r#"
+    let program = load_scene(
+        "slot_multi_instance",
+        &[
+            (
+                "slides.amx",
+                r#"
  pub component Card {
      header: Col {
          @slot
@@ -836,11 +771,10 @@ fn load_program_slot_multiple_instances_different_fills() {
      }
  }
  "#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+            ),
+            (
+                "scene.amx",
+                r#"
  import "./slides.amx"
 
  first: Card {
@@ -861,30 +795,31 @@ fn load_program_slot_multiple_instances_different_fills() {
      }
  }
  "#,
+            ),
+        ],
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
-    let expanded_debug = format!("{expanded:#?}");
-
-    assert!(expanded_debug.contains("first"));
-    assert!(expanded_debug.contains("Second Header"));
-    assert!(expanded_debug.contains("Second Body"));
-    assert!(expanded_debug.contains("first"));
-    assert!(expanded_debug.contains("First Header"));
-    assert!(expanded_debug.contains("First Body"));
-    assert!(!expanded_debug.contains("Card"));
+    assert_contents(
+        &program,
+        &[
+            "first",
+            "First Header",
+            "First Body",
+            "Second Header",
+            "Second Body",
+        ],
+        &["Card"],
+    );
 }
 
 #[test]
 fn load_program_slot_empty_fill() {
-    let dir = temp_project_dir("slot_empty_fill");
-    let entry = dir.join("scene.amx");
-    let library = dir.join("slides.amx");
-
-    write_file(
-        &library,
-        r#"
+    let program = load_scene(
+        "slot_empty_fill",
+        &[
+            (
+                "slides.amx",
+                r#"
  pub component Slide {
      header: Col {
          @slot
@@ -892,48 +827,41 @@ fn load_program_slot_empty_fill() {
      }
  }
  "#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+            ),
+            (
+                "scene.amx",
+                r#"
  import "./slides.amx"
 
  slide: Slide {
      @header {}
  }
  "#,
+            ),
+        ],
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
-    let expanded_debug = format!("{expanded:#?}");
-
-    assert!(expanded_debug.contains("slide"));
-    assert!(!expanded_debug.contains("Default Header"));
-    assert!(!expanded_debug.contains("Slide"));
+    assert_contents(&program, &["slide"], &["Default Header", "Slide"]);
 }
 
 #[test]
 fn load_program_slot_with_component_as_fill() {
-    let dir = temp_project_dir("slot_component_fill");
-    let entry = dir.join("scene.amx");
-    let library = dir.join("slides.amx");
-
-    write_file(
-        &library,
-        r#"
+    let program = load_scene(
+        "slot_component_fill",
+        &[
+            (
+                "slides.amx",
+                r#"
  pub component Slide {
      header: Col {
          @slot
      }
  }
  "#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+            ),
+            (
+                "scene.amx",
+                r#"
  import "./slides.amx"
 
  slide: Slide {
@@ -942,26 +870,21 @@ fn load_program_slot_with_component_as_fill() {
      }
  }
  "#,
+            ),
+        ],
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
-    let expanded_debug = format!("{expanded:#?}");
-
-    assert!(expanded_debug.contains("slide"));
-    assert!(expanded_debug.contains("My Title"));
-    assert!(!expanded_debug.contains("Slide"));
+    assert_contents(&program, &["slide", "My Title"], &["Slide"]);
 }
 
 #[test]
 fn load_program_slot_fill_nonexistent_slot() {
-    let dir = temp_project_dir("slot_nonexistent");
-    let entry = dir.join("scene.amx");
-    let library = dir.join("slides.amx");
-
-    write_file(
-        &library,
-        r#"
+    let program = load_scene(
+        "slot_nonexistent",
+        &[
+            (
+                "slides.amx",
+                r#"
  pub component Card {
      header: Col {
          @slot
@@ -969,11 +892,10 @@ fn load_program_slot_fill_nonexistent_slot() {
      }
  }
  "#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+            ),
+            (
+                "scene.amx",
+                r#"
  import "./slides.amx"
 
  card: Card {
@@ -982,27 +904,21 @@ fn load_program_slot_fill_nonexistent_slot() {
      }
  }
  "#,
+            ),
+        ],
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
-    let expanded_debug = format!("{expanded:#?}");
-
-    assert!(expanded_debug.contains("card"));
-    assert!(expanded_debug.contains("Default Header"));
-    assert!(!expanded_debug.contains("This should be ignored"));
-    assert!(!expanded_debug.contains("Card"));
+    assert_contents(&program, &["card", "Default Header"], &["This should be ignored", "Card"]);
 }
 
 #[test]
 fn load_program_slot_all_filled_no_defaults_used() {
-    let dir = temp_project_dir("slot_all_filled");
-    let entry = dir.join("scene.amx");
-    let library = dir.join("slides.amx");
-
-    write_file(
-        &library,
-        r#"
+    let program = load_scene(
+        "slot_all_filled",
+        &[
+            (
+                "slides.amx",
+                r#"
  pub component Card {
      header: Col {
          @slot
@@ -1014,11 +930,10 @@ fn load_program_slot_all_filled_no_defaults_used() {
      }
  }
  "#,
-    );
-
-    write_file(
-        &entry,
-        r#"
+            ),
+            (
+                "scene.amx",
+                r#"
  import "./slides.amx"
 
  card: Card {
@@ -1030,27 +945,21 @@ fn load_program_slot_all_filled_no_defaults_used() {
      }
  }
  "#,
+            ),
+        ],
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
-    let expanded_debug = format!("{expanded:#?}");
-
-    assert!(expanded_debug.contains("card"));
-    assert!(expanded_debug.contains("Custom Header"));
-    assert!(expanded_debug.contains("Custom Footer"));
-    assert!(!expanded_debug.contains("Default Header"));
-    assert!(!expanded_debug.contains("Default Footer"));
-    assert!(!expanded_debug.contains("Card"));
+    assert_contents(
+        &program,
+        &["card", "Custom Header", "Custom Footer"],
+        &["Default Header", "Default Footer", "Card"],
+    );
 }
 
 #[test]
 fn load_program_three_slot_fills() {
-    let dir = temp_project_dir("three_slot_fills");
-    let entry = dir.join("scene.amx");
-
-    write_file(
-        &entry,
+    let program = load_entry(
+        "three_slot_fills",
         r##"
 config { colorscheme: "editorial-dark", resolution: (800, 500) }
 
@@ -1088,25 +997,16 @@ card_c: Card, title: "Test", anchor: scene.center, offset: (0, 0) {
 "##,
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-
-    // Also verify timeline builds correctly
-    let expanded = program.expand_components(&mut Vec::new());
-    let timeline = Timeline::build(&expanded);
-
-    // Check that all 3 cards exist in the timeline
-    assert!(timeline.tracks().contains_key("card_a"), "card_a should exist");
-    assert!(timeline.tracks().contains_key("card_b"), "card_b should exist");
-    assert!(timeline.tracks().contains_key("card_c"), "card_c should exist");
+    let timeline = Timeline::build(&expanded(&program));
+    for card in ["card_a", "card_b", "card_c"] {
+        assert!(timeline.tracks().contains_key(card), "{card} should exist");
+    }
 }
 
 #[test]
 fn load_program_custom_component_action_self_nested_path() {
-    let dir = temp_project_dir("self_nested_path");
-    let entry = dir.join("scene.amx");
-
-    write_file(
-        &entry,
+    let program = load_entry(
+        "self_nested_path",
         r##"
 config { colorscheme: "editorial-dark", resolution: (800, 500) }
 
@@ -1130,12 +1030,8 @@ highlight card_a
 "##,
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
-    let timeline = Timeline::build(&expanded);
-
-    // Verify the card and its children exist after expansion
-    // Note: 'frame' is the root label so it becomes just 'card_a', not 'card_a.frame'
+    let timeline = Timeline::build(&expanded(&program));
+    // 'frame' is the root label, so it becomes just 'card_a'.
     assert!(timeline.tracks().contains_key("card_a"), "card_a (root frame) should exist");
     assert!(
         timeline.tracks().contains_key("card_a.title_text"),
@@ -1145,11 +1041,8 @@ highlight card_a
 
 #[test]
 fn load_program_comments_in_always_block() {
-    let dir = temp_project_dir("comments_always");
-    let entry = dir.join("scene.amx");
-
-    write_file(
-        &entry,
+    let program = load_entry(
+        "comments_always",
         r##"
 config { colorscheme: "editorial-dark", resolution: (800, 500) }
 
@@ -1165,11 +1058,7 @@ always {
 "##,
     );
 
-    let program = ModuleGraph::new().load_program(&entry).unwrap();
-    let expanded = program.expand_components(&mut Vec::new());
-    let timeline = Timeline::build(&expanded);
-
-    // Verify the box exists
+    let timeline = Timeline::build(&expanded(&program));
     assert!(timeline.tracks().contains_key("box"), "box should exist");
 }
 
@@ -1177,11 +1066,10 @@ always {
 fn load_program_from_memory_sources_resolves_imports() {
     let dir = temp_project_dir("memory_sources");
     let entry = dir.join("scene.amx");
-    let library = dir.join("components.amx");
 
     let mut graph = ModuleGraph::new();
     graph.add_source(
-        library.clone(),
+        dir.join("components.amx"),
         r#"
 pub component MetricCard(title: "Throughput") {
     label: Text, text: title
@@ -1198,28 +1086,15 @@ dashboard: MetricCard, title: "Latency"
     );
 
     let program = graph.load_program(&entry).unwrap();
-
     assert!(program.components.contains_key("MetricCard"));
     assert!(!program.components.contains_key("InternalCard"));
-
-    let expanded = program.expand_components(&mut Vec::new());
-    let expanded_debug = format!("{expanded:#?}");
-    assert!(expanded_debug.contains("dashboard"));
-    assert!(expanded_debug.contains("Latency"));
-    assert!(!expanded_debug.contains("MetricCard"));
+    assert_contents(&program, &["dashboard", "Latency"], &["MetricCard"]);
 }
 
 #[test]
 fn load_program_with_source_override_does_not_leak_source_map() {
-    let dir = temp_project_dir("source_override_cleanup");
+    let dir = project("source_override_cleanup", &[("scene.amx", "box: Rect, size: (100, 100)\n")]);
     let entry = dir.join("scene.amx");
-
-    write_file(
-        &entry,
-        r#"
-box: Rect, size: (100, 100)
-"#,
-    );
 
     let mut graph = ModuleGraph::new();
     let first = graph
@@ -1234,12 +1109,11 @@ box: Rect, size: (100, 100)
 
 #[test]
 fn transform_property_builds_without_diagnostics() {
-    let dir = temp_project_dir("transform_property");
-    let entry = dir.join("scene.amx");
-
-    write_file(
-        &entry,
-        r#"
+    let dir = project(
+        "transform_property",
+        &[(
+            "scene.amx",
+            r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 
 a: Rect, size: (100, 100), transform: (1, 0.5, 0, 1, 0, 0), color: accent.primary, at: (200, 150)
@@ -1247,15 +1121,17 @@ a: Rect, size: (100, 100), transform: (1, 0.5, 0, 1, 0, 0), color: accent.primar
 #0s
 fade-in a [0ms]
 "#,
+        )],
     );
+    let entry = dir.join("scene.amx");
 
-    let mut program = ModuleGraph::new().load_program(&entry).unwrap();
+    let mut program = load(&entry);
     let type_diagnostics = program.typecheck();
     assert!(
         type_diagnostics.is_empty(),
         "transform declaration should typecheck: {type_diagnostics:?}"
     );
-    let ast = program.expand_components(&mut Vec::new());
+    let ast = expanded(&program);
     let options = BuildOptions::default();
     let report = BuildTarget::build_with_options(&ast, &program.namespaces, Some(&entry), options);
     assert!(
@@ -1292,15 +1168,8 @@ fn contains_actor(stmts: &[Stmt], label: &str, ty: &str) -> bool {
 
 #[test]
 fn with_source_restores_previous_source_after_error() {
-    let dir = temp_project_dir("with_source_error");
+    let dir = project("with_source_error", &[("scene.amx", "box: Rect, size: (100, 100)\n")]);
     let entry = dir.join("scene.amx");
-
-    write_file(
-        &entry,
-        r#"
-box: Rect, size: (100, 100)
-"#,
-    );
 
     let mut graph = ModuleGraph::new();
     let result = graph

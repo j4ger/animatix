@@ -1,47 +1,49 @@
 use super::*;
 
+fn neg(value: f64) -> Expr {
+    Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(value)))
+}
+
+fn pair(x: f64, y: f64) -> Expr {
+    Expr::Tuple(vec![Expr::Num(x), Expr::Num(y)])
+}
+
+fn labeled(label: &str, ty: &str, props: Vec<Property>, children: Vec<InlineItem>) -> InlineItem {
+    InlineItem::Labeled {
+        label: label.to_string(),
+        array_index: None,
+        ty: ty.to_string(),
+        props,
+        modifiers: vec![],
+        children,
+    }
+}
+
+fn anonymous(ty: &str, props: Vec<Property>, children: Vec<InlineItem>) -> InlineItem {
+    InlineItem::Anonymous {
+        ty: ty.to_string(),
+        props,
+        modifiers: vec![],
+        children,
+    }
+}
+
 #[test]
 fn test_svg_stmt_preserves_anchor_and_offset() {
     assert_eq!(
         parse_single_stmt(
             "icon: Svg { url: \"examples/vector.svg\", anchor: scene.top, offset: (0, 24), scale: 1.5 }"
         ),
-        Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "icon".to_string(),
-            array_index: None,
-            ty: "Svg".to_string(),
-            props: vec![
-                Property {
-                    name: "url".to_string(),
-                    value: Expr::Str("examples/vector.svg".to_string()),
-                    value_span: Some(ByteSpan { start: 17, end: 38 }),
-                    trailing_comment: None,
-                },
-                Property {
-                    name: "anchor".to_string(),
-                    value: Expr::Path(vec!["scene".to_string(), "top".to_string()]),
-                    value_span: Some(ByteSpan { start: 48, end: 57 }),
-                    trailing_comment: None,
-                },
-                Property {
-                    name: "offset".to_string(),
-                    value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(24.0)]),
-                    value_span: Some(ByteSpan { start: 67, end: 74 }),
-                    trailing_comment: None,
-                },
-                Property {
-                    name: "scale".to_string(),
-                    value: Expr::Num(1.5),
-                    value_span: Some(ByteSpan { start: 83, end: 86 }),
-                    trailing_comment: None,
-                },
-            ],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        }
+        actor(
+            "icon",
+            "Svg",
+            vec![
+                prop("url", Expr::Str("examples/vector.svg".to_string()), (17, 38)),
+                prop("anchor", Expr::Path(vec!["scene".to_string(), "top".to_string()]), (48, 57)),
+                prop("offset", pair(0.0, 24.0), (67, 74)),
+                prop("scale", Expr::Num(1.5), (83, 86)),
+            ]
+        )
     );
 }
 
@@ -51,48 +53,20 @@ fn test_image_stmt_preserves_anchor_and_offset() {
         parse_single_stmt(
             "photo: Image { url: \"examples/checker.png\", anchor: scene.bottom, offset: (0, -40), size: (240, 180) }"
         ),
-        Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "photo".to_string(),
-            array_index: None,
-            ty: "Image".to_string(),
-            props: vec![
-                Property {
-                    name: "url".to_string(),
-                    value: Expr::Str("examples/checker.png".to_string()),
-                    value_span: Some(ByteSpan { start: 20, end: 42 }),
-                    trailing_comment: None,
-                },
-                Property {
-                    name: "anchor".to_string(),
-                    value: Expr::Path(vec!["scene".to_string(), "bottom".to_string()]),
-                    value_span: Some(ByteSpan { start: 52, end: 64 }),
-                    trailing_comment: None,
-                },
-                Property {
-                    name: "offset".to_string(),
-                    value: Expr::Tuple(vec![
-                        Expr::Num(0.0),
-                        Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(40.0))),
-                    ]),
-                    value_span: Some(ByteSpan { start: 74, end: 82 }),
-                    trailing_comment: None,
-                },
-                Property {
-                    name: "size".to_string(),
-                    value: Expr::Tuple(vec![Expr::Num(240.0), Expr::Num(180.0)]),
-                    value_span: Some(ByteSpan {
-                        start: 90,
-                        end: 100
-                    }),
-                    trailing_comment: None,
-                },
-            ],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        }
+        actor(
+            "photo",
+            "Image",
+            vec![
+                prop("url", Expr::Str("examples/checker.png".to_string()), (20, 42)),
+                prop(
+                    "anchor",
+                    Expr::Path(vec!["scene".to_string(), "bottom".to_string()]),
+                    (52, 64)
+                ),
+                prop("offset", Expr::Tuple(vec![Expr::Num(0.0), neg(40.0)]), (74, 82)),
+                prop("size", pair(240.0, 180.0), (90, 100)),
+            ]
+        )
     );
 }
 
@@ -100,45 +74,16 @@ fn test_image_stmt_preserves_anchor_and_offset() {
 fn test_line_actor_decl() {
     assert_eq!(
         parse_single_stmt("axis: Line, from: (-40, 0), to: (40, 0), stroke: blue, stroke_width: 3"),
-        Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "axis".to_string(),
-            array_index: None,
-            ty: "Line".to_string(),
-            props: vec![
-                Property {
-                    name: "from".to_string(),
-                    value: Expr::Tuple(vec![
-                        Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(40.0))),
-                        Expr::Num(0.0),
-                    ]),
-                    value_span: Some(ByteSpan { start: 18, end: 26 }),
-                    trailing_comment: None,
-                },
-                Property {
-                    name: "to".to_string(),
-                    value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(0.0)]),
-                    value_span: Some(ByteSpan { start: 32, end: 39 }),
-                    trailing_comment: None,
-                },
-                Property {
-                    name: "stroke".to_string(),
-                    value: Expr::Ident("blue".to_string()),
-                    value_span: Some(ByteSpan { start: 49, end: 53 }),
-                    trailing_comment: None,
-                },
-                Property {
-                    name: "stroke_width".to_string(),
-                    value: Expr::Num(3.0),
-                    value_span: Some(ByteSpan { start: 69, end: 70 }),
-                    trailing_comment: None,
-                }
-            ],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        }
+        actor(
+            "axis",
+            "Line",
+            vec![
+                prop("from", Expr::Tuple(vec![neg(40.0), Expr::Num(0.0)]), (18, 26)),
+                prop("to", pair(40.0, 0.0), (32, 39)),
+                prop("stroke", Expr::Ident("blue".to_string()), (49, 53)),
+                prop("stroke_width", Expr::Num(3.0), (69, 70)),
+            ]
+        )
     );
 }
 
@@ -146,36 +91,15 @@ fn test_line_actor_decl() {
 fn test_ellipse_actor_decl() {
     assert_eq!(
         parse_single_stmt("halo: Ellipse, radius_x: 80, radius_y: 30, color: green"),
-        Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "halo".to_string(),
-            array_index: None,
-            ty: "Ellipse".to_string(),
-            props: vec![
-                Property {
-                    name: "radius_x".to_string(),
-                    value: Expr::Num(80.0),
-                    value_span: Some(ByteSpan { start: 25, end: 27 }),
-                    trailing_comment: None,
-                },
-                Property {
-                    name: "radius_y".to_string(),
-                    value: Expr::Num(30.0),
-                    value_span: Some(ByteSpan { start: 39, end: 41 }),
-                    trailing_comment: None,
-                },
-                Property {
-                    name: "color".to_string(),
-                    value: Expr::Ident("green".to_string()),
-                    value_span: Some(ByteSpan { start: 50, end: 55 }),
-                    trailing_comment: None,
-                }
-            ],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        }
+        actor(
+            "halo",
+            "Ellipse",
+            vec![
+                prop("radius_x", Expr::Num(80.0), (25, 27)),
+                prop("radius_y", Expr::Num(30.0), (39, 41)),
+                prop("color", Expr::Ident("green".to_string()), (50, 55)),
+            ]
+        )
     );
 }
 
@@ -185,158 +109,74 @@ fn test_arc_actor_decl() {
         parse_single_stmt(
             "ring: Ellipse, radius_x: 80, radius_y: 50, start_angle: 0, sweep_angle: 3.14, stroke: gold"
         ),
-        Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "ring".to_string(),
-            array_index: None,
-            ty: "Ellipse".to_string(),
-            props: vec![
-                Property {
-                    name: "radius_x".to_string(),
-                    value: Expr::Num(80.0),
-                    value_span: Some(ByteSpan { start: 25, end: 27 }),
-                    trailing_comment: None,
-                },
-                Property {
-                    name: "radius_y".to_string(),
-                    value: Expr::Num(50.0),
-                    value_span: Some(ByteSpan { start: 39, end: 41 }),
-                    trailing_comment: None,
-                },
-                Property {
-                    name: "start_angle".to_string(),
-                    value: Expr::Num(0.0),
-                    value_span: Some(ByteSpan { start: 56, end: 57 }),
-                    trailing_comment: None,
-                },
-                Property {
-                    name: "sweep_angle".to_string(),
-                    value: Expr::Num(3.14),
-                    value_span: Some(ByteSpan { start: 72, end: 76 }),
-                    trailing_comment: None,
-                },
-                Property {
-                    name: "stroke".to_string(),
-                    value: Expr::Ident("gold".to_string()),
-                    value_span: Some(ByteSpan { start: 86, end: 90 }),
-                    trailing_comment: None,
-                }
-            ],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        }
+        actor(
+            "ring",
+            "Ellipse",
+            vec![
+                prop("radius_x", Expr::Num(80.0), (25, 27)),
+                prop("radius_y", Expr::Num(50.0), (39, 41)),
+                prop("start_angle", Expr::Num(0.0), (56, 57)),
+                prop("sweep_angle", Expr::Num(3.14), (72, 76)),
+                prop("stroke", Expr::Ident("gold".to_string()), (86, 90)),
+            ]
+        )
     );
 }
 
 #[test]
 fn test_polygon_actor_decl() {
+    let points = Expr::List(vec![
+        Expr::Tuple(vec![neg(80.0), Expr::Num(0.0)]),
+        Expr::Tuple(vec![Expr::Num(0.0), neg(70.0)]),
+        pair(90.0, 0.0),
+        pair(0.0, 80.0),
+    ]);
     assert_eq!(
         parse_single_stmt(
             "badge: Polygon, points: {(-80, 0), (0, -70), (90, 0), (0, 80)}, color: cyan"
         ),
-        Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "badge".to_string(),
-            array_index: None,
-            ty: "Polygon".to_string(),
-            props: vec![
-                Property {
-                    name: "points".to_string(),
-                    value: Expr::List(vec![
-                        Expr::Tuple(vec![
-                            Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(80.0))),
-                            Expr::Num(0.0),
-                        ]),
-                        Expr::Tuple(vec![
-                            Expr::Num(0.0),
-                            Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(70.0)))
-                        ]),
-                        Expr::Tuple(vec![Expr::Num(90.0), Expr::Num(0.0)]),
-                        Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(80.0)]),
-                    ]),
-                    value_span: Some(ByteSpan { start: 24, end: 62 }),
-                    trailing_comment: None,
-                },
-                Property {
-                    name: "color".to_string(),
-                    value: Expr::Ident("cyan".to_string()),
-                    value_span: Some(ByteSpan { start: 71, end: 75 }),
-                    trailing_comment: None,
-                }
-            ],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        }
+        actor(
+            "badge",
+            "Polygon",
+            vec![
+                prop("points", points, (24, 62)),
+                prop("color", Expr::Ident("cyan".to_string()), (71, 75)),
+            ]
+        )
     );
 }
 
 #[test]
 fn test_path_actor_decl() {
+    let call = |name: &str, args: Vec<Expr>| Expr::Call(name.to_string(), args);
+    let commands = Expr::List(vec![
+        call("move_to", vec![neg(120.0), Expr::Num(0.0)]),
+        call("line_to", vec![neg(40.0), neg(80.0)]),
+        call(
+            "curve_to",
+            vec![
+                Expr::Num(20.0),
+                neg(120.0),
+                Expr::Num(80.0),
+                Expr::Num(40.0),
+                Expr::Num(140.0),
+                neg(10.0),
+            ],
+        ),
+        call("close", vec![]),
+    ]);
     assert_eq!(
         parse_single_stmt(
             "guide: Path, commands: {move_to(-120, 0), line_to(-40, -80), curve_to(20, -120, 80, 40, 140, -10), close()}, stroke: white"
         ),
-        Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "guide".to_string(),
-            array_index: None,
-            ty: "Path".to_string(),
-            props: vec![
-                Property {
-                    name: "commands".to_string(),
-                    value: Expr::List(vec![
-                        Expr::Call(
-                            "move_to".to_string(),
-                            vec![
-                                Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(120.0))),
-                                Expr::Num(0.0)
-                            ],
-                        ),
-                        Expr::Call(
-                            "line_to".to_string(),
-                            vec![
-                                Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(40.0))),
-                                Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(80.0))),
-                            ],
-                        ),
-                        Expr::Call(
-                            "curve_to".to_string(),
-                            vec![
-                                Expr::Num(20.0),
-                                Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(120.0))),
-                                Expr::Num(80.0),
-                                Expr::Num(40.0),
-                                Expr::Num(140.0),
-                                Expr::Unary(UnaryOp::Neg, Box::new(Expr::Num(10.0))),
-                            ],
-                        ),
-                        Expr::Call("close".to_string(), vec![]),
-                    ]),
-                    value_span: Some(ByteSpan {
-                        start: 23,
-                        end: 107
-                    }),
-                    trailing_comment: None,
-                },
-                Property {
-                    name: "stroke".to_string(),
-                    value: Expr::Ident("white".to_string()),
-                    value_span: Some(ByteSpan {
-                        start: 117,
-                        end: 122
-                    }),
-                    trailing_comment: None,
-                }
-            ],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        }
+        actor(
+            "guide",
+            "Path",
+            vec![
+                prop("commands", commands, (23, 107)),
+                prop("stroke", Expr::Ident("white".to_string()), (117, 122)),
+            ]
+        )
     );
 }
 
@@ -353,32 +193,8 @@ fn test_actor_decl_nested() {
             props: vec![],
             modifiers: vec![],
             children: vec![
-                animatix_syntax::ast::InlineItem::Labeled {
-                    label: "a".to_string(),
-                    array_index: None,
-                    ty: "Ellipse".to_string(),
-                    props: vec![Property {
-                        name: "size".to_string(),
-                        value: Expr::Num(10.0),
-                        value_span: Some(ByteSpan { start: 33, end: 35 }),
-                        trailing_comment: None,
-                    }],
-                    modifiers: vec![],
-                    children: vec![]
-                },
-                animatix_syntax::ast::InlineItem::Labeled {
-                    label: "b".to_string(),
-                    array_index: None,
-                    ty: "Rect".to_string(),
-                    props: vec![Property {
-                        name: "size".to_string(),
-                        value: Expr::Num(20.0),
-                        value_span: Some(ByteSpan { start: 52, end: 54 }),
-                        trailing_comment: None,
-                    }],
-                    modifiers: vec![],
-                    children: vec![],
-                }
+                labeled("a", "Ellipse", vec![prop("size", Expr::Num(10.0), (33, 35))], vec![]),
+                labeled("b", "Rect", vec![prop("size", Expr::Num(20.0), (52, 54))], vec![]),
             ],
             span: None,
         }
@@ -398,28 +214,8 @@ fn test_actor_decl_anonymous() {
             props: vec![],
             modifiers: vec![],
             children: vec![
-                animatix_syntax::ast::InlineItem::Anonymous {
-                    ty: "Ellipse".to_string(),
-                    props: vec![Property {
-                        name: "size".to_string(),
-                        value: Expr::Num(10.0),
-                        value_span: Some(ByteSpan { start: 30, end: 32 }),
-                        trailing_comment: None,
-                    }],
-                    modifiers: vec![],
-                    children: vec![]
-                },
-                animatix_syntax::ast::InlineItem::Anonymous {
-                    ty: "Rect".to_string(),
-                    props: vec![Property {
-                        name: "size".to_string(),
-                        value: Expr::Num(20.0),
-                        value_span: Some(ByteSpan { start: 46, end: 48 }),
-                        trailing_comment: None,
-                    }],
-                    modifiers: vec![],
-                    children: vec![],
-                }
+                anonymous("Ellipse", vec![prop("size", Expr::Num(10.0), (30, 32))], vec![]),
+                anonymous("Rect", vec![prop("size", Expr::Num(20.0), (46, 48))], vec![]),
             ],
             span: None,
         }
@@ -443,44 +239,18 @@ fn test_actor_decl_nested_with_children() {
             props: vec![],
             modifiers: vec![],
             children: vec![
-                animatix_syntax::ast::InlineItem::Labeled {
-                    label: "a".to_string(),
-                    array_index: None,
-                    ty: "Ellipse".to_string(),
-                    props: vec![Property {
-                        name: "size".to_string(),
-                        value: Expr::Num(10.0),
-                        value_span: Some(ByteSpan { start: 33, end: 35 }),
-                        trailing_comment: None,
-                    }],
-                    modifiers: vec![],
-                    children: vec![animatix_syntax::ast::InlineItem::Labeled {
-                        label: "child".to_string(),
-                        array_index: None,
-                        ty: "Text".to_string(),
-                        props: vec![Property {
-                            name: "text".to_string(),
-                            value: Expr::Str("hi".to_string()),
-                            value_span: Some(ByteSpan { start: 57, end: 61 }),
-                            trailing_comment: None,
-                        }],
-                        modifiers: vec![],
-                        children: vec![],
-                    }],
-                },
-                animatix_syntax::ast::InlineItem::Labeled {
-                    label: "b".to_string(),
-                    array_index: None,
-                    ty: "Rect".to_string(),
-                    props: vec![Property {
-                        name: "size".to_string(),
-                        value: Expr::Num(20.0),
-                        value_span: Some(ByteSpan { start: 80, end: 82 }),
-                        trailing_comment: None,
-                    }],
-                    modifiers: vec![],
-                    children: vec![],
-                }
+                labeled(
+                    "a",
+                    "Ellipse",
+                    vec![prop("size", Expr::Num(10.0), (33, 35))],
+                    vec![labeled(
+                        "child",
+                        "Text",
+                        vec![prop("text", Expr::Str("hi".to_string()), (57, 61))],
+                        vec![]
+                    )],
+                ),
+                labeled("b", "Rect", vec![prop("size", Expr::Num(20.0), (80, 82))], vec![]),
             ],
             span: None,
         }
@@ -497,20 +267,7 @@ fn test_demo_layout_parse() {
 fn test_action() {
     assert_eq!(
         parse_single_stmt("fade-out ball [1s]"),
-        Stmt::Action(
-            Action {
-                verb: "fade-out".to_string(),
-                targets: vec!["ball".to_string()],
-                args: vec![],
-                modifiers: vec![Modifier {
-                    name: None,
-                    value: Expr::Ident("1s".to_string())
-                }],
-                byte_span: Some(ByteSpan { start: 0, end: 18 }),
-                target_index: vec![None; 1],
-            },
-            None
-        )
+        action("fade-out", &["ball"], vec![modifier("1s")], (0, 18))
     );
 }
 
@@ -624,9 +381,8 @@ fn test_on_is_not_reserved_identifier() {
 
 #[test]
 fn test_always() {
-    let result = parse_single_stmt("always { let x = btn.x }");
     assert_eq!(
-        result,
+        parse_single_stmt("always { let x = btn.x }"),
         Stmt::Always {
             body: vec![Stmt::LetDecl {
                 is_pub: false,
@@ -641,23 +397,14 @@ fn test_always() {
 
 #[test]
 fn test_expression_conditional() {
+    let value = Expr::Conditional(
+        Box::new(Expr::Ident("active".to_string())),
+        Box::new(pair(120.0, 120.0)),
+        Box::new(pair(180.0, 180.0)),
+    );
     assert_eq!(
         parse_single_stmt("pulse.size = if active { (120, 120) } else { (180, 180) }"),
-        Stmt::Assignment {
-            target: vec![animatix_syntax::ast::TargetSegment::Static(
-                "pulse".to_string()
-            )],
-            property: "size".to_string(),
-            value: Expr::Conditional(
-                Box::new(Expr::Ident("active".to_string())),
-                Box::new(Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(120.0)])),
-                Box::new(Expr::Tuple(vec![Expr::Num(180.0), Expr::Num(180.0)])),
-            ),
-            modifiers: vec![],
-            easing: None,
-            value_span: Some(ByteSpan { start: 13, end: 57 }),
-            span: None,
-        }
+        assignment(&["pulse"], "size", value, (13, 57))
     );
 }
 
@@ -673,22 +420,11 @@ fn test_legacy_loop_syntax_rejected() {
 
 #[test]
 fn test_conditional() {
-    let result = parse_single_stmt("if active { appear btn }");
     assert_eq!(
-        result,
+        parse_single_stmt("if active { appear btn }"),
         Stmt::Conditional {
             condition: Expr::Ident("active".to_string()),
-            then_branch: vec![Stmt::Action(
-                Action {
-                    verb: "appear".to_string(),
-                    targets: vec!["btn".to_string()],
-                    args: vec![],
-                    modifiers: vec![],
-                    byte_span: Some(ByteSpan { start: 12, end: 22 }),
-                    target_index: vec![None; 1],
-                },
-                None
-            )],
+            then_branch: vec![action("appear", &["btn"], vec![], (12, 22))],
             else_branch: None,
             span: None,
         }
@@ -697,33 +433,12 @@ fn test_conditional() {
 
 #[test]
 fn test_conditional_with_else() {
-    let result = parse_single_stmt("if active { fade-in btn } else { fade-out btn }");
     assert_eq!(
-        result,
+        parse_single_stmt("if active { fade-in btn } else { fade-out btn }"),
         Stmt::Conditional {
             condition: Expr::Ident("active".to_string()),
-            then_branch: vec![Stmt::Action(
-                Action {
-                    verb: "fade-in".to_string(),
-                    targets: vec!["btn".to_string()],
-                    args: vec![],
-                    modifiers: vec![],
-                    byte_span: Some(ByteSpan { start: 12, end: 23 }),
-                    target_index: vec![None; 1],
-                },
-                None
-            )],
-            else_branch: Some(vec![Stmt::Action(
-                Action {
-                    verb: "fade-out".to_string(),
-                    targets: vec!["btn".to_string()],
-                    args: vec![],
-                    modifiers: vec![],
-                    byte_span: Some(ByteSpan { start: 33, end: 45 }),
-                    target_index: vec![None; 1],
-                },
-                None
-            )]),
+            then_branch: vec![action("fade-in", &["btn"], vec![], (12, 23))],
+            else_branch: Some(vec![action("fade-out", &["btn"], vec![], (33, 45))]),
             span: None,
         }
     );
@@ -731,25 +446,14 @@ fn test_conditional_with_else() {
 
 #[test]
 fn test_for_loop() {
-    let result = parse_single_stmt("for item in buttons { appear item }");
     assert_eq!(
-        result,
+        parse_single_stmt("for item in buttons { appear item }"),
         Stmt::ForLoop {
             var: LoopPattern::Single("item".to_string()),
             index_var: None,
             iterable: Expr::Ident("buttons".to_string()),
             modifiers: vec![],
-            body: vec![Stmt::Action(
-                Action {
-                    verb: "appear".to_string(),
-                    targets: vec!["item".to_string()],
-                    args: vec![],
-                    modifiers: vec![],
-                    byte_span: Some(ByteSpan { start: 22, end: 33 }),
-                    target_index: vec![None; 1],
-                },
-                None
-            )],
+            body: vec![action("appear", &["item"], vec![], (22, 33))],
             span: None,
         }
     );
