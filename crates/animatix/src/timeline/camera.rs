@@ -182,22 +182,16 @@ impl Camera {
         }
     }
 
-    #[allow(dead_code)] // Reserved for tooling inspection of camera pan axis
     /// Access the pan track if authored.
+    #[cfg(test)]
     pub fn pan(&self) -> Option<&PropertyTrack<[f32; 2]>> {
         self.pan.as_ref()
     }
 
-    #[allow(dead_code)] // Reserved for tooling inspection of camera zoom axis
     /// Access the zoom track if authored.
+    #[cfg(test)]
     pub fn zoom(&self) -> Option<&PropertyTrack<f32>> {
         self.zoom.as_ref()
-    }
-
-    #[allow(dead_code)] // Reserved for tooling inspection of camera spin axis
-    /// Access the spin track if authored.
-    pub fn spin(&self) -> Option<&PropertyTrack<f32>> {
-        self.spin.as_ref()
     }
 
     /// The value each axis holds at `time_ms`, identity where unwritten.

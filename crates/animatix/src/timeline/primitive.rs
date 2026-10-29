@@ -161,30 +161,6 @@ mod tests {
 
     #[test]
     fn sloppy_container_category_gets_layout_defaults() {
-        use crate::ast::{InlineItem, Modifier, Property};
-        use crate::primitives::BuildCtx;
-
-        // A plugin that declares Container capabilities (layout_container +
-        // is_container, as the schema defaults and the ABI describe) must
-        // classify as a layout container with its flags left intact.
-        #[allow(dead_code)] // Referenced only through the registration info card below
-        struct SloppyContainer;
-        impl crate::primitives::Primitive for SloppyContainer {
-            fn type_name(&self) -> &str {
-                "Sloppy"
-            }
-            fn build(
-                &self,
-                _ctx: &mut BuildCtx,
-                _label: &str,
-                _props: &[Property],
-                _modifiers: &[Modifier],
-                _children: &[InlineItem],
-            ) -> Result<(), Vec<crate::diagnostics::Diagnostic>> {
-                Ok(())
-            }
-        }
-
         let mut container_info = animatix_std::PrimitiveInfo::extension(
             "SloppyContainer",
             crate::timeline::ActorCategory::Container,

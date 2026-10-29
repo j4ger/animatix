@@ -160,12 +160,6 @@ impl Timeline {
         }
     }
 
-    #[allow(dead_code)] // Fallback when label is used directly
-    fn node_blend_mode(&self, node_label: &str, time_ms: u64) -> Option<vello::peniko::Mix> {
-        let id = self.world.get_id(node_label)?;
-        self.track_blend_mode(id, time_ms)
-    }
-
     fn render_actor_node_by_id(
         &self,
         node_id: EntityId,

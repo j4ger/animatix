@@ -49,7 +49,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use super::modifier_runtime::ir::{CompiledExpr, compile_expr, evaluate_compiled_expr};
-use super::{CapturedEnv, Environment, EvalError, Value};
+use super::{CapturedEnv, Environment, Value};
 use crate::ast::Expr;
 use crate::easing::{Easing, apply_easing};
 
@@ -317,13 +317,13 @@ pub fn interpolate_bar_data(
 /// Test-only today: production sampling goes through `eval_source_scalar`.
 /// Kept for the transition-model parity suite (tests/plot_transitions.rs);
 /// remove alongside that suite if the transition model changes shape.
-#[allow(dead_code)]
+#[cfg(test)]
 pub fn resolve_func_source(
     source: &FuncSource,
     env: &Environment,
     arg_name: &str,
     arg_val: f64,
-) -> Result<f64, EvalError> {
+) -> Result<f64, super::EvalError> {
     match source {
         FuncSource::Compiled(args, body, captures) => {
             let name = args.first().map(String::as_str).unwrap_or(arg_name);

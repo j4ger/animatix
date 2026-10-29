@@ -33,7 +33,6 @@ pub(crate) struct ClipPathDef {
 
 /// A parsed SVG mask definition.
 #[derive(Clone, Debug)]
-#[allow(dead_code)] // Reserved for future mask rendering
 pub(crate) struct MaskDef {
     /// The path data for masking.
     pub(crate) path_data: String,

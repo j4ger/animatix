@@ -59,7 +59,7 @@ pub struct ChildExtent {
 /// Pure layout computation for a Stack container.
 /// Stack places all children at origin (0, 0) on the main axis,
 /// but honors `align` for cross-axis positioning.
-#[allow(dead_code)] // Used by unit tests in tests/layout.rs
+#[cfg(test)]
 pub(crate) fn compute_stack_layout(children: &[ChildExtent], align: &str) -> Vec<[f32; 2]> {
     compute_stack_layout_results(children, align)
         .into_iter()
@@ -98,7 +98,7 @@ pub(crate) fn compute_stack_layout_results(
         })
         .collect()
 }
-#[allow(dead_code)] // Used by unit tests in taffy_layout.rs
+#[cfg(test)]
 pub(crate) fn compute_container_size(
     children: &[ChildExtent],
     metadata: &ContainerMetadata,
