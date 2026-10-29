@@ -38,11 +38,9 @@ pub struct InteractionStore {
     pub drag_state: DragState,
     pub drag_snapshot_taken: bool,
     pub inspector_input_drag_active: bool,
-    /// Pending source edits accumulated during a drag interaction.
-    /// Flushed to source once the drag ends.
-    /// Stored as a Vec so that list-property intermediates (e.g. child_order,
-    /// points) are preserved rather than overwritten by later edits to the same
-    /// (actor, property) pair.
+    /// Pending source edits, flushed when the drag ends. A Vec preserves list-
+    /// property intermediates (e.g. `child_order`, `points`) instead of letting a
+    /// later edit to the same (actor, property) overwrite them.
     pub pending_drag_source_edits: Vec<crate::app::commands::PropertyEdit>,
 }
 
@@ -56,9 +54,8 @@ impl InteractionStore {
         }
     }
 
-    /// Returns true if any drag interaction is active (canvas or inspector).
-    /// This is the canonical check — callers should prefer this over inspecting
-    /// individual flags.
+    /// True if any drag interaction is active; the canonical check, preferred over
+    /// inspecting individual flags.
     pub fn is_dragging(&self) -> bool {
         !matches!(self.drag_state, DragState::None) || self.inspector_input_drag_active
     }
@@ -90,20 +87,16 @@ pub const DEFAULT_AUTOSAVE_INTERVAL_S: f64 = 20.0;
 pub const MIN_AUTOSAVE_INTERVAL_S: f64 = 1.0;
 pub const MAX_AUTOSAVE_INTERVAL_S: f64 = 3600.0;
 
-/// Crash-recovery autosave preference plus timer bookkeeping.
-///
-/// The write itself is driven from `GuiShell::prepare_frame`; this only records
-/// whether it is on, how often it should fire, and when it last did. Defaults
-/// match `AppState`'s serde defaults so a fresh profile autosaves.
+/// Crash-recovery autosave preference plus timer bookkeeping. The write is
+/// driven from `GuiShell::prepare_frame`; defaults match `AppState`'s serde
+/// defaults so a fresh profile autosaves.
 #[derive(Debug, Clone)]
 pub struct AutosaveState {
     pub enabled: bool,
     pub interval: Duration,
-    /// Source path targeted by the most recent recovery write. A change here
-    /// means a different document is open, so the timer restarts and a stale
-    /// sidecar never gets attributed to the new source.
+    /// Source path of the most recent recovery write; a change restarts the timer
+    /// so a stale sidecar is never attributed to the new source.
     pub last_source_path: Option<PathBuf>,
-    /// When the most recent recovery write happened.
     pub last_write: Option<Instant>,
 }
 
@@ -123,9 +116,8 @@ impl AutosaveState {
         }
     }
 
-    /// Build from persisted preferences, clamping the interval to sane bounds.
-    /// Non-finite input (corrupt RON, hand-edited NaN) falls back to the default
-    /// rather than panicking in `Duration::from_secs_f64`.
+    /// Build from persisted preferences, clamping the interval. Non-finite input
+    /// (corrupt RON, NaN) falls back to the default instead of panicking.
     pub fn from_prefs(enabled: bool, interval_s: f64) -> Self {
         let interval_s = if interval_s.is_finite() {
             interval_s.clamp(MIN_AUTOSAVE_INTERVAL_S, MAX_AUTOSAVE_INTERVAL_S)
@@ -148,9 +140,8 @@ impl AutosaveState {
         }
     }
 
-    /// Whether a write is due. `last_write == None` means the document just
-    /// became dirty (or the source path changed), so the first write is due
-    /// immediately — a crash within the first interval must still recover.
+    /// Whether a write is due. `last_write == None` means the document just became
+    /// dirty (or the path changed), so the first write is immediate.
     pub fn is_due(&self, now: Instant) -> bool {
         self.last_write
             .is_none_or(|last| now.saturating_duration_since(last) >= self.interval)
@@ -163,8 +154,7 @@ impl AutosaveState {
         })
     }
 
-    /// Point the timer at `source_path`, resetting it when the open document
-    /// changed so the first write for the new document is due immediately.
+    /// Point the timer at `source_path`; a different document resets it.
     pub fn track_source(&mut self, source_path: &Path) {
         if self.last_source_path.as_deref() != Some(source_path) {
             self.last_source_path = Some(source_path.to_path_buf());
@@ -178,19 +168,15 @@ impl AutosaveState {
     }
 }
 
-/// Startup prompt offering to restore a newer crash-recovery sidecar.
-///
-/// There is deliberately no default-close path: Escape and backdrop clicks are
-/// ignored by the renderer so the user must pick Recover or Discard. Until then
-/// the sidecar is the only copy of the previous session's edits, so autosave
-/// and save commands are held off (see `GuiShell::recovery_prompt_pending`).
+/// Startup prompt offering to restore a newer crash-recovery sidecar. There is
+/// deliberately no default-close path: the sidecar is the only copy of the
+/// previous session's edits until the user picks Recover or Discard, so
+/// autosave and save are held off (`GuiShell::recovery_prompt_pending`).
 #[derive(Debug, Clone, Default)]
 pub struct RecoveryPrompt {
     pub is_open: bool,
-    /// Document the sidecar belongs to (also the path the recovery will be
-    /// written back to on the next autosave).
+    /// Document the sidecar belongs to; also the next autosave target.
     pub source_path: Option<PathBuf>,
-    /// Sidecar holding the recovered text.
     pub recovery_path: Option<PathBuf>,
     pub message: String,
 }
@@ -221,7 +207,6 @@ pub struct ViewStore {
     pub collapsed_actors: HashSet<String>,
     pub expanded_properties: HashSet<String>,
     pub diagnostics_panel_visible: bool,
-    /// Transient diagnostics overlay opened from the status-bar chip.
     pub diagnostics_peek_open: bool,
     pub settings_open: bool,
     pub tool_mode: ToolMode,
@@ -250,27 +235,20 @@ pub struct ViewStore {
     /// Last JSON theme load/watch error, if any.
     #[cfg(feature = "theme-json")]
     pub theme_error: Option<String>,
-    /// True when the timeline panel or any of its children received pointer interaction this
-    /// frame.
+    /// True when the timeline panel or a child received pointer interaction this frame.
     pub timeline_focused: bool,
     /// True when the user prefers reduced motion (animations snap to instant).
     pub reduce_motion: bool,
-    /// Density preference for UI spacing.
     pub density: eparts::Density,
-    /// Last observed window size, used to size layout presets/reset.
     pub layout_size: (f32, f32),
-    /// Active layout preset, used to derive per-frame pixel bounds.
     pub layout_preset: crate::app::LayoutPreset,
-    /// True when the window is narrow enough to use the compact layout (icon
-    /// rail sidebar + overlay detail drawer). Recomputed from `layout_size`.
+    /// True when the window is narrow enough for the compact layout (icon rail +
+    /// overlay detail drawer); recomputed from `layout_size`.
     pub compact: bool,
-    /// Docked pane visibility captured when compact mode engaged, restored when
-    /// the window widens again.
+    /// Docked pane visibility captured on entering compact, restored on exit.
     pub compact_restore: Option<crate::app::persistence::CompactRestore>,
-    /// Active compact-mode overlay drawer. `None` when no drawer is open; the
-    /// sidebar and detail drawers are mutually exclusive.
+    /// Active compact overlay drawer; sidebar and detail drawers are exclusive.
     pub compact_drawer: Option<crate::app::panels::CompactDrawer>,
-    /// Crash-recovery autosave preference and timer state.
     pub autosave: AutosaveState,
 }
 
@@ -337,27 +315,17 @@ pub struct UiStore {
     pub snap_fps: f32,
     pub pending_actions: ActionQueue,
     pub toasts: ToastQueue,
-    /// Path buffer for the workspace switcher dialog.
     pub workspace_switcher_path: String,
-    /// Selected index in the command palette list.
     pub command_palette_selected: usize,
-    /// Query string for the command palette.
     pub command_palette_query: String,
-    /// Find/replace query string.
     pub find_query: String,
-    /// Find/replace replacement string.
     pub replace_query: String,
     /// Byte offset of the last Find Next match, for cursor-relative search.
     pub find_last_match: Option<usize>,
-    /// Match case when searching.
     pub find_case_sensitive: bool,
-    /// Match whole words only.
     pub find_whole_word: bool,
-    /// Treat the find query as a regular expression.
     pub find_regex: bool,
-    /// Unsaved changes confirmation dialog state.
     pub unsaved_changes: UnsavedChangesDialog,
-    /// Startup crash-recovery prompt state.
     pub recovery_prompt: RecoveryPrompt,
     /// Persisted shortcut overrides keyed by stable binding name.
     pub shortcut_overrides:
@@ -377,9 +345,9 @@ impl UiStore {
             interaction: InteractionStore::new(),
             clipboard: ClipboardStore::new(),
             view: ViewStore::new(tree),
-            editor_sync_enabled: true, /* Auto-key is off by default: property edits change the
-                                        * base value */
-            // unless the user explicitly records or clicks a keyframe diamond.
+            // Auto-key is off by default: property edits change the base value
+            // unless the user records or clicks a keyframe diamond.
+            editor_sync_enabled: true,
             keyframe_mode: false,
             cursor_time_s: None,
             keyframe_merge_window_s: 0.05,
@@ -413,11 +381,9 @@ impl UiStore {
         }
     }
 
-    /// Record a compact-layout breakpoint change and drop any open overlay
-    /// drawer (a drawer from the previous mode is stale).
-    ///
-    /// The flag is derived from the window width at the call site; the dock tree
-    /// is reconciled separately (`persistence::reconcile_compact`).
+    /// Record a compact-layout breakpoint change and drop any open overlay drawer
+    /// (stale from the previous mode). The flag comes from the call site; the dock
+    /// tree is reconciled separately (`persistence::reconcile_compact`).
     pub fn set_compact(&mut self, compact: bool) {
         self.view.compact = compact;
         self.view.compact_drawer = None;
@@ -448,7 +414,6 @@ impl UiStore {
         self.selection.selected_keyframes = snapshot.selected_keyframes;
         self.view.timeline_scroll_offset = snapshot.timeline_scroll_offset as f32;
         self.view.tool_mode = snapshot.tool_mode;
-        // Clear drag state on restore
         self.interaction.drag_state = crate::app::preview::DragState::None;
     }
 }

@@ -1,17 +1,15 @@
 //! Change summary between two timeline builds.
-//! The GUI rebuilds the whole document on edits, but should preserve what the
-//! user is looking at when the new build is structurally compatible. This module
-//! summarizes the compiled-target change so handlers can keep time, active
-//! scene, and selection when they still exist and report what was removed.
+//!
+//! The GUI rebuilds the whole document on edits but should preserve the user's
+//! view when the new build is structurally compatible; this reports what changed
+//! so handlers can keep time, scene and selection that still exist.
 
 use crate::document::DocumentSession;
 use animatix::timeline::ActorField;
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 /// Stable identity of a keyframe selection.
 ///
-/// `scene` is `None` for a single-scene document and `Some(name)` for a named
-/// scene in a composition. Time is scene-local milliseconds, which is stable
-/// against composition reordering and scene duration changes.
+/// `scene` is `None` for a single-scene document. `time_ms` is scene-local.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct KeyframeId {
     pub scene: Option<String>,
@@ -20,13 +18,10 @@ pub struct KeyframeId {
     pub time_ms: u64,
 }
 /// Collect per-property keyframe times for the canonical property set used by
-/// timeline selection.
-///
-/// This is the single source for keyframe identities shared by the timeline
-/// panel and rebuild diff. It deliberately enumerates typed track fields rather
-/// than `PROPERTY_REGISTRY`, because registry aliases such as
-/// `background_color -> ActorField::Color` would otherwise create duplicate
-/// phantom identities for the same keyframes.
+/// timeline selection — the single source shared by the timeline panel and
+/// rebuild diff. Enumerates typed track fields rather than `PROPERTY_REGISTRY`,
+/// whose aliases (`background_color -> ActorField::Color`) would otherwise
+/// create duplicate phantom identities for the same keyframes.
 pub(crate) fn collect_per_property_keyframes(
     geometry: &animatix::timeline::animation_track::GeometryTracks,
     style: &animatix::timeline::animation_track::StyleTracks,
@@ -47,14 +42,12 @@ pub(crate) fn collect_per_property_keyframes(
             }
         }
     }
-    // Geometry (a `World` component, passed in explicitly)
     push(&mut result, &geometry.position, "position");
     push(&mut result, &geometry.motion_offset, "motion_offset");
     push(&mut result, &geometry.rotation, "rotation");
     push(&mut result, &geometry.scale, "scale");
     push(&mut result, &geometry.size, "size");
     push(&mut result, &geometry.layout_size, "layout_size");
-    // Style (a `World` component, passed in explicitly)
     push(&mut result, &style.color, "color");
     push(&mut result, &style.opacity, "opacity");
     push(&mut result, &style.stroke_width, "stroke_width");
@@ -101,21 +94,16 @@ pub(crate) fn collect_per_property_keyframes(
     result
 }
 /// Canonical lane name and storage field for every keyframe-addressable
-/// property, in the order expanded property lanes render.
-///
-/// Names match [`collect_per_property_keyframes`] exactly so a lane identity
-/// lines up with keyframe selection and diff identities. Each `ActorField`
-/// appears once: registry aliases such as `background_color -> ActorField::Color`
-/// collapse onto the storage field and never create a duplicate lane.
+/// property, in the order expanded property lanes render. Names match
+/// [`collect_per_property_keyframes`]; each `ActorField` appears once, so
+/// registry aliases collapse onto the storage field instead of duplicating lanes.
 const PROPERTY_LANES: &[(&str, ActorField)] = &[
-    // Transform
     ("position", ActorField::Position),
     ("motion_offset", ActorField::MotionOffset),
     ("rotation", ActorField::Rotation),
     ("scale", ActorField::Scale),
     ("size", ActorField::Size),
     ("layout_size", ActorField::LayoutSize),
-    // Style
     ("color", ActorField::Color),
     ("opacity", ActorField::Opacity),
     ("stroke_width", ActorField::StrokeWidth),
@@ -124,7 +112,6 @@ const PROPERTY_LANES: &[(&str, ActorField)] = &[
     ("fill_opacity", ActorField::FillOpacity),
     ("line_cap", ActorField::LineCap),
     ("line_join", ActorField::LineJoin),
-    // Shape
     ("shape_type", ActorField::ShapeType),
     ("line_from", ActorField::LineFrom),
     ("line_to", ActorField::LineTo),
@@ -133,16 +120,14 @@ const PROPERTY_LANES: &[(&str, ActorField)] = &[
     ("commands", ActorField::Commands),
     ("vector_paths", ActorField::VectorPaths),
     ("head_size", ActorField::HeadSize),
-    // Text
     ("text_content", ActorField::TextContent),
     ("font_family", ActorField::FontFamily),
     ("font_size", ActorField::FontSize),
 ];
 /// Keyframe times for one lane's storage field.
 ///
-/// Geometry, style, shape and text tiers live in `World` component stores; read
-/// those from the tiers the caller passes in. Everything else resolves through
-/// the entity's field view.
+/// Geometry, style, shape and text tiers live in `World` component stores and
+/// are read from the passed tiers; everything else uses the entity field view.
 fn lane_keyframe_times(
     world: &animatix::timeline::World,
     id: animatix::timeline::EntityId,
@@ -159,14 +144,12 @@ fn lane_keyframe_times(
             .unwrap_or_default()
     }
     match field {
-        // Geometry fields live in the world geometry tier.
         ActorField::Position => times(&geometry.position),
         ActorField::MotionOffset => times(&geometry.motion_offset),
         ActorField::Rotation => times(&geometry.rotation),
         ActorField::Scale => times(&geometry.scale),
         ActorField::Size => times(&geometry.size),
         ActorField::LayoutSize => times(&geometry.layout_size),
-        // Style fields live in the world style tier.
         ActorField::Color => times(&style.color),
         ActorField::Opacity => times(&style.opacity),
         ActorField::StrokeWidth => times(&style.stroke_width),
@@ -192,8 +175,7 @@ fn lane_keyframe_times(
         ActorField::Points => times(&shape.points),
         ActorField::Commands => times(&shape.commands),
         ActorField::VectorPaths => times(&shape.vector_paths),
-        // Text fields moved to their own component store, so the track-only
-        // engine helper cannot see them either; read the text tier directly.
+        // Text fields live in their own component store; read that tier directly.
         ActorField::TextContent => times(&text.text_content),
         ActorField::FontFamily => times(&text.font_family),
         ActorField::FontSize => times(&text.font_size),
@@ -201,12 +183,10 @@ fn lane_keyframe_times(
     }
 }
 /// Collect every animatable property lane for an actor kind, including lanes
-/// whose property has never been keyframed (empty time list).
-///
-/// A lane is included when the registry marks its storage field applicable to
-/// the actor kind, or when the property already carries keyframes. Names are
-/// unique and match [`collect_per_property_keyframes`], which remains the
-/// authority for actual keyframe times.
+/// whose property has never been keyframed (empty time list). A lane is
+/// included when the registry marks its storage field applicable to the actor
+/// kind, or when the property already carries keyframes. Names match
+/// [`collect_per_property_keyframes`], the authority for actual keyframe times.
 pub(crate) fn collect_property_lanes(
     world: &animatix::timeline::World,
     id: animatix::timeline::EntityId,
@@ -219,15 +199,13 @@ pub(crate) fn collect_property_lanes(
     use animatix::timeline::{PROPERTY_REGISTRY, allowed_property_indices};
 
     let actor_type = world.actor_type(id);
-    // Storage fields the registry allows for this actor kind. Keying by field
-    // dedupes aliases that share one storage location.
+    // Allowed storage fields for this actor kind; keying by field dedupes aliases.
     let caps = animatix::timeline::caps_for_type(actor_type).unwrap_or_default();
     let allowed_fields: Vec<ActorField> = allowed_property_indices(&caps, actor_type)
         .into_iter()
         .map(|idx| PROPERTY_REGISTRY[idx].field)
         .collect();
-    // Fields with real keyframes keep a lane even when the registry does not
-    // expose their storage field directly (e.g. `arc_angles`, `vector_paths`).
+    // Keyframed fields keep a lane even if the registry does not expose them directly.
     let keyframed: Vec<String> =
         collect_per_property_keyframes(geometry, style, shape, text, effects)
             .into_iter()
@@ -270,11 +248,10 @@ pub(crate) fn collect_property_lanes(
 
 /// Resolve the writable registry schema that owns a property lane.
 ///
-/// Lane names are typed-identity names (e.g. `motion_offset`, `filter_blur`)
-/// that do not always equal the source-text property name (`shift`, `blur`).
-/// This maps a lane back to the applicable schema so callers can key it with
-/// the canonical source name while reading the current value from the same
-/// storage field.
+/// Lane names are typed-identity names (`motion_offset`) that do not always
+/// equal the source-text name (`shift`). This maps a lane back to the applicable
+/// schema so callers can key it with the canonical source name while reading the
+/// current value from the same storage field.
 pub(crate) fn lane_schema(
     caps: &animatix::timeline::ActorCaps,
     actor_type: &str,
@@ -288,18 +265,15 @@ pub(crate) fn lane_schema(
             .into_iter()
             .map(|idx| &PROPERTY_REGISTRY[idx])
     };
-    // Prefer a schema whose canonical name equals the lane name. This avoids
-    // matching derived component schemas first (e.g. `height`/`width` share
-    // `ActorField::Size` with `size`).
+    // Prefer the exact lane name, avoiding derived schemas that share the field
+    // (e.g. `height`/`width` share `ActorField::Size` with `size`).
     allowed()
         .find(|schema| schema.name == lane)
         .or_else(|| allowed().find(|schema| schema.field == field))
 }
 
 /// Collect one flattened keyframe time per actor property, sorted by time.
-///
-/// When multiple properties share a time, only one entry is retained because
-/// timeline UI renders one diamond per actor/time.
+/// Only one entry per actor/time is retained: the UI renders one diamond there.
 pub(crate) fn collect_actor_keyframes(
     geometry: &animatix::timeline::animation_track::GeometryTracks,
     style: &animatix::timeline::animation_track::StyleTracks,
@@ -318,13 +292,11 @@ pub(crate) fn collect_actor_keyframes(
 
 /// Stable view of the compiled target used as a diff baseline.
 ///
-/// This is captured before a rebuild because applying a rebuild replaces the
-/// previous `DocumentSession` data in place.
+/// Captured before a rebuild because applying a rebuild replaces the previous
+/// `DocumentSession` data in place.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TimelineFingerprint {
-    /// Union across all scenes, used for structural change reporting.
     actors: BTreeSet<String>,
-    /// Actor labels per scene. `None` is the single-scene document.
     actors_by_scene: BTreeMap<Option<String>, BTreeSet<String>>,
     scenes: BTreeSet<String>,
     duration_ms: i64,
@@ -431,19 +403,13 @@ impl TimelineFingerprint {
 /// Structural difference between two timeline builds.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TimelineDiff {
-    /// Actors present in the new build but not the previous one.
     pub added_actors: Vec<String>,
-    /// Actors present in the previous build but not the new one.
     pub removed_actors: Vec<String>,
-    /// Scenes present in the new composition but not the previous one.
     pub added_scenes: Vec<String>,
-    /// Scenes present in the previous composition but not the new one.
     pub removed_scenes: Vec<String>,
     /// New duration minus previous duration, in milliseconds.
     pub duration_ms_delta: i64,
-    /// Keyframe identities present in the new build but not the previous one.
     pub added_keyframes: Vec<KeyframeId>,
-    /// Keyframe identities present in the previous build but not the new one.
     pub removed_keyframes: Vec<KeyframeId>,
 }
 
@@ -464,10 +430,9 @@ impl TimelineDiff {
 
 /// Pick the time to keep after a rebuild.
 ///
-/// Keep the old playhead when the new duration still covers it. When the
-/// timeline shrank, jump to the nearest surviving keyframe; fall back to the
-/// end of the new duration if no keyframes remain. Composition keyframes are
-/// compared in global time.
+/// Keep the old playhead when the new duration covers it; otherwise jump to the
+/// nearest surviving keyframe, or the end of the new duration if none remain.
+/// Composition keyframes are compared in global time.
 pub fn preserved_time_s(previous_time_s: f64, document: &DocumentSession) -> f64 {
     let duration_s = document.duration_s.max(0.1);
     if previous_time_s <= duration_s {
@@ -682,15 +647,13 @@ mod tests {
             None,
         );
 
-        // Lane names are unique (no duplicate rows from registry aliases).
         let mut names: Vec<String> = lanes.iter().map(|(name, _)| name.clone()).collect();
         let lane_count = names.len();
         names.sort_unstable();
         names.dedup();
         assert_eq!(names.len(), lane_count, "lane names must be unique");
 
-        // Every keyframed property has a lane whose times match the typed
-        // collector exactly.
+        // Every keyframed property has a lane matching the typed collector.
         for (property, times) in collect_per_property_keyframes(
             timeline.world().geometry(id),
             timeline.world().style(id),
@@ -719,8 +682,7 @@ mod tests {
         let timeline = document.active_timeline().expect("single-scene timeline");
         let id = timeline.get_entity_id("box").expect("box entity");
 
-        // `background_color` aliases `ActorField::Color`, so the alias must not
-        // surface as its own lane.
+        // `background_color` aliases `ActorField::Color`; it must not be its own lane.
         assert!(
             !collect_property_lanes(
                 timeline.world(),
@@ -741,16 +703,13 @@ mod tests {
     fn lane_schema_maps_typed_lanes_to_writable_source_names() {
         let rect_caps = animatix::timeline::caps_for_type("Rect").expect("Rect is a built-in");
 
-        // Internal lane names that differ from the source property name must
-        // resolve to the writable schema, not to an ambiguous sibling.
+        // Internal lane names must resolve to the writable schema, not a sibling.
         assert_eq!(
             lane_schema(&rect_caps, "Rect", "motion_offset").map(|schema| schema.name),
             Some("shift")
         );
-        // `size` shares `ActorField::Size` with `height`/`width`; exact-name
-        // precedence must win.
+        // `size` shares its field with `height`/`width`; exact-name precedence wins.
         assert_eq!(lane_schema(&rect_caps, "Rect", "size").map(|schema| schema.name), Some("size"));
-        // Unknown lane names resolve to nothing.
         assert!(lane_schema(&rect_caps, "Rect", "nope").is_none());
     }
 
@@ -759,14 +718,10 @@ mod tests {
         let document =
             load_session("# A\n#0s\nbox: Rect\n# B\n#0s\nbox: Rect\n#2s\nbox.color = red\n");
 
-        // Global keyframe positions are A=0s and B=start+2s where B's start is
-        // scene A's duration. Scene A has only a `#0s` declaration, so its
-        // inferred duration is floored to one frame (1/60 s —
-        // `composition::build` keeps zero-duration scenes alive long enough for
-        // incoming transitions), and the engine also pre-seeds the instant `2s`
-        // color assignment 1 ms early. The real global keyframe therefore sits
-        // at ≈2.0167 s. A playhead beyond the composition duration must land on
-        // that real global keyframe, not on active scene-local time.
+        // Global keyframes: A at 0s and B at ~2.0167s (A is floored to one frame,
+        // and the instant `2s` color assignment is pre-seeded 1 ms early). A
+        // playhead past the composition duration must land on that global keyframe,
+        // not on scene-local time.
         let preserved = preserved_time_s(5.0, &document);
         assert!(preserved > 2.0, "expected a global keyframe after 2s, got {preserved}");
         assert!(

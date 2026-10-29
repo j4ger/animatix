@@ -49,23 +49,8 @@ pub(crate) fn preset_regions(preset: LayoutPreset) -> PresetRegions {
 
 /// Build a workspace tree for a preset at a reference window size.
 ///
-/// Layout:
-/// ```text
-/// ┌───────────┬───────────────────────────┬─────────────┐
-/// │  Sidebar  │          Preview          │   Detail    │
-/// │           │                           │ ┌─────────┐ │
-/// │           │                           │ │Inspector│ │
-/// │           │                           │ │  Code   │ │
-/// │           │                           │ └─────────┘ │
-/// ├───────────┴───────────────────────────┴─────────────┤
-/// │            Timeline | Curves (full width)            │
-/// └──────────────────────────────────────────────────────┘
-/// ```
-///
-/// The right "detail" region is a tab group holding the Inspector and the code
-/// editor, so only one of them is ever on screen. The bottom region is a tab
-/// group holding the Timeline and the Curves editor, spanning the full width;
-/// only one of them is ever on screen.
+/// Sidebar | Preview | Detail, with Timeline | Curves as a full-width bottom tab
+/// group. Each detail/bottom region is a tab group, so only one tab shows.
 pub(crate) fn build_tree_for(preset: LayoutPreset, width: f32, height: f32) -> Tree<WorkspaceTab> {
     let regions = preset_regions(preset);
     let mut tiles = Tiles::default();
@@ -121,9 +106,7 @@ pub(crate) fn default_tree() -> Tree<WorkspaceTab> {
 }
 
 /// Apply a preset's proportions and detail tab to an existing tree.
-///
-/// Returns `false` when the tree lacks the expected panes (e.g. a layout
-/// persisted before the detail region existed); callers rebuild in that case.
+/// Returns `false` when expected panes are missing; callers then rebuild.
 pub(crate) fn apply_layout_preset(
     tree: &mut Tree<WorkspaceTab>,
     preset: LayoutPreset,
@@ -142,9 +125,8 @@ pub(crate) fn apply_layout_preset(
     let Some(timeline) = tree.tiles.find_pane(&WorkspaceTab::Timeline) else {
         return false;
     };
-    // A layout persisted before the Curves editor lacks the bottom tab group.
-    // Returning `false` makes the caller rebuild from `build_tree_for`, which
-    // is the migration path for pre-Curves layouts.
+    // A pre-Curves layout lacks the bottom tab group; `false` makes the caller
+    // rebuild via `build_tree_for`, the migration path.
     let Some(_curves) = tree.tiles.find_pane(&WorkspaceTab::Curves) else {
         return false;
     };
@@ -199,12 +181,9 @@ pub(crate) fn apply_layout_preset(
 
 /// Enforce the preset's pixel bounds on the docked regions each frame.
 ///
-/// Shares are relative, so a window smaller than the reference size used at
-/// build time would scale every region down proportionally and drop them below
-/// their pixel floors. This pass reads the current widths, clamps them into
-/// `[min, max]`, and lets the preview absorb the difference — "proportion by
-/// default, pixels as the floor/ceiling" applied continuously. Regions already
-/// inside their bounds are left untouched, so user resizing is preserved.
+/// Shares are relative, so a smaller window would scale regions below their pixel
+/// floors. Clamp each region into `[min, max]` and let the preview absorb the
+/// difference; regions already in bounds are untouched, preserving user resizes.
 pub(crate) fn enforce_layout_bounds(
     tree: &mut Tree<WorkspaceTab>,
     preset: LayoutPreset,
@@ -218,10 +197,8 @@ pub(crate) fn enforce_layout_bounds(
     enforce_vertical_bounds(tree, preset, height);
 }
 
-/// Horizontal pass of [`enforce_layout_bounds`]: sidebar | preview (| detail).
-///
-/// Skipped in compact mode, where the sidebar is a fixed-width rail (see
-/// [`enforce_compact_rail`]) and the detail column is hidden.
+/// Horizontal pass: sidebar | preview (| detail). Skipped in compact mode, where
+/// the sidebar is a fixed-width rail ([`enforce_compact_rail`]) and detail is hidden.
 pub(crate) fn enforce_horizontal_bounds(
     tree: &mut Tree<WorkspaceTab>,
     preset: LayoutPreset,
@@ -258,10 +235,9 @@ pub(crate) fn enforce_horizontal_bounds(
                 0.0
             };
             let mut preview_px = (width - left - detail_px).max(0.0);
-            // Reclaim in reverse priority when the window is too small: the
-            // detail column yields first, then the sidebar shrinks toward an
-            // icon-rail width, and only then does the preview give ground. This
-            // keeps every region present instead of collapsing one to nothing.
+            // When the window is too small, reclaim in reverse priority: detail
+            // first, then sidebar toward rail width, then preview. Keeps every
+            // region present.
             if preview_px < metrics::PREVIEW_MIN {
                 let need = metrics::PREVIEW_MIN - preview_px;
                 let take = detail_px.min(need);
@@ -283,8 +259,7 @@ pub(crate) fn enforce_horizontal_bounds(
     }
 }
 
-/// Vertical pass of [`enforce_layout_bounds`]: top row above the bottom tab
-/// group (Timeline | Curves). Runs in every mode, including compact.
+/// Vertical pass: top row above the bottom tab group. Runs in every mode.
 pub(crate) fn enforce_vertical_bounds(
     tree: &mut Tree<WorkspaceTab>,
     preset: LayoutPreset,
@@ -297,10 +272,9 @@ pub(crate) fn enforce_vertical_bounds(
     ) else {
         return;
     };
-    // The bottom region is a tab group; resize its container, not the pane, so
-    // the Timeline and Curves tabs share one allocation. A layout persisted
-    // before Curves has the Timeline directly under the root linear, so fall
-    // back to the pane itself (its old behavior) until a preset rebuilds it.
+    // Resize the bottom tab group, not the pane, so Timeline and Curves share one
+    // allocation. A pre-Curves layout has the pane directly under the root; fall
+    // back to it until a preset rebuilds.
     let Some(bottom_region) = bottom_region_child(tree, timeline) else {
         return;
     };
@@ -321,11 +295,8 @@ pub(crate) fn enforce_vertical_bounds(
     }
 }
 
-/// The vertical sibling that owns the bottom allocation.
-///
-/// Normally the Timeline/Curves tab group container. For a layout persisted
-/// before Curves, the Timeline pane is the root's vertical child directly, so
-/// return the pane and preserve the pre-Curves resize behavior.
+/// The vertical sibling owning the bottom allocation: normally the Timeline/Curves
+/// tab group; for a pre-Curves layout, the Timeline pane directly.
 pub(crate) fn bottom_region_child(tree: &Tree<WorkspaceTab>, timeline: TileId) -> Option<TileId> {
     let Some(curves) = tree.tiles.find_pane(&WorkspaceTab::Curves) else {
         return Some(timeline);
@@ -353,10 +324,8 @@ pub(crate) fn set_bottom_visible(tree: &mut Tree<WorkspaceTab>, visible: bool) -
     set_group_visible(tree, WorkspaceTab::Timeline, visible)
 }
 
-/// Whether the detail region (Inspector + Code tab group) is visible.
-///
-/// Visibility lives on the group container, so this reports the whole region
-/// rather than the pane's own (always-on) flag.
+/// Whether the detail region is visible. Visibility lives on the group container,
+/// not the pane's always-on flag.
 pub(crate) fn detail_visible(tree: &Tree<WorkspaceTab>) -> bool {
     group_visible(tree, WorkspaceTab::Inspector)
 }
@@ -411,12 +380,10 @@ pub(crate) fn activate_group_tab(
     tree.make_active(|_id, tile| matches!(tile, Tile::Pane(pane) if *pane == tab))
 }
 
-/// Select a tab inside the detail region *without* changing the region's
-/// visibility.
+/// Select a detail tab *without* changing region visibility.
 ///
-/// Used by the compact overlay drawer, which renders the active detail tab
-/// while the docked region stays hidden. The dock tile and the drawer read the
-/// same active tab, so switching in either place stays consistent.
+/// Used by the compact overlay drawer, which renders the active detail tab while
+/// the docked region stays hidden; both read the same active tab.
 pub(crate) fn set_active_detail_tab(tree: &mut Tree<WorkspaceTab>, tab: WorkspaceTab) -> bool {
     if !DETAIL_TABS.contains(&tab) || tree.tiles.find_pane(&tab).is_none() {
         return false;
@@ -482,8 +449,6 @@ pub(crate) fn load_workspace_persistence(path: &Path) -> Option<WorkspacePersist
     ron::from_str::<WorkspacePersistence>(&content).ok()
 }
 
-// ── Window geometry / workspace layout persistence ─────────────────────
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct SettingsPersistence {
     pub rebuild_debounce_ms: u64,
@@ -538,12 +503,8 @@ pub(crate) struct WorkspacePersistence {
     pub(crate) settings: Option<SettingsPersistence>,
 }
 
-// ── App state persistence (recent file, preferences) ─────────────────────
-
-/// Persisted crash-recovery autosave preferences.
-///
-/// Both fields are `#[serde(default)]` so an `app_state.ron` written before
-/// autosave existed (or by an older build) keeps loading.
+/// Persisted crash-recovery autosave preferences. Both fields are
+/// `#[serde(default)]` so files written before autosave existed keep loading.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub(crate) struct AutosavePrefs {
     #[serde(default = "default_autosave_enabled")]

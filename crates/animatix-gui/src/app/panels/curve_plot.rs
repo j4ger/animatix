@@ -1,11 +1,6 @@
-//! Shared F-curve sampling, mapping, and painting.
-//!
-//! Both the Inspector's read-only graph editor and the bottom Curves editor
-//! draw the same property curves, so the sampling math (per-property keyframe
-//! times, easing-aware segment interpolation) and the time/value axis mapping
-//! live here once. Callers own the surrounding frame: the Inspector simply
-//! paints, while the Curves panel adds hit-testing, drag handles, and a
-//! scrub ruler on top of the returned geometry.
+//! Shared F-curve sampling, mapping and painting for the Inspector's graph
+//! editor and the bottom Curves editor: sampling math and axis mapping live here,
+//! callers own the surrounding frame.
 
 use animatix::timeline::{
     ActorField, EntityId, PROPERTY_REGISTRY, Timeline, ValueType, allowed_property_indices,
@@ -20,12 +15,10 @@ use crate::app::design_tokens::spatial::STROKE_WIDTH;
 /// Number of polyline segments used to approximate one eased keyframe span.
 const SEGMENTS_PER_SPAN: usize = 20;
 
-/// One graphed channel of one property.
-///
-/// A `Vec2` property yields two channels (`.X`, `.Y`); a `Color`/`Vec4`
-/// property yields four (`.R`, `.G`, `.B`, `.A`). `channel` is the component
-/// index within the property value, used when an edit writes a single
-/// component back through [`PropertyValue`](animatix::timeline::PropertyValue).
+/// One graphed channel of one property. `Vec2` yields two channels (`.X`, `.Y`),
+/// `Color`/`Vec4` four (`.R`, `.G`, `.B`, `.A`); `channel` is the component index
+/// used when an edit writes one component back through
+/// [`PropertyValue`](animatix::timeline::PropertyValue).
 #[derive(Debug, Clone)]
 pub(crate) struct CurveChannel {
     /// Legend label — actor-qualified when more than one actor is graphed.
@@ -48,11 +41,9 @@ pub(crate) struct CurveChannel {
     pub channel: usize,
 }
 
-/// Sample every animated channel of a track.
-///
-/// Properties with fewer than two keyframes are skipped: a single keyframe has
-/// no curve to draw. Reads go through the World field bundle, which is the
-/// shape-aware view, so shape-tier properties graph like every other tier.
+/// Sample every animated channel of a track. Properties with fewer than two
+/// keyframes are skipped (no curve to draw); reads go through the World field
+/// bundle, so shape-tier properties graph like every other tier.
 pub(crate) fn collect_curves(
     timeline: &Timeline,
     actor: &str,
@@ -167,13 +158,10 @@ pub(crate) fn collect_curves(
     curves
 }
 
-/// Collect one actor's channels for a multi-actor overlay.
-///
-/// `qualify` prefixes every label with the actor name — required as soon as
-/// two actors are graphed, because the legend keys, the per-keyframe widget
-/// ids, and the tooltips are all keyed by label. `shade` scales the canonical
-/// channel colours down so the same property of two actors stays
-/// distinguishable; pass `1.0` to keep them as-is.
+/// Collect one actor's channels for a multi-actor overlay. `qualify` prefixes
+/// labels with the actor name, required once two actors are graphed because
+/// legend keys, widget ids and tooltips are keyed by label. `shade` scales the
+/// canonical colours so the same property stays distinguishable.
 pub(crate) fn collect_curves_for_actor(
     timeline: &Timeline,
     actor: &str,
@@ -194,14 +182,11 @@ pub(crate) fn collect_curves_for_actor(
     curves
 }
 
-/// Lightness factors applied to the canonical channel colours, one per
-/// additional actor. The first (sorted) actor keeps the canonical colours.
+/// Lightness factors per additional actor; the first (sorted) keeps canonical.
 pub(crate) const ACTOR_SHADES: [f32; 3] = [0.78, 0.60, 0.88];
 
-/// Deterministic per-actor lightness factor.
-///
-/// Hashed from the name rather than the selection index so an actor's colour
-/// does not depend on which other actors happen to be selected.
+/// Deterministic per-actor lightness factor, hashed from the name (not selection
+/// index) so it does not depend on which other actors are selected.
 pub(crate) fn actor_shade_factor(actor: &str) -> f32 {
     let hash = actor
         .bytes()
@@ -209,14 +194,12 @@ pub(crate) fn actor_shade_factor(actor: &str) -> f32 {
     ACTOR_SHADES[(hash % ACTOR_SHADES.len() as u32) as usize]
 }
 
-/// Scale a colour's channels, leaving alpha alone.
 fn shade_color(color: Color32, factor: f32) -> Color32 {
     let scale = |channel: u8| (f32::from(channel) * factor).round().clamp(0.0, 255.0) as u8;
     Color32::from_rgba_unmultiplied(scale(color.r()), scale(color.g()), scale(color.b()), color.a())
 }
 
-/// Stable component color: index 0/1 use the canonical accent/error pairing,
-/// remaining channels use the shared curve palette.
+/// Stable component color; channels 0/1 use accent/error, the rest the palette.
 fn channel_color(theme: Theme, value_type: ValueType, channel: usize) -> Color32 {
     match channel {
         0 => {
@@ -232,8 +215,7 @@ fn channel_color(theme: Theme, value_type: ValueType, channel: usize) -> Color32
     }
 }
 
-/// Read the active legend visibility for `curves`, defaulting every new label
-/// to visible. Missing labels are inserted so toggles survive frames.
+/// Legend visibility, defaulting new labels to visible so toggles survive frames.
 pub(crate) fn legend_visibility(
     ui: &egui::Ui,
     id: egui::Id,
@@ -248,8 +230,6 @@ pub(crate) fn legend_visibility(
 }
 
 /// Draw the legend row of clickable channel toggles and persist the state.
-///
-/// Returns the rect the legend occupied.
 pub(crate) fn draw_legend(
     ui: &egui::Ui,
     rect: Rect,
@@ -346,12 +326,9 @@ impl Axis {
         Pos2::new(self.x(time_s), self.y(val))
     }
 
-    /// Value at a Y pixel, for vertical drags.
-    ///
-    /// Deliberately unclamped: dragging past the top of the plot must be able
-    /// to raise a keyframe above the currently graphed maximum, otherwise the
-    /// value window (which is derived from the data) would pin the edit.
-    /// Callers that paint should clamp the resulting position for display.
+    /// Value at a Y pixel, for vertical drags. Deliberately unclamped: dragging
+    /// past the top must raise a keyframe above the graphed maximum, or the
+    /// data-derived window would pin the edit. Painters clamp for display.
     pub fn value_at_y(&self, y: f32) -> f32 {
         let t = (y - self.plot_rect.top()) / self.plot_rect.height().max(0.001);
         self.max_val - t * self.val_range()
@@ -378,7 +355,6 @@ fn pad_range(min_val: f32, max_val: f32) -> (f32, f32) {
     }
 }
 
-/// Value window spanning every visible channel.
 pub(crate) fn value_window(curves: &[&CurveChannel]) -> (f32, f32) {
     let mut min_val = f32::INFINITY;
     let mut max_val = f32::NEG_INFINITY;
@@ -414,11 +390,8 @@ pub(crate) fn draw_value_grid(painter: &Painter, axis: &Axis, theme: Theme) {
     }
 }
 
-/// Paint one channel: eased polyline plus keyframe dots.
-///
-/// `highlight_time_s` draws the current-playhead ring; callers that need extra
-/// affordances (selection, drag ghosts) draw them afterwards using
-/// [`Axis::point`].
+/// Paint one channel: eased polyline plus keyframe dots, with a ring on the
+/// current playhead. Extra affordances are drawn by callers via [`Axis::point`].
 pub(crate) fn draw_curve(
     painter: &Painter,
     axis: &Axis,
@@ -458,7 +431,6 @@ pub(crate) fn draw_curve(
     }
 }
 
-/// Draw the vertical playhead line across the plot.
 pub(crate) fn draw_playhead(painter: &Painter, axis: &Axis, current_time_s: f64, theme: Theme) {
     let x = axis.x(current_time_s);
     if x >= axis.plot_rect.left() && x <= axis.plot_rect.right() {
@@ -472,11 +444,8 @@ pub(crate) fn draw_playhead(painter: &Painter, axis: &Axis, current_time_s: f64,
     }
 }
 
-/// Write `new_value` into component `channel` of a property value.
-///
-/// Returns `false` when the value's type or arity does not match, leaving it
-/// untouched so the caller can report the mismatch instead of silently
-/// dropping the edit.
+/// Write `new_value` into component `channel`. Returns `false` on type/arity
+/// mismatch, leaving the value untouched so callers can report the mismatch.
 pub(crate) fn set_channel(
     value: &mut animatix::timeline::PropertyValue,
     channel: usize,
@@ -534,8 +503,7 @@ mod tests {
         assert!((axis.value_at_y(0.0) - 10.0).abs() < 0.001);
         assert!((axis.value_at_y(50.0) - 0.0).abs() < 0.001);
         assert!((axis.value_at_y(25.0) - 5.0).abs() < 0.001);
-        // Dragging above the plot top must extrapolate past the graphed max so
-        // a keyframe can be raised beyond the current value window.
+        // Above the plot top must extrapolate past the graphed max.
         assert!(axis.value_at_y(-25.0) > 10.0);
     }
 
@@ -545,9 +513,8 @@ mod tests {
         assert!(max > min);
     }
 
-    /// Two actors animating the same property: qualified labels must stay
-    /// unique (they key the legend, the widget ids, and the tooltips), while
-    /// the single-actor path keeps the canonical labels the Inspector shows.
+    /// Two actors on one property: qualified labels stay unique (they key the
+    /// legend, widget ids and tooltips); single-actor labels stay canonical.
     #[test]
     fn qualified_labels_keep_two_actors_distinct() {
         let timeline = two_actor_timeline();
@@ -590,8 +557,8 @@ mod tests {
         assert!(first < 1.0, "additional actors must differ from the canonical colour");
     }
 
-    /// Shape-tier properties graph like any other tier: `to` lives on the World
-    /// shape component, which a track-only read misses entirely.
+    /// Shape-tier properties graph like any other: `to` lives on the World shape
+    /// component, which a track-only read misses.
     #[test]
     fn shape_tier_channel_is_graphed() {
         let source = r#"
@@ -617,8 +584,7 @@ a.to = (40, 20)
         assert!((last.1 - 20.0).abs() < 0.001, "last point value: {last:?}");
     }
 
-    /// A `Rect` with two timed `at` assignments: the shared fixture for the
-    /// multi-actor curve tests.
+    /// A `Rect` with two timed `at` assignments, shared by the multi-actor tests.
     fn two_actor_timeline() -> animatix::timeline::Timeline {
         let source = r#"
 #0s

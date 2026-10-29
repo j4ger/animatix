@@ -21,11 +21,9 @@ use crate::app::design_tokens::spatial::STROKE_WIDTH;
 
 // ─── Preview Transform ──────────────────────────────────────────────────────
 
-/// Bundles all coordinate-space conversion state for the preview canvas.
-///
-/// Instead of threading `zoom`, `pan`, `preview_rect`, and `scene_dimensions`
-/// through every helper function, callers build one `PreviewTransform` and
-/// pass a reference.
+/// Coordinate-space conversion state for the preview canvas, built once and
+/// passed by reference instead of threading `zoom`/`pan`/`preview_rect` through
+/// every helper.
 #[derive(Clone, Copy, Debug)]
 pub struct PreviewTransform {
     pub scene_dimensions: SceneDimensions,
@@ -49,8 +47,7 @@ impl PreviewTransform {
         }
     }
 
-    /// Compute the uniform scale factor that preserves scene aspect ratio.
-    /// Uses "contain" logic: the entire scene fits inside the preview rect.
+    /// Uniform scale preserving aspect ratio: the whole scene fits in the rect.
     pub fn scale(&self) -> (f64, f64) {
         let desired = self.preview_rect.size();
         let scene_w = self.scene_dimensions.width as f64;
@@ -68,8 +65,7 @@ impl PreviewTransform {
         (scale, scale)
     }
 
-    /// Return the display rect that the scene occupies when scaled uniformly
-    /// to fit inside the preview rect (letterboxed if aspect ratios differ).
+    /// Display rect of the uniformly scaled scene (letterboxed on aspect mismatch).
     pub fn display_rect(&self) -> egui::Rect {
         let desired = self.preview_rect.size();
         let scene_w = self.scene_dimensions.width as f64;
@@ -117,31 +113,23 @@ impl PreviewTransform {
 /// Which spatial property a scale drag should mutate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ResizeMode {
-    /// Change the explicit `size` property (Vec2). Used for shapes, images,
-    /// and containers where `size` directly controls geometry.
+    /// Change the explicit `size` property (Vec2) for shapes, images and containers.
     Size,
-    /// Change the transform `scale` property (F32, uniform). Used for actors
-    /// with auto-measured bounds (text, plots) where dragging handles should
-    /// scale the entire rendered block.
+    /// Change the transform `scale` (F32, uniform) for auto-measured bounds
+    /// (text, plots), scaling the whole rendered block.
     Scale,
 }
 
-/// Active tool mode for the preview canvas. Determines the default interaction
-/// when clicking on an actor body (handles still work in all modes).
+/// Active tool mode; handles work in every mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ToolMode {
     /// Auto-detect interaction based on cursor position (default).
     #[default]
     Select,
-    /// Click-drag to move actors.
     Move,
-    /// Click-drag to scale actors.
     Scale,
-    /// Click-drag to rotate actors.
     Rotate,
-    /// Click-drag to edit polygon vertices.
     Vertex,
-    /// Click-drag to move the pivot point.
     Pivot,
 }
 
@@ -158,23 +146,17 @@ pub struct GroupTransformActor {
     pub scale: f32,
 }
 
-/// Tracks the current drag interaction on the preview canvas.
-///
-/// - `Move`, `Scale`, `Rotate` manipulate absolutely positioned actors.
-/// - `Reorder` reorders layout-managed children within their parent container.
-///
-/// All spatial manipulation is computed in the actor's **object-local** coordinate system
-/// (origin at actor centre, pre-rotation axes) and then transformed to world space.
+/// Current drag interaction. `Move`/`Scale`/`Rotate` manipulate positioned actors;
+/// `Reorder` reorders layout children. All manipulation is computed in the
+/// actor's **object-local** space (origin at centre, pre-rotation) and then
+/// transformed to world space. Every `start_scene` is a mouse position in scene
+/// space at drag start.
 #[derive(Debug, Clone)]
 pub enum DragState {
     None,
-    /// Dragging actor(s) to move them.
     Move {
-        /// Primary actor (the one under the cursor at drag start).
         primary: String,
-        /// All selected actors and their start positions.
         actors: Vec<(String, [f32; 2])>,
-        /// Mouse position in scene space at drag start.
         start_scene: kurbo::Point,
     },
     /// Dragging a scale handle (8 corners + edge midpoints).
@@ -182,50 +164,38 @@ pub enum DragState {
         actor: String,
         /// Handle index 0‑7 (see `scale_handle_indices`).
         handle: usize,
-        /// Mouse position in scene space at drag start.
         start_scene: kurbo::Point,
-        /// Actor centre position at drag start.
         start_position: [f32; 2],
         /// Full [width, height] at drag start.
         start_size: [f32; 2],
         /// Rotation in radians at drag start.
         start_rotation: f32,
-        /// The anchor point in object‑local space.
-        /// When a pivot is set this is the pivot; otherwise the corner opposite the handle.
+        /// Anchor in object-local space: the pivot if set, else the opposite corner.
         anchor_local: [f32; 2],
         /// Whether this is a single‑axis scale (edge‑mid handle).
         constrain_axis: bool,
         /// Whether to preserve aspect ratio (Shift held).
         uniform_ratio: bool,
-        /// Which property to mutate (`size` vs `scale`).
         resize_mode: ResizeMode,
-        /// Transform scale at drag start (only used when `resize_mode == Scale`).
         start_scale: f32,
     },
-    /// Dragging the rotation handle.
     Rotate {
         actor: String,
         /// Angle from pivot to mouse at drag start (radians).
         start_angle: f32,
-        /// Actor rotation at drag start (radians).
         start_rotation: f32,
-        /// Pivot point in world space at drag start.
         pivot: [f32; 2],
     },
     /// Dragging a group scale handle across a multi-selection.
     GroupScale {
         actors: Vec<GroupTransformActor>,
-        /// Union bounds of the selection in scene space at drag start.
         union: kurbo::Rect,
-        /// Handle index 0-7 on the union box.
         handle: usize,
-        /// Preserve aspect ratio (Shift held).
         uniform: bool,
     },
     /// Rotating a multi-selection around its union centre.
     GroupRotate {
         actors: Vec<GroupTransformActor>,
-        /// Rotation centre in scene space.
         center: [f32; 2],
         /// Angle from centre to pointer at drag start (radians).
         start_angle: f32,
@@ -238,22 +208,17 @@ pub enum DragState {
         target_index: usize,
         layout_type: animatix::timeline::LayoutType,
     },
-    /// Dragging a polygon vertex to reshape it.
     EditVertices {
         actor: String,
-        /// Index of the vertex being dragged.
         vertex: usize,
         /// All vertex positions in object-local space at drag start.
         start_points: Vec<[f32; 2]>,
-        /// Mouse position in scene space at drag start.
         start_scene: kurbo::Point,
     },
-    /// Dragging the pivot crosshair to reposition it.
     MovePivot {
         actor: String,
         /// Pivot offset in object-local space at drag start.
         start_offset: [f32; 2],
-        /// Mouse position in scene space at drag start.
         start_scene: kurbo::Point,
     },
     /// Dragging a callout label handle — updates `label_at`.
@@ -261,7 +226,6 @@ pub enum DragState {
         actor: String,
         /// `label_at` value at drag start.
         start_label_at: [f32; 2],
-        /// Mouse position in scene space at drag start.
         start_scene: kurbo::Point,
     },
     /// Dragging a callout standoff handle — updates `standoff` scalar.
@@ -271,7 +235,6 @@ pub enum DragState {
         tip_scene: [f32; 2],
         /// `standoff` value at drag start.
         start_standoff: f32,
-        /// Mouse position in scene space at drag start.
         start_scene: kurbo::Point,
     },
     /// Shift-detach initiated: bake and remove target on DragEnd.
@@ -291,7 +254,6 @@ pub enum DragState {
         is_targeted: bool,
         /// `to` or `to_offset` value at drag start.
         start_value: [f32; 2],
-        /// Mouse position in scene space at drag start.
         start_scene: kurbo::Point,
     },
     /// Dragging a motion path keyframe control point.
@@ -299,9 +261,7 @@ pub enum DragState {
         actor: String,
         /// Time of the keyframe being dragged (ms).
         time_ms: u64,
-        /// Position value at drag start.
         start_position: [f32; 2],
-        /// Mouse position in scene space at drag start.
         start_scene: kurbo::Point,
     },
 }

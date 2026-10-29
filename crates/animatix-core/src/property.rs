@@ -1,22 +1,14 @@
 //! Built-in property descriptors: the single declaration of the property list.
 //!
-//! Both sides of the language derive from this table. The parser builds its
-//! `PropertySpec`s from it, adding only the type-system view of each property
-//! (which lives in `animatix-syntax` alongside the rest of the type model), and
-//! the engine joins it with per-property runtime bindings (storage field,
-//! flags, default, read source). Adding a property is therefore one row here,
-//! one type row in the parser, and one binding in the engine — and a missing or
-//! mismatched step fails a test instead of drifting silently, which is how two
-//! hand-sorted tables behaved before.
+//! The parser builds `PropertySpec`s from it and the engine joins it with
+//! runtime bindings, so adding a property is one row here, one type row in the
+//! parser, and one binding in the engine — a mismatch fails a test.
 
 use crate::caps::{Applicable, ShapeKind};
 
-/// The reserved assignment target that addresses the scene camera.
-///
-/// `camera` is not an actor: `camera.at` / `camera.zoom` / `camera.rotation`
-/// write a scene-wide transform. It lives here because both the parser's
-/// label check and the engine's assignment routing need the same name, and
-/// `animatix-core` is the only crate below both of them.
+/// Reserved assignment target addressing the scene camera. `camera.at`/`.zoom`/
+/// `.rotation` write a scene-wide transform; shared by the parser and engine,
+/// which both sit above `animatix-core`.
 pub const CAMERA_TARGET: &str = "camera";
 
 /// Stable property identifier used by runtime plans and schema consumers.
@@ -26,12 +18,8 @@ pub struct PropertyId(pub u32);
 
 /// Finite value kind understood by extension property tracks.
 ///
-/// This mirrors the runtime dynamic-track storage while staying free of
-/// renderer/runtime dependencies so the parser, analyzer, and LSP can consume
-/// it too. It is deliberately coarser than the engine's `ValueType` (which adds
-/// the shape/placement/anchor kinds) and than the parser's `Type` (which adds
-/// the expression-system types); both sides map onto it, and both mappings are
-/// pinned as *total* functions by tests.
+/// Deliberately coarser than the engine's `ValueType` and the parser's `Type`,
+/// which both map onto it; both mappings are pinned as total functions by tests.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum PropertyValueKind {
@@ -53,8 +41,7 @@ pub enum PropertyValueKind {
     Generic,
 }
 
-/// One built-in property: canonical name, where it applies, and the value kind
-/// its runtime track stores.
+/// One built-in property: canonical name, applicability and stored value kind.
 pub struct PropertyDescriptor {
     /// Canonical source-text name.
     pub name: &'static str,
@@ -79,22 +66,16 @@ impl PropertyDescriptor {
     }
 }
 
-/// Declarative macro for defining canonical built-in property descriptor tables.
-///
-/// Ensures descriptor name, applicability, and value kind are declared together
-/// with single-point maintenance.
+/// Declarative macro defining canonical built-in property descriptor tables.
 #[macro_export]
 macro_rules! declare_property_descriptors {
     ($(
         $(#[$doc:meta])*
         $name:literal => ($applicable:expr, $val_kind:ident)
     ),* $(,)?) => {
-        /// Every built-in property, in declaration order.
-        ///
-        /// **The order is the ABI.** [`PropertyId`] is the row index and serialized
-        /// plans (`PropertyPlan` slots, `persistence.rs`) store those ids, so appending
-        /// a row is safe but reordering or removing one invalidates saved files. The
-        /// `property_id_order_is_pinned` test guards it.
+        /// Every built-in property, in declaration order. **The order is the ABI**:
+        /// [`PropertyId`] is the row index and serialized plans store those ids, so
+        /// append but never reorder or remove. `property_id_order_is_pinned` guards it.
         pub static PROPERTY_DESCRIPTORS: &[$crate::property::PropertyDescriptor] = &[
             $(
                 $crate::property::PropertyDescriptor::new(
@@ -119,10 +100,8 @@ declare_property_descriptors! {
     "bounds" => (Applicable::Actors(&["Filter"]), Vec4),
     "char_progress" => (Applicable::TextLike, F32),
     "code" => (Applicable::Actors(&["Code"]), String),
-    // Not `Everything`: `Glass`, `Filter` and `Mask` draw no surface of their
-    // own, so a scope-level `color:` had nowhere to go — the value was dropped in
-    // silence, which is what the "never silently drop" rule is for. Verified
-    // against the primitives: none of the three reads a style colour.
+    // Not `Everything`: `Glass`, `Filter` and `Mask` draw no surface of their own,
+    // so a scope-level `color:` would be silently dropped.
     "color" => (Applicable::AllDrawables, Vec4),
     "cols" => (Applicable::Actors(&["Grid"]), U32),
     "commands" => (Applicable::ShapeKinds(&[ShapeKind::Path]), Generic),
@@ -132,14 +111,8 @@ declare_property_descriptors! {
     "direction" => (Applicable::Actors(&["BarChart"]), String),
     "fill_opacity" => (Applicable::AllShapesExceptLine, F32),
     "font_family" => (Applicable::Any(&[Applicable::TextLike, Applicable::Actors(&["Captions"])]), String),
-    "font_size" => (// `Legend` draws its own labels through the text engine and reads
-        // `font_size` off its props (`primitives/legend.rs`), so the row has to
-        // include it or the applicability lint reports a working property as
-        // dropped. `Counter` renders through the text path too: its declaration
-        // goes `Timeline::process_text_actor_decl` ->
-        // `process_text_declaration` (`declarations_text.rs`), which reads
-        // `font_size` for every `TextDeclarationKind`, so omitting it made
-        // `Counter, font_size: 30` warn `inapplicable-property`.
+    "font_size" => (// `Legend` and `Counter` render through the text path and read
+        // `font_size`, so the row must list them or the applicability lint warns.
         Applicable::Actors(&[
             "Captions", "Code", "Counter", "Cue", "Equation", "Legend", "Math", "Text", "Typst",
         ]), F32),
@@ -147,8 +120,7 @@ declare_property_descriptors! {
     "font_weight" => (Applicable::Any(&[Applicable::TextLike, Applicable::Actors(&["Captions"])]), F32),
     "from" => (Applicable::Actors(&["Arrow", "Callout", "Connector", "Line"]), Vec2),
     "func" => (Applicable::Actors(&["ContourSet", "Heatmap", "PlotCurve", "VectorField"]), Generic),
-    "gap" => (// `BarChart` reads the same name as the bar spacing; for containers it is
-        // the child gap. One row, two consumers — see `build/plot.rs`.
+    "gap" => (// `BarChart` bar spacing and container child gap: one row, two consumers.
         Applicable::Actors(&[
             "BarChart", "Col", "Grid", "Group", "Legend", "Mask", "Row", "Stack",
         ]), F32),
@@ -167,10 +139,7 @@ declare_property_descriptors! {
     "label_at" => (Applicable::Callout, Vec2),
     "label_color" => (Applicable::LegendHost, Vec4),
     "legend" => (Applicable::Everything, Generic),
-    // Text-engine only. The layout containers (`Col`, `Grid`, `Row`, `Stack`)
-    // were listed here but none of them reads it — only `declarations_text.rs`
-    // and the text engine do — so the row silently accepted a value nothing
-    // consumed.
+    // Text-engine only; the layout containers do not read it.
     "letter_spacing" => (Applicable::Actors(&[
             "Captions", "Code", "Math", "Text", "Typst",
         ]), F32),
@@ -214,16 +183,11 @@ declare_property_descriptors! {
     "swatch_size" => (Applicable::LegendHost, F32),
     "t_domain" => (Applicable::Actors(&["PlotCurve"]), Vec2),
     "target" => (Applicable::Callout, Generic),
-    // The uniform body property for every text-like actor (`Text`, `Typst`,
-    // `Code`, `Math`); `code` remains the `Code` spelling. Every text-like
-    // actor needs a body property the analyzer recognizes.
+    // Uniform body property for every text-like actor; `code` is the `Code` spelling.
     "text" => (Applicable::TextLike, String),
     "text_align" => (Applicable::TextLike, String),
-    // `Legend` has its own legend label wrapping, and the text engine reads
-    // this as the canonical wrap width (`declarations_text.rs`: "Canonical
-    // name per spec; `max_width` kept as a legacy alias"). Every host that can
-    // set a wrap width must be listed, or the table claims a `Text` does not
-    // take one.
+    // Canonical text wrap width (`max_width` is a legacy alias); every host that
+    // can set one must be listed.
     "text_max_width" => (
         Applicable::Any(&[
             Applicable::LegendHost,
@@ -248,10 +212,8 @@ declare_property_descriptors! {
     "y_domain" => (Applicable::PlotGeometry, Vec2),
     "y_range" => (Applicable::Actors(&["Graph", "NumberPlane", "PlotCurve"]), Vec2),
     "y_scale" => (Applicable::PlotHost, String),
-    // Appended last on purpose: `PropertyId` is the row index, so new rows go
-    // at the end rather than into name order.
-    // `Glass` paints no surface, but its radius is not decorative: it is the
-    // rounded clip the backdrop is blitted through.
+    // Appended last on purpose: `PropertyId` is the row index. `Glass` has no
+    // surface, but its radius is the rounded clip the backdrop is blitted through.
     "corner_radius" => (Applicable::Actors(&["Rect", "Glass", "Connector"]), F32),
     "language" => (Applicable::Actors(&["Code"]), String),
     "dash_offset" => (Applicable::AllStrokePaths, F32),
@@ -261,23 +223,16 @@ declare_property_descriptors! {
     "stroke_gradient" => (Applicable::AllStrokePaths, Generic),
     "gradient_extend" => (Applicable::Any(&[Applicable::AllShapes, Applicable::AllStrokePaths]), String),
     "gradient_space" => (Applicable::Any(&[Applicable::AllShapes, Applicable::AllStrokePaths]), String),
-    // Bundled stroke-icon name (`icon: "check"`). Build-time only: the engine
-    // expands the name into `Path` command geometry and stores nothing on a
-    // track, so it is declared `Generic` to match its `BuildTimeOnly` runtime
-    // binding (mirrors how `data`/`bar_width` are handled).
+    // Bundled stroke-icon name, expanded to `Path` geometry at build time; declared
+    // `Generic` to match its `BuildTimeOnly` binding (like `data`/`bar_width`).
     "icon" => (Applicable::Actors(&["Path"]), Generic),
-    // The scene camera's per-actor opt-out. `Applicable::Everything` because the
-    // camera wraps every root subtree, so any actor may need to sit outside it
-    // (a HUD, a watermark, a caption pinned to the viewport). Declared `Generic`
-    // to match its `BuildTimeOnly` runtime binding, exactly as `icon` does: the
-    // value is read once at build into a plain track field and never keyframed.
+    // Per-actor camera opt-out: any root actor may need to sit outside the camera,
+    // so `Everything`. `Generic` matches its `BuildTimeOnly` binding, like `icon`.
     "camera_follow" => (Applicable::Everything, Generic),
-    // Continuous parallax multiplier for camera movement on root actors (1.0 = normal, 0.0 =
-    // static HUD).
+    // Parallax multiplier for camera movement on root actors (1.0 normal, 0.0 static).
     "parallax" => (Applicable::Everything, F32),
     // Connector routing algorithm ("elbow", "l-bend", "straight").
     "routing" => (Applicable::Actors(&["Connector"]), String),
-    // Whether a connector draws an arrowhead at its destination.
     "arrow" => (Applicable::Actors(&["Connector"]), Bool),
     // Split-text reveal granularity: "char" (default), "word", or "line".
     "split_by" => (Applicable::TextLike, String),
@@ -285,17 +240,11 @@ declare_property_descriptors! {
     "split_stagger" => (Applicable::TextLike, F32),
     // Vertical offset in scene points from which split text units emerge.
     "split_offset_y" => (Applicable::TextLike, F32),
-    // Whether split text units are clipped at the line baseline.
     "split_mask" => (Applicable::TextLike, Bool),
-    // Rolling counter target numeric value.
     "value" => (Applicable::Actors(&["Counter"]), F32),
-    // Optional prefix text prepended to the rolling counter.
     "prefix" => (Applicable::Actors(&["Counter"]), String),
-    // Optional suffix text appended to the rolling counter.
     "suffix" => (Applicable::Actors(&["Counter"]), String),
-    // Number of decimal places to display in the rolling counter.
     "decimals" => (Applicable::Actors(&["Counter"]), U32),
-    // Whether to insert thousands grouping commas in the rolling counter.
     "comma" => (Applicable::Actors(&["Counter"]), Bool),
     // Declarative idle ambient motion ("float" or "breath").
     "idle" => (Applicable::Everything, String),
@@ -317,17 +266,13 @@ declare_property_descriptors! {
     "active_color" => (Applicable::Actors(&["Captions", "Cue"]), Vec4),
     // Color for inactive or dimmed words in captions.
     "inactive_color" => (Applicable::Actors(&["Captions"]), Vec4),
-    // Whether to render a backdrop pill/box behind captions.
     "backdrop" => (Applicable::Actors(&["Captions"]), Bool),
-    // Color of the backdrop box behind captions.
     "backdrop_color" => (Applicable::Actors(&["Captions"]), Vec4),
-    // Corner radius of the backdrop box.
     "backdrop_radius" => (Applicable::Actors(&["Captions"]), F32),
     // Padding (horizontal, vertical) around text inside the backdrop box.
     "backdrop_padding" => (Applicable::Actors(&["Captions"]), Vec2),
     // Scale multiplier for active word spring pop in "pop" caption mode.
     "pop_scale" => (Applicable::Actors(&["Captions"]), F32),
-    // Maximum number of visible lines per caption cue before line-breaking.
     "max_lines" => (Applicable::Actors(&["Captions"]), U32),
     // Fade/slide transition duration for captions in seconds.
     "transition_time" => (Applicable::Actors(&["Captions"]), F32),

@@ -72,39 +72,21 @@ impl AmxPlayer {
             self.surface.configure(&ctx.device, &self.config);
         }
 
-        // A loop rests on its finished frame for the whole `hold` window, and the
-        // embed keeps asking for it 60 times a second. Evaluation is ~47 µs of
-        // that; the raster is the milliseconds — so the check is worth doing
-        // before anything is acquired, and a skipped tick does no GPU work at
-        // all: the canvas holds the last presented image.
+        // A loop rests on its finished frame for the whole `hold` window while the
+        // embed asks for it 60 times a second. Skip the tick before acquiring
+        // anything: a skipped tick does no GPU work and the canvas keeps its image.
         let signature = self.frame_signature(time_s, width, height);
         if self.dedup.is_presented(&signature) {
             self.frames_deduped += 1;
             return Ok(());
         }
 
-        // Vello draws its final pass through a compute pipeline that needs
-        // STORAGE_BINDING on its target. A canvas configured the default way is
-        // not given that usage (measured `GPUTextureUsage` = 16,
-        // RENDER_ATTACHMENT only, for rgba8unorm and bgra8unorm, opaque and
-        // premultiplied, at 64x64 and 1100x619 alike) — but *asking* works in
-        // Chromium: passing a non-spec `usage` member to
-        // `GPUCanvasContext.configure` yields a surface texture reporting 24, and
-        // asking for more yields 30. So rendering straight into the canvas is
-        // possible, and we still do not: the blit it would delete measures
-        // 0.003 ms (`performance_evaluation.md` §3.7), and it is not overhead —
-        // it *is* the upscaling step. Drawing into the surface means rasterizing
-        // at canvas resolution every frame, which forfeits `set_render_scale`
-        // and the adaptive quality controller, and Firefox/Safari are unverified
-        // for the `usage` member (an ignored dictionary key reads as "accepts",
-        // so a probe plus a blit fallback is mandatory, most sensibly as
-        // "direct only when scale == 1").
-        //
-        // Mirror the GUI's PreviewSurface instead: render into an offscreen
-        // texture we own at scene resolution (vello draws scene units 1:1 — no
-        // camera scaling), then blit it scaled onto the surface view. During a
-        // multi-scene transition the outgoing and incoming scenes render into two
-        // of those targets and the compositor blends them into a third.
+        // Vello's final pass needs STORAGE_BINDING on its target, which a default
+        // canvas config does not expose; asking for it works in Chromium but
+        // Firefox/Safari are unverified. Render offscreen at scene resolution and
+        // blit up instead: that blit *is* the upscale, preserving `set_render_scale`
+        // and the adaptive quality controller. A transition renders both scenes
+        // into their own targets and blends them into a third.
         let blending = matches!(self.target.as_ref(), Some(BuildTarget::MultiScene(_)));
         // The transition compositor compiles its WGSL pipeline on first use;
         // the player owns it so the lazy init has a home beside its targets.
@@ -155,18 +137,10 @@ impl AmxPlayer {
             },
         );
 
-        // Blit the rendered frame onto the swapchain view and present. The
-        // blit scales from the offscreen resolution to canvas pixels. The
-        // surface's format is the browser's choice (Firefox orders Bgra8Unorm
-        // first), so the blit runs through the per-format pipeline rather than
-        // the internal Rgba8Unorm one.
-        //
-        // Presenting is inside the success branch on purpose. A swapchain image
-        // acquired but never drawn into is not "the previous frame" — presenting
-        // it puts undefined content on screen, which with the dedup in place
-        // would turn one bad frame into a permanent blank: the failed tick
-        // records nothing, so every identical tick after it is skipped and the
-        // canvas never gets another present.
+        // Blit the offscreen frame onto the swapchain, scaling to canvas pixels
+        // through the per-format pipeline (the browser chooses the surface format;
+        // Firefox prefers Bgra8Unorm). Present only inside the success branch: an
+        // undrawn swapchain image would, with dedup, become a permanent blank.
         if let Ok(offscreen) = &frame_target {
             frame_ctx.core.blit_texture_to_format(
                 &ctx.device,
@@ -196,12 +170,9 @@ impl AmxPlayer {
     }
 }
 
-/// Everything a frame render needs that does not depend on the target slot it
-/// draws into: the shared GPU handles and renderer core, the scene geometry and
-/// raster scale, and the document/playhead being drawn.
-///
-/// Bundling these is what lets [`render_document`] and [`render_timeline`] take
-/// a request plus a target instead of a dozen positional arguments.
+/// Everything a frame render needs that does not depend on the target slot: GPU
+/// handles, renderer core, scene geometry, raster scale and the playhead. Bundling
+/// lets [`render_document`]/[`render_timeline`] take a request plus a target.
 pub(super) struct FrameCtx<'a> {
     pub(super) core: &'a mut RendererCore,
     pub(super) device: &'a wgpu::Device,
@@ -219,11 +190,9 @@ pub(super) struct FrameCtx<'a> {
     pub(super) time_s: f64,
 }
 
-/// The offscreen slots a document is drawn into.
-///
-/// Each scene target has its own filter backend: during a multi-scene
-/// transition both scenes render in the same frame, and a shared backend would
-/// let the two evaluations stomp each other's pass state.
+/// The offscreen slots a document is drawn into. Each scene target has its own
+/// filter backend: during a transition both scenes render in one frame and a
+/// shared backend would let the evaluations stomp each other's pass state.
 pub(super) struct Targets<'a> {
     /// Outgoing/single scene.
     pub(super) primary: &'a mut Option<OffscreenTarget>,
@@ -243,20 +212,11 @@ struct ScenePass<'a> {
     time_s: f64,
 }
 
-/// Render the loaded document for `time_s`, returning the target that holds
-/// the finished frame.
-///
-/// This is the one place that decides what a frame is. A single-scene document
-/// renders into `primary`; a multi-scene document renders its scenes into
-/// `primary`/`secondary` and, while a transition is active, blends the two into
-/// `composite` with the GPU compositor — the same sequence the GUI preview and
-/// the export path run. The canvas path blits the returned view to the surface
-/// and the readback path copies the returned texture to a buffer: one frame
-/// definition, two consumers.
-///
-/// `scale` sizes the offscreen targets relative to the scene's resolution
-/// ([`raster_dims`]); the timeline is always evaluated against `dims`, so
-/// layout is scale-independent.
+/// Render the loaded document for `time_s`, returning the target holding the
+/// finished frame. Single-scene draws into `primary`; multi-scene draws into
+/// `primary`/`secondary` and blends into `composite` during a transition — the
+/// same sequence the GUI preview and export path run. `scale` sizes the offscreen
+/// targets; the timeline still evaluates against `dims`, so layout is scale-free.
 pub(super) fn render_document(
     ctx: &mut FrameCtx<'_>,
     targets: Targets<'_>,
@@ -368,18 +328,12 @@ pub(super) fn render_document(
     }
 }
 
-/// Evaluate one frame of `pass.timeline` (with the GPU filter backend so
-/// `Filter` scopes render like the export path) and draw it into
-/// `pass.target`, including the scope's pending zero-readback composites — the
-/// same tail the GUI preview and the export path run, via
-/// [`rasterize_scene`](animatix_render::offscreen::rasterize_scene).
-///
-/// The target is sized by [`raster_dims`], not by `ctx.dims`: at a scale below 1
-/// the scene is re-encoded scaled down by the shared rasterizer while the
-/// timeline still evaluates against the scene's own dimensions. Filter scopes
-/// keep rendering at scene resolution (the backend's targets are allocated that
-/// way), so their composites are blitted into the smaller target at
-/// `origin * scale`.
+/// Evaluate one frame of `pass.timeline` with the GPU filter backend (so `Filter`
+/// scopes render like the export path) and draw it into `pass.target`, including
+/// pending zero-readback composites, via [`rasterize_scene`]. The target is sized
+/// by [`raster_dims`], not `ctx.dims`: the scene is re-encoded scaled down while
+/// the timeline evaluates at scene dimensions; filter composites are blitted into
+/// the smaller target at `origin * scale`.
 fn render_timeline(ctx: &mut FrameCtx<'_>, pass: ScenePass<'_>) -> Result<(), String> {
     let ScenePass {
         backend,
@@ -391,11 +345,8 @@ fn render_timeline(ctx: &mut FrameCtx<'_>, pass: ScenePass<'_>) -> Result<(), St
         *backend = Some(GpuFilterBackend::new(ctx.device.clone(), ctx.queue.clone(), ctx.dims)?);
     }
     let (raster_w, raster_h) = raster_dims(ctx.dims, ctx.scale);
-    // Tell the chain what it is being drawn into. It used to allocate and
-    // dispatch at scene resolution whatever the raster ended up as, so the page's
-    // quality step bought nothing on a filtered figure — and the filtered figures
-    // are the ones that need it. Derived from the integer raster rather than from
-    // `scale` so the chain and the target cannot disagree by a rounding step.
+    // Tell the chain its real raster size (derived from the integer raster, not
+    // `scale`, so chain and target cannot disagree by a rounding step).
     if let Some(fb) = backend.as_mut() {
         let achieved = (raster_w as f32 / ctx.dims.width.max(1) as f32)
             .min(raster_h as f32 / ctx.dims.height.max(1) as f32);
@@ -415,9 +366,8 @@ fn render_timeline(ctx: &mut FrameCtx<'_>, pass: ScenePass<'_>) -> Result<(), St
             scratch: &mut *ctx.scratch,
         }
     };
-    // The shared rasterizer applies the scale to the scene encoding and to the
-    // drain, including the backdrop region — which is why the drain receives the
-    // factor rather than a pre-scaled region.
+    // The shared rasterizer applies the scale to the encoding and drain, including
+    // the backdrop region; the drain receives the factor, not a pre-scaled region.
     rasterize_scene(
         &mut *ctx.core,
         ctx.device,
@@ -444,9 +394,8 @@ impl OffscreenTarget {
     }
 }
 
-/// Create an offscreen target usable by vello (STORAGE_BINDING), the GPU
-/// filter passes (RENDER_ATTACHMENT), texture-based compositors
-/// (TEXTURE_BINDING) and pixel readback (COPY_SRC).
+/// Offscreen target usable by vello (STORAGE_BINDING), filter passes
+/// (RENDER_ATTACHMENT), texture compositors (TEXTURE_BINDING) and readback (COPY_SRC).
 fn create_offscreen(
     device: &wgpu::Device,
     label: &str,

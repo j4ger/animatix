@@ -1,25 +1,16 @@
-//! Spatial tokens — spacing, row heights, stroke widths, radii,
-//! and domain-specific layout dimensions.
+//! Spatial tokens — spacing, row heights, stroke widths, radii, and layout
+//! dimensions.
 //!
-//! Generic spatial constants (`SPACE_*`, `ROW_*`, `RADIUS_*`, `STROKE_*`,
-//! `component`) are individually re-exported from
-//! `eparts::tokens::spatial`. App-specific submodules (`preview`, `timeline`,
-//! `inspector`, `toolbar`, `welcome`, `dialog`) are defined inline
-//! below.
+//! Generic `SPACE_*`/`ROW_*`/`RADIUS_*`/`STROKE_*`/`component` tokens are
+//! re-exported individually from `eparts::tokens::spatial`; app-specific
+//! submodules are inline at the same depth, so paths like
+//! `design_tokens::spatial::SPACE_4` and `spatial::preview::HANDLE_SIZE` resolve.
 //!
-//! Every item — generic and app-specific — is at the same module depth so
-//! that existing paths like `design_tokens::spatial::SPACE_4` and
-//! `design_tokens::spatial::preview::HANDLE_SIZE` continue to resolve.
-//!
-//! The GUI `Spatial` resolver layers app-specific chrome dimensions on top
-//! of the eparts `Spatial` (mirroring how `design_tokens/semantic.rs` layers
-//! app color roles on top of eparts semantic roles). Resolve it with
-//! [`spatial`] or [`spatial_from_ctx`].
+//! The GUI [`Spatial`] resolver layers app chrome on the eparts `Spatial`;
+//! resolve it with [`spatial`] or [`spatial_from_ctx`].
 
 // ── Generic tokens — individually re-exported from eparts ─────────────────────
-// This covers the density API, corner radii, row heights, and stroke widths.
-// Individual re-exports (rather than `pub use …::spatial;`) are required
-// so that local submodules like `dialog` can resolve `super::SPACE_4`.
+// Individual re-exports let submodules like `dialog` resolve `super::SPACE_4`.
 
 pub use eparts::tokens::spatial::{
     Density, RADIUS_L, RADIUS_M, RADIUS_S, RADIUS_XL, ROW_L, ROW_M, ROW_S, ROW_XS, SPACE_0,
@@ -28,36 +19,23 @@ pub use eparts::tokens::spatial::{
 };
 
 // ── GUI Spatial resolver ─────────────────────────────────────────────────────
-//
-// Composes the eparts `Spatial` (generic space_*/row_*/toggle/component)
-// with app-specific scaling submodules. Read once per widget:
-//
-//     let s = design_tokens::spatial::spatial(ui);
-//     s.base.space_4          // generic spacing
-//     s.toolbar.height        // toolbar chrome
-//     s.timeline.track_row_height  // timeline chrome
+// Composes the eparts `Spatial` with app-specific scaling submodules; read once
+// per widget via `spatial(ui)`.
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Spatial {
     /// Generic spatial tokens from eparts (space_*, row_*, toggle, component).
     pub base: eparts::tokens::spatial::Spatial,
-    /// Toolbar chrome dimensions.
     pub toolbar: ToolbarSpatial,
-    /// Timeline panel chrome dimensions.
     pub timeline: TimelineSpatial,
-    /// Inspector panel chrome dimensions.
     pub inspector: InspectorSpatial,
-    /// Welcome screen chrome dimensions.
     pub welcome: WelcomeSpatial,
-    /// Dialog chrome dimensions.
     pub dialog: DialogSpatial,
-    /// Code editor and notebook cell chrome dimensions.
     pub editor: EditorSpatial,
 }
 
 impl Spatial {
-    /// Resolve all tokens for the given [`Density`], scaling every chrome
-    /// field from its base const value.
+    /// Resolve all tokens for the given [`Density`], scaling every chrome field.
     pub fn for_density(d: Density) -> Self {
         Self {
             base: eparts::tokens::spatial::Spatial::for_density(d),
@@ -98,10 +76,8 @@ impl ToolbarSpatial {
     }
 }
 
-/// Timeline panel chrome dimensions.
-///
-/// `KF_HALF` is intentionally excluded — it is a keyframe-diamond
-/// marker size, not chrome height/spacing.
+/// Timeline panel chrome dimensions. `KF_HALF` is excluded: it is a
+/// keyframe-diamond marker size, not chrome height/spacing.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TimelineSpatial {
     /// Height of a single track row (24 px base).
@@ -128,10 +104,8 @@ impl TimelineSpatial {
     }
 }
 
-/// Inspector panel chrome dimensions.
-///
-/// Input field widths, label fractions, and keyframe button widths are
-/// intentionally excluded — they are content widths, not spacing/row chrome.
+/// Inspector panel chrome dimensions. Input widths, label fractions and
+/// keyframe button widths are content widths, not spacing/row chrome.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct InspectorSpatial {
     /// Height of each inspector property row (24 px base, equals ROW_M).
@@ -149,9 +123,7 @@ impl InspectorSpatial {
     }
 }
 
-/// Welcome screen chrome dimensions.
-///
-/// `TOP_OFFSET_FRAC` is intentionally excluded — it is a layout fraction,
+/// Welcome screen chrome dimensions. `TOP_OFFSET_FRAC` is a layout fraction,
 /// not a pixel dimension.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WelcomeSpatial {
@@ -167,11 +139,9 @@ impl WelcomeSpatial {
     }
 }
 
-/// Dialog chrome dimensions.
-///
-/// `SLIDE_PX`, `KEY_COL_FRAC`, `KEY_COL_MAX`, `SINGLE_COL_THRESHOLD`,
-/// and `MAX_VIEWPORT_FRAC` are intentionally excluded — they are animation
-/// distances and layout thresholds/fractions, not density chrome.
+/// Dialog chrome dimensions. `SLIDE_PX`, `KEY_COL_FRAC`, `KEY_COL_MAX`,
+/// `SINGLE_COL_THRESHOLD` and `MAX_VIEWPORT_FRAC` are animation distances and
+/// layout fractions, not density chrome.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DialogSpatial {
     /// Inner margin around dialog content (12 px base).
@@ -227,10 +197,7 @@ impl EditorSpatial {
 
 // ── App-specific submodules — defined locally ────────────────────────────────
 
-// ── Preview canvas ──
-// All preview constants are NON-SCALING canvas-space interaction affordances
-// (handles, hit radii, cross sizes, rotation offsets). They remain as plain
-// consts and are intentionally excluded from the GUI `Spatial` struct.
+// Preview constants are NON-SCALING canvas-space interaction affordances, excluded from `Spatial`.
 pub mod preview {
     pub const ROTATION_OFFSET: f32 = 20.0;
     pub const ROTATION_RADIUS: f32 = 4.0;
@@ -246,13 +213,11 @@ pub mod preview {
     pub const ROTATION_HIT_BUFFER: f32 = 4.0;
 }
 
-// ── Toolbar ──
 pub mod toolbar {
     /// Total height of the toolbar strip (scaling chrome).
     pub const HEIGHT: f32 = 28.0;
 }
 
-// ── Timeline ──
 pub mod timeline {
     /// Width of the track-name label column (scaling chrome).
     pub const LABEL_COL_WIDTH: f32 = 120.0;
@@ -268,7 +233,6 @@ pub mod timeline {
     pub const PLAYBACK_STRIP_HEIGHT: f32 = 28.0;
 }
 
-// ── Welcome screen ──
 pub mod welcome {
     /// Height of the primary action buttons (scaling chrome).
     pub const BTN_HEIGHT: f32 = 36.0;
@@ -276,10 +240,8 @@ pub mod welcome {
     pub const TOP_OFFSET_FRAC: f32 = 0.22;
 }
 
-// ── Dialog layout constants ──
 pub mod dialog {
-    // Generic dialog metrics live in eparts (used by the dialog widget);
-    // re-export them so existing paths still resolve.
+    // Re-export eparts dialog metrics so existing paths still resolve.
     use eparts::tokens::spatial::SPACE_4;
     pub use eparts::tokens::spatial::dialog::{
         INNER_MARGIN, MAX_VIEWPORT_FRAC, SCREEN_MARGIN, SLIDE_PX,
@@ -295,11 +257,8 @@ pub mod dialog {
     pub const SINGLE_COL_THRESHOLD: f32 = 440.0;
 }
 
-// ── Inspector layout ──
 pub mod inspector {
-    // ROW_M is re-exported at the `spatial` module level from eparts;
-    // Rust use-super resolution does not follow re-export chains, so import
-    // from eparts directly.
+    // Import from eparts directly: use-super does not follow re-export chains.
     use eparts::tokens::spatial::ROW_M;
 
     /// Width of the keyframe column in the inspector — NOT scaling (content width).
@@ -328,7 +287,6 @@ pub mod inspector {
     pub const LABEL_WIDTH_FRAC: f32 = 0.32;
 }
 
-// ── Editor / Cell notebook layout ──
 pub mod editor {
     use eparts::tokens::spatial::{ROW_M, SPACE_3, SPACE_4, SPACE_5, SPACE_6};
 
@@ -352,12 +310,8 @@ pub mod editor {
     pub const TIMESTAMP_POPUP_WIDTH: f32 = 120.0;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Unit tests — density resolution
-// ═══════════════════════════════════════════════════════════════════════════
-// Verifies that Density::Default produces byte-identical results to the
-// base consts for both the eparts portion (via base.space_n / base.row_n)
-// and every GUI chrome dimension.
+// ── Unit tests — density resolution ─────────────────────────────────────────
+// Density::Default must reproduce every base const.
 
 #[cfg(test)]
 mod tests {
@@ -367,7 +321,6 @@ mod tests {
     fn default_density_matches_base_consts() {
         let s = Spatial::for_density(Density::Default);
 
-        // eparts generic tokens via base
         assert_eq!(s.base.space_0, SPACE_0);
         assert_eq!(s.base.space_1, SPACE_1);
         assert_eq!(s.base.space_2, SPACE_2);
@@ -382,29 +335,23 @@ mod tests {
         assert_eq!(s.base.row_m, ROW_M);
         assert_eq!(s.base.row_l, ROW_L);
 
-        // toolbar
         assert_eq!(s.toolbar.height, toolbar::HEIGHT);
 
-        // timeline
         assert_eq!(s.timeline.track_row_height, timeline::TRACK_ROW_HEIGHT);
         assert_eq!(s.timeline.ruler_height, timeline::RULER_HEIGHT);
         assert_eq!(s.timeline.range_height, timeline::RANGE_HEIGHT);
         assert_eq!(s.timeline.playback_strip_height, timeline::PLAYBACK_STRIP_HEIGHT);
         assert_eq!(s.timeline.label_col_width, timeline::LABEL_COL_WIDTH);
 
-        // inspector
         assert_eq!(s.inspector.row_height, inspector::ROW_HEIGHT);
         assert_eq!(s.inspector.col_gap, inspector::COL_GAP);
 
-        // welcome
         assert_eq!(s.welcome.btn_height, welcome::BTN_HEIGHT);
 
-        // dialog
         assert_eq!(s.dialog.inner_margin, dialog::INNER_MARGIN);
         assert_eq!(s.dialog.screen_margin, dialog::SCREEN_MARGIN);
         assert_eq!(s.dialog.col_gap, dialog::COL_GAP);
 
-        // editor
         assert_eq!(s.editor.divider_height, editor::DIVIDER_HEIGHT);
         assert_eq!(s.editor.divider_btn_size, editor::DIVIDER_BTN_SIZE);
         assert_eq!(s.editor.divider_line_inset, editor::DIVIDER_LINE_INSET);
@@ -418,11 +365,9 @@ mod tests {
     fn compact_density_shrinks_chrome_fields() {
         let s = Spatial::for_density(Density::Compact);
 
-        // toolbar chrome must shrink
         assert!(s.toolbar.height < toolbar::HEIGHT);
         assert_eq!(s.toolbar.height, (toolbar::HEIGHT * 0.875).round());
 
-        // timeline chrome must shrink
         assert!(s.timeline.track_row_height < timeline::TRACK_ROW_HEIGHT);
         assert_eq!(s.timeline.ruler_height, (timeline::RULER_HEIGHT * 0.875).round());
         assert_eq!(s.timeline.range_height, (timeline::RANGE_HEIGHT * 0.875).round());
@@ -432,20 +377,16 @@ mod tests {
         );
         assert_eq!(s.timeline.label_col_width, (timeline::LABEL_COL_WIDTH * 0.875).round());
 
-        // inspector chrome must shrink
         assert!(s.inspector.row_height < inspector::ROW_HEIGHT);
         assert_eq!(s.inspector.col_gap, (inspector::COL_GAP * 0.875).round());
 
-        // welcome chrome must shrink
         assert!(s.welcome.btn_height < welcome::BTN_HEIGHT);
         assert_eq!(s.welcome.btn_height, (welcome::BTN_HEIGHT * 0.875).round());
 
-        // dialog chrome must shrink
         assert!(s.dialog.inner_margin < dialog::INNER_MARGIN);
         assert!(s.dialog.screen_margin < dialog::SCREEN_MARGIN);
         assert_eq!(s.dialog.col_gap, (dialog::COL_GAP * 0.875).round());
 
-        // editor chrome must shrink
         assert!(s.editor.divider_height < editor::DIVIDER_HEIGHT);
         assert_eq!(s.editor.divider_height, (editor::DIVIDER_HEIGHT * 0.875).round());
         assert_eq!(s.editor.divider_btn_size, (editor::DIVIDER_BTN_SIZE * 0.875).round());
@@ -454,7 +395,6 @@ mod tests {
 
     #[test]
     fn default_density_is_byte_identical_to_base_consts() {
-        // Sanity: every scaled field in Default mode must equal the base const exactly.
         let s = Spatial::for_density(Density::Default);
         assert_eq!(s.toolbar.height, 28.0);
         assert_eq!(s.timeline.track_row_height, 28.0);
