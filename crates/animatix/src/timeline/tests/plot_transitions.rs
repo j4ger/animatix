@@ -24,6 +24,21 @@ pub(super) fn build_from_source(
     Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new())
 }
 
+/// Assert no diagnostic beyond the entrance-less content hint.
+fn assert_clean(report: &crate::diagnostics::BuildReport<crate::timeline::Timeline>) {
+    assert!(
+        without_content_lints(&report.diagnostics).next().is_none(),
+        "Unexpected diagnostics: {:?}",
+        report.diagnostics
+    );
+}
+
+/// Assert a sample produced a non-empty path.
+fn assert_sampled(paths: &[crate::timeline::VelloPath], context: &str) {
+    assert!(!paths.is_empty(), "Expected output paths {context}");
+    assert!(!paths[0].path.elements().is_empty(), "Expected non-empty path {context}");
+}
+
 /// Build a minimal `Environment` loaded with the standard library so that
 /// built-in functions like `sin` and `cos` are available during evaluation.
 pub(super) fn stdlib_env() -> Environment {
@@ -41,6 +56,47 @@ pub(super) fn sin_x_expr() -> Expr {
 pub(super) fn cos_x_expr() -> Expr {
     Expr::Call("cos".to_string(), vec![Expr::Ident("x".to_string())])
 }
+
+/// Shared assertions for the polar/parametric transition shapes.
+fn assert_mode_transition(source: &str, kind: PlotCurveKind, label: &str) {
+    let report = build_from_source(source);
+    assert_clean(&report);
+    let timeline = report.output;
+    let track = timeline.get_entity_id("curve").expect("curve track should exist");
+    let transitions = timeline.world.func_transitions(track);
+    assert_eq!(transitions.len(), 1, "Expected 1 FuncTransition for {label} mode");
+    let t = &transitions[0];
+    assert_eq!(t.start_ms, 2000, "start_ms should be 2000");
+    assert_eq!(t.end_ms, 3000, "end_ms should be 3000");
+    assert_eq!(t.from.arity(), 1, "from arity should be 1");
+    assert_eq!(t.to.arity(), 1, "to arity should be 1");
+
+    let plot = timeline
+        .world
+        .procedural_plot(track)
+        .unwrap_or_else(|| panic!("{label} curve should have a procedural_plot"));
+    assert_eq!(plot.kind, kind, "plot kind should be {label}");
+    let env = stdlib_env();
+    let paths = sample_procedural_plot_at(plot, &env, 2500, transitions);
+    assert_sampled(&paths, &format!("for {label} mid-transition"));
+}
+
+const CASCADING_SOURCE: &str = r#"
+        config { colorscheme: "editorial-dark" }
+
+        g: Graph, x_domain: (-6, 6), y_domain: (-2, 2), size: (400, 400), at: (640, 360) {
+          curve: PlotCurve, kind: "cartesian", func: (x) => sin(x), stroke_width: 2
+        }
+
+        #1s
+        curve.func = (x) => cos(x) [2s]
+
+        #2s
+        curve.func = (x) => x^2 [1s]
+
+        #2.5s
+        curve.func = (x) => x^3 [0.5s]
+    "#;
 
 fn compiled_body(body: Expr) -> crate::timeline::modifier_runtime::ir::CompiledExpr {
     compile_expr(&body).expect("test function body should compile")
@@ -175,11 +231,7 @@ fn basic_func_transition_cartesian() {
         curve.func = (x) => cos(x) [1s]
     "#;
     let report = build_from_source(source);
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Unexpected diagnostics: {:?}",
-        report.diagnostics
-    );
+    assert_clean(&report);
 
     let track = report.output.get_entity_id("curve").expect("curve track should exist");
 
@@ -403,20 +455,16 @@ fn blend_at_half_progress() {
 
     // At time_ms = 2500, progress is 0.5, so output ≈ 0.5*sin(x) + 0.5*cos(x).
     let paths_mid = sample_procedural_plot_at(&plot, &env, 2500, std::slice::from_ref(&transition));
-    assert!(!paths_mid.is_empty(), "Expected output paths at mid-transition");
-    assert!(
-        !paths_mid[0].path.elements().is_empty(),
-        "Expected non-empty BezPath at mid-transition"
-    );
+    assert_sampled(&paths_mid, "at mid-transition");
 
     // Before the transition, output should be pure sin(x).
     let paths_before =
         sample_procedural_plot_at(&plot, &env, 1000, std::slice::from_ref(&transition));
-    assert!(!paths_before.is_empty(), "Expected output paths before transition");
+    assert_sampled(&paths_before, "before transition");
 
     // After the transition, output should be pure cos(x).
     let paths_after = sample_procedural_plot_at(&plot, &env, 4000, &[transition]);
-    assert!(!paths_after.is_empty(), "Expected output paths after transition");
+    assert_sampled(&paths_after, "after transition");
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -442,11 +490,7 @@ fn record_and_chain_overlapping_transitions() {
         curve.func = (x) => x^2 [1s]
     "#;
     let report = build_from_source(source);
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Unexpected diagnostics: {:?}",
-        report.diagnostics
-    );
+    assert_clean(&report);
 
     let track = report.output.get_entity_id("curve").expect("curve track should exist");
 
@@ -484,28 +528,9 @@ fn record_and_chain_overlapping_transitions() {
 /// be a `Blend` capturing the frozen state of the previous one.
 #[test]
 fn cascading_transitions() {
-    let source = r#"
-        config { colorscheme: "editorial-dark" }
-
-        g: Graph, x_domain: (-6, 6), y_domain: (-2, 2), size: (400, 400), at: (640, 360) {
-          curve: PlotCurve, kind: "cartesian", func: (x) => sin(x), stroke_width: 2
-        }
-
-        #1s
-        curve.func = (x) => cos(x) [2s]
-
-        #2s
-        curve.func = (x) => x^2 [1s]
-
-        #2.5s
-        curve.func = (x) => x^3 [0.5s]
-    "#;
+    let source = CASCADING_SOURCE;
     let report = build_from_source(source);
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Unexpected diagnostics: {:?}",
-        report.diagnostics
-    );
+    assert_clean(&report);
 
     let track = report.output.get_entity_id("curve").expect("curve track should exist");
 
@@ -557,11 +582,7 @@ fn cascading_transitions() {
         .clone();
     let paths =
         sample_procedural_plot_at(&plot, &env, 2750, report.output.world.func_transitions(track));
-    assert!(!paths.is_empty(), "Expected output paths during cascading transition");
-    assert!(
-        !paths[0].path.elements().is_empty(),
-        "Expected non-empty path during cascading transition"
-    );
+    assert_sampled(&paths, "during cascading transition");
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -572,7 +593,8 @@ fn cascading_transitions() {
 /// `FuncTransition` and that the procedural plot has the right kind.
 #[test]
 fn polar_mode_transition() {
-    let source = r#"
+    assert_mode_transition(
+        r#"
         config { colorscheme: "editorial-dark" }
 
         g: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (400, 400), at: (640, 360) {
@@ -581,44 +603,9 @@ fn polar_mode_transition() {
 
         #2s
         curve.func = (t) => 1.0 + 0.5 * cos(3 * t) [1s]
-    "#;
-    let report = build_from_source(source);
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Unexpected diagnostics: {:?}",
-        report.diagnostics
-    );
-
-    let track = report.output.get_entity_id("curve").expect("curve track should exist");
-
-    assert_eq!(
-        report.output.world.func_transitions(track).len(),
-        1,
-        "Expected 1 FuncTransition for polar mode"
-    );
-
-    let t = &report.output.world.func_transitions(track)[0];
-    assert_eq!(t.start_ms, 2000, "start_ms should be 2000");
-    assert_eq!(t.end_ms, 3000, "end_ms should be 3000");
-    assert_eq!(t.from.arity(), 1, "from arity should be 1");
-    assert_eq!(t.to.arity(), 1, "to arity should be 1");
-
-    // Verify the plot kind is Polar.
-    let plot = report
-        .output
-        .world
-        .procedural_plot(track)
-        .expect("polar curve should have a procedural_plot");
-    assert_eq!(plot.kind, PlotCurveKind::Polar, "plot kind should be Polar");
-
-    // Sample at mid-transition and verify non-empty output.
-    let env = stdlib_env();
-    let paths =
-        sample_procedural_plot_at(plot, &env, 2500, report.output.world.func_transitions(track));
-    assert!(!paths.is_empty(), "Expected output paths for polar mid-transition");
-    assert!(
-        !paths[0].path.elements().is_empty(),
-        "Expected non-empty path for polar mid-transition"
+    "#,
+        PlotCurveKind::Polar,
+        "polar",
     );
 }
 
@@ -630,7 +617,8 @@ fn polar_mode_transition() {
 /// `FuncTransition` and that sampling at mid-transition yields output.
 #[test]
 fn parametric_mode_transition() {
-    let source = r#"
+    assert_mode_transition(
+        r#"
         config { colorscheme: "editorial-dark" }
 
         g: Graph, x_domain: (-2, 2), y_domain: (-2, 2), size: (400, 400), at: (640, 360) {
@@ -640,44 +628,9 @@ fn parametric_mode_transition() {
 
         #2s
         curve.func = (t) => (cos(2 * t), sin(3 * t)) [1s]
-    "#;
-    let report = build_from_source(source);
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Unexpected diagnostics: {:?}",
-        report.diagnostics
-    );
-
-    let track = report.output.get_entity_id("curve").expect("curve track should exist");
-
-    assert_eq!(
-        report.output.world.func_transitions(track).len(),
-        1,
-        "Expected 1 FuncTransition for parametric mode"
-    );
-
-    let t = &report.output.world.func_transitions(track)[0];
-    assert_eq!(t.start_ms, 2000, "start_ms should be 2000");
-    assert_eq!(t.end_ms, 3000, "end_ms should be 3000");
-    assert_eq!(t.from.arity(), 1, "from arity should be 1");
-    assert_eq!(t.to.arity(), 1, "to arity should be 1");
-
-    // Verify the plot kind is Parametric.
-    let plot = report
-        .output
-        .world
-        .procedural_plot(track)
-        .expect("parametric curve should have a procedural_plot");
-    assert_eq!(plot.kind, PlotCurveKind::Parametric, "plot kind should be Parametric");
-
-    // Sample at mid-transition and verify non-empty output.
-    let env = stdlib_env();
-    let paths =
-        sample_procedural_plot_at(plot, &env, 2500, report.output.world.func_transitions(track));
-    assert!(!paths.is_empty(), "Expected output paths for parametric mid-transition");
-    assert!(
-        !paths[0].path.elements().is_empty(),
-        "Expected non-empty path for parametric mid-transition"
+    "#,
+        PlotCurveKind::Parametric,
+        "parametric",
     );
 }
 
@@ -733,11 +686,7 @@ fn static_plot_no_transitions() {
         }
     "#;
     let report = build_from_source(source);
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Unexpected diagnostics: {:?}",
-        report.diagnostics
-    );
+    assert_clean(&report);
 
     let track = report.output.get_entity_id("curve").expect("curve track should exist");
 
@@ -774,11 +723,7 @@ fn always_bare_variable_assignment_updates_plot_closure() {
         }
     "#;
     let report = build_from_source(source);
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Unexpected diagnostics: {:?}",
-        report.diagnostics
-    );
+    assert_clean(&report);
     let timeline = report.output;
 
     let time_ms = 1000;
@@ -912,22 +857,7 @@ fn for_loop_closure_captures_loop_variable() {
 fn adaptive_quality_reduces_depth_for_blends() {
     // Build a 3-deep blend: declaration parent with 3 overlapping func transitions
     // creates a Blend(Blend(Raw, Raw), Raw) structure.
-    let source = r#"
-        config { colorscheme: "editorial-dark" }
-
-        g: Graph, x_domain: (-6, 6), y_domain: (-2, 2), size: (400, 400), at: (640, 360) {
-          curve: PlotCurve, kind: "cartesian", func: (x) => sin(x), stroke_width: 2
-        }
-
-        #1s
-        curve.func = (x) => cos(x) [2s]
-
-        #2s
-        curve.func = (x) => x^2 [1s]
-
-        #2.5s
-        curve.func = (x) => x^3 [0.5s]
-    "#;
+    let source = CASCADING_SOURCE;
     let report = build_from_source(source);
     let errors: Vec<_> = report
         .diagnostics
@@ -964,11 +894,7 @@ fn adaptive_quality_reduces_depth_for_blends() {
         .clone();
     let paths =
         sample_procedural_plot_at(&plot, &env, 2750, report.output.world.func_transitions(track));
-    assert!(!paths.is_empty(), "Expected output paths during 3-deep blend");
-    assert!(
-        !paths[0].path.elements().is_empty(),
-        "Expected non-empty path during 3-deep blend"
-    );
+    assert_sampled(&paths, "during 3-deep blend");
 }
 
 // ─────────────────────────────────────────────────────────────
