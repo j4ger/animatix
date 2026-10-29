@@ -112,6 +112,7 @@ pub trait FilterBackend: Send {
     /// Defaults to a no-op (`1.0`); honouring it means resizing targets *and*
     /// shrinking every [`EffectParamUnit::Pixel`] by the same factor, since a
     /// blur radius is a scene-pixel distance (halving the raster doubles it).
+    ///
     /// [`EffectParamUnit::Pixel`]: animatix_core::effect::EffectParamUnit::Pixel
     fn set_raster_scale(&mut self, _scale: f32) {}
 

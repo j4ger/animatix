@@ -1,24 +1,10 @@
 //! # Non-Interpolatable Property Transitions (Side-Channel Pattern)
 //!
-//! The `func` property on plot actors cannot use standard `PropertyTrack<T>`
-//! animation because closures (function bodies like `(x) => sin(x * freq)`)
-//! cannot implement the [`crate::timeline::Interpolate`] trait.
-//! There is no meaningful way to "lerp" two closure ASTs.
-//!
-//! Instead, `func` transitions use a **side-channel** pattern:
-//!
-//! - `FuncTransition` records a time range, easing, blend mode, and the `from`/`to` `FuncSource`
-//!   closures in a parallel `Vec` on the plot payload.
-//! - At frame time, `sample_procedural_plot_at` checks for active transitions. Output blending
-//!   evaluates both sources and lerps their outputs at each sample point; opacity blending renders
-//!   the two generated path sets at partial opacity.
-//! - [`FuncSource::Blend`] captures a mid-flight snap when the transition is frozen mid-progress
-//!   (used for combined transitions).
-//!
-//! This pattern is intentional. Future property types whose values cannot
-//! implement `Interpolate` (e.g., AST nodes, resource handles) should use
-//! the same pattern. See `PlotPayload::func_transitions` in `primitives/payload.rs`
-//! for the full implementation checklist.
+//! `func` on plot actors cannot use `PropertyTrack<T>` because closures cannot
+//! implement [`crate::timeline::Interpolate`]. `FuncTransition` records the
+//! range, easing, blend mode, and `from`/`to` sources in a parallel `Vec` on the
+//! plot payload; frame sampling evaluates both sides and blends outputs (or
+//! opacity). See `PlotPayload::func_transitions` for the checklist.
 
 pub mod adaptive;
 pub mod implicit;
@@ -53,10 +39,6 @@ use super::{CapturedEnv, Environment, Value};
 use crate::ast::Expr;
 use crate::easing::{Easing, apply_easing};
 
-// ─────────────────────────────────────────────────────────────
-// Plot curve kind
-// ─────────────────────────────────────────────────────────────
-
 /// Discriminant for the four sampling strategies of `PlotCurve`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -80,27 +62,12 @@ impl PlotCurveKind {
     }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Func transition data model
-// ─────────────────────────────────────────────────────────────
-
 /// Source of a function for a `PlotCurve` `func` transition.
 ///
-/// This type is part of the **side-channel pattern** for non-interpolatable
-/// properties — see
+/// Part of the side-channel pattern for non-interpolatable properties (see
 /// [`PlotPayload::func_transitions`](crate::primitives::PlotPayload::func_transitions)
-/// in `dispatch.rs` and the module-level documentation for the full
-/// explanation of why closures cannot use `PropertyTrack<T>`.
-///
-/// A `FuncSource` is either:
-/// - [`Compiled`](FuncSource::Compiled): a user-authored closure `(x) => expr`, stored as argument
-///   names and a compiled body. This is the steady-state form used when no transition is in
-///   progress.
-/// - [`Blend`](FuncSource::Blend): a frozen mid-transition snapshot captured when a second `func`
-///   transition begins before the first has finished. Rather than discarding in-progress blending
-///   state, the evaluator snapshots the current `(from, to, progress)` into a `Blend` node and uses
-///   it as the `from` for the next transition. This allows cascading function transitions without
-///   visual discontinuities.
+/// and the module docs). `Compiled` is the steady-state closure; `Blend` freezes
+/// a mid-flight `(from, to, progress)` so cascading transitions do not jump.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum FuncSource {
@@ -127,8 +94,8 @@ impl FuncSource {
         }
     }
 
-    /// Return the number of arguments this function source expects.
-    /// For `Blend`, delegates to the inner `to` source (which has the target arity).
+    /// Return the number of arguments this function source expects; `Blend`
+    /// delegates to the inner `to` source (which has the target arity).
     pub fn arity(&self) -> usize {
         match self {
             FuncSource::Compiled(args, _, _) => args.len(),
@@ -150,23 +117,11 @@ pub enum FuncBlendMode {
 
 /// One keyframe-driven transition between two `FuncSource` values.
 ///
-/// This is the core unit of the **side-channel pattern** for the `func`
-/// property on plot actors. Because closures cannot implement
-/// [`crate::timeline::Interpolate`], `func` transitions are stored
-/// in a parallel `Vec<FuncTransition>` on the plot payload (the
-/// `func_transitions` field in `dispatch.rs`) rather than in a standard
-/// `PropertyTrack<T>`.
-///
-/// ## Lifecycle
-///
-/// 1. The build stage appends a new `FuncTransition` whenever it encounters a `func = <expr>
-///    [easing, duration]` keyframe on a supported plot actor.
-/// 2. At frame evaluation time, `sample_procedural_plot_at` iterates `func_transitions` and calls
-///    [`active_at`] to find the transition covering the current time.
-/// 3. If one is active, both `from` and `to` are evaluated at each sample point and combined by
-///    [`FuncBlendMode`].
-/// 4. [`is_complete_at`] identifies the last completed transition so its `to` source serves as the
-///    static baseline between transitions.
+/// The unit of the `func` side-channel: stored in a parallel
+/// `Vec<FuncTransition>` on the plot payload instead of a `PropertyTrack<T>`.
+/// The build appends one per `func = <expr> [easing, duration]` keyframe; frame
+/// sampling calls [`active_at`] and blends by [`FuncBlendMode`];
+/// [`is_complete_at`] identifies the baseline `to` between transitions.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct FuncTransition {
@@ -199,10 +154,9 @@ impl FuncTransition {
         }
     }
 
-    /// Evaluates the progress of this transition at `time_ms`.
-    ///
-    /// Returns `Some((progress, from, to, easing))` where `progress` ∈ \[0, 1\] is
-    /// eased. Returns `None` if `time_ms` is outside `[start_ms, end_ms]`.
+    /// Evaluates progress at `time_ms`
+    /// (`Some((eased progress ∈ \[0, 1\], from, to, easing))`, or `None` outside
+    /// `[start_ms, end_ms]`).
     pub fn active_at(&self, time_ms: u64) -> Option<(f64, &FuncSource, &FuncSource, &Easing)> {
         if time_ms < self.start_ms || time_ms > self.end_ms {
             return None;
@@ -223,12 +177,9 @@ impl FuncTransition {
     }
 }
 
-/// One `data = {…}` assignment on a `BarChart`: the datasets before and after,
-/// the window, and the easing that carries the bars between them.
-///
-/// This follows [`FuncTransition`]'s pattern (see this module's header) because a
-/// dataset is not an `Interpolate` value: bars are matched by label, so the blend
-/// happens on the *outputs* — each bar's height — rather than on the property.
+/// One `data = {…}` assignment on a `BarChart`: datasets before/after, the
+/// window, and easing. Bars match by label, so the blend happens on each bar's
+/// height (the outputs), not on the property.
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct BarDataTransition {
@@ -255,13 +206,9 @@ impl BarDataTransition {
     }
 }
 
-/// The dataset a chart shows at `time_ms`: the declaration's, advanced
-/// through every transition whose window has started.
-///
-/// A frame past the last transition still reports that transition's `to` rather
-/// than the declaration, exactly like the procedural-plot sampler: the build-time
-/// paths were built from the declaration, so a completed transition has to keep
-/// the frame path live or the bars snap back.
+/// The dataset a chart shows at `time_ms`: the declaration's, advanced through
+/// every started transition. Past the last one it reports that transition's
+/// `to`, not the declaration, or the bars snap back.
 pub fn bar_data_at(
     base: &[(String, f32)],
     transitions: &[BarDataTransition],
@@ -280,13 +227,10 @@ pub fn bar_data_at(
     current
 }
 
-/// Interpolate two bar datasets, matching bars by label.
-///
-/// Order follows `to`, because that is the chart the scene is becoming. A label
-/// only in `to` enters from height 0; a label only in `from` leaves toward 0 and
-/// keeps its slot while it does, which is what makes a shrinking chart read as
-/// bars falling away rather than the rest sliding sideways. At `progress` 1 the
-/// result is exactly `to`.
+/// Interpolate two bar datasets, matching bars by label. Order follows `to`; a
+/// label only in `to` enters at height 0, one only in `from` falls to 0 in place
+/// (a shrinking chart reads as bars falling away). At `progress` 1 the result is
+/// exactly `to`.
 pub fn interpolate_bar_data(
     from: &[(String, f32)],
     to: &[(String, f32)],
@@ -313,10 +257,7 @@ pub fn interpolate_bar_data(
 }
 
 /// Evaluate a `FuncSource` at a single scalar argument, returning the scalar
-/// result. Clones `env` locally to avoid mutating the caller's environment.
-/// Test-only today: production sampling goes through `eval_source_scalar`.
-/// Kept for the transition-model parity suite (tests/plot_transitions.rs);
-/// remove alongside that suite if the transition model changes shape.
+/// result. Clones `env`; test-only (production goes through `eval_source_scalar`).
 #[cfg(test)]
 pub fn resolve_func_source(
     source: &FuncSource,
@@ -343,14 +284,8 @@ pub fn resolve_func_source(
     }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Adaptive sampling: blended function reference
-// ─────────────────────────────────────────────────────────────
-
-/// Function reference used during per-frame adaptive sampling.
-///
-/// `Single` re-uses the existing one-function path unchanged.
-/// `Blended` evaluates both sources and lerps the outputs at `progress`.
+/// Function reference used during per-frame adaptive sampling. `Single` reuses
+/// the one-function path; `Blended` lerps both outputs at `progress`.
 pub enum PlotFuncRef<'a> {
     /// Direct declaration function from [`ProceduralPlot`] (args, body, captures).
     Declaration(&'a [String], &'a CompiledExpr, &'a CapturedEnv),
@@ -538,8 +473,8 @@ pub fn blend_depth(source: &FuncSource) -> usize {
     }
 }
 
-/// Flatten nested [`FuncSource::Blend`] trees into a linear list of
-/// `(weight, base_source)` pairs for O(N) weighted-sum evaluation.
+/// Flatten nested [`FuncSource::Blend`] trees into `(weight, base_source)` pairs
+/// for O(N) weighted-sum evaluation.
 pub fn flatten_blend(source: &FuncSource) -> Vec<(f64, &FuncSource)> {
     match source {
         FuncSource::Compiled(..) => vec![(1.0, source)],
@@ -549,11 +484,9 @@ pub fn flatten_blend(source: &FuncSource) -> Vec<(f64, &FuncSource)> {
             frozen_progress,
         } => {
             let mut result = Vec::new();
-            // from contributes with weight (1 - frozen_progress)
             for (w, s) in flatten_blend(from) {
                 result.push((w * (1.0 - frozen_progress), s));
             }
-            // to contributes with weight frozen_progress
             for (w, s) in flatten_blend(to) {
                 result.push((w * frozen_progress, s));
             }
