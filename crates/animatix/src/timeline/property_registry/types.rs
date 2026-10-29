@@ -1,8 +1,5 @@
-/// The set of all value types a property can carry.
-///
-/// This enum drives parsing, interpolation, default selection, and injection.
-/// Adding a new variant is rare — only when a fundamentally new kind of
-/// property value is introduced.
+/// The set of all value types a property can carry: drives parsing,
+/// interpolation, default selection, and injection.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ValueType {
     /// 32-bit floating-point value.
@@ -90,10 +87,6 @@ pub static LEGEND_SUM_VARIANTS: &[SumVariant] = &[
     },
 ];
 
-// ─────────────────────────────────────────────────────────────
-// Property flags
-// ─────────────────────────────────────────────────────────────
-
 /// Feature flags that change how the engine processes a property.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct PropertyFlags(u8);
@@ -114,13 +107,12 @@ impl PropertyFlags {
     /// Changes to this property require regenerating vector paths.
     pub const PATH_AFFECTING: Self = Self(0b0100_0000);
 
-    // Convenience combinations for use in static PROPERTY_REGISTRY
     /// `ANIMATED | ASSIGNABLE` combined.
-    pub const ASSIGNABLE_A: Self = Self(0b0000_0011); // ANIMATED | ASSIGNABLE
+    pub const ASSIGNABLE_A: Self = Self(0b0000_0011);
     /// `ANIMATED | ASSIGNABLE | INJECTABLE` combined.
-    pub const ASSIGNABLE_AI: Self = Self(0b0000_0111); // ANIMATED | ASSIGNABLE | INJECTABLE
+    pub const ASSIGNABLE_AI: Self = Self(0b0000_0111);
     /// `ANIMATED | INJECTABLE` combined.
-    pub const ANIMATED_I: Self = Self(0b0000_0101); // ANIMATED | INJECTABLE
+    pub const ANIMATED_I: Self = Self(0b0000_0101);
     /// `ANIMATED | ASSIGNABLE | INJECTABLE | SPATIAL` combined.
     pub const SPATIAL_AI: Self = Self(0b0001_0111);
     /// `ANIMATED | ASSIGNABLE | INJECTABLE | PRESENCE` combined.
@@ -130,7 +122,7 @@ impl PropertyFlags {
     /// `ANIMATED | ASSIGNABLE | INJECTABLE | SPATIAL | PATH_AFFECTING` combined.
     pub const SPATIAL_PATH_AI: Self = Self(0b0101_0111);
     /// All basic flags combined.
-    pub const ALL: Self = Self(0b0000_1111); // all basic flags
+    pub const ALL: Self = Self(0b0000_1111);
 
     /// Returns an empty flag set.
     pub const fn empty() -> Self {
@@ -148,22 +140,15 @@ impl PropertyFlags {
     }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Frame-time read source
-// ─────────────────────────────────────────────────────────────
-
 /// Declares how a property's value is READ at frame time (environment
-/// injection, `_animating_*` flags), separate from how it is WRITTEN at
-/// build time (parsing, keyframing via `field`).
-///
-/// Most properties use `Field(field)` where `field` matches the schema's
-/// write target. Aliases and virtual/derived sub-properties use other variants.
+/// injection, `_animating_*` flags), separate from how it is WRITTEN at build
+/// time (parsing, keyframing via `field`). Most properties use `Field(field)`
+/// matching the write target; aliases and derived sub-properties use the rest.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ReadSource {
     /// Read directly from the given track field. Default for most properties.
     Field(ActorField),
-    /// Extract a single component from a Vec2 field, optionally scaled.
-    /// Used for virtual sub-properties like `width` = `size.x * 2`.
+    /// Extract one component (0 = x, 1 = y) from a Vec2 field, optionally scaled.
     Component {
         /// The Vec2 storage field (e.g. Size).
         field: ActorField,
@@ -172,18 +157,15 @@ pub enum ReadSource {
         /// Multiplier applied after extraction (e.g. 2.0 for width = size.x * 2).
         scale: f64,
     },
-    /// Read from a different field than the write target.
-    /// Used when the write target is a group handler (e.g. `at` →
-    /// PositionBindingGroup) but the frame-time value lives in a
-    /// concrete storage field (Position).
+    /// Read from a different field than the write target, e.g. write target
+    /// `at` (a group handler) but frame-time value in `Position`.
     Alias(ActorField),
     /// Not readable from the track at frame time.
     None_,
 }
 
 impl ReadSource {
-    /// Read the current frame-time value for an entity. Returns `None` for
-    /// `None_` (not readable) or when the entity has no value for the field.
+    /// Current frame-time value; `None` for `None_` or a field the entity lacks.
     pub fn read(
         &self,
         id: crate::timeline::EntityId,
@@ -208,8 +190,7 @@ impl ReadSource {
         }
     }
 
-    /// The underlying storage field, used for `_animating_*` flag checks.
-    /// Returns `None` for properties with no readable storage (`None_`).
+    /// Underlying storage field for `_animating_*` checks (`None` for `None_`).
     pub fn storage_field(&self) -> Option<ActorField> {
         match self {
             ReadSource::Field(f) | ReadSource::Alias(f) => Some(*f),
@@ -219,17 +200,10 @@ impl ReadSource {
     }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Storage field identifier
-// ─────────────────────────────────────────────────────────────
-
-/// Identifies which storage location a property maps to.
-///
-/// This is a flat enum over ALL possible storage fields across all three tiers.
-/// The engine uses a single match over `ActorField` to dispatch reads and writes.
+/// Identifies which storage location a property maps to. A flat enum over all
+/// fields across every tier; the engine dispatches reads/writes by matching it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ActorField {
-    // ── Geometry tier ──
     /// Absolute position in scene coordinates.
     Position,
     /// Offset applied during motion animations.
@@ -247,7 +221,6 @@ pub enum ActorField {
     /// Binding that ties position to another actor or anchor.
     PositionBinding,
 
-    // ── Style tier ──
     /// Fill color.
     Color,
     /// Overall opacity multiplier.
@@ -263,7 +236,6 @@ pub enum ActorField {
     /// Options for shape morphing.
     MorphOptions,
 
-    // ── Shape payload ──
     /// Kind of shape (line, circle, rectangle, etc.).
     ShapeType,
     /// Start point of a line shape.
@@ -301,7 +273,6 @@ pub enum ActorField {
     /// Color space a gradient ramps through.
     GradientSpace,
 
-    // ── Text payload ──
     /// Raw text content.
     TextContent,
     /// Cached text glyph paths.
@@ -328,14 +299,12 @@ pub enum ActorField {
     TextAnchor,
     /// Overflow behavior ("visible", "clip", "ellipsis").
     Overflow,
-    /// Syntax-highlighting language tag for `Code` actors (Typst raw fence
-    /// token, e.g. "rust"). Empty string = no highlighting.
+    /// Highlighting language tag for `Code` actors (e.g. "rust"); empty = none.
     Language,
 
     /// Character reveal progress (0-1) for typewriter effect.
     CharProgress,
 
-    // ── Media payload ──
     /// Loaded image or video data.
     ImageData,
     /// Cached SVG tessellation paths.
@@ -345,7 +314,6 @@ pub enum ActorField {
     /// Audio volume multiplier.
     AudioVolume,
 
-    // ── Callout / annotation ──
     /// Label position offset for callouts.
     LabelAt,
     /// Target actor path for targeted callout mode.
@@ -357,7 +325,6 @@ pub enum ActorField {
     /// Offset on the target side of the callout anchor.
     CalloutToOffset,
 
-    // ── Font metrics (baseline alignment) ──
     /// Font ascent in scene units.
     Ascent,
     /// Font descent in scene units.
@@ -365,7 +332,6 @@ pub enum ActorField {
     /// Baseline offset from text center.
     Baseline,
 
-    // ── Highlight properties ──
     /// Highlight background color for equation fragments.
     HighlightColor,
     /// Highlight opacity for equation fragments.
@@ -375,11 +341,9 @@ pub enum ActorField {
     /// Highlight corner radius for equation fragments.
     HighlightRadius,
 
-    // ── Transform tier ──
     /// 2D affine transform matrix.
     Transform,
 
-    // ── Min/Max size constraints ──
     /// Minimum width constraint.
     MinWidth,
     /// Minimum height constraint.
@@ -389,7 +353,6 @@ pub enum ActorField {
     /// Maximum height constraint.
     MaxHeight,
 
-    // ── Compound resolution groups (handled by GroupHandler) ──
     /// Compound group for position binding resolution.
     PositionBindingGroup,
     /// Compound group for vector shape state resolution.
@@ -405,16 +368,12 @@ pub enum ActorField {
 }
 
 impl ActorField {
-    /// Returns the default `PropertyValue` for this field.
-    ///
-    /// Returns `None` for fields that don't support direct keyframing
-    /// (group fields, compound types like PlacementMode/PositionBinding,
-    /// and generated payloads like VectorPaths/TextPaths).
+    /// Default `PropertyValue` for this field, or `None` for fields that cannot
+    /// be keyframed directly (groups, compound types, generated paths).
     pub fn default_value(self) -> Option<crate::timeline::property_engine::PropertyValue> {
         use crate::timeline::animation_track::{DEFAULT_LAYOUT_HALF_SIZE, DEFAULT_WHITE};
         use crate::timeline::property_engine::PropertyValue;
         Some(match self {
-            // ── Geometry tier ──
             ActorField::Position => PropertyValue::Vec2([0.0, 0.0]),
             ActorField::MotionOffset => PropertyValue::Vec2([0.0, 0.0]),
             ActorField::Size => PropertyValue::Vec2(DEFAULT_LAYOUT_HALF_SIZE),
@@ -424,7 +383,6 @@ impl ActorField {
             ActorField::PlacementMode => return None,
             ActorField::PositionBinding => return None,
 
-            // ── Style tier ──
             ActorField::Color => PropertyValue::Vec4(DEFAULT_WHITE),
             ActorField::Opacity => PropertyValue::F32(1.0),
             ActorField::StrokeWidth => PropertyValue::F32(2.0),
@@ -456,7 +414,6 @@ impl ActorField {
             ActorField::LineJoin => PropertyValue::U32(0),
             ActorField::VectorPaths => return None,
 
-            // ── Text payload ──
             ActorField::TextContent => PropertyValue::String(String::new()),
             ActorField::TextPaths => return None,
             ActorField::CharProgress => PropertyValue::F32(1.0),
@@ -473,37 +430,31 @@ impl ActorField {
             ActorField::Language => PropertyValue::String(String::new()),
             ActorField::WordSpacing => PropertyValue::F32(0.0),
 
-            // ── Font metrics ──
             ActorField::Ascent => PropertyValue::F32(0.0),
             ActorField::Descent => PropertyValue::F32(0.0),
             ActorField::Baseline => PropertyValue::F32(0.0),
 
-            // ── Callout ──
             ActorField::LabelAt => PropertyValue::Vec2([0.0, 0.0]),
             ActorField::CalloutTarget => PropertyValue::String(String::new()),
             ActorField::CalloutPlace => PropertyValue::Enum("right".to_string()),
             ActorField::CalloutStandoff => PropertyValue::F32(40.0),
             ActorField::CalloutToOffset => PropertyValue::Vec2([0.0, 0.0]),
 
-            // ── Highlight ──
             ActorField::HighlightColor => PropertyValue::Vec4([0.3, 0.5, 1.0, 1.0]),
             ActorField::HighlightOpacity => PropertyValue::F32(0.0),
             ActorField::HighlightPadding => PropertyValue::F32(4.0),
             ActorField::HighlightRadius => PropertyValue::F32(3.0),
 
-            // ── Media payload ──
             ActorField::ImageData => return None,
             ActorField::SvgPaths => return None,
             ActorField::AudioSource => return None,
             ActorField::AudioVolume => PropertyValue::F32(1.0),
 
-            // ── Min/Max size constraints ──
             ActorField::MinWidth => PropertyValue::F32(0.0),
             ActorField::MinHeight => PropertyValue::F32(0.0),
             ActorField::MaxItemWidth => PropertyValue::F32(f32::INFINITY),
             ActorField::MaxHeight => PropertyValue::F32(f32::INFINITY),
 
-            // ── Group fields ──
             ActorField::PositionBindingGroup
             | ActorField::VectorShapeGroup
             | ActorField::PlotDomainGroup
@@ -514,22 +465,12 @@ impl ActorField {
     }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Property schema
-// ─────────────────────────────────────────────────────────────
-
-/// Declares which actors a property applies to.
-///
-/// The predicate vocabulary lives in `animatix-core::caps::Applicable`;
-/// re-exported here because the runtime registry, plan builder, and inspector
-/// address it through this module.
+/// Which actors a property applies to. The predicate vocabulary lives in
+/// `animatix-core::caps::Applicable`; re-exported here for registry/inspector use.
 pub use animatix_core::caps::Applicable;
 
-/// The complete description of one property in the system.
-///
-/// Everything is data except `default_value`, which is a function pointer
-/// because some defaults depend on actor kind. All other dispatch logic is
-/// driven by matching over the enum fields (`ValueType`, `ActorField`).
+/// The complete description of one property. Everything is data except
+/// `default_value`, a function pointer because some defaults depend on actor kind.
 #[derive(Clone, Copy, Debug)]
 pub struct PropertySchema {
     /// Canonical name as it appears in source text.
@@ -547,9 +488,8 @@ pub struct PropertySchema {
     /// Which actor kinds this property is applicable to.
     pub applicable: Applicable,
 
-    /// Default value for this property when the actor does not declare it.
-    /// Computed at runtime because some defaults depend on actor kind
-    /// (e.g. `font_size` is 48 for Text, 36 for Typst, 24 for Code).
+    /// Default when the actor does not declare it; runtime-computed because some
+    /// defaults depend on actor kind (`font_size`: 48 Text, 36 Typst, 24 Code).
     pub default_value:
         fn(&crate::timeline::ActorCaps) -> crate::timeline::property_engine::PropertyValue,
     /// How this property is read at frame time (env injection, `_animating` flags).
@@ -557,8 +497,7 @@ pub struct PropertySchema {
 }
 
 impl PropertySchema {
-    /// Returns `true` if this property affects 2D spatial placement, dimensions,
-    /// or transformation.
+    /// `true` if this property affects spatial placement, dimensions, or transform.
     pub fn is_spatial(&self) -> bool {
         self.flags.contains(PropertyFlags::SPATIAL)
     }
@@ -568,15 +507,13 @@ impl PropertySchema {
         self.flags.contains(PropertyFlags::PRESENCE)
     }
 
-    /// Returns `true` if modifying this property at runtime alters an actor's
-    /// position, extents, or presence, and thus affects or invalidates
-    /// build-time scene statistics (`scene.stats.*`).
+    /// `true` if runtime changes alter position, extents, or presence, and thus
+    /// invalidate build-time scene statistics (`scene.stats.*`).
     pub fn affects_scene_statistics(&self) -> bool {
         self.is_spatial() || self.is_presence()
     }
 
-    /// Returns `true` if keyframing this property requires regenerating cached
-    /// vector paths.
+    /// `true` if keyframing this property requires regenerating cached vector paths.
     pub fn affects_vector_paths(&self) -> bool {
         self.flags.contains(PropertyFlags::PATH_AFFECTING)
     }

@@ -1,5 +1,4 @@
-//! Context types passed to [`Primitive`](super::Primitive) methods and the
-//! render recursion.
+//! Context types passed to [`Primitive`](super::Primitive) methods and the render recursion.
 
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
@@ -77,14 +76,12 @@ pub struct RenderCtx<'a> {
     pub time_ms: u64,
     /// The rendered entity's id (identity lives in `World`).
     pub id: EntityId,
-    /// Shape geometry tier — memoization home for the shape→path conversion;
-    /// see `ShapeTracks::shape_path_memoized`.
+    /// Shape geometry tier — memoization home for the shape→path conversion.
     pub shape: Option<&'a crate::timeline::animation_track::ShapeTracks>,
 }
 
-/// Context passed to `Primitive::evaluate()`.
-///
-/// All fields are immutable. Text-specific mutable state is in [`TextCompileCtx`].
+/// Context passed to `Primitive::evaluate()`. All fields are immutable;
+/// text-specific mutable state is in [`TextCompileCtx`].
 pub struct EvaluateCtx<'a> {
     /// The rendered entity's id (identity lives in `World`).
     pub id: EntityId,
@@ -126,20 +123,14 @@ pub struct EvaluateCtx<'a> {
     pub payload: Option<&'a crate::primitives::PrimitivePayload>,
     /// Narrow resolver for target actor bounds (targeted callout mode).
     pub target_resolver: Option<&'a dyn TargetResolver>,
-    /// The actor's legend component, when it participates in a legend.
-    ///
-    /// Supplied by the frame path from the entity's component store so the
-    /// Legend primitive reads legend data without a per-frame world lookup.
+    /// The actor's legend component, when it participates in a legend; supplied by
+    /// the frame path so the Legend primitive needs no per-frame world lookup.
     pub legend: Option<&'a crate::timeline::LegendTracks>,
 }
 
-/// Frame-invariant, read-only state shared by every node rendered this frame.
-///
-/// Bundling these keeps the render recursion's argument list short: a
-/// mis-ordered positional argument there would be a silent semantic change
-/// rather than a compile error. Per-container values (`layout_positions`) and
-/// per-call values (`allow_pending_composites`) deliberately stay parameters —
-/// they are not frame-invariant.
+/// Frame-invariant, read-only state shared by every node rendered this frame;
+/// bundling it keeps the recursion's argument list short. Per-container and
+/// per-call values (`layout_positions`, `allow_pending_composites`) stay parameters.
 #[derive(Clone, Copy)]
 pub(crate) struct RenderFrame<'a> {
     /// Current time in milliseconds.
@@ -155,11 +146,8 @@ pub(crate) struct RenderFrame<'a> {
     pub(crate) frame_env: Option<&'a Environment>,
 }
 
-/// Mutable outputs of one render call.
-///
-/// The three table outputs and the backend handle are reborrowed unchanged when
-/// a container renders its children into a different scene; see
-/// [`Self::with_scene`].
+/// Mutable outputs of one render call. The table outputs and backend handle are
+/// reborrowed unchanged when a container renders into a different scene.
 pub(crate) struct RenderOutputs<'s, 'f> {
     /// Scene receiving the draw commands.
     pub(crate) scene: &'s mut vello::Scene,
@@ -172,12 +160,8 @@ pub(crate) struct RenderOutputs<'s, 'f> {
 }
 
 impl RenderOutputs<'_, '_> {
-    /// Run `f` with the draw target temporarily replaced by `scene`.
-    ///
-    /// The Filter strategy renders its children into an offscreen sub-scene —
-    /// a stack local with a shorter lifetime than this context — so the swap
-    /// happens through a fresh borrow rather than an assignment to
-    /// [`Self::scene`].
+    /// Run `f` with the draw target temporarily replaced by `scene`. The Filter
+    /// strategy renders into a shorter-lived offscreen scene, so we reborrow.
     pub(crate) fn with_scene<R>(
         &mut self,
         scene: &mut vello::Scene,
@@ -192,11 +176,8 @@ impl RenderOutputs<'_, '_> {
         f(&mut swapped)
     }
 
-    /// [`Self::with_scene`] plus a replacement item sink.
-    ///
-    /// The static-subtree cache renders a subtree into a scratch scene *and*
-    /// collects its items into a per-subtree slot, so both differ from the
-    /// frame's; everything else is reborrowed unchanged.
+    /// [`Self::with_scene`] plus a replacement item sink, for the static-subtree
+    /// cache that renders into a scratch scene *and* collects per-subtree items.
     pub(crate) fn with_scene_and_items<R>(
         &mut self,
         scene: &mut vello::Scene,
@@ -213,15 +194,10 @@ impl RenderOutputs<'_, '_> {
     }
 }
 
-/// Mutable context passed to [`crate::primitives::Primitive::render_children_by_id`].
-///
-/// The scene-subtree renderer hands each container primitive this context so the
-/// primitive drives its own recursion, instead of the pipeline branching on a
-/// `ChildProcessing` value. `scene`, `hit_regions`, `program_items`, and
-/// `filter_backend` are the caller-local outputs; every other field is
-/// read-only frame state, handed to the recursion entry point
-/// (`Timeline::evaluate_node`) through `Self::render_frame` and
-/// `RenderOutputs`. The frame caches are reached through `Self::timeline`.
+/// Mutable context for [`crate::primitives::Primitive::render_children_by_id`]:
+/// a container primitive drives its own recursion instead of the pipeline
+/// branching on a `ChildProcessing` value. The outputs are caller-local; the
+/// rest is read-only frame state, and frame caches are reached via `timeline`.
 pub struct RenderChildrenCtx<'a, 'b, 'c> {
     /// The timeline being rendered.
     pub timeline: &'a Timeline,
@@ -241,8 +217,7 @@ pub struct RenderChildrenCtx<'a, 'b, 'c> {
     pub debug_options: crate::timeline::DebugRenderOptions,
     /// Property overrides from modifiers, keyed by actor label.
     pub overrides: &'a std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
-    /// Resolved child layout positions for this frame (shared by refcount, so
-    /// storing it by value is a cheap clone).
+    /// Resolved child layout positions for this frame (cheap Arc clone).
     pub layout_positions: std::sync::Arc<crate::timeline::layout::LayoutPositions>,
     /// The frame environment, when one was built.
     pub frame_env: Option<&'a Environment>,
@@ -259,10 +234,8 @@ pub struct RenderChildrenCtx<'a, 'b, 'c> {
 }
 
 impl<'a, 'b, 'c> RenderChildrenCtx<'a, 'b, 'c> {
-    /// This context's read-only frame state, for the render recursion.
-    ///
-    /// The returned frame borrows the *frame data* (`'a`), not `self`, so the
-    /// caller can still take the mutable outputs afterwards.
+    /// This context's read-only frame state. The returned frame borrows the *frame
+    /// data* (`'a`), not `self`, so the caller can still take the mutable outputs.
     fn render_frame(&self) -> RenderFrame<'a> {
         RenderFrame {
             time_ms: self.time_ms,
@@ -273,9 +246,7 @@ impl<'a, 'b, 'c> RenderChildrenCtx<'a, 'b, 'c> {
         }
     }
 
-    /// Render one child into this context's scene, preserving the caller's
-    /// Render one child by its label into this context's scene, forwarding the
-    /// `allow_pending_composites` flag.
+    /// Render one child by its label, forwarding `allow_pending_composites`.
     pub fn render_child(&mut self, child: &str) {
         if let Some(child_id) = self.timeline.world.tracks.get_id(child) {
             self.render_child_by_id(child_id);
@@ -300,8 +271,7 @@ impl<'a, 'b, 'c> RenderChildrenCtx<'a, 'b, 'c> {
         }
     }
 
-    /// Render one child directly by its `EntityId` into this context's scene,
-    /// avoiding string hashing overhead on the hot render path.
+    /// Render one child directly by its `EntityId`, avoiding string hashing on the hot path.
     pub fn render_child_by_id(&mut self, child_id: crate::timeline::EntityId) {
         let frame = self.render_frame();
         let allow_pending_composites = self.allow_pending_composites;
@@ -322,8 +292,7 @@ impl<'a, 'b, 'c> RenderChildrenCtx<'a, 'b, 'c> {
         );
     }
 
-    /// Render one child into a caller-provided scene (the Filter strategy
-    /// renders into an offscreen sub-scene, which never parks composites).
+    /// Render one child into a caller-provided scene (Filter uses an offscreen sub-scene).
     pub fn render_child_into(&mut self, scene: &mut vello::Scene, child: &str) {
         if let Some(child_id) = self.timeline.world.tracks.get_id(child) {
             self.render_child_into_by_id(scene, child_id);
@@ -378,8 +347,7 @@ impl<'a, 'b, 'c> RenderChildrenCtx<'a, 'b, 'c> {
         }
     }
 
-    /// Render children directly by `EntityId` into this context's scene,
-    /// avoiding string lookups on the hot render path.
+    /// Render children directly by `EntityId` into this context's scene.
     pub fn render_children_ids(&mut self, children_ids: &[crate::timeline::EntityId]) {
         for &child_id in children_ids {
             self.render_child_by_id(child_id);
@@ -402,17 +370,14 @@ impl<'a, 'b, 'c> RenderChildrenCtx<'a, 'b, 'c> {
         }
     }
 
-    /// Push a runtime render diagnostic (surfaced through the frame's
-    /// diagnostics, e.g. for a filter fallback).
+    /// Push a runtime render diagnostic (surfaced through the frame's diagnostics).
     pub fn push_diagnostic(&self, diagnostic: Diagnostic) {
         self.timeline.eval_caches.runtime_diagnostics.borrow_mut().push(diagnostic);
     }
 }
 
-/// Mutable context for text recompilation.
-///
-/// Only text primitives need this. Shape, image, and SVG primitives
-/// can ignore it entirely.
+/// Mutable context for text recompilation; only text primitives need it.
+/// Shape, image, and SVG primitives can ignore it entirely.
 pub struct TextCompileCtx<'a> {
     /// Text compiler for runtime text recompilation.
     pub text_compiler: &'a mut crate::renderer::text::TextCompiler,
@@ -420,13 +385,11 @@ pub struct TextCompileCtx<'a> {
     pub font_context: &'a crate::renderer::text::FontContext,
 }
 
-/// Data one child actor contributes to a parent `Equation`'s Typst document.
+/// One child actor's contribution to a parent `Equation`'s Typst document.
 ///
-/// Returned by [`crate::primitives::Primitive::equation_fragment`]; the Equation container collects
-/// every child whose primitive returns `Some`, in source order, and joins them
-/// into one compiled document. Making this a trait query (rather than a match on
-/// the actor's type name) lets any primitive — including an extension — be an
-/// equation fragment.
+/// The Equation container joins every child whose
+/// [`crate::primitives::Primitive::equation_fragment`] returns `Some`, in source
+/// order; a trait query lets extensions be fragments too.
 #[derive(Clone, Debug, PartialEq)]
 pub struct EquationFragment {
     /// Raw fragment markup; the Equation container escapes and joins it.
@@ -443,8 +406,7 @@ pub struct EquationFragment {
     pub highlight_blend: vello::peniko::Mix,
 }
 
-/// Returned by [`crate::primitives::Primitive::caption_cue`]; the Captions container collects
-/// every child whose primitive returns `Some`, in source order.
+/// Returned by [`crate::primitives::Primitive::caption_cue`]; the Captions container collects every `Some` in source order.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CaptionCue {
     /// Cue subtitle text.
@@ -540,11 +502,8 @@ impl EvaluateCtx<'_> {
 
 impl EvaluateCtx<'_> {
     /// Read one property value for this entity, when the context carries the
-    /// owning `World`.
-    ///
-    /// Contexts built without a `World` (tests) read nothing: the former
-    /// track-only fallback already returned `None` for every field once the
-    /// tiers moved into `World` components.
+    /// owning `World`. Contexts built without one (tests) read nothing: the old
+    /// track-only fallback returned `None` for every field once tiers moved.
     pub fn read_property_value(
         &self,
         field: crate::timeline::property_registry::ActorField,

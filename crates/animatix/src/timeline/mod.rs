@@ -1,36 +1,11 @@
-//! # Timeline Architecture
+//! Timeline: the compiled animation package — a parent→children scene graph with
+//! keyframed property tracks per actor. The graph drives transform/opacity
+//! inheritance; tracks store animated values over time.
 //!
-//! `Timeline` is the compiled animation package: a scene graph (parent→children hierarchy)
-//! with keyframed property tracks per actor. The scene graph drives transform/opacity
-//! inheritance via DFS; tracks store animated values over time.
-//!
-//! ## Build-time vs frame-time boundary
-//!
-//! - **`Timeline::build()`** (in `build/`): one-time lowering pass that parses the AST, resolves
-//!   imports, expands components, creates tracks, applies layout, compiles text/math/code paths,
-//!   and loads assets.
-//! - **`Timeline::evaluate()`** (in `scene_eval/`): per-frame execution that
-//!   samples tracks, runs `always` modifiers, resolves anchors/percent positions, and emits a
-//!   `vello::Scene`.
-//!
-//! ## Submodule responsibilities
-//!
-//! | Module | Role |
-//! |--------|------|
-//! | `build/` | AST lowering into Timeline |
-//! | `frame_env.rs` / `scene_eval/` | Frame-time evaluation and render-scene assembly |
-//! | `property_track.rs`, `animation_track/`, `dispatch/`, `actor_caps.rs` | Keyframed property tracks, interpolation, and track dispatch |
-//! | `layout.rs` | Container placement (Row, Col, Grid, Stack) |
-//! | `colorscheme.rs` | Built-in and inline colorscheme resolution |
-//! | `morph.rs` | Path morphing between vector shapes |
-//! | `plot/` | Adaptive sampling for graph plots |
-//! | `utils.rs` | Expression evaluation |
-//! | `modifier_runtime/` | IR lowering and interpretation for `always` blocks |
-//!
-//! ## The compile boundary
-//!
-//! The practical compile target is the post-expansion program after module loading
-//! and component expansion—not the raw parser AST.
+//! `build/` lowers the AST into a `Timeline` once; `scene_eval/` samples tracks
+//! per frame, runs `always` modifiers, resolves anchors, and emits a
+//! `vello::Scene`. The compile target is the post-expansion program, not the raw
+//! parser AST.
 /// Timeline action processing (hover, click, etc.).
 pub mod actions;
 pub mod actor_caps;
@@ -51,13 +26,11 @@ pub use components::{
     CoordinateFrameTarget, LocalBoundsComponent, PersistenceComponent, TranscriptComponent,
 };
 mod declarations_text;
-/// Built-in post-processing effects, chain storage, and the compositing
-/// backend boundary.
+/// Post-processing effects, chain storage, and the compositing backend boundary.
 pub mod effects;
 pub mod entity;
 pub use entity::{EntityId, EntityStore};
-/// Public timeline data types (build quality, layout metadata, scene
-/// dimensions, audio segments, variable tracks).
+/// Public timeline data types: build quality, layout, scene dimensions, audio, variable tracks.
 mod types;
 pub use types::{
     AudioSegment, BuildQuality, ContainerLayoutChild, ContainerMetadata, DebugRenderOptions,
@@ -72,8 +45,7 @@ pub mod env;
 pub(crate) mod env_keys;
 pub mod eval_shared;
 pub(crate) mod fn_eval;
-/// The key a presented frame is identified by, and the guard that skips a
-/// raster when the previous one is still on screen.
+/// Identifies a presented frame and skips a raster while the previous one is on screen.
 pub mod frame_signature;
 /// Image loading utilities.
 pub mod image;
@@ -104,7 +76,6 @@ pub(crate) use property_engine::values_wrap;
 pub use property_engine::{
     PropertyValue, read_property_plan_slot, write_property_field, write_property_plan_slot,
 };
-// Re-export property registry types for the GUI
 pub use property_registry::{
     ActorField, LEGEND_SUM_VARIANTS, PROPERTY_REGISTRY, PropertyFlags, PropertySchema, SumVariant,
     ValueType, allowed_property_indices, lookup_property, property_id, property_name,
@@ -112,11 +83,7 @@ pub use property_registry::{
 };
 /// Plot-host coordinate frame access surface.
 mod coordinate_frame;
-/// Frame evaluation environment construction and modifier execution.
-///
-/// Provides [`Timeline::build_frame_env`] which assembles the per-frame
-/// variable environment (`t`, `scene_width`, track properties, overrides)
-/// that drives both rendering and modifier evaluation.
+/// Frame environment construction ([`Timeline::build_frame_env`]) and modifier execution.
 mod frame_env;
 mod index;
 /// Legend track storage.
@@ -196,7 +163,6 @@ pub(crate) use timing::{
 
 use crate::diagnostics::{BuildReport, Diagnostic, DiagnosticCode, DiagnosticPhase};
 
-// ─────────────────────────────────────────────────────────────
 pub use actor_caps::{ActorCaps, ActorCategory, ShapeKind, TextKind};
 pub use animation_track::{
     ActionCategory, ActionEvent, ConnectorEndpoint, ConnectorRouting, DEFAULT_LAYOUT_HALF_SIZE,
@@ -227,39 +193,29 @@ use crate::ast::{Expr, Modifier, Stmt};
 use crate::easing::*;
 use crate::timeline::modifier_runtime::ir::ModifierIrProgram;
 
-/// Static subtree cache value: cached scene, precise bounds, and observed items.
-///
-/// Items are only collected when the program API requested them. Cache entries
-/// are therefore keyed by `collect_items` so a later program call cannot reuse a
-/// scene-only entry and report empty items.
+/// Static subtree cache value: scene, precise bounds, observed items, and hit
+/// regions. Keyed by `collect_items`, so a scene-only entry is never reused by a
+/// program call that must report items.
 type StaticSubtreeEntry = (
     vello::Scene,
     // Bounds captured for this subtree as `(bounds_slot, rect)` pairs.
     Vec<(u32, kurbo::Rect)>,
     Vec<crate::timeline::scene_program::SceneItem>,
-    // Hit regions captured for this subtree (only populated when the cache
-    // key's `compute_hit_regions` was set — the GUI always sets it).
+    // Hit regions; only populated when the cache key requested them.
     Vec<(EntityId, kurbo::Rect)>,
 );
 
-/// Compiled animation package containing the full scene graph, tracks, and
-/// evaluation state.
+/// Compiled animation package: scene graph, tracks, and evaluation state.
 #[derive(Clone)]
 pub struct Timeline {
-    /// The ECS world: dense entity storage plus every component store.
-    ///
-    /// Mutating entity data after the first evaluation must invalidate the
-    /// frame cache, so post-build code goes through [`Self::entity_mut`] or
-    /// [`Self::world_mut`] (both invalidate). Direct access to the inner
-    /// store is for the build phase, which runs before any cached frame
-    /// exists.
+    /// The ECS world. Post-build mutation must go through [`Self::entity_mut`] or
+    /// [`Self::world_mut`] so the frame cache is invalidated; direct store access
+    /// is for the build phase, which runs before any cached frame exists.
     pub(crate) world: World,
     pub(crate) background_color: PropertyTrack<[f32; 4]>,
     pub(crate) env: Environment,
-    /// Scope stack for `Stmt::Block` (function-call expansion). Each entry
-    /// records the `let` names bound inside that block so they can be removed
-    /// on exit; bindings inside a block stay local and never leak into the
-    /// scene, and never write scene variable tracks.
+    /// Scope stack for `Stmt::Block` expansion: `let` names bound inside a block,
+    /// removed on exit so they never leak into the scene or variable tracks.
     pub(crate) block_scope: Vec<std::collections::HashSet<String>>,
     /// Runtime primitive registry used by builds that supply extensions.
     pub(crate) primitive_registry: std::sync::Arc<crate::primitives::PrimitiveRegistry>,
@@ -267,32 +223,20 @@ pub struct Timeline {
     pub(crate) behavior_registry: std::sync::Arc<crate::timeline::behavior::BehaviorRegistry>,
     /// Optional extension context used during build.
     extensions: Option<std::sync::Arc<crate::extension_context::ExtensionRegistry>>,
-    /// Whether any actor here is an effect scope (`Filter`, `Mask`, and any
-    /// primitive whose caps say so).
-    ///
-    /// A frame-cache entry replays a built vello scene, which cannot carry the
-    /// filter backend's pending-composite side channel — so replaying is only
-    /// safe while nothing in the scene would have consulted the backend at all,
-    /// and that is exactly this flag. Without it the cache has to bail whenever
-    /// a backend is merely *present*, which would disable caching for a runtime
-    /// that always passes one.
+    /// Whether any actor here is an effect scope (`Filter`, `Mask`, or a primitive
+    /// whose caps say so). A frame-cache entry replays a built scene, which cannot
+    /// carry the backend's pending-composite side channel, so caching is only safe
+    /// while nothing would have consulted the backend — exactly this flag.
     pub(crate) has_effect_scopes: bool,
-    /// Frozen Arc reference to the base environment entries (stdlib +
-    /// colorscheme). Avoids copying ~90 entries on every [`Timeline::build_frame_env`].
+    /// Frozen base environment entries (stdlib + colorscheme); avoids copying ~90 entries per frame.
     env_base: std::sync::Arc<crate::timeline::env::EnvMap>,
-    /// Pooled frame environment handed back by the scene-eval path after
-    /// each frame (see `build_frame_env_internal`). Retaining the environment
-    /// keeps the overrides map's table capacity and every key `String`
-    /// allocation alive across frames, so a steady-state evaluate loop builds
-    /// its environment allocation-free. `invalidate_frame_cache` drops it —
-    /// every timeline mutation funnels through that method, which restores
-    /// fresh-build semantics whenever the injection key set may have changed.
+    /// Pooled frame environment handed back after each frame, keeping the
+    /// overrides map and key `String`s alive so a steady-state loop allocates
+    /// nothing. `invalidate_frame_cache` drops it to restore fresh-build semantics.
     env_pool: std::cell::RefCell<Option<crate::timeline::Environment>>,
     pub(crate) modifiers: Vec<Stmt>,
-    /// Bare names any `always` block writes (`freq = ...`, `let freq = ...`).
-    /// Computed once at the end of the build from `modifiers`; a plot closure
-    /// capturing one of these must resample per frame so the frame value
-    /// shadows its build-time capture (spec §14 "Runtime parameters").
+    /// Bare names any `always` block writes. A plot closure capturing one must
+    /// resample per frame so the frame value shadows its build-time capture.
     pub(crate) frame_written_vars: std::collections::HashSet<String>,
     /// Lowered modifier IR programs. Populated during build.
     pub modifier_programs: Vec<ModifierIrProgram>,
@@ -301,88 +245,64 @@ pub struct Timeline {
     colorscheme: ResolvedColorscheme,
     external_colorschemes: std::collections::HashMap<String, ResolvedColorscheme>,
     pub(crate) export_preset: Option<String>,
-    /// Scene resolution declared via top-level `config { resolution: (w, h) }`,
-    /// so export tooling can default its canvas to the authored size.
+    /// `config { resolution: (w, h) }`, so export tooling can default its canvas to the authored size.
     pub(crate) resolution: Option<(u32, u32)>,
-    /// Duration declared via `config { duration: N }`, in seconds. When present
-    /// it *overrides* the keyframe-inferred length rather than extending it, so
-    /// the timeline ends there even if keyframes continue past it — the
-    /// contract `docs/spec.md` documents, applied per scene. See
-    /// [`Timeline::playback_duration_seconds`].
+    /// `config { duration: N }` in seconds. It *overrides* the keyframe-inferred
+    /// length rather than extending it, so the timeline ends there even if
+    /// keyframes continue past it — see [`Timeline::playback_duration_seconds`].
     pub(crate) declared_duration_s: Option<f64>,
-    /// Next auto-color slot handed out to a `color: auto` declaration.
-    ///
-    /// A scene-level resource (not a component): it is an allocation counter,
-    /// not per-entity state. The assigned slot itself lives in the entity's
-    /// [`AutoColorComponent`].
+    /// Next auto-color slot for `color: auto`: a scene-level allocation counter,
+    /// not per-entity state (the slot itself lives in [`AutoColorComponent`]).
     pub(crate) next_auto_color_index: usize,
-    /// Memoized layout-admitted children per container (see
-    /// `Timeline::layout_children_for`). Cleared by `invalidate_frame_cache`
-    /// alongside the layout engine cache, whose admission contract it shares.
+    /// Memoized layout-admitted children per container. Cleared by
+    /// `invalidate_frame_cache` with the layout engine cache it shares.
     pub(crate) layout_children_cache:
         std::cell::RefCell<std::collections::HashMap<EntityId, Arc<Vec<ContainerLayoutChild>>>>,
     pub(crate) layout_engine: LayoutEngine,
     pub(crate) dynamic_layout: bool,
-    /// Declared via `config { seamless_loop: true }`: the scene is replayed, so
-    /// the build checks that its keyframed values wrap at the seam.
+    /// `config { seamless_loop: true }`: the build checks that keyframed values wrap at the seam.
     pub(crate) seamless_loop: bool,
-    /// Tempo declared via `config { bpm: N }`, the length of one beat in
-    /// milliseconds. `None` falls back to the default tempo.
+    /// `config { bpm: N }` as one beat in milliseconds; `None` uses the default tempo.
     pub(crate) beat_ms: Option<f64>,
-    /// Names supplied on the command line via `--set NAME=VALUE`. They seed the
-    /// build environment before the walk and are re-applied after it, so a
-    /// template's own top-level `let` acts as a default rather than a blocker.
+    /// `--set NAME=VALUE` names, applied before and after the walk so a template's
+    /// own top-level `let` acts as a default rather than a blocker.
     pub(crate) cli_defines: std::collections::HashSet<String>,
     pub(crate) asset_cache: std::sync::Arc<assets::AssetCache>,
     pub(crate) font_context: std::sync::Arc<crate::renderer::text::FontContext>,
-    /// Build quality level used during timeline construction.
-    /// Affects plot sampling fidelity: Draft for GUI editing, Production for export.
+    /// Build quality: plot sampling fidelity — Draft for GUI editing, Production for export.
     pub(crate) build_quality: BuildQuality,
-    /// Default opacity for first actor declarations without explicit `opacity` property.
-    /// Set to 0.0 for pre-keyframe declarations (actors are hidden until entrance action).
-    /// Set to 1.0 for declarations inside keyframes (actors are visible immediately).
+    /// Default opacity for first-actor declarations without explicit `opacity`:
+    /// 0.0 before the first keyframe (hidden until entrance), 1.0 inside one.
     pub(crate) default_opacity: f32,
-    /// Whether `persist camera` marked the scene camera to be carried.
-    ///
-    /// The camera is not an entity and owns no track, so its persistence flag
-    /// is a scene resource rather than a [`PersistenceComponent`]; every other
-    /// target stores the flag on its entity.
+    /// `persist camera` flag. The camera is not an entity and owns no track, so
+    /// this is a scene resource, not a [`PersistenceComponent`].
     pub(crate) camera_persistent: bool,
     /// Interactive pause points in milliseconds marked by `#step` or `pause`.
     pub pause_points: Vec<u64>,
-    /// Runtime text compiler with cache. Enables `always` blocks to change
-    /// text content / font_family / font_size and have glyphs recompiled on-demand.
+    /// Runtime text compiler with cache; `always` blocks can change text content, font family, or size.
     text_compiler: std::cell::RefCell<crate::renderer::text::TextCompiler>,
     /// Per-frame evaluation caches and transient state. Reset on clone.
     pub(crate) eval_caches: EvalCaches,
-    /// True once any track carries a `blend:` value. The frame path checks
-    /// this before its per-node blend lookup, so scenes that never author a
-    /// blend pay one bool read instead of a track probe per node.
+    /// True once any track carries `blend:`. The frame path checks this before
+    /// its per-node blend lookup, so non-blend scenes pay one bool read per node.
     pub(crate) blend_used: std::cell::Cell<bool>,
-    /// The scene camera — the transform applied to every root node. Written by
-    /// `camera.at` / `camera.zoom` / `camera.rotation` assignments.
+    /// Scene camera transform applied to every root node; written by `camera.*` assignments.
     pub(crate) camera: camera::Camera,
-    /// True once the scene addresses the camera from a keyframe **or** a
-    /// modifier block. Gates the per-frame camera sampling and forces the
-    /// static-subtree encoding cache off (a cached encoding cannot be
-    /// re-transformed when it is appended).
+    /// True once the camera is addressed from a keyframe **or** a modifier block.
+    /// Gates per-frame camera sampling and forces the static-subtree encoding
+    /// cache off (a cached encoding cannot be re-transformed when appended).
     pub(crate) camera_used: std::cell::Cell<bool>,
-    /// Whether **any** actor declares `camera_follow: false`. The root loop
-    /// asks this before it looks anything up, so the common scene pays nothing
-    /// per frame for the opt-out existing. A scene that pins a non-root actor
-    /// finds nothing here — that declaration is reported at build
-    /// (`inapplicable-property`) rather than silently accepted.
+    /// Whether **any** actor declares `camera_follow: false`, so the root loop can
+    /// skip the lookup when none does. Pinning a non-root actor is reported at
+    /// build (`inapplicable-property`) rather than silently accepted.
     pub(crate) camera_exempt_present: std::cell::Cell<bool>,
-    /// Keyframe-scoped variable tracks.
-    /// Variables declared via `let` inside keyframes are stored here as
-    /// piecewise-constant functions of time, injected into the frame environment
-    /// during modifier evaluation.
+    /// Keyframe-scoped variable tracks: `let` inside keyframes becomes a
+    /// piecewise-constant function of time injected into the frame environment.
     pub(crate) variable_tracks: BTreeMap<String, VariableTrack>,
     /// Actor labels referenced by any expression in the built program
-    /// (see `build::referenced_roots`). `build_eval_env` injects only these
-    /// labels' properties, turning environment construction from
-    /// O(declarations²) into O(declarations × referenced). `None` disables
-    /// filtering (inject everything) for Timelines built without an AST scan.
+    /// (`build::referenced_roots`). Injecting only these turns env construction
+    /// from O(declarations²) into O(declarations × referenced); `None` injects
+    /// everything (Timelines built without an AST scan).
     pub(crate) referenced_roots: Option<std::collections::HashSet<String>>,
     /// Whether any expression in the scene references `scene.stats`.
     pub(crate) stats_used: bool,
@@ -393,8 +313,7 @@ pub struct Timeline {
     /// Map from actor label to the specific property names referenced in expressions.
     pub(crate) referenced_properties:
         std::collections::HashMap<String, std::collections::HashSet<String>>,
-    /// Audio segments collected from Audio actor declarations.
-    /// These are muxed into the output during video export.
+    /// Audio segments from Audio actors, muxed into video export.
     pub(crate) audio_segments: Vec<AudioSegment>,
     /// Action events collected during build, for GUI timeline visualization.
     pub action_events: Vec<crate::timeline::animation_track::ActionEvent>,
@@ -402,8 +321,7 @@ pub struct Timeline {
     /// Survives across rebuilds when the GUI copies it from the old timeline.
     pub plot_path_cache:
         std::collections::HashMap<u64, Vec<crate::timeline::vello_path::VelloPath>>,
-    /// Hash of the modifier AST statements collected during build.
-    /// Used to skip IR re-lowering when modifiers haven't changed.
+    /// Hash of the build-time modifier AST; skips IR re-lowering when modifiers haven't changed.
     pub modifier_hash: u64,
 }
 
@@ -416,25 +334,20 @@ pub(crate) struct FrameCacheEntry {
     has_dynamic_layout: bool,
     has_child_orders: bool,
     /// Structured frame program, including the authoritative encoded scene.
-    /// Scene-only cache hits clone `program.scene` directly; the full program
-    /// is only cloned back on the observable (collect_items) restore path.
+    /// Scene-only cache hits clone `program.scene` directly; the full program is
+    /// cloned only on the observable (`collect_items`) restore path.
     program: crate::timeline::scene_program::SceneProgram,
-    /// Per-frame world-space bounds as `(bounds_slot, rect)` pairs, stored so
-    /// a scene-only cache hit can restore `precise_bounds` without re-encoding
-    /// the scene. Kept separate from `program.precise_bounds` (which stays an
-    /// empty map on the scene-only path); restoring is a flat `Vec` copy.
+    /// Per-frame world-space bounds as `(bounds_slot, rect)` pairs, so a
+    /// scene-only hit can restore `precise_bounds` without re-encoding. Kept
+    /// separate from `program.precise_bounds`, which stays empty on that path.
     precise_bounds: Vec<(u32, kurbo::Rect)>,
     /// Whether the cached program was requested with observable item collection.
     collect_items: bool,
 }
 
-/// Memoized static classification for one entity.
-///
-/// Two independent build-fixed questions are asked per node on the frame path
-/// — whether its transform inputs are time-invariant ([`Timeline::is_transform_static`])
-/// and whether its whole subtree is ([`Timeline::is_static_subtree_id`]) — and
-/// both survive until the next invalidation. Keeping them in one slot table
-/// halves the per-frame flag bookkeeping.
+/// Memoized build-fixed classification for one entity: whether its transform
+/// inputs are time-invariant and whether its whole subtree is. Both survive
+/// until the next invalidation; one slot table halves the per-frame bookkeeping.
 #[derive(Clone, Copy, Default)]
 pub(crate) struct EntityStaticFlags {
     /// Memoized `is_transform_static` answer.
@@ -452,13 +365,10 @@ pub(crate) struct EntityStaticFlags {
 #[derive(Default)]
 pub(crate) struct EvalCaches {
     frame_cache: std::cell::RefCell<Option<FrameCacheEntry>>,
-    /// Bumped by `invalidate_frame_cache` (every in-place mutation funnels
-    /// through it); exported as `Timeline::content_epoch` for frame
-    /// signatures.
+    /// Bumped by `invalidate_frame_cache`; exported as `Timeline::content_epoch` for frame signatures.
     content_epoch: std::cell::Cell<u64>,
     transform_cache: std::cell::RefCell<Vec<Option<scene_eval::TransformCacheEntry>>>,
-    /// Memoized static answers for both the transform and the subtree
-    /// classification; cleared by `invalidate_frame_cache`.
+    /// Memoized transform/subtree classification; cleared by `invalidate_frame_cache`.
     static_flags: std::cell::RefCell<Vec<EntityStaticFlags>>,
     static_subtree_cache: std::cell::RefCell<
         std::collections::HashMap<
@@ -467,53 +377,40 @@ pub(crate) struct EvalCaches {
         >,
     >,
     scene_buffer: std::cell::RefCell<Option<vello::Scene>>,
-    /// Per-frame hit regions keyed by entity id. The label view is materialized
-    /// only by [`Timeline::hit_regions`] at the GUI boundary.
+    /// Per-frame hit regions by entity id; [`Timeline::hit_regions`] materializes the label view.
     hit_regions: std::cell::RefCell<Vec<(EntityId, kurbo::Rect)>>,
     overrides_buffer: std::cell::RefCell<crate::timeline::modifier_runtime::ir::ModifierOverrides>,
     /// Precise world-space bounds for the current frame, indexed by
-    /// `World::bounds_slots` slot ids (per-node write is a `Vec` store,
-    /// stash/restore are flat copies, no string keys).
+    /// `World::bounds_slots` ids (flat `Vec` stores, no string keys).
     precise_bounds: std::cell::RefCell<BoundsTable>,
-    /// Label↔slot identity for [`Self::precise_bounds`]: sorted track labels,
-    /// rebuilt lazily after invalidation. `None` until first needed.
+    /// Label↔slot identity for [`Self::precise_bounds`]; rebuilt lazily after invalidation.
     bounds_registry: std::cell::RefCell<Option<BoundsRegistry>>,
     pub(crate) runtime_diagnostics: std::cell::RefCell<Vec<crate::diagnostics::Diagnostic>>,
-    /// Authored solo gate for the current frame. Empty (and allocation-free)
-    /// in the common case where no actor declares `solo: true`.
+    /// Authored solo gate; empty (and allocation-free) when nothing is soloed.
     pub(crate) solo: std::cell::RefCell<SoloState>,
-    /// Whether any actor is soloed this frame; a plain `Cell<bool>` load
-    /// keeps the per-node gate free in the common case.
+    /// Whether any actor is soloed this frame; a bool load keeps the per-node gate free.
     pub(crate) solo_active: std::cell::Cell<bool>,
-    /// Whether resolving the solo gate has to walk the tracks at all.
-    ///
-    /// `None` means "unknown, derive it" (initial state and what
-    /// `invalidate_frame_cache` resets to); the common scene settles on
-    /// `Some(false)` after one walk. A timeline with `always` blocks always
-    /// reports `true` — an always block can write the flag per frame
-    /// without going through a mutation.
+    /// Whether resolving the solo gate has to walk tracks at all. `None` means
+    /// "unknown, derive it" (initial state, reset by `invalidate_frame_cache`);
+    /// the common scene settles on `Some(false)`. A timeline with `always` blocks
+    /// always reports `true` — such a block can write the flag per frame.
     pub(crate) solo_scan_needed: std::cell::Cell<Option<bool>>,
-    /// Memoized [`Self::needs_frame_env`] answer; cleared by
-    /// `invalidate_frame_cache`.
+    /// Memoized [`Self::needs_frame_env`] answer; cleared by `invalidate_frame_cache`.
     needs_frame_env: std::cell::Cell<Option<bool>>,
     /// Precomputed frame-env injection plan; see `timeline_impl::cache`.
     env_injection_plan: std::cell::RefCell<Option<std::sync::Arc<timeline_impl::EnvInjectionPlan>>>,
-    /// Resolved primitive handles per entity, keyed by the actor type each
-    /// was resolved from; see `timeline_impl::primitive_cache`.
+    /// Resolved primitive handles per entity; see `timeline_impl::primitive_cache`.
     primitive_handles: std::cell::RefCell<Vec<crate::primitives::PrimitiveCacheEntry>>,
-    /// The scene's evaluated background color for the current frame, sampled
-    /// once and read per node by the primitive `EvaluateCtx` (legend
-    /// label-contrast).
+    /// The scene's background color for this frame, sampled once and read by the
+    /// primitive `EvaluateCtx` (legend label contrast).
     background_color: std::cell::Cell<[f32; 4]>,
 }
 
-/// Per-frame resolution of the authored `solo` flags.
-///
-/// `visible` holds every soloed actor *and its ancestors*, so traversal still
-/// reaches a soloed descendant through a container that does not draw itself;
-/// `soloed` names the actors that actually draw. Both are id-keyed
-/// (`docs/ecs.md` §4) and `None` when nothing is soloed, which keeps the
-/// common path free of set lookups.
+/// Per-frame resolution of the authored `solo` flags: `visible` holds soloed
+/// actors *and their ancestors* (traversal must reach a soloed descendant
+/// through a non-drawing container), `soloed` the actors that draw. Both are
+/// id-keyed and `None` when nothing is soloed, keeping the common path free of
+/// lookups.
 #[derive(Default)]
 pub(crate) struct SoloState {
     visible: Option<std::collections::HashSet<EntityId>>,
@@ -538,11 +435,9 @@ impl SoloState {
 
 /// Dense per-frame precise-bounds storage (slot-id design).
 ///
-/// `slots` is indexed by the `World::bounds_slots` slot id, which `ensure_bounds_registry`
-/// stamps once per rebuild (sorted `tracks` order — deterministic and stable for the
-/// lifetime of one `Timeline`). `written` lists the slots touched this frame so the
-/// per-frame clear, the frame-cache stash, and the restore are all flat
-/// `Vec<(u32, kurbo::Rect)>` work with no string keys, hashing, or per-key allocation.
+/// `slots` is indexed by `World::bounds_slots` ids stamped once per rebuild in
+/// sorted `tracks` order; `written` lists this frame's slots so clear, stash, and
+/// restore are flat `Vec<(u32, kurbo::Rect)>` work — no string keys or hashing.
 #[derive(Default)]
 struct BoundsTable {
     slots: Vec<Option<kurbo::Rect>>,
@@ -573,10 +468,8 @@ impl BoundsTable {
         self.written.clear();
     }
 
-    /// `(slot, bounds)` pairs for every recorded entry, optionally starting
-    /// from a `written` offset (used to snapshot a single static subtree).
-    /// Pre-sized from `written` so the frame-end stash is one allocation
-    /// (the filter-map iterator alone would grow the Vec by doubling).
+    /// `(slot, bounds)` pairs for recorded entries from `written[from..]`. Pre-sized
+    /// so the frame-end stash is one allocation.
     fn pairs_from(&self, from: usize) -> Vec<(u32, kurbo::Rect)> {
         let mut pairs = Vec::with_capacity(self.written.len() - from);
         pairs.extend(self.written[from..].iter().filter_map(|&slot| {
@@ -587,21 +480,16 @@ impl BoundsTable {
     }
 }
 
-/// Sorted entity labels giving the `World::bounds_slots` values their
-/// meaning; rebuilt whenever `invalidate_frame_cache` clears it.
+/// Sorted entity labels giving `World::bounds_slots` values their meaning; rebuilt on invalidation.
 #[derive(Clone)]
 struct BoundsRegistry {
-    /// Slot index → label, in `tracks` (BTreeMap) order, so slot numbering is
-    /// deterministic. `bounds_slot` lookups by label binary-search this.
+    /// Slot index → label in `tracks` (BTreeMap) order, making slot numbering deterministic.
     labels: Vec<String>,
 }
 
 impl EvalCaches {
-    /// Build the label registry and stamp each track's bounds slot.
-    ///
-    /// Cheap no-op while the registry is valid; invalidated by
-    /// `invalidate_frame_cache` (the single mutation funnel) and by `Clone`
-    /// (`EvalCaches` resets to `Default`).
+    /// Build the label registry and stamp each track's bounds slot. No-op while
+    /// valid; invalidated by `invalidate_frame_cache` and `Clone`.
     fn ensure_bounds_registry(&self, world: &crate::timeline::World) {
         if self.bounds_registry.borrow().is_some() {
             return;

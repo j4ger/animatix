@@ -14,11 +14,8 @@ use super::{
     RenderCtx, TextCompileCtx,
 };
 
-/// Evaluate text paths for a text primitive at frame time.
-///
-/// This is the single frame-time text compile path: every text-like
-/// primitive (Text, Math, Code, Typst) dispatches through
-/// [`Primitive::evaluate`] into this function.
+/// Evaluate text paths for a text primitive at frame time: the single frame-time
+/// text compile path for every text-like primitive (Text, Math, Code, Typst).
 pub fn evaluate_text_paths(
     ctx: &EvaluateCtx,
     text_ctx: &mut TextCompileCtx,
@@ -74,11 +71,9 @@ pub fn evaluate_text_paths(
         if let Some(Value::Num(n)) = ov.get("word_spacing") {
             word_spacing = *n as f32;
         }
-        // `text_max_width` is the canonical descriptor name (animatix-core) and
-        // `max_width` the legacy alias. Both must be read: an `always` block
-        // that writes the canonical key would otherwise be silently ignored
-        // because the canonical row is flagged ANIMATED. Same two-name handling
-        // as `text`/`code` above.
+        // `text_max_width` is the canonical descriptor name and `max_width` the
+        // legacy alias; both must be read or an `always` write of the canonical key
+        // is silently ignored. Same two-name handling as `text`/`code` above.
         if let Some(Value::Num(n)) = ov.get("text_max_width").or_else(|| ov.get("max_width")) {
             max_width = *n as f32;
         }
@@ -98,13 +93,11 @@ pub fn evaluate_text_paths(
             language = s.clone();
         }
     }
-    // An explicit empty-string override means "no visible content", not "keep
-    // the cached build-time glyphs". This makes `always { box.text = "" }`
-    // deterministic instead of silently falling back to stale paths.
+    // An explicit empty-string override means "no visible content", not "keep the
+    // cached build-time glyphs", so `always { box.text = "" }` is deterministic.
     if content_override.is_none() {
-        // Keyframed content swaps are cross-faded by compiling both endpoint
-        // strings and rendering them at partial opacity. Without this, the
-        // String track snaps at the midpoint before the compiler runs.
+        // Keyframed content swaps cross-fade by compiling both endpoint strings;
+        // without this the String track snaps at the midpoint.
         if let Some((source_text, target_text, progress)) = text
             .text_content
             .as_ref()
@@ -284,24 +277,15 @@ pub fn evaluate_text_paths(
     }
 }
 
-/// Resolve a shape's half-size (its radius) for this frame.
+/// Resolve a shape's half-size (radius) for this frame.
 ///
-/// The three sources do not share units, and mixing them up made the same
-/// literal render twice as large per frame as declared:
-///
-/// - `track_half` comes from `geometry.size`, which **stores half-sizes** — both the declaration
-///   path and the timed-assignment path halve the authored bounding box before storing it.
-/// - a `size` override from an `always` block is the **raw authored bounding box**, so it is halved
-///   here.
-/// - `radius_x` / `radius_y` overrides are **half-size components** and each replace one axis. They
-///   are applied after `size`, so a scene can set the box and then nudge a single radius.
-///
-/// Without the halving, `always { r.size = (100.0, 60.0) }` would paint a
-/// 200×120 box where `size: (100, 60)` paints a 100×60 one.
-///
-/// A wrongly-typed override keeps the keyframed size. This runs for every shape
-/// every frame, so the drop is logged at debug rather than warn, which would
-/// repeat the same message 60 times a second.
+/// The sources do not share units: `track_half` is already a **half-size**
+/// (`geometry.size` stores half-sizes), a `size` override is the **raw authored
+/// bounding box** and is halved here, and `radius_x`/`radius_y` overrides replace
+/// one **half-size component** each, applied after `size`. Without the halving,
+/// `always { r.size = (100.0, 60.0) }` would paint twice the declared size. A
+/// wrongly-typed override keeps the keyframed size; this runs per shape per frame,
+/// so the drop logs at debug rather than warn.
 pub(crate) fn resolve_half_size(
     track_half: [f32; 2],
     overrides: Option<&std::collections::HashMap<String, Value>>,
@@ -328,13 +312,10 @@ pub(crate) fn resolve_half_size(
     half
 }
 
-// ── Primitive trait ─────────────────────────────────────────────────────
-
-/// A container's `gap`/`padding` that the layout pass could not read.
+/// A container's `gap`/`padding` the layout pass could not read.
 ///
-/// The layout readers take a number or a `(x, y)` tuple and leave the value
-/// alone otherwise, so without this the authored property disappears with no
-/// output at all — the case AGENTS.md says must never be silent.
+/// The layout readers accept a number or `(x, y)` and otherwise leave the value
+/// alone; without this warning the authored property would vanish silently.
 pub(crate) fn unreadable_layout_value(label: &str, prop: &str) -> Diagnostic {
     Diagnostic::warning(
         DiagnosticCode::InvalidPropertyValue,
@@ -345,9 +326,8 @@ pub(crate) fn unreadable_layout_value(label: &str, prop: &str) -> Diagnostic {
 
 /// Concatenate every vector path emitted by `commands` into one clip geometry.
 ///
-/// All `Paths` commands and all subpaths contribute: a multi-path shape (e.g. an
-/// `Svg` with several path elements, or a plot emitting multiple curves) must
-/// not silently lose geometry when used as a `clip_shape`.
+/// Every `Paths` command and subpath contributes, so a multi-path shape used as a
+/// `clip_shape` cannot silently lose geometry.
 pub(crate) fn clip_bezpath_from_commands(commands: &[RenderCommand]) -> Option<kurbo::BezPath> {
     let mut path = kurbo::BezPath::new();
     for command in commands {
@@ -360,42 +340,29 @@ pub(crate) fn clip_bezpath_from_commands(commands: &[RenderCommand]) -> Option<k
     (!path.elements().is_empty()).then_some(path)
 }
 
-/// Every actor type in Animatix implements this trait: the *behaviour* half
-/// of a primitive (build/evaluate/render). The metadata half lives in the
-/// `animatix-std` catalog for built-ins and in the registration info for
-/// extensions, keyed by [`Primitive::type_name`].
+/// The behaviour half of a primitive (build/evaluate/render). The metadata half
+/// lives in `animatix-std` for built-ins and in registration info for extensions,
+/// keyed by [`Primitive::type_name`].
 pub trait Primitive: Send + Sync {
-    // ── Identity ──
-
-    /// Source-text type name, e.g. "Rect", "Text", "Row" — the registry key.
-    /// Metadata (display name, category, icon, capabilities, child
-    /// processing) lives in the `animatix-std` catalog for built-ins and in
-    /// the registration info for extensions; it is looked up by this name.
+    /// Source-text type name, e.g. "Rect", "Text", "Row" — the registry key for metadata lookup.
     fn type_name(&self) -> &str;
 
     /// Property names this primitive declares from the built-in or extension
-    /// property registries.
-    ///
-    /// The generic property writer only needs membership tests, so callers
-    /// should prefer [`Self::declares_property`] instead of materializing this
-    /// list and repeatedly searching it.
+    /// registries. Prefer [`Self::declares_property`] for membership tests rather
+    /// than materializing and searching this list.
     fn declared_property_names(&self) -> Vec<&str> {
         Vec::new()
     }
 
-    /// Returns true when this primitive declares `name` from a built-in or
-    /// extension property registry.
+    /// `true` when this primitive declares `name` from a built-in or extension registry.
     fn declares_property(&self, name: &str) -> bool {
         self.declared_property_names().contains(&name)
     }
 
-    // ── Build: AST → Timeline ──
-
     /// Build the actor into the timeline.
     ///
-    /// Built-in primitives are lowered by their behavior family's
-    /// `build_extra` or by the generic actor pipeline, so only
-    /// runtime-registered extension primitives need to override this.
+    /// Built-ins are lowered by their behavior family's `build_extra` or the generic
+    /// actor pipeline, so only runtime-registered extension primitives override this.
     fn build(
         &self,
         _ctx: &mut BuildCtx,
@@ -407,10 +374,7 @@ pub trait Primitive: Send + Sync {
         Ok(())
     }
 
-    // ── Render (optional, for shapes) ──
-
-    /// Render the primitive into Vello paths.
-    /// Returns `None` for non-visual primitives.
+    /// Render the primitive into Vello paths; `None` for non-visual primitives.
     fn render(&self, _ctx: &RenderCtx) -> Option<Vec<VelloPath>> {
         None
     }
@@ -418,15 +382,11 @@ pub trait Primitive: Send + Sync {
     /// Local-space clip geometry when this primitive is used as a `Mask`'s
     /// `clip_shape` child.
     ///
-    /// The default reuses the primitive's own evaluation output, so any shape
-    /// (built-in or extension) that produces vector paths can define a clip
-    /// without a per-primitive override. Plot geometry is excluded: it is
-    /// time-varying / `stroke_progress`-trimmed and is not a fill region, so a
-    /// plot used as a `clip_shape` would clip to a moving (or empty) partial
-    /// curve. Returning `None` means "not usable as a clip"; the caller then
-    /// warns and falls back to a rectangular clip. The path is in the
-    /// primitive's local space — the caller composes the child transform and
-    /// the mask transform.
+    /// Defaults to the primitive's own evaluation output, so any path-producing shape
+    /// can clip without an override. Plot geometry is excluded (time-varying and
+    /// stroke-trimmed, not a fill region); `None` means "not usable as a clip" and the
+    /// caller warns and falls back to a rectangular clip. The path is in local space —
+    /// the caller composes the child and mask transforms.
     fn clip_path(&self, ctx: &EvaluateCtx, caps: &ActorCaps) -> Option<kurbo::BezPath> {
         if caps.plot_geometry {
             return None;
@@ -440,24 +400,19 @@ pub trait Primitive: Send + Sync {
         path
     }
 
-    /// Data this primitive contributes to a parent `Equation`'s document, or
-    /// `None` when it is not an equation fragment.
+    /// Data this primitive contributes to a parent `Equation`'s document, if any.
     fn equation_fragment(&self, _ctx: &EvaluateCtx) -> Option<EquationFragment> {
         None
     }
 
-    /// Data this primitive contributes as a subtitle cue to a parent
-    /// `Captions` container, or `None` when it is not a cue.
+    /// Data this primitive contributes as a subtitle cue to a parent `Captions` container, if any.
     fn caption_cue(&self, _ctx: &EvaluateCtx) -> Option<CaptionCue> {
         None
     }
 
-    // ── Child rendering (containers) ──
-
     /// Render this primitive's children directly by `EntityId`, avoiding string
-    /// lookups on the hot render path.
-    ///
-    /// This is the only child-render entry point the scene evaluator calls.
+    /// lookups on the hot render path. The only child-render entry point the scene
+    /// evaluator calls.
     fn render_children_by_id(
         &self,
         ctx: &mut RenderChildrenCtx<'_, '_, '_>,
@@ -467,13 +422,10 @@ pub trait Primitive: Send + Sync {
         Ok(())
     }
 
-    // ── Build-time shape state (for vector shapes) ──
-
     /// Apply primitive-specific defaults to the shape state.
     fn apply_defaults(&self, _state: &mut VectorShapeState) {}
 
-    /// Apply a single property to the shape state.
-    /// Returns `true` if the property was handled.
+    /// Apply one property to the shape state; `true` if handled.
     fn apply_property(
         &self,
         _name: &str,
@@ -489,14 +441,11 @@ pub trait Primitive: Send + Sync {
     /// Finalize the shape state after all properties have been applied.
     fn finalize_state(&self, _state: &mut VectorShapeState) {}
 
-    // Shape-kind questions (`uses_custom_path`, `exposes_tip_size`,
-    // `supports_fill`) intentionally live as `ShapeType`-based free functions
-    // in `timeline/shapes/mod.rs` (`vector_shape_uses_custom_path`,
-    // `vector_shape_exposes_tip_size`) rather than on this trait: they are
-    // answered by the GUI edit-vertices layer which only has a `ShapeType`.
+    // Shape-kind questions (`uses_custom_path`, `exposes_tip_size`, `supports_fill`)
+    // live as `ShapeType`-based free functions in `timeline/shapes/mod.rs`, because
+    // the GUI edit-vertices layer only has a `ShapeType`.
 
-    /// Returns the colorscheme key for default color lookup.
-    /// For example, "Text" returns "text.primary", shapes return "accent.primary".
+    /// Colorscheme key for default color lookup (e.g. "text.primary", "accent.primary").
     fn default_color_key(&self, property: &str, caps: &ActorCaps) -> Option<&'static str> {
         match property {
             "color" => match caps.category {
@@ -524,18 +473,13 @@ pub trait Primitive: Send + Sync {
         }
     }
 
-    // ── GUI defaults ──
-
     /// Default properties used when creating this actor from the GUI.
     fn default_props(&self, _scene_dimensions: &SceneDimensions) -> Vec<Property> {
         vec![]
     }
 
-    // ── Assignment-phase handling ──
-
-    /// Handle a property assignment at the assignment phase.
-    /// Return `true` if the primitive handled it (bypassing generic engine).
-    /// Default implementation returns `false` (delegate to generic engine).
+    /// Assignment-phase handler; return `true` if handled (bypassing the generic
+    /// engine). The default `false` delegates to it.
     fn handle_assignment(
         &self,
         _property: &str,
@@ -548,13 +492,10 @@ pub trait Primitive: Send + Sync {
         false
     }
 
-    // ── Post-children build finalization (for containers) ──
-
-    /// Finalize the actor build after all children have been processed.
+    /// Finalize the actor build after all children are processed.
     ///
-    /// Layout containers (Row, Col, Grid, Stack) override this to register
-    /// container metadata and apply layout, which must happen after children
-    /// are processed so that child tracks exist for layout computation.
+    /// Layout containers (Row, Col, Grid, Stack) override this so child tracks exist
+    /// before layout runs.
     fn finalize_container_build(
         &self,
         _ctx: &mut BuildCtx,
@@ -566,18 +507,12 @@ pub trait Primitive: Send + Sync {
 
     /// Evaluate this primitive at frame time and return render commands.
     ///
-    /// This is the only scene-evaluation render path — there is no per-type
-    /// dispatch table in `scene_eval.rs`. Every drawable
-    /// primitive implements this method (`Ok(None)` is the default for
-    /// non-visual primitives).
-    ///
-    /// Semantics of the return value:
-    /// - `Ok(Some(commands))` — `scene_eval.rs` executes the commands with the actor's local
-    ///   transform and inherited opacity, and records a hit region derived from their local bounds.
-    /// - `Ok(None)` — "no drawable content" (e.g. empty text, missing image). Nothing is drawn and
-    ///   no hit region / precise bounds are recorded (empty-content actors stay un-pickable until
-    ///   they have content; pinned by `runtime_empty_text_override_clears_stale_glyphs`).
-    /// - `Err(e)` — the actor does not render and a `RenderFailure` runtime diagnostic is recorded.
+    /// The only scene-evaluation render path (no per-type dispatch table).
+    /// `Ok(Some)` is executed with the actor's local transform and inherited opacity,
+    /// and records a hit region from local bounds; `Ok(None)` draws nothing and records
+    /// no hit region or bounds (empty-content actors stay un-pickable, pinned by
+    /// `runtime_empty_text_override_clears_stale_glyphs`); `Err` records a
+    /// `RenderFailure` runtime diagnostic.
     fn evaluate(
         &self,
         _ctx: &EvaluateCtx,
