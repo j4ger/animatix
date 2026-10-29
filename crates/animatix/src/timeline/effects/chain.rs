@@ -1,17 +1,10 @@
 //! Renderer-facing effect-chain types and the compositing backend boundary.
-//!
-//! [`EffectChainTrack`](super::EffectChainTrack) is the *stored*, animatable
-//! form; [`EffectChain`] is the fully-sampled per-frame form the renderer
-//! consumes. The [`FilterBackend`] trait is the timeline↔renderer seam: the
-//! timeline renders a scope's content children into a sub-scene and the backend
-//! applies the chain to it.
 
 use super::{EffectId, EffectParams};
 use crate::timeline::SceneDimensions;
 use crate::timeline::image::SceneImage;
 
 /// A GPU texture that should be composited after the main Vello scene render.
-/// Used by the zero-readback filter compositing path.
 #[derive(Clone)]
 pub struct PendingComposite {
     /// Owns the copied filtered texture so `view` remains valid.
@@ -21,52 +14,38 @@ pub struct PendingComposite {
     /// Opacity to apply during compositing.
     pub alpha: f32,
     /// Destination top-left corner in **scene** pixels — see [`Self::texel_scale`]
-    /// for what the texture itself is measured in. The composite covers
-    /// `origin` plus the texture's own size scaled back into scene space (the
-    /// full render target when the scope did not use a region of interest).
+    /// for what the texture itself is measured in.
+    /// The composite covers `origin` plus the texture's size scaled back into
+    /// scene space (the full render target when the scope had no region).
     pub origin: [f32; 2],
     /// Texels of `texture` per scene pixel.
-    ///
-    /// `1.0` means the filtered result was produced at scene resolution and both
-    /// `origin` and the texture's size still need the frame's raster scale
-    /// applied to land in target pixels. A backend that was told the raster
-    /// scale via [`FilterBackend::set_raster_scale`] filtered at that scale
-    /// instead, so its texture is already in target pixels and this carries that
-    /// factor — the drain divides the frame scale by it, which yields `1.0` for
-    /// the ordinary case of one scale per frame and keeps a pre-scaled backdrop
-    /// rect from being shrunk twice.
+    /// `1.0` = scene resolution, so the frame's raster scale still applies; a
+    /// backend told that scale via [`FilterBackend::set_raster_scale`] filtered
+    /// at it and this carries the factor, so a pre-scaled backdrop rect is not
+    /// shrunk twice by the drain.
     pub texel_scale: f32,
     /// Corner radius, in render-target pixels, to clip the composite to.
-    /// `0.0` composites the whole rectangle, which is what an effect scope
-    /// with a derived region wants; a `Glass` panel passes its own
-    /// `corner_radius` so the blurred backdrop keeps the panel's shape.
+    /// `0.0` composites the whole rectangle; a `Glass` panel passes its own so
+    /// the blurred backdrop keeps the panel's shape.
     pub corner_radius: f32,
     /// Sub-rectangle of the texture to sample, in texture pixels
-    /// `[x0, y0, x1, y1]`. A backdrop's texture covers a *padded* region (the
-    /// blur needs pixels from outside the panel), while only the panel's own
-    /// rect is composited — so the sample window and the destination differ.
-    /// `None` samples the whole texture, which is what an effect scope wants.
+    /// `[x0, y0, x1, y1]`. A backdrop textures a *padded* region while only the
+    /// panel rect is composited; `None` samples the whole texture.
     pub src_rect: Option<[f32; 4]>,
-    /// Destination rect to clip to, in render-target pixels
-    /// `[x0, y0, x1, y1]`. `None` composites at `origin` with the texture's
-    /// own size.
+    /// Destination rect to clip to, in render-target pixels `[x0, y0, x1, y1]`.
+    /// `None` composites at `origin` with the texture's own size.
     pub clip_rect: Option<[f32; 4]>,
 }
 
 /// One layer the renderer must composite after the main scene render.
-///
-/// The queue is ordered, and the order *is* the z-order: splitting a frame at a
-/// `Glass` scope into "below", "backdrop", "above" only reproduces the scene's
-/// depth if the pieces are drained in the order the walk produced them.
+/// Queue order is z-order: split `Glass` pieces must drain in walk order.
 #[derive(Clone)]
 pub enum PendingLayer {
     /// A texture holding an effect chain's output over a sub-scene.
     Composite(PendingComposite),
     /// Blur what the render target already holds inside `region`, then composite
-    /// the result back there. The backdrop half of a `Glass` scope: its input
-    /// is the main target, which no effect chain can bind as a texture (the
-    /// chain's two inputs are its own sub-scene), so it can only be served at
-    /// drain time, once that target has been rendered.
+    /// the result back there. The main target cannot be bound as a chain
+    /// texture, so this backdrop half is served at drain time.
     Backdrop(PendingBackdrop),
 }
 
@@ -76,8 +55,8 @@ pub struct PendingBackdrop {
     /// The area to read from and blur, in render-target pixels. Padded by the
     /// chain's support so the blur samples real pixels at the panel's edge.
     pub region: EffectRegion,
-    /// The panel's own rect, in render-target pixels — what actually gets
-    /// composited back, clipped to `corner_radius`.
+    /// The panel's own rect, in render-target pixels — what is composited back,
+    /// clipped to `corner_radius`.
     pub clip: EffectRegion,
     /// The chain to run over the copied pixels — a `Blur` in practice.
     pub chain: EffectChain,
@@ -114,11 +93,8 @@ impl EffectChain {
     }
 }
 
-/// A region of interest for an effect scope, in scene pixels.
-///
-/// When present, the backend crops the rendered sub-scene to `origin`/`size`,
-/// runs the chain at `size`, and the caller composites the result back at
-/// `origin`. `None` means the full `dimensions` (the historical behaviour).
+/// A region of interest for an effect scope, in scene pixels; `None` on the
+/// consuming APIs means the full `dimensions`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EffectRegion {
     /// Top-left corner of the region in scene pixels.
@@ -128,33 +104,20 @@ pub struct EffectRegion {
 }
 
 /// Backend that can render a [`vello::Scene`] and apply an [`EffectChain`].
-///
-/// The timeline captures a `Filter` scope's content children into an offscreen
-/// scene, hands the chain to the backend, and composites the result back into
-/// the parent scene. There is no CPU fallback: a backend that cannot run the
-/// chain reports an error and the timeline renders the children unfiltered with
-/// a diagnostic (`docs/effects.md` §5).
+/// There is no CPU fallback: an unsupported chain errors and the timeline renders
+/// the children unfiltered with a diagnostic (`docs/effects.md` §5).
 pub trait FilterBackend: Send {
     /// Declare that the frame is about to be rasterized at `scale` of the
     /// scene's own resolution, so the chain can follow it.
-    ///
-    /// A runtime that always renders at scene resolution never calls this, and a
-    /// backend that cannot resize leaves it unimplemented: the default is a
-    /// no-op, which is the same as `1.0`. A backend that honours it has to
-    /// resize its targets *and* shrink every [`EffectParamUnit::Pixel`]
-    /// parameter by the same factor — a blur radius is a distance in scene
-    /// pixels, so halving the raster without halving the radius doubles the
-    /// blur.
-    ///
+    /// Defaults to a no-op (`1.0`); honouring it means resizing targets *and*
+    /// shrinking every [`EffectParamUnit::Pixel`] by the same factor, since a
+    /// blur radius is a scene-pixel distance (halving the raster doubles it).
     /// [`EffectParamUnit::Pixel`]: animatix_core::effect::EffectParamUnit::Pixel
     fn set_raster_scale(&mut self, _scale: f32) {}
 
-    /// Render `scene` (covering `dimensions`), apply `chain`, and read the
-    /// result back as a [`SceneImage`].
-    ///
-    /// When `region` is `Some`, the chain runs only inside that region and the
-    /// returned image covers the region (the caller composites it at
-    /// `region.origin`); otherwise the image covers `dimensions`.
+    /// Render `scene` (covering `dimensions`), apply `chain`, and read the result
+    /// back as a [`SceneImage`]; with `region` both input and output cover only
+    /// that region (the caller composites it at `region.origin`).
     fn render_scene_to_image_gpu_filtered(
         &mut self,
         scene: &vello::Scene,
@@ -164,9 +127,7 @@ pub trait FilterBackend: Send {
     ) -> Result<SceneImage, String>;
 
     /// Render a scene with `chain` and store the result as a pending composite
-    /// that can be blitted onto the render target without CPU readback. When
-    /// `region` is `Some`, the pending composite covers only that region.
-    /// Returns `Err` if this backend doesn't support zero-readback compositing.
+    /// that blits without CPU readback; `region` restricts its extent.
     fn render_scene_to_pending_composite(
         &mut self,
         scene: &vello::Scene,
@@ -179,20 +140,16 @@ pub trait FilterBackend: Send {
         Err("zero-readback effect compositing is not supported by this backend".to_string())
     }
 
-    /// Queue a backdrop pass: blur whatever the render target holds inside
-    /// `region` when the frame is drained. `chain` runs over those pixels, so
-    /// its inputs are the target's contents rather than a sub-scene.
-    /// Returns `Err` if this backend cannot serve a backdrop.
+    /// Queue a backdrop pass over whatever the render target holds inside
+    /// `region` when the frame is drained.
     fn enqueue_backdrop(&mut self, backdrop: &PendingBackdrop) -> Result<(), String> {
         let _ = backdrop;
         Err("backdrop compositing is not supported by this backend".to_string())
     }
 
     /// Render `scene` into its own texture with no effect chain and queue it as
-    /// a plain blit at `origin`. This is the "above" half of a split frame: the
-    /// pinned vello build always clears its target (`RenderParams` has no
-    /// preserve option), so content that must land *over* a drained layer cannot
-    /// be rendered into the target in place.
+    /// a plain blit at `origin`. The "above" half of a split frame: pinned vello
+    /// always clears its target, so over-drawn content cannot render in place.
     fn enqueue_scene_composite(
         &mut self,
         scene: &vello::Scene,
@@ -205,8 +162,7 @@ pub trait FilterBackend: Send {
     }
 
     /// Serve one queued backdrop against `target`, the texture the main scene
-    /// has just been rendered into, and return the layer to composite. Called
-    /// from the drain loop in queue order, never during evaluation.
+    /// has just been rendered into, and return the layer to composite.
     fn run_backdrop(
         &mut self,
         target: &wgpu::Texture,
@@ -222,8 +178,6 @@ pub trait FilterBackend: Send {
     }
 
     /// Recycle a pending composite texture that has finished blitting.
-    ///
-    /// The default implementation drops the composite. Backends with texture pools
-    /// can reuse the GPU texture allocations across frames to eliminate allocation churn.
+    /// Texture-pool backends reuse the allocation; the default drops it.
     fn recycle_pending_composite(&mut self, _composite: PendingComposite) {}
 }
