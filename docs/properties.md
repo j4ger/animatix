@@ -29,11 +29,11 @@
 | Property | Type | Animated | Assignable | Applies to |
 |----------|------|----------|------------|------------|
 | `title` | Str | — | — | Legend |
-| `font_size` | F32 | — | — | Legend |
 | `label_color` | Color / auto | — | — | Legend |
 | `swatch_size` | F32 | — | — | Legend |
-| `gap` | F32 | — | — | Legend |
-| `text_max_width` | F32 | — | — | Legend |
+
+`Legend` also reads the shared rows `font_size` and `text_max_width` (under
+Text) and `gap` (under Containers).
 
 ## Geometry
 
@@ -47,9 +47,16 @@
 | `corner_radius` | F32 | ✓ | ✓ | Rect |
 | `width` | F32 | ✓ | ✓ | Sized actors |
 | `height` | F32 | ✓ | ✓ | Sized actors |
+| `min_width` | F32 | ✓ | ✓ | Sized actors |
+| `min_height` | F32 | ✓ | ✓ | Sized actors |
+| `max_height` | F32 | ✓ | ✓ | Sized actors |
+| `max_item_width` | F32 | ✓ | ✓ | Sized actors |
 | `rotation` | F32 | ✓ | ✓ | Everything |
 | `scale` | F32 | ✓ | ✓ | Everything |
 | `transform` | Transform | ✓ | ✓ | Everything |
+| `rotate_x` | F32 | ✓ | ✓ | Everything |
+| `rotate_y` | F32 | ✓ | ✓ | Everything |
+| `perspective` | F32 | ✓ | ✓ | Everything |
 
 ## Style
 
@@ -68,6 +75,10 @@
 | `stroke_gradient` | Gradient | ✓ | ✓ | All stroke paths |
 | `gradient_extend` | Str | ✓ | ✓ | Shapes, text-like actors, and stroke paths |
 | `gradient_space` | Str | ✓ | ✓ | Shapes, text-like actors, and stroke paths |
+| `shadow` | Vec4 | ✓ | ✓ | All shapes except Line |
+| `shadow_color` | Color | ✓ | ✓ | All shapes except Line |
+| `solo` | Bool | — | ✓ | Everything |
+| `idle` | Str | ✓ | ✓ | Everything |
 
 `dash_pattern` takes a brace list of alternating segment and gap lengths in scene
 pixels (`dash_pattern: {8, 6}`); animating `dash_offset` gives marching ants.
@@ -124,12 +135,17 @@ Only applicable to `Filter` actors. See [`architecture.md`](architecture.md) §6
 
 | Property | Type | Animated | Assignable | Applies to |
 |----------|------|----------|------------|------------|
+| `bounds` | Vec4 | ✓ | ✓ | Filter |
 | `blur` | F32 | ✓ | ✓ | Filter |
 | `brightness` | F32 | ✓ | ✓ | Filter |
 | `contrast` | F32 | ✓ | ✓ | Filter |
 | `saturate` | F32 | ✓ | ✓ | Filter |
 | `hue_rotate` | F32 | ✓ | ✓ | Filter |
 | `sepia` | F32 | ✓ | ✓ | Filter |
+
+The post-processing knobs (`blur`, `brightness`, `contrast`, `saturate`,
+`hue_rotate`, `sepia`) are parsed by the `Filter` primitive itself; `bounds` is
+the registry-backed clip rectangle.
 
 ## Shape-Specific
 
@@ -146,6 +162,14 @@ Only applicable to `Filter` actors. See [`architecture.md`](architecture.md) §6
 | `points` | PointList | ✓ | ✓ | Polygon |
 | `commands` | CommandList | ✓ | ✓ | Path |
 | `icon` | Str (build-time) | — | — | Path |
+| `routing` | String | ✓ | ✓ | Connector |
+| `arrow` | Bool | ✓ | ✓ | Connector |
+| `label` | String | ✓ | ✓ | Callout |
+| `label_at` | Vec2 | ✓ | ✓ | Callout |
+| `place` | PlacementMode | — | ✓ | Callout |
+| `target` | String (build-time) | — | ✓ | Callout |
+| `standoff` | F32 | ✓ | ✓ | Callout |
+| `to_offset` | Vec2 | ✓ | ✓ | Callout |
 
 ## Text / Typst / Code
 
@@ -154,8 +178,19 @@ Only applicable to `Filter` actors. See [`architecture.md`](architecture.md) §6
 | `text` | String | ✓ | ✓ | Text |
 | `code` | String | ✓ | ✓ | Code |
 | `language` | String | — | ✓ | Code |
-| `font_family` | String | — | ✓ | Text, Typst, Code |
-| `font_size` | F32 | ✓ | ✓ | Text, Typst, Code |
+| `font_family` | String | — | ✓ | Text, Typst, Code, Math |
+| `font_size` | F32 | ✓ | ✓ | Text, Typst, Code, Math, Captions, Counter, Cue, Equation, Legend |
+| `font_style` | String | ✓ | ✓ | Text, Typst, Code, Math, Captions |
+| `font_weight` | F32 | ✓ | ✓ | Text, Typst, Code, Math, Captions |
+| `line_height` | F32 | ✓ | ✓ | Text, Typst, Code, Math, Captions |
+| `letter_spacing` | F32 | ✓ | ✓ | Text, Typst, Code, Math, Captions |
+| `word_spacing` | F32 | ✓ | ✓ | Text, Typst, Code, Math, Captions |
+| `max_width` | F32 | ✓ | ✓ | Text, Typst, Code, Math |
+| `text_max_width` | F32 | ✓ | ✓ | Text, Typst, Code, Math, Captions, Legend |
+| `text_align` | String | ✓ | ✓ | Text-like actors |
+| `text_anchor` | String | ✓ | ✓ | Text-like actors |
+| `overflow` | String | ✓ | ✓ | Text-like actors |
+| `char_progress` | F32 | ✓ | ✓ | Text-like actors |
 
 `language` is the syntax-highlighting tag for `Code` (Typst's built-in `raw`
 languages, e.g. `"rust"`, `"python"`, `"cpp"`; matched case-insensitively).
@@ -165,6 +200,62 @@ un-highlighted text keeps the actor's `color`, and glyph metrics (and thus
 layout) are unchanged. Token colours follow the active colorscheme (each role
 maps to a named scheme colour, resolved at build like any other `color`).
 
+### Split text
+
+| Property | Type | Animated | Assignable | Applies to |
+|----------|------|----------|------------|------------|
+| `split_by` | String | ✓ | ✓ | Text-like actors |
+| `split_stagger` | F32 | ✓ | ✓ | Text-like actors |
+| `split_offset_y` | F32 | ✓ | ✓ | Text-like actors |
+| `split_mask` | Bool | ✓ | ✓ | Text-like actors |
+
+### Captions and cues
+
+| Property | Type | Animated | Assignable | Applies to |
+|----------|------|----------|------------|------------|
+| `caption_mode` | String | ✓ | ✓ | Captions |
+| `active_color` | Color | ✓ | ✓ | Captions, Cue |
+| `inactive_color` | Color | ✓ | ✓ | Captions |
+| `backdrop` | Bool | ✓ | ✓ | Captions |
+| `backdrop_color` | Color | ✓ | ✓ | Captions |
+| `backdrop_radius` | F32 | ✓ | ✓ | Captions |
+| `backdrop_padding` | Vec2 | ✓ | ✓ | Captions |
+| `pop_scale` | F32 | ✓ | ✓ | Captions |
+| `max_lines` | U32 | ✓ | ✓ | Captions |
+| `transition_time` | F32 | ✓ | ✓ | Captions |
+| `start` | F32 | ✓ | ✓ | Cue |
+| `end` | F32 | ✓ | ✓ | Cue |
+
+### Counter
+
+| Property | Type | Animated | Assignable | Applies to |
+|----------|------|----------|------------|------------|
+| `value` | F32 | ✓ | ✓ | Counter |
+| `prefix` | String | ✓ | ✓ | Counter |
+| `suffix` | String | ✓ | ✓ | Counter |
+| `decimals` | U32 | ✓ | ✓ | Counter |
+| `comma` | Bool | ✓ | ✓ | Counter |
+
+### Equation and fragment highlights
+
+| Property | Type | Animated | Assignable | Applies to |
+|----------|------|----------|------------|------------|
+| `highlight_color` | Color | ✓ | — | Equation, Fragment |
+| `highlight_opacity` | F32 | ✓ | — | Equation, Fragment |
+| `highlight_padding` | F32 | ✓ | — | Equation, Fragment |
+| `highlight_radius` | F32 | ✓ | — | Equation, Fragment |
+
+### Text metrics (internal)
+
+| Property | Type | Animated | Assignable | Applies to |
+|----------|------|----------|------------|------------|
+| `ascent` | F32 | ✓ | — | Text metrics (internal) |
+| `descent` | F32 | ✓ | — | Text metrics (internal) |
+| `baseline` | F32 | ✓ | — | Text metrics (internal) |
+
+`ascent`, `descent`, and `baseline` are written by the text build path and are
+not author-facing; they are listed here because they are descriptor rows.
+
 ## Media
 
 | Property | Type | Animated | Assignable | Applies to |
@@ -172,6 +263,7 @@ maps to a named scheme colour, resolved at build like any other `color`).
 | `url` | String | ✓ | ✓ | Image, Svg |
 | `source` | String | — | — | Audio |
 | `volume` | F32 | — | — | Audio |
+| `transcript` | String | — | ✓ | Audio, Captions |
 
 `source` is the path to the audio asset. `volume` is a multiplier (0.0–1.0) applied at export time.
 Audio actors support timing modifiers (`duration`, delay) for clip placement on the global timeline. See [`spec.md`](spec.md) §9 "Audio".
@@ -207,6 +299,8 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 | `grid` | String | — | — | Graph |
 | `ticks` | String | — | — | Graph |
 | `tick_labels` | String | — | — | Graph |
+| `x_scale` | String | — | — | Graph |
+| `y_scale` | String | — | — | Graph |
 
 `func` transitions use assignment modifiers, e.g. `[1s]` for output blending or
 `[1s, blend: opacity]` for cross-fading the two generated plot outputs.
@@ -227,6 +321,7 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 | `padding` | F32 | — | — | Row, Col, Grid, Stack |
 | `align` | String | — | — | Row, Col, Grid |
 | `cols` | U32 | — | — | Grid |
+| `vertical_align` | String | — | — | Col, Row |
 
 ## Scene
 
@@ -234,6 +329,8 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 |----------|------|----------|------------|------------|
 | `background_color` | Color | ✓ | ✓ | Scene (via `scene.background_color`) |
 | `camera_follow` | Bool | — | — | Everything (declaration only; read on root actors) |
+| `parallax` | F32 | — | — | Everything (declaration only; read on root actors) |
+| `shared_id` | String | — | ✓ | Everything |
 
 > **Note on `camera_follow`:** the scene camera wraps every root subtree, and
 > `camera_follow: false` takes one of them back out — the HUD, watermark or
