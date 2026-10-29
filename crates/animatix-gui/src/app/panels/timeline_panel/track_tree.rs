@@ -57,104 +57,106 @@ pub(crate) struct ActorRowHeaderLayout<'a> {
     pub prop_expanded: bool,
 }
 
-/// Render the left header column of an actor track row (label, tree chevron, expand toggle, eye/solo/lock).
-pub(crate) fn render_actor_row_header(
-    ui: &mut egui::Ui,
-    layout: &ActorRowHeaderLayout<'_>,
-    timeline: Option<&Timeline>,
-    collapsed_actors: &mut HashSet<String>,
-    expanded_properties: &mut HashSet<String>,
-    selected_actors: &mut HashSet<String>,
-    commands: &mut ActionQueue,
-    theme: eparts::Theme,
-    sp: &Spatial,
-) {
-    let ActorRowHeaderLayout {
-        actor_label,
-        depth,
-        track_idx,
-        at_top,
-        at_bot,
-        scroll_rect,
-        bar_origin_x,
-        is_selected,
-        is_collapsed,
-        has_children,
-        prop_expanded,
-    } = *layout;
-    let painter = ui.painter();
-    let track_rect = Rect::from_min_max(
-        Pos2::new(scroll_rect.left(), at_top),
-        Pos2::new(scroll_rect.right(), at_bot),
-    );
+/// Width and gap of one eye/solo/lock icon in the right-aligned strip.
+const ICON_W: f32 = 16.0;
+const ICON_GAP: f32 = 2.0;
 
-    // Alternating row background
-    if track_idx % 2 == 0 {
-        painter.rect_filled(track_rect, 0.0, theme.components.list.odd.bg);
+impl ActorRowHeaderLayout<'_> {
+    /// Full row rect across every column.
+    fn track_rect(&self) -> Rect {
+        Rect::from_min_max(
+            Pos2::new(self.scroll_rect.left(), self.at_top),
+            Pos2::new(self.scroll_rect.right(), self.at_bot),
+        )
     }
 
-    // Selection highlight
-    if is_selected {
+    /// Label column: left edge through the timeline bar origin.
+    fn label_rect(&self) -> Rect {
+        Rect::from_min_max(
+            Pos2::new(self.scroll_rect.left(), self.at_top),
+            Pos2::new(self.bar_origin_x, self.at_bot),
+        )
+    }
+
+    /// Left edge of the eye/solo/lock strip.
+    fn icon_strip_left(&self, sp: &Spatial) -> f32 {
+        self.bar_origin_x - sp.base.space_2 - (ICON_W * 3.0 + ICON_GAP * 2.0)
+    }
+}
+
+/// Alternating row fill, selection highlight, and label column background.
+fn paint_actor_row_background(
+    painter: &egui::Painter,
+    layout: &ActorRowHeaderLayout<'_>,
+    theme: eparts::Theme,
+) {
+    let track_rect = layout.track_rect();
+    if layout.track_idx % 2 == 0 {
+        painter.rect_filled(track_rect, 0.0, theme.components.list.odd.bg);
+    }
+    if layout.is_selected {
         painter.rect_filled(track_rect, 0.0, theme.palette.accent.selection);
         let accent = Rect::from_min_size(track_rect.min, Vec2::new(2.0, track_rect.height()));
         painter.rect_filled(accent, 0.0, theme.palette.accent.primary);
     }
+    painter.rect_filled(layout.label_rect(), 0.0, theme.palette.surface.base);
+}
 
-    // Label column background
-    painter.rect_filled(
-        Rect::from_min_max(Pos2::new(scroll_rect.left(), at_top), Pos2::new(bar_origin_x, at_bot)),
-        0.0,
-        theme.palette.surface.base,
+/// Collapse/expand chevron for an actor that has children.
+fn render_actor_chevron(
+    ui: &egui::Ui,
+    layout: &ActorRowHeaderLayout<'_>,
+    chevron_x: f32,
+    collapsed_actors: &mut HashSet<String>,
+    theme: eparts::Theme,
+    sp: &Spatial,
+) {
+    let painter = ui.painter();
+    let actor_label = layout.actor_label;
+    let chevron_icon = if layout.is_collapsed {
+        egui_phosphor::regular::CARET_RIGHT
+    } else {
+        egui_phosphor::regular::CARET_DOWN
+    };
+    let chevron_rect = Rect::from_min_size(
+        Pos2::new(chevron_x, layout.at_top + 2.0),
+        Vec2::new(14.0, sp.timeline.track_row_height - 4.0),
     );
-
-    // Indent based on depth
-    let indent = depth as f32 * 14.0;
-
-    // Chevron toggle button (only if actor has children)
-    let chevron_x = scroll_rect.left() + sp.base.space_2 + indent;
-    if has_children {
-        let chevron_icon = if is_collapsed {
-            egui_phosphor::regular::CARET_RIGHT
+    let chevron_resp =
+        ui.interact(chevron_rect, ui.id().with(("actor_chevron", actor_label)), Sense::click());
+    painter.text(
+        chevron_rect.center(),
+        Align2::CENTER_CENTER,
+        chevron_icon,
+        TextRole::BodyS.font_id(),
+        if chevron_resp.hovered() {
+            theme.palette.text.primary
         } else {
-            egui_phosphor::regular::CARET_DOWN
-        };
-        let chevron_rect = Rect::from_min_size(
-            Pos2::new(chevron_x, at_top + 2.0),
-            Vec2::new(14.0, sp.timeline.track_row_height - 4.0),
-        );
-        let chevron_resp =
-            ui.interact(chevron_rect, ui.id().with(("actor_chevron", actor_label)), Sense::click());
-        painter.text(
-            chevron_rect.center(),
-            Align2::CENTER_CENTER,
-            chevron_icon,
-            TextRole::BodyS.font_id(),
-            if chevron_resp.hovered() {
-                theme.palette.text.primary
-            } else {
-                theme.palette.text.muted
-            },
-        );
-        if chevron_resp.clicked() {
-            if is_collapsed {
-                collapsed_actors.remove(actor_label);
-            } else {
-                collapsed_actors.insert(actor_label.to_string());
-            }
+            theme.palette.text.muted
+        },
+    );
+    if chevron_resp.clicked() {
+        if layout.is_collapsed {
+            collapsed_actors.remove(actor_label);
+        } else {
+            collapsed_actors.insert(actor_label.to_string());
         }
     }
+}
 
-    // Solo / eye / lock live in a fixed strip at the right edge of the
-    // label column; the label is clipped to `icon_strip_left` so the
-    // two never overlap.
-    const ICON_W: f32 = 16.0;
-    const ICON_GAP: f32 = 2.0;
-    let icon_strip_left = bar_origin_x - sp.base.space_2 - (ICON_W * 3.0 + ICON_GAP * 2.0);
-
-    // Property expand toggle (LIST icon)
-    let prop_toggle_x = chevron_x + if has_children { 18.0 } else { 4.0 };
+/// Property-lane expand toggle (LIST icon) next to the chevron slot.
+fn render_property_expand_toggle(
+    ui: &egui::Ui,
+    layout: &ActorRowHeaderLayout<'_>,
+    prop_toggle_x: f32,
+    expanded_properties: &mut HashSet<String>,
+    theme: eparts::Theme,
+    sp: &Spatial,
+) {
+    let painter = ui.painter();
+    let actor_label = layout.actor_label;
     let prop_toggle_rect = Rect::from_min_size(
-        Pos2::new(prop_toggle_x, at_top + 2.0),
+        Pos2::new(prop_toggle_x, layout.at_top + 2.0),
         Vec2::new(14.0, sp.timeline.track_row_height - 4.0),
     );
     let prop_toggle_resp =
@@ -164,24 +166,38 @@ pub(crate) fn render_actor_row_header(
         Align2::CENTER_CENTER,
         egui_phosphor::regular::LIST,
         TextRole::Micro.font_id(),
-        if prop_expanded {
+        if layout.prop_expanded {
             theme.palette.accent.primary
         } else {
             theme.palette.text.muted
         },
     );
     if prop_toggle_resp.clicked() {
-        if prop_expanded {
+        if layout.prop_expanded {
             expanded_properties.remove(actor_label);
         } else {
             expanded_properties.insert(actor_label.to_string());
         }
     }
+}
 
-    // Track label — elided to the icon strip, not to a fixed character
-    // count: solo/eye/lock claim a fixed slice of the label column, so
-    // a character-count cut still runs long names under the icons.
-    let label_x = prop_toggle_x + 16.0 + sp.base.space_2;
+/// Elided actor label plus click/shift-click selection.
+fn render_actor_label(
+    ui: &egui::Ui,
+    layout: &ActorRowHeaderLayout<'_>,
+    label_x: f32,
+    selected_actors: &mut HashSet<String>,
+    theme: eparts::Theme,
+    sp: &Spatial,
+) {
+    let painter = ui.painter();
+    let actor_label = layout.actor_label;
+    let track_rect = layout.track_rect();
+    let icon_strip_left = layout.icon_strip_left(sp);
+
+    // Elide to the icon strip, not to a fixed character count: solo/eye/lock
+    // claim a fixed slice of the label column, so a character-count cut still
+    // runs long names under the icons.
     let label_max_w = (icon_strip_left - sp.base.space_2 - label_x).max(24.0);
     let label_font = TextRole::BodyS.font_id();
     let label_text = elide_to_width(actor_label, label_max_w, |candidate| {
@@ -195,18 +211,19 @@ pub(crate) fn render_actor_row_header(
         Align2::LEFT_CENTER,
         &label_text,
         label_font,
-        if is_selected {
+        if layout.is_selected {
             theme.palette.text.primary
         } else {
             theme.palette.text.secondary
         },
     );
 
-    // Click on label to select actor
-    let label_area =
-        Rect::from_min_max(Pos2::new(scroll_rect.left(), at_top), Pos2::new(bar_origin_x, at_bot));
-    let label_resp =
-        ui.interact(label_area, ui.id().with(("actor_label", track_idx)), Sense::click());
+    // Click on label to select actor.
+    let label_resp = ui.interact(
+        layout.label_rect(),
+        ui.id().with(("actor_label", layout.track_idx)),
+        Sense::click(),
+    );
     if label_resp.clicked() {
         let modifiers = ui.ctx().input(|i| i.modifiers);
         let multi = modifiers.shift || modifiers.ctrl || modifiers.command;
@@ -220,147 +237,181 @@ pub(crate) fn render_actor_row_header(
             selected_actors.clear();
             selected_actors.insert(actor_label.to_string());
         }
-        // Only scroll if the clicked row is not fully visible
+        // Only scroll if the clicked row is not fully visible.
         let viewport = ui.clip_rect();
-        let row_visible = at_top >= viewport.top() && at_bot <= viewport.bottom();
+        let row_visible = layout.at_top >= viewport.top() && layout.at_bot <= viewport.bottom();
         if !row_visible {
-            let track_rect = Rect::from_min_max(
-                Pos2::new(scroll_rect.left(), at_top),
-                Pos2::new(scroll_rect.right(), at_bot),
-            );
             ui.scroll_to_rect(track_rect, Some(egui::Align::Center));
         }
     }
+}
 
-    // Eye / lock / solo controls, right-aligned in the label column
-    if let Some(id) = timeline.and_then(|tl| tl.get_entity_id(actor_label)) {
-        let icon_size = Vec2::new(ICON_W, sp.timeline.track_row_height - 4.0);
-        let lock_rect = Rect::from_min_size(
-            Pos2::new(bar_origin_x - sp.base.space_2 - ICON_W, at_top + 2.0),
-            icon_size,
-        );
-        let eye_rect = Rect::from_min_size(
-            Pos2::new(lock_rect.left() - ICON_GAP - ICON_W, at_top + 2.0),
-            icon_size,
-        );
-        let solo_rect = Rect::from_min_size(
-            Pos2::new(eye_rect.left() - ICON_GAP - ICON_W, at_top + 2.0),
-            icon_size,
-        );
-        debug_assert!(
-            (solo_rect.left() - icon_strip_left).abs() < 0.5,
-            "label clip must match the icon strip"
-        );
+/// Eye / solo / lock controls, right-aligned in the label column.
+fn render_actor_state_controls(
+    ui: &egui::Ui,
+    layout: &ActorRowHeaderLayout<'_>,
+    timeline: Option<&Timeline>,
+    commands: &mut ActionQueue,
+    theme: eparts::Theme,
+    sp: &Spatial,
+) {
+    let painter = ui.painter();
+    let actor_label = layout.actor_label;
+    let icon_strip_left = layout.icon_strip_left(sp);
+    let icon_size = Vec2::new(ICON_W, sp.timeline.track_row_height - 4.0);
+    let lock_rect = Rect::from_min_size(
+        Pos2::new(layout.bar_origin_x - sp.base.space_2 - ICON_W, layout.at_top + 2.0),
+        icon_size,
+    );
+    let eye_rect = Rect::from_min_size(
+        Pos2::new(lock_rect.left() - ICON_GAP - ICON_W, layout.at_top + 2.0),
+        icon_size,
+    );
+    let solo_rect = Rect::from_min_size(
+        Pos2::new(eye_rect.left() - ICON_GAP - ICON_W, layout.at_top + 2.0),
+        icon_size,
+    );
+    debug_assert!(
+        (solo_rect.left() - icon_strip_left).abs() < 0.5,
+        "label clip must match the icon strip"
+    );
 
-        let visible = timeline.is_some_and(|t| t.is_actor_visible(actor_label));
-        let eye_icon = if visible {
-            egui_phosphor::regular::EYE
+    let Some(id) = timeline.and_then(|tl| tl.get_entity_id(actor_label)) else {
+        return;
+    };
+
+    let visible = timeline.is_some_and(|t| t.is_actor_visible(actor_label));
+    let eye_icon = if visible {
+        egui_phosphor::regular::EYE
+    } else {
+        egui_phosphor::regular::EYE_CLOSED
+    };
+    let eye_resp = ui.interact(eye_rect, ui.id().with(("actor_eye", actor_label)), Sense::click());
+    painter.text(
+        eye_rect.center(),
+        Align2::CENTER_CENTER,
+        eye_icon,
+        TextRole::BodyS.font_id(),
+        if !visible {
+            theme.palette.text.disabled
+        } else if eye_resp.hovered() {
+            theme.palette.text.primary
         } else {
-            egui_phosphor::regular::EYE_CLOSED
-        };
-        let eye_resp =
-            ui.interact(eye_rect, ui.id().with(("actor_eye", actor_label)), Sense::click());
-        painter.text(
-            eye_rect.center(),
-            Align2::CENTER_CENTER,
-            eye_icon,
-            TextRole::BodyS.font_id(),
-            if !visible {
-                theme.palette.text.disabled
-            } else if eye_resp.hovered() {
-                theme.palette.text.primary
-            } else {
-                theme.palette.text.secondary
-            },
-        );
-        text_tooltip(
-            ui,
-            eye_resp.id.with("tooltip"),
-            &eye_resp,
-            if visible { "Hide layer" } else { "Show layer" },
-        );
-        if eye_resp.clicked() {
-            commands.push_back(ActorCommand::ToggleActorVisibility(actor_label.to_string()).into());
-        }
-
-        // Solo is authored state (`solo: true` in the declaration)
-        let solo = matches!(
-            timeline.and_then(|tl| tl.world().read_property_value(
-                id,
-                ActorField::Tagged("solo"),
-                0
-            )),
-            Some(PropertyValue::Bool(true))
-        );
-        let solo_resp =
-            ui.interact(solo_rect, ui.id().with(("actor_solo", actor_label)), Sense::click());
-        painter.text(
-            solo_rect.center(),
-            Align2::CENTER_CENTER,
-            egui_phosphor::regular::HEADPHONES,
-            TextRole::BodyS.font_id(),
-            if solo {
-                theme.palette.status.warning
-            } else if solo_resp.hovered() {
-                theme.palette.text.primary
-            } else {
-                theme.palette.text.disabled
-            },
-        );
-        text_tooltip(
-            ui,
-            solo_resp.id.with("tooltip"),
-            &solo_resp,
-            if solo {
-                "Unsolo layer"
-            } else {
-                "Solo layer (hides every other layer)"
-            },
-        );
-        if solo_resp.clicked() {
-            commands.push_back(
-                DocumentCommand::PropertyEdit(PropertyEdit {
-                    time_s: None,
-                    actor: actor_label.to_string(),
-                    property: "solo".to_string(),
-                    value: PropertyValue::Bool(!solo),
-                    create_keyframe: false,
-                })
-                .into(),
-            );
-        }
-
-        let locked = timeline.is_some_and(|t| t.is_actor_locked(actor_label));
-        let lock_icon = if locked {
-            egui_phosphor::regular::LOCK_KEY
-        } else {
-            egui_phosphor::regular::LOCK_KEY_OPEN
-        };
-        let lock_resp =
-            ui.interact(lock_rect, ui.id().with(("actor_lock", actor_label)), Sense::click());
-        painter.text(
-            lock_rect.center(),
-            Align2::CENTER_CENTER,
-            lock_icon,
-            TextRole::BodyS.font_id(),
-            if locked {
-                theme.palette.status.warning
-            } else if lock_resp.hovered() {
-                theme.palette.text.primary
-            } else {
-                theme.palette.text.disabled
-            },
-        );
-        text_tooltip(
-            ui,
-            lock_resp.id.with("tooltip"),
-            &lock_resp,
-            if locked { "Unlock layer" } else { "Lock layer" },
-        );
-        if lock_resp.clicked() {
-            commands.push_back(ActorCommand::ToggleActorLock(actor_label.to_string()).into());
-        }
+            theme.palette.text.secondary
+        },
+    );
+    text_tooltip(
+        ui,
+        eye_resp.id.with("tooltip"),
+        &eye_resp,
+        if visible { "Hide layer" } else { "Show layer" },
+    );
+    if eye_resp.clicked() {
+        commands.push_back(ActorCommand::ToggleActorVisibility(actor_label.to_string()).into());
     }
+
+    // Solo is authored state (`solo: true` in the declaration).
+    let solo = matches!(
+        timeline.and_then(|tl| tl.world().read_property_value(id, ActorField::Tagged("solo"), 0)),
+        Some(PropertyValue::Bool(true))
+    );
+    let solo_resp =
+        ui.interact(solo_rect, ui.id().with(("actor_solo", actor_label)), Sense::click());
+    painter.text(
+        solo_rect.center(),
+        Align2::CENTER_CENTER,
+        egui_phosphor::regular::HEADPHONES,
+        TextRole::BodyS.font_id(),
+        if solo {
+            theme.palette.status.warning
+        } else if solo_resp.hovered() {
+            theme.palette.text.primary
+        } else {
+            theme.palette.text.disabled
+        },
+    );
+    text_tooltip(
+        ui,
+        solo_resp.id.with("tooltip"),
+        &solo_resp,
+        if solo {
+            "Unsolo layer"
+        } else {
+            "Solo layer (hides every other layer)"
+        },
+    );
+    if solo_resp.clicked() {
+        commands.push_back(
+            DocumentCommand::PropertyEdit(PropertyEdit {
+                time_s: None,
+                actor: actor_label.to_string(),
+                property: "solo".to_string(),
+                value: PropertyValue::Bool(!solo),
+                create_keyframe: false,
+            })
+            .into(),
+        );
+    }
+
+    let locked = timeline.is_some_and(|t| t.is_actor_locked(actor_label));
+    let lock_icon = if locked {
+        egui_phosphor::regular::LOCK_KEY
+    } else {
+        egui_phosphor::regular::LOCK_KEY_OPEN
+    };
+    let lock_resp =
+        ui.interact(lock_rect, ui.id().with(("actor_lock", actor_label)), Sense::click());
+    painter.text(
+        lock_rect.center(),
+        Align2::CENTER_CENTER,
+        lock_icon,
+        TextRole::BodyS.font_id(),
+        if locked {
+            theme.palette.status.warning
+        } else if lock_resp.hovered() {
+            theme.palette.text.primary
+        } else {
+            theme.palette.text.disabled
+        },
+    );
+    text_tooltip(
+        ui,
+        lock_resp.id.with("tooltip"),
+        &lock_resp,
+        if locked { "Unlock layer" } else { "Lock layer" },
+    );
+    if lock_resp.clicked() {
+        commands.push_back(ActorCommand::ToggleActorLock(actor_label.to_string()).into());
+    }
+}
+
+/// Render the left header column of an actor track row (label, tree chevron, expand toggle, eye/solo/lock).
+pub(crate) fn render_actor_row_header(
+    ui: &mut egui::Ui,
+    layout: &ActorRowHeaderLayout<'_>,
+    timeline: Option<&Timeline>,
+    collapsed_actors: &mut HashSet<String>,
+    expanded_properties: &mut HashSet<String>,
+    selected_actors: &mut HashSet<String>,
+    commands: &mut ActionQueue,
+    theme: eparts::Theme,
+    sp: &Spatial,
+) {
+    paint_actor_row_background(ui.painter(), layout, theme);
+
+    let indent = layout.depth as f32 * 14.0;
+    let chevron_x = layout.scroll_rect.left() + sp.base.space_2 + indent;
+    if layout.has_children {
+        render_actor_chevron(ui, layout, chevron_x, collapsed_actors, theme, sp);
+    }
+
+    let prop_toggle_x = chevron_x + if layout.has_children { 18.0 } else { 4.0 };
+    render_property_expand_toggle(ui, layout, prop_toggle_x, expanded_properties, theme, sp);
+
+    let label_x = prop_toggle_x + 16.0 + sp.base.space_2;
+    render_actor_label(ui, layout, label_x, selected_actors, theme, sp);
+
+    render_actor_state_controls(ui, layout, timeline, commands, theme, sp);
 }
 
 /// Render the left header column of an expanded property lane row (colored dot, indented property name).

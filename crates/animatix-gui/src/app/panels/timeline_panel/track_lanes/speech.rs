@@ -1,16 +1,12 @@
 use super::*;
 
-pub(crate) fn render_speech_track(
-    ui: &mut egui::Ui,
-    timeline: Option<&Timeline>,
+/// Label column, title, and background for the speech lane.
+fn paint_speech_track_header(
+    ui: &egui::Ui,
     sp_top: f32,
     sp_bot: f32,
     scroll_rect: Rect,
     coords: &TimelineCoords,
-    preview: &PreviewPaneState,
-    commands: &mut ActionQueue,
-    playhead_x: f32,
-    panel_id: egui::Id,
     theme: eparts::Theme,
     sp: &Spatial,
 ) {
@@ -33,10 +29,16 @@ pub(crate) fn render_speech_track(
         Pos2::new(scroll_rect.right(), sp_bot),
     );
     painter.rect_filled(bar_area, 0.0, theme.components.list.odd.bg);
+}
 
-    let current_time_s = preview.playback.current_time_s();
-
-    // Background click to seek
+/// Click/drag anywhere on the lane background to scrub.
+fn speech_track_seek_area(
+    ui: &egui::Ui,
+    bar_area: Rect,
+    coords: &TimelineCoords,
+    panel_id: egui::Id,
+    commands: &mut ActionQueue,
+) {
     let speech_resp =
         ui.interact(bar_area, panel_id.with("speech_track_bar"), Sense::click_and_drag());
     if speech_resp.clicked() || speech_resp.dragged() {
@@ -45,6 +47,56 @@ pub(crate) fn render_speech_track(
             commands.push_back(PlaybackCommand::ScrubTo(t).into());
         }
     }
+}
+
+/// Playhead tick and the separator below the speech lane.
+fn paint_speech_track_footer(
+    painter: &egui::Painter,
+    playhead_x: f32,
+    sp_top: f32,
+    sp_bot: f32,
+    scroll_rect: Rect,
+    theme: eparts::Theme,
+) {
+    painter.line_segment(
+        [Pos2::new(playhead_x, sp_top), Pos2::new(playhead_x, sp_bot)],
+        Stroke::new(1.5, theme.palette.text.primary),
+    );
+    painter.line_segment(
+        [
+            Pos2::new(scroll_rect.left(), sp_bot),
+            Pos2::new(scroll_rect.right(), sp_bot),
+        ],
+        Stroke::new(STROKE_WIDTH, theme.palette.border.default),
+    );
+}
+
+pub(crate) fn render_speech_track(
+    ui: &mut egui::Ui,
+    timeline: Option<&Timeline>,
+    sp_top: f32,
+    sp_bot: f32,
+    scroll_rect: Rect,
+    coords: &TimelineCoords,
+    preview: &PreviewPaneState,
+    commands: &mut ActionQueue,
+    playhead_x: f32,
+    panel_id: egui::Id,
+    theme: eparts::Theme,
+    sp: &Spatial,
+) {
+    let painter = ui.painter();
+    paint_speech_track_header(ui, sp_top, sp_bot, scroll_rect, coords, theme, sp);
+
+    let bar_area = Rect::from_min_max(
+        Pos2::new(coords.bar_origin_x, sp_top),
+        Pos2::new(scroll_rect.right(), sp_bot),
+    );
+
+    let current_time_s = preview.playback.current_time_s();
+
+    // Background click to seek
+    speech_track_seek_area(ui, bar_area, coords, panel_id, commands);
 
     if let Some(tl) = timeline {
         for (actor_id, transcript) in tl.transcripts_iter() {
@@ -204,17 +256,6 @@ pub(crate) fn render_speech_track(
         }
     }
 
-    // Playhead tick
-    painter.line_segment(
-        [Pos2::new(playhead_x, sp_top), Pos2::new(playhead_x, sp_bot)],
-        Stroke::new(1.5, theme.palette.text.primary),
-    );
-    // Border bottom
-    painter.line_segment(
-        [
-            Pos2::new(scroll_rect.left(), sp_bot),
-            Pos2::new(scroll_rect.right(), sp_bot),
-        ],
-        Stroke::new(STROKE_WIDTH, theme.palette.border.default),
-    );
+    // Playhead tick and lane border.
+    paint_speech_track_footer(painter, playhead_x, sp_top, sp_bot, scroll_rect, theme);
 }
