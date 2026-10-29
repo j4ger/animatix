@@ -1,11 +1,8 @@
-//! Reusable modal dialog widget — centered `egui::Window` with backdrop,
-//! consistent Pattern B styling, and a standard title-row helper.
+//! Reusable modal dialog widget — centered `egui::Window` with backdrop and
+//! consistent Pattern B styling, plus a standard title-row helper.
 //!
-//! # Constraint
-//!
-//! Only one dialog with a given `id` may be open at a time (egui uses the
-//! id string as the window identifier). This is safe in the current UX since
-//! at most one modal is open at once.
+//! Only one dialog with a given `id` may be open at a time (egui uses the id
+//! string as the window identifier).
 
 use egui::{Align2, Margin, Stroke, Ui};
 
@@ -22,8 +19,7 @@ use crate::widget::overlay::{
 
 /// Context passed to the dialog body on each frame.
 pub struct DialogCtx {
-    /// Set to `true` on the very first frame the dialog is rendered.
-    /// Useful for requesting initial focus on a widget.
+    /// True on the very first frame the dialog is rendered (for initial focus).
     #[allow(dead_code)] // Reserved for CommandPalette/FindReplace focus-on-open
     pub first_frame: bool,
 }
@@ -86,15 +82,11 @@ impl<'a> DialogSpec<'a> {
     }
 }
 
-/// Draws the modal backdrop (full-viewport dim), intercepts Escape + backdrop
-/// click to request close, then shows a centered `egui::Window` with the
-/// standard Pattern B frame.
+/// Draw the modal backdrop (full-viewport dim), intercept Escape + backdrop
+/// click to request close, then show a centered `egui::Window` with the
+/// Pattern B frame. `body` returns `true` to request close.
 ///
 /// Returns `true` while the dialog is open, `false` when it should close.
-///
-/// `body` receives the window's inner `&mut Ui` plus a [`DialogCtx`] and
-/// returns `true` if the body requests to close the dialog (e.g., via the
-/// title close button).
 pub fn modal(
     ui: &mut Ui,
     spec: &DialogSpec,
@@ -104,28 +96,22 @@ pub fn modal(
     let ctx = ui.ctx();
     let screen_rect = ctx.viewport_rect();
 
-    // ── Animation state ──
     let dialog_id = egui::Id::new(spec.id);
     let anim_id = dialog_id.with("anim");
     let closing_id = dialog_id.with("closing");
     let opened_id = dialog_id.with("opened");
 
-    // Read current closing state (persists across frames)
     let is_closing = ctx.data(|d| d.get_temp::<bool>(closing_id).unwrap_or(false));
 
-    // Register with the overlay coordination layer while open (and animating
-    // closed) so Escape / click-outside dismissal is consumed by exactly one
-    // overlay — the topmost. This mirrors Popover::show. `OverlayLayer::Dialog`
-    // is the lowest priority, so a Tooltip/Popover opened on top of a dialog
-    // keeps Escape for itself; the dialog only reacts when it is topmost.
+    // Register while open (and animating closed) so dismissal is consumed by
+    // exactly one overlay. `Dialog` is lowest priority, so a Tooltip/Popover on
+    // top keeps Escape; the dialog reacts only while topmost.
     if !is_closing {
         push_overlay(ctx, dialog_id, OverlayLayer::Dialog);
     }
 
-    // First-ever-frame detection: seed animation value at 0.0 so the
-    // entrance transition doesn't snap to 1.0 on the very first summon
-    // (egui's animate_value_with_time returns the target immediately
-    // for a brand-new id that has no previous value).
+    // Seed animation at 0.0 on the first frame; egui otherwise snaps a
+    // brand-new id straight to the target.
     let first_frame = !ctx.data(|d| d.get_temp::<bool>(opened_id).unwrap_or(false));
     if first_frame && !is_closing {
         ctx.animate_value_with_time(anim_id, 0.0, 0.0);
@@ -134,22 +120,16 @@ pub fn modal(
 
     let prev_focus_id = egui::Id::new(spec.id).with("prev_focus");
 
-    // ── Focus save/restore ──
-    // When the dialog first opens it steals focus from whatever widget the
-    // user was interacting with. Capture that widget's Id so we can hand
-    // focus back once the dialog is fully dismissed (exit animation done).
+    // Opening steals focus; capture the previous widget so it can be restored
+    // once the exit animation is done.
     if first_frame && !is_closing {
-        // Read focus first (releases the Memory lock), then write to data.
-        // egui stores `data` inside `Memory`, so `ctx.memory()` and `ctx.data_mut()`
-        // lock the SAME RwLock — nesting them would deadlock (freeze).
+        // Read focus before writing data: both live in Memory's same RwLock.
         let focused = ctx.memory(|m| m.focused());
         ctx.data_mut(|d| d.insert_temp(prev_focus_id, focused));
     }
 
-    // Use separate transitions for open vs close:
-    //   - Open:  MODAL (DECELERATE, 0.40s) — fast rise, gentle settle
-    //   - Close: MODAL_EXIT (STANDARD, 0.20s) — shorter symmetric exit; avoids the front-loaded
-    //     ghost-tail stall of DECELERATE applied to the closing direction.
+    // Open uses MODAL (fast rise, gentle settle); close uses the shorter
+    // MODAL_EXIT, whose symmetric exit avoids DECELERATE's ghost-tail stall.
     let transition = if is_closing {
         motion::MODAL_EXIT
     } else {
@@ -158,18 +138,14 @@ pub fn modal(
     let anim_target = if is_closing { 0.0 } else { 1.0 };
     let raw_progress = anim::animate_toward(ctx, anim_id, anim_target, transition);
 
-    // Apply easing based on direction:
     let progress = if is_closing {
-        let close_t = 1.0 - raw_progress; // 0→1 over close duration
-        // 1 - STANDARD(close_t): openness drops uniformly; STANDARD's
-        // symmetric round-trip avoids the long phantom tail of DECELERATE.
+        let close_t = 1.0 - raw_progress;
+        // STANDARD's symmetric round-trip avoids DECELERATE's long phantom tail.
         1.0 - transition.easing.sample(close_t)
     } else {
-        // DECELERATE on 0→1: fast initial rise, gentle settle
         transition.easing.sample(raw_progress)
     };
 
-    // ── Animated backdrop (painted before window, layered behind it) ──
     let bg = t.palette.overlay.backdrop;
     let alpha = (bg.a() as f32 * progress).round() as u8;
     let backdrop_color = egui::Color32::from_rgba_premultiplied(bg.r(), bg.g(), bg.b(), alpha);
@@ -180,7 +156,6 @@ pub fn modal(
     let backdrop = ui.interact(screen_rect, backdrop_id, egui::Sense::click());
     let backdrop_clicked = backdrop.clicked() && progress > 0.05;
 
-    // ── Window fill and border opacity — scales with animation progress ──
     let border_color = egui::Color32::from_rgba_premultiplied(
         t.palette.border.default.r(),
         t.palette.border.default.g(),
@@ -194,10 +169,8 @@ pub fn modal(
         (t.palette.surface.base.a() as f32 * progress).round() as u8,
     );
 
-    // ── Slide offset for window ──
     let slide_offset = dialog_token::SLIDE_PX * (1.0 - progress);
 
-    // ── Compute viewport-relative effective size ──
     let viewport = ctx.viewport_rect().size();
     let effective_size = [
         spec.default_size[0]
@@ -208,11 +181,9 @@ pub fn modal(
             .max(spec.min_size[1]),
     ];
 
-    // ── Resolve scaled dialog margins ──
     let inner_margin = density(ui).scale(spatial::dialog::INNER_MARGIN);
     let screen_margin = density(ui).scale(spatial::dialog::SCREEN_MARGIN);
 
-    // ── Centered dialog using egui window for proper layout ──
     let window = egui::Window::new(spec.id)
         .anchor(
             Align2::CENTER_CENTER,
@@ -257,35 +228,28 @@ pub fn modal(
     // Inner is None if the window was not shown (e.g., collapsed by area system)
     let body_close = resp.map(|r| r.inner.unwrap_or(true)).unwrap_or(true);
 
-    // ── Close request detection ──
-    // Escape only fires for the topmost overlay, so a dialog and a popover open
-    // together don't both dismiss on one Escape press. Mirrors Popover's gate.
+    // Escape only fires for the topmost overlay, so a dialog and popover open
+    // together don't both dismiss on one press.
     let escape_dismissed = is_topmost(ctx, dialog_id) && escape_pressed(ctx, dialog_id);
     let close_requested = escape_dismissed || backdrop_clicked || body_close;
 
-    // Start closing animation (only once, on first close request)
     if close_requested && !is_closing {
         ctx.data_mut(|d| d.insert_temp(closing_id, true));
     }
 
-    // Request repaint during animation for smooth transitions
     if progress > 0.01 && progress < 0.99 {
         ctx.request_repaint();
     }
 
-    // When fully closed (egui reached the target value via animate_value_with_time),
-    // clean up and hide. Keys off `raw_progress` (the actual animation value) rather
-    // than the eased progress, so the dialog hides exactly when the animation
-    // completes with no threshold-magic ghost tail.
+    // Hide when the raw animation value reaches zero, not the eased progress, so
+    // the dialog disappears exactly when the animation completes.
     let fully_closed = is_closing && raw_progress <= 0.0;
     if fully_closed {
-        // Deregister from the overlay coordination layer now that the dialog is
-        // fully hidden (mirrors Popover::finish_close).
+        // Deregister once fully hidden (mirrors Popover::finish_close).
         remove_overlay(ctx, dialog_id);
 
-        // Read+clear the saved focus from data first (releases the lock), THEN
-        // request focus via Memory. Nesting `ctx.memory_mut` inside `ctx.data_mut`
-        // would deadlock because data lives inside Memory (same RwLock).
+        // Read and clear the saved focus before requesting it, for the same
+        // Memory-lock reason as above.
         let saved = ctx.data_mut(|d| {
             let saved = d.get_temp::<Option<egui::Id>>(prev_focus_id).and_then(|o| o);
             d.remove::<Option<egui::Id>>(prev_focus_id);
@@ -372,8 +336,6 @@ mod tests {
         assert_eq!(spec.anchor_offset, [0.0, -80.0]);
     }
 
-    // ── Overlay coordination ─────────────────────────────────────────────
-
     fn run_modal_frame(ctx: &egui::Context, id: &str) -> bool {
         let mut open = true;
         let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
@@ -383,9 +345,8 @@ mod tests {
         open
     }
 
-    /// Regression: a Dialog did not register with the overlay layer, so its
-    /// Escape handling was a bare global key check that fired even while a
-    /// higher-priority Popover was open.
+    /// Regression: the dialog once skipped overlay registration, so its Escape
+    /// handling fired even while a higher-priority Popover was open.
     #[test]
     fn modal_registers_with_overlay_when_open() {
         use crate::widget::overlay::{OverlayLayer, is_topmost, push_overlay};
@@ -395,15 +356,13 @@ mod tests {
         let dialog_id = egui::Id::new("overlay_dialog");
         assert!(is_topmost(&ctx, dialog_id), "open dialog should be the topmost overlay");
 
-        // A Popover opened on top outranks the Dialog (OverlayLayer ordering).
         let popover_id = egui::Id::new("on_top_popover");
         push_overlay(&ctx, popover_id, OverlayLayer::Popover);
         assert!(!is_topmost(&ctx, dialog_id), "popover must outrank a dialog for Escape");
         assert!(is_topmost(&ctx, popover_id));
     }
 
-    /// An Escape press while a Popover is topmost must not be consumed by the
-    /// dialog's gated check.
+    /// Escape while a Popover is topmost must not be consumed by the dialog.
     #[test]
     fn escape_gate_respects_topmost() {
         use crate::widget::overlay::{OverlayLayer, escape_pressed, is_topmost, push_overlay};
@@ -423,7 +382,6 @@ mod tests {
             });
         });
 
-        // The dialog is not topmost → its gate must be false.
         assert!(!(is_topmost(&ctx, dialog_id) && escape_pressed(&ctx, dialog_id)));
     }
 }

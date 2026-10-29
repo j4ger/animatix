@@ -8,9 +8,8 @@ use crate::widget::tooltip::text_tooltip;
 use crate::widget::traits::{Sizable, Size};
 use crate::{density, spatial};
 
-// ── Button types ──
-// eparts principle 3: default arrow cursor for buttons, pointer only for links.
-// egui's Sense::click() would otherwise show a PointingHand on hover — overridden below.
+// eparts principle 3: buttons use the default arrow cursor, pointer only for
+// links. egui's Sense::click() shows PointingHand, overridden in `finish_response`.
 
 /// Content alignment within a button when allocated more width than its natural size.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -38,12 +37,6 @@ pub enum ButtonVariant {
 }
 
 /// A unified button widget with builder API.
-///
-/// ## Examples
-/// ```ignore
-/// ui.add(Button::icon(PLAY).with_tooltip("Play"));
-/// ui.add(Button::ghost("Label").with_icon(GEAR).active(true));
-/// ```
 pub struct Button {
     variant: ButtonVariant,
     size: Size,
@@ -195,15 +188,14 @@ impl Sizable for Button {
     }
 }
 
-/// Normalize a button label: an empty or whitespace-only label is treated as
-/// `None` so icon-only buttons don't reserve blank label space (which would
-/// push the icon off-center).
+/// Treat an empty or whitespace-only label as `None` so icon-only buttons don't
+/// reserve blank label space and push the icon off-center.
 fn effective_label(label: Option<&str>) -> Option<&str> {
     label.filter(|l| !l.trim().is_empty())
 }
 
-/// Apply the default arrow cursor and, when a tooltip is set, render it with
-/// the grace-period eparts `Tooltip` instead of egui's immediate hover text.
+/// Apply the default arrow cursor and, when set, the grace-period `Tooltip`
+/// instead of egui's immediate hover text.
 fn finish_response(ui: &mut egui::Ui, response: Response, tooltip: &str) -> Response {
     let response = response.on_hover_cursor(egui::CursorIcon::Default);
     if !tooltip.is_empty() {
@@ -225,12 +217,9 @@ impl ButtonVariant {
     }
 }
 
-/// Resolve the state slot a variant paints with.
-///
-/// A ghost button's `active` is a persistent toggle (`selected` plus the
-/// underline); every other variant treats `active` and pointer-down alike.
-/// Loading freezes the disabled slot, so a spinner never paints over a live
-/// hover state.
+/// Resolve the state slot a variant paints with. A ghost `active` is a persistent
+/// toggle (`selected` plus underline); other variants treat `active` and
+/// pointer-down alike. Loading freezes the disabled slot.
 fn state_slot(
     group: &theme::ButtonStateSlots,
     variant: ButtonVariant,
@@ -269,8 +258,8 @@ struct Content {
     pad_x: f32,
 }
 
-/// Lay the label out and measure the content once. The icon-only variant is
-/// square, so its `natural_width` is unused.
+/// Lay out the label and measure content; the icon-only variant's `natural_width`
+/// is unused because it is square.
 fn content_metrics(
     ui: &egui::Ui,
     t: theme::Theme,
@@ -313,9 +302,8 @@ fn content_metrics(
 }
 
 impl Button {
-    /// Outline the button while it has keyboard focus and, while loading, put a
-    /// spinner over its content. The button keeps its size in every state, so
-    /// the geometry does not jump.
+    /// Outline on keyboard focus and overlay a spinner while loading. The button
+    /// keeps its size in every state, so the geometry does not jump.
     fn paint_focus_and_loading(
         &self,
         ui: &mut egui::Ui,
@@ -352,9 +340,6 @@ impl egui::Widget for Button {
 
         let t = theme::theme(ui);
 
-        // An empty/whitespace label is treated as "no label" so icon-only ghost/
-        // primary buttons (e.g. `Button::ghost("").with_icon(..)`) center the icon
-        // instead of reserving phantom space for a blank label.
         let label: Option<&str> = effective_label(self.label.as_deref());
         let accessible_label = match (label, self.tooltip) {
             (Some(l), _) => l.to_string(),
@@ -371,8 +356,7 @@ impl egui::Widget for Button {
         });
         let content = content_metrics(ui, t, label, icon_width, self.size.pad_x_for(d), row_height);
 
-        // The icon variant is square; the labelled variants allocate their
-        // measured content plus padding.
+        // Icon is square; labelled variants allocate measured content plus padding.
         let icon_only = matches!(self.variant, ButtonVariant::Icon);
         let size = if icon_only {
             Vec2::splat(row_height)
@@ -398,10 +382,8 @@ impl egui::Widget for Button {
         );
         let painter = ui.painter().with_clip_rect(rect);
 
-        // Variant chrome. Ghost and icon rest on a transparent slot, so they only
-        // fill when the current state (hover/selected) has a background; the
-        // filled variants always paint and add the one-pixel top rim that reads
-        // as raised.
+        // Ghost/icon rest on a transparent slot and fill only when the state has a
+        // background; filled variants always paint and add a one-pixel top rim.
         match self.variant {
             ButtonVariant::Icon | ButtonVariant::Ghost => {
                 if slot.bg != Color32::TRANSPARENT {
@@ -410,7 +392,6 @@ impl egui::Widget for Button {
             },
             ButtonVariant::Primary | ButtonVariant::Danger | ButtonVariant::Secondary => {
                 painter.rect_filled(rect, radius, slot.bg);
-                // Subtle top rim highlight for tactile elevated chassis
                 if !pressed && !self.disabled && radius >= 1.0 {
                     let top_edge = egui::Rect::from_min_max(
                         egui::pos2(rect.min.x + radius * 0.5, rect.min.y),
@@ -432,9 +413,8 @@ impl egui::Widget for Button {
             painter.rect_filled(accent_rect, RADIUS_S, slot.border);
         }
 
-        // Icon + label. A pressed button sinks its content by one pixel; the
-        // icon-only variant centers it, the labelled ones lay out from the
-        // alignment edge.
+        // A pressed button sinks its content by one pixel; icon-only centers it,
+        // labelled variants lay out from the alignment edge.
         if !self.loading {
             let y_shift = if pressed { 1.0 } else { 0.0 };
             let baseline_y = rect.center().y + y_shift;
@@ -448,9 +428,8 @@ impl egui::Widget for Button {
                     ButtonAlign::Left => rect.min.x + content.pad_x,
                 }
             };
-            // A ghost toggle keeps its active foreground rather than the hover
-            // accent, so it does not flash while toggled on; the filled variants
-            // let the hover accent override.
+            // A ghost toggle keeps its active foreground instead of the hover accent
+            // so it doesn't flash; filled variants let the hover accent override.
             let toggled = matches!(self.variant, ButtonVariant::Ghost) && self.active;
             let icon_color = if self.disabled || toggled {
                 slot.fg
@@ -494,7 +473,6 @@ impl egui::Widget for Button {
             t.focus_ring(),
         );
 
-        // Principle 3: override egui's default PointingHand with Default arrow.
         let response = finish_response(ui, response, self.tooltip);
         if response.hovered() {
             if let Some(cb) = self.on_hover.take() {
@@ -575,8 +553,6 @@ mod tests {
 
     #[test]
     fn effective_label_treats_blank_as_none() {
-        // Empty / whitespace labels must collapse to None so icon-only ghost
-        // buttons (`Button::ghost("").with_icon(..)`) center their icon.
         assert_eq!(effective_label(None), None);
         assert_eq!(effective_label(Some("")), None);
         assert_eq!(effective_label(Some("   ")), None);

@@ -63,6 +63,5 @@ crates/animatix/src/timeline/scene_eval/frame_render.rs	render_frame_roots	217
 crates/animatix/src/timeline/timing/parsing.rs	parse_timing_modifiers	355
 crates/animatix/src/timeline/value_parser.rs	parse_value	372
 crates/eparts/src/tokens/theme/light.rs	light	224
-crates/eparts/src/widget/dialog.rs	modal	206
 crates/eparts/src/widget/select/widget_impl.rs	ui	401
 crates/eparts/src/widget/tree/tree_impl.rs	show_inner	284

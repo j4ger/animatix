@@ -1,57 +1,17 @@
 //! Tree-view widget (H1 — flat-entry model, generic, no animatix imports).
 //!
-//! ## Flat-entry model
-//!
-//! The caller owns all domain data and rebuilds a *flattened* `Vec<TreeItem>` each
-//! frame. Each `TreeItem` carries depth, expanded flag, and a stable identity. The
-//! Tree widget renders the visible rows, handles arrow-key navigation, and returns
+//! The caller owns all domain data and rebuilds a *flattened* `Vec<TreeItem>`
+//! each frame: each item carries depth, expanded flag, and a stable identity.
+//! The Tree renders the visible rows, handles arrow-key navigation, and returns
 //! [`TreeAction`] events so the caller can update its own state.
 //!
-//! ```text
-//! caller state:
-//!   expanded: HashSet<Id>   // which nodes are open
-//!   selected: Option<Id>    // currently selected node id
-//!
-//! each frame:
-//!   1. walk the domain tree → flat Vec<TreeItem> (include children of expanded nodes)
-//!   2. Tree::show(ui, &flat_list, id) → TreeResponse { action, ... }
-//!   3. handle action: toggle expanded / update selected
-//!   4. rebuild flat list (step 1) for next frame
-//! ```
-//!
-//! ## Keyboard navigation
-//!
-//! | Key          | Action                                      |
-//! |--------------|---------------------------------------------|
-//! | `↑` / `↓`   | Move selection up/down                      |
-//! | `Home`       | Select first visible item                   |
-//! | `End`        | Select last visible item                    |
-//! | `Left`       | Collapse (if expanded) / move to parent     |
-//! | `Right`      | Expand (if collapsed) / move to first child |
-//! | `Enter`      | Toggle expand/collapse                      |
-//! | type-ahead   | Jump to next item matching typed prefix     |
-//!
-//! ## Usage
+//! `↑`/`↓` move the selection, `Home`/`End` jump to first/last, `Left` collapses
+//! (or moves to the parent), `Right` expands (or moves to the first child),
+//! `Enter` toggles, and type-ahead jumps to the next matching label prefix.
 //!
 //! ```ignore
-//! let mut expanded: HashSet<String> = HashSet::new();
-//! let mut selected: Option<String> = None;
-//!
-//! // Build flat list each frame:
-//! let flat_items = build_flat_list(&root_node, &expanded);
-//!
-//! let resp = eparts::Tree::new(&flat_items)
-//!     .show(ui, egui::Id::new("my_tree"));
-//!
-//! if let Some(action) = resp.action {
-//!     match action {
-//!         eparts::TreeAction::Toggled(id) => {
-//!             if expanded.contains(&id) { expanded.remove(&id); }
-//!             else { expanded.insert(id); }
-//!         }
-//!         eparts::TreeAction::Selected(id) => { selected = Some(id); }
-//!     }
-//! }
+//! let resp = eparts::Tree::new(&flat_items).show(ui, egui::Id::new("my_tree"));
+//! if let Some(TreeAction::Toggled(id)) = resp.action { /* update expanded */ }
 //! ```
 
 #[allow(unused_imports)]
@@ -62,15 +22,10 @@ use egui::{Id, Response, Sense};
 use crate::tokens::spatial::{ROW_M, SPACE_4, density};
 use crate::widget::row::Row;
 
-// ── Public types ─────────────────────────────────────────────────────
-
 /// A stable identity for a tree node (caller-supplied, unique across the tree).
 pub type TreeId = String;
 
-/// One flattened, visible row in the tree.
-///
-/// The caller builds this list each frame by walking the domain tree and
-/// including children of any node whose `expanded` flag is set.
+/// One flattened, visible row; the caller includes only children of expanded nodes.
 pub struct TreeItem {
     /// Stable identity (any display type; `String` keeps this crate free of animatix types).
     pub id: TreeId,
@@ -96,27 +51,19 @@ pub enum TreeAction {
 pub struct TreeResponse {
     /// Action emitted this frame, if any.
     pub action: Option<TreeAction>,
-    /// The egui `Response` for the tree's whole allocated region (attach context
-    /// menus etc.). This is the *full content* rect — taller than the widget when
-    /// the tree scrolls — so it must not be used for "is the pointer over the
-    /// visible tree" hit tests; use [`Self::viewport_response`] for that.
+    /// Response for the tree's whole allocated region. This is the *full content*
+    /// rect — taller than the visible tree when scrolling — so use
+    /// [`Self::viewport_response`] for "is the pointer over the visible tree" tests.
     pub response: Response,
-    /// The egui `Response` for the visible scroll viewport only.
-    ///
-    /// Added in addition to [`Self::response`] (whose meaning is unchanged for
-    /// backward compatibility). Use this when the distinction matters — e.g.
-    /// context menus or drop targets that should only react to the on-screen area.
+    /// Response for the visible scroll viewport only; use this for context menus
+    /// or drop targets that should react only to the on-screen area.
     pub viewport_response: Response,
     /// Index of the selected item within the flat list, or `None`.
     pub selected_index: Option<usize>,
 }
 
-// ── Builder ──────────────────────────────────────────────────────────
-
-/// A generic, flat-entry tree widget.
-///
-/// All state lives either in caller-owned structs (expanded set, selection) or
-/// in egui Memory. The widget itself is constructed fresh each frame.
+/// A generic, flat-entry tree widget. All state lives in caller-owned structs
+/// (expanded set, selection) or egui Memory; the widget is built fresh each frame.
 pub struct Tree<'a> {
     items: &'a [TreeItem],
     row_height: f32,
@@ -155,10 +102,8 @@ pub fn nav_end_idx(items: &[TreeItem]) -> Option<usize> {
     items.last().map(|_| items.len() - 1)
 }
 
-/// Find the next item whose label starts with `prefix` (case-insensitive),
-/// searching forward from `start_idx` and wrapping to the beginning.
-///
-/// Returns `None` when no item matches or the list is empty.
+/// Next item whose label starts with `prefix` (case-insensitive), searching
+/// forward from `start_idx` then wrapping. `None` when no item matches.
 pub fn type_ahead_match(prefix: &str, start_idx: usize, items: &[TreeItem]) -> Option<usize> {
     if prefix.is_empty() || items.is_empty() {
         return None;

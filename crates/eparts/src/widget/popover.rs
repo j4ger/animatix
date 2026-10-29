@@ -1,44 +1,18 @@
-//! Generic anchored Popover widget for the Animatix UI library.
+//! Anchored Popover: a floating panel anchored to a trigger element.
 //!
-//! A `Popover` is a floating panel anchored to a trigger element (a button,
-//! icon, etc.).  It manages its own open/closed state in `egui::Memory`,
-//! participates in the [`crate::widget::overlay`] coordination layer so that
-//! Escape and click-outside are consumed by exactly one overlay (the
-//! topmost), and restores keyboard focus to the previously-focused widget
-//! when it closes — mirroring the [`crate::widget::dialog`] focus-restore
-//! pattern (D3).
-//!
-//! # Design decisions
-//!
-//! * **State lives in `egui::Memory`**, keyed by the popover's `Id`.  No retained widget instance
-//!   holds open/closed state.
-//! * **Overlay coordination**: on open the popover registers itself with [`push_overlay`] at
-//!   [`OverlayLayer::Popover`] priority; on close it calls [`remove_overlay`].
-//! * **Dismissal** uses [`escape_pressed`] and [`clicked_outside`] — only the topmost overlay
-//!   consumes the event.
-//! * **Focus restore**: on open the previously-focused `egui::Id` is saved to Memory; on full close
-//!   `ctx.memory.request_focus(saved_id)` is called.
-//! * **Theming**: every colour comes from `tokens::semantic` roles (`surface::floating_card_bg`,
-//!   `border::DEFAULT`, `RADIUS_M`, `overlay::shadow_direct`).
-//!
-//! # Usage
+//! Open state lives in `egui::Memory` keyed by the popover `Id`. The popover
+//! registers with the [`crate::widget::overlay`] coordination layer at
+//! [`OverlayLayer::Popover`] priority, so Escape and click-outside are consumed
+//! by exactly one overlay (the topmost), and it restores focus to the
+//! previously-focused widget when it closes — the [`crate::widget::dialog`]
+//! focus-restore pattern.
 //!
 //! ```ignore
-//! // Self-managing (toggles on trigger click):
-//! Popover::new("my_popover")
-//!     .below()
-//!     .show(ui, trigger_response, |ui| {
-//!         ui.label("Popover content here");
-//!     });
-//!
-//! // Externally controlled:
-//! let popover = Popover::new("filter_popover").below();
-//! popover.open(&ctx, true);
-//! // ... later ...
-//! popover.open(&ctx, false);
+//! Popover::new("my_popover").below().show(ui, trigger_response, |ui| {
+//!     ui.label("content");
+//! });
+//! // Externally controlled: Popover::new("filter_popover").open(&ctx, true);
 //! ```
-//!
-//! The builder pattern matches the framework convention (AGENTS.md §2).
 
 use egui::{Context, CornerRadius, Id, Order, Pos2, Rect, Response, Ui};
 
@@ -48,34 +22,25 @@ use crate::widget::overlay::{
     OverlayLayer, clicked_outside, escape_pressed, is_topmost, push_overlay, remove_overlay,
 };
 
-// ─── Memory keys ─────────────────────────────────────────────────────────────
-
 /// Per-popover open-state key suffix.
 const OPEN_KEY: &str = "__popover_open";
 /// Per-popover saved-focus key suffix.
 const PREV_FOCUS_KEY: &str = "__popover_prev_focus";
-/// Per-popover "opened-this-instance" key (avoids re-saving focus on
-/// subsequent frames while the popover remains open).
+/// Per-popover "opened-this-instance" key, so focus is not re-saved each frame.
 const OPENED_KEY: &str = "__popover_opened";
 /// Per-popover "closing-this-instance" key.
 const CLOSING_KEY: &str = "__popover_closing";
-/// Set only by [`Popover::open`]; signals that the caller owns the open state.
-/// Kept separate from `OPEN_KEY`, which the auto-toggle path also writes — using
-/// one key for both permanently disabled auto-toggle after the first open.
+/// Set only by [`Popover::open`]; marks the caller as owner of the open state.
+/// Kept separate from `OPEN_KEY`, which the auto-toggle path also writes.
 const EXTERNAL_KEY: &str = "__popover_external";
-
-// ─── Public response ─────────────────────────────────────────────────────────
 
 /// Response returned by [`Popover::show`].
 pub struct PopoverResponse {
-    /// Whether the popover is currently open after this frame.
+    /// Whether the popover is open after this frame.
     pub is_open: bool,
-    /// The rect of the popover content area in screen space, or
-    /// [`Rect::NOTHING`] when the popover is closed.
+    /// Content rect in screen space; [`Rect::NOTHING`] when closed.
     pub popover_rect: Rect,
 }
-
-// ─── Direction ───────────────────────────────────────────────────────────────
 
 /// Which side of the trigger the popover opens on.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -91,22 +56,11 @@ pub enum PopoverDirection {
     Left,
 }
 
-// ─── Popover ─────────────────────────────────────────────────────────────────
-
 /// An anchored, immediate-mode floating popover panel.
 ///
-/// Open/closed state is managed in `egui::Memory` when [`show`](Self::show)
-/// is called and the trigger is clicked.  Alternatively, call
-/// [`open`](Self::open) to control the state externally.
-///
-/// The popover participates in the overlay coordination layer
-/// ([`OverlayLayer::Popover`]) so that multiple simultaneous floating panels
-/// cooperate on Escape and click-outside dismissal.
-///
-/// Focus is automatically restored to the widget that had focus before the
-/// popover opened (mirrors the dialog D3 pattern).
-///
-/// The builder pattern follows the eparts framework convention (AGENTS.md §2).
+/// State is managed in `egui::Memory` when the trigger is clicked, or by
+/// [`open`](Self::open) for external control. Participates in
+/// [`OverlayLayer::Popover`] coordination and restores focus on close.
 #[derive(Clone, Debug)]
 pub struct Popover {
     id: Id,
@@ -117,10 +71,7 @@ pub struct Popover {
 }
 
 impl Popover {
-    /// Create a new Popover with the given `id` seed.
-    ///
-    /// The `id` must be unique among all open popovers (and other overlays)
-    /// within the same viewport.
+    /// Create a popover; `id` must be unique among open overlays in the viewport.
     pub fn new(id: impl Into<Id>) -> Self {
         Self {
             id: id.into(),
@@ -155,15 +106,13 @@ impl Popover {
         self
     }
 
-    /// Set the gap (in points) between the trigger edge and the popover edge.
-    /// Default: `8.0`.
+    /// Gap in points between trigger and popover edges. Default: `8.0`.
     pub fn gap(mut self, gap: f32) -> Self {
         self.gap = gap;
         self
     }
 
-    /// Constrain the popover's maximum width.  When `None` the popover sizes
-    /// to its content.  Default: `None`.
+    /// Maximum width; `None` sizes to content. Default: `None`.
     pub fn max_width(mut self, max_width: f32) -> Self {
         self.max_width = Some(max_width);
         self
@@ -176,11 +125,8 @@ impl Popover {
         self
     }
 
-    /// Open/close the popover programmatically (bypasses the trigger-click
-    /// toggle).  Set to `true` to open, `false` to close.
-    ///
-    /// When the caller uses this method, the trigger's click no longer
-    /// toggles the popover — the caller owns the state.
+    /// Open/close programmatically. After this the caller owns the state and
+    /// the trigger click no longer toggles.
     pub fn open(&self, ctx: &Context, open: bool) {
         ctx.data_mut(|data| {
             data.insert_temp(open_key(self.id), open);
@@ -207,16 +153,10 @@ impl Popover {
         });
     }
 
-    /// Render the popover.
+    /// Render the popover, toggling on `trigger_response.clicked()` unless the
+    /// state is externally controlled. `content` receives the themed inner `Ui`.
     ///
-    /// When `trigger_response.clicked()` is `true` the popover toggles
-    /// open/closed (unless `.open()` was called externally, which takes
-    /// over state management).
-    ///
-    /// `content` receives the inner `&mut Ui` — the popover is fully themed
-    /// and ready for arbitrary content.
-    ///
-    /// Returns [`PopoverResponse`] with `is_open` and `popover_rect`.
+    /// Returns [`PopoverResponse`].
     pub fn show(
         &self,
         ui: &mut Ui,
@@ -230,13 +170,11 @@ impl Popover {
         let opened_key = opened_key(self.id);
         let closing_key = closing_key(self.id);
 
-        // ── Read current state ────────────────────────────────────────────
         let mut is_open: bool = ctx.data(|d| d.get_temp::<bool>(is_open_key).unwrap_or(false));
         let mut is_closing: bool = ctx.data(|d| d.get_temp::<bool>(closing_key).unwrap_or(false));
 
-        // ── Detect external control: only `.open()` marks the caller as owner.
-        //    The auto-toggle path must not set this flag, or the trigger could
-        //    never reopen the popover after the first open.
+        // Only `.open()` marks the caller as owner; auto-toggle must not set this,
+        // or the trigger could never reopen the popover after the first open.
         let externally_controlled: bool =
             ctx.data(|d| d.get_temp::<bool>(external_key(self.id)).unwrap_or(false));
 
@@ -245,13 +183,10 @@ impl Popover {
                 finish_close(ctx, self.id, prev_focus_key, opened_key, closing_key);
             }
         } else if trigger_response.clicked() {
-            // Auto-toggle: caller hasn't used `.open()`, so trigger click toggles.
             if is_open && !is_closing {
-                // Start close.
                 is_closing = true;
                 ctx.data_mut(|d| d.insert_temp(closing_key, true));
             } else {
-                // Open.
                 is_open = true;
                 is_closing = false;
                 save_focus(ctx, prev_focus_key);
@@ -263,7 +198,6 @@ impl Popover {
             }
         }
 
-        // ── Dismissal: Escape (only topmost) ──────────────────────────────
         if is_open && !is_closing && is_topmost(ctx, self.id) && escape_pressed(ctx, self.id) {
             is_open = false;
             is_closing = true;
@@ -273,11 +207,9 @@ impl Popover {
             });
         }
 
-        // ── Render ───────────────────────────────────────────────────────
         let _s = spatial(ui);
         let popover_rect = if is_open {
-            // Anchor position clamped to viewport so the Area's fixed_pos is
-            // already within screen bounds before rendering.
+            // Anchor clamped to the viewport so `fixed_pos` is already in bounds.
             let anchor_pos = compute_anchor_pos_clamped(
                 trigger_response,
                 self.direction,
@@ -299,7 +231,6 @@ impl Popover {
 
             let rect = inner.response.rect;
 
-            // ── Click-outside detection ───────────────────────────────────
             if is_open && is_topmost(ctx, self.id) && clicked_outside(ui, rect, &inner.response) {
                 is_open = false;
                 is_closing = true;
@@ -314,7 +245,6 @@ impl Popover {
             Rect::NOTHING
         };
 
-        // ── Finalise closing ─────────────────────────────────────────────
         if is_closing {
             finish_close(ctx, self.id, prev_focus_key, opened_key, closing_key);
         }
@@ -326,13 +256,10 @@ impl Popover {
     }
 }
 
-// ─── Focus helpers ───────────────────────────────────────────────────────────
-
 /// Save the currently focused widget Id to Memory.
 fn save_focus(ctx: &Context, key: Id) {
-    // Read focus first (releases the Memory lock), THEN write to data.
-    // egui stores `data` inside `Memory`, so `ctx.memory()` and `ctx.data_mut()`
-    // lock the SAME RwLock — nesting them would deadlock (freeze).
+    // Read focus before writing data: both live in Memory's same RwLock, so
+    // nesting `ctx.memory` inside `ctx.data_mut` would deadlock.
     let focused = ctx.memory(|m| m.focused());
     ctx.data_mut(|d| {
         d.insert_temp(key, focused);
@@ -349,9 +276,8 @@ fn finish_close(
 ) {
     remove_overlay(ctx, popover_id);
 
-    // Read+clear the saved focus from data first (releases the lock), THEN
-    // request focus via Memory. Nesting `ctx.memory_mut` inside `ctx.data_mut`
-    // would deadlock because data lives inside Memory (same RwLock).
+    // Read and clear the saved focus before requesting it, for the same
+    // Memory-lock reason as `save_focus`.
     let saved = ctx.data_mut(|d| {
         let saved = d.get_temp::<Option<Id>>(prev_focus_key).as_ref().and_then(|o| *o);
         d.remove::<bool>(opened_key);
@@ -359,14 +285,11 @@ fn finish_close(
         d.remove::<Option<Id>>(prev_focus_key);
         saved
     });
-    // Restore focus to the widget that was active before the popover opened.
-    // Guard: if nothing had focus, `saved` is None and this is a no-op.
+    // Nothing had focus: `saved` is None and this is a no-op.
     if let Some(saved) = saved {
         ctx.memory_mut(|m| m.request_focus(saved));
     }
 }
-
-// ─── Memory key helpers ─────────────────────────────────────────────────────
 
 fn open_key(id: Id) -> Id {
     id.with(OPEN_KEY)
@@ -384,10 +307,7 @@ fn external_key(id: Id) -> Id {
     id.with(EXTERNAL_KEY)
 }
 
-// ─── Position computation ───────────────────────────────────────────────────
-
-/// Compute the initial anchor position, clamped to the viewport so the
-/// Area's `fixed_pos` is always within screen bounds.
+/// Compute the anchor position, clamped so the Area's `fixed_pos` is in bounds.
 fn compute_anchor_pos_clamped(
     trigger_response: &Response,
     direction: PopoverDirection,
@@ -403,7 +323,6 @@ fn compute_anchor_pos_clamped(
         PopoverDirection::Left => Pos2::new(rect.left() - gap, rect.top()),
     };
 
-    // Clamp to viewport so the Area anchor is already in-bounds.
     let est_right = pos.x + estimated_width;
     if est_right > screen_rect.max.x {
         pos.x -= est_right - screen_rect.max.x;
@@ -417,15 +336,8 @@ fn compute_anchor_pos_clamped(
     pos
 }
 
-// ─── Frame styling ──────────────────────────────────────────────────────────
-
-/// The themed frame used for the popover body.
-///
-/// Colours are sourced from the runtime `Theme`.
-/// * fill → `t.palette.surface.floating_card_bg`
-/// * stroke → `t.palette.border.default`
-/// * corner radius → [`RADIUS_M`]
-/// * shadow → `t.elevation.raised`
+/// Themed popover body frame: floating-card surface fill, border stroke,
+/// [`RADIUS_M`] corners, and raised elevation shadow.
 fn popover_frame(t: &crate::tokens::theme::Theme) -> egui::Frame {
     egui::Frame::new()
         .fill(t.palette.surface.floating_card_bg)
@@ -435,16 +347,12 @@ fn popover_frame(t: &crate::tokens::theme::Theme) -> egui::Frame {
         .shadow(t.elevation.raised)
 }
 
-// ─── Tests ──────────────────────────────────────────────────────────────────
-
 #[cfg(test)]
 mod tests {
     use egui::Sense;
 
     use super::*;
     use crate::widget::overlay::{OverlayLayer, is_topmost, push_overlay, remove_overlay};
-
-    // ── Builder API ──────────────────────────────────────────────────────
 
     #[test]
     fn builder_defaults() {
@@ -497,8 +405,6 @@ mod tests {
         assert!(p.arrow);
     }
 
-    // ── State round-trips ────────────────────────────────────────────────
-
     #[test]
     fn is_open_defaults_to_false() {
         let ctx = Context::default();
@@ -538,22 +444,19 @@ mod tests {
         assert!(Popover::is_open(&ctx, "p3"));
     }
 
-    /// Regression: the auto-toggle open path writes `OPEN_KEY`, which used to
-    /// be the same signal as "externally controlled", so a popover could be
-    /// opened by its trigger exactly once and never reopened.
+    /// Regression: the auto-toggle path wrote `OPEN_KEY`, which used to double as
+    /// the external-control signal, so a trigger could open the popover only once.
     #[test]
     fn auto_toggle_open_does_not_mark_external_control() {
         let ctx = Context::default();
         let popover = Popover::new("auto_reopen");
 
-        // Mirror what the auto-toggle open branch writes.
         ctx.data_mut(|d| d.insert_temp(open_key(popover.id), true));
         assert!(
             !ctx.data(|d| d.get_temp::<bool>(external_key(popover.id)).unwrap_or(false)),
             "auto-toggle must not mark the popover as externally controlled"
         );
 
-        // `.open()` is the only thing that claims ownership.
         popover.open(&ctx, true);
         assert!(
             ctx.data(|d| d.get_temp::<bool>(external_key(popover.id)).unwrap_or(false)),
@@ -561,15 +464,12 @@ mod tests {
         );
     }
 
-    // ── Overlay coordination ─────────────────────────────────────────────
-
     #[test]
     fn open_registers_with_overlay() {
         let ctx = Context::default();
         let popover = Popover::new("ol1");
 
-        // `open()` writes the state flag; push_overlay registers with the
-        // coordination layer (mirrors what `show()` does on closed→open).
+        // Mirrors what `show()` does on closed→open.
         push_overlay(&ctx, popover.id, OverlayLayer::Popover);
         assert!(is_topmost(&ctx, popover.id), "popover should be topmost after push");
 
@@ -588,8 +488,6 @@ mod tests {
         assert!(!is_topmost(&ctx, popover.id), "popover should not be topmost after removal");
     }
 
-    // ── Multiple popovers ────────────────────────────────────────────────
-
     #[test]
     fn multiple_popovers_coordinate() {
         let ctx = Context::default();
@@ -599,7 +497,6 @@ mod tests {
         push_overlay(&ctx, p1.id, OverlayLayer::Popover);
         push_overlay(&ctx, p2.id, OverlayLayer::Popover);
 
-        // p2 was pushed last → it is topmost.
         assert!(is_topmost(&ctx, p2.id));
         assert!(!is_topmost(&ctx, p1.id));
 
@@ -607,24 +504,19 @@ mod tests {
         assert!(is_topmost(&ctx, p1.id), "p1 should become topmost after removing p2");
     }
 
-    // ── Focus save via show() ────────────────────────────────────────────
-
-    /// Verify that `show()` snapshots the currently focused widget Id into
-    /// Memory (mirrors dialog.rs D3 pattern).
+    /// `show()` snapshots the currently focused widget Id into Memory.
     #[test]
     fn show_saves_focus_on_open() {
         let ctx = Context::default();
 
         let viewport_rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(400.0, 300.0));
-        // `Ui::new` takes ownership of Context; clone to retain `ctx` for assertions.
         let mut ui = Ui::new(
             ctx.clone(),
             Id::new("popover_focus_test"),
             egui::UiBuilder::new().max_rect(viewport_rect),
         );
 
-        // Register a focusable widget so `m.focused()` returns Some(...) after
-        // `ui.interact` processes it.
+        // Register a focusable widget so `m.focused()` becomes `Some(..)`.
         let dummy_id = Id::new("dummy_focus_target");
         ui.interact(
             Rect::from_min_max(Pos2::new(100.0, 100.0), Pos2::new(200.0, 130.0)),
@@ -641,7 +533,6 @@ mod tests {
         let popover = Popover::new("focus_popover").below();
         popover.open(&ctx, true);
 
-        // `show()` should save whatever `m.focused()` was at call time.
         let _resp = popover.show(&mut ui, &trigger_response, |_| {});
 
         let focused_at_show = ctx.memory(|m| m.focused());
@@ -654,10 +545,7 @@ mod tests {
         });
     }
 
-    // ── Lifecycle clean-up on close ──────────────────────────────────────
-
-    /// Verify that after closing, the overlay is removed and the open state
-    /// flag is cleared (focus restore mirrors dialog.rs D3 pattern).
+    /// After closing, the overlay is removed and the open flag is cleared.
     #[test]
     fn show_cleans_up_on_close() {
         let ctx = Context::default();
@@ -676,17 +564,14 @@ mod tests {
 
         let popover = Popover::new("cleanup_popover").below();
 
-        // Frame 1: open.
         popover.open(&ctx, true);
         let resp1 = popover.show(&mut ui, &trigger_response, |_| {});
         assert!(resp1.is_open, "popover should be open after frame 1");
 
-        // Frame 2: close.
         popover.open(&ctx, false);
         let resp2 = popover.show(&mut ui, &trigger_response, |_| {});
         assert!(!resp2.is_open, "popover should be closed after frame 2");
 
-        // State should be cleared from data after close.
         ctx.data(|d| {
             let still_open: Option<bool> = d.get_temp(open_key(popover.id));
             assert!(

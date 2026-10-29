@@ -1,30 +1,13 @@
-//! Standalone tooltip / hover-card widget with configurable open delay and close grace.
+//! Standalone tooltip / hover-card with configurable open delay and close grace:
+//! the delay prevents flashing on quick hovers, and the grace keeps the tooltip
+//! visible while the pointer moves between the trigger and the content.
 //!
-//! Shows rich/custom content anchored to a trigger `Response`.  The open delay prevents
-//! tooltips from flashing on quick hovers; the close grace period keeps the tooltip visible
-//! while the pointer moves between the trigger and the content (or briefly passes over empty
-//! space).
-//!
-//! State is kept in `egui::Memory` keyed by an `Id` derived from the trigger, following the
-//! immediate-mode state contract.
-//!
-//! # Usage
+//! State is kept in `egui::Memory`, keyed by an `Id` derived from the trigger.
 //!
 //! ```ignore
-//! let response = ui.button("Hover me");
 //! Tooltip::new(ui.id().with("my_tooltip"))
 //!     .open_delay(400.0)
-//!     .close_delay(150.0)
-//!     .show(ui, &response, |ui| {
-//!         ui.label("Rich tooltip content here");
-//!     });
-//! ```
-//!
-//! Simple text tooltip:
-//!
-//! ```ignore
-//! let response = ui.button("Hover me");
-//! text_tooltip(ui, ui.id().with("my_tooltip"), &response, "Hello, world!");
+//!     .show(ui, &response, |ui| { ui.label("Rich content"); });
 //! ```
 
 use std::time::Duration;
@@ -34,12 +17,8 @@ use egui::{Area, CornerRadius, Id, Margin, Order, Response, Stroke, Ui, Vec2};
 use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::tokens::theme::theme;
 
-// ─── Constants ──────────────────────────────────────────────────────────────
-
 const DEFAULT_OPEN_DELAY_MS: f64 = 400.0;
 const DEFAULT_CLOSE_DELAY_MS: f64 = 150.0;
-
-// ─── State ─────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Default)]
 struct State {
@@ -48,12 +27,8 @@ struct State {
     visible_last_frame: bool,
 }
 
-// ─── Builder ───────────────────────────────────────────────────────────────
-
-/// Builder for a configurable tooltip / hover-card.
-///
-/// Create with [`Tooltip::new`], chain `.open_delay()` / `.close_delay()` as needed,
-/// then call `.show()`.
+/// Builder for a configurable tooltip. Create with [`Tooltip::new`], chain the
+/// delays, then call `.show()`.
 #[derive(Debug, Clone, Copy)]
 pub struct Tooltip {
     id: Id,
@@ -62,12 +37,9 @@ pub struct Tooltip {
 }
 
 impl Tooltip {
-    /// Create a new tooltip builder.
-    ///
-    /// `id` namespaces this tooltip's transient state; it is combined with the
-    /// trigger's response id, so the same `id` may safely be reused across
-    /// several triggers (each keeps independent hover/grace state). Typically
-    /// `ui.id().with("tooltip")`.
+    /// Create a tooltip builder. `id` namespaces transient state and is combined
+    /// with the trigger's response id, so one `id` may serve several triggers
+    /// with independent hover/grace state. Typically `ui.id().with("tooltip")`.
     pub fn new(id: Id) -> Self {
         Self {
             id,
@@ -76,27 +48,21 @@ impl Tooltip {
         }
     }
 
-    /// Set the open delay in milliseconds.
-    ///
-    /// The pointer must hover the trigger for at least this long before the tooltip appears.
-    /// Default is 400ms.
+    /// Delay in milliseconds before showing; the pointer must hover at least
+    /// this long. Default: 400ms.
     pub fn open_delay(mut self, delay_ms: f64) -> Self {
         self.open_delay = delay_ms;
         self
     }
 
-    /// Set the close grace period in milliseconds.
-    ///
-    /// After the pointer leaves both the trigger and the tooltip, the tooltip remains
-    /// visible for this long before closing. Default is 150ms.
+    /// Grace period in milliseconds after the pointer leaves both trigger and
+    /// tooltip. Default: 150ms.
     pub fn close_delay(mut self, delay_ms: f64) -> Self {
         self.close_delay = delay_ms;
         self
     }
 
-    /// Show the tooltip anchored to `trigger`.
-    ///
-    /// The tooltip is placed below the trigger by default and clamped to the viewport.
+    /// Show the tooltip anchored below the trigger, clamped to the viewport.
     pub fn show(self, ui: &Ui, trigger: &Response, add_contents: impl FnOnce(&mut Ui)) {
         let ctx = ui.ctx();
         let now = ui.input(|i| i.time);
@@ -108,14 +74,11 @@ impl Tooltip {
             return;
         }
 
-        // Key the hover/grace state on the *trigger* response id namespaced by the
-        // caller-supplied tooltip id, not on `self.id` alone. Callers that reuse a
-        // constant id across several triggers (e.g. a toolbar built in a loop) would
-        // otherwise share one hover state and show the wrong tooltip.
+        // Key on the trigger id namespaced by the tooltip id: a constant id reused
+        // across triggers (e.g. a toolbar in a loop) must not share hover state.
         let state_key = state_key(trigger.id, self.id);
         let mut state: State = ctx.data(|d| d.get_temp::<State>(state_key)).unwrap_or_default();
 
-        // ── Hover tracking ────────────────────────────────────────────────
         if trigger_hovered {
             state.hover_start = Some(state.hover_start.unwrap_or(now));
             state.grace_until = None;
@@ -123,18 +86,13 @@ impl Tooltip {
             state.hover_start = None;
         }
 
-        // ── Grace period ──────────────────────────────────────────────────
-        // Start grace if we were visible, nothing is hovered, and grace isn't already set.
         if !trigger_hovered && state.visible_last_frame && state.grace_until.is_none() {
             state.grace_until = Some(now + close_delay_secs);
         }
 
-        // ── Open decision ─────────────────────────────────────────────────
         let will_open = if state.visible_last_frame {
-            // Already open: keep open when trigger is hovered (no re-delay).
             trigger_hovered
         } else {
-            // Closed: require full open delay.
             trigger_hovered
                 && state.hover_start.map(|t| now - t >= open_delay_secs).unwrap_or(false)
         };
@@ -142,7 +100,6 @@ impl Tooltip {
         let in_grace = state.grace_until.map(|t| now <= t).unwrap_or(false);
         let prelim_open = will_open || in_grace;
 
-        // ── Render ────────────────────────────────────────────────────────
         let mut tooltip_hovered = false;
         if prelim_open {
             let t = theme(ui);
@@ -195,18 +152,11 @@ impl Tooltip {
     }
 }
 
-// ─── State key ──────────────────────────────────────────────────────────────
-
-/// Memory key for a tooltip's transient hover/grace state.
-///
-/// Namespaced by the trigger response id so a constant tooltip id shared by
-/// several triggers keeps per-trigger state, then further namespaced by the
-/// caller-supplied tooltip id.
+/// Tooltip state key: trigger id namespaced by the tooltip id, giving each
+/// trigger independent hover/grace state.
 fn state_key(trigger_id: Id, tooltip_id: Id) -> Id {
     trigger_id.with(tooltip_id)
 }
-
-// ─── Convenience ────────────────────────────────────────────────────────────
 
 /// Render a simple themed text tooltip anchored to `trigger`.
 pub fn text_tooltip(ui: &Ui, id: Id, trigger: &Response, text: &str) {
@@ -214,8 +164,6 @@ pub fn text_tooltip(ui: &Ui, id: Id, trigger: &Response, text: &str) {
         ui.label(text);
     });
 }
-
-// ─── Tests ──────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {

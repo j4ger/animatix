@@ -1,7 +1,5 @@
-//! Small themed display/feedback widgets (roadmap G2–G6).
-//!
-//! All widgets are theme-driven, use the builder pattern, and implement
-//! `egui::Widget` where sensible. Icons come from `egui_phosphor`.
+//! Small themed display/feedback widgets: theme-driven, builder-pattern, all
+//! implementing `egui::Widget` where sensible. Icons come from `egui_phosphor`.
 
 use egui::{Align2, Color32, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, Vec2, Widget};
 
@@ -9,20 +7,10 @@ use crate::theme;
 use crate::tokens::spatial::{RADIUS_M, RADIUS_S, STROKE_WIDTH, spatial};
 use crate::tokens::typography::TextRole;
 
-// ── ProgressBar (G3) ───────────────────────────────────────────────
-
-/// A determinate progress bar.
-///
-/// Paints a rounded `theme.components.progress.track` with a `theme.components.progress.fill` to
-/// `fraction`. An optional label is centered, coloured `label` over the track
-/// and `label_on_fill` over the filled portion; when `show_percentage` is true
-/// the label is a percentage string.
-///
-/// ## Examples
-/// ```ignore
-/// ui.add(ProgressBar::new(0.42).show_percentage(true));
-/// ui.add(ProgressBar::new(0.0).text("Loading…"));
-/// ```
+/// A determinate progress bar: rounded `components.progress.track` filled to
+/// `fraction` with `components.progress.fill`. An optional centered label uses
+/// `label` over the track and `label_on_fill` over the fill; `show_percentage`
+/// renders it as a percentage string.
 #[derive(Clone, Debug, Default)]
 pub struct ProgressBar {
     fraction: f32,
@@ -62,16 +50,13 @@ impl Widget for ProgressBar {
         let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
         let radius = RADIUS_M as u8;
 
-        // Track.
         ui.painter().rect_filled(rect, radius, t.components.progress.track);
 
-        // Fill.
         let fill_width = (rect.width() * self.fraction).clamp(0.0, rect.width());
         let fill_rect =
             Rect::from_min_size(rect.min, Vec2::new(fill_width, rect.height())).intersect(rect);
         ui.painter().rect_filled(fill_rect, radius, t.components.progress.fill);
 
-        // Label.
         let label = if self.show_percentage {
             Some(format!("{:.0}%", self.fraction * 100.0))
         } else {
@@ -96,18 +81,8 @@ impl Widget for ProgressBar {
     }
 }
 
-// ── Badge (G4) ─────────────────────────────────────────────────────
-
-/// A tiny status/count badge.
-///
-/// Paints a pill-shaped rect with `theme.components.badge.bg` and the `theme.components.badge.fg`
-/// colour (or a caller-supplied override).
-///
-/// ## Examples
-/// ```ignore
-/// ui.add(Badge::new("3"));
-/// ui.add(Badge::new("new").color(Color32::from_rgb(255, 100, 0)));
-/// ```
+/// A tiny status/count badge: pill-shaped `components.badge.bg` with
+/// `components.badge.fg` text, or a caller-supplied `.color()` override.
 #[derive(Clone, Debug, Default)]
 pub struct Badge {
     text: String,
@@ -150,19 +125,8 @@ impl Widget for Badge {
     }
 }
 
-// ── Tag (G5) ───────────────────────────────────────────────────────
-
-/// A labeled chip, optionally removable.
-///
-/// Paints a rounded chip from `theme.components.tag.normal` (or `theme.components.tag.hover` when
-/// hovered) with small `BodyS` text. When `removable` is true a trailing `✕`
-/// icon is shown; clicking the chip reports `response.clicked()`.
-///
-/// ## Examples
-/// ```ignore
-/// ui.add(Tag::new("filter"));
-/// ui.add(Tag::new("filter").removable(true));
-/// ```
+/// A labeled chip from `components.tag.normal` (or `.hover` while hovered),
+/// optionally with a trailing `✕` remove icon; clicking reports `clicked()`.
 #[derive(Clone, Debug, Default)]
 pub struct Tag {
     text: String,
@@ -209,8 +173,7 @@ impl Widget for Tag {
         };
         let (rect, response) = ui.allocate_exact_size(size, sense);
         let radius = RADIUS_S as u8;
-        // The `normal`/`hover` slots supply bg/fg/border; an explicit `.color()`
-        // override replaces fg and border (matching the previous behaviour).
+        // `.color()` overrides fg and border only; bg still comes from the slot.
         let slot = if response.hovered() {
             t.components.tag.hover
         } else {
@@ -232,8 +195,6 @@ impl Widget for Tag {
     }
 }
 
-// ── Alert (G6) ─────────────────────────────────────────────────────
-
 /// Inline status banner level.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum AlertLevel {
@@ -244,9 +205,8 @@ pub enum AlertLevel {
     Error,
 }
 
-/// Minimum width for an inline alert so a short message doesn't collapse into a
-/// cramped pill. Content wider than this sizes to fit rather than being
-/// force-stretched to (and overflowing) the panel width.
+/// Minimum width so a short message doesn't collapse into a cramped pill; wider
+/// content sizes to fit rather than stretching to (and overflowing) the panel.
 const ALERT_MIN_WIDTH: f32 = 220.0;
 
 impl AlertLevel {
@@ -274,16 +234,9 @@ impl AlertLevel {
     }
 }
 
-/// An inline status banner.
-///
-/// Paints a rounded rect from the level's `theme.components.alert.<level>` slot (bg, fg,
-/// accent bar, icon) plus an optional title line.
-///
-/// ## Examples
-/// ```ignore
-/// ui.add(Alert::new("Saved.", AlertLevel::Success));
-/// ui.add(Alert::new("Disk full", AlertLevel::Error).title(Some("Error")));
-/// ```
+/// An inline status banner: rounded rect from the level's
+/// `components.alert.<level>` slot (bg, fg, accent bar, icon), plus an optional
+/// title line.
 #[derive(Clone, Debug, Default)]
 pub struct Alert {
     text: String,
@@ -312,8 +265,7 @@ impl Widget for Alert {
     fn ui(self, ui: &mut Ui) -> Response {
         let t = theme(ui);
         let s = spatial(ui);
-        // Every colour comes from `theme.components.alert.<level>`; the icon glyph is the
-        // only per-level literal.
+        // Every colour comes from the level slot; only the icon glyph is per-level.
         let level = self.level.level_slots(&t);
         let (icon, color, bg, fg, accent) =
             (self.level.icon(), level.icon, level.bg, level.fg, level.accent);
@@ -345,14 +297,11 @@ impl Widget for Alert {
         let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
         let radius = RADIUS_M as u8;
 
-        // Background.
         ui.painter().rect_filled(rect, radius, bg);
 
-        // Left accent bar.
         let bar_rect = Rect::from_min_size(rect.min, Vec2::new(bar_w, rect.height()));
         ui.painter().rect_filled(bar_rect, radius, accent);
 
-        // Icon.
         let icon_x = rect.min.x + pad + icon_w / 2.0;
         let icon_y = if let Some(tg) = title_galley.as_ref() {
             rect.min.y + pad + tg.size().y / 2.0
@@ -362,7 +311,6 @@ impl Widget for Alert {
         ui.painter()
             .text(Pos2::new(icon_x, icon_y), Align2::CENTER_CENTER, icon, icon_font, color);
 
-        // Text.
         let text_x = rect.min.x + pad + bar_w + spacing + icon_w;
         if let Some(ref tg) = title_galley {
             let title_y = rect.min.y + pad;
@@ -378,13 +326,10 @@ impl Widget for Alert {
     }
 }
 
-// ── Tests ────────────────────────────────────────────────────────────
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // ProgressBar
     #[test]
     fn progress_bar_defaults() {
         let p = ProgressBar::new(0.5);
@@ -417,7 +362,6 @@ mod tests {
         assert!(p.show_percentage);
     }
 
-    // Badge
     #[test]
     fn badge_defaults() {
         let b = Badge::new("42");
@@ -432,7 +376,6 @@ mod tests {
         assert_eq!(b.color, Some(c));
     }
 
-    // Tag
     #[test]
     fn tag_defaults() {
         let t = Tag::new("rust");
@@ -448,7 +391,6 @@ mod tests {
         assert_eq!(t.color, Some(Color32::from_rgb(100, 200, 100)));
     }
 
-    // Alert
     #[test]
     fn alert_defaults() {
         let a = Alert::new("ok", AlertLevel::Info);
@@ -505,7 +447,6 @@ mod tests {
         let ctx = egui::Context::default();
         let width = alert_width(Alert::new("Saved.", AlertLevel::Success), &ctx);
 
-        // A short message should sit at the min width, well below the 600px panel.
         assert!(
             (width - ALERT_MIN_WIDTH).abs() < 1.0,
             "short alert should use the min width, got {width}"
@@ -521,9 +462,8 @@ mod tests {
         assert!(width > ALERT_MIN_WIDTH, "long alert should size to its content, got {width}");
     }
 
-    /// Representative slot-resolution test: the alert (like every reworked
-    /// widget) resolves its colours through `theme.components.alert.<level>` in both modes,
-    /// and the two modes actually differ where the slot differs.
+    /// The alert resolves colours through `components.alert.<level>` in both
+    /// themes, and the two modes differ where the slot differs.
     #[test]
     fn alert_resolves_colours_through_slots_for_dark_and_light() {
         use crate::tokens::theme::Theme;
@@ -536,7 +476,6 @@ mod tests {
                 "{label}: success accent must come from status.success"
             );
             assert_eq!(success.icon, success.accent, "{label}: icon mirrors the accent");
-            // Distinct levels resolve to distinct slots.
             assert_ne!(
                 AlertLevel::Error.level_slots(&t).bg,
                 AlertLevel::Success.level_slots(&t).bg,
@@ -544,19 +483,15 @@ mod tests {
             );
         }
 
-        // The light info background differs from the dark one only if the
-        // underlying token does; here the info tint is shared across modes but
-        // the *slot lookup* is theme-specific, so the same level resolves the
-        // same token in each theme (regression guard against a hard-coded value).
+        // The info tint is shared across modes, but the lookup is theme-specific
+        // (regression guard against a hard-coded value).
         let dark_info = AlertLevel::Info.level_slots(&Theme::dark()).bg;
         let light_info = AlertLevel::Info.level_slots(&Theme::light()).bg;
         assert_eq!(dark_info, light_info);
         assert_eq!(dark_info, crate::tokens::semantic::accent::faint());
     }
 
-    /// The badge/tag/kbd/progress slots are read by their widgets; this
-    /// confirms each widget renders in both modes with the slots wired (a render
-    /// panic or missing slot would fail here).
+    /// Each widget renders in both themes with its slots wired.
     #[test]
     fn component_widgets_render_in_both_themes() {
         use crate::tokens::theme::{Theme, set_theme};
