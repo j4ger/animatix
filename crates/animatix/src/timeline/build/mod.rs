@@ -47,11 +47,26 @@ mod shape;
 pub(crate) mod speech;
 pub(crate) mod utils;
 
+/// The layout reading of a declaration's first `size` property.
+///
+/// The numeric half-size lives in [`ExtractedActorProperties::initial_size`];
+/// this holds the `ChildSizeSpec`, which is the only place percent and keyword
+/// (`auto` / `fill` / `fit`) semantics survive. Both are parsed once in the
+/// prepare pass so the declaration tail never re-reads the expression.
+#[derive(Clone, Debug)]
+struct ParsedSizeDecl {
+    spec: crate::timeline::taffy_layout::ChildSizeSpec,
+    /// The authored expression, kept for the keyword diagnostics.
+    value: Expr,
+}
+
 /// Extracted actor properties parsed from an actor declaration's props.
 /// Used internally by the build pipeline for graph/plot/container dispatch.
 #[derive(Clone, Debug)]
 struct ExtractedActorProperties {
     initial_size: [f32; 2],
+    /// First `size` declaration, already parsed for the layout apply step.
+    size_decl: Option<ParsedSizeDecl>,
     x_domain: [f64; 2],
     y_domain: [f64; 2],
     t_domain: [f64; 2],

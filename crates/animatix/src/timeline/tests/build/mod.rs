@@ -2,6 +2,7 @@
 
 mod actions;
 mod bindings;
+mod declaration_tail;
 mod graph;
 mod opacity_lifecycle;
 mod text;

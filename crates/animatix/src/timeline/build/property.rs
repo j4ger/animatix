@@ -249,18 +249,30 @@ impl Timeline {
         let mut at_expr: Option<Expr> = None;
         let mut anchor_expr: Option<Expr> = None;
         let mut offset_expr: Option<Expr> = None;
+        let mut size_decl: Option<ParsedSizeDecl> = None;
 
         for prop in props {
             match prop.name.as_str() {
                 "at" => at_expr = Some(prop.value.clone()),
                 "anchor" => anchor_expr = Some(prop.value.clone()),
                 "offset" => offset_expr = Some(prop.value.clone()),
+                // Layout spec and numeric half-size come from the same
+                // expression; parse the spec here so the declaration tail only
+                // consumes the prepared value. Repeated keys keep the first
+                // declaration, like the old single-pass apply loop.
+                "size" if size_decl.is_none() => {
+                    size_decl = Some(ParsedSizeDecl {
+                        spec: crate::timeline::taffy_layout::parse_size_spec(&prop.value),
+                        value: prop.value.clone(),
+                    });
+                },
                 _ => {}, // shared plot keys and the generic pipeline handle the rest
             }
         }
 
         ExtractedActorProperties {
             initial_size,
+            size_decl,
             x_domain,
             y_domain,
             t_domain,

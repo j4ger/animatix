@@ -1,79 +1,65 @@
 //! Early dispatch, prepare state, size spec and position binding helpers.
 
 use super::*;
-use crate::ast::{InlineItem, Property};
+use crate::ast::{Expr, InlineItem, Property};
 use crate::timeline::animation_track::GeometryTracks;
 
+/// Apply the prepared `size` declaration to a track's layout geometry.
+///
+/// The `ChildSizeSpec` and the authored expression were parsed once in the
+/// prepare pass (`extract_actor_properties`); this step only stores the spec and
+/// emits the keyword diagnostics. Re-reading `props` here would be a second
+/// parse and a second place for percent/keyword semantics to drift.
 pub(super) fn apply_size_spec(
     geometry: &mut GeometryTracks,
     primitive: &PrimitiveFamilyDescriptor,
-    props: &[Property],
+    size: Option<&ParsedSizeDecl>,
     label: &str,
     parent_label: Option<&str>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let Some(size) = size else {
+        return;
+    };
     let is_container = primitive.is_layout_container();
-    for prop in props {
-        if prop.name == "size" {
-            let spec = crate::timeline::taffy_layout::parse_size_spec(&prop.value);
-            geometry.size_spec = Some(spec);
+    geometry.size_spec = Some(size.spec);
 
-            // Warn on auto/fit for non-container primitives
-            if !is_container {
-                match &prop.value {
-                    crate::ast::Expr::Ident(s) if s == "auto" || s == "fit" => {
-                        diagnostics.push(
-                                    Diagnostic::warning(
-                                        DiagnosticCode::InvalidModifierValue,
-                                        DiagnosticPhase::Build,
-                                        format!(
-                                            "size: {} on non-container primitive '{}' — auto/fit sizing only applies to layout containers",
-                                            s, label
-                                        ),
-                                    )
-                                    .with_subject(label),
-                                );
-                    },
-                    crate::ast::Expr::Str(s) if s == "auto" || s == "fit" => {
-                        diagnostics.push(
-                                    Diagnostic::warning(
-                                        DiagnosticCode::InvalidModifierValue,
-                                        DiagnosticPhase::Build,
-                                        format!(
-                                            "size: {} on non-container primitive '{}' — auto/fit sizing only applies to layout containers",
-                                            s, label
-                                        ),
-                                    )
-                                    .with_subject(label),
-                                );
-                    },
-                    _ => {},
-                }
-            }
+    let keyword = match &size.value {
+        Expr::Ident(s) | Expr::Str(s) => Some(s.as_str()),
+        _ => None,
+    };
+    let Some(keyword) = keyword else {
+        return;
+    };
 
-            // Warn on fill at top level (no parent container)
-            if parent_label.is_none() {
-                let is_fill = match &prop.value {
-                    crate::ast::Expr::Ident(s) if s == "fill" => true,
-                    crate::ast::Expr::Str(s) if s == "fill" => true,
-                    _ => false,
-                };
-                if is_fill {
-                    diagnostics.push(
-                                Diagnostic::warning(
-                                    DiagnosticCode::InvalidModifierValue,
-                                    DiagnosticPhase::Build,
-                                    format!(
-                                        "size: fill on top-level actor '{}' — fill only makes sense inside a layout container",
-                                        label
-                                    ),
-                                )
-                                .with_subject(label),
-                            );
-                }
-            }
-            break;
-        }
+    // Warn on auto/fit for non-container primitives.
+    if !is_container && matches!(keyword, "auto" | "fit") {
+        diagnostics.push(
+            Diagnostic::warning(
+                DiagnosticCode::InvalidModifierValue,
+                DiagnosticPhase::Build,
+                format!(
+                    "size: {} on non-container primitive '{}' — auto/fit sizing only applies to layout containers",
+                    keyword, label
+                ),
+            )
+            .with_subject(label),
+        );
+    }
+
+    // Warn on fill at top level (no parent container).
+    if parent_label.is_none() && keyword == "fill" {
+        diagnostics.push(
+            Diagnostic::warning(
+                DiagnosticCode::InvalidModifierValue,
+                DiagnosticPhase::Build,
+                format!(
+                    "size: fill on top-level actor '{}' — fill only makes sense inside a layout container",
+                    label
+                ),
+            )
+            .with_subject(label),
+        );
     }
 }
 

@@ -46,7 +46,6 @@ crates/animatix-text/src/compiler.rs	compile_text_cached	228
 crates/animatix-text/src/fast_layout/wrapped.rs	compile_text_fast_wrapped	240
 crates/animatix/src/primitives/commands.rs	execute	298
 crates/animatix/src/primitives/trait.rs	evaluate_text_paths	264
-crates/animatix/src/timeline/build/actor/decl.rs	process_actor_decl	728
 crates/animatix/src/timeline/build/actor/extensions.rs	process_plot_actor_dispatch	264
 crates/animatix/src/timeline/build/plot/bars.rs	paths_for	209
 crates/animatix/src/timeline/build/plot/bars.rs	resolve_bar_chart_layout	286
