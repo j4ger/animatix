@@ -58,7 +58,7 @@ fn component_param_types(src: &str) -> Vec<Option<TypeAnnotation>> {
     }
 }
 
-fn type_alias<'a>(stmts: &'a [Stmt], index: usize) -> (&'a str, &'a TypeAnnotation) {
+fn type_alias(stmts: &[Stmt], index: usize) -> (&str, &TypeAnnotation) {
     match &stmts[index] {
         Stmt::TypeAlias {
             name, annotation, ..
