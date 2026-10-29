@@ -590,14 +590,6 @@ pub(crate) fn track_is_nestable_container(
         .is_some_and(|caps| caps.is_nestable_container())
 }
 
-/// Whether `track` is a plain structural group (the ungroup action target).
-pub(crate) fn track_is_group_like(
-    timeline: &animatix::timeline::Timeline,
-    id: animatix::timeline::EntityId,
-) -> bool {
-    timeline.world().caps(id).is_group_like()
-}
-
 #[cfg(test)]
 mod tests {
     use animatix::timeline::{ActorField, PropertyValue};

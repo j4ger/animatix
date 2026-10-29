@@ -45,7 +45,6 @@ pub enum ItemKind {
     Action {
         verb: String,
     },
-    #[allow(dead_code)] // Reserved for future snippet insertion type in palette
     Snippet {
         text: String,
     },

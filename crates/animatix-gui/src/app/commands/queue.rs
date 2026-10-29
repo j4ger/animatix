@@ -208,7 +208,7 @@ impl CommandQueue {
     }
 
     /// Enqueue a shell action from the GUI's own code.
-    #[allow(dead_code)] // Used by command-queue tests; kept as the GUI-owned enqueue path.
+    #[cfg(test)]
     pub fn push(&mut self, action: impl Into<ShellAction>) {
         let _ = self.sender.send(action.into());
     }
@@ -222,7 +222,7 @@ impl CommandQueue {
     ///
     /// This is primarily useful for headless tests and for callers that want to
     /// consume commands without coupling to the shell's frame action queue.
-    #[allow(dead_code)] // Used by headless tests and reserved for queue-only consumers.
+    #[cfg(test)]
     pub fn drain_with(&mut self, mut handle: impl FnMut(ShellAction)) {
         for action in self.receiver.try_iter() {
             handle(action);
@@ -238,7 +238,6 @@ pub struct CommandSender {
 
 impl CommandSender {
     /// Enqueue a domain command for the next shell frame.
-    #[allow(dead_code)] // External sender is exercised by headless tests and reserved for remote control.
     pub fn send_command(&self, command: Command) -> Result<(), CommandQueueError> {
         self.sender
             .send(ShellAction::Command(command))

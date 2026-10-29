@@ -86,16 +86,13 @@ impl SourceStore {
     /// Replace source text from an external change (editor, undo, reload).
     /// Returns a `SourceChange` with the new epoch.
     pub fn replace_text(&mut self, text: String) -> SourceChange {
-        let before_epoch = self.source_epoch;
         self.source_epoch = self.source_epoch.next();
         self.document.source_text = text.clone();
         self.document.is_dirty = true;
         self.editor.replace_text(text.clone());
         self.invalidate_cache();
         SourceChange {
-            before_epoch,
             after_epoch: self.source_epoch,
-            source_len: self.document.source_text.len(),
         }
     }
 
@@ -103,16 +100,13 @@ impl SourceStore {
     /// cell state. The editor is already the source of truth while typing, so
     /// re-parsing here would drop in-memory cells and reset focus mid-edit.
     pub fn sync_from_editor(&mut self) -> SourceChange {
-        let before_epoch = self.source_epoch;
         let text = self.editor.text().to_string();
         self.source_epoch = self.source_epoch.next();
         self.document.source_text = text;
         self.document.is_dirty = true;
         self.invalidate_cache();
         SourceChange {
-            before_epoch,
             after_epoch: self.source_epoch,
-            source_len: self.document.source_text.len(),
         }
     }
 }

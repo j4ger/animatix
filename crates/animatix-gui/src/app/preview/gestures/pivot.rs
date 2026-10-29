@@ -107,7 +107,6 @@ impl GestureHandler for PivotGesture {
 
                 GestureResult::Claimed
             },
-            _ => GestureResult::Ignored,
         }
     }
 }

@@ -11,7 +11,6 @@ use animatix_analyzer::ExtensionManifest;
 use animatix_syntax::ast::Stmt;
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use animatix_syntax::module::{ComponentEntry, FnTemplate, ModuleError, Namespace};
-use animatix_syntax::source_index::SourceIndex;
 
 use super::DocumentSession;
 use crate::error::GuiError;
@@ -138,27 +137,9 @@ impl DocumentSession {
         self.plugin_epoch = plugin_epoch;
     }
 
-    /// Replace the workspace root used for relative asset resolution.
-    pub fn set_workspace_root(&mut self, workspace_root: Option<PathBuf>) {
-        self.workspace_root = workspace_root;
-    }
-
     /// Set the current plugin context generation.
     pub fn set_plugin_epoch(&mut self, plugin_epoch: u64) {
         self.plugin_epoch = plugin_epoch;
-    }
-}
-
-impl DocumentSession {
-    /// Rebuild just the source index from the current source text.
-    ///
-    /// Used after external source changes (typing, hot-reload) when the AST is
-    /// not already available. Inspector edits mutate the AST directly and build
-    /// the index from the mutated AST without re-parsing.
-    pub fn rebuild_source_index(&mut self) {
-        if let Ok(result) = self.load_program() {
-            self.source_index = Some(SourceIndex::build(&result.raw_statements));
-        }
     }
 }
 

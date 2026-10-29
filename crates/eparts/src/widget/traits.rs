@@ -77,11 +77,6 @@ impl Size {
         }
     }
 
-    /// Returns the vertical padding scaled for the given density.
-    pub fn pad_y_for(self, d: Density) -> f32 {
-        d.scale(self.pad_y())
-    }
-
     /// Returns the `TextRole` that corresponds to this size.
     pub fn font(self) -> TextRole {
         match self {

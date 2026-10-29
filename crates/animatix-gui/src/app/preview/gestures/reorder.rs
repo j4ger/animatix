@@ -181,7 +181,6 @@ impl GestureHandler for ReorderGesture {
 
                 GestureResult::Claimed
             },
-            _ => GestureResult::Ignored,
         }
     }
 }

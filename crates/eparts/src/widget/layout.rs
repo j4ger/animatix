@@ -133,12 +133,6 @@ pub fn empty_state(ui: &mut egui::Ui, icon: &str, title: &str, subtitle: &str) {
 }
 
 /// Wraps native egui widgets in our themed input frame.
-#[allow(dead_code)] // Reserved for use by future component widgets that don't need sized fields
-pub fn field(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) -> Response {
-    field_sized(ui, None, add_contents)
-}
-
-/// Same as [`field`], but with an explicit desired width.
 pub fn field_sized(
     ui: &mut egui::Ui,
     desired_width: Option<f32>,
@@ -296,20 +290,6 @@ pub fn separator(ui: &mut egui::Ui) {
     let (rect, _) = ui.allocate_exact_size(Vec2::new(avail, STROKE_WIDTH), egui::Sense::hover());
     ui.painter().line_segment(
         [rect.left_center(), rect.right_center()],
-        egui::Stroke::new(STROKE_WIDTH, t.palette.border.default),
-    );
-}
-
-/// Vertical rule drawn with `border::DEFAULT` and standard stroke width.
-pub fn separator_v(ui: &mut egui::Ui) {
-    let t = theme(ui);
-    let avail = ui.available_height();
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(STROKE_WIDTH, avail), egui::Sense::hover());
-    ui.painter().line_segment(
-        [
-            egui::pos2(rect.center().x, rect.min.y),
-            egui::pos2(rect.center().x, rect.max.y),
-        ],
         egui::Stroke::new(STROKE_WIDTH, t.palette.border.default),
     );
 }

@@ -1,16 +1,11 @@
 //! Session queries: active timeline/scene resolution and keyframe lookup.
 
 use animatix::timeline::{Timeline, TimelineIndex};
-use animatix_syntax::ast::Stmt;
 
 use super::DocumentSession;
 use super::timing::timeline_keyframe_times_s;
 
 impl DocumentSession {
-    pub fn raw_program_statements(&self) -> Option<&[Stmt]> {
-        self.raw_statements.as_deref()
-    }
-
     /// Find the 0-indexed source line of the keyframe whose absolute time
     /// is closest to and ≤ `time_s`. Returns `None` if no keyframe exists.
     pub fn find_keyframe_line_at(&self, time_s: f64) -> Option<usize> {
@@ -180,11 +175,5 @@ impl DocumentSession {
             .as_ref()
             .map(|composition| composition.declaration_order.as_slice())
             .unwrap_or(&[])
-    }
-
-    pub fn import_aliases(&self) -> Vec<String> {
-        let mut aliases = self.namespaces.keys().cloned().collect::<Vec<_>>();
-        aliases.sort();
-        aliases
     }
 }

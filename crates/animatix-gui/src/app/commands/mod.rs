@@ -10,7 +10,6 @@ use crate::app::document::timeline_diff::KeyframeId;
 /// after all state mutations for the command have been performed. This separates
 /// side-effect concerns (UI notifications, repaint requests, editor interaction)
 /// from the pure data mutations in the handler.
-#[allow(dead_code)] // Effect enum reserved for future side-effect dispatch
 pub mod actor;
 pub mod document;
 pub mod keyframe;

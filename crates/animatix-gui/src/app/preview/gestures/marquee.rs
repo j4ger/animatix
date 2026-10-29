@@ -83,7 +83,6 @@ impl GestureHandler for MarqueeGesture {
                     GestureResult::Ignored
                 }
             },
-            _ => GestureResult::Ignored,
         }
     }
 }

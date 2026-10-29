@@ -1,3 +1,5 @@
+use super::parser::parse_timestamp_seconds;
+
 /// A single editable cell in the notebook editor.
 #[derive(Clone, Debug)]
 pub enum Cell {
@@ -235,16 +237,5 @@ pub fn format_duration_s(seconds: f64) -> String {
         format!("-{}s", s)
     } else {
         format!("{}s", s)
-    }
-}
-
-fn parse_timestamp_seconds(timestamp: &str) -> f64 {
-    let raw = timestamp.trim_start_matches('+').trim();
-    if let Some(value) = raw.strip_suffix("ms") {
-        value.trim().parse::<f64>().unwrap_or(0.0) / 1000.0
-    } else if let Some(value) = raw.strip_suffix('s') {
-        value.trim().parse::<f64>().unwrap_or(0.0)
-    } else {
-        raw.parse::<f64>().unwrap_or(0.0)
     }
 }

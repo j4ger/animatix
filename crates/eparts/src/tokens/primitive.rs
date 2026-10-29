@@ -34,10 +34,6 @@ pub const GRAY_700: Color32 = Color32::from_rgb(41, 47, 58);
 pub const GRAY_600: Color32 = Color32::from_rgb(51, 59, 73);
 pub const GRAY_500: Color32 = Color32::from_rgb(100, 116, 139);
 pub const GRAY_400: Color32 = Color32::from_rgb(148, 163, 184);
-#[allow(dead_code)] // Reserved for future light-theme / elevated-surface tokens
-pub const GRAY_300: Color32 = Color32::from_rgb(180, 190, 205);
-#[allow(dead_code)] // Reserved for future light-theme / elevated-surface tokens
-pub const GRAY_200: Color32 = Color32::from_rgb(220, 226, 235);
 pub const GRAY_100: Color32 = Color32::from_rgb(248, 250, 252);
 
 // ── Domain raw colors ──

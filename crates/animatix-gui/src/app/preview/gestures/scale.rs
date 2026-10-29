@@ -344,7 +344,6 @@ impl GestureHandler for ScaleGesture {
 
                 GestureResult::Claimed
             },
-            _ => GestureResult::Ignored,
         }
     }
 }

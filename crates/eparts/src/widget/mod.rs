@@ -25,7 +25,6 @@ pub mod slider;
 pub mod spinner;
 pub mod styled_ext;
 pub mod tabs;
-pub mod text;
 pub mod timeline;
 pub mod toast;
 pub mod toggle;

@@ -65,19 +65,6 @@ pub fn animate_toward(ctx: &Context, id: Id, target: f32, transition: Transition
     ctx.animate_value_with_time(id, target, duration)
 }
 
-/// Animates a boolean state (e.g., hover, active) toward a target boolean.
-/// Returns an f32 in [0.0, 1.0] where 0.0 = false, 1.0 = true.
-pub fn animate_bool(ctx: &Context, id: Id, target: bool, transition: Transition) -> f32 {
-    let target_f = if target { 1.0 } else { 0.0 };
-    animate_toward(ctx, id, target_f, transition)
-}
-
-/// Animates a color channel (f32 in 0..=1 range) toward a target.
-#[allow(dead_code)] // Reserved for future animation call sites
-pub fn animate_channel(ctx: &Context, id: Id, target: f32, transition: Transition) -> f32 {
-    animate_toward(ctx, id, target, transition)
-}
-
 /// Eased boolean animation: returns progress in `[0, 1]` with the transition's
 /// cubic-bezier easing applied (smooth crossfades/expands for widgets like
 /// checkboxes, switches, collapsibles).

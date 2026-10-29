@@ -1,7 +1,7 @@
 use egui::{Pos2, Rect, Response, Ui};
 
 use super::context::PreviewContext;
-use super::gesture::{Gesture, GestureHandler, GestureResult, PointerButton};
+use super::gesture::{Gesture, GestureHandler, GestureResult};
 use super::gestures::common::GestureFrame;
 use super::{DragState, selection};
 
@@ -79,16 +79,12 @@ impl GestureRouter {
         // ── Active extracted drags: route to handler ──
         let build_drag_end = || -> Gesture {
             Gesture::DragEnd {
-                pos: frame.screen_pos.unwrap_or(Pos2::ZERO),
-                button: PointerButton::Primary,
                 modifiers: frame.modifiers,
             }
         };
         let build_drag_move = |pos| -> Gesture {
             Gesture::DragMove {
                 pos,
-                delta: egui::Vec2::ZERO,
-                button: PointerButton::Primary,
                 modifiers: frame.modifiers,
             }
         };
@@ -152,7 +148,6 @@ impl GestureRouter {
                 select_on_drag_start(ctx, pos, preview_rect, frame.modifiers);
                 let start_gesture = Gesture::DragStart {
                     pos,
-                    button: PointerButton::Primary,
                     modifiers: frame.modifiers,
                 };
                 let mut pivot_handler = super::gestures::pivot::PivotGesture;

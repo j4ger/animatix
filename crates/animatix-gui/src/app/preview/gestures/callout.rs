@@ -379,8 +379,6 @@ impl GestureHandler for CalloutGesture {
                 *ctx.drag_state = DragState::None;
                 GestureResult::Claimed
             },
-
-            _ => GestureResult::Ignored,
         }
     }
 }

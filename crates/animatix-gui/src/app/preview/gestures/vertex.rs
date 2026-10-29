@@ -145,7 +145,6 @@ impl GestureHandler for VertexGesture {
 
                 GestureResult::Claimed
             },
-            _ => GestureResult::Ignored,
         }
     }
 }

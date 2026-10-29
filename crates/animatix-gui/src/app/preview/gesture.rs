@@ -1,55 +1,17 @@
-use egui::{Pos2, Vec2};
-
-/// Mouse button for pointer events.
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[allow(dead_code)] // Primary is routed today; Secondary/Middle are reserved for pointer gestures not yet emitted.
-pub enum PointerButton {
-    Primary,
-    Secondary,
-    Middle,
-}
+use egui::Pos2;
 
 /// High-level gesture events produced by the gesture router.
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Drag gestures are routed today; the remaining variants/fields are reserved for future pointer routing.
 pub enum Gesture {
-    Tap {
-        pos: Pos2,
-        button: PointerButton,
-        modifiers: egui::Modifiers,
-    },
-    DoubleTap {
-        pos: Pos2,
-        button: PointerButton,
-        modifiers: egui::Modifiers,
-    },
-    SecondaryTap {
-        pos: Pos2,
-        modifiers: egui::Modifiers,
-    },
     DragStart {
         pos: Pos2,
-        button: PointerButton,
         modifiers: egui::Modifiers,
     },
     DragMove {
         pos: Pos2,
-        delta: Vec2,
-        button: PointerButton,
         modifiers: egui::Modifiers,
     },
     DragEnd {
-        pos: Pos2,
-        button: PointerButton,
-        modifiers: egui::Modifiers,
-    },
-    Hover {
-        pos: Pos2,
-        modifiers: egui::Modifiers,
-    },
-    ScrollZoom {
-        delta: f32,
-        pos: Pos2,
         modifiers: egui::Modifiers,
     },
 }

@@ -15,7 +15,10 @@ pub(super) fn render_vec2_input(
 ) {
     let nx = *x;
     let ny = *y;
-    let (a_label, b_label) = vec2_labels(&entry.name);
+    let (a_label, b_label) = match entry.name.as_str() {
+        "size" | "layout_size" => ("W: ", "H: "),
+        _ => ("X: ", "Y: "),
+    };
     ui.scope_builder(
         egui::UiBuilder::new().max_rect(input_rect.shrink2(Vec2::new(sp.base.space_2, 0.0))),
         |ui| {

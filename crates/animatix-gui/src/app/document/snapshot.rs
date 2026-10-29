@@ -2,15 +2,10 @@
 //!
 //! Once published, a snapshot is never mutated. Consumers receive `Arc<DocumentSnapshot>`.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use animatix::composition::Composition;
-use animatix::timeline::{SceneDimensions, Timeline, TimelineIndex};
-use animatix_syntax::ast::Stmt;
-use animatix_syntax::diagnostics::Diagnostic;
-use animatix_syntax::module::{ComponentEntry, FnTemplate, Namespace};
-use animatix_syntax::source_index::SourceIndex;
+use animatix::timeline::{SceneDimensions, Timeline};
 
 use crate::app::document::version::{DocumentGeneration, SourceEpoch, SourceHash};
 
@@ -32,34 +27,15 @@ pub enum BuildTargetSnapshot {
 
 /// An immutable snapshot of all derived document state after a rebuild.
 ///
-/// This is the single source of truth for all non-source document data.
 /// `DocumentStore` publishes the latest snapshot and retains the last
 /// renderable one for preview fallback.
 #[derive(Clone)]
-#[allow(dead_code)] // Fields are published for rebuild consumers; several are not read individually yet.
 pub struct DocumentSnapshot {
     pub generation: DocumentGeneration,
     pub source_epoch: SourceEpoch,
     pub source_hash: SourceHash,
     pub status: SnapshotStatus,
-
-    // AST and module data
-    pub raw_statements: Option<Arc<Vec<Stmt>>>,
-    pub expanded_statements: Option<Arc<Vec<Stmt>>>,
-    pub namespaces: Arc<HashMap<String, Namespace>>,
-    pub components: Arc<HashMap<String, ComponentEntry>>,
-    pub module_fns: Arc<HashMap<String, FnTemplate>>,
-    pub source_index: Option<SourceIndex>,
-
-    // Build target
     pub target: BuildTargetSnapshot,
-
-    // Derived indexes
-    pub timeline_index: TimelineIndex,
-    pub keyframe_lines: Vec<usize>,
-
-    // Document metadata
-    pub diagnostics: Arc<Vec<Diagnostic>>,
     pub duration_s: f64,
     pub scene_dimensions: SceneDimensions,
 }

@@ -107,7 +107,6 @@ impl GestureHandler for MotionPathGesture {
 
                 GestureResult::Claimed
             },
-            _ => GestureResult::Ignored,
         }
     }
 }

@@ -22,14 +22,6 @@ impl GuiShell {
         crate::app::persistence::save_autosave_prefs(self.ui_store.view.autosave.prefs());
     }
 
-    /// Whether the autosave timer could fire for the current document.
-    pub(crate) fn autosave_active(&self) -> bool {
-        self.ui_store.view.autosave.enabled
-            && !self.ui_store.view.welcome_open
-            && !self.ui_store.recovery_prompt.is_open
-            && self.document_store.source.is_dirty()
-    }
-
     /// True while an undecided recovery prompt holds the only copy of a
     /// previous session's edits.
     ///
@@ -48,7 +40,11 @@ impl GuiShell {
     /// How long until the next autosave write, for `request_repaint_after`.
     /// Returns `None` when autosave is idle for this frame.
     pub(crate) fn autosave_repaint_delay(&self, now: Instant) -> Option<Duration> {
-        self.autosave_active().then(|| self.ui_store.view.autosave.remaining(now))
+        (self.ui_store.view.autosave.enabled
+            && !self.ui_store.view.welcome_open
+            && !self.ui_store.recovery_prompt.is_open
+            && self.document_store.source.is_dirty())
+        .then(|| self.ui_store.view.autosave.remaining(now))
     }
 
     /// Drive the autosave timer. Writes the live editor text to the recovery

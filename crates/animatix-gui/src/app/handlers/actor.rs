@@ -1,15 +1,7 @@
+use super::begin_snapshot;
 use crate::app::commands::{Command, Effect};
 use crate::app::document_controller::DocumentController;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore};
-
-fn begin_snapshot(
-    document_store: &mut DocumentStore,
-    preview_store: &PreviewStore,
-    ui_store: &UiStore,
-    command: Command,
-) {
-    document_store.snapshot(command, ui_store.snapshot_with_preview(preview_store));
-}
 
 pub fn handle_create_actor(
     document_store: &mut DocumentStore,
@@ -662,9 +654,7 @@ pub fn handle_ungroup_selected_actors(
                 .source
                 .document
                 .active_timeline()
-                .and_then(|tl| {
-                    tl.get_entity_id(a).map(|id| crate::app::actions::track_is_group_like(tl, id))
-                })
+                .and_then(|tl| tl.get_entity_id(a).map(|id| tl.world().caps(id).is_group_like()))
                 .unwrap_or(false)
         })
         .cloned()

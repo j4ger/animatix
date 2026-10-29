@@ -16,6 +16,9 @@
 //! - **Undo:** Domain-mutating handlers must call `snapshot()` *before* mutating state.  The
 //!   dispatcher in `shell/mod.rs` handles this for commands that need it.
 
+use crate::app::commands::Command;
+use crate::app::stores::{DocumentStore, PreviewStore, UiStore};
+
 pub mod actor;
 pub mod file;
 pub mod keyframe;
@@ -23,6 +26,16 @@ pub mod playback;
 pub mod property;
 pub mod scene;
 pub mod ui;
+
+/// Record the undo snapshot for a command before its handler mutates state.
+fn begin_snapshot(
+    document_store: &mut DocumentStore,
+    preview_store: &PreviewStore,
+    ui_store: &UiStore,
+    command: Command,
+) {
+    document_store.snapshot(command, ui_store.snapshot_with_preview(preview_store));
+}
 
 #[cfg(test)]
 mod tests;

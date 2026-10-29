@@ -38,15 +38,6 @@ pub struct ActiveTimelineRef<'a> {
     pub dimensions: SceneDimensions,
 }
 
-impl<'a> ActiveTimelineRef<'a> {
-    pub fn scene_key(&self) -> &str {
-        match &self.id {
-            ActiveSceneId::SingleScene => "",
-            ActiveSceneId::Scene(name) => name.as_str(),
-        }
-    }
-}
-
 /// Mutable reference to the active editable timeline, with scene context.
 ///
 /// Used by mutation paths that need to modify the active scene's timeline

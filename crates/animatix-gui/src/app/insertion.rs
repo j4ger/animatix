@@ -36,9 +36,6 @@ pub enum InsertionRequest {
         /// If empty, use the currently selected actor(s).
         targets: Vec<String>,
     },
-    /// Insert a raw code snippet.
-    #[allow(dead_code)] // Reserved for future raw code snippet insertion
-    Snippet { text: String },
 }
 
 /// Where the insertion lands.
@@ -80,13 +77,6 @@ impl InsertionContext {
             return InsertionTarget::IntoContainer(container);
         }
         InsertionTarget::TopLevel
-    }
-
-    /// Resolve insertion target for an action.
-    #[allow(dead_code)] // Reserved for future action insertion target resolution
-    pub fn action_target(&self) -> Option<InsertionTarget> {
-        let time = self.resolve_action_time();
-        Some(InsertionTarget::KeyframeBody(time))
     }
 }
 
@@ -168,18 +158,6 @@ impl InsertionRequest {
                         value: animatix_syntax::ast::Expr::Ident("1s".into()),
                     }],
                     time_s,
-                })
-            },
-            InsertionRequest::Snippet { text } => {
-                // Parse snippet into AST fragment and insert via SourceEdit.
-                animatix_syntax::parser::parse_snippet(&text).map(|stmts| {
-                    let time_s = ctx.cursor_cell_time_s.or(Some(ctx.current_time_s));
-                    let container = ctx.selected_container.clone();
-                    SourceEdit::InsertSnippet {
-                        stmts,
-                        time_s,
-                        container,
-                    }
                 })
             },
         }

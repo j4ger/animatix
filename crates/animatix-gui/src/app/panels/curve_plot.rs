@@ -176,7 +176,13 @@ pub(crate) fn collect_curves_for_actor(
             curve.label = format!("{actor} · {}", curve.base_label);
         }
         if shade < 1.0 {
-            curve.color = shade_color(curve.color, shade);
+            let scale = |channel: u8| (f32::from(channel) * shade).round().clamp(0.0, 255.0) as u8;
+            curve.color = Color32::from_rgba_unmultiplied(
+                scale(curve.color.r()),
+                scale(curve.color.g()),
+                scale(curve.color.b()),
+                curve.color.a(),
+            );
         }
     }
     curves
@@ -192,11 +198,6 @@ pub(crate) fn actor_shade_factor(actor: &str) -> f32 {
         .bytes()
         .fold(2166136261u32, |acc, byte| (acc ^ u32::from(byte)).wrapping_mul(16777619));
     ACTOR_SHADES[(hash % ACTOR_SHADES.len() as u32) as usize]
-}
-
-fn shade_color(color: Color32, factor: f32) -> Color32 {
-    let scale = |channel: u8| (f32::from(channel) * factor).round().clamp(0.0, 255.0) as u8;
-    Color32::from_rgba_unmultiplied(scale(color.r()), scale(color.g()), scale(color.b()), color.a())
 }
 
 /// Stable component color; channels 0/1 use accent/error, the rest the palette.

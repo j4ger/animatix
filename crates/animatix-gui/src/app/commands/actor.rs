@@ -19,14 +19,6 @@ pub enum ActorCommand {
         actor: String,
         new_parent: Option<String>,
     },
-    ExtractScene {
-        actor_labels: Vec<String>,
-        new_scene_name: String,
-    },
-    MoveToScene {
-        actor_labels: Vec<String>,
-        target_scene: String,
-    },
     ToggleActorVisibility(String),
     ToggleActorLock(String),
     PasteActors,
@@ -62,20 +54,6 @@ impl From<ActorCommand> for super::Command {
             ActorCommand::DeleteSelectedActors => super::Command::DeleteSelectedActors,
             ActorCommand::ReparentActor { actor, new_parent } => {
                 super::Command::ReparentActor { actor, new_parent }
-            },
-            ActorCommand::ExtractScene {
-                actor_labels,
-                new_scene_name,
-            } => super::Command::ExtractScene {
-                actor_labels,
-                new_scene_name,
-            },
-            ActorCommand::MoveToScene {
-                actor_labels,
-                target_scene,
-            } => super::Command::MoveToScene {
-                actor_labels,
-                target_scene,
             },
             ActorCommand::ToggleActorVisibility(v) => super::Command::ToggleActorVisibility(v),
             ActorCommand::ToggleActorLock(v) => super::Command::ToggleActorLock(v),

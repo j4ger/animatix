@@ -218,7 +218,6 @@ impl GestureHandler for RotateGesture {
 
                 GestureResult::Claimed
             },
-            _ => GestureResult::Ignored,
         }
     }
 }

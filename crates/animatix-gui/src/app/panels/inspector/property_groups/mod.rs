@@ -692,16 +692,6 @@ fn unit_suffix(name: &str) -> &'static str {
     }
 }
 
-/// Return axis labels for Vec2 property names.
-///
-/// Position-like properties use X/Y; size-like properties use W/H.
-fn vec2_labels(name: &str) -> (&'static str, &'static str) {
-    match name {
-        "size" | "layout_size" => ("W: ", "H: "),
-        _ => ("X: ", "Y: "),
-    }
-}
-
 mod inputs;
 mod render;
 #[cfg(test)]

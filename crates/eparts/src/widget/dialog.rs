@@ -20,7 +20,6 @@ use crate::widget::overlay::{
 /// Context passed to the dialog body on each frame.
 pub struct DialogCtx {
     /// True on the very first frame the dialog is rendered (for initial focus).
-    #[allow(dead_code)] // Reserved for CommandPalette/FindReplace focus-on-open
     pub first_frame: bool,
 }
 
@@ -69,7 +68,6 @@ impl<'a> DialogSpec<'a> {
     }
 
     /// Set custom viewport-relative sizing fractions (width, height).
-    #[allow(dead_code)] // Reserved for future Export dialog with viewport-relative sizing
     pub fn with_max_viewport_frac(mut self, frac: [f32; 2]) -> Self {
         self.max_viewport_frac = frac;
         self

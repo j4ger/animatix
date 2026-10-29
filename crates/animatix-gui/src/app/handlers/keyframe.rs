@@ -1,16 +1,8 @@
+use super::begin_snapshot;
 use crate::app::commands::{Command, Effect};
 use crate::app::document::timeline_diff::KeyframeId;
 use crate::app::document_controller::DocumentController;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore};
-
-fn begin_snapshot(
-    document_store: &mut DocumentStore,
-    preview_store: &PreviewStore,
-    ui_store: &UiStore,
-    command: Command,
-) {
-    document_store.snapshot(command, ui_store.snapshot_with_preview(preview_store));
-}
 
 pub fn handle_set_keyframe_easing(
     document_store: &mut DocumentStore,

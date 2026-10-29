@@ -125,7 +125,7 @@ fn parse_keyframe_header(trimmed: &str) -> Option<(String, bool, BraceKind)> {
     Some((timestamp, is_relative, brace_kind))
 }
 
-fn parse_timestamp_seconds(timestamp: &str) -> f64 {
+pub(super) fn parse_timestamp_seconds(timestamp: &str) -> f64 {
     let raw = timestamp.trim_start_matches('+').trim();
     if let Some(value) = raw.strip_suffix("ms") {
         value.trim().parse::<f64>().unwrap_or(0.0) / 1000.0

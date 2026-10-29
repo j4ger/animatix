@@ -182,7 +182,6 @@ impl GestureHandler for MoveActorGesture {
 
                 GestureResult::Claimed
             },
-            _ => GestureResult::Ignored,
         }
     }
 }

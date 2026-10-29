@@ -203,16 +203,7 @@ impl DocumentStore {
                 status: crate::app::document::snapshot::SnapshotStatus::Failed {
                     error: "rebuild failed",
                 },
-                raw_statements: None,
-                expanded_statements: None,
-                namespaces: Default::default(),
-                components: Default::default(),
-                module_fns: Default::default(),
-                source_index: None,
                 target: crate::app::document::snapshot::BuildTargetSnapshot::Empty,
-                timeline_index: Default::default(),
-                keyframe_lines: Vec::new(),
-                diagnostics: std::sync::Arc::new(self.source.document.diagnostics.clone()),
                 duration_s: self.source.document.duration_s,
                 scene_dimensions: self.source.document.scene_dimensions,
             };
@@ -325,19 +316,7 @@ fn snapshot_from_session(doc: &DocumentSession, source_hash: u64) -> DocumentSna
         source_epoch: crate::app::document::version::SourceEpoch(0), // will be set
         source_hash: crate::app::document::version::SourceHash(source_hash),
         status: SnapshotStatus::Clean,
-        raw_statements: doc.raw_statements.as_ref().map(|v| std::sync::Arc::new(v.clone())),
-        expanded_statements: doc
-            .expanded_statements
-            .as_ref()
-            .map(|v| std::sync::Arc::new(v.clone())),
-        namespaces: std::sync::Arc::new(doc.namespaces.clone()),
-        components: std::sync::Arc::new(doc.components.clone()),
-        module_fns: std::sync::Arc::new(doc.module_fns.clone()),
-        source_index: doc.source_index.clone(),
         target,
-        timeline_index: doc.timeline_index.clone(),
-        keyframe_lines: doc.keyframe_lines.clone(),
-        diagnostics: std::sync::Arc::new(doc.diagnostics.clone()),
         duration_s: doc.duration_s,
         scene_dimensions: doc.scene_dimensions,
     }
@@ -374,16 +353,7 @@ mod tests {
             source_epoch: epoch,
             source_hash: SourceHash(hash),
             status: SnapshotStatus::Clean,
-            raw_statements: None,
-            expanded_statements: None,
-            namespaces: Default::default(),
-            components: Default::default(),
-            module_fns: Default::default(),
-            source_index: None,
             target: BuildTargetSnapshot::Timeline(Default::default()),
-            timeline_index: Default::default(),
-            keyframe_lines: Vec::new(),
-            diagnostics: Arc::new(Vec::new()),
             duration_s: 10.0,
             scene_dimensions: animatix::timeline::SceneDimensions {
                 width: 1920,
@@ -400,16 +370,7 @@ mod tests {
             status: SnapshotStatus::Failed {
                 error: "test failure",
             },
-            raw_statements: None,
-            expanded_statements: None,
-            namespaces: Default::default(),
-            components: Default::default(),
-            module_fns: Default::default(),
-            source_index: None,
             target: BuildTargetSnapshot::Empty,
-            timeline_index: Default::default(),
-            keyframe_lines: Vec::new(),
-            diagnostics: Arc::new(Vec::new()),
             duration_s: 0.1,
             scene_dimensions: animatix::timeline::SceneDimensions {
                 width: 1920,
