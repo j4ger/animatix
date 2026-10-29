@@ -46,19 +46,15 @@ pub struct World {
     pub(crate) actor_types: RequiredStore<String>,
     pub(crate) caps: RequiredStore<animatix_core::caps::ActorCaps>,
     pub(crate) behavior: RequiredStore<crate::timeline::behavior::BehaviorId>,
-    /// Shape-command memo cells per entity.
     pub(crate) shape_memos:
         RequiredStore<std::cell::RefCell<Box<crate::primitives::ShapeCommandMemo>>>,
     /// Memo bounds handoff slot per entity.
     pub(crate) pending_shape_bounds: RequiredStore<std::cell::Cell<Option<Option<kurbo::Rect>>>>,
     /// Dense precise-bounds table slot per entity (`0` until `EvalCaches::ensure_bounds_registry` stamps it).
     pub(crate) bounds_slots: RequiredStore<std::cell::Cell<u32>>,
-    /// Style tier for every entity.
     pub(crate) style: RequiredStore<crate::timeline::animation_track::StyleTracks>,
     pub(crate) geometry: RequiredStore<crate::timeline::animation_track::GeometryTracks>,
-    /// Text tier for entities with text behavior.
     pub(crate) text: ComponentStore<crate::timeline::animation_track::TextTracks>,
-    /// Shape geometry tier for entities with shape behavior.
     pub(crate) shape: ComponentStore<crate::timeline::animation_track::ShapeTracks>,
     /// Fallback static defaults for optional tiers.
     pub(crate) default_shape: crate::timeline::animation_track::ShapeTracks,
@@ -66,13 +62,10 @@ pub struct World {
     pub(crate) default_highlight: crate::timeline::animation_track::HighlightTracks,
     /// Explicit capability overrides for extension primitives.
     pub(crate) caps_overrides: ComponentStore<animatix_core::caps::ActorCaps>,
-    /// Registry-driven property slots for every entity.
     pub(crate) property_plan: RequiredStore<crate::timeline::plan::PropertyPlan>,
     /// Per-entity visibility/lock/camera metadata.
     pub(crate) meta: ComponentStore<EntityMeta>,
-    /// Layout configuration for `Row`/`Col`/`Grid`/`Stack` actors.
     pub(crate) container_layout: ComponentStore<ContainerMetadata>,
-    /// Animated child order for containers targeted by `swap` / `reorder`.
     pub(crate) child_order: ComponentStore<ChildOrderComponent>,
     /// Mathematical coordinate frame for plot hosts (`Graph` and any primitive with `plot_host`).
     pub(crate) coordinate_frame: ComponentStore<CoordinateFrameComponent>,
@@ -82,13 +75,10 @@ pub struct World {
     pub(crate) auto_color: ComponentStore<AutoColorComponent>,
     /// Parsed speech transcript for `Audio` / `Captions` actors.
     pub(crate) transcript: ComponentStore<TranscriptComponent>,
-    /// Precomputed or cached local-space bounding box for an entity.
     pub(crate) local_bounds: ComponentStore<crate::timeline::LocalBoundsComponent>,
-    /// Legend data for actors that participate in a legend.
     pub(crate) legend: ComponentStore<LegendTracks>,
     /// Source span of the actor's declaration, for editor navigation.
     pub(crate) decl_span: ComponentStore<animatix_syntax::ast::Span>,
-    /// Post-processing effect chain for a compositing scope.
     pub(crate) effects: ComponentStore<EffectChainTrack>,
     /// Dedicated component stores for primitive payloads.
     pub(crate) plot_payload: ComponentStore<PlotPayload>,
@@ -104,19 +94,8 @@ pub struct World {
     pub(crate) pending_roots: Vec<String>,
 }
 
-/// Every slot-aligned component store on [`World`], in one list.
-///
-/// This is the single source for the three whole-world operations that must
-/// touch every store — [`World::ensure_len`], [`World::clear`] and the
-/// per-entity reset in [`World::spawn_replacing`] — so a new store is added
-/// here once instead of in three parallel enumerations.
-///
-/// `EntityStore` itself (`tracks`) is intentionally absent: it owns the slot
-/// count the other stores are aligned to, and has no `reset_at`.
-///
-/// The callback receives any extra tokens followed by the store list, which
-/// lets the operation macros below take call-site values (`len`, `id`) while
-/// the list stays in one place.
+/// Every slot-aligned component store on [`World`], in one list: the single
+/// source for [`World::ensure_len`], [`World::clear`] and [`World::spawn_replacing`]'s reset.
 macro_rules! for_each_store {
     ($mac:ident $(, $arg:tt)*) => {
         $mac! { $( $arg, )* hierarchy, highlight, tagged_tracks, actor_types, caps, behavior,
@@ -204,16 +183,12 @@ impl World {
         (0..self.tracks.len()).filter_map(|index| self.view(EntityId(index as u32)))
     }
 
-    /// Create an entity, or return the existing one.
-    ///
-    /// Mirrors the build path's `tracks.entry(label).or_insert_with(...)`:
-    /// re-declaring a label keeps the same entity and its current data.
+    /// Create an entity, or return the existing one; re-declaring a label keeps
+    /// the same entity and its current data.
     pub fn spawn(&mut self, label: &str, actor_type: impl Into<String>) -> EntityId {
         let actor_type = actor_type.into();
         if let Some(id) = self.tracks.get_id(label) {
-            // The entity may have been created by a direct `EntityStore`
-            // insert (tests); keep the component stores aligned before anyone
-            // borrows them.
+            // The entity may predate the stores (tests); keep them aligned first.
             self.ensure_len();
             self.attach_pending_auto_color(id, label);
             return id;
@@ -226,13 +201,9 @@ impl World {
     }
 
     /// Replace an entity's data, resetting its optional/required components.
-    ///
-    /// This is the carry-injection path's old insert-replacement semantics:
-    /// the label keeps its entity id, but every component starts fresh rather
-    /// than inheriting the previous scene's state. Identity (actor type, caps,
-    /// behavior) is re-derived from `actor_type`; the optional tiers
-    /// `apply_identity` would seed stay cleared, because a replacement clears
-    /// optional components (`docs/ecs.md` §2).
+    /// The label keeps its entity id but every component starts fresh; identity
+    /// is re-derived from `actor_type` and optional components stay cleared
+    /// (`docs/ecs.md` §2).
     pub fn spawn_replacing(&mut self, label: &str, actor_type: &str) -> EntityId {
         let replaced = self.tracks.contains_key(label);
         let id = self.spawn(label, actor_type);
@@ -242,10 +213,8 @@ impl World {
         self.ensure_len();
         for_each_store!(reset_stores_at, self, id);
         self.apply_identity(id, actor_type);
-        // `apply_identity` seeds the optional tiers the new type requires, the
-        // same as a fresh `spawn`; a replacement's contract is that optional
-        // components are *cleared*, so undo those three seeds. The required
-        // stores (actor type, caps, behavior, …) keep the identity written above.
+        // `apply_identity` seeds the optional tiers a fresh `spawn` would;
+        // a replacement clears them, so undo those three seeds.
         self.highlight.reset_at(id);
         self.shape.reset_at(id);
         self.text.reset_at(id);
@@ -310,11 +279,8 @@ impl World {
         self.effects.get_or_insert_with(id, EffectChainTrack::default)
     }
 
-    /// Ensure an entity has legend data and return it for a build/render write.
-    ///
-    /// Inserts `LegendTracks::default()` when absent. Callers that hold the
-    /// frame cache (the `Timeline` entry points) must invalidate it; this
-    /// `World` method is the build-path form with no cache to invalidate.
+    /// Ensure legend data, inserting `LegendTracks::default()` when absent.
+    /// Callers holding the frame cache must invalidate it.
     pub fn ensure_legend(&mut self, id: EntityId) -> &mut LegendTracks {
         if self.legend.get(id).is_none() {
             self.legend.insert(id, LegendTracks::default());
@@ -325,10 +291,7 @@ impl World {
     }
 
     /// Inputs of the child-order cache flag: true when any container carries an
-    /// animated child-order track.
-    ///
-    /// Stops at the first present component; the frame cache compares this flag
-    /// so a scene that never authors `swap`/`reorder` pays one short scan.
+    /// animated child-order track; the scan stops at the first hit.
     #[inline]
     pub fn has_child_orders(&self) -> bool {
         self.child_order.iter().next().is_some()
@@ -346,25 +309,18 @@ impl World {
         self.roots.contains(&id)
     }
 
-    /// Labels of `id`'s direct children, in authored/insertion order.
-    ///
-    /// This is the label boundary for label-based APIs (build-time diagnostics,
-    /// action target resolution, the GUI); frame-path consumers iterate
-    /// [`SceneHierarchyComponent::children`] directly and never allocate.
+    /// Labels of `id`'s direct children, in authored order; the label boundary
+    /// for label-based APIs (frame paths iterate [`SceneHierarchyComponent::children`]).
     pub fn child_labels(&self, id: EntityId) -> impl Iterator<Item = &str> {
         self.hierarchy(id).children.iter().filter_map(|child| self.label(*child))
     }
 
-    /// Record the scene-graph relation for a declaration.
-    ///
-    /// Called by `add_node` before the primitive has created the child's
-    /// track. When the child entity already exists the link is written
-    /// immediately; otherwise it is buffered and adopted by
-    /// [`Self::spawn`]. A missing parent is a build bug and keeps
-    /// the old path's `warn!` instead of silently orphaning the child.
+    /// Record the scene-graph relation for a declaration, called by `add_node`
+    /// before the child's track exists; an existing child links immediately,
+    /// otherwise the link is buffered and adopted by [`Self::spawn`].
     pub fn set_parent_label(&mut self, child_label: &str, parent_label: Option<&str>) {
-        // Entities may not exist yet when a relation is registered; grow the
-        // component stores so the link below can write both endpoints.
+        // Entities may not exist yet; grow the stores so the link can write
+        // both endpoints.
         self.ensure_len();
         let child_id = self.tracks.get_id(child_label);
         match (child_id, parent_label) {
@@ -381,10 +337,9 @@ impl World {
                 self.pending_roots.retain(|label| label != child_label);
             },
             (Some(child), None) => {
-                // A root-level re-declaration of an already-nested actor keeps
-                // it nested: `add_node(None)` only records a *new* root, it does
-                // not re-parent an existing child (the pre-ECS `root_nodes`
-                // behaviour). Use `link`/`unlink` to actually move an entity.
+                // A root-level re-declaration of a nested actor keeps it nested:
+                // `add_node(None)` only records a *new* root, it does not
+                // re-parent. Use `link`/`unlink` to move an entity.
                 if self.hierarchy(child).parent.is_none() && !self.roots.contains(&child) {
                     self.roots.push(child);
                 }
@@ -447,13 +402,9 @@ impl World {
         }
     }
 
-    /// Attach an auto-color slot that was resolved before the entity existed.
-    ///
-    /// `color: auto` is evaluated in the declaration's property loop, which
-    /// runs before the primitive creates the track; the build deliberately
-    /// still sees the entity as absent there (`is_first_decl`). The slot waits
-    /// in [`Self::pending_auto_color`] and lands here the moment the entity is
-    /// spawned.
+    /// Attach an auto-color slot resolved before the entity existed: `color:
+    /// auto` is evaluated before the track is created, so the slot waits in
+    /// [`Self::pending_auto_color`].
     fn attach_pending_auto_color(&mut self, id: EntityId, label: &str) {
         let matches = self
             .pending_auto_color
@@ -466,11 +417,8 @@ impl World {
         self.auto_color.insert(id, AutoColorComponent { slot });
     }
 
-    /// Resolve buffered hierarchy labels after a build pass.
-    ///
-    /// Handles entities created outside [`Self::spawn`] (carry injection,
-    /// tests) that never adopted their buffered links. A pending
-    /// label with no entity is dropped with a warning: the label never became a
+    /// Resolve buffered hierarchy labels after a build pass; a pending label
+    /// with no entity is dropped with a warning.
     pub fn finish_hierarchy(&mut self) {
         self.ensure_len();
         let pending_parents = std::mem::take(&mut self.pending_parents);
