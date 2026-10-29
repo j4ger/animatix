@@ -13,7 +13,6 @@ crates/animatix-gui/src/app/panels/inspector/mod.rs	563
 crates/animatix-gui/src/app/panels/inspector/property_groups/mod.rs	710
 crates/animatix-gui/src/app/panels/mod.rs	293
 crates/animatix-gui/src/app/panels/sidebar/mod.rs	312
-crates/animatix-gui/src/app/panels/timeline_panel/mod.rs	713
 crates/animatix-gui/src/app/panels/timeline_panel/track_lanes/mod.rs	143
 crates/animatix-gui/src/app/persistence/mod.rs	292
 crates/animatix-gui/src/app/preview/mod.rs	325
