@@ -1,23 +1,16 @@
 //! Unstable C ABI shared by the Animatix host and native extension plugins.
 //!
-//! Plugins are `cdylib` files that export [`UNSTABLE_ABI_VERSION`],
-//! `animatix_plugin_name`-equivalent symbols, and the install entry point.
-//! The host and plugin never pass Rust trait objects across the library
-//! boundary; they exchange only `repr(C)` structs and function pointers.
-//!
-//! There is exactly one current ABI snapshot. The ABI is intentionally
-//! unstable: no compatibility layer is kept for earlier in-repo snapshots, and
-//! plugins must be rebuilt from the same source tree as the host.
+//! Plugins export [`UNSTABLE_ABI_VERSION`], their name, and the install entry
+//! point. Only `repr(C)` structs and function pointers cross the boundary.
+//! There is one current snapshot; the ABI is unstable with no compatibility
+//! layer, so plugins must be rebuilt from the host's source tree.
 
 use std::ffi::{c_char, c_void};
 
 /// Unstable ABI snapshot id negotiated by the host and plugin.
 ///
-/// This is not a compatibility version. Bump it whenever the `repr(C)` layout
-/// or callback table changes; the host rejects any other snapshot.
-///
-/// Keep `docs/extension_authoring.md` ("The current unstable ABI snapshot is N")
-/// in sync with this value whenever it is bumped.
+/// Bump on any `repr(C)` layout or callback-table change; the host rejects any
+/// other snapshot. Keep `docs/extension_authoring.md` in sync when bumping.
 pub const UNSTABLE_ABI_VERSION: u32 = 9;
 
 /// Numeric runtime value tag.
@@ -99,20 +92,17 @@ pub const NATIVE_EASING_EXPO_OUT: u32 = 8;
 pub const NATIVE_EASING_EXPO_IN_OUT: u32 = 9;
 /// Highest easing code the host recognizes; codes above it are rejected.
 pub const NATIVE_EASING_MAX: u32 = NATIVE_EASING_EXPO_IN_OUT;
-/// One code per easing curve, so a curve that needs arguments cannot be one.
+/// Sentinel: an easing curve with parameters, not representable by one `u32`.
 ///
-/// `spring(damping, frequency)` and `cubic-bezier(p1x, p1y, p2x, p2y)` carry
-/// parameters and the ABI's easing slot is a single `u32`, so the host reports
-/// this sentinel rather than naming a different curve. A plugin must treat it
-/// as "no easing was specified here", not as a curve to interpolate; the way
-/// to lift it is a payload slot, which is an ABI bump.
+/// `spring(…)` and `cubic-bezier(…)` cannot be named in the single easing slot;
+/// a plugin must read this as "no easing specified", not interpolate it.
+/// Lifting it requires a payload slot, which is an ABI bump.
 pub const NATIVE_EASING_UNSUPPORTED: u32 = u32::MAX;
 
 /// A finite runtime value exchanged with native extension callbacks.
 ///
-/// String/list pointers are only valid for the duration of the callback that
-/// delivered them. The host always copies string/list contents before the
-/// callback returns; plugins must never retain these pointers.
+/// String/list pointers are valid only during the delivering callback; the host
+/// copies their contents before returning, so plugins must not retain them.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[repr(C)]
 pub struct NativeValue {
@@ -124,11 +114,10 @@ pub struct NativeValue {
     pub boolean: bool,
     /// Vector/color payload for vector and color tags.
     pub vec: [f64; 4],
-    /// UTF-8 string pointer and length for string-like tags.
+    /// UTF-8 string pointer and byte length for string-like tags.
     ///
-    /// The pointer is NUL-terminated and `string_len` is the byte length
-    /// *excluding* the terminating NUL. Preferred over scanning the pointer for
-    /// a NUL, since string content may itself contain embedded NUL bytes.
+    /// `string_len` excludes the terminating NUL; use it, since string content
+    /// may itself contain embedded NUL bytes.
     pub string: *const c_char,
     /// Byte length of `string` (excluding the terminating NUL).
     pub string_len: usize,
@@ -210,9 +199,8 @@ pub struct NativeModifierValue {
 pub struct NativeChild {
     /// Child actor label; empty for anonymous inline items.
     ///
-    /// Structurally-typed children use sentinel values: a `for` loop is
-    /// reported with `label == "for"` and `type_name == "ForLoop"`, and a
-    /// slot marker with `label == "@slot"` and `type_name == "Slot"`. Plugins
+    /// Sentinels: a `for` loop is `label == "for"`, `type_name == "ForLoop"`;
+    /// a slot marker is `label == "@slot"`, `type_name == "Slot"`. Plugins
     /// following a sentinel must string-match these exact values.
     pub label: *const c_char,
     /// Child actor type name.
@@ -267,8 +255,7 @@ pub struct NativeAssignmentContext {
     pub t_start_ms: u64,
     /// Animation end time in milliseconds.
     pub t_end_ms: u64,
-    /// Easing curve, as a `NATIVE_EASING_*` code. The host sends
-    /// [`NATIVE_EASING_UNSUPPORTED`] for a curve this ABI cannot name.
+    /// Easing curve (`NATIVE_EASING_*`); [`NATIVE_EASING_UNSUPPORTED`] when unnamed.
     pub easing: u32,
     /// Read the assigned value.
     pub get_value: unsafe extern "C" fn(*mut c_void, *mut NativeValue) -> i32,
@@ -298,8 +285,7 @@ pub type NativeFinalizeFn = unsafe extern "C" fn(*mut NativeFinalizeContext) -> 
 
 /// Native expression function callback.
 ///
-/// Returns [`NATIVE_STATUS_OK`] on success or one of the `NATIVE_STATUS_*`
-/// error codes. The output value is written into `out`.
+/// Returns [`NATIVE_STATUS_OK`] or a `NATIVE_STATUS_*` error; output goes to `out`.
 pub type NativeFunction = unsafe extern "C" fn(
     *mut NativeFunctionContext,
     args: *const NativeValue,
@@ -562,8 +548,7 @@ pub type NativePrimitiveEvaluateFn = unsafe extern "C" fn(*mut NativePrimitiveEv
 
 /// Context passed to a native primitive clip-path callback.
 ///
-/// The plugin emits its clip geometry as path commands; the host concatenates
-/// them into one clip path in the primitive's local space.
+/// The host concatenates the appended commands into one clip path in local space.
 #[repr(C)]
 pub struct NativeClipPathCtx {
     /// `size_of::<NativeClipPathCtx>()`.
@@ -583,9 +568,8 @@ pub type NativeClipPathFn = unsafe extern "C" fn(*mut NativeClipPathCtx) -> i32;
 
 /// Context passed to a native primitive equation-fragment callback.
 ///
-/// The plugin writes its raw fragment markup through [`Self::write_content`]
-/// (the host copies it) and fills the highlight style fields; the host owns all
-/// memory. Return [`NATIVE_STATUS_UNSUPPORTED`] to opt out.
+/// Write raw fragment markup through [`Self::write_content`] (copied by the
+/// host), fill the style fields, or return [`NATIVE_STATUS_UNSUPPORTED`] to opt out.
 #[repr(C)]
 pub struct NativePrimitiveEquationFragmentCtx {
     /// `size_of::<NativePrimitiveEquationFragmentCtx>()`.
@@ -633,9 +617,8 @@ pub struct NativeDefaultPropsCtx {
 pub type NativeDefaultPropsFn = unsafe extern "C" fn(*mut NativeDefaultPropsCtx) -> i32;
 
 /// Native primitive default-colorscheme-key callback: maps a property name to
-/// a colorscheme key (e.g. `"accent.primary"`, `"text.primary"`) so the
-/// primitive participates in scheme-based default colors, or returns
-/// [`NATIVE_STATUS_UNSUPPORTED`] to opt out.
+/// a colorscheme key (e.g. `"accent.primary"`) for scheme-based default colors,
+/// or returns [`NATIVE_STATUS_UNSUPPORTED`] to opt out.
 pub type NativeDefaultColorKeyFn =
     unsafe extern "C" fn(property: *const c_char, out_key: *mut *const c_char) -> i32;
 
@@ -789,14 +772,12 @@ pub struct NativeEffectParam {
     pub name: *const c_char,
     /// `NATIVE_EFFECT_PARAM_KIND_*` value.
     pub kind: u32,
-    /// Byte offset of this parameter inside the effect's uniform buffer. The
-    /// host uses the declared offsets verbatim: scalars and booleans must be
-    /// 4-byte aligned, `vec2` 8-byte aligned, `vec4` 16-byte aligned, and the
-    /// total buffer size a multiple of 16.
+    /// Byte offset inside the effect's uniform buffer, used verbatim. Scalars and
+    /// booleans are 4-byte aligned, `vec2` 8-byte, `vec4` 16-byte, and the total
+    /// buffer size a multiple of 16.
     pub offset: u32,
-    /// Value at which this parameter contributes nothing (interpreted per
-    /// kind: `f32`/`u32` read `identity[0]`, `bool` reads `identity[0] != 0`,
-    /// `vec2`/`vec4` read the first components).
+    /// No-op value, read per kind: `f32`/`u32` use `identity[0]`, `bool` uses
+    /// `identity[0] != 0`, and `vec2`/`vec4` use the first components.
     pub identity: [f32; 4],
 }
 
