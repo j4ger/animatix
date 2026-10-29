@@ -1,7 +1,4 @@
-//! Easing curve definitions and helpers for the Animatix syntax crate.
-//!
-//! Provides the `Easing` enum, a canonical easing name registry, and
-//! functions to apply easing to a progress value and to parse easing names.
+//! Easing curves: the `Easing` enum, name registry, application, and parsing.
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -18,11 +15,7 @@ pub enum Easing {
     EaseOut,
     /// Ease in-out — slow start and slow end.
     EaseInOut,
-    /// Bounce easing with natural bounce behavior.
-    ///
-    /// Named `bounce-in` in source: this is the CSS curve, which modulates
-    /// progress *along* the segment between two values. It is not gravity —
-    /// the `bounce` action is the thing that moves an actor through space.
+    /// Bounce easing, named `bounce-in` in source; it is not gravity (`bounce` action).
     Bounce,
     /// Elastic easing with spring-like overshoot.
     Elastic,
@@ -34,17 +27,14 @@ pub enum Easing {
     ExpoOut,
     /// Exponential ease-in-out.
     ExpoInOut,
-    /// Damped harmonic settle: leaves for the target, overshoots once, and
-    /// decays onto it. Unlike [`Easing::Bounce`] this is a real spring, so it
-    /// reads as an object coming to rest rather than a value wobbling.
+    /// Damped harmonic settle: overshoots once and decays onto the target.
     Spring {
         /// Exponential decay rate of the overshoot, in units of the segment.
         damping: f32,
         /// Oscillation rate, in radians over the segment.
         frequency: f32,
     },
-    /// Damped harmonic settle with initial velocity: preserves kinetic continuity
-    /// when interrupting an ongoing motion.
+    /// Damped harmonic settle with initial velocity, preserving kinetic continuity.
     SpringV0 {
         /// Exponential decay rate of the overshoot, in units of the segment.
         damping: f32,
@@ -53,23 +43,13 @@ pub enum Easing {
         /// Normalized initial scalar velocity projected onto the travel direction.
         v0: f32,
     },
-    /// Custom cubic-bezier easing with two control points.
-    ///
-    /// The four values are `(p1x, p1y, p2x, p2y)` where P1 and P2 are the
-    /// control points of a cubic Bézier curve with P0=(0,0) and P3=(1,1).
+    /// Custom cubic-bezier easing: `(p1x, p1y, p2x, p2y)` with P0=(0,0), P3=(1,1).
     CubicBezier([f32; 4]),
 }
 
-/// Registry of canonical easing names and their human-readable labels.
-///
-/// Each pair maps a source identifier (e.g. `"ease-in-out"`) to a display
-/// label (e.g. `"Ease In Out"`). Used for editor completion, UI presentation,
-/// and the build layer's "supported values" diagnostic.
-///
-/// The ids here are what the GUI writes back into source, so they are the
-/// hyphenated forms the hand-written corpus already uses — and a name only
-/// exists as a legacy alias (`bounce`) or takes arguments (`spring(6, 9)`) gets
-/// exactly one row, or none.
+/// Registry of canonical easing names and human-readable labels, used for editor
+/// completion, UI presentation, and the "supported values" diagnostic. The ids
+/// are what the GUI writes back into source (hyphenated forms).
 pub const EASING_REGISTRY: &[(&str, &str)] = &[
     ("linear", "Linear"),
     ("ease-in", "Ease In"),
@@ -88,14 +68,11 @@ pub const EASING_REGISTRY: &[(&str, &str)] = &[
 pub const DEFAULT_CUSTOM_EASING: [f32; 4] = [0.42, 0.0, 0.58, 1.0];
 
 /// Default spring parameters: about one and a half visible oscillations and a
-/// ~13% first overshoot, which is the settle motion that reads as deliberate
-/// rather than cartoonish.
+/// ~13% first overshoot — deliberate rather than cartoonish.
 pub const DEFAULT_SPRING: [f32; 2] = [6.0, 9.0];
 
-/// Apply an easing curve to a normalized progress value.
-///
-/// `progress` is clamped to the range `[0.0, 1.0]` before the easing formula
-/// is evaluated. Returns the eased value, also in `[0.0, 1.0]`.
+/// Apply an easing curve to a normalized progress value clamped to `[0.0, 1.0]`;
+/// returns a value also in `[0.0, 1.0]`.
 pub fn apply_easing(progress: f32, easing: Easing) -> f32 {
     let t = progress.clamp(0.0, 1.0);
     match easing {
@@ -162,10 +139,7 @@ pub fn apply_easing(progress: f32, easing: Easing) -> f32 {
                 1.0 - 0.5 * 2.0_f32.powf(10.0 - 20.0 * t)
             }
         },
-        // 1 - e^(-d t) cos(f t): starts at 0, leaves at full speed, and rings
-        // down onto 1. The endpoint is pinned because the residual is only
-        // asymptotically zero, and a keyframe that lands 0.2% off its target
-        // moves the resting composition.
+        // 1 - e^(-d t) cos(f t); endpoints pinned because the residual is asymptotic.
         Easing::Spring { damping, frequency } => {
             if t <= 0.0 {
                 0.0
@@ -260,7 +234,7 @@ pub fn easing_derivative(progress: f32, easing: Easing) -> f32 {
             let sin_term = (frequency * t).sin();
             decay * (v0 * cos_term + (damping * b + frequency) * sin_term)
         },
-        // Numerical central difference for curves with piecewise or binary-search definitions
+        // Numerical central difference for piecewise/binary-search curves.
         Easing::Bounce | Easing::Elastic | Easing::CubicBezier(_) => {
             let eps = 1e-4;
             let t0 = (t - eps).max(0.0);
@@ -274,11 +248,7 @@ pub fn easing_derivative(progress: f32, easing: Easing) -> f32 {
     }
 }
 
-/// Evaluate a cubic Bézier curve at a given x coordinate.
-///
-/// Given control points `cp = [p1x, p1y, p2x, p2y]` defining a cubic Bézier
-/// with P0=(0,0) and P3=(1,1), finds the parameter `t` such that
-/// `Bezier_x(t) ≈ x` using binary search, then returns `Bezier_y(t)`.
+/// Evaluate a cubic Bézier at x by binary search over `t`, then return `y(t)`.
 fn evaluate_cubic_bezier(x: f32, cp: [f32; 4]) -> f32 {
     let x = x.clamp(0.0, 1.0);
     if x <= 0.0 {
@@ -318,13 +288,8 @@ fn cubic_bezier_y(t: f32, cp: [f32; 4]) -> f32 {
     3.0 * omt * omt * t * cp[1] + 3.0 * omt * t * t * cp[3] + t * t * t
 }
 
-/// Parse an easing name string into an [`Easing`] variant.
-///
-/// Accepts both hyphenated and unhyphenated lowercase forms (e.g.
-/// `"ease-in"` or `"easein"`). Returns `None` if the name is not recognized.
-///
-/// Names that take arguments (`cubic-bezier`, `spring`) resolve to their
-/// defaults here; see [`parse_easing_call`] for the argument form.
+/// Parse an easing name; accepts hyphenated and unhyphenated lowercase forms.
+/// Argument-taking names resolve to defaults; see [`parse_easing_call`].
 pub fn parse_easing_name(raw: &str) -> Option<Easing> {
     match raw {
         "ease-in" | "easein" => Some(Easing::EaseIn),
@@ -336,9 +301,7 @@ pub fn parse_easing_name(raw: &str) -> Option<Easing> {
             damping: DEFAULT_SPRING[0],
             frequency: DEFAULT_SPRING[1],
         }),
-        // `bounce-in` is the canonical name; `bounce` stays accepted because
-        // years of source use it. See the `Bounce` variant doc for why the
-        // older name is a trap.
+        // `bounce-in` is canonical; `bounce` stays accepted for old source.
         "bounce-in" | "bouncein" | "bounce" => Some(Easing::Bounce),
         "elastic" => Some(Easing::Elastic),
         "back" => Some(Easing::Back),
@@ -351,14 +314,8 @@ pub fn parse_easing_name(raw: &str) -> Option<Easing> {
     }
 }
 
-/// Parse a parameterized easing call: `cubic-bezier(0.16, 1, 0.3, 1)` or
-/// `spring(6, 9)`.
-///
-/// This is the only place that knows which easing names take arguments and how
-/// many, so the editor, the parser and the build layer cannot each invent their
-/// own arity. Anything it rejects — an unknown name, or a known name with the
-/// wrong number of arguments — stays in the modifier list so the build layer
-/// can report it; the parse layer has no diagnostics.
+/// Parse a parameterized easing call. The only place that knows argument arity;
+/// rejected forms stay for the build layer to diagnose.
 pub fn parse_easing_call(name: &str, args: &[f64]) -> Option<Easing> {
     match name {
         "cubic-bezier" | "cubicbezier" | "custom" if args.len() == 4 => {
@@ -394,12 +351,9 @@ pub fn easing_expects_args(name: &str) -> Option<&'static str> {
     }
 }
 
-/// Resolve an easing from the value the source actually wrote: either a bare
-/// name (`ease: expo-out`) or a parameterized call
-/// (`ease: cubic-bezier(0.16, 1, 0.3, 1)`).
-///
-/// The parser and the build layer both go through here so neither can develop
-/// its own idea of which names take arguments.
+/// Resolve an easing from the written value: a bare name (`ease: expo-out`) or a
+/// call (`ease: cubic-bezier(...)`). Shared by parser and build layer so neither
+/// invents its own argument rules.
 pub fn parse_easing_expr(value: &crate::ast::Expr) -> Option<Easing> {
     use crate::ast::Expr;
     match value {
@@ -409,10 +363,8 @@ pub fn parse_easing_expr(value: &crate::ast::Expr) -> Option<Easing> {
     }
 }
 
-/// Literal number arguments of an easing call.
-///
-/// `-0.5` is accepted because the tokenizer produces a negation of a literal
-/// rather than a negative literal, and bezier control points go negative.
+/// Literal number arguments of an easing call. `-0.5` is accepted because the
+/// tokenizer produces a negation of a literal, not a negative literal.
 fn numeric_args(args: &[crate::ast::Expr]) -> Option<Vec<f64>> {
     use crate::ast::{Expr, UnaryOp};
     args.iter()
@@ -427,11 +379,9 @@ fn numeric_args(args: &[crate::ast::Expr]) -> Option<Vec<f64>> {
         .collect()
 }
 
-/// The modifier value that parses back to this easing — an identifier for the
-/// named curves, a call for the parameterized ones.
-///
-/// Lives here so an editor writing an easing into an AST cannot invent its own
-/// name table (the GUI's did, and it dropped custom curves onto `linear`).
+/// The modifier value that parses back to this easing: an identifier for named
+/// curves, a call for parameterized ones. Lives here so editors cannot invent
+/// their own name table (the GUI's did, and dropped custom curves onto `linear`).
 pub fn easing_to_expr(easing: Easing) -> crate::ast::Expr {
     use crate::ast::Expr;
     match easing {
@@ -462,10 +412,8 @@ pub fn easing_to_expr(easing: Easing) -> crate::ast::Expr {
     }
 }
 
-/// Render an easing back into the source form that parses to it.
-///
-/// Used by the inspector's curve readout and by anything that has to show or
-/// write an easing it did not parse itself.
+/// Render an easing into the source form that parses back to it, for the
+/// inspector's curve readout and anything that writes an easing it did not parse.
 pub fn easing_source_form(easing: Easing) -> String {
     match easing {
         Easing::Linear => "linear".to_string(),
@@ -488,9 +436,8 @@ pub fn easing_source_form(easing: Easing) -> String {
     }
 }
 
-/// Format a cubic-bezier easing as a CSS-like string.
-///
-/// Example: `format_cubic_bezier([0.42, 0.0, 0.58, 1.0])` → `"cubic-bezier(0.42, 0, 0.58, 1)"`
+/// Format a cubic-bezier easing as a CSS-like string, e.g.
+/// `"cubic-bezier(0.42, 0, 0.58, 1)"`.
 pub fn format_cubic_bezier(cp: [f32; 4]) -> String {
     format!("cubic-bezier({:.2}, {:.2}, {:.2}, {:.2})", cp[0], cp[1], cp[2], cp[3])
 }
@@ -499,9 +446,8 @@ pub fn format_cubic_bezier(cp: [f32; 4]) -> String {
 mod tests {
     use super::*;
 
-    /// The registry is what the GUI, the curve panel and LSP completion list,
-    /// and this parser is what `.amx` source hits. A name on one side and not
-    /// the other means the editor offers an easing the engine then rejects.
+    /// The registry feeds GUI/LSP completion and this parser consumes `.amx`; a
+    /// one-sided name means the editor offers an easing the engine rejects.
     #[test]
     fn every_registry_id_parses() {
         for (id, label) in EASING_REGISTRY {
@@ -512,9 +458,8 @@ mod tests {
         }
     }
 
-    /// Every curve must be anchored at both ends: a keyframe's target value is
-    /// what the stage shows once it settles, so a curve that lands anywhere
-    /// but 1.0 silently moves the resting composition.
+    /// Every curve must be anchored at both ends: the settle target is what the
+    /// stage shows, so a curve landing anywhere but 1.0 moves the composition.
     #[test]
     fn every_curve_holds_its_endpoints() {
         let curves = [
@@ -547,8 +492,7 @@ mod tests {
         }
     }
 
-    /// Whatever the library can render as source must parse back to the same
-    /// curve, or the inspector's readout and the formatter drift from the plan.
+    /// Whatever the library renders as source must parse back to the same curve.
     #[test]
     fn source_form_round_trips() {
         let curves = [
@@ -592,7 +536,7 @@ mod tests {
     }
 
     /// A bezier with the wrong number of control points must be rejected so the
-    /// build layer can say so, rather than quietly falling back to a default.
+    /// build layer can say so, rather than falling back to a default.
     #[test]
     fn parameterized_eases_check_their_arity() {
         assert!(parse_easing_call("cubic-bezier", &[0.16, 1.0, 0.3]).is_none());

@@ -1,9 +1,6 @@
-//! Shared schema for actor properties and primitives.
-//!
-//! This module owns metadata that would otherwise be duplicated in runtime or
-//! analyzer-specific static tables. It intentionally contains no runtime logic
-//! so `animatix-analyzer` and LSP can consume it without depending on
-//! Vello/WGPU.
+//! Shared schema for actor properties and primitives: metadata that would
+//! otherwise be duplicated in runtime or analyzer-specific tables. No runtime
+//! logic, so analyzer/LSP can consume it without Vello/WGPU.
 
 pub use animatix_core::caps::Applicable;
 pub use animatix_core::property::{PropertyId, PropertyValueKind};
@@ -17,10 +14,8 @@ pub struct PropertySpec {
     pub id: PropertyId,
     /// Canonical property name.
     pub name: &'static str,
-    /// Actor source type names this property applies to.
-    ///
-    /// Boxed rather than `&'static [&'static str]`: the `OnceLock` cache owns
-    /// the table, so materializing it allocates but never leaks.
+    /// Actor source type names this property applies to; boxed because the
+    /// `OnceLock` cache owns the table.
     pub actor_types: Box<[&'static str]>,
     /// Inferred/declared property type.
     pub ty: Type,
@@ -31,10 +26,8 @@ pub struct PropertySpec {
 /// Neutral property descriptor shared by built-ins, extensions, and tooling.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PropertyDescriptor {
-    /// Stable runtime property id, when this descriptor is registered at runtime.
-    ///
-    /// Manifests and analyzer-only descriptors keep this `None`; runtime
-    /// `PropertyRegistry` descriptors always carry `Some`.
+    /// Stable runtime property id, when registered at runtime; `None` for
+    /// manifests and analyzer-only descriptors.
     pub id: Option<PropertyId>,
     /// Canonical source-text property name.
     pub name: String,
@@ -152,15 +145,9 @@ impl PrimitiveCategory {
     }
 }
 
-/// Child-rendering strategy selected by a primitive.
-///
-/// Vocabulary lives in `animatix-core::caps`; re-exported here because the
-/// shared schema, manifests, and tooling address it through this crate.
+/// Child-rendering strategy selected by a primitive; re-exported for tooling.
 pub use animatix_core::caps::ChildProcessingKind;
 /// Engine capabilities that determine which subsystems consume a primitive.
-///
-/// Vocabulary lives in `animatix-core::caps`; re-exported here because the
-/// shared schema, manifests, and tooling address it through this crate.
 pub use animatix_core::caps::PrimitiveCapabilities;
 
 /// Metadata for a primitive in the shared schema.
@@ -207,10 +194,8 @@ pub struct PrimitiveDescriptor {
     pub properties: Vec<String>,
 }
 
-/// Built-in primitive metadata shared by runtime, GUI, and LSP tooling.
-///
-/// Derived from the `animatix-std` catalog — the built-in implementations are
-/// the single source; this crate only re-shapes them for tooling.
+/// Built-in primitive metadata shared by runtime, GUI, and LSP tooling, derived
+/// from the `animatix-std` catalog.
 pub fn builtin_primitive_specs() -> Vec<PrimitiveSpec> {
     use animatix_core::caps::ActorCategory;
     animatix_std::CATALOG
@@ -245,31 +230,21 @@ pub struct EffectParamSpecDef {
     pub kind: PropertyValueKind,
 }
 
-/// One author-visible effect kind recognized inside a `Filter` scope.
-///
-/// Effects are not primitives and do not appear in
-/// [`builtin_primitive_specs`]; this table exists so the analyzer can validate
-/// and complete effect declarations and their parameters. The data is
-/// **derived** from the built-in catalog in `animatix-std` — the effect
-/// implementations are the single source; this crate only re-shapes them for
-/// tooling.
+/// One author-visible effect kind inside a `Filter` scope. Effects are not
+/// primitives; this table lets the analyzer validate/complete declarations.
 #[derive(Clone, Debug)]
 pub struct EffectSpecDef {
     /// Authored type name (`Blur`).
     pub type_name: &'static str,
     /// Human-readable display name.
     pub display_name: &'static str,
-    /// Declared marshalable parameters. Every effect also implicitly accepts
-    /// `enabled: Bool` (default `true`); it is not listed here because it is
-    /// not part of the shader's uniform layout.
+    /// Declared marshalable parameters; `enabled: Bool` is implicit and not in
+    /// the shader uniform layout.
     pub params: Vec<EffectParamSpecDef>,
 }
 
-/// Built-in effect kinds, derived from the `animatix-std` catalog.
-///
-/// Only built-ins are described here, so the type/display names stay
-/// `&'static str` (the `EFFECTS` array is a `static`). The per-parameter rows
-/// are owned because they are derived rather than literal.
+/// Built-in effect kinds, derived from the `animatix-std` catalog. Only built-ins
+/// are described here, so type/display names stay `&'static str`.
 pub fn effect_specs() -> &'static [EffectSpecDef] {
     use std::sync::OnceLock;
     static SPECS: OnceLock<Vec<EffectSpecDef>> = OnceLock::new();
@@ -309,10 +284,8 @@ pub fn effect_spec(type_name: &str) -> Option<&'static EffectSpecDef> {
     effect_specs().iter().find(|spec| spec.type_name == type_name)
 }
 
-/// All known built-in property specs with stable ids in declaration order.
-///
-/// The ids are unique per property name and intentionally follow the runtime
-/// registry order so `property_id` can round-trip without a second table.
+/// All known built-in property specs with stable ids following registry order,
+/// so `property_id` round-trips without a second table.
 pub fn property_specs() -> Vec<PropertySpec> {
     use std::sync::OnceLock;
     static SPECS: OnceLock<Vec<PropertySpec>> = OnceLock::new();
@@ -359,15 +332,8 @@ pub fn property_specs() -> Vec<PropertySpec> {
         .clone()
 }
 
-/// Property names shared by (nearly) every built-in actor type.
-///
-/// Extension (plugin) actor types inherit these so the analyzer does not flag
-/// the standard transform/geometry/layout properties (`at`, `opacity`,
-/// `color`, `size`, ...) as unknown on a custom primitive. `solo` is in the
-/// list for the same reason as the transform set: the render gate is
-/// actor-type-agnostic, so any primitive can be soloed. Kept as an explicit,
-/// reviewable list rather than a count threshold; `common_property_list_stays_in_sync`
-/// pins it against the schema so adding a near-universal property is deliberate.
+/// Property names shared by (nearly) every built-in actor type; extensions inherit
+/// them so the analyzer does not flag `at`, `opacity`, `color`, etc. as unknown.
 pub fn common_property_names() -> &'static [&'static str] {
     &[
         "anchor",
@@ -401,23 +367,13 @@ pub fn common_property_names() -> &'static [&'static str] {
 }
 
 /// The type-system view of every built-in property, index-aligned with
-/// [`animatix_core::property::PROPERTY_DESCRIPTORS`].
-///
-/// The names and the order come from the core descriptor table; this function
-/// supplies only the expression type (`Type`), which the runtime- and
-/// analyzer-neutral core crate must not carry (unions, function types, and
-/// actor/component references belong to the type model). A row added, renamed,
-/// or moved here without the matching core change fails
-/// `property_types_line_up_with_descriptors` instead of silently mis-typing a
-/// property.
+/// [`animatix_core::property::PROPERTY_DESCRIPTORS`]. Supplies only the expression
+/// `Type`; a mismatched row fails `property_types_line_up_with_descriptors`.
 fn property_type_for_descriptor(desc: &animatix_core::property::PropertyDescriptor) -> Type {
     match desc.name {
-        // `place` and `icon` carry enum/build-time names whose descriptor kind
-        // is `Generic` (it cannot distinguish a name from a structure), so their
-        // precise string type stays explicit.
+        // `place`/`icon` descriptor kind is `Generic`, so pin their string type.
         "place" | "icon" => Type::Str,
-        // `Vec4` falls back to `Union(Color, Str)` (colour text is accepted
-        // everywhere), but these rows are colours only.
+        // `Vec4` falls back to `Union(Color, Str)`, but these rows are colours only.
         "active_color" | "inactive_color" | "backdrop_color" | "shadow_color" => Type::Color,
         // Numeric rows that also accept a string escape hatch (`gap: "auto"`).
         "bar_width" | "font_weight" | "gap" | "max_value" => {
@@ -429,8 +385,7 @@ fn property_type_for_descriptor(desc: &animatix_core::property::PropertyDescript
         "dash_pattern" => Type::List(Box::new(Type::Num)),
         "transform" => transform_type(),
         "bounds" | "shadow" => Type::Vec4,
-        // Plot domains are `Vec2` at runtime but authored as tuples or
-        // `"auto"`-style expressions, so tooling keeps the dynamic type.
+        // Runtime `Vec2`, authored as tuples or `"auto"`-style expressions.
         "levels" | "x_range" | "y_range" => Type::Any,
 
         _ => match desc.value_kind {

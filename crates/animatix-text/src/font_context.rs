@@ -7,33 +7,18 @@ use typst::foundations::Bytes;
 #[cfg(feature = "rich-text")]
 use typst::text::Font;
 
-// ─────────────────────────────────────────────────────────────
 // Persistent font database (FontContext)
-// ─────────────────────────────────────────────────────────────
 
-/// Owns a persistent `fontdb::Database` to avoid redundant font scanning (~45-60ms per call).
-///
-/// Create one `FontContext` early and share it throughout the build pipeline.
-///
-/// The system font database is loaded **once per process** and shared behind an
-/// `Arc`, so every `FontContext::new()` (one per `Timeline::build`/rebuild)
-/// reuses the same scanned faces instead of re-scanning the system on each call.
-/// This turns repeated builds (e.g. per keystroke in the GUI) from O(fonts) disk
-/// + parse work into an O(1) `Arc` clone.
+/// Owns a persistent `fontdb::Database` to avoid redundant scanning (~45-60ms per
+/// call). The system database is loaded once per process and shared behind an `Arc`.
 #[derive(Clone, Debug)]
 pub struct FontContext {
     /// The underlying font database, shared process-wide (only read after load).
     pub(crate) db: std::sync::Arc<fontdb::Database>,
-    /// Whether the plain-text fast path (bypassing Typst) is enabled.
-    /// Default: true. Set `text_fast_path: false` in the config block to disable.
+    /// Whether the plain-text fast path (bypassing Typst) is enabled (default true).
     pub text_fast_path: bool,
-    /// Font-environment generation this context was created under.
-    ///
-    /// Compiled-text memoization keys include this value, so every context
-    /// created after [`advance_font_env_epoch`] automatically misses the cache
-    /// instead of serving glyphs shaped with stale font data. Contexts created
-    /// under the same epoch are guaranteed to see identical font data because
-    /// the shared database is immutable after load.
+    /// Font-environment generation: memo keys include this value, so contexts
+    /// created after [`advance_font_env_epoch`] miss the stale-font cache.
     pub(crate) epoch: u64,
 }
 
@@ -44,29 +29,18 @@ pub(crate) fn font_env_epoch() -> u64 {
     std::sync::atomic::AtomicU64::load(&FONT_ENV_EPOCH, std::sync::atomic::Ordering::Relaxed)
 }
 
-/// Declare that the process font environment changed (e.g. fonts were reloaded
-/// or registered at runtime) and invalidate every memoized text compilation.
-///
-/// Any [`FontContext`] created *after* this call carries the new epoch, so its
-/// compilations cannot collide with entries shaped under the previous font
-/// data. Call this before creating contexts against the new font state; there
-/// is currently no in-process font mutation, so today this is only exercised
-/// by tests — it exists so a future font-reload feature has one sanctioned,
-/// hard-to-miss invalidation point wired into the cache key itself.
+/// Declare that the process font environment changed and invalidate every
+/// memoized text compilation; contexts created afterwards carry the new epoch.
 pub fn advance_font_env_epoch() -> u64 {
     use std::sync::atomic::Ordering;
     let next = FONT_ENV_EPOCH.fetch_add(1, Ordering::Relaxed) + 1;
-    // Entries from older epochs can never be hit again; reclaim them now
-    // instead of waiting for capacity eviction.
+    // Entries from older epochs can never be hit again; reclaim them now.
     crate::compiler::clear_text_compile_cache();
     next
 }
 
-/// Load (once) and cache the system font database for the whole process.
-///
-/// `fontdb::Database` is only ever read after construction in this codebase, so
-/// sharing one immutable instance across all [`FontContext`]s is safe and avoids
-/// re-scanning the system font dirs on every build.
+/// Load (once) and cache the system font database for the whole process. The
+/// database is only read after construction, so sharing it is safe.
 pub(crate) fn system_fonts_db() -> &'static std::sync::Arc<fontdb::Database> {
     use std::sync::OnceLock;
     static DB: OnceLock<std::sync::Arc<fontdb::Database>> = OnceLock::new();
@@ -85,7 +59,6 @@ impl Default for FontContext {
 
 impl FontContext {
     /// Create a new font context with system fonts loaded (shared process-wide).
-    /// The plain-text fast path is enabled by default.
     pub fn new() -> Self {
         Self {
             db: std::sync::Arc::clone(system_fonts_db()),
@@ -106,11 +79,9 @@ impl FontContext {
     #[cfg(feature = "rich-text")]
     /// Load the bold/italic emphasis faces of a family into the Typst world.
     ///
-    /// `with_fonts_and_fallback` loads only the default regular face per family,
-    /// so `*bold*`/`_italic_`/`font_weight` selected by Typst markup or the
-    /// `font_weight`/`font_style` properties had no matching face and fell back
-    /// to regular. This returns the regular + bold + italic + bold-italic faces
-    /// so those variants actually render. Empty if the family has none.
+    /// `with_fonts_and_fallback` loads only the regular face, so `*bold*`,
+    /// `_italic_`, and `font_weight`/`font_style` variants fell back to regular.
+    /// Returns regular + bold + italic + bold-italic faces, empty if none.
     pub(crate) fn load_font_emphasis_faces(&self, family: &str) -> Vec<Font> {
         let combos = [
             (fontdb::Weight::NORMAL, fontdb::Style::Normal),
@@ -160,18 +131,13 @@ impl FontContext {
             .is_some()
     }
 
-    /// Return at most one regular system face per probe character.
-    ///
-    /// This is a startup-only discovery helper; callers should cache the result
-    /// for the application lifetime instead of calling it per frame. Preferring
-    /// normal sans-serif faces keeps the egui fallback list small while still
-    /// covering non-Latin scripts with a few broad fonts.
+    /// Return at most one regular system face per probe character. Startup-only;
+    /// callers should cache the result for the application lifetime.
     pub fn font_for_glyphs(&self, probes: &[char]) -> Vec<(Vec<u8>, u32)> {
         let mut covered = vec![false; probes.len()];
         let mut fonts = Vec::new();
 
-        // First pass prefers the generic UI face shape; second pass fills any
-        // remaining probes from other installed faces.
+        // First pass prefers the generic UI face shape; second fills remaining probes.
         for pass in 0..2 {
             if covered.iter().all(|covered| *covered) {
                 break;
@@ -198,8 +164,7 @@ impl FontContext {
             }
         }
 
-        // A second full scan for the rare case where every remaining probe is
-        // only covered by a mono/bold face. Keep the result bounded by probes.
+        // Fallback scan for probes only covered by a mono/bold face.
         for face in self.db.faces() {
             if covered.iter().all(|covered| *covered) {
                 break;
@@ -256,14 +221,8 @@ impl FontContext {
         }
     }
 
-    /// Register an in-memory font so `font_family` can name it.
-    ///
-    /// The shared database is immutable after init, so this builds a private
-    /// copy containing `bytes`, swaps it in, and bumps the font epoch to
-    /// invalidate memoized text compiles. The family comes from the font's own
-    /// name table — write `font_family` to match it. Both text paths pick the
-    /// face up automatically: the fast path resolves it through fontdb, and the
-    /// Typst path loads its emphasis faces and uses it for glyph fallback.
+    /// Register an in-memory font so `font_family` can name it: clone the shared
+    /// database, load `bytes`, and bump the epoch to invalidate memoized compiles.
     pub fn load_font_bytes(&mut self, bytes: Vec<u8>) {
         let mut db = (*self.db).clone();
         db.load_font_data(bytes);
@@ -271,8 +230,7 @@ impl FontContext {
         self.epoch = advance_font_env_epoch();
     }
 
-    /// Load a `ttf_parser::Face` for the given family, weight and style.
-    /// Returns `None` if the font cannot be found or is not a TrueType/OpenType font.
+    /// Load a `ttf_parser::Face`; `None` if missing or not TrueType/OpenType.
     pub fn load_face(
         &self,
         family: &str,
@@ -316,15 +274,10 @@ impl FontContext {
     }
 }
 
-// ─────────────────────────────────────────────────────────────
 // System glyph-fallback fonts
-// ─────────────────────────────────────────────────────────────
 
-/// Process-wide cache: character → first installed face covering it.
-///
-/// Scan order mirrors [`FontContext::font_for_glyphs`]: normal weight and
-/// style, non-monospaced faces first. `None` caches a known-uncovered char so
-/// repeated compiles skip the scan.
+/// Process-wide cache: character → first installed face covering it. `None`
+/// caches a known-uncovered char so repeated compiles skip the scan.
 #[cfg(feature = "rich-text")]
 fn char_face_cache() -> &'static std::sync::Mutex<HashMap<char, Option<fontdb::ID>>> {
     static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<char, Option<fontdb::ID>>>> =
@@ -353,12 +306,8 @@ fn typst_font_cache() -> &'static std::sync::Mutex<HashMap<fontdb::ID, Font>> {
 }
 
 /// Process-wide cache: fontdb face id → `'static` view of the face bytes.
-///
-/// [`FontContext::load_face`] returns `Face<'static>` because its callers hold
-/// the face across frames; `ttf_parser` borrows the buffer, so that buffer has
-/// to live for the process. Memoizing the allocation per face id bounds it to
-/// one per distinct face instead of one per call. The Typst path does not use
-/// this at all — it shares `Arc<[u8]>` via [`cached_face_data`].
+/// `load_face` returns `Face<'static>` because callers hold it across frames, so
+/// the allocation must live for the process and is memoized per face id.
 pub(crate) fn leaked_face_data(font_ctx: &FontContext, id: fontdb::ID) -> Option<&'static [u8]> {
     static CACHE: std::sync::OnceLock<std::sync::Mutex<HashMap<fontdb::ID, &'static [u8]>>> =
         std::sync::OnceLock::new();
@@ -393,7 +342,7 @@ fn face_covers_char(data: &[u8], index: u32, ch: char) -> bool {
 }
 
 /// Find the first installed face covering `ch`, preferring normal weight and
-/// style, non-monospaced faces. Result is cached per character.
+/// style, non-monospaced faces. Cached per character.
 #[cfg(feature = "rich-text")]
 fn probe_char_face(font_ctx: &FontContext, ch: char) -> Option<fontdb::ID> {
     if let Some(cached) = char_face_cache().lock().unwrap().get(&ch) {
@@ -441,12 +390,9 @@ fn cached_typst_font(font_ctx: &FontContext, id: fontdb::ID) -> Option<Font> {
 }
 
 #[cfg(feature = "rich-text")]
-/// Collect Typst fonts covering every character of `content` that the primary
-/// family cannot render.
-///
-/// Gives the Typst text path glyph coverage for non-Latin content (CJK,
-/// Cyrillic, ...) without requiring an explicit `font_family`. Bounded at 8
-/// distinct fallback faces per compile; results are cached per face id.
+/// Collect Typst fonts covering characters of `content` the primary family
+/// cannot render (CJK, Cyrillic, ...), without requiring `font_family`.
+/// Bounded at 8 fallback faces per compile; results are cached per face id.
 pub(crate) fn collect_fallback_fonts(
     font_ctx: &FontContext,
     content: &str,
@@ -454,8 +400,7 @@ pub(crate) fn collect_fallback_fonts(
     primary_weight: f32,
     primary_style: &str,
 ) -> Vec<Font> {
-    // Resolve the primary face through shared cached data instead of
-    // `load_face`, which leaks its buffer on every call.
+    // Resolve the primary face through shared cached data (`load_face` leaks).
     let fontdb_style = match primary_style {
         "italic" | "oblique" => fontdb::Style::Italic,
         _ => fontdb::Style::Normal,
@@ -496,17 +441,13 @@ pub(crate) fn collect_fallback_fonts(
     ids.iter().filter_map(|id| cached_typst_font(font_ctx, *id)).collect()
 }
 
-// ─────────────────────────────────────────────────────────────
 // Font bundle
-// ─────────────────────────────────────────────────────────────
 
 /// A font entry in the bundled font set.
 ///
-/// `weight`/`style` are the face's own CSS values, recorded so the plain-text
-/// fast path can choose among a family's faces the way fontdb's query does for
-/// system fonts. Without them the fast path could only ever take the first entry
-/// of a family, which made `font_weight: 700` and `font_style: "italic"` no-ops
-/// on bundled text.
+/// `weight`/`style` are the face's own CSS values, so the fast path can choose
+/// among a family's faces the way fontdb does; without them `font_weight` and
+/// `font_style` were no-ops on bundled text.
 pub(crate) struct BundledFont {
     pub(crate) family: &'static str,
     pub(crate) data: &'static [u8],
@@ -514,11 +455,8 @@ pub(crate) struct BundledFont {
     pub(crate) style: &'static str,
 }
 
-/// The bundled face of `family` that answers a weight/style query, chosen the
-/// way a font database chooses: style is a different shape and so decides first,
-/// then the nearest available weight. A family that ships one face — every
-/// family in a slim build — therefore gets that face for any query, which is
-/// what it got before this existed.
+/// The bundled face of `family` answering a weight/style query: style decides
+/// first, then the nearest available weight.
 pub(crate) fn bundled_face(family: &str, weight: f32, style: &str) -> Option<&'static BundledFont> {
     let want_italic = style == "italic" || style == "oblique";
     BUNDLED_FONTS.iter().filter(|bf| bf.family == family).min_by_key(|bf| {
@@ -531,47 +469,33 @@ pub(crate) fn bundled_face(family: &str, weight: f32, style: &str) -> Option<&'s
 
 /// Fonts embedded at compile time. Add new fonts here.
 pub(crate) static BUNDLED_FONTS: &[BundledFont] = &[
-    // Open Sans static faces (Apache-2.0; see assets/fonts/README.md for
-    // provenance + SHA-256). These are what the plain-text fast path can use —
-    // it shapes with `ttf-parser`, which reads `fvar` but never applies the
-    // deltas — so the set has to cover the weights authors ask for by name, and
-    // `bundled_face` chooses among them the way a font database does. The rich
-    // path gets the variable pair as well (see `VARIABLE_FONTS`) and can answer
-    // any weight in the axis range.
+    // Open Sans static faces (Apache-2.0; provenance/SHA-256 in
+    // assets/fonts/README.md). `ttf-parser` reads `fvar` but never applies
+    // deltas, so the fast path needs static weights.
     BundledFont {
         family: "Open Sans",
         data: include_bytes!("../assets/fonts/OpenSans-Regular.ttf"),
         weight: 400.0,
         style: "normal",
     },
-    // Noto Sans SC subset (SIL OFL 1.1; see assets/fonts/README.md for
-    // provenance + SHA-256): the 3755 GB2312 level-1 common hanzi plus CJK
-    // punctuation, fullwidth forms and ASCII, instanced to weight 400. Gives
-    // the wasm sandbox (no system fonts) zero-config CJK coverage — before
-    // this, CJK text shaped to nothing, every glyph silently skipped.
-    // NOT gated on rich-text: in the slim build the fast path is the only
-    // shaper, and its per-character fallback (pick_glyph) needs this face.
+    // Noto Sans SC subset (SIL OFL 1.1): 3755 GB2312 hanzi plus CJK punctuation,
+    // fullwidth forms and ASCII at weight 400. Not gated: the slim build's only
+    // shaper needs this face for zero-config CJK coverage.
     BundledFont {
         family: "Noto Sans SC",
         data: include_bytes!("../assets/fonts/NotoSansSC-Common.ttf"),
         weight: 400.0,
         style: "normal",
     },
-    // Not gated: `font_weight: "bold"` is asked for by plain-Latin titles that
-    // run on the slim embed (every `web/demos/epicycles/*` scene), and the fast
-    // path can only answer it if the face is in the binary. Costs ~220 KB. The
-    // two italic faces stay gated: the only italic in the corpus is
-    // `examples/layout/27_layout_text.amx`, which no site page embeds — on a
-    // slim build that line draws regular, and the desktop build draws italic.
+    // Not gated: plain-Latin titles on the slim embed ask for bold (~220 KB).
+    // The italic faces stay gated; only a non-embedded example uses italics.
     BundledFont {
         family: "Open Sans",
         data: include_bytes!("../assets/fonts/OpenSans-Bold.ttf"),
         weight: 700.0,
         style: "normal",
     },
-    // Gated because the plain fast path cannot reach it in a slim build, which
-    // ships Regular alone for this family; `bundled_face` then answers every
-    // weight and style query with that one face.
+    // Gated: the slim build ships Regular alone, so `bundled_face` cannot reach it.
     #[cfg(feature = "rich-text")]
     BundledFont {
         family: "Open Sans",
@@ -579,9 +503,7 @@ pub(crate) static BUNDLED_FONTS: &[BundledFont] = &[
         weight: 400.0,
         style: "italic",
     },
-    // Gated because the plain fast path cannot reach it in a slim build, which
-    // ships Regular alone for this family; `bundled_face` then answers every
-    // weight and style query with that one face.
+    // Gated: the slim build ships Regular alone, so `bundled_face` cannot reach it.
     #[cfg(feature = "rich-text")]
     BundledFont {
         family: "Open Sans",
@@ -589,9 +511,7 @@ pub(crate) static BUNDLED_FONTS: &[BundledFont] = &[
         weight: 700.0,
         style: "italic",
     },
-    // Gated because the plain fast path cannot reach it in a slim build, which
-    // ships Regular alone for this family; `bundled_face` then answers every
-    // weight and style query with that one face.
+    // Gated: the slim build ships Regular alone, so `bundled_face` cannot reach it.
     #[cfg(feature = "rich-text")]
     BundledFont {
         family: "Fira Math",
@@ -608,14 +528,8 @@ pub const DEFAULT_MATH_FONT_FAMILY: &str = "Fira Math";
 /// The weight a caller that never says otherwise compiles at.
 pub const DEFAULT_FONT_WEIGHT: f32 = 400.0;
 
-/// The parsed variable pair, built once per process.
-///
-/// `build_world` runs per text compile, and parsing a 530 KB variable face every
-/// time showed up as +8.3% on `scrub_layout_scene_100frames` — a cost the static
-/// faces already pay, but which adding two more faces made worth fixing rather
-/// than absorbing. `typst::Font` is refcounted internally, so the clone per
-/// world is an `Arc` bump; the `FontInfo` still gets cloned into the book because
-/// the book owns its entries.
+/// The parsed variable pair, built once per process: parsing a 530 KB face per
+/// compile cost +8.3% on `scrub_layout_scene_100frames`. `typst::Font` is refcounted.
 #[cfg(feature = "rich-text")]
 pub(crate) static VARIABLE_FONT_FACES: std::sync::LazyLock<Vec<Font>> = std::sync::LazyLock::new(
     || {
@@ -651,22 +565,20 @@ pub(crate) static VARIABLE_FONTS: &[BundledFont] = &[
     },
 ];
 
-/// Resolve a font family name to the family string that should appear in Typst markup.
-/// Searches bundled fonts first, then system fonts (via FontContext).
-/// Falls back to `DEFAULT_FONT_FAMILY` if not found anywhere.
+/// Resolve a font family to the string used in Typst markup: bundled first,
+/// then system fonts, then [`DEFAULT_FONT_FAMILY`].
 pub fn resolve_font_family(requested: &str, font_ctx: &FontContext) -> String {
     if requested.is_empty() {
         return DEFAULT_FONT_FAMILY.to_string();
     }
 
-    // 1. Check bundled fonts (exact case-insensitive match)
+    // Exact case-insensitive match among bundled fonts.
     for bf in BUNDLED_FONTS {
         if bf.family.eq_ignore_ascii_case(requested) {
             return bf.family.to_string();
         }
     }
 
-    // 2. Check system fonts via FontContext
     if font_ctx.has_family(requested) {
         return requested.to_string();
     }

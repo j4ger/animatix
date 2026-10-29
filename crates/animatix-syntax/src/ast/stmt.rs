@@ -1,11 +1,9 @@
 use super::*;
 
-/// Item declared inside a container (Row, Col, Grid).
-/// Distinguishes between anonymous items and labeled scene actors.
+/// Item declared inside a container (Row, Col, Grid): anonymous or labeled.
 #[derive(Clone, Debug, PartialEq)]
 pub enum InlineItem {
-    /// Anonymous item that only exists within its container (e.g.
-    /// `Button, text: "OK"`).
+    /// Anonymous item existing only within its container (e.g. `Button, text: "OK"`).
     Anonymous {
         /// Actor type name.
         ty: String,
@@ -16,13 +14,11 @@ pub enum InlineItem {
         /// Nested child items.
         children: Vec<InlineItem>,
     },
-    /// Labeled item added to the scene graph (e.g. `btn: Button, text:
-    /// "OK"`).
+    /// Labeled item added to the scene graph (e.g. `btn: Button, text: "OK"`).
     Labeled {
         /// Item label.
         label: String,
-        /// Array index expression for programmatic actor generation.
-        /// `None` for normal inline declarations.
+        /// Array index expression for programmatic generation; `None` for normal items.
         array_index: Option<Expr>,
         /// Actor type name.
         ty: String,
@@ -34,7 +30,6 @@ pub enum InlineItem {
         children: Vec<InlineItem>,
     },
     /// For loop inside a container's children block (e.g. `for item, i in items { ... }`).
-    /// Body items are generated inline during build.
     ForLoop {
         /// Loop variable pattern (single or tuple destructuring).
         var: LoopPattern,
@@ -46,13 +41,8 @@ pub enum InlineItem {
         body: Vec<InlineItem>,
     },
     /// `@slot` marker inside a container's children block.
-    /// Default items (if any) are non-@slot sibling items in the same
-    /// container.
     SlotMarker,
-    /// `@slot` fill item.
-    /// Maps to a container label inside the component body (e.g. `header {
-    /// ... }` maps to the container named `header` that contains a `@slot`
-    /// marker).
+    /// `@slot` fill item: maps to a container label inside the component body.
     SlotFill {
         /// Slot name.
         slot: String,
@@ -61,18 +51,10 @@ pub enum InlineItem {
     },
 }
 
-// ----------------------------------------------------------------------------
-// 5. Statements
-// ----------------------------------------------------------------------------
-// The core logic units of the language. Includes declarations, timeline,
-// reactive blocks, and control flow.
-// ----------------------------------------------------------------------------
+// ── Statements ───────────────────────────────────────────────────────────────
 
-/// A single segment of an assignment/reactive-binding target path.
-///
-/// - `Static("bars__0")` — a pre-resolved label (e.g. `bars[0]` → `"bars__0"`).
-/// - `Indexed { base: "bars", index: <expr> }` — a runtime-indexed segment (e.g. `bars[i]` where
-///   `i` is a per-frame `let`).
+/// A single segment of an assignment/reactive-binding target path: `Static(label)`
+/// for a pre-resolved label, `Indexed { base, index }` for a runtime index.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TargetSegment {
     /// A static label segment (e.g. `"container"`, `"bars__0"`).
@@ -87,8 +69,7 @@ pub enum TargetSegment {
 }
 
 impl TargetSegment {
-    /// If this is a Static segment, return the label string.
-    /// For Indexed segments, returns `None`.
+    /// If this is a Static segment, return the label string; otherwise `None`.
     pub fn as_static_str(&self) -> Option<&str> {
         match self {
             TargetSegment::Static(s) => Some(s.as_str()),
@@ -96,8 +77,7 @@ impl TargetSegment {
         }
     }
 
-    /// Return the static string, panicking if this is an Indexed segment.
-    /// Use only in build-time code where Indexed segments cannot appear.
+    /// Return the static string, panicking on an Indexed segment. Build-time only.
     pub fn expect_static(&self) -> &str {
         match self {
             TargetSegment::Static(s) => s.as_str(),
@@ -107,9 +87,7 @@ impl TargetSegment {
         }
     }
 
-    /// Extract the "label string" from the segment for diagnostic/checking purposes.
-    /// For `Static(s)`, returns `Some(s)`; for `Indexed { base, .. }`, returns `Some(base)`.
-    /// Never returns `None` — this exists as a convenience when both variants carry a label.
+    /// Extract the label string for diagnostics: `Static(s)` or `Indexed { base, .. }`.
     pub fn label_str(&self) -> &str {
         match self {
             TargetSegment::Static(s) => s.as_str(),
@@ -132,8 +110,7 @@ pub fn array_actor_label(base: &str, n: usize) -> String {
     format!("{}__{}", base, n)
 }
 
-/// If `s` matches `^(.+)__\d+$`, return the base part (the prefix before `__`).
-/// Otherwise returns `None`.
+/// If `s` matches `^(.+)__\d+$`, return the prefix before `__`.
 pub fn is_array_member_label(s: &str) -> Option<&str> {
     let (prefix, suffix) = s.rsplit_once("__")?;
     if suffix.chars().all(|c| c.is_ascii_digit()) && !suffix.is_empty() {
@@ -144,34 +121,19 @@ pub fn is_array_member_label(s: &str) -> Option<&str> {
 }
 
 /// Statement types for the Animatix language.
-/// Core logic units including declarations, timeline, reactive blocks, and
-/// control flow.
 ///
 /// # Adding a variant
 ///
-/// `Stmt` has 25 variants and no single semantic visitor: several passes are
-/// intentionally partial and live next to the behaviour they implement.
-/// `walk.rs` covers the context-free traversals (all statements, child bodies,
-/// expressions, inline items). The hand-written semantic matches that must be
-/// checked when a variant is added or removed are:
-///
-/// 1. `symbol_table::collect::SymbolTable::collect_stmt` — declarations
-/// 2. `symbol_table::refs::SymbolTable::collect_refs_from_stmt` — references
-/// 3. `typecheck::stmt::TypeEnv::check_stmt` — type checks and scopes
-/// 4. `semantic_diagnostics::checks::check_stmt` — label/property diagnostics
-/// 5. `format_core`/`to_source` (serialisation) and
-///    `module::discovery::strip_imports` (module rewriting)
-///
-/// A variant with a body must also be added to
-/// `walk::recurse_stmt_bodies` and `walk::collect_stmt_bodies_mut`, or the
-/// generic walkers silently stop descending into it.
+/// `Stmt` has no single semantic visitor; when a variant is added or removed,
+/// update the hand-written matches in `symbol_table::collect`, `symbol_table::refs`,
+/// `typecheck::stmt`, `semantic_diagnostics::checks`, `format_core`/`to_source`,
+/// and `module::discovery::strip_imports`. Body-bearing variants must also be
+/// added to `walk::recurse_stmt_bodies` and `walk::collect_stmt_bodies_mut`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Stmt {
-    // === Actions ===
     /// Action invocation: `move btn to (100, 100) [2s]`
     Action(Action, Option<Span>),
 
-    // === Declarations ===
     /// Variable declaration: `let x = 0`
     LetDecl {
         /// Whether the variable is exported (`pub`).
@@ -184,10 +146,8 @@ pub enum Stmt {
         span: Option<Span>,
     },
 
-    // === Actors/Nodes ===
-    /// Actor declaration: `btn: Button, text: "OK"`
-    /// Also used for Text, Math, Code, Svg, Image declarations.
-    /// Re-declaring an existing label triggers morphing logic in compiler.
+    /// Actor declaration: `btn: Button, text: "OK"` (also Text, Math, Code, Svg,
+    /// Image); re-declaring a label triggers morphing.
     ActorDecl {
         /// Whether the actor is exported (`pub`).
         is_pub: bool,
@@ -195,8 +155,8 @@ pub enum Stmt {
         is_anonymous: bool,
         /// Actor label.
         label: String,
-        /// Array index expression for programmatic actor generation (e.g. `i` in `bars[i]: Rect`).
-        /// `None` for normal actor declarations.
+        /// Array index expression for programmatic generation (e.g. `i` in
+        /// `bars[i]: Rect`); `None` for normal declarations.
         array_index: Option<Expr>,
         /// Actor type name.
         ty: String,
@@ -232,9 +192,7 @@ pub enum Stmt {
         span: Option<Span>,
     },
 
-    // === Timeline ===
     /// Absolute keyframe: `#2s { ... }`
-    /// Contains a body of statements/actions occurring at this time.
     Keyframe {
         /// Keyframe time.
         time: Time,
@@ -254,12 +212,9 @@ pub enum Stmt {
         span: Option<Span>,
     },
 
-    // === Assignments ===
     /// Property assignment: `btn.color = red`
     Assignment {
-        /// Label path segments (e.g. `[Static("container"), Static("child")]`).
-        /// When a segment has a runtime index, use `Indexed { base, index }`
-        /// (e.g. `bars[i].color = red` → `[Indexed { base: "bars", index: i }, Static("color")]`).
+        /// Label path segments; a runtime index uses `Indexed { base, index }`.
         target: Vec<TargetSegment>,
         /// Property name.
         property: String,
@@ -269,8 +224,7 @@ pub enum Stmt {
         modifiers: Vec<Modifier>,
         /// Optional easing curve for animated assignments.
         easing: Option<crate::easing::Easing>,
-        /// Byte-offset span of the value expression within the source text.
-        /// Used for surgical source edits (writing back to .amx file).
+        /// Byte-offset span of the value expression, used for surgical source edits.
         value_span: Option<ByteSpan>,
         /// Source span for this assignment.
         span: Option<Span>,
@@ -294,7 +248,6 @@ pub enum Stmt {
         span: Option<Span>,
     },
 
-    // === Reactive Blocks ===
     /// Always block: `always { ... }`
     Always {
         /// Body statements in the always block.
@@ -303,8 +256,7 @@ pub enum Stmt {
         span: Option<Span>,
     },
 
-    /// Reactive binding: `actor.prop := expr`
-    /// Desugars to an always-assignment at build time.
+    /// Reactive binding: `actor.prop := expr`, desugared to an always-assignment.
     ReactiveBinding {
         /// Label path segments.
         target: Vec<TargetSegment>,
@@ -318,7 +270,6 @@ pub enum Stmt {
         span: Option<Span>,
     },
 
-    // === Control Flow ===
     /// Conditional block: `if x > 0 { ... }`
     Conditional {
         /// Condition expression.
@@ -331,9 +282,8 @@ pub enum Stmt {
         span: Option<Span>,
     },
 
-    /// Match block: `match e { (0, i, j) => { swap a, b }, _ => {} }`
-    /// The scrutinee is evaluated at build time (or frame time if inside `always`);
-    /// the first matching arm's body is executed. The `_` wildcard arm is required.
+    /// Match block: `match e { (0, i, j) => { swap a, b }, _ => {} }`. The
+    /// scrutinee runs at build time (or frame time inside `always`); `_` is required.
     Match {
         /// Scrutinee expression.
         scrutinee: Expr,
@@ -353,24 +303,19 @@ pub enum Stmt {
         iterable: Expr,
         /// Body statements in the loop.
         body: Vec<Stmt>,
-        /// Timing modifiers, currently `step`: advance the build-time clock by
-        /// `step` per iteration so loop-emitted events land on distinct times.
+        /// Timing modifiers, currently `step`: advance the build-time clock per iteration.
         modifiers: Vec<Modifier>,
         /// Source span for this loop.
         span: Option<Span>,
     },
 
-    // === Component Definitions ===
     /// Component definition: `Button(text: "Click") { ... }`
     ComponentDef(ComponentDef, Option<Span>),
 
-    // === Function Declarations ===
     /// Function declaration: `fn name(params) -> Type? { body }`.
     ///
-    /// A `return_type` makes the function pure (computation only, no timeline
-    /// operations; callable from expressions and `always`). Without a return
-    /// type it is a timeline function that may emit events; `self` is
-    /// implicitly available and bound when invoked target-style.
+    /// A `return_type` makes it pure (callable from expressions); without one it
+    /// is a timeline function that may emit events and receives `self`.
     FnDecl {
         /// Whether the function is exported (`pub fn`) for cross-file import.
         is_pub: bool,
@@ -386,9 +331,8 @@ pub enum Stmt {
         span: Option<Span>,
     },
 
-    /// A scoped statement block, generated by timeline-function call
-    /// expansion. Local `let` bindings inside the block are removed when the
-    /// block exits, so function-local state never leaks into the scene.
+    /// A scoped statement block from timeline-function expansion; local `let`
+    /// bindings are removed when the block exits.
     Block {
         /// Body statements.
         body: Vec<Stmt>,
@@ -404,12 +348,10 @@ pub enum Stmt {
         span: Option<Span>,
     },
 
-    /// A bare expression statement. Inside a pure function body the final
-    /// expression is the return value (Rust-style tail expression); elsewhere
-    /// the checker rejects it.
+    /// A bare expression statement; a final expression in a pure function body is
+    /// the return value (Rust-style tail expression), rejected elsewhere.
     Expr(Expr, Option<Span>),
 
-    // === Configuration ===
     /// Config block: `@config { resolution: 1920x1080 }`
     Config {
         /// Configuration settings as properties.
@@ -418,7 +360,6 @@ pub enum Stmt {
         span: Option<Span>,
     },
 
-    // === Multi-Scene Composition ===
     /// Scene declaration: `# SceneName`
     Scene {
         /// Scene name.
@@ -441,7 +382,6 @@ pub enum Stmt {
         span: Option<Span>,
     },
 
-    // === Interactive Step / Pause Markers ===
     /// Step or pause marker: `#step 1` or `pause`
     Step {
         /// Optional step index.
@@ -450,7 +390,6 @@ pub enum Stmt {
         span: Option<Span>,
     },
 
-    // === Comments ===
     /// Standalone comment statement.
     Comment(String, Option<Span>),
 }

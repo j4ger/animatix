@@ -1,10 +1,6 @@
-//! The capability vocabulary shared by the built-in catalog, the engine, and
-//! tooling.
-//!
-//! These enums are deliberately a small closed set: they grow only when the
-//! engine learns a new *behaviour*, which is exactly when the compiler should
-//! force every dispatch site to be revisited. Individual primitives are data
-//! (catalog rows), never enum variants.
+//! The capability vocabulary shared by the built-in catalog, engine, and tooling.
+//! These enums grow only when the engine learns a new *behaviour*; primitives
+//! are data, not variants.
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -30,8 +26,7 @@ pub struct PrimitiveCapabilities {
     pub is_shape: bool,
     /// Directly emits visual ink or content (stroke, fill, glyphs, raster pixels, or plot marks).
     pub has_visual_content: bool,
-    /// Primarily drawn via stroke rather than fill (e.g. Line, Arrow, Callout, PlotCurve,
-    /// VectorField, ContourSet).
+    /// Primarily drawn via stroke rather than fill (e.g. Line, Arrow, PlotCurve).
     pub stroke_primary: bool,
     /// Has callout-style targeted leader line and label geometry.
     pub callout: bool,
@@ -39,8 +34,7 @@ pub struct PrimitiveCapabilities {
     pub legend_host: bool,
     /// Intrinsically time-dependent evaluation (e.g. Captions, Cue).
     pub time_dependent: bool,
-    /// Carries a `transcript` file property that the build's speech pre-pass
-    /// parses (Audio, Captions).
+    /// Carries a `transcript` file property parsed by the speech pre-pass (Audio, Captions).
     pub transcript: bool,
 }
 
@@ -53,9 +47,7 @@ pub enum ChildProcessingKind {
     Generic,
     /// Render children to an offscreen texture and apply an effect chain.
     Filter,
-    /// Blur what the render target already holds behind the scope, then render
-    /// the scope's own surface and everything after it above that blur. The
-    /// `Glass` container; see `docs/spec.md` ("Glass").
+    /// Blur what the target already holds behind the scope, then render above it.
     Glass,
     /// Clip children to a mask shape.
     Mask,
@@ -84,24 +76,15 @@ pub enum ShapeKind {
 }
 
 impl ShapeKind {
-    /// True when the primitive paints from `stroke_color` alone, so an
-    /// authored `color:` has nothing else it could mean and the build/assign
-    /// paths inherit one into the other.
-    ///
-    /// `Arrow` belongs here despite the filled head: `primitives/arrow.rs`
-    /// builds both the head fill and the shaft stroke from `stroke_color`, so
-    /// before this predicate existed an authored `color:` on an Arrow built
-    /// cleanly, rendered grey, and warned about nothing.
+    /// True when the primitive paints from `stroke_color` alone, so an authored
+    /// `color:` inherits from it; `Arrow` qualifies despite its filled head.
     pub fn is_stroke_only(self) -> bool {
         matches!(self, Self::Line | Self::Arrow)
     }
 }
 
-/// Which plot family a plot primitive belongs to.
-///
-/// The family is a property of the primitive, so it lives on the catalog card
-/// and is carried to the engine through `PrimitiveFamilyDescriptor` — no
-/// `ty == "VectorField"`-style string compares in the plot builder.
+/// Which plot family a plot primitive belongs to, carried to the engine through
+/// `PrimitiveFamilyDescriptor` — no `ty == "VectorField"` string compares.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum PlotKind {
@@ -119,19 +102,15 @@ pub enum PlotKind {
     BarChart,
 }
 
-/// The text engine backing a text-like actor.
-///
-/// Mirrors the renderer's compile-time text kinds (which are
-/// `text`-feature-gated) so capabilities stay available in render-independent
-/// builds; conversion to the renderer kind happens at the text compile sites.
+/// The text engine backing a text-like actor; mirrors the renderer's
+/// `text`-feature-gated kinds so capabilities work in render-independent builds.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum TextKind {
     /// Plain styled text.
     #[default]
     Text,
-    /// Prebaked rolling counter (`Counter`): its content is a formatted
-    /// number, so the text declaration handler prebakes the digit strip.
+    /// Prebaked rolling counter (`Counter`): the digit strip is prebaked at build.
     Counter,
     /// Typst markup.
     Typst,
@@ -174,18 +153,14 @@ impl ActorCategory {
     }
 }
 
-/// What the engine needs to know about an actor's kind.
-///
-/// Derived once at identity time (from a catalog row for built-ins, from the
-/// registration info for extensions), so frame-time checks are `Copy` field
-/// reads and adding a primitive never requires extending an enum.
+/// What the engine needs to know about an actor's kind. Derived once at identity
+/// time, so frame-time checks are `Copy` field reads.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ActorCaps {
     /// UI category (Shapes, Text, Media, Plots, Containers, Annotations).
     pub category: ActorCategory,
-    /// How children of this actor are processed
-    /// (generic / mask / filter / equation).
+    /// How children of this actor are processed (generic/mask/filter/equation).
     pub child_processing: ChildProcessingKind,
     /// The concrete shape geometry, for the six shape primitives.
     pub shape: Option<ShapeKind>,
@@ -211,8 +186,7 @@ pub struct ActorCaps {
     pub plot_host: bool,
     /// Directly renders visual stroke, fill, glyphs, raster pixels, or plot marks.
     pub has_visual_content: bool,
-    /// Primarily drawn via stroke rather than fill (e.g. Line, Arrow, Callout, PlotCurve,
-    /// VectorField, ContourSet).
+    /// Primarily drawn via stroke rather than fill (e.g. Line, Arrow, PlotCurve).
     pub stroke_primary: bool,
     /// Has callout-style targeted leader line and label geometry.
     pub callout: bool,
@@ -222,21 +196,19 @@ pub struct ActorCaps {
     pub legend_host: bool,
     /// Intrinsically time-dependent evaluation (e.g. Captions, Cue).
     pub time_dependent: bool,
-    /// Carries a `transcript` file property that the build's speech pre-pass
-    /// parses and attaches (Audio, Captions).
+    /// Carries a `transcript` file property parsed by the speech pre-pass (Audio, Captions).
     pub transcript: bool,
 }
 
 impl ActorCaps {
-    /// `true` when this actor renders its children to an offscreen texture and
-    /// applies an effect chain (a `Filter` compositing scope).
+    /// `true` when this actor renders children to an offscreen texture with an
+    /// effect chain (`Filter` or `Glass`).
     pub fn is_effect_scope(&self) -> bool {
         matches!(self.child_processing, ChildProcessingKind::Filter | ChildProcessingKind::Glass)
     }
 
-    /// `true` when the GUI should offer to nest new actors inside this
-    /// container: it is a container AND children render through the generic
-    /// scene-graph recursion (not Mask/Filter/Equation aggregation).
+    /// `true` when the GUI should offer to nest new actors inside this container:
+    /// a container whose children render through generic recursion.
     pub fn is_nestable_container(&self) -> bool {
         self.is_container && self.child_processing == ChildProcessingKind::Generic
     }
@@ -249,17 +221,13 @@ impl ActorCaps {
             && self.child_processing == ChildProcessingKind::Generic
     }
 
-    /// Returns `true` if this actor directly renders visual ink or content
-    /// of its own (shapes, text, media graphics, plots, or annotations).
+    /// Returns `true` if this actor directly renders visual ink of its own.
     pub fn renders_visual_content(&self) -> bool {
         self.has_visual_content
     }
 
-    /// Default stroke width for this actor kind.
-    ///
-    /// Stroke-primary actors (Line, Arrow, Callout, PlotCurve, VectorField, ContourSet)
-    /// need a visible outline (2.0) by default; filled shapes default to 0.0 to avoid
-    /// edge artifacts.
+    /// Default stroke width: 2.0 for stroke-primary actors (visible outline),
+    /// 0.0 for filled shapes (avoids edge artifacts).
     pub fn default_stroke_width(&self) -> f32 {
         if self.stroke_primary { 2.0 } else { 0.0 }
     }
@@ -296,12 +264,8 @@ impl ActorCaps {
     }
 }
 
-/// Declares which actors a property applies to.
-///
-/// One predicate per property, evaluated against [`ActorCaps`]. Capability
-/// -shaped variants read the projection fields; [`Applicable::Actors`] matches
-/// authored type names for genuinely name-specific properties (`code` only on
-/// `Code`, `density` only on `VectorField`).
+/// Declares which actors a property applies to. Capability variants read
+/// [`ActorCaps`]; [`Applicable::Actors`] matches authored type names.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Applicable {
     /// Applies to every actor kind including Group.
@@ -314,8 +278,7 @@ pub enum Applicable {
     AllShapesExceptLine,
     /// Applies to shapes and text-like actors with fillable/colorable content.
     AllDrawables,
-    /// Applies to shapes, image, plots, layout containers, and effect scopes
-    /// (actors with meaningful bounds).
+    /// Applies to shapes, image, plots, layout containers, and effect scopes.
     SizedActors,
     /// Applies to specific shape kinds.
     ShapeKinds(&'static [ShapeKind]),

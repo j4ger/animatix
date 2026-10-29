@@ -11,9 +11,7 @@ use crate::typst_world::{
 };
 use crate::{CompiledText, TextPath};
 
-// ─────────────────────────────────────────────────────────────
 // Runtime text compilation
-// ─────────────────────────────────────────────────────────────
 
 /// Identifies the kind of text being compiled.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -29,10 +27,7 @@ pub enum TextKind {
 }
 
 /// Default font size used when a text primitive has no `font_size` property.
-///
-/// Single source of truth so build-time and frame-time default sizes cannot
-/// drift apart. Code is rendered smaller than prose by convention; Typst
-/// markup and math default to the prose size.
+/// Code renders smaller by convention; Typst markup and math use the prose size.
 pub fn default_font_size(kind: TextKind) -> f32 {
     match kind {
         TextKind::Code => 24.0,
@@ -40,8 +35,7 @@ pub fn default_font_size(kind: TextKind) -> f32 {
     }
 }
 
-/// Memoized output of one text compilation: centered glyph paths plus the
-/// metrics and half-size that every consumer derives from them.
+/// Memoized output of one text compilation: centered glyph paths plus metrics.
 #[derive(Clone)]
 pub struct CachedText {
     /// Glyph paths, centered around the origin.
@@ -58,11 +52,8 @@ pub struct CachedText {
     pub hardware_layout: Option<std::sync::Arc<HardwareTextLayout>>,
 }
 
-/// Memoized output of one *grouped* Typst compilation (the `Equation` path).
-///
-/// The Equation primitive wraps every `Fragment` in a `#box()` so the frame
-/// exposes one group per fragment. The flat glyph list alone cannot recover
-/// those boundaries, so this shape keeps them alongside the glyphs.
+/// Memoized grouped Typst output (the `Equation` path): glyph paths plus one
+/// range per `#box()` wrapper.
 #[derive(Clone)]
 pub struct CachedGroupedText {
     /// Glyph paths in draw order, as returned by [`extract_glyphs_grouped`].
@@ -71,16 +62,9 @@ pub struct CachedGroupedText {
     pub ranges: std::sync::Arc<[std::ops::Range<usize>]>,
 }
 
-/// Process-wide memoization table for compiled text.
-///
-/// Entries are keyed by every compilation input, so a hit is bit-identical to
-/// recompiling. The table deliberately lives outside [`TextCompiler`] and
-/// [`Timeline`] instances: the GUI rebuilds the whole `Timeline` on every
-/// keystroke, and per-instance caches would die with each rebuild, forcing a
-/// full Typst parse + eval + layout pass for every unchanged text actor. With
-/// the shared table, an unchanged declaration's rebuild cost drops to one hash
-/// lookup. Font data is process-global and read-only after load, so it cannot
-/// invalidate entries behind the key.
+/// Process-wide memo table for compiled text, keyed by every input. It lives
+/// outside `Timeline` because the GUI rebuilds per keystroke; a shared table makes
+/// an unchanged actor cost one hash lookup instead of a full Typst pass.
 type TextCompileCache = std::collections::HashMap<TextCacheKey, std::sync::Arc<CachedText>>;
 
 fn compile_cache() -> &'static std::sync::Mutex<TextCompileCache> {
@@ -90,18 +74,12 @@ fn compile_cache() -> &'static std::sync::Mutex<TextCompileCache> {
 }
 
 /// Lock the compile cache, recovering the map if a panic poisoned it.
-///
-/// Entries are immutable values, so a poisoned map is still structurally valid;
-/// recovery keeps the cache available instead of panicking unrelated rebuilds.
 fn lock_compile_cache() -> std::sync::MutexGuard<'static, TextCompileCache> {
     compile_cache().lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// Process-wide memo for grouped (Equation) Typst compilations.
-///
-/// A separate table from [`TextCompileCache`] because the value shape differs,
-/// but keyed by the same [`TextCacheKey`] so font-epoch invalidation applies
-/// identically to both.
+/// Process-wide memo for grouped (Equation) compilations, keyed by the same
+/// [`TextCacheKey`] so font-epoch invalidation applies to both tables.
 type GroupedTextCache = std::collections::HashMap<TextCacheKey, std::sync::Arc<CachedGroupedText>>;
 
 fn grouped_compile_cache() -> &'static std::sync::Mutex<GroupedTextCache> {
@@ -117,14 +95,11 @@ fn lock_grouped_cache() -> std::sync::MutexGuard<'static, GroupedTextCache> {
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-/// Upper bound on memoized compilations. When exceeded, roughly half the
-/// entries are dropped to avoid a full-clear spike (same policy as before the
-/// cache became process-wide).
+/// Upper bound on memoized compilations; exceeding it drops roughly half to
+/// avoid a full-clear spike.
 const TEXT_COMPILE_CACHE_CAP: usize = 1000;
 
 /// Halve a memo table once it exceeds [`TEXT_COMPILE_CACHE_CAP`].
-///
-/// Generic so the flat and grouped tables share one eviction policy.
 fn evict_text_compile_cache<K, V>(cache: &mut std::collections::HashMap<K, V>)
 where
     K: Clone + Eq + std::hash::Hash,
@@ -137,12 +112,9 @@ where
     }
 }
 
-/// Drop every memoized text compilation.
-///
-/// Needed when the font environment changes underneath the cache (e.g. a GUI
-/// reloads system fonts) and by benchmarks measuring cold-build cost. Clears
-/// the grouped table too — it is keyed on the same font-epoch-guarded inputs
-/// and would otherwise serve frames laid out with the old fonts.
+/// Drop every memoized text compilation when the font environment changes (or
+/// for cold-build benchmarks). Clears the grouped table too: it is keyed on the
+/// same font-epoch-guarded inputs.
 pub fn clear_text_compile_cache() {
     lock_compile_cache().clear();
     lock_grouped_cache().clear();
@@ -158,16 +130,8 @@ pub fn grouped_text_compile_cache_len() -> usize {
     lock_grouped_cache().len()
 }
 
-/// Compile text into glyph paths plus metrics, memoized process-wide.
-///
-/// All Text / Code / Typst / Math compilation funnels through here.
-/// [`TextCompileRequest`] is the whole input and the memo identity is derived
-/// from it (see [`TextCompileRequest::cache_key`]), so identical requests —
-/// within a build, across rebuilds, and across Timelines — pay the Typst engine
-/// cost exactly once. `request.allow_fast_path` only affects the
-/// `TextKind::Text` plain-Latin routing; callers that previously used the Typst
-/// engine unconditionally set it to `false` to preserve output-identical
-/// behavior.
+/// Compile text into glyph paths plus metrics, memoized process-wide. All text
+/// kinds funnel through here; identical requests pay the Typst cost once.
 pub fn compile_text_cached(
     request: &TextCompileRequest<'_>,
     font_ctx: &FontContext,
@@ -195,11 +159,8 @@ pub fn compile_text_cached(
         return Ok(std::sync::Arc::clone(hit));
     }
 
-    // Slim playback profile: the Typst stack is compiled out, so every kind
-    // degrades to the plain fast path (Code loses syntax highlighting, Math
-    // renders its source literally, non-Latin scripts need a system font). The
-    // per-kind probes below only exist in the rich-text build, so the slim build
-    // binds the constant instead of computing it and discarding the result.
+    // Slim playback profile: Typst is compiled out, so every kind degrades to
+    // the fast path (Code loses highlighting, Math renders its source literally).
     #[cfg(feature = "rich-text")]
     let use_fast_path = request.allow_fast_path
         && kind == TextKind::Text
@@ -259,11 +220,8 @@ pub fn compile_text_cached(
                 kind,
                 max_width
             );
-            // `max_lines` is implemented on the fast text path, which is the
-            // route plain Latin `Text` takes. Say so when a caller asks for a
-            // line cap on the Typst route rather than dropping it silently —
-            // but only when it could bite: with no wrap width the text is a
-            // single line, so the cap is vacuous, not dropped.
+            // `max_lines` only exists on the fast text path. Warn when a caller
+            // asks for a line cap on the Typst route with a wrap width.
             if max_lines.is_some() && max_width > 0.0 {
                 tracing::warn!(
                     "max_lines is not applied on the Typst text path (kind={:?}); \
@@ -398,17 +356,8 @@ pub fn compile_text_cached(
 }
 
 /// Compile Typst markup into per-`#box()` glyph groups, memoized process-wide.
-///
-/// This is the `Equation` / `Fragment` frame path: it recompiles on every frame
-/// because fragments are aggregated at frame time, and without a memo each
-/// frame pays a full Typst parse + eval + layout even when no fragment content
-/// or font property changed — which is the norm while scrubbing or playing
-/// back. Measured at ~2.5ms per frame per Equation before memoization
-/// (`benches/equation_frame.rs`).
-///
-/// Keyed through the same [`TextCompileRequest::cache_key`] derivation as
-/// [`compile_text_cached`] (including the font epoch), so a hit is
-/// bit-identical to recompiling.
+/// The Equation path recompiles per frame (~2.5ms each without this memo;
+/// `benches/equation_frame.rs`), keyed like [`compile_text_cached`].
 #[allow(clippy::too_many_arguments)] // Mirrors the compile_typst parameter set it wraps.
 pub fn compile_typst_grouped_cached(
     typst_markup: &str,
@@ -422,9 +371,8 @@ pub fn compile_typst_grouped_cached(
     letter_spacing: f32,
     word_spacing: f32,
 ) -> Result<std::sync::Arc<CachedGroupedText>, RenderError> {
-    // The Equation path always compiles unwrapped, left-aligned and visible,
-    // with no Code highlighting. Recording that policy in a request keeps the
-    // grouped table in the same request-derived key space as the flat table.
+    // Record the Equation path's fixed policy (unwrapped, left-aligned, visible)
+    // in a request so the grouped table shares the flat table's key space.
     let request = TextCompileRequest {
         kind: TextKind::Typst,
         content: typst_markup,
@@ -487,8 +435,7 @@ pub fn compile_typst_grouped_cached(
 
     #[cfg(not(feature = "rich-text"))]
     {
-        // Slim playback profile: render the markup source as plain text in a
-        // single group (Equation/Fragment degrade; ranges collapse to one).
+        // Slim profile: render the markup source as plain text in one group.
         let compiled = compile_text_fast_wrapped(
             typst_markup,
             font_family,
@@ -505,9 +452,8 @@ pub fn compile_typst_grouped_cached(
             "left",
             "visible",
         )?;
-        // One range covering the whole group. Written as a collect rather than
-        // `vec![a..b]`, which clippy reads as an attempt to build the values in
-        // the range.
+        // One range covering the whole group; a `vec![a..b]` here reads as an
+        // attempt to build the values in the range (clippy).
         let ranges: Vec<_> = std::iter::once(0..compiled.glyphs.len()).collect();
         let entry = std::sync::Arc::new(CachedGroupedText {
             glyphs: compiled.glyphs.into(),
@@ -522,21 +468,15 @@ pub fn compile_typst_grouped_cached(
     }
 }
 
-/// Runtime text compiler backed by the process-wide compile cache.
-///
-/// When text properties change at runtime (e.g. via `always` reactive blocks),
-/// this service recompiles glyph paths on-demand; identical inputs are served
-/// from the shared table (see [`compile_text_cached`]), which also survives
-/// `Timeline` rebuilds.
+/// Runtime text compiler backed by the process-wide compile cache, so identical
+/// inputs survive `Timeline` rebuilds.
 #[derive(Clone)]
 pub struct TextCompiler {
-    /// Whether the plain-text fast path is enabled (default: true).
-    /// Can be disabled via `config { text_fast_path: false }` for debugging.
+    /// Whether the plain-text fast path is enabled (default true); can be
+    /// disabled via `config { text_fast_path: false }`.
     pub text_fast_path: bool,
-    /// Role→RGBA palette for `Code` syntax highlighting, derived from the
-    /// active colorscheme. `None` keeps Typst's fixed raw theme. Set once per
-    /// `Timeline` at build (see the engine's `apply_colorscheme`); the palette
-    /// is a timeline-wide constant, so it lives here rather than per-actor.
+    /// Role→RGBA palette for `Code` syntax highlighting, derived from the active
+    /// colorscheme. `None` keeps Typst's fixed raw theme. Timeline-wide constant.
     pub highlight_palette: Option<HighlightPalette>,
 }
 
@@ -555,16 +495,12 @@ impl TextCompiler {
         Self::default()
     }
 
-    /// Compile text into glyph paths, using the process-wide cache when possible.
-    /// Cache hits return an `Arc<[TextPath]>` — a single refcount increment
-    /// instead of cloning the entire vector of BezPath objects.
+    /// Compile text into glyph paths, using the process-wide cache. Cache hits
+    /// return an `Arc<[TextPath]>` — one refcount bump instead of cloning paths.
     ///
-    /// This flat-argument form is the adapter the engine's render path still
-    /// uses: it folds `self.text_fast_path` and the timeline's highlight palette
-    /// into a [`TextCompileRequest`] and delegates to [`compile_text_cached`].
-    ///
-    /// `language` is the `Code` syntax-highlighting tag (empty for every other
-    /// kind and for plain `Code`).
+    /// Flat-argument adapter for the engine render path; folds `text_fast_path`
+    /// and the highlight palette into a [`TextCompileRequest`]. `language` is the
+    /// `Code` highlight tag (empty for other kinds).
     #[allow(clippy::too_many_arguments)] // Flat adapter for the engine render path.
     pub fn compile(
         &mut self,
