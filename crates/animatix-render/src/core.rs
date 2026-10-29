@@ -97,23 +97,6 @@ impl RendererCore {
         }
     }
 
-    /// Region-scoped [`Self::blit_texture`]: the source is drawn at
-    /// `dst_origin` covering `dst_size` pixels of the target.
-    pub fn blit_texture_rect(
-        &self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        src_view: &wgpu::TextureView,
-        dst_view: &wgpu::TextureView,
-        dst_origin: [f32; 2],
-        dst_size: [u32; 2],
-        alpha: f32,
-    ) {
-        self.blit_texture_rect_masked(
-            device, queue, src_view, dst_view, dst_origin, dst_size, alpha, None, None,
-        );
-    }
-
     /// Blit a rect with an optional rounded clip and an optional sub-rectangle
     /// of the source texture to sample. A `Glass` backdrop composite needs both:
     /// its texture covers a padded region while only the panel rect is painted.

@@ -15,15 +15,6 @@ use crate::token::{Token, TokenKind, byte_to_line_col};
 use crate::typing;
 use crate::walk;
 
-/// Plot family actors accept declaration-time runtime parameters — numeric
-/// properties whose names match identifiers inside the actor's `func`
-/// closure (e.g. `freq: 2` on `func: (x) => sin(freq * x)`). These cannot be
-/// enumerated in the static property table, so the unknown-property info is
-/// suppressed for them.
-fn is_plot_runtime_param(ty: &str, prop_name: &str, props: &[crate::ast::Property]) -> bool {
-    plot_runtime_params(ty, props).iter().any(|p| p == prop_name)
-}
-
 /// Collect the runtime-parameter names a plot-family actor's declaration
 /// implies: every name that appears as a closure parameter or free identifier
 /// inside its `func` property. Also consumed by `SymbolTable` (and the

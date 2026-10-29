@@ -330,40 +330,6 @@ impl InstancedLinePipeline {
         instances
     }
 
-    /// Convert a closed polygon contour into connected line segment instances.
-    pub fn segments_from_closed_strip(
-        points: &[[f32; 2]],
-        width: f32,
-        feather: f32,
-        color: [f32; 4],
-    ) -> Vec<LineSegmentInstance> {
-        if points.len() < 2 {
-            return Vec::new();
-        }
-        let mut instances = Vec::with_capacity(points.len());
-        for pair in points.windows(2) {
-            instances.push(LineSegmentInstance {
-                p0: pair[0],
-                p1: pair[1],
-                width,
-                feather,
-                color,
-            });
-        }
-        if let (Some(&first), Some(&last)) = (points.first(), points.last()) {
-            if first != last {
-                instances.push(LineSegmentInstance {
-                    p0: last,
-                    p1: first,
-                    width,
-                    feather,
-                    color,
-                });
-            }
-        }
-        instances
-    }
-
     /// Sample a parametric curve `f(t)` over `[t_min, t_max]` into connected line segment instances.
     pub fn segments_from_fn<F: FnMut(f32) -> [f32; 2]>(
         mut f: F,

@@ -277,7 +277,7 @@ pub(super) fn check_stmt(
                     let (prop_line, prop_col, prop_end_line, prop_end_col) =
                         property_positions(prop, source, line, col, end_col);
                     if !known_props.contains(&prop.name)
-                        && !is_plot_runtime_param(ty, &prop.name, props)
+                        && !plot_runtime_params(ty, props).iter().any(|p| p == &prop.name)
                     {
                         diagnostics.push(span_diagnostic(
                             DiagnosticSeverity::Info,

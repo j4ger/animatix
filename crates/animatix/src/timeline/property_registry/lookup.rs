@@ -1,15 +1,11 @@
 use super::*;
 
-fn property_index(name: &str) -> Option<usize> {
-    resolved().schemas.get(name).map(|(index, _)| *index)
-}
-
 /// Look up a property schema by name.
 ///
 /// Goes through the process-wide `Resolved` map, so the name → index join is
 /// computed once. Returns `None` if no property with that name exists.
 pub fn lookup_property(name: &str) -> Option<&'static PropertySchema> {
-    property_index(name).map(|i| &PROPERTY_REGISTRY[i])
+    resolved().schemas.get(name).map(|(index, _)| &PROPERTY_REGISTRY[*index])
 }
 
 /// Query whether a property name (or synthetic component accessor like `x`/`y`/`radius`)

@@ -57,7 +57,7 @@ impl SymbolTable {
             self.array_labels.insert(name.clone());
         }
         // Labels/components/namespaces feed the memoized type environment.
-        self.invalidate_type_env();
+        self.type_env_cache = std::sync::OnceLock::new();
     }
 
     /// Return a table containing only exports visible through an aliased

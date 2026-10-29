@@ -519,34 +519,6 @@ impl FullscreenBlitPipeline {
         queue.submit(std::iter::once(encoder.finish()));
     }
 
-    /// Blit `src_view` into `dst_view` at `dst_origin`, covering `dst_size`.
-    /// Creates its own encoder and submits immediately.
-    pub fn blit_rect(
-        &self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        src_view: &wgpu::TextureView,
-        dst_view: &wgpu::TextureView,
-        dst_origin: [f32; 2],
-        dst_size: [u32; 2],
-        alpha: f32,
-    ) {
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Animatix Fullscreen Blit Encoder"),
-        });
-        self.blit_rect_with_encoder(
-            device,
-            queue,
-            &mut encoder,
-            src_view,
-            dst_view,
-            dst_origin,
-            Some(dst_size),
-            alpha,
-        );
-        queue.submit(std::iter::once(encoder.finish()));
-    }
-
     /// Blit `src_view` into `dst_view` with the given alpha. Both formats must
     /// match what this pipeline was compiled for (the source is sampled as a
     /// texture — any float-sampleable format works; the *target* format is the

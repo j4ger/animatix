@@ -83,7 +83,10 @@ impl Formatter {
         }
 
         let separator = "\n".repeat(1 + self.config.blank_lines_between_top_level);
-        let mut result: Vec<String> = stmts.iter().map(|s| self.format_stmt(s, 0)).collect();
+        let mut result: Vec<String> = stmts
+            .iter()
+            .map(|s| format_core::format_stmt_raw(s, 0, self.config.indent_size))
+            .collect();
 
         // Remove empty lines at the start
         let first_non_empty = result.iter().position(|s| !s.is_empty()).unwrap_or(result.len());
@@ -96,11 +99,6 @@ impl Formatter {
         }
 
         output
-    }
-
-    /// Format a single statement at the given indentation depth.
-    fn format_stmt(&self, stmt: &Stmt, depth: usize) -> String {
-        format_core::format_stmt_raw(stmt, depth, self.config.indent_size)
     }
 }
 

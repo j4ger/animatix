@@ -218,7 +218,8 @@ pub(crate) fn evaluate_shape_render(
 
     let progress = f64::from(style_tracks.stroke_progress.get(ctx.time_ms, 1.0)).clamp(0.0, 1.0);
     let has_dash = !style_tracks.dash_pattern.get(ctx.time_ms, Vec::new()).is_empty();
-    let has_gradient = shape_has_gradient(style_tracks);
+    let has_gradient =
+        style_tracks.fill_gradient.is_some() || style_tracks.stroke_gradient.is_some();
     let mut commands = if progress < 1.0 {
         let built = ctx.world.expect("shape memo requires a world").build_shape_commands(
             ctx.id,
@@ -352,11 +353,6 @@ fn stamp_shape_dash(commands: &mut [RenderCommand], ctx: &EvaluateCtx) {
             }
         }
     }
-}
-
-/// True when either gradient track was authored.
-fn shape_has_gradient(style: &StyleTracks) -> bool {
-    style.fill_gradient.is_some() || style.stroke_gradient.is_some()
 }
 
 /// Stamp the sampled `fill_gradient:` / `stroke_gradient:` paints onto every

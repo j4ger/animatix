@@ -242,12 +242,6 @@ impl SymbolTable {
         table
     }
 
-    /// Drop the memoized type environment after a mutation that changes the
-    /// symbols it was built from.
-    fn invalidate_type_env(&mut self) {
-        self.type_env_cache = std::sync::OnceLock::new();
-    }
-
     /// Build a symbol-aware type environment from the current table.
     ///
     /// Cached for the table's lifetime: inference queries outnumber table

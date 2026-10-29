@@ -47,7 +47,7 @@ pub(crate) fn evaluate_compiled_expr(
         CompiledExpr::Binary(left, op, right) => {
             let left = evaluate_compiled_expr(left, env)?;
             let right = evaluate_compiled_expr(right, env)?;
-            apply_binary_op(left, op, right)
+            crate::timeline::eval_shared::eval_binary_op(left, op, right)
         },
         CompiledExpr::Select(condition, then_expr, else_expr) => {
             let cond = evaluate_compiled_expr(condition, env)?;
@@ -237,14 +237,6 @@ pub(crate) fn eval_method(
     env: &Environment,
 ) -> Result<Value, EvalError> {
     crate::timeline::utils::eval_method_dispatch(receiver, name, args, env)
-}
-
-pub(crate) fn apply_binary_op(
-    left: Value,
-    op: &BinaryOp,
-    right: Value,
-) -> Result<Value, EvalError> {
-    crate::timeline::eval_shared::eval_binary_op(left, op, right)
 }
 
 pub(crate) fn make_vec_value(values: Vec<Value>) -> Result<Value, EvalError> {
