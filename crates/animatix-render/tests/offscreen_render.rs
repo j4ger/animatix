@@ -6,8 +6,8 @@
 //! `animatix-render` would build the engine twice and the types would no
 //! longer unify.
 
-use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
-use animatix_render::offscreen::OffscreenRenderer;
+use animatix::timeline::{BuildQuality, DebugRenderOptions, SceneDimensions, Timeline};
+use animatix_render::offscreen::{OffscreenRenderer, RenderedFrame};
 
 mod common;
 
@@ -25,6 +25,263 @@ fn new_renderer() -> Option<OffscreenRenderer> {
     }
 }
 
+fn parse(source: &str) -> Vec<animatix_syntax::ast::Stmt> {
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    ast.expect("AST")
+}
+
+/// Parse + build a fixture without judging build diagnostics.
+fn build(source: &str) -> Timeline {
+    Timeline::build_with_diagnostics(&parse(source), &std::collections::HashMap::new()).output
+}
+
+/// Parse + build a fixture that is expected to be diagnostic-clean.
+fn build_checked(source: &str) -> Timeline {
+    let report =
+        Timeline::build_with_diagnostics(&parse(source), &std::collections::HashMap::new());
+    assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
+    report.output
+}
+
+fn build_with_quality(source: &str, quality: BuildQuality) -> Timeline {
+    let report = Timeline::build_with_options(
+        &parse(source),
+        &std::collections::HashMap::new(),
+        animatix::timeline::BuildOptions::default().with_quality(quality),
+    );
+    assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
+    report.output
+}
+
+fn render(
+    renderer: &mut OffscreenRenderer,
+    timeline: &Timeline,
+    time: f64,
+    dims: SceneDimensions,
+) -> RenderedFrame {
+    renderer.render_timeline(timeline, time, dims).expect("render")
+}
+
+/// A transition frame at the fixtures' shared 0.5s sample time.
+fn transition(
+    renderer: &mut OffscreenRenderer,
+    from: &Timeline,
+    to: &Timeline,
+    progress: f32,
+    dims: SceneDimensions,
+) -> RenderedFrame {
+    use animatix::easing::Easing;
+
+    renderer
+        .render_transition(
+            from,
+            0.5,
+            to,
+            0.5,
+            progress,
+            "fade".to_string(),
+            Easing::Linear,
+            dims,
+            DebugRenderOptions::default(),
+        )
+        .expect("transition frame")
+}
+
+fn average(frame: &RenderedFrame) -> [f32; 3] {
+    let pixels = frame.rgba.len() / 4;
+    let mut sum = [0f64; 3];
+    for px in frame.rgba.chunks_exact(4) {
+        sum[0] += px[0] as f64;
+        sum[1] += px[1] as f64;
+        sum[2] += px[2] as f64;
+    }
+    [
+        (sum[0] / pixels as f64) as f32,
+        (sum[1] / pixels as f64) as f32,
+        (sum[2] / pixels as f64) as f32,
+    ]
+}
+
+// ── raw wgpu helpers (core-level tests) ───────────────────────────────
+
+/// Headless device for the core-level tests (fallible — callers decide the
+/// skip policy via [`animatix_render::testing::skip_if_no_gpu`]).
+async fn headless_device() -> Option<(wgpu::Device, wgpu::Queue)> {
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
+    let adapter = instance
+        .request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::default(),
+            compatible_surface: None,
+            force_fallback_adapter: true,
+        })
+        .await
+        .ok()?;
+    let limits = wgpu::Limits::default().using_resolution(adapter.limits());
+    adapter
+        .request_device(&wgpu::DeviceDescriptor {
+            label: Some("Animatix Bgra Blit Test Device"),
+            required_features: wgpu::Features::empty(),
+            required_limits: limits,
+            memory_hints: Default::default(),
+            ..Default::default()
+        })
+        .await
+        .ok()
+}
+
+fn gpu_texture(
+    device: &wgpu::Device,
+    size: u32,
+    format: wgpu::TextureFormat,
+    usage: wgpu::TextureUsages,
+    label: &str,
+) -> wgpu::Texture {
+    device.create_texture(&wgpu::TextureDescriptor {
+        label: Some(label),
+        size: wgpu::Extent3d {
+            width: size,
+            height: size,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format,
+        usage,
+        view_formats: &[],
+    })
+}
+
+/// A square `Rgba8Unorm` texture pre-filled with one solid colour.
+fn solid_texture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    size: u32,
+    color: [u8; 4],
+    label: &str,
+) -> wgpu::Texture {
+    let texture = gpu_texture(
+        device,
+        size,
+        wgpu::TextureFormat::Rgba8Unorm,
+        wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
+        label,
+    );
+    let bytes = color.repeat((size * size) as usize);
+    queue.write_texture(
+        wgpu::TexelCopyTextureInfo {
+            texture: &texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        &bytes,
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(size * 4),
+            rows_per_image: Some(size),
+        },
+        wgpu::Extent3d {
+            width: size,
+            height: size,
+            depth_or_array_layers: 1,
+        },
+    );
+    texture
+}
+
+fn clear_texture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    view: &wgpu::TextureView,
+    label: &str,
+) {
+    let mut encoder =
+        device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some(label) });
+    {
+        let _pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("clear pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    store: wgpu::StoreOp::Store,
+                },
+                depth_slice: None,
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
+    }
+    queue.submit(std::iter::once(encoder.finish()));
+}
+
+/// Copy a square RGBA texture back to host memory, waiting for the mapping.
+fn readback_texture(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    texture: &wgpu::Texture,
+    size: u32,
+    label: &str,
+) -> Vec<u8> {
+    let bytes_per_row = size * 4;
+    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some(label),
+        size: (bytes_per_row * size) as u64,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("readback copy"),
+    });
+    encoder.copy_texture_to_buffer(
+        wgpu::TexelCopyTextureInfo {
+            texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::TexelCopyBufferInfo {
+            buffer: &buffer,
+            layout: wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(bytes_per_row),
+                rows_per_image: Some(size),
+            },
+        },
+        wgpu::Extent3d {
+            width: size,
+            height: size,
+            depth_or_array_layers: 1,
+        },
+    );
+    queue.submit(std::iter::once(encoder.finish()));
+
+    let slice = buffer.slice(..);
+    let (tx, rx) = std::sync::mpsc::channel();
+    slice.map_async(wgpu::MapMode::Read, move |r: Result<(), wgpu::BufferAsyncError>| {
+        tx.send(r).ok();
+    });
+    match device.poll(wgpu::PollType::Wait {
+        submission_index: None,
+        timeout: None,
+    }) {
+        Ok(_) => {},
+        Err(e) => panic!("poll failed: {e:?}"),
+    }
+    rx.recv().unwrap().expect("map failed");
+    slice.get_mapped_range().to_vec()
+}
+
+fn pixel(data: &[u8], size: u32, x: u32, y: u32) -> [u8; 4] {
+    let base = (y * size * 4 + x * 4) as usize;
+    [data[base], data[base + 1], data[base + 2], data[base + 3]]
+}
+
 /// `corner_radius` must reach the rasterizer: with a radius the corner pixels
 /// stay empty while the edge midpoints and the interior are painted, and with
 /// no radius the corner is painted.
@@ -33,23 +290,18 @@ fn corner_radius_rounds_a_rect_end_to_end() {
     let Some(mut renderer) = new_renderer() else {
         return;
     };
-    let source = r#"
+    let timeline = build_checked(
+        r#"
 #0s
 square: Rect, at: (50, 50), size: (60, 60), color: (1, 1, 1, 1)
 round: Rect, at: (150, 50), size: (60, 60), color: (1, 1, 1, 1), corner_radius: 18
-"#;
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report = animatix::timeline::Timeline::build_with_diagnostics(
-        &ast.expect("AST"),
-        &std::collections::HashMap::new(),
+"#,
     );
-    assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
     let dims = SceneDimensions {
         width: 200,
         height: 100,
     };
-    let frame = renderer.render_timeline(&report.output, 0.0, dims).expect("render");
+    let frame = render(&mut renderer, &timeline, 0.0, dims);
     // The offscreen frame carries an opaque background, so "painted" shows up as
     // a bright white pixel and "cut away" as the dark background.
     let red_at = |x: usize, y: usize| frame.rgba[(y * 200 + x) * 4];
@@ -74,9 +326,7 @@ fn offscreen_renderer_render_timeline_produces_frame() {
         width: 100,
         height: 100,
     };
-    let frame = renderer
-        .render_timeline(&timeline, 0.0, dimensions)
-        .expect("render should produce a frame");
+    let frame = render(&mut renderer, &timeline, 0.0, dimensions);
     assert_eq!(frame.rgba.len(), (dimensions.width * dimensions.height * 4) as usize);
 }
 
@@ -97,7 +347,7 @@ fn two_filter_scopes_keep_backdrop_visible_across_repeated_renders() {
         return;
     };
     let asset = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/assets/checker.png");
-    let source = format!(
+    let timeline = build_checked(&format!(
         r#"config {{ resolution: (1280, 720) }}
 
 backdrop: Filter, anchor: scene.center {{
@@ -114,28 +364,20 @@ chip: Filter, anchor: scene.center, offset: (200, 0) {{
 fade-in backdrop [300ms]
 fade-in chip [300ms]
 "#
-    );
-    let (ast, errors) = animatix_syntax::parser::parse_source(&source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report = animatix::timeline::Timeline::build_with_diagnostics(
-        &ast.expect("AST"),
-        &std::collections::HashMap::new(),
-    );
-    assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
-    let timeline = report.output;
-    let dims = animatix::timeline::SceneDimensions {
+    ));
+    let dims = SceneDimensions {
         width: 1280,
         height: 720,
     };
 
     // The t=0 frame renders both scopes fully transparent (fade-in hasn't
     // started) — exactly the history that used to poison the image atlas.
-    let first = renderer.render_timeline(&timeline, 0.0, dims).expect("render t=0");
+    let first = render(&mut renderer, &timeline, 0.0, dims);
     let bright = first.rgba.chunks_exact(4).step_by(41).filter(|px| px[0] > 60).count();
     assert_eq!(bright, 0, "fade-in must leave the first frame empty");
 
     for i in 0..5 {
-        let frame = renderer.render_timeline(&timeline, 1.0, dims).expect("render");
+        let frame = render(&mut renderer, &timeline, 1.0, dims);
         let bright = frame.rgba.chunks_exact(4).step_by(41).filter(|px| px[0] > 60).count();
         assert!(
             bright > 500,
@@ -152,8 +394,6 @@ fade-in chip [300ms]
 /// the progress straight through.
 #[test]
 fn transition_midframe_blends_both_scenes() {
-    use animatix::easing::Easing;
-
     let Some(mut renderer) = new_renderer() else {
         return;
     };
@@ -164,81 +404,23 @@ fn transition_midframe_blends_both_scenes() {
 
     // Two full-bleed single-colour scenes: whatever the compositor does, the
     // frame average lands on a mix of the two fills.
-    let timeline = |color: &str| {
-        let source = format!(
+    let scene = |color: &str| {
+        build_checked(&format!(
             "config {{ colorscheme: \"editorial-dark\", resolution: (64, 64) }}\n\
              #0s\n\
              r: Rect, size: (200, 200), color: {color}, at: (32, 32)\n\
              fade-in r [100ms]\n"
-        );
-        let (ast, errors) = animatix_syntax::parser::parse_source(&source);
-        assert!(errors.is_empty(), "parse errors: {errors:?}");
-        let report =
-            Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
-        assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
-        report.output
+        ))
     };
 
-    let warm = timeline("(0.9, 0.1, 0.1, 1)");
-    let cool = timeline("(0.1, 0.2, 0.9, 1)");
-    let debug = DebugRenderOptions::default();
-
-    let average = |frame: &animatix_render::offscreen::RenderedFrame| -> [f32; 3] {
-        let pixels = frame.rgba.len() / 4;
-        let mut sum = [0f64; 3];
-        for px in frame.rgba.chunks_exact(4) {
-            sum[0] += px[0] as f64;
-            sum[1] += px[1] as f64;
-            sum[2] += px[2] as f64;
-        }
-        [
-            (sum[0] / pixels as f64) as f32,
-            (sum[1] / pixels as f64) as f32,
-            (sum[2] / pixels as f64) as f32,
-        ]
-    };
+    let warm = scene("(0.9, 0.1, 0.1, 1)");
+    let cool = scene("(0.1, 0.2, 0.9, 1)");
 
     // Sample at 0.5s: after the fixtures' own fade-in, so each scene shows its
     // fill rather than the entrance ramp.
-    let start = renderer
-        .render_transition(
-            &warm,
-            0.5,
-            &cool,
-            0.5,
-            0.0,
-            "fade".to_string(),
-            Easing::Linear,
-            dims,
-            debug,
-        )
-        .expect("progress 0 frame");
-    let mid = renderer
-        .render_transition(
-            &warm,
-            0.5,
-            &cool,
-            0.5,
-            0.5,
-            "fade".to_string(),
-            Easing::Linear,
-            dims,
-            debug,
-        )
-        .expect("mid frame");
-    let end = renderer
-        .render_transition(
-            &warm,
-            0.5,
-            &cool,
-            0.5,
-            1.0,
-            "fade".to_string(),
-            Easing::Linear,
-            dims,
-            debug,
-        )
-        .expect("progress 1 frame");
+    let start = transition(&mut renderer, &warm, &cool, 0.0, dims);
+    let mid = transition(&mut renderer, &warm, &cool, 0.5, dims);
+    let end = transition(&mut renderer, &warm, &cool, 1.0, dims);
 
     let (start_avg, mid_avg, end_avg) = (average(&start), average(&mid), average(&end));
     assert!(
@@ -261,8 +443,6 @@ fn transition_midframe_blends_both_scenes() {
 /// transition frame while the preview kept them.
 #[test]
 fn transition_frames_keep_gpu_filter_scopes() {
-    use animatix::easing::Easing;
-
     let Some(mut renderer) = new_renderer() else {
         return;
     };
@@ -274,15 +454,7 @@ fn transition_frames_keep_gpu_filter_scopes() {
     // Outgoing scene: a bright rect inside a Blur scope over a dark backdrop —
     // the blur visibly softens and spreads the rect, so its absence moves the
     // frame average well beyond rounding noise.
-    let build = |source: &str| {
-        let (ast, errors) = animatix_syntax::parser::parse_source(source);
-        assert!(errors.is_empty(), "parse errors: {errors:?}");
-        let report =
-            Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
-        assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
-        report.output
-    };
-    let filtered = build(
+    let filtered = build_checked(
         r#"
 config { colorscheme: "editorial-dark", resolution: (64, 64) }
 #0s
@@ -294,7 +466,7 @@ panel: Filter {
 fade-in panel [100ms]
 "#,
     );
-    let plain = build(
+    let plain = build_checked(
         r#"
 config { colorscheme: "editorial-dark", resolution: (64, 64) }
 #0s
@@ -302,42 +474,13 @@ backdrop: Rect, at: (32, 32), size: (200, 200), color: (0.2, 0.3, 0.5, 1)
 "#,
     );
 
-    let average = |frame: &animatix_render::offscreen::RenderedFrame| -> [f32; 3] {
-        let pixels = frame.rgba.len() / 4;
-        let mut sum = [0f64; 3];
-        for px in frame.rgba.chunks_exact(4) {
-            sum[0] += px[0] as f64;
-            sum[1] += px[1] as f64;
-            sum[2] += px[2] as f64;
-        }
-        [
-            (sum[0] / pixels as f64) as f32,
-            (sum[1] / pixels as f64) as f32,
-            (sum[2] / pixels as f64) as f32,
-        ]
-    };
-
-    let debug = DebugRenderOptions::default();
     // Sample after the fixture's own fade-in so the scope is fully applied.
     let direct = renderer
-        .render_timeline_with_debug(&filtered, 0.5, dims, debug)
+        .render_timeline_with_debug(&filtered, 0.5, dims, DebugRenderOptions::default())
         .expect("single-scene frame");
-    let progress0 = renderer
-        .render_transition(
-            &filtered,
-            0.5,
-            &plain,
-            0.5,
-            0.0,
-            "fade".to_string(),
-            Easing::Linear,
-            dims,
-            debug,
-        )
-        .expect("progress 0 frame");
+    let progress0 = transition(&mut renderer, &filtered, &plain, 0.0, dims);
 
-    let direct_avg = average(&direct);
-    let progress0_avg = average(&progress0);
+    let (direct_avg, progress0_avg) = (average(&direct), average(&progress0));
     for channel in 0..3 {
         assert!(
             (direct_avg[channel] - progress0_avg[channel]).abs() < 1.0,
@@ -367,36 +510,10 @@ g: Graph, x_domain: (-3, 3), y_domain: (-3, 3), size: (300, 300), at: (160, 160)
 }
 fade-in g [100ms]
 "#;
-    let build = |quality| {
-        let (ast, errors) = animatix_syntax::parser::parse_source(source);
-        assert!(errors.is_empty(), "parse errors: {errors:?}");
-        let report = animatix::timeline::Timeline::build_with_options(
-            &ast.expect("AST"),
-            &std::collections::HashMap::new(),
-            animatix::timeline::BuildOptions::default().with_quality(quality),
-        );
-        assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
-        report.output
-    };
-    let average = |frame: &animatix_render::offscreen::RenderedFrame| -> [f32; 3] {
-        let pixels = frame.rgba.len() / 4;
-        let mut sum = [0f64; 3];
-        for px in frame.rgba.chunks_exact(4) {
-            sum[0] += px[0] as f64;
-            sum[1] += px[1] as f64;
-            sum[2] += px[2] as f64;
-        }
-        [
-            (sum[0] / pixels as f64) as f32,
-            (sum[1] / pixels as f64) as f32,
-            (sum[2] / pixels as f64) as f32,
-        ]
-    };
-
     let debug = DebugRenderOptions::default();
     let draft = renderer
         .render_timeline_with_debug(
-            &build(animatix::timeline::BuildQuality::Draft),
+            &build_with_quality(source, BuildQuality::Draft),
             0.5,
             dims,
             debug,
@@ -404,7 +521,7 @@ fade-in g [100ms]
         .expect("draft frame");
     let production = renderer
         .render_timeline_with_debug(
-            &build(animatix::timeline::BuildQuality::Production),
+            &build_with_quality(source, BuildQuality::Production),
             0.5,
             dims,
             debug,
@@ -423,8 +540,8 @@ fade-in g [100ms]
             .evaluate_vector_paths(timeline.world().style(id), 0);
         paths.iter().map(|p| p.path.elements().len()).sum()
     };
-    let draft_timeline = build(animatix::timeline::BuildQuality::Draft);
-    let production_timeline = build(animatix::timeline::BuildQuality::Production);
+    let draft_timeline = build_with_quality(source, BuildQuality::Draft);
+    let production_timeline = build_with_quality(source, BuildQuality::Production);
     let (draft_elements, production_elements) =
         (elements(&draft_timeline), elements(&production_timeline));
     assert!(
@@ -461,30 +578,18 @@ fn blits_into_bgra8_targets() {
     }));
 
     const SIZE: u32 = 64; // 4 B/px * 64 = 256, the COPY_BYTES_PER_ROW_ALIGNMENT
-    let texture = |format, usage, label| {
-        device.create_texture(&wgpu::TextureDescriptor {
-            label: Some(label),
-            size: wgpu::Extent3d {
-                width: SIZE,
-                height: SIZE,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format,
-            usage,
-            view_formats: &[],
-        })
-    };
-    let src = texture(
+    let src = gpu_texture(
+        &device,
+        SIZE,
         wgpu::TextureFormat::Rgba8Unorm,
         wgpu::TextureUsages::RENDER_ATTACHMENT
             | wgpu::TextureUsages::TEXTURE_BINDING
             | wgpu::TextureUsages::COPY_DST,
         "bgra-blit src",
     );
-    let dst = texture(
+    let dst = gpu_texture(
+        &device,
+        SIZE,
         wgpu::TextureFormat::Bgra8Unorm,
         wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
         "bgra-blit dst",
@@ -516,14 +621,6 @@ fn blits_into_bgra8_targets() {
         },
     );
 
-    let bytes_per_row = SIZE * 4;
-    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("bgra-blit readback"),
-        size: (bytes_per_row * SIZE) as u64,
-        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-        mapped_at_creation: false,
-    });
-
     core.blit_texture_to_format(
         &device,
         &queue,
@@ -535,81 +632,12 @@ fn blits_into_bgra8_targets() {
         wgpu::TextureFormat::Bgra8Unorm,
     );
 
-    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-        label: Some("bgra-blit copy"),
-    });
-    encoder.copy_texture_to_buffer(
-        wgpu::TexelCopyTextureInfo {
-            texture: &dst,
-            mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
-            aspect: wgpu::TextureAspect::All,
-        },
-        wgpu::TexelCopyBufferInfo {
-            buffer: &buffer,
-            layout: wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(bytes_per_row),
-                rows_per_image: Some(SIZE),
-            },
-        },
-        wgpu::Extent3d {
-            width: SIZE,
-            height: SIZE,
-            depth_or_array_layers: 1,
-        },
-    );
-    queue.submit(std::iter::once(encoder.finish()));
-
-    let slice = buffer.slice(..);
-    let (tx, rx) = std::sync::mpsc::channel();
-    slice.map_async(wgpu::MapMode::Read, move |r| {
-        tx.send(r).ok();
-    });
-    match device.poll(wgpu::PollType::Wait {
-        submission_index: None,
-        timeout: None,
-    }) {
-        Ok(_) => {},
-        Err(e) => panic!("poll failed: {e:?}"),
-    }
-    rx.recv().unwrap().expect("map failed");
-
-    let data = slice.get_mapped_range();
+    let data = readback_texture(&device, &queue, &dst, SIZE, "bgra-blit readback");
     // Top half: red, swizzled to BGra byte order. Bottom half: the clear
     // color (black, opaque — an alpha-blended blit over LoadOp::Clear? the
     // pass uses Load, and the texture starts zeroed, so transparent black).
-    let top = &data[((SIZE / 2) as usize - 1) * bytes_per_row as usize..][..4];
-    assert_eq!(
-        [top[0], top[1], top[2], top[3]],
-        [40, 40, 220, 255],
-        "bgra target must hold the swizzled red pixel"
-    );
-}
-
-/// Headless device for the core-level tests above (fallible — callers decide
-/// the skip policy via [`animatix_render::testing::skip_if_no_gpu`]).
-async fn headless_device() -> Option<(wgpu::Device, wgpu::Queue)> {
-    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
-    let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::default(),
-            compatible_surface: None,
-            force_fallback_adapter: true,
-        })
-        .await
-        .ok()?;
-    let limits = wgpu::Limits::default().using_resolution(adapter.limits());
-    adapter
-        .request_device(&wgpu::DeviceDescriptor {
-            label: Some("Animatix Bgra Blit Test Device"),
-            required_features: wgpu::Features::empty(),
-            required_limits: limits,
-            memory_hints: Default::default(),
-            ..Default::default()
-        })
-        .await
-        .ok()
+    let top = pixel(&data, SIZE, 0, SIZE / 2 - 1);
+    assert_eq!(top, [40, 40, 220, 255], "bgra target must hold the swizzled red pixel");
 }
 
 #[test]
@@ -617,7 +645,8 @@ fn storyboard_renders_multiframe_grid_to_disk() {
     let Some(_renderer) = new_renderer() else {
         return;
     };
-    let source = r#"
+    let timeline = build(
+        r#"
 #0s
 box: Rect, at: (50, 50), size: (60, 60), color: (1, 0, 0, 1)
 
@@ -626,12 +655,8 @@ fade-in box [500ms]
 
 #2s
 fade-out box [500ms]
-"#;
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let timeline = report.output;
+"#,
+    );
 
     let tmp_dir =
         std::env::temp_dir().join(format!("animatix_storyboard_test_{}", std::process::id()));
@@ -671,50 +696,18 @@ fn instanced_gpu_lines_render_smooth_polyline() {
     let Some(renderer) = new_renderer() else {
         return;
     };
-    let device = renderer.device();
-    let queue = renderer.queue();
-    let core = renderer.core();
+    let (device, queue, core) = (renderer.device(), renderer.queue(), renderer.core());
 
     const SIZE: u32 = 64;
-    let target = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("line target"),
-        size: wgpu::Extent3d {
-            width: SIZE,
-            height: SIZE,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
-        view_formats: &[],
-    });
+    let target = gpu_texture(
+        device,
+        SIZE,
+        wgpu::TextureFormat::Rgba8Unorm,
+        wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        "line target",
+    );
     let target_view = target.create_view(&wgpu::TextureViewDescriptor::default());
-
-    // Clear target to transparent black
-    let mut clear_encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-        label: Some("line target clear"),
-    });
-    {
-        let _pass = clear_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("clear pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &target_view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                    store: wgpu::StoreOp::Store,
-                },
-                depth_slice: None,
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
-    }
-    queue.submit(std::iter::once(clear_encoder.finish()));
+    clear_texture(device, queue, &target_view, "line target clear");
 
     // Draw a horizontal line strip across the center: (10, 32) -> (54, 32)
     let points = [[10.0, 32.0], [54.0, 32.0]];
@@ -733,71 +726,19 @@ fn instanced_gpu_lines_render_smooth_polyline() {
     );
 
     // Read back and verify line center vs edge vs exterior
-    let bytes_per_row = SIZE * 4;
-    let readback_buf = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("line readback"),
-        size: (bytes_per_row * SIZE) as u64,
-        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-        mapped_at_creation: false,
-    });
-
-    let mut copy_encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-        label: Some("line copy encoder"),
-    });
-    copy_encoder.copy_texture_to_buffer(
-        wgpu::TexelCopyTextureInfo {
-            texture: &target,
-            mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
-            aspect: wgpu::TextureAspect::All,
-        },
-        wgpu::TexelCopyBufferInfo {
-            buffer: &readback_buf,
-            layout: wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(bytes_per_row),
-                rows_per_image: Some(SIZE),
-            },
-        },
-        wgpu::Extent3d {
-            width: SIZE,
-            height: SIZE,
-            depth_or_array_layers: 1,
-        },
-    );
-    queue.submit(std::iter::once(copy_encoder.finish()));
-
-    let slice = readback_buf.slice(..);
-    let (tx, rx) = std::sync::mpsc::channel();
-    slice.map_async(wgpu::MapMode::Read, move |r: Result<(), wgpu::BufferAsyncError>| {
-        tx.send(r).ok();
-    });
-    match device.poll(wgpu::PollType::Wait {
-        submission_index: None,
-        timeout: None,
-    }) {
-        Ok(_) => {},
-        Err(e) => panic!("poll failed: {e:?}"),
-    }
-    rx.recv().unwrap().expect("map failed");
-
-    let data = slice.get_mapped_range();
-    let get_pixel = |x: u32, y: u32| {
-        let base = (y * bytes_per_row + x * 4) as usize;
-        [data[base], data[base + 1], data[base + 2], data[base + 3]]
-    };
+    let data = readback_texture(device, queue, &target, SIZE, "line readback");
 
     // Center of the line: (32, 32) must be fully opaque red
-    let center = get_pixel(32, 32);
+    let center = pixel(&data, SIZE, 32, 32);
     assert!(center[0] > 240, "line center must be red: {center:?}");
     assert_eq!(center[3], 255, "line center must be fully opaque: {center:?}");
 
     // Exterior of the line: (32, 5) must be empty/transparent
-    let exterior = get_pixel(32, 5);
+    let exterior = pixel(&data, SIZE, 32, 5);
     assert_eq!(exterior, [0, 0, 0, 0], "exterior must be empty: {exterior:?}");
 
     // Feathered edge (radius=3.0, feather=1.0): y=35 should have partial alpha anti-aliasing
-    let edge = get_pixel(32, 35);
+    let edge = pixel(&data, SIZE, 32, 35);
     assert!(edge[3] > 0 && edge[3] < 255, "edge must be anti-aliased: {edge:?}");
 }
 
@@ -806,123 +747,21 @@ fn batched_blit_pipeline_multiple_layers() {
     let Some(renderer) = new_renderer() else {
         return;
     };
-    let device = renderer.device();
-    let queue = renderer.queue();
-    let core = renderer.core();
+    let (device, queue, core) = (renderer.device(), renderer.queue(), renderer.core());
 
     const SIZE: u32 = 64;
-    // Create source 1: green 32x32
-    let src1 = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("src1"),
-        size: wgpu::Extent3d {
-            width: 32,
-            height: 32,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
-        view_formats: &[],
-    });
-    let green_bytes = [0u8, 255, 0, 255].repeat(32 * 32);
-    queue.write_texture(
-        wgpu::TexelCopyTextureInfo {
-            texture: &src1,
-            mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
-            aspect: wgpu::TextureAspect::All,
-        },
-        &green_bytes,
-        wgpu::TexelCopyBufferLayout {
-            offset: 0,
-            bytes_per_row: Some(32 * 4),
-            rows_per_image: Some(32),
-        },
-        wgpu::Extent3d {
-            width: 32,
-            height: 32,
-            depth_or_array_layers: 1,
-        },
+    // Two 32x32 solid sources and a transparent destination.
+    let src1 = solid_texture(device, queue, 32, [0, 255, 0, 255], "src1 green");
+    let src2 = solid_texture(device, queue, 32, [0, 0, 255, 255], "src2 blue");
+    let dst = gpu_texture(
+        device,
+        SIZE,
+        wgpu::TextureFormat::Rgba8Unorm,
+        wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        "dst",
     );
-
-    // Create source 2: blue 32x32
-    let src2 = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("src2"),
-        size: wgpu::Extent3d {
-            width: 32,
-            height: 32,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
-        view_formats: &[],
-    });
-    let blue_bytes = [0u8, 0, 255, 255].repeat(32 * 32);
-    queue.write_texture(
-        wgpu::TexelCopyTextureInfo {
-            texture: &src2,
-            mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
-            aspect: wgpu::TextureAspect::All,
-        },
-        &blue_bytes,
-        wgpu::TexelCopyBufferLayout {
-            offset: 0,
-            bytes_per_row: Some(32 * 4),
-            rows_per_image: Some(32),
-        },
-        wgpu::Extent3d {
-            width: 32,
-            height: 32,
-            depth_or_array_layers: 1,
-        },
-    );
-
-    // Destination target
-    let dst = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("dst"),
-        size: wgpu::Extent3d {
-            width: SIZE,
-            height: SIZE,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
-        view_formats: &[],
-    });
     let dst_view = dst.create_view(&wgpu::TextureViewDescriptor::default());
-
-    // Clear destination
-    let mut clear_encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-        label: Some("dst clear"),
-    });
-    {
-        let _pass = clear_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("clear pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &dst_view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                    store: wgpu::StoreOp::Store,
-                },
-                depth_slice: None,
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
-    }
-    queue.submit(std::iter::once(clear_encoder.finish()));
+    clear_texture(device, queue, &dst_view, "dst clear");
 
     let src1_view = src1.create_view(&wgpu::TextureViewDescriptor::default());
     let src2_view = src2.create_view(&wgpu::TextureViewDescriptor::default());
@@ -950,66 +789,14 @@ fn batched_blit_pipeline_multiple_layers() {
     core.blit_texture_rect_masked_batch(device, queue, &dst_view, &batch);
 
     // Read back and verify both layers rendered in their respective quadrants
-    let bytes_per_row = SIZE * 4;
-    let readback_buf = device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("batch readback"),
-        size: (bytes_per_row * SIZE) as u64,
-        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-        mapped_at_creation: false,
-    });
-
-    let mut copy_encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-        label: Some("batch copy encoder"),
-    });
-    copy_encoder.copy_texture_to_buffer(
-        wgpu::TexelCopyTextureInfo {
-            texture: &dst,
-            mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
-            aspect: wgpu::TextureAspect::All,
-        },
-        wgpu::TexelCopyBufferInfo {
-            buffer: &readback_buf,
-            layout: wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(bytes_per_row),
-                rows_per_image: Some(SIZE),
-            },
-        },
-        wgpu::Extent3d {
-            width: SIZE,
-            height: SIZE,
-            depth_or_array_layers: 1,
-        },
-    );
-    queue.submit(std::iter::once(copy_encoder.finish()));
-
-    let slice = readback_buf.slice(..);
-    let (tx, rx) = std::sync::mpsc::channel();
-    slice.map_async(wgpu::MapMode::Read, move |r: Result<(), wgpu::BufferAsyncError>| {
-        tx.send(r).ok();
-    });
-    match device.poll(wgpu::PollType::Wait {
-        submission_index: None,
-        timeout: None,
-    }) {
-        Ok(_) => {},
-        Err(e) => panic!("poll failed: {e:?}"),
-    }
-    rx.recv().unwrap().expect("map failed");
-
-    let data = slice.get_mapped_range();
-    let get_pixel = |x: u32, y: u32| {
-        let base = (y * bytes_per_row + x * 4) as usize;
-        [data[base], data[base + 1], data[base + 2], data[base + 3]]
-    };
+    let data = readback_texture(device, queue, &dst, SIZE, "batch readback");
 
     // (16, 16) is in the top-left quadrant (src1, green)
-    assert_eq!(get_pixel(16, 16), [0, 255, 0, 255]);
+    assert_eq!(pixel(&data, SIZE, 16, 16), [0, 255, 0, 255]);
     // (48, 48) is in the bottom-right quadrant (src2, blue)
-    assert_eq!(get_pixel(48, 48), [0, 0, 255, 255]);
+    assert_eq!(pixel(&data, SIZE, 48, 48), [0, 0, 255, 255]);
     // (48, 16) is untouched (transparent black)
-    assert_eq!(get_pixel(48, 16), [0, 0, 0, 0]);
+    assert_eq!(pixel(&data, SIZE, 48, 16), [0, 0, 0, 0]);
 }
 
 #[test]
@@ -1017,19 +804,15 @@ fn filter_backend_texture_pool_recycles_allocations() {
     let Some(mut renderer) = new_renderer() else {
         return;
     };
-    let source = r#"
+    let timeline = build(
+        r#"
 #0s
 card: Rect, at: (20, 20), size: (40, 40), color: (1, 0, 0, 1)
 
 #1s
 card.at = (30, 30)
-"#;
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let timeline = report.output;
-
+"#,
+    );
     let dims = SceneDimensions {
         width: 80,
         height: 80,
@@ -1037,8 +820,7 @@ card.at = (30, 30)
 
     // Render 3 consecutive frames to exercise texture pooling and recycling across frames
     for t in [0.0, 0.5, 1.0] {
-        let frame =
-            renderer.render_timeline(&timeline, t, dims).expect("frame render must succeed");
+        let frame = render(&mut renderer, &timeline, t, dims);
         assert_eq!(frame.width, 80);
         assert_eq!(frame.height, 80);
     }
@@ -1049,25 +831,16 @@ fn instanced_gpu_parametric_curves() {
     let Some(renderer) = new_renderer() else {
         return;
     };
-    let device = renderer.device();
-    let queue = renderer.queue();
-    let core = renderer.core();
+    let (device, queue, core) = (renderer.device(), renderer.queue(), renderer.core());
 
     const SIZE: u32 = 64;
-    let target = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("curve target"),
-        size: wgpu::Extent3d {
-            width: SIZE,
-            height: SIZE,
-            depth_or_array_layers: 1,
-        },
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8Unorm,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
-        view_formats: &[],
-    });
+    let target = gpu_texture(
+        device,
+        SIZE,
+        wgpu::TextureFormat::Rgba8Unorm,
+        wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        "curve target",
+    );
     let target_view = target.create_view(&wgpu::TextureViewDescriptor::default());
 
     // Render a sine wave curve y = 32 + 16 * sin(t * 0.1) across x from 0 to 64

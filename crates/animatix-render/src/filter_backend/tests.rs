@@ -6,6 +6,11 @@ use animatix_core::effect::EffectParamKind;
 use super::readback::scale_pixel_params;
 use super::*;
 
+const DIMS: SceneDimensions = SceneDimensions {
+    width: 64,
+    height: 64,
+};
+
 fn pack_radius(radius: f32) -> [u8; 4] {
     let spec =
         EffectParamSpec::new("radius", EffectParamKind::F32, EffectParamValue::F32(0.0), 0, 4)
@@ -52,16 +57,7 @@ fn every_lane_of_a_vec2_offset_is_scaled() {
 }
 
 fn blur_chain(radius: f32) -> EffectChain {
-    EffectChain {
-        instances: vec![EffectInstance {
-            id: EffectId::new("Blur"),
-            enabled: true,
-            params: EffectParams {
-                values: vec![EffectParamValue::F32(radius)],
-            },
-        }],
-        time_ms: 0.0,
-    }
+    effect_chain("Blur", vec![EffectParamValue::F32(radius)])
 }
 
 fn color_grade_chain(
@@ -71,35 +67,44 @@ fn color_grade_chain(
     hue_rotate: f32,
     sepia: f32,
 ) -> EffectChain {
+    effect_chain(
+        "ColorGrade",
+        vec![
+            EffectParamValue::F32(brightness),
+            EffectParamValue::F32(contrast),
+            EffectParamValue::F32(saturate),
+            EffectParamValue::F32(hue_rotate),
+            EffectParamValue::F32(sepia),
+        ],
+    )
+}
+
+fn chromatic_aberration_chain(offset: f32) -> EffectChain {
+    effect_chain("ChromaticAberration", vec![EffectParamValue::F32(offset)])
+}
+
+/// One-stage chain for any built-in effect, addressed by its authored name.
+fn effect_chain(name: &str, values: Vec<EffectParamValue>) -> EffectChain {
     EffectChain {
         instances: vec![EffectInstance {
-            id: EffectId::new("ColorGrade"),
+            id: EffectId::new(name),
             enabled: true,
-            params: EffectParams {
-                values: vec![
-                    EffectParamValue::F32(brightness),
-                    EffectParamValue::F32(contrast),
-                    EffectParamValue::F32(saturate),
-                    EffectParamValue::F32(hue_rotate),
-                    EffectParamValue::F32(sepia),
-                ],
-            },
+            params: EffectParams { values },
         }],
         time_ms: 0.0,
     }
 }
 
-fn chromatic_aberration_chain(offset: f32) -> EffectChain {
-    EffectChain {
-        instances: vec![EffectInstance {
-            id: EffectId::new("ChromaticAberration"),
-            enabled: true,
-            params: EffectParams {
-                values: vec![EffectParamValue::F32(offset)],
-            },
-        }],
-        time_ms: 0.0,
-    }
+fn filled_scene(color: vello::peniko::Color, rect: kurbo::Rect) -> vello::Scene {
+    let mut scene = vello::Scene::new();
+    let path = kurbo::Shape::to_path(&rect, 1e-3);
+    scene.fill(vello::peniko::Fill::NonZero, kurbo::Affine::IDENTITY, color, None, &path);
+    scene
+}
+
+/// Opaque white half-plane for `x < 32`, transparent to the right.
+fn white_half_scene(height: f64) -> vello::Scene {
+    filled_scene(vello::peniko::Color::WHITE, kurbo::Rect::new(0.0, 0.0, 32.0, height))
 }
 
 async fn create_headless_device() -> Option<(wgpu::Device, wgpu::Queue)> {
@@ -126,70 +131,64 @@ async fn create_headless_device() -> Option<(wgpu::Device, wgpu::Queue)> {
     Some((device, queue))
 }
 
+/// Headless backend at `dims`, or `None` where the suite skips GPU tests.
+fn gpu_backend(dims: SceneDimensions) -> Option<GpuFilterBackend> {
+    let (device, queue) = pollster::block_on(create_headless_device())?;
+    Some(GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise"))
+}
+
+fn render(
+    backend: &mut GpuFilterBackend,
+    scene: &vello::Scene,
+    dims: SceneDimensions,
+    chain: &EffectChain,
+) -> SceneImage {
+    backend
+        .render_scene_to_image_gpu_filtered(scene, dims, None, chain)
+        .expect("GPU filter chain should succeed")
+}
+
+fn assert_image_size(image: &SceneImage, size: f32) {
+    assert_eq!(image.natural_size[0], size);
+    assert_eq!(image.natural_size[1], size);
+}
+
 /// Smoke test: an empty chain returns a valid image of the right size.
 #[test]
 fn gpu_filter_backend_empty_chain_produces_image() {
-    let maybe_device = pollster::block_on(create_headless_device());
-    if let Some((device, queue)) = maybe_device {
-        let dims = SceneDimensions {
-            width: 64,
-            height: 64,
-        };
-        let mut backend =
-            GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
-
-        let scene = vello::Scene::new();
-        let result =
-            backend.render_scene_to_image_gpu_filtered(&scene, dims, None, &EffectChain::default());
-        assert!(result.is_ok(), "empty chain path should succeed");
-        let image = result.unwrap();
-        assert_eq!(image.natural_size[0], 64.0);
-        assert_eq!(image.natural_size[1], 64.0);
-    }
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let image = backend
+        .render_scene_to_image_gpu_filtered(
+            &vello::Scene::new(),
+            DIMS,
+            None,
+            &EffectChain::default(),
+        )
+        .expect("empty chain path should succeed");
+    assert_image_size(&image, 64.0);
 }
 
 /// Smoke test: the blur chain produces a valid SceneImage.
 #[test]
 fn gpu_filter_backend_blur_chain_produces_image() {
-    let maybe_device = pollster::block_on(create_headless_device());
-    if let Some((device, queue)) = maybe_device {
-        let dims = SceneDimensions {
-            width: 64,
-            height: 64,
-        };
-        let mut backend =
-            GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
-
-        let scene = vello::Scene::new();
-        let result =
-            backend.render_scene_to_image_gpu_filtered(&scene, dims, None, &blur_chain(5.0));
-        assert!(result.is_ok(), "GPU blur chain path should succeed");
-        let image = result.unwrap();
-        assert_eq!(image.natural_size[0], 64.0);
-        assert_eq!(image.natural_size[1], 64.0);
-    }
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let image = render(&mut backend, &vello::Scene::new(), DIMS, &blur_chain(5.0));
+    assert_image_size(&image, 64.0);
 }
 
 /// Smoke test: the colour-grade chain produces a valid SceneImage.
 #[test]
 fn gpu_filter_backend_color_grade_produces_image() {
-    let maybe_device = pollster::block_on(create_headless_device());
-    if let Some((device, queue)) = maybe_device {
-        let dims = SceneDimensions {
-            width: 64,
-            height: 64,
-        };
-        let mut backend =
-            GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
-
-        let scene = vello::Scene::new();
-        let chain = color_grade_chain(1.5, 1.2, 0.5, 45.0, 0.3);
-        let result = backend.render_scene_to_image_gpu_filtered(&scene, dims, None, &chain);
-        assert!(result.is_ok(), "GPU color-grade path should succeed");
-        let image = result.unwrap();
-        assert_eq!(image.natural_size[0], 64.0);
-        assert_eq!(image.natural_size[1], 64.0);
-    }
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let chain = color_grade_chain(1.5, 1.2, 0.5, 45.0, 0.3);
+    let image = render(&mut backend, &vello::Scene::new(), DIMS, &chain);
+    assert_image_size(&image, 64.0);
 }
 
 /// Content-level check that chromatic aberration separates channels across
@@ -197,41 +196,23 @@ fn gpu_filter_backend_color_grade_produces_image() {
 /// up blue from the far sample while red (sampled further out) stays dark.
 #[test]
 fn chromatic_aberration_fringes_a_hard_edge() {
-    let maybe_device = pollster::block_on(create_headless_device());
-    if let Some((device, queue)) = maybe_device {
-        let dims = SceneDimensions {
-            width: 64,
-            height: 64,
-        };
-        let mut backend =
-            GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
 
-        // White half-plane for x < 32 on a transparent background.
-        let mut scene = vello::Scene::new();
-        use kurbo::Shape;
-        let rect = kurbo::Rect::new(0.0, 0.0, 32.0, 64.0).to_path(1e-3);
-        scene.fill(
-            vello::peniko::Fill::NonZero,
-            kurbo::Affine::IDENTITY,
-            vello::peniko::Color::WHITE,
-            None,
-            &rect,
-        );
-
-        let chain = chromatic_aberration_chain(8.0);
-        let image = backend
-            .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
-            .expect("chromatic aberration path should succeed");
-        let w = image.natural_size[0] as usize;
-        let raw = image.data.data.data();
-        // Pixel right of the boundary, on the horizontal through the
-        // centre: blue samples back into the white half-plane, red
-        // samples further out into the empty half.
-        let (x, y) = (36usize, 32usize);
-        let r = raw[(y * w + x) * 4];
-        let b = raw[(y * w + x) * 4 + 2];
-        assert!(b > r + 60, "expected a blue-dominant fringe at ({x},{y}), got r={r} b={b}");
-    }
+    // White half-plane for x < 32 on a transparent background.
+    let scene = white_half_scene(64.0);
+    let chain = chromatic_aberration_chain(8.0);
+    let image = render(&mut backend, &scene, DIMS, &chain);
+    let w = image.natural_size[0] as usize;
+    let raw = image.data.data.data();
+    // Pixel right of the boundary, on the horizontal through the
+    // centre: blue samples back into the white half-plane, red
+    // samples further out into the empty half.
+    let (x, y) = (36usize, 32usize);
+    let r = raw[(y * w + x) * 4];
+    let b = raw[(y * w + x) * 4 + 2];
+    assert!(b > r + 60, "expected a blue-dominant fringe at ({x},{y}), got r={r} b={b}");
 }
 
 /// Region-scoped chains crop the seed copy, dispatch at the region size,
@@ -239,65 +220,42 @@ fn chromatic_aberration_fringes_a_hard_edge() {
 /// region-local coordinates.
 #[test]
 fn region_scoped_chain_crops_and_filters() {
-    let maybe_device = pollster::block_on(create_headless_device());
-    if let Some((device, queue)) = maybe_device {
-        let dims = SceneDimensions {
-            width: 64,
-            height: 64,
-        };
-        let mut backend =
-            GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
 
-        // White half-plane for x < 32 on a transparent background.
-        let mut scene = vello::Scene::new();
-        use kurbo::Shape;
-        let rect = kurbo::Rect::new(0.0, 0.0, 32.0, 64.0).to_path(1e-3);
-        scene.fill(
-            vello::peniko::Fill::NonZero,
-            kurbo::Affine::IDENTITY,
-            vello::peniko::Color::WHITE,
-            None,
-            &rect,
-        );
+    // White half-plane for x < 32 on a transparent background.
+    let scene = white_half_scene(64.0);
+    let region = EffectRegion {
+        origin: [16.0, 16.0],
+        size: SceneDimensions {
+            width: 32,
+            height: 32,
+        },
+    };
+    let image = backend
+        .render_scene_to_image_gpu_filtered(&scene, DIMS, Some(region), &blur_chain(4.0))
+        .expect("region-scoped chain should succeed");
+    assert_image_size(&image, 32.0);
 
-        let region = EffectRegion {
-            origin: [16.0, 16.0],
-            size: SceneDimensions {
-                width: 32,
-                height: 32,
-            },
-        };
-        let image = backend
-            .render_scene_to_image_gpu_filtered(&scene, dims, Some(region), &blur_chain(4.0))
-            .expect("region-scoped chain should succeed");
-        assert_eq!(image.natural_size[0], 32.0);
-        assert_eq!(image.natural_size[1], 32.0);
-
-        let w = image.natural_size[0] as usize;
-        let raw = image.data.data.data();
-        // Region-local: world x < 32 maps to local x < 16, so (8, 16) sits
-        // well inside the white half-plane and stays opaque.
-        let a = raw[(16 * w + 8) * 4 + 3];
-        assert!(a > 200, "expected opaque white inside the region, got a={a}");
-        // World x = 32 maps to local x = 16; blur must soften the edge.
-        let mut soft = false;
-        for lx in 10..22usize {
-            let a = raw[(16 * w + lx) * 4 + 3];
-            if a > 40 && a < 215 {
-                soft = true;
-                break;
-            }
+    let w = image.natural_size[0] as usize;
+    let raw = image.data.data.data();
+    // Region-local: world x < 32 maps to local x < 16, so (8, 16) sits
+    // well inside the white half-plane and stays opaque.
+    let a = raw[(16 * w + 8) * 4 + 3];
+    assert!(a > 200, "expected opaque white inside the region, got a={a}");
+    // World x = 32 maps to local x = 16; blur must soften the edge.
+    let mut soft = false;
+    for lx in 10..22usize {
+        let a = raw[(16 * w + lx) * 4 + 3];
+        if a > 40 && a < 215 {
+            soft = true;
+            break;
         }
-        assert!(soft, "blur should soften the world boundary inside the region");
     }
+    assert!(soft, "blur should soften the world boundary inside the region");
 }
 
-/// Content-level check that blur actually softens a hard boundary.
-///
-/// Probe 009 root cause: back-to-back compute passes sharing ping-pong
-/// textures in one encoder did not synchronise; the passes are now split by
-/// submit. This test reads pixels back and verifies a sharp black/white edge
-/// becomes a gradient (intermediate alpha) inside the blur radius.
 /// Where an edge's half-alpha crossing sits, in scene pixels. A chain that
 /// dispatches into a smaller texture has to put the result back where it came
 /// from, so this is the origin arithmetic the harvest and the composite share.
@@ -327,24 +285,10 @@ fn soft_width(raw: &[u8], w: usize, y: usize, span: usize) -> usize {
 /// frame-cost measurement would notice.
 #[test]
 fn a_reduced_raster_composite_is_emitted_in_target_pixels() {
-    let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+    let Some(mut backend) = gpu_backend(DIMS) else {
         return;
     };
-    let dims = SceneDimensions {
-        width: 64,
-        height: 64,
-    };
-    let mut scene = vello::Scene::new();
-    use kurbo::Shape;
-    scene.fill(
-        vello::peniko::Fill::NonZero,
-        kurbo::Affine::IDENTITY,
-        vello::peniko::Color::WHITE,
-        None,
-        &kurbo::Rect::new(0.0, 0.0, 64.0, 64.0).to_path(1e-3),
-    );
-    let mut backend =
-        GpuFilterBackend::new(device, queue, dims).expect("backend at scene resolution");
+    let scene = filled_scene(vello::peniko::Color::WHITE, kurbo::Rect::new(0.0, 0.0, 64.0, 64.0));
     backend.set_raster_scale(0.5);
     let region = EffectRegion {
         origin: [16.0, 16.0],
@@ -354,7 +298,7 @@ fn a_reduced_raster_composite_is_emitted_in_target_pixels() {
         },
     };
     backend
-        .render_scene_to_pending_composite(&scene, dims, Some(region), &blur_chain(8.0), 1.0)
+        .render_scene_to_pending_composite(&scene, DIMS, Some(region), &blur_chain(8.0), 1.0)
         .expect("region composite at half raster");
     let layers = backend.take_pending_composites();
     let composite = match layers.first() {
@@ -382,37 +326,20 @@ fn a_reduced_raster_keeps_the_blur_the_same_size_in_scene_pixels() {
     let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
         return;
     };
-    let full = SceneDimensions {
-        width: 64,
-        height: 64,
-    };
-    let mut scene = vello::Scene::new();
-    use kurbo::Shape;
-    let rect = kurbo::Rect::new(0.0, 0.0, 32.0, 64.0).to_path(1e-3);
-    scene.fill(
-        vello::peniko::Fill::NonZero,
-        kurbo::Affine::IDENTITY,
-        vello::peniko::Color::WHITE,
-        None,
-        &rect,
-    );
+    let scene = white_half_scene(64.0);
 
     // Reference: the whole frame at scene resolution, radius 8.
-    let mut reference = GpuFilterBackend::new(device.clone(), queue.clone(), full)
+    let mut reference = GpuFilterBackend::new(device.clone(), queue.clone(), DIMS)
         .expect("backend at scene resolution");
-    let ref_img = reference
-        .render_scene_to_image_gpu_filtered(&scene, full, None, &blur_chain(8.0))
-        .expect("reference blur");
+    let ref_img = render(&mut reference, &scene, DIMS, &blur_chain(8.0));
     let ref_w = ref_img.natural_size[0] as usize;
     let ref_ramp = soft_width(ref_img.data.data.data(), ref_w, 32, 64);
     assert!(ref_ramp > 2, "the reference blur should show a ramp, got {ref_ramp}");
 
     // Same scene, same authored radius, half the raster.
-    let mut half = GpuFilterBackend::new(device.clone(), queue.clone(), full).expect("backend");
+    let mut half = GpuFilterBackend::new(device.clone(), queue.clone(), DIMS).expect("backend");
     half.set_raster_scale(0.5);
-    let half_img = half
-        .render_scene_to_image_gpu_filtered(&scene, full, None, &blur_chain(8.0))
-        .expect("blurred at half raster");
+    let half_img = render(&mut half, &scene, DIMS, &blur_chain(8.0));
     assert_eq!(
         half_img.natural_size,
         [32.0, 32.0],
@@ -444,9 +371,7 @@ fn a_reduced_raster_keeps_the_blur_the_same_size_in_scene_pixels() {
     let mut unscaled = GpuFilterBackend::new(device, queue, small).expect("backend at 32x32");
     let mut small_scene = vello::Scene::new();
     small_scene.append(&scene, Some(kurbo::Affine::scale(0.5)));
-    let naive = unscaled
-        .render_scene_to_image_gpu_filtered(&small_scene, small, None, &blur_chain(8.0))
-        .expect("naive blur at reduced size");
+    let naive = render(&mut unscaled, &small_scene, small, &blur_chain(8.0));
     let naive_ramp = soft_width(naive.data.data.data(), 32, 16, 32) * 2;
     assert!(
         naive_ramp > ref_ramp + 3,
@@ -457,122 +382,61 @@ fn a_reduced_raster_keeps_the_blur_the_same_size_in_scene_pixels() {
 
 #[test]
 fn gpu_filter_blur_softens_a_hard_boundary() {
-    let maybe_device = pollster::block_on(create_headless_device());
-    if let Some((device, queue)) = maybe_device {
-        let dims = SceneDimensions {
-            width: 64,
-            height: 64,
-        };
-        let mut backend =
-            GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
 
-        // Sharp boundary at x=32: left half white, right half empty.
-        let mut scene = vello::Scene::new();
-        use kurbo::Shape;
-        let rect = kurbo::Rect::new(0.0, 0.0, 32.0, 64.0).to_path(1e-3);
-        scene.fill(
-            vello::peniko::Fill::NonZero,
-            kurbo::Affine::IDENTITY,
-            vello::peniko::Color::WHITE,
-            None,
-            &rect,
-        );
-
-        let image = backend
-            .render_scene_to_image_gpu_filtered(&scene, dims, None, &blur_chain(8.0))
-            .expect("GPU blur path should succeed");
-        let w = image.natural_size[0] as usize;
-        let raw = image.data.data.data();
-        // Middle row: within ±8px of the boundary (x=32), expect an
-        // intermediate alpha (soft edge), not a hard 0/255 step.
-        let y = 32usize;
-        let mut soft = false;
-        for x in 20..44usize {
-            let a = raw[(y * w + x) * 4 + 3];
-            if a > 40 && a < 215 {
-                soft = true;
-                break;
-            }
+    // Sharp boundary at x=32: left half white, right half empty.
+    let image = render(&mut backend, &white_half_scene(64.0), DIMS, &blur_chain(8.0));
+    let w = image.natural_size[0] as usize;
+    let raw = image.data.data.data();
+    // Middle row: within ±8px of the boundary (x=32), expect an
+    // intermediate alpha (soft edge), not a hard 0/255 step.
+    let y = 32usize;
+    let mut soft = false;
+    for x in 20..44usize {
+        let a = raw[(y * w + x) * 4 + 3];
+        if a > 40 && a < 215 {
+            soft = true;
+            break;
         }
-        assert!(
-            soft,
-            "blur should soften the boundary at x=32, but all sampled pixels look hard"
-        );
     }
+    assert!(
+        soft,
+        "blur should soften the boundary at x=32, but all sampled pixels look hard"
+    );
 }
 
 /// Check that the colour-grade pass mutates pixels: a red rectangle with
 /// `saturate: 0` must desaturate to gray.
 #[test]
 fn color_matrix_actually_desaturates() {
-    let maybe_device = pollster::block_on(create_headless_device());
-    if let Some((device, queue)) = maybe_device {
-        let dims = SceneDimensions {
-            width: 64,
-            height: 64,
-        };
-        let mut backend =
-            GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
-
-        let mut scene = vello::Scene::new();
-        use kurbo::Shape;
-        let rect = kurbo::Rect::new(16.0, 16.0, 48.0, 48.0).to_path(1e-3);
-        scene.fill(
-            vello::peniko::Fill::NonZero,
-            kurbo::Affine::IDENTITY,
-            vello::peniko::Color::from_rgba8(255, 0, 0, 255),
-            None,
-            &rect,
-        );
-
-        let chain = color_grade_chain(1.0, 1.0, 0.0, 0.0, 0.0);
-        let image = backend
-            .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
-            .expect("color-grade path should succeed");
-        let w = image.natural_size[0] as usize;
-        let raw = image.data.data.data();
-        let (r, g, b) =
-            (raw[(32 * w + 32) * 4], raw[(32 * w + 32) * 4 + 1], raw[(32 * w + 32) * 4 + 2]);
-        // Desaturated red → channels roughly equal (gray).
-        assert!(
-            r > 30 && (r as i32 - g as i32).abs() < 40 && (r as i32 - b as i32).abs() < 40,
-            "saturate=0 should desaturate red to gray (Rec.709 luma ≈54, not empty), got r={r} g={g} b={b}"
-        );
-    }
-}
-
-/// One-stage chain for any built-in effect, addressed by its authored name.
-fn effect_chain(name: &str, values: Vec<EffectParamValue>) -> EffectChain {
-    EffectChain {
-        instances: vec![EffectInstance {
-            id: EffectId::new(name),
-            enabled: true,
-            params: EffectParams { values },
-        }],
-        time_ms: 0.0,
-    }
-}
-
-fn filled_scene(color: vello::peniko::Color, rect: kurbo::Rect) -> vello::Scene {
-    let mut scene = vello::Scene::new();
-    let path = kurbo::Shape::to_path(&rect, 1e-3);
-    scene.fill(vello::peniko::Fill::NonZero, kurbo::Affine::IDENTITY, color, None, &path);
-    scene
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+    let scene = filled_scene(
+        vello::peniko::Color::from_rgba8(255, 0, 0, 255),
+        kurbo::Rect::new(16.0, 16.0, 48.0, 48.0),
+    );
+    let chain = color_grade_chain(1.0, 1.0, 0.0, 0.0, 0.0);
+    let image = render(&mut backend, &scene, DIMS, &chain);
+    let w = image.natural_size[0] as usize;
+    let raw = image.data.data.data();
+    let (r, g, b) =
+        (raw[(32 * w + 32) * 4], raw[(32 * w + 32) * 4 + 1], raw[(32 * w + 32) * 4 + 2]);
+    // Desaturated red → channels roughly equal (gray).
+    assert!(
+        r > 30 && (r as i32 - g as i32).abs() < 40 && (r as i32 - b as i32).abs() < 40,
+        "saturate=0 should desaturate red to gray (Rec.709 luma ≈54, not empty), got r={r} g={g} b={b}"
+    );
 }
 
 /// Vignette must darken the corner while leaving the center untouched.
 #[test]
 fn vignette_darkens_corners_not_center() {
-    let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+    let Some(mut backend) = gpu_backend(DIMS) else {
         return;
     };
-    let dims = SceneDimensions {
-        width: 64,
-        height: 64,
-    };
-    let mut backend =
-        GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
-
     let scene = filled_scene(vello::peniko::Color::WHITE, kurbo::Rect::new(0.0, 0.0, 64.0, 64.0));
     let chain = effect_chain(
         "Vignette",
@@ -583,9 +447,7 @@ fn vignette_darkens_corners_not_center() {
             EffectParamValue::Vec4([0.0, 0.0, 0.0, 1.0]),
         ],
     );
-    let image = backend
-        .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
-        .expect("vignette path should succeed");
+    let image = render(&mut backend, &scene, DIMS, &chain);
     let w = image.natural_size[0] as usize;
     let raw = image.data.data.data();
 
@@ -599,15 +461,13 @@ fn vignette_darkens_corners_not_center() {
 /// the (raised) black output — the classic contrast-crush check.
 #[test]
 fn levels_black_point_maps_below_floor_to_black() {
-    let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+    let Some(mut backend) = gpu_backend(DIMS) else {
         return;
     };
     let dims = SceneDimensions {
         width: 32,
         height: 32,
     };
-    let mut backend =
-        GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
 
     // 25% gray fills the canvas.
     let scene = filled_scene(
@@ -624,9 +484,7 @@ fn levels_black_point_maps_below_floor_to_black() {
             EffectParamValue::F32(1.0), // out_white
         ],
     );
-    let image = backend
-        .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
-        .expect("levels path should succeed");
+    let image = render(&mut backend, &scene, dims, &chain);
     let w = image.natural_size[0] as usize;
     let raw = image.data.data.data();
     let r = raw[(16 * w + 16) * 4];
@@ -643,17 +501,15 @@ fn levels_black_point_maps_below_floor_to_black() {
             EffectParamValue::F32(1.0),
         ],
     );
-    let image = backend
-        .render_scene_to_image_gpu_filtered(
-            &filled_scene(
-                vello::peniko::Color::from_rgba8(128, 128, 128, 255),
-                kurbo::Rect::new(0.0, 0.0, 32.0, 32.0),
-            ),
-            dims,
-            None,
-            &chain,
-        )
-        .expect("levels gamma path should succeed");
+    let image = render(
+        &mut backend,
+        &filled_scene(
+            vello::peniko::Color::from_rgba8(128, 128, 128, 255),
+            kurbo::Rect::new(0.0, 0.0, 32.0, 32.0),
+        ),
+        dims,
+        &chain,
+    );
     let w = image.natural_size[0] as usize;
     let raw = image.data.data.data();
     let r = raw[(16 * w + 16) * 4];
@@ -667,31 +523,18 @@ fn levels_black_point_maps_below_floor_to_black() {
 /// interior value (the high-frequency residual is added back).
 #[test]
 fn sharpen_overshoots_at_hard_edges() {
-    let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+    let Some(mut backend) = gpu_backend(DIMS) else {
         return;
     };
-    let dims = SceneDimensions {
-        width: 64,
-        height: 64,
-    };
-    let mut backend =
-        GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
 
     // Left half 50% gray, right half black: one hard vertical edge at x=32.
-    let mut scene = vello::Scene::new();
-    use kurbo::Shape;
-    scene.fill(
-        vello::peniko::Fill::NonZero,
-        kurbo::Affine::IDENTITY,
+    let scene = filled_scene(
         vello::peniko::Color::from_rgba8(128, 128, 128, 255),
-        None,
-        &kurbo::Rect::new(0.0, 0.0, 32.0, 64.0).to_path(1e-3),
+        kurbo::Rect::new(0.0, 0.0, 32.0, 64.0),
     );
     let chain =
         effect_chain("Sharpen", vec![EffectParamValue::F32(2.0), EffectParamValue::F32(2.0)]);
-    let image = backend
-        .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
-        .expect("sharpen path should succeed");
+    let image = render(&mut backend, &scene, DIMS, &chain);
     let w = image.natural_size[0] as usize;
     let raw = image.data.data.data();
     let interior = raw[(32 * w + 8) * 4];
@@ -710,12 +553,8 @@ fn grain_perturbs_flat_field_deterministically() {
     let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
         return;
     };
-    let dims = SceneDimensions {
-        width: 64,
-        height: 64,
-    };
     let make_backend = || {
-        GpuFilterBackend::new(device.clone(), queue.clone(), dims)
+        GpuFilterBackend::new(device.clone(), queue.clone(), DIMS)
             .expect("GpuFilterBackend should initialise")
     };
 
@@ -729,14 +568,7 @@ fn grain_perturbs_flat_field_deterministically() {
         EffectParamValue::Bool(true),
     ];
 
-    let image = make_backend()
-        .render_scene_to_image_gpu_filtered(
-            &scene,
-            dims,
-            None,
-            &effect_chain("Grain", params.clone()),
-        )
-        .expect("grain path should succeed");
+    let image = render(&mut make_backend(), &scene, DIMS, &effect_chain("Grain", params.clone()));
     let raw = image.data.data.data();
     let touched = raw.chunks_exact(4).filter(|px| px[0] != 128).count();
     assert!(
@@ -744,9 +576,7 @@ fn grain_perturbs_flat_field_deterministically() {
         "grain should perturb most pixels of a flat field, only {touched} changed"
     );
 
-    let image_again = make_backend()
-        .render_scene_to_image_gpu_filtered(&scene, dims, None, &effect_chain("Grain", params))
-        .expect("second grain render should succeed");
+    let image_again = render(&mut make_backend(), &scene, DIMS, &effect_chain("Grain", params));
     assert_eq!(raw, image_again.data.data.data(), "grain must be deterministic");
 }
 
@@ -754,23 +584,15 @@ fn grain_perturbs_flat_field_deterministically() {
 /// appears up to `length` pixels right of the shape's edge.
 #[test]
 fn motion_blur_smears_horizontally() {
-    let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+    let Some(mut backend) = gpu_backend(DIMS) else {
         return;
     };
-    let dims = SceneDimensions {
-        width: 64,
-        height: 64,
-    };
-    let mut backend =
-        GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
 
     // Opaque white rect over the left third.
     let scene = filled_scene(vello::peniko::Color::WHITE, kurbo::Rect::new(0.0, 0.0, 21.0, 64.0));
     let chain =
         effect_chain("MotionBlur", vec![EffectParamValue::F32(12.0), EffectParamValue::F32(0.0)]);
-    let image = backend
-        .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
-        .expect("motion-blur path should succeed");
+    let image = render(&mut backend, &scene, DIMS, &chain);
     let w = image.natural_size[0] as usize;
     let raw = image.data.data.data();
     let y = 32usize;
@@ -793,16 +615,9 @@ fn motion_blur_smears_horizontally() {
 /// highlight colour at full strength.
 #[test]
 fn duotone_maps_luma_onto_the_ramp() {
-    let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+    let Some(mut backend) = gpu_backend(DIMS) else {
         return;
     };
-    let dims = SceneDimensions {
-        width: 64,
-        height: 64,
-    };
-    let mut backend =
-        GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
-
     let mut scene = filled_scene(
         vello::peniko::Color::from_rgba8(0, 0, 0, 255),
         kurbo::Rect::new(0.0, 0.0, 32.0, 64.0),
@@ -821,9 +636,7 @@ fn duotone_maps_luma_onto_the_ramp() {
             EffectParamValue::Vec4([1.0, 0.5, 0.0, 1.0]), // highlight: orange
         ],
     );
-    let image = backend
-        .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
-        .expect("duotone path should succeed");
+    let image = render(&mut backend, &scene, DIMS, &chain);
     let w = image.natural_size[0] as usize;
     let raw = image.data.data.data();
 
@@ -842,16 +655,9 @@ fn duotone_maps_luma_onto_the_ramp() {
 /// Posterize with two levels must push 0.4 to black and 0.6 to white.
 #[test]
 fn posterize_quantises_midtones() {
-    let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+    let Some(mut backend) = gpu_backend(DIMS) else {
         return;
     };
-    let dims = SceneDimensions {
-        width: 64,
-        height: 64,
-    };
-    let mut backend =
-        GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
-
     let mut scene = filled_scene(
         vello::peniko::Color::from_rgba8(102, 102, 102, 255),
         kurbo::Rect::new(0.0, 0.0, 32.0, 64.0),
@@ -863,9 +669,7 @@ fn posterize_quantises_midtones() {
     scene.encoding_mut().append(lighter.encoding(), &None);
 
     let chain = effect_chain("Posterize", vec![EffectParamValue::F32(2.0)]);
-    let image = backend
-        .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
-        .expect("posterize path should succeed");
+    let image = render(&mut backend, &scene, DIMS, &chain);
     let w = image.natural_size[0] as usize;
     let raw = image.data.data.data();
 
@@ -878,16 +682,9 @@ fn posterize_quantises_midtones() {
 /// Edge must light the step boundary and darken flat interiors.
 #[test]
 fn edge_lights_the_step_boundary() {
-    let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+    let Some(mut backend) = gpu_backend(DIMS) else {
         return;
     };
-    let dims = SceneDimensions {
-        width: 64,
-        height: 64,
-    };
-    let mut backend =
-        GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
-
     let mut scene = filled_scene(
         vello::peniko::Color::from_rgba8(0, 0, 0, 255),
         kurbo::Rect::new(0.0, 0.0, 32.0, 64.0),
@@ -899,9 +696,7 @@ fn edge_lights_the_step_boundary() {
     scene.encoding_mut().append(white.encoding(), &None);
 
     let chain = effect_chain("Edge", vec![EffectParamValue::F32(1.0), EffectParamValue::F32(0.0)]);
-    let image = backend
-        .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
-        .expect("edge path should succeed");
+    let image = render(&mut backend, &scene, DIMS, &chain);
     let w = image.natural_size[0] as usize;
     let raw = image.data.data.data();
 
@@ -916,31 +711,21 @@ fn edge_lights_the_step_boundary() {
 /// while the centre (radius 0) is untouched either way.
 #[test]
 fn lens_distortion_displaces_samples_toward_the_centre() {
-    let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+    let Some(mut backend) = gpu_backend(DIMS) else {
         return;
     };
-    let dims = SceneDimensions {
-        width: 64,
-        height: 64,
-    };
-    let mut backend =
-        GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
 
     // White band over the leftmost 16 columns.
     let scene = filled_scene(vello::peniko::Color::WHITE, kurbo::Rect::new(0.0, 0.0, 16.0, 64.0));
 
     let control = effect_chain("LensDistortion", vec![EffectParamValue::F32(0.0)]);
-    let control_image = backend
-        .render_scene_to_image_gpu_filtered(&scene, dims, None, &control)
-        .expect("control path should succeed");
+    let control_image = render(&mut backend, &scene, DIMS, &control);
     let cw = control_image.natural_size[0] as usize;
     let control_raw = control_image.data.data.data();
     assert!(control_raw[(32 * cw + 8) * 4] > 200, "control must show the white band at x=8");
 
     let warped = effect_chain("LensDistortion", vec![EffectParamValue::F32(130.0)]);
-    let image = backend
-        .render_scene_to_image_gpu_filtered(&scene, dims, None, &warped)
-        .expect("lens-distortion path should succeed");
+    let image = render(&mut backend, &scene, DIMS, &warped);
     let w = image.natural_size[0] as usize;
     let raw = image.data.data.data();
     assert!(
@@ -954,16 +739,9 @@ fn lens_distortion_displaces_samples_toward_the_centre() {
 /// leave the content itself untouched.
 #[test]
 fn drop_shadow_offsets_the_silhouette() {
-    let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+    let Some(mut backend) = gpu_backend(DIMS) else {
         return;
     };
-    let dims = SceneDimensions {
-        width: 64,
-        height: 64,
-    };
-    let mut backend =
-        GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
-
     let scene = filled_scene(vello::peniko::Color::WHITE, kurbo::Rect::new(24.0, 16.0, 56.0, 48.0));
     let chain = effect_chain(
         "DropShadow",
@@ -973,9 +751,7 @@ fn drop_shadow_offsets_the_silhouette() {
             EffectParamValue::Vec4([0.0, 0.0, 0.0, 1.0]), // opaque black shadow
         ],
     );
-    let image = backend
-        .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
-        .expect("drop-shadow path should succeed");
+    let image = render(&mut backend, &scene, DIMS, &chain);
     let w = image.natural_size[0] as usize;
     let raw = image.data.data.data();
 
@@ -994,16 +770,9 @@ fn drop_shadow_offsets_the_silhouette() {
 /// case does not have, in the same scene at the same offset.
 #[test]
 fn drop_shadow_softness_spreads_the_silhouette() {
-    let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+    let Some(mut backend) = gpu_backend(DIMS) else {
         return;
     };
-    let dims = SceneDimensions {
-        width: 64,
-        height: 64,
-    };
-    let mut backend =
-        GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise");
-
     let scene = filled_scene(vello::peniko::Color::WHITE, kurbo::Rect::new(24.0, 16.0, 56.0, 48.0));
     let color = EffectParamValue::Vec4([0.0, 0.0, 0.0, 1.0]);
     let mut shadow_at = |softness: f32| {
@@ -1015,13 +784,11 @@ fn drop_shadow_softness_spreads_the_silhouette() {
                 color,
             ],
         );
-        backend
-            .render_scene_to_image_gpu_filtered(&scene, dims, None, &chain)
-            .expect("drop-shadow path should succeed")
+        render(&mut backend, &scene, DIMS, &chain)
     };
     // The hard shadow's left edge sits at x=16 (rect left 24, offset -8);
     // x=12 is 4px outside it, so only a penumbra can reach it.
-    let px = (32 * dims.width as usize + 12) * 4 + 3;
+    let px = (32 * DIMS.width as usize + 12) * 4 + 3;
 
     let hard = shadow_at(0.0);
     assert_eq!(hard.data.data.data()[px], 0, "softness 0 must stay hard: nothing reaches x=12");

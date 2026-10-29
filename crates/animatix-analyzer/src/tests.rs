@@ -2,6 +2,51 @@ use std::path::{Path, PathBuf};
 
 use super::*;
 
+/// The fixture almost every query test uses: one `Text` actor on line 2.
+const TITLE_SOURCE: &str = r#"
+# 0s
+title: Text {
+    content: "Hello",
+}
+"#;
+
+/// The same actor plus an `always` block that references it.
+const TITLE_WITH_ALWAYS_SOURCE: &str = r#"
+# 0s
+title: Text {
+    content: "Hello",
+}
+always {
+    title.content = "World"
+}
+"#;
+
+fn messages_for_code(analyzer: &Analyzer, code: &str) -> Vec<String> {
+    analyzer
+        .diagnostics()
+        .into_iter()
+        .filter(|d| d.code.as_deref() == Some(code))
+        .map(|d| d.message)
+        .collect()
+}
+
+fn count_for_code(analyzer: &Analyzer, code: &str) -> usize {
+    messages_for_code(analyzer, code).len()
+}
+
+fn symbol_named<'a>(symbols: &'a [DocumentSymbol], name: &str) -> &'a DocumentSymbol {
+    symbols
+        .iter()
+        .find(|s| s.name == name)
+        .unwrap_or_else(|| panic!("missing document symbol {name}"))
+}
+
+fn sorted_names<'a>(names: impl IntoIterator<Item = &'a str>) -> Vec<&'a str> {
+    let mut names: Vec<&str> = names.into_iter().collect();
+    names.sort();
+    names
+}
+
 #[test]
 fn stage_param_assignment_is_not_checked_against_host_properties() {
     // `panel.pix.size` addresses an effect-stage parameter. The stage's
@@ -15,13 +60,7 @@ box: Rect, size: 42
 #0s
 fade-in box [1s]
 "#;
-    let analyzer = Analyzer::new(source);
-    let mismatches: Vec<String> = analyzer
-        .diagnostics()
-        .into_iter()
-        .filter(|d| d.code.as_deref() == Some("type-mismatch"))
-        .map(|d| d.message)
-        .collect();
+    let mismatches = messages_for_code(&Analyzer::new(source), "type-mismatch");
     assert!(
         !mismatches.iter().any(|m| m.contains("panel.size")),
         "stage parameter must not be validated against the host: {mismatches:?}"
@@ -61,11 +100,7 @@ a: Rect, size: (100, 100), transform: (1, 0.5, 0, 1, 0, 0), color: accent.primar
 "#;
     let analyzer = Analyzer::new(source);
 
-    let unknown_properties: Vec<_> = analyzer
-        .diagnostics()
-        .into_iter()
-        .filter(|d| d.code.as_deref() == Some("unknown-property"))
-        .collect();
+    let unknown_properties = messages_for_code(&analyzer, "unknown-property");
     assert!(
         unknown_properties.is_empty(),
         "transform should be a known actor property: {unknown_properties:?}"
@@ -93,13 +128,14 @@ type = "Num"
     assert!(analyzer.symbols().properties.get("Gauge").is_some_and(|props| {
         props.contains(&"level".to_string()) && props.contains(&"opacity".to_string())
     }));
-    let diagnostics = analyzer.diagnostics();
-    assert!(
-        !diagnostics.iter().any(|d| d.code.as_deref() == Some("unknown-type")),
+    assert_eq!(
+        count_for_code(&analyzer, "unknown-type"),
+        0,
         "manifest primitive should suppress unknown-type"
     );
-    assert!(
-        !diagnostics.iter().any(|d| d.code.as_deref() == Some("unknown-property")),
+    assert_eq!(
+        count_for_code(&analyzer, "unknown-property"),
+        0,
         "manifest property should suppress unknown-property"
     );
 }
@@ -350,13 +386,7 @@ fn workspace_import_path_resolution() {
 
 #[test]
 fn hover_on_actor_label_returns_label_info() {
-    let source = r#"
-# 0s
-title: Text {
-    content: "Hello",
-}
-"#;
-    let analyzer = Analyzer::new(source);
+    let analyzer = Analyzer::new(TITLE_SOURCE);
 
     // "title" at line 2, col 0 (0-based, after leading newline)
     let info = analyzer.hover_at(2, 0);
@@ -370,13 +400,7 @@ title: Text {
 
 #[test]
 fn hover_on_type_returns_type_documentation() {
-    let source = r#"
-# 0s
-title: Text {
-    content: "Hello",
-}
-"#;
-    let analyzer = Analyzer::new(source);
+    let analyzer = Analyzer::new(TITLE_SOURCE);
 
     // "Text" at line 2, col 7
     let info = analyzer.hover_at(2, 7);
@@ -389,13 +413,7 @@ title: Text {
 
 #[test]
 fn hover_builtin_actions_in_symbol_table() {
-    let source = r#"
-# 0s
-title: Text {
-    content: "Hello",
-}
-"#;
-    let analyzer = Analyzer::new(source);
+    let analyzer = Analyzer::new(TITLE_SOURCE);
     let symbols = analyzer.symbols();
     assert!(symbols.actions.contains("fade-in"));
     assert!(symbols.actions.contains("move"));
@@ -406,16 +424,7 @@ title: Text {
 
 #[test]
 fn definition_at_returns_location_for_label() {
-    let source = r#"
-# 0s
-title: Text {
-    content: "Hello",
-}
-always {
-    title.content = "World"
-}
-"#;
-    let analyzer = Analyzer::new(source);
+    let analyzer = Analyzer::new(TITLE_WITH_ALWAYS_SOURCE);
 
     // Click on "title" in always block (line 6, col 4)
     let loc = analyzer.definition_at(None, 6, 4);
@@ -429,13 +438,7 @@ always {
 
 #[test]
 fn definition_at_on_colon_returns_none() {
-    let source = r#"
-# 0s
-title: Text {
-    content: "Hello",
-}
-"#;
-    let analyzer = Analyzer::new(source);
+    let analyzer = Analyzer::new(TITLE_SOURCE);
 
     // Position on colon ':' at line 2, col 5
     let loc = analyzer.definition_at(None, 2, 5);
@@ -444,13 +447,7 @@ title: Text {
 
 #[test]
 fn definition_at_out_of_bounds_returns_none() {
-    let source = r#"
-# 0s
-title: Text {
-    content: "Hello",
-}
-"#;
-    let analyzer = Analyzer::new(source);
+    let analyzer = Analyzer::new(TITLE_SOURCE);
 
     let loc = analyzer.definition_at(None, 999, 999);
     assert!(loc.is_none());
@@ -460,16 +457,7 @@ title: Text {
 
 #[test]
 fn find_references_finds_all_occurrences() {
-    let source = r#"
-# 0s
-title: Text {
-    content: "Hello",
-}
-always {
-    title.content = "World"
-}
-"#;
-    let analyzer = Analyzer::new(source);
+    let analyzer = Analyzer::new(TITLE_WITH_ALWAYS_SOURCE);
 
     let refs = analyzer.find_references("title");
     // At least 2: declaration (line 2) + reference (line 6)
@@ -482,13 +470,7 @@ always {
 
 #[test]
 fn find_references_empty_for_unknown() {
-    let source = r#"
-# 0s
-title: Text {
-    content: "Hello",
-}
-"#;
-    let analyzer = Analyzer::new(source);
+    let analyzer = Analyzer::new(TITLE_SOURCE);
 
     let refs = analyzer.find_references("nonexistent");
     assert!(refs.is_empty());
@@ -571,7 +553,7 @@ btn: Button {
     assert!(symbols.iter().any(|s| s.name == "title"));
     assert!(symbols.iter().any(|s| s.name == "btn"));
 
-    let title_sym = symbols.iter().find(|s| s.name == "title").unwrap();
+    let title_sym = symbol_named(&symbols, "title");
     assert_eq!(title_sym.kind, SymbolKind::Actor);
     assert_eq!(title_sym.detail.as_deref(), Some("Text"));
 
@@ -599,7 +581,7 @@ btn: Button {
     assert!(symbols.iter().any(|s| s.name == "title"));
     assert!(symbols.iter().any(|s| s.name == "btn"));
 
-    let title_sym = symbols.iter().find(|s| s.name == "title").unwrap();
+    let title_sym = symbol_named(&symbols, "title");
     assert_eq!(title_sym.kind, SymbolKind::Actor);
 }
 
@@ -629,13 +611,7 @@ a_actor: Text { content: "A", }
 
 #[test]
 fn symbol_at_returns_label_name() {
-    let source = r#"
-# 0s
-title: Text {
-    content: "Hello",
-}
-"#;
-    let analyzer = Analyzer::new(source);
+    let analyzer = Analyzer::new(TITLE_SOURCE);
 
     // "title" at line 2, col 0
     let sym = analyzer.symbol_at(2, 0);
@@ -644,13 +620,7 @@ title: Text {
 
 #[test]
 fn symbol_at_returns_type_name() {
-    let source = r#"
-# 0s
-title: Text {
-    content: "Hello",
-}
-"#;
-    let analyzer = Analyzer::new(source);
+    let analyzer = Analyzer::new(TITLE_SOURCE);
 
     // "Text" at line 2, col 7
     let sym = analyzer.symbol_at(2, 7);
@@ -659,13 +629,7 @@ title: Text {
 
 #[test]
 fn symbol_at_on_colon_returns_none() {
-    let source = r#"
-# 0s
-title: Text {
-    content: "Hello",
-}
-"#;
-    let analyzer = Analyzer::new(source);
+    let analyzer = Analyzer::new(TITLE_SOURCE);
 
     // Position on colon at line 2, col 5
     let sym = analyzer.symbol_at(2, 5);
@@ -674,13 +638,7 @@ title: Text {
 
 #[test]
 fn symbol_at_on_whitespace_returns_none() {
-    let source = r#"
-# 0s
-title: Text {
-    content: "Hello",
-}
-"#;
-    let analyzer = Analyzer::new(source);
+    let analyzer = Analyzer::new(TITLE_SOURCE);
 
     // Position on space between colon and Text at line 2, col 6
     let sym = analyzer.symbol_at(2, 6);
@@ -743,41 +701,37 @@ title: Text { content: "Hello" }
     let ws_ns = resolved.namespaces.get("theme").expect("workspace theme namespace");
     let graph_ns = program.namespaces.get("theme").expect("graph theme namespace");
 
-    let mut ws_values: Vec<&str> = ws_ns
-        .labels
-        .iter()
-        .filter(|(_, info)| info.is_pub)
-        .map(|(name, _)| name.as_str())
-        .collect();
-    ws_values.sort();
-    let mut graph_values: Vec<&str> = graph_ns.exports.keys().map(String::as_str).collect();
-    graph_values.sort();
-    assert_eq!(ws_values, graph_values, "pub let export sets should agree");
-
-    let mut ws_aliases: Vec<&str> = ws_ns.type_aliases.keys().map(String::as_str).collect();
-    ws_aliases.sort();
-    let mut graph_aliases: Vec<&str> = graph_ns.type_exports.keys().map(String::as_str).collect();
-    graph_aliases.sort();
-    assert_eq!(ws_aliases, graph_aliases, "pub type export sets should agree");
-
-    let mut ws_components: Vec<&str> = ws_ns.components.keys().map(String::as_str).collect();
-    ws_components.sort();
-    let mut graph_components: Vec<&str> =
-        graph_ns.component_exports.keys().map(String::as_str).collect();
-    graph_components.sort();
-    assert_eq!(ws_components, graph_components, "pub component export sets should agree");
-
-    let mut ws_scenes: Vec<&str> = ws_ns.scenes.keys().map(String::as_str).collect();
-    ws_scenes.sort();
-    let mut graph_scenes: Vec<&str> = graph_ns.scenes.keys().map(String::as_str).collect();
-    graph_scenes.sort();
-    assert_eq!(ws_scenes, graph_scenes, "scene export sets should agree");
-
-    let mut ws_nested: Vec<&str> = ws_ns.namespaces.keys().map(String::as_str).collect();
-    ws_nested.sort();
-    let mut graph_nested: Vec<&str> = graph_ns.namespaces.keys().map(String::as_str).collect();
-    graph_nested.sort();
-    assert_eq!(ws_nested, graph_nested, "nested namespace sets should agree");
+    assert_eq!(
+        sorted_names(
+            ws_ns
+                .labels
+                .iter()
+                .filter(|(_, info)| info.is_pub)
+                .map(|(name, _)| name.as_str())
+        ),
+        sorted_names(graph_ns.exports.keys().map(String::as_str)),
+        "pub let export sets should agree"
+    );
+    assert_eq!(
+        sorted_names(ws_ns.type_aliases.keys().map(String::as_str)),
+        sorted_names(graph_ns.type_exports.keys().map(String::as_str)),
+        "pub type export sets should agree"
+    );
+    assert_eq!(
+        sorted_names(ws_ns.components.keys().map(String::as_str)),
+        sorted_names(graph_ns.component_exports.keys().map(String::as_str)),
+        "pub component export sets should agree"
+    );
+    assert_eq!(
+        sorted_names(ws_ns.scenes.keys().map(String::as_str)),
+        sorted_names(graph_ns.scenes.keys().map(String::as_str)),
+        "scene export sets should agree"
+    );
+    assert_eq!(
+        sorted_names(ws_ns.namespaces.keys().map(String::as_str)),
+        sorted_names(graph_ns.namespaces.keys().map(String::as_str)),
+        "nested namespace sets should agree"
+    );
 }
 
 #[test]
@@ -814,23 +768,16 @@ title: Text { content: "Hello" }
     let resolved = workspace.resolve_symbols(std::path::Path::new(main));
     let program = graph.load_program(std::path::Path::new(main)).expect("program loads");
 
-    let mut ws_components: Vec<&str> = resolved.components.keys().map(String::as_str).collect();
-    ws_components.sort();
-    let mut graph_components: Vec<&str> = program.components.keys().map(String::as_str).collect();
-    graph_components.sort();
     assert_eq!(
-        ws_components, graph_components,
+        sorted_names(resolved.components.keys().map(String::as_str)),
+        sorted_names(program.components.keys().map(String::as_str)),
         "direct imports should expose the same component set (pub-only)"
     );
 
-    let mut ws_scenes: Vec<&str> = resolved.scenes.keys().map(String::as_str).collect();
-    ws_scenes.sort();
-    let mut graph_scenes: Vec<&str> = program
-        .namespaces
-        .values()
-        .flat_map(|ns| ns.scenes.keys().map(String::as_str).collect::<Vec<_>>())
-        .collect();
-    graph_scenes.sort();
+    let ws_scenes = sorted_names(resolved.scenes.keys().map(String::as_str));
+    let graph_scenes = sorted_names(
+        program.namespaces.values().flat_map(|ns| ns.scenes.keys().map(String::as_str)),
+    );
     // The direct import is flattened, so its scene is part of the loaded
     // statements rather than a namespace export. Compare by checking the
     // workspace scene set contains it and ModuleGraph still carries it.
@@ -859,21 +806,15 @@ fn diagnostics_cache_returns_identical_results() {
 #[test]
 fn diagnostics_cache_invalidates_on_update() {
     let mut analyzer = Analyzer::new("title: Text, text: \"hi\"\n");
-    let before = analyzer
-        .diagnostics()
-        .into_iter()
-        .filter(|d| d.code.as_deref() == Some("duplicate-label"))
-        .count();
-    assert_eq!(before, 0);
+    assert_eq!(count_for_code(&analyzer, "duplicate-label"), 0);
 
     // Introducing a duplicate must show up on the next query.
     analyzer.update("title: Text, text: \"hi\"\ntitle: Text, text: \"dup\"\n");
-    let after = analyzer
-        .diagnostics()
-        .into_iter()
-        .filter(|d| d.code.as_deref() == Some("duplicate-label"))
-        .count();
-    assert_eq!(after, 1, "cache must not serve the pre-edit result");
+    assert_eq!(
+        count_for_code(&analyzer, "duplicate-label"),
+        1,
+        "cache must not serve the pre-edit result"
+    );
 }
 
 #[test]
@@ -896,12 +837,11 @@ fn diagnostics_cache_is_keyed_by_lint_config() {
 fn diagnostics_cache_invalidates_on_manifest_change() {
     let source = "g: Gauge, level: 42";
     let mut analyzer = Analyzer::new(source);
-    let unknown_before = analyzer
-        .diagnostics()
-        .into_iter()
-        .filter(|d| d.code.as_deref() == Some("unknown-type"))
-        .count();
-    assert_eq!(unknown_before, 1, "Gauge is unknown without a manifest");
+    assert_eq!(
+        count_for_code(&analyzer, "unknown-type"),
+        1,
+        "Gauge is unknown without a manifest"
+    );
 
     let manifest = ExtensionManifest::from_toml(
             "[[primitives]]\ntype_name = \"Gauge\"\n\n[[properties]]\nactor_type = \"Gauge\"\nname = \"level\"\ntype = \"Num\"\n",
@@ -909,12 +849,11 @@ fn diagnostics_cache_invalidates_on_manifest_change() {
         .expect("parse manifest");
     analyzer.set_extension_manifest(manifest);
 
-    let unknown_after = analyzer
-        .diagnostics()
-        .into_iter()
-        .filter(|d| d.code.as_deref() == Some("unknown-type"))
-        .count();
-    assert_eq!(unknown_after, 0, "manifest change must invalidate the cache");
+    assert_eq!(
+        count_for_code(&analyzer, "unknown-type"),
+        0,
+        "manifest change must invalidate the cache"
+    );
 }
 
 #[test]

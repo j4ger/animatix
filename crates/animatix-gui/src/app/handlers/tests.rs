@@ -43,6 +43,22 @@ fn make_workspace_store() -> crate::app::stores::WorkspaceStore {
     )
 }
 
+type Stores = (
+    crate::app::stores::DocumentStore,
+    crate::app::stores::PreviewStore,
+    crate::app::stores::UiStore,
+);
+
+/// The standard empty `(document, preview, ui)` triple.
+fn stores() -> Stores {
+    (make_document_store(), make_preview_store(5.0), make_ui_store())
+}
+
+/// Same triple over a fully parsed document.
+fn parsed_stores(source: &str) -> Stores {
+    (make_parsed_document_store(source), make_preview_store(5.0), make_ui_store())
+}
+
 // ── TogglePlayback ───────────────────────────────────────────────
 
 #[test]
@@ -76,9 +92,7 @@ fn toggle_playback_resets_time_when_at_end() {
 
 #[test]
 fn scrub_to_updates_current_time_and_stops_playback() {
-    let mut document_store = make_document_store();
-    let mut preview_store = make_preview_store(5.0);
-    let ui_store = make_ui_store();
+    let (mut document_store, mut preview_store, ui_store) = stores();
     let target = preview_store.preview.playback.duration_s * 0.5;
     let clamped = target.max(0.0).min(preview_store.preview.playback.duration_s.max(0.1));
     preview_store.preview.playback.is_playing = true;
@@ -93,18 +107,14 @@ fn scrub_to_updates_current_time_and_stops_playback() {
 
 #[test]
 fn scrub_to_clamps_negative_time() {
-    let mut document_store = make_document_store();
-    let mut preview_store = make_preview_store(5.0);
-    let ui_store = make_ui_store();
+    let (mut document_store, mut preview_store, ui_store) = stores();
     playback::handle_scrub_to(&mut document_store, &mut preview_store, &ui_store, -5.0);
     assert_eq!(preview_store.preview.playback.current_time_s, 0.0);
 }
 
 #[test]
 fn scrub_to_clamps_overshoot_time() {
-    let mut document_store = make_document_store();
-    let mut preview_store = make_preview_store(5.0);
-    let ui_store = make_ui_store();
+    let (mut document_store, mut preview_store, ui_store) = stores();
     playback::handle_scrub_to(&mut document_store, &mut preview_store, &ui_store, 999.0);
     let max = preview_store.preview.playback.duration_s.max(0.1);
     assert_eq!(preview_store.preview.playback.current_time_s, max);
@@ -172,9 +182,7 @@ fn drag_ended_resets_drag_state() {
 
 #[test]
 fn undo_with_empty_stack_does_nothing() {
-    let mut document_store = make_document_store();
-    let mut preview_store = make_preview_store(5.0);
-    let mut ui_store = make_ui_store();
+    let (mut document_store, mut preview_store, mut ui_store) = stores();
     let effects = ui::handle_undo(&mut document_store, &mut preview_store, &mut ui_store);
     assert!(effects.is_empty());
     assert!(document_store.history.undo_stack.is_empty());
@@ -183,9 +191,7 @@ fn undo_with_empty_stack_does_nothing() {
 
 #[test]
 fn redo_with_empty_stack_does_nothing() {
-    let mut document_store = make_document_store();
-    let mut preview_store = make_preview_store(5.0);
-    let mut ui_store = make_ui_store();
+    let (mut document_store, mut preview_store, mut ui_store) = stores();
     let effects = ui::handle_redo(&mut document_store, &mut preview_store, &mut ui_store);
     assert!(effects.is_empty());
     assert!(document_store.history.undo_stack.is_empty());
@@ -277,9 +283,7 @@ fn make_parsed_document_store(source: &str) -> crate::app::stores::DocumentStore
 
 #[test]
 fn set_transition_without_ast_aborts_pending_snapshot() {
-    let mut document_store = make_document_store();
-    let mut preview_store = make_preview_store(5.0);
-    let mut ui_store = make_ui_store();
+    let (mut document_store, mut preview_store, mut ui_store) = stores();
 
     property::handle_set_transition(
         &mut document_store,
@@ -304,9 +308,7 @@ fn set_transition_without_ast_aborts_pending_snapshot() {
 
 #[test]
 fn create_actor_finalizes_undo_snapshot_and_undo_restores_source() {
-    let mut document_store = make_parsed_document_store(TEST_SOURCE);
-    let mut preview_store = make_preview_store(5.0);
-    let mut ui_store = make_ui_store();
+    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
     let original_source = document_store.source.document.source_text.clone();
     preview_store.preview.playback.scrub_to(2.0);
 
@@ -344,9 +346,7 @@ fn create_actor_finalizes_undo_snapshot_and_undo_restores_source() {
 
 #[test]
 fn create_actor_adds_to_ast_and_updates_source() {
-    let mut document_store = make_parsed_document_store(TEST_SOURCE);
-    let mut preview_store = make_preview_store(5.0);
-    let mut ui_store = make_ui_store();
+    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
 
     actor::handle_create_actor(
         &mut document_store,
@@ -399,9 +399,7 @@ fn create_actor_adds_to_ast_and_updates_source() {
 
 #[test]
 fn rename_actor_successfully_changes_label() {
-    let mut document_store = make_parsed_document_store(TEST_SOURCE);
-    let mut preview_store = make_preview_store(5.0);
-    let mut ui_store = make_ui_store();
+    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
 
     ui_store.selection.selected_actors.insert("box".to_string());
 
@@ -453,9 +451,7 @@ fn rename_actor_successfully_changes_label() {
 
 #[test]
 fn rename_actor_noop_when_old_equals_new() {
-    let mut document_store = make_parsed_document_store(TEST_SOURCE);
-    let mut preview_store = make_preview_store(5.0);
-    let mut ui_store = make_ui_store();
+    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
 
     let source_before = document_store.source.document.source_text.clone();
 
@@ -476,9 +472,7 @@ fn rename_actor_noop_when_old_equals_new() {
 
 #[test]
 fn rename_actor_fails_with_empty_label() {
-    let mut document_store = make_parsed_document_store(TEST_SOURCE);
-    let mut preview_store = make_preview_store(5.0);
-    let mut ui_store = make_ui_store();
+    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
 
     let source_before = document_store.source.document.source_text.clone();
 
@@ -506,9 +500,7 @@ fn rename_actor_fails_with_empty_label() {
 
 #[test]
 fn rename_actor_fails_with_duplicate_label() {
-    let mut document_store = make_parsed_document_store(TEST_SOURCE);
-    let mut preview_store = make_preview_store(5.0);
-    let mut ui_store = make_ui_store();
+    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
 
     let source_before = document_store.source.document.source_text.clone();
 
@@ -538,9 +530,7 @@ fn rename_actor_fails_with_duplicate_label() {
 
 #[test]
 fn delete_selected_actor_removes_from_ast() {
-    let mut document_store = make_parsed_document_store(TEST_SOURCE);
-    let mut preview_store = make_preview_store(5.0);
-    let mut ui_store = make_ui_store();
+    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
 
     ui_store.selection.selected_actors.insert("box".to_string());
 
@@ -587,9 +577,7 @@ fn delete_selected_actor_removes_from_ast() {
 
 #[test]
 fn delete_selected_actors_with_empty_selection_is_noop() {
-    let mut document_store = make_parsed_document_store(TEST_SOURCE);
-    let mut preview_store = make_preview_store(5.0);
-    let mut ui_store = make_ui_store();
+    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
 
     let source_before = document_store.source.document.source_text.clone();
 
@@ -604,9 +592,7 @@ fn delete_selected_actors_with_empty_selection_is_noop() {
 
 #[test]
 fn delete_selected_actors_removes_multiple() {
-    let mut document_store = make_parsed_document_store(TEST_SOURCE);
-    let mut preview_store = make_preview_store(5.0);
-    let mut ui_store = make_ui_store();
+    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
 
     ui_store.selection.selected_actors.insert("box".to_string());
     ui_store.selection.selected_actors.insert("circle".to_string());
@@ -651,8 +637,7 @@ fn delete_selected_actors_removes_multiple() {
 
 #[test]
 fn save_writes_editor_text_to_disk() {
-    let mut document_store = make_parsed_document_store(TEST_SOURCE);
-    let mut preview_store = make_preview_store(5.0);
+    let (mut document_store, mut preview_store, _) = parsed_stores(TEST_SOURCE);
 
     let original_text = document_store.source.editor.text().to_string();
     let modified_text = format!("{}\n// comment after save\n", original_text);
@@ -676,8 +661,7 @@ fn save_writes_editor_text_to_disk() {
 
 #[test]
 fn save_unchanged_text_does_not_lose_data() {
-    let mut document_store = make_parsed_document_store(TEST_SOURCE);
-    let mut preview_store = make_preview_store(5.0);
+    let (mut document_store, mut preview_store, _) = parsed_stores(TEST_SOURCE);
 
     let original_text = document_store.source.editor.text().to_string();
 
@@ -697,9 +681,7 @@ fn save_unchanged_text_does_not_lose_data() {
 
 #[test]
 fn open_file_populates_document_state() {
-    let mut document_store = make_document_store();
-    let mut preview_store = make_preview_store(5.0);
-    let mut ui_store = make_ui_store();
+    let (mut document_store, mut preview_store, mut ui_store) = stores();
     let mut workspace_store = make_workspace_store();
 
     // Create a temp file with known content
@@ -761,9 +743,7 @@ graph: Rect, size: (400, 400)
 
 #[test]
 fn select_scene_switches_active_scene_and_seeks() {
-    let mut document_store = make_parsed_document_store(MULTI_SCENE_SOURCE);
-    let mut preview_store = make_preview_store(5.0);
-    let mut ui_store = make_ui_store();
+    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(MULTI_SCENE_SOURCE);
 
     // Should be a composition with two scenes
     assert!(
@@ -806,9 +786,7 @@ fn select_scene_switches_active_scene_and_seeks() {
 
 #[test]
 fn select_scene_noop_for_invalid_scene() {
-    let mut document_store = make_parsed_document_store(MULTI_SCENE_SOURCE);
-    let mut preview_store = make_preview_store(5.0);
-    let mut ui_store = make_ui_store();
+    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(MULTI_SCENE_SOURCE);
 
     let effects = scene::handle_select_scene(
         &mut document_store,
@@ -830,9 +808,7 @@ fn select_scene_noop_for_invalid_scene() {
 
 #[test]
 fn select_scene_noop_without_composition() {
-    let mut document_store = make_parsed_document_store(TEST_SOURCE);
-    let mut preview_store = make_preview_store(5.0);
-    let mut ui_store = make_ui_store();
+    let (mut document_store, mut preview_store, mut ui_store) = parsed_stores(TEST_SOURCE);
 
     // Single-scene document has no composition
     assert!(
