@@ -1225,6 +1225,18 @@ the environment and rerun. For a `1`:
   The adjacent single-bench A/B is the actionable evidence; the suite-wide
   verdict is only a screen for finding candidates.
 
+**Measured check (2026-10-29, 24 CPUs, load 1.65 at save / 1.84 at compare).**
+A `save quick` → `compare quick` pair on this machine put **0 of 72** benches
+over the harness bound: max absolute drift **+8.73%**
+(`full_pipeline/components_full`, whose combined-noise limit was 65%; the other
+build-path bench, `full_pipeline/modules_full`, was +8.62% against a 71% limit),
+max negative −7.20% (`sample_all_tracks`). Criterion's own change test still
+labelled 12 benches "regressed" (nine under +6%, plus `components_full`,
+`modules_full` and `env_50` at +8.6–8.7%) — the combined-σ rule is what turns
+those p-values into a usable verdict. One run is not proof of stability: keep
+the preflight, and if a future suite-wide run flags more than a handful, treat
+it as the environment signal above rather than re-saving until it looks green.
+
 ---
 
 ## 5. Optimization plan (first targets, evidence-backed)
