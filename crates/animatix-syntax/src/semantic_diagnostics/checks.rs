@@ -1,4 +1,20 @@
 use super::*;
+use crate::ast::Expr;
+
+/// Bare identifiers are the DSL spelling for string-valued enums
+/// (`align: end`, `easing: ease-out`).  When the property expects a
+/// string, resolve one as `Str` instead of a label/component reference.
+fn actual_property_type(
+    expected: &typing::Type,
+    value: &Expr,
+    symbols: &SymbolTable,
+) -> typing::Type {
+    if matches!(expected, typing::Type::Str) && matches!(value, Expr::Ident(_)) {
+        typing::Type::Str
+    } else {
+        symbols.infer_expr_type(value)
+    }
+}
 
 pub(super) fn check_stmt(
     stmt: &Stmt,
@@ -11,7 +27,6 @@ pub(super) fn check_stmt(
         Stmt::Action(action, span) => {
             let (line, col, end_line, end_col) = span_positions(span);
             let byte_range = action.byte_span.map(|s| s.start..s.end);
-
             if !symbols.actions.contains(&action.verb) {
                 let (vstart, vend) =
                     find_ident_range(tokens, source, &action.verb, byte_range.clone())
@@ -122,7 +137,7 @@ pub(super) fn check_stmt(
 
                     let key = (effect_ty.clone(), property.to_string());
                     if let Some(expected_type) = symbols.property_types.get(&key) {
-                        let actual_type = symbols.infer_expr_type(value);
+                        let actual_type = actual_property_type(expected_type, value, symbols);
                         if !crate::typing::is_subtype(&actual_type, expected_type) {
                             diagnostics.push(type_mismatch_diagnostic(
                                 &effect_ty,
@@ -144,7 +159,7 @@ pub(super) fn check_stmt(
                 None
             } {
                 if let Some(expected_type) = crate::symbol_table::effect_param_type(param.kind) {
-                    let actual_type = symbols.infer_expr_type(value);
+                    let actual_type = actual_property_type(&expected_type, value, symbols);
                     if !crate::typing::is_subtype(&actual_type, &expected_type) {
                         diagnostics.push(span_diagnostic(
                             DiagnosticSeverity::Warning,
@@ -193,7 +208,8 @@ pub(super) fn check_stmt(
 
                             let key = (ty.clone(), property.clone());
                             if let Some(expected_type) = symbols.property_types.get(&key) {
-                                let actual_type = symbols.infer_expr_type(value);
+                                let actual_type =
+                                    actual_property_type(expected_type, value, symbols);
                                 if !crate::typing::is_subtype(&actual_type, expected_type) {
                                     diagnostics.push(type_mismatch_diagnostic(
                                         label,
@@ -281,7 +297,7 @@ pub(super) fn check_stmt(
 
                     let key = (ty.clone(), prop.name.clone());
                     if let Some(expected_type) = symbols.property_types.get(&key) {
-                        let actual_type = symbols.infer_expr_type(&prop.value);
+                        let actual_type = actual_property_type(expected_type, &prop.value, symbols);
                         if !crate::typing::is_subtype(&actual_type, expected_type) {
                             diagnostics.push(type_mismatch_diagnostic(
                                 ty,
