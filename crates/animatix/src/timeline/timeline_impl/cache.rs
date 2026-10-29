@@ -1,14 +1,11 @@
 use crate::timeline::*;
 
-/// One label's frame-env injection decision, borrowing the referenced
-/// property filter. The single source of truth for the decision is
-/// [`Timeline::env_inject_decision`]; the cached [`EnvInjectionPlan`] and the
-/// mid-build path both consume it.
+/// One label's frame-env injection decision, borrowing the referenced property
+/// filter; [`Timeline::env_inject_decision`] is the single source of truth.
 pub(crate) enum EnvInjectDecision<'a> {
     /// Actor not referenced by any expression: no property injection.
     Skip,
-    /// Referenced, but no property of it is read: only per-frame overrides
-    /// are applied when present.
+    /// Referenced but no property read: only per-frame overrides apply.
     NoProps,
     /// Full injection (wildcard target, or no referenced-roots analysis).
     Wildcard(bool),
@@ -16,15 +13,13 @@ pub(crate) enum EnvInjectDecision<'a> {
     Props(&'a std::collections::HashSet<String>, bool),
 }
 
-/// Build-fixed per-entity decision for frame-env property injection,
-/// derived once from the referenced-roots analysis (see
-/// `Timeline::env_injection_plan`) instead of re-derived per frame.
+/// Build-fixed per-entity decision for frame-env property injection, derived
+/// once from the referenced-roots analysis.
 #[derive(Clone)]
 pub(crate) enum EnvInjectEntry {
     /// Actor not referenced by any expression: no property injection.
     Skip,
-    /// Referenced, but no property of it is read: only per-frame overrides
-    /// are applied when present.
+    /// Referenced but no property read: only per-frame overrides apply.
     NoProps,
     /// Full injection (wildcard target, or no referenced-roots analysis).
     Wildcard { animating: bool },
@@ -35,11 +30,9 @@ pub(crate) enum EnvInjectEntry {
     },
 }
 
-/// The precomputed frame-env injection plan (see `EnvInjectEntry`): one entry
-/// per entity in `World::tracks` order plus the pooled-env capacity estimate.
-/// Whether runtime injection is needed at all is
-/// [`Timeline::needs_frame_env`], the single memoized answer both the frame
-/// cache key and the env builder consult.
+/// The precomputed frame-env injection plan: one entry per entity in
+/// `World::tracks` order plus the pooled-env capacity estimate;
+/// [`Timeline::needs_frame_env`] is the memoized answer both consumers share.
 pub(crate) struct EnvInjectionPlan {
     pub(crate) entries: Vec<EnvInjectEntry>,
     pub(crate) estimated_prop_entries: usize,
@@ -47,9 +40,8 @@ pub(crate) struct EnvInjectionPlan {
 
 impl EnvInjectionPlan {
     /// The borrowing decision for `id`, or `None` for entities spawned after
-    /// the plan was computed (unreachable through the invalidation funnel);
-    /// callers fall back to a fresh [`Timeline::env_inject_decision`], whose
-    /// answer for unknown labels errs toward over-injection.
+    /// the plan was computed (unreachable via the invalidation funnel); falls
+    /// back to [`Timeline::env_inject_decision`].
     pub(crate) fn decision(&self, id: EntityId) -> Option<EnvInjectDecision<'_>> {
         Some(match self.entries.get(id.index())? {
             EnvInjectEntry::Skip => EnvInjectDecision::Skip,
@@ -63,10 +55,8 @@ impl EnvInjectionPlan {
 }
 
 impl Timeline {
-    /// The per-label injection decision, recomputed on demand. The frame path
-    /// serves this from the cached [`EnvInjectionPlan`]; the build path (where
-    /// the referenced-roots analysis is still converging) calls it directly —
-    /// the same cost the per-frame loop paid before the plan existed.
+    /// The per-label injection decision, recomputed on demand: the frame path
+    /// serves it from [`EnvInjectionPlan`], the build path calls it directly.
     pub(crate) fn env_inject_decision(&self, label: &str) -> EnvInjectDecision<'_> {
         let Some(roots) = &self.referenced_roots else {
             // No referenced-roots analysis: every track injects fully.
@@ -126,10 +116,8 @@ impl Timeline {
         out
     }
 
-    /// Returns true if any actor has a procedural plot that requires per-frame
-    /// evaluation.  Static plots (no `t` reference, no animated params, no func
-    /// transitions) always use their cached build-time paths and do not force a
-    /// frame environment to be constructed.
+    /// Returns true if any actor has a procedural plot requiring per-frame
+    /// evaluation; static plots use cached build-time paths.
     pub(crate) fn has_procedural_plots(&self) -> bool {
         self.world.tracks.iter().any(|(_, id)| {
             self.world
@@ -139,10 +127,8 @@ impl Timeline {
         })
     }
 
-    /// Memoized [`Self::needs_frame_env`]: the underlying answer only changes
-    /// with the timeline's compiled statements, and the raw computation walks
-    /// every entity's payload, so the answer is cached until the next
-    /// invalidation. Cleared by `invalidate_frame_cache`.
+    /// Memoized [`Self::needs_frame_env`]: computing it walks every entity, so
+    /// the answer is cached until `invalidate_frame_cache`.
     pub(crate) fn needs_frame_env(&self) -> bool {
         if let Some(cached) = self.eval_caches.needs_frame_env.get() {
             return cached;
@@ -155,13 +141,10 @@ impl Timeline {
     }
 
     /// The build-fixed frame-env injection plan (see [`EnvInjectionPlan`]):
-    /// which entities participate in runtime injection, with which property
-    /// filter, plus the pooled env's capacity estimate. Computed once from
-    /// the referenced-roots analysis and cleared by `invalidate_frame_cache`,
-    /// so the per-frame env build does not re-derive wildcard membership
-    /// (`format!` per label) or the capacity estimate. Only valid once the
-    /// build has converged — the build path itself calls
-    /// [`Self::env_inject_decision`] per label instead.
+    /// which entities inject, with which property filter, plus the pooled-env
+    /// capacity estimate. Cleared by `invalidate_frame_cache`, so the per-frame
+    /// env build avoids per-label `format!` wildcard checks; valid only after
+    /// the build converges.
     pub(crate) fn env_injection_plan(&self) -> std::sync::Arc<EnvInjectionPlan> {
         if let Some(plan) = self.eval_caches.env_injection_plan.borrow().clone() {
             return plan;
@@ -204,16 +187,13 @@ impl Timeline {
         }
     }
 
-    /// Stamp `World::bounds_slots` values and (re)build the label registry if
-    /// invalid. See [`EvalCaches::ensure_bounds_registry`].
+    /// Stamp `World::bounds_slots` and (re)build the label registry if invalid.
     pub(crate) fn ensure_bounds_registry(&self) {
         self.eval_caches.ensure_bounds_registry(&self.world);
     }
 
-    /// Precise world-space bounds for `label` recorded during the current
-    /// frame, if any. Lookup path for [`TargetResolver::target_bounds`];
-    /// point queries are rare (a few targeted callouts/lines/arrows per
-    /// frame), so a binary search over the sorted registry is plenty.
+    /// World-space bounds for `label` recorded during the current frame, if any.
+    /// Point queries are rare, so a binary search over the sorted registry is plenty.
     pub(crate) fn precise_bounds_for(&self, label: &str) -> Option<kurbo::Rect> {
         self.ensure_bounds_registry();
         let registry = self.eval_caches.bounds_registry.borrow().clone()?;
@@ -222,11 +202,7 @@ impl Timeline {
     }
 
     /// Record `rect` as the world-space bounds of the node at `stamped_slot`
-    /// (a `World::bounds_slots` slot id) during the current frame.
-    ///
-    /// `label` is only consulted on the slow path — when the slot was never
-    /// stamped (track added mid-frame without the invalidation funnel) — to
-    /// rebuild the registry once and retry.
+    /// during the current frame; `label` is consulted only on the slow path.
     pub(crate) fn record_precise_bounds(&self, stamped_slot: u32, label: &str, rect: kurbo::Rect) {
         let mut slot = stamped_slot;
         if slot == u32::MAX {
@@ -246,26 +222,21 @@ impl Timeline {
         self.eval_caches.precise_bounds.borrow_mut().write(slot, rect);
     }
 
-    /// Length of one beat in milliseconds: the scene's `config { bpm: … }`
-    /// when declared, the documented default tempo otherwise.
+    /// One beat in milliseconds: `config { bpm: … }` when declared, else the default tempo.
     pub(crate) fn beat_duration_ms(&self) -> f64 {
         self.beat_ms
             .unwrap_or(crate::ast::beat_seconds(crate::ast::DEFAULT_BPM) * 1000.0)
     }
 
-    /// Recompute [`Timeline::blend_used`] from the tracks. Called from
-    /// `invalidate_frame_cache` (every public mutation funnels through it)
-    /// and once at the end of the build walk.
+    /// Recompute [`Timeline::blend_used`]; called from `invalidate_frame_cache`
+    /// and at the end of the build walk.
     pub(crate) fn refresh_blend_used(&self) {
         let any = self.world.style.iter().any(|(_, style)| style.blend.is_some());
         self.blend_used.set(any);
     }
 
-    /// Recompute [`Timeline::camera_used`].
-    ///
-    /// A keyframed `camera.zoom = …` shows up on the camera tracks, but an
-    /// `always { camera.at = … }` never touches them — it writes the frame
-    /// override map — so the modifier statements have to be asked as well.
+    /// Recompute [`Timeline::camera_used`]. `always { camera.at = … }` only
+    /// writes the frame override map, so the modifier statements must be asked.
     pub(crate) fn refresh_camera_used(&self) {
         self.camera_used
             .set(self.camera.is_authored() || Self::stmts_address_camera(&self.modifiers));
@@ -303,12 +274,9 @@ impl Timeline {
         is_static
     }
 
-    /// Whether the entity's transform inputs are time-invariant: no keyframes
-    /// on any of its tracks (any tier). Such entities' node transforms depend
-    /// only on parent state and layout position, so the transform cache can
-    /// reuse them across times instead of re-sampling the spatial properties
-    /// every frame. Memoized like `is_static_subtree_id`; the same
-    /// invalidation funnel clears it.
+    /// Whether the entity's transform inputs are time-invariant (no keyframes on
+    /// any track), so the cache reuses them across times. Memoized; cleared by
+    /// the invalidation funnel.
     pub(crate) fn is_transform_static(&self, id: EntityId) -> bool {
         if let Some(cached) = self.eval_caches.transform_static(id) {
             return cached;
@@ -318,8 +286,7 @@ impl Timeline {
         is_static
     }
 
-    /// Returns `true` if `label` is targeted by any modifier assignment (`Assign` or
-    /// `AssignIndexed`).
+    /// Returns `true` if `label` is targeted by any modifier assignment (`Assign` or `AssignIndexed`).
     pub(crate) fn is_targeted_by_modifier(&self, label: &str) -> bool {
         if self.modifier_written_targets.contains(label) {
             return true;
@@ -334,21 +301,16 @@ impl Timeline {
         false
     }
 
-    /// Uncached static-subtree computation ([`Self::is_static_subtree_id`]
-    /// wraps this in a memo). The label is borrowed only for the
-    /// modifier-target check — no `String` is allocated per node.
+    /// Uncached static-subtree computation ([`Self::is_static_subtree_id`] wraps it in a memo).
     pub(crate) fn compute_static_subtree(&self, id: EntityId) -> bool {
         if !self.world.exists(id) {
             return true;
         }
-        // Animated child orders live in a component, outside property keyframe
-        // detection, and can change layout output, so they disable
-        // static caching.
+        // Animated child orders can change layout outside keyframe detection.
         if self.world.child_order.contains(id) {
             return false;
         }
-        // If this actor is written to by any modifier (always block), it changes
-        // at frame time and cannot be statically cached.
+        // A modifier writes this actor at frame time, so it cannot be cached.
         if self.world.label(id).is_some_and(|label| self.is_targeted_by_modifier(label)) {
             return false;
         }
@@ -390,44 +352,32 @@ impl Timeline {
 }
 
 impl EvalCaches {
-    /// Reset every per-frame cache, keeping the allocations worth recycling.
+    /// Reset every per-frame cache, keeping allocations worth recycling: the
+    /// encoded scene is recycled, per-entity tables and the bounds registry are
+    /// cleared, and build-fixed memos drop so they re-derive from the world.
     ///
-    /// This is the single invalidation body used by
-    /// [`Timeline::invalidate_frame_cache`]: the frame's encoded scene is
-    /// recycled into the scene buffer; per-entity tables (transform, static
-    /// flags, static-subtree entries, hit regions, override buffer, bounds
-    /// table/registry, primitive handles) are cleared; and build-fixed memos
-    /// (`needs_frame_env`, the env injection plan, `solo_scan_needed`) drop so
-    /// they re-derive from the mutated world.
-    ///
-    /// The caller owns two obligations: it advances the content epoch, and it
-    /// drops the pooled frame environment because the injected key set may have
-    /// changed. Diagnostics and solo state are resolved per evaluation rather
-    /// than cached across invalidations.
+    /// The caller advances the content epoch and drops the pooled frame
+    /// environment because the injected key set may have changed.
     pub(crate) fn clear(&self) {
-        // Recycle the invalidated entry's encoded scene into the scene buffer
-        // so the next evaluation reuses its allocation instead of starting
-        // from an empty encoding (every GUI edit calls this).
+        // Recycle the encoded scene so the next evaluation reuses its allocation
+        // (every GUI edit calls this).
         if let Some(entry) = self.frame_cache.borrow_mut().take() {
             *self.scene_buffer.borrow_mut() = Some(entry.program.scene);
         }
         self.transform_cache.borrow_mut().clear();
         self.static_flags.borrow_mut().clear();
         self.static_subtree_cache.borrow_mut().clear();
-        // Hit regions describe the last evaluated frame; an edit makes them
-        // stale.
+        // Hit regions describe the last evaluated frame; an edit makes them stale.
         self.hit_regions.borrow_mut().clear();
         self.overrides_buffer.borrow_mut().clear();
         // Flat-vec clear: no string keys to recycle (slot-id table).
         self.precise_bounds.borrow_mut().clear_frame();
-        // Bounds slots are registry-stamped; a track mutation can change the
-        // label set, so drop the registry and let it rebuild lazily.
+        // A track mutation can change the label set; drop the registry, rebuild lazily.
         *self.bounds_registry.borrow_mut() = None;
         // The env-path answers are as build-fixed as the ones above.
         self.needs_frame_env.set(None);
         *self.env_injection_plan.borrow_mut() = None;
-        // Mutations can add or remove `solo` (and add modifiers), so the
-        // cached "does solo need a scan" answer is no longer trustworthy.
+        // Mutations can add or remove `solo` (and modifiers), so the scan answer is stale.
         self.solo_scan_needed.set(None);
         self.primitive_handles.borrow_mut().clear();
     }
