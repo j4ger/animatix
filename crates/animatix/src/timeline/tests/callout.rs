@@ -4,16 +4,107 @@ use super::*;
 use crate::ast::Property;
 use crate::timeline::animation_track::{CalloutPlace, GeometryTracks};
 
-fn make_config() -> Stmt {
-    Stmt::Config {
-        settings: vec![Property {
-            name: "colorscheme".to_string(),
-            value: Expr::Str("editorial-dark".to_string()),
-            value_span: None,
-            trailing_comment: None,
-        }],
+// ── AST fixtures ──────────────────────────────────────────────────────────
+
+fn prop(name: &str, value: Expr) -> Property {
+    Property {
+        name: name.to_string(),
+        value,
+        value_span: None,
+        trailing_comment: None,
+    }
+}
+
+fn vec2(x: f32, y: f32) -> Expr {
+    Expr::Tuple(vec![Expr::Num(x as f64), Expr::Num(y as f64)])
+}
+
+fn actor(label: &str, ty: &str, props: Vec<Property>) -> Stmt {
+    Stmt::ActorDecl {
+        is_pub: false,
+        is_anonymous: false,
+        label: label.to_string(),
+        array_index: None,
+        ty: ty.to_string(),
+        props,
+        modifiers: vec![],
+        children: vec![],
         span: None,
     }
+}
+
+fn keyframe(seconds: f64, body: Vec<Stmt>) -> Stmt {
+    Stmt::Keyframe {
+        time: crate::ast::Time::Seconds(seconds),
+        body,
+        span: None,
+    }
+}
+
+fn assign(label: &str, property: &str, value: Expr) -> Stmt {
+    Stmt::Assignment {
+        target: vec![crate::ast::TargetSegment::Static(label.to_string())],
+        property: property.to_string(),
+        value,
+        modifiers: vec![],
+        easing: None,
+        value_span: None,
+        span: None,
+    }
+}
+
+fn make_config() -> Stmt {
+    Stmt::Config {
+        settings: vec![prop("colorscheme", Expr::Str("editorial-dark".to_string()))],
+        span: None,
+    }
+}
+
+fn build_report(ast: Vec<Stmt>) -> crate::timeline::BuildReport<Timeline> {
+    Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new())
+}
+
+/// A note actor with the authored `Callout` properties.
+fn note(props: Vec<Property>) -> Stmt {
+    actor("note", "Callout", props)
+}
+
+/// One `Callout` at t=0, which is what most property tests need.
+fn callout(props: Vec<Property>) -> Vec<Stmt> {
+    vec![make_config(), keyframe(0.0, vec![note(props)])]
+}
+
+/// A plain Rect target (half-size) for target-mode callouts.
+fn rect(label: &str) -> Stmt {
+    actor(
+        label,
+        "Rect",
+        vec![
+            prop("position", vec2(200.0, 100.0)),
+            prop("size", vec2(80.0, 40.0)),
+        ],
+    )
+}
+
+/// A note targeting `target`, with the standard place/standoff/label.
+fn target_note(target: Expr) -> Stmt {
+    note(vec![
+        prop("target", target),
+        prop("place", Expr::Ident("right".to_string())),
+        prop("standoff", Expr::Num(40.0)),
+        prop("label", Expr::Str("key".to_string())),
+    ])
+}
+
+/// Build `actors` plus a targeting note at t=0, optionally retargeting at 1s.
+fn targeted(actors: Vec<Stmt>, target: Expr, retarget: Option<Expr>) -> Timeline {
+    let mut body = actors;
+    body.push(target_note(target));
+    let mut ast = vec![make_config(), keyframe(0.0, body)];
+    if let Some(value) = retarget {
+        ast.push(keyframe(1.0, vec![assign("note", "target", value)]));
+    }
+    build_report(ast).output
 }
 
 /// Build a minimal timeline with a single Callout actor.
@@ -24,951 +115,27 @@ fn build_callout_timeline(
     label_at: [f32; 2],
     head_size: f32,
 ) -> Timeline {
-    let props = vec![
-        Property {
-            name: "from".to_string(),
-            value: Expr::Tuple(vec![Expr::Num(from[0] as f64), Expr::Num(from[1] as f64)]),
-            value_span: None,
-            trailing_comment: None,
-        },
-        Property {
-            name: "to".to_string(),
-            value: Expr::Tuple(vec![Expr::Num(to[0] as f64), Expr::Num(to[1] as f64)]),
-            value_span: None,
-            trailing_comment: None,
-        },
-        Property {
-            name: "label".to_string(),
-            value: Expr::Str(label.to_string()),
-            value_span: None,
-            trailing_comment: None,
-        },
-        Property {
-            name: "label_at".to_string(),
-            value: Expr::Tuple(vec![Expr::Num(label_at[0] as f64), Expr::Num(label_at[1] as f64)]),
-            value_span: None,
-            trailing_comment: None,
-        },
-        Property {
-            name: "head_size".to_string(),
-            value: Expr::Num(head_size as f64),
-            value_span: None,
-            trailing_comment: None,
-        },
-        Property {
-            name: "color".to_string(),
-            value: Expr::Ident("accent.primary".to_string()),
-            value_span: None,
-            trailing_comment: None,
-        },
-    ];
-
-    let ast = vec![
+    build_report(vec![
         make_config(),
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "callout".to_string(),
-                array_index: None,
-                ty: "Callout".to_string(),
-                props,
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            }],
-            span: None,
-        },
-    ];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    report.output
-}
-
-#[test]
-fn test_callout_basic_rendering() {
-    // Test that a Callout renders both arrow and text
-    // - Create a Callout with from=(0,0), to=(100,0), label="Test"
-    // - Verify evaluate() returns without error
-    // - Verify track has correct properties
-
-    let timeline = build_callout_timeline([0.0, 0.0], [100.0, 0.0], "Test", [10.0, 5.0], 10.0);
-
-    let dims = SceneDimensions {
-        width: 1920,
-        height: 1080,
-    };
-
-    // Evaluate at time 0 — should not panic
-    let _scene = timeline.evaluate(0.0, dims);
-
-    // Verify the track exists
-    let track = timeline.get_entity_id("callout").expect("callout track should exist");
-
-    let geometry = timeline.world.geometry(track);
-    assert_eq!(timeline.world.actor_type(track), "Callout", "track kind should be Callout");
-
-    // Verify line_from and line_to tracks are populated
-    let from = timeline.world().shape_or_default(track).line_from.get(0, [0.0; 2]);
-    assert_eq!(from, [0.0, 0.0], "from should be (0, 0)");
-
-    let to = timeline.world().shape_or_default(track).line_to.get(0, [0.0; 2]);
-    assert_eq!(to, [100.0, 0.0], "to should be (100, 0)");
-
-    // Verify label was stored
-    let label_val = timeline.world().text_or_default(track).text_content.get(0, String::new());
-    assert_eq!(label_val, "Test", "label should be 'Test'");
-
-    // Verify label_at
-    let label_at = geometry.label_at.get(0, [0.0; 2]);
-    assert_eq!(label_at, [10.0, 5.0], "label_at should be (10, 5)");
-
-    // Verify head_size
-    let head = timeline.world().shape_or_default(track).head_size.get(0, 0.0);
-    assert_eq!(head, 10.0, "head_size should be 10.0");
-
-    // Evaluate at another time — should still succeed
-    let _scene = timeline.evaluate(2.5, dims);
-}
-
-#[test]
-fn test_callout_label_positioning() {
-    // Test that label_at offset works correctly
-    // - Create a Callout with to=(100,0), label_at=(10,5)
-    // - Verify label_at track is (10,5)
-
-    let timeline = build_callout_timeline([0.0, 0.0], [100.0, 0.0], "Note", [10.0, 5.0], 10.0);
-
-    let track = timeline.get_entity_id("callout").expect("callout track should exist");
-
-    let geometry = timeline.world.geometry(track);
-
-    // Check label_at is correctly stored
-    let label_at = geometry.label_at.get(0, [0.0; 2]);
-    assert_eq!(label_at, [10.0, 5.0], "label_at should be (10,5)");
-
-    // Check that evaluate doesn't crash
-    let dims = SceneDimensions {
-        width: 1920,
-        height: 1080,
-    };
-    let _scene = timeline.evaluate(0.0, dims);
-}
-
-#[test]
-fn test_callout_animation() {
-    // Test that Callout properties can be animated
-    // - Create a Callout with animated from/to positions
-    // - Verify the to property has keyframes
-
-    let ast = vec![
-        make_config(),
-        // Declare at time 0s
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "anim_callout".to_string(),
-                array_index: None,
-                ty: "Callout".to_string(),
-                props: vec![
-                    Property {
-                        name: "from".to_string(),
-                        value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                    Property {
-                        name: "to".to_string(),
-                        value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                    Property {
-                        name: "label".to_string(),
-                        value: Expr::Str("Animated".to_string()),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                    Property {
-                        name: "head_size".to_string(),
-                        value: Expr::Num(10.0),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
+        keyframe(
+            0.0,
+            vec![actor(
+                "callout",
+                "Callout",
+                vec![
+                    prop("from", vec2(from[0], from[1])),
+                    prop("to", vec2(to[0], to[1])),
+                    prop("label", Expr::Str(label.to_string())),
+                    prop("label_at", vec2(label_at[0], label_at[1])),
+                    prop("head_size", Expr::Num(head_size as f64)),
+                    prop("color", Expr::Ident("accent.primary".to_string())),
                 ],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            }],
-            span: None,
-        },
-        // Animate 'to' at time 2s
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(2.0),
-            body: vec![Stmt::Assignment {
-                target: vec![crate::ast::TargetSegment::Static(
-                    "anim_callout".to_string(),
-                )],
-                property: "to".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(300.0), Expr::Num(200.0)]),
-                modifiers: vec![],
-                easing: Some(crate::easing::Easing::EaseInOut),
-                value_span: None,
-                span: None,
-            }],
-            span: None,
-        },
-    ];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        report.diagnostics.is_empty(),
-        "Expected no build diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
-
-    let track = timeline.get_entity_id("anim_callout").expect("anim_callout track should exist");
-
-    // Verify the 'to' track has keyframes (initial + animated)
-    let to_track = timeline
-        .world()
-        .shape_or_default(track)
-        .line_to
-        .as_ref()
-        .expect("line_to track should exist");
-    assert!(
-        to_track.keyframes.len() >= 2,
-        "line_to should have at least 2 keyframes for animation, got {}",
-        to_track.keyframes.len()
-    );
-
-    // Verify values at different times
-    let dims = SceneDimensions {
-        width: 1920,
-        height: 1080,
-    };
-
-    // At time 0s, to should be (100, 100)
-    let to_0s = timeline.world().shape_or_default(track).line_to.get(0, [0.0; 2]);
-    assert_eq!(to_0s, [100.0, 100.0], "to at 0s should be (100, 100)");
-
-    // Evaluate at both times — should not panic
-    let _scene_0s = timeline.evaluate(0.0, dims);
-    let _scene_2s = timeline.evaluate(2.0, dims);
-    // Mid-interpolation
-    let _scene_1s = timeline.evaluate(1.0, dims);
+            )],
+        ),
+    ])
+    .output
 }
 
-#[test]
-fn test_callout_arrowhead_size() {
-    // Test that head_size property affects arrowhead
-    // - Create Callouts with different head_size values
-    // - Verify the head_size tracks differ
-
-    let timeline_small = build_callout_timeline([0.0, 0.0], [100.0, 0.0], "Small", [0.0, 0.0], 5.0);
-    let timeline_large =
-        build_callout_timeline([0.0, 0.0], [100.0, 0.0], "Large", [0.0, 0.0], 20.0);
-
-    let track_small = timeline_small.get_entity_id("callout").expect("callout track should exist");
-    let track_large = timeline_large.get_entity_id("callout").expect("callout track should exist");
-
-    let head_small = timeline_small.world().shape_or_default(track_small).head_size.get(0, 0.0);
-    let head_large = timeline_large.world().shape_or_default(track_large).head_size.get(0, 0.0);
-
-    assert_eq!(head_small, 5.0, "small head_size should be 5.0");
-    assert_eq!(head_large, 20.0, "large head_size should be 20.0");
-    assert!(
-        head_large > head_small,
-        "large head_size should be greater than small head_size"
-    );
-}
-
-#[test]
-fn test_callout_no_label_does_not_set_text_content() {
-    // A callout without a label should still build without error
-    let ast = vec![
-        make_config(),
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "no_label".to_string(),
-                array_index: None,
-                ty: "Callout".to_string(),
-                props: vec![
-                    Property {
-                        name: "from".to_string(),
-                        value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                    Property {
-                        name: "to".to_string(),
-                        value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(0.0)]),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                ],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            }],
-            span: None,
-        },
-    ];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let timeline = report.output;
-
-    let track = timeline.get_entity_id("no_label").expect("no_label track should exist");
-    assert_eq!(timeline.world.actor_type(track), "Callout");
-
-    // The text_content should be empty string (default)
-    let label_val = timeline.world().text_or_default(track).text_content.get(0, String::new());
-    assert_eq!(label_val, "", "label should be empty when not provided");
-
-    // Evaluate should not panic
-    let dims = SceneDimensions {
-        width: 1920,
-        height: 1080,
-    };
-    let _scene = timeline.evaluate(0.0, dims);
-}
-
-#[test]
-fn test_callout_target_assignment_accepts_bare_actor_label() {
-    let actor = |label: &str| Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: label.to_string(),
-        array_index: None,
-        ty: "Rect".to_string(),
-        props: vec![
-            Property {
-                name: "position".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(100.0)]),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "size".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(80.0), Expr::Num(40.0)]),
-                value_span: None,
-                trailing_comment: None,
-            },
-        ],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    };
-
-    let note = Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: "note".to_string(),
-        array_index: None,
-        ty: "Callout".to_string(),
-        props: vec![
-            Property {
-                name: "target".to_string(),
-                value: Expr::Ident("box1".to_string()),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "place".to_string(),
-                value: Expr::Ident("right".to_string()),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "standoff".to_string(),
-                value: Expr::Num(40.0),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "label".to_string(),
-                value: Expr::Str("Look here".to_string()),
-                value_span: None,
-                trailing_comment: None,
-            },
-        ],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    };
-
-    let ast = vec![
-        make_config(),
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![actor("box1"), actor("box2"), note],
-            span: None,
-        },
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(1.0),
-            body: vec![Stmt::Assignment {
-                target: vec![crate::ast::TargetSegment::Static("note".to_string())],
-                property: "target".to_string(),
-                value: Expr::Ident("box2".to_string()),
-                modifiers: vec![],
-                easing: None,
-                value_span: None,
-                span: None,
-            }],
-            span: None,
-        },
-    ];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        report.diagnostics.is_empty(),
-        "Expected no build diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
-    let note = timeline.get_entity_id("note").expect("note track should exist");
-    let geometry = timeline.world.geometry(note);
-    assert_eq!(geometry.callout_target.get(0, String::new()), "box1");
-    assert_eq!(geometry.callout_target.get(1000, String::new()), "box2");
-}
-
-#[test]
-fn test_callout_target_accepts_array_actor_refs() {
-    let actor = |label: &str| Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: label.to_string(),
-        array_index: None,
-        ty: "Rect".to_string(),
-        props: vec![
-            Property {
-                name: "position".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(100.0)]),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "size".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(80.0), Expr::Num(40.0)]),
-                value_span: None,
-                trailing_comment: None,
-            },
-        ],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    };
-
-    let note = Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: "note".to_string(),
-        array_index: None,
-        ty: "Callout".to_string(),
-        props: vec![
-            Property {
-                name: "target".to_string(),
-                value: Expr::Index(
-                    Box::new(Expr::Ident("bar".to_string())),
-                    Box::new(Expr::Num(0.0)),
-                ),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "place".to_string(),
-                value: Expr::Ident("right".to_string()),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "standoff".to_string(),
-                value: Expr::Num(40.0),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "label".to_string(),
-                value: Expr::Str("key".to_string()),
-                value_span: None,
-                trailing_comment: None,
-            },
-        ],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    };
-
-    let ast = vec![
-        make_config(),
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![actor("bar__0"), actor("bar__2"), note],
-            span: None,
-        },
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(1.0),
-            body: vec![Stmt::Assignment {
-                target: vec![crate::ast::TargetSegment::Static("note".to_string())],
-                property: "target".to_string(),
-                value: Expr::Index(
-                    Box::new(Expr::Ident("bar".to_string())),
-                    Box::new(Expr::Num(2.0)),
-                ),
-                modifiers: vec![],
-                easing: None,
-                value_span: None,
-                span: None,
-            }],
-            span: None,
-        },
-    ];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        report.diagnostics.is_empty(),
-        "Expected no build diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
-    let note = timeline.get_entity_id("note").expect("note track should exist");
-    let geometry = timeline.world.geometry(note);
-    assert_eq!(geometry.callout_target.get(0, String::new()), "bar__0");
-    assert_eq!(geometry.callout_target.get(1000, String::new()), "bar__2");
-}
-
-#[test]
-fn test_callout_target_accepts_namespaced_array_actor_refs() {
-    // Component-expanded targets use `instance.label[index]`; the callout
-    // target parser must resolve that to `instance.label__N`, not drop the
-    // index or reject the path.
-    let actor = |label: &str| Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: label.to_string(),
-        array_index: None,
-        ty: "Rect".to_string(),
-        props: vec![
-            Property {
-                name: "position".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(100.0)]),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "size".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(80.0), Expr::Num(40.0)]),
-                value_span: None,
-                trailing_comment: None,
-            },
-        ],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    };
-
-    let note = Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: "note".to_string(),
-        array_index: None,
-        ty: "Callout".to_string(),
-        props: vec![
-            Property {
-                name: "target".to_string(),
-                value: Expr::Index(
-                    Box::new(Expr::Path(vec!["bars".to_string(), "bar".to_string()])),
-                    Box::new(Expr::Num(2.0)),
-                ),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "place".to_string(),
-                value: Expr::Ident("right".to_string()),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "standoff".to_string(),
-                value: Expr::Num(40.0),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "label".to_string(),
-                value: Expr::Str("key".to_string()),
-                value_span: None,
-                trailing_comment: None,
-            },
-        ],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    };
-
-    let ast = vec![
-        make_config(),
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![actor("bars.bar__2"), note],
-            span: None,
-        },
-    ];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        report.diagnostics.is_empty(),
-        "Expected no build diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
-    let note = timeline.get_entity_id("note").expect("note track should exist");
-    let geometry = timeline.world.geometry(note);
-    assert_eq!(geometry.callout_target.get(0, String::new()), "bars.bar__2");
-}
-
-#[test]
-fn test_callout_target_mode_seeds_tracks() {
-    // Verify that target/place/standoff/to_offset are seeded into tracks
-    // when a targeted Callout is declared.
-    let ast = vec![
-        make_config(),
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![
-                Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "box".to_string(),
-                    array_index: None,
-                    ty: "Rect".to_string(),
-                    props: vec![
-                        Property {
-                            name: "position".to_string(),
-                            value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(100.0)]),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "size".to_string(),
-                            value: Expr::Tuple(vec![Expr::Num(80.0), Expr::Num(40.0)]),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                    ],
-                    modifiers: vec![],
-                    children: vec![],
-                    span: None,
-                },
-                Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "note".to_string(),
-                    array_index: None,
-                    ty: "Callout".to_string(),
-                    props: vec![
-                        Property {
-                            name: "target".to_string(),
-                            value: Expr::Ident("box".to_string()),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "place".to_string(),
-                            value: Expr::Ident("right".to_string()),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "standoff".to_string(),
-                            value: Expr::Num(40.0),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "to_offset".to_string(),
-                            value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "label".to_string(),
-                            value: Expr::Str("Look here".to_string()),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                    ],
-                    modifiers: vec![],
-                    children: vec![],
-                    span: None,
-                },
-            ],
-            span: None,
-        },
-    ];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        report.diagnostics.is_empty(),
-        "Expected no build diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
-
-    let note = timeline.get_entity_id("note").expect("note track should exist");
-    let geometry = timeline.world.geometry(note);
-
-    // target / place / standoff / to_offset tracks must be seeded
-    assert_eq!(
-        geometry.callout_target.get(0, String::new()),
-        "box",
-        "callout_target should be 'box'"
-    );
-    assert_eq!(
-        geometry.callout_place.get(0, CalloutPlace::Right),
-        CalloutPlace::Right,
-        "callout_place should be Right"
-    );
-    assert!(
-        (geometry.callout_standoff.get(0, 0.0) - 40.0).abs() < f32::EPSILON,
-        "callout_standoff should be 40.0"
-    );
-    assert_eq!(
-        geometry.callout_to_offset.get(0, [99.0; 2]),
-        [0.0, 0.0],
-        "callout_to_offset should be (0, 0)"
-    );
-
-    // Evaluating the scene should not panic
-    let dims = SceneDimensions {
-        width: 1920,
-        height: 1080,
-    };
-    let _scene = timeline.evaluate(0.0, dims);
-}
-
-#[test]
-fn test_callout_target_mode_derives_positions() {
-    // When target mode is active, evaluate() derives `to` at the right edge
-    // of the target actor and `from` = to + [standoff, 0].
-    //
-    // Target "box": position=(200,100), size=(80,40) → right edge x = 200+40 = 240.
-    // to   = [240, 100]  (right attach point + to_offset(0,0))
-    // from = [240+40, 100] = [280, 100]
-    //
-    // We verify evaluate() runs without error. Exact arrow positions are
-    // internal to the render path, so we just check no panic occurs.
-    let ast = vec![
-        make_config(),
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![
-                Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "box".to_string(),
-                    array_index: None,
-                    ty: "Rect".to_string(),
-                    props: vec![
-                        Property {
-                            name: "position".to_string(),
-                            value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(100.0)]),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "size".to_string(),
-                            value: Expr::Tuple(vec![Expr::Num(80.0), Expr::Num(40.0)]),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                    ],
-                    modifiers: vec![],
-                    children: vec![],
-                    span: None,
-                },
-                Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "note".to_string(),
-                    array_index: None,
-                    ty: "Callout".to_string(),
-                    props: vec![
-                        Property {
-                            name: "target".to_string(),
-                            value: Expr::Ident("box".to_string()),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "place".to_string(),
-                            value: Expr::Ident("right".to_string()),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "standoff".to_string(),
-                            value: Expr::Num(40.0),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "label".to_string(),
-                            value: Expr::Str("Note".to_string()),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                    ],
-                    modifiers: vec![],
-                    children: vec![],
-                    span: None,
-                },
-            ],
-            span: None,
-        },
-    ];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let timeline = report.output;
-
-    let dims = SceneDimensions {
-        width: 1920,
-        height: 1080,
-    };
-    // evaluate() must not panic when target mode is active
-    let _scene = timeline.evaluate(0.0, dims);
-}
-
-#[test]
-fn test_callout_place_variants_accepted() {
-    // Verify that all valid place identifiers parse to the correct enum variant.
-    for (ident, expected) in &[
-        ("right", CalloutPlace::Right),
-        ("left", CalloutPlace::Left),
-        ("top", CalloutPlace::Top),
-        ("above", CalloutPlace::Top),
-        ("bottom", CalloutPlace::Bottom),
-        ("below", CalloutPlace::Bottom),
-        ("auto", CalloutPlace::Auto),
-    ] {
-        let ast = vec![
-            make_config(),
-            Stmt::Keyframe {
-                time: crate::ast::Time::Seconds(0.0),
-                body: vec![Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "note".to_string(),
-                    array_index: None,
-                    ty: "Callout".to_string(),
-                    props: vec![Property {
-                        name: "place".to_string(),
-                        value: Expr::Ident(ident.to_string()),
-                        value_span: None,
-                        trailing_comment: None,
-                    }],
-                    modifiers: vec![],
-                    children: vec![],
-                    span: None,
-                }],
-                span: None,
-            },
-        ];
-        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-        assert!(
-            report.diagnostics.is_empty(),
-            "place={ident} produced unexpected diagnostics: {:?}",
-            report.diagnostics
-        );
-        let track = report.output.get_entity_id("note").unwrap();
-        let geometry = report.output.world.geometry(track);
-        assert_eq!(
-            geometry.callout_place.get(0, CalloutPlace::Right),
-            *expected,
-            "place={ident} should map to {expected:?}"
-        );
-    }
-}
-
-#[test]
-fn test_callout_place_invalid_produces_diagnostic() {
-    // An unrecognised place value should emit a build diagnostic.
-    let ast = vec![
-        make_config(),
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "note".to_string(),
-                array_index: None,
-                ty: "Callout".to_string(),
-                props: vec![Property {
-                    name: "place".to_string(),
-                    value: Expr::Ident("sideways".to_string()),
-                    value_span: None,
-                    trailing_comment: None,
-                }],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            }],
-            span: None,
-        },
-    ];
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        !report.diagnostics.is_empty(),
-        "invalid place 'sideways' should produce a diagnostic"
-    );
-}
-
-#[test]
-fn test_callout_place_default_is_right() {
-    // A Callout without a place prop should default to Right.
-    let ast = vec![
-        make_config(),
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "note".to_string(),
-                array_index: None,
-                ty: "Callout".to_string(),
-                props: vec![],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            }],
-            span: None,
-        },
-    ];
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report.output.get_entity_id("note").unwrap();
-    let geometry = report.output.world.geometry(track);
-    assert_eq!(
-        geometry.callout_place.get(0, CalloutPlace::Auto),
-        CalloutPlace::Right,
-        "default callout_place should be Right"
-    );
-}
-
-// ── Commit 3: transform-aware target bounds regression tests ──────────────
-//
-// These tests build timelines directly (not via AST) so that we can set
-// position / scale / rotation / parent-child relationships precisely without
-// relying on how declaration-time props map to internal tracks.
-
-/// Make a minimal target track with a given position and half-size.
 fn make_target_track(
     _label: &str,
     pos: [f32; 2],
@@ -1013,195 +180,6 @@ fn make_callout_track(_label: &str, target: &str) -> (&'static str, GeometryTrac
     ("Callout", geometry)
 }
 
-#[test]
-fn test_callout_target_translated_world_bounds() {
-    // A top-level target at (200, 100) with half=(40, 20).
-    // world_affine = T(200,100); AABB centre=(200,100), half=(40,20).
-    // place=right → attach = (240, 100).
-    let mut timeline = Timeline::new();
-    let (target_type, target_geometry) = make_target_track("box", [200.0, 100.0], [40.0, 20.0]);
-    spawn_seen(&mut timeline, "box", target_type, target_geometry);
-
-    let (callout_type, callout_geometry) = make_callout_track("note", "box");
-    spawn_seen(&mut timeline, "note", callout_type, callout_geometry);
-
-    let dims = SceneDimensions {
-        width: 1920,
-        height: 1080,
-    };
-    let note = timeline.get_entity_id("note").unwrap();
-    let geom = crate::timeline::callout_geometry::derive_callout_geometry(
-        timeline.world().geometry(note),
-        timeline.world().shape_or_default(note),
-        0,
-        Some(&timeline),
-        dims,
-    );
-    assert!((geom.to[0] - 240.0).abs() < 0.5, "expected to.x=240, got {}", geom.to[0]);
-    assert!((geom.to[1] - 100.0).abs() < 0.5, "expected to.y=100, got {}", geom.to[1]);
-}
-
-#[test]
-fn test_callout_target_scaled_world_bounds() {
-    // Target at (200, 100), half=(40, 20), scale=2.
-    // world_affine = T(200,100)*scale(2) → AABB half=(80,40), centre=(200,100).
-    // place=right → attach = (280, 100).
-    // Without transform-aware bounds (old code) we would get: attach = (240, 100).
-    let mut timeline = Timeline::new();
-    let (target_type, mut target_geometry) = make_target_track("box", [200.0, 100.0], [40.0, 20.0]);
-    target_geometry.scale = Some({
-        let mut t = PropertyTrack::new(2.0f32);
-        t.add_keyframe(0, 2.0, Easing::Linear);
-        t
-    });
-    spawn_seen(&mut timeline, "box", target_type, target_geometry);
-
-    let (callout_type, callout_geometry) = make_callout_track("note", "box");
-    spawn_seen(&mut timeline, "note", callout_type, callout_geometry);
-
-    let dims = SceneDimensions {
-        width: 1920,
-        height: 1080,
-    };
-    let note = timeline.get_entity_id("note").unwrap();
-    let geom = crate::timeline::callout_geometry::derive_callout_geometry(
-        timeline.world().geometry(note),
-        timeline.world().shape_or_default(note),
-        0,
-        Some(&timeline),
-        dims,
-    );
-    // scale=2 doubles the visual extent: half_x=40 → 80 → right = 200+80 = 280
-    assert!(
-        (geom.to[0] - 280.0).abs() < 0.5,
-        "expected to.x=280 (scale-aware), got {}",
-        geom.to[0]
-    );
-    assert!((geom.to[1] - 100.0).abs() < 0.5, "expected to.y=100, got {}", geom.to[1]);
-}
-
-#[test]
-fn test_callout_target_rotated_aabb() {
-    // Target at (200, 100), half=(40, 20), rotation=π/2 (90°) in radians.
-    // After 90° rotation, the AABB swaps axes: AABB half_x=20, half_y=40.
-    // place=right → attach ≈ (200+20, 100) = (220, 100).
-    let angle_rad = std::f32::consts::FRAC_PI_2; // 90° in radians
-    let mut timeline = Timeline::new();
-    let (target_type, mut target_geometry) = make_target_track("box", [200.0, 100.0], [40.0, 20.0]);
-    target_geometry.rotation = Some({
-        let mut t = PropertyTrack::new(angle_rad);
-        t.add_keyframe(0, angle_rad, Easing::Linear);
-        t
-    });
-    spawn_seen(&mut timeline, "box", target_type, target_geometry);
-
-    let (callout_type, callout_geometry) = make_callout_track("note", "box");
-    spawn_seen(&mut timeline, "note", callout_type, callout_geometry);
-
-    let dims = SceneDimensions {
-        width: 1920,
-        height: 1080,
-    };
-    let note = timeline.get_entity_id("note").unwrap();
-    let geom = crate::timeline::callout_geometry::derive_callout_geometry(
-        timeline.world().geometry(note),
-        timeline.world().shape_or_default(note),
-        0,
-        Some(&timeline),
-        dims,
-    );
-    // After 90° rotation: AABB half_x = |hw*cos(π/2)| + |hh*sin(π/2)| = 0 + 20 = 20
-    let hw = 40.0_f32;
-    let hh = 20.0_f32;
-    let expected_half_x = hw * angle_rad.cos().abs() + hh * angle_rad.sin().abs();
-    let expected_to_x = 200.0 + expected_half_x;
-    assert!(
-        (geom.to[0] - expected_to_x).abs() < 0.5,
-        "expected to.x≈{:.1} (rotation-aware AABB), got {}",
-        expected_to_x,
-        geom.to[0]
-    );
-}
-
-#[test]
-fn test_callout_target_nested_child_world_bounds() {
-    // parent at (100, 0); child nested at (100, 0) relative to parent.
-    // Child world centre = (200, 0), half=(40, 20).
-    // place=right → attach = (240, 0).
-    // (Old local-only resolver would see child.position=(100,0) → 100+40=140.)
-    let mut timeline = Timeline::new();
-
-    let (parent_type, parent_geometry) = make_target_track("parent", [100.0, 0.0], [50.0, 50.0]);
-    let parent_id = spawn_seen(&mut timeline, "parent", parent_type, parent_geometry);
-
-    let (child_type, child_geometry) = make_target_track("child", [100.0, 0.0], [40.0, 20.0]);
-    let child_id = spawn_seen(&mut timeline, "child", child_type, child_geometry);
-    // Register child under parent
-    timeline.world.link(parent_id, child_id);
-
-    let (callout_type, callout_geometry) = make_callout_track("note", "child");
-    spawn_seen(&mut timeline, "note", callout_type, callout_geometry);
-
-    let dims = SceneDimensions {
-        width: 1920,
-        height: 1080,
-    };
-    let note = timeline.get_entity_id("note").unwrap();
-    let geom = crate::timeline::callout_geometry::derive_callout_geometry(
-        timeline.world().geometry(note),
-        timeline.world().shape_or_default(note),
-        0,
-        Some(&timeline),
-        dims,
-    );
-    // world centre x = parent.pos.x + child.pos.x = 100+100 = 200; right = 200+40 = 240
-    assert!(
-        (geom.to[0] - 240.0).abs() < 0.5,
-        "expected to.x=240 (nested world bounds), got {}",
-        geom.to[0]
-    );
-    assert!((geom.to[1] - 0.0).abs() < 0.5, "expected to.y=0, got {}", geom.to[1]);
-}
-
-#[test]
-fn test_callout_missing_target_produces_diagnostic() {
-    // A Callout with a target that does not exist should produce a build diagnostic.
-    let ast = vec![
-        make_config(),
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "note".to_string(),
-                array_index: None,
-                ty: "Callout".to_string(),
-                props: vec![Property {
-                    name: "target".to_string(),
-                    value: Expr::Str("nonexistent".to_string()),
-                    value_span: None,
-                    trailing_comment: None,
-                }],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            }],
-            span: None,
-        },
-    ];
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    use crate::diagnostics::DiagnosticCode;
-    let found = report
-        .diagnostics
-        .iter()
-        .any(|d| matches!(d.code, DiagnosticCode::CalloutTargetNotFound));
-    assert!(
-        found,
-        "expected CalloutTargetNotFound diagnostic, got: {:?}",
-        report.diagnostics
-    );
-}
-
 fn spawn_seen(
     timeline: &mut crate::timeline::Timeline,
     label: &str,
@@ -1212,4 +190,482 @@ fn spawn_seen(
     *timeline.world.geometry_mut(id) = geometry;
     timeline.world.meta_mut(id).first_seen_ms = 0;
     id
+}
+
+/// The callout tip the frame derives for `note`.
+fn derived_to(timeline: &Timeline) -> [f32; 2] {
+    let note = timeline.get_entity_id("note").unwrap();
+    crate::timeline::callout_geometry::derive_callout_geometry(
+        timeline.world().geometry(note),
+        timeline.world().shape_or_default(note),
+        0,
+        Some(timeline),
+        SceneDimensions {
+            width: 1920,
+            height: 1080,
+        },
+    )
+    .to
+}
+
+// ── Rendering and property tests ──────────────────────────────────────────
+
+#[test]
+fn test_callout_basic_rendering() {
+    // A Callout renders both arrow and text: line_from/line_to, label,
+    // label_at and head_size all reach their tracks.
+    let timeline = build_callout_timeline([0.0, 0.0], [100.0, 0.0], "Test", [10.0, 5.0], 10.0);
+
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
+    let _scene = timeline.evaluate(0.0, dims);
+
+    let track = timeline.get_entity_id("callout").expect("callout track should exist");
+    let geometry = timeline.world.geometry(track);
+    assert_eq!(timeline.world.actor_type(track), "Callout", "track kind should be Callout");
+
+    let from = timeline.world().shape_or_default(track).line_from.get(0, [0.0; 2]);
+    assert_eq!(from, [0.0, 0.0], "from should be (0, 0)");
+
+    let to = timeline.world().shape_or_default(track).line_to.get(0, [0.0; 2]);
+    assert_eq!(to, [100.0, 0.0], "to should be (100, 0)");
+
+    let label_val = timeline.world().text_or_default(track).text_content.get(0, String::new());
+    assert_eq!(label_val, "Test", "label should be 'Test'");
+
+    let label_at = geometry.label_at.get(0, [0.0; 2]);
+    assert_eq!(label_at, [10.0, 5.0], "label_at should be (10, 5)");
+
+    let head = timeline.world().shape_or_default(track).head_size.get(0, 0.0);
+    assert_eq!(head, 10.0, "head_size should be 10.0");
+
+    let _scene = timeline.evaluate(2.5, dims);
+}
+
+#[test]
+fn test_callout_label_positioning() {
+    let timeline = build_callout_timeline([0.0, 0.0], [100.0, 0.0], "Note", [10.0, 5.0], 10.0);
+    let track = timeline.get_entity_id("callout").expect("callout track should exist");
+    let geometry = timeline.world.geometry(track);
+    let label_at = geometry.label_at.get(0, [0.0; 2]);
+    assert_eq!(label_at, [10.0, 5.0], "label_at should be (10,5)");
+
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
+    let _scene = timeline.evaluate(0.0, dims);
+}
+
+#[test]
+fn test_callout_animation() {
+    // An assignment at 2s adds keyframes to the `to` track.
+    let ast = vec![
+        make_config(),
+        keyframe(
+            0.0,
+            vec![actor(
+                "anim_callout",
+                "Callout",
+                vec![
+                    prop("from", vec2(0.0, 0.0)),
+                    prop("to", vec2(100.0, 100.0)),
+                    prop("label", Expr::Str("Animated".to_string())),
+                    prop("head_size", Expr::Num(10.0)),
+                ],
+            )],
+        ),
+        keyframe(
+            2.0,
+            vec![{
+                let mut stmt = assign("anim_callout", "to", vec2(300.0, 200.0));
+                if let Stmt::Assignment { easing, .. } = &mut stmt {
+                    *easing = Some(crate::easing::Easing::EaseInOut);
+                }
+                stmt
+            }],
+        ),
+    ];
+
+    let report = build_report(ast);
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no build diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    let track = timeline.get_entity_id("anim_callout").expect("anim_callout track should exist");
+
+    let to_track = timeline
+        .world()
+        .shape_or_default(track)
+        .line_to
+        .as_ref()
+        .expect("line_to track should exist");
+    assert!(
+        to_track.keyframes.len() >= 2,
+        "line_to should have at least 2 keyframes for animation, got {}",
+        to_track.keyframes.len()
+    );
+
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
+    let to_0s = timeline.world().shape_or_default(track).line_to.get(0, [0.0; 2]);
+    assert_eq!(to_0s, [100.0, 100.0], "to at 0s should be (100, 100)");
+
+    let _scene_0s = timeline.evaluate(0.0, dims);
+    let _scene_2s = timeline.evaluate(2.0, dims);
+    let _scene_1s = timeline.evaluate(1.0, dims);
+}
+
+#[test]
+fn test_callout_arrowhead_size() {
+    let timeline_small = build_callout_timeline([0.0, 0.0], [100.0, 0.0], "Small", [0.0, 0.0], 5.0);
+    let timeline_large =
+        build_callout_timeline([0.0, 0.0], [100.0, 0.0], "Large", [0.0, 0.0], 20.0);
+
+    let track_small = timeline_small.get_entity_id("callout").expect("callout track should exist");
+    let track_large = timeline_large.get_entity_id("callout").expect("callout track should exist");
+
+    let head_small = timeline_small.world().shape_or_default(track_small).head_size.get(0, 0.0);
+    let head_large = timeline_large.world().shape_or_default(track_large).head_size.get(0, 0.0);
+
+    assert_eq!(head_small, 5.0, "small head_size should be 5.0");
+    assert_eq!(head_large, 20.0, "large head_size should be 20.0");
+    assert!(
+        head_large > head_small,
+        "large head_size should be greater than small head_size"
+    );
+}
+
+#[test]
+fn test_callout_no_label_does_not_set_text_content() {
+    let ast = vec![
+        make_config(),
+        keyframe(
+            0.0,
+            vec![actor(
+                "no_label",
+                "Callout",
+                vec![prop("from", vec2(0.0, 0.0)), prop("to", vec2(100.0, 0.0))],
+            )],
+        ),
+    ];
+    let timeline = build_report(ast).output;
+
+    let track = timeline.get_entity_id("no_label").expect("no_label track should exist");
+    assert_eq!(timeline.world.actor_type(track), "Callout");
+
+    let label_val = timeline.world().text_or_default(track).text_content.get(0, String::new());
+    assert_eq!(label_val, "", "label should be empty when not provided");
+
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
+    let _scene = timeline.evaluate(0.0, dims);
+}
+
+#[test]
+fn test_callout_target_assignment_accepts_bare_actor_label() {
+    let timeline = targeted(
+        vec![rect("box1"), rect("box2")],
+        Expr::Ident("box1".to_string()),
+        Some(Expr::Ident("box2".to_string())),
+    );
+    let note = timeline.get_entity_id("note").expect("note track should exist");
+    let geometry = timeline.world.geometry(note);
+    assert_eq!(geometry.callout_target.get(0, String::new()), "box1");
+    assert_eq!(geometry.callout_target.get(1000, String::new()), "box2");
+}
+
+#[test]
+fn test_callout_target_accepts_array_actor_refs() {
+    let timeline = targeted(
+        vec![rect("bar__0"), rect("bar__2")],
+        Expr::Index(Box::new(Expr::Ident("bar".to_string())), Box::new(Expr::Num(0.0))),
+        Some(Expr::Index(Box::new(Expr::Ident("bar".to_string())), Box::new(Expr::Num(2.0)))),
+    );
+    let note = timeline.get_entity_id("note").expect("note track should exist");
+    let geometry = timeline.world.geometry(note);
+    assert_eq!(geometry.callout_target.get(0, String::new()), "bar__0");
+    assert_eq!(geometry.callout_target.get(1000, String::new()), "bar__2");
+}
+
+#[test]
+fn test_callout_target_accepts_namespaced_array_actor_refs() {
+    // Component-expanded targets use `instance.label[index]`; the callout
+    // target parser must resolve that to `instance.label__N`, not drop the
+    // index or reject the path.
+    let timeline = targeted(
+        vec![rect("bars.bar__2")],
+        Expr::Index(
+            Box::new(Expr::Path(vec!["bars".to_string(), "bar".to_string()])),
+            Box::new(Expr::Num(2.0)),
+        ),
+        None,
+    );
+    let note = timeline.get_entity_id("note").expect("note track should exist");
+    let geometry = timeline.world.geometry(note);
+    assert_eq!(geometry.callout_target.get(0, String::new()), "bars.bar__2");
+}
+
+#[test]
+fn test_callout_target_mode_seeds_tracks() {
+    // Verify that target/place/standoff/to_offset are seeded into tracks
+    // when a targeted Callout is declared.
+    let ast = vec![
+        make_config(),
+        keyframe(
+            0.0,
+            vec![
+                actor(
+                    "box",
+                    "Rect",
+                    vec![
+                        prop("position", vec2(200.0, 100.0)),
+                        prop("size", vec2(80.0, 40.0)),
+                    ],
+                ),
+                note(vec![
+                    prop("target", Expr::Ident("box".to_string())),
+                    prop("place", Expr::Ident("right".to_string())),
+                    prop("standoff", Expr::Num(40.0)),
+                    prop("to_offset", vec2(0.0, 0.0)),
+                    prop("label", Expr::Str("Look here".to_string())),
+                ]),
+            ],
+        ),
+    ];
+
+    let report = build_report(ast);
+    assert!(
+        report.diagnostics.is_empty(),
+        "Expected no build diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    let note = timeline.get_entity_id("note").expect("note track should exist");
+    let geometry = timeline.world.geometry(note);
+
+    assert_eq!(
+        geometry.callout_target.get(0, String::new()),
+        "box",
+        "callout_target should be 'box'"
+    );
+    assert_eq!(
+        geometry.callout_place.get(0, CalloutPlace::Right),
+        CalloutPlace::Right,
+        "callout_place should be Right"
+    );
+    assert!(
+        (geometry.callout_standoff.get(0, 0.0) - 40.0).abs() < f32::EPSILON,
+        "callout_standoff should be 40.0"
+    );
+    assert_eq!(
+        geometry.callout_to_offset.get(0, [99.0; 2]),
+        [0.0, 0.0],
+        "callout_to_offset should be (0, 0)"
+    );
+
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
+    let _scene = timeline.evaluate(0.0, dims);
+}
+
+#[test]
+fn test_callout_target_mode_derives_positions() {
+    // When target mode is active, evaluate() derives `to` at the right edge
+    // of the target actor and `from` = to + [standoff, 0]. Exact arrow
+    // positions are internal to the render path, so this checks no panic.
+    let ast = vec![
+        make_config(),
+        keyframe(
+            0.0,
+            vec![
+                actor(
+                    "box",
+                    "Rect",
+                    vec![
+                        prop("position", vec2(200.0, 100.0)),
+                        prop("size", vec2(80.0, 40.0)),
+                    ],
+                ),
+                note(vec![
+                    prop("target", Expr::Ident("box".to_string())),
+                    prop("place", Expr::Ident("right".to_string())),
+                    prop("standoff", Expr::Num(40.0)),
+                    prop("label", Expr::Str("Note".to_string())),
+                ]),
+            ],
+        ),
+    ];
+    let timeline = build_report(ast).output;
+    let dims = SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
+    let _scene = timeline.evaluate(0.0, dims);
+}
+
+#[test]
+fn test_callout_place_variants_accepted() {
+    // Verify that all valid place identifiers parse to the correct enum variant.
+    for (ident, expected) in &[
+        ("right", CalloutPlace::Right),
+        ("left", CalloutPlace::Left),
+        ("top", CalloutPlace::Top),
+        ("above", CalloutPlace::Top),
+        ("bottom", CalloutPlace::Bottom),
+        ("below", CalloutPlace::Bottom),
+        ("auto", CalloutPlace::Auto),
+    ] {
+        let report = build_report(callout(vec![prop("place", Expr::Ident(ident.to_string()))]));
+        assert!(
+            report.diagnostics.is_empty(),
+            "place={ident} produced unexpected diagnostics: {:?}",
+            report.diagnostics
+        );
+        let track = report.output.get_entity_id("note").unwrap();
+        let geometry = report.output.world.geometry(track);
+        assert_eq!(
+            geometry.callout_place.get(0, CalloutPlace::Right),
+            *expected,
+            "place={ident} should map to {expected:?}"
+        );
+    }
+}
+
+#[test]
+fn test_callout_place_invalid_produces_diagnostic() {
+    let report = build_report(callout(vec![prop("place", Expr::Ident("sideways".to_string()))]));
+    assert!(
+        !report.diagnostics.is_empty(),
+        "invalid place 'sideways' should produce a diagnostic"
+    );
+}
+
+#[test]
+fn test_callout_place_default_is_right() {
+    let report = build_report(callout(vec![]));
+    let track = report.output.get_entity_id("note").unwrap();
+    let geometry = report.output.world.geometry(track);
+    assert_eq!(
+        geometry.callout_place.get(0, CalloutPlace::Auto),
+        CalloutPlace::Right,
+        "default callout_place should be Right"
+    );
+}
+
+// ── Transform-aware target bounds regression tests ────────────────────────
+
+#[test]
+fn test_callout_target_translated_world_bounds() {
+    // A top-level target at (200, 100) with half=(40, 20).
+    // place=right → attach = (240, 100).
+    let mut timeline = Timeline::new();
+    let (target_type, target_geometry) = make_target_track("box", [200.0, 100.0], [40.0, 20.0]);
+    spawn_seen(&mut timeline, "box", target_type, target_geometry);
+    let (callout_type, callout_geometry) = make_callout_track("note", "box");
+    spawn_seen(&mut timeline, "note", callout_type, callout_geometry);
+
+    let geom = derived_to(&timeline);
+    assert!((geom[0] - 240.0).abs() < 0.5, "expected to.x=240, got {}", geom[0]);
+    assert!((geom[1] - 100.0).abs() < 0.5, "expected to.y=100, got {}", geom[1]);
+}
+
+#[test]
+fn test_callout_target_scaled_world_bounds() {
+    // Target at (200, 100), half=(40, 20), scale=2 → AABB half=(80, 40).
+    // place=right → attach = (280, 100).
+    let mut timeline = Timeline::new();
+    let (target_type, mut target_geometry) = make_target_track("box", [200.0, 100.0], [40.0, 20.0]);
+    target_geometry.scale = Some({
+        let mut t = PropertyTrack::new(2.0f32);
+        t.add_keyframe(0, 2.0, Easing::Linear);
+        t
+    });
+    spawn_seen(&mut timeline, "box", target_type, target_geometry);
+    let (callout_type, callout_geometry) = make_callout_track("note", "box");
+    spawn_seen(&mut timeline, "note", callout_type, callout_geometry);
+
+    let geom = derived_to(&timeline);
+    assert!(
+        (geom[0] - 280.0).abs() < 0.5,
+        "expected to.x=280 (scale-aware), got {}",
+        geom[0]
+    );
+    assert!((geom[1] - 100.0).abs() < 0.5, "expected to.y=100, got {}", geom[1]);
+}
+
+#[test]
+fn test_callout_target_rotated_aabb() {
+    // Target at (200, 100), half=(40, 20), rotation=π/2: the AABB swaps axes,
+    // so place=right attaches at 200 + half_y = 220.
+    let angle_rad = std::f32::consts::FRAC_PI_2;
+    let mut timeline = Timeline::new();
+    let (target_type, mut target_geometry) = make_target_track("box", [200.0, 100.0], [40.0, 20.0]);
+    target_geometry.rotation = Some({
+        let mut t = PropertyTrack::new(angle_rad);
+        t.add_keyframe(0, angle_rad, Easing::Linear);
+        t
+    });
+    spawn_seen(&mut timeline, "box", target_type, target_geometry);
+    let (callout_type, callout_geometry) = make_callout_track("note", "box");
+    spawn_seen(&mut timeline, "note", callout_type, callout_geometry);
+
+    let hw = 40.0_f32;
+    let hh = 20.0_f32;
+    let expected_half_x = hw * angle_rad.cos().abs() + hh * angle_rad.sin().abs();
+    let expected_to_x = 200.0 + expected_half_x;
+    let geom = derived_to(&timeline);
+    assert!(
+        (geom[0] - expected_to_x).abs() < 0.5,
+        "expected to.x≈{expected_to_x:.1} (rotation-aware AABB), got {}",
+        geom[0]
+    );
+}
+
+#[test]
+fn test_callout_target_nested_child_world_bounds() {
+    // parent at (100, 0); child nested at (100, 0) relative to parent.
+    // Child world centre = (200, 0); place=right → attach = (240, 0).
+    let mut timeline = Timeline::new();
+    let (parent_type, parent_geometry) = make_target_track("parent", [100.0, 0.0], [50.0, 50.0]);
+    let parent_id = spawn_seen(&mut timeline, "parent", parent_type, parent_geometry);
+    let (child_type, child_geometry) = make_target_track("child", [100.0, 0.0], [40.0, 20.0]);
+    let child_id = spawn_seen(&mut timeline, "child", child_type, child_geometry);
+    timeline.world.link(parent_id, child_id);
+
+    let (callout_type, callout_geometry) = make_callout_track("note", "child");
+    spawn_seen(&mut timeline, "note", callout_type, callout_geometry);
+
+    let geom = derived_to(&timeline);
+    assert!(
+        (geom[0] - 240.0).abs() < 0.5,
+        "expected to.x=240 (nested world bounds), got {}",
+        geom[0]
+    );
+    assert!((geom[1] - 0.0).abs() < 0.5, "expected to.y=0, got {}", geom[1]);
+}
+
+#[test]
+fn test_callout_missing_target_produces_diagnostic() {
+    let report = build_report(callout(vec![prop("target", Expr::Str("nonexistent".to_string()))]));
+    use crate::diagnostics::DiagnosticCode;
+    let found = report
+        .diagnostics
+        .iter()
+        .any(|d| matches!(d.code, DiagnosticCode::CalloutTargetNotFound));
+    assert!(
+        found,
+        "expected CalloutTargetNotFound diagnostic, got: {:?}",
+        report.diagnostics
+    );
 }

@@ -1,38 +1,145 @@
 use super::*;
 use crate::ast::BinaryOp;
 
+// ── Fixtures ──────────────────────────────────────────────────────────────
+
+fn prop(name: &str, value: Expr) -> Property {
+    Property {
+        name: name.to_string(),
+        value,
+        value_span: None,
+        trailing_comment: None,
+    }
+}
+
+fn vec2(x: f64, y: f64) -> Expr {
+    Expr::Tuple(vec![Expr::Num(x), Expr::Num(y)])
+}
+
+fn actor(label: &str, ty: &str, props: Vec<Property>) -> Stmt {
+    Stmt::ActorDecl {
+        is_pub: false,
+        is_anonymous: false,
+        label: label.to_string(),
+        array_index: None,
+        ty: ty.to_string(),
+        props,
+        modifiers: vec![],
+        children: vec![],
+        span: None,
+    }
+}
+
+fn keyframe(seconds: f64, body: Vec<Stmt>) -> Stmt {
+    Stmt::Keyframe {
+        time: crate::ast::Time::Seconds(seconds),
+        body,
+        span: None,
+    }
+}
+
+fn let_decl(name: &str, value: Expr) -> Stmt {
+    Stmt::LetDecl {
+        is_pub: false,
+        name: name.to_string(),
+        value,
+        span: None,
+    }
+}
+
+fn assign(label: &str, property: &str, value: Expr) -> Stmt {
+    Stmt::Assignment {
+        target: vec![crate::ast::TargetSegment::Static(label.to_string())],
+        property: property.to_string(),
+        value,
+        modifiers: vec![],
+        easing: None,
+        value_span: None,
+        span: None,
+    }
+}
+
+fn always(body: Vec<Stmt>) -> Stmt {
+    Stmt::Always { body, span: None }
+}
+
+fn bin(a: Expr, op: BinaryOp, b: Expr) -> Expr {
+    Expr::Binary(Box::new(a), op, Box::new(b))
+}
+
+fn call(name: &str, args: Vec<Expr>) -> Expr {
+    Expr::Call(name.to_string(), args)
+}
+
+fn build_ast(ast: Vec<Stmt>) -> crate::timeline::BuildReport<Timeline> {
+    Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new())
+}
+
+fn clean_ast(ast: Vec<Stmt>) -> Timeline {
+    let report = build_ast(ast);
+    assert!(
+        without_content_lints(&report.diagnostics).next().is_none(),
+        "expected no diagnostics, got: {:?}",
+        report.diagnostics
+    );
+    report.output
+}
+
+/// Parse a scene, build it, and require no diagnostics beyond content hints.
+fn build_source(source: &str) -> Timeline {
+    let parsed = animatix_syntax::parser::parse_source_complete(source);
+    assert!(parsed.errors.is_empty(), "parse errors: {:?}", parsed.errors);
+    clean_ast(parsed.ast.expect("statements"))
+}
+
+/// Expand a source loaded through the module graph, then build it.
+fn build_module(path: &str, source: &str) -> Timeline {
+    let mut graph = animatix_syntax::module::ModuleGraph::new();
+    let program = graph
+        .load_program_with_source(std::path::Path::new(path), Some(source))
+        .expect("program loads");
+    let expanded = program.expand_components(&mut Vec::new());
+    clean_ast(expanded)
+}
+
+fn build_module_file(path: &std::path::Path) -> Option<Timeline> {
+    if !path.exists() {
+        return None;
+    }
+    let mut graph = animatix_syntax::module::ModuleGraph::new();
+    let program = graph.load_program(path).expect("program loads");
+    let expanded = program.expand_components(&mut Vec::new());
+    Some(clean_ast(expanded))
+}
+
+type Overrides = std::collections::HashMap<String, std::collections::HashMap<String, Value>>;
+
+/// Execute the compiled `always` programs against one frame environment.
+fn run_frame(timeline: &Timeline, time_ms: u64, dims: SceneDimensions) -> (Environment, Overrides) {
+    let mut overrides = Overrides::new();
+    let mut env = timeline.build_frame_env(time_ms, dims, &overrides);
+    for program in &timeline.modifier_programs {
+        timeline
+            .apply_modifier_program(program, time_ms, dims, &mut env, &mut overrides)
+            .expect("modifier IR execution should succeed");
+    }
+    (env, overrides)
+}
+
+/// The overrides an `always` program wrote for one frame.
+fn run_modifiers(timeline: &Timeline, time_ms: u64, dims: SceneDimensions) -> Overrides {
+    run_frame(timeline, time_ms, dims).1
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────
+
 #[test]
 fn test_keyframe_scoped_variables_create_tracks() {
     let ast = vec![
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![Stmt::LetDecl {
-                is_pub: false,
-                name: "freq".to_string(),
-                value: Expr::Num(1.0),
-                span: None,
-            }],
-            span: None,
-        },
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(3.0),
-            body: vec![Stmt::LetDecl {
-                is_pub: false,
-                name: "freq".to_string(),
-                value: Expr::Num(1.7),
-                span: None,
-            }],
-            span: None,
-        },
+        keyframe(0.0, vec![let_decl("freq", Expr::Num(1.0))]),
+        keyframe(3.0, vec![let_decl("freq", Expr::Num(1.7))]),
     ];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
+    let timeline = clean_ast(ast);
 
     assert!(
         timeline.variable_tracks.contains_key("freq"),
@@ -41,147 +148,80 @@ fn test_keyframe_scoped_variables_create_tracks() {
     let freq_track = timeline.variable_tracks.get("freq").unwrap();
     assert_eq!(freq_track.keyframes.len(), 2, "Expected 2 keyframes for freq");
 
-    // At t=0s, freq should be 1.0
-    let val_0s = freq_track.evaluate(0);
-    assert!(val_0s.is_some(), "Expected freq value at t=0s");
-    assert_eq!(val_0s.unwrap(), Value::Num(1.0));
-
-    // At t=1.5s, freq should still be 1.0 (piecewise-constant)
-    let val_1_5s = freq_track.evaluate(1500);
-    assert!(val_1_5s.is_some(), "Expected freq value at t=1.5s");
-    assert_eq!(val_1_5s.unwrap(), Value::Num(1.0));
-
-    // At t=3s, freq should be 1.7
-    let val_3s = freq_track.evaluate(3000);
-    assert!(val_3s.is_some(), "Expected freq value at t=3s");
-    assert_eq!(val_3s.unwrap(), Value::Num(1.7));
-
-    // At t=5s, freq should still be 1.7
-    let val_5s = freq_track.evaluate(5000);
-    assert!(val_5s.is_some(), "Expected freq value at t=5s");
-    assert_eq!(val_5s.unwrap(), Value::Num(1.7));
+    // Piecewise-constant: 1.0 until the 3s stamp, 1.7 afterwards.
+    for (ms, expected) in [(0, 1.0), (1500, 1.0), (3000, 1.7), (5000, 1.7)] {
+        let value = freq_track.evaluate(ms);
+        assert!(value.is_some(), "Expected freq value at t={ms}ms");
+        assert_eq!(value.unwrap(), Value::Num(expected));
+    }
 }
 
 #[test]
 fn test_keyframe_scoped_variables_injected_into_frame_env() {
-    let ast = vec![Stmt::Keyframe {
-        time: crate::ast::Time::Seconds(0.0),
-        body: vec![
-            Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "tracker".to_string(),
-                array_index: None,
-                ty: "Ellipse".to_string(),
-                props: vec![
-                    Property {
-                        name: "radius_x".to_string(),
-                        value: Expr::Num(10.0),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                    Property {
-                        name: "radius_y".to_string(),
-                        value: Expr::Num(10.0),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                    Property {
-                        name: "at".to_string(),
-                        value: Expr::Tuple(vec![Expr::Num(0.0), Expr::Num(0.0)]),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
+    let ast = vec![keyframe(
+        0.0,
+        vec![
+            actor(
+                "tracker",
+                "Ellipse",
+                vec![
+                    prop("radius_x", Expr::Num(10.0)),
+                    prop("radius_y", Expr::Num(10.0)),
+                    prop("at", vec2(0.0, 0.0)),
                 ],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            },
-            Stmt::LetDecl {
-                is_pub: false,
-                name: "freq".to_string(),
-                value: Expr::Num(2.0),
-                span: None,
-            },
-            Stmt::Always {
-                body: vec![Stmt::Assignment {
-                    target: vec![crate::ast::TargetSegment::Static("tracker".to_string())],
-                    property: "at".to_string(),
-                    value: Expr::Tuple(vec![
-                        Expr::Binary(
-                            Box::new(Expr::Num(640.0)),
-                            BinaryOp::Add,
-                            Box::new(Expr::Binary(
-                                Box::new(Expr::Num(100.0)),
-                                BinaryOp::Mul,
-                                Box::new(Expr::Call(
-                                    "cos".to_string(),
-                                    vec![Expr::Binary(
-                                        Box::new(Expr::Ident("freq".to_string())),
-                                        BinaryOp::Mul,
-                                        Box::new(Expr::Ident("t".to_string())),
-                                    )],
-                                )),
-                            )),
+            ),
+            let_decl("freq", Expr::Num(2.0)),
+            always(vec![assign(
+                "tracker",
+                "at",
+                Expr::Tuple(vec![
+                    bin(
+                        Expr::Num(640.0),
+                        BinaryOp::Add,
+                        bin(
+                            Expr::Num(100.0),
+                            BinaryOp::Mul,
+                            call(
+                                "cos",
+                                vec![bin(
+                                    Expr::Ident("freq".to_string()),
+                                    BinaryOp::Mul,
+                                    Expr::Ident("t".to_string()),
+                                )],
+                            ),
                         ),
-                        Expr::Binary(
-                            Box::new(Expr::Num(360.0)),
-                            BinaryOp::Add,
-                            Box::new(Expr::Binary(
-                                Box::new(Expr::Num(100.0)),
-                                BinaryOp::Mul,
-                                Box::new(Expr::Call(
-                                    "sin".to_string(),
-                                    vec![Expr::Binary(
-                                        Box::new(Expr::Ident("freq".to_string())),
-                                        BinaryOp::Mul,
-                                        Box::new(Expr::Ident("t".to_string())),
-                                    )],
-                                )),
-                            )),
+                    ),
+                    bin(
+                        Expr::Num(360.0),
+                        BinaryOp::Add,
+                        bin(
+                            Expr::Num(100.0),
+                            BinaryOp::Mul,
+                            call(
+                                "sin",
+                                vec![bin(
+                                    Expr::Ident("freq".to_string()),
+                                    BinaryOp::Mul,
+                                    Expr::Ident("t".to_string()),
+                                )],
+                            ),
                         ),
-                    ]),
-                    modifiers: vec![],
-                    easing: None,
-                    value_span: None,
-                    span: None,
-                }],
-                span: None,
-            },
+                    ),
+                ]),
+            )]),
         ],
-        span: None,
-    }];
+    )];
+    let timeline = clean_ast(ast);
 
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
-
-    // Evaluate at t=0s — with freq=2.0, cos(2*0)=1, sin(2*0)=0
-    let mut overrides = std::collections::HashMap::new();
-    let mut env = timeline.build_frame_env_internal(
+    // Evaluate at t=0s — with freq=2.0, cos(2*0)=1, sin(2*0)=0.
+    let overrides = run_modifiers(
+        &timeline,
         0,
         SceneDimensions {
             width: 1280,
             height: 720,
         },
-        &overrides,
     );
-    for program in &timeline.modifier_programs {
-        timeline
-            .apply_modifier_program(
-                program,
-                0,
-                SceneDimensions::default(),
-                &mut env,
-                &mut overrides,
-            )
-            .expect("modifier IR execution should succeed");
-    }
-
     let tracker_at = overrides.get("tracker").and_then(|m| m.get("at"));
     assert!(
         tracker_at.is_some(),
@@ -197,80 +237,31 @@ fn test_keyframe_scoped_variables_injected_into_frame_env() {
 
 #[test]
 fn always_object_field_writes_update_frame_environment() {
-    let ast = vec![Stmt::Keyframe {
-        time: crate::ast::Time::Seconds(0.0),
-        body: vec![
-            Stmt::LetDecl {
-                is_pub: false,
-                name: "p".to_string(),
-                value: Expr::Construct(
+    let ast = vec![keyframe(
+        0.0,
+        vec![
+            let_decl(
+                "p",
+                Expr::Construct(
                     "Point".to_string(),
-                    vec![
-                        Property {
-                            name: "x".to_string(),
-                            value: Expr::Num(10.0),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "y".to_string(),
-                            value: Expr::Num(20.0),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                    ],
+                    vec![prop("x", Expr::Num(10.0)), prop("y", Expr::Num(20.0))],
                 ),
-                span: None,
-            },
-            Stmt::Always {
-                body: vec![
-                    Stmt::Assignment {
-                        target: vec![crate::ast::TargetSegment::Static("p".to_string())],
-                        property: "x".to_string(),
-                        value: Expr::Num(30.0),
-                        modifiers: vec![],
-                        easing: None,
-                        value_span: None,
-                        span: None,
-                    },
-                    Stmt::LetDecl {
-                        is_pub: false,
-                        name: "q".to_string(),
-                        value: Expr::Binary(
-                            Box::new(Expr::Path(vec!["p".to_string(), "x".to_string()])),
-                            BinaryOp::Add,
-                            Box::new(Expr::Num(1.0)),
-                        ),
-                        span: None,
-                    },
-                ],
-                span: None,
-            },
+            ),
+            always(vec![
+                assign("p", "x", Expr::Num(30.0)),
+                let_decl(
+                    "q",
+                    bin(
+                        Expr::Path(vec!["p".to_string(), "x".to_string()]),
+                        BinaryOp::Add,
+                        Expr::Num(1.0),
+                    ),
+                ),
+            ]),
         ],
-        span: None,
-    }];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
-
-    let mut overrides = std::collections::HashMap::new();
-    let mut env = timeline.build_frame_env(0, SceneDimensions::default(), &overrides);
-    for program in &timeline.modifier_programs {
-        timeline
-            .apply_modifier_program(
-                program,
-                0,
-                SceneDimensions::default(),
-                &mut env,
-                &mut overrides,
-            )
-            .expect("modifier IR execution should succeed");
-    }
+    )];
+    let timeline = clean_ast(ast);
+    let (env, _) = run_frame(&timeline, 0, SceneDimensions::default());
 
     match env.get("p") {
         Some(Value::Object(name, fields)) => {
@@ -285,7 +276,8 @@ fn always_object_field_writes_update_frame_environment() {
 
 #[test]
 fn build_time_for_loop_let_shadowing_carries_algorithm_state() {
-    let source = r#"
+    let timeline = build_source(
+        r#"
 #0s
 let arr = {2, 1}
 for i in {0} {
@@ -294,19 +286,8 @@ for i in {0} {
   }
   let done = arr[0] == 1
 }
-"#;
-    let parsed = animatix_syntax::parser::parse_source_complete(source);
-    assert!(parsed.errors.is_empty(), "parse errors: {:?}", parsed.errors);
-    let report = Timeline::build_with_diagnostics(
-        parsed.ast.as_ref().expect("statements"),
-        &std::collections::HashMap::new(),
+"#,
     );
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "expected no diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
 
     let arr = timeline.variable_tracks.get("arr").expect("arr track");
     assert_eq!(
@@ -327,7 +308,8 @@ fn build_time_for_loop_step_sequences_swap_actions() {
     // A `[step: 300ms]` for loop advances the build-time clock per iteration,
     // so variable-index swap actions land on distinct keyframe times instead
     // of colliding at the loop start.
-    let source = r#"
+    let timeline = build_source(
+        r#"
 config { dynamic_layout: true }
 row: Row, at: (640, 440), gap: 16 {
   for k in {0, 1, 2} {
@@ -342,19 +324,8 @@ for i in {0, 1} [step: 300ms] {
     let arr = list_swap(arr, i, i+1)
   }
 }
-"#;
-    let parsed = animatix_syntax::parser::parse_source_complete(source);
-    assert!(parsed.errors.is_empty(), "parse errors: {:?}", parsed.errors);
-    let report = Timeline::build_with_diagnostics(
-        parsed.ast.as_ref().expect("statements"),
-        &std::collections::HashMap::new(),
+"#,
     );
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "expected no diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
 
     // Two swaps: t=0..300 (b0<->b1) and t=300..600 (b1<->b2).
     let track = &timeline.child_order("row").expect("row child_orders track").track;
@@ -380,7 +351,8 @@ for i in {0, 1} [step: 300ms] {
 fn build_time_indexed_assignment_resolves_against_loop_variables() {
     // `row.b[j].color = red` inside a for loop resolves `j` against the build
     // environment into the concrete `b__N` track.
-    let source = r#"
+    let timeline = build_source(
+        r#"
 config { dynamic_layout: true }
 row: Row, at: (640, 440), gap: 16 {
   for k in {0, 1, 2} {
@@ -391,19 +363,8 @@ row: Row, at: (640, 440), gap: 16 {
 for j in {0, 2} {
   row.b[j].color = red [200ms]
 }
-"#;
-    let parsed = animatix_syntax::parser::parse_source_complete(source);
-    assert!(parsed.errors.is_empty(), "parse errors: {:?}", parsed.errors);
-    let report = Timeline::build_with_diagnostics(
-        parsed.ast.as_ref().expect("statements"),
-        &std::collections::HashMap::new(),
+"#,
     );
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "expected no diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
     for key in ["b__0", "b__2"] {
         let track = timeline.world.tracks.get_id(key).unwrap_or_else(|| panic!("{key} track"));
         assert_eq!(
@@ -413,97 +374,51 @@ for j in {0, 2} {
         );
     }
 }
+
 #[test]
 fn always_nested_object_field_writes_update_frame_environment() {
-    let ast = vec![Stmt::Keyframe {
-        time: crate::ast::Time::Seconds(0.0),
-        body: vec![
-            Stmt::LetDecl {
-                is_pub: false,
-                name: "p".to_string(),
-                value: Expr::Construct(
+    let ast = vec![keyframe(
+        0.0,
+        vec![
+            let_decl(
+                "p",
+                Expr::Construct(
                     "Point".to_string(),
-                    vec![Property {
-                        name: "a".to_string(),
-                        value: Expr::Construct(
+                    vec![prop(
+                        "a",
+                        Expr::Construct(
                             "Inner".to_string(),
-                            vec![
-                                Property {
-                                    name: "b".to_string(),
-                                    value: Expr::Num(10.0),
-                                    value_span: None,
-                                    trailing_comment: None,
-                                },
-                                Property {
-                                    name: "c".to_string(),
-                                    value: Expr::Num(20.0),
-                                    value_span: None,
-                                    trailing_comment: None,
-                                },
-                            ],
+                            vec![prop("b", Expr::Num(10.0)), prop("c", Expr::Num(20.0))],
                         ),
-                        value_span: None,
-                        trailing_comment: None,
-                    }],
+                    )],
                 ),
-                span: None,
-            },
-            Stmt::Always {
-                body: vec![
-                    Stmt::Assignment {
-                        target: vec![
-                            crate::ast::TargetSegment::Static("p".to_string()),
-                            crate::ast::TargetSegment::Static("a".to_string()),
-                        ],
-                        property: "b".to_string(),
-                        value: Expr::Num(30.0),
-                        modifiers: vec![],
-                        easing: None,
-                        value_span: None,
-                        span: None,
-                    },
-                    Stmt::LetDecl {
-                        is_pub: false,
-                        name: "q".to_string(),
-                        value: Expr::Binary(
-                            Box::new(Expr::Path(vec![
-                                "p".to_string(),
-                                "a".to_string(),
-                                "b".to_string(),
-                            ])),
-                            BinaryOp::Add,
-                            Box::new(Expr::Num(1.0)),
-                        ),
-                        span: None,
-                    },
-                ],
-                span: None,
-            },
+            ),
+            always(vec![
+                Stmt::Assignment {
+                    target: vec![
+                        crate::ast::TargetSegment::Static("p".to_string()),
+                        crate::ast::TargetSegment::Static("a".to_string()),
+                    ],
+                    property: "b".to_string(),
+                    value: Expr::Num(30.0),
+                    modifiers: vec![],
+                    easing: None,
+                    value_span: None,
+                    span: None,
+                },
+                let_decl(
+                    "q",
+                    bin(
+                        Expr::Path(vec!["p".to_string(), "a".to_string(), "b".to_string()]),
+                        BinaryOp::Add,
+                        Expr::Num(1.0),
+                    ),
+                ),
+            ]),
         ],
-        span: None,
-    }];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
-
-    let mut overrides = std::collections::HashMap::new();
-    let mut env = timeline.build_frame_env(0, SceneDimensions::default(), &overrides);
-    for program in &timeline.modifier_programs {
-        timeline
-            .apply_modifier_program(
-                program,
-                0,
-                SceneDimensions::default(),
-                &mut env,
-                &mut overrides,
-            )
-            .expect("modifier IR execution should succeed");
-    }
+    )];
+    let timeline = clean_ast(ast);
+    let (env, _) = run_frame(&timeline, 0, SceneDimensions::default());
 
     assert_eq!(env.get("q"), Some(Value::Num(31.0)));
     match env.get("p") {
@@ -523,7 +438,8 @@ fn always_nested_object_field_writes_update_frame_environment() {
 fn pure_fn_calls_evaluate_in_expressions() {
     // `fn` declarations with `-> Type` are evaluated at build time when their
     // calls appear in `let` expressions; `return` unwinds the body.
-    let source = r#"
+    let timeline = build_source(
+        r#"
 fn dnf(arr: List<Num>) -> List<Num> {
   let arr = list_swap(arr, 0, 2)
   return arr
@@ -540,19 +456,8 @@ fn total(xs: List<Num>) -> Num {
 #0s
 let sorted = dnf({3, 2, 1})
 let summed = total(sorted)
-"#;
-    let parsed = animatix_syntax::parser::parse_source_complete(source);
-    assert!(parsed.errors.is_empty(), "parse errors: {:?}", parsed.errors);
-    let report = Timeline::build_with_diagnostics(
-        parsed.ast.as_ref().expect("statements"),
-        &std::collections::HashMap::new(),
+"#,
     );
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "expected no diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
     let sorted = timeline.variable_tracks.get("sorted").expect("sorted track");
     assert_eq!(
         sorted.evaluate(0),
@@ -571,7 +476,9 @@ let summed = total(sorted)
 fn timeline_fn_expands_with_block_scope_without_leaking_locals() {
     // A timeline function body's local `let` must not leak into the scene
     // after the call, and must not write scene variable tracks.
-    let source = r#"
+    let timeline = build_module(
+        "fn_scope.amx",
+        r#"
 config { colorscheme: "editorial-dark" }
 fn pulse(strength: Num = 1.0) {
   let local = strength * 2
@@ -582,21 +489,8 @@ btn: Rect, size: (100, 50), color: blue
 fade-in btn [300ms]
 #1s
 pulse btn [strength: 1.5]
-"#;
-    // Timeline-function calls are expanded by the module system, so load
-    // through the module graph like the CLI does.
-    let mut graph = animatix_syntax::module::ModuleGraph::new();
-    let program = graph
-        .load_program_with_source(std::path::Path::new("fn_scope.amx"), Some(source))
-        .expect("program loads");
-    let expanded = program.expand_components(&mut Vec::new());
-    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "expected no diagnostics, got: {:?}",
-        report.diagnostics
+"#,
     );
-    let timeline = report.output;
     assert!(
         !timeline.variable_tracks.contains_key("local"),
         "function-local let must not create a scene variable track"
@@ -616,7 +510,9 @@ pulse btn [strength: 1.5]
 fn timeline_fn_drives_algorithm_sort() {
     // The insertion-sort loop extracted into a timeline function produces the
     // same swap sequence as the inlined version (module expansion + fn blocks).
-    let source = r#"
+    let timeline = build_module(
+        "fn_sort.amx",
+        r#"
 config { colorscheme: "editorial-dark", dynamic_layout: true }
 fn bubble_sort(bars, values: List<Num>) {
   let arr = values
@@ -637,19 +533,8 @@ row: Row, at: (640, 440), gap: 16 {
 #0s
 let vals = {4, 1, 3, 2}
 bubble_sort(b, vals)
-"#;
-    let mut graph = animatix_syntax::module::ModuleGraph::new();
-    let program = graph
-        .load_program_with_source(std::path::Path::new("fn_sort.amx"), Some(source))
-        .expect("program loads");
-    let expanded = program.expand_components(&mut Vec::new());
-    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "expected no diagnostics, got: {:?}",
-        report.diagnostics
+"#,
     );
-    let timeline = report.output;
     // 4 swaps (1 + 1 + 2) land on the step-sequenced timeline: times are
     // pass_start + j*300 for the swaps in each pass.
     let track = &timeline.child_order("row").expect("row child_orders").track;
@@ -666,7 +551,9 @@ fn timeline_fn_dnf_swaps_resolve_index_params() {
     // DNF partition inside a timeline function: `zero`/`i`/`two` are value
     // parameters let-bound into the block, and `swap row.b[zero], row.b[i]`
     // target indices resolve against those locals at build time.
-    let source = r#"
+    let timeline = build_module(
+        "dnf_fn.amx",
+        r#"
 config { colorscheme: "editorial-dark", dynamic_layout: true }
 fn dnf_pass(arr: List<Num>, zero: Num, i: Num, two: Num) {
   let arr = arr
@@ -701,27 +588,15 @@ row: Row, at: (640, 440), gap: 16 {
 #0s
 let arr = {2, 0, 1, 2, 1, 0}
 dnf_pass(arr, 0, 0, 5)
-"#;
-    let mut graph = animatix_syntax::module::ModuleGraph::new();
-    let program = graph
-        .load_program_with_source(std::path::Path::new("dnf_fn.amx"), Some(source))
-        .expect("program loads");
-    let expanded = program.expand_components(&mut Vec::new());
-    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "expected no diagnostics, got: {:?}",
-        report.diagnostics
+"#,
     );
-    let timeline = report.output;
     // Effective swaps: (0,5) at t=0 and (3,4) at t=2800; the same-index
     // swaps are no-ops but still emit child-order keyframes.
     let track = &timeline.child_order("row").expect("row child_orders").track;
     let orders = track.keyframes.keys().copied().collect::<Vec<_>>();
     assert!(!orders.is_empty(), "dnf fn must emit swap keyframes");
-    eprintln!("[dnf-fn] orders = {orders:?}");
     // Final child order after the swaps: [0,0,1,1,2,2] values map to slots
-    // b__0..b__5; assert the layout settles without duplicate-position chaos.
+    // b__0..b__5.
     let final_order = timeline.get_child_order("row", *orders.last().expect("last keyframe"));
     assert_eq!(
         final_order,
@@ -735,7 +610,9 @@ fn timeline_fn_dotted_targets_resolve_against_instance() {
     // Timeline function whose targets are dotted (`bars.bar[j]`) against a
     // component instance: the label parameter substitutes into the target
     // string and indices resolve against the loop locals.
-    let source = r#"
+    let timeline = build_module(
+        "fn_dotted.amx",
+        r#"
 config { colorscheme: "editorial-dark", dynamic_layout: true }
 fn bubble_sort(bars, values: List<Num>) {
   let arr = values
@@ -759,33 +636,13 @@ bars: Bars, values: {4, 1, 3, 2}, colors: {(0.4, 0.8, 1.0, 1.0), (1.0, 0.7, 0.3,
 #0s
 let vals = {4, 1, 3, 2}
 bubble_sort(bars, vals)
-"#;
-    let mut graph = animatix_syntax::module::ModuleGraph::new();
-    let program = graph
-        .load_program_with_source(std::path::Path::new("fn_dotted.amx"), Some(source))
-        .expect("program loads");
-    let expanded = program.expand_components(&mut Vec::new());
-    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "expected no diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
-    eprintln!(
-        "[dotted-fn] child_order ids: {:?}",
-        timeline.child_orders_iter().map(|(id, _)| id).collect::<Vec<_>>()
-    );
-    eprintln!(
-        "[dotted-fn] tracks sample: {:?}",
-        timeline.world.tracks.keys().take(8).collect::<Vec<_>>()
+"#,
     );
     // The component instance's row track receives the swaps.
     let (row_id, _) = timeline.child_orders_iter().next().expect("row child_orders");
     let row_key = timeline.get_entity_label(row_id).expect("row label").to_string();
     let track = &timeline.child_order(&row_key).expect("row child_orders").track;
     let times = track.keyframes.keys().copied().collect::<Vec<_>>();
-    eprintln!("[dotted-fn] times = {times:?}");
     assert_eq!(
         times,
         vec![0, 300, 1200, 1500, 2400, 2700, 3000],
@@ -797,7 +654,8 @@ bubble_sort(bars, vals)
 fn pure_fn_tail_expression_returns_value() {
     // A pure function's final expression is its return value (Rust style);
     // `return` statements still work for early unwinding.
-    let source = r#"
+    let timeline = build_source(
+        r#"
 fn sum2(xs: List<Num>) -> Num {
   let a = xs[0]
   let b = xs[1]
@@ -813,19 +671,8 @@ fn guard(n: Num) -> Num {
 let s = sum2({3, 4})
 let g = guard(-5)
 let h = guard(21)
-"#;
-    let parsed = animatix_syntax::parser::parse_source_complete(source);
-    assert!(parsed.errors.is_empty(), "parse errors: {:?}", parsed.errors);
-    let report = Timeline::build_with_diagnostics(
-        parsed.ast.as_ref().expect("statements"),
-        &std::collections::HashMap::new(),
+"#,
     );
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "expected no diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
     let s = timeline.variable_tracks.get("s").expect("s track");
     assert_eq!(s.evaluate(0), Some(Value::Num(7.0)), "tail expr 3+4");
     let g = timeline.variable_tracks.get("g").expect("g track");
@@ -838,7 +685,8 @@ let h = guard(21)
 fn always_block_calls_pure_fn_at_frame_time() {
     // Pure functions are callable from `always` bodies: the IR executor
     // resolves the UserFn through the frame environment.
-    let source = r#"
+    let timeline = build_source(
+        r#"
 fn double(n: Num) -> Num {
   n * 2
 }
@@ -848,36 +696,9 @@ fade-in box [300ms]
 always {
   box.scale = double(3) [0ms]
 }
-"#;
-    let parsed = animatix_syntax::parser::parse_source_complete(source);
-    assert!(parsed.errors.is_empty(), "parse errors: {:?}", parsed.errors);
-    let report = Timeline::build_with_diagnostics(
-        parsed.ast.as_ref().expect("statements"),
-        &std::collections::HashMap::new(),
+"#,
     );
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "expected no diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
-    // Always modifiers apply during frame evaluation: execute the compiled
-    // modifier program and check the override it produces.
-    use crate::timeline::modifier_runtime::ir::ModifierOverrides;
-    let mut overrides: ModifierOverrides = std::collections::HashMap::new();
-    let mut env = timeline.build_frame_env(
-        500,
-        crate::timeline::SceneDimensions::default(),
-        &std::collections::HashMap::new(),
-    );
-    for program in &timeline.modifier_programs {
-        crate::timeline::modifier_runtime::ir::execute_modifier_ir(
-            program,
-            &mut env,
-            &mut overrides,
-        )
-        .expect("modifier execution");
-    }
+    let overrides = run_modifiers(&timeline, 500, SceneDimensions::default());
     let box_overrides = overrides.get("box").expect("box overrides");
     let scale = box_overrides.get("scale").expect("box.scale override");
     assert_eq!(scale, &Value::Num(6.0), "always must evaluate double(3) = 6 at frame time");
@@ -907,16 +728,9 @@ let scaled = bump(2, 4)
     std::fs::write(dir.join("lib.amx"), lib).expect("write lib");
     let scene_path = dir.join("scene.amx");
     std::fs::write(&scene_path, scene).expect("write scene");
-    let mut graph = animatix_syntax::module::ModuleGraph::new();
-    let program = graph.load_program(&scene_path).expect("program loads");
-    let expanded = program.expand_components(&mut Vec::new());
-    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "expected no diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
+    let timeline = build_module_file(&scene_path).expect("scene builds");
+    let _ = std::fs::remove_dir_all(&dir);
+
     let sorted = timeline.variable_tracks.get("sorted").expect("sorted");
     assert_eq!(
         sorted.evaluate(0),
@@ -935,20 +749,10 @@ fn sort_colors_demo_file_produces_dnf_sequence() {
     let workspace = std::env::var("CARGO_MANIFEST_DIR").expect("manifest dir");
     let demo_path =
         std::path::Path::new(&workspace).join("../../examples/projects/leetcode_sort_colors.amx");
-    if !demo_path.exists() {
+    let Some(timeline) = build_module_file(&demo_path) else {
         eprintln!("skipping: demo file not found at {demo_path:?}");
         return;
-    }
-    let mut graph = animatix_syntax::module::ModuleGraph::new();
-    let program = graph.load_program(&demo_path).expect("demo loads");
-    let expanded = program.expand_components(&mut Vec::new());
-    let report = Timeline::build_with_diagnostics(&expanded, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "demo must build cleanly, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
+    };
     let track = &timeline.child_order("row").expect("row child_orders from the demo").track;
     let last = *track.keyframes.keys().max().expect("last keyframe");
     let final_order = timeline.get_child_order("row", last);

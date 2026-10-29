@@ -1,160 +1,154 @@
 use super::*;
 
-/// Content-lint warnings (`never-revealed`) fire on minimal fixtures whose
-/// actors have no entrance actions — they are about demo content, not the
-/// feature under test, so assertions exclude them.
+/// Build a source fixture and require that only content lints
+/// (`never-revealed`) fire.
+fn built(source: &str) -> crate::timeline::Timeline {
+    let (timeline, diagnostics) = build_ignoring_warnings(source);
+    if let Some(d) = without_content_lints(&diagnostics).next() {
+        panic!("unexpected diagnostic: {} ({})", d.message, d.code);
+    }
+    timeline
+}
+
+/// [`built`] without its no-warnings assertion, for scenes whose point is the
+/// warning: hands back the timeline and every diagnostic the build produced.
+fn build_ignoring_warnings(
+    source: &str,
+) -> (crate::timeline::Timeline, Vec<animatix_syntax::diagnostics::Diagnostic>) {
+    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
+    assert!(parse_errors.is_empty(), "Parse errors: {parse_errors:?}");
+    let report = Timeline::build_with_diagnostics(
+        &ast.expect("parsed AST"),
+        &std::collections::HashMap::new(),
+    );
+    (report.output, report.diagnostics)
+}
+
+/// The vector paths a chart bakes at t=0.
+fn baked_paths(
+    timeline: &crate::timeline::Timeline,
+    label: &str,
+) -> Vec<crate::timeline::VelloPath> {
+    let track = timeline.world.get_id(label).unwrap_or_else(|| panic!("no {label} track"));
+    timeline
+        .world
+        .shape_or_default(track)
+        .evaluate_vector_paths(timeline.world.style(track), 0)
+        .to_vec()
+}
+
+/// Overall bounds of a set of baked paths.
+fn path_bounds(paths: &[crate::timeline::VelloPath]) -> ([f64; 2], [f64; 2]) {
+    use kurbo::Shape as _;
+    let mut min = [f64::INFINITY; 2];
+    let mut max = [f64::NEG_INFINITY; 2];
+    for path in paths {
+        let bbox = path.path.bounding_box();
+        min[0] = min[0].min(bbox.x0);
+        min[1] = min[1].min(bbox.y0);
+        max[0] = max[0].max(bbox.x1);
+        max[1] = max[1].max(bbox.y1);
+    }
+    (min, max)
+}
+
+/// Property-variant fixtures whose only expectation is a clean build.
+macro_rules! clean_build {
+    ($name:ident, $source:expr) => {
+        #[test]
+        fn $name() {
+            let _ = built($source);
+        }
+    };
+}
+
+clean_build!(
+    bar_colors_scheme_token_list,
+    r#"
+        chart: BarChart, data: {("A", 10), ("B", 20)}, bar_colors: {accent.danger, accent.success}
+    "#
+);
+clean_build!(
+    bar_colors_mixed_list,
+    r#"
+        chart: BarChart, data: {("A", 10), ("B", 20)}, bar_colors: {accent.danger, (0, 1, 0, 1)}
+    "#
+);
+clean_build!(
+    bar_colors_auto,
+    r#"
+        chart: BarChart, data: {("A", 10), ("B", 20)}, bar_colors: auto
+    "#
+);
+clean_build!(
+    bar_width_with_variable,
+    r#"
+        let w = 30
+        chart: BarChart, data: {("A", 10), ("B", 20)}, bar_width: w
+    "#
+);
+clean_build!(
+    show_axis_bool,
+    r#"
+        chart: BarChart, data: {("A", 10), ("B", 20)}, show_axis: true
+    "#
+);
+clean_build!(
+    show_axis_string,
+    r#"
+        chart: BarChart, data: {("A", 10), ("B", 20)}, show_axis: "false"
+    "#
+);
+clean_build!(
+    bar_width_auto_string_is_valid,
+    r#"
+        chart: BarChart, data: {("A", 10), ("B", 20)}, bar_width: "auto"
+    "#
+);
+clean_build!(
+    max_value_with_variable,
+    r#"
+        let m = 100
+        chart: BarChart, data: {("A", 10), ("B", 20)}, max_value: m
+    "#
+);
+
 #[test]
 fn bar_colors_scheme_token_single() {
-    let source = r#"
+    let timeline = built(
+        r#"
         chart: BarChart, data: {("A", 10), ("B", 20), ("C", 30)}, bar_colors: accent.danger
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
+    "#,
     );
-    assert!(report.output.world.tracks.contains_key("chart"), "chart track should exist");
-}
-
-#[test]
-fn bar_colors_scheme_token_list() {
-    let source = r#"
-        chart: BarChart, data: {("A", 10), ("B", 20)}, bar_colors: {accent.danger, accent.success}
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
-    );
-}
-
-#[test]
-fn bar_colors_mixed_list() {
-    let source = r#"
-        chart: BarChart, data: {("A", 10), ("B", 20)}, bar_colors: {accent.danger, (0, 1, 0, 1)}
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
-    );
-}
-
-#[test]
-fn bar_colors_auto() {
-    let source = r#"
-        chart: BarChart, data: {("A", 10), ("B", 20)}, bar_colors: auto
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
-    );
+    assert!(timeline.world.tracks.contains_key("chart"), "chart track should exist");
 }
 
 #[test]
 fn bar_colors_invalid_token_emits_diagnostic() {
-    let source = r#"
+    let (timeline, diagnostics) = build_ignoring_warnings(
+        r#"
         chart: BarChart, data: {("A", 10), ("B", 20)}, bar_colors: nonexistent.token
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.code == DiagnosticCode::UnknownColorReference),
-        "Expected UnknownColorReference diagnostic, got: {:?}",
-        report.diagnostics
+    "#,
     );
-    assert!(report.output.world.tracks.contains_key("chart"), "chart track should exist");
-}
-
-#[test]
-fn bar_width_with_variable() {
-    let source = r#"
-        let w = 30
-        chart: BarChart, data: {("A", 10), ("B", 20)}, bar_width: w
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
+        diagnostics.iter().any(|d| d.code == DiagnosticCode::UnknownColorReference),
+        "Expected UnknownColorReference diagnostic, got: {diagnostics:?}"
     );
-}
-
-#[test]
-fn show_axis_bool() {
-    let source = r#"
-        chart: BarChart, data: {("A", 10), ("B", 20)}, show_axis: true
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
-    );
-}
-
-#[test]
-fn show_axis_string() {
-    let source = r#"
-        chart: BarChart, data: {("A", 10), ("B", 20)}, show_axis: "false"
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
-    );
+    assert!(timeline.world.tracks.contains_key("chart"), "chart track should exist");
 }
 
 #[test]
 fn show_axis_invalid_type_emits_diagnostic() {
-    let source = r#"
+    let (timeline, diagnostics) = build_ignoring_warnings(
+        r#"
         chart: BarChart, data: {("A", 10), ("B", 20)}, show_axis: 42
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.code == DiagnosticCode::InvalidPropertyValue),
-        "Expected InvalidPropertyValue diagnostic, got: {:?}",
-        report.diagnostics
+    "#,
     );
-    assert!(report.output.world.tracks.contains_key("chart"), "chart track should exist");
+    assert!(
+        diagnostics.iter().any(|d| d.code == DiagnosticCode::InvalidPropertyValue),
+        "Expected InvalidPropertyValue diagnostic, got: {diagnostics:?}"
+    );
+    assert!(timeline.world.tracks.contains_key("chart"), "chart track should exist");
 }
 
 #[test]
@@ -170,196 +164,123 @@ fn bar_colors_registry_is_build_time_only() {
 
 #[test]
 fn show_labels_bool_creates_child_label_tracks() {
-    let source = r#"
+    let timeline = built(
+        r#"
         chart: BarChart, data: {("A", 10), ("B", 20)}, show_labels: true
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
+    "#,
     );
     assert!(
-        report.output.world.tracks.contains_key("chart_bar_label_0"),
+        timeline.world.tracks.contains_key("chart_bar_label_0"),
         "Bar labels should create child Text tracks"
     );
     assert!(
-        report.output.world.tracks.contains_key("chart_bar_label_1"),
+        timeline.world.tracks.contains_key("chart_bar_label_1"),
         "Each bar should create a child Text label"
     );
 }
 
 #[test]
 fn show_labels_string() {
-    let source = r#"
+    let timeline = built(
+        r#"
         chart: BarChart, data: {("A", 10), ("B", 20)}, show_labels: "false"
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
+    "#,
     );
     assert!(
-        !report.output.world.tracks.contains_key("chart_bar_label_0"),
+        !timeline.world.tracks.contains_key("chart_bar_label_0"),
         "show_labels: \"false\" should suppress child label tracks"
     );
 }
 
 #[test]
 fn show_labels_invalid_type_emits_diagnostic() {
-    let source = r#"
+    let diagnostics = build_ignoring_warnings(
+        r#"
         chart: BarChart, data: {("A", 10), ("B", 20)}, show_labels: 42
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    "#,
+    )
+    .1;
     assert!(
-        report
-            .diagnostics
+        diagnostics
             .iter()
             .any(|d| d.code == DiagnosticCode::InvalidPropertyValue
                 && d.message.contains("show_labels")),
-        "Expected show_labels InvalidPropertyValue diagnostic, got: {:?}",
-        report.diagnostics
-    );
-}
-
-#[test]
-fn bar_width_auto_string_is_valid() {
-    let source = r#"
-        chart: BarChart, data: {("A", 10), ("B", 20)}, bar_width: "auto"
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
+        "Expected show_labels InvalidPropertyValue diagnostic, got: {diagnostics:?}"
     );
 }
 
 #[test]
 fn bar_width_invalid_type_emits_diagnostic() {
-    let source = r#"
+    let diagnostics = build_ignoring_warnings(
+        r#"
         chart: BarChart, data: {("A", 10), ("B", 20)}, bar_width: "wide"
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    "#,
+    )
+    .1;
     assert!(
-        report
-            .diagnostics
+        diagnostics
             .iter()
             .any(|d| d.code == DiagnosticCode::InvalidPropertyValue
                 && d.message.contains("bar_width")),
-        "Expected bar_width InvalidPropertyValue diagnostic, got: {:?}",
-        report.diagnostics
+        "Expected bar_width InvalidPropertyValue diagnostic, got: {diagnostics:?}"
     );
 }
 
 #[test]
 fn max_value_invalid_type_emits_diagnostic() {
-    let source = r#"
+    let diagnostics = build_ignoring_warnings(
+        r#"
         chart: BarChart, data: {("A", 10), ("B", 20)}, max_value: "tall"
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    "#,
+    )
+    .1;
     assert!(
-        report
-            .diagnostics
+        diagnostics
             .iter()
             .any(|d| d.code == DiagnosticCode::InvalidPropertyValue
                 && d.message.contains("max_value")),
-        "Expected max_value InvalidPropertyValue diagnostic, got: {:?}",
-        report.diagnostics
+        "Expected max_value InvalidPropertyValue diagnostic, got: {diagnostics:?}"
     );
 }
 
 #[test]
 fn flat_number_list_auto_labeling() {
-    let source = r#"
+    let (timeline, diagnostics) = build_ignoring_warnings(
+        r#"
         chart: BarChart, data: {10, 20, 30}
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    // A diagnostic should be emitted informing about auto-labeling
-    assert!(
-        report.diagnostics.iter().any(|d| d.code == DiagnosticCode::InvalidPropertyValue
-            && d.message.contains("flat number list detected")),
-        "Expected InvalidPropertyValue diagnostic about auto-labeling, got: {:?}",
-        report.diagnostics
+    "#,
     );
-    // The chart track should still exist (auto-labeling worked)
-    assert!(report.output.world.tracks.contains_key("chart"), "chart track should exist");
+    assert!(
+        diagnostics.iter().any(|d| d.code == DiagnosticCode::InvalidPropertyValue
+            && d.message.contains("flat number list detected")),
+        "Expected InvalidPropertyValue diagnostic about auto-labeling, got: {diagnostics:?}"
+    );
+    assert!(timeline.world.tracks.contains_key("chart"), "chart track should exist");
 }
 
 #[test]
 fn flat_number_list_single_value() {
-    let source = r#"
+    let (timeline, diagnostics) = build_ignoring_warnings(
+        r#"
         chart: BarChart, data: {42}
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    // A diagnostic should be emitted for the flat number list
-    assert!(
-        report.diagnostics.iter().any(|d| d.code == DiagnosticCode::InvalidPropertyValue
-            && d.message.contains("flat number list detected")),
-        "Expected auto-labeling diagnostic, got: {:?}",
-        report.diagnostics
+    "#,
     );
-    assert!(report.output.world.tracks.contains_key("chart"), "chart track should exist");
+    assert!(
+        diagnostics.iter().any(|d| d.code == DiagnosticCode::InvalidPropertyValue
+            && d.message.contains("flat number list detected")),
+        "Expected auto-labeling diagnostic, got: {diagnostics:?}"
+    );
+    assert!(timeline.world.tracks.contains_key("chart"), "chart track should exist");
 }
 
 #[test]
 fn tuple_list_still_works_with_no_diagnostics() {
-    let source = r#"
+    let timeline = built(
+        r#"
         chart: BarChart, data: {("X", 10), ("Y", 20)}
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    // Normal tuple list should produce no diagnostics
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
+    "#,
     );
-    assert!(report.output.world.tracks.contains_key("chart"), "chart track should exist");
-}
-
-#[test]
-fn max_value_with_variable() {
-    let source = r#"
-        let m = 100
-        chart: BarChart, data: {("A", 10), ("B", 20)}, max_value: m
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
-    );
+    assert!(timeline.world.tracks.contains_key("chart"), "chart track should exist");
 }
 
 /// A BarChart hosted inside a Graph must span the graph's declared axis box.
@@ -368,47 +289,26 @@ fn max_value_with_variable() {
 /// half of the axis.)
 #[test]
 fn hosted_bar_chart_spans_graph_axis() {
-    let source = r#"
+    let timeline = built(
+        r#"
         g: Graph, size: (800, 360), x_domain: (0, 3), y_domain: (0, 50) {
           chart: BarChart, data: {("A", 10), ("B", 40), ("C", 25)}
         }
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
+    "#,
     );
 
     // The env side-channel carries the declared full-pixel size.
-    match report.output.env().get("g_size") {
+    match timeline.env().get("g_size") {
         Some(crate::timeline::Value::Vec2(sz)) => {
             assert_eq!(sz, [800.0, 360.0], "env size must be the declared full size");
         },
         other => panic!("expected g_size in env, got {other:?}"),
     }
 
-    // Hosted bars must span most of the 800px axis box (math-mode layout
-    // reserves padding), not the legacy central half.
-    let track = report.output.world.get_id("chart").expect("chart track");
-    let paths = report
-        .output
-        .world
-        .shape_or_default(track)
-        .evaluate_vector_paths(report.output.world.style(track), 0);
+    let paths = baked_paths(&timeline, "chart");
     assert!(!paths.is_empty(), "hosted bars should be baked");
-    use kurbo::Shape as _;
-    let mut min_x = f64::INFINITY;
-    let mut max_x = f64::NEG_INFINITY;
-    for path in paths.iter() {
-        let bbox = path.path.bounding_box();
-        min_x = min_x.min(bbox.x0);
-        max_x = max_x.max(bbox.x1);
-    }
-    let width = max_x - min_x;
+    let (min, max) = path_bounds(&paths);
+    let width = max[0] - min[0];
     assert!(
         width > 600.0,
         "hosted bars should span most of the 800px graph, got width {width}"
@@ -417,6 +317,7 @@ fn hosted_bar_chart_spans_graph_axis() {
     // Baseline assertion: with y_domain: (0, 50), baseline is at bottom (y=180 in half-height 180)
     // and bars should grow upward (negative local y).
     // Note: the first path when show_axis is true is the axis line itself (at baseline_y=180).
+    use kurbo::Shape as _;
     for path in paths.iter() {
         let bbox = path.path.bounding_box();
         assert!(
@@ -429,14 +330,9 @@ fn hosted_bar_chart_spans_graph_axis() {
 }
 
 /// A cross-file `@slot` fill must reach the expanded component even when
-/// the slot container sits DEEPER than the component body's top level
-/// (e.g. ui.amx's Card nests its header/body slots inside a root Col).
+/// the slot container sits DEEPER than the component body's top level.
 /// Regression: resolve_slots only handled top-level slots, so nested
 /// slots kept their fallbacks and ignored the fill entirely.
-///
-/// The fixture is an in-memory source (previously a scratch file under
-/// `/tmp/amxrepro/` that was never committed, so the test failed on any
-/// machine without it).
 #[test]
 fn cross_file_slot_fill_applies_at_any_depth() {
     // Mirrors examples/lib/ui.amx's Card: the component body is a multi-statement
@@ -491,8 +387,7 @@ card: Card, width: 240, height: 150 {
     // Scene-hierarchy regression: a multi-statement component body must expand
     // into ONE root node with the whole subtree linked under it, not orphan the
     // instance wrapper (empty children) with the expanded siblings as
-    // independent roots. Before the fix this was:
-    //   CHILDREN card: []   / ROOT NODES: ["card", "card.root"]
+    // independent roots.
     let root_labels: Vec<&str> = report
         .output
         .world
@@ -510,15 +405,12 @@ card: Card, width: 240, height: 150 {
         !report.output.world.hierarchy(card_id).children.is_empty(),
         "the instance wrapper 'card' must contain the expanded body as children"
     );
-    // The expanded body must stay nested under the instance (not ride the
-    // scene-root list alongside it).
     assert!(
         !root_labels.iter().any(|r| r.starts_with("card.")),
         "expanded body children must not become separate root nodes"
     );
 
     assert!(has_fill_text, "slot fill content must reach the build");
-
     assert!(has_track("card.header"), "header container should exist (with the fill inside)");
     assert!(!has_track("card.header_fallback"), "filled slot must drop its fallback");
     assert!(has_track("card.body_fallback"), "unfilled slot keeps its fallback");
@@ -527,9 +419,7 @@ card: Card, width: 240, height: 150 {
 /// Scene-hierarchy regression for the same-file slot demo: each multi-statement
 /// `MetricCard` instance inside the `row` container must expand to a single
 /// component node (`card1`/`card2`/`card3`) whose expanded body stays nested
-/// under it, and the row must contain exactly those three nodes. Before the fix
-/// each instance's three body statements were spread as separate row children
-/// (nine cells in the row) and no per-card node existed.
+/// under it, and the row must contain exactly those three nodes.
 #[test]
 fn components_gallery_instances_form_single_nodes() {
     let mut graph = animatix_syntax::module::ModuleGraph::new();
@@ -584,8 +474,7 @@ fn components_gallery_instances_form_single_nodes() {
 
 /// A component fn defined in an IMPORTED module must resolve when invoked
 /// cross-file (`pulse_twice p`): the build inlines it and the analyzer's
-/// semantic check accepts it via the merged action set. (Regression: the
-/// invocation fell through to unknown-action cross-file.)
+/// semantic check accepts it via the merged action set.
 #[test]
 fn cross_file_component_fn_resolves() {
     use std::path::Path;
@@ -653,33 +542,20 @@ pulse_twice p
 }
 
 /// A hosted PlotCurve's declared `color:` must drive its baked stroke —
-/// including tuple and colorscheme-token values. (Regression: the plot props
-/// loop matched only `Value::Color`, so `accent.primary` (Vec4) and tuples
-/// were silently rejected and every curve rendered the default white.)
+/// including tuple values. (Regression: the plot props loop matched only
+/// `Value::Color`, so tuples were silently rejected and every curve rendered
+/// the default white.)
 #[test]
 fn plot_curve_color_drives_stroke() {
-    let source = r#"
+    let timeline = built(
+        r#"
         g: Graph, size: (800, 360), x_domain: (0, 3), y_domain: (0, 50) {
           curve: PlotCurve, kind: "cartesian", func: (x) => x * 10,
             color: (0.2, 0.4, 0.8, 1.0), stroke_width: 3
         }
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
+    "#,
     );
-
-    let track = report.output.world.get_id("curve").expect("curve track");
-    let paths = report
-        .output
-        .world
-        .shape_or_default(track)
-        .evaluate_vector_paths(report.output.world.style(track), 0);
+    let paths = baked_paths(&timeline, "curve");
     let strokes: Vec<_> = paths.iter().filter_map(|p| p.stroke).collect();
     assert!(!strokes.is_empty(), "curve strokes should be baked");
     for (color, width) in strokes {
@@ -697,28 +573,15 @@ fn plot_curve_color_drives_stroke() {
 /// actor default color, contradicting the documented uniform-color intent.)
 #[test]
 fn single_bar_colors_value_is_uniform() {
-    let source = r#"
+    let timeline = built(
+        r#"
         chart: BarChart,
           data: {("A", 10), ("B", 40), ("C", 25)},
           bar_colors: accent.primary,
           show_labels: false
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
+    "#,
     );
-
-    let track = report.output.world.get_id("chart").expect("chart track");
-    let paths = report
-        .output
-        .world
-        .shape_or_default(track)
-        .evaluate_vector_paths(report.output.world.style(track), 0);
+    let paths = baked_paths(&timeline, "chart");
     let fills: Vec<_> = paths.iter().filter_map(|p| p.fill).collect();
     assert!(fills.len() >= 3, "expected three bar fills, got {fills:?}");
     let first = fills[0];
@@ -729,52 +592,30 @@ fn single_bar_colors_value_is_uniform() {
 }
 
 /// `size:` must drive the baked bar-chart geometry. (Regression: the layout
-/// box was read from the pre-declaration track snapshot, so every fresh
-/// build — always the case for CLI export — laid bars out in the default
-/// ~40x40 box regardless of `size:`.)
+/// box was read from the pre-declaration track snapshot, so every fresh build
+/// laid bars out in the default ~40x40 box regardless of `size:`.)
 #[test]
 fn size_property_drives_bar_chart_geometry() {
-    let source = r#"
+    let timeline = built(
+        r#"
         chart: BarChart,
           data: {("A", 10), ("B", 40), ("C", 25)},
           show_axis: false,
           show_labels: false,
           size: (800, 380),
           at: (640, 400)
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
+    "#,
     );
-
-    let track = report.output.world.tracks.get_id("chart").expect("chart track");
-    let geometry = report.output.world.geometry(track);
+    let track = timeline.world.tracks.get_id("chart").expect("chart track");
+    let geometry = timeline.world.geometry(track);
     assert_eq!(geometry.size.last([0.0, 0.0]), [400.0, 190.0]);
     assert_eq!(geometry.position.last([0.0, 0.0]), [640.0, 400.0]);
 
     // Baked bar paths must span roughly the declared box (800x380 minus
     // hardcoded axis-label margins), not the legacy 40x40 cluster.
-    let paths = report
-        .output
-        .world
-        .shape_or_default(track)
-        .evaluate_vector_paths(report.output.world.style(track), 0);
+    let paths = baked_paths(&timeline, "chart");
     assert!(!paths.is_empty(), "bar paths should be baked");
-    use kurbo::Shape as _;
-    let mut min = [f64::INFINITY; 2];
-    let mut max = [f64::NEG_INFINITY; 2];
-    for path in paths.iter() {
-        let bbox = path.path.bounding_box();
-        min[0] = min[0].min(bbox.x0);
-        min[1] = min[1].min(bbox.y0);
-        max[0] = max[0].max(bbox.x1);
-        max[1] = max[1].max(bbox.y1);
-    }
+    let (min, max) = path_bounds(&paths);
     let width = max[0] - min[0];
     let height = max[1] - min[1];
     assert!(width > 600.0, "bars should span most of the 800px box, got width {width}");
@@ -785,24 +626,16 @@ fn size_property_drives_bar_chart_geometry() {
 /// binding like on any other actor, instead of being silently dropped.
 #[test]
 fn bar_chart_anchor_offset_produce_scene_binding() {
-    let source = r#"
+    let timeline = built(
+        r#"
         chart: BarChart,
           data: {("A", 10), ("B", 20)},
           anchor: scene.top,
           offset: (0, 60)
-    "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no diagnostics, got: {:?}",
-        report.diagnostics
+    "#,
     );
-
-    let track = report.output.world.tracks.get_id("chart").expect("chart track");
-    let geometry = report.output.world.geometry(track);
+    let track = timeline.world.tracks.get_id("chart").expect("chart track");
+    let geometry = timeline.world.geometry(track);
     match geometry.position_binding.get(0, crate::timeline::PositionBinding::Absolute) {
         crate::timeline::PositionBinding::SceneAnchor { anchor, offset } => {
             assert_eq!(anchor, crate::timeline::SceneAnchor::Top);
@@ -810,19 +643,6 @@ fn bar_chart_anchor_offset_produce_scene_binding() {
         },
         other => panic!("expected SceneAnchor binding, got {other:?}"),
     }
-}
-
-fn built(source: &str) -> crate::timeline::Timeline {
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {parse_errors:?}");
-    let report = Timeline::build_with_diagnostics(
-        &ast.expect("parsed AST"),
-        &std::collections::HashMap::new(),
-    );
-    if let Some(d) = without_content_lints(&report.diagnostics).next() {
-        panic!("unexpected diagnostic: {} ({})", d.message, d.code);
-    }
-    report.output
 }
 
 /// `data = {…}` used to be an error (`unsupported-assignment-property`). It is
@@ -974,8 +794,7 @@ chart.data = {("A", 30), ("B", 5)} [800ms]
 
 /// A dataset whose labels move (a new set, or the same set in a new order)
 /// warns, because the captions were compiled into the declaration's slots — and
-/// the transition is still recorded, because the values do travel correctly and
-/// the author may want exactly that.
+/// the transition is still recorded, because the values do travel correctly.
 #[test]
 fn a_moved_label_set_warns_and_is_still_recorded() {
     let (timeline, diagnostics) = build_ignoring_warnings(
@@ -1020,18 +839,4 @@ chart.data = {("B", 5), ("A", 30)} [800ms]
     let track = timeline.world.tracks.get_id("chart").expect("chart track");
     assert_eq!(timeline.world.bar_data_transitions(track).len(), 1);
     assert_eq!(timeline.world.bar_data_transitions(track)[0].to[0].0, "B");
-}
-
-/// [`built`] without its no-warnings assertion, for scenes whose point is the
-/// warning: hands back the timeline and every diagnostic the build produced.
-fn build_ignoring_warnings(
-    source: &str,
-) -> (crate::timeline::Timeline, Vec<animatix_syntax::diagnostics::Diagnostic>) {
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {parse_errors:?}");
-    let report = Timeline::build_with_diagnostics(
-        &ast.expect("parsed AST"),
-        &std::collections::HashMap::new(),
-    );
-    (report.output, report.diagnostics)
 }

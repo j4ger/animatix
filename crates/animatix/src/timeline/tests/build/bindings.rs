@@ -1,20 +1,18 @@
-use super::super::tests::without_content_lints;
 use super::super::*;
+use super::support::{
+    actor, assert_finite_samples, build, build_ast, build_clean, build_timeline, keyframe, prop,
+    text_at, vec2,
+};
 use crate::ast::LoopPattern;
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::{Environment, Timeline, Value};
+use crate::timeline::{Environment, Value};
 
 /// Verify that CoordinateFrameComponent is registered on the plot host entity
 /// and readable through both the id and label accessors.
 #[test]
 fn graph_registers_coordinate_frame_component() {
     let source = "g: Graph, size: (800, 600), x_domain: (-8, 8), y_domain: (-4, 4), padding: (10, 20, 30, 40)";
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-
-    let timeline = report.output;
+    let timeline = build(source).output;
     let g_id = timeline.tracks().get_id("g").expect("g entity id");
     let frame = timeline.coordinate_frame(g_id).expect("CoordinateFrameComponent");
     assert_eq!(frame.x_domain, [-8.0, 8.0]);
@@ -30,8 +28,7 @@ fn graph_registers_coordinate_frame_component() {
 #[test]
 fn graph_map_agrees_with_the_drawn_curve_scale() {
     let source = "g: Graph, size: (800, 600), x_domain: (-10, 10), y_domain: (-5, 5)";
-    let (ast, _) = animatix_syntax::parser::parse_source(source);
-    let report = Timeline::build_with_diagnostics(&ast.unwrap(), &std::collections::HashMap::new());
+    let report = build(source);
     let env = report.output.env();
     let map_fn = match env.get("g.map") {
         Some(Value::NativeFn(f)) => f,
@@ -61,10 +58,7 @@ fn graph_map_agrees_with_the_drawn_curve_scale() {
 #[test]
 fn graph_map_inverse_respects_padding() {
     let source = "g: Graph, size: (800, 600), x_domain: (-10, 10), y_domain: (-5, 5), padding: (20, 10, 15, 5)";
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(source);
 
     let map_inv_fn = match report.output.env().get("g.map_inverse") {
         Some(Value::NativeFn(f)) => f,
@@ -94,10 +88,7 @@ fn graph_map_inverse_respects_padding() {
 #[test]
 fn graph_map_inverse_outside_plot_no_panic() {
     let source = "g: Graph, size: (400, 300), x_domain: (-5, 5), y_domain: (-3, 3)";
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(source);
 
     let map_inv_fn = match report.output.env().get("g.map_inverse") {
         Some(Value::NativeFn(f)) => f,
@@ -131,11 +122,7 @@ fn test_for_loop_tuple_destructuring_creates_actors() {
         }
     "#;
 
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(source);
 
     let errors: Vec<_> = report
         .diagnostics
@@ -146,87 +133,45 @@ fn test_for_loop_tuple_destructuring_creates_actors() {
 
     let timeline = report.output;
 
-    // Should have 3 actors: dot__0, dot__1, dot__2
-    assert!(timeline.world.tracks.contains_key("dot__0"), "Expected dot__0 track");
-    assert!(timeline.world.tracks.contains_key("dot__1"), "Expected dot__1 track");
-    assert!(timeline.world.tracks.contains_key("dot__2"), "Expected dot__2 track");
-
-    // Verify all three actors have position tracks
-    // dot__0 should be at (10, 20)
-    let dot0 = timeline.world.tracks.get_id("dot__0").unwrap();
-    assert!(
-        timeline.world.geometry(dot0).position.is_some(),
-        "Expected dot__0 to have position track"
-    );
-
-    // dot__1 should be at (30, 40)
-    assert!(
-        timeline
-            .world
-            .geometry(timeline.world.tracks.get_id("dot__1").unwrap())
-            .position
-            .is_some(),
-        "Expected dot__1 to have position track"
-    );
-
-    // dot__2 should be at (50, 60)
-    assert!(
-        timeline
-            .world
-            .geometry(timeline.world.tracks.get_id("dot__2").unwrap())
-            .position
-            .is_some(),
-        "Expected dot__2 to have position track"
-    );
+    for label in ["dot__0", "dot__1", "dot__2"] {
+        let id = timeline.world.tracks.get_id(label).expect(label);
+        assert!(
+            timeline.world.geometry(id).position.is_some(),
+            "Expected {label} to have a position track"
+        );
+    }
 }
 
 #[test]
 fn test_for_loop_tuple_with_vec2_values() {
     // Create a for loop iterating over a variable holding Vec2 values
     // This tests the Vec2 destructuring path in bind_loop_var
-    let ast = vec![Stmt::Keyframe {
-        time: crate::ast::Time::Seconds(0.0),
-        body: vec![Stmt::ForLoop {
+    let ast = vec![keyframe(
+        0.0,
+        vec![Stmt::ForLoop {
             var: LoopPattern::Tuple(vec!["vx".to_string(), "vy".to_string()]),
             index_var: None,
-            iterable: Expr::List(vec![
-                Expr::Tuple(vec![Expr::Num(5.0), Expr::Num(15.0)]),
-                Expr::Tuple(vec![Expr::Num(25.0), Expr::Num(35.0)]),
-            ]),
+            iterable: Expr::List(vec![vec2(5.0, 15.0), vec2(25.0, 35.0)]),
             modifiers: vec![],
-            body: vec![Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "point".to_string(),
-                array_index: None,
-                ty: "Ellipse".to_string(),
-                props: vec![
-                    Property {
-                        name: "at".to_string(),
-                        value: Expr::Tuple(vec![
+            body: vec![actor(
+                "point",
+                "Ellipse",
+                vec![
+                    prop(
+                        "at",
+                        Expr::Tuple(vec![
                             Expr::Ident("vx".to_string()),
                             Expr::Ident("vy".to_string()),
                         ]),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                    Property {
-                        name: "radius".to_string(),
-                        value: Expr::Num(8.0),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
+                    ),
+                    prop("radius", Expr::Num(8.0)),
                 ],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            }],
+            )],
             span: None,
         }],
-        span: None,
-    }];
+    )];
 
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build_ast(&ast);
 
     let errors: Vec<_> = report
         .diagnostics
@@ -271,11 +216,7 @@ fn test_for_loop_tuple_destructuring_with_let_decl() {
         }
     "#;
 
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(source);
 
     let errors: Vec<_> = report
         .diagnostics
@@ -316,11 +257,7 @@ fn test_for_loop_variable_cleaned_after_exit() {
         }
     "#;
 
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(source);
     let errors: Vec<_> = report
         .diagnostics
         .iter()
@@ -351,11 +288,7 @@ fn test_for_loop_tuple_vars_cleaned_after_exit() {
         }
     "#;
 
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(source);
     let errors: Vec<_> = report
         .diagnostics
         .iter()
@@ -373,19 +306,6 @@ fn test_for_loop_tuple_vars_cleaned_after_exit() {
         timeline.env.get("b").is_none(),
         "Tuple var 'b' should be undefined after loop exit"
     );
-}
-
-pub(super) fn build_timeline(source: &str) -> Timeline {
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        report.diagnostics.iter().all(|d| !d.is_error()),
-        "Unexpected build errors: {:?}",
-        report.diagnostics
-    );
-    report.output
 }
 
 #[test]
@@ -553,10 +473,7 @@ row: Row {
   img: Rect, size: (100, 100)
 }
 "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let report =
-        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+    let report = build(source);
     assert!(
         report
             .diagnostics
@@ -727,16 +644,7 @@ fn config_resolution_is_recorded_on_timeline() {
 config { resolution: (960, 540) }
 r: Rect, size: (100, 100), at: (480, 270)
 "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "diagnostics: {:?}",
-        report.diagnostics
-    );
-    assert_eq!(report.output.resolution(), Some((960, 540)));
+    assert_eq!(build_clean(source).resolution(), Some((960, 540)));
 }
 
 /// A stroke-only Path (explicit `stroke:`, no `color:`) must not emit the
@@ -745,19 +653,10 @@ r: Rect, size: (100, 100), at: (480, 270)
 #[test]
 fn stroke_only_path_suppresses_default_fill() {
     let source = "p: Path, commands: {move_to(-50, 0), line_to(50, 0)}, stroke: accent.primary, stroke_width: 4";
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "diagnostics: {:?}",
-        report.diagnostics
-    );
-
-    let track = report.output.world.tracks.get_id("p").expect("path track");
+    let timeline = build_clean(source);
+    let track = timeline.world.tracks.get_id("p").expect("path track");
     assert_eq!(
-        report.output.world.style(track).fill_opacity.get(0, 1.0),
+        timeline.world.style(track).fill_opacity.get(0, 1.0),
         0.0,
         "stroke-only Path must default to no fill"
     );
@@ -767,18 +666,9 @@ fn stroke_only_path_suppresses_default_fill() {
 #[test]
 fn stroke_only_path_keeps_authored_fill_opacity() {
     let source = "p: Path, commands: {move_to(-50, 0), line_to(50, 0)}, stroke: accent.primary, stroke_width: 4, fill_opacity: 0.5";
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "diagnostics: {:?}",
-        report.diagnostics
-    );
-
-    let track = report.output.world.tracks.get_id("p").expect("path track");
-    assert_eq!(report.output.world.style(track).fill_opacity.get(0, 1.0), 0.5);
+    let timeline = build_clean(source);
+    let track = timeline.world.tracks.get_id("p").expect("path track");
+    assert_eq!(timeline.world.style(track).fill_opacity.get(0, 1.0), 0.5);
 }
 
 /// An invalid easing name on an assignment must produce a diagnostic.
@@ -796,11 +686,8 @@ fn typst_and_code_accept_uniform_text_content_property() {
 a: Typst, text: "hello typst"
 b: Code, text: "hello code"
 "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let world = &report.output.world;
+    let timeline = build(source).output;
+    let world = &timeline.world;
     let typst_track = world.tracks.get_id("a").expect("a track");
     let typst_text = world.text_or_default(typst_track).text_content.get(0, String::new());
     assert_eq!(typst_text, "hello typst", "Typst should read content from `text:`");
@@ -820,17 +707,8 @@ fn code_language_reaches_text_lane() {
 a: Code, code: "fn main() {}", language: "rust"
 b: Code, code: "x = 1"
 "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "diagnostics: {:?}",
-        report.diagnostics
-    );
-
-    let world = &report.output.world;
+    let timeline = build_clean(source);
+    let world = &timeline.world;
     let a_track = world.tracks.get_id("a").expect("a track");
     assert_eq!(world.text_or_default(a_track).language.get(0, String::new()), "rust");
     let b_track = world.tracks.get_id("b").expect("b track");
@@ -848,10 +726,7 @@ r: Rect, size: (100, 100), color: accent.primary
 #0s
 r.at = (320, 180) [500ms, ease: bounce-out]
 "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(source);
     assert!(
         report.diagnostics.iter().any(|d| {
             d.code == crate::diagnostics::DiagnosticCode::InvalidModifierValue
@@ -872,10 +747,7 @@ fn unresolved_path_property_warns_with_full_dotted_path() {
     let source = r#"
 t: Text, text: "hello", font_size: theme.text_md, color: accent.primary
 "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(source);
     assert!(
         report.diagnostics.iter().any(|d| d.message.contains("theme.text_md")),
         "expected a diagnostic naming 'theme.text_md', got: {:?}",
@@ -905,26 +777,14 @@ let step = (v) => {
 }
 label.text = format("step(2)={} base={}", step(2), base)
     "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report =
-        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(source);
     assert!(
         report.diagnostics.is_empty(),
         "expected no diagnostics, got: {:?}",
         report.diagnostics
     );
-    let timeline = report.output;
-    let text = timeline
-        .world
-        .get_id("label")
-        .and_then(|id| timeline.world.text(id))
-        .and_then(|t| t.text_content.as_ref())
-        .map(|track| track.evaluate(1000))
-        .unwrap_or_default();
     // step(2) = (4*10)+2 = 42; the outer `base` must still be 4 afterwards.
-    assert_eq!(text, "step(2)=42 base=4");
+    assert_eq!(text_at(&report.output, "label", 1000), "step(2)=42 base=4");
 }
 
 #[test]
@@ -946,11 +806,7 @@ c: PlotCurve, kind: "cartesian",
 #0.2s
 fade-in c [100ms]
     "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report =
-        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(source);
     assert!(
         report.diagnostics.is_empty(),
         "expected no diagnostics, got: {:?}",
@@ -968,32 +824,7 @@ fade-in c [100ms]
         "LetChain body referencing t must be dynamic"
     );
 
-    let mut filter_backend = None;
-    let program = timeline.evaluate_program_with_debug(
-        1.0,
-        crate::timeline::SceneDimensions {
-            width: 640,
-            height: 360,
-        },
-        crate::timeline::DebugRenderOptions::default(),
-        &mut filter_backend,
-    );
-    let mut checked = 0;
-    for item in &program.items {
-        for command in &item.commands {
-            if let crate::primitives::RenderCommand::Paths { paths } = command {
-                for vp in paths {
-                    for el in vp.path.elements() {
-                        if let kurbo::PathEl::LineTo(p) | kurbo::PathEl::MoveTo(p) = el {
-                            assert!(p.y.is_finite(), "sampled y must be finite at x={}", p.x);
-                            checked += 1;
-                        }
-                    }
-                }
-            }
-        }
-    }
-    assert!(checked > 0, "expected sampled points");
+    assert_finite_samples(&timeline, 1.0);
 }
 
 #[test]
@@ -1020,12 +851,7 @@ always {
   box.color = if is_animating(&box.at) { accent.warning } else { accent.success }
 }
     "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report =
-        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let timeline = report.output;
+    let timeline = build(source).output;
     // The always block overrides the status text per frame — the override is
     // only visible through full pipeline evaluation (execute_modifier_ir),
     // not through the text track's keyframes.
@@ -1071,16 +897,10 @@ label: Text, text: "t"
 #0.5s
 label.text = format("{}", is_animating(5))
     "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report =
-        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
     // The call itself builds; the frame-time evaluation must carry the type
     // error through the text override failure path (runtime diagnostics), so
-    // assert the build produced no *error-level* diagnostics and rely on the
-    // unit-level check below for the message.
-    let _ = report;
+    // rely on the unit-level check below for the message.
+    let _report = build(source);
 
     let mut env = crate::timeline::Environment::new();
     crate::timeline::load_standard_library(&mut env);
@@ -1116,21 +936,9 @@ let maker = (x) => {
 let add20 = maker(2)
 label.text = format("add20(4) = {}", add20(4))
     "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report =
-        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let timeline = report.output;
-    let text = timeline
-        .world
-        .get_id("label")
-        .and_then(|id| timeline.world.text(id))
-        .and_then(|t| t.text_content.as_ref())
-        .map(|track| track.evaluate(1000))
-        .unwrap_or_default();
+    let timeline = build(source).output;
     // maker(2) binds a=20; add20(4) = 4 + 20.
-    assert_eq!(text, "add20(4) = 24");
+    assert_eq!(text_at(&timeline, "label", 1000), "add20(4) = 24");
 }
 
 #[test]
@@ -1146,11 +954,7 @@ fn effect_keys_on_non_action_hosts_warn() {
         #0.5s
         box.at = (240, 200) [padding: 4]
     "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report =
-        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(source);
     assert!(
         report.diagnostics.iter().any(|d| {
             d.code == crate::diagnostics::DiagnosticCode::UnsupportedModifierKey
@@ -1177,11 +981,7 @@ fn prop_ref_with_unknown_actor_warns_at_build() {
           box.color = if is_animating(&rign.at) { accent.warning } else { accent.success }
         }
     "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report =
-        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(source);
     assert!(
         report.diagnostics.iter().any(|d| {
             d.code == crate::diagnostics::DiagnosticCode::UnknownTargetPath
@@ -1209,11 +1009,7 @@ fn prop_ref_to_non_injectable_property_warns() {
           let _guard = is_animating(&box.font_size)
         }
     "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report =
-        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(source);
     assert!(
         report.diagnostics.iter().any(|d| {
             d.code == crate::diagnostics::DiagnosticCode::UnknownTargetPath
@@ -1242,11 +1038,7 @@ fade-in box [150ms]
 box.at = {420, 260} [500ms, ease: ease-out]
 box.size = {120, 60} [500ms, ease: ease-out]
     "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report =
-        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(source);
     assert!(
         report.diagnostics.is_empty(),
         "expected no diagnostics, got: {:?}",

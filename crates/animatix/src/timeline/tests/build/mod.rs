@@ -5,4 +5,5 @@ mod bindings;
 mod declaration_tail;
 mod graph;
 mod opacity_lifecycle;
+mod support;
 mod text;

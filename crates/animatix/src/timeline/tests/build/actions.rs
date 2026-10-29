@@ -1,5 +1,8 @@
 use super::super::tests::without_content_lints;
-use super::bindings::build_timeline;
+use super::support::{
+    build, build_ast, build_timeline, f32_property, parse, property_or_default, render_paths,
+    vec2_property,
+};
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{Timeline, Value};
 
@@ -19,11 +22,7 @@ fade-in box [200ms]
 #1s
 box.at = {280, "x"} [300ms]
     "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report =
-        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(source);
     assert!(
         report
             .diagnostics
@@ -48,13 +47,7 @@ fn container_layout_value_it_cannot_read_is_reported() {
             r#"grid: Grid, cols: 2, gap: "auto" { a: Rect, size: (10, 10) }"#,
         ),
     ] {
-        let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-        assert!(parse_errors.is_empty(), "{label} parse errors: {parse_errors:?}");
-        let ast = ast.expect("parsed AST");
-        let report = crate::timeline::Timeline::build_with_diagnostics(
-            &ast,
-            &std::collections::HashMap::new(),
-        );
+        let report = build(source);
         assert!(
             report.diagnostics.iter().any(|d| {
                 d.code == crate::diagnostics::DiagnosticCode::InvalidPropertyValue
@@ -76,10 +69,7 @@ fn timed_declaration_snapshots_the_corner_radius() {
 #0s
 r: Rect, at: (100, 50), size: (120, 70), color: (1, 1, 1, 1), corner_radius: 30 [600ms]
 "#;
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report =
-        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+    let report = build(source);
     let id = report.output.get_entity_id("r").expect("track r");
     // corner_radius lives in the shape component store, so the world-aware
     // accessors are the ones that can see it.
@@ -114,12 +104,6 @@ r: Rect, at: (100, 50), size: (120, 70), color: (1, 1, 1, 1), corner_radius: 30 
 // duration (docs/spec.md, "Config key scopes"), and the per-scene composition
 // path has always honoured it. These pin the single-scene equivalent.
 
-fn build_source(source: &str) -> crate::timeline::BuildReport<Timeline> {
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    Timeline::build_with_diagnostics(&ast.expect("parsed AST"), &std::collections::HashMap::new())
-}
-
 const SCENE_WITH_DURATION: &str = r#"
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 2.0 }
 r: Rect, size: (100, 100), color: accent.primary, at: (640, 360)
@@ -129,7 +113,7 @@ fade-in r [500ms]
 
 #[test]
 fn declared_duration_overrides_the_inferred_length() {
-    let report = build_source(SCENE_WITH_DURATION);
+    let report = build(SCENE_WITH_DURATION);
 
     assert_eq!(
         report.output.duration_seconds(),
@@ -150,7 +134,7 @@ fn declared_duration_overrides_the_inferred_length() {
 
 #[test]
 fn truncating_at_the_declared_duration_warns() {
-    let report = build_source(SCENE_WITH_DURATION);
+    let report = build(SCENE_WITH_DURATION);
 
     assert!(
         report.diagnostics.iter().any(|d| {
@@ -164,7 +148,7 @@ fn truncating_at_the_declared_duration_warns() {
 
 #[test]
 fn declared_duration_longer_than_content_extends_playback_without_warning() {
-    let report = build_source(
+    let report = build(
         r#"
 config { colorscheme: "editorial-dark", resolution: (1280, 720), duration: 8.0 }
 r: Rect, size: (100, 100), color: accent.primary, at: (640, 360)
@@ -187,7 +171,7 @@ fade-in r [500ms]
 #[test]
 fn duration_config_must_be_a_positive_number() {
     for value in ["0.0", "-3.0", "\"long\""] {
-        let report = build_source(&format!(
+        let report = build(&format!(
             r#"
 config {{ colorscheme: "editorial-dark", duration: {value} }}
 r: Rect, size: (100, 100), color: accent.primary, at: (640, 360)
@@ -219,7 +203,7 @@ fade-in r [500ms]
 
 #[test]
 fn unknown_config_key_is_reported_instead_of_dropped() {
-    let report = build_source(
+    let report = build(
         r#"
 config { colorscheme: "editorial-dark", colur_scheme: "warm" }
 r: Rect, size: (100, 100), color: accent.primary, opacity: 0.25, at: (640, 360)
@@ -240,7 +224,7 @@ fade-in r [500ms]
 
 #[test]
 fn every_documented_config_key_is_recognised() {
-    let report = build_source(
+    let report = build(
         r#"
 config {
     colorscheme: "editorial-dark",
@@ -284,12 +268,7 @@ fade-in box [250ms, ease: ease-out]
 #1.5s
 box: Ellipse, size: (140, 140), color: accent.success [900ms, strategy: match]
 "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {parse_errors:?}");
-    let ast = ast.expect("parsed AST");
-    let report =
-        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let timeline = report.output;
+    let timeline = build(source).output;
     let track = timeline.world.tracks.get_id("box").expect("box track exists");
 
     let shape = timeline.world.shape_or_default(track);
@@ -372,7 +351,7 @@ bounce a [1s, intensity: 100, restitution: 0.9]
 /// about a key its own signature declares.
 #[test]
 fn action_modifiers_are_tolerated_from_the_signature_not_a_literal_list() {
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(
+    let report = build(
         r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
@@ -380,9 +359,6 @@ a: Rect, size: (40, 40), color: accent.primary, at: (200, 150)
 bounce a [1s, intensity: 40, restitution: 0.7]
 "#,
     );
-    assert!(parse_errors.is_empty(), "Parse errors: {parse_errors:?}");
-    let report =
-        Timeline::build_with_diagnostics(&ast.expect("ast"), &std::collections::HashMap::new());
     let noisy: Vec<_> = report
         .diagnostics
         .iter()
@@ -394,7 +370,7 @@ bounce a [1s, intensity: 40, restitution: 0.7]
 
 #[test]
 fn a_misspelled_action_modifier_still_warns() {
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(
+    let report = build(
         r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
@@ -402,9 +378,6 @@ a: Rect, size: (40, 40), color: accent.primary, at: (200, 150)
 bounce a [1s, intensy: 40]
 "#,
     );
-    assert!(parse_errors.is_empty(), "Parse errors: {parse_errors:?}");
-    let report =
-        Timeline::build_with_diagnostics(&ast.expect("ast"), &std::collections::HashMap::new());
     assert!(
         report.diagnostics.iter().any(|d| d.message.contains("intensy")),
         "a typo in an action modifier produced no diagnostic"
@@ -421,10 +394,7 @@ fn stroke_only_shapes_inherit_an_authored_color_into_their_stroke() {
             "config {{ colorscheme: \"editorial-dark\", resolution: (640, 360) }}\n\
              #0s\na: {ty}, from: (100, 100), to: (300, 200), color: accent.danger, at: (0, 0)\n"
         );
-        let (ast, parse_errors) = animatix_syntax::parser::parse_source(&source);
-        assert!(parse_errors.is_empty(), "{label} parse errors: {parse_errors:?}");
-        let report =
-            Timeline::build_with_diagnostics(&ast.unwrap(), &std::collections::HashMap::new());
+        let report = build(&source);
         let track = report.output.world.tracks.get_id("a").expect("track");
         let stroke = report.output.world.style(track).stroke_color.get(0, [0.0; 4]);
         let fill = report.output.world.style(track).color.get(0, [0.0; 4]);
@@ -449,10 +419,7 @@ fn plot_actors_honour_an_authored_opacity() {
              #0s\ng: {ty}, size: (400, 300), values: {{1, 2, 3}}, x_domain: (-1, 1), \
              y_domain: (-1, 1), opacity: 0.05, at: (320, 180)\n"
         );
-        let (ast, parse_errors) = animatix_syntax::parser::parse_source(&source);
-        assert!(parse_errors.is_empty(), "{ty} parse errors: {parse_errors:?}");
-        let report =
-            Timeline::build_with_diagnostics(&ast.unwrap(), &std::collections::HashMap::new());
+        let report = build(&source);
         let track = report.output.world.tracks.get_id("g").expect("plot track");
         let opacity = report.output.world.style(track).opacity.get(0, 99.0);
         assert!(
@@ -492,11 +459,7 @@ fn a_redeclaration_starts_from_what_it_replaces_not_from_its_target() {
     ];
 
     for (label, tail) in cases {
-        let (ast, errors) = animatix_syntax::parser::parse_source(&(prelude.to_string() + tail));
-        assert!(errors.is_empty(), "{label}: parse errors {errors:?}");
-        let timeline =
-            Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new())
-                .output;
+        let timeline = build(&(prelude.to_string() + tail)).output;
         let track = timeline.world.get_id("a").unwrap_or_else(|| panic!("{label}: no track 'a'"));
 
         // The frame before the stamp is still the declared ellipse, and still
@@ -549,11 +512,7 @@ t: Text, text: \"first\", font_size: 30, at: (100, 100)
 #2s
 t.text = \"second\"
 ";
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let timeline =
-        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new())
-            .output;
+    let timeline = build(source).output;
     let text_track = timeline.world.tracks.get_id("t").expect("text track");
     let text = timeline.world.text_or_default(text_track);
 
@@ -597,11 +556,7 @@ r: Rect, size: (40, 40), color: (1.0, 0.0, 0.0, 1.0), opacity: 1.0, at: (200, 20
 #2s
 r.opacity = 0.0
 ";
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let timeline =
-        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new())
-            .output;
+    let timeline = build(source).output;
     let rect = timeline.world.tracks.get_id("r").expect("rect track");
 
     for ms in [0u64, 500, 1000, 1999] {
@@ -638,11 +593,7 @@ r.fill_gradient = radial((0.5, 0.5), 0.6, {(0%, "#ff0000"), (100%, "#0000ff")})
 #1s
 r.fill_gradient = radial((0.5, 0.5), 0.2, {(0%, "#ff0000"), (100%, "#0000ff")}) [1s]
     "##;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report =
-        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(source);
     assert!(
         report
             .diagnostics
@@ -657,29 +608,13 @@ r.fill_gradient = radial((0.5, 0.5), 0.2, {(0%, "#ff0000"), (100%, "#0000ff")}) 
         Option<crate::timeline::GradientSpec>,
         Option<crate::timeline::GradientSpec>,
     ) {
-        let mut filter_backend = None;
-        let program = timeline.evaluate_program_with_debug(
-            time,
-            crate::timeline::SceneDimensions {
-                width: 640,
-                height: 360,
-            },
-            crate::timeline::DebugRenderOptions::default(),
-            &mut filter_backend,
-        );
         let mut found = (None, None);
-        for item in &program.items {
-            for command in &item.commands {
-                if let crate::primitives::RenderCommand::Paths { paths } = command {
-                    for vp in paths {
-                        if vp.fill_gradient.is_some() {
-                            found.0 = vp.fill_gradient.as_deref().cloned();
-                        }
-                        if vp.stroke_gradient.is_some() {
-                            found.1 = vp.stroke_gradient.as_deref().cloned();
-                        }
-                    }
-                }
+        for vp in render_paths(&timeline, time) {
+            if vp.fill_gradient.is_some() {
+                found.0 = vp.fill_gradient.as_deref().cloned();
+            }
+            if vp.stroke_gradient.is_some() {
+                found.1 = vp.stroke_gradient.as_deref().cloned();
             }
         }
         found
@@ -771,13 +706,7 @@ box.at = (200, 180)
     "#;
 
     let codes = |source: &str| -> Vec<String> {
-        let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-        assert!(parse_errors.is_empty(), "Parse errors: {parse_errors:?}");
-        let report = crate::timeline::Timeline::build_with_diagnostics(
-            &ast.unwrap(),
-            &std::collections::HashMap::new(),
-        );
-        report.diagnostics.iter().map(|d| d.code.to_string()).collect()
+        build(source).diagnostics.iter().map(|d| d.code.to_string()).collect()
     };
 
     let broken_codes = codes(broken);
@@ -840,12 +769,7 @@ camera.at = (0, 0)
 
 /// The text of the first `loop-not-seamless` warning for `source`.
 fn report_message(source: &str) -> String {
-    let (ast, _) = animatix_syntax::parser::parse_source(source);
-    let report = crate::timeline::Timeline::build_with_diagnostics(
-        ast.as_ref().unwrap(),
-        &std::collections::HashMap::new(),
-    );
-    report
+    build(source)
         .diagnostics
         .iter()
         .find(|d| d.code == crate::diagnostics::DiagnosticCode::LoopNotSeamless)
@@ -869,28 +793,14 @@ settle-in card [500ms]
 #1s
 pop-in chip [500ms]
     "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {parse_errors:?}");
-    let report = crate::timeline::Timeline::build_with_diagnostics(
-        &ast.expect("parsed AST"),
-        &std::collections::HashMap::new(),
-    );
+    let report = build(source);
     assert!(
         report.diagnostics.is_empty(),
         "expected a clean build, got {:?}",
         report.diagnostics
     );
     let timeline = report.output;
-    use crate::timeline::property_registry::lookup_property;
-
-    let read = |label: &str, prop: &str, ms: u64| {
-        let schema = lookup_property(prop).expect("property");
-        let track = timeline.world.tracks.get_id(label).unwrap();
-        timeline
-            .world
-            .read_property_value(track, schema.field, ms)
-            .unwrap_or_else(|| (schema.default_value)(&timeline.world.caps(track)))
-    };
+    let read = |label: &str, prop: &str, ms: u64| property_or_default(&timeline, label, prop, ms);
 
     // settle-in: 0.5s..1.0s, scale 0.92 -> 1.0 relative to the sampled scale,
     // opacity 0 -> 1.
@@ -949,31 +859,14 @@ fade-in dot [200ms]
 #1s
 move dot [to: (200, 0), 500ms, anticipate: 100ms]
     "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {parse_errors:?}");
-    let report = crate::timeline::Timeline::build_with_diagnostics(
-        &ast.expect("parsed AST"),
-        &std::collections::HashMap::new(),
-    );
+    let report = build(source);
     assert!(
         report.diagnostics.is_empty(),
         "expected a clean build, got {:?}",
         report.diagnostics
     );
     let timeline = report.output;
-    use crate::timeline::property_registry::lookup_property;
-
-    let offset_at = |ms: u64| -> [f32; 2] {
-        let schema = lookup_property("shift").expect("property");
-        match timeline.world.read_property_value(
-            timeline.world.tracks.get_id("dot").unwrap(),
-            schema.field,
-            ms,
-        ) {
-            Some(crate::timeline::PropertyValue::Vec2(v)) => v,
-            other => panic!("expected a Vec2 offset at {ms}ms, got {other:?}"),
-        }
-    };
+    let offset_at = |ms: u64| vec2_property(&timeline, "dot", "shift", ms).expect("Vec2 shift");
 
     let held = offset_at(900);
     let leaned = offset_at(950);
@@ -1016,9 +909,7 @@ u: Text, text: label, at: (200, 240)
 #0s
 fade-in t [200ms]
     "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {parse_errors:?}");
-    let ast = ast.expect("parsed AST");
+    let ast = parse(source);
     let namespaces = std::collections::HashMap::new();
 
     let defines = vec![
@@ -1037,14 +928,7 @@ fade-in t [200ms]
     // The override must reach the *resolved* properties, not just the
     // environment — re-applying the values after the walk would leave every
     // property that already resolved against them at its authored default.
-    let sampled = |label: &str, prop: &str| {
-        let schema = crate::timeline::property_registry::lookup_property(prop).unwrap();
-        let track = timeline.world.tracks.get_id(label).unwrap();
-        timeline
-            .world
-            .read_property_value(track, schema.field, 0)
-            .unwrap_or_else(|| (schema.default_value)(&timeline.world.caps(track)))
-    };
+    let sampled = |label: &str, prop: &str| property_or_default(&timeline, label, prop, 0);
     assert_eq!(
         sampled("t", "text"),
         crate::timeline::PropertyValue::String("Overridden".to_string()),
@@ -1080,12 +964,7 @@ box.shift = (240, 0)
         )
     };
     let shift_at = |config: &str, ms: u64| -> [f32; 2] {
-        let (ast, errors) = animatix_syntax::parser::parse_source(&source(config));
-        assert!(errors.is_empty(), "Parse errors: {errors:?}");
-        let report = crate::timeline::Timeline::build_with_diagnostics(
-            ast.as_ref().unwrap(),
-            &std::collections::HashMap::new(),
-        );
+        let report = build(&source(config));
         assert!(
             report
                 .diagnostics
@@ -1096,13 +975,7 @@ box.shift = (240, 0)
             "unexpected diagnostics: {:?}",
             report.diagnostics
         );
-
-        let schema = crate::timeline::property_registry::lookup_property("shift").unwrap();
-        let track = report.output.world.tracks.get_id("box").unwrap();
-        match report.output.world.read_property_value(track, schema.field, ms) {
-            Some(crate::timeline::PropertyValue::Vec2(v)) => v,
-            other => panic!("expected a Vec2 shift, got {other:?}"),
-        }
+        vec2_property(&report.output, "box", "shift", ms).expect("Vec2 shift")
     };
 
     // 60 bpm: two beats is exactly two seconds, so the move has not started at
@@ -1130,12 +1003,7 @@ fn icon_property_expands_to_commands_geometry() {
           commands: {move_to(20, 6), line_to(9, 17), line_to(4, 12)},
           at: (300, 100)
     "#;
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "Parse errors: {errors:?}");
-    let report = crate::timeline::Timeline::build_with_diagnostics(
-        ast.as_ref().unwrap(),
-        &std::collections::HashMap::new(),
-    );
+    let report = build(source);
 
     let geometry = |label: &str| -> Vec<kurbo::PathEl> {
         let track = report.output.world.get_id(label).unwrap_or_else(|| panic!("no track {label}"));
@@ -1169,12 +1037,7 @@ fn unknown_icon_warns() {
 
         p: Path, icon: "nope", at: (100, 100)
     "#;
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "Parse errors: {errors:?}");
-    let report = crate::timeline::Timeline::build_with_diagnostics(
-        ast.as_ref().unwrap(),
-        &std::collections::HashMap::new(),
-    );
+    let report = build(source);
 
     let warned = report.diagnostics.iter().find(|d| {
         d.code == crate::diagnostics::DiagnosticCode::InvalidPropertyValue
@@ -1204,23 +1067,10 @@ plain: Rect, size: (20, 20), at: (500, 180), color: accent.primary
 #0s
 fade-in box [200ms]
 "#;
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "Parse errors: {errors:?}");
-    let report = crate::timeline::Timeline::build_with_diagnostics(
-        ast.as_ref().unwrap(),
-        &std::collections::HashMap::new(),
-    );
+    let report = build(source);
     let timeline = report.output;
 
-    let schema = crate::timeline::property_registry::lookup_property("scale").unwrap();
-    let scale_of = |label: &str| -> Option<f32> {
-        let track = timeline.world.tracks.get_id(label).unwrap();
-        match timeline.world.read_property_value(track, schema.field, 0) {
-            Some(crate::timeline::PropertyValue::F32(v)) => Some(v),
-            None => None,
-            other => panic!("expected a numeric scale for {label}, got {other:?}"),
-        }
-    };
+    let scale_of = |label: &str| f32_property(&timeline, label, "scale", 0);
     assert_eq!(scale_of("box"), Some(4.0), "authored scale must land");
     assert_eq!(scale_of("half"), Some(0.5), "a shrink must land too");
     assert_eq!(
@@ -1245,12 +1095,7 @@ dot.at = (100, 100)
 #0.5s
 move dot [along: {move_to(100, 100), line_to(500, 100)}, 2s]
 "#;
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "Parse errors: {errors:?}");
-    let report = crate::timeline::Timeline::build_with_diagnostics(
-        ast.as_ref().unwrap(),
-        &std::collections::HashMap::new(),
-    );
+    let report = build(source);
     let offenders: Vec<_> = report
         .diagnostics
         .iter()
@@ -1259,12 +1104,8 @@ move dot [along: {move_to(100, 100), line_to(500, 100)}, 2s]
     assert!(offenders.is_empty(), "unexpected diagnostics: {offenders:?}");
     let timeline = report.output;
 
-    let schema = crate::timeline::property_registry::lookup_property("position").unwrap();
     let track = timeline.world.tracks.get_id("dot").unwrap();
-    let at = |ms: u64| match timeline.world.read_property_value(track, schema.field, ms) {
-        Some(crate::timeline::PropertyValue::Vec2(v)) => v,
-        other => panic!("expected a position at {ms}ms, got {other:?}"),
-    };
+    let at = |ms: u64| vec2_property(&timeline, "dot", "position", ms).expect("position");
 
     // 2.5s is the far end of the 2s travel; 1.5s is the halfway mark, which on a
     // 400-unit straight route must sit at x = 300 (arc length, not the parameter).
@@ -1297,7 +1138,7 @@ fn draw_in_by_word_steps_through_the_words() {
     // `draw-in` on text is a typewriter by default; `by: word` brings each word
     // in as a step, which is the difference between a caption typing out
     // letter-by-letter and a line of kinetic typography landing in phrases.
-    let build = |extra: &str| {
+    let build_variant = |extra: &str| {
         let source = format!(
             r#"
 config {{ colorscheme: "editorial-dark", resolution: (640, 360) }}
@@ -1307,12 +1148,7 @@ line: Text, text: "aa bb cc dd", at: (320, 180), font_size: 40
 draw-in line [4s{extra}]
 "#
         );
-        let (ast, errors) = animatix_syntax::parser::parse_source(&source);
-        assert!(errors.is_empty(), "Parse errors: {errors:?}");
-        let report = crate::timeline::Timeline::build_with_diagnostics(
-            ast.as_ref().unwrap(),
-            &std::collections::HashMap::new(),
-        );
+        let report = build(&source);
         let offenders: Vec<_> = report
             .diagnostics
             .iter()
@@ -1326,7 +1162,7 @@ draw-in line [4s{extra}]
         timeline.world.text_or_default(track).char_progress.get(ms, 1.0)
     };
 
-    let words = build(", by: word");
+    let words = build_variant(", by: word");
     // Four words over 4s: at 1.5s the second word has landed (6 of 11 chars) and
     // the third has not, so progress sits at the word boundary, not mid-word.
     let at_1500 = progress_at(&words, 1500);
@@ -1352,7 +1188,7 @@ draw-in line [4s{extra}]
     // The default stays a smooth typewriter, and it inherits the role default
     // for entrances: `expo-out` puts a quarter of the *time* at ~82% of the
     // characters, which is why the reveal reads as arriving rather than ticking.
-    let chars = build("");
+    let chars = build_variant("");
     let mid = progress_at(&chars, 1000);
     assert!(
         mid > 0.7 && mid < 0.95,
@@ -1368,14 +1204,11 @@ draw-in line [4s{extra}]
 #[test]
 fn pre_keyframe_actor_declaration_has_decl_span_and_explicit_warning() {
     let source = "box: Rect, size: (100, 100)\n\n#1s\nbox.at = (200, 200)\n";
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let mut ast = ast.expect("parsed AST");
+    let mut ast = parse(source);
     if let crate::ast::Stmt::ActorDecl { span, .. } = &mut ast[0] {
         *span = Some(animatix_syntax::ast::Span::new(1, 1, 1, 27));
     }
-    let report =
-        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build_ast(&ast);
 
     let track = report.output.world.tracks.get_id("box").expect("box track must exist");
     let span = report
@@ -1412,11 +1245,7 @@ fn pre_keyframe_actor_declaration_has_decl_span_and_explicit_warning() {
 #[test]
 fn pre_keyframe_actor_with_explicit_opacity_assignment_does_not_warn_never_revealed() {
     let source = "box: Rect, size: (100, 100)\n\n#1s\nbox.opacity = 1.0\n";
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report =
-        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(source);
 
     assert!(
         !report
@@ -1432,10 +1261,7 @@ fn pre_keyframe_actor_with_explicit_opacity_assignment_does_not_warn_never_revea
 #[test]
 fn unary_minus_on_dotted_path_resolves_in_graph_domain() {
     let source = "let geo = Geo { y_hi: 1.75 }\ng: Graph, size: (400, 300), x_domain: (-5, 5), y_domain: (-geo.y_hi, geo.y_hi)";
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(source);
     assert!(
         without_content_lints(&report.diagnostics).next().is_none(),
         "diagnostics: {:?}",
