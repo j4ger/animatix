@@ -225,7 +225,7 @@ pub(crate) fn render_property_row(
     if kf_btn_resp.clicked() {
         if entry.has_keyframe_at_current_time {
             commands.push_back(
-                KeyframeCommand::DeleteKeyframe {
+                Command::DeleteKeyframe {
                     scene: active_scene.map(ToOwned::to_owned),
                     actor: actor_label.to_string(),
                     property: entry.name.to_string(),
@@ -235,7 +235,7 @@ pub(crate) fn render_property_row(
             );
         } else if let Some(value) = entry_to_gui_value(entry) {
             commands.push_back(
-                DocumentCommand::PropertyEdit(PropertyEdit {
+                Command::PropertyEdit(PropertyEdit {
                     time_s: None,
                     actor: actor_label.to_string(),
                     property: entry.name.to_string(),
@@ -258,7 +258,7 @@ pub(crate) fn render_property_row(
                 .clicked()
             {
                 commands.push_back(
-                    KeyframeCommand::DeleteKeyframe {
+                    Command::DeleteKeyframe {
                         scene: active_scene.map(ToOwned::to_owned),
                         actor: actor_label.to_string(),
                         property: entry.name.to_string(),
@@ -274,7 +274,7 @@ pub(crate) fn render_property_row(
                         .unwrap_or(animatix_syntax::easing::Easing::Linear);
                     if ui.stable_selectable_label(false, display_name).clicked() {
                         commands.push_back(
-                            KeyframeCommand::SetKeyframeEasing {
+                            Command::SetKeyframeEasing {
                                 scene: active_scene.map(ToOwned::to_owned),
                                 actor: actor_label.to_string(),
                                 property: entry.name.to_string(),

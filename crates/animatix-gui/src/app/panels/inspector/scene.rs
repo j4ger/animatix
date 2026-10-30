@@ -70,7 +70,7 @@ pub(super) fn render_scene_inspector(
                     );
                     if revert.clicked() {
                         commands.push_back(
-                            SceneCommand::SetSceneDuration {
+                            Command::SetSceneDuration {
                                 scene: active_scene.to_string(),
                                 duration_s: None,
                             }
@@ -81,7 +81,7 @@ pub(super) fn render_scene_inspector(
                 // Only emit edit if value changed meaningfully
                 if changed && (duration_val - scene.duration_s).abs() > 0.001 {
                     commands.push_back(
-                        SceneCommand::SetSceneDuration {
+                        Command::SetSceneDuration {
                             scene: active_scene.to_string(),
                             duration_s: Some(duration_val),
                         }
@@ -165,7 +165,7 @@ pub(super) fn render_scene_inspector(
                     };
                     if chosen != current_target {
                         commands.push_back(
-                            SceneCommand::SetPlayTarget {
+                            Command::SetPlayTarget {
                                 from_scene: active_scene.to_string(),
                                 target: chosen,
                             }
@@ -197,7 +197,7 @@ pub(super) fn render_scene_inspector(
                             let chosen_id = registry[idx].id;
                             if chosen_id != edge.transition.id {
                                 commands.push_back(
-                                    SceneCommand::SetTransition {
+                                    Command::SetTransition {
                                         from_scene: active_scene.to_string(),
                                         transition: animatix_syntax::ast::Transition {
                                             id: chosen_id.to_string(),
@@ -223,7 +223,7 @@ pub(super) fn render_scene_inspector(
                     let new_duration_ms = duration_ms.round() as u64;
                     if new_duration_ms != edge.transition.duration_ms {
                         commands.push_back(
-                            SceneCommand::SetTransition {
+                            Command::SetTransition {
                                 from_scene: active_scene.to_string(),
                                 transition: animatix_syntax::ast::Transition {
                                     id: edge.transition.id.clone(),
@@ -264,7 +264,7 @@ pub(super) fn render_scene_inspector(
                     });
                     if let Some(variant) = new_custom_easing {
                         commands.push_back(
-                            SceneCommand::SetTransition {
+                            Command::SetTransition {
                                 from_scene: active_scene.to_string(),
                                 transition: animatix_syntax::ast::Transition {
                                     id: edge.transition.id.clone(),
@@ -283,7 +283,7 @@ pub(super) fn render_scene_inspector(
                         if let Some(new_state) = easing_curve_editor::easing_curve_editor(ui, state)
                         {
                             commands.push_back(
-                                SceneCommand::SetTransition {
+                                Command::SetTransition {
                                     from_scene: active_scene.to_string(),
                                     transition: animatix_syntax::ast::Transition {
                                         id: edge.transition.id.clone(),
@@ -311,7 +311,7 @@ pub(super) fn render_scene_inspector(
                         )
                         .clicked()
                     {
-                        commands.push_back(SceneCommand::SelectScene(edge.to_scene.clone()).into());
+                        commands.push_back(Command::SelectScene(edge.to_scene.clone()).into());
                     }
                 },
             );
@@ -359,7 +359,7 @@ pub(super) fn render_scene_inspector(
                     },
                 );
                 if response.clicked() && !is_active {
-                    commands.push_back(SceneCommand::SelectScene(scene_name.clone()).into());
+                    commands.push_back(Command::SelectScene(scene_name.clone()).into());
                 }
                 ui.allocate_rect(response.rect, egui::Sense::hover());
             }

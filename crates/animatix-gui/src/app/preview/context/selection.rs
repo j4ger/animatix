@@ -1,6 +1,6 @@
 //! Canvas click, context-menu, and selection handling.
 
-use crate::app::commands::{ActorCommand, Command, SceneCommand, ShellAction, ViewAction};
+use crate::app::commands::{Command, ShellAction, ViewAction};
 use crate::app::preview::{self, DragState, selection};
 
 use super::PreviewContext;
@@ -82,24 +82,20 @@ impl PreviewContext<'_> {
                 use selection::ContextMenuAction as A;
                 match action {
                     A::Duplicate => {
-                        self.commands.push_back(ActorCommand::DuplicateSelectedActors.into())
+                        self.commands.push_back(Command::DuplicateSelectedActors.into())
                     },
-                    A::Delete => self.commands.push_back(ActorCommand::DeleteSelectedActors.into()),
-                    A::Group => self.commands.push_back(ActorCommand::GroupSelectedActors.into()),
-                    A::Ungroup => {
-                        self.commands.push_back(ActorCommand::UngroupSelectedActors.into())
-                    },
+                    A::Delete => self.commands.push_back(Command::DeleteSelectedActors.into()),
+                    A::Group => self.commands.push_back(Command::GroupSelectedActors.into()),
+                    A::Ungroup => self.commands.push_back(Command::UngroupSelectedActors.into()),
                     A::ToggleLock => {
                         for label in &effective {
-                            self.commands
-                                .push_back(ActorCommand::ToggleActorLock(label.clone()).into());
+                            self.commands.push_back(Command::ToggleActorLock(label.clone()).into());
                         }
                     },
                     A::ToggleVisibility => {
                         for label in &effective {
-                            self.commands.push_back(
-                                ActorCommand::ToggleActorVisibility(label.clone()).into(),
-                            );
+                            self.commands
+                                .push_back(Command::ToggleActorVisibility(label.clone()).into());
                         }
                     },
                 }
@@ -155,9 +151,8 @@ impl PreviewContext<'_> {
                         if !active_has_actor {
                             for (scene_name, scene) in &comp.scenes {
                                 if scene.timeline.has_actor(&actor) {
-                                    self.commands.push_back(
-                                        SceneCommand::SelectScene(scene_name.clone()).into(),
-                                    );
+                                    self.commands
+                                        .push_back(Command::SelectScene(scene_name.clone()).into());
                                     break;
                                 }
                             }

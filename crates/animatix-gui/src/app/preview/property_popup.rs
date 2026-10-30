@@ -4,8 +4,7 @@ use animatix::timeline::{
 use egui::{Color32, Pos2, Rect, RichText, Sense, Stroke, Vec2};
 
 use crate::app::commands::{
-    ActionQueue, DocumentCommand, KeyframeCommand, PropertyEdit, PropertyValue, ShellAction,
-    ViewAction,
+    ActionQueue, Command, PropertyEdit, PropertyValue, ShellAction, ViewAction,
 };
 use crate::app::components::button::Button;
 use crate::app::components::text_tooltip;
@@ -279,7 +278,7 @@ fn popup_property_row(
         if has_keyframe {
             // Delete keyframe
             commands.push_back(
-                KeyframeCommand::DeleteKeyframe {
+                Command::DeleteKeyframe {
                     scene: active_scene.map(ToOwned::to_owned),
                     actor: actor.to_string(),
                     property: property.to_string(),
@@ -297,7 +296,7 @@ fn popup_property_row(
                 _ => PropertyValue::F32(values[0]),
             };
             commands.push_back(
-                DocumentCommand::PropertyEdit(PropertyEdit {
+                Command::PropertyEdit(PropertyEdit {
                     time_s: None,
                     actor: actor.to_string(),
                     property: property.to_string(),
@@ -368,7 +367,7 @@ fn popup_property_row(
         match property {
             "position" => {
                 commands.push_back(
-                    DocumentCommand::PropertyEdit(PropertyEdit {
+                    Command::PropertyEdit(PropertyEdit {
                         time_s: None,
                         actor: actor.to_string(),
                         property: "position".into(),
@@ -382,7 +381,7 @@ fn popup_property_row(
                 let new_w = (values[0] + scene_dx).max(1.0);
                 let new_h = (values[1] + scene_dy).max(1.0);
                 commands.push_back(
-                    DocumentCommand::PropertyEdit(PropertyEdit {
+                    Command::PropertyEdit(PropertyEdit {
                         time_s: None,
                         actor: actor.to_string(),
                         property: "size".into(),
@@ -395,7 +394,7 @@ fn popup_property_row(
             "rotation" => {
                 let new_deg = (values[0] + delta.x * 0.5).rem_euclid(360.0);
                 commands.push_back(
-                    DocumentCommand::PropertyEdit(PropertyEdit {
+                    Command::PropertyEdit(PropertyEdit {
                         time_s: None,
                         actor: actor.to_string(),
                         property: "rotation".into(),
@@ -408,7 +407,7 @@ fn popup_property_row(
             "opacity" => {
                 let new_opac = (values[0] + delta.x * 0.5).clamp(0.0, 100.0);
                 commands.push_back(
-                    DocumentCommand::PropertyEdit(PropertyEdit {
+                    Command::PropertyEdit(PropertyEdit {
                         time_s: None,
                         actor: actor.to_string(),
                         property: "opacity".into(),

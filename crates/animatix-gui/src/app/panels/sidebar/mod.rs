@@ -9,9 +9,7 @@ use animatix::timeline::{SceneDimensions, Timeline};
 use animatix_syntax::to_source::ToSource;
 use egui::{RichText, Vec2};
 
-use crate::app::commands::{
-    ActionQueue, ActorCommand, Command, SceneCommand, ShellAction, ViewAction,
-};
+use crate::app::commands::{ActionQueue, Command, ShellAction, ViewAction};
 use crate::app::components::button::Button;
 use crate::app::components::context_menu::{MenuEntry, render_menu};
 use crate::app::components::{anim, layout, row, text_tooltip};

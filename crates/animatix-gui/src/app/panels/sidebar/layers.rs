@@ -57,7 +57,7 @@ pub(super) fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) 
                 let new_label = buf.trim().to_string();
                 if !new_label.is_empty() && new_label != target {
                     ctx.commands.push_back(
-                        ActorCommand::RenameActor {
+                        Command::RenameActor {
                             old_label: target.clone(),
                             new_label,
                         }
@@ -141,7 +141,7 @@ pub(super) fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) 
                     ctx.scene_dimensions.height as f32 / 2.0,
                 ];
                 ctx.commands.push_back(
-                    ActorCommand::CreateActor {
+                    Command::CreateActor {
                         ty: template.ty,
                         label: template.label,
                         position: pos,
@@ -298,7 +298,7 @@ fn render_actor_tree(
                     .hover_icon_color(t.palette.text.primary),
             );
             if eye_btn.clicked() {
-                commands.push_back(ActorCommand::ToggleActorVisibility(label.to_string()).into());
+                commands.push_back(Command::ToggleActorVisibility(label.to_string()).into());
             }
             let lock_btn = ui.add(
                 Button::icon(lock_icon)
@@ -311,7 +311,7 @@ fn render_actor_tree(
                     .hover_icon_color(t.palette.text.primary),
             );
             if lock_btn.clicked() {
-                commands.push_back(ActorCommand::ToggleActorLock(label.to_string()).into());
+                commands.push_back(Command::ToggleActorLock(label.to_string()).into());
             }
         })
         .show(ui, row_id);
@@ -479,15 +479,15 @@ fn render_actor_tree(
                     commands.push_back(ShellAction::Command(Command::DistributeActors(axis)))
                 },
                 Some(LayerMenuAction::Group) => {
-                    commands.push_back(ActorCommand::GroupSelectedActors.into())
+                    commands.push_back(Command::GroupSelectedActors.into())
                 },
                 Some(LayerMenuAction::Ungroup) => {
-                    commands.push_back(ActorCommand::UngroupSelectedActors.into())
+                    commands.push_back(Command::UngroupSelectedActors.into())
                 },
                 Some(LayerMenuAction::Delete) => {
                     selected_actors.clear();
                     selected_actors.insert(label.to_string());
-                    commands.push_back(ActorCommand::DeleteSelectedActors.into());
+                    commands.push_back(Command::DeleteSelectedActors.into());
                 },
                 None => {}, // Separator or out-of-range index: no action.
             }

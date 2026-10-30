@@ -56,7 +56,7 @@ pub(super) fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) 
                         ctx.scene_dimensions.height as f32 / 2.0,
                     ];
                     ctx.commands.push_back(
-                        ActorCommand::CreateActor {
+                        Command::CreateActor {
                             ty: "Image".into(),
                             label,
                             position: pos,
@@ -105,7 +105,7 @@ pub(super) fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) 
                         ctx.scene_dimensions.height as f32 / 2.0,
                     ];
                     ctx.commands.push_back(
-                        ActorCommand::CreateActor {
+                        Command::CreateActor {
                             ty: "Svg".into(),
                             label,
                             position: pos,

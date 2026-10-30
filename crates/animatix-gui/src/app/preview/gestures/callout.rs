@@ -12,9 +12,7 @@ use animatix::timeline::TrackAccessor;
 use animatix::timeline::animation_track::CalloutPlace;
 use animatix::timeline::callout_geometry::derive_callout_geometry;
 
-use crate::app::commands::{
-    Command, DocumentCommand, DragEvent, PropertyEdit, PropertyValue, ShellAction,
-};
+use crate::app::commands::{Command, DragEvent, PropertyEdit, PropertyValue, ShellAction};
 use crate::app::design_tokens::spatial::preview::HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS;
 use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
 use crate::app::preview::{DragState, drag_utils};
@@ -161,7 +159,7 @@ impl GestureHandler for CalloutGesture {
                             ctx.selection.tapped_place_actor = Some(actor.clone());
                             let place_str = place.as_str();
                             ctx.commands.push_back(
-                                DocumentCommand::PropertyEdit(PropertyEdit {
+                                Command::PropertyEdit(PropertyEdit {
                                     time_s: None,
                                     actor,
                                     property: "place".into(),
@@ -217,7 +215,7 @@ impl GestureHandler for CalloutGesture {
                         }
 
                         ctx.commands.push_back(
-                            DocumentCommand::PropertyEdit(PropertyEdit {
+                            Command::PropertyEdit(PropertyEdit {
                                 time_s: None,
                                 actor,
                                 property: "label_at".into(),
@@ -279,7 +277,7 @@ impl GestureHandler for CalloutGesture {
 
                         let property = if is_targeted { "to_offset" } else { "to" };
                         ctx.commands.push_back(
-                            DocumentCommand::PropertyEdit(PropertyEdit {
+                            Command::PropertyEdit(PropertyEdit {
                                 time_s: None,
                                 actor,
                                 property: property.into(),
@@ -331,7 +329,7 @@ impl GestureHandler for CalloutGesture {
                         }
 
                         ctx.commands.push_back(
-                            DocumentCommand::PropertyEdit(PropertyEdit {
+                            Command::PropertyEdit(PropertyEdit {
                                 time_s: None,
                                 actor,
                                 property: "standoff".into(),

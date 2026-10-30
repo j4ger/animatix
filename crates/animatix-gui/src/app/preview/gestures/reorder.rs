@@ -3,7 +3,7 @@
 //! Only activates for layout-managed children when Shift is NOT held (Shift detaches).
 //! Projects mouse position onto the Row/Col main axis to determine the target insertion index.
 
-use crate::app::commands::{DocumentCommand, PropertyEdit, PropertyValue};
+use crate::app::commands::{Command, PropertyEdit, PropertyValue};
 use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
 use crate::app::preview::gestures::common::finish_drag;
 use crate::app::preview::{DragState, drag_utils};
@@ -162,7 +162,7 @@ impl GestureHandler for ReorderGesture {
                             let insert_at = target_index.min(new_order.len());
                             new_order.insert(insert_at, item);
                             ctx.commands.push_back(
-                                DocumentCommand::PropertyEdit(PropertyEdit {
+                                Command::PropertyEdit(PropertyEdit {
                                     time_s: None,
                                     actor: container,
                                     property: "child_order".into(),

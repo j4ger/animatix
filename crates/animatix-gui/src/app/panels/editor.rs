@@ -3,7 +3,7 @@
 use animatix_syntax::diagnostics::Diagnostic;
 use egui::Vec2;
 
-use crate::app::commands::{ActionQueue, PlaybackCommand};
+use crate::app::commands::{ActionQueue, Command};
 use crate::app::design_tokens::spatial::{STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::panels::panel_frame;
@@ -135,7 +135,7 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
                     && ctx.editor.format_source()
                 {
                     *ctx.source_dirty = ctx.editor.text().to_string();
-                    ctx.commands.push_back(PlaybackCommand::EditorChanged.into());
+                    ctx.commands.push_back(Command::EditorChanged.into());
                 }
             });
         });
@@ -155,12 +155,12 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
         let response = ctx.editor.show(ui);
         if response.changed() || ctx.editor.text() != ctx.source_dirty.as_str() {
             *ctx.source_dirty = ctx.editor.text().to_string();
-            ctx.commands.push_back(PlaybackCommand::EditorChanged.into());
+            ctx.commands.push_back(Command::EditorChanged.into());
         }
         if let Some(time_s) = ctx.editor.pending_scrub_to_time.take() {
-            ctx.commands.push_back(PlaybackCommand::ScrubTo(time_s).into());
+            ctx.commands.push_back(Command::ScrubTo(time_s).into());
             if !ctx.is_playing {
-                ctx.commands.push_back(PlaybackCommand::TogglePlayback.into());
+                ctx.commands.push_back(Command::TogglePlayback.into());
             }
         }
     });

@@ -2,7 +2,7 @@
 
 use egui::Pos2;
 
-use crate::app::commands::{DocumentCommand, PropertyEdit, PropertyValue};
+use crate::app::commands::{Command, PropertyEdit, PropertyValue};
 use crate::app::design_tokens::spatial::preview::{
     HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS, MIN_ACTOR_SIZE as PREVIEW_MIN_ACTOR_SIZE,
     MIN_SCALE as PREVIEW_MIN_SCALE,
@@ -166,7 +166,7 @@ impl GestureHandler for ScaleGesture {
                             preview::ResizeMode::Scale => {
                                 let ratio = sx.max(sy) as f32;
                                 ctx.commands.push_back(
-                                    DocumentCommand::PropertyEdit(PropertyEdit {
+                                    Command::PropertyEdit(PropertyEdit {
                                         time_s: None,
                                         actor: a.label.clone(),
                                         property: "scale".into(),
@@ -184,7 +184,7 @@ impl GestureHandler for ScaleGesture {
                                 let nh =
                                     ((a.size[1] as f64 * sy) as f32).max(PREVIEW_MIN_ACTOR_SIZE);
                                 ctx.commands.push_back(
-                                    DocumentCommand::PropertyEdit(PropertyEdit {
+                                    Command::PropertyEdit(PropertyEdit {
                                         time_s: None,
                                         actor: a.label.clone(),
                                         property: "size".into(),
@@ -304,7 +304,7 @@ impl GestureHandler for ScaleGesture {
                 if resize_mode == preview::ResizeMode::Scale {
                     let ratio = new_w / start_size[0].max(1.0);
                     ctx.commands.push_back(
-                        DocumentCommand::PropertyEdit(PropertyEdit {
+                        Command::PropertyEdit(PropertyEdit {
                             time_s: None,
                             actor: actor.clone(),
                             property: "scale".into(),
@@ -315,7 +315,7 @@ impl GestureHandler for ScaleGesture {
                     );
                 } else {
                     ctx.commands.push_back(
-                        DocumentCommand::PropertyEdit(PropertyEdit {
+                        Command::PropertyEdit(PropertyEdit {
                             time_s: None,
                             actor: actor.clone(),
                             property: "size".into(),

@@ -50,7 +50,7 @@ pub(super) fn render_vec2_input(
                     }
                     if rx.changed() || ry.changed() {
                         commands.push_back(
-                            DocumentCommand::PropertyEdit(PropertyEdit {
+                            Command::PropertyEdit(PropertyEdit {
                                 time_s: None,
                                 actor: actor_label.to_string(),
                                 property: entry.name.to_string(),
@@ -123,7 +123,7 @@ pub(super) fn render_float_input(
                         }
                         if slider.changed() {
                             commands.push_back(
-                                DocumentCommand::PropertyEdit(PropertyEdit {
+                                Command::PropertyEdit(PropertyEdit {
                                     time_s: None,
                                     actor: actor_label.to_string(),
                                     property: entry.name.to_string(),
@@ -163,7 +163,7 @@ pub(super) fn render_float_input(
                         if response.changed() {
                             let out_val = if is_angle { nv.to_radians() } else { nv };
                             commands.push_back(
-                                DocumentCommand::PropertyEdit(PropertyEdit {
+                                Command::PropertyEdit(PropertyEdit {
                                     time_s: None,
                                     actor: actor_label.to_string(),
                                     property: entry.name.to_string(),
@@ -211,7 +211,7 @@ pub(super) fn render_u32_input(
                     }
                     if response.changed() {
                         commands.push_back(
-                            DocumentCommand::PropertyEdit(PropertyEdit {
+                            Command::PropertyEdit(PropertyEdit {
                                 time_s: None,
                                 actor: actor_label.to_string(),
                                 property: entry.name.to_string(),
@@ -248,7 +248,7 @@ pub(super) fn render_bool_input(
                 |ui| {
                     if ui.add(Checkbox::new(&mut checked)).changed() {
                         commands.push_back(
-                            DocumentCommand::PropertyEdit(PropertyEdit {
+                            Command::PropertyEdit(PropertyEdit {
                                 time_s: None,
                                 actor: actor_label.to_string(),
                                 property: entry.name.to_string(),
@@ -315,7 +315,7 @@ pub(super) fn render_color_input(
                     if response.changed {
                         let [r, g, b, a] = color.to_array();
                         commands.push_back(
-                            DocumentCommand::PropertyEdit(PropertyEdit {
+                            Command::PropertyEdit(PropertyEdit {
                                 time_s: None,
                                 actor: actor_label.to_string(),
                                 property: entry.name.to_string(),
@@ -364,7 +364,7 @@ pub(super) fn render_enum_input(
         let chosen = variants[selected];
         if chosen != value {
             commands.push_back(
-                DocumentCommand::PropertyEdit(PropertyEdit {
+                Command::PropertyEdit(PropertyEdit {
                     time_s: None,
                     actor: actor_label.to_string(),
                     property: entry.name.to_string(),
@@ -410,7 +410,7 @@ pub(super) fn render_enum_owned_input(
         let chosen = variants[selected].clone();
         if chosen != *value {
             commands.push_back(
-                DocumentCommand::PropertyEdit(PropertyEdit {
+                Command::PropertyEdit(PropertyEdit {
                     time_s: None,
                     actor: actor_label.to_string(),
                     property: entry.name.to_string(),

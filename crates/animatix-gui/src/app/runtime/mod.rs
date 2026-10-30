@@ -4,10 +4,7 @@ use eparts::{ThemeRegistry, ThemeRegistryWatcher, ThemeRegistryWatcherEvent};
 
 use super::*;
 use crate::app::audio::AudioEngine;
-use crate::app::commands::{
-    ActorCommand, DocumentCommand, KeyframeCommand, PlaybackCommand, SceneCommand, ShellAction,
-    ViewAction, ViewCommand,
-};
+use crate::app::commands::{Command, ShellAction, ViewAction};
 use crate::app::design_tokens::spatial::spatial_from_ctx;
 use crate::app::persistence::{
     clear_app_state, load_app_state, load_workspace_persistence, persistence_path, save_app_state,

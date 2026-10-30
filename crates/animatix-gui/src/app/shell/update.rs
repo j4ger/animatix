@@ -15,7 +15,7 @@ impl GuiShell {
                         if !self.ui_store.unsaved_changes.is_open {
                             self.ui_store.unsaved_changes.open(
                                 "File changed on disk. Reload and discard your unsaved edits?",
-                                DocumentCommand::Reload.into(),
+                                Command::Reload.into(),
                             );
                         }
                         return;

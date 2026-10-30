@@ -42,7 +42,7 @@ use persistence::{
 use preview::fit_preview;
 use serde::{Deserialize, Serialize};
 
-use crate::app::commands::{ActionQueue, CommandQueue, CommandSender, ViewCommand};
+use crate::app::commands::{ActionQueue, Command, CommandQueue, CommandSender};
 use crate::app::components::button::Button;
 use crate::app::components::toast::Toast;
 use crate::app::components::{Alert, AlertLevel, text_tooltip};

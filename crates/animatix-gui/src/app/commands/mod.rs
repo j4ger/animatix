@@ -10,21 +10,6 @@ use crate::app::document::timeline_diff::KeyframeId;
 /// after all state mutations for the command have been performed. This separates
 /// side-effect concerns (UI notifications, repaint requests, editor interaction)
 /// from the pure data mutations in the handler.
-pub mod actor;
-pub mod document;
-pub mod keyframe;
-pub mod playback;
-pub mod scene;
-pub mod view;
-
-pub use actor::ActorCommand;
-pub use document::DocumentCommand;
-pub use keyframe::KeyframeCommand;
-pub use playback::PlaybackCommand;
-pub use scene::SceneCommand;
-pub use view::ViewCommand;
-
-/// Effect enum reserved for future side-effect dispatch.
 #[derive(Debug, Clone)]
 pub enum Effect {
     /// Push a toast notification to the UI overlay.
@@ -37,8 +22,6 @@ pub enum Effect {
     EditorScroll(usize),
     /// Highlight a line in the source editor.
     EditorHighlight(usize),
-    /// Mark that a rebuild has been scheduled (status update already set).
-    RebuildScheduled,
 }
 
 // =========================================================================
@@ -306,36 +289,6 @@ pub enum ShellAction {
     Drag(DragEvent),
 }
 
-impl From<DocumentCommand> for ShellAction {
-    fn from(c: DocumentCommand) -> Self {
-        ShellAction::Command(c.into())
-    }
-}
-impl From<ActorCommand> for ShellAction {
-    fn from(c: ActorCommand) -> Self {
-        ShellAction::Command(c.into())
-    }
-}
-impl From<KeyframeCommand> for ShellAction {
-    fn from(c: KeyframeCommand) -> Self {
-        ShellAction::Command(c.into())
-    }
-}
-impl From<SceneCommand> for ShellAction {
-    fn from(c: SceneCommand) -> Self {
-        ShellAction::Command(c.into())
-    }
-}
-impl From<PlaybackCommand> for ShellAction {
-    fn from(c: PlaybackCommand) -> Self {
-        ShellAction::Command(c.into())
-    }
-}
-impl From<ViewCommand> for ShellAction {
-    fn from(c: ViewCommand) -> Self {
-        ShellAction::Command(c.into())
-    }
-}
 impl From<Command> for ShellAction {
     fn from(c: Command) -> Self {
         ShellAction::Command(c)

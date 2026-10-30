@@ -53,10 +53,9 @@ pub fn handle_editor_changed(
     preview_store.pending_rebuild_at =
         Some(Instant::now() + Duration::from_millis(ui_store.rebuild_debounce_ms));
     preview_store.preview.error = None;
-    vec![
-        Effect::Status("Editing source • rebuild scheduled".to_string()),
-        Effect::RebuildScheduled,
-    ]
+    vec![Effect::Status(
+        "Editing source • rebuild scheduled".to_string(),
+    )]
 }
 
 fn collect_keyframes(document_store: &DocumentStore) -> Vec<f64> {

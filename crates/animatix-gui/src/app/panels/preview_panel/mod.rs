@@ -3,7 +3,7 @@
 use egui::{RichText, Vec2};
 use eparts::widget::UiExt;
 
-use crate::app::commands::{ActorCommand, DocumentCommand, PlaybackCommand};
+use crate::app::commands::Command;
 use crate::app::components::button::{Button, toolbar_separator};
 use crate::app::components::text_tooltip;
 use crate::app::design_tokens::spatial::{RADIUS_L, STROKE_WIDTH, preview as preview_spatial};

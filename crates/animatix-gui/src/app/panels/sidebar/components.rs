@@ -65,7 +65,7 @@ pub(super) fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut eg
             if response.response.double_clicked() {
                 // Instantiate component with default props
                 ctx.commands.push_back(
-                    ActorCommand::CreateActor {
+                    Command::CreateActor {
                         ty: template.ty.clone(),
                         label: template.label.clone(),
                         position: pos,
@@ -163,7 +163,7 @@ pub(super) fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut eg
                         None,
                     );
                     ctx.commands.push_back(
-                        ActorCommand::CreateActor {
+                        Command::CreateActor {
                             ty: template.ty,
                             label: template.label,
                             position: pos,

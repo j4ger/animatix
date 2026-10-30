@@ -3,9 +3,7 @@
 use eparts::TextField;
 
 use crate::app::GuiShell;
-use crate::app::commands::{
-    ActorCommand, DocumentCommand, PlaybackCommand, ShellAction, ViewAction, ViewCommand,
-};
+use crate::app::commands::{Command, ShellAction, ViewAction};
 use crate::app::components::button::Button;
 use crate::app::components::dialog::{self, DialogSpec};
 use crate::app::design_tokens::typography::TextRole;
@@ -227,25 +225,25 @@ impl GuiShell {
         items.push(PaletteItem {
             label: "Save".into(),
             icon: egui_phosphor::regular::FLOPPY_DISK,
-            action: DocumentCommand::Save.into(),
+            action: Command::Save.into(),
             keywords: "save file disk",
         });
         items.push(PaletteItem {
             label: "Reload".into(),
             icon: egui_phosphor::regular::ARROW_CLOCKWISE,
-            action: DocumentCommand::Reload.into(),
+            action: Command::Reload.into(),
             keywords: "reload refresh",
         });
         items.push(PaletteItem {
             label: "Reload Plugins".into(),
             icon: egui_phosphor::regular::PLUG,
-            action: DocumentCommand::ReloadPlugins.into(),
+            action: Command::ReloadPlugins.into(),
             keywords: "plugins reload extension manifest",
         });
         items.push(PaletteItem {
             label: "Rebuild".into(),
             icon: egui_phosphor::regular::ARROWS_CLOCKWISE,
-            action: DocumentCommand::Rebuild.into(),
+            action: Command::Rebuild.into(),
             keywords: "rebuild compile",
         });
         items.push(PaletteItem {
@@ -263,37 +261,37 @@ impl GuiShell {
         items.push(PaletteItem {
             label: "Toggle Playback".into(),
             icon: egui_phosphor::regular::PLAY,
-            action: PlaybackCommand::TogglePlayback.into(),
+            action: Command::TogglePlayback.into(),
             keywords: "play pause playback",
         });
         items.push(PaletteItem {
             label: "Toggle Presentation Mode".into(),
             icon: egui_phosphor::regular::PROJECTOR_SCREEN,
-            action: PlaybackCommand::TogglePresentationMode.into(),
+            action: Command::TogglePresentationMode.into(),
             keywords: "presentation mode slideshow powerpoint f5 full screen",
         });
         items.push(PaletteItem {
             label: "Step Next".into(),
             icon: egui_phosphor::regular::CARET_RIGHT,
-            action: PlaybackCommand::StepNext.into(),
+            action: Command::StepNext.into(),
             keywords: "step next slide pause point pagedown",
         });
         items.push(PaletteItem {
             label: "Step Previous".into(),
             icon: egui_phosphor::regular::CARET_LEFT,
-            action: PlaybackCommand::StepPrevious.into(),
+            action: Command::StepPrevious.into(),
             keywords: "step previous slide pause point pageup",
         });
         items.push(PaletteItem {
             label: "Undo".into(),
             icon: egui_phosphor::regular::ARROW_U_UP_LEFT,
-            action: DocumentCommand::Undo.into(),
+            action: Command::Undo.into(),
             keywords: "undo revert",
         });
         items.push(PaletteItem {
             label: "Redo".into(),
             icon: egui_phosphor::regular::ARROW_U_UP_RIGHT,
-            action: DocumentCommand::Redo.into(),
+            action: Command::Redo.into(),
             keywords: "redo forward",
         });
 
@@ -301,25 +299,25 @@ impl GuiShell {
             items.push(PaletteItem {
                 label: "Delete Selected Actors".into(),
                 icon: egui_phosphor::regular::TRASH,
-                action: ActorCommand::DeleteSelectedActors.into(),
+                action: Command::DeleteSelectedActors.into(),
                 keywords: "delete remove actors",
             });
             items.push(PaletteItem {
                 label: "Duplicate Selected Actors".into(),
                 icon: egui_phosphor::regular::COPY,
-                action: ActorCommand::DuplicateSelectedActors.into(),
+                action: Command::DuplicateSelectedActors.into(),
                 keywords: "duplicate copy actors",
             });
             items.push(PaletteItem {
                 label: "Group Selected Actors".into(),
                 icon: egui_phosphor::regular::SQUARES_FOUR,
-                action: ActorCommand::GroupSelectedActors.into(),
+                action: Command::GroupSelectedActors.into(),
                 keywords: "group container",
             });
             items.push(PaletteItem {
                 label: "Zoom to Selection".into(),
                 icon: egui_phosphor::regular::MAGNIFYING_GLASS_PLUS,
-                action: ViewCommand::ZoomToSelection.into(),
+                action: Command::ZoomToSelection.into(),
                 keywords: "zoom fit selection",
             });
         }
@@ -329,50 +327,49 @@ impl GuiShell {
             items.push(PaletteItem {
                 label: "Align Left".into(),
                 icon: egui_phosphor::regular::ALIGN_LEFT,
-                action: ActorCommand::AlignActors(crate::app::commands::Align::Left).into(),
+                action: Command::AlignActors(crate::app::commands::Align::Left).into(),
                 keywords: "align left actors selection",
             });
             items.push(PaletteItem {
                 label: "Align Center".into(),
                 icon: egui_phosphor::regular::ALIGN_CENTER_HORIZONTAL_SIMPLE,
-                action: ActorCommand::AlignActors(crate::app::commands::Align::Center).into(),
+                action: Command::AlignActors(crate::app::commands::Align::Center).into(),
                 keywords: "align center horizontal actors",
             });
             items.push(PaletteItem {
                 label: "Align Right".into(),
                 icon: egui_phosphor::regular::ALIGN_RIGHT,
-                action: ActorCommand::AlignActors(crate::app::commands::Align::Right).into(),
+                action: Command::AlignActors(crate::app::commands::Align::Right).into(),
                 keywords: "align right actors",
             });
             items.push(PaletteItem {
                 label: "Align Top".into(),
                 icon: egui_phosphor::regular::ALIGN_TOP,
-                action: ActorCommand::AlignActors(crate::app::commands::Align::Top).into(),
+                action: Command::AlignActors(crate::app::commands::Align::Top).into(),
                 keywords: "align top actors",
             });
             items.push(PaletteItem {
                 label: "Align Middle".into(),
                 icon: egui_phosphor::regular::ALIGN_CENTER_VERTICAL_SIMPLE,
-                action: ActorCommand::AlignActors(crate::app::commands::Align::Middle).into(),
+                action: Command::AlignActors(crate::app::commands::Align::Middle).into(),
                 keywords: "align middle vertical actors",
             });
             items.push(PaletteItem {
                 label: "Align Bottom".into(),
                 icon: egui_phosphor::regular::ALIGN_BOTTOM,
-                action: ActorCommand::AlignActors(crate::app::commands::Align::Bottom).into(),
+                action: Command::AlignActors(crate::app::commands::Align::Bottom).into(),
                 keywords: "align bottom actors",
             });
             items.push(PaletteItem {
                 label: "Distribute Horizontally".into(),
                 icon: egui_phosphor::regular::ARROWS_OUT_LINE_HORIZONTAL,
-                action: ActorCommand::DistributeActors(crate::app::commands::Axis::Horizontal)
-                    .into(),
+                action: Command::DistributeActors(crate::app::commands::Axis::Horizontal).into(),
                 keywords: "distribute horizontal evenly space actors",
             });
             items.push(PaletteItem {
                 label: "Distribute Vertically".into(),
                 icon: egui_phosphor::regular::ARROWS_OUT_LINE_VERTICAL,
-                action: ActorCommand::DistributeActors(crate::app::commands::Axis::Vertical).into(),
+                action: Command::DistributeActors(crate::app::commands::Axis::Vertical).into(),
                 keywords: "distribute vertical evenly space actors",
             });
         }
@@ -380,7 +377,7 @@ impl GuiShell {
         items.push(PaletteItem {
             label: "Zoom to Fit All".into(),
             icon: egui_phosphor::regular::ARROWS_IN,
-            action: ViewCommand::ZoomToAll.into(),
+            action: Command::ZoomToAll.into(),
             keywords: "zoom fit all",
         });
 

@@ -9,7 +9,7 @@ use egui::Vec2;
 use eparts::widget::UiExt;
 
 use crate::app::PreviewPaneState;
-use crate::app::commands::{ActionQueue, PlaybackCommand};
+use crate::app::commands::{ActionQueue, Command};
 use crate::app::components::button::{self, Button, toolbar_separator};
 use crate::app::design_tokens::typography::TextRole;
 
@@ -32,7 +32,7 @@ pub(crate) fn transport_ui(
         )
         .clicked()
     {
-        commands.push_back(PlaybackCommand::ScrubTo(0.0).into());
+        commands.push_back(Command::ScrubTo(0.0).into());
     }
 
     // Previous keyframe
@@ -44,7 +44,7 @@ pub(crate) fn transport_ui(
         )
         .clicked()
     {
-        commands.push_back(PlaybackCommand::PrevKeyframe.into());
+        commands.push_back(Command::PrevKeyframe.into());
     }
 
     // Play / Pause
@@ -55,7 +55,7 @@ pub(crate) fn transport_ui(
         )
         .clicked()
     {
-        commands.push_back(PlaybackCommand::TogglePlayback.into());
+        commands.push_back(Command::TogglePlayback.into());
     }
 
     // Next keyframe
@@ -67,7 +67,7 @@ pub(crate) fn transport_ui(
         )
         .clicked()
     {
-        commands.push_back(PlaybackCommand::NextKeyframe.into());
+        commands.push_back(Command::NextKeyframe.into());
     }
 
     // Frame step back / forward
@@ -78,7 +78,7 @@ pub(crate) fn transport_ui(
         )
         .clicked()
     {
-        commands.push_back(PlaybackCommand::FrameStepBackward.into());
+        commands.push_back(Command::FrameStepBackward.into());
     }
     if ui
         .add(
@@ -87,7 +87,7 @@ pub(crate) fn transport_ui(
         )
         .clicked()
     {
-        commands.push_back(PlaybackCommand::FrameStepForward.into());
+        commands.push_back(Command::FrameStepForward.into());
     }
 
     // Go to end
@@ -99,7 +99,7 @@ pub(crate) fn transport_ui(
         )
         .clicked()
     {
-        commands.push_back(PlaybackCommand::ScrubTo(preview.playback.duration_s).into());
+        commands.push_back(Command::ScrubTo(preview.playback.duration_s).into());
     }
 
     toolbar_separator(ui);
@@ -175,7 +175,7 @@ pub(crate) fn transport_ui(
         )
         .clicked()
     {
-        commands.push_back(PlaybackCommand::TogglePresentationMode.into());
+        commands.push_back(Command::TogglePresentationMode.into());
     }
 
     // Timecode + duration + fps badge capsule

@@ -54,7 +54,7 @@ pub(super) fn library_drag_drop_ui(
                 &crate::app::panels::library_drag_label_base(&payload),
             );
             ctx.commands.push_back(
-                ActorCommand::CreateActor {
+                Command::CreateActor {
                     ty: payload.ty.clone(),
                     label,
                     position: [scene.x as f32, scene.y as f32],

@@ -3,9 +3,7 @@
 //! Handles: hit-test actor body, Alt duplicate, Shift detach from layout,
 //! multi-actor move with snap, grid, shift-lock, and keyframe finalization.
 
-use crate::app::commands::{
-    Command, DocumentCommand, DragEvent, PropertyEdit, PropertyValue, ShellAction,
-};
+use crate::app::commands::{Command, DragEvent, PropertyEdit, PropertyValue, ShellAction};
 use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
 use crate::app::preview::{DragState, ToolMode, drag_utils};
 pub(crate) struct MoveActorGesture;
@@ -62,7 +60,7 @@ impl GestureHandler for MoveActorGesture {
                             .map(|p| p.position)
                             .unwrap_or([scene.x as f32, scene.y as f32]);
                         ctx.commands.push_back(
-                            DocumentCommand::PropertyEdit(PropertyEdit {
+                            Command::PropertyEdit(PropertyEdit {
                                 time_s: None,
                                 actor: actor.clone(),
                                 property: "placement_mode".into(),
@@ -72,7 +70,7 @@ impl GestureHandler for MoveActorGesture {
                             .into(),
                         );
                         ctx.commands.push_back(
-                            DocumentCommand::PropertyEdit(PropertyEdit {
+                            Command::PropertyEdit(PropertyEdit {
                                 time_s: None,
                                 actor: actor.clone(),
                                 property: "position".into(),

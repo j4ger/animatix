@@ -187,7 +187,7 @@ impl GuiShell {
                             &mut self.ui_store.view.diagnostics_panel_visible,
                         ) {
                             self.ui_store.pending_actions.push_back(
-                                ViewCommand::ScrollToLine(target.line, target.column).into(),
+                                Command::ScrollToLine(target.line, target.column).into(),
                             );
                         }
                     }

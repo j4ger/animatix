@@ -54,7 +54,7 @@ pub(crate) fn render_empty_property_lane(
                 .and_then(|effects| effects.sample_lane(prop_name, (playhead_s * 1000.0) as u64))
                 .unwrap_or(animatix::timeline::PropertyValue::F32(0.0));
             commands.push_back(
-                DocumentCommand::PropertyEdit(PropertyEdit {
+                Command::PropertyEdit(PropertyEdit {
                     actor: actor_label.to_string(),
                     property: prop_name.to_string(),
                     value,
@@ -72,7 +72,7 @@ pub(crate) fn render_empty_property_lane(
                 .read_property_value(id, schema.field, (playhead_s * 1000.0) as u64)
                 .unwrap_or_else(|| (schema.default_value)(&caps));
             commands.push_back(
-                DocumentCommand::PropertyEdit(PropertyEdit {
+                Command::PropertyEdit(PropertyEdit {
                     actor: actor_label.to_string(),
                     property: schema.name.to_string(),
                     value,

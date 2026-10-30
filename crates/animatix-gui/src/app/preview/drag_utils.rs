@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use animatix::timeline::{PositionBinding, TrackAccessor};
 use egui::Pos2;
 
-use crate::app::commands::{DocumentCommand, PropertyEdit, PropertyValue};
+use crate::app::commands::{Command, PropertyEdit, PropertyValue};
 use crate::app::preview::context::PreviewContext;
 use crate::app::preview::{ActorProps, DragState};
 
@@ -385,7 +385,7 @@ pub(crate) fn emit_position_edit(actor: String, nx: f32, ny: f32, ctx: &mut Prev
         PositionBinding::SceneAnchor { anchor, .. } => {
             let anchor_pt = animatix::timeline::scene_anchor_point(anchor, ctx.scene_dimensions);
             ctx.commands.push_back(
-                DocumentCommand::PropertyEdit(PropertyEdit {
+                Command::PropertyEdit(PropertyEdit {
                     time_s: None,
                     actor,
                     property: "offset".into(),
@@ -399,7 +399,7 @@ pub(crate) fn emit_position_edit(actor: String, nx: f32, ny: f32, ctx: &mut Prev
             let w = ctx.scene_dimensions.width.max(1) as f32;
             let h = ctx.scene_dimensions.height.max(1) as f32;
             ctx.commands.push_back(
-                DocumentCommand::PropertyEdit(PropertyEdit {
+                Command::PropertyEdit(PropertyEdit {
                     time_s: None,
                     actor,
                     property: "at".into(),
@@ -411,7 +411,7 @@ pub(crate) fn emit_position_edit(actor: String, nx: f32, ny: f32, ctx: &mut Prev
         },
         _ => {
             ctx.commands.push_back(
-                DocumentCommand::PropertyEdit(PropertyEdit {
+                Command::PropertyEdit(PropertyEdit {
                     time_s: None,
                     actor,
                     property: "position".into(),
@@ -442,7 +442,7 @@ pub(crate) fn finalize_drag_keyframes(old_drag_state: &DragState, ctx: &mut Prev
                         {
                             if current_props.position != start_pos {
                                 ctx.commands.push_back(
-                                    DocumentCommand::PropertyEdit(PropertyEdit {
+                                    Command::PropertyEdit(PropertyEdit {
                                         time_s: None,
                                         actor: primary.clone(),
                                         property: "position".into(),
@@ -467,7 +467,7 @@ pub(crate) fn finalize_drag_keyframes(old_drag_state: &DragState, ctx: &mut Prev
                         && current_props.size != *start_size
                     {
                         ctx.commands.push_back(
-                            DocumentCommand::PropertyEdit(PropertyEdit {
+                            Command::PropertyEdit(PropertyEdit {
                                 time_s: None,
                                 actor: actor.clone(),
                                 property: "size".into(),
@@ -481,7 +481,7 @@ pub(crate) fn finalize_drag_keyframes(old_drag_state: &DragState, ctx: &mut Prev
                         && current_props.position != *start_position
                     {
                         ctx.commands.push_back(
-                            DocumentCommand::PropertyEdit(PropertyEdit {
+                            Command::PropertyEdit(PropertyEdit {
                                 time_s: None,
                                 actor: actor.clone(),
                                 property: "position".into(),
@@ -503,7 +503,7 @@ pub(crate) fn finalize_drag_keyframes(old_drag_state: &DragState, ctx: &mut Prev
                         && current_props.rotation != *start_rotation
                     {
                         ctx.commands.push_back(
-                            DocumentCommand::PropertyEdit(PropertyEdit {
+                            Command::PropertyEdit(PropertyEdit {
                                 time_s: None,
                                 actor: actor.clone(),
                                 property: "rotation".into(),

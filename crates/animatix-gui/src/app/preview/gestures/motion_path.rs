@@ -3,7 +3,7 @@
 //! Allows the user to reposition keyframes on the motion path by clicking and
 //! dragging the keyframe dots shown when motion paths are visible.
 
-use crate::app::commands::{DocumentCommand, DragEvent, PropertyEdit, PropertyValue, ShellAction};
+use crate::app::commands::{Command, DragEvent, PropertyEdit, PropertyValue, ShellAction};
 use crate::app::design_tokens::spatial::preview::HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS;
 use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
 use crate::app::preview::{DragState, drag_utils};
@@ -78,7 +78,7 @@ impl GestureHandler for MotionPathGesture {
                 let new_pos = [start_position[0] + dx, start_position[1] + dy];
 
                 ctx.commands.push_back(
-                    DocumentCommand::PropertyEdit(PropertyEdit {
+                    Command::PropertyEdit(PropertyEdit {
                         actor,
                         property: "position".into(),
                         value: PropertyValue::Vec2(new_pos),

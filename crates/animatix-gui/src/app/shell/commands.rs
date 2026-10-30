@@ -54,10 +54,6 @@ impl GuiShell {
                 Effect::EditorHighlight(line) => {
                     self.document_store.source.editor.set_highlighted_line(Some(line));
                 },
-                Effect::RebuildScheduled => {
-                    // The status has already been set; the pending rebuild
-                    // timer is set directly in the command handler.
-                },
             }
         }
     }

@@ -1,6 +1,6 @@
 //! Gesture handler for rotation — ToolMode::Rotate and Select rotation handle.
 
-use crate::app::commands::{DocumentCommand, PropertyEdit, PropertyValue};
+use crate::app::commands::{Command, PropertyEdit, PropertyValue};
 use crate::app::design_tokens::spatial::preview::HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS;
 use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
 use crate::app::preview::{self, DragState, ToolMode, drag_utils};
@@ -150,7 +150,7 @@ impl GestureHandler for RotateGesture {
                         let nx = center[0] + dx * cos_d - dy * sin_d;
                         let ny = center[1] + dx * sin_d + dy * cos_d;
                         ctx.commands.push_back(
-                            DocumentCommand::PropertyEdit(PropertyEdit {
+                            Command::PropertyEdit(PropertyEdit {
                                 time_s: None,
                                 actor: a.label.clone(),
                                 property: "rotation".into(),
@@ -192,7 +192,7 @@ impl GestureHandler for RotateGesture {
                         * ctx.rotation_snap_degrees.to_radians();
                 }
                 ctx.commands.push_back(
-                    DocumentCommand::PropertyEdit(PropertyEdit {
+                    Command::PropertyEdit(PropertyEdit {
                         time_s: None,
                         actor,
                         property: "rotation".into(),

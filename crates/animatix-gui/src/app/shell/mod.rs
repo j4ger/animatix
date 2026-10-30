@@ -15,7 +15,7 @@ pub mod toolbar;
 pub mod transport;
 
 use crate::app::GuiShell;
-use crate::app::commands::{Command, DocumentCommand, DragEvent, Effect, ShellAction, ViewAction};
+use crate::app::commands::{Command, DragEvent, Effect, ShellAction, ViewAction};
 use crate::app::handlers::*;
 
 impl GuiShell {

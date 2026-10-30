@@ -184,78 +184,63 @@ impl AnimatixApp {
         if let Some(action) = self.shell.shortcut_registry.check(ctx, &focus) {
             match action {
                 KeyboardAction::Undo => {
-                    self.shell.ui_store.pending_actions.push_back(DocumentCommand::Undo.into());
+                    self.shell.ui_store.pending_actions.push_back(Command::Undo.into());
                 },
                 KeyboardAction::Redo => {
-                    self.shell.ui_store.pending_actions.push_back(DocumentCommand::Redo.into());
+                    self.shell.ui_store.pending_actions.push_back(Command::Redo.into());
                 },
                 KeyboardAction::Save => {
-                    self.shell.ui_store.pending_actions.push_back(DocumentCommand::Save.into());
+                    self.shell.ui_store.pending_actions.push_back(Command::Save.into());
                 },
                 KeyboardAction::Reload => {
-                    self.shell.ui_store.pending_actions.push_back(DocumentCommand::Reload.into());
+                    self.shell.ui_store.pending_actions.push_back(Command::Reload.into());
                 },
                 KeyboardAction::Rebuild => {
-                    self.shell.ui_store.pending_actions.push_back(DocumentCommand::Rebuild.into());
+                    self.shell.ui_store.pending_actions.push_back(Command::Rebuild.into());
                 },
                 KeyboardAction::TogglePlayback => {
                     if self.shell.preview_store.preview.playback.presentation_mode {
-                        self.shell
-                            .ui_store
-                            .pending_actions
-                            .push_back(PlaybackCommand::StepNext.into());
+                        self.shell.ui_store.pending_actions.push_back(Command::StepNext.into());
                     } else {
                         self.shell
                             .ui_store
                             .pending_actions
-                            .push_back(PlaybackCommand::TogglePlayback.into());
+                            .push_back(Command::TogglePlayback.into());
                     }
                 },
                 KeyboardAction::StepNext => {
-                    self.shell.ui_store.pending_actions.push_back(PlaybackCommand::StepNext.into());
+                    self.shell.ui_store.pending_actions.push_back(Command::StepNext.into());
                 },
                 KeyboardAction::StepPrevious => {
-                    self.shell
-                        .ui_store
-                        .pending_actions
-                        .push_back(PlaybackCommand::StepPrevious.into());
+                    self.shell.ui_store.pending_actions.push_back(Command::StepPrevious.into());
                 },
                 KeyboardAction::TogglePresentationMode => {
                     self.shell
                         .ui_store
                         .pending_actions
-                        .push_back(PlaybackCommand::TogglePresentationMode.into());
+                        .push_back(Command::TogglePresentationMode.into());
                 },
                 KeyboardAction::PrevKeyframe => {
-                    self.shell
-                        .ui_store
-                        .pending_actions
-                        .push_back(PlaybackCommand::PrevKeyframe.into());
+                    self.shell.ui_store.pending_actions.push_back(Command::PrevKeyframe.into());
                 },
                 KeyboardAction::NextKeyframe => {
-                    self.shell
-                        .ui_store
-                        .pending_actions
-                        .push_back(PlaybackCommand::NextKeyframe.into());
+                    self.shell.ui_store.pending_actions.push_back(Command::NextKeyframe.into());
                 },
                 KeyboardAction::FrameStepForward => {
-                    self.shell
-                        .ui_store
-                        .pending_actions
-                        .push_back(PlaybackCommand::FrameStepForward.into());
+                    self.shell.ui_store.pending_actions.push_back(Command::FrameStepForward.into());
                 },
                 KeyboardAction::FrameStepBackward => {
                     self.shell
                         .ui_store
                         .pending_actions
-                        .push_back(PlaybackCommand::FrameStepBackward.into());
+                        .push_back(Command::FrameStepBackward.into());
                 },
                 KeyboardAction::DuplicateSelection => {
                     for label in self.shell.ui_store.selection.selected_actors.clone().into_iter() {
                         self.shell
                             .ui_store
                             .pending_actions
-                            .push_back(ActorCommand::DuplicateActor(label).into());
+                            .push_back(Command::DuplicateActor(label).into());
                     }
                 },
                 KeyboardAction::DeleteSelection => {
@@ -273,7 +258,7 @@ impl AnimatixApp {
                                 time_ms,
                             } = keyframe;
                             self.shell.ui_store.pending_actions.push_back(
-                                KeyframeCommand::DeleteKeyframe {
+                                Command::DeleteKeyframe {
                                     scene,
                                     actor,
                                     property,
@@ -287,29 +272,26 @@ impl AnimatixApp {
                         self.shell
                             .ui_store
                             .pending_actions
-                            .push_back(ActorCommand::DeleteSelectedActors.into());
+                            .push_back(Command::DeleteSelectedActors.into());
                     }
                 },
                 KeyboardAction::GroupSelection => {
                     self.shell
                         .ui_store
                         .pending_actions
-                        .push_back(ActorCommand::GroupSelectedActors.into());
+                        .push_back(Command::GroupSelectedActors.into());
                 },
                 KeyboardAction::UngroupSelection => {
                     self.shell
                         .ui_store
                         .pending_actions
-                        .push_back(ActorCommand::UngroupSelectedActors.into());
+                        .push_back(Command::UngroupSelectedActors.into());
                 },
                 KeyboardAction::ZoomToSelection => {
-                    self.shell
-                        .ui_store
-                        .pending_actions
-                        .push_back(ViewCommand::ZoomToSelection.into());
+                    self.shell.ui_store.pending_actions.push_back(Command::ZoomToSelection.into());
                 },
                 KeyboardAction::ZoomToAll => {
-                    self.shell.ui_store.pending_actions.push_back(ViewCommand::ZoomToAll.into());
+                    self.shell.ui_store.pending_actions.push_back(Command::ZoomToAll.into());
                 },
                 KeyboardAction::OpenCommandPalette => {
                     self.shell
@@ -352,7 +334,7 @@ impl AnimatixApp {
                         self.shell
                             .ui_store
                             .pending_actions
-                            .push_back(PlaybackCommand::TogglePresentationMode.into());
+                            .push_back(Command::TogglePresentationMode.into());
                     } else if !matches!(self.shell.ui_store.interaction.drag_state, DragState::None)
                     {
                         self.shell.ui_store.interaction.drag_state = DragState::None;
@@ -363,10 +345,7 @@ impl AnimatixApp {
                     }
                 },
                 KeyboardAction::EditSync => {
-                    self.shell
-                        .ui_store
-                        .pending_actions
-                        .push_back(PlaybackCommand::ToggleEditorSync.into());
+                    self.shell.ui_store.pending_actions.push_back(Command::ToggleEditorSync.into());
                 },
                 KeyboardAction::OpenInsertionPalette => {
                     self.shell.insertion_palette.open(PaletteMode::Universal);
@@ -378,17 +357,14 @@ impl AnimatixApp {
                 },
                 KeyboardAction::PasteClipboard => {
                     if !self.shell.ui_store.clipboard.clipboard_actors.is_empty() {
-                        self.shell
-                            .ui_store
-                            .pending_actions
-                            .push_back(ActorCommand::PasteActors.into());
+                        self.shell.ui_store.pending_actions.push_back(Command::PasteActors.into());
                     }
                 },
                 KeyboardAction::SelectScene(index) => {
                     let scene_names = self.shell.document_store.source.document.scene_names();
                     if (*index as usize) < scene_names.len() {
                         self.shell.ui_store.pending_actions.push_back(
-                            SceneCommand::SelectScene(scene_names[*index as usize].clone()).into(),
+                            Command::SelectScene(scene_names[*index as usize].clone()).into(),
                         );
                     }
                 },
@@ -396,15 +372,12 @@ impl AnimatixApp {
                     let scrub_step_s = self.shell.ui_store.scrub_step_s;
                     if self.shell.preview_store.preview.playback.presentation_mode {
                         if *dx > 0.0 {
-                            self.shell
-                                .ui_store
-                                .pending_actions
-                                .push_back(PlaybackCommand::StepNext.into());
+                            self.shell.ui_store.pending_actions.push_back(Command::StepNext.into());
                         } else if *dx < 0.0 {
                             self.shell
                                 .ui_store
                                 .pending_actions
-                                .push_back(PlaybackCommand::StepPrevious.into());
+                                .push_back(Command::StepPrevious.into());
                         }
                     } else if has_selection {
                         let shift_pressed = ctx.input(|i| i.modifiers.shift);
@@ -461,7 +434,7 @@ impl AnimatixApp {
                             self.shell
                                 .ui_store
                                 .pending_actions
-                                .push_back(PlaybackCommand::ScrubTo(new_time).into());
+                                .push_back(Command::ScrubTo(new_time).into());
                         } else if *dx > 0.0 {
                             let new_time =
                                 self.shell.preview_store.preview.playback.current_time_s()
@@ -469,7 +442,7 @@ impl AnimatixApp {
                             self.shell
                                 .ui_store
                                 .pending_actions
-                                .push_back(PlaybackCommand::ScrubTo(new_time).into());
+                                .push_back(Command::ScrubTo(new_time).into());
                         }
                         // Up/down arrows without selection are intentionally ignored
                     }

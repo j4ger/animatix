@@ -6,7 +6,7 @@ use animatix_syntax::easing::Easing;
 use egui::{Rect, Vec2};
 use eparts::widget::UiExt;
 
-use crate::app::commands::{ActionQueue, KeyframeCommand, PlaybackCommand};
+use crate::app::commands::{ActionQueue, Command};
 use crate::app::components::{Badge, Tooltip};
 use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;
@@ -196,7 +196,7 @@ fn render_compact_track_row(
                     let is_selected = variant == current_easing;
                     if ui.stable_selectable_label(is_selected, display_name).clicked() {
                         commands.push_back(
-                            KeyframeCommand::SetKeyframeEasing {
+                            Command::SetKeyframeEasing {
                                 scene: active_scene.map(ToOwned::to_owned),
                                 actor: actor_label.to_string(),
                                 property: track.name.to_string(),
@@ -254,7 +254,7 @@ fn render_compact_track_row(
             if let Some(pos) = strip_response.interact_pointer_pos() {
                 let fraction =
                     ((pos.x - strip_rect.left()) / strip_rect.width()).clamp(0.0, 1.0) as f64;
-                commands.push_back(PlaybackCommand::ScrubTo(fraction * duration_s).into());
+                commands.push_back(Command::ScrubTo(fraction * duration_s).into());
             }
         }
     }

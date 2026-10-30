@@ -9,8 +9,7 @@ use eparts::{Checkbox, NumberField, Slider, TextField};
 
 use super::property_groups_legend::legend_style_entries;
 use crate::app::commands::{
-    ActionQueue, DocumentCommand, DragEvent, KeyframeCommand, PropertyEdit,
-    PropertyValue as GuiPropertyValue, ShellAction,
+    ActionQueue, Command, DragEvent, PropertyEdit, PropertyValue as GuiPropertyValue, ShellAction,
 };
 use crate::app::components::button::Button;
 use crate::app::components::{Badge, ColorPicker, row, text_tooltip};

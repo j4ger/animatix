@@ -52,7 +52,7 @@ pub(super) fn render_sum_input(
     if selected != previous {
         let edit_value = gui_value_for_sum_variant(&variants[selected], buf.clone());
         commands.push_back(
-            DocumentCommand::PropertyEdit(PropertyEdit {
+            Command::PropertyEdit(PropertyEdit {
                 time_s: None,
                 actor: actor_label.to_string(),
                 property: entry.name.to_string(),
@@ -63,7 +63,7 @@ pub(super) fn render_sum_input(
         );
     } else if label_changed {
         commands.push_back(
-            DocumentCommand::PropertyEdit(PropertyEdit {
+            Command::PropertyEdit(PropertyEdit {
                 time_s: None,
                 actor: actor_label.to_string(),
                 property: entry.name.to_string(),
@@ -125,7 +125,7 @@ pub(super) fn render_union_input(
                 _ => GuiPropertyValue::String(buf.clone()),
             };
             commands.push_back(
-                DocumentCommand::PropertyEdit(PropertyEdit {
+                Command::PropertyEdit(PropertyEdit {
                     time_s: None,
                     actor: actor_label.to_string(),
                     property: entry.name.to_string(),
@@ -136,7 +136,7 @@ pub(super) fn render_union_input(
             );
         } else if label_changed {
             commands.push_back(
-                DocumentCommand::PropertyEdit(PropertyEdit {
+                Command::PropertyEdit(PropertyEdit {
                     time_s: None,
                     actor: actor_label.to_string(),
                     property: entry.name.to_string(),
@@ -212,7 +212,7 @@ pub(super) fn render_text_input(
                             let chosen = variants[idx];
                             if chosen != text {
                                 commands.push_back(
-                                    DocumentCommand::PropertyEdit(PropertyEdit {
+                                    Command::PropertyEdit(PropertyEdit {
                                         time_s: None,
                                         actor: actor_label.to_string(),
                                         property: entry.name.to_string(),
@@ -241,7 +241,7 @@ pub(super) fn render_text_input(
                             let chosen = &families[idx];
                             if chosen != text {
                                 commands.push_back(
-                                    DocumentCommand::PropertyEdit(PropertyEdit {
+                                    Command::PropertyEdit(PropertyEdit {
                                         time_s: None,
                                         actor: actor_label.to_string(),
                                         property: entry.name.to_string(),
@@ -260,7 +260,7 @@ pub(super) fn render_text_input(
                             TextField::new(&mut buf).desired_width(ui.available_width()).show(ui);
                         if tf_resp.changed {
                             commands.push_back(
-                                DocumentCommand::PropertyEdit(PropertyEdit {
+                                Command::PropertyEdit(PropertyEdit {
                                     time_s: None,
                                     actor: actor_label.to_string(),
                                     property: entry.name.to_string(),

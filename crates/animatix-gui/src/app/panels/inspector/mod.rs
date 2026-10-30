@@ -6,10 +6,7 @@ use eparts::widget::Select;
 use eparts::{Button, NumberField, TextField};
 
 use crate::app::PreviewPaneState;
-use crate::app::commands::{
-    ActionQueue, ActorCommand, DocumentCommand, PlaybackCommand, PropertyEdit,
-    PropertyValue as GuiPropertyValue, SceneCommand,
-};
+use crate::app::commands::{ActionQueue, Command, PropertyEdit, PropertyValue as GuiPropertyValue};
 use crate::app::components::easing_curve_editor::EasingCurveState;
 use crate::app::components::{Badge, TabBar, easing_curve_editor, layout, text_tooltip, timeline};
 use crate::app::design_tokens::spatial::inspector::INPUT_WIDTH_FLOAT as INSPECTOR_INPUT_WIDTH_FLOAT;
@@ -249,7 +246,7 @@ fn render_actor_header(
                         ui.data_mut(|d| d.insert_temp(edit_id, false));
                         if edit_buffer != actor_label && !edit_buffer.is_empty() {
                             commands.push_back(
-                                ActorCommand::RenameActor {
+                                Command::RenameActor {
                                     old_label: actor_label.to_string(),
                                     new_label: edit_buffer.clone(),
                                 }
@@ -362,7 +359,7 @@ fn render_parent_card(
                 };
                 if chosen != current_parent {
                     commands.push_back(
-                        ActorCommand::ReparentActor {
+                        Command::ReparentActor {
                             actor: actor.to_string(),
                             new_parent: chosen,
                         }
@@ -471,7 +468,7 @@ fn render_container_children(
             let mut new_order = order.to_vec();
             new_order.swap(i, i - 1);
             commands.push_back(
-                DocumentCommand::PropertyEdit(PropertyEdit {
+                Command::PropertyEdit(PropertyEdit {
                     time_s: None,
                     actor: container.to_string(),
                     property: "child_order".into(),
@@ -485,7 +482,7 @@ fn render_container_children(
             let mut new_order = order.to_vec();
             new_order.swap(i, i + 1);
             commands.push_back(
-                DocumentCommand::PropertyEdit(PropertyEdit {
+                Command::PropertyEdit(PropertyEdit {
                     time_s: None,
                     actor: container.to_string(),
                     property: "child_order".into(),

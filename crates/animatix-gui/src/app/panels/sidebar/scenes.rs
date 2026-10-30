@@ -34,7 +34,7 @@ pub(super) fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) 
                 n += 1;
                 name = format!("scene{n}");
             }
-            ctx.commands.push_back(SceneCommand::AddScene(name).into());
+            ctx.commands.push_back(Command::AddScene(name).into());
         }
     });
     ui.add_space(sp.base.space_2);
@@ -127,7 +127,7 @@ pub(super) fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) 
 
             // Click to activate scene
             if response.row_clicked {
-                ctx.commands.push_back(SceneCommand::SelectScene(scene_name.clone()).into());
+                ctx.commands.push_back(Command::SelectScene(scene_name.clone()).into());
             }
 
             // Context menu
@@ -140,15 +140,15 @@ pub(super) fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) 
                 ];
                 if let Some(menu_idx) = render_menu(ui, &entries) {
                     match menu_idx {
-                        0 => ctx
-                            .commands
-                            .push_back(SceneCommand::SelectScene(scene_name.clone()).into()),
+                        0 => {
+                            ctx.commands.push_back(Command::SelectScene(scene_name.clone()).into())
+                        },
                         2 => ctx
                             .commands
-                            .push_back(SceneCommand::DuplicateScene(scene_name.clone()).into()),
-                        3 => ctx
-                            .commands
-                            .push_back(SceneCommand::DeleteScene(scene_name.clone()).into()),
+                            .push_back(Command::DuplicateScene(scene_name.clone()).into()),
+                        3 => {
+                            ctx.commands.push_back(Command::DeleteScene(scene_name.clone()).into())
+                        },
                         _ => {},
                     }
                     ui.close();
@@ -195,7 +195,7 @@ pub(super) fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) 
                         to_idx
                     };
                     new_order.insert(insert_at.min(new_order.len()), removed);
-                    ctx.commands.push_back(SceneCommand::ReorderScenes(new_order).into());
+                    ctx.commands.push_back(Command::ReorderScenes(new_order).into());
                 }
                 ui.data_mut(|d| {
                     d.remove::<(usize, String)>(drag_data_id);

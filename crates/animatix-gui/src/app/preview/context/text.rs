@@ -3,7 +3,7 @@
 use egui::Stroke;
 
 use crate::app::InlineTextEditState;
-use crate::app::commands::{DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue};
+use crate::app::commands::{Command, PropertyEdit, PropertyValue as GuiPropertyValue};
 use crate::app::design_tokens::spatial::{RADIUS_M, STROKE_WIDTH, spatial};
 use crate::app::design_tokens::typography::TextRole;
 
@@ -141,7 +141,7 @@ impl PreviewContext<'_> {
             let actor = edit.actor.clone();
             let property = edit.property.clone();
             self.commands.push_back(
-                DocumentCommand::PropertyEdit(PropertyEdit {
+                Command::PropertyEdit(PropertyEdit {
                     time_s: None,
                     actor,
                     property,

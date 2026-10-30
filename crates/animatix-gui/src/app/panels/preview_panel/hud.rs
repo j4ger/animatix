@@ -55,7 +55,7 @@ pub(super) fn presentation_hud_ui(
                     .with_tooltip("Previous step (PageUp / Left-Arrow / Right-Click)"),
             );
             if prev_btn.clicked() {
-                ctx.commands.push_back(PlaybackCommand::StepPrevious.into());
+                ctx.commands.push_back(Command::StepPrevious.into());
             }
 
             // Step counter / status
@@ -102,7 +102,7 @@ pub(super) fn presentation_hud_ui(
                     .with_tooltip("Next step (Space / PageDown / Click)"),
             );
             if next_btn.clicked() {
-                ctx.commands.push_back(PlaybackCommand::StepNext.into());
+                ctx.commands.push_back(Command::StepNext.into());
             }
 
             toolbar_separator(ui);
@@ -114,7 +114,7 @@ pub(super) fn presentation_hud_ui(
                     .with_tooltip("Exit Presentation Mode (Esc / F5)"),
             );
             if exit_btn.clicked() {
-                ctx.commands.push_back(PlaybackCommand::TogglePresentationMode.into());
+                ctx.commands.push_back(Command::TogglePresentationMode.into());
             }
         });
     });

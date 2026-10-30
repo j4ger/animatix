@@ -9,9 +9,7 @@ use egui::{Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, Vec2};
 
 use super::{TimelineCoords, draw_loop_region};
 use crate::app::PreviewPaneState;
-use crate::app::commands::{
-    ActionQueue, Command, DocumentCommand, PlaybackCommand, PropertyEdit, ShellAction,
-};
+use crate::app::commands::{ActionQueue, Command, PropertyEdit, ShellAction};
 use crate::app::components::text_tooltip;
 use crate::app::design_tokens::semantic::{category, timeline};
 use crate::app::design_tokens::spatial::timeline::KF_HALF as KF_DIAMOND_HALF;

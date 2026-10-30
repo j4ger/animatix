@@ -16,9 +16,7 @@ use egui::{Color32, Pos2, RichText, Vec2};
 use eparts::{Button, Size};
 
 use super::PropertyViewMode;
-use crate::app::commands::{
-    ActionQueue, ActorCommand, DocumentCommand, PropertyEdit, PropertyValue as GuiPropertyValue,
-};
+use crate::app::commands::{ActionQueue, Command, PropertyEdit, PropertyValue as GuiPropertyValue};
 use crate::app::components::{layout, text_tooltip};
 use crate::app::design_tokens::spatial::spatial;
 use crate::app::design_tokens::typography::TextRole;
@@ -125,7 +123,7 @@ pub(crate) fn render_property_spreadsheet(
             scene_dimensions.height as f32 / 2.0,
         ];
         commands.push_back(
-            ActorCommand::CreateActor {
+            Command::CreateActor {
                 ty: template.ty,
                 label: template.label,
                 position: pos,
@@ -331,7 +329,7 @@ pub(crate) fn render_property_spreadsheet(
                                     get_property_gui_value(timeline, id, prop_name, time_ms)
                                 {
                                     commands.push_back(
-                                        DocumentCommand::PropertyEdit(PropertyEdit {
+                                        Command::PropertyEdit(PropertyEdit {
                                             time_s: None,
                                             actor: actor_label.to_string(),
                                             property: prop_name.to_string(),

@@ -21,7 +21,7 @@ use eparts::Theme;
 use eparts::widget::UiExt;
 
 use crate::app::PreviewPaneState;
-use crate::app::commands::{ActionQueue, Command, MoveKeyframeSpec, PlaybackCommand, ShellAction};
+use crate::app::commands::{ActionQueue, Command, MoveKeyframeSpec, ShellAction};
 use crate::app::components::layout;
 use crate::app::design_tokens::spatial::timeline::RULER_HEIGHT;
 use crate::app::design_tokens::spatial::{RADIUS_M, RADIUS_S, STROKE_WIDTH, spatial};
@@ -342,7 +342,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
             if !shift_held {
                 t = snap_time(t, ctx.snap_fps);
             }
-            ctx.commands.push_back(PlaybackCommand::ScrubTo(t).into());
+            ctx.commands.push_back(Command::ScrubTo(t).into());
         }
     }
 

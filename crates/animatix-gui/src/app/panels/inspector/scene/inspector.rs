@@ -318,7 +318,7 @@ fn render_actor_footer(
             height: sp.base.row_xs,
         };
         if let Some(scrub_t) = strip.show(ui) {
-            commands.push_back(PlaybackCommand::ScrubTo(scrub_t).into());
+            commands.push_back(Command::ScrubTo(scrub_t).into());
         }
     });
     ui.add_space(sp.base.space_3);
@@ -444,7 +444,7 @@ fn render_empty_scene(
                 scene_dimensions.height as f32 / 2.0,
             ];
             commands.push_back(
-                ActorCommand::CreateActor {
+                Command::CreateActor {
                     ty: template.ty,
                     label: template.label,
                     position: pos,

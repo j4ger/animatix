@@ -164,7 +164,7 @@ pub(super) fn handle_canvas_interaction(
         ctx.preview.playback.duration_s,
         &all_kf,
     ) {
-        ctx.commands.push_back(PlaybackCommand::ScrubTo(new_time).into());
+        ctx.commands.push_back(Command::ScrubTo(new_time).into());
     }
 
     crate::app::preview::gesture_router::GestureRouter::handle_preview_gestures(
@@ -214,9 +214,9 @@ pub(super) fn handle_presentation_input(
     response: &egui::Response,
 ) {
     if response.clicked() {
-        ctx.commands.push_back(PlaybackCommand::StepNext.into());
+        ctx.commands.push_back(Command::StepNext.into());
     } else if response.secondary_clicked() {
-        ctx.commands.push_back(PlaybackCommand::StepPrevious.into());
+        ctx.commands.push_back(Command::StepPrevious.into());
     }
     presentation_hud_ui(ctx, ui, preview_rect);
 }
@@ -237,7 +237,7 @@ pub(super) fn handle_file_drop(
 
                 // .amx files: open directly instead of creating an actor
                 if ext == "amx" {
-                    ctx.commands.push_back(DocumentCommand::OpenFile(path).into());
+                    ctx.commands.push_back(Command::OpenFile(path).into());
                     continue;
                 }
 
@@ -276,7 +276,7 @@ pub(super) fn handle_file_drop(
                     )
                 };
                 ctx.commands.push_back(
-                    ActorCommand::CreateActor {
+                    Command::CreateActor {
                         ty,
                         label,
                         position: drop_pos,

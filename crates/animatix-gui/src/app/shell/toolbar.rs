@@ -2,9 +2,7 @@ use egui::{Align, RichText, Stroke, Vec2};
 use eparts::Checkbox;
 
 use crate::app::GuiShell;
-use crate::app::commands::{
-    ActionQueue, Command, DocumentCommand, SceneCommand, ShellAction, ViewAction,
-};
+use crate::app::commands::{ActionQueue, Command, ShellAction, ViewAction};
 use crate::app::components::button::Button;
 use crate::app::components::{Tag, text_tooltip};
 use crate::app::design_tokens::spatial::STROKE_WIDTH;
@@ -167,7 +165,7 @@ impl GuiShell {
             let save_btn = ui.button(format!("{} Save", egui_phosphor::regular::FLOPPY_DISK));
             text_tooltip(ui, save_btn.id.with("save_tip"), &save_btn, save_tip);
             if save_btn.clicked() {
-                commands.push_back(DocumentCommand::Save.into());
+                commands.push_back(Command::Save.into());
                 ui.close();
             }
             let save_as_btn =
@@ -192,14 +190,14 @@ impl GuiShell {
                 ui.button(format!("{} Reload from disk", egui_phosphor::regular::ARROW_CLOCKWISE));
             text_tooltip(ui, reload_btn.id.with("reload_tip"), &reload_btn, reload_tip);
             if reload_btn.clicked() {
-                commands.push_back(DocumentCommand::Reload.into());
+                commands.push_back(Command::Reload.into());
                 ui.close();
             }
             let rebuild_btn =
                 ui.button(format!("{} Rebuild timeline", egui_phosphor::regular::HARD_DRIVES));
             text_tooltip(ui, rebuild_btn.id.with("rebuild_tip"), &rebuild_btn, rebuild_tip);
             if rebuild_btn.clicked() {
-                commands.push_back(DocumentCommand::Rebuild.into());
+                commands.push_back(Command::Rebuild.into());
                 ui.close();
             }
             ui.separator();
@@ -213,7 +211,7 @@ impl GuiShell {
             );
             if workspace_btn.clicked() {
                 if let Some(path) = rfd::FileDialog::new().pick_folder() {
-                    commands.push_back(DocumentCommand::SwitchWorkspace(path).into());
+                    commands.push_back(Command::SwitchWorkspace(path).into());
                 }
                 ui.close();
             }
@@ -295,7 +293,7 @@ impl GuiShell {
                             &format!("Switch to scene '{}'", name),
                         );
                         if scene_btn.clicked() {
-                            commands.push_back(SceneCommand::SelectScene(name.clone()).into());
+                            commands.push_back(Command::SelectScene(name.clone()).into());
                         }
                     }
                 });

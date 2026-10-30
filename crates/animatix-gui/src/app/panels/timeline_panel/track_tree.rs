@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use animatix::timeline::{ActorField, PropertyValue, Timeline};
 use egui::{Align2, Color32, Pos2, Rect, Sense, Vec2};
 
-use crate::app::commands::{ActionQueue, ActorCommand, DocumentCommand, PropertyEdit};
+use crate::app::commands::{ActionQueue, Command, PropertyEdit};
 use crate::app::components::text_tooltip;
 use crate::app::design_tokens::spatial::Spatial;
 use crate::app::design_tokens::typography::TextRole;
@@ -307,7 +307,7 @@ fn render_actor_state_controls(
         if visible { "Hide layer" } else { "Show layer" },
     );
     if eye_resp.clicked() {
-        commands.push_back(ActorCommand::ToggleActorVisibility(actor_label.to_string()).into());
+        commands.push_back(Command::ToggleActorVisibility(actor_label.to_string()).into());
     }
 
     // Solo is authored state (`solo: true` in the declaration).
@@ -342,7 +342,7 @@ fn render_actor_state_controls(
     );
     if solo_resp.clicked() {
         commands.push_back(
-            DocumentCommand::PropertyEdit(PropertyEdit {
+            Command::PropertyEdit(PropertyEdit {
                 time_s: None,
                 actor: actor_label.to_string(),
                 property: "solo".to_string(),
@@ -381,7 +381,7 @@ fn render_actor_state_controls(
         if locked { "Unlock layer" } else { "Lock layer" },
     );
     if lock_resp.clicked() {
-        commands.push_back(ActorCommand::ToggleActorLock(actor_label.to_string()).into());
+        commands.push_back(Command::ToggleActorLock(actor_label.to_string()).into());
     }
 }
 

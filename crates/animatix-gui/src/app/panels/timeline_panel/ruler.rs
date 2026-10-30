@@ -6,7 +6,7 @@ use egui::{Align2, FontId, Pos2, Rect, Sense, Stroke, Vec2};
 
 use super::TimelineCoords;
 use crate::app::PreviewPaneState;
-use crate::app::commands::{ActionQueue, PlaybackCommand};
+use crate::app::commands::{ActionQueue, Command};
 use crate::app::components::button::Button;
 use crate::app::components::text_tooltip;
 use crate::app::design_tokens::spatial::{RADIUS_S, STROKE_WIDTH, Spatial};
@@ -52,7 +52,7 @@ pub(crate) fn bar_interaction(
     if response.clicked() || response.dragged() {
         if let Some(pos) = response.interact_pointer_pos() {
             let new_time = x_to_time(pos.x);
-            cmds.push_back(PlaybackCommand::ScrubTo(new_time).into());
+            cmds.push_back(Command::ScrubTo(new_time).into());
         }
     }
 }

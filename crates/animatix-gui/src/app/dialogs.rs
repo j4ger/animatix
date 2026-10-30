@@ -9,7 +9,7 @@ use animatix_syntax::diagnostics::Diagnostic;
 use egui::Stroke;
 
 use super::GuiShell;
-use crate::app::commands::{ActionQueue, DocumentCommand, ViewCommand};
+use crate::app::commands::{ActionQueue, Command};
 use crate::app::components::button::Button;
 use crate::app::components::toast::Toast;
 use crate::app::components::{dialog, text_tooltip};
@@ -98,7 +98,7 @@ impl GuiShell {
                                     return; // don't proceed to open
                                 },
                             }
-                            commands.push_back(DocumentCommand::OpenFile(path).into());
+                            commands.push_back(Command::OpenFile(path).into());
                         }
 
                         ui.add_space(sp.base.space_3);
@@ -113,7 +113,7 @@ impl GuiShell {
                             if let Some(path) =
                                 rfd::FileDialog::new().add_filter("Animatix", &["amx"]).pick_file()
                             {
-                                commands.push_back(DocumentCommand::OpenFile(path).into());
+                                commands.push_back(Command::OpenFile(path).into());
                             }
                         }
 
@@ -127,7 +127,7 @@ impl GuiShell {
                         );
                         if ws_resp.clicked() {
                             if let Some(path) = rfd::FileDialog::new().pick_folder() {
-                                commands.push_back(DocumentCommand::SwitchWorkspace(path).into());
+                                commands.push_back(Command::SwitchWorkspace(path).into());
                                 self.ui_store.view.welcome_open = false;
                             }
                         }
@@ -242,7 +242,7 @@ impl GuiShell {
         if let Some((line, column)) = scroll_to {
             self.ui_store
                 .pending_actions
-                .push_back(ViewCommand::ScrollToLine(line, column).into());
+                .push_back(Command::ScrollToLine(line, column).into());
         }
 
         let escape = ui.ctx().input(|i| i.key_pressed(egui::Key::Escape));
@@ -288,7 +288,7 @@ impl GuiShell {
                     let confirm = ui.add_sized([80.0, 28.0], Button::primary("Switch"));
                     if confirm.clicked() {
                         let path = PathBuf::from(&self.ui_store.workspace_switcher_path);
-                        commands.push_back(DocumentCommand::SwitchWorkspace(path).into());
+                        commands.push_back(Command::SwitchWorkspace(path).into());
                         body_close = true;
                     }
 

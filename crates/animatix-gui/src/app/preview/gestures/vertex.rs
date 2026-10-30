@@ -3,7 +3,7 @@
 //! Active in both `ToolMode::Vertex` (generous hit zone) and `ToolMode::Select`
 //! (standard hit zone, after other handle checks).
 
-use crate::app::commands::{DocumentCommand, DragEvent, PropertyEdit, PropertyValue, ShellAction};
+use crate::app::commands::{Command, DragEvent, PropertyEdit, PropertyValue, ShellAction};
 use crate::app::design_tokens::spatial::preview::HANDLE_HIT_RADIUS as PREVIEW_HANDLE_HIT_RADIUS;
 use crate::app::preview::gesture::{Gesture, GestureHandler, GestureResult};
 use crate::app::preview::{DragState, drag_utils};
@@ -116,7 +116,7 @@ impl GestureHandler for VertexGesture {
                 }
 
                 ctx.commands.push_back(
-                    DocumentCommand::PropertyEdit(PropertyEdit {
+                    Command::PropertyEdit(PropertyEdit {
                         time_s: None,
                         actor,
                         property: "points".into(),

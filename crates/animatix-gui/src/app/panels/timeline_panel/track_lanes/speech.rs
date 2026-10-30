@@ -44,7 +44,7 @@ fn speech_track_seek_area(
     if speech_resp.clicked() || speech_resp.dragged() {
         if let Some(pos) = speech_resp.interact_pointer_pos() {
             let t = coords.x_to_time(pos.x);
-            commands.push_back(PlaybackCommand::ScrubTo(t).into());
+            commands.push_back(Command::ScrubTo(t).into());
         }
     }
 }
@@ -174,7 +174,7 @@ pub(crate) fn render_speech_track(
                         ));
                         let w_resp = ui.interact(pill_rect, word_id, Sense::click());
                         if w_resp.clicked() {
-                            commands.push_back(PlaybackCommand::ScrubTo(w.start_s).into());
+                            commands.push_back(Command::ScrubTo(w.start_s).into());
                         }
                         text_tooltip(
                             ui,
@@ -244,7 +244,7 @@ pub(crate) fn render_speech_track(
                     Rect::from_min_max(Pos2::new(mx - 5.0, sp_top), Pos2::new(mx + 5.0, sp_bot));
                 let m_resp = ui.interact(m_rect, marker_id, Sense::click());
                 if m_resp.clicked() {
-                    commands.push_back(PlaybackCommand::ScrubTo(marker_time).into());
+                    commands.push_back(Command::ScrubTo(marker_time).into());
                 }
                 text_tooltip(
                     ui,
