@@ -20,7 +20,9 @@ pub const LEVELS_PARAMS: &[EffectParamSpec] = &[
     EffectParamSpec::new("out_white", EffectParamKind::F32, EffectParamValue::F32(1.0), 16, 4),
 ];
 
-const LEVELS_WGSL: &str = r#"
+pub(crate) const LEVELS_WGSL: &str = concat!(
+    include_str!("effect_context.wgsl"),
+    r#"
 struct LevelsParams {
     in_black: f32,
     in_white: f32,
@@ -29,17 +31,6 @@ struct LevelsParams {
     out_white: f32,
     _pad0: f32,
     _pad1: f32,
-    _pad2: f32,
-}
-
-struct EffectContext {
-    tex_size: vec2<u32>,
-    _pad0: vec2<u32>,
-    inv_size: vec2<f32>,
-    _pad1: vec2<f32>,
-    pass_index: u32,
-    pass_count: u32,
-    time_ms: f32,
     _pad2: f32,
 }
 
@@ -77,7 +68,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     );
     textureStore(dst, coord, out);
 }
-"#;
+"#
+);
 
 const LEVELS_PASSES: &[EffectPassSpec] = &[EffectPassSpec::new("levels", LEVELS_WGSL, "main")];
 

@@ -20,23 +20,14 @@ pub const SHARPEN_PARAMS: &[EffectParamSpec] = &[
 /// past anything sharpening means, and unbounded loops stall the GPU.
 const MAX_KERNEL_RADIUS: i32 = 32;
 
-const SHARPEN_WGSL: &str = r#"
+pub(crate) const SHARPEN_WGSL: &str = concat!(
+    include_str!("effect_context.wgsl"),
+    r#"
 struct SharpenParams {
     amount: f32,
     radius: f32,
     _pad0: f32,
     _pad1: f32,
-}
-
-struct EffectContext {
-    tex_size: vec2<u32>,
-    _pad0: vec2<u32>,
-    inv_size: vec2<f32>,
-    _pad1: vec2<f32>,
-    pass_index: u32,
-    pass_count: u32,
-    time_ms: f32,
-    _pad2: f32,
 }
 
 @group(0) @binding(0) var src: texture_2d<f32>;
@@ -83,7 +74,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
         vec4<f32>(clamp(sharpened, vec3<f32>(0.0), vec3<f32>(1.0)), texel.a),
     );
 }
-"#;
+"#
+);
 
 const SHARPEN_PASSES: &[EffectPassSpec] = &[EffectPassSpec::new("sharpen", SHARPEN_WGSL, "main")];
 

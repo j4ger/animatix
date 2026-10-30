@@ -17,23 +17,14 @@ pub const COLOR_GRADE_PARAMS: &[EffectParamSpec] = &[
     EffectParamSpec::new("sepia", EffectParamKind::F32, EffectParamValue::F32(0.0), 16, 4),
 ];
 
-const COLOR_GRADE_WGSL: &str = r#"
+pub(crate) const COLOR_GRADE_WGSL: &str = concat!(
+    include_str!("effect_context.wgsl"),
+    r#"
 struct ColorGradeParams {
     m0: vec4<f32>,
     m1: vec4<f32>,
     m2: vec4<f32>,
     m3: vec4<f32>,
-}
-
-struct EffectContext {
-    tex_size: vec2<u32>,
-    _pad0: vec2<u32>,
-    inv_size: vec2<f32>,
-    _pad1: vec2<f32>,
-    pass_index: u32,
-    pass_count: u32,
-    time_ms: f32,
-    _pad2: f32,
 }
 
 @group(0) @binding(0) var src: texture_2d<f32>;
@@ -62,7 +53,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let out = vec4<f32>(clamp(r, 0.0, 1.0), clamp(g, 0.0, 1.0), clamp(b, 0.0, 1.0), clamp(a, 0.0, 1.0));
     textureStore(dst, coord, out);
 }
-"#;
+"#
+);
 
 const COLOR_GRADE_PASSES: &[EffectPassSpec] =
     &[EffectPassSpec::new("color-grade", COLOR_GRADE_WGSL, "main")];

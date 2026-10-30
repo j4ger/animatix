@@ -22,23 +22,14 @@ pub const MOTION_BLUR_PARAMS: &[EffectParamSpec] = &[
 /// shorter `MotionBlur` stages or the bloom-style two-pass design.
 const MAX_TAPS: i32 = 64;
 
-const MOTION_BLUR_WGSL: &str = r#"
+pub(crate) const MOTION_BLUR_WGSL: &str = concat!(
+    include_str!("effect_context.wgsl"),
+    r#"
 struct MotionBlurParams {
     length: f32,
     angle: f32,
     _pad0: f32,
     _pad1: f32,
-}
-
-struct EffectContext {
-    tex_size: vec2<u32>,
-    _pad0: vec2<u32>,
-    inv_size: vec2<f32>,
-    _pad1: vec2<f32>,
-    pass_index: u32,
-    pass_count: u32,
-    time_ms: f32,
-    _pad2: f32,
 }
 
 @group(0) @binding(0) var src: texture_2d<f32>;
@@ -83,7 +74,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let out = vec4<f32>(blurred.rgb, max(texel.a, blurred.a));
     textureStore(dst, coord, out);
 }
-"#;
+"#
+);
 
 const MOTION_BLUR_PASSES: &[EffectPassSpec] =
     &[EffectPassSpec::new("motion-blur", MOTION_BLUR_WGSL, "main")];

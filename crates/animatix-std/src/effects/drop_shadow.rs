@@ -36,23 +36,14 @@ pub const DROP_SHADOW_PARAMS: &[EffectParamSpec] = &[
     ),
 ];
 
-const DROP_SHADOW_WGSL: &str = r#"
+pub(crate) const DROP_SHADOW_WGSL: &str = concat!(
+    include_str!("effect_context.wgsl"),
+    r#"
 struct DropShadowParams {
     offset: vec2<f32>,
     softness: f32,
     _pad0: f32,
     color: vec4<f32>,
-}
-
-struct EffectContext {
-    tex_size: vec2<u32>,
-    _pad0: vec2<u32>,
-    inv_size: vec2<f32>,
-    _pad1: vec2<f32>,
-    pass_index: u32,
-    pass_count: u32,
-    time_ms: f32,
-    _pad2: f32,
 }
 
 @group(0) @binding(0) var src: texture_2d<f32>;
@@ -109,7 +100,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let out_rgb = texel.rgb + shadow_rgb * (1.0 - texel.a);
     textureStore(dst, coord, vec4<f32>(out_rgb, out_alpha));
 }
-"#;
+"#
+);
 
 const DROP_SHADOW_PASSES: &[EffectPassSpec] =
     &[EffectPassSpec::new("drop-shadow", DROP_SHADOW_WGSL, "main")];

@@ -17,23 +17,14 @@ pub const EDGE_PARAMS: &[EffectParamSpec] = &[
     EffectParamSpec::new("threshold", EffectParamKind::F32, EffectParamValue::F32(0.0), 4, 4),
 ];
 
-const EDGE_WGSL: &str = r#"
+pub(crate) const EDGE_WGSL: &str = concat!(
+    include_str!("effect_context.wgsl"),
+    r#"
 struct EdgeParams {
     amount: f32,
     threshold: f32,
     _pad0: f32,
     _pad1: f32,
-}
-
-struct EffectContext {
-    tex_size: vec2<u32>,
-    _pad0: vec2<u32>,
-    inv_size: vec2<f32>,
-    _pad1: vec2<f32>,
-    pass_index: u32,
-    pass_count: u32,
-    time_ms: f32,
-    _pad2: f32,
 }
 
 @group(0) @binding(0) var src: texture_2d<f32>;
@@ -78,7 +69,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let texel = textureLoad(src, c, 0);
     textureStore(dst, coord, vec4<f32>(mix(texel.rgb, vec3<f32>(edge), weight), texel.a));
 }
-"#;
+"#
+);
 
 const EDGE_PASSES: &[EffectPassSpec] = &[EffectPassSpec::new("edge", EDGE_WGSL, "main")];
 

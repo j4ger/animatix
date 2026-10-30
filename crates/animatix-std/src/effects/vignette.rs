@@ -26,24 +26,15 @@ pub const VIGNETTE_PARAMS: &[EffectParamSpec] = &[
     ),
 ];
 
-const VIGNETTE_WGSL: &str = r#"
+pub(crate) const VIGNETTE_WGSL: &str = concat!(
+    include_str!("effect_context.wgsl"),
+    r#"
 struct VignetteParams {
     amount: f32,
     radius: f32,
     softness: f32,
     _pad0: f32,
     color: vec4<f32>,
-}
-
-struct EffectContext {
-    tex_size: vec2<u32>,
-    _pad0: vec2<u32>,
-    inv_size: vec2<f32>,
-    _pad1: vec2<f32>,
-    pass_index: u32,
-    pass_count: u32,
-    time_ms: f32,
-    _pad2: f32,
 }
 
 @group(0) @binding(0) var src: texture_2d<f32>;
@@ -76,7 +67,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let rgb = mix(texel.rgb, params.color.rgb, weight);
     textureStore(dst, coord, vec4<f32>(rgb, texel.a));
 }
-"#;
+"#
+);
 
 const VIGNETTE_PASSES: &[EffectPassSpec] =
     &[EffectPassSpec::new("vignette", VIGNETTE_WGSL, "main")];

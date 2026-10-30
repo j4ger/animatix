@@ -113,4 +113,63 @@ mod tests {
             assert!(!spec.is_pixel(), "{effect}.{name} is a fraction, not scene pixels");
         }
     }
+
+    /// `EffectContext` is host-owned: one declaration in
+    /// `effect_context.wgsl`, prepended to every built-in effect shader. A
+    /// per-file copy would drift from `EffectContextUniform` silently — the
+    /// shader compiles either way, but the host would write the wrong bytes.
+    #[test]
+    fn every_effect_embeds_the_shared_effect_context_once() {
+        let shared = include_str!("effect_context.wgsl");
+        assert_eq!(
+            shared.matches("struct EffectContext").count(),
+            1,
+            "effect_context.wgsl must define EffectContext exactly once"
+        );
+        let expected_struct = "\
+struct EffectContext {
+    tex_size: vec2<u32>,
+    _pad0: vec2<u32>,
+    inv_size: vec2<f32>,
+    _pad1: vec2<f32>,
+    pass_index: u32,
+    pass_count: u32,
+    time_ms: f32,
+    _pad2: f32,
+}";
+        assert!(
+            shared.contains(expected_struct),
+            "effect_context.wgsl must keep the host EffectContextUniform field layout"
+        );
+
+        let shaders = [
+            ("Bloom", bloom::BLOOM_WGSL),
+            ("Blur", blur::BLUR_WGSL),
+            ("ChromaticAberration", chromatic_aberration::CHROMATIC_ABERRATION_WGSL),
+            ("ColorGrade", color_grade::COLOR_GRADE_WGSL),
+            ("DropShadow", drop_shadow::DROP_SHADOW_WGSL),
+            ("Duotone", duotone::DUOTONE_WGSL),
+            ("Edge", edge::EDGE_WGSL),
+            ("Grain", grain::GRAIN_WGSL),
+            ("LensDistortion", lens_distortion::LENS_DISTORTION_WGSL),
+            ("Levels", levels::LEVELS_WGSL),
+            ("MotionBlur", motion_blur::MOTION_BLUR_WGSL),
+            ("Posterize", posterize::POSTERIZE_WGSL),
+            ("Sharpen", sharpen::SHARPEN_WGSL),
+            ("Vignette", vignette::VIGNETTE_WGSL),
+        ];
+
+        assert_eq!(shaders.len(), 14, "the test must cover every built-in effect");
+        for (name, wgsl) in shaders {
+            assert!(
+                wgsl.starts_with(shared),
+                "{name} must prepend effect_context.wgsl instead of declaring its own copy"
+            );
+            assert_eq!(
+                wgsl.matches("struct EffectContext").count(),
+                1,
+                "{name} must contain exactly one EffectContext declaration"
+            );
+        }
+    }
 }

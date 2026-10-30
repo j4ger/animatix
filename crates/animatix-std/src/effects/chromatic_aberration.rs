@@ -15,22 +15,13 @@ pub const CHROMATIC_ABERRATION_PARAMS: &[EffectParamSpec] =
             .pixel(),
     ];
 
-const CHROMATIC_ABERRATION_WGSL: &str = r#"
+pub(crate) const CHROMATIC_ABERRATION_WGSL: &str = concat!(
+    include_str!("effect_context.wgsl"),
+    r#"
 struct ChromaOffsetParams {
     offset: f32,
     _pad0: f32,
     _pad1: f32,
-    _pad2: f32,
-}
-
-struct EffectContext {
-    tex_size: vec2<u32>,
-    _pad0: vec2<u32>,
-    inv_size: vec2<f32>,
-    _pad1: vec2<f32>,
-    pass_index: u32,
-    pass_count: u32,
-    time_ms: f32,
     _pad2: f32,
 }
 
@@ -72,7 +63,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     textureStore(dst, coord, vec4<f32>(r, g, b, texel.a));
 }
-"#;
+"#
+);
 
 const CHROMATIC_ABERRATION_PASSES: &[EffectPassSpec] = &[EffectPassSpec::new(
     "chromatic-aberration",

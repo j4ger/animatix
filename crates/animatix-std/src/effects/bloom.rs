@@ -29,21 +29,12 @@ pub const BLOOM_PARAMS: &[EffectParamSpec] = &[
     EffectParamSpec::new("keep", EffectParamKind::F32, EffectParamValue::F32(1.0), 4, 4),
 ];
 
-const BLOOM_WGSL: &str = r#"
+pub(crate) const BLOOM_WGSL: &str = concat!(
+    include_str!("effect_context.wgsl"),
+    r#"
 struct BloomParams {
     intensity: f32,
     keep: f32,
-}
-
-struct EffectContext {
-    tex_size: vec2<u32>,
-    _pad0: vec2<u32>,
-    inv_size: vec2<f32>,
-    _pad1: vec2<f32>,
-    pass_index: u32,
-    pass_count: u32,
-    time_ms: f32,
-    _pad2: f32,
 }
 
 // The running chain result — for a bloom, whatever the previous pass left
@@ -82,7 +73,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     );
     textureStore(dst, coord, vec4<f32>(rgb, out_alpha));
 }
-"#;
+"#
+);
 
 const BLOOM_PASSES: &[EffectPassSpec] = &[EffectPassSpec::new("bloom", BLOOM_WGSL, "main")];
 

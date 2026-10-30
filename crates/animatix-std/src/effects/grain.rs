@@ -21,23 +21,14 @@ pub const GRAIN_PARAMS: &[EffectParamSpec] = &[
     EffectParamSpec::new("monochrome", EffectParamKind::Bool, EffectParamValue::Bool(false), 8, 4),
 ];
 
-const GRAIN_WGSL: &str = r#"
+pub(crate) const GRAIN_WGSL: &str = concat!(
+    include_str!("effect_context.wgsl"),
+    r#"
 struct GrainParams {
     amount: f32,
     seed: f32,
     monochrome: u32,
     _pad0: f32,
-}
-
-struct EffectContext {
-    tex_size: vec2<u32>,
-    _pad0: vec2<u32>,
-    inv_size: vec2<f32>,
-    _pad1: vec2<f32>,
-    pass_index: u32,
-    pass_count: u32,
-    time_ms: f32,
-    _pad2: f32,
 }
 
 @group(0) @binding(0) var src: texture_2d<f32>;
@@ -94,7 +85,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let rgb = texel.rgb + (vec3<f32>(r, g, b) - vec3<f32>(0.5)) * amount;
     textureStore(dst, coord, vec4<f32>(clamp(rgb, vec3<f32>(0.0), vec3<f32>(1.0)), texel.a));
 }
-"#;
+"#
+);
 
 const GRAIN_PASSES: &[EffectPassSpec] = &[EffectPassSpec::new("grain", GRAIN_WGSL, "main")];
 

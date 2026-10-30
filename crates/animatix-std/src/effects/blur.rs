@@ -15,22 +15,13 @@ pub const BLUR_PARAMS: &[EffectParamSpec] =
             .pixel(),
     ];
 
-const BLUR_WGSL: &str = r#"
+pub(crate) const BLUR_WGSL: &str = concat!(
+    include_str!("effect_context.wgsl"),
+    r#"
 struct BlurParams {
     radius: f32,
     _pad0: f32,
     _pad1: f32,
-    _pad2: f32,
-}
-
-struct EffectContext {
-    tex_size: vec2<u32>,
-    _pad0: vec2<u32>,
-    inv_size: vec2<f32>,
-    _pad1: vec2<f32>,
-    pass_index: u32,
-    pass_count: u32,
-    time_ms: f32,
     _pad2: f32,
 }
 
@@ -79,7 +70,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
     textureStore(dst, coord, color / weight_sum);
 }
-"#;
+"#
+);
 
 const BLUR_PASSES: &[EffectPassSpec] = &[
     EffectPassSpec::new("blur-horizontal", BLUR_WGSL, "main"),

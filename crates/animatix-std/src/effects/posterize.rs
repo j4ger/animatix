@@ -19,22 +19,13 @@ pub const POSTERIZE_PARAMS: &[EffectParamSpec] = &[EffectParamSpec::new(
     4,
 )];
 
-const POSTERIZE_WGSL: &str = r#"
+pub(crate) const POSTERIZE_WGSL: &str = concat!(
+    include_str!("effect_context.wgsl"),
+    r#"
 struct PosterizeParams {
     levels: f32,
     _pad0: f32,
     _pad1: f32,
-    _pad2: f32,
-}
-
-struct EffectContext {
-    tex_size: vec2<u32>,
-    _pad0: vec2<u32>,
-    inv_size: vec2<f32>,
-    _pad1: vec2<f32>,
-    pass_index: u32,
-    pass_count: u32,
-    time_ms: f32,
     _pad2: f32,
 }
 
@@ -60,7 +51,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let rgb = round(texel.rgb * steps) / steps;
     textureStore(dst, coord, vec4<f32>(clamp(rgb, vec3<f32>(0.0), vec3<f32>(1.0)), texel.a));
 }
-"#;
+"#
+);
 
 const POSTERIZE_PASSES: &[EffectPassSpec] =
     &[EffectPassSpec::new("posterize", POSTERIZE_WGSL, "main")];
