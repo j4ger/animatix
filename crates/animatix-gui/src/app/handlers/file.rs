@@ -5,6 +5,7 @@ use animatix_syntax::diagnostics::diagnostics_phase_summary;
 
 use crate::app::commands::Effect;
 use crate::app::components::toast::Toast;
+use crate::app::document::load_worker::{LoadResponse, LoadToken, LoadWorker};
 use crate::app::document::plugins::DocumentPluginManager;
 use crate::app::document::rebuild::{RebuildResponse, RebuildToken, RebuildWorker};
 use crate::app::document::timeline_diff::{
@@ -46,6 +47,64 @@ pub(crate) fn sync_preview_from_document(
     preview_store.preview_dirty = true;
 }
 
+/// Submit a file open to the background load worker.
+///
+/// The plugin manager is retargeted on the UI thread (it owns non-`Send`
+/// plugin state), while reading, parsing, import expansion, and the initial
+/// rebuild run on the worker thread.
+pub fn submit_open_file(
+    worker: &mut LoadWorker,
+    plugin_manager: &mut DocumentPluginManager,
+    path: PathBuf,
+) -> Result<LoadToken, String> {
+    let plugin_workspace_root = crate::app::file_tree::workspace_root_for(&path);
+    plugin_manager.set_document(path.clone(), plugin_workspace_root.clone());
+    worker.submit(
+        path,
+        plugin_manager.context(),
+        plugin_manager.manifest(),
+        Some(plugin_workspace_root),
+        plugin_manager.epoch(),
+    )
+}
+
+/// Apply a completed background load to the shell's document/workspace state.
+pub fn handle_open_file_response(
+    document_store: &mut DocumentStore,
+    workspace_store: &mut WorkspaceStore,
+    preview_store: &mut PreviewStore,
+    ui_store: &mut UiStore,
+    plugin_manager: &mut DocumentPluginManager,
+    response: LoadResponse,
+) -> Vec<Effect> {
+    // A load started on a clean document must not overwrite edits made while
+    // the worker was running.
+    if document_store.source.is_dirty() {
+        preview_store.preview.set_status_error(format!(
+            "Open canceled • document changed while loading {}",
+            response.path.display()
+        ));
+        preview_store.preview_dirty = true;
+        return vec![];
+    }
+    match response.result {
+        Ok(document) => apply_loaded_document(
+            document_store,
+            workspace_store,
+            preview_store,
+            ui_store,
+            plugin_manager,
+            response.plugin_epoch,
+            response.path,
+            document,
+        ),
+        Err(error) => report_open_error(preview_store, &response.path, &error),
+    }
+}
+
+/// Synchronous open used by unit tests that need the document immediately;
+/// interactive `Command::OpenFile` uses [`submit_open_file`].
+#[cfg(test)]
 pub fn handle_open_file(
     document_store: &mut DocumentStore,
     workspace_store: &mut WorkspaceStore,
@@ -71,88 +130,109 @@ pub fn handle_open_file(
         extension_manifest,
         Some(plugin_workspace_root),
     ) {
-        Ok(mut document) => {
-            document.set_plugin_epoch(plugin_manager.epoch());
-            // Only recompute workspace root if the file is outside the current workspace
-            if !path.starts_with(&workspace_store.workspace_root) {
-                let new_workspace_root = crate::app::file_tree::workspace_root_for(&path);
-                if new_workspace_root != workspace_store.workspace_root {
-                    workspace_store.workspace_root = new_workspace_root;
-                    workspace_store.expanded_dirs =
-                        std::collections::HashSet::from([workspace_store.workspace_root.clone()]);
-                }
-            }
-            workspace_store.file_tree = build_file_tree(
-                &workspace_store.workspace_root,
-                &path,
-                &workspace_store.expanded_dirs,
-            );
-            document_store.source.source_epoch = SourceEpoch::initial();
-            document_store.source.document = document;
-            document_store.source.invalidate_cache();
-            document_store.source.editor.set_document(
-                &document_store.source.document.file_path,
-                document_store.source.document.source_text.clone(),
-            );
-            document_store.history.undo_stack.clear();
-            document_store.history.redo_stack.clear();
-            ui_store.interaction.reset_drag_state();
-            if let Some(ref mut reloader) = workspace_store.hot_reloader {
-                if let Err(e) =
-                    reloader.update_watched_file(&document_store.source.document.file_path)
-                {
-                    tracing::warn!("Failed to update watched file: {}", e);
-                }
-            }
-            // Publish initial snapshot (load already ran rebuild)
-            document_store.clear_snapshots();
-            document_store.publish_rebuild_result(
-                document_store.source.document.last_rebuild_error.is_none(),
-            );
-            let status = if has_source_load_failure(&document_store.source.document.diagnostics) {
-                format!(
-                    "Opened {} • parse/load error • {}",
-                    document_store.source.document.file_path.display(),
-                    diagnostics_phase_summary(&document_store.source.document.diagnostics)
-                )
-            } else {
-                document_store.document_status(format!(
-                    "Opened {}",
-                    document_store.source.document.file_path.display()
-                ))
-            };
-            let error = document_store.source.document.last_rebuild_error.clone();
-            sync_preview_from_document(document_store, preview_store, status, true, true);
-            preview_store.preview.error = error;
-            ui_store.toasts.push(Toast::info(format!("Opened {}", path.display())));
-            let plugin_issues = plugin_manager.snapshot().issues;
-            if !plugin_issues.is_empty() {
-                let message = plugin_issues
-                    .iter()
-                    .map(|issue| {
-                        issue
-                            .path
-                            .as_ref()
-                            .map(|path| format!("{}: {}", path.display(), issue.message))
-                            .unwrap_or_else(|| issue.message.clone())
-                    })
-                    .collect::<Vec<_>>()
-                    .join("; ");
-                ui_store.toasts.push(Toast::warning(format!("Plugin load issue: {message}")));
-            }
-            ui_store.view.welcome_open = false;
-            save_app_state(&path);
-            ui_store.recent_files = crate::app::persistence::load_recent_files();
-            vec![]
-        },
-        Err(error) => {
-            preview_store.preview.error = Some(error.to_string());
-            preview_store
-                .preview
-                .set_status_error(format!("Open failed • {}", path.display()));
-            vec![]
-        },
+        Ok(document) => apply_loaded_document(
+            document_store,
+            workspace_store,
+            preview_store,
+            ui_store,
+            plugin_manager,
+            plugin_manager.epoch(),
+            path,
+            document,
+        ),
+        Err(error) => report_open_error(preview_store, &path, &error),
     }
+}
+
+fn report_open_error(
+    preview_store: &mut PreviewStore,
+    path: &std::path::Path,
+    error: &crate::error::GuiError,
+) -> Vec<Effect> {
+    preview_store.preview.error = Some(error.to_string());
+    preview_store
+        .preview
+        .set_status_error(format!("Open failed • {}", path.display()));
+    preview_store.preview_dirty = true;
+    vec![]
+}
+
+fn apply_loaded_document(
+    document_store: &mut DocumentStore,
+    workspace_store: &mut WorkspaceStore,
+    preview_store: &mut PreviewStore,
+    ui_store: &mut UiStore,
+    plugin_manager: &mut DocumentPluginManager,
+    plugin_epoch: u64,
+    path: PathBuf,
+    mut document: DocumentSession,
+) -> Vec<Effect> {
+    document.set_plugin_epoch(plugin_epoch);
+    // Only recompute workspace root if the file is outside the current workspace
+    if !path.starts_with(&workspace_store.workspace_root) {
+        let new_workspace_root = crate::app::file_tree::workspace_root_for(&path);
+        if new_workspace_root != workspace_store.workspace_root {
+            workspace_store.workspace_root = new_workspace_root;
+            workspace_store.expanded_dirs =
+                std::collections::HashSet::from([workspace_store.workspace_root.clone()]);
+        }
+    }
+    workspace_store.file_tree =
+        build_file_tree(&workspace_store.workspace_root, &path, &workspace_store.expanded_dirs);
+    document_store.source.source_epoch = SourceEpoch::initial();
+    document_store.source.document = document;
+    document_store.source.invalidate_cache();
+    document_store.source.editor.set_document(
+        &document_store.source.document.file_path,
+        document_store.source.document.source_text.clone(),
+    );
+    document_store.history.undo_stack.clear();
+    document_store.history.redo_stack.clear();
+    ui_store.interaction.reset_drag_state();
+    if let Some(ref mut reloader) = workspace_store.hot_reloader {
+        if let Err(e) = reloader.update_watched_file(&document_store.source.document.file_path) {
+            tracing::warn!("Failed to update watched file: {}", e);
+        }
+    }
+    // Publish initial snapshot (load already ran rebuild)
+    document_store.clear_snapshots();
+    document_store
+        .publish_rebuild_result(document_store.source.document.last_rebuild_error.is_none());
+    let status = if has_source_load_failure(&document_store.source.document.diagnostics) {
+        format!(
+            "Opened {} • parse/load error • {}",
+            document_store.source.document.file_path.display(),
+            diagnostics_phase_summary(&document_store.source.document.diagnostics)
+        )
+    } else {
+        document_store.document_status(format!(
+            "Opened {}",
+            document_store.source.document.file_path.display()
+        ))
+    };
+    let error = document_store.source.document.last_rebuild_error.clone();
+    sync_preview_from_document(document_store, preview_store, status, true, true);
+    preview_store.preview.error = error;
+    ui_store.toasts.push(Toast::info(format!("Opened {}", path.display())));
+    let plugin_issues = plugin_manager.snapshot().issues;
+    if !plugin_issues.is_empty() {
+        let message = plugin_issues
+            .iter()
+            .map(|issue| {
+                issue
+                    .path
+                    .as_ref()
+                    .map(|path| format!("{}: {}", path.display(), issue.message))
+                    .unwrap_or_else(|| issue.message.clone())
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+        ui_store.toasts.push(Toast::warning(format!("Plugin load issue: {message}")));
+    }
+    ui_store.view.welcome_open = false;
+    save_app_state(&path);
+    ui_store.recent_files = crate::app::persistence::load_recent_files();
+    vec![]
 }
 
 pub fn handle_switch_workspace(
@@ -228,29 +308,44 @@ pub fn handle_save(
 }
 
 /// Save to a new path and rebind the document (and editor analyzer) to it.
+///
+/// The document path is switched before writing so `save_to_disk` targets the
+/// new file, but every in-memory binding is rolled back if the write fails.
+/// Only a successful write may leave the document pointing at `path`.
 pub fn handle_save_as(
     document_store: &mut DocumentStore,
+    workspace_store: &mut WorkspaceStore,
     _preview_store: &mut PreviewStore,
+    plugin_manager: &mut DocumentPluginManager,
     path: PathBuf,
 ) -> Vec<Effect> {
     let previous_path = document_store.source.file_path().to_path_buf();
     let text = document_store.source.editor.text().to_string();
     document_store.source.document.file_path = path.clone();
-    document_store.source.editor.set_document(&path, text);
     match save_document(document_store) {
         Ok(()) => {
+            document_store.source.editor.set_document(&path, text);
             // The rebind means the edits now live in `path`; a sidecar left over
             // from the old document no longer belongs to the current source and
             // would otherwise be offered as recovery for a stale file.
             if previous_path != path {
                 crate::document::clear_recovery(&previous_path);
             }
+            rebind_workspace_to_saved_document(
+                document_store,
+                workspace_store,
+                plugin_manager,
+                &path,
+            );
             vec![
                 Effect::Status(format!("Saved {}", path.display())),
                 Effect::Toast(Toast::success(format!("Saved {}", path.display()))),
             ]
         },
         Err(err) => {
+            // The target was never written. Keep the document and editor bound
+            // to the previous path; only the failure toast should escape.
+            document_store.source.document.file_path = previous_path;
             tracing::warn!("Save As failed: {}", err);
             vec![Effect::Toast(Toast::error(format!(
                 "Save As failed: {}",
@@ -258,6 +353,54 @@ pub fn handle_save_as(
             )))]
         },
     }
+}
+
+/// Rebind the workspace tree, hot reloader, plugin manager and extension
+/// context after a successful Save As.
+fn rebind_workspace_to_saved_document(
+    document_store: &mut DocumentStore,
+    workspace_store: &mut WorkspaceStore,
+    plugin_manager: &mut DocumentPluginManager,
+    path: &std::path::Path,
+) {
+    if !path.starts_with(&workspace_store.workspace_root) {
+        let new_workspace_root = crate::app::file_tree::workspace_root_for(path);
+        if new_workspace_root != workspace_store.workspace_root {
+            workspace_store.workspace_root = new_workspace_root;
+            workspace_store.expanded_dirs = HashSet::from([workspace_store.workspace_root.clone()]);
+        }
+    }
+
+    workspace_store.file_tree =
+        build_file_tree(&workspace_store.workspace_root, path, &workspace_store.expanded_dirs);
+
+    match workspace_store.hot_reloader.as_mut() {
+        Some(reloader) => {
+            if let Err(err) = reloader.update_watched_file(&path.to_path_buf()) {
+                tracing::warn!("Failed to update watched file: {}", err);
+                workspace_store.hot_reload_error = Some(err);
+            }
+        },
+        None => match crate::hot_reload::HotReloader::new(path) {
+            Ok(reloader) => {
+                workspace_store.hot_reloader = Some(reloader);
+                workspace_store.hot_reload_error = None;
+            },
+            Err(err) => {
+                tracing::warn!("Failed to watch saved file: {}", err);
+                workspace_store.hot_reload_error = Some(err);
+            },
+        },
+    }
+
+    let plugin_workspace_root = crate::app::file_tree::workspace_root_for(path);
+    plugin_manager.set_document(path.to_path_buf(), plugin_workspace_root.clone());
+    document_store.source.document.workspace_root = Some(plugin_workspace_root);
+    document_store.source.document.set_extension_context(
+        plugin_manager.context(),
+        plugin_manager.manifest(),
+        plugin_manager.epoch(),
+    );
 }
 
 pub fn handle_reload(
@@ -419,6 +562,9 @@ pub(crate) fn rebuild_failed(
     vec![]
 }
 
+/// Synchronous rebuild used by unit tests; production commands submit to the
+/// background worker via [`handle_rebuild_submit`].
+#[cfg(test)]
 pub fn handle_rebuild(
     document_store: &mut DocumentStore,
     preview_store: &mut PreviewStore,
@@ -566,6 +712,63 @@ mod tests {
 
         assert!(save_document(&mut store).is_err());
         assert!(store.source.document.is_dirty);
+    }
+
+    #[test]
+    fn save_as_failure_preserves_document_path_and_dirty_state() {
+        let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let dir = std::env::temp_dir().join(format!(
+            "animatix_save_as_failure_{}_{}",
+            std::process::id(),
+            unique
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let original = dir.join("scene.amx");
+        let source = "#0s\nbox: Rect, size: (100, 100)\n";
+        std::fs::write(&original, source).unwrap();
+
+        let document = DocumentSession::from_source(original.clone(), source.to_string()).unwrap();
+        let editor = EditorBuffer::new(&original, document.source_text.clone());
+        let mut store = DocumentStore::new(document, editor);
+        store.source.document.is_dirty = true;
+
+        let mut workspace_store = WorkspaceStore::new(
+            dir.clone(),
+            HashSet::from([dir.clone()]),
+            Vec::new(),
+            dir.join("workspace.ron"),
+            None,
+            None,
+        );
+        let mut preview_store = PreviewStore::new(crate::app::PreviewPaneState::new(
+            1.0,
+            store.source.document.scene_dimensions,
+        ));
+        let mut plugin_manager = DocumentPluginManager::new(original.clone(), dir.clone());
+
+        // A directory at the target path makes `save_to_disk` fail after the
+        // document path has already been switched to the target.
+        let target = dir.join("blocked.amx");
+        std::fs::create_dir_all(&target).unwrap();
+
+        let effects = handle_save_as(
+            &mut store,
+            &mut workspace_store,
+            &mut preview_store,
+            &mut plugin_manager,
+            target,
+        );
+
+        assert_eq!(store.source.file_path(), original.as_path());
+        assert_eq!(store.source.editor.document_path(), original.as_path());
+        assert!(store.source.is_dirty());
+        assert!(
+            effects.iter().any(|effect| matches!(
+                effect,
+                Effect::Toast(toast) if toast.message.starts_with("Save As failed")
+            )),
+            "expected a Save As failure toast, got {effects:?}"
+        );
     }
 
     fn make_document_store(source: &str) -> DocumentStore {

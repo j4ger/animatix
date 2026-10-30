@@ -122,8 +122,13 @@ impl EditorBuffer {
         let prefix = crate::cell_editor::cells_to_source(&self.cells[..cell_idx]);
         let abs_char = prefix.chars().count() + caret;
         let abs_byte = char_to_byte_offset(&self.text, abs_char);
-        let (line, col) = self.byte_to_line_col(abs_byte);
-        let items = self.analyzer.completions_at(line, col);
+        let (line, _char_col) = self.byte_to_line_col(abs_byte);
+        // The analyzer expects LSP UTF-16 code-unit columns, while the editor
+        // tracks Unicode scalar (char) offsets. Emoji and other astral
+        // characters occupy two UTF-16 units, so derive the column from the
+        // actual line prefix instead of passing the char count through.
+        let col_utf16 = utf16_column_at(&self.text, abs_byte);
+        let items = self.analyzer.completions_at(line, col_utf16);
 
         let trigger_text: String = self
             .cells
@@ -142,4 +147,57 @@ fn is_completion_word_char(ch: char) -> bool {
 /// Convert a char offset into a byte offset (clamped to the string end).
 fn char_to_byte_offset(text: &str, char_offset: usize) -> usize {
     text.char_indices().nth(char_offset).map(|(byte, _)| byte).unwrap_or(text.len())
+}
+
+/// UTF-16 code-unit column of `byte_offset` within its source line.
+fn utf16_column_at(text: &str, byte_offset: usize) -> usize {
+    let byte_offset = byte_offset.min(text.len());
+    let line_start = text[..byte_offset].rfind('\n').map(|index| index + 1).unwrap_or(0);
+    text[line_start..byte_offset].chars().map(char::len_utf16).sum()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::super::EditorBuffer;
+    use super::utf16_column_at;
+
+    #[test]
+    fn utf16_column_counts_emoji_as_two_code_units() {
+        // "😀" is one char / four UTF-8 bytes but two UTF-16 code units.
+        let text = "box: Text, text: \"😀\" tail";
+        let tail_byte = text.find(" tail").expect("tail");
+        let char_count = text[..tail_byte].chars().count();
+
+        assert_eq!(utf16_column_at(text, tail_byte), char_count + 1);
+    }
+
+    #[test]
+    fn completion_query_uses_utf16_column_after_emoji() {
+        let source = "let x = \"😀\"; box.\n#0s\n";
+        let editor = EditorBuffer::new(&PathBuf::from("test.amx"), source.to_string());
+        let body = editor.cells()[0].body().to_string();
+        let caret = body.chars().count();
+        let mut expected_col = 0usize;
+        let mut line = 0usize;
+        for ch in body.chars() {
+            if ch == '\n' {
+                line += 1;
+                expected_col = 0;
+            } else {
+                expected_col += ch.len_utf16();
+            }
+        }
+
+        let (items, _) = editor.completion_items_for(0, caret, caret);
+        let expected = editor.analyzer.completions_at(line, expected_col);
+        let labels: Vec<_> = items.iter().map(|item| item.label.as_str()).collect();
+        let expected_labels: Vec<_> = expected.iter().map(|item| item.label.as_str()).collect();
+
+        // The source contains astral characters before the caret; using the
+        // char count as the analyzer column would land before the final `.`.
+        assert_eq!(labels, expected_labels);
+        assert_eq!(expected_col, caret + 1, "emoji adds one extra UTF-16 unit");
+    }
 }

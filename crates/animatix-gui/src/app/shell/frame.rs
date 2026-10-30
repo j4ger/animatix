@@ -64,10 +64,11 @@ impl GuiShell {
             }
         }
 
-        // Poll for completed rebuild responses
+        // Poll for completed rebuild responses. Accept only the exact token we
+        // submitted: a response left over from a previous document must not be
+        // applied after an open resets the in-flight state.
         for response in self.rebuild_worker.poll() {
-            // Only accept the highest-token response (newest)
-            if self.preview_store.in_flight_rebuild.is_none_or(|token| response.token == token) {
+            if self.preview_store.in_flight_rebuild == Some(response.token) {
                 let elapsed_ms = response.elapsed_ms as f64;
                 let effects = crate::app::handlers::file::handle_rebuild_response(
                     &mut self.document_store,
@@ -79,6 +80,26 @@ impl GuiShell {
                 self.apply_effects(effects);
                 self.preview_store.in_flight_rebuild = None;
             }
+        }
+
+        // Poll for completed background loads.
+        for response in self.load_worker.poll() {
+            if self.pending_open != Some(response.token) {
+                continue;
+            }
+            self.pending_open = None;
+            let effects = crate::app::handlers::file::handle_open_file_response(
+                &mut self.document_store,
+                &mut self.workspace_store,
+                &mut self.preview_store,
+                &mut self.ui_store,
+                &mut self.plugin_manager,
+                response,
+            );
+            self.apply_effects(effects);
+            // The newly opened file may have a newer crash-recovery sidecar;
+            // surface it before autosave can overwrite it.
+            self.detect_recovery_prompt();
         }
     }
 

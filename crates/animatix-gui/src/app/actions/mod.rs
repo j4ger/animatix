@@ -89,6 +89,10 @@ impl GuiShell {
 
     /// Detach a targeted callout: bake `from`, `to`, `label_at` as manual properties
     /// and remove `target` from the actor declaration.
+    ///
+    /// All four edits are applied to a trial AST and committed atomically. Any
+    /// failure discards the trial, aborts the undo snapshot, and reports an
+    /// error instead of claiming the callout was detached.
     pub(crate) fn handle_detach_callout(
         &mut self,
         actor: String,
@@ -98,100 +102,47 @@ impl GuiShell {
     ) {
         use animatix_syntax::ast::Expr;
 
-        use crate::source_edit::SourceEdit;
+        use crate::source_edit::{SourceEdit, SourceEditError};
+
+        self.snapshot(crate::app::commands::Command::DetachCallout {
+            actor: actor.clone(),
+            from,
+            to,
+            label_at,
+        });
 
         let result = if let Some(ref mut stmts) = self.document_store.source.document.raw_statements
         {
             let actor_c = actor.clone();
             try_apply_source_edit(stmts, |trial| {
-                // Set from
-                let from_expr =
-                    Expr::Tuple(vec![Expr::Num(from[0] as f64), Expr::Num(from[1] as f64)]);
-                let _ = crate::source_edit::apply_edit(
+                set_or_insert_property(
                     trial,
-                    SourceEdit::SetProperty {
-                        actor: actor_c.clone(),
-                        property: "from".into(),
-                        value: from_expr.clone(),
-                    },
-                )
-                .or_else(|err| {
-                    tracing::warn!("failed to set property 'from' on actor '{}': {}", actor_c, err);
-                    crate::source_edit::apply_edit(
-                        trial,
-                        SourceEdit::InsertProperty {
-                            actor: actor_c.clone(),
-                            property: "from".into(),
-                            value: from_expr,
-                        },
-                    )
-                });
-                // Set to
-                let to_expr = Expr::Tuple(vec![Expr::Num(to[0] as f64), Expr::Num(to[1] as f64)]);
-                let _ = crate::source_edit::apply_edit(
+                    &actor_c,
+                    "from",
+                    Expr::Tuple(vec![Expr::Num(from[0] as f64), Expr::Num(from[1] as f64)]),
+                )?;
+                set_or_insert_property(
                     trial,
-                    SourceEdit::SetProperty {
-                        actor: actor_c.clone(),
-                        property: "to".into(),
-                        value: to_expr.clone(),
-                    },
-                )
-                .or_else(|err| {
-                    tracing::warn!("failed to set property 'to' on actor '{}': {}", actor_c, err);
-                    crate::source_edit::apply_edit(
-                        trial,
-                        SourceEdit::InsertProperty {
-                            actor: actor_c.clone(),
-                            property: "to".into(),
-                            value: to_expr,
-                        },
-                    )
-                });
-                // Set label_at
-                let label_expr =
-                    Expr::Tuple(vec![Expr::Num(label_at[0] as f64), Expr::Num(label_at[1] as f64)]);
-                let _ = crate::source_edit::apply_edit(
+                    &actor_c,
+                    "to",
+                    Expr::Tuple(vec![Expr::Num(to[0] as f64), Expr::Num(to[1] as f64)]),
+                )?;
+                set_or_insert_property(
                     trial,
-                    SourceEdit::SetProperty {
-                        actor: actor_c.clone(),
-                        property: "label_at".into(),
-                        value: label_expr.clone(),
-                    },
-                )
-                .or_else(|err| {
-                    tracing::warn!(
-                        "failed to set property 'label_at' on actor '{}': {}",
-                        actor_c,
-                        err
-                    );
-                    crate::source_edit::apply_edit(
-                        trial,
-                        SourceEdit::InsertProperty {
-                            actor: actor_c.clone(),
-                            property: "label_at".into(),
-                            value: label_expr,
-                        },
-                    )
-                });
-                // Remove target
-                let result = crate::source_edit::apply_edit(
+                    &actor_c,
+                    "label_at",
+                    Expr::Tuple(vec![Expr::Num(label_at[0] as f64), Expr::Num(label_at[1] as f64)]),
+                )?;
+                crate::source_edit::apply_edit(
                     trial,
                     SourceEdit::RemoveProperty {
-                        actor: actor_c.clone(),
+                        actor: actor_c,
                         property: "target".into(),
                     },
-                );
-                if let Err(err) = result {
-                    tracing::warn!(
-                        "failed to remove property 'target' on actor '{}': {}",
-                        actor_c,
-                        err
-                    );
-                }
-                Ok(())
+                )
             })
         } else {
-            Err(crate::source_edit::SourceEditError::Generic("No AST available".to_string()))
+            Err(SourceEditError::Generic("No AST available".to_string()))
         };
 
         match result {
@@ -201,6 +152,10 @@ impl GuiShell {
             },
             Err(err) => {
                 tracing::error!("detach callout '{}' failed: {}", actor, err);
+                self.document_store.abort_snapshot();
+                self.preview_store
+                    .preview
+                    .set_status_error(format!("Failed to detach callout '{}' — {}", actor, err));
             },
         }
         self.preview_store.preview_dirty = true;
@@ -523,6 +478,40 @@ where
     let mut trial = stmts.to_vec();
     apply_fn(&mut trial)?;
     Ok((trial, crate::source_edit::drain_adjust_flash_queue()))
+}
+
+/// Set a property when present, otherwise insert it on the actor declaration.
+///
+/// Only `PropertyNotFound` falls back to insertion; all other failures (for
+/// example a missing actor or a fixed-schema actor) propagate unchanged so a
+/// compound edit cannot silently proceed after a partial failure.
+fn set_or_insert_property(
+    stmts: &mut Vec<animatix_syntax::ast::Stmt>,
+    actor: &str,
+    property: &str,
+    value: animatix_syntax::ast::Expr,
+) -> Result<(), crate::source_edit::SourceEditError> {
+    use crate::source_edit::{SourceEdit, SourceEditError};
+
+    match crate::source_edit::apply_edit(
+        stmts,
+        SourceEdit::SetProperty {
+            actor: actor.to_string(),
+            property: property.to_string(),
+            value: value.clone(),
+        },
+    ) {
+        Ok(()) => Ok(()),
+        Err(SourceEditError::PropertyNotFound { .. }) => crate::source_edit::apply_edit(
+            stmts,
+            SourceEdit::InsertProperty {
+                actor: actor.to_string(),
+                property: property.to_string(),
+                value,
+            },
+        ),
+        Err(err) => Err(err),
+    }
 }
 
 // ─────────────────────────────────────────────────────────────

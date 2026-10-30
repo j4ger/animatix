@@ -72,7 +72,9 @@ impl GuiShell {
                 {
                     Some(path) => file::handle_save_as(
                         &mut self.document_store,
+                        &mut self.workspace_store,
                         &mut self.preview_store,
+                        &mut self.plugin_manager,
                         path,
                     ),
                     None => vec![],

@@ -16,18 +16,32 @@ impl GuiShell {
                     );
                     return vec![];
                 }
-                let effects = file::handle_open_file(
-                    &mut self.document_store,
-                    &mut self.workspace_store,
-                    &mut self.preview_store,
-                    &mut self.ui_store,
+                match file::submit_open_file(
+                    &mut self.load_worker,
                     &mut self.plugin_manager,
-                    path,
-                );
-                // The newly opened file may have a newer crash-recovery sidecar;
-                // surface it before autosave can overwrite it.
-                self.detect_recovery_prompt();
-                effects
+                    path.clone(),
+                ) {
+                    Ok(token) => {
+                        self.pending_open = Some(token);
+                        // The new document will have its own snapshot state; a
+                        // rebuild response for the old document must not land.
+                        self.preview_store.pending_rebuild_at = None;
+                        self.preview_store.in_flight_rebuild = None;
+                        self.preview_store.rebuild_in_progress = false;
+                        self.preview_store.preview.error = None;
+                        self.preview_store.preview.status = format!("Opening {}…", path.display());
+                        self.preview_store.preview_dirty = true;
+                    },
+                    Err(err) => {
+                        self.pending_open = None;
+                        self.preview_store.preview.set_status_error(format!(
+                            "Open failed • {} • {}",
+                            path.display(),
+                            err
+                        ));
+                    },
+                }
+                vec![]
             },
             Command::ToggleExpandDir(path) => file::handle_toggle_expand_dir(
                 &mut self.workspace_store,
@@ -68,11 +82,23 @@ impl GuiShell {
                     &mut self.workspace_store,
                 )
             },
-            Command::Rebuild => file::handle_rebuild(
-                &mut self.document_store,
-                &mut self.preview_store,
-                &mut self.ui_store,
-            ),
+            Command::Rebuild => {
+                // A manual rebuild supersedes any debounced rebuild and runs the
+                // same off-thread worker as ordinary source edits, so the UI
+                // thread never blocks on parse/build.
+                self.preview_store.pending_rebuild_at = None;
+                self.preview_store.preview.error = None;
+                if let Some(token) = file::handle_rebuild_submit(
+                    &mut self.rebuild_worker,
+                    &mut self.document_store,
+                    &mut self.preview_store,
+                ) {
+                    self.preview_store.in_flight_rebuild = Some(token);
+                } else {
+                    self.preview_store.in_flight_rebuild = None;
+                }
+                vec![]
+            },
             Command::ReloadPlugins => {
                 if self.plugin_manager.reload() {
                     self.apply_plugin_reload();

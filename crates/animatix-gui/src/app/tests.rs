@@ -445,3 +445,68 @@ fn presentation_mode_shortcuts_registered() {
     assert!(registry.shortcut_for(&KeyboardAction::StepNext).is_some());
     assert!(registry.shortcut_for(&KeyboardAction::StepPrevious).is_some());
 }
+
+#[test]
+fn detach_callout_failure_does_not_commit_or_report_success() {
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("system clock after unix epoch")
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!(
+        "animatix_detach_fail_{}_{}",
+        std::process::id(),
+        unique
+    ));
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let path = dir.join("callout.amx");
+    std::fs::write(&path, "#0s\nbox: Rect, size: (100, 100)\n").expect("write source");
+
+    let mut shell = GuiShell::load(path, false);
+    let before = shell.document_store.source.text().to_string();
+    assert!(!shell.document_store.source.is_dirty());
+    let undo_before = shell.document_store.history.undo_stack.len();
+
+    // `box` has no `target` property, so the final RemoveProperty edit fails
+    // after `from`, `to`, and `label_at` were tentatively inserted.
+    shell.handle_detach_callout("box".to_string(), [0.0, 0.0], [1.0, 1.0], [0.5, 0.5]);
+
+    assert_eq!(
+        shell.document_store.source.text(),
+        before,
+        "failed detach must not commit the partial AST"
+    );
+    assert!(
+        !shell.document_store.source.is_dirty(),
+        "failed detach must not dirty the document"
+    );
+    assert_eq!(shell.document_store.history.undo_stack.len(), undo_before);
+    assert!(
+        !shell.preview_store.preview.status.contains("Detached callout"),
+        "failed detach must not report success, got {}",
+        shell.preview_store.preview.status
+    );
+    assert!(shell.preview_store.preview.status.contains("Failed to detach callout"));
+
+    drop(shell);
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[test]
+fn rebuild_command_submits_to_background_worker() {
+    let mut shell = GuiShell::load(PathBuf::from("test_dummy.amx"), false);
+    shell.preview_store.pending_rebuild_at = Some(std::time::Instant::now());
+
+    let effects = shell.handle_command(crate::app::commands::Command::Rebuild);
+
+    assert!(effects.is_empty());
+    assert!(
+        shell.preview_store.pending_rebuild_at.is_none(),
+        "manual rebuild must consume the debounce timer"
+    );
+    assert!(
+        shell.preview_store.in_flight_rebuild.is_some(),
+        "manual rebuild must be submitted to the worker"
+    );
+    assert!(shell.preview_store.rebuild_in_progress);
+    assert_eq!(shell.preview_store.preview.status, "Building timeline…");
+}

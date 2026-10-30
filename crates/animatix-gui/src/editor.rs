@@ -100,6 +100,11 @@ impl EditorBuffer {
         &self.text
     }
 
+    /// Path the editor and its analyzer are currently bound to.
+    pub fn document_path(&self) -> &Path {
+        &self.document_path
+    }
+
     /// Read-only access to the editor cells.
     pub fn cells(&self) -> &[Cell] {
         &self.cells

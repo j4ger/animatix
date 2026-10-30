@@ -38,6 +38,18 @@ pub(super) fn insert_action(
         None,
     );
 
+    insert_action_statement(stmts, action, time_s)
+}
+
+/// Insert an already-built action statement at `time_s`.
+///
+/// This is the shared placement path for inserting a new action and for moving
+/// an existing action to a new start keyframe during a left-edge resize.
+fn insert_action_statement(
+    stmts: &mut Vec<Stmt>,
+    action: Stmt,
+    time_s: f64,
+) -> Result<(), SourceEditError> {
     // ── 1. Exact match: find keyframe within ε of time_s ──
     if append_to_keyframe_at_time(stmts, time_s, action.clone()) {
         return Ok(());
@@ -95,22 +107,29 @@ pub(super) fn insert_action(
     Ok(())
 }
 
-/// Resize an action block's duration (right-edge drag).
+/// Resize an action block by dragging either edge.
 ///
-/// Finds the action matching `verb` + `targets` within the keyframe at `old_start_s`
-/// and updates its unnamed duration modifier to `new_duration_s`.
+/// Finds the action matching `verb` + `targets` within the keyframe at
+/// `old_start_s`, updates its unnamed duration modifier to `new_duration_s`,
+/// and — when the left edge moved — moves the action into the keyframe at
+/// `new_start_s` (creating one with the surrounding keyframe style if needed).
 pub(super) fn resize_action(
-    stmts: &mut [Stmt],
+    stmts: &mut Vec<Stmt>,
     verb: &str,
     targets: &[String],
     old_start_s: f64,
-    _new_start_s: f64,
+    new_start_s: f64,
     new_duration_s: f64,
 ) -> Result<(), SourceEditError> {
     const EPSILON_S: f64 = 0.05;
-    let mut current_time = 0.0f64;
+    if !new_start_s.is_finite() || new_start_s < 0.0 {
+        return Err(SourceEditError::Generic(format!("invalid action start time: {new_start_s}s")));
+    }
 
-    for kf in stmts.iter_mut() {
+    let mut current_time = 0.0f64;
+    let mut matching_keyframe = None;
+
+    for (keyframe_idx, kf) in stmts.iter_mut().enumerate() {
         match kf {
             Stmt::Keyframe { time, .. } => {
                 current_time = time_to_seconds(time);
@@ -125,51 +144,74 @@ pub(super) fn resize_action(
             continue;
         }
 
-        // Find matching action in this keyframe's body
+        // Find matching action in this keyframe's body.
         let body = match kf {
             Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => body,
             _ => unreachable!(),
         };
 
-        for stmt in body.iter_mut() {
-            if let Stmt::Action(action, _) = stmt {
-                if action.verb != verb || !action.targets.iter().any(|t| targets.contains(t)) {
-                    continue;
-                }
+        let action_idx = body.iter().position(|stmt| {
+            matches!(
+                stmt,
+                Stmt::Action(action, _)
+                    if action.verb == verb && action.targets.iter().any(|t| targets.contains(t))
+            )
+        });
 
-                // Format the new duration as a literal string
-                let duration_str = if new_duration_s < 1.0 {
-                    format!("{}ms", (new_duration_s * 1000.0).round())
-                } else {
-                    format!("{}s", new_duration_s)
-                };
+        let Some(action_idx) = action_idx else {
+            return Err(SourceEditError::Generic(format!(
+                "No action '{verb}' with matching targets at {:.2}s",
+                old_start_s
+            )));
+        };
 
-                // Update or insert the unnamed duration modifier
-                if let Some(modifier) = action.modifiers.iter_mut().find(|m| m.name.is_none()) {
-                    modifier.value = Expr::Ident(duration_str);
-                } else {
-                    action.modifiers.insert(
-                        0,
-                        Modifier {
-                            name: None,
-                            value: Expr::Ident(duration_str),
-                        },
-                    );
-                }
-                return Ok(());
+        if let Stmt::Action(action, _) = &mut body[action_idx] {
+            // Format the new duration as a literal string.
+            let duration_str = if new_duration_s < 1.0 {
+                format!("{}ms", (new_duration_s * 1000.0).round())
+            } else {
+                format!("{}s", new_duration_s)
+            };
+
+            // Update or insert the unnamed duration modifier.
+            if let Some(modifier) = action.modifiers.iter_mut().find(|m| m.name.is_none()) {
+                modifier.value = Expr::Ident(duration_str);
+            } else {
+                action.modifiers.insert(
+                    0,
+                    Modifier {
+                        name: None,
+                        value: Expr::Ident(duration_str),
+                    },
+                );
             }
         }
 
-        return Err(SourceEditError::Generic(format!(
-            "No action '{verb}' with matching targets at {:.2}s",
-            old_start_s
-        )));
+        matching_keyframe = Some((keyframe_idx, action_idx));
+        break;
     }
 
-    Err(SourceEditError::Generic(format!(
-        "No keyframe at {:.2}s to resize action '{verb}'",
-        old_start_s
-    )))
+    let Some((keyframe_idx, action_idx)) = matching_keyframe else {
+        return Err(SourceEditError::Generic(format!(
+            "No keyframe at {:.2}s to resize action '{verb}'",
+            old_start_s
+        )));
+    };
+
+    // A left-edge drag changes the action's start time: move the statement to
+    // the keyframe at the new time so the duration modifier and the block's
+    // start stay consistent. Tiny drags stay in place to avoid churn.
+    if (new_start_s - old_start_s).abs() >= EPSILON_S {
+        let action = match &mut stmts[keyframe_idx] {
+            Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
+                body.remove(action_idx)
+            },
+            _ => unreachable!(),
+        };
+        insert_action_statement(stmts, action, new_start_s)?;
+    }
+
+    Ok(())
 }
 
 fn time_to_seconds(time: &Time) -> f64 {
@@ -492,6 +534,51 @@ fade-in box"#,
             }
         } else {
             panic!("Expected Keyframe at index 1");
+        }
+    }
+
+    // ── Resize action: left edge moves the start keyframe ──
+    #[test]
+    fn resize_action_left_edge_moves_start_and_updates_duration() {
+        let mut stmts = parse(
+            r#"#0s
+box: Rect
+
+#1s
+fade-in box [1s]"#,
+        );
+        let edit = SourceEdit::ResizeAction {
+            verb: "fade-in".into(),
+            targets: vec!["box".into()],
+            old_start_s: 1.0,
+            new_start_s: 2.0,
+            new_duration_s: 0.5,
+        };
+        assert!(apply_edit(&mut stmts, edit).is_ok());
+
+        // The old keyframe stays in place but no longer owns the action...
+        match &stmts[1] {
+            Stmt::Keyframe { time, body, .. } => {
+                assert_eq!(*time, Time::Seconds(1.0));
+                assert!(body.is_empty());
+            },
+            _ => panic!("Expected the old keyframe at index 1"),
+        }
+        // ...and the action now starts at #2s with its new duration.
+        match &stmts[2] {
+            Stmt::Keyframe { time, body, .. } => {
+                assert_eq!(*time, Time::Seconds(2.0));
+                match &body[0] {
+                    Stmt::Action(action, _) => {
+                        assert_eq!(action.verb, "fade-in");
+                        assert!(
+                            matches!(&action.modifiers[0].value, Expr::Ident(s) if s == "500ms")
+                        );
+                    },
+                    _ => panic!("Expected Action in moved keyframe"),
+                }
+            },
+            _ => panic!("Expected the new keyframe at index 2"),
         }
     }
 

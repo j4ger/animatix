@@ -48,6 +48,7 @@ use crate::app::components::toast::Toast;
 use crate::app::components::{Alert, AlertLevel, text_tooltip};
 use crate::app::design_tokens::spatial::{RADIUS_S, SPACE_2, SPACE_4};
 use crate::app::design_tokens::typography::TextRole;
+use crate::app::document::load_worker::{LoadToken, LoadWorker};
 use crate::app::document::plugins::DocumentPluginManager;
 use crate::app::document::rebuild::RebuildWorker;
 use crate::app::interaction::keyboard::ShortcutRegistry;
@@ -473,6 +474,8 @@ struct GuiShell {
     ui_store: UiStore,
     export_store: ExportStore,
     rebuild_worker: RebuildWorker,
+    load_worker: LoadWorker,
+    pending_open: Option<LoadToken>,
     plugin_manager: DocumentPluginManager,
     external_commands: CommandQueue,
     insertion_palette: InsertionPalette,

@@ -175,6 +175,8 @@ impl GuiShell {
             ui_store,
             export_store: ExportStore::new(),
             rebuild_worker: RebuildWorker::start(),
+            load_worker: crate::app::document::load_worker::LoadWorker::start(),
+            pending_open: None,
             plugin_manager,
             external_commands: CommandQueue::new(),
             insertion_palette: InsertionPalette::default(),

@@ -9,6 +9,7 @@
 pub(crate) mod active_timeline;
 pub(crate) mod export_target;
 pub(crate) mod history;
+pub(crate) mod load_worker;
 pub(crate) mod plugins;
 pub(crate) mod rebuild;
 pub(crate) mod rebuild_output;
