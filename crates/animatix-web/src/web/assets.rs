@@ -6,8 +6,6 @@ use std::sync::Arc;
 use animatix::renderer::text::FontContext;
 use animatix::timeline::assets::AssetCache;
 use animatix::timeline::{BuildQuality, SceneDimensions};
-use animatix_syntax::ast::Stmt;
-use animatix_syntax::parser::parse_source;
 use wasm_bindgen::prelude::*;
 
 use crate::host;
@@ -72,16 +70,10 @@ impl AmxPlayer {
     }
 
     /// Asset URLs referenced by `Image`/`Svg` actors through a literal `url`
-    /// property, in declaration order and deduplicated. Dynamic assignments
-    /// (`icon.url = expr`) are not listed.
+    /// property, at any statement or container depth, in declaration order and
+    /// deduplicated. Dynamic assignments (`icon.url = expr`) are not listed.
     pub fn list_asset_urls(&mut self, source: &str) -> Result<JsValue, JsError> {
-        // Parse errors are not reported here: `load_source` surfaces them with
-        // full context, and a scene that does not parse has no asset urls.
-        let (ast, _) = parse_source(source);
-        let urls = match ast {
-            Some(ast) => Self::collect_asset_urls(&ast),
-            None => Vec::new(),
-        };
+        let urls = crate::asset_urls::collect_asset_urls_from_source(source);
         serde_wasm_bindgen::to_value(&urls)
             .map_err(|e| JsError::new(&format!("failed to serialize asset urls: {e}")))
     }
@@ -172,36 +164,5 @@ impl AmxPlayer {
 
         serde_wasm_bindgen::to_value(&result)
             .map_err(|e| JsError::new(&format!("failed to serialize build result: {e}")))
-    }
-
-    /// Asset URLs referenced by the given statements, in declaration order.
-    fn collect_asset_urls(stmts: &[Stmt]) -> Vec<String> {
-        let mut urls = Vec::new();
-        walk_asset_urls(stmts, &mut urls);
-        urls
-    }
-}
-
-/// Walk statements (and keyframe bodies) collecting literal `url` properties
-/// from `Image`/`Svg` actor declarations.
-fn walk_asset_urls(stmts: &[Stmt], urls: &mut Vec<String>) {
-    for stmt in stmts {
-        match stmt {
-            Stmt::ActorDecl { ty, props, .. } => {
-                if matches!(ty.as_str(), "Image" | "Svg") {
-                    if let Some(prop) = props.iter().find(|prop| prop.name == "url") {
-                        if let animatix_syntax::ast::Expr::Str(url) = &prop.value {
-                            if !url.is_empty() && !urls.contains(url) {
-                                urls.push(url.clone());
-                            }
-                        }
-                    }
-                }
-            },
-            Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
-                walk_asset_urls(body, urls);
-            },
-            _ => {},
-        }
     }
 }

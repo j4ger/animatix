@@ -8,7 +8,10 @@ use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
 use animatix_render::core::RendererCore;
 use animatix_render::filter_backend::GpuFilterBackend;
 use animatix_render::offscreen::{RasterFit, rasterize_scene};
-use animatix_render::transition::TransitionCompositor;
+use animatix_render::transition::{
+    TransitionCompositor, collect_flip_pairs, composite_flip_overlay, encode_flip_overlay,
+    plan_shared_actors,
+};
 use wasm_bindgen::prelude::*;
 use wgpu::CurrentSurfaceTexture;
 
@@ -210,6 +213,9 @@ struct ScenePass<'a> {
     target: &'a OffscreenTarget,
     timeline: &'a Timeline,
     time_s: f64,
+    /// Actor labels hidden during a FLIP transition (their shared element is
+    /// drawn once in the floating overlay instead).
+    suppressed: &'a [String],
 }
 
 /// Render the loaded document for `time_s`, returning the target holding the
@@ -241,6 +247,7 @@ pub(super) fn render_document(
                         target: &from,
                         timeline,
                         time_s: local_time_s,
+                        suppressed: &[],
                     },
                 )?;
                 return Ok(from.frame_target());
@@ -248,7 +255,9 @@ pub(super) fn render_document(
 
             // Transition: both scenes render into their own targets (each with
             // its own filter backend so the two evaluations cannot stomp each
-            // other's pass state) and the compositor blends them.
+            // other's pass state) and the compositor blends them. Actors that
+            // share a `shared_id` are suppressed in both scene rasters and
+            // drawn once in a floating FLIP overlay above the blend.
             let to_local = composition
                 .scene_start_times
                 .get(&blend.to_scene)
@@ -264,6 +273,16 @@ pub(super) fn render_document(
                 .get(&blend.to_scene)
                 .ok_or_else(|| format!("composition has no scene named '{}'", blend.to_scene))?
                 .timeline;
+            let shared = plan_shared_actors(from_timeline, blend.from_local, to_timeline, to_local);
+            let flip_items = collect_flip_pairs(
+                &shared,
+                from_timeline,
+                blend.from_local,
+                to_timeline,
+                to_local,
+                ctx.dims,
+                DebugRenderOptions::default(),
+            );
             let to = ensure_offscreen(
                 targets.secondary,
                 ctx.device,
@@ -286,6 +305,7 @@ pub(super) fn render_document(
                     target: &from,
                     timeline: from_timeline,
                     time_s: blend.from_local,
+                    suppressed: &shared.suppressed_from,
                 },
             )?;
             render_timeline(
@@ -295,6 +315,7 @@ pub(super) fn render_document(
                     target: &to,
                     timeline: to_timeline,
                     time_s: to_local,
+                    suppressed: &shared.suppressed_to,
                 },
             )?;
             compositor.render(
@@ -310,6 +331,33 @@ pub(super) fn render_document(
                 blend.easing,
             )?;
 
+            if !flip_items.is_empty() {
+                let overlay = encode_flip_overlay(&flip_items, blend.progress as f32, blend.easing);
+                let scale = ctx.scale.clamp(MIN_RENDER_SCALE, MAX_RENDER_SCALE);
+                let overlay_ref: &vello::Scene = if (scale - 1.0).abs() < 1e-3 {
+                    &overlay
+                } else {
+                    // Same scaled-scene path `rasterize_scene` uses: append
+                    // under one uniform transform so geometry and the overlay
+                    // target share the raster scale.
+                    ctx.scratch.reset();
+                    ctx.scratch.append(&overlay, Some(kurbo::Affine::scale(scale as f64)));
+                    &*ctx.scratch
+                };
+                composite_flip_overlay(
+                    ctx.core,
+                    ctx.device,
+                    ctx.queue,
+                    &from.view,
+                    &composite_target.view,
+                    SceneDimensions {
+                        width: scene.0,
+                        height: scene.1,
+                    },
+                    overlay_ref,
+                )?;
+            }
+
             Ok(composite_target.frame_target())
         },
         Some(BuildTarget::SingleScene(timeline)) => {
@@ -320,6 +368,7 @@ pub(super) fn render_document(
                     target: &from,
                     timeline,
                     time_s: ctx.time_s,
+                    suppressed: &[],
                 },
             )?;
             Ok(from.frame_target())
@@ -340,6 +389,7 @@ fn render_timeline(ctx: &mut FrameCtx<'_>, pass: ScenePass<'_>) -> Result<(), St
         target,
         timeline,
         time_s,
+        suppressed,
     } = pass;
     if backend.is_none() {
         *backend = Some(GpuFilterBackend::new(ctx.device.clone(), ctx.queue.clone(), ctx.dims)?);
@@ -353,8 +403,19 @@ fn render_timeline(ctx: &mut FrameCtx<'_>, pass: ScenePass<'_>) -> Result<(), St
         fb.set_raster_scale(achieved);
     }
     let mut fb: Option<&mut dyn FilterBackend> = backend.as_mut().map(|b| b as _);
-    let scene =
-        timeline.evaluate_with_debug(time_s, ctx.dims, DebugRenderOptions::default(), &mut fb);
+    let scene = if suppressed.is_empty() {
+        timeline.evaluate_with_debug(time_s, ctx.dims, DebugRenderOptions::default(), &mut fb)
+    } else {
+        timeline
+            .evaluate_program_with_suppressed(
+                time_s,
+                ctx.dims,
+                DebugRenderOptions::default(),
+                &mut fb,
+                suppressed,
+            )
+            .scene
+    };
     drop(fb);
 
     let scale = ctx.scale.clamp(MIN_RENDER_SCALE, MAX_RENDER_SCALE);

@@ -475,16 +475,21 @@ cd web/tools && npm install && npm run build:embed
 
 - **Multi-scene transitions blend** — the GPU compositor the desktop uses runs
   in the player, so `play` edges render their transition instead of cutting.
+  Actors carrying the same `shared_id` in both scenes are suppressed from the
+  two scene rasters and drawn once as an interpolated FLIP overlay, matching
+  the desktop renderer's shared-element transition.
 - **Imports fetch** — a scene may `import` `.amx` files beyond the bundled
   library. The build stops on an unsupplied import and reports the resolved
   path in `missing_imports`; the embed fetches it relative to the scene
   (transitive imports close over repeated rounds) and retries. Shells driving
   the player directly do the same with `add_module(path, text)`.
 - **Assets fetch** — `Image`/`Svg` actors with a literal `url` resolve relative
-  to the scene file (fetched alongside it; absolute URLs work too, including
-  inside imported modules — their urls resolve against the module's own
-  location, but the engine keys the cache by the literal url string, so asset
-  names share one flat namespace across the scene and its imports). Dynamic
+  to the scene file at any nesting depth (scenes, components, keyframe and
+  control-flow bodies, and container children), fetched alongside the scene
+  (absolute URLs work too, including inside imported modules — their urls
+  resolve against the module's own location, but the engine keys the cache by
+  the literal url string, so asset names share one flat namespace across the
+  scene and its imports). Dynamic
   `url = expr` assignments are not listed.
 - **Runtime fonts** — set `data-fonts` on the embed to a space-separated list
   of TTF/OTF URLs; they are registered before the scene compiles, so

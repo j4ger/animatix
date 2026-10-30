@@ -20,6 +20,7 @@ use std::sync::Arc;
 use animatix::renderer::text::FontContext;
 use animatix::timeline::BuildQuality;
 use animatix::timeline::assets::AssetCache;
+use animatix_web::asset_urls::collect_asset_urls_from_source;
 use animatix_web::host::build_document_with_modules;
 
 /// A scene the site plays, and the pages that play it.
@@ -118,23 +119,10 @@ fn collect_players(root: &Path, into: &mut BTreeMap<PathBuf, SceneRefs>) {
 
 /// The literal `url: "…"` properties in a source, in order, deduplicated.
 ///
-/// Mirrors what the embed asks the engine for (`list_asset_urls` lives on the
-/// wasm class, which a native test cannot reach): an `Image`/`Svg` actor's
-/// asset is fetched relative to the source that declares it.
+/// This drives the same AST collector as `list_asset_urls` on the wasm class,
+/// so the site test fetches exactly the assets the embed fetches.
 fn literal_asset_urls(text: &str) -> Vec<String> {
-    const KEY: &str = "url: \"";
-    let mut out: Vec<String> = Vec::new();
-    let mut rest = text;
-    while let Some(i) = rest.find(KEY) {
-        let after = &rest[i + KEY.len()..];
-        let Some(j) = after.find('"') else { break };
-        let url = &after[..j];
-        if !out.iter().any(|seen| seen == url) {
-            out.push(url.to_string());
-        }
-        rest = &after[j..];
-    }
-    out
+    collect_asset_urls_from_source(text)
 }
 
 /// Seed the cache exactly as `_fetchAssets` does: each source's urls resolve

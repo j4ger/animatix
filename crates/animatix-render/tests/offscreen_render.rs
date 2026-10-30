@@ -436,6 +436,43 @@ fn transition_midframe_blends_both_scenes() {
     }
 }
 
+/// A shared `shared_id` must be suppressed from both scene rasters and drawn
+/// once in the floating FLIP overlay at the interpolated position. Without
+/// suppression both copies would paint at their endpoints; without the
+/// overlay nothing would paint between them.
+#[test]
+fn transition_flip_suppresses_shared_actors_and_repaints_at_midpoint() {
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let dims = SceneDimensions {
+        width: 64,
+        height: 64,
+    };
+    let scene = |x: u32| {
+        build_checked(&format!(
+            "config {{ colorscheme: \"editorial-dark\", resolution: (64, 64) }}\n\
+             #0s\n\
+             hero: Rect, at: ({x}, 32), size: (10, 10), color: (1.0, 0.0, 0.0, 1.0), shared_id: \"hero\"\n"
+        ))
+    };
+    let from = scene(16);
+    let to = scene(48);
+
+    let frame = transition(&mut renderer, &from, &to, 0.5, dims);
+    let at_from = pixel(&frame.rgba, 64, 16, 32);
+    let at_mid = pixel(&frame.rgba, 64, 32, 32);
+    let at_to = pixel(&frame.rgba, 64, 48, 32);
+    assert!(
+        at_from[0] < 70 && at_to[0] < 70,
+        "suppressed endpoints must show the backdrop, got {at_from:?} and {at_to:?}"
+    );
+    assert!(
+        at_mid[0] > 160 && at_mid[1] < 100,
+        "the FLIP overlay must paint the actor at the interpolated midpoint, got {at_mid:?}"
+    );
+}
+
 /// A transition frame at progress 0 must equal the single-scene render of the
 /// outgoing scene *including its GPU filter scopes*. The transition path used
 /// to evaluate both scenes with `filter_backend = None`, so a scene whose

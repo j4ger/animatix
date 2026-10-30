@@ -1,6 +1,12 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
 
+use animatix::easing::Easing;
+use animatix::timeline::scene_program::SceneItem;
+use animatix::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
+
+use crate::core::RendererCore;
+
 /// GPU-based compositor for scene transition effects.
 ///
 /// Renders a fullscreen quad with a WGSL shader that blends two input textures
@@ -344,5 +350,283 @@ impl TransitionCompositor {
 
         queue.submit(std::iter::once(encoder.finish()));
         Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Shared-element (FLIP) transition helpers
+// ---------------------------------------------------------------------------
+
+/// Labels matched by `shared_id` across the two scenes of a transition.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct SharedActorPlan {
+    /// `(from_label, to_label)` pairs, ordered by `shared_id` so the FLIP
+    /// overlay has a deterministic paint order.
+    pub pairs: Vec<(String, String)>,
+    /// Labels to suppress in the outgoing scene.
+    pub suppressed_from: Vec<String>,
+    /// Labels to suppress in the incoming scene.
+    pub suppressed_to: Vec<String>,
+}
+
+impl SharedActorPlan {
+    /// Whether any shared actor matched (and therefore any suppression or
+    /// overlay work is needed).
+    pub fn is_empty(&self) -> bool {
+        self.pairs.is_empty()
+    }
+}
+
+/// One matched outgoing/incoming item pair drawn in the floating FLIP overlay.
+pub type FlipItem = (SceneItem, SceneItem);
+
+/// Match actors carrying the same non-empty `shared_id` at the two local
+/// transition times.
+///
+/// The returned suppression lists drive
+/// [`Timeline::evaluate_program_with_suppressed`]; the label pairs are resolved
+/// into [`FlipItem`]s by [`collect_flip_pairs`]. Ordering follows the sorted
+/// `shared_id` keys (not `HashMap` iteration order), so overlapping shared
+/// elements paint consistently from frame to frame.
+pub fn plan_shared_actors(
+    from_timeline: &Timeline,
+    from_time_s: f64,
+    to_timeline: &Timeline,
+    to_time_s: f64,
+) -> SharedActorPlan {
+    let from_shared = from_timeline.shared_id_actors((from_time_s * 1000.0) as u64);
+    let to_shared = to_timeline.shared_id_actors((to_time_s * 1000.0) as u64);
+
+    let mut shared_ids: Vec<&String> = from_shared.keys().collect();
+    shared_ids.sort();
+
+    let mut plan = SharedActorPlan::default();
+    for shared_id in shared_ids {
+        let Some(to_label) = to_shared.get(shared_id) else {
+            continue;
+        };
+        let from_label = &from_shared[shared_id];
+        plan.pairs.push((from_label.clone(), to_label.clone()));
+        plan.suppressed_from.push(from_label.clone());
+        plan.suppressed_to.push(to_label.clone());
+    }
+    plan
+}
+
+/// Evaluate both scenes without suppression and resolve each planned label
+/// pair to the concrete [`SceneItem`]s the FLIP overlay interpolates.
+///
+/// Returns an empty vector when `plan` has no matches, so callers avoid the
+/// extra pair of evaluations for ordinary transitions.
+pub fn collect_flip_pairs(
+    plan: &SharedActorPlan,
+    from_timeline: &Timeline,
+    from_time_s: f64,
+    to_timeline: &Timeline,
+    to_time_s: f64,
+    dimensions: SceneDimensions,
+    debug_options: DebugRenderOptions,
+) -> Vec<FlipItem> {
+    if plan.is_empty() {
+        return Vec::new();
+    }
+    let from_program = from_timeline.evaluate_program_with_debug(
+        from_time_s,
+        dimensions,
+        debug_options,
+        &mut None,
+    );
+    let to_program =
+        to_timeline.evaluate_program_with_debug(to_time_s, dimensions, debug_options, &mut None);
+
+    let mut items = Vec::new();
+    for (from_label, to_label) in &plan.pairs {
+        let from_item = from_program.items.iter().find(|item| item.label == *from_label).cloned();
+        let to_item = to_program.items.iter().find(|item| item.label == *to_label).cloned();
+        if let (Some(from_item), Some(to_item)) = (from_item, to_item) {
+            items.push((from_item, to_item));
+        }
+    }
+    items
+}
+
+/// Encode the floating FLIP overlay scene: each pair's transform is linearly
+/// interpolated with the eased progress, and the from/to commands fade out/in
+/// over it.
+pub fn encode_flip_overlay(pairs: &[FlipItem], progress: f32, easing: Easing) -> vello::Scene {
+    let mut overlay = vello::Scene::new();
+    let p_eased = animatix::easing::apply_easing(progress, easing);
+    let p = p_eased as f64;
+    for (from_item, to_item) in pairs {
+        let from_coeffs = from_item.transform.as_coeffs();
+        let to_coeffs = to_item.transform.as_coeffs();
+        let mut coeffs = [0.0; 6];
+        for (index, coeff) in coeffs.iter_mut().enumerate() {
+            *coeff = (1.0 - p) * from_coeffs[index] + p * to_coeffs[index];
+        }
+        let transform = kurbo::Affine::new(coeffs);
+
+        let alpha_from = (1.0 - p_eased) * from_item.opacity;
+        let alpha_to = p_eased * to_item.opacity;
+        if alpha_from > 0.001 {
+            for command in &from_item.commands {
+                command.execute(&mut overlay, &transform, alpha_from);
+            }
+        }
+        if alpha_to > 0.001 {
+            for command in &to_item.commands {
+                command.execute(&mut overlay, &transform, alpha_to);
+            }
+        }
+    }
+    overlay
+}
+
+/// Draw `overlay` into `overlay_view` with a transparent background, then
+/// alpha-blit it over the already-composited transition in `output_view`.
+///
+/// `overlay_view` is a scratch texture owned by the caller; on the native
+/// offscreen renderer it is scene A's texture after the blend has consumed it.
+pub fn composite_flip_overlay(
+    core: &mut RendererCore,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    overlay_view: &wgpu::TextureView,
+    output_view: &wgpu::TextureView,
+    size: SceneDimensions,
+    overlay: &vello::Scene,
+) -> Result<(), String> {
+    core.render_vello_scene_with_background(
+        device,
+        queue,
+        overlay_view,
+        size.width,
+        size.height,
+        overlay,
+        vello::peniko::Color::TRANSPARENT,
+    )
+    .map_err(|e| e.to_string())?;
+    core.blit_texture(device, queue, overlay_view, output_view, size.width, size.height, 1.0);
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn timeline(source: &str) -> Timeline {
+        let (ast, errors) = animatix_syntax::parser::parse_source(source);
+        assert!(errors.is_empty(), "parse errors: {errors:?}");
+        let ast = ast.expect("AST");
+        let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+        assert!(report.diagnostics.is_empty(), "diagnostics: {:?}", report.diagnostics);
+        report.output
+    }
+
+    fn dims() -> SceneDimensions {
+        SceneDimensions {
+            width: 800,
+            height: 600,
+        }
+    }
+
+    #[test]
+    fn shared_actor_plan_matches_and_suppresses_both_labels() {
+        let from = timeline(
+            r#"
+#0s
+card: Rect, at: (100, 100), size: (50, 50), color: (1, 0, 0, 1), shared_id: "hero"
+bystander: Rect, at: (0, 0), size: (10, 10), color: (0, 1, 0, 1)
+"#,
+        );
+        let to = timeline(
+            r#"
+#0s
+card_large: Rect, at: (400, 300), size: (150, 150), color: (1, 0, 0, 1), shared_id: "hero"
+"#,
+        );
+
+        let plan = plan_shared_actors(&from, 0.0, &to, 0.0);
+        assert_eq!(plan.pairs, vec![("card".to_string(), "card_large".to_string())]);
+        assert_eq!(plan.suppressed_from, vec!["card".to_string()]);
+        assert_eq!(plan.suppressed_to, vec!["card_large".to_string()]);
+
+        let pairs =
+            collect_flip_pairs(&plan, &from, 0.0, &to, 0.0, dims(), DebugRenderOptions::default());
+        assert_eq!(pairs.len(), 1);
+        assert_eq!(pairs[0].0.label, "card");
+        assert_eq!(pairs[0].1.label, "card_large");
+        assert_ne!(pairs[0].0.transform, pairs[0].1.transform);
+
+        let overlay = encode_flip_overlay(&pairs, 0.5, Easing::Linear);
+        assert!(!overlay.encoding().is_empty(), "mid-transition overlay must draw");
+    }
+
+    #[test]
+    fn unmatched_or_empty_shared_ids_produce_no_plan() {
+        let unsynced = timeline(
+            r#"
+#0s
+a: Rect, at: (0, 0), size: (10, 10), color: (1, 1, 1, 1), shared_id: "only-here"
+"#,
+        );
+        let plain_from = timeline(
+            r#"
+#0s
+a: Rect, at: (0, 0), size: (10, 10), color: (1, 1, 1, 1)
+"#,
+        );
+        let plain_to = timeline(
+            r#"
+#0s
+b: Rect, at: (50, 50), size: (20, 20), color: (1, 1, 1, 1), shared_id: ""
+"#,
+        );
+
+        for (from, to) in [(&unsynced, &plain_to), (&plain_from, &plain_to)] {
+            let plan = plan_shared_actors(from, 0.0, to, 0.0);
+            assert!(plan.is_empty());
+            assert!(plan.suppressed_from.is_empty());
+            assert!(plan.suppressed_to.is_empty());
+            assert!(
+                collect_flip_pairs(
+                    &plan,
+                    from,
+                    0.0,
+                    to,
+                    0.0,
+                    dims(),
+                    DebugRenderOptions::default(),
+                )
+                .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn multiple_shared_ids_are_planned_in_deterministic_order() {
+        let from = timeline(
+            r#"
+#0s
+z_actor: Rect, at: (0, 0), size: (10, 10), color: (1, 1, 1, 1), shared_id: "z"
+a_actor: Rect, at: (0, 50), size: (10, 10), color: (1, 1, 1, 1), shared_id: "a"
+"#,
+        );
+        let to = timeline(
+            r#"
+#0s
+z_next: Rect, at: (100, 0), size: (20, 20), color: (1, 1, 1, 1), shared_id: "z"
+a_next: Rect, at: (100, 50), size: (20, 20), color: (1, 1, 1, 1), shared_id: "a"
+"#,
+        );
+
+        let plan = plan_shared_actors(&from, 0.0, &to, 0.0);
+        assert_eq!(
+            plan.pairs,
+            vec![
+                ("a_actor".to_string(), "a_next".to_string()),
+                ("z_actor".to_string(), "z_next".to_string()),
+            ]
+        );
     }
 }

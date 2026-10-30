@@ -7,10 +7,11 @@
 //! into a WebGPU canvas surface. Video/native-plugin/export paths are not
 //! reachable from the web target.
 //!
-//! The `host` and `dto` modules compile on every target so the parse→build
-//! pipeline is covered by ordinary `cargo test` runs; only the `web` module
-//! (wgpu surface, wasm-bindgen exports) is wasm-only.
+//! The `asset_urls`, `host` and `dto` modules compile on every target so the
+//! parse→build pipeline is covered by ordinary `cargo test` runs; only the
+//! `web` module (wgpu surface, wasm-bindgen exports) is wasm-only.
 
+pub mod asset_urls;
 pub mod dto;
 pub mod host;
 
