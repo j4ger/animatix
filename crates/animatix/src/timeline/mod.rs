@@ -55,7 +55,8 @@ pub(crate) mod layout;
 mod media;
 /// Modifier statement execution (IR interpreter).
 pub mod modifier_exec;
-pub(crate) mod modifier_runtime;
+/// Modifier program runtime: lowered IR types, lowering, and execution.
+pub mod modifier_runtime;
 /// Path morphing between vector shapes.
 pub mod morph;
 pub mod path_progress;

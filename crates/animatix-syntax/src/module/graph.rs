@@ -358,7 +358,7 @@ impl ModuleGraph {
             .ok_or_else(|| ModuleError::FileNotFound(path.to_path_buf()))?;
 
         let mut result = Vec::new();
-        self.flatten_recursive(entry_id, &mut result, &mut Vec::new())?;
+        self.flatten_module_stmts(entry_id, &mut result, &mut Vec::new());
 
         Ok(result)
     }
@@ -401,7 +401,7 @@ impl ModuleGraph {
             .ok_or_else(|| ModuleError::FileNotFound(path.to_path_buf()))?;
 
         let mut statements = Vec::new();
-        self.flatten_recursive(entry_id, &mut statements, &mut Vec::new())?;
+        self.flatten_module_stmts(entry_id, &mut statements, &mut Vec::new());
 
         let mut components = HashMap::new();
         self.collect_components_recursive(entry_id, entry_id, &mut components, &mut Vec::new())?;
@@ -620,7 +620,9 @@ impl ModuleGraph {
     }
 
     /// Flatten a module's statements into `result`, following non-aliased imports.
-    /// Separate from `flatten_recursive` to allow calling from multiple contexts.
+    ///
+    /// `visited` guards against import cycles. Aliased imports are not inlined;
+    /// they stay available through the module namespace instead.
     fn flatten_module_stmts(
         &self,
         file_id: FileId,
@@ -649,38 +651,6 @@ impl ModuleGraph {
                 }
             }
         }
-    }
-
-    fn flatten_recursive(
-        &self,
-        file_id: FileId,
-        result: &mut Vec<Stmt>,
-        visited: &mut Vec<FileId>,
-    ) -> Result<(), ModuleError> {
-        if visited.contains(&file_id) {
-            return Ok(());
-        }
-        visited.push(file_id);
-
-        if let Some(module) = self.files.get(&file_id) {
-            for imp in &module.imports {
-                if imp.1.is_some() {
-                    continue; // Aliased imports are not flattened
-                }
-                let import_path = Self::resolve_path(&module.path, &imp.0);
-                if let Some(import_id) = self.file_id_for_path(&import_path) {
-                    self.flatten_recursive(import_id, result, visited)?;
-                }
-            }
-
-            for stmt in &module.statements {
-                if let Some(stmt) = strip_imports(stmt) {
-                    result.push(stmt);
-                }
-            }
-        }
-
-        Ok(())
     }
 
     fn collect_components_recursive(

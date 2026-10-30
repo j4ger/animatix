@@ -1,4 +1,4 @@
-//! SVG definitions: gradients, clip paths, and masks.
+//! SVG definitions: gradients and masks.
 
 use std::collections::HashMap;
 
@@ -21,14 +21,6 @@ pub(crate) struct GradientStop {
     pub(crate) g: u8,
     pub(crate) b: u8,
     pub(crate) opacity: f64,
-}
-
-/// A parsed SVG clip path definition.
-#[derive(Clone, Debug)]
-#[allow(dead_code)] // Reserved for future clip-path rendering
-pub(crate) struct ClipPathDef {
-    /// The path data for clipping.
-    pub(crate) path_data: String,
 }
 
 /// A parsed SVG mask definition.
@@ -328,38 +320,8 @@ pub(crate) fn parse_stop_color(value: &str) -> (u8, u8, u8) {
     (0, 0, 0)
 }
 
-/// Collect clipPath definitions from the SVG tree.
-pub(crate) fn collect_clip_paths(node: &Node) -> HashMap<String, ClipPathDef> {
-    let mut clip_paths = HashMap::new();
-    collect_clip_paths_recursive(node, &mut clip_paths);
-    clip_paths
-}
-
-pub(crate) fn collect_clip_paths_recursive(
-    node: &Node,
-    clip_paths: &mut HashMap<String, ClipPathDef>,
-) {
-    for child in node.children() {
-        if !child.is_element() {
-            continue;
-        }
-        let tag = child.tag_name().name();
-        if tag == "clipPath" {
-            if let Some(id) = child.attribute("id") {
-                // Extract path data from children (path, rect, circle, etc.)
-                let path_data = extract_clip_path_data(&child);
-                if !path_data.is_empty() {
-                    clip_paths.insert(id.to_string(), ClipPathDef { path_data });
-                }
-            }
-        }
-        // Recurse into all element children
-        collect_clip_paths_recursive(&child, clip_paths);
-    }
-}
-
-/// Extract path data from clipPath children.
-pub(crate) fn extract_clip_path_data(node: &Node) -> String {
+/// Extract path data from the shape children of a `<mask>` definition.
+pub(crate) fn extract_shape_path_data(node: &Node) -> String {
     let mut paths = Vec::new();
     for child in node.children() {
         if !child.is_element() {
@@ -410,14 +372,6 @@ pub(crate) fn extract_clip_path_data(node: &Node) -> String {
     paths.join(" ")
 }
 
-/// Apply clip paths to elements that reference them via clip-path attribute.
-pub(crate) fn apply_clip_paths(stmts: &mut Vec<Stmt>, _clip_paths: &HashMap<String, ClipPathDef>) {
-    // For now, clip paths are applied at the SVG level.
-    // The actual clipping is done during rendering via the mask/group mechanism.
-    // This is a placeholder for future enhancement.
-    let _ = stmts;
-}
-
 /// Collect `<mask>` definitions from the SVG tree.
 pub(crate) fn collect_masks(node: &Node) -> HashMap<String, MaskDef> {
     let mut masks = HashMap::new();
@@ -432,7 +386,7 @@ pub(crate) fn collect_masks_recursive(node: &Node, masks: &mut HashMap<String, M
         }
         if child.tag_name().name() == "mask" {
             if let Some(id) = child.attribute("id") {
-                let path_data = extract_clip_path_data(&child);
+                let path_data = extract_shape_path_data(&child);
                 if !path_data.is_empty() {
                     masks.insert(id.to_string(), MaskDef { path_data });
                 }

@@ -11,7 +11,6 @@ pub mod composition;
 pub mod extension_context;
 pub use extension_context::ExtensionRegistry;
 pub mod extension_plugin;
-pub mod ir;
 pub mod perf;
 pub mod primitives;
 pub mod property_descriptor;

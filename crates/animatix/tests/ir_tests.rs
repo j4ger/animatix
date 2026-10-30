@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 
-use animatix::ir::{
+use animatix::timeline::modifier_runtime::ir::{
     CompiledExpr, ModifierIrProgram, ModifierIrStmt, ModifierOverrides, compile_expr,
     execute_modifier_ir, lower_modifier_ir,
 };

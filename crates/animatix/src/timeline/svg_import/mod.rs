@@ -14,7 +14,9 @@
 //!
 //! ## Limitations / TODOs
 //!
-//! - No support for SVG `<use>`, `<clipPath>`, patterns
+//! - SVG `<clipPath>` and `clip-path` references are unsupported: clip
+//!   definitions and references are ignored, so imported shapes are not clipped
+//! - SVG patterns are unsupported
 //! - SVG `<path>` `d` attribute: supports M/m, L/l, H/h, V/v, Q/q, C/c, S/s, T/t, A/a, Z/z; `A`/`a`
 //!   arcs are approximated as a straight chord
 //! - SVG `currentColor`, `inherit` fill types: not yet supported
@@ -33,11 +35,8 @@ use std::path::Path;
 use roxmltree::{Document, Node};
 
 #[allow(unused_imports)]
-pub(crate) use self::defs::{ClipPathDef, GradientDef, GradientStop, MaskDef};
-use self::defs::{
-    apply_clip_paths, collect_clip_paths, collect_gradients, collect_masks,
-    wrap_new_statements_with_mask,
-};
+pub(crate) use self::defs::{GradientDef, GradientStop, MaskDef};
+use self::defs::{collect_gradients, collect_masks, wrap_new_statements_with_mask};
 use self::shapes::{
     convert_circle, convert_ellipse, convert_group, convert_line, convert_path, convert_poly,
     convert_rect, convert_text, convert_use,
@@ -100,9 +99,9 @@ pub fn import_svg(path: &Path) -> Result<Vec<Stmt>, SvgImportError> {
     let mut stmts = Vec::new();
     let mut counter = 0u64;
 
-    // Collect gradient and clipPath definitions from <defs> elements
+    // Collect gradient and mask definitions from <defs> elements.
+    // <clipPath> is unsupported and intentionally not parsed (see module docs).
     let gradients = collect_gradients(&root);
-    let clip_paths = collect_clip_paths(&root);
     let masks = collect_masks(&root);
 
     // Parse viewBox and width/height for scene configuration
@@ -111,9 +110,6 @@ pub fn import_svg(path: &Path) -> Result<Vec<Stmt>, SvgImportError> {
     }
 
     convert_children(&root, &mut stmts, &mut counter, &Transform::identity(), &gradients, &masks)?;
-
-    // Apply clip paths to elements that reference them
-    apply_clip_paths(&mut stmts, &clip_paths);
 
     Ok(stmts)
 }

@@ -678,7 +678,9 @@ mod tests {
         use crate::timeline::Value;
         let env_closure = Value::Closure(
             Vec::new(),
-            Box::new(crate::ir::CompiledExpr::Const(crate::timeline::Value::Num(0.0))),
+            Box::new(crate::timeline::modifier_runtime::ir::CompiledExpr::Const(
+                crate::timeline::Value::Num(0.0),
+            )),
             crate::timeline::CapturedEnv::default(),
         );
         assert!(value_to_expr(&env_closure).is_none());
