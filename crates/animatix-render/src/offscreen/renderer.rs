@@ -146,7 +146,7 @@ impl OffscreenRenderer {
         dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
     ) -> Result<(), String> {
-        self.render_to_output_texture_inner(timeline, time_s, dimensions, debug_options, false)
+        self.render_to_output_texture_inner(timeline, time_s, dimensions, debug_options)
             .map(|_| ())
     }
 
@@ -167,28 +167,23 @@ impl OffscreenRenderer {
         dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
     ) -> Result<(RenderedFrame, animatix::timeline::scene_program::SceneProgram), String> {
-        let program = self
-            .render_to_output_texture_inner(timeline, time_s, dimensions, debug_options, true)?
-            .expect("collect_items=true always returns a program");
+        let program =
+            self.render_to_output_texture_inner(timeline, time_s, dimensions, debug_options)?;
         let frame = self.readback_output(dimensions)?;
         Ok((frame, program))
     }
 
     /// Shared tail of [`Self::render_to_output_texture`] and
-    /// [`Self::render_timeline_observable`]. `collect_items` selects the
-    /// observable evaluation path and makes the program available to the
-    /// caller.
+    /// [`Self::render_timeline_observable`]. Always evaluates the observable
+    /// program: the zero-readback path needs its scene and its pending-filter
+    /// composites, so both callers use the same evaluation.
     fn render_to_output_texture_inner(
         &mut self,
         timeline: &Timeline,
         time_s: f64,
         dimensions: SceneDimensions,
         debug_options: DebugRenderOptions,
-        _collect_items: bool,
-    ) -> Result<Option<animatix::timeline::scene_program::SceneProgram>, String> {
-        // `_collect_items` is vestigial: the zero-readback evaluate path always
-        // produces the observable program (the pending-filter blits below
-        // require it), so both callers receive identical behavior.
+    ) -> Result<animatix::timeline::scene_program::SceneProgram, String> {
         if dimensions.width == 0 || dimensions.height == 0 {
             return Err("Preview dimensions must be greater than zero".to_string());
         }
@@ -214,19 +209,10 @@ impl OffscreenRenderer {
         // GPU composites that are blitted after the main render (below), so
         // per-scope GPU->CPU readback stalls never enter the frame.
         let program =
-            Some(timeline.evaluate_program_with_debug(time_s, dimensions, debug_options, &mut fb));
-        // The observable path borrows the scene out of `program`; the
-        // scene-only path evaluates directly. Either way `scene` is a borrow
-        // that ends before the render call returns.
-        let scene_owned;
-        let scene: &vello::Scene = match program.as_ref() {
-            Some(program) => &program.scene,
-            None => {
-                scene_owned =
-                    timeline.evaluate_with_debug(time_s, dimensions, debug_options, &mut fb);
-                &scene_owned
-            },
-        };
+            timeline.evaluate_program_with_debug(time_s, dimensions, debug_options, &mut fb);
+        // The scene is borrowed out of `program`; the borrow ends before the
+        // program is returned to the observable caller.
+        let scene: &vello::Scene = &program.scene;
         let probe_eval_ms = crate::filter_backend::probe_ms(t_eval);
 
         let output_view = self

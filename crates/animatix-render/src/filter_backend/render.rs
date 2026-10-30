@@ -9,11 +9,11 @@ impl GpuFilterBackend {
         region: Option<EffectRegion>,
         chain: &EffectChain,
     ) -> Result<wgpu::TextureView, String> {
-        self.render_and_filter_scene_fused(scene, dimensions, region, chain, None)
+        self.render_and_filter_scene(scene, dimensions, region, chain, None)
             .map(|(v, _)| v)
     }
 
-    pub(super) fn render_and_filter_scene_fused(
+    pub(super) fn render_and_filter_scene(
         &mut self,
         scene: &vello::Scene,
         dimensions: SceneDimensions,
@@ -153,13 +153,8 @@ impl GpuFilterBackend {
         // "Region scoped" means "the result is in the scratch we were handed",
         // which a reduced raster also is — the full-frame textures are not what
         // the chain just wrote.
-        let (view, composite) = self.run_chain_passes_fused(
-            seed,
-            dispatch_dims,
-            chain,
-            scratch.is_some(),
-            harvest_req,
-        )?;
+        let (view, composite) =
+            self.run_chain_passes(seed, dispatch_dims, chain, scratch.is_some(), harvest_req)?;
         if t_all.is_some() {
             eprintln!(
                 "[filter-timing] dims={}x{} stages={} render={:.2}ms seed+passes={:.2}ms",
@@ -173,12 +168,18 @@ impl GpuFilterBackend {
         Ok((view, composite))
     }
 
-    /// Copy the rendered seed into the ping-pong and run every chain pass —
-    /// all in ONE command encoder and ONE submit. Same-queue submissions are
-    /// ordered, and each pass reads its own context through a dynamic offset,
-    /// so the batch is correct and the chain costs one submit instead of one
-    /// per stage.
-    pub(super) fn run_chain_passes_fused(
+    /// Copy the rendered seed into the ping-pong and run every chain pass.
+    ///
+    /// Each stage has its own submit boundary, per `docs/effects.md` §4.6:
+    /// the seed copy (with the pre-chain original) is submitted first, every
+    /// effect pass gets its own [`wgpu::CommandEncoder`] and `queue.submit`,
+    /// and the optional pending-composite harvest is a final encoder/submit.
+    /// Back-to-back compute passes sharing ping-pong textures in one encoder
+    /// did not make storage writes visible to the next pass on every driver
+    /// (probe 009), so do not merge these submits without driver evidence.
+    /// The extra submits cost CPU encoding time; that is the documented
+    /// portability contract, not a knob.
+    pub(super) fn run_chain_passes(
         &mut self,
         seed: ChainSeed,
         dispatch_dims: SceneDimensions,
@@ -198,58 +199,10 @@ impl GpuFilterBackend {
         let width = dispatch_dims.width.max(1);
         let height = dispatch_dims.height.max(1);
 
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Animatix Effect Chain Encoder"),
-        });
-        encoder.copy_texture_to_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: &seed_texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::TexelCopyTextureInfo {
-                texture: &pp_a,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-        );
-        self.dump_stage("tex_a_seed", &pp_a, dispatch_dims);
-        // The original is the *pre-chain* frame: copied here, before pass 0
-        // runs, so a bloom-style pass can add onto what the scene looked like
-        // rather than onto whatever the previous pass left behind.
-        encoder.copy_texture_to_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: &seed_texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::TexelCopyTextureInfo {
-                texture: &pp_original,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-        );
-
-        // Plan the passes, write every context once (one slot per pass), then
-        // encode seed + passes into a single encoder.
-        // Owns cloned wgpu handles so plan entries never borrow `self` across
-        // the mutable pipeline-ensure calls.
+        // Plan every pass before touching GPU state. Keep cloned wgpu handles
+        // in the plan so entries never borrow `self` across the mutable
+        // pipeline-ensure calls.
         let mut pass_plan: Vec<(wgpu::ComputePipeline, wgpu::Buffer, u32, u32)> = Vec::new();
-        let mut current = FilteredSource::TexA;
         for instance in chain.instances.iter().filter(|instance| instance.enabled) {
             let Some(effect) = effect(&instance.id) else {
                 tracing::warn!("chain effect has no registered descriptor; skipping");
@@ -270,9 +223,9 @@ impl GpuFilterBackend {
             if self.raster_scale != 1.0 {
                 scale_pixel_params(effect.params(), self.raster_scale, &mut uniforms);
             }
-            // Author-parameter writes land before the encoder's commands on
-            // submit; each effect has its own uniform buffer, so writes cannot
-            // collide across effects.
+            // Author-parameter writes land before the pass submits; each effect
+            // has its own uniform buffer, so writes cannot collide across
+            // effects.
             self.queue.write_buffer(&pipeline.uniform_buffer, 0, &uniforms);
 
             let pass_count = pipeline.passes.len() as u32;
@@ -286,10 +239,16 @@ impl GpuFilterBackend {
             }
         }
 
+        // A chain larger than the context-buffer slot count must fail before
+        // any encoder is submitted or any context slot is written; silently
+        // truncating it would drop declared effects.
+        validate_pass_count(pass_plan.len())?;
+
+        // Prepare every context slot once (one slot per pass), then submit the
+        // seed copy. The context buffer stays a single allocation; each pass
+        // reads its own slot through its dynamic offset.
         let mut context_bytes = vec![0u8; (CONTEXT_STRIDE * MAX_CHAIN_PASSES) as usize];
-        for (slot, (pass_pipeline, uniform_buffer, pass_index, pass_count)) in
-            pass_plan.iter().enumerate()
-        {
+        for (slot, (_, _, pass_index, pass_count)) in pass_plan.iter().enumerate() {
             let context = EffectContextUniform {
                 tex_size: [width, height],
                 _pad0: [0, 0],
@@ -303,6 +262,47 @@ impl GpuFilterBackend {
             let base = (slot as u32 * CONTEXT_STRIDE) as usize;
             context_bytes[base..base + EFFECT_CONTEXT_SIZE as usize]
                 .copy_from_slice(bytemuck::bytes_of(&context));
+        }
+        self.queue.write_buffer(&self.context_buffer, 0, &context_bytes);
+
+        // Seed copy: start ping-pong A and the pre-chain original from the
+        // rendered sub-scene, and submit before any compute pass runs. The
+        // original is the *pre-chain* frame, so a bloom-style pass can add
+        // onto what the scene looked like rather than onto whatever the
+        // previous pass left behind.
+        let mut seed_encoder =
+            self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Animatix Effect Seed Encoder"),
+            });
+        for target in [&pp_a, &pp_original] {
+            seed_encoder.copy_texture_to_texture(
+                wgpu::TexelCopyTextureInfo {
+                    texture: &seed_texture,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::TexelCopyTextureInfo {
+                    texture: target,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+            );
+        }
+        self.queue.submit(std::iter::once(seed_encoder.finish()));
+        self.dump_stage("tex_a_seed", &pp_a, dispatch_dims);
+
+        // One encoder + one submit per effect pass. This is the milestone
+        // `docs/effects.md` §4.6 requires; merging them is only allowed with
+        // driver evidence that storage writes are visible across passes.
+        let mut current = FilteredSource::TexA;
+        for (slot, (pass_pipeline, uniform_buffer, _, _)) in pass_plan.iter().enumerate() {
             let bind_group = self.effect_bind_group_for_slot(
                 if matches!(current, FilteredSource::TexA) {
                     &pp_a_view
@@ -317,6 +317,9 @@ impl GpuFilterBackend {
                 &pp_original_view,
                 uniform_buffer,
             );
+            let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Animatix Effect Pass Encoder"),
+            });
             Self::encode_effect_pass(
                 &mut encoder,
                 &bind_group,
@@ -325,6 +328,7 @@ impl GpuFilterBackend {
                 height,
                 slot as u32 * CONTEXT_STRIDE,
             );
+            self.queue.submit(std::iter::once(encoder.finish()));
             current = match current {
                 FilteredSource::TexA => FilteredSource::TexB,
                 _ => FilteredSource::TexA,
@@ -335,18 +339,24 @@ impl GpuFilterBackend {
             FilteredSource::TexB => (pp_b, pp_b_view),
             FilteredSource::Render => unreachable!("effects always write a ping-pong texture"),
         };
+
+        // Harvest in its own final encoder so the composite copy is ordered
+        // after the last pass's submit without riding along in it.
         let pending_composite = harvest_req.map(|req| {
-            self.copy_texture_to_pending_composite(
+            let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Animatix Effect Harvest Encoder"),
+            });
+            let composite = self.copy_texture_to_pending_composite(
                 &mut encoder,
                 &result_texture,
                 req.source_origin,
                 req.dimensions,
                 req.alpha,
                 req.origin,
-            )
+            );
+            self.queue.submit(std::iter::once(encoder.finish()));
+            composite
         });
-        self.queue.write_buffer(&self.context_buffer, 0, &context_bytes);
-        self.queue.submit(std::iter::once(encoder.finish()));
 
         self.dump_stage("tex_b_fx", &result_texture, dispatch_dims);
 

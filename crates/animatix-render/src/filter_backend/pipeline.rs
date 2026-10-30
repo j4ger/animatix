@@ -27,6 +27,23 @@ pub(super) const CONTEXT_STRIDE: u32 = 256;
 /// Maximum effect passes dispatchable in one chain (context slots available).
 pub(super) const MAX_CHAIN_PASSES: u32 = 64;
 
+/// Reject a pass plan that cannot fit the per-pass context buffer.
+///
+/// The context buffer has exactly [`MAX_CHAIN_PASSES`] dynamic-offset slots;
+/// writing a 65th slot would panic on the slice write in
+/// `run_chain_passes`. This is a hard contract error (the effect chain is too
+/// large), never a reason to truncate the chain silently.
+pub(super) fn validate_pass_count(pass_count: usize) -> Result<(), String> {
+    let max = MAX_CHAIN_PASSES as usize;
+    if pass_count > max {
+        return Err(format!(
+            "effect chain requires {pass_count} compute passes, but the host context buffer \
+             only has {max} slots; reduce the number of effects or passes per effect"
+        ));
+    }
+    Ok(())
+}
+
 // ── Backend struct ──────────────────────────────────────────────────────────
 
 /// GPU-backed effect backend that owns its own temporary targets and a

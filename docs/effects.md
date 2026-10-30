@@ -242,11 +242,17 @@ horizontal, 1 = vertical).
 
 ### 4.6 Synchronisation
 
-Each pass is submitted in its own command encoder. Back-to-back compute passes
-sharing ping-pong textures in one encoder do not make a storage write visible to
-the next pass on every driver (probe 009); a submit boundary is a portable
-synchronisation point. Do not merge passes into one encoder without driver
-evidence.
+Each pass is submitted in its own command encoder. The seed copy (together with
+the pre-chain original copy) is submitted first, every effect pass then gets its
+own encoder and `queue.submit`, and an optional pending-composite harvest copy
+runs in a final encoder. Back-to-back compute passes sharing ping-pong textures
+in one encoder do not make a storage write visible to the next pass on every
+driver (probe 009); a submit boundary is a portable synchronisation point. Do not
+merge passes into one encoder without driver evidence.
+
+A chain may dispatch at most 64 effect passes (the per-pass context-buffer slot
+count, `MAX_CHAIN_PASSES`). A larger plan is rejected with a render error before
+any pass is submitted; it is never truncated.
 
 ### 4.7 The backdrop seed (`Glass`)
 

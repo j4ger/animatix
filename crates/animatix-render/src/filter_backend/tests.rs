@@ -3,6 +3,7 @@ use animatix::timeline::effects::{
 };
 use animatix_core::effect::EffectParamKind;
 
+use super::pipeline::{MAX_CHAIN_PASSES, validate_pass_count};
 use super::readback::scale_pixel_params;
 use super::*;
 
@@ -25,6 +26,22 @@ fn pack_radius(radius: f32) -> [u8; 4] {
 #[test]
 fn a_declared_pixel_parameter_shrinks_with_the_raster() {
     assert_eq!(pack_radius(20.0), 10.0f32.to_le_bytes());
+}
+
+#[test]
+fn a_pass_plan_over_the_context_slot_limit_is_rejected() {
+    // 65 entries is one past the 64 context slots: `run_chain_passes` must
+    // reject this plan before writing a slot or submitting any GPU work.
+    let pass_plan = vec![(); MAX_CHAIN_PASSES as usize + 1];
+    let error = validate_pass_count(pass_plan.len()).expect_err("65 passes must be rejected");
+    assert!(error.contains("65"), "error should report the requested count: {error}");
+    assert!(error.contains("64"), "error should report the slot limit: {error}");
+}
+
+#[test]
+fn a_pass_plan_at_the_context_slot_limit_is_accepted() {
+    let pass_plan = vec![(); MAX_CHAIN_PASSES as usize];
+    assert!(validate_pass_count(pass_plan.len()).is_ok());
 }
 
 #[test]

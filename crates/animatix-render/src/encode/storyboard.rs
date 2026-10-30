@@ -230,6 +230,25 @@ fn normalize_frame_to_tile(
 // Public Export Functions
 // ---------------------------------------------------------------------------
 
+/// Validate grid geometry before any GPU initialization.
+///
+/// `cols = Some(0)` would panic in `count.div_ceil(cols)` and zero tile
+/// dimensions cannot form a canvas, so both are returned as `ExportError`
+/// instead. The public renderers call this first; `assemble_and_save_grid`
+/// re-checks so its layout arithmetic cannot panic either.
+fn validate_storyboard_settings(settings: &StoryboardSettings) -> Result<(), ExportError> {
+    if settings.cols == Some(0) {
+        return Err(ExportError::Internal("storyboard `cols` must be greater than zero".into()));
+    }
+    if settings.tile_width == 0 || settings.tile_height == 0 {
+        return Err(ExportError::Internal(format!(
+            "storyboard tile dimensions must be greater than zero (got {}x{})",
+            settings.tile_width, settings.tile_height
+        )));
+    }
+    Ok(())
+}
+
 /// Render a single scene timeline to a storyboard image file.
 ///
 /// Returns the number of frames rendered.
@@ -239,41 +258,7 @@ pub fn render_storyboard_timeline(
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
 ) -> Result<usize, ExportError> {
-    pollster::block_on(render_storyboard_timeline_async(
-        timeline,
-        settings,
-        output_file,
-        debug_options,
-    ))
-}
-
-/// Render a multi-scene composition to a storyboard image file.
-///
-/// Returns the number of frames rendered.
-pub fn render_storyboard_composition(
-    composition: &Composition,
-    settings: &StoryboardSettings,
-    output_file: &std::path::Path,
-    debug_options: DebugRenderOptions,
-) -> Result<usize, ExportError> {
-    pollster::block_on(render_storyboard_composition_async(
-        composition,
-        settings,
-        output_file,
-        debug_options,
-    ))
-}
-
-// ---------------------------------------------------------------------------
-// Internal Async Renderers
-// ---------------------------------------------------------------------------
-
-async fn render_storyboard_timeline_async(
-    timeline: Timeline,
-    settings: &StoryboardSettings,
-    output_file: &std::path::Path,
-    debug_options: DebugRenderOptions,
-) -> Result<usize, ExportError> {
+    validate_storyboard_settings(settings)?;
     if settings.times.is_empty() {
         return Err(ExportError::FrameRender {
             frame: 0,
@@ -309,12 +294,16 @@ async fn render_storyboard_timeline_async(
     Ok(panels.len())
 }
 
-async fn render_storyboard_composition_async(
+/// Render a multi-scene composition to a storyboard image file.
+///
+/// Returns the number of frames rendered.
+pub fn render_storyboard_composition(
     composition: &Composition,
     settings: &StoryboardSettings,
     output_file: &std::path::Path,
     debug_options: DebugRenderOptions,
 ) -> Result<usize, ExportError> {
+    validate_storyboard_settings(settings)?;
     if settings.times.is_empty() {
         return Err(ExportError::FrameRender {
             frame: 0,
@@ -422,6 +411,9 @@ fn assemble_and_save_grid(
     frames: &[crate::offscreen::RenderedFrame],
     output_file: &std::path::Path,
 ) -> Result<(), ExportError> {
+    // Called by both public paths after the same check, but keep this
+    // defensive: the grid arithmetic below divides by `cols`.
+    validate_storyboard_settings(settings)?;
     let count = panels.len();
     let cols = settings.cols.unwrap_or(match count {
         1 => 1,
@@ -495,4 +487,60 @@ fn assemble_and_save_grid(
         .save(output_file)
         .map_err(|e| ExportError::ImageEncode(format!("{e:?}")))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Both invalid cases must fail in the public entry point before
+    /// `OffscreenRenderer::new()` is reached, so this runs without a GPU.
+    fn render_invalid(settings: StoryboardSettings) -> ExportError {
+        render_storyboard_timeline(
+            Timeline::new(),
+            &settings,
+            std::path::Path::new("unused-storyboard.png"),
+            DebugRenderOptions::default(),
+        )
+        .expect_err("invalid storyboard settings must return an error")
+    }
+
+    #[test]
+    fn zero_columns_is_rejected_before_gpu_initialization() {
+        let error = render_invalid(StoryboardSettings {
+            cols: Some(0),
+            times: vec![0.0],
+            ..Default::default()
+        });
+        assert!(matches!(error, ExportError::Internal(_)), "unexpected error: {error:?}");
+        assert!(error.to_string().contains("cols"), "error should name `cols`: {error}");
+    }
+
+    #[test]
+    fn zero_tile_width_is_rejected_before_gpu_initialization() {
+        let error = render_invalid(StoryboardSettings {
+            tile_width: 0,
+            times: vec![0.0],
+            ..Default::default()
+        });
+        assert!(matches!(error, ExportError::Internal(_)), "unexpected error: {error:?}");
+        assert!(
+            error.to_string().contains("tile dimensions"),
+            "error should name the tile dimensions: {error}"
+        );
+    }
+
+    #[test]
+    fn zero_tile_height_is_rejected_before_gpu_initialization() {
+        let error = render_invalid(StoryboardSettings {
+            tile_height: 0,
+            times: vec![0.0],
+            ..Default::default()
+        });
+        assert!(matches!(error, ExportError::Internal(_)), "unexpected error: {error:?}");
+        assert!(
+            error.to_string().contains("tile dimensions"),
+            "error should name the tile dimensions: {error}"
+        );
+    }
 }

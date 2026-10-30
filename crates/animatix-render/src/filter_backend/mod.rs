@@ -6,11 +6,12 @@
 //! an [`EffectChain`] as an ordered list of compute passes over host-owned
 //! ping-pong textures.
 //!
-//! The pass/uniform contract lives in `docs/effects.md`. Each pass is submitted
-//! in its own encoder: back-to-back compute passes sharing ping-pong textures in
-//! one encoder do not make a storage write visible to the next pass on every
-//! driver (probe 009), and a submit boundary is a portable synchronisation
-//! point.
+//! The pass/uniform contract lives in `docs/effects.md`. The seed copy is
+//! submitted first, each effect pass is then submitted in its own encoder, and
+//! an optional pending-composite harvest is a final submit: back-to-back compute
+//! passes sharing ping-pong textures in one encoder do not make a storage write
+//! visible to the next pass on every driver (probe 009), and a submit boundary
+//! is a portable synchronisation point.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -128,7 +129,7 @@ pub struct GpuFilterBackend {
 type PooledTexture = (wgpu::Texture, wgpu::TextureView);
 type TexturePool = HashMap<(u32, u32), Vec<PooledTexture>>;
 
-/// Request to fuse texture copying directly into a filter chain's command encoder.
+/// Request to copy a finished chain result into a pending composite texture.
 #[derive(Clone, Copy, Debug)]
 struct PendingHarvestReq {
     dimensions: SceneDimensions,

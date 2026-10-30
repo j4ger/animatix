@@ -101,7 +101,7 @@ impl FilterBackend for GpuFilterBackend {
             return Ok(());
         }
 
-        // When chain has effect passes, fuse compute pass encoding and pending composite copying:
+        // When the chain has effect passes, run it and harvest a pending composite:
         let harvest = match region {
             Some(r) => SceneDimensions {
                 width: scaled_texels(r.size.width, self.raster_scale),
@@ -118,19 +118,14 @@ impl FilterBackend for GpuFilterBackend {
             origin,
             source_origin: wgpu::Origin3d::ZERO,
         };
-        let (_view, composite) = self.render_and_filter_scene_fused(
-            scene,
-            dimensions,
-            region,
-            chain,
-            Some(harvest_req),
-        )?;
+        let (_view, composite) =
+            self.render_and_filter_scene(scene, dimensions, region, chain, Some(harvest_req))?;
         if let Some(comp) = composite {
             self.pending_composites.push(PendingLayer::Composite(comp));
         }
         if t_copy.is_some() {
             eprintln!(
-                "[filter-timing] pending dims={}x{} render+chain+fused_copy={:.2}ms",
+                "[filter-timing] pending dims={}x{} render+chain+harvest={:.2}ms",
                 harvest.width,
                 harvest.height,
                 probe_ms(t_copy),
@@ -281,7 +276,7 @@ impl FilterBackend for GpuFilterBackend {
             source_origin: wgpu::Origin3d::ZERO,
         };
         let (_view, composite_opt) =
-            self.run_chain_passes_fused(seed, dispatch, &backdrop.chain, true, Some(harvest_req))?;
+            self.run_chain_passes(seed, dispatch, &backdrop.chain, true, Some(harvest_req))?;
         let mut composite =
             composite_opt.ok_or_else(|| "backdrop chain produced no composite".to_string())?;
 
