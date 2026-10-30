@@ -129,7 +129,6 @@ dependencies = [
  "animatix-std",
  "animatix-syntax",
  "animatix-text",
- "chumsky",
  "criterion",
  "dhat",
  "fastrand",
@@ -202,8 +201,6 @@ dependencies = [
  "eframe",
  "egui",
  "egui-phosphor",
- "egui_code_editor",
- "egui_extras",
  "egui_tiles",
  "eparts",
  "image",
@@ -215,7 +212,6 @@ dependencies = [
  "ron",
  "serde",
  "serde_json",
- "syntect",
  "thiserror 2.0.18",
  "tracing",
  "tracing-subscriber",
@@ -228,7 +224,6 @@ version = "0.1.0"
 dependencies = [
  "animatix-analyzer",
  "animatix-syntax",
- "serde_json",
  "tokio",
  "tower-lsp",
  "url",
@@ -265,7 +260,6 @@ dependencies = [
  "kurbo",
  "pollster",
  "rsmpeg",
- "thiserror 2.0.18",
  "tracing",
  "vello",
  "wgpu",
@@ -314,7 +308,6 @@ name = "animatix-web"
 version = "0.1.0"
 dependencies = [
  "animatix",
- "animatix-core",
  "animatix-render",
  "animatix-syntax",
  "console_error_panic_hook",
@@ -322,8 +315,6 @@ dependencies = [
  "kurbo",
  "serde",
  "serde-wasm-bindgen",
- "thiserror 2.0.18",
- "tracing",
  "vello",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -1811,30 +1802,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "egui_code_editor"
-version = "0.2.24"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3633490f8dd567bba6daad40d8e33c69fab4c00bdc075cd19bd0028543c888c2"
-dependencies = [
- "egui",
-]
-
-[[package]]
-name = "egui_extras"
-version = "0.34.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62bfc6870c68d3f254e33aca8200095d422e09edacb0f365f79fe23a5ba10963"
-dependencies = [
- "ahash",
- "egui",
- "enum-map",
- "log",
- "mime_guess2",
- "profiling",
- "syntect",
-]
-
-[[package]]
 name = "egui_glow"
 version = "0.34.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1894,26 +1861,6 @@ name = "endi"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
-
-[[package]]
-name = "enum-map"
-version = "2.7.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6866f3bfdf8207509a033af1a75a7b08abda06bbaaeae6669323fd5a097df2e9"
-dependencies = [
- "enum-map-derive",
-]
-
-[[package]]
-name = "enum-map-derive"
-version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f282cfdfe92516eb26c2af8589c274c7c17681f5ecc03c18255fe741c6aa64eb"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
 
 [[package]]
 name = "enum-ordinalize"
@@ -2706,7 +2653,7 @@ dependencies = [
  "hayro-syntax",
  "kurbo",
  "moxcms",
- "phf 0.13.1",
+ "phf",
  "rustc-hash 2.1.2",
  "siphasher",
  "skrifa 0.42.1",
@@ -3467,24 +3414,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mime"
-version = "0.3.17"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6877bb514081ee2a7ff5ef9de3281f14a4dd4bceac4c09388074a6b5df8a139a"
-
-[[package]]
-name = "mime_guess2"
-version = "2.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1706dc14a2e140dec0a7a07109d9a3d5890b81e85bd6c60b906b249a77adf0ca"
-dependencies = [
- "mime",
- "phf 0.11.3",
- "phf_shared 0.11.3",
- "unicase",
-]
-
-[[package]]
 name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4098,28 +4027,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
-name = "onig"
-version = "6.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "336b9c63443aceef14bea841b899035ae3abe89b7c486aaf4c5bd8aafedac3f0"
-dependencies = [
- "bitflags 2.11.0",
- "libc",
- "once_cell",
- "onig_sys",
-]
-
-[[package]]
-name = "onig_sys"
-version = "69.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7f86c6eef3d6df15f23bcfb6af487cbd2fed4e5581d58d5bf1f5f8b7f6727dc"
-dependencies = [
- "cc",
- "pkg-config",
-]
-
-[[package]]
 name = "oorandom"
 version = "11.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4240,33 +4147,13 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "phf"
-version = "0.11.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fd6780a80ae0c52cc120a26a1a42c1ae51b247a253e4e06113d23d2c2edd078"
-dependencies = [
- "phf_macros 0.11.3",
- "phf_shared 0.11.3",
-]
-
-[[package]]
-name = "phf"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1562dc717473dbaa4c1f85a36410e03c047b2e7df7f45ee938fbef64ae7fadf"
 dependencies = [
- "phf_macros 0.13.1",
- "phf_shared 0.13.1",
+ "phf_macros",
+ "phf_shared",
  "serde",
-]
-
-[[package]]
-name = "phf_generator"
-version = "0.11.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c80231409c20246a13fddb31776fb942c38553c51e871f8cbd687a4cfb5843d"
-dependencies = [
- "phf_shared 0.11.3",
- "rand 0.8.5",
 ]
 
 [[package]]
@@ -4276,21 +4163,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "135ace3a761e564ec88c03a77317a7c6b80bb7f7135ef2544dbe054243b89737"
 dependencies = [
  "fastrand",
- "phf_shared 0.13.1",
-]
-
-[[package]]
-name = "phf_macros"
-version = "0.11.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f84ac04429c13a7ff43785d75ad27569f2951ce0ffd30a3321230db2fc727216"
-dependencies = [
- "phf_generator 0.11.3",
- "phf_shared 0.11.3",
- "proc-macro2",
- "quote",
- "syn 2.0.117",
- "unicase",
+ "phf_shared",
 ]
 
 [[package]]
@@ -4299,21 +4172,11 @@ version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "812f032b54b1e759ccd5f8b6677695d5268c588701effba24601f6932f8269ef"
 dependencies = [
- "phf_generator 0.13.1",
- "phf_shared 0.13.1",
+ "phf_generator",
+ "phf_shared",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
-]
-
-[[package]]
-name = "phf_shared"
-version = "0.11.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67eabc2ef2a60eb7faa00097bd1ffdb5bd28e62bf39990626a582201b7a754e5"
-dependencies = [
- "siphasher",
- "unicase",
 ]
 
 [[package]]
@@ -5538,7 +5401,6 @@ dependencies = [
  "flate2",
  "fnv",
  "once_cell",
- "onig",
  "plist",
  "regex-syntax 0.8.10",
  "serde",
@@ -6152,7 +6014,7 @@ dependencies = [
  "moxcms",
  "palette",
  "percent-encoding",
- "phf 0.13.1",
+ "phf",
  "png",
  "rayon",
  "regex",
@@ -6347,12 +6209,6 @@ dependencies = [
  "syn 2.0.117",
  "unic-langid-impl",
 ]
-
-[[package]]
-name = "unicase"
-version = "2.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbc4bc3a9f746d862c45cb89d705aa10f187bb96c76001afab07a0d35ce60142"
 
 [[package]]
 name = "unicode-bidi"

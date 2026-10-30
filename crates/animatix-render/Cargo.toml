@@ -23,7 +23,6 @@ kurbo = { workspace = true }
 bytemuck = { workspace = true }
 image = { workspace = true, features = ["png", "gif", "jpeg", "webp"], optional = true }
 pollster = { workspace = true }
-thiserror = { workspace = true }
 tracing = { workspace = true }
 wgpu = { workspace = true, default-features = false, features = ["std", "parking_lot", "vulkan", "wgsl"] }
 # Pinned pre-#1558 (atlas residency): that change makes image draws vanish

@@ -67,7 +67,6 @@ tracing = { workspace = true }
 # only the example/bench targets use this edge, so engine unit tests never mix
 # the two builds of `animatix`.
 animatix-render = { path = "../animatix-render" }
-chumsky = "0.12.0"
 criterion = { version = "0.5", features = ["html_reports"] }
 dhat = "0.3"
 serde_json = "1"
