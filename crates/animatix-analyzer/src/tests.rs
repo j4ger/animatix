@@ -47,6 +47,17 @@ fn sorted_names<'a>(names: impl IntoIterator<Item = &'a str>) -> Vec<&'a str> {
     names
 }
 
+/// UTF-16 column of the character at `char_index` in `line`.
+fn utf16_col(line: &str, char_index: usize) -> usize {
+    line.chars().take(char_index).map(char::len_utf16).sum()
+}
+
+/// Character index of the first byte of `needle` in `text`.
+fn char_index_of(text: &str, needle: &str) -> usize {
+    let byte = text.find(needle).unwrap_or_else(|| panic!("missing {needle:?}"));
+    text[..byte].chars().count()
+}
+
 #[test]
 fn stage_param_assignment_is_not_checked_against_host_properties() {
     // `panel.pix.size` addresses an effect-stage parameter. The stage's
@@ -200,6 +211,61 @@ fn analyzer_update_is_noop_on_same_source() {
 
     analyzer.update(source);
     assert_eq!(analyzer.symbols().labels.len(), symbols_before);
+}
+
+#[test]
+fn analyzer_rebuilds_once_per_source_or_manifest_change() {
+    let mut analyzer = Analyzer::new("title: Text {}");
+    assert_eq!(analyzer.rebuild_count(), 1, "constructor rebuilds once");
+
+    analyzer.update("title: Text {}");
+    assert_eq!(analyzer.rebuild_count(), 1, "identical source is a no-op");
+
+    // Re-applying the merged-but-equal manifest from the LSP keystroke path
+    // must not trigger a second rebuild.
+    analyzer.set_extension_manifest(ExtensionManifest::default());
+    assert_eq!(analyzer.rebuild_count(), 1, "equal manifest is a no-op");
+
+    analyzer.update_with_manifest("title: Text { content: \"hi\" }", ExtensionManifest::default());
+    assert_eq!(analyzer.rebuild_count(), 2, "source change rebuilds once");
+
+    analyzer.update_with_manifest("title: Text { content: \"hi\" }", ExtensionManifest::default());
+    assert_eq!(analyzer.rebuild_count(), 2, "unchanged source + manifest is a no-op");
+
+    let manifest = ExtensionManifest::from_toml("[[primitives]]\ntype_name = \"Gauge\"\n")
+        .expect("parse manifest");
+    analyzer.update_with_manifest("title: Text { content: \"hi\" }", manifest.clone());
+    assert_eq!(analyzer.rebuild_count(), 3, "manifest-only change rebuilds once");
+
+    analyzer.update_with_manifest("title: Text { content: \"bye\" }", manifest.clone());
+    assert_eq!(analyzer.rebuild_count(), 4, "combined source + manifest change rebuilds once");
+
+    let fresh =
+        Analyzer::new_with_path_and_manifest("title: Text {}", None, ExtensionManifest::default());
+    assert_eq!(fresh.rebuild_count(), 1, "new document constructor rebuilds once");
+}
+
+#[test]
+fn large_source_spans_are_correct_and_rebuild_once() {
+    let mut source = String::new();
+    for i in 0..500 {
+        source.push_str(&format!("actor{i}: Rect, size: (10, 10)\n"));
+    }
+    source.push_str("last: Text, content: \"😀\"\n");
+
+    let mut analyzer = Analyzer::new(&source);
+    assert_eq!(analyzer.rebuild_count(), 1);
+
+    let info = &analyzer.symbols().labels["last"];
+    assert_eq!((info.line, info.col), (501, 1));
+    let span = info.span.expect("declaration span");
+    assert_eq!((span.start_line, span.start_col), (501, 1));
+    assert_eq!((span.end_line, span.end_col), (501, 5));
+
+    // A one-character edit still rebuilds exactly once with a fresh index.
+    analyzer.update(&(source + "// eof\n"));
+    assert_eq!(analyzer.rebuild_count(), 2);
+    assert_eq!(analyzer.symbols().labels["last"].span.unwrap().start_line, 501);
 }
 
 #[test]
@@ -420,7 +486,36 @@ fn hover_builtin_actions_in_symbol_table() {
     assert!(symbols.actions.contains("rotate"));
 }
 
+#[test]
+fn hover_after_emoji_uses_utf16_columns() {
+    // `z` sits after a non-BMP character on the same line. LSP reports its
+    // position as UTF-16 code units (one more than the character column).
+    let source = "title: Text, content: \"😀\" { z: Rect }\n";
+    let char_index = char_index_of(source, "z: Rect");
+    let col = utf16_col(source, char_index);
+    assert_ne!(col, char_index, "fixture must have a non-BMP character before the cursor");
+
+    let analyzer = Analyzer::new(source);
+    let info = analyzer.hover_at(0, col).expect("hover on inline child label");
+    assert!(info.contents.contains("**Actor**"));
+    let range = info.range.expect("hover range");
+    assert_eq!((range.0, range.1), (0, col));
+}
+
 // ── Go-to-definition tests ──
+
+#[test]
+fn definition_after_emoji_uses_utf16_columns() {
+    let source = "title: Text, content: \"😀\" { z: Rect }\n";
+    let char_index = char_index_of(source, "z: Rect");
+    let col = utf16_col(source, char_index);
+    assert_ne!(col, char_index, "fixture must have a non-BMP character before the cursor");
+
+    let analyzer = Analyzer::new(source);
+    let loc = analyzer.definition_at(None, 0, col).expect("definition of inline child");
+    assert!(loc.file.is_none());
+    assert_eq!((loc.line, loc.col), (0, col), "definition positions are UTF-16");
+}
 
 #[test]
 fn definition_at_returns_location_for_label() {
@@ -454,6 +549,23 @@ fn definition_at_out_of_bounds_returns_none() {
 }
 
 // ── Find references tests ──
+
+#[test]
+fn rename_and_references_after_emoji_use_utf16_columns() {
+    let source = "title: Text, content: \"😀\" { z: Rect }\n";
+    let char_index = char_index_of(source, "z: Rect");
+    let col = utf16_col(source, char_index);
+
+    let analyzer = Analyzer::new(source);
+    let target = analyzer.rename_at(0, col).expect("inline child is renameable");
+    assert_eq!((target.range.0, target.range.1), (0, col));
+
+    let references = analyzer.find_references_at(0, col);
+    assert!(
+        references.iter().any(|&(line, start, _, _)| line == 0 && start == col),
+        "reference ranges must be UTF-16: {references:?}"
+    );
+}
 
 #[test]
 fn find_references_finds_all_occurrences() {
@@ -605,6 +717,24 @@ a_actor: Text { content: "A", }
             symbols[i].line,
         );
     }
+}
+
+// ── Completion position tests ──
+
+#[test]
+fn completion_after_emoji_uses_utf16_columns() {
+    let source = "title: Text, content: \"😀\" { s }";
+    let char_index = char_index_of(source, "{ s }") + 2;
+    let col = utf16_col(source, char_index);
+    assert_ne!(col, char_index, "fixture must have a non-BMP character before the cursor");
+
+    let analyzer = Analyzer::new(source);
+    let completions = analyzer.completions_at(0, col);
+    assert!(
+        completions.iter().any(|item| item.kind == CompletionKind::Property),
+        "cursor before `s` must be in a property block (got {:?})",
+        completions.iter().map(|item| &item.label).collect::<Vec<_>>()
+    );
 }
 
 // ── Symbol at position tests ──

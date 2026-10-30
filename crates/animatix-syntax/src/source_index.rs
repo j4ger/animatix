@@ -92,15 +92,12 @@ impl SourceIndex {
                 Stmt::ReactiveBinding {
                     target,
                     property,
-                    value_span,
+                    value_span: Some(span),
                     ..
                 } => {
                     // Reactive bindings are indexed like assignments
                     if let Some(TargetSegment::Static(actor)) = target.last() {
-                        self.assignments.insert(
-                            (actor.clone(), property.clone()),
-                            value_span.unwrap_or_default(),
-                        );
+                        self.assignments.insert((actor.clone(), property.clone()), *span);
                     }
                 },
                 Stmt::Config { settings, .. } => {
@@ -266,6 +263,24 @@ mod tests {
         ];
 
         let index = SourceIndex::build(&stmts);
+        assert_eq!(index.find("btn", "anything"), None);
+    }
+
+    #[test]
+    fn source_index_skips_reactive_binding_without_value_span() {
+        // Reactive bindings can be synthesized without a value span (module
+        // rewrites). A missing span must be skipped, not indexed as a bogus
+        // `0..0` range that points at the start of the file.
+        let stmts = vec![Stmt::ReactiveBinding {
+            target: vec![TargetSegment::Static("btn".to_string())],
+            property: "color".to_string(),
+            value: Expr::Ident("red".to_string()),
+            value_span: None,
+            span: None,
+        }];
+
+        let index = SourceIndex::build(&stmts);
+        assert_eq!(index.find("btn", "color"), None);
         assert_eq!(index.find("btn", "anything"), None);
     }
 

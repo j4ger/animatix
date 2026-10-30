@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use animatix_syntax::token::{Token, TokenKind, line_col_to_byte, token_at_byte};
+use animatix_syntax::token::{Token, TokenKind, line_col_to_byte_utf16, token_at_byte};
 
 use crate::Workspace;
 use crate::symbol_table::SymbolTable;
@@ -18,7 +18,8 @@ pub fn definition_at(
     line: usize,
     col: usize,
 ) -> Option<Location> {
-    let byte = line_col_to_byte(source, line, col);
+    // LSP positions count UTF-16 code units, not Unicode scalar values.
+    let byte = line_col_to_byte_utf16(source, line, col);
     let token = token_at_byte(tokens, byte)?;
     let text = match &token.kind {
         TokenKind::Ident(name) => name,

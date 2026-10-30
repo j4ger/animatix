@@ -7,7 +7,7 @@
 //! decision so the LSP (and any other consumer) does not re-derive the rules.
 
 use animatix_syntax::occurrence::{Occurrence, OccurrenceKind};
-use animatix_syntax::token::{byte_to_line_col, line_col_to_byte};
+use animatix_syntax::token::{LineIndex, line_col_to_byte_utf16};
 
 use crate::symbol_table::SymbolTable;
 
@@ -100,7 +100,8 @@ pub fn rename_at(
     line: usize,
     col: usize,
 ) -> Result<RenameTarget, RenameRejection> {
-    let byte = line_col_to_byte(source, line, col);
+    // LSP positions count UTF-16 code units, not Unicode scalar values.
+    let byte = line_col_to_byte_utf16(source, line, col);
     let Some(occurrence) = occurrences.iter().find(|o| byte >= o.span.start && byte < o.span.end)
     else {
         return Err(RenameRejection::NotAnIdentifier);
@@ -124,8 +125,9 @@ pub fn rename_at(
     if references.is_empty() {
         return Err(RenameRejection::NotAnIdentifier);
     }
-    let (start_line, start_col) = byte_to_line_col(source, occurrence.span.start);
-    let (end_line, end_col) = byte_to_line_col(source, occurrence.span.end);
+    let index = LineIndex::new(source);
+    let (start_line, start_col) = index.byte_to_line_col_utf16(occurrence.span.start);
+    let (end_line, end_col) = index.byte_to_line_col_utf16(occurrence.span.end);
     let is_public = symbols.labels.get(&name).is_some_and(|info| info.is_pub)
         || symbols.components.get(&name).is_some_and(|info| info.is_pub);
 

@@ -84,10 +84,11 @@ pub struct LabelInfo {
     /// The 1-based line number of the declaration; `0` until
     /// `Analyzer::enrich_positions` fills it from the token stream.
     pub line: usize,
-    /// The 1-based column number of the declaration; `0` until
-    /// `Analyzer::enrich_positions` fills it from the token stream.
+    /// The 1-based UTF-16 column number of the declaration (LSP position);
+    /// `0` until `Analyzer::enrich_positions` fills it from the token stream.
     pub col: usize,
-    /// Full source span (line/col range) for precise source write-back.
+    /// Full source span in character-column units for precise source
+    /// write-back and GUI navigation.
     pub span: Option<Span>,
     /// The type of the actor (e.g., "Text", "Button"), if applicable.
     pub ty: Option<String>,
@@ -126,9 +127,10 @@ pub struct ComponentInfo {
     pub params: Vec<ParamInfo>,
     /// The 1-based line number of the declaration.
     pub line: usize,
-    /// The 1-based column number of the declaration.
+    /// The 1-based UTF-16 column number of the declaration (LSP position).
     pub col: usize,
-    /// Full source span (line/col range) for precise source write-back.
+    /// Full source span in character-column units for precise source
+    /// write-back and GUI navigation.
     pub span: Option<Span>,
     /// Whether the component is exported with `pub`.
     pub is_pub: bool,
@@ -152,9 +154,10 @@ pub struct SceneInfo {
     pub name: String,
     /// The 1-based line number of the declaration.
     pub line: usize,
-    /// The 1-based column number of the declaration.
+    /// The 1-based UTF-16 column number of the declaration (LSP position).
     pub col: usize,
-    /// Full source span (line/col range) for precise source write-back.
+    /// Full source span in character-column units for precise source
+    /// write-back and GUI navigation.
     pub span: Option<Span>,
 }
 

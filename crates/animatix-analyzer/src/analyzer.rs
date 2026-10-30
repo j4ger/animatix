@@ -18,6 +18,16 @@ impl Analyzer {
 
     /// Create a new analyzer with an associated file path.
     pub fn new_with_path(source: &str, path: Option<PathBuf>) -> Self {
+        Self::new_with_path_and_manifest(source, path, ExtensionManifest::default())
+    }
+
+    /// Create a new analyzer with a file path and extension metadata already
+    /// installed, so construction performs exactly one symbol-table rebuild.
+    pub fn new_with_path_and_manifest(
+        source: &str,
+        path: Option<PathBuf>,
+        manifest: ExtensionManifest,
+    ) -> Self {
         let mut analyzer = Self {
             source: String::new(),
             path,
@@ -31,8 +41,9 @@ impl Analyzer {
             import_symbols: None,
             type_diagnostics: Vec::new(),
             lint_config: diagnostics::LintConfig::default(),
-            extension_manifest: ExtensionManifest::default(),
+            extension_manifest: manifest,
             diagnostics_cache: std::sync::Mutex::new(None),
+            rebuild_count: 0,
         };
         analyzer.update(source);
         analyzer
@@ -40,13 +51,40 @@ impl Analyzer {
 
     /// Set extension metadata used by completions and diagnostics.
     pub fn with_extension_manifest(mut self, manifest: ExtensionManifest) -> Self {
-        self.extension_manifest = manifest;
-        self.rebuild_symbols();
+        self.set_extension_manifest(manifest);
         self
     }
 
     /// Replace extension metadata without re-parsing source.
+    ///
+    /// Applying an identical manifest is a no-op: callers such as the LSP
+    /// keystroke path may hold a freshly merged (but equal) manifest and must
+    /// not pay for a second rebuild.
     pub fn set_extension_manifest(&mut self, manifest: ExtensionManifest) {
+        if self.extension_manifest == manifest {
+            return;
+        }
+        self.extension_manifest = manifest;
+        self.rebuild_symbols();
+    }
+
+    /// Replace the source text and extension metadata together, rebuilding at
+    /// most once.
+    ///
+    /// This is the per-keystroke entry point: when both the text and the
+    /// merged manifest changed, parsing happens once and the symbol table is
+    /// built once against the new manifest. When neither changed, it is a
+    /// no-op.
+    pub fn update_with_manifest(&mut self, source: &str, manifest: ExtensionManifest) {
+        let source_changed = self.source != source;
+        let manifest_changed = self.extension_manifest != manifest;
+        if !source_changed && !manifest_changed {
+            return;
+        }
+        if source_changed {
+            self.source = source.to_string();
+            self.parse_source(source);
+        }
         self.extension_manifest = manifest;
         self.rebuild_symbols();
     }
@@ -81,18 +119,18 @@ impl Analyzer {
         self.rebuild_symbols();
     }
 
-    /// Update the source text. Re-parses if changed.
+    /// Update the source text. Re-parses and rebuilds only if it changed.
     pub fn update(&mut self, source: &str) {
-        if self.source == source {
-            return;
-        }
+        let manifest = self.extension_manifest.clone();
+        self.update_with_manifest(source, manifest);
+    }
 
-        self.source = source.to_string();
-
-        // Parse once and keep the token stream it produced: tokenizing again
-        // here would lex the same source a second time (the lexer is ~4% of a
-        // keystroke rebuild, and the tokens are needed for hover/completion/
-        // highlighting queries anyway).
+    /// Parse source once and keep the token stream it produced.
+    ///
+    /// Tokenizing again in `rebuild_symbols` would lex the same source a
+    /// second time (the lexer is ~4% of a keystroke rebuild, and the tokens
+    /// are needed for hover/completion/highlighting queries anyway).
+    fn parse_source(&mut self, source: &str) {
         let parsed = animatix_syntax::parser::parse_source_complete(source);
         self.ast = parsed.ast;
         self.parse_errors = parsed.errors;
@@ -100,8 +138,6 @@ impl Analyzer {
         self.occurrences = parsed.occurrences;
         self.tokens = parsed.tokens;
         self.token_issues = parsed.token_issues;
-
-        self.rebuild_symbols();
     }
 
     /// Rebuild the symbol table from the current source and occurrence stream.
@@ -120,11 +156,16 @@ impl Analyzer {
     fn rebuild_symbols(&mut self) {
         let source = &self.source;
         let occurrences = &self.occurrences;
+        // One line index serves every position conversion in this rebuild:
+        // declaration enrichment, syntax diagnostics, and later queries that
+        // receive the resulting spans. Building it per declaration made the
+        // per-keystroke path O(n²) on declaration-heavy files.
+        let line_index = animatix_syntax::token::LineIndex::new(source);
 
         // Build the symbol table: one declaration pass, one reference pass.
         let table = if let Some(ref stmts) = self.ast {
             let mut table = SymbolTable::build(stmts);
-            Self::enrich_positions(occurrences, &self.tokens, source, &mut table);
+            Self::enrich_positions(occurrences, &self.tokens, &line_index, &mut table);
             table
         } else {
             SymbolTable::default()
@@ -139,7 +180,6 @@ impl Analyzer {
             let module_fns = std::collections::HashMap::new();
             let mut env = animatix_syntax::typecheck::TypeEnv::new(&components, &module_fns);
             let syntax_diagnostics = env.check_statements(stmts);
-            let line_index = animatix_syntax::token::LineIndex::new(source);
             syntax_diagnostics
                 .into_iter()
                 .map(|d| diagnostics::convert_syntax_diagnostic_with_index(source, &line_index, d))
@@ -161,9 +201,20 @@ impl Analyzer {
         // Every caller of this function changes something the diagnostics
         // depend on (source, manifest, or imported symbols), so invalidating
         // here covers the whole state-change surface: `update`,
-        // `merge_import_symbols`, `clear_import_symbols`, and
-        // `set_extension_manifest` all route through it.
+        // `update_with_manifest`, `merge_import_symbols`,
+        // `clear_import_symbols`, and `set_extension_manifest` all route
+        // through it.
         *self.diagnostics_cache.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        self.rebuild_count += 1;
+    }
+
+    /// Number of symbol-table rebuilds performed since construction.
+    ///
+    /// Small test hook used to guarantee one rebuild per source/manifest
+    /// change; callers outside tests should not depend on the exact count.
+    #[doc(hidden)]
+    pub fn rebuild_count(&self) -> u64 {
+        self.rebuild_count
     }
 
     /// Build the type checker's component registry from the declarations the

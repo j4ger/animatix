@@ -148,4 +148,22 @@ mod line_index_tests {
         assert_eq!(idx.byte_to_line_col_utf16("a你".len()), (0, 2));
         assert_eq!(idx.byte_to_line_col_utf16("a你b\n".len()), (1, 0));
     }
+
+    #[test]
+    fn utf16_line_col_to_byte_counts_surrogate_pairs() {
+        // '😀' is four UTF-8 bytes but two UTF-16 code units.
+        let source = "a😀b\nc😀d";
+        let b_byte = "a😀".len();
+        assert_eq!(line_col_to_byte_utf16(source, 0, 3), b_byte);
+        assert_eq!(line_col_to_byte(source, 0, 2), b_byte, "char columns differ");
+
+        let idx = LineIndex::new(source);
+        assert_eq!(idx.line_col_to_byte_utf16(0, 3), b_byte);
+        assert_eq!(idx.line_col_to_byte_utf16(1, 3), source.len() - 1);
+        // A position inside the surrogate pair resolves after the character.
+        assert_eq!(idx.line_col_to_byte_utf16(0, 2), b_byte);
+        // A column past the line end clamps to that line's end, not EOF.
+        assert_eq!(line_col_to_byte_utf16(source, 0, 100), "a😀b".len());
+        assert_eq!(idx.line_col_to_byte_utf16(0, 100), "a😀b".len());
+    }
 }

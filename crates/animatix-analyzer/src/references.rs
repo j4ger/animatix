@@ -1,7 +1,7 @@
 //! Find-references provider.
 
 use animatix_syntax::occurrence::Occurrence;
-use animatix_syntax::token::{byte_to_line_col, line_col_to_byte};
+use animatix_syntax::token::LineIndex;
 
 /// Find all references to the first declaration of `symbol_name`.
 ///
@@ -19,7 +19,7 @@ pub fn find_references(
     let Some(target) = target else {
         return Vec::new();
     };
-    references_for(occurrences, source, target)
+    references_for(occurrences, &LineIndex::new(source), target)
 }
 
 /// Find all references to the binding at `(line, col)`, resolving through
@@ -30,17 +30,19 @@ pub fn find_references_at(
     line: usize,
     col: usize,
 ) -> Vec<(usize, usize, usize, usize)> {
-    let byte = line_col_to_byte(source, line, col);
+    // LSP positions count UTF-16 code units, not Unicode scalar values.
+    let index = LineIndex::new(source);
+    let byte = index.line_col_to_byte_utf16(line, col);
     let Some(target) = occurrences.iter().find(|o| byte >= o.span.start && byte < o.span.end)
     else {
         return Vec::new();
     };
-    references_for(occurrences, source, target)
+    references_for(occurrences, &index, target)
 }
 
 fn references_for(
     occurrences: &[Occurrence],
-    source: &str,
+    index: &LineIndex<'_>,
     target: &Occurrence,
 ) -> Vec<(usize, usize, usize, usize)> {
     let binding_scope = resolve_scope(occurrences, target);
@@ -48,8 +50,8 @@ fn references_for(
         .iter()
         .filter(|o| o.name == target.name && resolve_scope(occurrences, o) == binding_scope)
         .map(|o| {
-            let (start_line, start_col) = byte_to_line_col(source, o.span.start);
-            let (end_line, end_col) = byte_to_line_col(source, o.span.end);
+            let (start_line, start_col) = index.byte_to_line_col_utf16(o.span.start);
+            let (end_line, end_col) = index.byte_to_line_col_utf16(o.span.end);
             (start_line, start_col, end_line, end_col)
         })
         .collect()

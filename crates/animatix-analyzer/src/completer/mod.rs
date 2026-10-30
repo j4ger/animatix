@@ -1,6 +1,6 @@
 //! Context-aware completion provider.
 
-use animatix_syntax::token::{Token, TokenKind, line_col_to_byte};
+use animatix_syntax::token::{Token, TokenKind, line_col_to_byte_utf16};
 
 use crate::extension_manifest::ExtensionManifest;
 use crate::symbol_table::{LabelKind, SymbolTable};
@@ -53,7 +53,8 @@ pub fn completions_at(
     let context = if tokens.is_empty() {
         None
     } else {
-        let byte = line_col_to_byte(source, line, col);
+        // LSP positions count UTF-16 code units, not Unicode scalar values.
+        let byte = line_col_to_byte_utf16(source, line, col);
         Some(CompletionContext::from_tokens(tokens, byte, symbols, source))
     };
 

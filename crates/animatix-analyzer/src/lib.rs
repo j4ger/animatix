@@ -99,4 +99,10 @@ pub struct Analyzer {
     /// which this caches by fingerprint.
     diagnostics_cache:
         std::sync::Mutex<Option<(u64, std::sync::Arc<Vec<diagnostics::Diagnostic>>)>>,
+    /// Number of symbol-table rebuilds performed since construction.
+    ///
+    /// Exposed as a small test hook so regressions that rebuild twice for one
+    /// edit (constructor + update, or update + unconditional manifest apply)
+    /// are caught by the test suite instead of only by latency profiles.
+    rebuild_count: u64,
 }

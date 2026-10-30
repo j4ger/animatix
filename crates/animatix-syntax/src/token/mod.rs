@@ -221,4 +221,6 @@ mod positions;
 mod tests;
 
 pub use issues::{TokenIssue, TokenIssueKind, tokenize_with_issues};
-pub use positions::{LineIndex, byte_to_line_col, line_col_to_byte, token_at_byte};
+pub use positions::{
+    LineIndex, byte_to_line_col, line_col_to_byte, line_col_to_byte_utf16, token_at_byte,
+};

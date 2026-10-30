@@ -10,6 +10,7 @@ use std::sync::Arc;
 use animatix_analyzer::{
     Analyzer, ExtensionManifest, Workspace, discover_manifest_sources, fingerprint_sources,
 };
+use animatix_syntax::token::LineIndex;
 use tokio::sync::Mutex;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
@@ -123,17 +124,22 @@ impl Backend {
         {
             let mut analyzers = self.analyzers.lock().await;
             is_new = !analyzers.contains_key(&uri);
-            let analyzer = analyzers.entry(uri.clone()).or_insert_with(|| {
-                Analyzer::new_with_path(&text, path.clone())
-                    .with_extension_manifest(manifest.clone())
-            });
-            analyzer.update(&text);
-            analyzer.set_extension_manifest(manifest);
-            // Populate the import-symbol cache once per opened document so
-            // diagnostics see imported `pub component` types. Later edits
-            // reuse the cache (see Analyzer::merge_import_symbols).
-            if is_new {
+            if let Some(analyzer) = analyzers.get_mut(&uri) {
+                // Both inputs may have changed this keystroke. Applying them
+                // together parses once and rebuilds the symbol table once;
+                // an equal manifest is a no-op.
+                analyzer.update_with_manifest(&text, manifest);
+            } else {
+                // Construction installs the manifest before the first
+                // rebuild, so a new document does not rebuild once for the
+                // constructor and again for the manifest.
+                let mut analyzer =
+                    Analyzer::new_with_path_and_manifest(&text, path.clone(), manifest);
+                // Populate the import-symbol cache once per opened document
+                // so diagnostics see imported `pub component` types. Later
+                // edits reuse the cache (see Analyzer::merge_import_symbols).
                 analyzer.merge_import_symbols();
+                analyzers.insert(uri.clone(), analyzer);
             }
         }
 
@@ -220,13 +226,16 @@ impl Backend {
 
     /// Publish diagnostics for a document to the LSP client.
     async fn publish_diagnostics(&self, uri: &str) {
-        let diagnostics = {
+        let (source, diagnostics) = {
             let analyzers = self.analyzers.lock().await;
             let Some(analyzer) = analyzers.get(uri) else {
                 return;
             };
-            analyzer.diagnostics()
+            (analyzer.source().to_string(), analyzer.diagnostics())
         };
+        // Analyzer diagnostics carry character columns; LSP positions count
+        // UTF-16 code units.
+        let index = LineIndex::new(&source);
 
         let lsp_diagnostics: Vec<Diagnostic> = diagnostics
             .into_iter()
@@ -237,11 +246,15 @@ impl Backend {
                     animatix_analyzer::DiagnosticSeverity::Info => DiagnosticSeverity::INFORMATION,
                     animatix_analyzer::DiagnosticSeverity::Hint => DiagnosticSeverity::HINT,
                 };
+                let start_byte = index.line_col_to_byte(d.line, d.col);
+                let end_byte = index.line_col_to_byte(d.end_line, d.end_col);
+                let (line, col) = index.byte_to_line_col_utf16(start_byte);
+                let (end_line, end_col) = index.byte_to_line_col_utf16(end_byte);
 
                 Diagnostic {
                     range: Range {
-                        start: Position::new(d.line as u32, d.col as u32),
-                        end: Position::new(d.end_line as u32, d.end_col as u32),
+                        start: Position::new(line as u32, col as u32),
+                        end: Position::new(end_line as u32, end_col as u32),
                     },
                     severity: Some(severity),
                     code: d.code.map(|c| NumberOrString::String(c.to_string())),

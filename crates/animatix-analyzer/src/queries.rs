@@ -15,7 +15,7 @@ use crate::unresolved;
 use crate::{Analyzer, CompletionItem, Diagnostic, DocumentSymbol, HoverInfo, Location, Workspace};
 
 impl Analyzer {
-    /// Completions at cursor position.
+    /// Completions at a 0-based UTF-16 cursor position (LSP `Position`).
     pub fn completions_at(&self, line: usize, col: usize) -> Vec<CompletionItem> {
         completer::completions_at(
             &self.symbols,
@@ -117,7 +117,7 @@ impl Analyzer {
         diagnostics
     }
 
-    /// Hover information at cursor position.
+    /// Hover information at a 0-based UTF-16 cursor position (LSP `Position`).
     pub fn hover_at(&self, line: usize, col: usize) -> Option<HoverInfo> {
         hover::hover_at(
             &self.symbols,
@@ -129,7 +129,7 @@ impl Analyzer {
         )
     }
 
-    /// Go-to-definition at cursor position.
+    /// Go-to-definition at a 0-based UTF-16 cursor position (LSP `Position`).
     ///
     /// Pass `workspace` for cross-file definition lookup.
     pub fn definition_at(
@@ -155,7 +155,8 @@ impl Analyzer {
         references::find_references(&self.occurrences, &self.source, symbol_name)
     }
 
-    /// Find all references to the binding at a cursor position.
+    /// Find all references to the binding at a 0-based UTF-16 cursor position
+    /// (LSP `Position`).
     ///
     /// Lexical scopes are resolved from parser-recorded occurrence scopes, so
     /// shadowed declarations do not leak references from unrelated scopes.
@@ -163,7 +164,7 @@ impl Analyzer {
         references::find_references_at(&self.occurrences, &self.source, line, col)
     }
 
-    /// Resolve a rename at a cursor position.
+    /// Resolve a rename at a 0-based UTF-16 cursor position (LSP `Position`).
     ///
     /// Returns the ranges to rewrite (scope-aware, so same-named bindings in
     /// other scopes are untouched) or a reason the symbol cannot be renamed.
@@ -180,11 +181,12 @@ impl Analyzer {
         document_symbol::document_symbols(&self.symbols)
     }
 
-    /// Get the symbol name at a cursor position.
-    /// Returns the identifier or type name at the given line/column,
-    /// or None if the position is not on a symbol.
+    /// Get the symbol name at a 0-based UTF-16 cursor position (LSP
+    /// `Position`). Returns the identifier or type name there, or None if the
+    /// position is not on a symbol.
     pub fn symbol_at(&self, line: usize, col: usize) -> Option<String> {
-        let byte = animatix_syntax::token::line_col_to_byte(&self.source, line, col);
+        // LSP positions count UTF-16 code units, not Unicode scalar values.
+        let byte = animatix_syntax::token::line_col_to_byte_utf16(&self.source, line, col);
         let token = animatix_syntax::token::token_at_byte(&self.tokens, byte)?;
         match &token.kind {
             TokenKind::Ident(name) => Some(name.clone()),

@@ -1,6 +1,11 @@
 use super::*;
 
-/// Convert a 0-based line/column position to a byte offset in `source`.
+/// Convert a 0-based line/character-column position to a byte offset in
+/// `source`.
+///
+/// Columns count Unicode scalar values, which is what editor widgets and the
+/// GUI use. LSP positions count UTF-16 code units instead; use
+/// [`line_col_to_byte_utf16`] at that boundary.
 pub fn line_col_to_byte(source: &str, line: usize, col: usize) -> usize {
     let mut current_line = 0usize;
     let mut current_col = 0usize;
@@ -20,7 +25,19 @@ pub fn line_col_to_byte(source: &str, line: usize, col: usize) -> usize {
     source.len()
 }
 
-/// Convert a byte offset to a 0-based (line, column) pair.
+/// Convert a 0-based line/UTF-16-column position to a byte offset in `source`.
+///
+/// LSP `Position::character` counts UTF-16 code units, so a non-BMP character
+/// (for example an emoji) contributes two columns even though it is one
+/// Unicode scalar value. A column that falls inside a surrogate pair resolves
+/// to the byte offset after that character.
+pub fn line_col_to_byte_utf16(source: &str, line: usize, col: usize) -> usize {
+    // Delegate so the free function and [`LineIndex`] cannot drift on
+    // surrogate pairs or out-of-range columns.
+    LineIndex::new(source).line_col_to_byte_utf16(line, col)
+}
+
+/// Convert a byte offset to a 0-based (line, character-column) pair.
 pub fn byte_to_line_col(source: &str, byte: usize) -> (usize, usize) {
     let mut line = 0usize;
     let mut col = 0usize;
@@ -64,7 +81,10 @@ impl<'a> LineIndex<'a> {
         }
     }
 
-    /// Convert a 0-based (line, column) position to a byte offset.
+    /// Convert a 0-based (line, character-column) position to a byte offset.
+    ///
+    /// Columns count Unicode scalar values; use
+    /// [`LineIndex::line_col_to_byte_utf16`] for LSP positions.
     pub fn line_col_to_byte(&self, line: usize, col: usize) -> usize {
         let Some(start) = self.line_starts.get(line).copied() else {
             return self.source.len();
@@ -82,7 +102,28 @@ impl<'a> LineIndex<'a> {
         offset
     }
 
-    /// Convert a byte offset to a 0-based (line, column) pair.
+    /// Convert a 0-based (line, UTF-16 column) position to a byte offset.
+    ///
+    /// LSP positions count UTF-16 code units, so non-BMP characters use two
+    /// columns. A column inside a surrogate pair resolves to the byte offset
+    /// after that character.
+    pub fn line_col_to_byte_utf16(&self, line: usize, col: usize) -> usize {
+        let Some(start) = self.line_starts.get(line).copied() else {
+            return self.source.len();
+        };
+        let mut offset = start;
+        let mut units = 0usize;
+        for ch in self.source[start..].chars() {
+            if ch == '\n' || units >= col {
+                break;
+            }
+            units += ch.len_utf16();
+            offset += ch.len_utf8();
+        }
+        offset
+    }
+
+    /// Convert a byte offset to a 0-based (line, character-column) pair.
     pub fn byte_to_line_col(&self, byte: usize) -> (usize, usize) {
         let byte = byte.min(self.source.len());
         let line = self.line_starts.partition_point(|&start| start <= byte).saturating_sub(1);

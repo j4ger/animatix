@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 
+use animatix_syntax::token::LineIndex;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 
@@ -25,6 +26,7 @@ pub(crate) async fn code_action(
         Ok(url) => url,
         Err(_) => return Ok(None),
     };
+    let index = LineIndex::new(analyzer.source());
 
     // Diagnostics are computed once per request and reused by every
     // action family below: each pass is a full re-check (~0.4ms on a
@@ -35,7 +37,7 @@ pub(crate) async fn code_action(
         // Only act on diagnostics the client actually asked about: the
         // request carries the visible range, and offering a fix for an
         // off-screen problem would apply an edit the user never saw.
-        if !range_contains(requested, diagnostic) {
+        if !range_contains(requested, diagnostic, &index) {
             continue;
         }
         let Some(code) = diagnostic.code.as_deref() else {
@@ -55,7 +57,12 @@ pub(crate) async fn code_action(
                             title: format!("Replace with '{}'", candidate.name),
                             kind: Some(CodeActionKind::QUICKFIX),
                             diagnostics: None,
-                            edit: Some(replace_range_edit(&url, diagnostic, &candidate.name)),
+                            edit: Some(replace_range_edit(
+                                &url,
+                                diagnostic,
+                                &candidate.name,
+                                &index,
+                            )),
                             command: None,
                             is_preferred: unambiguous.then_some(true),
                             disabled: None,
@@ -79,7 +86,12 @@ pub(crate) async fn code_action(
                             title: format!("Replace with '{}'", candidate.name),
                             kind: Some(CodeActionKind::QUICKFIX),
                             diagnostics: None,
-                            edit: Some(replace_range_edit(&url, diagnostic, &candidate.name)),
+                            edit: Some(replace_range_edit(
+                                &url,
+                                diagnostic,
+                                &candidate.name,
+                                &index,
+                            )),
                             command: None,
                             is_preferred: unambiguous.then_some(true),
                             disabled: None,
@@ -90,7 +102,7 @@ pub(crate) async fn code_action(
             },
             "unused-label" => {
                 if let Some(name) = diagnostic.subject.clone().filter(|s| !s.is_empty()) {
-                    if let Some(action) = remove_declaration_action(analyzer, &url, &name) {
+                    if let Some(action) = remove_declaration_action(analyzer, &url, &name, &index) {
                         actions.push(CodeActionOrCommand::CodeAction(action));
                     }
                 }
@@ -123,10 +135,34 @@ pub(crate) async fn code_action(
 ///
 /// A client asks for actions over the range the user is looking at; offering
 /// an edit outside it would apply a change the user never saw.
-fn range_contains(range: Range, diagnostic: &animatix_analyzer::Diagnostic) -> bool {
-    let start = Position::new(diagnostic.line as u32, diagnostic.col as u32);
-    let end = Position::new(diagnostic.end_line as u32, diagnostic.end_col as u32);
+fn range_contains(
+    range: Range,
+    diagnostic: &animatix_analyzer::Diagnostic,
+    index: &LineIndex<'_>,
+) -> bool {
+    let (start_line, start_col) = diagnostic_start(index, diagnostic);
+    let (end_line, end_col) = diagnostic_end(index, diagnostic);
+    let start = Position::new(start_line as u32, start_col as u32);
+    let end = Position::new(end_line as u32, end_col as u32);
     position_le(range.start, start) && position_le(end, range.end)
+}
+
+/// Convert a diagnostic's character-column start to an LSP UTF-16 position.
+fn diagnostic_start(
+    index: &LineIndex<'_>,
+    diagnostic: &animatix_analyzer::Diagnostic,
+) -> (usize, usize) {
+    let byte = index.line_col_to_byte(diagnostic.line, diagnostic.col);
+    index.byte_to_line_col_utf16(byte)
+}
+
+/// Convert a diagnostic's character-column end to an LSP UTF-16 position.
+fn diagnostic_end(
+    index: &LineIndex<'_>,
+    diagnostic: &animatix_analyzer::Diagnostic,
+) -> (usize, usize) {
+    let byte = index.line_col_to_byte(diagnostic.end_line, diagnostic.end_col);
+    index.byte_to_line_col_utf16(byte)
 }
 
 fn position_le(a: Position, b: Position) -> bool {
@@ -138,11 +174,14 @@ fn replace_range_edit(
     url: &Url,
     diagnostic: &animatix_analyzer::Diagnostic,
     new_text: &str,
+    index: &LineIndex<'_>,
 ) -> WorkspaceEdit {
+    let (start_line, start_col) = diagnostic_start(index, diagnostic);
+    let (end_line, end_col) = diagnostic_end(index, diagnostic);
     let edit = TextEdit {
         range: Range::new(
-            Position::new(diagnostic.line as u32, diagnostic.col as u32),
-            Position::new(diagnostic.end_line as u32, diagnostic.end_col as u32),
+            Position::new(start_line as u32, start_col as u32),
+            Position::new(end_line as u32, end_col as u32),
         ),
         new_text: new_text.to_string(),
     };
@@ -196,6 +235,7 @@ fn remove_declaration_action(
     analyzer: &animatix_analyzer::Analyzer,
     url: &Url,
     name: &str,
+    index: &LineIndex<'_>,
 ) -> Option<CodeAction> {
     let decl_byte = animatix_analyzer::first_declaration_byte(analyzer.occurrences(), name)?;
     // Only top-level declarations are safe to remove: an inline child (an
@@ -207,9 +247,8 @@ fn remove_declaration_action(
     }
     let (start_byte, end_byte) =
         animatix_analyzer::statement_removal_range(analyzer.source(), decl_byte)?;
-    let (start_line, start_col) =
-        animatix_syntax::token::byte_to_line_col(analyzer.source(), start_byte);
-    let (end_line, end_col) = animatix_syntax::token::byte_to_line_col(analyzer.source(), end_byte);
+    let (start_line, start_col) = index.byte_to_line_col_utf16(start_byte);
+    let (end_line, end_col) = index.byte_to_line_col_utf16(end_byte);
     let edit = TextEdit {
         range: Range::new(
             Position::new(start_line as u32, start_col as u32),
@@ -270,11 +309,12 @@ fn unused_removal_edits(
     ranges.sort_unstable_by(|a, b| b.0.cmp(&a.0));
 
     let source = analyzer.source();
+    let index = LineIndex::new(source);
     ranges
         .into_iter()
         .map(|(start, end)| {
-            let (start_line, start_col) = animatix_syntax::token::byte_to_line_col(source, start);
-            let (end_line, end_col) = animatix_syntax::token::byte_to_line_col(source, end);
+            let (start_line, start_col) = index.byte_to_line_col_utf16(start);
+            let (end_line, end_col) = index.byte_to_line_col_utf16(end);
             TextEdit {
                 range: Range::new(
                     Position::new(start_line as u32, start_col as u32),

@@ -1,6 +1,6 @@
 //! Hover information provider.
 
-use animatix_syntax::token::{Token, TokenKind, byte_to_line_col, line_col_to_byte, token_at_byte};
+use animatix_syntax::token::{LineIndex, Token, TokenKind, token_at_byte};
 
 use crate::extension_manifest::ExtensionManifest;
 use crate::symbol_table::{LabelKind, SymbolTable};
@@ -15,10 +15,12 @@ pub fn hover_at(
     col: usize,
     manifest: &ExtensionManifest,
 ) -> Option<HoverInfo> {
-    let byte = line_col_to_byte(source, line, col);
+    // LSP positions count UTF-16 code units, not Unicode scalar values.
+    let index = LineIndex::new(source);
+    let byte = index.line_col_to_byte_utf16(line, col);
     let token = token_at_byte(tokens, byte)?;
     let text = token_text(source, token)?;
-    let range = Some(token_range(source, token));
+    let range = Some(token_range(&index, token));
 
     match &token.kind {
         TokenKind::Str(_) | TokenKind::Typst(_) => {
@@ -143,9 +145,9 @@ fn token_text<'a>(source: &'a str, token: &Token) -> Option<&'a str> {
     source.get(token.span.start..token.span.end)
 }
 
-fn token_range(source: &str, token: &Token) -> (usize, usize, usize, usize) {
-    let (start_line, start_col) = byte_to_line_col(source, token.span.start);
-    let (end_line, end_col) = byte_to_line_col(source, token.span.end);
+fn token_range(index: &LineIndex<'_>, token: &Token) -> (usize, usize, usize, usize) {
+    let (start_line, start_col) = index.byte_to_line_col_utf16(token.span.start);
+    let (end_line, end_col) = index.byte_to_line_col_utf16(token.span.end);
     (start_line, start_col, end_line, end_col)
 }
 
