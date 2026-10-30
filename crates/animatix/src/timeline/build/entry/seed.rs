@@ -40,6 +40,11 @@ pub(super) fn seed_environment(
     if let Some(registry) = options.selected_primitive_registry() {
         timeline.primitive_registry = registry;
     }
+    // Behavior dispatch and the primitive registry are two views of the same
+    // extension set: the render walk asks for a BehaviorDef, while declaration
+    // building and property dispatch ask the PrimitiveRegistry. Keep the
+    // behavior table in sync whenever a build installs a registry.
+    timeline.sync_extension_behaviors();
     if let Some(cache) = options.asset_cache.clone() {
         timeline.asset_cache = cache;
         std::sync::Arc::make_mut(&mut timeline.asset_cache).invalidate_changed_assets();

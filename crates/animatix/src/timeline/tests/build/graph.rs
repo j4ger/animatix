@@ -991,3 +991,29 @@ fn assert_map_round_trip(timeline: &Timeline) {
         }
     }
 }
+
+#[test]
+fn fragment_text_resolves_variable_backed_expression() {
+    let source = r#"
+let fragment_text = "x^2 + y^2"
+
+eq: Equation {
+    f: Fragment, text: fragment_text
+}
+"#;
+    let report = build(source);
+    assert_clean(&report);
+    let timeline = report.output;
+    let fragment_id = timeline.world.get_id("f").expect("fragment track");
+    let content = timeline
+        .world
+        .text_or_default(fragment_id)
+        .text_content
+        .as_ref()
+        .expect("fragment text_content")
+        .evaluate(0);
+    assert_eq!(
+        content, "x^2 + y^2",
+        "a Fragment text expression must resolve against the build environment"
+    );
+}

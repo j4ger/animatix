@@ -128,6 +128,7 @@ impl Timeline {
         let Some(track_id) = self.world.tracks.get_id(label) else {
             return;
         };
+        let actor_caps = self.world.caps(track_id);
 
         for prop in props {
             let subject = format!("{}.{}", label, prop.name);
@@ -142,7 +143,7 @@ impl Timeline {
                     ) {
                         self.world.write_property_field(
                             track_id,
-                            schema.field,
+                            schema.field_for_actor(&actor_caps, ty),
                             pv,
                             t_start_ms,
                             t_end_ms,

@@ -703,15 +703,16 @@ impl World {
         let Some(schema) = crate::timeline::property_registry::lookup_property(property) else {
             return false;
         };
-        let times = self.property_keyframe_times(id, schema.field);
+        let field = schema.field_for_actor(&self.caps(id), self.actor_type(id));
+        let times = self.property_keyframe_times(id, field);
         if times.len() < 2 {
             return false;
         }
-        let Some(first) = self.read_property_value(id, schema.field, times[0]) else {
+        let Some(first) = self.read_property_value(id, field, times[0]) else {
             return true;
         };
         times[1..]
             .iter()
-            .any(|&time| self.read_property_value(id, schema.field, time) != Some(first.clone()))
+            .any(|&time| self.read_property_value(id, field, time) != Some(first.clone()))
     }
 }

@@ -147,11 +147,13 @@ pub(super) fn validate_duration_and_seam(
             timeline.world.actor_type(id),
         ) {
             let schema = &crate::timeline::property_registry::PROPERTY_REGISTRY[idx];
-            if !timeline.world.property_has_keyframes(id, schema.field) {
+            let field =
+                schema.field_for_actor(&timeline.world.caps(id), timeline.world.actor_type(id));
+            if !timeline.world.property_has_keyframes(id, field) {
                 continue;
             }
-            let first = timeline.world.read_property_value(id, schema.field, 0);
-            let last = timeline.world.read_property_value(id, schema.field, end_ms);
+            let first = timeline.world.read_property_value(id, field, 0);
+            let last = timeline.world.read_property_value(id, field, end_ms);
             let wraps = match (&first, &last) {
                 (Some(a), Some(b)) => crate::timeline::values_wrap(a, b),
                 // One side never sampled: the property is constant

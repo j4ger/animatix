@@ -578,3 +578,68 @@ fn transient_property_overrides_bypass_cache_and_override_evaluation() {
         p3.items[0].opacity
     );
 }
+
+#[test]
+fn captions_cue_start_end_and_active_color_reach_the_primitive() {
+    let report = build_source(
+        r##"
+subs: Captions, at: (960, 900), font_size: 32, text_max_width: 640 {
+    cue: Cue, text: "Hello captions", start: 0.5, end: 1.5, active_color: "#ff8800"
+}
+"##,
+    );
+    assert!(
+        super::without_content_lints(&report.diagnostics).next().is_none(),
+        "unexpected diagnostics: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    let cue_id = timeline.world.get_id("cue").expect("cue track");
+
+    // The primitive samples start/end/active_color from the cue's property
+    // plan; the custom Cue build must have written all three there.
+    let assets = crate::timeline::assets::AssetCache::new();
+    let ctx = crate::primitives::EvaluateCtx {
+        id: cue_id,
+        label: "cue",
+        caps: timeline.world.caps(cue_id),
+        time_ms: 1000,
+        local_transform: kurbo::Affine::IDENTITY,
+        opacity: 1.0,
+        scene_dimensions: HD,
+        background_color: [0.0, 0.0, 0.0, 1.0],
+        overrides: None,
+        vector_paths: &[],
+        asset_cache: &assets,
+        highlight: timeline.world.highlight(cue_id),
+        property_plan: timeline.world.property_plan(cue_id),
+        world: Some(timeline.world()),
+        shape: timeline.world.shape(cue_id),
+        text: timeline.world.text(cue_id),
+        geometry: timeline.world.geometry(cue_id),
+        style: timeline.world.style(cue_id),
+        payload: None,
+        target_resolver: None,
+        legend: None,
+    };
+    let handle = timeline.cached_primitive_for(cue_id, 1000).expect("cue primitive");
+    let cue = handle.as_dyn().caption_cue(&ctx).expect("caption cue");
+    assert_eq!(cue.text, "Hello captions");
+    assert_eq!(cue.start_ms, 500);
+    assert_eq!(cue.end_ms, 1500);
+    assert_eq!(cue.active_color, Some([1.0, 0.53333336, 0.0, 1.0]));
+
+    // The Captions container only paints an active cue: the inside-window
+    // frame must encode more drawing than the frames on either side.
+    let before = timeline.evaluate(0.25, HD);
+    let inside = timeline.evaluate(1.0, HD);
+    let after = timeline.evaluate(2.0, HD);
+    assert!(
+        inside.encoding().draw_tags.len() > before.encoding().draw_tags.len(),
+        "expected the caption to draw inside its [start, end) window"
+    );
+    assert!(
+        inside.encoding().draw_tags.len() > after.encoding().draw_tags.len(),
+        "expected the caption to stop drawing after its window"
+    );
+}

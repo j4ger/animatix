@@ -76,61 +76,36 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
         decl_span: Option<crate::ast::Span>,
     ) -> bool {
-        if let Some(def) = self.behavior_registry.find(ty).cloned() {
-            match &def.source {
-                crate::timeline::behavior::BehaviorSource::Family(fam) => {
-                    if let Some(build_extra) = fam.build_extra {
-                        let static_ty = crate::primitives::BUILT_INS
-                            .get(def.id.index())
-                            .expect("family behavior must map to a BUILT_INS row")
-                            .behavior
-                            .type_name();
-                        if let Err(mut diags) = build_extra(
-                            self,
-                            label,
-                            static_ty,
-                            props,
-                            modifiers,
-                            children,
-                            time_ms,
-                            parent_label,
-                            diagnostics,
-                        ) {
-                            diagnostics.append(&mut diags);
-                        }
-                        if let Some(id) = self.world.get_id(label) {
-                            if self.world.decl_span.get(id).is_none()
-                                && let Some(span) = decl_span
-                            {
-                                self.world.decl_span.get_or_insert_with(id, || span);
-                            }
-                        }
-                        return true;
-                    }
-                },
-                crate::timeline::behavior::BehaviorSource::Extension(ext) => {
-                    let coordinate_context = self.resolve_coordinate_context(parent_label);
-                    let mut ctx = crate::primitives::BuildCtx {
-                        timeline: self,
-                        label,
-                        time_ms,
-                        parent_label,
-                        diagnostics,
-                        coordinate_context,
-                    };
-                    if let Err(mut diags) = ext.build(&mut ctx, label, props, modifiers, children) {
-                        diagnostics.append(&mut diags);
-                    }
-                    if let Some(id) = self.world.get_id(label) {
-                        if self.world.decl_span.get(id).is_none()
-                            && let Some(span) = decl_span
-                        {
-                            self.world.decl_span.get_or_insert_with(id, || span);
-                        }
-                    }
-                    return true;
-                },
+        if let Some(def) = self.behavior_registry.find(ty).cloned()
+            && let crate::timeline::behavior::BehaviorSource::Family(fam) = &def.source
+            && let Some(build_extra) = fam.build_extra
+        {
+            let static_ty = crate::primitives::BUILT_INS
+                .get(def.id.index())
+                .expect("family behavior must map to a BUILT_INS row")
+                .behavior
+                .type_name();
+            if let Err(mut diags) = build_extra(
+                self,
+                label,
+                static_ty,
+                props,
+                modifiers,
+                children,
+                time_ms,
+                parent_label,
+                diagnostics,
+            ) {
+                diagnostics.append(&mut diags);
             }
+            if let Some(id) = self.world.get_id(label) {
+                if self.world.decl_span.get(id).is_none()
+                    && let Some(span) = decl_span
+                {
+                    self.world.decl_span.get_or_insert_with(id, || span);
+                }
+            }
+            return true;
         }
 
         // Extension primitives are dispatched through the active runtime
@@ -138,82 +113,121 @@ impl Timeline {
         let registry = self.primitive_registry.clone();
         if let Some(primitive) = registry.find(ty) {
             if !registry.is_builtin(ty) {
-                let coordinate_context = self.resolve_coordinate_context(parent_label);
-                let mut ctx = crate::primitives::BuildCtx {
-                    timeline: self,
-                    time_ms,
-                    parent_label,
-                    label,
-                    diagnostics,
-                    coordinate_context,
-                };
-                if let Err(mut diags) = primitive.build(&mut ctx, label, props, modifiers, children)
-                {
-                    diagnostics.append(&mut diags);
-                }
-                let mut extension_id = None;
-                if let Some(id) = self.world.get_id(label) {
-                    if self.world.decl_span.get(id).is_none()
-                        && let Some(span) = decl_span
-                    {
-                        self.world.decl_span.get_or_insert_with(id, || span);
-                    }
-                    extension_id = Some(id);
-                }
-                if let Some(id) = extension_id {
-                    // Identity lives in `World`; set it from the registration
-                    // type so caps and plan lookups resolve the extension
-                    // primitive (and a re-declaration cannot keep a stale type).
-                    self.world.set_identity(id, ty);
-                    // Capabilities come from the registration info, not the
-                    // built-in catalog: an in-process extension can be a
-                    // text-like or shape-like primitive and must get the full
-                    // built-in treatment.
-                    if let Some(info) = registry.info_of(ty) {
-                        self.world.set_caps(id, animatix_std::caps_from_info(info));
-                    }
-                    // Extension builds create the track; mirror the built-in
-                    // path so the actor is visible from its declaration time
-                    // instead of being skipped forever (first_seen_ms = MAX).
-                    self.world.meta.record_first_seen(id, time_ms as u64);
-                }
-                self.process_inline_items(time_ms, children, label, diagnostics);
-                // Extension builds only create the track; apply the common
-                // actor properties (at/anchor/offset, opacity, size) so
-                // extension actors behave like built-ins.
-                self.apply_extension_common_properties(
+                let caps =
+                    registry.info_of(ty).map(animatix_std::caps_from_info).unwrap_or_default();
+                return self.build_extension_actor(
                     label,
                     ty,
+                    primitive,
+                    caps,
                     props,
                     modifiers,
-                    time_ms,
-                    diagnostics,
-                );
-                self.write_extension_properties_for_decl(
-                    label,
-                    ty,
-                    props,
-                    modifiers,
-                    time_ms,
-                    diagnostics,
-                );
-                self.warn_unknown_declaration_properties(label, ty, props, diagnostics);
-                let coordinate_context = self.resolve_coordinate_context(parent_label);
-                let mut ctx = crate::primitives::BuildCtx {
-                    timeline: self,
+                    children,
                     time_ms,
                     parent_label,
-                    label,
                     diagnostics,
-                    coordinate_context,
-                };
-                if let Err(mut diags) = primitive.finalize_container_build(&mut ctx, label, props) {
-                    diagnostics.append(&mut diags);
-                }
-                return true;
+                    decl_span,
+                );
             }
         }
+
+        // A behavior can be registered directly on the behavior table without
+        // a PrimitiveRegistry entry (the public `BehaviorRegistry` API). Keep
+        // that path usable with the same build prologue.
+        if let Some(def) = self.behavior_registry.find(ty).cloned()
+            && let crate::timeline::behavior::BehaviorSource::Extension(primitive) = &def.source
+        {
+            return self.build_extension_actor(
+                label,
+                ty,
+                primitive.as_ref(),
+                def.caps,
+                props,
+                modifiers,
+                children,
+                time_ms,
+                parent_label,
+                diagnostics,
+                decl_span,
+            );
+        }
         false
+    }
+
+    /// Build one runtime extension actor through the shared extension
+    /// prologue (`build`, identity, caps, first-seen, common properties and
+    /// extension-property slots), then assign its resolved behavior id.
+    #[allow(clippy::too_many_arguments)]
+    fn build_extension_actor(
+        &mut self,
+        label: &str,
+        ty: &str,
+        primitive: &dyn crate::primitives::Primitive,
+        caps: animatix_core::caps::ActorCaps,
+        props: &[Property],
+        modifiers: &[Modifier],
+        children: &[InlineItem],
+        time_ms: f64,
+        parent_label: Option<&str>,
+        diagnostics: &mut Vec<Diagnostic>,
+        decl_span: Option<crate::ast::Span>,
+    ) -> bool {
+        let coordinate_context = self.resolve_coordinate_context(parent_label);
+        let mut ctx = crate::primitives::BuildCtx {
+            timeline: self,
+            label,
+            time_ms,
+            parent_label,
+            diagnostics,
+            coordinate_context,
+        };
+        if let Err(mut diags) = primitive.build(&mut ctx, label, props, modifiers, children) {
+            diagnostics.append(&mut diags);
+        }
+        let mut extension_id = None;
+        if let Some(id) = self.world.get_id(label) {
+            if self.world.decl_span.get(id).is_none()
+                && let Some(span) = decl_span
+            {
+                self.world.decl_span.get_or_insert_with(id, || span);
+            }
+            extension_id = Some(id);
+        }
+        if let Some(id) = extension_id {
+            // Identity lives in `World`; set it from the registration type so
+            // caps and plan lookups resolve the extension primitive (and a
+            // re-declaration cannot keep a stale type).
+            self.world.set_identity(id, ty);
+            self.world.set_caps(id, caps);
+            if let Some(def) = self.behavior_registry.find(ty) {
+                let behavior_id = def.id;
+                self.world.set_behavior(id, behavior_id);
+            }
+            // Extension builds create the track; mirror the built-in path so
+            // the actor is visible from its declaration time instead of being
+            // skipped forever (first_seen_ms = MAX).
+            self.world.meta.record_first_seen(id, time_ms as u64);
+        }
+        self.process_inline_items(time_ms, children, label, diagnostics);
+        // Extension builds only create the track; apply the common actor
+        // properties (at/anchor/offset, opacity, size) so extension actors
+        // behave like built-ins.
+        self.apply_extension_common_properties(label, ty, props, modifiers, time_ms, diagnostics);
+        self.write_extension_properties_for_decl(label, ty, props, modifiers, time_ms, diagnostics);
+        self.warn_unknown_declaration_properties(label, ty, props, diagnostics);
+        let coordinate_context = self.resolve_coordinate_context(parent_label);
+        let mut ctx = crate::primitives::BuildCtx {
+            timeline: self,
+            time_ms,
+            parent_label,
+            label,
+            diagnostics,
+            coordinate_context,
+        };
+        if let Err(mut diags) = primitive.finalize_container_build(&mut ctx, label, props) {
+            diagnostics.append(&mut diags);
+        }
+        true
     }
 }
 

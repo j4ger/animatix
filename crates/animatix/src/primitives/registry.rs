@@ -134,6 +134,23 @@ impl PrimitiveRegistry {
             .map(|registered| (registered.as_ref(), registered.info()))
     }
 
+    /// Extension-registered primitives with the identity card supplied at
+    /// registration time, in registration order.
+    ///
+    /// Narrow build-time accessor for the behavior registry: built-ins keep
+    /// their static `BUILT_INS` rows and are deliberately not returned, so a
+    /// caller cannot re-register them under dynamic ids.
+    pub fn extension_entries(
+        &self,
+    ) -> impl Iterator<Item = (Arc<dyn Primitive>, PrimitiveInfo)> + '_ {
+        self.primitives.iter().filter_map(|registered| match registered {
+            RegisteredPrimitive::Extension(primitive, info) => {
+                Some((Arc::clone(primitive), info.clone()))
+            },
+            RegisteredPrimitive::Builtin(_) => None,
+        })
+    }
+
     /// Look up a primitive by type name.
     pub fn find(&self, name: &str) -> Option<&dyn Primitive> {
         self.primitives

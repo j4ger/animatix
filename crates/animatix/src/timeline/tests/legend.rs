@@ -724,3 +724,41 @@ fn test_legend_render_commands_produced() {
         }
     }
 }
+
+#[test]
+fn legend_text_max_width_assignment_writes_tagged_legend_track() {
+    let source = r#"
+legend: Legend, at: (320, 100), title: "Series", text_max_width: 200
+
+#1s
+legend.text_max_width = 120
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report =
+        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+    assert!(
+        super::without_content_lints(&report.diagnostics).next().is_none(),
+        "unexpected diagnostics: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    let track = timeline.get_entity_id("legend").expect("legend track");
+    let read = |time_ms| {
+        timeline.world.read_property_value(
+            track,
+            crate::timeline::property_registry::ActorField::Tagged("legend_text_max_width"),
+            time_ms,
+        )
+    };
+    assert_eq!(
+        read(0),
+        Some(crate::timeline::PropertyValue::F32(200.0)),
+        "Legend declaration must keep using its tagged text_max_width lane"
+    );
+    assert_eq!(
+        read(1000),
+        Some(crate::timeline::PropertyValue::F32(120.0)),
+        "Legend runtime text_max_width assignment must keep using its tagged lane"
+    );
+}

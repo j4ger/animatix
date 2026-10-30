@@ -333,7 +333,8 @@ pub fn collect_all_keyframe_times(
 
     for &idx in &indices {
         let schema = &crate::timeline::property_registry::PROPERTY_REGISTRY[idx];
-        for t in world.property_keyframe_times(id, schema.field) {
+        let field = schema.field_for_actor(&caps, actor_type);
+        for t in world.property_keyframe_times(id, field) {
             times.insert(t);
         }
     }

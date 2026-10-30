@@ -40,6 +40,8 @@ pub(crate) fn inject_property_into_env(
     let prefix_len = key.len();
 
     // ── Inject every registered INJECTABLE property via its read_source ──
+    let actor_caps = world.caps(id);
+    let actor_type = world.actor_type(id);
     for schema in PROPERTY_REGISTRY.iter() {
         if !schema.flags.contains(PropertyFlags::INJECTABLE) {
             continue;
@@ -51,15 +53,16 @@ pub(crate) fn inject_property_into_env(
             }
         }
 
-        // Read via the schema's read_source (handles Field, Alias, Component).
-        let pv = match schema.read_source.read(id, world, time_ms) {
+        // Read via the actor-resolved read_source (handles Field, Alias,
+        // Component, and `text_max_width`'s per-family storage).
+        let read_source = schema.read_source_for_actor(&actor_caps, actor_type);
+        let pv = match read_source.read(id, world, time_ms) {
             Some(pv) => pv,
             None => {
                 // No value — fall back to schema default.
                 // For Component sources, extract the indexed component.
-                let caps = world.caps(id);
-                let write_default = (schema.default_value)(&caps);
-                match schema.read_source {
+                let write_default = (schema.default_value)(&actor_caps);
+                match read_source {
                     ReadSource::Field(_) | ReadSource::Alias(_) => write_default,
                     ReadSource::Component { index, scale, .. } => {
                         if let PropertyValue::Vec2(v) = write_default {
@@ -81,7 +84,7 @@ pub(crate) fn inject_property_into_env(
         // Inject the animation-state flag under the internal animating_flag
         // key (read by `is_animating(&label.prop)`).
         if inject_animating_flags {
-            if let Some(storage) = schema.read_source.storage_field() {
+            if let Some(storage) = read_source.storage_field() {
                 let flag_key = crate::timeline::env_keys::animating_flag(label, schema.name);
                 let animating = world.is_field_currently_animating(id, storage, time_ms);
                 env.set(&flag_key, Value::Bool(animating));
@@ -238,7 +241,8 @@ pub(crate) fn read_property_value_resolved(
     {
         return Some(value);
     }
-    world.read_property_value(id, schema.field, time_ms)
+    let field = schema.field_for_actor(&world.caps(id), world.actor_type(id));
+    world.read_property_value(id, field, time_ms)
 }
 
 /// Read an effective f32 property value, preferring modifier overrides over

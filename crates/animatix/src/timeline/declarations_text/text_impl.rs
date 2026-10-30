@@ -345,12 +345,15 @@ impl Timeline {
         // Dispatch remaining (unhandled) properties through the generic engine so
         // universal properties like scale, rotation, and opacity actually work on
         // text / math / code actors.
+        let actor_caps = self.world.caps(track_id);
+        let actor_type = kind.type_name();
         for prop in props {
             let already_handled = match prop.name.as_str() {
                 name if kind.content_matches(name) => true,
                 "font_family" | "font_size" | "font_weight" | "font_style" | "line_height"
-                | "letter_spacing" | "word_spacing" | "max_width" | "text_align"
-                | "text_anchor" | "overflow" | "color" | "at" | "anchor" | "offset" => true,
+                | "letter_spacing" | "word_spacing" | "max_width" | "text_max_width"
+                | "text_align" | "text_anchor" | "overflow" | "color" | "at" | "anchor"
+                | "offset" => true,
                 _ => false,
             };
             if already_handled {
@@ -365,7 +368,7 @@ impl Timeline {
                     diagnostics,
                     &prop_subject,
                 ) {
-                    pending_writes.push((schema.field, pv));
+                    pending_writes.push((schema.field_for_actor(&actor_caps, actor_type), pv));
                 }
             }
         }

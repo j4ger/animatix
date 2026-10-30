@@ -502,6 +502,41 @@ impl PropertySchema {
         self.flags.contains(PropertyFlags::SPATIAL)
     }
 
+    /// Resolve this binding's storage field for a concrete actor.
+    ///
+    /// One descriptor serves two storage domains: `text_max_width` is the
+    /// canonical text wrap width (`TextTracks::text_max_width`) for text-like
+    /// actors and `Captions`, while `Legend` owns a tagged
+    /// `legend_text_max_width` lane. The static binding names the canonical
+    /// text lane; plan building and every read/write path call this resolver
+    /// with the actor identity so Legend keeps its own tagged storage.
+    pub fn field_for_actor(
+        &self,
+        caps: &crate::timeline::ActorCaps,
+        actor_type: &str,
+    ) -> ActorField {
+        if self.name == "text_max_width" && (caps.legend_host || actor_type == "Legend") {
+            ActorField::Tagged("legend_text_max_width")
+        } else {
+            self.field
+        }
+    }
+
+    /// Frame-time read source for a concrete actor.
+    ///
+    /// Only `ReadSource::Field` needs per-actor resolution; `Component` and
+    /// alias reads already name a shared storage lane.
+    pub fn read_source_for_actor(
+        &self,
+        caps: &crate::timeline::ActorCaps,
+        actor_type: &str,
+    ) -> ReadSource {
+        match self.read_source {
+            ReadSource::Field(_) => ReadSource::Field(self.field_for_actor(caps, actor_type)),
+            other => other,
+        }
+    }
+
     /// Returns `true` if this property controls presence or visibility (e.g. opacity).
     pub fn is_presence(&self) -> bool {
         self.flags.contains(PropertyFlags::PRESENCE)

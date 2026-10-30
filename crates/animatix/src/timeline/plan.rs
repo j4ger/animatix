@@ -85,7 +85,7 @@ impl PropertyPlan {
             .filter(|schema| schema.applicable.includes(caps, actor_type))
             .filter(|schema| {
                 !matches!(
-                    schema.field,
+                    schema.field_for_actor(caps, actor_type),
                     crate::timeline::property_registry::ActorField::Tagged("legend")
                         | crate::timeline::property_registry::ActorField::Tagged("callout_place")
                 )
@@ -377,7 +377,8 @@ macro_rules! insert_dyn_track {
                 track.add_keyframe($time_ms, value, $easing);
                 Some(())
             },
-            (DynTrack::Vec4(track), PropertyValue::Vec4(value)) => {
+            (DynTrack::Vec4(track), PropertyValue::Vec4(value))
+            | (DynTrack::Vec4(track), PropertyValue::Color(value)) => {
                 let track = track.get_or_insert_with(|| PropertyTrack::new([0.0; 4]));
                 track.add_keyframe($time_ms, value, $easing);
                 Some(())

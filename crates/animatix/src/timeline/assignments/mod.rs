@@ -482,9 +482,10 @@ impl Timeline {
         let Some(pv) = pv else {
             return;
         };
+        let field = schema.field_for_actor(&plan.caps, &plan.actor_type);
         self.world.write_property_field(
             plan.track_id,
-            schema.field,
+            field,
             pv,
             plan.t_start_ms,
             plan.t_end_ms,

@@ -53,12 +53,14 @@ pub fn build_extra_fragment(
             "text" => {
                 let content_str = match &prop.value {
                     Expr::Str(s) => s.clone(),
-                    other => {
-                        let env = crate::timeline::Environment::new();
-                        crate::timeline::evaluate_expr(other, &env)
-                            .map(|v| v.as_str().to_string())
-                            .unwrap_or_default()
-                    },
+                    other => crate::timeline::evaluate_expr_with_lookup_diagnostic(
+                        other,
+                        &env,
+                        diagnostics,
+                        &format!("{label}.text"),
+                    )
+                    .map(|v| v.as_str().to_string())
+                    .unwrap_or_default(),
                 };
                 timeline
                     .world

@@ -1064,3 +1064,55 @@ box.size = {120, 60} [500ms, ease: ease-out]
     assert_eq!(at, [420.0, 260.0], "brace at must position the actor");
     assert_eq!(size, [60.0, 30.0], "brace size is stored as half-size");
 }
+
+#[test]
+fn text_max_width_binds_to_text_tracks_for_declaration_and_assignment() {
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+long: Text, text: "The quick brown fox jumps over the lazy dog", font_size: 20, text_max_width: 100, at: (320, 100)
+unwrapped: Text, text: "The quick brown fox jumps over the lazy dog", font_size: 20, text_max_width: 0, at: (320, 220)
+
+#1s
+long.text_max_width = 60
+    "#;
+    let timeline = build_clean(source);
+    let long_id = timeline.world.get_id("long").expect("long text track");
+    let unwrapped_id = timeline.world.get_id("unwrapped").expect("unwrapped text track");
+
+    let long = timeline.world.text_or_default(long_id);
+    assert_eq!(
+        long.text_max_width.get(0, 0.0),
+        100.0,
+        "the Text declaration must write TextTracks::text_max_width"
+    );
+    assert_eq!(
+        long.text_max_width.get(1000, 0.0),
+        60.0,
+        "a runtime text_max_width assignment/keyframe must write TextTracks"
+    );
+    assert_eq!(
+        timeline.world.read_property_value(
+            long_id,
+            crate::timeline::property_registry::ActorField::TextMaxWidth,
+            1000,
+        ),
+        Some(crate::timeline::PropertyValue::F32(60.0))
+    );
+
+    // The declaration's compiled paths must actually wrap: the bounded actor
+    // is narrower than the same text declared with no wrap width.
+    let wrapped = long.static_paths.as_ref().expect("declaration paths");
+    let unwrapped = timeline
+        .world
+        .text_or_default(unwrapped_id)
+        .static_paths
+        .as_ref()
+        .expect("declaration paths");
+    let [wrapped_half_width, _] = crate::renderer::text::measure_text_paths(wrapped);
+    let [unwrapped_half_width, _] = crate::renderer::text::measure_text_paths(unwrapped);
+    assert!(
+        wrapped_half_width < unwrapped_half_width,
+        "text_max_width must narrow the compiled text: wrapped={wrapped_half_width}, unwrapped={unwrapped_half_width}"
+    );
+}

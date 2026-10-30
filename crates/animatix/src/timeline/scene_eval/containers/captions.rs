@@ -73,8 +73,12 @@ impl Timeline {
         // screen), `max_lines` caps how many wrapped lines the cue may occupy
         // (`0` = unlimited), and `transition_time` fades a cue in from its own
         // start (0 by default, so captions snap unless asked to transition).
+        // The wrap width lives on the container's `TextTracks` (the same lane
+        // `Text` actors use), not in Legend's tagged slot the static binding
+        // names.
         let property_plan = self.world.property_plan(node_id);
-        let text_max_width = property_plan.sample_f32_prop("text_max_width", time_ms, 0.0).max(0.0);
+        let text_max_width =
+            self.world.text_or_default(node_id).text_max_width.get(time_ms, 0.0).max(0.0);
         let max_lines = property_plan.sample_u32_prop("max_lines", time_ms, 2);
         let transition_s =
             (property_plan.sample_f32_prop("transition_time", time_ms, 0.0).max(0.0)) as f64;

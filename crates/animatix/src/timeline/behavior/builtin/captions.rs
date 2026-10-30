@@ -44,15 +44,26 @@ pub fn build_extra_cue(
     timeline.add_node(label.to_string(), parent_label);
     let track_id = timeline.world.spawn(label, "Cue");
     timeline.world.set_first_seen(track_id, time_ms as u64);
+    // `Cue` bypasses the generic actor-declaration path, so its property plan
+    // is still empty. Rebuild it before writing, or `caption_cue` samples every
+    // property from a missing slot and start/end stay at their 0 defaults.
+    let caps = timeline.world.caps(track_id);
+    timeline.world.property_plan.get_mut(track_id).rebuild_for(&caps, "Cue");
     timeline.world.ensure_text(track_id);
 
     for prop in props {
         if prop.name == "text" {
+            let subject = format!("{label}.text");
             let content = match &prop.value {
                 Expr::Str(s) => s.clone(),
-                other => crate::timeline::evaluate_expr(other, &env)
-                    .map(|v| v.as_str().to_string())
-                    .unwrap_or_default(),
+                other => crate::timeline::evaluate_expr_with_lookup_diagnostic(
+                    other,
+                    &env,
+                    diagnostics,
+                    &subject,
+                )
+                .map(|v| v.as_str().to_string())
+                .unwrap_or_default(),
             };
             timeline
                 .world
@@ -60,7 +71,31 @@ pub fn build_extra_cue(
                 .text_content
                 .ensure(String::new())
                 .add_keyframe(time_ms as u64, content, crate::easing::Easing::Linear);
+            continue;
         }
+
+        let Some(schema) = crate::timeline::property_registry::lookup_property(&prop.name) else {
+            tracing::warn!("Cue `{label}`: unknown property `{}` dropped", prop.name);
+            continue;
+        };
+        let Some(value) = crate::timeline::property_engine::parse_property_value(
+            schema.value_type,
+            &prop.value,
+            &env,
+            diagnostics,
+            &format!("{label}.{}", prop.name),
+        ) else {
+            continue;
+        };
+        timeline.world.write_property_field(
+            track_id,
+            schema.field,
+            value,
+            time_ms as u64,
+            time_ms as u64,
+            crate::easing::Easing::Linear,
+            diagnostics,
+        );
     }
 
     let has_start = props.iter().any(|p| p.name == "start");

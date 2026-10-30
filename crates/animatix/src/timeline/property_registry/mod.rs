@@ -483,13 +483,7 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("text", V::String, F::ASSIGNABLE_A, TextContent, val!(str "")),
     b!("text_align", V::String, F::ASSIGNABLE_A, TextAlign, val!(str "left")),
     b!("text_anchor", V::String, F::ASSIGNABLE_A, TextAnchor, val!(str "center")),
-    b!(
-        "text_max_width",
-        V::F32,
-        F::ASSIGNABLE_A,
-        Tagged("legend_text_max_width"),
-        val!(f32 240.0)
-    ),
+    b!("text_max_width", V::F32, F::ASSIGNABLE_A, TextMaxWidth, val!(f32 240.0)),
     b!("tick_labels", V::String, F::empty(), PlotDomainGroup, val!(str "auto")),
     b!("ticks", V::String, F::empty(), PlotDomainGroup, val!(str "auto")),
     b!("title", V::String, F::ASSIGNABLE_A, Tagged("legend_title"), val!(str "")),

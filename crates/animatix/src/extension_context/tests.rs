@@ -588,3 +588,43 @@ fn build_with_context_dispatches_custom_actions() {
     let id = report.output.world.get_id("target").expect("actor track");
     assert_eq!(report.output.world.style(id).opacity.get(0, 1.0), 0.25);
 }
+
+#[test]
+fn build_with_context_registers_extension_behavior_for_render_dispatch() {
+    let (ast, errors) = animatix_syntax::parser::parse_source("g: Gauge");
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let ast = ast.expect("parsed AST");
+
+    let mut ctx = ExtensionContext::new();
+    ctx.register_primitive(
+        Arc::new(Gauge),
+        animatix_std::PrimitiveInfo::extension("Gauge", ActorCategory::Plot),
+    )
+    .expect("register Gauge");
+
+    let report =
+        Timeline::build_with_context(&ast, &std::collections::HashMap::new(), Arc::new(ctx));
+    assert!(
+        without_content_lints(&report.diagnostics).next().is_none(),
+        "unexpected diagnostics: {:?}",
+        report.diagnostics
+    );
+    let timeline = report.output;
+    let id = timeline.world.get_id("g").expect("gauge track");
+    let def = timeline.behavior_for_node(id, 0).expect("extension behavior");
+    assert_eq!(def.name.as_ref(), "Gauge");
+    assert!(
+        def.extension_primitive().is_some(),
+        "the synced behavior must dispatch to the extension primitive"
+    );
+    assert_eq!(
+        timeline.world.behavior(id),
+        def.id,
+        "entity behavior id must match the registry"
+    );
+    assert!(
+        timeline.cached_primitive_for(id, 0).is_some(),
+        "the render-path primitive cache must resolve the extension actor"
+    );
+    let _ = timeline.evaluate(0.0, crate::timeline::SceneDimensions::default());
+}

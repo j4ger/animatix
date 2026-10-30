@@ -138,6 +138,19 @@ pub fn write_property_fields(
         _ => {}, // Fall through to tier 2
     }
 
+    // A max-width write changes the wrap layout of already-compiled static
+    // text. Drop the build-time glyph caches so `evaluate_text_paths` compiles
+    // against the new wrap width instead of replaying the old static paths.
+    // Animated text (no `static_paths`) keeps its keyframed path track.
+    if field == ActorField::TextMaxWidth
+        && let Some(text) = fields.text.as_deref_mut()
+        && text.static_paths.is_some()
+    {
+        text.static_paths = None;
+        text.hardware_layout = None;
+        text.text_paths = None;
+    }
+
     // ── Tier 2: Uniform dispatch via TrackFieldMut ──
     use crate::timeline::dispatch::TrackFieldMut;
     let pv_default = ActorField::default_value(field);

@@ -637,10 +637,12 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
         state: &mut DeclarationPropertyState,
     ) {
+        let actor_type = self.world.actor_type(track_id).to_string();
         for prop in props {
-            if let Some(schema) = crate::timeline::property_registry::lookup_property(&prop.name)
-                && matches!(
-                    schema.field,
+            if let Some(schema) = crate::timeline::property_registry::lookup_property(&prop.name) {
+                let field = schema.field_for_actor(caps, &actor_type);
+                if !matches!(
+                    field,
                     crate::timeline::ActorField::Tagged(_)
                         | crate::timeline::ActorField::Blend
                         | crate::timeline::ActorField::FillGradient
@@ -661,9 +663,11 @@ impl Timeline {
                         | crate::timeline::ActorField::LineFrom
                         | crate::timeline::ActorField::LineTo
                         | crate::timeline::ActorField::TextContent
-                )
-            {
-                if schema.field == crate::timeline::ActorField::CalloutTarget {
+                        | crate::timeline::ActorField::TextMaxWidth
+                ) {
+                    continue;
+                }
+                if field == crate::timeline::ActorField::CalloutTarget {
                     let target_str = crate::timeline::lookup::parse_actor_ref_literal(&prop.value)
                         .or_else(|| match crate::timeline::evaluate_expr(&prop.value, eval_env) {
                             Ok(Value::Str(s)) => Some(s),
@@ -672,7 +676,7 @@ impl Timeline {
                     if let Some(target) = target_str {
                         self.world.write_property_field(
                             track_id,
-                            schema.field,
+                            field,
                             crate::timeline::property_engine::PropertyValue::String(target),
                             t_start_ms,
                             t_end_ms,
@@ -683,8 +687,8 @@ impl Timeline {
                     continue;
                 }
                 if primitive.connector
-                    && (schema.field == crate::timeline::ActorField::LineFrom
-                        || schema.field == crate::timeline::ActorField::LineTo)
+                    && (field == crate::timeline::ActorField::LineFrom
+                        || field == crate::timeline::ActorField::LineTo)
                 {
                     continue;
                 }
@@ -705,15 +709,15 @@ impl Timeline {
                     &prop_subject,
                 ) {
                     if let crate::timeline::property_engine::PropertyValue::Vec2(v) = &pv {
-                        if schema.field == crate::timeline::ActorField::LineFrom {
+                        if field == crate::timeline::ActorField::LineFrom {
                             state.line_from = *v;
-                        } else if schema.field == crate::timeline::ActorField::LineTo {
+                        } else if field == crate::timeline::ActorField::LineTo {
                             state.line_to = *v;
                         }
                     }
                     self.world.write_property_field(
                         track_id,
-                        schema.field,
+                        field,
                         pv,
                         t_start_ms,
                         t_end_ms,

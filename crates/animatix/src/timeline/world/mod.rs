@@ -232,6 +232,16 @@ impl World {
             .unwrap_or(crate::timeline::behavior::BehaviorId::UNKNOWN)
     }
 
+    /// Assign the resolved behavior id for an entity.
+    ///
+    /// Identity initialization only knows the static built-in table; build
+    /// paths that resolved an extension `BehaviorDef` from the timeline's
+    /// registry call this afterwards so the `BehaviorId` component matches it.
+    pub fn set_behavior(&mut self, id: EntityId, behavior: crate::timeline::behavior::BehaviorId) {
+        self.ensure_len();
+        *self.behavior.get_mut(id) = behavior;
+    }
+
     /// Borrow an entity's coordinate frame, when it is a plot host.
     #[inline(always)]
     pub fn coordinate_frame(&self, id: EntityId) -> Option<&CoordinateFrameComponent> {

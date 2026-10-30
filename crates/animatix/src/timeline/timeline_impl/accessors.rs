@@ -73,6 +73,25 @@ impl Timeline {
         std::sync::Arc::clone(&self.primitive_registry)
     }
 
+    /// Register every extension primitive from [`Self::primitive_registry`]
+    /// into the behavior table.
+    ///
+    /// Built-ins already own ids `0..BUILT_INS.len()` in
+    /// [`crate::timeline::behavior::BehaviorRegistry::new`]; extensions append
+    /// after them. Registration is idempotent by type name, so calling this
+    /// again (or seeding a registry that already contains the primitive) keeps
+    /// the existing id instead of duplicating the definition.
+    pub(crate) fn sync_extension_behaviors(&mut self) {
+        let entries: Vec<_> = self.primitive_registry.extension_entries().collect();
+        if entries.is_empty() {
+            return;
+        }
+        let behaviors = std::sync::Arc::make_mut(&mut self.behavior_registry);
+        for (primitive, info) in entries {
+            behaviors.register_extension(primitive, info);
+        }
+    }
+
     /// External property descriptors installed on this build.
     pub fn extension_property_specs(&self) -> Vec<crate::extension_context::ExtensionPropertySpec> {
         self.extensions
