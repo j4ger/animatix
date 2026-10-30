@@ -7,7 +7,7 @@ use crate::TextPath;
 #[cfg(feature = "rich-text")]
 use crate::paint_to_rgba;
 #[cfg(feature = "rich-text")]
-use kurbo::{Affine, Shape};
+use kurbo::Affine;
 #[cfg(feature = "rich-text")]
 use typst::layout::{Frame, FrameItem, Transform};
 
@@ -101,15 +101,6 @@ pub fn extract_glyphs_with_metrics(frame: &Frame) -> CompiledText {
     let mut glyphs = Vec::new();
     walk_frame_for_glyphs(frame, Transform::identity(), &mut glyphs);
 
-    // Compute bounding box BEFORE centering
-    let mut min_y = f64::INFINITY;
-    let mut max_y = f64::NEG_INFINITY;
-    for glyph in &glyphs {
-        let bounds = glyph.path.bounding_box();
-        min_y = min_y.min(bounds.y0);
-        max_y = max_y.max(bounds.y1);
-    }
-
     let baseline_offset = center_text_paths(&mut glyphs);
 
     let (ascent, descent) = extract_frame_metrics(frame);
@@ -155,10 +146,10 @@ pub fn extract_glyphs_grouped(frame: &Frame) -> (Vec<TextPath>, Vec<std::ops::Ra
                     ranges.push(start..end);
                 }
             },
-            FrameItem::Text(_) => {
+            FrameItem::Text(text) => {
                 // Top-level text not wrapped in a group — collect into an implicit group
                 let start = all_glyphs.len();
-                walk_frame_for_glyphs_text_item(item, transform, &mut all_glyphs, &mut state);
+                emit_text_item(text, transform, &mut all_glyphs, &mut state);
                 let end = all_glyphs.len();
                 if end > start {
                     ranges.push(start..end);
@@ -174,86 +165,84 @@ pub fn extract_glyphs_grouped(frame: &Frame) -> (Vec<TextPath>, Vec<std::ops::Ra
 }
 
 #[cfg(feature = "rich-text")]
-/// Helper: extract glyphs from a single `FrameItem::Text` (not recursing into groups).
-fn walk_frame_for_glyphs_text_item(
-    item: &FrameItem,
+/// Emit one Typst text run's glyphs, updating the shared line/word indices.
+///
+/// Shared by the recursive frame walk and the grouped extractor's top-level
+/// text handling so their index and paint conventions cannot drift.
+fn emit_text_item(
+    text: &typst::text::TextItem,
     transform: Transform,
     glyphs: &mut Vec<TextPath>,
     state: &mut GlyphLayoutState,
 ) {
-    if let FrameItem::Text(text) = item {
-        let current_y = transform.ty.to_pt();
-        if let Some(last_y) = state.last_y {
-            if (current_y - last_y).abs() > 2.0 {
-                state.line_idx += 1;
-                state.last_y = Some(current_y);
-                state.last_end = 0;
-            }
-        } else {
+    let current_y = transform.ty.to_pt();
+    if let Some(last_y) = state.last_y {
+        if (current_y - last_y).abs() > 2.0 {
+            state.line_idx += 1;
             state.last_y = Some(current_y);
+            state.last_end = 0;
         }
+    } else {
+        state.last_y = Some(current_y);
+    }
 
-        let text_str = text.text.as_str();
-        let size = text.size.to_pt() as f32;
-        let units_per_em = text.font.units_per_em() as f32;
-        let font_scale = size / units_per_em;
-        let face = text.font.ttf();
+    let text_str = text.text.as_str();
+    let size = text.size.to_pt() as f32;
+    let units_per_em = text.font.units_per_em() as f32;
+    let font_scale = size / units_per_em;
+    let face = text.font.ttf();
 
-        let mut item_last_end = 0usize;
-        let mut x_curr = 0.0;
-        for glyph in &text.glyphs {
-            let start = glyph.range.start as usize;
-            let end = glyph.range.end as usize;
-            let is_space = text_str
-                .get(start..end)
-                .map(|s| s.chars().all(|c| c.is_whitespace()))
-                .unwrap_or(false);
-            let is_cjk =
-                text_str.get(start..end).map(|s| s.chars().any(is_cjk_char)).unwrap_or(false);
-            if is_space
-                || is_cjk
-                || (start > item_last_end
-                    && text_str
-                        .get(item_last_end..start)
-                        .map(|s| s.chars().any(|c| c.is_whitespace() || is_cjk_char(c)))
-                        .unwrap_or(false))
-            {
-                state.word_idx += 1;
-            }
-            item_last_end = end;
-
-            let offset_x = glyph.x_offset.at(text.size).to_pt() as f32;
-            let offset_y = glyph.y_offset.at(text.size).to_pt() as f32;
-            let advance = glyph.x_advance.at(text.size).to_pt() as f32;
-
-            let mut builder = PathBuilder(BezPath::new());
-            if let Some(_bounds) = face.outline_glyph(ttf_parser::GlyphId(glyph.id), &mut builder) {
-                let path = builder.0;
-                let scale_affine = Affine::scale_non_uniform(font_scale as f64, -font_scale as f64);
-                let glyph_translate = Affine::translate(kurbo::Vec2::new(
-                    (x_curr + offset_x) as f64,
-                    offset_y as f64,
-                ));
-                let item_transform = Affine::new([
-                    transform.sx.get(),
-                    transform.ky.get(),
-                    transform.kx.get(),
-                    transform.sy.get(),
-                    transform.tx.to_pt(),
-                    transform.ty.to_pt(),
-                ]);
-                let final_affine = item_transform * glyph_translate * scale_affine;
-                let mut final_path = path;
-                final_path.apply_affine(final_affine);
-                let char_idx = glyphs.len() as u16;
-                let mut tp = TextPath::new(final_path, paint_to_rgba(&text.fill), 1.0);
-                tp.line_idx = state.line_idx;
-                tp.word_idx = state.word_idx;
-                tp.char_idx = char_idx;
-                glyphs.push(tp);
-            }
-            x_curr += advance;
+    let mut item_last_end = 0usize;
+    let mut x_curr = 0.0;
+    for glyph in &text.glyphs {
+        let start = glyph.range.start as usize;
+        let end = glyph.range.end as usize;
+        let is_space = text_str
+            .get(start..end)
+            .map(|s| s.chars().all(|c| c.is_whitespace()))
+            .unwrap_or(false);
+        let is_cjk = text_str.get(start..end).map(|s| s.chars().any(is_cjk_char)).unwrap_or(false);
+        if is_space
+            || is_cjk
+            || (start > item_last_end
+                && text_str
+                    .get(item_last_end..start)
+                    .map(|s| s.chars().any(|c| c.is_whitespace() || is_cjk_char(c)))
+                    .unwrap_or(false))
+        {
+            state.word_idx += 1;
         }
+        item_last_end = end;
+
+        let offset_x = glyph.x_offset.at(text.size).to_pt() as f32;
+        let offset_y = glyph.y_offset.at(text.size).to_pt() as f32;
+        let advance = glyph.x_advance.at(text.size).to_pt() as f32;
+
+        let mut builder = PathBuilder(BezPath::new());
+        if let Some(_bounds) = face.outline_glyph(ttf_parser::GlyphId(glyph.id), &mut builder) {
+            let path = builder.0;
+            let scale_affine = Affine::scale_non_uniform(font_scale as f64, -font_scale as f64);
+            let glyph_translate =
+                Affine::translate(kurbo::Vec2::new((x_curr + offset_x) as f64, offset_y as f64));
+            let item_transform = Affine::new([
+                transform.sx.get(),
+                transform.ky.get(),
+                transform.kx.get(),
+                transform.sy.get(),
+                transform.tx.to_pt(),
+                transform.ty.to_pt(),
+            ]);
+            let final_affine = item_transform * glyph_translate * scale_affine;
+            let mut final_path = path;
+            final_path.apply_affine(final_affine);
+            let char_idx = glyphs.len() as u16;
+            let mut tp = TextPath::new(final_path, paint_to_rgba(&text.fill), 1.0);
+            tp.line_idx = state.line_idx;
+            tp.word_idx = state.word_idx;
+            tp.char_idx = char_idx;
+            glyphs.push(tp);
+        }
+        x_curr += advance;
     }
 }
 
@@ -280,91 +269,7 @@ fn walk_frame_for_glyphs_with_state(
                 let group_transform = transform.pre_concat(group.transform);
                 walk_frame_for_glyphs_with_state(&group.frame, group_transform, glyphs, state);
             },
-            FrameItem::Text(text) => {
-                let current_y = transform.ty.to_pt();
-                if let Some(last_y) = state.last_y {
-                    if (current_y - last_y).abs() > 2.0 {
-                        state.line_idx += 1;
-                        state.last_y = Some(current_y);
-                        state.last_end = 0;
-                    }
-                } else {
-                    state.last_y = Some(current_y);
-                }
-
-                let text_str = text.text.as_str();
-                let size = text.size.to_pt() as f32;
-                let units_per_em = text.font.units_per_em() as f32;
-                let font_scale = size / units_per_em;
-                let face = text.font.ttf();
-
-                let mut item_last_end = 0usize;
-                let mut x_curr = 0.0;
-                for glyph in &text.glyphs {
-                    let start = glyph.range.start as usize;
-                    let end = glyph.range.end as usize;
-                    let is_space = text_str
-                        .get(start..end)
-                        .map(|s| s.chars().all(|c| c.is_whitespace()))
-                        .unwrap_or(false);
-                    let is_cjk = text_str
-                        .get(start..end)
-                        .map(|s| s.chars().any(is_cjk_char))
-                        .unwrap_or(false);
-                    if is_space
-                        || is_cjk
-                        || (start > item_last_end
-                            && text_str
-                                .get(item_last_end..start)
-                                .map(|s| s.chars().any(|c| c.is_whitespace() || is_cjk_char(c)))
-                                .unwrap_or(false))
-                    {
-                        state.word_idx += 1;
-                    }
-                    item_last_end = end;
-
-                    let offset_x = glyph.x_offset.at(text.size).to_pt() as f32;
-                    let offset_y = glyph.y_offset.at(text.size).to_pt() as f32;
-                    let advance = glyph.x_advance.at(text.size).to_pt() as f32;
-
-                    let mut builder = PathBuilder(BezPath::new());
-                    if let Some(_bounds) =
-                        face.outline_glyph(ttf_parser::GlyphId(glyph.id), &mut builder)
-                    {
-                        let path = builder.0;
-
-                        let scale_affine =
-                            Affine::scale_non_uniform(font_scale as f64, -font_scale as f64);
-
-                        let glyph_translate = Affine::translate(kurbo::Vec2::new(
-                            (x_curr + offset_x) as f64,
-                            offset_y as f64,
-                        ));
-
-                        let item_transform = Affine::new([
-                            transform.sx.get(),
-                            transform.ky.get(),
-                            transform.kx.get(),
-                            transform.sy.get(),
-                            transform.tx.to_pt(),
-                            transform.ty.to_pt(),
-                        ]);
-
-                        let final_affine = item_transform * glyph_translate * scale_affine;
-                        let mut final_path = path;
-                        final_path.apply_affine(final_affine);
-
-                        let char_idx = glyphs.len() as u16;
-                        let mut tp = TextPath::new(final_path, paint_to_rgba(&text.fill), 1.0);
-                        tp.line_idx = state.line_idx;
-                        tp.word_idx = state.word_idx;
-                        tp.char_idx = char_idx;
-                        glyphs.push(tp);
-                    }
-
-                    x_curr += advance;
-                }
-            },
+            FrameItem::Text(text) => emit_text_item(text, transform, glyphs, state),
             _ => {},
         }
     }

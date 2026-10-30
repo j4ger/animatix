@@ -355,6 +355,24 @@ pub fn compile_text_cached(
     Ok(entry)
 }
 
+/// Resolve the slim grouped path's typography. Only valid CSS font-style names
+/// and positive finite line-height multipliers pass through; every other value
+/// falls back to the plain-text defaults. Without this the slim profile
+/// silently replaced the caller's style with `"normal"` and `1.2`.
+#[cfg(not(feature = "rich-text"))]
+pub(crate) fn slim_grouped_typography(font_style: &str, line_height: f32) -> (&str, f32) {
+    let font_style = match font_style {
+        "normal" | "italic" | "oblique" => font_style,
+        _ => "normal",
+    };
+    let line_height = if line_height.is_finite() && line_height > 0.0 {
+        line_height
+    } else {
+        1.2
+    };
+    (font_style, line_height)
+}
+
 /// Compile Typst markup into per-`#box()` glyph groups, memoized process-wide.
 /// The Equation path recompiles per frame (~2.5ms each without this memo;
 /// `benches/equation_frame.rs`), keyed like [`compile_text_cached`].
@@ -436,13 +454,16 @@ pub fn compile_typst_grouped_cached(
     #[cfg(not(feature = "rich-text"))]
     {
         // Slim profile: render the markup source as plain text in one group.
+        // The caller's requested style and line height are meaningful here;
+        // only invalid values fall back to the plain-text defaults.
+        let (font_style, line_height) = slim_grouped_typography(font_style, line_height);
         let compiled = compile_text_fast_wrapped(
             typst_markup,
             font_family,
             font_weight,
-            "normal",
+            font_style,
             font_size,
-            1.2,
+            line_height,
             color,
             letter_spacing,
             word_spacing,

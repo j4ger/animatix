@@ -98,23 +98,6 @@ pub fn paint_to_rgba(paint: &typst::visualize::Paint) -> [u8; 4] {
     }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Text metrics for the plain-text fast path
-// ─────────────────────────────────────────────────────────────
-
-/// Font metrics extracted from `ttf_parser::Face`.
-/// Used by the plain-text fast path to compute line layout.
-pub struct TextMetrics {
-    /// Ascent in font units (positive).
-    pub ascent: f32,
-    /// Descent in font units (negative).
-    pub descent: f32,
-    /// Line gap in font units.
-    pub line_gap: f32,
-    /// Units per em from the font face.
-    pub units_per_em: f32,
-}
-
 /// Compiled text output containing glyph paths and font metrics.
 ///
 /// The glyph paths are centered around (0, 0) for layout positioning.

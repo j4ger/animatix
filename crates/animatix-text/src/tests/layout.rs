@@ -351,3 +351,118 @@ fn test_fast_path_ligatures_shaping() {
         "OpenType ligatures should combine glyphs on fast path"
     );
 }
+
+/// `max_width <= 0` has no container to align against. The wrapped path used
+/// to feed its wrapping sentinel (`f64::INFINITY`) into the center/right
+/// offset and the justify gap, producing infinite glyph positions on
+/// multi-line text. The chosen semantics are zero alignment offset for every
+/// alignment: the block is centered by `finalize_layout` and all glyphs stay
+/// finite.
+#[test]
+fn wrapped_zero_max_width_keeps_alignment_offsets_finite() {
+    let font_ctx = test_font_ctx();
+    let text = "first line is wider\nsecond\nthird line is widest of all";
+
+    let compile = |text_align: &str| {
+        compile_text_fast_wrapped(
+            text,
+            "Open Sans",
+            400.0,
+            "normal",
+            24.0,
+            1.2,
+            [1.0; 4],
+            0.0,
+            0.0,
+            &font_ctx,
+            0.0,
+            None,
+            text_align,
+            "visible",
+        )
+        .unwrap()
+    };
+
+    let left = compile("left");
+    assert!(!left.glyphs.is_empty(), "fixture must produce glyphs");
+
+    let mut all_aligned = Vec::new();
+    for text_align in ["center", "right", "justify"] {
+        let compiled = compile(text_align);
+        assert_eq!(
+            compiled.glyphs.len(),
+            left.glyphs.len(),
+            "{text_align}: alignment must not change the shaped glyphs"
+        );
+        for (aligned, baseline) in compiled.glyphs.iter().zip(&left.glyphs) {
+            assert!(
+                aligned.bounds.x0.is_finite()
+                    && aligned.bounds.x1.is_finite()
+                    && aligned.glyph_center[0].is_finite(),
+                "{text_align}: non-finite glyph position at x=({}, {})",
+                aligned.bounds.x0,
+                aligned.bounds.x1
+            );
+            // No container width means no alignment offset: center/right/
+            // justify must produce the same line layout as left.
+            assert!(
+                (aligned.bounds.x0 - baseline.bounds.x0).abs() < 1e-5
+                    && (aligned.bounds.x1 - baseline.bounds.x1).abs() < 1e-5,
+                "{text_align}: expected zero alignment offset, got {}..{} vs {}..{}",
+                aligned.bounds.x0,
+                aligned.bounds.x1,
+                baseline.bounds.x0,
+                baseline.bounds.x1
+            );
+        }
+
+        let min_x = compiled.glyphs.iter().map(|g| g.bounds.x0).fold(f64::INFINITY, f64::min);
+        let max_x = compiled.glyphs.iter().map(|g| g.bounds.x1).fold(f64::NEG_INFINITY, f64::max);
+        assert!(
+            min_x.is_finite() && max_x.is_finite(),
+            "{text_align}: block bounds must be finite"
+        );
+        assert!(
+            ((min_x + max_x) / 2.0).abs() < 1e-5,
+            "{text_align}: finalize_layout must center the block, got {min_x}..{max_x}"
+        );
+        all_aligned.push(compiled);
+    }
+
+    // Justify must not stretch inter-word gaps without a target width.
+    let justified = &all_aligned[2];
+    let max_line = justified.glyphs.iter().map(|g| g.line_idx).max().unwrap_or(0);
+    assert!(max_line >= 2, "fixture must span multiple lines, got max_line={max_line}");
+}
+
+/// The compiler routes newline-containing plain text through the wrapped fast
+/// path in the slim profile. The user-visible result must be finite for every
+/// alignment with no width. (Rich-text sends newlines through Typst, so this
+/// regression test is slim-only.)
+#[cfg(not(feature = "rich-text"))]
+#[test]
+fn cached_multiline_text_with_zero_width_has_finite_positions() {
+    let font_ctx = test_font_ctx();
+    let text = "centered first line\nright second line\njustify this line too";
+
+    for text_align in ["center", "right", "justify"] {
+        let request = TextCompileRequest {
+            max_width: 0.0,
+            text_align,
+            allow_fast_path: true,
+            ..TextCompileRequest::new(TextKind::Text, text, TextStyle::new("Open Sans", 24.0))
+        };
+        let compiled = compile_text_cached(&request, &font_ctx).expect("text compiles");
+        assert!(!compiled.paths.is_empty(), "{text_align}: no glyphs");
+        for path in compiled.paths.iter() {
+            assert!(
+                path.bounds.x0.is_finite()
+                    && path.bounds.x1.is_finite()
+                    && path.glyph_center[0].is_finite(),
+                "{text_align}: non-finite glyph position at x=({}, {})",
+                path.bounds.x0,
+                path.bounds.x1
+            );
+        }
+    }
+}

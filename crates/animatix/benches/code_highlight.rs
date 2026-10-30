@@ -50,7 +50,7 @@ fn compile_once(compiler: &mut TextCompiler, font_ctx: &FontContext, language: &
 }
 
 pub(crate) fn bench_code_compile(c: &mut Criterion) {
-    let font_ctx = FontContext::with_fast_path(true);
+    let font_ctx = FontContext::new();
     let mut group = c.benchmark_group("code_compile");
     group.throughput(Throughput::Bytes(CODE.len() as u64));
 

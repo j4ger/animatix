@@ -15,8 +15,6 @@ use typst::text::Font;
 pub struct FontContext {
     /// The underlying font database, shared process-wide (only read after load).
     pub(crate) db: std::sync::Arc<fontdb::Database>,
-    /// Whether the plain-text fast path (bypassing Typst) is enabled (default true).
-    pub text_fast_path: bool,
     /// Font-environment generation: memo keys include this value, so contexts
     /// created after [`advance_font_env_epoch`] miss the stale-font cache.
     pub(crate) epoch: u64,
@@ -62,16 +60,6 @@ impl FontContext {
     pub fn new() -> Self {
         Self {
             db: std::sync::Arc::clone(system_fonts_db()),
-            text_fast_path: true,
-            epoch: font_env_epoch(),
-        }
-    }
-
-    /// Create a new font context with fast path explicitly enabled/disabled.
-    pub fn with_fast_path(text_fast_path: bool) -> Self {
-        Self {
-            db: std::sync::Arc::clone(system_fonts_db()),
-            text_fast_path,
             epoch: font_env_epoch(),
         }
     }

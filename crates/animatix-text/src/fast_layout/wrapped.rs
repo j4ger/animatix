@@ -32,7 +32,11 @@ pub fn compile_text_fast_wrapped(
     let resolved = resolve_faces(family, weight, style, size, font_ctx, "fast path wrapped")?;
 
     // Line height in absolute points
-    let lh_mult = if line_height > 0.0 { line_height } else { 1.2 };
+    let lh_mult = if line_height.is_finite() && line_height > 0.0 {
+        line_height
+    } else {
+        1.2
+    };
     let line_height_pts =
         (resolved.ascent - resolved.descent + resolved.line_gap) * resolved.font_scale * lh_mult;
 
@@ -170,10 +174,21 @@ pub fn compile_text_fast_wrapped(
         // Compute line width from word widths
         let line_width = line.total_width;
 
+        // Alignment needs a container width. With no wrap width there is no
+        // container: using the wrap threshold (infinity) here produced
+        // infinite offsets for center/right and infinite justify gaps. Align
+        // against the line itself instead, which makes every offset zero and
+        // leaves the block centered by `finalize_layout`.
+        let alignment_width = if max_width.is_finite() && max_width > 0.0 {
+            max_width as f64
+        } else {
+            line_width
+        };
+
         // Compute x offset based on text_align
         let x_offset = match text_align {
-            "center" => (wrap_threshold - line_width) / 2.0,
-            "right" => wrap_threshold - line_width,
+            "center" => (alignment_width - line_width) / 2.0,
+            "right" => alignment_width - line_width,
             "justify" => 0.0, // handled per-word below
             _ => 0.0,         // left
         };
@@ -181,7 +196,7 @@ pub fn compile_text_fast_wrapped(
         let is_last_line = line_idx == truncated_lines.len() - 1;
         let is_justify = text_align == "justify" && !is_last_line && line.words.len() > 1;
         let extra_space_per_gap = if is_justify {
-            (wrap_threshold - line_width) / (line.words.len() - 1) as f64
+            (alignment_width - line_width) / (line.words.len() - 1) as f64
         } else {
             0.0
         };

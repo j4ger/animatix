@@ -212,7 +212,6 @@ fn test_font_db() -> &'static std::sync::Arc<fontdb::Database> {
 fn test_font_ctx() -> FontContext {
     FontContext {
         db: std::sync::Arc::clone(test_font_db()),
-        text_fast_path: true,
         epoch: font_env_epoch(),
     }
 }
@@ -725,4 +724,5 @@ fn non_plain_text_routes_to_typst() {
 }
 
 mod caching;
+mod extract;
 mod layout;

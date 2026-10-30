@@ -182,6 +182,7 @@ fn request_and_compiler_share_the_cache_entry() {
     clear_text_compile_cache();
 }
 
+#[cfg(feature = "rich-text")]
 #[test]
 fn typst_wrapping_supports_overflow_modes() {
     let _cache = cache_test_guard();
@@ -272,6 +273,60 @@ fn grouped_typst_compile_is_memoized() {
 
     clear_text_compile_cache();
     assert_eq!(grouped_text_compile_cache_len(), 0, "clear must empty the grouped cache");
+}
+
+/// The slim grouped path used to hardcode `"normal"` / `1.2`, silently
+/// dropping the style and line height the caller requested. Only invalid
+/// values may fall back.
+#[cfg(not(feature = "rich-text"))]
+#[test]
+fn slim_grouped_typography_passes_valid_values_and_falls_back() {
+    use crate::compiler::slim_grouped_typography;
+
+    assert_eq!(slim_grouped_typography("normal", 1.2), ("normal", 1.2));
+    assert_eq!(slim_grouped_typography("italic", 2.0), ("italic", 2.0));
+    assert_eq!(slim_grouped_typography("oblique", 0.8), ("oblique", 0.8));
+
+    assert_eq!(slim_grouped_typography("bogus", 2.0), ("normal", 2.0));
+    assert_eq!(slim_grouped_typography("", 2.0), ("normal", 2.0));
+    assert_eq!(slim_grouped_typography("italic", 0.0), ("italic", 1.2));
+    assert_eq!(slim_grouped_typography("italic", -1.0), ("italic", 1.2));
+    assert_eq!(slim_grouped_typography("italic", f32::NAN), ("italic", 1.2));
+    assert_eq!(slim_grouped_typography("italic", f32::INFINITY), ("italic", 1.2));
+}
+
+/// End-to-end slim check that the requested line height reaches the fast
+/// layout: two lines at 2.5 spacing must be visibly taller than at 1.0.
+#[cfg(not(feature = "rich-text"))]
+#[test]
+fn slim_grouped_text_uses_requested_line_height() {
+    let _cache = cache_test_guard();
+    let font_ctx = test_font_ctx();
+
+    let ink_height = |line_height: f32| {
+        let grouped = compile_typst_grouped_cached(
+            "one\ntwo",
+            24.0,
+            [1.0, 1.0, 1.0, 1.0],
+            "Open Sans",
+            &font_ctx,
+            400.0,
+            "normal",
+            line_height,
+            0.0,
+            0.0,
+        )
+        .expect("slim grouped compile should succeed");
+        assert!(!grouped.glyphs.is_empty(), "grouped compile should emit glyphs");
+        measure_text_paths(&grouped.glyphs)[1] * 2.0
+    };
+
+    let tight = ink_height(1.0);
+    let loose = ink_height(2.5);
+    assert!(
+        loose > tight + 10.0,
+        "requested line height must reach the fast path: tight={tight:.1}, loose={loose:.1}"
+    );
 }
 
 #[test]
@@ -495,7 +550,6 @@ fn missing_glyph_probe_reports_uncovered_chars() {
     bare_db.load_font_data(BUNDLED_FONTS[0].data.to_vec());
     let bare_ctx = FontContext {
         db: std::sync::Arc::new(bare_db),
-        text_fast_path: true,
         epoch: font_env_epoch(),
     };
     let missing = missing_text_glyphs(
