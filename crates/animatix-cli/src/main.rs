@@ -369,9 +369,9 @@ fn main() {
         Commands::Ast {
             input,
             compact,
-            force: _,
+            force,
         } => {
-            commands::ast::run(&input, compact);
+            commands::ast::run(&input, compact, force);
         },
 
         Commands::Plugin { command } => match command {

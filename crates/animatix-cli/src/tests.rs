@@ -255,3 +255,34 @@ fn set_overrides_evaluate_against_the_extension_context() {
         report.diagnostics
     );
 }
+
+#[test]
+fn ast_force_prints_partial_ast_when_parse_errors_occur() {
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let dir = std::env::temp_dir().join(format!(
+        "animatix-cli-ast-force-{}-{}",
+        std::process::id(),
+        unique
+    ));
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    let path = dir.join("broken.amx");
+    std::fs::write(&path, "#0s\nbox: Rect\n#1s\nbox.color = \n#2s\ncircle: Ellipse\n")
+        .expect("write malformed source");
+
+    assert!(
+        crate::commands::ast::load_ast(&path, false).is_err(),
+        "without --force a parse failure must stay an error"
+    );
+    let ast =
+        crate::commands::ast::load_ast(&path, true).expect("--force must recover a partial AST");
+    let rendered = crate::commands::ast::format_ast(&ast, false);
+    assert!(
+        rendered.contains("box") && rendered.contains("Ellipse"),
+        "partial AST should retain statements on both sides of the error: {rendered}"
+    );
+
+    std::fs::remove_dir_all(dir).ok();
+}
