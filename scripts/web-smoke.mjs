@@ -290,6 +290,10 @@ async function main() {
         returnByValue: true,
       });
       const outcome = result.value || {};
+      const shaderFailure = chromeLog.match(/Error while parsing WGSL:[\s\S]{0,600}/);
+      if (shaderFailure) {
+        throw new Error(`${path}: GPU shader validation failed: ${shaderFailure[0]}`);
+      }
       if (outcome.error) {
         throw new Error(`${path}: ${outcome.error}${outcome.states ? ` (states: ${outcome.states.join(",")})` : ""}${outcome.info ? `\n${JSON.stringify(outcome.info, null, 2)}` : ""}`);
       }
