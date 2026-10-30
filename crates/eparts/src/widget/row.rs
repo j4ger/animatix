@@ -36,7 +36,7 @@ pub struct Row<'a> {
     /// Zebra parity for the base row fill: `Some(true)` paints
     /// `theme.components.list.even`, `Some(false)` paints `theme.components.list.odd`, and `None`
     /// (default) leaves the background transparent. Containers that own row
-    /// parity (e.g. `List`, `Tree`) set this.
+    /// parity (e.g. `List`) set this.
     pub zebra: Option<bool>,
 }
 
@@ -134,10 +134,10 @@ impl<'a> Row<'a> {
         self.show_in_rect(ui, row_rect, row_response, row_id, &painter)
     }
 
-    // ── Rect-mode entry point (for Tree / List) ─────────────────────
+    // ── Rect-mode entry point (for List) ───────────────────────────
 
     /// Rect-mode entry point for container widgets that pre-allocate layout
-    /// (e.g. `Tree`, `List`).
+    /// (e.g. `List`).
     ///
     /// `show()` allocates the full-width rect and delegates here. Call this
     /// directly when the container already owns the row rect.

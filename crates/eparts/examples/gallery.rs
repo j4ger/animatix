@@ -6,13 +6,12 @@
 //! Use the theme switcher at the top to toggle between Light, Dark, and Auto,
 //! and verify that all widgets render correctly in both themes.
 
-use std::collections::HashSet;
-
 use eframe::CreationContext;
 use eframe::egui::{self, Color32};
 #[cfg(feature = "theme-json")]
 use eparts::ThemeFile;
 use eparts::tokens::typography::TextRole;
+use eparts::widget;
 use eparts::widget::button::Button;
 use eparts::widget::feedback::{Alert, AlertLevel, Badge, ProgressBar, Tag};
 use eparts::widget::form::{Field, Form};
@@ -27,8 +26,6 @@ use eparts::widget::spinner::Spinner;
 use eparts::widget::tabs::TabBar;
 use eparts::widget::toggle::{Checkbox, Side, Switch};
 use eparts::widget::tooltip::text_tooltip;
-use eparts::widget::tree::{Tree, TreeAction, TreeItem};
-use eparts::widget::{self, UiExt};
 use eparts::{AppThemeChoice, Theme, set_theme};
 
 // ── Application state ──────────────────────────────────────────────
@@ -69,10 +66,6 @@ struct GalleryApp {
 
     // Color
     color: Color32,
-
-    // Tree
-    expanded: HashSet<String>,
-    tree_selected: Option<String>,
 }
 
 impl Default for GalleryApp {
@@ -97,8 +90,6 @@ impl Default for GalleryApp {
             progress: 0.42,
             tab_selected: 0,
             color: Color32::from_rgb(100, 150, 200),
-            expanded: HashSet::new(),
-            tree_selected: None,
         }
     }
 }
@@ -141,7 +132,7 @@ impl eframe::App for GalleryApp {
 
         // Theme switcher bar
         egui::TopBottomPanel::top("theme_bar").show(ctx, |ui| {
-            ui.h_flex(|ui| {
+            ui.horizontal(|ui| {
                 ui.label("Theme:");
                 if ui
                     .selectable_value(&mut self.theme_choice, AppThemeChoice::Light, "Light")
@@ -205,8 +196,8 @@ impl eframe::App for GalleryApp {
 
 impl GalleryApp {
     fn gallery_body(&mut self, ui: &mut egui::Ui) {
-        ui.with_padding(egui::Margin::same(8), |ui| {
-            ui.v_flex(|ui| {
+        egui::Frame::new().inner_margin(egui::Margin::same(8)).show(ui, |ui| {
+            ui.vertical(|ui| {
                 // ── Buttons ──────────────────────────────────────────────
                 section_header(ui, "🔘", "Buttons", None);
                 ui.horizontal(|ui| {
@@ -371,87 +362,8 @@ impl GalleryApp {
                     // color updated
                 }
                 ui.add_space(8.0);
-
-                // ── Tree ──────────────────────────────────────────────────
-                section_header(ui, "🌳", "Tree", None);
-                let flat_items = self.build_tree_items();
-                let tree_resp = Tree::new(&flat_items).show(ui, "gallery_tree");
-                if let Some(action) = tree_resp.action {
-                    match action {
-                        TreeAction::Toggled(id) => {
-                            if self.expanded.contains(&id) {
-                                self.expanded.remove(&id);
-                            } else {
-                                self.expanded.insert(id);
-                            }
-                        },
-                        TreeAction::Selected(id) => {
-                            self.tree_selected = Some(id);
-                        },
-                    }
-                }
-                if let Some(ref sel) = self.tree_selected {
-                    ui.small(format!("Selected: {sel}"));
-                }
             });
         });
-    }
-
-    fn build_tree_items(&self) -> Vec<TreeItem> {
-        let mut items = Vec::new();
-        // Root: src
-        let src_expanded = self.expanded.contains("src");
-        items.push(TreeItem {
-            id: "src".into(),
-            label: "src".into(),
-            depth: 0,
-            has_children: true,
-            expanded: src_expanded,
-        });
-        if src_expanded {
-            items.push(TreeItem {
-                id: "src/lib".into(),
-                label: "lib.rs".into(),
-                depth: 1,
-                has_children: false,
-                expanded: false,
-            });
-            items.push(TreeItem {
-                id: "src/main".into(),
-                label: "main.rs".into(),
-                depth: 1,
-                has_children: false,
-                expanded: false,
-            });
-            let widgets_expanded = self.expanded.contains("src/widgets");
-            items.push(TreeItem {
-                id: "src/widgets".into(),
-                label: "widgets".into(),
-                depth: 1,
-                has_children: true,
-                expanded: widgets_expanded,
-            });
-            if widgets_expanded {
-                for name in ["button", "label", "slider", "tree"] {
-                    items.push(TreeItem {
-                        id: format!("src/widgets/{name}"),
-                        label: format!("{name}.rs"),
-                        depth: 2,
-                        has_children: false,
-                        expanded: false,
-                    });
-                }
-            }
-        }
-        // Root: Cargo.toml
-        items.push(TreeItem {
-            id: "cargo".into(),
-            label: "Cargo.toml".into(),
-            depth: 0,
-            has_children: false,
-            expanded: false,
-        });
-        items
     }
 }
 

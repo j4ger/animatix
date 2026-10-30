@@ -43,8 +43,6 @@ pub use widget::toggle::{Checkbox, Side, Switch};
 pub use widget::tooltip::{Tooltip, text_tooltip};
 // ── Shared widget traits & Size (A1 + A2) ──────────────────────────
 pub use widget::traits::{Disableable, Selectable, Sizable, Size};
-// ── Tree (H1 + H2) ─────────────────────────────────────────────────
-pub use widget::tree::{Tree, TreeAction, TreeId, TreeItem, TreeResponse};
 
 #[cfg(test)]
 mod export_tests {
@@ -70,7 +68,6 @@ mod export_tests {
         assert_type_exists::<crate::TabBar<'static>>();
         assert_type_exists::<crate::Row<'static>>();
         assert_type_exists::<crate::ColorPicker<'static>>();
-        assert_type_exists::<crate::Tree<'static>>();
 
         // Functions re-exported at the root.
         let _: fn(&egui::KeyboardShortcut, &egui::Context) -> String = crate::format_shortcut;

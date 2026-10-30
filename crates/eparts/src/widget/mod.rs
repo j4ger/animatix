@@ -30,7 +30,6 @@ pub mod toast;
 pub mod toggle;
 pub mod tooltip;
 pub mod traits;
-pub mod tree;
 
 pub use color_picker::{
     ColorPicker, ColorPickerResponse, color_to_hex_rgb, color_to_hex_rgba, parse_hex_color,
@@ -45,9 +44,8 @@ pub use row::Row;
 pub use select::Select;
 pub use slider::Slider;
 pub use spinner::Spinner;
-pub use styled_ext::{ResponseExt, UiExt};
+pub use styled_ext::UiExt;
 pub use tabs::TabBar;
 pub use toggle::{Checkbox, Side, Switch};
 pub use tooltip::{Tooltip, text_tooltip};
 pub use traits::{Disableable, Selectable, Sizable, Size};
-pub use tree::{Tree, TreeAction, TreeId, TreeItem, TreeResponse};

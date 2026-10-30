@@ -89,7 +89,7 @@ No content closures, no rich return struct. Examples: `Button`, `Label`, `Spinne
 **Tier 2 — `pub fn show(self, ui, ...) -> T`** (invoked as `MyWidget::new(...).show(ui, ...)`). Use
 this when the widget needs any of: a content/render closure (`FnOnce(&mut Ui)`), a rich return value
 (a `*Response`/action struct beyond `egui::Response`), or cross-frame state coordination. Examples:
-`Form`/`Field`, `Dialog::modal`, `Popover`, `Tooltip`, `Tree`, `ColorPicker`,
+`Form`/`Field`, `Dialog::modal`, `Popover`, `Tooltip`, `ColorPicker`,
 `TextField`/`NumberField`, `Row`, `TabBar`, `Toast`.
 
 Rules:
@@ -104,7 +104,7 @@ Rules:
 **Tier-2 rect-mode exception.** Container-driven widgets (e.g. `Row`) may expose a second entry
 `show_in_rect(rect, response, painter, …)` alongside `show()`. This is the SAME logical entry, not a
 competing API: `show()` allocates the widget rect then delegates to `show_in_rect`; container widgets
-(`Tree`) that pre-allocate the rect call `show_in_rect` directly.
+that pre-allocate the rect (e.g. `Row`) call `show_in_rect` directly.
 
 ## Verification (per workspace AGENTS.md)
 
