@@ -584,5 +584,4 @@ impl Timeline {
 
 mod special;
 mod text;
-
 pub(crate) use text::recompile_text_at_assignment;

@@ -213,13 +213,11 @@ pub fn tokenize(source: &str) -> Vec<Token> {
 }
 
 use lexer::Lexer;
-
 mod issues;
 mod lexer;
 mod positions;
 #[cfg(test)]
 mod tests;
-
 pub use issues::{TokenIssue, TokenIssueKind, tokenize_with_issues};
 pub use positions::{
     LineIndex, byte_to_line_col, line_col_to_byte, line_col_to_byte_utf16, token_at_byte,

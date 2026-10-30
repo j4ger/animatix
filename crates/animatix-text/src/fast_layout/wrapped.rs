@@ -8,6 +8,11 @@ use super::{
     tokenize_words,
 };
 
+/// Container width used for per-line alignment when one exists.
+fn alignment_width(max_width: f32, line_width: f64) -> f64 {
+    if max_width.is_finite() && max_width > 0.0 { max_width as f64 } else { line_width }
+}
+
 /// Compile plain text into glyph paths with word wrapping (fast path).
 ///
 /// Like `compile_text_fast`, but wraps text at `max_width` points.
@@ -170,29 +175,14 @@ pub fn compile_text_fast_wrapped(
 
     for (line_idx, line) in truncated_lines.iter().enumerate() {
         let mut x_curr: f64 = 0.0;
-
-        // Compute line width from word widths
         let line_width = line.total_width;
-
-        // Alignment needs a container width. With no wrap width there is no
-        // container: using the wrap threshold (infinity) here produced
-        // infinite offsets for center/right and infinite justify gaps. Align
-        // against the line itself instead, which makes every offset zero and
-        // leaves the block centered by `finalize_layout`.
-        let alignment_width = if max_width.is_finite() && max_width > 0.0 {
-            max_width as f64
-        } else {
-            line_width
-        };
-
-        // Compute x offset based on text_align
+        let alignment_width = alignment_width(max_width, line_width);
         let x_offset = match text_align {
             "center" => (alignment_width - line_width) / 2.0,
             "right" => alignment_width - line_width,
             "justify" => 0.0, // handled per-word below
             _ => 0.0,         // left
         };
-
         let is_last_line = line_idx == truncated_lines.len() - 1;
         let is_justify = text_align == "justify" && !is_last_line && line.words.len() > 1;
         let extra_space_per_gap = if is_justify {

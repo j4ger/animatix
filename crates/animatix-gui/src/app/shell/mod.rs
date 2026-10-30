@@ -128,12 +128,10 @@ impl GuiShell {
                 ui::handle_inspector_input_drag_ended(&mut self.ui_store)
             },
         };
-
         // Flush any deferred source edits once the drag interaction ends.
         if matches!(drag, DragEvent::DragEnded | DragEvent::InspectorInputDragEnded) {
             self.flush_pending_drag_edits();
         }
-
         effects
     }
 }

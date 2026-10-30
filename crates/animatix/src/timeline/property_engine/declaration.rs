@@ -68,9 +68,7 @@ pub fn write_property_fields(
                 _ => None,
             };
             if let Some(st) = st {
-                // The shape tier is a required component on a spawned entity;
-                // a bundle built without one (track-only test helpers) has no
-                // destination for the keyframe.
+                // Shape tier may be absent in track-only test helpers.
                 let Some(shape) = fields.shape.as_deref_mut() else {
                     tracing::debug!(
                         "shape_type write for '{}' dropped: no shape tier in this field bundle",
@@ -161,9 +159,7 @@ pub fn write_property_fields(
     };
 
     if field == ActorField::Tagged("callout_place") {
-        // The geometry tier is a required component on a spawned entity; a
-        // bundle built without one (track-only test helpers) has no
-        // destination for the keyframe.
+        // Geometry tier may be absent in track-only test helpers.
         let Some(geometry) = fields.geometry.as_deref_mut() else {
             tracing::debug!(
                 "callout_place write for '{}' dropped: no geometry tier in this field bundle",
@@ -196,16 +192,11 @@ pub fn write_property_fields(
         callout_track
             .ensure(crate::timeline::animation_track::CalloutPlace::Right)
             .add_keyframe(t_end_ms, place, easing);
-        // `callout_place` is read from the typed geometry track; the tagged
-        // tier survives only as a read-only fallback for persisted files that
-        // predate the typed field (see `PropertyPlan::for_actor`). Writing both
-        // would create a second, unread track.
+        // Typed track is canonical; tagged is a legacy read-only fallback.
         return;
     }
 
-    // Route registry-backed tagged properties through the actor plan before
-    // falling back to the tagged track map. `legend` stays on the tagged path:
-    // its value is a sum (auto/hidden/label), not a plan track.
+    // Route tagged properties through the actor plan; `legend` stays tagged.
     if let ActorField::Tagged(name) = field
         && name != "legend"
         && name != "callout_place"
@@ -302,8 +293,7 @@ pub fn write_property_fields(
                     Some(PropertyValue::U32(d)) => d,
                     _ => 0,
                 };
-                // Numeric keyframes are carried as `F32` even for a U32 track,
-                // so accept both spellings and clamp negatives.
+                // U32 tracks accept F32 keyframes; clamp negatives.
                 let value = match value {
                     PropertyValue::F32(v) => Some(v.max(0.0) as u32),
                     PropertyValue::U32(v) => Some(v),
@@ -387,11 +377,9 @@ pub fn write_property_fields(
                 duration = has_duration,
                 delay = has_delay
             ),
-            // PlacementMode and MorphOptions are handled in tier 1 (no-ops),
-            // but field_mut returns them, so this arm is here for exhaustiveness.
+            // Handled in tier 1; arm keeps the match exhaustive.
             TrackFieldMut::PlacementMode(_) | TrackFieldMut::MorphOptions(_) => {},
-            // Direct `CalloutPlace` writes go to the typed track; the tagged
-            // `callout_place` name is handled above.
+            // Typed `callout_place`; the tagged name is handled above.
             TrackFieldMut::CalloutPlace(f) => {
                 if let PropertyValue::Enum(choice) = &value
                     && let Some(place) =
@@ -403,12 +391,10 @@ pub fn write_property_fields(
             },
             // ShapeType is handled in tier 1 above.
             TrackFieldMut::ShapeType(_) => {},
-            // VectorPaths, TextPaths, PositionBinding — generated/cached at build time, no
-            // keyframing.
+            // Generated/cached at build time; not keyframed.
             TrackFieldMut::VectorPaths(_)
             | TrackFieldMut::TextPaths(_)
             | TrackFieldMut::PositionBinding(_) => {},
-            // Image — generated/cached at build time, no keyframing.
             TrackFieldMut::Image(_) => {},
         }
     }

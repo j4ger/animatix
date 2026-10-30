@@ -175,7 +175,6 @@ enum FilteredSource {
     /// Ping-pong texture B.
     TexB,
 }
-
 mod backend;
 mod readback;
 mod render;

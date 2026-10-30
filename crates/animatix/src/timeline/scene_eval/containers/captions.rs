@@ -68,14 +68,9 @@ impl Timeline {
         }
 
         let mut all_cues: Vec<ActiveCue> = Vec::new();
-        // Declared caption caps, read from the container. `text_max_width` is
-        // the canonical wrap width (so a long cue wraps instead of running off
-        // screen), `max_lines` caps how many wrapped lines the cue may occupy
-        // (`0` = unlimited), and `transition_time` fades a cue in from its own
-        // start (0 by default, so captions snap unless asked to transition).
-        // The wrap width lives on the container's `TextTracks` (the same lane
-        // `Text` actors use), not in Legend's tagged slot the static binding
-        // names.
+        // Declared caption caps: `text_max_width` is the container's TextTracks
+        // wrap lane (not Legend's tagged slot); `max_lines` 0 means unlimited;
+        // `transition_time` fades from cue start (0 snaps).
         let property_plan = self.world.property_plan(node_id);
         let text_max_width =
             self.world.text_or_default(node_id).text_max_width.get(time_ms, 0.0).max(0.0);

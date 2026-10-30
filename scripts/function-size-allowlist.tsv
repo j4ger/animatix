@@ -62,4 +62,3 @@ crates/animatix/src/timeline/timing/parsing.rs	parse_timing_modifiers	355
 crates/animatix/src/timeline/value_parser.rs	parse_value	372
 crates/eparts/src/tokens/theme/light.rs	light	224
 crates/eparts/src/widget/select/widget_impl.rs	ui	401
-crates/eparts/src/widget/tree/tree_impl.rs	show_inner	284

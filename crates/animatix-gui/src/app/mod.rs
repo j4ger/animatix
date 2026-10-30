@@ -460,13 +460,11 @@ impl PreviewPaneState {
         self.status = msg.into();
         self.status_severity = StatusSeverity::Info;
     }
-
     pub fn set_status_error(&mut self, msg: impl Into<String>) {
         self.status = msg.into();
         self.status_severity = StatusSeverity::Error;
     }
 }
-
 struct GuiShell {
     document_store: DocumentStore,
     workspace_store: WorkspaceStore,
@@ -483,6 +481,5 @@ struct GuiShell {
     pub(crate) window_size: [f32; 2],
     pub(crate) window_maximized: bool,
 }
-
 #[cfg(test)]
 mod tests;

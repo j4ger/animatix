@@ -287,15 +287,13 @@ impl Timeline {
         let track_id = self.world.spawn(&label_str, kind.type_name());
         let style = self.world.style.get_mut(track_id);
 
-        // Ensure the track kind matches the declaration type so downstream
-        // code (inspector, drag handles) can dispatch correctly.
+        // Ensure the track kind matches the declaration type for downstream dispatch.
         self.world
             .actor_types
             .get_mut(track_id)
             .clone_from(&kind.type_name().to_string());
 
-        // Record first declaration time so scene evaluation can hide
-        // actors before they are declared
+        // Record first declaration time for scene visibility.
         let meta = self
             .world
             .meta
@@ -342,9 +340,7 @@ impl Timeline {
             crate::timeline::property_registry::ActorField,
             crate::timeline::property_engine::PropertyValue,
         )> = Vec::new();
-        // Dispatch remaining (unhandled) properties through the generic engine so
-        // universal properties like scale, rotation, and opacity actually work on
-        // text / math / code actors.
+        // Dispatch remaining properties through the generic engine.
         let actor_caps = self.world.caps(track_id);
         let actor_type = kind.type_name();
         for prop in props {
