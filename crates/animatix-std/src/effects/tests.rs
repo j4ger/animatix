@@ -1,4 +1,3 @@
-
 use animatix_core::effect::EffectParamSpec;
 
 use super::*;
