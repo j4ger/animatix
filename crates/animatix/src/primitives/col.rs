@@ -1,10 +1,10 @@
 //! Column layout container primitive.
 
+use super::row::{LayoutKind, finalize_container_build as finalize_row_col_build};
 use crate::ast::{Expr, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{BuildCtx, Primitive};
-use crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic;
-use crate::timeline::{SceneDimensions, Value};
+use crate::timeline::SceneDimensions;
 
 /// The `Col` primitive.
 pub struct ColPrimitive;
@@ -23,103 +23,7 @@ impl Primitive for ColPrimitive {
         label: &str,
         props: &[Property],
     ) -> Result<(), Vec<Diagnostic>> {
-        let mut gap = [0.0f32; 2];
-        let mut padding = [0.0f32; 4];
-        let mut align: Option<String> = None;
-
-        let env = ctx.timeline.env();
-        for prop in props {
-            match prop.name.as_str() {
-                "gap" => match &prop.value {
-                    Expr::Tuple(items) if items.len() == 2 => {
-                        match (
-                            crate::timeline::utils::evaluate_expr(&items[0], env),
-                            crate::timeline::utils::evaluate_expr(&items[1], env),
-                        ) {
-                            (Ok(Value::Num(a)), Ok(Value::Num(b))) => gap = [a as f32, b as f32],
-                            _ => ctx.diagnostics.push(super::unreadable_layout_value(label, "gap")),
-                        }
-                    },
-                    _ => match crate::timeline::utils::evaluate_expr(&prop.value, env) {
-                        Ok(Value::Num(n)) => gap = [n as f32, n as f32],
-                        _ => ctx.diagnostics.push(super::unreadable_layout_value(label, "gap")),
-                    },
-                },
-                "padding" => {
-                    match &prop.value {
-                        Expr::Tuple(items) if items.len() == 4 => {
-                            if let (
-                                Ok(Value::Num(a)),
-                                Ok(Value::Num(b)),
-                                Ok(Value::Num(c)),
-                                Ok(Value::Num(d)),
-                            ) = (
-                                crate::timeline::utils::evaluate_expr(&items[0], env),
-                                crate::timeline::utils::evaluate_expr(&items[1], env),
-                                crate::timeline::utils::evaluate_expr(&items[2], env),
-                                crate::timeline::utils::evaluate_expr(&items[3], env),
-                            ) {
-                                padding = [a as f32, b as f32, c as f32, d as f32];
-                            }
-                        },
-                        Expr::Tuple(items) if items.len() == 2 => {
-                            // (horizontal, vertical) → [h, v, h, v]
-                            if let (Ok(Value::Num(h)), Ok(Value::Num(v))) = (
-                                crate::timeline::utils::evaluate_expr(&items[0], env),
-                                crate::timeline::utils::evaluate_expr(&items[1], env),
-                            ) {
-                                padding = [h as f32, v as f32, h as f32, v as f32];
-                            }
-                        },
-                        _ => {
-                            if let Ok(Value::Num(n)) =
-                                crate::timeline::utils::evaluate_expr(&prop.value, env)
-                            {
-                                let v = n as f32;
-                                padding = [v, v, v, v];
-                            }
-                        },
-                    }
-                },
-                "align" => {
-                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        env,
-                        ctx.diagnostics,
-                        label,
-                    ) {
-                        align = Some(v.as_str().to_string());
-                    }
-                },
-                _ => {},
-            }
-        }
-
-        // Parse vertical_align property
-        let mut vertical_align: Option<String> = None;
-        for prop in props {
-            if prop.name == "vertical_align" {
-                if let Some(v) =
-                    evaluate_expr_with_lookup_diagnostic(&prop.value, env, ctx.diagnostics, label)
-                {
-                    vertical_align = Some(v.as_str().to_string());
-                }
-            }
-        }
-
-        ctx.timeline.register_container_metadata_and_apply_layout(
-            label,
-            self.type_name(),
-            ctx.time_ms as u64,
-            gap,
-            padding,
-            align.as_deref(),
-            None,
-            ctx.diagnostics,
-            vertical_align.as_deref(),
-        );
-
-        Ok(())
+        finalize_row_col_build(LayoutKind::Col, ctx, label, props)
     }
 
     fn evaluate(
@@ -137,5 +41,30 @@ impl Primitive for ColPrimitive {
             Property::new("padding", Expr::Num(0.0)),
             Property::new("align", Expr::Str("center".into())),
         ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::timeline::{LayoutType, Timeline};
+
+    #[test]
+    fn col_uses_the_shared_layout_parser() {
+        let (ast, errors) = animatix_syntax::parser::parse_source(
+            r#"col: Col, gap: 6, padding: 4, align: "end", vertical_align: "top" {
+                a: Rect, size: (10, 10)
+            }"#,
+        );
+        assert!(errors.is_empty(), "parse errors: {errors:?}");
+        let report = Timeline::build_with_diagnostics(
+            &ast.expect("parsed source"),
+            &std::collections::HashMap::new(),
+        );
+        let metadata = report.output.container_layout("col").expect("col metadata");
+        assert_eq!(metadata.layout_type, LayoutType::Col);
+        assert_eq!(metadata.gap, [6.0, 6.0]);
+        assert_eq!(metadata.padding, [4.0, 4.0, 4.0, 4.0]);
+        assert_eq!(metadata.align, "end");
+        assert_eq!(metadata.vertical_align, "top");
     }
 }

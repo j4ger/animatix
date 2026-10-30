@@ -3,8 +3,7 @@
 use crate::ast::{Expr, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{AssignmentCtx, Primitive};
-use crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic;
-use crate::timeline::{Environment, SceneDimensions, TrackAccessor, Value};
+use crate::timeline::{Environment, SceneDimensions};
 
 /// The `Typst` primitive.
 pub struct TypstPrimitive;
@@ -26,55 +25,21 @@ impl Primitive for TypstPrimitive {
         diagnostics: &mut Vec<Diagnostic>,
         subject: &str,
     ) -> bool {
-        if !matches!(property, "text" | "code" | "text_anchor") {
-            return false;
-        }
-        let text = ctx.text.as_deref_mut().expect("assignment text tier");
-        let geometry = ctx.geometry.as_mut().expect("Typst assignment requires the geometry tier");
-        let style = ctx.style.as_deref_mut().expect("assignment style tier");
-        let target_text = if property == "text_anchor" {
-            let anchor = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                .unwrap_or(Value::Str("center".to_string()))
-                .as_str()
-                .to_string();
-            text.text_anchor.ensure("center".to_string()).add_keyframe(
-                ctx.t_end_ms,
-                anchor,
-                ctx.easing,
-            );
-            text.text_content.get(ctx.t_end_ms, String::new())
-        } else {
-            evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject)
-                .unwrap_or(Value::Str(String::new()))
-                .as_str()
-                .to_string()
-        };
-        if let Err(e) = crate::timeline::recompile_text_at_assignment(
-            ctx.caps,
-            style,
-            text,
-            geometry,
-            target_text,
-            ctx.t_start_ms,
-            ctx.t_end_ms,
-            ctx.easing,
-            ctx.instant_delayed,
-            ctx.duration_ms,
-            ctx.font_context,
-            ctx.text_compiler,
-        ) {
-            diagnostics.push(
-                Diagnostic::error(
-                    crate::diagnostics::DiagnosticCode::InvalidModifierValue,
-                    crate::diagnostics::DiagnosticPhase::Render,
-                    format!("{e}"),
-                )
-                .with_subject(subject),
-            );
-        }
-        true
+        super::text::handle_text_assignment(
+            &["text", "code", "text_anchor"],
+            self.type_name(),
+            property,
+            value,
+            ctx,
+            env,
+            diagnostics,
+            subject,
+        )
     }
 
+    // Deliberately not delegated to `behavior::builtin::text::evaluate_typst`:
+    // the shared family does not emit the optional `HighlightLayer` below, so
+    // delegating would drop highlight rendering.
     fn evaluate(
         &self,
         ctx: &crate::primitives::EvaluateCtx,
