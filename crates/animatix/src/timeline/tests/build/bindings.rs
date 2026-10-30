@@ -1070,8 +1070,8 @@ fn text_max_width_binds_to_text_tracks_for_declaration_and_assignment() {
     let source = r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 
-long: Text, text: "The quick brown fox jumps over the lazy dog", font_size: 20, text_max_width: 100, at: (320, 100)
-unwrapped: Text, text: "The quick brown fox jumps over the lazy dog", font_size: 20, text_max_width: 0, at: (320, 220)
+long: Text, text: "The quick brown fox jumps over the lazy dog", font_size: 20, text_max_width: 100, opacity: 1.0, at: (320, 100)
+unwrapped: Text, text: "The quick brown fox jumps over the lazy dog", font_size: 20, text_max_width: 0, opacity: 1.0, at: (320, 220)
 
 #1s
 long.text_max_width = 60
@@ -1100,19 +1100,48 @@ long.text_max_width = 60
         Some(crate::timeline::PropertyValue::F32(60.0))
     );
 
+    let dims = SceneDimensions {
+        width: 640,
+        height: 360,
+    };
+    let rendered_half_width = |time_s: f64| {
+        let mut filter_backend = None;
+        let program = timeline.evaluate_program_with_debug(
+            time_s,
+            dims,
+            crate::timeline::DebugRenderOptions::default(),
+            &mut filter_backend,
+        );
+        let item = program.items.iter().find(|item| item.label == "long").expect("long text item");
+        let paths = item
+            .commands
+            .iter()
+            .find_map(|command| match command {
+                crate::primitives::RenderCommand::Text { paths, .. } => Some(paths.as_ref()),
+                _ => None,
+            })
+            .expect("text command");
+        crate::renderer::text::measure_text_paths(paths)[0]
+    };
+
     // The declaration's compiled paths must actually wrap: the bounded actor
-    // is narrower than the same text declared with no wrap width.
-    let wrapped = long.static_paths.as_ref().expect("declaration paths");
+    // is narrower than the same text declared with no wrap width. The runtime
+    // assignment must then narrow the rendered glyphs further.
     let unwrapped = timeline
         .world
         .text_or_default(unwrapped_id)
         .static_paths
         .as_ref()
         .expect("declaration paths");
-    let [wrapped_half_width, _] = crate::renderer::text::measure_text_paths(wrapped);
     let [unwrapped_half_width, _] = crate::renderer::text::measure_text_paths(unwrapped);
+    let declared_half_width = rendered_half_width(0.0);
+    let assigned_half_width = rendered_half_width(1.0);
     assert!(
-        wrapped_half_width < unwrapped_half_width,
-        "text_max_width must narrow the compiled text: wrapped={wrapped_half_width}, unwrapped={unwrapped_half_width}"
+        declared_half_width < unwrapped_half_width,
+        "text_max_width must narrow the compiled text: declared={declared_half_width}, unwrapped={unwrapped_half_width}"
+    );
+    assert!(
+        assigned_half_width < declared_half_width,
+        "runtime text_max_width must re-wrap the rendered text: declared={declared_half_width}, assigned={assigned_half_width}"
     );
 }
