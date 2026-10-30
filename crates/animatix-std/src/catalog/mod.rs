@@ -61,90 +61,52 @@ pub struct PrimitiveInfo {
     pub default_stub: Option<&'static str>,
 }
 
-const fn caps(
-    text_paths: bool,
-    vector_paths: bool,
-    image_payload: bool,
-    layout_container: bool,
-    plot_geometry: bool,
-    plot_host: bool,
-    is_container: bool,
-    is_shape: bool,
-    has_visual_content: bool,
-    stroke_primary: bool,
-    callout: bool,
-    legend_host: bool,
-    time_dependent: bool,
-    transcript: bool,
-) -> PrimitiveCapabilities {
-    PrimitiveCapabilities {
-        text_paths,
-        vector_paths,
-        image_payload,
-        layout_container,
-        plot_geometry,
-        plot_host,
-        is_container,
-        is_shape,
-        has_visual_content,
-        stroke_primary,
-        callout,
-        legend_host,
-        time_dependent,
-        transcript,
-    }
+/// Build a [`PrimitiveCapabilities`] set from the fields that are `true`;
+/// every omitted field stays `false` via [`PrimitiveCapabilities::NONE`].
+///
+/// The named form keeps each card's intent reviewable and makes an accidental
+/// positional flip impossible. Evaluating in a const context keeps the catalog
+/// in static data.
+macro_rules! caps {
+    ($($field:ident),* $(,)?) => {
+        PrimitiveCapabilities {
+            $($field: true,)*
+            ..PrimitiveCapabilities::NONE
+        }
+    };
 }
 
-const SHAPE_CAPS: PrimitiveCapabilities = caps(
-    false, true, false, false, false, false, false, true, true, false, false, false, false, false,
+const SHAPE_CAPS: PrimitiveCapabilities = caps!(vector_paths, is_shape, has_visual_content);
+const TEXT_CAPS: PrimitiveCapabilities = caps!(text_paths, has_visual_content);
+const PLOT_CAPS: PrimitiveCapabilities = caps!(vector_paths, plot_geometry, has_visual_content);
+const CONTAINER_CAPS: PrimitiveCapabilities = caps!(layout_container, is_container);
+const EQUATION_CAPS: PrimitiveCapabilities =
+    caps!(layout_container, is_container, has_visual_content);
+const CAPTIONS_CAPS: PrimitiveCapabilities = caps!(
+    text_paths,
+    layout_container,
+    is_container,
+    has_visual_content,
+    time_dependent,
+    transcript
 );
-const TEXT_CAPS: PrimitiveCapabilities = caps(
-    true, false, false, false, false, false, false, false, true, false, false, false, false, false,
-);
-const PLOT_CAPS: PrimitiveCapabilities = caps(
-    false, true, false, false, true, false, false, false, true, false, false, false, false, false,
-);
-const CONTAINER_CAPS: PrimitiveCapabilities = caps(
-    false, false, false, true, false, false, true, false, false, false, false, false, false, false,
-);
-const EQUATION_CAPS: PrimitiveCapabilities = caps(
-    false, false, false, true, false, false, true, false, true, false, false, false, false, false,
-);
-const CAPTIONS_CAPS: PrimitiveCapabilities = caps(
-    true, false, false, true, false, false, true, false, true, false, false, false, true, true,
-);
-const CUE_CAPS: PrimitiveCapabilities = caps(
-    true, false, false, false, false, false, false, false, true, false, false, false, true, false,
-);
+const CUE_CAPS: PrimitiveCapabilities = caps!(text_paths, has_visual_content, time_dependent);
 /// `Glass` is a container with a rectangular *region*, not a surface. It carries
 /// no `ShapeKind` — the same choice `Filter` and `Mask` make — so the shape
 /// predicates (`fill_opacity`, the gradient paints) key off `caps.shape.is_some()`
 /// and do not invite a scope that paints nothing; `corner_radius` stays applicable
 /// through its own actor list because it is the frost's clip, and `is_shape` stays
 /// set because the region and its anchors need a bounded actor.
-const GLASS_CAPS: PrimitiveCapabilities = caps(
-    false, false, false, true, false, false, true, true, false, false, false, false, false, false,
-);
-const GROUP_CAPS: PrimitiveCapabilities = caps(
-    false, false, false, false, false, false, true, false, false, false, false, false, false, false,
-);
+const GLASS_CAPS: PrimitiveCapabilities = caps!(layout_container, is_container, is_shape);
+const GROUP_CAPS: PrimitiveCapabilities = caps!(is_container);
 /// `Audio` carries the `transcript` property the build's speech pre-pass
 /// parses; it paints nothing itself.
-const AUDIO_CAPS: PrimitiveCapabilities = caps(
-    false, false, false, false, false, false, false, false, false, false, false, false, false, true,
-);
-const IMAGE_CAPS: PrimitiveCapabilities = caps(
-    false, false, true, false, false, false, false, false, true, false, false, false, false, false,
-);
-const SVG_CAPS: PrimitiveCapabilities = caps(
-    false, true, false, false, false, false, false, false, true, false, false, false, false, false,
-);
-const GRAPH_CAPS: PrimitiveCapabilities = caps(
-    false, true, false, false, true, true, false, false, true, false, false, false, false, false,
-);
-const ANNOTATION_CAPS: PrimitiveCapabilities = caps(
-    false, true, false, false, false, false, false, false, true, false, false, false, false, false,
-);
+const AUDIO_CAPS: PrimitiveCapabilities = caps!(transcript);
+const IMAGE_CAPS: PrimitiveCapabilities = caps!(image_payload, has_visual_content);
+const SVG_CAPS: PrimitiveCapabilities = caps!(vector_paths, has_visual_content);
+const GRAPH_CAPS: PrimitiveCapabilities =
+    caps!(vector_paths, plot_geometry, plot_host, has_visual_content);
+const ANNOTATION_CAPS: PrimitiveCapabilities = caps!(vector_paths, has_visual_content);
 
 mod caps_impl;
 mod info_impl;
@@ -154,3 +116,26 @@ mod tests;
 
 pub use info_impl::*;
 pub use lookup::{caps_for_type, caps_from_info, catalog_lookup};
+
+#[cfg(test)]
+mod caps_tests {
+    use super::*;
+
+    #[test]
+    fn none_is_all_false() {
+        assert_eq!(PrimitiveCapabilities::NONE, PrimitiveCapabilities::default());
+    }
+
+    #[test]
+    fn shape_caps_use_only_their_named_fields() {
+        assert_eq!(
+            SHAPE_CAPS,
+            PrimitiveCapabilities {
+                vector_paths: true,
+                is_shape: true,
+                has_visual_content: true,
+                ..PrimitiveCapabilities::NONE
+            }
+        );
+    }
+}

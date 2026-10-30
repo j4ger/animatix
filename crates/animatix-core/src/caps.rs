@@ -38,6 +38,29 @@ pub struct PrimitiveCapabilities {
     pub transcript: bool,
 }
 
+impl PrimitiveCapabilities {
+    /// No capabilities at all: every flag is `false`.
+    ///
+    /// This is the `const` base for struct-update syntax (`..PrimitiveCapabilities::NONE`)
+    /// in catalog tables; [`Default`] is equivalent but not usable in const contexts.
+    pub const NONE: Self = Self {
+        text_paths: false,
+        vector_paths: false,
+        image_payload: false,
+        layout_container: false,
+        plot_geometry: false,
+        plot_host: false,
+        is_container: false,
+        is_shape: false,
+        has_visual_content: false,
+        stroke_primary: false,
+        callout: false,
+        legend_host: false,
+        time_dependent: false,
+        transcript: false,
+    };
+}
+
 /// Child-rendering strategy selected by a primitive.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
