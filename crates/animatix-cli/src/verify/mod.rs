@@ -1,7 +1,10 @@
 use super::BuildTarget;
 use animatix::timeline::{DebugRenderOptions, SceneDimensions};
-use animatix::verify::{self as animatix_verify, Box2, FrameView};
 use std::path::Path;
+
+mod frame;
+
+use frame::{Box2, FrameView, verify_time_key};
 
 pub(crate) struct VerifyCheck {
     kind: VerifyKind,
@@ -155,10 +158,6 @@ struct VerifyFrame {
     bounds: std::collections::HashMap<String, Box2>,
 }
 
-fn verify_time_key(time_s: f64) -> u64 {
-    (time_s * 1000.0).round() as u64
-}
-
 /// Render one frame at global `time_s`, resolving the active scene (and any
 /// transition blend) for multi-scene files.
 fn render_verify_frame(
@@ -177,7 +176,7 @@ fn render_verify_frame(
             )?;
             Ok(VerifyFrame {
                 frame,
-                bounds: animatix_verify::bounds_map(&program),
+                bounds: frame::bounds_map(&program),
             })
         },
         BuildTarget::MultiScene(composition) => {
@@ -215,7 +214,7 @@ fn render_verify_frame(
                     DebugRenderOptions::default(),
                     &mut fb,
                 );
-                let mut bounds = animatix_verify::bounds_map(&from_program);
+                let mut bounds = frame::bounds_map(&from_program);
                 let mut fb = None;
                 let to_program = to_scene.timeline.evaluate_program_with_debug(
                     blend.to_local,
@@ -223,7 +222,7 @@ fn render_verify_frame(
                     DebugRenderOptions::default(),
                     &mut fb,
                 );
-                for (label, rect) in animatix_verify::bounds_map(&to_program) {
+                for (label, rect) in frame::bounds_map(&to_program) {
                     bounds.entry(label).or_insert(rect);
                 }
                 Ok(VerifyFrame { frame, bounds })
@@ -240,7 +239,7 @@ fn render_verify_frame(
                 )?;
                 Ok(VerifyFrame {
                     frame,
-                    bounds: animatix_verify::bounds_map(&program),
+                    bounds: frame::bounds_map(&program),
                 })
             }
         },
@@ -285,12 +284,12 @@ pub(crate) fn run_verify_checks(
             VerifyKind::Visible | VerifyKind::Invisible => {
                 let label = check.label.as_deref().unwrap_or_default();
                 let bounds = entry.bounds.get(label).copied();
-                let visibility = animatix_verify::actor_visibility(
+                let visibility = frame::actor_visibility(
                     &view,
                     bounds,
                     reference,
-                    animatix_verify::DEFAULT_TOLERANCE,
-                    animatix_verify::DEFAULT_MIN_INK_PIXELS,
+                    frame::DEFAULT_TOLERANCE,
+                    frame::DEFAULT_MIN_INK_PIXELS,
                 );
                 let want_visible = check.kind == VerifyKind::Visible;
                 let detail = match bounds {
@@ -306,8 +305,7 @@ pub(crate) fn run_verify_checks(
                 (want_visible == visibility.visible, detail)
             },
             VerifyKind::Ink => {
-                let fraction =
-                    animatix_verify::frame_ink_fraction(&view, animatix_verify::DEFAULT_TOLERANCE);
+                let fraction = frame::frame_ink_fraction(&view, frame::DEFAULT_TOLERANCE);
                 let min = check.threshold.unwrap_or(0.005);
                 (
                     f64::from(fraction) >= min,
@@ -323,11 +321,8 @@ pub(crate) fn run_verify_checks(
                         .ok_or_else(|| {
                             "rendered frame buffer has an unexpected size".to_string()
                         })?;
-                let changed = animatix_verify::differing_fraction(
-                    &view,
-                    &other_view,
-                    animatix_verify::DEFAULT_TOLERANCE,
-                );
+                let changed =
+                    frame::differing_fraction(&view, &other_view, frame::DEFAULT_TOLERANCE);
                 let min = check.threshold.unwrap_or(0.001);
                 (
                     f64::from(changed) >= min,
@@ -355,12 +350,12 @@ pub(crate) fn run_verify_checks(
                 match after.bounds.get(label).copied() {
                     Some(bounds) => {
                         let bounds: Box2 = bounds;
-                        let region = bounds.padded(animatix_verify::BOUNDS_PAD);
-                        let changed = animatix_verify::region_differing_fraction(
+                        let region = bounds.padded(frame::BOUNDS_PAD);
+                        let changed = frame::region_differing_fraction(
                             &view,
                             &after_view,
                             region,
-                            animatix_verify::DEFAULT_TOLERANCE,
+                            frame::DEFAULT_TOLERANCE,
                         );
                         (
                             f64::from(changed) >= min,

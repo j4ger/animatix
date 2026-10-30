@@ -16,4 +16,3 @@ pub mod primitives;
 pub mod property_descriptor;
 pub mod renderer;
 pub mod timeline;
-pub mod verify;

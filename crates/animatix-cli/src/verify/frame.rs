@@ -1,4 +1,4 @@
-//! Content-level frame verification primitives.
+//! Content-level frame verification primitives for the `verify` command.
 //!
 //! The dogfood loop's blind spot is *silent* visual failure: an actor that
 //! should be on screen is not drawn, or an animation that should move is
@@ -19,26 +19,24 @@
 
 use std::collections::HashMap;
 
-use kurbo::Rect;
-
-use crate::timeline::scene_program::SceneProgram;
+use animatix::timeline::scene_program::SceneProgram;
 
 /// Per-channel difference above which a pixel counts as "ink" (fraction of the
 /// 0..255 range). 0.02 ≈ 5/255 — above dithering/rounding noise, below any
 /// deliberate color choice.
-pub const DEFAULT_TOLERANCE: f64 = 0.02;
+pub(crate) const DEFAULT_TOLERANCE: f64 = 0.02;
 
 /// Minimum number of ink pixels inside an actor's bounds before it is called
 /// visible. Three keeps a stray antialiasing pixel from passing a check.
-pub const DEFAULT_MIN_INK_PIXELS: u32 = 3;
+pub(crate) const DEFAULT_MIN_INK_PIXELS: u32 = 3;
 
 /// Pixels added around an actor's bounds before sampling. A horizontal `Line`
 /// or `Arrow` has a zero-height bounding box; without padding its own stroke
 /// would fall outside the sampled region and read as invisible.
-pub const BOUNDS_PAD: f64 = 2.0;
+pub(crate) const BOUNDS_PAD: f64 = 2.0;
 
 /// A borrowed RGBA8 frame in row-major order (4 bytes per pixel).
-pub struct FrameView<'a> {
+pub(crate) struct FrameView<'a> {
     width: u32,
     height: u32,
     rgba: &'a [u8],
@@ -47,7 +45,7 @@ pub struct FrameView<'a> {
 impl<'a> FrameView<'a> {
     /// Wrap a pixel buffer. Returns `None` if it is smaller than
     /// `width * height * 4` bytes.
-    pub fn new(width: u32, height: u32, rgba: &'a [u8]) -> Option<Self> {
+    pub(crate) fn new(width: u32, height: u32, rgba: &'a [u8]) -> Option<Self> {
         let expected = width as usize * height as usize * 4;
         (rgba.len() >= expected).then_some(Self {
             width,
@@ -57,12 +55,12 @@ impl<'a> FrameView<'a> {
     }
 
     /// Frame width in pixels.
-    pub fn width(&self) -> u32 {
+    pub(crate) fn width(&self) -> u32 {
         self.width
     }
 
     /// Frame height in pixels.
-    pub fn height(&self) -> u32 {
+    pub(crate) fn height(&self) -> u32 {
         self.height
     }
 
@@ -70,7 +68,7 @@ impl<'a> FrameView<'a> {
     ///
     /// # Panics
     /// Panics if the coordinates are outside the frame.
-    pub fn pixel(&self, x: u32, y: u32) -> [u8; 4] {
+    pub(crate) fn pixel(&self, x: u32, y: u32) -> [u8; 4] {
         let i = ((y as usize * self.width as usize) + x as usize) * 4;
         [
             self.rgba[i],
@@ -86,7 +84,7 @@ impl<'a> FrameView<'a> {
     /// actor covers most of the canvas would instead report that actor, so
     /// [`actor_visibility`] on such an actor may under-report. Fine for a
     /// verification tool whose scenes are background-dominated.
-    pub fn modal_color(&self) -> [u8; 4] {
+    pub(crate) fn modal_color(&self) -> [u8; 4] {
         let mut counts: HashMap<[u8; 4], u32> = HashMap::new();
         for y in 0..self.height {
             for x in 0..self.width {
@@ -110,40 +108,34 @@ impl<'a> FrameView<'a> {
     }
 }
 
-/// An axis-aligned box in scene/world coordinates, decoupled from `kurbo` so
-/// callers do not need a direct dependency on it.
+/// An axis-aligned box in scene/world coordinates.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Box2 {
+pub(crate) struct Box2 {
     /// Left edge.
-    pub x0: f64,
+    pub(crate) x0: f64,
     /// Top edge.
-    pub y0: f64,
+    pub(crate) y0: f64,
     /// Right edge.
-    pub x1: f64,
+    pub(crate) x1: f64,
     /// Bottom edge.
-    pub y1: f64,
+    pub(crate) y1: f64,
 }
 
 impl Box2 {
     /// Construct a box from its edges.
-    pub fn new(x0: f64, y0: f64, x1: f64, y1: f64) -> Self {
+    pub(crate) fn new(x0: f64, y0: f64, x1: f64, y1: f64) -> Self {
         Self { x0, y0, x1, y1 }
     }
 
-    /// Convert an evaluated actor's `kurbo::Rect` bounds.
-    pub fn from_rect(rect: Rect) -> Self {
-        Self::new(rect.x0, rect.y0, rect.x1, rect.y1)
-    }
-
     /// Grow the box by `pad` on every side.
-    pub fn padded(self, pad: f64) -> Self {
+    pub(crate) fn padded(self, pad: f64) -> Self {
         Self::new(self.x0 - pad, self.y0 - pad, self.x1 + pad, self.y1 + pad)
     }
 
     /// Clamp to `[0, width] x [0, height]` and return integer pixel bounds as
     /// `(x0, y0, x1_exclusive, y1_exclusive)`. `None` when the box lies fully
     /// outside the frame or has no area.
-    pub fn clamped(self, width: u32, height: u32) -> Option<(u32, u32, u32, u32)> {
+    pub(crate) fn clamped(self, width: u32, height: u32) -> Option<(u32, u32, u32, u32)> {
         let x0 = self.x0.max(0.0).min(width as f64).floor() as u32;
         let y0 = self.y0.max(0.0).min(height as f64).floor() as u32;
         let x1 = self.x1.max(0.0).min(width as f64).ceil() as u32;
@@ -158,23 +150,28 @@ impl Box2 {
 /// observable evaluation path — use
 /// `animatix_render::offscreen::OffscreenRenderer::render_timeline_observable`
 /// so the bounds and the pixels come from the same evaluation.
-pub fn bounds_map(program: &SceneProgram) -> HashMap<String, Box2> {
+pub(crate) fn bounds_map(program: &SceneProgram) -> HashMap<String, Box2> {
     program
         .precise_bounds
         .iter()
-        .map(|(label, rect)| (label.clone(), Box2::from_rect(*rect)))
+        .map(|(label, rect)| (label.clone(), Box2::new(rect.x0, rect.y0, rect.x1, rect.y1)))
         .collect()
+}
+
+/// Cache key for a rendered verification time, in milliseconds.
+pub(crate) fn verify_time_key(time_s: f64) -> u64 {
+    (time_s * 1000.0).round() as u64
 }
 
 /// Whether an actor actually put ink on screen.
 #[derive(Clone, Copy, Debug)]
-pub struct Visibility {
+pub(crate) struct Visibility {
     /// Ink pixels found inside the actor's padded bounds.
-    pub ink_pixels: u32,
+    pub(crate) ink_pixels: u32,
     /// Ink pixels divided by sampled pixels (0.0 when the region was empty).
-    pub ink_fraction: f32,
+    pub(crate) ink_fraction: f32,
     /// `true` when `ink_pixels >= min_ink_pixels`.
-    pub visible: bool,
+    pub(crate) visible: bool,
 }
 
 fn tolerance_to_u8(tolerance: f64) -> u8 {
@@ -188,7 +185,12 @@ fn pixel_differs(pixel: [u8; 4], reference: [u8; 4], tolerance: u8) -> bool {
 /// Count pixels inside `region` that differ from `reference` by more than
 /// `tolerance` (a 0..1 per-channel fraction). The region is clamped to the
 /// frame; pixels outside it are ignored.
-pub fn ink_pixels(frame: &FrameView, region: Box2, reference: [u8; 4], tolerance: f64) -> u32 {
+pub(crate) fn ink_pixels(
+    frame: &FrameView,
+    region: Box2,
+    reference: [u8; 4],
+    tolerance: f64,
+) -> u32 {
     let Some((x0, y0, x1, y1)) = region.clamped(frame.width(), frame.height()) else {
         return 0;
     };
@@ -206,7 +208,12 @@ pub fn ink_pixels(frame: &FrameView, region: Box2, reference: [u8; 4], tolerance
 
 /// Fraction of pixels inside `region` that differ from `reference`. Returns
 /// `0.0` when the region does not intersect the frame.
-pub fn ink_fraction(frame: &FrameView, region: Box2, reference: [u8; 4], tolerance: f64) -> f32 {
+pub(crate) fn ink_fraction(
+    frame: &FrameView,
+    region: Box2,
+    reference: [u8; 4],
+    tolerance: f64,
+) -> f32 {
     let Some((x0, y0, x1, y1)) = region.clamped(frame.width(), frame.height()) else {
         return 0.0;
     };
@@ -216,7 +223,7 @@ pub fn ink_fraction(frame: &FrameView, region: Box2, reference: [u8; 4], toleran
 
 /// Fraction of the whole frame that differs from its own modal color. A value
 /// near `0.0` means the frame is blank.
-pub fn frame_ink_fraction(frame: &FrameView, tolerance: f64) -> f32 {
+pub(crate) fn frame_ink_fraction(frame: &FrameView, tolerance: f64) -> f32 {
     let reference = frame.modal_color();
     let region = Box2::new(0.0, 0.0, frame.width() as f64, frame.height() as f64);
     ink_fraction(frame, region, reference, tolerance)
@@ -224,7 +231,7 @@ pub fn frame_ink_fraction(frame: &FrameView, tolerance: f64) -> f32 {
 
 /// Visibility of an actor given its bounds. `bounds == None` (the label was not
 /// evaluated this frame) or an off-canvas box reports invisible.
-pub fn actor_visibility(
+pub(crate) fn actor_visibility(
     frame: &FrameView,
     bounds: Option<Box2>,
     reference: [u8; 4],
@@ -251,7 +258,7 @@ pub fn actor_visibility(
 /// Fraction of pixels that differ between two same-sized frames. Returns `1.0`
 /// for mismatched dimensions (treat as "changed" rather than hiding the
 /// problem).
-pub fn differing_fraction(a: &FrameView, b: &FrameView, tolerance: f64) -> f32 {
+pub(crate) fn differing_fraction(a: &FrameView, b: &FrameView, tolerance: f64) -> f32 {
     region_differing_fraction(a, b, Box2::new(0.0, 0.0, a.width as f64, a.height as f64), tolerance)
 }
 
@@ -263,7 +270,7 @@ pub fn differing_fraction(a: &FrameView, b: &FrameView, tolerance: f64) -> f32 {
 /// generated axes inside its child curve's bounds, so raw ink cannot tell a
 /// revealed curve from a missing one, but the *change* inside the region
 /// between a hidden time and a shown time can.
-pub fn region_differing_fraction(
+pub(crate) fn region_differing_fraction(
     a: &FrameView,
     b: &FrameView,
     region: Box2,
