@@ -60,23 +60,29 @@ pub(crate) fn recompile_text_at_assignment(
     let color = style.color.get(t_end_ms, [1.0, 1.0, 1.0, 1.0]);
     let language = text.language.get(t_end_ms, String::new());
 
-    let new_paths = text_compiler.compile(
-        &target_text,
-        &font_family,
+    let text_style = TextStyle {
+        font_family: &font_family,
         font_size,
         font_weight,
-        &font_style,
+        font_style: &font_style,
         line_height,
         letter_spacing,
         word_spacing,
         color,
-        text_kind,
-        &language,
-        font_ctx,
-        0.0,
-        "left",
-        "visible",
-    )?;
+    };
+    let request = TextCompileRequest {
+        kind: text_kind,
+        content: &target_text,
+        language: &language,
+        palette: text_compiler.highlight_palette.as_ref(),
+        allow_fast_path: text_compiler.text_fast_path,
+        style: text_style,
+        max_width: 0.0,
+        max_lines: None,
+        text_align: "left",
+        overflow: "visible",
+    };
+    let new_paths = text_compiler.compile_request(&request, font_ctx)?;
     let new_half_size = crate::renderer::text::measure_text_paths(&new_paths);
     let text_anchor = text.text_anchor.get(t_end_ms, "center".to_string());
     let mut new_paths_vec = new_paths.to_vec();
@@ -134,31 +140,8 @@ pub(crate) fn recompile_text_at_assignment(
     }
 
     // Compute font metrics for baseline alignment. The inputs are identical to
-    // the `text_compiler.compile` call above, so this is a process-wide cache
-    // hit rather than a second Typst compilation.
-    let request = TextCompileRequest {
-        kind: text_kind,
-        content: &target_text,
-        language: &language,
-        // Same palette the `text_compiler.compile` call above used, so this is
-        // still a cache hit rather than a second compilation.
-        palette: text_compiler.highlight_palette.as_ref(),
-        style: TextStyle {
-            font_family: &font_family,
-            font_size,
-            font_weight,
-            font_style: &font_style,
-            line_height,
-            letter_spacing,
-            word_spacing,
-            color,
-        },
-        max_width: 0.0,
-        max_lines: None,
-        text_align: "left",
-        overflow: "visible",
-        allow_fast_path: text_compiler.text_fast_path,
-    };
+    // the `text_compiler.compile_request` call above, so this is a process-wide
+    // cache hit rather than a second Typst compilation.
     let (ascent, descent, baseline_offset) =
         match crate::renderer::text::compile_text_cached(&request, font_ctx) {
             Ok(cached) => (cached.ascent, cached.descent, cached.baseline_offset),

@@ -7,7 +7,8 @@
 //! a fresh compile (miss), not a cache hit.
 
 use animatix::renderer::text::{
-    FontContext, HighlightPalette, TextCompiler, TextKind, clear_text_compile_cache,
+    FontContext, HighlightPalette, TextCompileRequest, TextCompiler, TextKind, TextStyle,
+    clear_text_compile_cache,
 };
 use criterion::{Criterion, Throughput};
 
@@ -27,24 +28,20 @@ fn highlight_palette() -> HighlightPalette {
 }
 
 fn compile_once(compiler: &mut TextCompiler, font_ctx: &FontContext, language: &str) -> usize {
+    let request = TextCompileRequest {
+        kind: TextKind::Code,
+        content: CODE,
+        language,
+        palette: compiler.highlight_palette.as_ref(),
+        style: TextStyle::new("monospace", 24.0),
+        max_width: 0.0,
+        max_lines: None,
+        text_align: "left",
+        overflow: "visible",
+        allow_fast_path: compiler.text_fast_path,
+    };
     compiler
-        .compile(
-            CODE,
-            "monospace",
-            24.0,
-            400.0,
-            "normal",
-            1.2,
-            0.0,
-            0.0,
-            [1.0, 1.0, 1.0, 1.0],
-            TextKind::Code,
-            language,
-            font_ctx,
-            0.0,
-            "left",
-            "visible",
-        )
+        .compile_request(&request, font_ctx)
         .map(|paths| paths.len())
         .expect("Code compile should succeed")
 }

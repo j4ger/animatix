@@ -516,53 +516,22 @@ impl TextCompiler {
         Self::default()
     }
 
-    /// Compile text into glyph paths, using the process-wide cache. Cache hits
-    /// return an `Arc<[TextPath]>` — one refcount bump instead of cloning paths.
+    /// Compile a request into glyph paths, using the process-wide cache. Cache
+    /// hits return an `Arc<[TextPath]>` — one refcount bump instead of cloning
+    /// paths.
     ///
-    /// Flat-argument adapter for the engine render path; folds `text_fast_path`
-    /// and the highlight palette into a [`TextCompileRequest`]. `language` is the
-    /// `Code` highlight tag (empty for other kinds).
-    #[allow(clippy::too_many_arguments)] // Flat adapter for the engine render path.
-    pub fn compile(
-        &mut self,
-        content: &str,
-        font_family: &str,
-        font_size: f32,
-        font_weight: f32,
-        font_style: &str,
-        line_height: f32,
-        letter_spacing: f32,
-        word_spacing: f32,
-        color: [f32; 4],
-        kind: TextKind,
-        language: &str,
+    /// The request is the complete input. Engine callers fold this compiler's
+    /// timeline-wide policy into the request they build once: `allow_fast_path`
+    /// comes from [`TextCompiler::text_fast_path`] and `palette` from
+    /// [`TextCompiler::highlight_palette`]. Keeping those fields in the request
+    /// means the compiler and direct [`compile_text_cached`] callers share one
+    /// cache key.
+    pub fn compile_request(
+        &self,
+        request: &TextCompileRequest<'_>,
         font_ctx: &FontContext,
-        max_width: f32,
-        text_align: &str,
-        overflow: &str,
     ) -> Result<std::sync::Arc<[TextPath]>, RenderError> {
-        let request = TextCompileRequest {
-            kind,
-            content,
-            language,
-            palette: self.highlight_palette.as_ref(),
-            style: TextStyle {
-                font_family,
-                font_size,
-                font_weight,
-                font_style,
-                line_height,
-                letter_spacing,
-                word_spacing,
-                color,
-            },
-            max_width,
-            max_lines: None,
-            text_align,
-            overflow,
-            allow_fast_path: self.text_fast_path,
-        };
-        let cached = compile_text_cached(&request, font_ctx)?;
+        let cached = compile_text_cached(request, font_ctx)?;
         Ok(std::sync::Arc::clone(&cached.paths))
     }
 }

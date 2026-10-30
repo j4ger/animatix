@@ -3,6 +3,7 @@
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::renderer::error::RenderError;
+use crate::renderer::text::{TextCompileRequest, TextStyle};
 use crate::timeline::{
     ActorCaps, ActorCategory, DEFAULT_WHITE, Environment, SceneDimensions, Value, VectorShapeState,
     VelloPath,
@@ -93,6 +94,18 @@ pub fn evaluate_text_paths(
             language = s.clone();
         }
     }
+    // One style for every compile below; the content and wrapping policy differ
+    // per call, typography does not.
+    let text_style = TextStyle {
+        font_family: &font_family,
+        font_size,
+        font_weight,
+        font_style: &font_style,
+        line_height,
+        letter_spacing,
+        word_spacing,
+        color,
+    };
     // An explicit empty-string override means "no visible content", not "keep the
     // cached build-time glyphs", so `always { box.text = "" }` is deterministic.
     if content_override.is_none() {
@@ -108,40 +121,23 @@ pub fn evaluate_text_paths(
             })
         {
             if source_text != target_text {
-                let source_paths = text_ctx.text_compiler.compile(
-                    &source_text,
-                    &font_family,
-                    font_size,
-                    font_weight,
-                    &font_style,
-                    line_height,
-                    letter_spacing,
-                    word_spacing,
-                    color,
+                let mut request = TextCompileRequest {
                     kind,
-                    &language,
-                    text_ctx.font_context,
+                    content: &source_text,
+                    language: &language,
+                    palette: text_ctx.text_compiler.highlight_palette.as_ref(),
+                    allow_fast_path: text_ctx.text_compiler.text_fast_path,
+                    style: text_style.clone(),
                     max_width,
-                    &text_align,
-                    &overflow,
-                )?;
-                let target_paths = text_ctx.text_compiler.compile(
-                    &target_text,
-                    &font_family,
-                    font_size,
-                    font_weight,
-                    &font_style,
-                    line_height,
-                    letter_spacing,
-                    word_spacing,
-                    color,
-                    kind,
-                    &language,
-                    text_ctx.font_context,
-                    max_width,
-                    &text_align,
-                    &overflow,
-                )?;
+                    max_lines: None,
+                    text_align: &text_align,
+                    overflow: &overflow,
+                };
+                let source_paths =
+                    text_ctx.text_compiler.compile_request(&request, text_ctx.font_context)?;
+                request.content = &target_text;
+                let target_paths =
+                    text_ctx.text_compiler.compile_request(&request, text_ctx.font_context)?;
                 let source_half = crate::renderer::text::measure_text_paths(&source_paths);
                 let source_offset = match text_anchor.as_str() {
                     "left" => source_half[0],
@@ -232,23 +228,19 @@ pub fn evaluate_text_paths(
         }
         Ok((std::sync::Arc::from(paths), clip))
     } else if content_override.is_some() || !content.is_empty() {
-        let compiled = text_ctx.text_compiler.compile(
-            &content,
-            &font_family,
-            font_size,
-            font_weight,
-            &font_style,
-            line_height,
-            letter_spacing,
-            word_spacing,
-            color,
+        let request = TextCompileRequest {
             kind,
-            &language,
-            text_ctx.font_context,
+            content: &content,
+            language: &language,
+            palette: text_ctx.text_compiler.highlight_palette.as_ref(),
+            allow_fast_path: text_ctx.text_compiler.text_fast_path,
+            style: text_style,
             max_width,
-            &text_align,
-            &overflow,
-        )?;
+            max_lines: None,
+            text_align: &text_align,
+            overflow: &overflow,
+        };
+        let compiled = text_ctx.text_compiler.compile_request(&request, text_ctx.font_context)?;
         let mut paths_vec = compiled.to_vec();
         let half_size = crate::renderer::text::measure_text_paths(&paths_vec);
         let anchor_offset_x = match text_anchor.as_str() {

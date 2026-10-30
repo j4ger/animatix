@@ -1,6 +1,7 @@
 //! Legend primitive - auto-generates legend from scene content
 
 use crate::ast::{Expr, InlineItem, Modifier, Property};
+use crate::renderer::text::{TextCompileRequest, TextStyle};
 use crate::timeline::property_track::TrackAccessor;
 
 fn parse_vec2(expr: &Expr) -> Option<[f32; 2]> {
@@ -35,24 +36,17 @@ fn compile_legend_text(
     max_width: f32,
     color: [f32; 4],
 ) -> Result<std::sync::Arc<[crate::renderer::types::TextPath]>, RenderError> {
-    text_ctx.text_compiler.compile(
-        text,
-        crate::renderer::text::DEFAULT_FONT_FAMILY,
-        font_size,
-        400.0,
-        "normal",
-        1.2,
-        0.0,
-        0.0,
+    let style = TextStyle {
         color,
-        crate::renderer::text::TextKind::Text,
-        // Legend text is plain prose — no Code highlighting.
-        "",
-        text_ctx.font_context,
+        ..TextStyle::new(crate::renderer::text::DEFAULT_FONT_FAMILY, font_size)
+    };
+    let request = TextCompileRequest {
+        palette: text_ctx.text_compiler.highlight_palette.as_ref(),
+        allow_fast_path: text_ctx.text_compiler.text_fast_path,
         max_width,
-        "left",
-        "visible",
-    )
+        ..TextCompileRequest::new(crate::renderer::text::TextKind::Text, text, style)
+    };
+    text_ctx.text_compiler.compile_request(&request, text_ctx.font_context)
 }
 
 fn text_bounds(paths: &[crate::renderer::types::TextPath]) -> Option<(f64, f64, f64, f64)> {

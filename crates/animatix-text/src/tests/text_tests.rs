@@ -4,6 +4,33 @@ use super::*;
 use crate::compiler::compile_text_cached;
 use crate::request::{TextCompileRequest, TextStyle};
 
+/// Compile through [`TextCompiler::compile_request`] with the defaults the old
+/// flat adapter supplied: Open Sans at 24pt, regular/normal, 1.2 line height,
+/// no extra spacing, no wrapping, left-aligned, overflow visible.
+fn compile_request_with_defaults(
+    compiler: &mut TextCompiler,
+    content: &str,
+    kind: TextKind,
+    language: &str,
+    font_ctx: &FontContext,
+) -> std::sync::Arc<[crate::TextPath]> {
+    let request = TextCompileRequest {
+        kind,
+        content,
+        language,
+        palette: compiler.highlight_palette.as_ref(),
+        style: TextStyle::new("Open Sans", 24.0),
+        max_width: 0.0,
+        max_lines: None,
+        text_align: "left",
+        overflow: "visible",
+        allow_fast_path: compiler.text_fast_path,
+    };
+    compiler
+        .compile_request(&request, font_ctx)
+        .expect("text compile should succeed")
+}
+
 /// The fast path chooses a bundled face the way a font database chooses a
 /// system one: style first (an italic is a different shape), then the
 /// nearest available weight. Before this existed the fast path took a
@@ -649,45 +676,11 @@ fn fast_path_caches_results() {
     let mut compiler = TextCompiler::new();
     compiler.text_fast_path = true;
 
-    let paths1 = compiler
-        .compile(
-            "Cache Test",
-            "Open Sans",
-            24.0,
-            400.0,
-            "normal",
-            1.2,
-            0.0,
-            0.0,
-            [1.0, 1.0, 1.0, 1.0],
-            TextKind::Text,
-            "",
-            &font_ctx,
-            0.0,
-            "left",
-            "visible",
-        )
-        .expect("first compile should succeed");
+    let paths1 =
+        compile_request_with_defaults(&mut compiler, "Cache Test", TextKind::Text, "", &font_ctx);
 
-    let paths2 = compiler
-        .compile(
-            "Cache Test",
-            "Open Sans",
-            24.0,
-            400.0,
-            "normal",
-            1.2,
-            0.0,
-            0.0,
-            [1.0, 1.0, 1.0, 1.0],
-            TextKind::Text,
-            "",
-            &font_ctx,
-            0.0,
-            "left",
-            "visible",
-        )
-        .expect("second compile should succeed (cache hit)");
+    let paths2 =
+        compile_request_with_defaults(&mut compiler, "Cache Test", TextKind::Text, "", &font_ctx);
 
     // Same Arc should be returned (cache hit)
     assert_eq!(paths1.as_ptr(), paths2.as_ptr(), "Cache should return the same Arc pointer");
@@ -700,25 +693,13 @@ fn non_plain_text_routes_to_typst() {
     compiler.text_fast_path = true;
 
     // Text with asterisk should route to Typst (not fast path)
-    let paths = compiler
-        .compile(
-            "Hello *World*",
-            "Open Sans",
-            24.0,
-            400.0,
-            "normal",
-            1.2,
-            0.0,
-            0.0,
-            [1.0, 1.0, 1.0, 1.0],
-            TextKind::Text,
-            "",
-            &font_ctx,
-            0.0,
-            "left",
-            "visible",
-        )
-        .expect("Typst fallback should succeed");
+    let paths = compile_request_with_defaults(
+        &mut compiler,
+        "Hello *World*",
+        TextKind::Text,
+        "",
+        &font_ctx,
+    );
 
     assert!(!paths.is_empty(), "Should produce glyph paths via Typst");
 }

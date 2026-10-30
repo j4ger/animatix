@@ -16,6 +16,7 @@ use super::convert::{
 };
 use crate::ast::{Expr, InlineItem, Modifier, Property};
 use crate::primitives::EvaluateCtx;
+use crate::renderer::text::{TextCompileRequest, TextStyle};
 use crate::timeline::property_registry::lookup_property;
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{Environment, Value};
@@ -178,23 +179,28 @@ pub(crate) unsafe extern "C" fn native_append_text(
         NATIVE_TEXT_KIND_TYST => crate::renderer::text::TextKind::Typst,
         _ => crate::renderer::text::TextKind::Text,
     };
-    let paths = match compiler.compile(
-        &content,
-        &font_family,
-        command.font_size as f32,
-        command.font_weight as f32,
-        &font_style,
-        command.line_height as f32,
-        command.letter_spacing as f32,
-        command.word_spacing as f32,
-        color,
-        text_kind,
-        "",
-        font_ctx,
-        command.max_width as f32,
-        &text_align,
-        &overflow,
-    ) {
+    let request = TextCompileRequest {
+        kind: text_kind,
+        content: &content,
+        language: "",
+        palette: compiler.highlight_palette.as_ref(),
+        style: TextStyle {
+            font_family: &font_family,
+            font_size: command.font_size as f32,
+            font_weight: command.font_weight as f32,
+            font_style: &font_style,
+            line_height: command.line_height as f32,
+            letter_spacing: command.letter_spacing as f32,
+            word_spacing: command.word_spacing as f32,
+            color,
+        },
+        max_width: command.max_width as f32,
+        max_lines: None,
+        text_align: &text_align,
+        overflow: &overflow,
+        allow_fast_path: compiler.text_fast_path,
+    };
+    let paths = match compiler.compile_request(&request, font_ctx) {
         Ok(paths) => paths,
         Err(_) => return NATIVE_STATUS_TYPE_ERROR,
     };

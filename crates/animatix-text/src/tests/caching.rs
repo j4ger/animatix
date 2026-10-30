@@ -11,25 +11,8 @@ fn non_latin_text_routes_to_typst() {
     compiler.text_fast_path = true;
 
     // Non-Latin text should route to Typst
-    let _paths = compiler
-        .compile(
-            "中文测试",
-            "Open Sans",
-            24.0,
-            400.0,
-            "normal",
-            1.2,
-            0.0,
-            0.0,
-            [1.0, 1.0, 1.0, 1.0],
-            TextKind::Text,
-            "",
-            &font_ctx,
-            0.0,
-            "left",
-            "visible",
-        )
-        .expect("Typst path for non-Latin should succeed");
+    let _paths =
+        compile_request_with_defaults(&mut compiler, "中文测试", TextKind::Text, "", &font_ctx);
 
     // Even though Typst may not render CJK with Open Sans (the bundled mock font
     // has no .notdef outline for unavailable characters), the compilation itself
@@ -46,25 +29,8 @@ fn fast_path_disabled_via_config_falls_back() {
     compiler.text_fast_path = false; // disabled
 
     // Plain text should still compile via Typst
-    let paths = compiler
-        .compile(
-            "Plain Text",
-            "Open Sans",
-            24.0,
-            400.0,
-            "normal",
-            1.2,
-            0.0,
-            0.0,
-            [1.0, 1.0, 1.0, 1.0],
-            TextKind::Text,
-            "",
-            &font_ctx,
-            0.0,
-            "left",
-            "visible",
-        )
-        .expect("Typst fallback should succeed when fast path disabled");
+    let paths =
+        compile_request_with_defaults(&mut compiler, "Plain Text", TextKind::Text, "", &font_ctx);
 
     assert!(!paths.is_empty(), "Should produce glyph paths");
 }
@@ -76,25 +42,8 @@ fn code_kind_uses_typst_not_fast_path() {
     compiler.text_fast_path = true;
 
     // Even plain text should use Typst for Code kind
-    let paths = compiler
-        .compile(
-            "fn main()",
-            "Open Sans",
-            24.0,
-            400.0,
-            "normal",
-            1.2,
-            0.0,
-            0.0,
-            [1.0, 1.0, 1.0, 1.0],
-            TextKind::Code, // Code kind → always Typst
-            "",
-            &font_ctx,
-            0.0,
-            "left",
-            "visible",
-        )
-        .expect("Code kind should compile via Typst");
+    let paths =
+        compile_request_with_defaults(&mut compiler, "fn main()", TextKind::Code, "", &font_ctx);
 
     assert!(!paths.is_empty(), "Should produce glyph paths");
 }
@@ -135,9 +84,8 @@ fn compile_cache_keys_on_wrapping_params() {
     assert_eq!(text_compile_cache_len(), 0, "clear must empty the cache");
 }
 
-/// The request-based cache and the `TextCompiler` adapter must agree: the
-/// adapter folds `text_fast_path` and the palette into a request, so a compiler
-/// compile is a cache hit on the request a caller would have built.
+/// The request-based cache and [`TextCompiler::compile_request`] must agree: a
+/// compiler compile is a cache hit on the same complete request a caller builds.
 #[test]
 fn request_and_compiler_share_the_cache_entry() {
     let _cache = cache_test_guard();
@@ -155,28 +103,65 @@ fn request_and_compiler_share_the_cache_entry() {
     let via_request = compile_text_cached(&request, &font_ctx).expect("request compile");
 
     let mut compiler = TextCompiler::new();
-    let via_compiler = compiler
-        .compile(
-            "Shared Cache Entry",
-            "Open Sans",
-            24.0,
-            400.0,
-            "normal",
-            1.2,
-            0.0,
-            0.0,
-            [1.0, 1.0, 1.0, 1.0],
-            TextKind::Text,
-            "",
-            &font_ctx,
-            0.0,
-            "left",
-            "visible",
-        )
-        .expect("compiler compile");
+    let via_compiler = compile_request_with_defaults(
+        &mut compiler,
+        "Shared Cache Entry",
+        TextKind::Text,
+        "",
+        &font_ctx,
+    );
     assert!(
         std::sync::Arc::ptr_eq(&via_request.paths, &via_compiler),
         "the TextCompiler adapter must hit the request-built cache entry"
+    );
+
+    clear_text_compile_cache();
+}
+
+/// Regression for the removed flat 15-argument adapter: requests with
+/// non-default `font_size`, `letter_spacing`, and `max_width` used to be passed
+/// positionally, where swapping adjacent values still compiled but changed the
+/// layout. `compile_request` must hand every request field to the cache
+/// unchanged; a pointer match against the directly compiled request proves the
+/// effective cache keys (and therefore all layout inputs) are identical.
+#[test]
+fn compile_request_preserves_adjacent_typography_and_wrapping_fields() {
+    let _cache = cache_test_guard();
+    let font_ctx = test_font_ctx();
+    clear_text_compile_cache();
+
+    let mut style = TextStyle::new("Open Sans", 30.0);
+    style.letter_spacing = 3.0;
+    let request = TextCompileRequest {
+        allow_fast_path: true,
+        max_width: 120.0,
+        ..TextCompileRequest::new(TextKind::Text, "adjacent fields regression", style)
+    };
+
+    let direct = compile_text_cached(&request, &font_ctx).expect("direct request compile");
+    let compiler = TextCompiler::new();
+    let via_compiler =
+        compiler.compile_request(&request, &font_ctx).expect("compiler request compile");
+
+    assert!(
+        std::sync::Arc::ptr_eq(&direct.paths, &via_compiler),
+        "compile_request must preserve font_size=30, letter_spacing=3, max_width=120"
+    );
+
+    // A request with the same content but transposed font_size/letter_spacing
+    // must not share the entry; otherwise the test above could pass even if the
+    // request fields were ignored.
+    let mut transposed_style = TextStyle::new("Open Sans", 3.0);
+    transposed_style.letter_spacing = 30.0;
+    let transposed = TextCompileRequest {
+        allow_fast_path: true,
+        max_width: 120.0,
+        ..TextCompileRequest::new(TextKind::Text, "adjacent fields regression", transposed_style)
+    };
+    let transposed_paths = compile_text_cached(&transposed, &font_ctx).expect("transposed compile");
+    assert!(
+        !std::sync::Arc::ptr_eq(&direct.paths, &transposed_paths.paths),
+        "transposed typography fields must not reuse the original cache entry"
     );
 
     clear_text_compile_cache();
@@ -368,25 +353,13 @@ fn compile_cache_survives_new_compiler_instances() {
 
     let compile_with = || {
         let mut compiler = TextCompiler::new();
-        compiler
-            .compile(
-                "Survives Rebuild",
-                "Open Sans",
-                24.0,
-                400.0,
-                "normal",
-                1.2,
-                0.0,
-                0.0,
-                [1.0, 1.0, 1.0, 1.0],
-                TextKind::Text,
-                "",
-                &font_ctx,
-                0.0,
-                "left",
-                "visible",
-            )
-            .expect("compile should succeed")
+        compile_request_with_defaults(
+            &mut compiler,
+            "Survives Rebuild",
+            TextKind::Text,
+            "",
+            &font_ctx,
+        )
     };
 
     let first = compile_with();
