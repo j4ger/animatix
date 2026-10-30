@@ -42,13 +42,18 @@
 #   PERF_TASKSET_CPUS=0-3  optional `taskset -c` CPU set wrapping cargo bench.
 #   PERF_MAX_LOAD_RATIO=0.5  load-per-CPU preflight ceiling.
 #   PERF_ALLOW_LOAD=1        override the preflight (explicit, logged).
+#   PERF_MIN_BASELINE_COVERAGE=90
+#                            percent of saved baseline benches that must match
+#                            a current benchmark. A compare that matches zero
+#                            rows, or only a minority of a stale/renamed
+#                            baseline, is a broken verdict, not a pass.
 #
 # Thresholds:
 #   --thresh PCT  percentage (mean) a bench may regress before `compare` fails, e.g. 5 => +5%.
 #   Absolute guardrails are handled separately by scripts/extension-bench.sh.
 #
-# Exit codes: 0 pass, 1 regressions flagged, 2 usage/preflight/environment,
-#             3 no baseline to compare against.
+# Exit codes: 0 pass, 1 regressions/insufficient baseline coverage,
+#             2 usage/preflight/environment, 3 no baseline to compare against.
 
 set -euo pipefail
 
@@ -93,6 +98,11 @@ shift || true
 THRESH=5
 K=3   # combined std-dev multiples before a real regression is declared
 TIER=quick
+MIN_BASELINE_COVERAGE="${PERF_MIN_BASELINE_COVERAGE:-90}"
+if ! [[ "$MIN_BASELINE_COVERAGE" =~ ^(100|[1-9][0-9]?)$ ]]; then
+    echo "perf-bench: PERF_MIN_BASELINE_COVERAGE='$MIN_BASELINE_COVERAGE' must be an integer 1-100." >&2
+    exit 2
+fi
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --thresh)
@@ -367,7 +377,8 @@ case "$MODE" in
         ;;
 
     compare)
-        if [[ -z "$(find "$BASELINE_DIR/$TIER" -maxdepth 1 -name '*.json' ! -name 'META.json' -print -quit)" ]]; then
+        baseline_count="$(find "$BASELINE_DIR/$TIER" -maxdepth 1 -name '*.json' ! -name 'META.json' | wc -l | tr -d ' ')"
+        if [[ "$baseline_count" -eq 0 ]]; then
             echo "perf-bench: no '$TIER' baseline found under $BASELINE_DIR/$TIER." >&2
             echo "  Run 'scripts/perf-bench.sh save $TIER' first (ideally on a known-good commit)." >&2
             exit 3
@@ -380,12 +391,17 @@ case "$MODE" in
 
         failures=0
         total=0
+        new_benches=0
+        current_count="$(find "$LOG_DIR" -maxdepth 1 -name '*.json' | wc -l | tr -d ' ')"
         # print header
         printf "%-46s %13s %13s %9s %8s  %s\n" "bench" "baseline(ns)" "current(ns)" "%chg" "limit%" "verdict"
         for cur in "$LOG_DIR"/*.json; do
             id="$(basename "$cur" .json)"
             base="$BASELINE_DIR/$TIER/${id}.json"
-            [[ -f "$base" ]] || continue   # new bench not in baseline: skip
+            if [[ ! -f "$base" ]]; then
+                new_benches=$((new_benches + 1))   # new bench not in baseline: skip
+                continue
+            fi
             read -r base_ns cur_ns chg limit_pct verdict < <(compare_estimates "$base" "$cur")
             total=$((total+1))
             if [[ "$verdict" == "REGRESSION" ]]; then
@@ -395,7 +411,21 @@ case "$MODE" in
         done
 
         echo ""
-        echo "perf-bench: $total '$TIER' benches compared, $failures real regressions detected."
+        if [[ "$total" -eq 0 ]]; then
+            echo "perf-bench: FAIL — zero '$TIER' baselines matched the current run." >&2
+            echo "           ${baseline_count} saved baseline(s), ${current_count} current estimate(s)," >&2
+            echo "           ${new_benches} current bench(es) have no baseline entry." >&2
+            echo "           A compare that matched nothing cannot prove anything; re-save the baseline." >&2
+            exit 2
+        fi
+        coverage=$((total * 100 / baseline_count))
+        echo "perf-bench: $total/$baseline_count '$TIER' baseline benches compared (${coverage}% coverage; ${new_benches} new bench(es) skipped), $failures real regressions detected."
+        if [[ "$coverage" -lt "$MIN_BASELINE_COVERAGE" ]]; then
+            echo "perf-bench: FAIL — baseline coverage ${coverage}% is below the required ${MIN_BASELINE_COVERAGE}%." >&2
+            echo "           ${baseline_count} saved baseline(s), only ${total} matched. The baseline is" >&2
+            echo "           stale or the benchmark names changed; re-save it on a known-good commit." >&2
+            exit 1
+        fi
         if [[ "$failures" -gt 0 ]]; then
             echo "perf-bench: FAIL — benchmark regressions detected." >&2
             exit 1

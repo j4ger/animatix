@@ -42,8 +42,8 @@ if [ -n "${ANIMATIX_RELEASE_VERSION:-}" ]; then
   if [ "$want" != "$V" ]; then
     echo "error: building for tag '$ANIMATIX_RELEASE_VERSION' but the manifests say $V." >&2
     echo "       The checkout does not match the tag; the bump hook (cog's" >&2
-    echo "       pre_bump_hooks running cargo set-version) should have committed the" >&2
-    echo "       new version into the same commit as the tag." >&2
+    echo "       pre_bump_hooks running scripts/bump-version.sh) should have" >&2
+    echo "       committed the new version into the same commit as the tag." >&2
     exit 1
   fi
 fi

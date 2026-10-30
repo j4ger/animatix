@@ -4,7 +4,7 @@
 # Before this file, the answer lived in three GitHub workflows that could not see
 # each other: `ci.yml` ran ten jobs on PR but never built wasm, never ran
 # `site_scenes` and never checked the embed bundle; `pages.yml` did all three, but
-# only on push to main — so the gate that catches a stale `web/embed/amx-player.js`
+# only on push to main — so the gate that catches a broken `web/embed/amx-player.js`
 # fired *after* the merge it was supposed to protect. The same commands were typed
 # out 3-4 ways (apt lines, the wasm-bindgen pin, the `.amx` walk), and a fix to one
 # copy left the others behind.
@@ -19,7 +19,8 @@
 #   native  plain runner + rustup toolchain. Stays native for checks that need
 #           no system libraries (fmt, meta-version, eparts on mac/win).
 #   nix     `nix develop` — provides ALSA + FFmpeg headers + Vulkan/Mesa + cog + cargo-audit.
-#   web     `nix develop .#web-build` — the only shell with a wasm32 std.
+#   web     `nix develop .#web-build` — wasm32 std + the pinned wasm-bindgen CLI.
+#   web-ci  `nix develop .#web-ci` — web-build plus Chromium/node/python for web-smoke.
 #   none    needs no Rust toolchain at all (content-sync, workflows).
 #
 # `ci.sh` deliberately never enters a shell itself. DevShells *prepend* to PATH
@@ -30,7 +31,7 @@
 # like it loaded fine. The caller decides the shell; `gate` asserts the one it got.
 #
 # Usage
-#   scripts/ci.sh --list                 name<TAB>shell<TAB>os<TAB>setup, one row per gate
+#   scripts/ci.sh --list                 name<TAB>shell<TAB>os<TAB>setup<TAB>stage, one row per gate
 #   scripts/ci.sh --matrix               the same as JSON, for the CI matrix
 #   scripts/ci.sh gates                  human-readable listing
 #   scripts/ci.sh gate <name> [<name>…]  run gates in this shell
@@ -44,11 +45,15 @@ cd "$root"
 # ── the registry ──────────────────────────────────────────────────────────────
 # name | shell | os | setup tokens | stage
 #
-# Two stages, because a release owes a different set of things than a pull request:
+# Three stages, because a release owes a different set of things than a pull
+# request:
 #   pr        every pull request runs it, and the release pipeline runs it first —
 #             an artifact nobody gated is an artifact that ships broken.
-#   release   build-only: the distribution jobs that produce the binaries and the
-#             site zip. Expensive enough that a PR should not pay for them.
+#   release   build-only: the distribution jobs that produce the binaries.
+#   site      composite gates: site-artifact/dist-site/dist-wasm need the
+#             gitignored web/pkg bundles in the same job that built them, so
+#             they are run by name from pages.yml and release.yml and are not
+#             matrix rows. `--matrix` accepts pr/release only.
 #
 # Adding a gate here is the whole job: `--list` feeds the matrix, so CI picks it
 # up. Nothing in .github/ has to learn its name.
@@ -63,7 +68,7 @@ examples|nix|ubuntu-latest|nix|pr
 ext-bench|nix|ubuntu-latest|nix|pr
 doc|nix|ubuntu-latest|nix|pr
 site-scenes|nix|ubuntu-latest|nix|pr
-embed-drift|native|ubuntu-latest|node|pr
+embed-build|native|ubuntu-latest|node|pr
 content-sync|native|ubuntu-latest|none|pr
 structure|native|ubuntu-latest|none|pr
 meta-version|native|ubuntu-latest|rust-stable|pr
@@ -74,8 +79,9 @@ eparts|native|windows-latest|rust-stable|pr
 audit|nix|ubuntu-latest|nix|pr
 commit|nix|ubuntu-latest|nix|pr
 wasm-check|web|ubuntu-latest|nix|pr
-web-build|web|ubuntu-latest|nix|pr
+web-build|web-ci|ubuntu-latest|nix|pr
 web-smoke|web-ci|ubuntu-latest|nix|pr
+# Composite site-stage gates — never matrix jobs (see the stage note above).
 site-artifact|native|ubuntu-latest|none|site
 dist-site|native|ubuntu-latest|none|site
 dist-wasm|native|ubuntu-latest|none|site
@@ -93,9 +99,11 @@ dist-windows|native|windows-latest|rust-stable|release
 # the same job and reuse compiler/toolchain artifacts.
 #
 # Every gate listed here is defined above in GATE_TABLE and can still be run
-# individually via `scripts/ci.sh gate <name>`.
+# individually via `scripts/ci.sh gate <name>`. The `workflows` gate verifies
+# each job's shell/os/stage/setup against every gate it lists, so a job cannot
+# silently run a gate in the wrong environment.
 JOB_TABLE='
-Fast Checks|fmt structure workflows content-sync meta-version embed-drift|native|ubuntu-latest|rust-stable node|pr
+Fast Checks|fmt structure workflows content-sync meta-version embed-build|native|ubuntu-latest|rust-stable node|pr
 eparts|eparts|native|ubuntu-latest|rust-stable|pr
 eparts|eparts|native|macos-latest|rust-stable|pr
 eparts|eparts|native|windows-latest|rust-stable|pr
@@ -161,7 +169,7 @@ want_wasm_std() {
     echo "error: this rustc has no wasm32-unknown-unknown std (sysroot: $(rustc --print sysroot))." >&2
     echo "       That is the shell, not the code: the target may be installed under" >&2
     echo "       ~/.rustup while this toolchain cannot see it. Run it as:" >&2
-    echo "       $(shell_for web) scripts/ci.sh gate $1" >&2
+    echo "       $(shell_for "$(gate_shell "$1")") scripts/ci.sh gate $1" >&2
     return 1
   fi
 }
@@ -193,12 +201,27 @@ gate_test() {
 
 gate_no_video() {
   want_cargo
-  # The `video` feature must stay truly opt-in. Verified by building the
-  # user-facing binaries without FFmpeg present and without the feature, then
-  # running the engine with every optional feature off — the profile the web
-  # playback build uses, which nothing else looks at.
+  # The `video` feature must stay truly opt-in. This gate runs in the nix dev
+  # shell, which ships FFmpeg, so "it built without FFmpeg present" cannot be
+  # demonstrated here — the old comment claimed exactly that and was false.
+  # Build the default user-facing binaries, run the engine with every optional
+  # feature off, and inspect the resolved feature graph: rsmpeg is pulled in
+  # only by animatix-render/video, so its presence means a default build turned
+  # video on.
   cargo build -p animatix-cli -p animatix-gui
   cargo check -p animatix --no-default-features
+  local pkg tree
+  for pkg in animatix-cli animatix-gui; do
+    if ! tree="$(cargo tree -e features -p "$pkg" 2>/dev/null)"; then
+      echo "error: cargo tree failed for $pkg; cannot verify the video feature is off" >&2
+      return 1
+    fi
+    if grep -q 'rsmpeg' <<<"$tree"; then
+      echo "error: $pkg default feature resolution enables rsmpeg (the video feature)" >&2
+      return 1
+    fi
+  done
+  echo "no-video: default CLI/GUI feature resolution excludes rsmpeg (video)"
 }
 
 gate_render_smoke() {
@@ -237,13 +260,59 @@ gate_site_scenes() {
   cargo test -p animatix-web --test site_scenes --no-default-features
 }
 
-gate_embed_drift() {
-  # Build the <amx-player> web component bundle from src and verify that it
-  # compiles cleanly to a non-empty distribution file.
+gate_embed_build() {
+  # Build the <amx-player> web component bundle twice from the same source and
+  # require byte-identical output. The bundle is gitignored, so a clean
+  # checkout has no committed artifact to compare against; a single build only
+  # proves "a non-empty file appeared", which is not a gate. Two builds catch a
+  # bundle that silently omits a module (the old raw-copy failure) and a build
+  # that mutates its own inputs.
   command -v npm >/dev/null 2>&1 || { echo "error: npm not on PATH" >&2; return 1; }
-  npm --prefix web/tools ci
-  npm --prefix web/tools run build:embed
-  [ -s web/embed/amx-player.js ] || { echo "error: web/embed/amx-player.js missing or empty after build" >&2; return 1; }
+  local src_before src_after first_hash second_hash
+  embed_src_digest() {
+    ( cd web/embed/src && find . -type f -print0 |
+        LC_ALL=C sort -z | xargs -0 sha256sum ) | sha256sum | awk '{print $1}'
+  }
+  src_before="$(embed_src_digest)"
+  if ! npm --prefix web/tools ci --silent; then
+    echo "error: npm ci failed for web/tools" >&2
+    return 1
+  fi
+  if ! npm --prefix web/tools run build:embed; then
+    echo "error: npm run build:embed failed (first build)" >&2
+    return 1
+  fi
+  if [ ! -s web/embed/amx-player.js ]; then
+    echo "error: web/embed/amx-player.js missing or empty after the first build" >&2
+    return 1
+  fi
+  first_hash="$(sha256sum web/embed/amx-player.js | awk '{print $1}')"
+  src_after="$(embed_src_digest)"
+  if [ "$src_before" != "$src_after" ]; then
+    echo "error: the embed build modified web/embed/src; refusing to certify a" >&2
+    echo "       bundle built from a moving source tree." >&2
+    return 1
+  fi
+  if ! npm --prefix web/tools run build:embed; then
+    echo "error: npm run build:embed failed (second build)" >&2
+    return 1
+  fi
+  if [ ! -s web/embed/amx-player.js ]; then
+    echo "error: web/embed/amx-player.js missing or empty after the second build" >&2
+    return 1
+  fi
+  second_hash="$(sha256sum web/embed/amx-player.js | awk '{print $1}')"
+  src_after="$(embed_src_digest)"
+  if [ "$src_before" != "$src_after" ]; then
+    echo "error: the embed source tree changed between builds; cannot compare outputs" >&2
+    return 1
+  fi
+  if [ "$first_hash" != "$second_hash" ]; then
+    echo "error: two consecutive builds of web/embed/src produced different bundles" >&2
+    echo "       (first $first_hash, second $second_hash). The build is not deterministic." >&2
+    return 1
+  fi
+  echo "embed bundle build smoke: two consecutive builds are byte-identical ($second_hash)"
 }
 
 gate_web_build() {
@@ -301,7 +370,7 @@ gate_structure() {
 gate_meta_version() {
   want_cargo
   # Version single-source: every workspace member must inherit [workspace.package],
-  # so `cargo set-version --workspace` (the bump hook) has exactly one place to
+  # so `scripts/bump-version.sh` (cog's pre_bump_hook) has exactly one place to
   # write and a hand-edited member cannot hide.
   python3 - "$root" <<'PY'
 import json, re, subprocess, sys
@@ -364,35 +433,110 @@ MSG
   fi
   echo "workflows route every command through scripts/ci.sh"
 
-  # Parity check: every gate in GATE_TABLE with stage pr/release must be scheduled
-  # in JOB_TABLE, and vice versa.
+  # Parity check: every pr/release gate must be scheduled in JOB_TABLE, every
+  # job gate must exist in GATE_TABLE, and the job's shell/os/stage/setup must
+  # be compatible with every gate it runs. The old check compared gate names
+  # only, which let a `web` gate run in a `web-ci` job and a site-stage gate sit
+  # in no matrix at all without a word.
   python3 - "$GATE_TABLE" "$JOB_TABLE" <<'PY' || return 1
 import sys
 
-def get_gates_by_stage(text, stage_idx, gate_idx):
-    by_stage = {}
-    for line in text.strip().splitlines():
+ALLOWED_SHELLS = {"native", "nix", "web", "web-ci", "none"}
+ALLOWED_STAGES = {"pr", "release", "site"}
+
+def parse_rows(text, ncols, label):
+    rows = []
+    for lineno, line in enumerate(text.strip().splitlines(), 1):
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
         parts = [p.strip() for p in line.split("|")]
-        if len(parts) > max(stage_idx, gate_idx) and parts[0]:
-            stage = parts[stage_idx]
-            for g in parts[gate_idx].split():
-                by_stage.setdefault(stage, set()).add(g)
-    return by_stage
+        if len(parts) != ncols:
+            print(f"error: {label} row {lineno} has {len(parts)} columns, expected {ncols}: {line}",
+                  file=sys.stderr)
+            sys.exit(1)
+        rows.append(parts)
+    return rows
 
-gates = get_gates_by_stage(sys.argv[1], 4, 0)
-jobs = get_gates_by_stage(sys.argv[2], 5, 1)
+def setup_tokens(text):
+    # `none` means "no setup", not a token the job must also list.
+    tokens = set(text.split())
+    tokens.discard("none")
+    return tokens
 
-for stage in ("pr", "release"):
-    g_set = gates.get(stage, set())
-    j_set = jobs.get(stage, set())
-    if g_set != j_set:
-        print(f"error: GATE_TABLE and JOB_TABLE drift for stage '{stage}':", file=sys.stderr)
-        if g_set - j_set:
-            print(f"  gates missing from JOB_TABLE: {sorted(g_set - j_set)}", file=sys.stderr)
-        if j_set - g_set:
-            print(f"  extra gates in JOB_TABLE: {sorted(j_set - g_set)}", file=sys.stderr)
+gates = []
+for name, shell, os_name, setup, stage in parse_rows(sys.argv[1], 5, "GATE_TABLE"):
+    if shell not in ALLOWED_SHELLS:
+        print(f"error: gate '{name}' has unknown shell '{shell}'", file=sys.stderr)
         sys.exit(1)
-print("GATE_TABLE and JOB_TABLE gate parity verified")
+    if stage not in ALLOWED_STAGES:
+        print(f"error: gate '{name}' has unknown stage '{stage}'", file=sys.stderr)
+        sys.exit(1)
+    gates.append({
+        "name": name, "shell": shell, "os": os_name, "stage": stage,
+        "setup": setup_tokens(setup),
+    })
+
+jobs = []
+for name, gate_list, shell, os_name, setup, stage in parse_rows(sys.argv[2], 6, "JOB_TABLE"):
+    if shell not in ALLOWED_SHELLS:
+        print(f"error: job '{name}' has unknown shell '{shell}'", file=sys.stderr)
+        sys.exit(1)
+    if stage not in {"pr", "release"}:
+        print(f"error: job '{name}' has stage '{stage}'; JOB_TABLE jobs are pr/release only",
+              file=sys.stderr)
+        sys.exit(1)
+    jobs.append({
+        "name": name, "gates": gate_list.split(), "shell": shell, "os": os_name,
+        "stage": stage, "setup": setup_tokens(setup),
+    })
+
+seen = set()
+for gate in gates:
+    key = (gate["name"], gate["shell"], gate["os"], gate["stage"], tuple(sorted(gate["setup"])))
+    if key in seen:
+        print(f"error: duplicate GATE_TABLE row for {gate['name']} on {gate['os']}", file=sys.stderr)
+        sys.exit(1)
+    seen.add(key)
+
+def compatible(gate, job):
+    return (gate["shell"] == job["shell"] and gate["os"] == job["os"]
+            and gate["stage"] == job["stage"]
+            and gate["setup"].issubset(job["setup"]))
+
+bad = False
+for job in jobs:
+    for gate_name in job["gates"]:
+        candidates = [g for g in gates if g["name"] == gate_name]
+        if not candidates:
+            print(f"error: job '{job['name']}' schedules unknown gate '{gate_name}'", file=sys.stderr)
+            bad = True
+            continue
+        if not any(compatible(g, job) for g in candidates):
+            print(f"error: job '{job['name']}' ({job['shell']}/{job['os']}/{job['stage']}, "
+                  f"setup={sorted(job['setup'])}) is incompatible with gate '{gate_name}'", file=sys.stderr)
+            for g in candidates:
+                print(f"  gate row: {g['shell']}/{g['os']}/{g['stage']} setup={sorted(g['setup'])}",
+                      file=sys.stderr)
+            bad = True
+
+for gate in gates:
+    if gate["stage"] == "site":
+        if any(gate["name"] in job["gates"] for job in jobs):
+            print(f"error: site-stage composite gate '{gate['name']}' must not be a JOB_TABLE job",
+                  file=sys.stderr)
+            bad = True
+        continue
+    if not any(gate["name"] in job["gates"] and compatible(gate, job) for job in jobs):
+        print(f"error: gate '{gate['name']}' ({gate['shell']}/{gate['os']}/{gate['stage']}) "
+              f"has no compatible JOB_TABLE row", file=sys.stderr)
+        bad = True
+
+if bad:
+    sys.exit(1)
+site_gates = sorted({g["name"] for g in gates if g["stage"] == "site"})
+print("GATE_TABLE and JOB_TABLE parity verified (shell/os/setup/stage)")
+if site_gates:
+    print("site-stage composite gates (run by name, not matrix jobs): " + ", ".join(site_gates))
 PY
 }
 
@@ -603,6 +747,13 @@ case "${1:-}" in
     rows "$stage"
     ;;
   --matrix)
+    case "$stage" in
+      ""|all|pr|release) ;;
+      *)
+        echo "error: --matrix supports pr|release only; '$stage' gates are composite (run by name)" >&2
+        exit 2
+        ;;
+    esac
     job_rows "$stage" | python3 -c '
 import json, sys
 rows = [l.rstrip("\n").split("\t") for l in sys.stdin if l.strip()]

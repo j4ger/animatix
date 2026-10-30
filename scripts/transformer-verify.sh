@@ -10,7 +10,7 @@
 #
 # Needs a GPU like every render gate, so it is a local/scripted gate rather
 # than part of `cargo test`. Usage: scripts/transformer-verify.sh
-set -uo pipefail
+set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 DIR=web/demos/transformer/scenes
 BIN=${ANIMATIX_BIN:-target/debug/animatix}
@@ -19,14 +19,28 @@ fail=0
 for scene in "$DIR"/*.amx; do
   checks="${scene%.amx}.verify.txt"
   [ -f "$checks" ] || { echo "$(basename "$scene"): no checks file"; fail=1; continue; }
-  out=$("$BIN" verify "$scene" --checks "$checks" 2>/dev/null)
+  # A crash must not look like a pass: without this the command substitution is
+  # empty, `tail -1` prints nothing, and the loop ends with "checks passed".
+  if out=$("$BIN" verify "$scene" --checks "$checks" 2>/dev/null); then
+    :
+  else
+    rc=$?
+    echo "$(basename "$scene"): verify command failed (exit $rc)" >&2
+    fail=1
+    continue
+  fi
+  if [ -z "$out" ]; then
+    echo "$(basename "$scene"): verify produced no output" >&2
+    fail=1
+    continue
+  fi
   line=$(printf '%s\n' "$out" | tail -1)
   printf '%-14s %s\n' "$(basename "$scene" .amx)" "$line"
   if printf '%s\n' "$out" | grep -q "FAIL"; then fail=1; fi
 done
 if [ "$fail" -ne 0 ]; then
   echo "transformer keyframe checks FAILED"
-  "$BIN" verify "$DIR/tokens.amx" --checks "$DIR/tokens.verify.txt" 2>/dev/null | grep FAIL
+  "$BIN" verify "$DIR/tokens.amx" --checks "$DIR/tokens.verify.txt" 2>/dev/null | grep FAIL || true
   exit 1
 fi
 echo "transformer keyframe checks passed"

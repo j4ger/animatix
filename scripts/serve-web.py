@@ -20,8 +20,11 @@ import argparse
 import http.server
 import json
 import os
+import re
 import subprocess
 import sys
+from pathlib import Path
+from urllib.parse import unquote
 
 def find_default_web_dir():
     env_root = os.environ.get("SERVE_ROOT")
@@ -56,6 +59,27 @@ def find_default_web_dir():
 
 WEB_DIR = find_default_web_dir()
 REPO_ROOT = os.path.dirname(WEB_DIR) if os.path.basename(WEB_DIR) == "web" else os.path.abspath(".")
+
+# Battle ids are directory names under dogfood/arena/battles. Refuse anything
+# that could escape that directory (path separators, `..`, absolute paths).
+BATTLE_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def repo_path(*parts):
+    """Resolve *parts* under REPO_ROOT, or return None if the result escapes it."""
+    for part in parts:
+        path_part = Path(part)
+        if path_part.is_absolute() or ".." in path_part.parts:
+            return None
+    root = Path(REPO_ROOT).resolve()
+    candidate = Path(root, *parts).resolve()
+    if not candidate.is_relative_to(root):
+        return None
+    return candidate
+
+
+def valid_battle_id(value):
+    return isinstance(value, str) and bool(BATTLE_ID_RE.fullmatch(value))
 
 MIME = {
     ".html": "text/html; charset=utf-8",
@@ -155,10 +179,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return MIME.get(ext, "application/octet-stream")
 
     def translate_path(self, path):
-        clean_path = path.split("?")[0].split("#")[0]
+        clean_path = unquote(path.split("?")[0].split("#")[0])
         if clean_path.startswith("/dogfood/"):
-            rel = clean_path.lstrip("/").replace("/", os.sep)
-            return os.path.join(REPO_ROOT, rel)
+            target = repo_path("dogfood", clean_path[len("/dogfood/"):])
+            if target is None:
+                # do_GET() rejects this before send_head(); this fallback keeps
+                # direct send_head() callers from escaping the repo.
+                return os.path.join(WEB_DIR, "__rejected_path__")
+            return str(target)
         if clean_path in ("/arena", "/arena/"):
             return os.path.join(WEB_DIR, "arena", "index.html")
 
@@ -173,7 +201,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return translated
 
     def do_GET(self):
-        clean_path = self.path.split("?")[0]
+        clean_path = unquote(self.path.split("?")[0])
+        if clean_path.startswith("/dogfood/"):
+            if repo_path("dogfood", clean_path[len("/dogfood/"):]) is None:
+                self.send_error(403, "Forbidden")
+                return
         if clean_path == "/api/arena/battles":
             battles_dir = os.path.join(REPO_ROOT, "dogfood", "arena", "battles")
             battles = []
@@ -204,8 +236,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
         if clean_path.startswith("/api/arena/battle/"):
             battle_id = clean_path[len("/api/arena/battle/"):].strip("/")
-            battle_json = os.path.join(REPO_ROOT, "dogfood", "arena", "battles", battle_id, "battle.json")
-            if os.path.isfile(battle_json):
+            if not valid_battle_id(battle_id):
+                self.send_error(400, "Invalid battle_id")
+                return
+            battle_json = repo_path("dogfood", "arena", "battles", battle_id, "battle.json")
+            if battle_json is not None and battle_json.is_file():
                 with open(battle_json, "rb") as f:
                     content = f.read()
                 self.send_response(200)
@@ -222,7 +257,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
-        clean_path = self.path.split("?")[0]
+        clean_path = unquote(self.path.split("?")[0])
         if clean_path == "/api/arena/vote":
             content_len = int(self.headers.get("Content-Length", 0))
             raw = self.rfile.read(content_len)
@@ -232,13 +267,22 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 if not battle_id:
                     self.send_error(400, "Missing battle_id")
                     return
-                battle_dir = os.path.join(REPO_ROOT, "dogfood", "arena", "battles", battle_id)
+                if not valid_battle_id(battle_id):
+                    self.send_error(400, "Invalid battle_id")
+                    return
+                battle_dir = repo_path("dogfood", "arena", "battles", battle_id)
+                if battle_dir is None:
+                    self.send_error(400, "Invalid battle_id")
+                    return
                 os.makedirs(battle_dir, exist_ok=True)
                 feedback_file = os.path.join(battle_dir, "feedback.json")
                 with open(feedback_file, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2)
 
-                arena_dir = os.path.join(REPO_ROOT, "dogfood", "arena")
+                arena_dir = repo_path("dogfood", "arena")
+                if arena_dir is None:
+                    self.send_error(500, "Repo root is misconfigured")
+                    return
                 os.makedirs(arena_dir, exist_ok=True)
                 history_file = os.path.join(arena_dir, "feedback.jsonl")
                 with open(history_file, "a", encoding="utf-8") as f:

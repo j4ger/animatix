@@ -32,8 +32,9 @@
 #              declaration-only or drops to <= 100 lines.
 #
 # Both allowlists are ratchets: delete rows, never add one for new code, and
-# never raise a maximum. `--seed` re-freezes from the current tree but refuses
-# to raise an existing row.
+# never raise a maximum. `--seed` refreshes the rows of the current tree but
+# refuses to add a row or raise an existing maximum, so it cannot launder a new
+# over-limit function or file into the baseline.
 #
 # Output:
 #   FAIL path:line fn name: N lines > max M
@@ -56,21 +57,18 @@
 #     the brace scan itself is exact. `fn` tokens emitted by macros are
 #     counted as functions (no expansion is attempted).
 #
-# Self-test (temporary file; do not commit):
-#   create crates/animatix/src/__structure_probe.rs with a 201-line
-#   `fn __structure_probe() { … }`, run `bash scripts/structure.sh`, expect
-#   `FAIL crates/animatix/src/__structure_probe.rs:1 fn __structure_probe:
-#   201 lines > max 200`; delete the file and the gate passes again. The file
-#   must be *untracked* in that test: collection uses `git ls-files --others`,
-#   so an untracked probe is seen.
-#
-# Not wired into scripts/ci.sh yet; integration is the next phase. The
-# file-size gate and its allowlists are untouched by this script.
+# Self-test (`--self-test`; not part of CI):
+#   creates an untracked 201-line `fn __structure_probe()` under
+#   crates/animatix/src, asserts that `check` fails on it, asserts that `--seed`
+#   refuses to add it to a copy of the allowlists, then removes it. The probe is
+#   deliberately untracked: collection uses `git ls-files --others`, so an
+#   untracked probe is seen.
 #
 # Usage:
-#   scripts/structure.sh            # check (the future `structure` gate)
+#   scripts/structure.sh            # check (the `structure` gate)
 #   scripts/structure.sh --list     # over-limit functions, longest first
-#   scripts/structure.sh --seed     # re-freeze both allowlists (no raises)
+#   scripts/structure.sh --seed     # refresh both allowlists (no adds/raises)
+#   scripts/structure.sh --self-test
 #   scripts/structure.sh --help
 #
 # Environment overrides (documentation/tests only; CI uses the defaults):
@@ -83,18 +81,94 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root"
 
 MODE=${1:-check}
+usage() { echo "usage: scripts/structure.sh [check|--list|--seed|--self-test|--help]" >&2; }
 case "$MODE" in
-  check|--check|--list|--seed) ;;
+  check|--check|--list|--seed|--self-test) ;;
   -h|--help)
     sed -n '2,/^# END USAGE$/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'
     exit 0
     ;;
   *)
-    echo "usage: scripts/structure.sh [check|--list|--seed|--help]" >&2
+    usage
     exit 2
     ;;
 esac
-[[ $# -le 1 ]] || { echo "usage: scripts/structure.sh [check|--list|--seed|--help]" >&2; exit 2; }
+[[ $# -le 1 ]] || { usage; exit 2; }
+
+# Exercise the ratchet without touching the committed allowlists: a transient
+# untracked over-limit probe must fail `check`, and `--seed` must refuse to add
+# it. The baseline may itself be failing while a tree is mid-change, so the
+# cleanup assertion compares against the pre-probe result rather than assuming
+# a green tree.
+self_test() {
+  local script before_out before_rc probe_out probe_rc seed_out after_out after_rc
+  script="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+  # Globals, not locals: the EXIT trap runs after this function's scope is gone.
+  ST_PROBE="crates/animatix/src/__structure_probe_self_test_$$.rs"
+  ST_TMPDIR="$(mktemp -d "${TMPDIR:-/tmp}/animatix-structure-selftest.XXXXXX")"
+  trap 'rm -f -- "${ST_PROBE:-}"; rm -rf -- "${ST_TMPDIR:-}"' EXIT
+
+  if before_out="$(bash "$script" check 2>&1)"; then before_rc=0; else before_rc=$?; fi
+
+  {
+    echo 'fn __structure_probe() {'
+    local i
+    for ((i = 2; i < 201; i++)); do
+      echo "    let _ = $i;"
+    done
+    echo '}'
+  } > "$ST_PROBE"
+  echo "structure: self-test: created $ST_PROBE (201-line function)"
+
+  if probe_out="$(bash "$script" check 2>&1)"; then probe_rc=0; else probe_rc=$?; fi
+  if [ "$probe_rc" -eq 0 ]; then
+    echo "self-test FAILED: check accepted an over-limit function" >&2
+    printf '%s\n' "$probe_out" >&2
+    return 1
+  fi
+  if ! grep -Fq "FAIL $ST_PROBE:1 fn __structure_probe: 201 lines > max 200" <<<"$probe_out"; then
+    echo "self-test FAILED: check did not report the expected over-limit function" >&2
+    printf '%s\n' "$probe_out" >&2
+    return 1
+  fi
+
+  cp scripts/function-size-allowlist.tsv "$ST_TMPDIR/function-size-allowlist.tsv"
+  cp scripts/mod-rs-allowlist.tsv "$ST_TMPDIR/mod-rs-allowlist.tsv"
+  if seed_out="$(STRUCTURE_ALLOWLIST="$ST_TMPDIR/function-size-allowlist.tsv" \
+                  STRUCTURE_MOD_ALLOWLIST="$ST_TMPDIR/mod-rs-allowlist.tsv" \
+                  bash "$script" --seed 2>&1)"; then
+    echo "self-test FAILED: --seed accepted a new over-limit function" >&2
+    printf '%s\n' "$seed_out" >&2
+    return 1
+  fi
+  if ! grep -Fq "FAIL refusing to add $ST_PROBE __structure_probe" <<<"$seed_out"; then
+    echo "self-test FAILED: --seed did not refuse to add the new over-limit function" >&2
+    printf '%s\n' "$seed_out" >&2
+    return 1
+  fi
+  cmp -s "$ST_TMPDIR/function-size-allowlist.tsv" scripts/function-size-allowlist.tsv || {
+    echo "self-test FAILED: --seed modified the function allowlist before refusing" >&2
+    return 1
+  }
+  cmp -s "$ST_TMPDIR/mod-rs-allowlist.tsv" scripts/mod-rs-allowlist.tsv || {
+    echo "self-test FAILED: --seed modified the mod.rs allowlist before refusing" >&2
+    return 1
+  }
+
+  rm -f -- "$ST_PROBE"
+  if after_out="$(bash "$script" check 2>&1)"; then after_rc=0; else after_rc=$?; fi
+  if [ "$after_rc" -ne "$before_rc" ] || [ "$after_out" != "$before_out" ]; then
+    echo "self-test FAILED: removing the probe did not restore the pre-test result" >&2
+    return 1
+  fi
+  echo "structure: self-test: ok (check and --seed both reject a new over-limit function)"
+  return 0
+}
+
+if [ "$MODE" = "--self-test" ]; then
+  self_test
+  exit $?
+fi
 
 # Include untracked-but-not-ignored files: a new source file must be gated
 # before it is staged, and the self-test probe is deliberately untracked.
@@ -545,14 +619,23 @@ if ($MODE eq '--seed') {
 
   my @raises;
   for my $key (sort keys %want_fn) {
-    next unless exists $old_fn->{$key};
     my ($path, $name) = split /\t/, $key, 2;
+    unless (exists $old_fn->{$key}) {
+      # A row for new code is how `--seed` used to launder an over-limit
+      # function into the baseline. The allowlists are a ratchet: a new
+      # offender must be split, never frozen.
+      push @raises, "FAIL refusing to add $path $name (new over-limit function; split it instead)";
+      next;
+    }
     if ($want_fn{$key} > $old_fn->{$key}) {
       push @raises, "FAIL refusing to raise $path $name from $old_fn->{$key} to $want_fn{$key} (split it instead)";
     }
   }
   for my $path (sort keys %want_mod) {
-    next unless exists $old_mod->{$path};
+    unless (exists $old_mod->{$path}) {
+      push @raises, "FAIL refusing to add $path (new over-limit mod.rs; split it instead)";
+      next;
+    }
     if ($want_mod{$path} > $old_mod->{$path}) {
       push @raises, "FAIL refusing to raise $path from $old_mod->{$path} to $want_mod{$path} (split it instead)";
     }

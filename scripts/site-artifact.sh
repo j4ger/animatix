@@ -17,6 +17,10 @@
 #     precompression, so shipping them doubles the wasm bytes for no benefit.
 #   - `.nojekyll` must exist or Pages runs the tree through Jekyll, which silently
 #     drops any directory beginning with `_` and rewrites `assets/`.
+#   - the embed bundle (web/embed/amx-player.js) is generated and gitignored. If
+#     any file under web/embed/src is newer, it is rebuilt with npm; when npm is
+#     unavailable the script fails rather than copying raw ES modules that the
+#     browser cannot import.
 #
 # Usage: scripts/site-artifact.sh <outdir> [--zip <name.zip>]
 set -euo pipefail
@@ -63,14 +67,32 @@ for d in web/pkg web/pkg-slim; do
   fi
 done
 
-# Build the distributable embed player bundle if missing or older than src
-if [ ! -f "web/embed/amx-player.js" ] || [ "web/embed/src/amx-player.js" -nt "web/embed/amx-player.js" ]; then
-  if command -v npm >/dev/null 2>&1; then
-    npm --prefix web/tools ci --silent
-    npm --prefix web/tools run build:embed
-  else
-    mkdir -p web/embed
-    cp web/embed/src/amx-player.js web/embed/amx-player.js
+# Build the distributable embed player bundle if it is missing or older than
+# *any* file under web/embed/src — including the player/*.js modules the bare
+# entry point imports. Copying src/amx-player.js alone is not a bundle: its
+# `./player/playback.js` imports do not resolve in the browser.
+stale_embed=0
+if [ ! -s web/embed/amx-player.js ]; then
+  stale_embed=1
+elif [ -n "$(find web/embed/src -type f -newer web/embed/amx-player.js -print -quit)" ]; then
+  stale_embed=1
+fi
+if [ "$stale_embed" -eq 1 ]; then
+  command -v npm >/dev/null 2>&1 || {
+    echo "error: web/embed/amx-player.js is missing or stale and npm is not on PATH." >&2
+    echo "       Refusing to copy raw module sources as a bundle; run this inside" >&2
+    echo "       'nix develop' (or install Node/npm) so 'npm run build:embed' can build it." >&2
+    exit 1
+  }
+  npm --prefix web/tools ci --silent
+  npm --prefix web/tools run build:embed
+  [ -s web/embed/amx-player.js ] || {
+    echo "error: web/embed/amx-player.js missing or empty after build" >&2
+    exit 1
+  }
+  if [ -n "$(find web/embed/src -type f -newer web/embed/amx-player.js -print -quit)" ]; then
+    echo "error: web/embed/amx-player.js is still older than web/embed/src after the build." >&2
+    exit 1
   fi
 fi
 

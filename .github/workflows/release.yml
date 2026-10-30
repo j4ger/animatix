@@ -130,7 +130,11 @@ jobs:
 
   # The site and the two wasm runtimes. Ordered: web-build produces the bundles
   # that both zips contain, and web-smoke loads them; both run in .#web-ci because
-  # pkg/ is gitignored and only exists after the build in the same job.
+  # pkg/ is gitignored and only exists after the build in the same job. The PR
+  # gate matrix already ran the same gates, but this job starts from a fresh
+  # checkout with no pkg/ and jobs do not share workspaces, so it deliberately
+  # rebuilds rather than assuming another runner's filesystem. Sharing the
+  # bundles would require uploading/downloading a pkg artifact.
   site:
     name: Site and wasm
     needs: [gates, version]
