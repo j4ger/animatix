@@ -7,7 +7,7 @@ use crate::app::design_tokens::spatial::{
 };
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::design_tokens::util::lerp_color;
-use crate::cell_editor::{Cell, CellDiagnostic, CellEditorState};
+use crate::cell_editor::{Cell, CellAction, CellDiagnostic, CellEditorState, CellType};
 use crate::highlighting::highlight_source;
 
 /// Build analyzer diagnostics for a specific cell (body-relative coordinates).
@@ -240,13 +240,13 @@ pub fn render_cell_editor(
                 .add(eparts::Button::secondary("+ Keyframe").with_size(eparts::Size::Sm))
                 .clicked()
             {
-                state.pending_append_at_end = Some(crate::cell_editor::CellType::Keyframe);
+                state.pending_action = Some(CellAction::AppendAtEnd(CellType::Keyframe));
             }
             if ui
                 .add(eparts::Button::secondary("+ Code").with_size(eparts::Size::Sm))
                 .clicked()
             {
-                state.pending_append_at_end = Some(crate::cell_editor::CellType::Code);
+                state.pending_action = Some(CellAction::AppendAtEnd(CellType::Code));
             }
         });
         ui.add_space(sp.editor.bottom_margin);

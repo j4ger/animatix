@@ -1,7 +1,9 @@
+mod action;
 mod cell;
 mod parser;
 mod render;
 
+pub use action::CellAction;
 pub use cell::{Cell, format_duration_s};
 pub use parser::{cells_to_source, parse_cells};
 pub use render::render_cell_editor;
@@ -79,16 +81,8 @@ pub struct CellEditorState {
     pub focused_cell: Option<usize>,
     pub scroll_to_cell: Option<usize>,
     pub highlighted_cell: Option<usize>,
-    /// Optional action requests that the caller can apply to the backing cell list.
-    pub pending_delete_cell: Option<usize>,
-    /// Optional duplicate request that the caller can apply to the backing cell list.
-    pub pending_duplicate_cell: Option<usize>,
-    /// Optional insert request: insert a new keyframe after this cell index.
-    pub pending_insert_after: Option<usize>,
-    /// Optional request to insert a code block after this cell index.
-    pub pending_insert_code_after: Option<usize>,
-    /// Optional request to append a cell at the very end.
-    pub pending_append_at_end: Option<CellType>,
+    /// Optional structural edit that the caller can apply to the backing cell list.
+    pub pending_action: Option<CellAction>,
     /// The cell that had focus on the previous frame. Used to detect when
     /// the user moved focus away from a cell so we can auto-remove it if empty.
     pub prev_focused_cell: Option<usize>,
@@ -116,10 +110,6 @@ pub struct CellEditorState {
     /// Set of cell indices that are collapsed (applies to keyframes; code cells
     /// store expansion on the `Cell` enum itself).
     pub collapsed_cells: std::collections::HashSet<usize>,
-    /// Optional request to move the cell at this index up by one position.
-    pub pending_move_up: Option<usize>,
-    /// Optional request to move the cell at this index down by one position.
-    pub pending_move_down: Option<usize>,
     /// Which cell is currently editing its timestamp inline.
     pub editing_timestamp_cell: Option<usize>,
     /// Screen rectangle of the focused cell / TextEdit, refreshed when a cell has focus.
@@ -148,6 +138,9 @@ impl CellEditorState {
         swap_opt(&mut self.prev_focused_cell);
         swap_opt(&mut self.pending_cursor_cell);
         swap_opt(&mut self.editing_timestamp_cell);
+        if let Some(action) = self.pending_action.as_mut() {
+            action.swap_indices(a, b);
+        }
 
         let swap_set = |set: &mut std::collections::HashSet<usize>| {
             let has_a = set.contains(&a);
@@ -165,3 +158,6 @@ impl CellEditorState {
         swap_set(&mut self.warning_cells);
     }
 }
+
+#[cfg(test)]
+mod tests;

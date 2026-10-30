@@ -90,7 +90,7 @@ pub(crate) fn render_cell_header_actions(
             "Delete code block"
         };
         if header_btn(ui, egui_phosphor::regular::TRASH, del_tip) {
-            state.pending_delete_cell = Some(index);
+            state.pending_action = Some(CellAction::Delete { index });
         }
         let dup_tip = if item_type_label == "keyframe" {
             "Duplicate keyframe"
@@ -98,13 +98,13 @@ pub(crate) fn render_cell_header_actions(
             "Duplicate code block"
         };
         if header_btn(ui, egui_phosphor::regular::COPY, dup_tip) {
-            state.pending_duplicate_cell = Some(index);
+            state.pending_action = Some(CellAction::Duplicate { index });
         }
         if header_btn(ui, egui_phosphor::regular::ARROW_DOWN, "Move down") {
-            state.pending_move_down = Some(index);
+            state.pending_action = Some(CellAction::MoveDown { index });
         }
         if header_btn(ui, egui_phosphor::regular::ARROW_UP, "Move up") {
-            state.pending_move_up = Some(index);
+            state.pending_action = Some(CellAction::MoveUp { index });
         }
     });
 }

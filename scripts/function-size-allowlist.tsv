@@ -25,7 +25,6 @@ crates/animatix-gui/src/app/shell/export_dialog/settings.rs	render_export_settin
 crates/animatix-gui/src/app/shell/frame.rs	ui	294
 crates/animatix-gui/src/app/shell/insertion_palette/shell_ui.rs	insertion_palette_ui	418
 crates/animatix-gui/src/app/shell/plugin_status.rs	plugin_status_ui	251
-crates/animatix-gui/src/editor.rs	show	212
 crates/animatix-gui/src/source_edit/apply.rs	apply_edit	211
 crates/animatix-plugin-demo/src/lib.rs	animatix_plugin_install	203
 crates/animatix-plugin-demo/src/lib.rs	pulse_evaluate	256

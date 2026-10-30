@@ -7,7 +7,9 @@ use animatix_analyzer::Analyzer;
 use egui::Key;
 use egui::text::LayoutJob;
 
-use crate::cell_editor::{Cell, CellEditorState, CellType, parse_cells, render_cell_editor};
+use crate::cell_editor::{
+    Cell, CellAction, CellEditorState, CellType, parse_cells, render_cell_editor,
+};
 use crate::completion_popup::CompletionPopup;
 
 mod completion;
@@ -374,78 +376,11 @@ impl EditorBuffer {
             self.pending_scrub_to_time = Some(time_s);
         }
 
-        // Handle structural edits (delete / duplicate / insert) requested from the cell menu
+        // Handle the structural edit (delete / duplicate / insert / move /
+        // append) requested from the cell UI. At most one action is queued.
         let mut structurally_changed = false;
-        if let Some(idx) = self.cell_state.pending_delete_cell.take() {
-            if idx < self.cells.len() {
-                self.cells.remove(idx);
-                structurally_changed = true;
-                // Adjust focus if needed
-                if self.cell_state.focused_cell == Some(idx) {
-                    self.cell_state.focused_cell = None;
-                } else if self.cell_state.focused_cell.map(|f| f > idx).unwrap_or(false) {
-                    self.cell_state.focused_cell = self.cell_state.focused_cell.map(|f| f - 1);
-                }
-            }
-        }
-        if let Some(idx) = self.cell_state.pending_duplicate_cell.take() {
-            if idx < self.cells.len() {
-                let cloned = self.cells[idx].duplicate();
-                self.cells.insert(idx + 1, cloned);
-                structurally_changed = true;
-            }
-        }
-        if let Some(idx) = self.cell_state.pending_insert_after.take() {
-            let new_cell = self.compute_insert_keyframe(idx);
-            let insert_at = idx + 1;
-            if insert_at <= self.cells.len() {
-                self.cells.insert(insert_at, new_cell);
-                structurally_changed = true;
-                self.cell_state.focused_cell = Some(insert_at);
-            }
-        }
-        if let Some(idx) = self.cell_state.pending_insert_code_after.take() {
-            let insert_at = idx + 1;
-            if insert_at <= self.cells.len() {
-                self.cells.insert(
-                    insert_at,
-                    Cell::Code {
-                        body: String::new(),
-                        expanded: true,
-                    },
-                );
-                structurally_changed = true;
-                self.cell_state.focused_cell = Some(insert_at);
-            }
-        }
-        if let Some(idx) = self.cell_state.pending_move_up.take() {
-            if idx > 0 && idx < self.cells.len() {
-                self.cells.swap(idx, idx - 1);
-                self.cell_state.swap_cell_indices(idx, idx - 1);
-                structurally_changed = true;
-            }
-        }
-        if let Some(idx) = self.cell_state.pending_move_down.take() {
-            if idx + 1 < self.cells.len() {
-                self.cells.swap(idx, idx + 1);
-                self.cell_state.swap_cell_indices(idx, idx + 1);
-                structurally_changed = true;
-            }
-        }
-
-        if let Some(cell_type) = self.cell_state.pending_append_at_end.take() {
-            let new_cell = match cell_type {
-                CellType::Keyframe => {
-                    self.compute_insert_keyframe(self.cells.len().saturating_sub(1))
-                },
-                CellType::Code => Cell::Code {
-                    body: String::new(),
-                    expanded: true,
-                },
-            };
-            self.cells.push(new_cell);
-            structurally_changed = true;
-            self.cell_state.focused_cell = Some(self.cells.len() - 1);
+        if let Some(action) = self.cell_state.pending_action.take() {
+            structurally_changed = self.apply_cell_action(action);
         }
 
         // ── Auto-remove empty cells that lost focus ────────────────────────
@@ -540,6 +475,90 @@ impl EditorBuffer {
         }
 
         response
+    }
+
+    /// Apply one structural cell-editor action to the backing cell list.
+    ///
+    /// Returns true when the cell list was modified.
+    fn apply_cell_action(&mut self, action: CellAction) -> bool {
+        match action {
+            CellAction::Delete { index } => {
+                if index >= self.cells.len() {
+                    return false;
+                }
+                self.cells.remove(index);
+                // Adjust focus if needed
+                if self.cell_state.focused_cell == Some(index) {
+                    self.cell_state.focused_cell = None;
+                } else if self.cell_state.focused_cell.map(|f| f > index).unwrap_or(false) {
+                    self.cell_state.focused_cell = self.cell_state.focused_cell.map(|f| f - 1);
+                }
+                true
+            },
+            CellAction::Duplicate { index } => {
+                if index >= self.cells.len() {
+                    return false;
+                }
+                let cloned = self.cells[index].duplicate();
+                self.cells.insert(index + 1, cloned);
+                true
+            },
+            CellAction::InsertAfter { index } => {
+                let insert_at = index + 1;
+                if insert_at > self.cells.len() {
+                    return false;
+                }
+                let new_cell = self.compute_insert_keyframe(index);
+                self.cells.insert(insert_at, new_cell);
+                self.cell_state.focused_cell = Some(insert_at);
+                true
+            },
+            CellAction::InsertCodeAfter { index } => {
+                let insert_at = index + 1;
+                if insert_at > self.cells.len() {
+                    return false;
+                }
+                self.cells.insert(
+                    insert_at,
+                    Cell::Code {
+                        body: String::new(),
+                        expanded: true,
+                    },
+                );
+                self.cell_state.focused_cell = Some(insert_at);
+                true
+            },
+            CellAction::MoveUp { index } => {
+                if index == 0 || index >= self.cells.len() {
+                    return false;
+                }
+                self.cells.swap(index, index - 1);
+                self.cell_state.swap_cell_indices(index, index - 1);
+                true
+            },
+            CellAction::MoveDown { index } => {
+                if index + 1 >= self.cells.len() {
+                    return false;
+                }
+                self.cells.swap(index, index + 1);
+                self.cell_state.swap_cell_indices(index, index + 1);
+                true
+            },
+            CellAction::AppendAtEnd(cell_type) => {
+                let new_cell = match cell_type {
+                    CellType::Keyframe => {
+                        self.compute_insert_keyframe(self.cells.len().saturating_sub(1))
+                    },
+                    CellType::Code => Cell::Code {
+                        body: String::new(),
+                        expanded: true,
+                    },
+                };
+                self.cells.push(new_cell);
+                self.cell_state.focused_cell = Some(self.cells.len() - 1);
+                true
+            },
+        }
     }
 
     /// Convert byte offset to (line, col).

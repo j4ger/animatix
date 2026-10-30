@@ -495,7 +495,7 @@ pub(super) fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEdi
     );
 
     if response.clicked() {
-        state.pending_insert_after = Some(after_index);
+        state.pending_action = Some(CellAction::InsertAfter { index: after_index });
     }
 
     use crate::app::components::context_menu::{MenuEntry, render_menu};
@@ -507,8 +507,10 @@ pub(super) fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEdi
         ];
         if let Some(idx) = render_menu(ui, &entries) {
             match idx {
-                0 => state.pending_insert_after = Some(after_index),
-                1 => state.pending_insert_code_after = Some(after_index),
+                0 => state.pending_action = Some(CellAction::InsertAfter { index: after_index }),
+                1 => {
+                    state.pending_action = Some(CellAction::InsertCodeAfter { index: after_index })
+                },
                 _ => {},
             }
             ui.close();
