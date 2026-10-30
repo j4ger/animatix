@@ -25,6 +25,11 @@ scopes = [
     # already using it while it was undeclared — cog verify does not check scopes
     # against this list, so the mismatch was invisible rather than impossible.
     "web",
+    # Existing history and current crates use these scopes; declaring them keeps
+    # `cog check` focused on real commit-policy violations.
+    "eparts",
+    "text",
+    "cli",
 ]
 
 [commit_types]
