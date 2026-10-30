@@ -12,17 +12,16 @@ closed work lives in [`history/README.md`](history/README.md) — do not re-add 
 The large-file/large-function programme is governed by [`ecs.md`](ecs.md) §8:
 `scripts/structure.sh` fails on a production file >1000 lines (tests >2000), a
 production function >200 lines (tests >300), or a stale allowlist row. A split
-deletes its row and never raises one. The timeline ECS migration itself is
-complete — [`ecs.md`](ecs.md) is the normative description of the storage as it
-now exists, not a work list.
+deletes its row and never raises one. [`ecs.md`](ecs.md) is the normative
+description of the timeline storage, not a work list.
 
 ### Property reference generator (deferred)
 
 [`properties.md`](properties.md) is hand-maintained. A generator over
 `animatix-core::property::PROPERTY_DESCRIPTORS` would remove the drift risk, but
 the reference is grouped by user-facing categories rather than descriptor order,
-so the generator needs a category map first. Until then the pin tests in
-`animatix-core` are authoritative.
+so the generator needs a category map first. Until then the name pin test and
+`scripts/check-docs.sh`'s Applies-to check keep the table honest.
 
 ### Web playback performance (active)
 
@@ -35,32 +34,15 @@ so the generator needs a category map first. Until then the pin tests in
 > and the result — p50 45.2 ms before, 49.4 ms after, at a pinned 0.5 scale — is
 > **inconclusive in both directions**, so no perf claim is attached to it.
 
-Method and measurements: `docs/performance_evaluation.md` §3.7. Shipped
-2026-09-30: a browser frame-cost harness (`debug_bench_frames` /
-`debug_gpu_drain` / `web/demos/perf-probe.html`, `?base=` for A/B of two engine
-builds), display-matched raster (`set_render_scale`), the canvas backing store
-sized to the displayed pixels, and a page-wide quality step driven by the shared
-rAF tick interval — six embeds on one page went 21.7 → 9.4 ms per tick.
-
-Native parity, measured on the same GPU/scene/resolution and **confirmed in a
-focused window**: web 3.42 ms/frame at display size (1052×592) against native
-1.63 ms at the larger 1280×720 raster, which additionally copies 3.7 MB back to
-the CPU. The wasm CPU path and the canvas blit were both **ruled out by A/B** as
-the cause, so the residual is GPU-side: matching native's frame cost takes
-rasterizing at roughly half the display size. One embed at its displayed size
-still has ~4.9× headroom on a 60 Hz budget, so this is fidelity headroom, not a
-smoothness problem. Per-frame CPU cannot be measured from the harness (the page
-quantizes `performance.now()`), and rAF cadence is unmeasurable in the automated
-tab, which is why the harness drives frames by hand.
-
-Remaining:
+Method and measurements: `docs/performance_evaluation.md` §3.7. The harness,
+display-matched raster/quality work, and measured web/native gap are archived in
+[`history/2026-10.md`](history/2026-10.md) ("Roadmap cleanup"). Remaining:
 
 | Item | Scope | Status |
 |---|---|---|
 | Attribute the GPU-side gap | Narrowed by a WebGPU microbenchmark (§3.7 "Where the gap is not"): not fill rate (a full-target colour write is 0.058 ms vs a 3.42 ms frame), not the present blit (0.003 ms), not pass count (pinned vello uses exactly two compute passes). It sits inside the execution of those passes in the browser — Dawn's dispatch/barrier handling, plus a per-frame encoding upload bounded at ~0.22 ms/MB. JS-side compute timing is unusable (it reports CPU submission), so the next step is a GPU capture: RenderDoc against a `--no-sandbox` Chromium, or Dawn tracing via `--enable-dawn-features`. | Not started |
-| Render vello directly into the canvas surface | Possible — measured 2026-10-06: Chromium honours a requested `usage` on `GPUCanvasContext.configure`, giving the surface texture `STORAGE_BINDING` (mask 24) — but not worth it. The blit this deletes measures 0.003 ms (§3.7), and it is the upscaling step: rendering into the surface means rasterizing at canvas resolution every frame, forfeiting `set_render_scale` and the adaptive quality controller. Only sane shape if revisited: direct at raster scale 1.0, blit below it, behind a capability probe (Firefox/Safari unverified for the `usage` member). See "The preview-lag round" for the full reasoning. | Closed, not worth it |
 | `wasm-opt` speed pass | Release builds are size-optimised (`-Oz`). The build-profile A/B says the whole wasm CPU slice is small and unmeasurable from JS, so this is unlikely to be where the gap is — but it is untested. | Not started |
-| Scale animated `Filter` scopes | Done: `FilterBackend::set_raster_scale`, with pixel-unit parameters declared as `EffectParamUnit::Pixel` so a radius shrinks with the raster. Measured, and pinned by a ramp-width test. Not yet re-measured in a browser after the change — see `docs/performance_evaluation.md` §The filter chain follows the raster. | Needs the browser A/B |
+| Browser A/B of scale-animated `Filter` scopes | Re-run the browser measurement after the raster-scale work (`FilterBackend::set_raster_scale`, pixel-unit `EffectParamUnit::Pixel` parameters, ramp-width pin); see `docs/performance_evaluation.md` §The filter chain follows the raster. | Needs the browser A/B |
 | rAF-cadence sampling in automation | The quality-step logic is currently only exercisable in a foreground tab; the automated harness measures throughput, not smoothness. | Not started |
 | `debug_readback` intermittently traps the wasm | The readback probe is flaky rather than wrong at a particular time, and with `panic = "abort"` a trap takes the whole page's shared engine with it: after one, later probes in that tab fail (`error` states, `Runtime.evaluate` timeouts) until the browser restarts. Evidence from the 2026-10-01 sweep (flake `.#web` Chromium, `--webgpu`): the same call alternates — `tour/scenes/syntax.amx` `debug_readback(1.95)` timed out once and returned 27 distinct colours on the repeat; `web/demos/hash/scene.amx` `debug_readback(19.5)` hung twice while 19.0/20.0/20.5 were fine; one tour sweep surfaced `RuntimeError: unreachable` with frames inside `animatix_web_bg.wasm`. Meanwhile `render_frame` at the same time is fine and the transformer page's seven scenes, the hero and the hash/sorting compositions all read back — so the shipped demos render; only the probe path dies. Affects `web/demos/multi-probe.html?readback=1` and the `svg-probe/*` harnesses, which is why they need a fresh browser per probe until this is understood. | Not started |
 
@@ -80,31 +62,27 @@ Remaining:
 | Fewer Vello renders per frame | Since 2026-09-16 each `Filter` scope renders, seeds, and dispatches at its **region** size (content bounds ∪ support, 64-px quantized) instead of the full canvas — see `docs/effects.md` §3. Measured floor (Intel UHD 770, `demos_frame_cost`): every example demo is ≤14 ms/frame except the synthetic 13-scope `30_effects_catalog` (63-71 ms ≈ 15 fps). Probes show the chain itself is only ~12 ms of that; the rest is main vello render + per-scope fixed render/harvest costs, serialised per scope. Scope merging into one shared sub-scene render is the structural lever; on this iGPU it projects to only ~50 ms for the 13-scope reference, so it stays **Not scheduled** without a discrete-GPU or many-scope content driver. Experiments that did not move the floor: halving the resolution (+15%, i.e. not pixel-bound), encoder merging, and the zero-readback pending evaluate path (all neutral). | **Not scheduled** — measured floor documented, lever known |
 | GUI panel-level screenshot regression | The headless screenshot driver (`ANIMATIX_SCREENSHOT`, `ANIMATIX_SCREENSHOT_SIZE`) reviews a single, non-interactive app state. The diagnostics peek, the export dialog, and multi-actor curves were verified by compile + unit tests only, because `--demo-script` can only play/pause/scrub. Extending its grammar to switch tabs / open dialogs would make those surfaces screenshot-testable. | Not started |
 
-## Planned Effects
+## Effects — remaining surface gaps
 
-Wave 1 (`Sharpen`, `Vignette`, `MotionBlur`, `Grain`, `Levels`) shipped
-2026-09-13, wave 2 (`Duotone`, `Posterize`, `Edge`, `LensDistortion`,
-`DropShadow`) shipped 2026-09-14 — see `docs/history/2026-09.md` for both.
+Wave 1, wave 2, the second-input-texture ABI (`Bloom`, `DropShadow.softness`),
+and `Glass` are shipped history: see
+[`history/2026-09.md`](history/2026-09.md) ("Built-in effects, wave 1/2"),
+[`history/2026-10.md`](history/2026-10.md) (Glass in the resolved-decisions
+table), and "Roadmap cleanup" in the same volume for the chain-`Mix` decision.
+What remains in this family:
 
-The second-input-texture ABI bump shipped 2026-10-04 (`docs/effects.md` §4.1:
-binding 5 carries the pre-chain original), and with it `Bloom` and
-`DropShadow.softness`. A generic chain `Mix` is deliberately **not** planned:
-`Bloom`'s `keep` parameter is already a linear mix of the chain result with the
-original, so a second effect over the same math would be a duplicate — an N-way
-mix would need named intermediate chain outputs, which is a chain-model change
-rather than another input texture.
-
-What is left in this family after `Glass` shipped (2026-10-05,
-`docs/spec.md` "Glass"): the backdrop pass reads the live render target, so a
-scope's children can only ever composite **above** the frost — there is no way to
-put content *underneath* it — and every `Glass` scope costs its own region copy +
-chain run + two composites, with no merging between scopes (`n` panels are `n+1`
-passes over their regions). `EffectRegion` is still a plain rect; the rounded
-panel clip is a signed-distance term in the blit shader, so any other
-non-rectangular scope shape still wants real region masks. And the root loop's
-`can_post_composite_filter` rule ("nothing may render after me") still forces
-`Filter` scopes that are not last onto the inline readback path — `Glass` no
-longer inherits that restriction, but the filter side of it is unchanged.
+- The backdrop pass reads the live render target, so a scope's children can only
+  ever composite **above** the frost — there is no way to put content
+  *underneath* it.
+- Every `Glass` scope costs its own region copy + chain run + two composites,
+  with no merging between scopes (`n` panels are `n+1` passes over their regions).
+- `EffectRegion` is still a plain rect; the rounded panel clip is a
+  signed-distance term in the blit shader, so any other non-rectangular scope
+  shape still wants real region masks.
+- The root loop's `can_post_composite_filter` rule ("nothing may render after
+  me") still forces `Filter` scopes that are not last onto the inline readback
+  path — `Glass` no longer inherits that restriction, but the filter side of it
+  is unchanged.
 
 ## Morph: `strategy: fade` has no cross-fade for state shapes
 

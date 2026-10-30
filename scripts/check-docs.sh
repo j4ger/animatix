@@ -3,8 +3,10 @@
 #
 # CI-friendly documentation consistency check:
 #   - every relative Markdown link under docs/ must resolve to an existing file
-#   - docs/roadmap.md must not keep completed-status rows under Active Work
+#   - docs/roadmap.md must not keep completed-status rows in any table
 #   - active docs must not carry stale known-gap wording for completed roadmap items
+#   - docs/properties.md Applies-to actor lists must match PROPERTY_DESCRIPTORS
+#     for the rows pinned below
 #
 # Usage:
 #   bash scripts/check-docs.sh
@@ -63,17 +65,28 @@ fi
 
 # ── 2. Roadmap completed-status rows ─────────────────────────────────────────
 echo ""
-echo "2. Roadmap Active Work completed-status rows"
-echo "-------------------------------------------"
-COMPLETED_ROWS="$ROOT/docs/roadmap.md"
-# Scoped to the Active Work section on purpose. The later per-round findings
-# tables ("Web-demo review pass", "Easing pass") are history with their own
-# Status column and are *supposed* to say Resolved when something ships;
-# scanning the whole file flagged those and made this check unpassable.
-ACTIVE_WORK=$(awk '/^## Backlog & Prioritization/{inside=1; next} /^## /{inside=0} inside' \
-    "$COMPLETED_ROWS")
-if echo "$ACTIVE_WORK" | grep -nE '^\|.*\| (Done|Completed|Resolved|Shipped) \|'; then
-    echo "  FAILED: completed rows should be removed from Active Work"
+echo "2. Roadmap completed-status rows (all tables)"
+echo "--------------------------------------------"
+ROADMAP="$ROOT/docs/roadmap.md"
+# Scan every table cell in the file, not one section or one status column:
+# finished rows belong in docs/history/, wherever they were left behind. A cell
+# is rejected when it starts with Done/Completed/Resolved/Shipped/Closed even
+# when followed by a note ("Closed, not worth it").
+COMPLETED_ROWS=$(awk -F'|' '
+    function trim(s) { gsub(/^[[:space:]]+|[[:space:]]+$/, "", s); return s }
+    /^\|/ {
+        for (i = 2; i < NF; i++) {
+            cell = tolower(trim($i));
+            if (cell ~ /^(done|completed|resolved|shipped|closed)([^a-z]|$)/) {
+                print NR ": " $0;
+                break;
+            }
+        }
+    }
+' "$ROADMAP")
+if [ -n "$COMPLETED_ROWS" ]; then
+    echo "$COMPLETED_ROWS"
+    echo "  FAILED: completed rows must move to docs/history/"
     FAILED=1
 else
     echo "  PASSED"
@@ -117,6 +130,86 @@ if [ "$STALE_FOUND" -eq 0 ]; then
     echo "  PASSED"
 fi
 
+# ── 4. Property reference applicability ─────────────────────────────────────
+echo ""
+echo "4. Property reference Applies-to actor lists"
+echo "--------------------------------------------"
+PROPERTY_DOC="$ROOT/docs/properties.md"
+PROPERTY_SOURCE="$ROOT/crates/animatix-core/src/property.rs"
+APPLIES_FAILED=0
+
+normalize_actor_list() {
+    tr ',' '\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | sed '/^$/d' \
+        | sort | paste -sd ',' -
+}
+
+# Read the actor names from a one-line `Applicable::Actors(&[...])` descriptor row.
+descriptor_actor_list() {
+    local prop="$1"
+    local row
+    row=$(grep -F "\"$prop\" => (Applicable::Actors(&[" "$PROPERTY_SOURCE" | head -n 1)
+    [ -n "$row" ] || return 1
+    printf '%s\n' "$row" \
+        | sed 's/.*Applicable::Actors(&\[//; s/\].*//' \
+        | grep -o '"[A-Za-z][A-Za-z0-9]*"' \
+        | tr -d '"' \
+        | normalize_actor_list
+}
+
+documented_applies_to() {
+    local prop="$1"
+    grep -E "^\| \`$prop\` \|" "$PROPERTY_DOC" | head -n 1 | cut -d'|' -f6 \
+        | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'
+}
+
+check_actor_row() {
+    local prop="$1"
+    local expected actual
+    if ! expected=$(descriptor_actor_list "$prop"); then
+        echo "  MISSING DESCRIPTOR: $prop"
+        APPLIES_FAILED=1
+        return
+    fi
+    actual=$(documented_applies_to "$prop" || true)
+    if [ "$(printf '%s' "$actual" | normalize_actor_list)" != \
+         "$(printf '%s' "$expected" | normalize_actor_list)" ]; then
+        echo "  APPLIES-TO MISMATCH: $prop"
+        echo "    docs:       $actual"
+        echo "    descriptor: $expected"
+        APPLIES_FAILED=1
+    fi
+}
+
+# The explicit actor-list rows that have drifted before. Keep this list growing
+# when a capability-shaped row is rewritten as an `Applicable::Actors` list.
+for prop in from to corner_radius padding x_range y_range; do
+    check_actor_row "$prop"
+done
+
+# `head_size` is an `Any` row: an Arrow shape kind plus the Callout capability,
+# so its documentation is a two-actor list rather than one `Actors` array.
+HEAD_SIZE_ROW=$(grep -F '"head_size" => (Applicable::Any' -A4 "$PROPERTY_SOURCE" || true)
+if ! grep -q 'Applicable::ShapeKinds(&\[ShapeKind::Arrow\])' <<<"$HEAD_SIZE_ROW" \
+    || ! grep -q 'Applicable::Callout' <<<"$HEAD_SIZE_ROW"; then
+    echo "  MISSING DESCRIPTOR: head_size (Any row changed shape)"
+    APPLIES_FAILED=1
+else
+    actual=$(documented_applies_to head_size || true)
+    if [ "$(printf '%s' "$actual" | normalize_actor_list)" != \
+         "$(printf '%s' 'Arrow, Callout' | normalize_actor_list)" ]; then
+        echo "  APPLIES-TO MISMATCH: head_size"
+        echo "    docs:       $actual"
+        echo "    descriptor: Arrow, Callout"
+        APPLIES_FAILED=1
+    fi
+fi
+
+if [ "$APPLIES_FAILED" -eq 0 ]; then
+    echo "  PASSED"
+else
+    FAILED=1
+fi
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 echo ""
 echo "========================================"
@@ -129,6 +222,7 @@ fi
 
 echo "DOCS CHECK FAILED"
 echo ""
-echo "Fix broken relative links, remove completed Active Work rows, or update"
-echo "known-gap wording when a roadmap item ships."
+echo "Fix broken relative links, remove completed roadmap rows in any table,"
+echo "update known-gap wording when a roadmap item ships, or correct a"
+echo "documented Applies-to actor list."
 exit 1

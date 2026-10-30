@@ -20,7 +20,9 @@
 //! real implementation. Without it, `ScopedStage` is a zero-sized no-op and
 //! `take_measurements` returns an empty vec, so call sites stay identical
 //! across both configurations (this is what the CI
-//! `--no-default-features --features render,text,svg` build compiles).
+//! `cargo check -p animatix --no-default-features` build compiles; the old
+//! `render`/`text`/`svg` feature trio was removed — see
+//! `docs/history/2026-08.md`, "Open backlog build target").
 
 // Only the no-op stub below needs `Duration` when tracing is compiled out;
 // the real implementation imports it inside `imp`.
@@ -49,12 +51,19 @@ pub mod stage {
     pub const LAYOUT: &str = "layout";
     /// Modifier IR execution per frame.
     pub const MODIFIER_EXEC: &str = "modifier_exec";
-    /// Reserved for the scene-encode seam (currently interleaved with
-    /// sampling inside node evaluation; split out when it shows up as a cost).
+    /// Reserved for a future collect-then-encode split. Encoding is currently
+    /// interleaved with sampling inside node evaluation; a per-node stage was
+    /// measured and rejected for its overhead, so this stays in the shared
+    /// vocabulary until the split exists (`docs/performance_evaluation.md`
+    /// §3.5 "Status (PF-8)").
+    #[doc(hidden)]
     pub const ENCODE_SCENE: &str = "encode_scene";
     /// GPU rasterization of an encoded scene (`Renderer::render_vello_scene*`).
     pub const RASTERIZE: &str = "rasterize";
-    /// Reserved for the export-pipeline seam; unused by the engine today.
+    /// Reserved for export-pipeline instrumentation. The export loop lives in
+    /// `animatix-render`, so the engine emits nothing here yet; kept public in
+    /// the shared stage vocabulary rather than removed.
+    #[doc(hidden)]
     pub const EXPORT: &str = "export";
 }
 

@@ -1,7 +1,11 @@
 # Animatix Property Reference
 
-> Canonical list of all actor properties, maintained as a reference table by hand.
-> The descriptor table and pin tests are authoritative; update this table in the same change.
+> Canonical quick-reference list of all actor properties, maintained by hand but pinned:
+> `cargo test -p animatix-core --test properties_doc` checks that every
+> `PROPERTY_DESCRIPTORS` row has a table entry (and vice versa), and
+> `scripts/check-docs.sh` compares the explicit actor lists in the Applies-to column
+> against the descriptor rows.
+> The descriptor table is authoritative; update this table in the same change.
 > For property value types and usage, see [`spec.md`](spec.md).
 
 ---
@@ -44,7 +48,7 @@ Text) and `gap` (under Containers).
 | `offset` | Vec2 | ✓ | ✓ | Everything |
 | `anchor` | SceneAnchor | ✓ | ✓ | Everything |
 | `size` | Vec2 | ✓ | ✓ | Sized actors |
-| `corner_radius` | F32 | ✓ | ✓ | Rect |
+| `corner_radius` | F32 | ✓ | ✓ | Rect, Glass, Connector |
 | `width` | F32 | ✓ | ✓ | Sized actors |
 | `height` | F32 | ✓ | ✓ | Sized actors |
 | `min_width` | F32 | ✓ | ✓ | Sized actors |
@@ -65,9 +69,9 @@ Text) and `gap` (under Containers).
 | `color` | Color | ✓ | ✓ | All drawables |
 | `opacity` | F32 | ✓ | ✓ | Everything |
 | `fill_opacity` | F32 | ✓ | ✓ | All shapes except Line |
-| `stroke` | Color | ✓ | ✓ | All shapes |
-| `stroke_width` | F32 | ✓ | ✓ | All shapes |
-| `stroke_progress` | F32 | ✓ | ✓ | All shapes |
+| `stroke` | Color | ✓ | ✓ | All stroke paths |
+| `stroke_width` | F32 | ✓ | ✓ | All stroke paths |
+| `stroke_progress` | F32 | ✓ | ✓ | All stroke paths |
 | `dash_pattern` | F32List | ✓ | ✓ | All stroke paths |
 | `dash_offset` | F32 | ✓ | ✓ | All stroke paths |
 | `blend` | Str | ✓ | ✓ | Everything |
@@ -156,9 +160,9 @@ the registry-backed clip rectangle.
 | `shift` | Vec2 | ✓ | ✓ | Everything |
 | `line_cap` | U32 | ✓ | ✓ | All shapes |
 | `line_join` | U32 | ✓ | ✓ | All shapes |
-| `from` | Vec2 | ✓ | ✓ | Line |
-| `to` | Vec2 | ✓ | ✓ | Line |
-| `head_size` | F32 | ✓ | ✓ | Arrow |
+| `from` | Vec2 | ✓ | ✓ | Arrow, Callout, Connector, Line |
+| `to` | Vec2 | ✓ | ✓ | Arrow, Callout, Connector, Line |
+| `head_size` | F32 | ✓ | ✓ | Arrow, Callout |
 | `points` | PointList | ✓ | ✓ | Polygon |
 | `commands` | CommandList | ✓ | ✓ | Path |
 | `icon` | Str (build-time) | — | — | Path |
@@ -175,10 +179,10 @@ the registry-backed clip rectangle.
 
 | Property | Type | Animated | Assignable | Applies to |
 |----------|------|----------|------------|------------|
-| `text` | String | ✓ | ✓ | Text |
+| `text` | String | ✓ | ✓ | Text-like actors |
 | `code` | String | ✓ | ✓ | Code |
 | `language` | String | — | ✓ | Code |
-| `font_family` | String | — | ✓ | Text, Typst, Code, Math |
+| `font_family` | String | — | ✓ | Text, Typst, Code, Math, Captions |
 | `font_size` | F32 | ✓ | ✓ | Text, Typst, Code, Math, Captions, Counter, Cue, Equation, Legend |
 | `font_style` | String | ✓ | ✓ | Text, Typst, Code, Math, Captions |
 | `font_weight` | F32 | ✓ | ✓ | Text, Typst, Code, Math, Captions |
@@ -287,8 +291,8 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 | `show_labels` | Bool/String | — | — | BarChart |
 | `x_domain` | Vec2 | — | — | Graph, PlotCurve, VectorField, Heatmap, ContourSet, NumberPlane |
 | `y_domain` | Vec2 | — | — | Graph, PlotCurve, VectorField, Heatmap, ContourSet, NumberPlane |
-| `x_range` | Vec2 | — | — | NumberPlane |
-| `y_range` | Vec2 | — | — | NumberPlane |
+| `x_range` | Vec2 | — | — | Graph, NumberPlane, PlotCurve |
+| `y_range` | Vec2 | — | — | Graph, NumberPlane, PlotCurve |
 | `t_domain` | Vec2 | — | — | PlotCurve |
 | `kind` | String | — | — | PlotCurve |
 | `resolution` | F32 | — | — | PlotCurve, Heatmap, ContourSet |
@@ -318,7 +322,7 @@ Audio actors support timing modifiers (`duration`, delay) for clip placement on 
 | Property | Type | Animated | Assignable | Applies to |
 |----------|------|----------|------------|------------|
 | `gap` | F32 | — | — | Row, Col, Grid, Stack, Group, Mask, Legend, BarChart (BarChart also accepts `auto`) |
-| `padding` | F32 | — | — | Row, Col, Grid, Stack |
+| `padding` | F32 | — | — | Row, Col, Grid, Stack, Graph |
 | `align` | String | — | — | Row, Col, Grid |
 | `cols` | U32 | — | — | Grid |
 | `vertical_align` | String | — | — | Col, Row |

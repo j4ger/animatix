@@ -1,10 +1,11 @@
 # Animatix Clippy Configuration
 
-# Deny these lints in CI
+# Rust version used for clippy's MSRV-aware suggestions.
 msrv = "1.85"
 
-# Allowed lints (structural refactors tracked in docs/roadmap.md)
+# Functions above clippy's default 7-argument limit are allowed up to 15. This is
+# not a temporary allowance: dropping the ceiling to 10 immediately flags
+# `animatix_std::catalog::caps` (14 arguments), whose refactor is outside the
+# engine work this file was introduced for. Audit context lives in the history
+# archive, not the roadmap: docs/history/2026-08.md ("Audit History").
 too-many-arguments-threshold = 15
-
-# These require API refactoring — allowed temporarily
-# See docs/roadmap.md "Audit: 2026-08-05" for tracking.
