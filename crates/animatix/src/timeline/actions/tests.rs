@@ -100,7 +100,7 @@ fn extension_layout_container_expands_for_leaf_actions() {
 #[test]
 fn runtime_action_names_match_builtins_registry() {
     let mut runtime: Vec<String> =
-        get_builtin_actions().iter().map(|a| a.signature().name.clone()).collect();
+        BuiltinActionKind::ALL.iter().map(|a| a.signature().name.clone()).collect();
     let mut registry: Vec<String> =
         animatix_syntax::builtins::ACTIONS.iter().map(|s| s.to_string()).collect();
     runtime.sort();
@@ -109,6 +109,42 @@ fn runtime_action_names_match_builtins_registry() {
         runtime, registry,
         "runtime action verbs drifted from animatix-syntax::builtins::ACTIONS"
     );
+}
+
+#[test]
+fn every_registered_action_name_resolves_and_executes() {
+    for name in animatix_syntax::builtins::ACTIONS {
+        let kind = BuiltinActionKind::from_name(name)
+            .unwrap_or_else(|| panic!("registered action '{name}' has no static handler"));
+        assert_eq!(kind.signature().name, *name);
+
+        let mut timeline = Timeline::new();
+        timeline.spawn_entity("a", "Rect");
+        timeline.spawn_entity("b", "Rect");
+        let targets = if *name == "swap" {
+            vec!["a".to_string(), "b".to_string()]
+        } else {
+            vec!["a".to_string()]
+        };
+        let action = Action {
+            verb: (*name).to_string(),
+            targets,
+            args: vec![],
+            modifiers: vec![],
+            byte_span: None,
+            target_index: vec![],
+        };
+        let mut diagnostics = Vec::new();
+
+        process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
+
+        assert!(
+            !diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code == DiagnosticCode::UnknownAction),
+            "registered action '{name}' was not dispatched to a built-in handler: {diagnostics:?}"
+        );
+    }
 }
 
 #[test]

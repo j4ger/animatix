@@ -3,40 +3,169 @@
 use super::targets::lift_container_and_intermediate_containers;
 use super::*;
 
-pub(super) fn get_builtin_actions() -> Vec<Box<dyn BuiltinAction>> {
-    vec![
-        Box::new(FadeIn),
-        Box::new(WipeIn),
-        Box::new(Move),
-        Box::new(Shift),
-        Box::new(Rotate),
-        Box::new(Scale),
-        Box::new(DrawIn),
-        Box::new(RevealIn),
-        Box::new(DrawOut),
-        Box::new(FadeOut),
-        Box::new(Persist),
-        Box::new(Remove),
-        Box::new(WipeOut),
-        Box::new(RevealOut),
-        Box::new(Shake),
-        Box::new(Pulse),
-        Box::new(Bounce),
-        Box::new(SettleIn),
-        Box::new(PopIn),
-        Box::new(Highlight),
-        Box::new(Unhighlight),
-        Box::new(Swap),
-        Box::new(Reorder),
-    ]
+/// Static identity of every built-in action.
+///
+/// Built-ins are unit structs implementing [`BuiltinAction`]. Keeping their
+/// identities in an enum makes the registry a `match` over a `'static` table
+/// instead of constructing a `Vec<Box<dyn BuiltinAction>>` for every lookup.
+/// `ALL` preserves the historical registry order used by
+/// [`super::get_action_signatures`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum BuiltinActionKind {
+    FadeIn,
+    WipeIn,
+    Move,
+    Shift,
+    Rotate,
+    Scale,
+    DrawIn,
+    RevealIn,
+    DrawOut,
+    FadeOut,
+    Persist,
+    Remove,
+    WipeOut,
+    RevealOut,
+    Shake,
+    Pulse,
+    Bounce,
+    SettleIn,
+    PopIn,
+    Highlight,
+    Unhighlight,
+    Swap,
+    Reorder,
 }
 
-pub(super) fn execute_action(
+impl BuiltinActionKind {
+    /// Every built-in action, in registry/signature-listing order.
+    pub(super) const ALL: [Self; 23] = [
+        Self::FadeIn,
+        Self::WipeIn,
+        Self::Move,
+        Self::Shift,
+        Self::Rotate,
+        Self::Scale,
+        Self::DrawIn,
+        Self::RevealIn,
+        Self::DrawOut,
+        Self::FadeOut,
+        Self::Persist,
+        Self::Remove,
+        Self::WipeOut,
+        Self::RevealOut,
+        Self::Shake,
+        Self::Pulse,
+        Self::Bounce,
+        Self::SettleIn,
+        Self::PopIn,
+        Self::Highlight,
+        Self::Unhighlight,
+        Self::Swap,
+        Self::Reorder,
+    ];
+
+    /// Resolve an action verb to its static built-in handler.
+    pub(super) fn from_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "fade-in" => Self::FadeIn,
+            "wipe-in" => Self::WipeIn,
+            "move" => Self::Move,
+            "shift" => Self::Shift,
+            "rotate" => Self::Rotate,
+            "scale" => Self::Scale,
+            "draw-in" => Self::DrawIn,
+            "reveal-in" => Self::RevealIn,
+            "draw-out" => Self::DrawOut,
+            "fade-out" => Self::FadeOut,
+            "persist" => Self::Persist,
+            "remove" => Self::Remove,
+            "wipe-out" => Self::WipeOut,
+            "reveal-out" => Self::RevealOut,
+            "shake" => Self::Shake,
+            "pulse" => Self::Pulse,
+            "bounce" => Self::Bounce,
+            "settle-in" => Self::SettleIn,
+            "pop-in" => Self::PopIn,
+            "highlight" => Self::Highlight,
+            "unhighlight" => Self::Unhighlight,
+            "swap" => Self::Swap,
+            "reorder" => Self::Reorder,
+            _ => return None,
+        })
+    }
+}
+
+impl BuiltinAction for BuiltinActionKind {
+    fn signature(&self) -> ActionSignature {
+        match self {
+            Self::FadeIn => FadeIn.signature(),
+            Self::WipeIn => WipeIn.signature(),
+            Self::Move => Move.signature(),
+            Self::Shift => Shift.signature(),
+            Self::Rotate => Rotate.signature(),
+            Self::Scale => Scale.signature(),
+            Self::DrawIn => DrawIn.signature(),
+            Self::RevealIn => RevealIn.signature(),
+            Self::DrawOut => DrawOut.signature(),
+            Self::FadeOut => FadeOut.signature(),
+            Self::Persist => Persist.signature(),
+            Self::Remove => Remove.signature(),
+            Self::WipeOut => WipeOut.signature(),
+            Self::RevealOut => RevealOut.signature(),
+            Self::Shake => Shake.signature(),
+            Self::Pulse => Pulse.signature(),
+            Self::Bounce => Bounce.signature(),
+            Self::SettleIn => SettleIn.signature(),
+            Self::PopIn => PopIn.signature(),
+            Self::Highlight => Highlight.signature(),
+            Self::Unhighlight => Unhighlight.signature(),
+            Self::Swap => Swap.signature(),
+            Self::Reorder => Reorder.signature(),
+        }
+    }
+
+    fn execute(
+        &self,
+        action: &Action,
+        time_ms: f64,
+        timeline: &mut Timeline,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        match self {
+            Self::FadeIn => FadeIn.execute(action, time_ms, timeline, diagnostics),
+            Self::WipeIn => WipeIn.execute(action, time_ms, timeline, diagnostics),
+            Self::Move => Move.execute(action, time_ms, timeline, diagnostics),
+            Self::Shift => Shift.execute(action, time_ms, timeline, diagnostics),
+            Self::Rotate => Rotate.execute(action, time_ms, timeline, diagnostics),
+            Self::Scale => Scale.execute(action, time_ms, timeline, diagnostics),
+            Self::DrawIn => DrawIn.execute(action, time_ms, timeline, diagnostics),
+            Self::RevealIn => RevealIn.execute(action, time_ms, timeline, diagnostics),
+            Self::DrawOut => DrawOut.execute(action, time_ms, timeline, diagnostics),
+            Self::FadeOut => FadeOut.execute(action, time_ms, timeline, diagnostics),
+            Self::Persist => Persist.execute(action, time_ms, timeline, diagnostics),
+            Self::Remove => Remove.execute(action, time_ms, timeline, diagnostics),
+            Self::WipeOut => WipeOut.execute(action, time_ms, timeline, diagnostics),
+            Self::RevealOut => RevealOut.execute(action, time_ms, timeline, diagnostics),
+            Self::Shake => Shake.execute(action, time_ms, timeline, diagnostics),
+            Self::Pulse => Pulse.execute(action, time_ms, timeline, diagnostics),
+            Self::Bounce => Bounce.execute(action, time_ms, timeline, diagnostics),
+            Self::SettleIn => SettleIn.execute(action, time_ms, timeline, diagnostics),
+            Self::PopIn => PopIn.execute(action, time_ms, timeline, diagnostics),
+            Self::Highlight => Highlight.execute(action, time_ms, timeline, diagnostics),
+            Self::Unhighlight => Unhighlight.execute(action, time_ms, timeline, diagnostics),
+            Self::Swap => Swap.execute(action, time_ms, timeline, diagnostics),
+            Self::Reorder => Reorder.execute(action, time_ms, timeline, diagnostics),
+        }
+    }
+}
+
+pub(super) fn execute_action<H: BuiltinAction + ?Sized>(
     action: &Action,
     time_ms: f64,
     timeline: &mut Timeline,
     diagnostics: &mut Vec<Diagnostic>,
-    handler: &dyn BuiltinAction,
+    handler: &H,
 ) {
     let expanded_targets = expand_group_targets(timeline, &action.targets, &action.verb);
     if expanded_targets != action.targets {

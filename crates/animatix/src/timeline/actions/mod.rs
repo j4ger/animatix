@@ -42,7 +42,7 @@ mod dispatch;
 mod guards;
 mod targets;
 
-use dispatch::{execute_action, get_builtin_actions};
+use dispatch::{BuiltinActionKind, execute_action};
 use guards::push_unknown_action_diagnostic;
 #[cfg(test)]
 mod tests;
@@ -79,11 +79,9 @@ pub fn process_action_with_extensions(
         return;
     }
 
-    for builtin in get_builtin_actions() {
-        if builtin.signature().name == action.verb {
-            execute_action(action, time_ms, timeline, diagnostics, builtin.as_ref());
-            return;
-        }
+    if let Some(kind) = BuiltinActionKind::from_name(&action.verb) {
+        execute_action(action, time_ms, timeline, diagnostics, &kind);
+        return;
     }
 
     push_unknown_action_diagnostic(action, diagnostics, span);
@@ -91,5 +89,5 @@ pub fn process_action_with_extensions(
 
 /// Exposes all action signatures for LSP/UI integration.
 pub fn get_action_signatures() -> Vec<ActionSignature> {
-    get_builtin_actions().iter().map(|a| a.signature()).collect()
+    BuiltinActionKind::ALL.iter().map(|kind| kind.signature()).collect()
 }
