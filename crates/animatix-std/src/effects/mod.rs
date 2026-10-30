@@ -32,6 +32,5 @@ pub use posterize::{POSTERIZE, Posterize};
 pub use sharpen::{SHARPEN, Sharpen};
 pub use vignette::{VIGNETTE, Vignette};
 
-
 #[cfg(test)]
 mod tests;

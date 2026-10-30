@@ -10,7 +10,11 @@ use super::{
 
 /// Container width used for per-line alignment when one exists.
 fn alignment_width(max_width: f32, line_width: f64) -> f64 {
-    if max_width.is_finite() && max_width > 0.0 { max_width as f64 } else { line_width }
+    if max_width.is_finite() && max_width > 0.0 {
+        max_width as f64
+    } else {
+        line_width
+    }
 }
 
 /// Compile plain text into glyph paths with word wrapping (fast path).
