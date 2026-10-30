@@ -108,9 +108,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             let uv_from = in.uv + vec2<f32>(p, 0.0);
             let uv_to = in.uv - vec2<f32>(1.0 - p, 0.0);
             if (uv_from.x <= 1.0) {
-                return textureSample(from_texture, texture_sampler, uv_from);
+                return textureSampleLevel(from_texture, texture_sampler, uv_from, 0.0);
             } else {
-                return textureSample(to_texture, texture_sampler, uv_to);
+                return textureSampleLevel(to_texture, texture_sampler, uv_to, 0.0);
             }
         }
         case 7u: { // PushRight
@@ -118,9 +118,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             let uv_from = in.uv - vec2<f32>(p, 0.0);
             let uv_to = in.uv + vec2<f32>(1.0 - p, 0.0);
             if (uv_from.x >= 0.0) {
-                return textureSample(from_texture, texture_sampler, uv_from);
+                return textureSampleLevel(from_texture, texture_sampler, uv_from, 0.0);
             } else {
-                return textureSample(to_texture, texture_sampler, uv_to);
+                return textureSampleLevel(to_texture, texture_sampler, uv_to, 0.0);
             }
         }
         case 8u: { // PushUp
@@ -128,9 +128,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             let uv_from = in.uv + vec2<f32>(0.0, p);
             let uv_to = in.uv - vec2<f32>(0.0, 1.0 - p);
             if (uv_from.y <= 1.0) {
-                return textureSample(from_texture, texture_sampler, uv_from);
+                return textureSampleLevel(from_texture, texture_sampler, uv_from, 0.0);
             } else {
-                return textureSample(to_texture, texture_sampler, uv_to);
+                return textureSampleLevel(to_texture, texture_sampler, uv_to, 0.0);
             }
         }
         case 9u: { // PushDown
@@ -138,9 +138,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             let uv_from = in.uv - vec2<f32>(0.0, p);
             let uv_to = in.uv + vec2<f32>(0.0, 1.0 - p);
             if (uv_from.y >= 0.0) {
-                return textureSample(from_texture, texture_sampler, uv_from);
+                return textureSampleLevel(from_texture, texture_sampler, uv_from, 0.0);
             } else {
-                return textureSample(to_texture, texture_sampler, uv_to);
+                return textureSampleLevel(to_texture, texture_sampler, uv_to, 0.0);
             }
         }
         default: {
@@ -148,8 +148,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         }
     }
 
-    let from_color = textureSample(from_texture, texture_sampler, in.uv);
-    let to_color = textureSample(to_texture, texture_sampler, in.uv);
+    let from_color = textureSampleLevel(from_texture, texture_sampler, in.uv, 0.0);
+    let to_color = textureSampleLevel(to_texture, texture_sampler, in.uv, 0.0);
     return mix(from_color, to_color, alpha);
 }
 "#;
