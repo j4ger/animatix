@@ -591,7 +591,7 @@ Examples: `Button`, `Label`, `Spinner`, `Slider`, `Select`, `Badge`, `Tag`,
 content/render closure (`FnOnce(&mut Ui)`), a rich return value (a `*Response`
 action struct beyond `egui::Response`), or cross-frame state coordination.
 Examples: `Form`/`Field`, `Dialog::modal`, `Popover`, `Tooltip`,
-`Tree`, `ColorPicker`, `TextField`/`NumberField`,
+`ColorPicker`, `TextField`/`NumberField`,
 `Row`, `TabBar`, `Toast`.
 
 **Rules:**
@@ -607,9 +607,9 @@ Examples: `Form`/`Field`, `Dialog::modal`, `Popover`, `Tooltip`,
 
 **Exception — `Row::show_in_rect`.** `Row` exposes a second rect-mode entry
 point (`show_in_rect`) that takes a pre-allocated rect + response + painter.
-This is used by container widgets (`Tree`) that own allocation; it is
-not a competing API — `show()` allocates and delegates to `show_in_rect`.
-Both paths render the same `Row`.
+This is the sanctioned rect-mode entry for container widgets that own
+allocation; it is not a competing API — `show()` allocates and delegates to
+`show_in_rect`. Both paths render the same `Row`.
 
 #### Structural constraints
 
