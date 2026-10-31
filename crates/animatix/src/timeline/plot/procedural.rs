@@ -489,7 +489,7 @@ fn collect_func_leaves<'a>(func_ref: &PlotFuncRef<'a>) -> Vec<FuncLeaf<'a>> {
 
 struct FastLeaf {
     weight: f64,
-    program: std::sync::Arc<FastPlotProgram>,
+    expr: FastExprKind,
     slots: Vec<f64>,
 }
 
@@ -529,9 +529,16 @@ fn resolve_fast_leaves(
             return None;
         }
 
+        let folded_expr = match program.expr {
+            FastExprKind::Scalar(ref s) => FastExprKind::Scalar(s.fold_slots(&slots)),
+            FastExprKind::Vec2(ref x, ref y) => {
+                FastExprKind::Vec2(x.fold_slots(&slots), y.fold_slots(&slots))
+            },
+        };
+
         fast_leaves.push(FastLeaf {
             weight: leaf.weight,
-            program,
+            expr: folded_expr,
             slots,
         });
     }
@@ -544,7 +551,7 @@ fn eval_fast_leaves_endpoint(kind: PlotCurveKind, fast_leaves: &[FastLeaf], t: f
         PlotCurveKind::Cartesian => {
             let mut y = 0.0;
             for leaf in fast_leaves {
-                if let FastExprKind::Scalar(ref expr) = leaf.program.expr {
+                if let FastExprKind::Scalar(ref expr) = leaf.expr {
                     y += leaf.weight * expr.eval(t, &leaf.slots);
                 }
             }
@@ -554,7 +561,7 @@ fn eval_fast_leaves_endpoint(kind: PlotCurveKind, fast_leaves: &[FastLeaf], t: f
             let mut x_sum = 0.0;
             let mut y_sum = 0.0;
             for leaf in fast_leaves {
-                if let FastExprKind::Vec2(ref x_expr, ref y_expr) = leaf.program.expr {
+                if let FastExprKind::Vec2(ref x_expr, ref y_expr) = leaf.expr {
                     x_sum += leaf.weight * x_expr.eval(t, &leaf.slots);
                     y_sum += leaf.weight * y_expr.eval(t, &leaf.slots);
                 }
@@ -564,7 +571,7 @@ fn eval_fast_leaves_endpoint(kind: PlotCurveKind, fast_leaves: &[FastLeaf], t: f
         _ => {
             let mut r = 0.0;
             for leaf in fast_leaves {
-                if let FastExprKind::Scalar(ref expr) = leaf.program.expr {
+                if let FastExprKind::Scalar(ref expr) = leaf.expr {
                     r += leaf.weight * expr.eval(t, &leaf.slots);
                 }
             }
@@ -604,7 +611,7 @@ fn sample_curve_fast_path(
             let mut eval = |t: f64| {
                 let mut y = 0.0;
                 for leaf in fast_leaves {
-                    if let FastExprKind::Scalar(ref expr) = leaf.program.expr {
+                    if let FastExprKind::Scalar(ref expr) = leaf.expr {
                         y += leaf.weight * expr.eval(t, &leaf.slots);
                     }
                 }
@@ -628,7 +635,7 @@ fn sample_curve_fast_path(
             let mut eval = |t: f64| {
                 let mut r = 0.0;
                 for leaf in fast_leaves {
-                    if let FastExprKind::Scalar(ref expr) = leaf.program.expr {
+                    if let FastExprKind::Scalar(ref expr) = leaf.expr {
                         r += leaf.weight * expr.eval(t, &leaf.slots);
                     }
                 }
@@ -653,7 +660,7 @@ fn sample_curve_fast_path(
                 let mut x_sum = 0.0;
                 let mut y_sum = 0.0;
                 for leaf in fast_leaves {
-                    if let FastExprKind::Vec2(ref x_expr, ref y_expr) = leaf.program.expr {
+                    if let FastExprKind::Vec2(ref x_expr, ref y_expr) = leaf.expr {
                         x_sum += leaf.weight * x_expr.eval(t, &leaf.slots);
                         y_sum += leaf.weight * y_expr.eval(t, &leaf.slots);
                     }

@@ -7,6 +7,7 @@
 //! executor for frame-time code.
 
 use super::evaluate_compiled_expr;
+use super::fast_program::execute_fast_modifier_ir;
 use super::types::{ModifierIrProgram, ModifierIrStmt, ModifierOverrides};
 use crate::ast::LoopPattern;
 use crate::timeline::frame_env::apply_override_incremental;
@@ -45,13 +46,16 @@ pub fn execute_modifier_ir(
     frame_env: &mut Environment,
     overrides: &mut ModifierOverrides,
 ) -> Result<(), EvalError> {
+    if let Some(ref fast) = program.fast {
+        return execute_fast_modifier_ir(fast, frame_env, overrides);
+    }
     for stmt in &program.statements {
         execute_stmt(stmt, frame_env, overrides)?;
     }
     Ok(())
 }
 
-fn execute_stmt(
+pub(crate) fn execute_stmt(
     stmt: &ModifierIrStmt,
     frame_env: &mut Environment,
     overrides: &mut ModifierOverrides,

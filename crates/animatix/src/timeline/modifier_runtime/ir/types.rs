@@ -288,9 +288,25 @@ pub enum ModifierIrStmt {
 pub struct ModifierIrProgram {
     /// Top-level statements.
     pub statements: Vec<ModifierIrStmt>,
+    /// Specialized fast program for numeric and Vec2 assignments, if available.
+    pub fast: Option<super::fast_program::FastModifierProgram>,
 }
 
 impl ModifierIrProgram {
+    /// Create a new modifier IR program, compiling a specialized fast program if possible.
+    pub fn new(statements: Vec<ModifierIrStmt>) -> Self {
+        let fast = Some(super::fast_program::FastModifierProgram::compile(&statements));
+        Self { statements, fast }
+    }
+
+    /// Create a modifier IR program without fast specialization (for fallback or testing).
+    pub fn without_fast(statements: Vec<ModifierIrStmt>) -> Self {
+        Self {
+            statements,
+            fast: None,
+        }
+    }
+
     /// Collect every property-slot reference (`&label.prop`) reachable from
     /// all statements (used by the build-time reference validation pass).
     pub fn collect_prop_refs(&self, out: &mut Vec<(String, String)>) {

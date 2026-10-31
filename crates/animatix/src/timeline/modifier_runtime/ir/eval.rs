@@ -307,8 +307,9 @@ pub(crate) fn make_vec_value(values: Vec<Value>) -> Result<Value, EvalError> {
 /// Pre-indexed compiled expression for high-throughput scalar math evaluation (curve plot
 /// sampling): direct floating-point operations and slot indexing against a contiguous
 /// `&[f64]` slice, with no AST matching or string identifier lookups.
+#[allow(missing_docs)]
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) enum FastScalarExpr {
+pub enum FastScalarExpr {
     Const(f64),
     Arg,
     Slot(usize),
@@ -317,6 +318,7 @@ pub(crate) enum FastScalarExpr {
     Add(Box<FastScalarExpr>, Box<FastScalarExpr>),
     Sub(Box<FastScalarExpr>, Box<FastScalarExpr>),
     Mul(Box<FastScalarExpr>, Box<FastScalarExpr>),
+    MulAdd(Box<FastScalarExpr>, Box<FastScalarExpr>, Box<FastScalarExpr>),
     Div(Box<FastScalarExpr>, Box<FastScalarExpr>),
     Mod(Box<FastScalarExpr>, Box<FastScalarExpr>),
     Pow(Box<FastScalarExpr>, Box<FastScalarExpr>),
@@ -371,6 +373,7 @@ impl FastScalarExpr {
             Self::Add(l, r) => l.eval(x, slots) + r.eval(x, slots),
             Self::Sub(l, r) => l.eval(x, slots) - r.eval(x, slots),
             Self::Mul(l, r) => l.eval(x, slots) * r.eval(x, slots),
+            Self::MulAdd(a, b, c) => a.eval(x, slots) * b.eval(x, slots) + c.eval(x, slots),
             Self::Div(l, r) => crate::timeline::utils::safe_div(l.eval(x, slots), r.eval(x, slots)),
             Self::Mod(l, r) => crate::timeline::utils::safe_rem(l.eval(x, slots), r.eval(x, slots)),
             Self::Pow(l, r) => l.eval(x, slots).powf(r.eval(x, slots)),
@@ -478,6 +481,160 @@ impl FastScalarExpr {
             },
         }
     }
+
+    pub(crate) fn contains_arg(&self) -> bool {
+        match self {
+            Self::Const(_) | Self::Slot(_) => false,
+            Self::Arg => true,
+            Self::Neg(inner)
+            | Self::Not(inner)
+            | Self::Sin(inner)
+            | Self::Cos(inner)
+            | Self::Tan(inner)
+            | Self::Sqrt(inner)
+            | Self::Exp(inner)
+            | Self::Log(inner)
+            | Self::Abs(inner)
+            | Self::Floor(inner)
+            | Self::Ceil(inner)
+            | Self::Round(inner)
+            | Self::Signum(inner)
+            | Self::Fract(inner)
+            | Self::Deg(inner)
+            | Self::Rad(inner)
+            | Self::SeededRand(inner) => inner.contains_arg(),
+            Self::Add(l, r)
+            | Self::Sub(l, r)
+            | Self::Mul(l, r)
+            | Self::Div(l, r)
+            | Self::Mod(l, r)
+            | Self::Pow(l, r)
+            | Self::Eq(l, r)
+            | Self::Neq(l, r)
+            | Self::Lt(l, r)
+            | Self::Gt(l, r)
+            | Self::Lte(l, r)
+            | Self::Gte(l, r)
+            | Self::And(l, r)
+            | Self::Or(l, r)
+            | Self::Min(l, r)
+            | Self::Max(l, r)
+            | Self::Hypot(l, r)
+            | Self::Step(l, r)
+            | Self::Atan2(l, r) => l.contains_arg() || r.contains_arg(),
+            Self::Select(c, t, e) => c.contains_arg() || t.contains_arg() || e.contains_arg(),
+            Self::Clamp(v, lo, hi) => v.contains_arg() || lo.contains_arg() || hi.contains_arg(),
+            Self::Lerp(s, e, t) => s.contains_arg() || e.contains_arg() || t.contains_arg(),
+            Self::MulAdd(a, b, c) => a.contains_arg() || b.contains_arg() || c.contains_arg(),
+        }
+    }
+
+    pub(crate) fn fold_slots(&self, slots: &[f64]) -> FastScalarExpr {
+        if !self.contains_arg() {
+            return Self::Const(self.eval(0.0, slots));
+        }
+        match self {
+            Self::Const(c) => Self::Const(*c),
+            Self::Arg => Self::Arg,
+            Self::Slot(idx) => Self::Const(slots.get(*idx).copied().unwrap_or(f64::NAN)),
+            Self::Neg(inner) => Self::Neg(Box::new(inner.fold_slots(slots))),
+            Self::Not(inner) => Self::Not(Box::new(inner.fold_slots(slots))),
+            Self::Add(l, r) => match (l.fold_slots(slots), r.fold_slots(slots)) {
+                (Self::Mul(a, b), r) => Self::MulAdd(a, b, Box::new(r)),
+                (l, Self::Mul(a, b)) => Self::MulAdd(a, b, Box::new(l)),
+                (l, r) => Self::Add(Box::new(l), Box::new(r)),
+            },
+            Self::Sub(l, r) => {
+                Self::Sub(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
+            },
+            Self::Mul(l, r) => {
+                Self::Mul(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
+            },
+            Self::MulAdd(a, b, c) => Self::MulAdd(
+                Box::new(a.fold_slots(slots)),
+                Box::new(b.fold_slots(slots)),
+                Box::new(c.fold_slots(slots)),
+            ),
+            Self::Div(l, r) => {
+                Self::Div(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
+            },
+            Self::Mod(l, r) => {
+                Self::Mod(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
+            },
+            Self::Pow(l, r) => {
+                Self::Pow(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
+            },
+            Self::Eq(l, r) => {
+                Self::Eq(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
+            },
+            Self::Neq(l, r) => {
+                Self::Neq(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
+            },
+            Self::Lt(l, r) => {
+                Self::Lt(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
+            },
+            Self::Gt(l, r) => {
+                Self::Gt(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
+            },
+            Self::Lte(l, r) => {
+                Self::Lte(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
+            },
+            Self::Gte(l, r) => {
+                Self::Gte(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
+            },
+            Self::And(l, r) => {
+                Self::And(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
+            },
+            Self::Or(l, r) => {
+                Self::Or(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
+            },
+            Self::Select(c, t, e) => Self::Select(
+                Box::new(c.fold_slots(slots)),
+                Box::new(t.fold_slots(slots)),
+                Box::new(e.fold_slots(slots)),
+            ),
+            Self::Sin(inner) => Self::Sin(Box::new(inner.fold_slots(slots))),
+            Self::Cos(inner) => Self::Cos(Box::new(inner.fold_slots(slots))),
+            Self::Tan(inner) => Self::Tan(Box::new(inner.fold_slots(slots))),
+            Self::Sqrt(inner) => Self::Sqrt(Box::new(inner.fold_slots(slots))),
+            Self::Exp(inner) => Self::Exp(Box::new(inner.fold_slots(slots))),
+            Self::Log(inner) => Self::Log(Box::new(inner.fold_slots(slots))),
+            Self::Abs(inner) => Self::Abs(Box::new(inner.fold_slots(slots))),
+            Self::Floor(inner) => Self::Floor(Box::new(inner.fold_slots(slots))),
+            Self::Ceil(inner) => Self::Ceil(Box::new(inner.fold_slots(slots))),
+            Self::Round(inner) => Self::Round(Box::new(inner.fold_slots(slots))),
+            Self::Signum(inner) => Self::Signum(Box::new(inner.fold_slots(slots))),
+            Self::Fract(inner) => Self::Fract(Box::new(inner.fold_slots(slots))),
+            Self::Deg(inner) => Self::Deg(Box::new(inner.fold_slots(slots))),
+            Self::Rad(inner) => Self::Rad(Box::new(inner.fold_slots(slots))),
+            Self::Min(l, r) => {
+                Self::Min(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
+            },
+            Self::Max(l, r) => {
+                Self::Max(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
+            },
+            Self::Clamp(v, lo, hi) => Self::Clamp(
+                Box::new(v.fold_slots(slots)),
+                Box::new(lo.fold_slots(slots)),
+                Box::new(hi.fold_slots(slots)),
+            ),
+            Self::Lerp(s, e, t) => Self::Lerp(
+                Box::new(s.fold_slots(slots)),
+                Box::new(e.fold_slots(slots)),
+                Box::new(t.fold_slots(slots)),
+            ),
+            Self::Hypot(l, r) => {
+                Self::Hypot(Box::new(l.fold_slots(slots)), Box::new(r.fold_slots(slots)))
+            },
+            Self::Step(edge, x) => {
+                Self::Step(Box::new(edge.fold_slots(slots)), Box::new(x.fold_slots(slots)))
+            },
+            Self::Atan2(y, x) => {
+                Self::Atan2(Box::new(y.fold_slots(slots)), Box::new(x.fold_slots(slots)))
+            },
+            Self::SeededRand(inner) => Self::SeededRand(Box::new(inner.fold_slots(slots))),
+        }
+    }
 }
 
 pub(crate) fn compile_fast_scalar<'a>(
@@ -513,7 +670,11 @@ pub(crate) fn compile_fast_scalar<'a>(
             let l = compile_fast_scalar(left, arg_name, slot_names)?;
             let r = compile_fast_scalar(right, arg_name, slot_names)?;
             Some(match op {
-                BinaryOp::Add => FastScalarExpr::Add(Box::new(l), Box::new(r)),
+                BinaryOp::Add => match (l, r) {
+                    (FastScalarExpr::Mul(a, b), r) => FastScalarExpr::MulAdd(a, b, Box::new(r)),
+                    (l, FastScalarExpr::Mul(a, b)) => FastScalarExpr::MulAdd(a, b, Box::new(l)),
+                    (l, r) => FastScalarExpr::Add(Box::new(l), Box::new(r)),
+                },
                 BinaryOp::Sub => FastScalarExpr::Sub(Box::new(l), Box::new(r)),
                 BinaryOp::Mul => FastScalarExpr::Mul(Box::new(l), Box::new(r)),
                 BinaryOp::Div => FastScalarExpr::Div(Box::new(l), Box::new(r)),
@@ -738,5 +899,79 @@ mod tests {
         );
         let mut slot_names = Vec::new();
         assert!(compile_fast_scalar(&expr, "x", &mut slot_names).is_none());
+    }
+
+    #[test]
+    fn test_muladd_fusion_and_evaluation() {
+        let x_mul_2 = || {
+            Box::new(CompiledExpr::Binary(
+                Box::new(CompiledExpr::LoadEnv("x".to_string())),
+                BinaryOp::Mul,
+                Box::new(CompiledExpr::Const(Value::Num(2.0))),
+            ))
+        };
+        let c3 = || Box::new(CompiledExpr::Const(Value::Num(3.0)));
+        let left_mul = CompiledExpr::Binary(x_mul_2(), BinaryOp::Add, c3());
+        let right_mul = CompiledExpr::Binary(c3(), BinaryOp::Add, x_mul_2());
+        let mut slots = Vec::new();
+        let expected = FastScalarExpr::MulAdd(
+            Box::new(FastScalarExpr::Arg),
+            Box::new(FastScalarExpr::Const(2.0)),
+            Box::new(FastScalarExpr::Const(3.0)),
+        );
+        let f_left = compile_fast_scalar(&left_mul, "x", &mut slots).unwrap();
+        let f_right = compile_fast_scalar(&right_mul, "x", &mut slots).unwrap();
+        assert_eq!(f_left, expected);
+        assert_eq!(f_right, expected);
+        assert_eq!(f_left.eval(5.0, &[]), 13.0);
+    }
+
+    #[test]
+    fn test_fast_scalar_fold_slots_and_contains_arg() {
+        let inv_expr = FastScalarExpr::Div(
+            Box::new(FastScalarExpr::Const(4.0)),
+            Box::new(FastScalarExpr::Slot(0)),
+        );
+        assert!(!inv_expr.contains_arg());
+        assert_eq!(
+            inv_expr.fold_slots(&[std::f64::consts::PI]),
+            FastScalarExpr::Const(4.0 / std::f64::consts::PI)
+        );
+
+        let expr = FastScalarExpr::Mul(
+            Box::new(inv_expr),
+            Box::new(FastScalarExpr::Sin(Box::new(FastScalarExpr::Sub(
+                Box::new(FastScalarExpr::Slot(1)),
+                Box::new(FastScalarExpr::Arg),
+            )))),
+        );
+        assert!(expr.contains_arg());
+        let slots = [std::f64::consts::PI, 1.23];
+        let folded = expr.fold_slots(&slots);
+        assert!(folded.contains_arg());
+        for x in [0.0, 0.5, 1.0, 2.5] {
+            assert!((expr.eval(x, &slots) - folded.eval(x, &[])).abs() < 1e-12);
+        }
+
+        let all_const = FastScalarExpr::MulAdd(
+            Box::new(FastScalarExpr::Slot(0)),
+            Box::new(FastScalarExpr::Slot(1)),
+            Box::new(FastScalarExpr::Slot(2)),
+        );
+        assert_eq!(all_const.fold_slots(&[2.0, 3.0, 4.0]), FastScalarExpr::Const(10.0));
+
+        let with_arg = FastScalarExpr::MulAdd(
+            Box::new(FastScalarExpr::Slot(0)),
+            Box::new(FastScalarExpr::Arg),
+            Box::new(FastScalarExpr::Slot(1)),
+        );
+        assert_eq!(
+            with_arg.fold_slots(&[2.0, 4.0]),
+            FastScalarExpr::MulAdd(
+                Box::new(FastScalarExpr::Const(2.0)),
+                Box::new(FastScalarExpr::Arg),
+                Box::new(FastScalarExpr::Const(4.0))
+            )
+        );
     }
 }

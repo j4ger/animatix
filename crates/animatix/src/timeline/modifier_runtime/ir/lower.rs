@@ -10,7 +10,7 @@ pub fn lower_modifier_ir(program: &[Stmt]) -> Result<ModifierIrProgram, IrLowerE
     for stmt in program {
         lower_modifier_roots(stmt, &mut statements)?;
     }
-    Ok(ModifierIrProgram { statements })
+    Ok(ModifierIrProgram::without_fast(statements))
 }
 
 fn lower_modifier_roots(stmt: &Stmt, output: &mut Vec<ModifierIrStmt>) -> Result<(), IrLowerError> {
@@ -31,22 +31,27 @@ fn lower_modifier_roots(stmt: &Stmt, output: &mut Vec<ModifierIrStmt>) -> Result
 
 /// Lower a flat block of modifier body statements into IR statements.
 pub fn lower_modifier_block(body: &[Stmt]) -> Result<Vec<ModifierIrStmt>, IrLowerError> {
-    body.iter()
-        .filter(|s| !matches!(s, Stmt::Comment(..)))
-        .map(lower_modifier_stmt)
-        .collect()
+    let mut stmts = Vec::new();
+    for stmt in body {
+        if matches!(stmt, Stmt::Comment(..)) {
+            continue;
+        }
+        stmts.extend(lower_modifier_stmt(stmt)?);
+    }
+    Ok(stmts)
 }
 
 /// Lower a flat list of modifier body statements (assignments, conditionals, lets)
 /// into a ModifierIrProgram. Unlike `lower_modifier_ir`, this does not expect
 /// Always wrapper statements.
 pub fn lower_modifier_body(statements: &[Stmt]) -> Result<ModifierIrProgram, IrLowerError> {
-    Ok(ModifierIrProgram {
-        statements: lower_modifier_block(statements)?,
-    })
+    let mut program = ModifierIrProgram::without_fast(lower_modifier_block(statements)?);
+    super::opt::optimize_program(&mut program, &std::collections::HashSet::new());
+    program.fast = Some(super::fast_program::FastModifierProgram::compile(&program.statements));
+    Ok(program)
 }
 
-fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
+fn lower_modifier_stmt(stmt: &Stmt) -> Result<Vec<ModifierIrStmt>, IrLowerError> {
     match stmt {
         Stmt::Assignment {
             target,
@@ -57,10 +62,10 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
             // Bare variable assignments (`freq = ...`) inside `always` are
             // frame-local variable writes, not actor-property overrides.
             if target.is_empty() {
-                return Ok(ModifierIrStmt::Let {
+                return Ok(vec![ModifierIrStmt::Let {
                     name: property.clone(),
                     value: compile_expr(value)?,
-                });
+                }]);
             }
 
             // Check if any segment is Indexed — if so, emit AssignIndexed.
@@ -69,12 +74,12 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
             // and compile the index expression for frame-time evaluation.
             let indexed_seg = target.iter().find(|s| matches!(s, TargetSegment::Indexed { .. }));
             if let Some(TargetSegment::Indexed { base, index }) = indexed_seg {
-                Ok(ModifierIrStmt::AssignIndexed {
+                Ok(vec![ModifierIrStmt::AssignIndexed {
                     base: base.clone(),
                     index: compile_expr(index)?,
                     property: property.clone(),
                     value: compile_expr(value)?,
-                })
+                }])
             } else {
                 // All-static fast path: join static segments for the target key.
                 let static_target: Vec<String> = target
@@ -85,12 +90,12 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
                     })
                     .collect();
                 let target_key = static_target.join(".");
-                Ok(ModifierIrStmt::Assign {
+                Ok(vec![ModifierIrStmt::Assign {
                     target: static_target,
                     target_key,
                     property: property.clone(),
                     value: compile_expr(value)?,
-                })
+                }])
             }
         },
         Stmt::LetDecl {
@@ -98,20 +103,20 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
             value,
             is_pub: _,
             ..
-        } => Ok(ModifierIrStmt::Let {
+        } => Ok(vec![ModifierIrStmt::Let {
             name: name.clone(),
             value: compile_expr(value)?,
-        }),
+        }]),
         Stmt::Conditional {
             condition,
             then_branch,
             else_branch,
             ..
-        } => Ok(ModifierIrStmt::If {
+        } => Ok(vec![ModifierIrStmt::If {
             condition: compile_expr(condition)?,
             then_branch: lower_modifier_block(then_branch)?,
             else_branch: lower_modifier_block(else_branch.as_deref().unwrap_or(&[]))?,
-        }),
+        }]),
         Stmt::Match {
             scrutinee, arms, ..
         } => lower_match_stmt(scrutinee, arms),
@@ -124,12 +129,12 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<ModifierIrStmt, IrLowerError> {
             ..
         } => {
             let compiled_iterable = compile_expr(iterable)?;
-            Ok(ModifierIrStmt::For {
+            Ok(vec![ModifierIrStmt::For {
                 var: var.clone(),
                 index_var: index_var.clone(),
                 iterable: compiled_iterable,
                 body: lower_modifier_block(body)?,
-            })
+            }])
         },
         Stmt::Action(..) => Err(IrLowerError::UnsupportedStatement("action")),
         Stmt::ActorDecl { .. }
@@ -261,6 +266,9 @@ pub fn compile_expr(expr: &Expr) -> Result<CompiledExpr, IrLowerError> {
         Expr::Match(scrutinee, arms) => {
             // Lower to nested Select expressions
             let scrutinee_compiled = compile_expr(scrutinee)?;
+            let is_simple =
+                matches!(scrutinee_compiled, CompiledExpr::Const(_) | CompiledExpr::LoadEnv(_));
+
             let has_wildcard_last =
                 arms.last().map(|(p, _)| matches!(p, MatchPattern::Wildcard)).unwrap_or(false);
 
@@ -271,13 +279,27 @@ pub fn compile_expr(expr: &Expr) -> Result<CompiledExpr, IrLowerError> {
                 (CompiledExpr::Const(Value::Num(0.0)), &arms[..])
             };
 
+            let cond_scrutinee = if is_simple {
+                scrutinee_compiled.clone()
+            } else {
+                CompiledExpr::LoadEnv("__amx_match_scrutinee".to_string())
+            };
+
             let mut result = default;
             for (pat, arm_expr) in iter_slice.iter().rev() {
                 let arm = compile_expr(arm_expr)?;
-                let condition = pattern_to_compiled_condition(&scrutinee_compiled, pat);
+                let condition = pattern_to_compiled_condition(&cond_scrutinee, pat);
                 result = CompiledExpr::Select(Box::new(condition), Box::new(arm), Box::new(result));
             }
-            Ok(result)
+
+            if is_simple {
+                Ok(result)
+            } else {
+                Ok(CompiledExpr::LetChain(
+                    vec![("__amx_match_scrutinee".to_string(), scrutinee_compiled)],
+                    Box::new(result),
+                ))
+            }
         },
         Expr::Construct(name, properties) => {
             let fields = properties
@@ -335,15 +357,20 @@ fn builtin_for_name(name: &str) -> Option<BuiltinFn> {
 fn lower_match_stmt(
     scrutinee: &Expr,
     arms: &[(MatchPattern, Vec<Stmt>)],
-) -> Result<ModifierIrStmt, IrLowerError> {
-    let compiled_scrutinee = compile_expr(scrutinee)?;
+) -> Result<Vec<ModifierIrStmt>, IrLowerError> {
     if arms.is_empty() {
-        return Ok(ModifierIrStmt::Noop);
+        return Ok(vec![ModifierIrStmt::Noop]);
     }
 
-    // Start from the last arm and build the chain backwards.
-    // If the last arm is a wildcard, it becomes the initial else branch.
-    // Otherwise, the initial else branch is empty (ModifierIrStmt::Noop).
+    let compiled_scrutinee = compile_expr(scrutinee)?;
+    let is_simple = matches!(compiled_scrutinee, CompiledExpr::Const(_) | CompiledExpr::LoadEnv(_));
+
+    let cond_scrutinee = if is_simple {
+        compiled_scrutinee.clone()
+    } else {
+        CompiledExpr::LoadEnv("__amx_match_scrutinee".to_string())
+    };
+
     let mut else_body: Vec<ModifierIrStmt> = Vec::new();
 
     // Determine the range to iterate in reverse
@@ -362,7 +389,7 @@ fn lower_match_stmt(
     let mut result: Vec<ModifierIrStmt> = else_body;
     for (pat, body) in iter_arms {
         let body_ir = lower_modifier_block(body)?;
-        let condition = pattern_to_compiled_condition(&compiled_scrutinee, pat);
+        let condition = pattern_to_compiled_condition(&cond_scrutinee, pat);
         result = vec![ModifierIrStmt::If {
             condition,
             then_branch: body_ir,
@@ -370,7 +397,17 @@ fn lower_match_stmt(
         }];
     }
 
-    Ok(result.into_iter().next().unwrap_or(ModifierIrStmt::Noop))
+    if is_simple {
+        Ok(result)
+    } else {
+        let mut stmts = Vec::with_capacity(1 + result.len());
+        stmts.push(ModifierIrStmt::Let {
+            name: "__amx_match_scrutinee".to_string(),
+            value: compiled_scrutinee,
+        });
+        stmts.extend(result);
+        Ok(stmts)
+    }
 }
 
 /// Convert a match pattern to a condition expression (CompiledExpr) that evaluates

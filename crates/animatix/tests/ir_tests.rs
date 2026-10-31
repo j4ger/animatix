@@ -12,12 +12,10 @@ use animatix_syntax::ast::{BinaryOp, Expr, LoopPattern, Property, Stmt, TargetSe
 use animatix_syntax::module::ModuleGraph;
 
 fn evaluate_modifier_via_ir(value: CompiledExpr, env: &mut Environment) -> Value {
-    let program = ModifierIrProgram {
-        statements: vec![ModifierIrStmt::Let {
-            name: "__ir_test_result".to_string(),
-            value,
-        }],
-    };
+    let program = ModifierIrProgram::new(vec![ModifierIrStmt::Let {
+        name: "__ir_test_result".to_string(),
+        value,
+    }]);
     let mut overrides = ModifierOverrides::default();
     execute_modifier_ir(&program, env, &mut overrides).expect("IR execution should succeed");
     env.get("__ir_test_result").expect("IR result should be stored")
@@ -267,12 +265,10 @@ fn factorial_and_sum_reject_invalid_args() {
         assert!(ast_result.is_err(), "AST eval should error for {expr:?}, got {:?}", ast_result);
 
         let compiled = compile_expr(&expr).expect("builtin should compile");
-        let program = ModifierIrProgram {
-            statements: vec![ModifierIrStmt::Let {
-                name: "__ir_test_result".to_string(),
-                value: compiled,
-            }],
-        };
+        let program = ModifierIrProgram::new(vec![ModifierIrStmt::Let {
+            name: "__ir_test_result".to_string(),
+            value: compiled,
+        }]);
         let mut env = Environment::new();
         load_standard_library(&mut env);
         let mut overrides = ModifierOverrides::default();
@@ -287,12 +283,10 @@ fn evaluate_modifier_via_ir_result(
     value: CompiledExpr,
     env: &mut Environment,
 ) -> Result<Value, EvalError> {
-    let program = ModifierIrProgram {
-        statements: vec![ModifierIrStmt::Let {
-            name: "__ir_test_result".to_string(),
-            value,
-        }],
-    };
+    let program = ModifierIrProgram::new(vec![ModifierIrStmt::Let {
+        name: "__ir_test_result".to_string(),
+        value,
+    }]);
     let mut overrides = ModifierOverrides::default();
     execute_modifier_ir(&program, env, &mut overrides)?;
     Ok(env.get("__ir_test_result").expect("IR result should be stored"))
@@ -655,13 +649,11 @@ fn ir_truthiness_handles_bool_literals() {
     };
 
     // `if true` must take the then-branch.
-    let program = ModifierIrProgram {
-        statements: vec![ModifierIrStmt::If {
-            condition: CompiledExpr::Const(Value::Bool(true)),
-            then_branch: vec![assign("a", CompiledExpr::Const(Value::Num(1.0)))],
-            else_branch: vec![assign("a", CompiledExpr::Const(Value::Num(0.0)))],
-        }],
-    };
+    let program = ModifierIrProgram::new(vec![ModifierIrStmt::If {
+        condition: CompiledExpr::Const(Value::Bool(true)),
+        then_branch: vec![assign("a", CompiledExpr::Const(Value::Num(1.0)))],
+        else_branch: vec![assign("a", CompiledExpr::Const(Value::Num(0.0)))],
+    }]);
     let mut env = Environment::new();
     let mut overrides = ModifierOverrides::default();
     execute_modifier_ir(&program, &mut env, &mut overrides).expect("execute");
@@ -673,12 +665,10 @@ fn ir_truthiness_handles_bool_literals() {
         Box::new(CompiledExpr::Const(Value::Num(7.0))),
         Box::new(CompiledExpr::Const(Value::Num(9.0))),
     );
-    let program = ModifierIrProgram {
-        statements: vec![ModifierIrStmt::Let {
-            name: "r".to_string(),
-            value: select,
-        }],
-    };
+    let program = ModifierIrProgram::new(vec![ModifierIrStmt::Let {
+        name: "r".to_string(),
+        value: select,
+    }]);
     let mut env = Environment::new();
     let mut overrides = ModifierOverrides::default();
     execute_modifier_ir(&program, &mut env, &mut overrides).expect("execute");
@@ -699,22 +689,20 @@ fn ir_truthiness_handles_bool_literals() {
         BinaryOp::Or,
         Box::new(CompiledExpr::Const(Value::Bool(false))),
     );
-    let program = ModifierIrProgram {
-        statements: vec![
-            ModifierIrStmt::Let {
-                name: "n".to_string(),
-                value: not_true,
-            },
-            ModifierIrStmt::Let {
-                name: "and".to_string(),
-                value: and_expr,
-            },
-            ModifierIrStmt::Let {
-                name: "or".to_string(),
-                value: or_expr,
-            },
-        ],
-    };
+    let program = ModifierIrProgram::new(vec![
+        ModifierIrStmt::Let {
+            name: "n".to_string(),
+            value: not_true,
+        },
+        ModifierIrStmt::Let {
+            name: "and".to_string(),
+            value: and_expr,
+        },
+        ModifierIrStmt::Let {
+            name: "or".to_string(),
+            value: or_expr,
+        },
+    ]);
     let mut env = Environment::new();
     let mut overrides = ModifierOverrides::default();
     execute_modifier_ir(&program, &mut env, &mut overrides).expect("execute");
@@ -725,19 +713,15 @@ fn ir_truthiness_handles_bool_literals() {
 
 #[test]
 fn ir_for_loop_tuple_destructures_color() {
-    let program = ModifierIrProgram {
-        statements: vec![ModifierIrStmt::For {
-            var: LoopPattern::Tuple(
-                ["r", "g", "b", "a"].iter().map(|name| name.to_string()).collect(),
-            ),
-            index_var: None,
-            iterable: CompiledExpr::Const(Value::Color([0.1, 0.2, 0.3, 1.0])),
-            body: vec![ModifierIrStmt::Let {
-                name: "__captured_color".to_string(),
-                value: CompiledExpr::LoadEnv("r".to_string()),
-            }],
+    let program = ModifierIrProgram::new(vec![ModifierIrStmt::For {
+        var: LoopPattern::Tuple(["r", "g", "b", "a"].iter().map(|name| name.to_string()).collect()),
+        index_var: None,
+        iterable: CompiledExpr::Const(Value::Color([0.1, 0.2, 0.3, 1.0])),
+        body: vec![ModifierIrStmt::Let {
+            name: "__captured_color".to_string(),
+            value: CompiledExpr::LoadEnv("r".to_string()),
         }],
-    };
+    }]);
 
     let mut env = Environment::new();
     let mut overrides = ModifierOverrides::default();
