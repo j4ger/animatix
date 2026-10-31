@@ -114,7 +114,7 @@ impl Expr {
 }
 
 /// Binary operators supported by the Animatix language.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum BinaryOp {
     /// Addition (`+`).
@@ -148,7 +148,7 @@ pub enum BinaryOp {
 }
 
 /// Unary operators supported by the Animatix language.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum UnaryOp {
     /// Negation (`-`).

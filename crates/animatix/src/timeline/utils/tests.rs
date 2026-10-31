@@ -864,3 +864,200 @@ fn test_path_dotted_backward_compat() {
     let result = evaluate_expr(&expr, &env).expect("path lookup should succeed");
     assert_eq!(result, Value::Num(320.0));
 }
+
+#[test]
+fn test_construct_different_properties_different_hash() {
+    let construct_a = Expr::Construct(
+        "Button".to_string(),
+        vec![crate::ast::Property {
+            name: "text".to_string(),
+            value: Expr::Str("A".to_string()),
+            value_span: None,
+            trailing_comment: None,
+        }],
+    );
+    let construct_b = Expr::Construct(
+        "Button".to_string(),
+        vec![crate::ast::Property {
+            name: "text".to_string(),
+            value: Expr::Str("B".to_string()),
+            value_span: None,
+            trailing_comment: None,
+        }],
+    );
+    let construct_c = Expr::Construct(
+        "Button".to_string(),
+        vec![crate::ast::Property {
+            name: "label".to_string(),
+            value: Expr::Str("A".to_string()),
+            value_span: None,
+            trailing_comment: None,
+        }],
+    );
+    let hash_a = super::expr::expr_hash(&construct_a);
+    let hash_b = super::expr::expr_hash(&construct_b);
+    let hash_c = super::expr::expr_hash(&construct_c);
+
+    assert_ne!(hash_a, hash_b, "different property values must produce different hashes");
+    assert_ne!(hash_a, hash_c, "different property names must produce different hashes");
+}
+
+#[test]
+fn test_match_different_patterns_different_hash() {
+    use crate::ast::MatchPattern;
+
+    let match_1 = Expr::Match(
+        Box::new(Expr::Ident("x".to_string())),
+        vec![
+            (MatchPattern::Num(1.0), Box::new(Expr::Str("yes".to_string()))),
+            (MatchPattern::Wildcard, Box::new(Expr::Str("no".to_string()))),
+        ],
+    );
+    let match_2 = Expr::Match(
+        Box::new(Expr::Ident("x".to_string())),
+        vec![
+            (MatchPattern::Num(2.0), Box::new(Expr::Str("yes".to_string()))),
+            (MatchPattern::Wildcard, Box::new(Expr::Str("no".to_string()))),
+        ],
+    );
+    let match_str = Expr::Match(
+        Box::new(Expr::Ident("x".to_string())),
+        vec![
+            (MatchPattern::Str("alpha".to_string()), Box::new(Expr::Str("yes".to_string()))),
+            (MatchPattern::Wildcard, Box::new(Expr::Str("no".to_string()))),
+        ],
+    );
+    let match_range = Expr::Match(
+        Box::new(Expr::Ident("x".to_string())),
+        vec![
+            (
+                MatchPattern::Range(
+                    Box::new(MatchPattern::Num(1.0)),
+                    Box::new(MatchPattern::Num(5.0)),
+                ),
+                Box::new(Expr::Str("yes".to_string())),
+            ),
+            (MatchPattern::Wildcard, Box::new(Expr::Str("no".to_string()))),
+        ],
+    );
+
+    let h1 = super::expr::expr_hash(&match_1);
+    let h2 = super::expr::expr_hash(&match_2);
+    let h_str = super::expr::expr_hash(&match_str);
+    let h_range = super::expr::expr_hash(&match_range);
+
+    assert_ne!(h1, h2, "different numeric pattern values must produce different hashes");
+    assert_ne!(h1, h_str, "num pattern vs str pattern must produce different hashes");
+    assert_ne!(h1, h_range, "num pattern vs range pattern must produce different hashes");
+}
+
+#[test]
+fn test_evaluate_expr_no_false_collision_construct_and_match() {
+    clear_eval_cache();
+    let env = Environment::new();
+
+    // 1. Construct evaluation test
+    let construct_a = Expr::Construct(
+        "Button".to_string(),
+        vec![crate::ast::Property {
+            name: "text".to_string(),
+            value: Expr::Str("A".to_string()),
+            value_span: None,
+            trailing_comment: None,
+        }],
+    );
+    let construct_b = Expr::Construct(
+        "Button".to_string(),
+        vec![crate::ast::Property {
+            name: "text".to_string(),
+            value: Expr::Str("B".to_string()),
+            value_span: None,
+            trailing_comment: None,
+        }],
+    );
+
+    let res_a = evaluate_expr(&construct_a, &env).expect("eval construct_a should succeed");
+    let res_b = evaluate_expr(&construct_b, &env).expect("eval construct_b should succeed");
+
+    match (&res_a, &res_b) {
+        (Value::Object(_, fields_a), Value::Object(_, fields_b)) => {
+            assert_eq!(fields_a.get("text").unwrap().as_str(), "A");
+            assert_eq!(fields_b.get("text").unwrap().as_str(), "B");
+        },
+        _ => panic!("expected object values"),
+    }
+
+    // 2. Match evaluation test
+    use crate::ast::MatchPattern;
+    let mut match_env = Environment::new();
+    match_env.set("x", Value::Num(1.0));
+
+    let match_arm_1 = Expr::Match(
+        Box::new(Expr::Ident("x".to_string())),
+        vec![
+            (MatchPattern::Num(1.0), Box::new(Expr::Str("hit".to_string()))),
+            (MatchPattern::Wildcard, Box::new(Expr::Str("miss".to_string()))),
+        ],
+    );
+    let match_arm_2 = Expr::Match(
+        Box::new(Expr::Ident("x".to_string())),
+        vec![
+            (MatchPattern::Num(2.0), Box::new(Expr::Str("hit".to_string()))),
+            (MatchPattern::Wildcard, Box::new(Expr::Str("miss".to_string()))),
+        ],
+    );
+
+    let val1 = evaluate_expr(&match_arm_1, &match_env).expect("match 1 should evaluate");
+    let val2 = evaluate_expr(&match_arm_2, &match_env).expect("match 2 should evaluate");
+
+    assert_eq!(val1.as_str(), "hit");
+    assert_eq!(val2.as_str(), "miss");
+}
+
+#[test]
+fn test_compiled_expr_cache_works_and_cleared() {
+    clear_eval_cache();
+    assert_eq!(super::expr::compiled_expr_cache_len(), 0);
+    assert_eq!(super::expr::eval_cache_len(), 0);
+
+    let mut env = Environment::new();
+    env.set("a", Value::Num(10.0));
+
+    // A non-trivial expression: a * 2 + 1
+    let expr = Expr::Binary(
+        Box::new(Expr::Binary(
+            Box::new(Expr::Ident("a".to_string())),
+            BinaryOp::Mul,
+            Box::new(Expr::Num(2.0)),
+        )),
+        BinaryOp::Add,
+        Box::new(Expr::Num(1.0)),
+    );
+
+    // Initial evaluation should compile and populate both caches
+    let val1 = evaluate_expr(&expr, &env).expect("eval should succeed");
+    assert_eq!(val1.as_num(), 21.0);
+    assert_eq!(super::expr::compiled_expr_cache_len(), 1);
+    assert_eq!(super::expr::eval_cache_len(), 1);
+
+    // Mutating the environment invalidates EVAL_CACHE on lookup, but COMPILED_EXPR_CACHE should hit
+    env.set("a", Value::Num(20.0));
+    let val2 = evaluate_expr(&expr, &env).expect("eval with new env should succeed");
+    assert_eq!(val2.as_num(), 41.0);
+    assert_eq!(
+        super::expr::compiled_expr_cache_len(),
+        1,
+        "compiled expr should be reused from cache"
+    );
+
+    // Calling clear_eval_cache() should empty both caches
+    clear_eval_cache();
+    assert_eq!(super::expr::compiled_expr_cache_len(), 0);
+    assert_eq!(super::expr::eval_cache_len(), 0);
+
+    // Evaluating again compiles anew and caches
+    let val3 = evaluate_expr(&expr, &env).expect("eval after clear should succeed");
+    assert_eq!(val3.as_num(), 41.0);
+    assert_eq!(super::expr::compiled_expr_cache_len(), 1);
+    assert_eq!(super::expr::eval_cache_len(), 1);
+}

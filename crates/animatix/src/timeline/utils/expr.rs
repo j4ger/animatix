@@ -4,8 +4,9 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 
-use crate::ast::Expr;
+use crate::ast::{Expr, MatchPattern};
 use crate::timeline::env::{CapturedEnv, Environment, EvalError, Value};
 
 use super::value::format_value;
@@ -21,6 +22,9 @@ use super::value::format_value;
 thread_local! {
     static EVAL_CACHE: RefCell<HashMap<(u64, crate::timeline::env::EnvStamp, u64), Value>> =
         RefCell::new(HashMap::new());
+    static COMPILED_EXPR_CACHE: RefCell<
+        HashMap<(u64, usize), Arc<crate::timeline::modifier_runtime::ir::CompiledExpr>>,
+    > = RefCell::new(HashMap::new());
     /// Flag to disable the eval cache for tight sampling loops.
     /// When false, evaluate_expr skips hashing and the cache entirely.
     static EVAL_CACHE_ENABLED: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
@@ -32,6 +36,17 @@ const EVAL_CACHE_LIMIT: usize = 4096;
 /// Call this at the start of each build to avoid stale results.
 pub fn clear_eval_cache() {
     EVAL_CACHE.with(|cache| cache.borrow_mut().clear());
+    COMPILED_EXPR_CACHE.with(|cache| cache.borrow_mut().clear());
+}
+
+#[cfg(test)]
+pub(crate) fn compiled_expr_cache_len() -> usize {
+    COMPILED_EXPR_CACHE.with(|cache| cache.borrow().len())
+}
+
+#[cfg(test)]
+pub(crate) fn eval_cache_len() -> usize {
+    EVAL_CACHE.with(|cache| cache.borrow().len())
 }
 
 /// Disable the expression evaluation cache for the current thread.
@@ -59,10 +74,49 @@ pub fn safe_rem(l: f64, r: f64) -> f64 {
 }
 
 /// Hash an expression tree for cache keying.
-fn expr_hash(expr: &Expr) -> u64 {
+pub(crate) fn expr_hash(expr: &Expr) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     hash_expr_recursive(expr, &mut hasher);
     hasher.finish()
+}
+
+fn hash_match_pattern<V: Hasher>(pat: &MatchPattern, hasher: &mut V) {
+    match pat {
+        MatchPattern::Wildcard => {
+            0u8.hash(hasher);
+        },
+        MatchPattern::Num(n) => {
+            1u8.hash(hasher);
+            n.to_bits().hash(hasher);
+        },
+        MatchPattern::Str(s) => {
+            2u8.hash(hasher);
+            s.hash(hasher);
+        },
+        MatchPattern::Bool(b) => {
+            3u8.hash(hasher);
+            b.hash(hasher);
+        },
+        MatchPattern::Range(lo, hi) => {
+            4u8.hash(hasher);
+            hash_match_pattern(lo, hasher);
+            hash_match_pattern(hi, hasher);
+        },
+        MatchPattern::Or(pats) => {
+            5u8.hash(hasher);
+            pats.len().hash(hasher);
+            for p in pats {
+                hash_match_pattern(p, hasher);
+            }
+        },
+        MatchPattern::Tuple(pats) => {
+            6u8.hash(hasher);
+            pats.len().hash(hasher);
+            for p in pats {
+                hash_match_pattern(p, hasher);
+            }
+        },
+    }
 }
 
 fn hash_expr_recursive<V: Hasher>(expr: &Expr, hasher: &mut V) {
@@ -116,12 +170,12 @@ fn hash_expr_recursive<V: Hasher>(expr: &Expr, hasher: &mut V) {
         Expr::Binary(a, op, b) => {
             10u8.hash(hasher);
             hash_expr_recursive(a, hasher);
-            format!("{:?}", op).hash(hasher);
+            op.hash(hasher);
             hash_expr_recursive(b, hasher);
         },
         Expr::Unary(op, e) => {
             11u8.hash(hasher);
-            format!("{:?}", op).hash(hasher);
+            op.hash(hasher);
             hash_expr_recursive(e, hasher);
         },
         Expr::Call(name, args) => {
@@ -163,13 +217,20 @@ fn hash_expr_recursive<V: Hasher>(expr: &Expr, hasher: &mut V) {
         Expr::Match(scrutinee, arms) => {
             17u8.hash(hasher);
             hash_expr_recursive(scrutinee, hasher);
-            for (_p, e) in arms {
+            arms.len().hash(hasher);
+            for (p, e) in arms {
+                hash_match_pattern(p, hasher);
                 hash_expr_recursive(e, hasher);
             }
         },
-        Expr::Construct(name, _) => {
+        Expr::Construct(name, properties) => {
             16u8.hash(hasher);
             name.hash(hasher);
+            properties.len().hash(hasher);
+            for prop in properties {
+                prop.name.hash(hasher);
+                hash_expr_recursive(&prop.value, hasher);
+            }
         },
     }
 }
@@ -232,7 +293,22 @@ pub fn evaluate_expr(expr: &Expr, env: &Environment) -> Result<Value, EvalError>
 
 /// Inner evaluation function delegating to compiled IR VM.
 fn evaluate_expr_inner(expr: &Expr, env: &Environment) -> Result<Value, EvalError> {
-    let compiled = crate::timeline::modifier_runtime::ir::compile_expr(expr)?;
+    let key = (expr_hash(expr), expr as *const Expr as usize);
+    let hit = COMPILED_EXPR_CACHE.with(|cache| cache.borrow().get(&key).cloned());
+    let compiled = match hit {
+        Some(compiled) => compiled,
+        None => {
+            let compiled = Arc::new(crate::timeline::modifier_runtime::ir::compile_expr(expr)?);
+            COMPILED_EXPR_CACHE.with(|cache| {
+                let mut cache = cache.borrow_mut();
+                if cache.len() >= EVAL_CACHE_LIMIT {
+                    cache.clear();
+                }
+                cache.insert(key, Arc::clone(&compiled));
+            });
+            compiled
+        },
+    };
     crate::timeline::modifier_runtime::ir::evaluate_compiled_expr(&compiled, env)
 }
 
