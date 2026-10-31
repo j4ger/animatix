@@ -1,6 +1,7 @@
 use super::object_path::update_object_path;
 use super::value::{ENV_INSTANCE_COUNTER, EnvStamp};
 use super::*;
+use smallvec::SmallVec;
 
 fn fresh_env_instance() -> u32 {
     ENV_INSTANCE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
@@ -26,7 +27,7 @@ pub struct Environment {
     /// expression cache consults `let_epoch` so values computed inside a
     /// let-scope are never reused outside it. `RefCell` keeps
     /// `evaluate_expr(&Expr, &Environment)` signatures unchanged.
-    pub(crate) let_scopes: std::cell::RefCell<Vec<EnvMap>>,
+    pub(crate) let_scopes: std::cell::RefCell<Vec<SmallVec<[(String, Value); 2]>>>,
     /// Cache-key epoch bumped on every let-scope push/pop (see `let_epoch`).
     let_epoch: std::cell::Cell<u64>,
 }
@@ -114,7 +115,7 @@ impl Environment {
     /// matching [`Self::pop_let_scope`]. Innermost scope wins lookups (see
     /// `get`). Uses interior mutability so expression evaluation can open a
     /// scope through a shared `&Environment` reference.
-    pub(crate) fn push_let_scope(&self, bindings: Vec<(String, Value)>) {
+    pub(crate) fn push_let_scope(&self, bindings: impl IntoIterator<Item = (String, Value)>) {
         self.let_scopes.borrow_mut().push(bindings.into_iter().collect());
         self.let_epoch.set(self.let_epoch.get() + 1);
     }
@@ -250,8 +251,10 @@ impl Environment {
         {
             let scopes = self.let_scopes.borrow();
             for scope in scopes.iter().rev() {
-                if let Some(value) = scope.get(name) {
-                    return Some(value.clone());
+                for (k, v) in scope.iter().rev() {
+                    if k == name {
+                        return Some(v.clone());
+                    }
                 }
             }
         }

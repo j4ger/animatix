@@ -24,7 +24,7 @@ pub fn eval_binary_op(left: Value, op: &BinaryOp, right: Value) -> Result<Value,
         _ => {},
     }
 
-    match (left.clone(), right.clone()) {
+    match (left, right) {
         (Value::Num(l), Value::Num(r)) => Ok(Value::Num(match op {
             BinaryOp::Add => l + r,
             BinaryOp::Sub => l - r,
@@ -218,7 +218,7 @@ pub fn eval_binary_op(left: Value, op: &BinaryOp, right: Value) -> Result<Value,
         },
         // Catch-all: Eq/Neq works on any pair via PartialEq;
         // everything else is a type error.
-        _ => {
+        (left, right) => {
             if *op == BinaryOp::Eq {
                 Ok(Value::Num(if left == right { 1.0 } else { 0.0 }))
             } else if *op == BinaryOp::Neq {

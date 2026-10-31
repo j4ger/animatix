@@ -138,6 +138,7 @@ dependencies = [
  "roxmltree 0.20.0",
  "serde",
  "serde_json",
+ "smallvec",
  "taffy",
  "thiserror 2.0.18",
  "tracing",

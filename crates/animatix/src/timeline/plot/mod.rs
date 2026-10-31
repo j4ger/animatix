@@ -22,11 +22,15 @@ pub use adaptive::{
 };
 #[allow(unused_imports)]
 pub use implicit::{
-    build_implicit_plot_path_from_source, eval_implicit_source, implicit_intersection,
+    FastImplicitEvaluator, build_implicit_plot_path_from_source,
+    build_implicit_plot_path_from_source_cached, eval_implicit_source, implicit_intersection,
 };
 #[allow(unused_imports)]
+pub(crate) use procedural::compile_fast_plot_program;
+#[allow(unused_imports)]
 pub use procedural::{
-    ProceduralPlot, ProceduralPlotKind, sample_plot_source, sample_procedural_plot_at,
+    FastExprKind, FastPlotProgram, ProceduralPlot, ProceduralPlotKind, sample_plot_source,
+    sample_plot_source_cached, sample_procedural_plot_at, sample_procedural_plot_at_cached,
 };
 
 use std::collections::HashMap;

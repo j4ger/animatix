@@ -3,6 +3,7 @@ use crate::ast::{BinaryOp, UnaryOp};
 use crate::timeline::callout_geometry::env_anchor_point;
 use crate::timeline::env::CapturedEnv;
 use crate::timeline::{Environment, EvalError, Value};
+use smallvec::SmallVec;
 
 /// Evaluate a compiled expression against the given environment.
 pub(crate) fn evaluate_compiled_expr(
@@ -10,17 +11,12 @@ pub(crate) fn evaluate_compiled_expr(
     env: &Environment,
 ) -> Result<Value, EvalError> {
     match expr {
+        CompiledExpr::Const(Value::Num(n)) => Ok(Value::Num(*n)),
         CompiledExpr::Const(value) => Ok(value.clone()),
         CompiledExpr::LoadEnv(name) => {
             env.get_path(name).ok_or_else(|| EvalError::UndefinedVariable(name.clone()))
         },
-        CompiledExpr::MakeVec(items) => {
-            let values = items
-                .iter()
-                .map(|item| evaluate_compiled_expr(item, env))
-                .collect::<Result<Vec<_>, _>>()?;
-            make_vec_value(values)
-        },
+        CompiledExpr::MakeVec(items) => eval_make_vec(items, env),
         CompiledExpr::MakeList(items) => {
             let values = items
                 .iter()
@@ -57,123 +53,21 @@ pub(crate) fn evaluate_compiled_expr(
                 evaluate_compiled_expr(else_expr, env)
             }
         },
-        CompiledExpr::CallBuiltin(builtin, args) => {
-            let args = args
-                .iter()
-                .map(|arg| evaluate_compiled_expr(arg, env))
-                .collect::<Result<Vec<_>, _>>()?;
-            let name = match builtin {
-                BuiltinFn::Sin => "sin",
-                BuiltinFn::Cos => "cos",
-                BuiltinFn::Lerp => "lerp",
-                BuiltinFn::Format => "format",
-                BuiltinFn::Tan => "tan",
-                BuiltinFn::Sqrt => "sqrt",
-                BuiltinFn::Exp => "exp",
-                BuiltinFn::Log => "ln",
-                BuiltinFn::Atan2 => "atan2",
-                BuiltinFn::Clamp => "clamp",
-                BuiltinFn::Abs => "abs",
-                BuiltinFn::Min => "min",
-                BuiltinFn::Max => "max",
-                BuiltinFn::Floor => "floor",
-                BuiltinFn::Ceil => "ceil",
-                BuiltinFn::Deg => "deg",
-                BuiltinFn::Rad => "rad",
-                BuiltinFn::ListSwap => "list_swap",
-                BuiltinFn::ListSet => "list_set",
-                BuiltinFn::Signum => "signum",
-                BuiltinFn::Fract => "fract",
-                BuiltinFn::Hypot => "hypot",
-                BuiltinFn::Pow => "pow",
-                BuiltinFn::Rem => "rem",
-                BuiltinFn::Step => "step",
-                BuiltinFn::Round => "round",
-                BuiltinFn::Factorial => "factorial",
-                BuiltinFn::SumList => "sum",
-                BuiltinFn::CurveAt => "curve_at",
-                BuiltinFn::CurveSmooth => "curve_smooth",
-                BuiltinFn::SeededRand => "seeded_rand",
-            };
-            if env.get(name).is_some() {
-                return crate::timeline::utils::evaluate_call_value(name, args, env);
-            }
-            crate::timeline::eval_shared::eval_builtin_fn(name, &args)
-        },
+        CompiledExpr::CallBuiltin(builtin, args) => eval_call_builtin(builtin.clone(), args, env),
         CompiledExpr::CallEnv(name, args) => {
-            let arg_values = args
+            let arg_values: SmallVec<[Value; 4]> = args
                 .iter()
                 .map(|arg| evaluate_compiled_expr(arg, env))
-                .collect::<Result<Vec<_>, _>>()?;
-            crate::timeline::utils::evaluate_call_value(name, arg_values, env)
+                .collect::<Result<_, _>>()?;
+            crate::timeline::utils::evaluate_call_value(name, arg_values.into_vec(), env)
         },
-        CompiledExpr::Index(container, index) => {
-            let container_val = evaluate_compiled_expr(container, env)?;
-            let index_val = evaluate_compiled_expr(index, env)?;
-            let idx = index_val.as_num() as usize;
-            match container_val {
-                Value::List(items) => items.get(idx).cloned().ok_or_else(|| {
-                    EvalError::TypeMismatch(format!(
-                        "Index {} out of bounds for list of length {}",
-                        idx,
-                        items.len()
-                    ))
-                }),
-                Value::Str(s) => {
-                    s.chars().nth(idx).map(|c| Value::Str(c.to_string())).ok_or_else(|| {
-                        EvalError::TypeMismatch(format!(
-                            "Index {} out of bounds for string of length {}",
-                            idx,
-                            s.len()
-                        ))
-                    })
-                },
-                Value::Vec2(v) => match idx {
-                    0 => Ok(Value::Num(v[0])),
-                    1 => Ok(Value::Num(v[1])),
-                    _ => Err(EvalError::TypeMismatch(format!(
-                        "Index {} out of bounds for Vec2",
-                        idx
-                    ))),
-                },
-                Value::Vec3(v) => match idx {
-                    0 => Ok(Value::Num(v[0])),
-                    1 => Ok(Value::Num(v[1])),
-                    2 => Ok(Value::Num(v[2])),
-                    _ => Err(EvalError::TypeMismatch(format!(
-                        "Index {} out of bounds for Vec3",
-                        idx
-                    ))),
-                },
-                Value::Vec4(v) => match idx {
-                    0 => Ok(Value::Num(v[0])),
-                    1 => Ok(Value::Num(v[1])),
-                    2 => Ok(Value::Num(v[2])),
-                    3 => Ok(Value::Num(v[3])),
-                    _ => Err(EvalError::TypeMismatch(format!(
-                        "Index {} out of bounds for Vec4",
-                        idx
-                    ))),
-                },
-                Value::Color(c) => match idx {
-                    0 => Ok(Value::Num(c[0])),
-                    1 => Ok(Value::Num(c[1])),
-                    2 => Ok(Value::Num(c[2])),
-                    3 => Ok(Value::Num(c[3])),
-                    _ => Err(EvalError::TypeMismatch(format!(
-                        "Index {} out of bounds for Color",
-                        idx
-                    ))),
-                },
-                other => Err(EvalError::TypeMismatch(format!("Cannot index into {:?}", other))),
-            }
-        },
+        CompiledExpr::Index(container, index) => eval_index(container, index, env),
         CompiledExpr::Method(receiver, name, args) => {
             let receiver_val = evaluate_compiled_expr(receiver, env)?;
-            let arg_values: Vec<Value> = args
+            let arg_values: SmallVec<[Value; 4]> = args
                 .iter()
                 .map(|arg| evaluate_compiled_expr(arg, env))
-                .collect::<Result<Vec<_>, _>>()?;
+                .collect::<Result<_, _>>()?;
             eval_method(receiver_val, name, &arg_values, env)
         },
         CompiledExpr::Closure(params, body) => {
@@ -183,33 +77,7 @@ pub(crate) fn evaluate_compiled_expr(
             label: label.clone(),
             prop: prop.clone(),
         }),
-        CompiledExpr::LetChain(bindings, tail) => {
-            // Bindings evaluate in order; each becomes a let-scope entry so
-            // later bindings and the tail see it. Scoped lookup lives in
-            // `env.get`; pops restore the caller env exactly (the plot
-            // sampler shares one env across sample points).
-            let mut pushed = 0;
-            let mut result = Ok(Value::Num(0.0));
-            for (name, value) in bindings {
-                match evaluate_compiled_expr(value, env) {
-                    Ok(v) => {
-                        env.push_let_scope(vec![(name.clone(), v)]);
-                        pushed += 1;
-                    },
-                    Err(e) => {
-                        result = Err(e);
-                        break;
-                    },
-                }
-            }
-            if result.is_ok() {
-                result = evaluate_compiled_expr(tail, env);
-            }
-            for _ in 0..pushed {
-                env.pop_let_scope();
-            }
-            result
-        },
+        CompiledExpr::LetChain(bindings, tail) => eval_let_chain(bindings, tail, env),
         CompiledExpr::Construct(name, fields) => {
             let mut map = std::collections::HashMap::new();
             for (field_name, field_expr) in fields {
@@ -227,6 +95,183 @@ pub(crate) fn evaluate_compiled_expr(
             }
         },
     }
+}
+
+fn eval_make_vec(items: &[CompiledExpr], env: &Environment) -> Result<Value, EvalError> {
+    match items.len() {
+        2 => {
+            let v0 = evaluate_compiled_expr(&items[0], env)?;
+            let v1 = evaluate_compiled_expr(&items[1], env)?;
+            if matches!((&v0, &v1), (Value::Num(_), Value::Num(_))) {
+                Ok(Value::Vec2([v0.as_num(), v1.as_num()]))
+            } else {
+                make_vec_value(vec![v0, v1])
+            }
+        },
+        3 => {
+            let v0 = evaluate_compiled_expr(&items[0], env)?;
+            let v1 = evaluate_compiled_expr(&items[1], env)?;
+            let v2 = evaluate_compiled_expr(&items[2], env)?;
+            if matches!((&v0, &v1, &v2), (Value::Num(_), Value::Num(_), Value::Num(_))) {
+                Ok(Value::Vec3([v0.as_num(), v1.as_num(), v2.as_num()]))
+            } else {
+                make_vec_value(vec![v0, v1, v2])
+            }
+        },
+        4 => {
+            let v0 = evaluate_compiled_expr(&items[0], env)?;
+            let v1 = evaluate_compiled_expr(&items[1], env)?;
+            let v2 = evaluate_compiled_expr(&items[2], env)?;
+            let v3 = evaluate_compiled_expr(&items[3], env)?;
+            if matches!(
+                (&v0, &v1, &v2, &v3),
+                (Value::Num(_), Value::Num(_), Value::Num(_), Value::Num(_))
+            ) {
+                Ok(Value::Vec4([v0.as_num(), v1.as_num(), v2.as_num(), v3.as_num()]))
+            } else {
+                make_vec_value(vec![v0, v1, v2, v3])
+            }
+        },
+        _ => {
+            let values = items
+                .iter()
+                .map(|item| evaluate_compiled_expr(item, env))
+                .collect::<Result<Vec<_>, _>>()?;
+            make_vec_value(values)
+        },
+    }
+}
+
+fn eval_call_builtin(
+    builtin: BuiltinFn,
+    args: &[CompiledExpr],
+    env: &Environment,
+) -> Result<Value, EvalError> {
+    let args: SmallVec<[Value; 4]> = args
+        .iter()
+        .map(|arg| evaluate_compiled_expr(arg, env))
+        .collect::<Result<_, _>>()?;
+    let name = match builtin {
+        BuiltinFn::Sin => "sin",
+        BuiltinFn::Cos => "cos",
+        BuiltinFn::Lerp => "lerp",
+        BuiltinFn::Format => "format",
+        BuiltinFn::Tan => "tan",
+        BuiltinFn::Sqrt => "sqrt",
+        BuiltinFn::Exp => "exp",
+        BuiltinFn::Log => "ln",
+        BuiltinFn::Atan2 => "atan2",
+        BuiltinFn::Clamp => "clamp",
+        BuiltinFn::Abs => "abs",
+        BuiltinFn::Min => "min",
+        BuiltinFn::Max => "max",
+        BuiltinFn::Floor => "floor",
+        BuiltinFn::Ceil => "ceil",
+        BuiltinFn::Deg => "deg",
+        BuiltinFn::Rad => "rad",
+        BuiltinFn::ListSwap => "list_swap",
+        BuiltinFn::ListSet => "list_set",
+        BuiltinFn::Signum => "signum",
+        BuiltinFn::Fract => "fract",
+        BuiltinFn::Hypot => "hypot",
+        BuiltinFn::Pow => "pow",
+        BuiltinFn::Rem => "rem",
+        BuiltinFn::Step => "step",
+        BuiltinFn::Round => "round",
+        BuiltinFn::Factorial => "factorial",
+        BuiltinFn::SumList => "sum",
+        BuiltinFn::CurveAt => "curve_at",
+        BuiltinFn::CurveSmooth => "curve_smooth",
+        BuiltinFn::SeededRand => "seeded_rand",
+    };
+    if env.get(name).is_some() {
+        return crate::timeline::utils::evaluate_call_value(name, args.into_vec(), env);
+    }
+    crate::timeline::eval_shared::eval_builtin_fn(name, &args)
+}
+
+fn eval_index(
+    container: &CompiledExpr,
+    index: &CompiledExpr,
+    env: &Environment,
+) -> Result<Value, EvalError> {
+    let container_val = evaluate_compiled_expr(container, env)?;
+    let index_val = evaluate_compiled_expr(index, env)?;
+    let idx = index_val.as_num() as usize;
+    match container_val {
+        Value::List(items) => items.get(idx).cloned().ok_or_else(|| {
+            EvalError::TypeMismatch(format!(
+                "Index {} out of bounds for list of length {}",
+                idx,
+                items.len()
+            ))
+        }),
+        Value::Str(s) => s.chars().nth(idx).map(|c| Value::Str(c.to_string())).ok_or_else(|| {
+            EvalError::TypeMismatch(format!(
+                "Index {} out of bounds for string of length {}",
+                idx,
+                s.len()
+            ))
+        }),
+        Value::Vec2(v) => match idx {
+            0 => Ok(Value::Num(v[0])),
+            1 => Ok(Value::Num(v[1])),
+            _ => Err(EvalError::TypeMismatch(format!("Index {} out of bounds for Vec2", idx))),
+        },
+        Value::Vec3(v) => match idx {
+            0 => Ok(Value::Num(v[0])),
+            1 => Ok(Value::Num(v[1])),
+            2 => Ok(Value::Num(v[2])),
+            _ => Err(EvalError::TypeMismatch(format!("Index {} out of bounds for Vec3", idx))),
+        },
+        Value::Vec4(v) => match idx {
+            0 => Ok(Value::Num(v[0])),
+            1 => Ok(Value::Num(v[1])),
+            2 => Ok(Value::Num(v[2])),
+            3 => Ok(Value::Num(v[3])),
+            _ => Err(EvalError::TypeMismatch(format!("Index {} out of bounds for Vec4", idx))),
+        },
+        Value::Color(c) => match idx {
+            0 => Ok(Value::Num(c[0])),
+            1 => Ok(Value::Num(c[1])),
+            2 => Ok(Value::Num(c[2])),
+            3 => Ok(Value::Num(c[3])),
+            _ => Err(EvalError::TypeMismatch(format!("Index {} out of bounds for Color", idx))),
+        },
+        other => Err(EvalError::TypeMismatch(format!("Cannot index into {:?}", other))),
+    }
+}
+
+fn eval_let_chain(
+    bindings: &[(String, CompiledExpr)],
+    tail: &CompiledExpr,
+    env: &Environment,
+) -> Result<Value, EvalError> {
+    // Bindings evaluate in order; each becomes a let-scope entry so
+    // later bindings and the tail see it. Scoped lookup lives in
+    // `env.get`; pops restore the caller env exactly (the plot
+    // sampler shares one env across sample points).
+    let mut pushed = 0;
+    let mut result = Ok(Value::Num(0.0));
+    for (name, value) in bindings {
+        match evaluate_compiled_expr(value, env) {
+            Ok(v) => {
+                env.push_let_scope([(name.clone(), v)]);
+                pushed += 1;
+            },
+            Err(e) => {
+                result = Err(e);
+                break;
+            },
+        }
+    }
+    if result.is_ok() {
+        result = evaluate_compiled_expr(tail, env);
+    }
+    for _ in 0..pushed {
+        env.pop_let_scope();
+    }
+    result
 }
 
 /// Evaluate a method call on a receiver value.
@@ -595,6 +640,7 @@ pub(crate) fn compile_fast_vec2<'a>(
     None
 }
 
+#[allow(dead_code)] // tested by eval unit tests
 pub(crate) fn resolve_slot_values(
     slot_names: &[&str],
     env: &Environment,

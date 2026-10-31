@@ -357,6 +357,14 @@ pub(crate) struct EntityStaticFlags {
     pub(crate) subtree: Option<bool>,
 }
 
+/// Keyed by `(body_pointer_as_usize, kind_or_arity)`.
+pub(crate) type FastPlotCache = std::cell::RefCell<
+    std::collections::HashMap<
+        (usize, usize),
+        Option<std::sync::Arc<crate::timeline::plot::FastPlotProgram>>,
+    >,
+>;
+
 /// Per-frame evaluation caches and transient state.
 ///
 /// These are deliberately reset (not cloned) when a [`Timeline`] is cloned, so
@@ -405,6 +413,10 @@ pub(crate) struct EvalCaches {
     /// The scene's background color for this frame, sampled once and read by the
     /// primitive `EvaluateCtx` (legend label contrast).
     background_color: std::cell::Cell<[f32; 4]>,
+    /// Cache for compiled fast plot expressions across frames.
+    pub(crate) fast_plot_programs: FastPlotCache,
+    /// Content epoch at which `fast_plot_programs` was last verified/cleared.
+    pub(crate) fast_plot_epoch: std::cell::Cell<u64>,
 }
 
 /// Per-frame resolution of the authored `solo` flags: `visible` holds soloed
@@ -506,6 +518,32 @@ impl EvalCaches {
             world.set_bounds_slot(id, slot as u32);
         }
         *self.bounds_registry.borrow_mut() = Some(BoundsRegistry { labels });
+    }
+
+    /// Clear the fast plot programs cache if the timeline mutation epoch has advanced.
+    pub(crate) fn clear_fast_plot_programs_if_stale(&self) {
+        if self.fast_plot_epoch.get() != self.content_epoch.get() {
+            self.fast_plot_programs.borrow_mut().clear();
+            self.fast_plot_epoch.set(self.content_epoch.get());
+        }
+    }
+
+    /// Retrieve or compile a fast plot program for `key = (body_pointer, kind_or_arity)`.
+    pub(crate) fn get_or_compile_fast_plot<F>(
+        &self,
+        key: (usize, usize),
+        compile: F,
+    ) -> Option<std::sync::Arc<crate::timeline::plot::FastPlotProgram>>
+    where
+        F: FnOnce() -> Option<crate::timeline::plot::FastPlotProgram>,
+    {
+        self.clear_fast_plot_programs_if_stale();
+        if let Some(entry) = self.fast_plot_programs.borrow().get(&key) {
+            return entry.clone();
+        }
+        let compiled = compile().map(std::sync::Arc::new);
+        self.fast_plot_programs.borrow_mut().insert(key, compiled.clone());
+        compiled
     }
 }
 

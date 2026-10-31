@@ -99,11 +99,12 @@ impl Timeline {
                 }
 
                 vector_paths =
-                    std::sync::Arc::new(crate::timeline::plot::sample_procedural_plot_at(
+                    std::sync::Arc::new(crate::timeline::plot::sample_procedural_plot_at_cached(
                         procedural_plot,
                         env,
                         time_ms,
                         self.world.func_transitions(node_id),
+                        Some(&self.eval_caches),
                     ));
 
                 if has_params {
