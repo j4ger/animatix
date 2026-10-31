@@ -1268,18 +1268,26 @@ Measured with `scripts/perf-bench.sh compare quick --thresh 5` against the
 
 | Bench | Before | After | Change |
 |---|---:|---:|---:|
-| `reactive_playback_100frames` | 675.8 µs | 583.8 µs | −13.62% |
-| `stage/modifier_exec` | 740.7 ns | 370.8 ns | −49.94% |
-| `full_200` | 12.36 µs | 11.00 µs | −10.98% |
-| `build_reactive_timeline` | 221.2 µs | 203.7 µs | −7.90% |
-| `stage/eval_total` | 14.24 µs | 13.02 µs | −8.58% |
-| `timeline_evaluate_1s` | 116.7 ns | 94.3 ns | −19.19% |
-| `static_evaluate_100frames` | 54.83 µs | 50.60 µs | −7.70% |
+| `reactive_playback_100frames` | 675.8 µs | 584.2 µs | −13.55% |
+| `stage/modifier_exec` | 740.7 ns | 386.7 ns | −47.79% |
+| `full_200` | 12.36 µs | 11.37 µs | −7.98% |
+| `build_reactive_timeline` | 221.2 µs | 210.7 µs | −4.72% |
+| `stage/eval_total` | 14.24 µs | 13.32 µs | −6.45% |
+| `timeline_evaluate_1s` | 116.7 ns | 94.5 ns | −18.99% |
+| `static_evaluate_100frames` | 54.83 µs | 50.84 µs | −7.27% |
 
 The general frame environment remains a name-keyed `HashMap`; the slot-table
 idea is implemented for the hot numeric/plot paths (`FastScalarExpr::Slot` and
 `FastModifierProgram`) and remains future work only for arbitrary dynamic
 `Value` lookups (see `docs/roadmap.md` §4).
+
+Flat bytecode/register IR is deliberately **not** implemented now. Its trigger
+was a remaining modifier-dispatch cost; after this pass `stage/modifier_exec`
+is ~0.39 µs per frame (down 47.8%) and the numeric assignments that dominate
+expression-heavy scenes already run through fixed `FastScalarExpr` slot
+programs. A flat IR would add a second instruction representation and runtime
+without a measured bottleneck to remove. Revisit if a real scene shows
+`stage/modifier_exec` above 2 µs again after the general slot-table work.
 
 ---
 
