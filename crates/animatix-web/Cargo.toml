@@ -20,7 +20,9 @@ raster-encode = ["animatix-render/raster-encode"]
 
 [dependencies]
 animatix = { path = "../animatix", default-features = false }
+animatix-core = { path = "../animatix-core" }
 animatix-syntax = { path = "../animatix-syntax" }
+animatix-std = { path = "../animatix-std" }
 serde = { workspace = true }
 
 # Web-only stack. The cdylib target is wasm32-unknown-unknown; native builds

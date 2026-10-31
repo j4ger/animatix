@@ -19,6 +19,7 @@ impl PrimitiveInfo {
             icon_id: Cow::Borrowed(icon),
             advanced: false,
             capabilities,
+            required_features: FeatureMask::NONE,
             child_processing: ChildProcessingKind::Generic,
             shape: None,
             text: None,
@@ -48,6 +49,7 @@ impl PrimitiveInfo {
             icon_id: Cow::Borrowed(icon),
             advanced: false,
             capabilities,
+            required_features: FeatureMask::NONE,
             child_processing: ChildProcessingKind::Generic,
             shape: Some(kind),
             text: None,
@@ -73,6 +75,7 @@ impl PrimitiveInfo {
             icon_id: Cow::Borrowed(icon),
             advanced: false,
             capabilities: TEXT_CAPS,
+            required_features: FeatureMask::NONE,
             child_processing: ChildProcessingKind::Generic,
             shape: None,
             text: Some(kind),
@@ -93,6 +96,12 @@ impl PrimitiveInfo {
     /// Attach a default snippet/stub to this primitive card.
     pub const fn with_stub(mut self, stub: &'static str) -> Self {
         self.default_stub = Some(stub);
+        self
+    }
+
+    /// Declare the optional engine feature this primitive needs.
+    pub const fn requires(mut self, features: FeatureMask) -> Self {
+        self.required_features = features;
         self
     }
 
@@ -195,16 +204,19 @@ pub static TEXT: PrimitiveInfo =
         .with_stub("text: \"Hello\"");
 pub static CODE: PrimitiveInfo =
     PrimitiveInfo::text("Code", "Code", icon_glyphs::CODE, TextKind::Code)
+        .requires(FeatureMask::RICH_TEXT)
         .advanced()
         .with_doc("Code block with syntax highlighting.")
         .with_stub("code: \"let x = 1;\", language: \"rust\"");
 pub static MATH: PrimitiveInfo =
     PrimitiveInfo::text("Math", "Math", icon_glyphs::FUNCTION, TextKind::Math)
+        .requires(FeatureMask::RICH_TEXT)
         .advanced()
         .with_doc("Mathematical formula notation using Typst math.")
         .with_stub("text: \"E = m c^2\"");
 pub static TYPST: PrimitiveInfo =
     PrimitiveInfo::text("Typst", "Typst", icon_glyphs::ARTICLE, TextKind::Typst)
+        .requires(FeatureMask::RICH_TEXT)
         .advanced()
         .with_doc("Typst markup and mathematical document fragment.")
         .with_stub("text: \"x^2 + y^2 = r^2\"");
@@ -216,10 +228,12 @@ pub static COUNTER: PrimitiveInfo =
 // Media
 pub static IMAGE: PrimitiveInfo =
     PrimitiveInfo::new("Image", "Image", icon_glyphs::IMAGE, ActorCategory::Media, IMAGE_CAPS)
+        .requires(FeatureMask::IMAGE_DECODE)
         .with_doc("Raster image element.")
         .with_stub("url: \"image.png\"");
 pub static SVG: PrimitiveInfo =
     PrimitiveInfo::new("Svg", "SVG", icon_glyphs::VECTOR_THREE, ActorCategory::Media, SVG_CAPS)
+        .requires(FeatureMask::SVG)
         .advanced()
         .with_doc("SVG image element.")
         .with_stub("url: \"graphic.svg\"");

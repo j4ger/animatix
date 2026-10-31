@@ -10,6 +10,7 @@
 //! Contents:
 //! - [`caps`]: the capability vocabulary (`ActorCategory`, `ChildProcessing`, `ShapeKind`,
 //!   `TextKind`, `PrimitiveCapabilities`).
+//! - [`features`]: optional engine feature bits declared by primitives.
 //! - [`effect`]: the [`Effect`](effect::Effect) trait, parameter schema, and identity types.
 //! - [`icon_glyphs`]: UI glyph constants (defined here rather than via `egui_phosphor` so nothing
 //!   below the GUI depends on egui).
@@ -19,6 +20,7 @@
 pub mod caps;
 pub mod effect;
 pub mod error;
+pub mod features;
 pub mod icon_glyphs;
 pub mod property;
 pub mod stroke_icons;

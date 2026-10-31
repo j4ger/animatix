@@ -12,20 +12,22 @@
 <body>
   <h1>SVG probe (<span id="profile">?</span> profile)</h1>
   <pre id="report">waiting…</pre>
-  <amx-player src="scene.amx" profile="full" autoplay loop title="SVG probe"></amx-player>
+  <amx-player src="scene.amx" profile="assets" autoplay loop title="SVG probe"></amx-player>
 
-  <!-- ?profile=slim switches to the slim runtime; default is full -->
+  <!-- Default is assets: the smallest package with the Svg actor.
+       ?profile=slim pins the playback-only package; ?profile=auto exercises
+       the slim → assets upgrade on the same scene. -->
   <script>
-    const slim = new URLSearchParams(location.search).get("profile") === "slim";
-    document.getElementById("profile").textContent = slim ? "slim" : "full";
-    // The element names the profile it plays under, so the switch moves both
-    // the runtime directory and the element: an `Svg` actor is not registered
-    // in the slim build at all, and asking for it is what this probe checks.
-    if (slim) document.querySelector("amx-player").removeAttribute("profile");
+    const requested = new URLSearchParams(location.search).get("profile");
+    const profile = requested === "slim" || requested === "auto" ? requested : "assets";
+    document.getElementById("profile").textContent = profile;
+    // The explicit profile keeps the default probe deterministic; `auto`
+    // exercises the slim → assets upgrade on the same scene.
+    if (profile !== "assets") document.querySelector("amx-player").removeAttribute("profile");
     const loader = document.createElement("script");
     loader.type = "module";
     loader.src = "../../embed/amx-player.js";
-    loader.setAttribute("data-runtime-base", slim ? "../../pkg-slim" : "../../pkg");
+    loader.setAttribute("data-runtime-base", profile === "slim" ? "../../pkg-slim" : "../../pkg-assets");
     document.body.appendChild(loader);
   </script>
 

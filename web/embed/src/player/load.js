@@ -13,6 +13,41 @@ export class AmxPlayerLoad extends AmxPlayerView {
     enqueueLoad(this);
   }
 
+  _profileSupports(profile, required) {
+    const rich = required & 1;
+    const image = required & 2;
+    const svg = required & 4;
+    const unknown = required & 0x80000000;
+    if (profile === "full") return true;
+    if (profile === "assets") return rich === 0 && unknown === 0;
+    return (required & 7) === 0 && unknown === 0;
+  }
+
+  _profileForFeatures(required) {
+    const rich = required & 1;
+    const image = required & 2;
+    const svg = required & 4;
+    const unknown = required & 0x80000000;
+    if (rich !== 0 || unknown !== 0) return "full";
+    if (image !== 0 || svg !== 0) return "assets";
+    return "slim";
+  }
+
+  async _playerWithEngine(module, source, src) {
+    const player = await module.create_player(this._canvas);
+    this._player = player;
+    if (typeof player.set_quality === "function") {
+      player.set_quality(this._quality());
+    }
+    await this._loadFonts(module);
+    if (this.getAttribute("src") !== src) return null;
+    return {
+      module,
+      player,
+      result: await this._loadScene(player, source, src),
+    };
+  }
+
   async _startLoad() {
     const src = this.getAttribute("src");
     if (!src || this._state !== "idle") return;
@@ -27,25 +62,48 @@ export class AmxPlayerLoad extends AmxPlayerView {
       return;
     }
     try {
-      const profile = this._profile();
-      const [module, source] = await Promise.all([
-        loadEngine(profile),
-        fetch(src).then((r) => {
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          return r.text();
-        }),
-      ]);
+      const requested = this._profile();
+      const initialProfile = requested === "auto" ? "slim" : requested;
+      const sourcePromise = fetch(src).then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.text();
+      });
+      const module = await loadEngine(initialProfile);
+      const source = await sourcePromise;
       if (this.getAttribute("src") !== src) return; // changed while loading
 
-      this._player = await module.create_player(this._canvas);
-      if (this.getAttribute("src") !== src) return;
-      if (typeof this._player.set_quality === "function") {
-        this._player.set_quality(this._quality());
+      let loaded = await this._playerWithEngine(module, source, src);
+      if (!loaded) return;
+      let required = Number(loaded.result.required_features ?? 0) >>> 0;
+
+      if (requested === "auto") {
+        const target = this._profileForFeatures(required);
+        if (target !== initialProfile) {
+          console.info(
+            `amx-player: ${src} needs ${target} engine (features ${required}), upgrading`,
+          );
+          const targetModule = await loadEngine(target);
+          const upgraded = await this._playerWithEngine(targetModule, source, src);
+          if (!upgraded) return;
+          loaded = upgraded;
+          required = Number(loaded.result.required_features ?? 0) >>> 0;
+        }
+      } else if (!this._profileSupports(requested, required)) {
+        this._state = "error";
+        const msg = `Scene requires engine features unavailable in profile="${requested}"`;
+        console.error(`amx-player: ${msg} [src="${src}"]`, { required });
+        this._showVeil(msg, true);
+        this.dispatchEvent(
+          new CustomEvent("amxerror", {
+            bubbles: true,
+            detail: { src, error: "feature-unavailable", required_features: required },
+          }),
+        );
+        return;
       }
 
-      await this._loadFonts(module);
-      if (this.getAttribute("src") !== src) return;
-      const result = await this._loadScene(this._player, source, src);
+      this._player = loaded.player;
+      const result = loaded.result;
       const diags = result.diagnostics ?? [];
       const errors = diags.filter((d) => d.severity === "error");
       if (!result.ok) {

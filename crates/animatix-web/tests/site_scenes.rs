@@ -83,7 +83,7 @@ fn players(html: &str) -> Vec<(String, bool)> {
                 .and_then(|begin| tag[begin..].find('"').map(|end| &tag[begin..begin + end]))
         };
         if let Some(src) = attr("src") {
-            found.push((src.to_string(), attr("profile") == Some("full")));
+            found.push((src.to_string(), matches!(attr("profile"), Some("full") | Some("assets"))));
         }
         rest = &rest[tag_end..];
     }

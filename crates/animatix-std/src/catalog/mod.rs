@@ -16,6 +16,7 @@ use animatix_core::caps::{
     ActorCaps, ActorCategory, ChildProcessingKind, PlotKind, PrimitiveCapabilities, ShapeKind,
     TextKind,
 };
+use animatix_core::features::FeatureMask;
 use animatix_core::icon_glyphs;
 
 /// The engine-visible identity card of one built-in primitive.
@@ -37,6 +38,10 @@ pub struct PrimitiveInfo {
     pub advanced: bool,
     /// Engine capabilities.
     pub capabilities: PrimitiveCapabilities,
+    /// Optional engine feature this primitive requires. The browser loader
+    /// unions these bits across a scene and only downloads the engine packages
+    /// that can satisfy them; native builds ignore the mask.
+    pub required_features: FeatureMask,
     /// Child-processing strategy.
     pub child_processing: ChildProcessingKind,
     /// The concrete shape geometry, for shape primitives.

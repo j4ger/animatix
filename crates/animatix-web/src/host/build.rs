@@ -9,6 +9,7 @@ use animatix::extension_context::ExtensionContext;
 use animatix::renderer::text::FontContext;
 use animatix::timeline::assets::AssetCache;
 use animatix::timeline::{BuildOptions, BuildQuality, SceneDimensions};
+use animatix_core::features::FeatureMask;
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use animatix_syntax::module::{ModuleError, ModuleGraph, Namespace, SourceAccess};
 
@@ -87,6 +88,7 @@ pub fn build_document_with_modules(
                     duration_s: MIN_DURATION_S,
                     width: SceneDimensions::default().width,
                     height: SceneDimensions::default().height,
+                    required_features: FeatureMask::NONE.bits(),
                     diagnostics: vec![DiagnosticDto {
                         severity: "error".to_string(),
                         code: "module-error".to_string(),
@@ -113,6 +115,7 @@ pub fn build_document_with_modules(
 
     let mut expansion_errors = Vec::new();
     let expanded = program.expand_components(&mut expansion_errors);
+    let required_features = super::features::required_features(&expanded);
     for error in &expansion_errors {
         diagnostics.push(DiagnosticDto::from_diagnostic(&Diagnostic::error(
             DiagnosticCode::UnknownAction,
@@ -168,6 +171,7 @@ pub fn build_document_with_modules(
             duration_s,
             width,
             height,
+            required_features: required_features.bits(),
             diagnostics,
             missing_imports: Vec::new(),
             markers,
@@ -207,6 +211,7 @@ fn built_failure(diagnostics: Vec<DiagnosticDto>) -> BuiltDocument {
             duration_s: MIN_DURATION_S,
             width: SceneDimensions::default().width,
             height: SceneDimensions::default().height,
+            required_features: FeatureMask::NONE.bits(),
             diagnostics,
             missing_imports: Vec::new(),
             markers: Vec::new(),

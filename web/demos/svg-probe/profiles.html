@@ -16,8 +16,8 @@
   <div class="row">
     <!-- no profile attr: defaults to slim; plain-text scene fits -->
     <div><div>default (slim)</div><amx-player src="../transformer/scenes/tokens.amx" autoplay loop title="slim default"></amx-player></div>
-    <!-- profile="full": the Svg actor only renders there -->
-    <div><div>profile="full"</div><amx-player src="scene.amx" profile="full" autoplay loop title="full profile"></amx-player></div>
+    <!-- profile="assets": the smallest package with the Svg actor -->
+    <div><div>profile="assets"</div><amx-player src="scene.amx" profile="assets" autoplay loop title="assets profile"></amx-player></div>
   </div>
   <div class="row">
     <!-- quality: same plot scene at the two ends of the build-quality range -->
@@ -26,7 +26,7 @@
   </div>
 
   <script type="module" src="../../embed/amx-player.js"></script>
-  <!-- no data-runtime-base: default parent dir → pkg-slim for slim, pkg for full -->
+  <!-- no data-runtime-base: default parent dir → pkg-slim for slim, pkg-assets for assets -->
 
   <script type="module">
     const report = { errors: [], wasmFetches: null };

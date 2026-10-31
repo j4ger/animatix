@@ -16,35 +16,55 @@ const RUNTIME_BASE = (() => {
 })();
 
 // Engine directories per profile. Each embed picks its profile through the
-// element's `profile` attribute — "slim" (the default) or "full" — and the
-// two directories are derived from the loader script's `data-runtime-base`:
-// a value whose last segment is `pkg`/`pkg-slim` is the legacy exact-directory
-// form (its ±slim sibling completes the pair); anything else is a parent
-// directory containing both. The default parent is beside this component, so
-// an omitted attribute resolves to pkg-slim with pkg as the fallback when the
-// host did not build that profile.
-function engineBases(profile) {
-  const wantSlim = profile !== "full";
+// element's `profile` attribute — "auto" (default), "slim", "assets" or
+// "full" — and the directories are derived from the loader script's
+// `data-runtime-base`. A value whose last segment is `pkg-slim`,
+// `pkg-assets` or `pkg` is the legacy exact-directory form; anything else is
+// a parent directory containing the three packages. The default parent is
+// beside this component, so an omitted attribute starts at pkg-slim and may
+// auto-upgrade from there.
+function engineDirs() {
   const override = LOADER_SCRIPT?.getAttribute("data-runtime-base");
   const base = override
     ? new URL(override, document.baseURI).href.replace(/\/$/, "")
     : `${RUNTIME_BASE}/..`;
   const last = base.split("/").pop();
-  let slimDir;
-  let fullDir;
   if (last === "pkg-slim") {
-    slimDir = base;
-    fullDir = base.slice(0, -"-slim".length);
-  } else if (last === "pkg") {
-    fullDir = base;
-    slimDir = `${base}-slim`;
-  } else {
-    slimDir = `${base}/pkg-slim`;
-    fullDir = `${base}/pkg`;
+    return {
+      slim: base,
+      assets: base.replace(/-slim$/, "-assets"),
+      full: base.replace(/-slim$/, ""),
+    };
   }
-  const primary = wantSlim ? slimDir : fullDir;
-  const fallback = wantSlim ? fullDir : slimDir;
-  return primary === fallback ? [primary] : [primary, fallback];
+  if (last === "pkg-assets") {
+    return {
+      slim: base.replace(/-assets$/, "-slim"),
+      assets: base,
+      full: base.replace(/-assets$/, ""),
+    };
+  }
+  if (last === "pkg") {
+    return {
+      slim: `${base}-slim`,
+      assets: `${base}-assets`,
+      full: base,
+    };
+  }
+  return {
+    slim: `${base}/pkg-slim`,
+    assets: `${base}/pkg-assets`,
+    full: `${base}/pkg`,
+  };
+}
+
+function engineBases(profile) {
+  const dirs = engineDirs();
+  // A package may fall back to a larger package that contains it, but never
+  // to a smaller one: silently running full scenes on slim is how values got
+  // dropped. An explicit full request never falls back.
+  if (profile === "full") return [dirs.full];
+  if (profile === "assets") return [dirs.assets, dirs.full];
+  return [dirs.slim, dirs.assets, dirs.full];
 }
 
 const REDUCED_MOTION = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;

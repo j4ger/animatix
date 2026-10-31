@@ -64,6 +64,10 @@ pub struct LoadResultDto {
     /// Scene dimensions in pixels (the canvas aspect should follow these).
     pub width: u32,
     pub height: u32,
+    /// Optional engine features the source uses. The shell unions this with
+    /// the catalog requirements before choosing a package; this is a feature
+    /// bitmask, not a scene schema.
+    pub required_features: u32,
     pub diagnostics: Vec<DiagnosticDto>,
     /// Resolved import paths the module graph could not find, when the load
     /// stopped on a missing file. The shell fetches each (relative to the

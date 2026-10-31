@@ -140,12 +140,14 @@ export class AmxPlayerBase extends HTMLElement {
     this._maybeStartLoading();
   }
 
-  /// `profile` — which engine build backs this element: "slim" (default) or
-  /// "full". A slim engine cannot render `Svg` actors (warned and skipped)
-  /// and falls back to the plain text path; see web/README.md's differences
-  /// table. Directories come from the loader's `data-runtime-base`.
+  /// `profile` — which engine build backs this element: "auto" (default),
+  /// "slim", "assets" or "full". Auto starts with slim, reads the scene's
+  /// required feature mask, and upgrades only when the scene needs image/SVG
+  /// assets or rich text. Explicit profiles never fall back to a smaller
+  /// package. Directories come from the loader's `data-runtime-base`.
   _profile() {
-    return this.getAttribute("profile") === "full" ? "full" : "slim";
+    const value = this.getAttribute("profile");
+    return value === "slim" || value === "assets" || value === "full" ? value : "auto";
   }
 
   /// `sealed` — page-driven mode (see the attribute docs above). Re-read on

@@ -85,6 +85,7 @@ impl NativePrimitiveAdapter {
             icon_id: icon_id.into(),
             advanced: primitive.advanced,
             capabilities,
+            required_features: animatix_core::features::FeatureMask::UNKNOWN,
             child_processing,
             shape: None,
             text: None,

@@ -14,6 +14,7 @@ impl PrimitiveInfo {
             icon_id: Cow::Borrowed("extension"),
             advanced: false,
             capabilities: PrimitiveCapabilities::default(),
+            required_features: FeatureMask::UNKNOWN,
             child_processing: ChildProcessingKind::Generic,
             shape: None,
             text: None,

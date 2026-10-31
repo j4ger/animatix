@@ -27,11 +27,16 @@ const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const CHROME = process.env.CHROME || "chromium";
 const PYTHON = process.env.PYTHON || "python3";
 
-// Pages that exercise the three load shapes: the full-profile hero grid, a
-// single walkthrough player, and a slim-profile demo with several players.
+// Pages that exercise the load shapes: the hero grid, a single walkthrough
+// player, a slim multi-player demo, and the SVG asset probe.
 const PAGES = process.env.SMOKE_PAGES
   ? process.env.SMOKE_PAGES.split(",")
-  : ["/", "/demos/transformer/index.html", "/demos/matrix/index.html"];
+  : [
+      "/",
+      "/demos/transformer/index.html",
+      "/demos/matrix/index.html",
+      "/demos/svg-probe/index.html",
+    ];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 

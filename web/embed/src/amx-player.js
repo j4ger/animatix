@@ -24,11 +24,11 @@
 //   title      accessibility label; shown on the skeleton while loading
 //   aspect     "16:9" | "4:3" | "1:1" | "9:16" — reserve space before first frame
 //              (auto-detected from the scene afterwards)
-//   profile    "slim" (default) | "full" — which engine build backs this
-//              element. Slim plays plain-text scenes; full adds Typst markup,
-//              Code/Math highlighting and Image/Svg assets. Embeds sharing a
-//              profile share one engine download and device; a page mixing
-//              both downloads each once.
+//   profile    "auto" (default) | "slim" | "assets" | "full" — which engine
+//              build backs this element. Auto starts slim and upgrades only
+//              when the scene needs Image/Svg assets or rich text; explicit
+//              profiles never fall back to a smaller package. Embeds sharing
+//              a profile share one engine download and device.
 //   quality    "draft" (default) | "preview" | "production" — build fidelity.
 //              Production matches a desktop export; changing it rebuilds.
 //   sealed     page-driven mode: no center play affordance and no click
@@ -57,11 +57,11 @@
 //              previous step; 'f' toggles fullscreen, 'b' toggles blackout.
 //
 // The engine directories come from the loader <script>'s `data-runtime-base`
-// (absolute, or relative to the page). A value ending in `pkg`/`pkg-slim` is
-// the legacy exact-directory form (its ±slim sibling completes the pair);
-// anything else is a parent directory containing both. Default: the parent of
-// the directory holding this component — so an omitted attribute resolves to
-// `pkg-slim`, falling back to `pkg` when that profile was not built.
+// (absolute, or relative to the page). A value ending in `pkg-slim`,
+// `pkg-assets` or `pkg` is the legacy exact-directory form; anything else is a
+// parent directory containing the three packages. Default: the parent of the
+// directory holding this component, so an omitted attribute starts at
+// `pkg-slim` and auto-upgrades only when feature detection asks for more.
 //
 // Loading UX (no build-time poster required):
 //   1. skeleton with shimmer + title, correct aspect ratio
