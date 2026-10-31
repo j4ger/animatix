@@ -43,14 +43,14 @@ web/demos/                   demo hub (course-style cards + posters) and the dem
                                                  QA harnesses (multi-instance, frame cost, SVG/profile)
 web/demos/transformer/       "The Transformer Architecture, Animated" — seven scenes + article page
 web/scenes/hero.amx          the homepage hero scene
-web/pkg/, web/pkg-slim/      build output (gitignored)
+web/pkg/, web/pkg-assets/, web/pkg-slim/  build output (gitignored)
 scripts/build-web.sh         wasm build + wasm-bindgen + wasm-opt + brotli
 scripts/serve-web.py         local static server with brotli negotiation
-.github/workflows/pages.yml  deploys web/ + both engine builds to GitHub Pages
+.github/workflows/pages.yml  deploys web/ + the runtime engine builds to GitHub Pages
 crates/animatix-web/tests/site_scenes.rs
                              builds every scene an <amx-player> on these pages
                              references, through the embed's own fetch protocol,
-                             in the profile that player asks for (both profiles)
+                             in the profile that player asks for (slim/assets/full)
 scripts/transformer-verify.sh    keyframe checks for the transformer scenes
                              (`animatix verify` per scene; needs a GPU, so it is a
                              scripted gate like dogfood-verify, not a cargo test)
@@ -72,15 +72,16 @@ the page.
 
 ## Run it
 
-The demo pages serve the playback-only profile, so build **both** or just slim:
+The demo pages serve the playback-only profile; build all three packages (or just the profile you need):
 
 ```bash
 # Fastest way: checks staleness against crates/ and builds if needed
 scripts/ensure-web-pkg.sh             # release build (or --dev for ~20s debug rebuild)
 
 # Or manual profile builds:
-scripts/build-web.sh --slim          # playback-only (~6.8 MB raw / ~2.4 MB brotli)
-scripts/build-web.sh                 # full profile  (~29.5 MB raw / ~10.0 MB brotli)
+scripts/build-web.sh --slim          # playback-only (~6.8 MB raw / ~2.4 MB brotli q6)
+scripts/build-web.sh --assets        # image/SVG, no Typst (~7.9 MB raw / ~2.8 MB brotli q6)
+scripts/build-web.sh                 # full profile  (~31.0 MB raw / ~9.0 MB brotli q11)
 python3 scripts/serve-web.py 8124    # serves web/ with live-reload no-cache headers
 # open http://127.0.0.1:8124/
 ```
@@ -154,14 +155,11 @@ time is unchanged (the browser frame is GPU-bound, and an A/B of the two builds
 could not separate them).
 
 The seven demo scenes use plain text only, so they run on the slim engine —
-~2.3 MB over the wire instead of ~10 MB. The transformer and gallery pages
-still point `data-runtime-base` at `pkg-slim` (the legacy exact-directory
-form) and the other demo pages rely on the default; new pages don't need the
-attribute at all — an embed without `profile` uses slim. The
-full profile is for scenes that need Typst markup, equations or image/SVG
-assets: set `profile="full"` on those elements. If the configured profile is
-missing the component falls back to the other one rather than showing an empty
-figure, so a single-profile build still works.
+~2.1 MB over the wire at q11 instead of ~9 MB for full. The default `auto`
+profile starts at slim and upgrades only when a scene needs image/SVG or rich
+text; new pages need no `profile` attribute. The `assets` profile is the
+smallest package for Image/Svg scenes; `full` is for Typst markup and
+equations. Explicit profiles never fall back to a smaller package.
 
 Deploying is the same story: run the build script, copy `web/` (plus the
 `pkg*` output) to any static host. Requirements: a WebGPU browser (Chrome/Edge
@@ -175,21 +173,19 @@ It runs four gates from `scripts/ci.sh` and then one assembler:
 
 ```
 embed-drift     the web/embed/amx-player.js bundle builds from its src
-site-scenes     every scene the pages embed builds, in both profiles
-web-build       both engine bundles, in the .#web-build shell
+site-scenes     every scene the pages embed builds, in the shipped profiles
+web-build       all engine bundles, in the .#web-build shell
 web-smoke       every player on three pages reaches ready in headless Chromium
                 (runs in the same job as web-build: pkg/ is gitignored)
 site-artifact   scripts/site-artifact.sh assembles _site
 ```
 
 `site-artifact` is the same script the release pipeline zips with, and it encodes
-the parts of "what the artifact is" that are easy to get wrong: both `pkg*`
-directories must be **release** builds (a `.dev` marker or a non-release `.build`
-stamp is refused, because a debug bundle is several times larger), the `.br` twins
-are dropped because Pages does not negotiate brotli — so the raw wasm is what gets
-served, and the slim profile's ~6.5 MB is why the site's live figures play on slim
-— and `.nojekyll` is written because otherwise Pages runs the tree through Jekyll,
-which silently drops any directory beginning with `_`.
+the parts of "what the artifact is" that are easy to get wrong: `pkg-slim` and `pkg-assets` must be **release** builds (a `.dev` marker or a
+non-release `.build` stamp is refused, because a debug bundle is several times
+larger); the full `pkg` is not deployed, `web/tools` and `web/embed/src` are
+never copied, and `.nojekyll` is written because otherwise Pages runs the tree
+through Jekyll, which silently drops any directory beginning with `_`.
 
 The wasm-bindgen-cli version is read from the pin in
 `crates/animatix-web/Cargo.toml` by `scripts/wasm-tools.sh`; `.#web-build` carries
@@ -268,15 +264,12 @@ Behavior:
   release. Arrow keys step between landmarks, Home restarts, Space/K
   toggles. The speed chip cycles 1× → 1.5× → 2× → 0.5× (dt scaling keeps
   holds and dissolves proportional).
-- **`profile`** — per element, `"slim"` (default) or `"full"`: which engine
-  build backs the figure. Omitted means slim, so a page of plain-text scenes
-  needs nothing; a figure with Typst markup, `Math`/`Code` highlighting or
-  `Image`/`Svg` assets sets `profile="full"`. Embeds sharing a profile share
-  one engine download and one WebGPU device; a page mixing both profiles
-  downloads each once (each wasm instance owns its context). The engine
-  directories come from the loader script's `data-runtime-base` (below), and
-  a profile whose directory the host did not build falls back to the other
-  one instead of showing a blank figure.
+- **`profile`** — per element, `"auto"` (default), `"slim"`, `"assets"` or
+  `"full"`: which engine build backs the figure. Auto starts with slim and
+  upgrades only when the scene's feature mask needs image/SVG or rich text;
+  plain pages therefore need no attribute. Explicit profiles never fall back to
+  a smaller package. Embeds sharing a profile share one engine download and one
+  WebGPU device; a page mixing profiles downloads each once.
 - **`quality`** — per element, `"draft"` (default) / `"preview"` /
   `"production"`: the build fidelity, i.e. what `BuildQuality` bakes into the
   document at build time. Draft matches the desktop GUI's editing preview;
@@ -299,10 +292,10 @@ Behavior:
   numbers, including how this compares with the native renderer.
 - **`data-runtime-base`** goes on the `<script>` tag, not the element: it
   names the directory tree holding the engine builds — absolute or relative
-  to the page. A value ending in `pkg`/`pkg-slim` is the legacy exact-directory
-  form (its ±`-slim` sibling completes the pair); anything else is a parent
-  directory expected to contain `pkg/` and `pkg-slim/`. Default: the parent of
-  the directory this component lives in.
+  to the page. A value ending in `pkg`, `pkg-assets` or `pkg-slim` is the
+  legacy exact-directory form; anything else is a parent directory expected to
+  contain all three. Default: the parent of the directory this component lives
+  in; the default `auto` path starts at `pkg-slim` and upgrades on demand.
 
 ### Looping
 
@@ -541,27 +534,27 @@ surface.
 ## Slim playback profile
 
 The default build carries the full feature set (Typst rich text, raster
-decoding, SVG). A playback-only profile compiles those out — Text falls back
-to the plain fast path (no markup/Code highlighting/Math, non-Latin scripts
-need a system font), image/SVG assets report diagnostics, and the wasm drops
-from **29.1 MB to 5.5 MB raw / 8.5 MB to 1.7 MB brotli** (the build script
-prints the sizes it actually produced; the numbers here move whenever the
-player gains features):
+decoding, SVG). `--slim` compiles those out — Text falls back to the plain fast
+path (no markup/Code highlighting/Math), image/SVG assets report diagnostics —
+and `--assets` keeps raster/SVG while dropping Typst. Current sizes are printed
+by the build script; q11 release measurements are about **31.0 MB full → 9.0 MB
+brotli**, **7.9 MB assets → 2.8 MB q6**, and **6.8 MB slim → 2.1 MB q11**.
 
 ```bash
 scripts/build-web.sh --slim     # emits web/pkg-slim/
+scripts/build-web.sh --assets   # emits web/pkg-assets/
 ```
 
 (The bundled bold/italic faces and Fira Math are rich-text-only — the plain
 fast path always uses a family's first face — so slim carries Open Sans
 Regular alone.)
 
-This is the profile for motion-graphics embeds that use plain text only;
-explainers with equations or styled text need the full build. Feature flags
-behind it: `animatix-text/rich-text`, `animatix/image-decode`,
-`animatix/svg`, `animatix-render/raster-encode` (all default-on; `animatix-web`
-exposes them as its own default features so `--no-default-features` selects
-the slim set).
+`--slim` is the profile for motion-graphics embeds that use plain text only;
+`--assets` is the smallest profile for Image/Svg scenes; explainers with
+equations or styled text need the full build. The feature flags behind these
+profiles are `animatix-text/rich-text`, `animatix/image-decode` and
+`animatix/svg`; `animatix-web` exposes them as default features so
+`--no-default-features` selects the slim set.
 
 ## Diagnostics & probes
 
