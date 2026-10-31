@@ -1,8 +1,8 @@
 # Deploy the web site (homepage, language tour, demos) to GitHub Pages.
 #
-# The deploy artifact is web/ plus the two engine builds (web/pkg-slim,
-# web/pkg) that scripts/build-web.sh produces — they are gitignored, so CI
-# rebuilds them on every run. GitHub Pages does not negotiate brotli
+# The deploy artifact is the runtime web tree plus web/pkg-slim and
+# web/pkg-assets (web/pkg is a release asset, not a site payload). They are
+# gitignored, so CI rebuilds them on every run. GitHub Pages does not negotiate brotli
 # precompression, so the .br twins are dropped from the artifact (the raw
 # .wasm files are what gets served).
 #
@@ -70,7 +70,7 @@ jobs:
       # builds, site_scenes is a native test, and the engine builds are the
       # minutes-long step — no reason to pay for two wasm links before the fast
       # gates agree.
-      - name: Gates (embed bundle build, site scenes in both profiles)
+      - name: Gates (embed bundle build, site scenes in shipped profiles)
         run: scripts/ci.sh gate embed-build site-scenes
 
       - name: Build engines and smoke the pages

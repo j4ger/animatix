@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # Build the animatix-web wasm module, generate JS glue, optimize, and
-# precompress it into web/pkg (or web/pkg-slim).
+# precompress it into web/pkg (or web/pkg-slim / web/pkg-assets).
 #
-# Usage: scripts/build-web.sh [--slim] [--dev]
+# Usage: scripts/build-web.sh [--slim|--assets] [--dev]
 #   (default) full release build — complete engine feature set (rich text,
 #             raster/SVG assets) — what the demos use
 #   --slim    playback-only profile: drops the Typst rich-text stack, raster
 #             image decoding, and SVG loading (~smaller wasm; Text degrades to
 #             the plain fast path, Code/Math/Svg assets report diagnostics)
+#   --assets  non-Typst asset profile: raster image decoding + SVG loading,
+#             no rich text; used by SVG/image demos without shipping the full
+#             Typst engine
 #   --dev     debug build    — faster iterate, larger wasm, no opt, no brotli
 #
 # Release builds use the `wasm-release` profile (see the root Cargo.toml: fat
@@ -41,6 +44,7 @@ for arg in "$@"; do
   case "$arg" in
     --dev) profile_args=(); out_profile="debug" ;;
     --slim) feature_args=(--no-default-features); variant="slim"; out_dir="web/pkg-slim" ;;
+    --assets) feature_args=(--no-default-features --features image-decode,svg); variant="assets"; out_dir="web/pkg-assets" ;;
   esac
 done
 
@@ -118,9 +122,11 @@ if [ "$out_profile" != "debug" ]; then
     echo "warning: wasm-opt unavailable — serving the unoptimized module"
   fi
 
-  # Precompress the served artifacts (level 11 brotli). A static host or CDN
-  # serves the `.br` twin when the client advertises brotli; scripts/serve-web.py
-  # negotiates them locally to prove the setup end to end.
+  # Precompress the served artifacts. The level is configurable because q11 is
+  # a release-asset optimization (about 14% on full wasm) while PR/Pages builds
+  # keep q6 so the gate stays fast. A static host or CDN serves the `.br` twin
+  # when the client advertises brotli; scripts/serve-web.py negotiates them
+  # locally to prove the setup end to end.
   brotli_avail=false
   if command -v brotli >/dev/null 2>&1; then
     brotli_avail=true

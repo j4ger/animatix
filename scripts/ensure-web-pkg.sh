@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# Ensure the animatix-web WASM packages in web/pkg (and web/pkg-slim) are built
-# and match the current tree.
+# Ensure the animatix-web WASM packages in web/pkg, web/pkg-assets and
+# web/pkg-slim are built and match the current tree.
 #
 # Usage:
-#   scripts/ensure-web-pkg.sh [--check] [--dev] [--slim] [--force] [--prompt]
+#   scripts/ensure-web-pkg.sh [--check] [--dev] [--slim|--assets] [--force] [--prompt]
 #
 # Flags:
 #   --check   Check freshness only; exit 0 if up to date, 1 if missing or stale.
 #   --dev     Expect/build the debug profile (much faster, no opt, no brotli).
 #   --slim    Build only the slim profile (web/pkg-slim).
+#   --assets  Build only the non-Typst asset profile (web/pkg-assets).
 #   --force   Rebuild unconditionally even if the stamp looks current.
 #   --prompt  If stale, ask before rebuilding (interactive use).
 #
@@ -29,6 +30,7 @@ cd "$root"
 mode_check=false
 mode_dev=false
 mode_slim=false
+mode_assets=false
 mode_force=false
 mode_prompt=false
 
@@ -37,10 +39,11 @@ for arg in "$@"; do
     --check)  mode_check=true ;;
     --dev)    mode_dev=true ;;
     --slim)   mode_slim=true ;;
+    --assets) mode_assets=true ;;
     --force)  mode_force=true ;;
     --prompt) mode_prompt=true ;;
     *)
-      echo "Usage: $0 [--check] [--dev] [--slim] [--force] [--prompt]" >&2
+      echo "Usage: $0 [--check] [--dev] [--slim|--assets] [--force] [--prompt]" >&2
       exit 1
       ;;
   esac
@@ -61,6 +64,7 @@ stamp_value() {
 expected_variant_for() {
   case "$1" in
     *pkg-slim) echo slim ;;
+    *pkg-assets) echo assets ;;
     *) echo full ;;
   esac
 }
@@ -129,8 +133,10 @@ run_build() {
 targets=()
 if [ "$mode_slim" = true ]; then
   targets+=("web/pkg-slim")
+elif [ "$mode_assets" = true ]; then
+  targets+=("web/pkg-assets")
 else
-  targets+=("web/pkg-slim" "web/pkg")
+  targets+=("web/pkg-slim" "web/pkg-assets" "web/pkg")
 fi
 
 needs_build=()
@@ -174,6 +180,8 @@ for t in "${needs_build[@]}"; do
   echo "Building WASM ($t)..."
   if [ "$t" = "web/pkg-slim" ]; then
     run_build --slim
+  elif [ "$t" = "web/pkg-assets" ]; then
+    run_build --assets
   else
     run_build
   fi

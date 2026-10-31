@@ -4,14 +4,14 @@
 # The alternative was `tar`/`zip` lines inside release.yml, which is how the Pages
 # deploy and the release zip became two different answers to "what is the site
 # artifact". Keeping it here also means a developer can produce exactly what CI
-# will ship: `scripts/dist-package.sh linux target/release`.
+# will ship: `scripts/dist-package.sh linux target/dist`.
 #
 # Usage: scripts/dist-package.sh <platform> [<bin-dir>]
 #   linux          animatix + animatix-gui, `video` built, .tar.gz
 #   macos          same two binaries, no `video`, .zip
 #   windows        same two .exe, no `video`, .zip
 #   site           the deployed tree (scripts/site-artifact.sh), .zip
-#   wasm           web/pkg-slim and web/pkg, one .zip each
+#   wasm           web/pkg-slim, web/pkg-assets and web/pkg, one .zip each
 #
 # The version in the filename is the workspace version from Cargo.toml. When a tag
 # triggered the build, ANIMATIX_RELEASE_VERSION says which one, and a mismatch is
@@ -89,7 +89,7 @@ case "$platform" in
     bash scripts/site-artifact.sh _site --zip "dist/animatix-${NAME_V}-site.zip"
     ;;
   wasm)
-    for spec in "slim:web/pkg-slim" "full:web/pkg"; do
+    for spec in "slim:web/pkg-slim" "assets:web/pkg-assets" "full:web/pkg"; do
       label="${spec%%:*}"
       d="${spec#*:}"
       [ -f "$d/animatix_web_bg.wasm" ] || {

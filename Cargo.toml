@@ -79,3 +79,14 @@ codegen-units = 1
 # a change. It is here so the profile does not silently acquire unwinding
 # tables if that default is ever revised.
 panic = "abort"
+
+# Ship-only native profile. Kept separate from `release` so `perf-bench.sh` and
+# the profiling drivers keep an unstripped, unwind-capable binary. Measured on
+# the CLI: 54.79 MB -> 44.62 MB stripped, 21.55 MB -> 18.9 MB tar.gz.
+[profile.dist]
+inherits = "release"
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "symbols"

@@ -244,8 +244,8 @@ that, and tags the commit. The version itself comes from
 commit from deploying Pages.
 
 Pushing the tag is what publishes. `release.yml` runs the whole PR gate matrix
-first, then builds the site, both wasm profiles and the per-OS binaries in
-parallel, and attaches them to one GitHub Release whose notes are
+first, then builds the site, all three wasm profiles and the per-OS `dist` binaries
+in parallel, and attaches them to one GitHub Release whose notes are
 `cog changelog --at v<version>`. It stays that way because the alternative — a
 `post_bump_hook` that pushes — publishes a release from a command run at a desk.
 

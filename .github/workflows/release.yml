@@ -128,19 +128,23 @@ jobs:
           path: dist/
           if-no-files-found: error
 
-  # The site and the two wasm runtimes. Ordered: web-build produces the bundles
+  # The site and the three wasm runtimes. Ordered: web-build produces the bundles
   # that both zips contain, and web-smoke loads them; both run in .#web-ci because
   # pkg/ is gitignored and only exists after the build in the same job. The PR
   # gate matrix already ran the same gates, but this job starts from a fresh
   # checkout with no pkg/ and jobs do not share workspaces, so it deliberately
   # rebuilds rather than assuming another runner's filesystem. Sharing the
   # bundles would require uploading/downloading a pkg artifact.
+  #
+  # q11 is a release-artifact optimization: Pages drops .br, but the wasm zips
+  # ship these twins. PR and Pages builds keep the faster q6 default.
   site:
     name: Site and wasm
     needs: [gates, version]
     runs-on: ubuntu-latest
     env:
       ANIMATIX_RELEASE_VERSION: ${{ needs.version.outputs.version }}
+      ANIMATIX_BROTLI_LEVEL: '11'
     steps:
       - uses: actions/checkout@v5
       - name: Install Nix
@@ -151,7 +155,7 @@ jobs:
           name: animatix
           authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
           extraPullNames: 'nix-community'
-      - name: Build engines (slim + full) and smoke the pages
+      - name: Build engines (slim + assets + full) and smoke the pages
         run: nix develop .#web-ci --command scripts/ci.sh gate web-build web-smoke
       - name: Package site + wasm
         run: scripts/ci.sh gate site-artifact dist-site dist-wasm
@@ -199,7 +203,8 @@ jobs:
             echo "| --- | --- |"
             echo "| \`*-site.zip\` | the whole \`web/\` tree, ready to serve |"
             echo "| \`*-wasm-slim.zip\` | playback-only engine (no Typst/raster/SVG) |"
-            echo "| \`*-wasm-full.zip\` | full engine, the profile the demos use |"
+            echo "| \`*-wasm-assets.zip\` | raster/SVG engine without Typst |"
+            echo "| \`*-wasm-full.zip\` | full engine, the profile rich demos use |"
             echo "| \`*-linux-gnu-video.tar.gz\` | CLI + GUI, **with** FFmpeg video export |"
             echo "| \`*-macos.zip\`, \`*-windows.zip\` | CLI + GUI, **without** video export |"
             echo

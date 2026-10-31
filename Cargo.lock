@@ -308,7 +308,9 @@ name = "animatix-web"
 version = "0.1.0"
 dependencies = [
  "animatix",
+ "animatix-core",
  "animatix-render",
+ "animatix-std",
  "animatix-syntax",
  "console_error_panic_hook",
  "js-sys",

@@ -8,11 +8,11 @@
 # copy nobody reads is the one that is wrong.
 #
 # The rules it encodes are not obvious:
-#   - the engine bundles (web/pkg, web/pkg-slim) are gitignored build output, so
-#     they must already exist. An empty pkg/ directory deploys a page whose every
-#     embed reports a load error, and nothing in the layout says so. They must
-#     also be *release* builds: a .dev marker or a non-release .build stamp is a
-#     debug bundle several times the size.
+#   - the runtime engine bundles (web/pkg-slim, web/pkg-assets) are gitignored
+#     build output, so they must already exist. They must also be *release*
+#     builds: a .dev marker or a non-release .build stamp is a debug bundle
+#     several times the size. The full web/pkg is a release asset, not shipped
+#     on the site.
 #   - the `.br` twins are dropped. GitHub Pages does not negotiate brotli
 #     precompression, so shipping them doubles the wasm bytes for no benefit.
 #   - `.nojekyll` must exist or Pages runs the tree through Jekyll, which silently
@@ -51,7 +51,7 @@ case "$out" in
   /*) echo "error: outdir must stay inside the repo (got an absolute path: $out)" >&2; exit 2 ;;
 esac
 
-for d in web/pkg web/pkg-slim; do
+for d in web/pkg-slim web/pkg-assets; do
   [ -f "$d/animatix_web_bg.wasm" ] || {
     echo "error: $d/animatix_web_bg.wasm is missing — run scripts/ci.sh gate web-build first." >&2
     echo "       Deploying without it ships pages whose embeds cannot load." >&2
@@ -98,13 +98,49 @@ fi
 
 rm -rf "$out"
 mkdir -p "$out"
-cp -r web/. "$out"/
+# Copy only the runtime surface. `cp -r web/.` used to carry web/tools/
+# (including CI's node_modules), the full pkg/ bundle, and embed sources into
+# every deployed site. The list below is intentionally explicit so a new
+# development directory cannot silently become public bytes.
+runtime_entries=(
+  index.html
+  gallery.html
+  site.css
+  site-chrome.js
+  site
+  assets
+  demos
+  tour
+  recipes
+  arena
+  scenes
+  pkg-slim
+  pkg-assets
+)
+for entry in "${runtime_entries[@]}"; do
+  [ -e "web/$entry" ] || {
+    echo "error: web/$entry is missing — site assembly would be incomplete." >&2
+    exit 1
+  }
+  cp -R "web/$entry" "$out/$entry"
+done
+mkdir -p "$out/embed"
+cp "web/embed/amx-player.js" "$out/embed/amx-player.js"
 find "$out" -name '*.br' -delete
 touch "$out/.nojekyll"
 
+# These directories are build inputs, not runtime assets. Fail closed if a
+# future change accidentally reintroduces one.
+for forbidden in tools pkg embed/src node_modules; do
+  if [ -e "$out/$forbidden" ]; then
+    echo "error: site artifact contains forbidden path '$forbidden'." >&2
+    exit 1
+  fi
+done
+
 echo "site assembled at $out:"
 du -sh "$out"
-for d in pkg pkg-slim; do
+for d in pkg-slim pkg-assets; do
   printf '  web/%s: %s bytes\n' "$d" "$(wc -c < "$out/$d/animatix_web_bg.wasm" | tr -d ' ')"
 done
 

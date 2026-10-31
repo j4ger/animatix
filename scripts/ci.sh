@@ -323,10 +323,11 @@ gate_web_build() {
   # A release artifact without wasm-opt/brotli is several times larger; fail
   # here instead of publishing it (the tools are in .#web-build/.#web-ci).
   ANIMATIX_REQUIRE_WASM_TOOLS=1 bash scripts/build-web.sh --slim
+  ANIMATIX_REQUIRE_WASM_TOOLS=1 bash scripts/build-web.sh --assets
   ANIMATIX_REQUIRE_WASM_TOOLS=1 bash scripts/build-web.sh
-  # The two bundles are what the pages load; a build that "succeeds" without
-  # writing both is how a --slim flag typo used to reach the site.
-  for d in web/pkg-slim web/pkg; do
+  # The three bundles are what the pages load; a build that "succeeds" without
+  # writing all of them is how a flag typo used to reach the site.
+  for d in web/pkg-slim web/pkg-assets web/pkg; do
     [ -f "$d/animatix_web_bg.wasm" ] || { echo "error: $d/animatix_web_bg.wasm missing after build" >&2; return 1; }
     [ -f "$d/animatix_web.js" ] || { echo "error: $d/animatix_web.js missing after build" >&2; return 1; }
     [ -f "$d/.build" ] || { echo "error: $d/.build stamp missing after build" >&2; return 1; }
@@ -613,6 +614,7 @@ gate_site_artifact() {
   # Assemble only — pages.yml deploys this directory, and it owes nobody a zip.
   # Packaging the same tree into a release asset is dist-site.
   bash scripts/site-artifact.sh _site
+  bash scripts/size-report.sh --check --site _site
 }
 
 gate_dist_site() {
@@ -646,12 +648,13 @@ gate_dist_linux() {
   # pkg-config finds no FFmpeg and a stale prebuilt binding.rs is used instead.
   # A separate --target-dir because the `video` dependency graph rebuilds
   # rsmpeg/rusty_ffmpeg; sharing target/release with the non-video gates makes
-  # each one clobber the other's build.
-  cargo build --release --target-dir target-video -p animatix-cli -p animatix-gui --features video
-  strip target-video/release/animatix target-video/release/animatix-gui
-  check_binary target-video/release/animatix "$want"
-  check_binary target-video/release/animatix-gui "$want"
-  bash scripts/dist-package.sh linux target-video/release
+  # each one clobber the other's build. `dist` applies fat LTO, panic=abort and
+  # symbol stripping; the explicit strip below is only a portable guard.
+  cargo build --profile dist --target-dir target-video-dist -p animatix-cli -p animatix-gui --features video
+  strip target-video-dist/dist/animatix target-video-dist/dist/animatix-gui
+  check_binary target-video-dist/dist/animatix "$want"
+  check_binary target-video-dist/dist/animatix-gui "$want"
+  bash scripts/dist-package.sh linux target-video-dist/dist
 }
 
 gate_dist_macos() {
@@ -663,20 +666,20 @@ gate_dist_macos() {
   # `no-video` gate actually tests.
   local want="${ANIMATIX_RELEASE_VERSION:-}"
   want="${want#v}"
-  cargo build --release -p animatix-cli -p animatix-gui
-  check_binary target/release/animatix "$want"
-  check_binary target/release/animatix-gui "$want"
-  bash scripts/dist-package.sh macos target/release
+  cargo build --profile dist -p animatix-cli -p animatix-gui
+  check_binary target/dist/animatix "$want"
+  check_binary target/dist/animatix-gui "$want"
+  bash scripts/dist-package.sh macos target/dist
 }
 
 gate_dist_windows() {
   want_cargo
   local want="${ANIMATIX_RELEASE_VERSION:-}"
   want="${want#v}"
-  cargo build --release -p animatix-cli -p animatix-gui
-  check_binary target/release/animatix.exe "$want"
-  check_binary target/release/animatix-gui.exe "$want"
-  bash scripts/dist-package.sh windows target/release
+  cargo build --profile dist -p animatix-cli -p animatix-gui
+  check_binary target/dist/animatix.exe "$want"
+  check_binary target/dist/animatix-gui.exe "$want"
+  bash scripts/dist-package.sh windows target/dist
 }
 
 # ── setup ─────────────────────────────────────────────────────────────────────
