@@ -554,20 +554,27 @@ tracked.
   cache already proves the required vello pattern (render each subtree into a
   temp scene, append in authored order).
 
-### 4. Slot-table frame environment (deep IR change)
+### 4. Slot-table frame environment for arbitrary values (deep IR change)
 
 - **Scope**: `modifier_runtime/ir` lowering, `env/`, `property_engine`.
 - **Current behaviour**: The frame env is a `HashMap<String, Value>` (FxHash
   since 2026-10-25) whose keys are written by name each frame and read back
   by name (`CompiledExpr::LoadEnv(String)`). The build-fixed parts of that
   work (injection plan, capacity, hashing) are already precomputed; the
-  remaining cost is the name→value indirection itself in expression-heavy
-  scenes.
-- **Target**: resolve every free variable in lowered modifier IR to a
-  `(entity, PropertyId)` slot at lower time; the frame env becomes a dense
+  remaining cost is the name→value indirection itself for arbitrary dynamic
+  `Value` reads.
+- **Landed (2026-11-01)**: numeric modifier assignments and plot closures now
+  use dense `FastScalarExpr::Slot(usize)` arrays through `FastModifierProgram`
+  and the plot fast paths, covering the hot numeric/Vec2 case where slot-table
+  indexing actually wins. `stage/modifier_exec` dropped 49.9% and
+  `reactive_playback_100frames` 13.6% versus `ab3a526e`.
+- **Remaining target**: resolve every free variable in general modifier IR to
+  a `(entity, PropertyId)` slot at lower time; the frame env becomes a dense
   `Vec<Value>` sampled by index, with names surviving only at the GUI and
   diagnostics boundary. Plot-closure captures (let-scopes, bare param names)
-  are the design edge that needs its own resolution scheme.
+  are the design edge that needs its own resolution scheme. Trigger: a real
+  scene whose arbitrary `Value` property reads dominate `stage/eval_total`
+  after the numeric fast paths (currently `stage/modifier_exec` is sub-µs).
 - **Verification**: `stage/build_frame_env` and `vm_vs_ir` suites; the
   `is_animating` and closure parity tests are the behavior pins.
 

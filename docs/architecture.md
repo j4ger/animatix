@@ -410,7 +410,7 @@ Composite at region origin (readback path) or batched blit with dynamic uniform 
 
 ## 7. Expression Evaluation
 
-Expressions are evaluated via `evaluate_expr` using an `Environment` (`Rc<RefCell<HashMap<String, Value>>>`). Build-time expressions are lowered to bytecode IR via `compile_expr` and executed by the unified IR VM (`evaluate_compiled_expr`), sharing the exact same VM, operator semantics, and built-ins as runtime modifier code and plot closures.
+Expressions are evaluated via `evaluate_expr` using an `Environment` (`Rc<RefCell<HashMap<String, Value>>>`). Build-time expressions are lowered to a typed tree IR via `compile_expr` and executed by the unified tree-walking VM (`evaluate_compiled_expr`), sharing the exact same VM, operator semantics, and built-ins as runtime modifier code and plot closures. The IR is optimized before execution (constant folding, dead-branch elimination, let-chain propagation); numeric modifier assignments and plot closures additionally compile to unboxed `FastScalarExpr` slot programs.
 
 Key expression variants for compound values:
 - `Expr::Tuple` — Tuple/vector literal `(x, y)`. Fixed-size: Vec2, Vec4.

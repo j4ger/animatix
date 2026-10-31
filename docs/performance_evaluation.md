@@ -1237,6 +1237,50 @@ those p-values into a usable verdict. One run is not proof of stability: keep
 the preflight, and if a future suite-wide run flags more than a handful, treat
 it as the environment signal above rather than re-saving until it looks green.
 
+### Compiler/IR optimization pass (2026-11-01)
+
+The modifier/expression "compiler" is a typed tree IR, not a bytecode or native
+code generator; the wins below come from removing interpreter overhead and
+duplicated work rather than instruction scheduling.
+
+Implemented in this pass:
+
+- `compile_expr` now caches compiled trees per `(expr_hash, AST pointer)` and
+  hashes operators structurally (no `format!("{:?}")` allocation); the cache
+  key covers `Construct` fields and `Match` patterns, closing a latent
+  collision bug.
+- The IR VM consumes operands instead of cloning them; call arguments and
+  `MakeVec` use stack-backed `SmallVec`/fixed arrays, and `LetChain` scopes are
+  inline small vectors.
+- An IR optimizer folds constants, eliminates dead `Select`/`If` branches,
+  propagates let-bound constants and prunes dead bindings. Compound `match`
+  scrutinees are bound once (CSE) instead of cloned per arm.
+- Numeric and `Vec2` `always`/`drive` assignments compile to a typed fast
+  modifier program evaluated through `FastScalarExpr` slot arrays, with a
+  generic fallback for non-numeric slots.
+- Plot fast expressions are cached per immutable body, invariant slots are
+  folded once per frame, and `a * b + c` becomes `MulAdd`; implicit fields,
+  vector fields and heatmaps use unboxed scalar evaluators instead of cloning
+  the environment per grid point.
+
+Measured with `scripts/perf-bench.sh compare quick --thresh 5` against the
+`ab3a526e` baseline (72/72 benches, 0 real regressions; medians):
+
+| Bench | Before | After | Change |
+|---|---:|---:|---:|
+| `reactive_playback_100frames` | 675.8 µs | 583.8 µs | −13.62% |
+| `stage/modifier_exec` | 740.7 ns | 370.8 ns | −49.94% |
+| `full_200` | 12.36 µs | 11.00 µs | −10.98% |
+| `build_reactive_timeline` | 221.2 µs | 203.7 µs | −7.90% |
+| `stage/eval_total` | 14.24 µs | 13.02 µs | −8.58% |
+| `timeline_evaluate_1s` | 116.7 ns | 94.3 ns | −19.19% |
+| `static_evaluate_100frames` | 54.83 µs | 50.60 µs | −7.70% |
+
+The general frame environment remains a name-keyed `HashMap`; the slot-table
+idea is implemented for the hot numeric/plot paths (`FastScalarExpr::Slot` and
+`FastModifierProgram`) and remains future work only for arbitrary dynamic
+`Value` lookups (see `docs/roadmap.md` §4).
+
 ---
 
 ## 5. Optimization plan (first targets, evidence-backed)
