@@ -124,7 +124,7 @@ fn test_optimize_expr_folds_constant_arithmetic() {
     assert_eq!(stats_div.nodes_after, 1);
 
     // 2.0 * 3.141592653589793 -> Const(Num(6.283185307179586))
-    let pi = 3.141592653589793_f64;
+    let pi = std::f64::consts::PI;
     let mul_expr = CompiledExpr::Binary(
         Box::new(CompiledExpr::Const(Value::Num(2.0))),
         BinaryOp::Mul,

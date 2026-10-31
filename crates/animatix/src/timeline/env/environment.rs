@@ -3,6 +3,9 @@ use super::value::{ENV_INSTANCE_COUNTER, EnvStamp};
 use super::*;
 use smallvec::SmallVec;
 
+/// Inline storage for one `LetChain` scope (the common case is 1–2 bindings).
+type LetScope = SmallVec<[(String, Value); 2]>;
+
 fn fresh_env_instance() -> u32 {
     ENV_INSTANCE_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
@@ -27,7 +30,7 @@ pub struct Environment {
     /// expression cache consults `let_epoch` so values computed inside a
     /// let-scope are never reused outside it. `RefCell` keeps
     /// `evaluate_expr(&Expr, &Environment)` signatures unchanged.
-    pub(crate) let_scopes: std::cell::RefCell<Vec<SmallVec<[(String, Value); 2]>>>,
+    pub(crate) let_scopes: std::cell::RefCell<Vec<LetScope>>,
     /// Cache-key epoch bumped on every let-scope push/pop (see `let_epoch`).
     let_epoch: std::cell::Cell<u64>,
 }
