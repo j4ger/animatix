@@ -3,7 +3,9 @@
 
 use super::PlotActorProps;
 use super::*;
-use crate::timeline::modifier_runtime::ir::evaluate_compiled_expr;
+use crate::timeline::modifier_runtime::ir::{
+    FastScalarExpr, compile_fast_scalar, compile_fast_vec2, evaluate_compiled_expr,
+};
 use crate::timeline::plot::{
     FuncSource, ProceduralPlot, build_implicit_plot_path_from_source, flatten_blend,
 };
@@ -86,6 +88,126 @@ fn eval_vec2_field_source(source: &FuncSource, env: &mut Environment, x: f64, y:
     }
 }
 
+/// A blend-flattened scalar field compiled to unboxed `FastScalarExpr` leaves.
+struct FastScalarField {
+    leaves: Vec<FastScalarLeaf>,
+}
+
+struct FastScalarLeaf {
+    weight: f64,
+    expr: FastScalarExpr,
+    slots: Vec<f64>,
+    y_slot: Option<usize>,
+}
+
+impl FastScalarField {
+    fn compile(source: &FuncSource, env: &Environment) -> Option<Self> {
+        let mut leaves = Vec::new();
+        for (weight, leaf) in flatten_blend(source) {
+            let FuncSource::Compiled(args, body, captures) = leaf else {
+                return None;
+            };
+            let x_name = args.first().map(String::as_str).unwrap_or("x");
+            let y_name = args.get(1).map(String::as_str).unwrap_or("y");
+            let mut names = Vec::new();
+            let expr = compile_fast_scalar(body, x_name, &mut names)?;
+            let y_slot = names.iter().position(|n| *n == y_name);
+            let mut slots = Vec::with_capacity(names.len());
+            for (idx, name) in names.iter().enumerate() {
+                if Some(idx) == y_slot {
+                    slots.push(0.0);
+                } else if let Some(Value::Num(n)) = env.get_path(name) {
+                    slots.push(n);
+                } else if let Some(Value::Num(n)) = captures.0.get(*name) {
+                    slots.push(*n);
+                } else {
+                    return None;
+                }
+            }
+            leaves.push(FastScalarLeaf {
+                weight,
+                expr,
+                slots,
+                y_slot,
+            });
+        }
+        Some(Self { leaves })
+    }
+
+    fn eval(&mut self, x: f64, y: f64) -> f64 {
+        let mut sum = 0.0;
+        for leaf in &mut self.leaves {
+            if let Some(slot) = leaf.y_slot {
+                leaf.slots[slot] = y;
+            }
+            sum += leaf.weight * leaf.expr.eval(x, &leaf.slots);
+        }
+        sum
+    }
+}
+
+/// A blend-flattened vector field compiled to unboxed `FastScalarExpr` leaves.
+struct FastVectorField {
+    leaves: Vec<FastVectorLeaf>,
+}
+
+struct FastVectorLeaf {
+    weight: f64,
+    x_expr: FastScalarExpr,
+    y_expr: FastScalarExpr,
+    slots: Vec<f64>,
+    y_slot: Option<usize>,
+}
+
+impl FastVectorField {
+    fn compile(source: &FuncSource, env: &Environment) -> Option<Self> {
+        let mut leaves = Vec::new();
+        for (weight, leaf) in flatten_blend(source) {
+            let FuncSource::Compiled(args, body, captures) = leaf else {
+                return None;
+            };
+            let x_name = args.first().map(String::as_str).unwrap_or("x");
+            let y_name = args.get(1).map(String::as_str).unwrap_or("y");
+            let mut names = Vec::new();
+            let (x_expr, y_expr) = compile_fast_vec2(body, x_name, &mut names)?;
+            let y_slot = names.iter().position(|n| *n == y_name);
+            let mut slots = Vec::with_capacity(names.len());
+            for (idx, name) in names.iter().enumerate() {
+                if Some(idx) == y_slot {
+                    slots.push(0.0);
+                } else if let Some(Value::Num(n)) = env.get_path(name) {
+                    slots.push(n);
+                } else if let Some(Value::Num(n)) = captures.0.get(*name) {
+                    slots.push(*n);
+                } else {
+                    return None;
+                }
+            }
+            leaves.push(FastVectorLeaf {
+                weight,
+                x_expr,
+                y_expr,
+                slots,
+                y_slot,
+            });
+        }
+        Some(Self { leaves })
+    }
+
+    fn eval(&mut self, x: f64, y: f64) -> [f64; 2] {
+        let mut sum_x = 0.0;
+        let mut sum_y = 0.0;
+        for leaf in &mut self.leaves {
+            if let Some(slot) = leaf.y_slot {
+                leaf.slots[slot] = y;
+            }
+            sum_x += leaf.weight * leaf.x_expr.eval(x, &leaf.slots);
+            sum_y += leaf.weight * leaf.y_expr.eval(x, &leaf.slots);
+        }
+        [sum_x, sum_y]
+    }
+}
+
 /// Shift a scalar field source by `-level` so an implicit zero-contour solver
 /// traces the requested level set. Nested blends are shifted recursively so
 /// output blending stays equivalent to evaluating the blended field minus the
@@ -137,6 +259,7 @@ pub(crate) fn build_vector_field_paths(
     let base_scale = cell_w.min(cell_h) * 0.4;
 
     let mut path = kurbo::BezPath::new();
+    let mut fast = FastVectorField::compile(source, env);
 
     for yi in 0..density {
         for xi in 0..density {
@@ -145,7 +268,10 @@ pub(crate) fn build_vector_field_paths(
             let math_x = x_domain[0] + x_frac * dx_domain;
             let math_y = y_domain[0] + y_frac * dy_domain;
 
-            let [dx, dy] = eval_vec2_field_source(source, env, math_x, math_y);
+            let [dx, dy] = match fast.as_mut() {
+                Some(field) => field.eval(math_x, math_y),
+                None => eval_vec2_field_source(source, env, math_x, math_y),
+            };
 
             let (sx, sy) = math_to_screen(math_x, math_y, x_domain, y_domain, full_size);
 
@@ -230,21 +356,27 @@ pub(crate) fn build_heatmap_paths(
     let x_step = (x_domain[1] - x_domain[0]) / res as f64;
     let y_step = (y_domain[1] - y_domain[0]) / res as f64;
 
-    // Sample the function on a grid
-    let mut values = vec![vec![0.0f64; res]; res];
+    // Sample the function on a flat grid; the fast path keeps slot storage
+    // reused instead of cloning the environment per sample point.
+    let mut values = vec![0.0f64; res * res];
     let mut min_val = f64::MAX;
     let mut max_val = f64::MIN;
+    let mut fast = FastScalarField::compile(source, env);
 
     crate::timeline::utils::disable_eval_cache();
-    for (yi, row) in values.iter_mut().enumerate() {
-        for (xi, val) in row.iter_mut().enumerate() {
+    for yi in 0..res {
+        for xi in 0..res {
             let math_x = x_domain[0] + (xi as f64 + 0.5) * x_step;
             let math_y = y_domain[0] + (yi as f64 + 0.5) * y_step;
 
-            *val = eval_scalar_field_source(source, env, math_x, math_y);
+            let val = match fast.as_mut() {
+                Some(field) => field.eval(math_x, math_y),
+                None => eval_scalar_field_source(source, env, math_x, math_y),
+            };
+            values[yi * res + xi] = val;
             if val.is_finite() {
-                min_val = min_val.min(*val);
-                max_val = max_val.max(*val);
+                min_val = min_val.min(val);
+                max_val = max_val.max(val);
             }
         }
     }
@@ -258,9 +390,10 @@ pub(crate) fn build_heatmap_paths(
     let cg = (color[1] * 255.0) as u8;
     let cb = (color[2] * 255.0) as u8;
 
-    for (yi, row) in values.iter().enumerate() {
-        for (xi, val) in row.iter().enumerate() {
-            let normalized = ((*val - min_val) / range).clamp(0.0, 1.0);
+    for yi in 0..res {
+        for xi in 0..res {
+            let val = values[yi * res + xi];
+            let normalized = ((val - min_val) / range).clamp(0.0, 1.0);
             let alpha = (normalized * 255.0) as u8;
 
             // Compute cell screen coordinates
@@ -492,5 +625,62 @@ impl Timeline {
         }
 
         (vello_paths, procedural_plot)
+    }
+}
+
+#[cfg(test)]
+mod fast_field_tests {
+    use super::*;
+    use crate::ast::Expr;
+    use crate::timeline::env::CapturedEnv;
+    use crate::timeline::modifier_runtime::ir::compile_expr;
+
+    fn source_for(expr: Expr) -> FuncSource {
+        FuncSource::Compiled(
+            vec!["x".to_string(), "y".to_string()],
+            Box::new(compile_expr(&expr).expect("compile field body")),
+            CapturedEnv::default(),
+        )
+    }
+
+    #[test]
+    fn fast_vector_field_matches_generic_evaluator() {
+        let source = source_for(Expr::Tuple(vec![
+            Expr::Binary(
+                Box::new(Expr::Ident("x".to_string())),
+                crate::ast::BinaryOp::Add,
+                Box::new(Expr::Ident("y".to_string())),
+            ),
+            Expr::Binary(
+                Box::new(Expr::Ident("x".to_string())),
+                crate::ast::BinaryOp::Sub,
+                Box::new(Expr::Ident("y".to_string())),
+            ),
+        ]));
+        let env = Environment::new();
+        let mut fast = FastVectorField::compile(&source, &env).expect("fast vector field");
+        let mut slow_env = env.clone();
+        for (x, y) in [(0.0, 0.0), (1.5, -2.0), (-3.25, 4.5)] {
+            let fast_value = fast.eval(x, y);
+            let slow_value = eval_vec2_field_source(&source, &mut slow_env, x, y);
+            assert_eq!(fast_value, slow_value);
+        }
+    }
+
+    #[test]
+    fn fast_scalar_field_matches_generic_evaluator() {
+        let source = source_for(Expr::Binary(
+            Box::new(Expr::Ident("x".to_string())),
+            crate::ast::BinaryOp::Mul,
+            Box::new(Expr::Ident("y".to_string())),
+        ));
+        let env = Environment::new();
+        let mut fast = FastScalarField::compile(&source, &env).expect("fast scalar field");
+        let mut slow_env = env.clone();
+        for (x, y) in [(0.0, 0.0), (1.5, -2.0), (-3.25, 4.5)] {
+            let fast_value = fast.eval(x, y);
+            let slow_value = eval_scalar_field_source(&source, &mut slow_env, x, y);
+            assert_eq!(fast_value, slow_value);
+        }
     }
 }
