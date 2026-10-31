@@ -185,8 +185,18 @@ export class AmxPlayerLoad extends AmxPlayerView {
     } catch (err) {
       this._state = "error";
       console.error(`amx-player: failed to load scene "${src}":`, err);
-      this._showVeil(`Failed to load scene: ${err?.message ?? err}`, true);
-      this.dispatchEvent(new CustomEvent("amxerror", { bubbles: true, detail: { src, error: err } }));
+      const message = `Failed to load scene: ${err?.message ?? err}`;
+      this._showVeil(message, true);
+      this.dispatchEvent(
+        new CustomEvent("amxerror", {
+          bubbles: true,
+          detail: {
+            src,
+            error: err?.code === "font-pack" ? "font-pack" : err,
+            message,
+          },
+        }),
+      );
     }
   }
 

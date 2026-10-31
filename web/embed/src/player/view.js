@@ -508,7 +508,9 @@ export class AmxPlayerView extends AmxPlayerBase {
       defaults = await this._fetchDefaultFonts(profile);
     } catch (err) {
       console.error(`amx-player: font pack unavailable (${err.message})`);
-      throw new Error(`font pack unavailable: ${err.message}`);
+      const packError = new Error(`font pack unavailable: ${err.message}`);
+      packError.code = "font-pack";
+      throw packError;
     }
     for (const bytes of defaults) this._player.add_font(bytes);
     const custom = await this._fetchFonts();
