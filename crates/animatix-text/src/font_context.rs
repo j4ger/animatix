@@ -209,13 +209,31 @@ impl FontContext {
         }
     }
 
-    /// Register an in-memory font so `font_family` can name it: clone the shared
-    /// database, load `bytes`, and bump the epoch to invalidate memoized compiles.
-    pub fn load_font_bytes(&mut self, bytes: Vec<u8>) {
+    /// Register a batch of in-memory fonts so `font_family` can name them.
+    ///
+    /// Cloning the font database is the expensive part of registration, so a
+    /// batch pays it once and advances the font-environment epoch once instead
+    /// of once per face. Empty batches are a no-op and do not invalidate the
+    /// memoized text compilation cache.
+    pub fn load_fonts<I>(&mut self, fonts: I)
+    where
+        I: IntoIterator<Item = Vec<u8>>,
+    {
         let mut db = (*self.db).clone();
-        db.load_font_data(bytes);
-        self.db = std::sync::Arc::new(db);
-        self.epoch = advance_font_env_epoch();
+        let mut loaded = false;
+        for bytes in fonts {
+            db.load_font_data(bytes);
+            loaded = true;
+        }
+        if loaded {
+            self.db = std::sync::Arc::new(db);
+            self.epoch = advance_font_env_epoch();
+        }
+    }
+
+    /// Register one in-memory font. See [`Self::load_fonts`].
+    pub fn load_font_bytes(&mut self, bytes: Vec<u8>) {
+        self.load_fonts(std::iter::once(bytes));
     }
 
     /// Load a `ttf_parser::Face`; `None` if missing or not TrueType/OpenType.
@@ -515,6 +533,15 @@ pub const DEFAULT_FONT_FAMILY: &str = "Open Sans";
 pub const DEFAULT_MATH_FONT_FAMILY: &str = "Fira Math";
 /// The weight a caller that never says otherwise compiles at.
 pub const DEFAULT_FONT_WEIGHT: f32 = 400.0;
+
+/// Parsed bundled faces, built once per process. Every rich-text build used to
+/// parse all bundled bytes again; the vectors are small and `typst::Font` is
+/// refcounted, so caching them removes that per-build font-loading cost.
+#[cfg(feature = "rich-text")]
+pub(crate) static BUNDLED_FONT_FACES: std::sync::LazyLock<Vec<Option<Font>>> =
+    std::sync::LazyLock::new(|| {
+        BUNDLED_FONTS.iter().map(|bf| Font::new(Bytes::new(bf.data), 0)).collect()
+    });
 
 /// The parsed variable pair, built once per process: parsing a 530 KB face per
 /// compile cost +8.3% on `scrub_layout_scene_100frames`. `typst::Font` is refcounted.

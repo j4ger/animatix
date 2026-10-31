@@ -196,6 +196,20 @@ fn load_font_bytes_grows_the_database() {
     );
 }
 
+/// The embed registers all `data-fonts` in one batch before a build; that
+/// path must grow the database by every face without requiring one clone per
+/// font.
+#[test]
+fn load_fonts_loads_a_batch() {
+    let mut ctx = FontContext::new();
+    let before = ctx.db.faces().count();
+    ctx.load_fonts(vec![
+        BUNDLED_FONTS[0].data.to_vec(),
+        BUNDLED_FONTS[1].data.to_vec(),
+    ]);
+    assert_eq!(ctx.db.faces().count(), before + 2);
+}
+
 /// CJK text must shape through the bundled Noto Sans SC face: the wasm
 /// sandbox has no system fonts, so without this face every CJK character
 /// was silently skipped and the text rendered empty.

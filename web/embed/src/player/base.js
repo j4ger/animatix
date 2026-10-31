@@ -20,6 +20,7 @@ export class AmxPlayerBase extends HTMLElement {
     "profile",
     "quality",
     "presentation",
+    "data-fonts",
   ];
 
   constructor() {
@@ -51,6 +52,7 @@ export class AmxPlayerBase extends HTMLElement {
     this._pausedAtStep = false;
     this._blackout = false;
     this._marks = null;
+    this._fontBytesPromise = null; // page-cached data-fonts fetch; see view.js
     this._loadWantedAt = 0; // set when the scheduler queues this player; see pumpLoads
     this._hudFlash = null;
     this._hudSkip = null;
@@ -124,10 +126,12 @@ export class AmxPlayerBase extends HTMLElement {
       }
       this._resetForReload();
     }
-    if ((name === "src" || name === "profile") && this._initialized) {
+    if ((name === "src" || name === "profile" || name === "data-fonts") && this._initialized) {
       // profile selects which wasm instance backs this element; switching it
       // is a full reload (and, for a first switch on the page, a second
-      // engine download — that is the page author's tradeoff).
+      // engine download — that is the page author's tradeoff). A changed
+      // data-fonts set invalidates the cached source and rebuilds.
+      this._fontBytesPromise = null;
       this._resetForReload();
     }
   }
@@ -136,6 +140,7 @@ export class AmxPlayerBase extends HTMLElement {
     this._state = "idle";
     this._player = null;
     this._time = 0;
+    this._fontBytesPromise = null;
     this._renderSkeleton();
     this._maybeStartLoading();
   }

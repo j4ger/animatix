@@ -31,6 +31,9 @@
 //              a profile share one engine download and device.
 //   quality    "draft" (default) | "preview" | "production" — build fidelity.
 //              Production matches a desktop export; changing it rebuilds.
+//   data-fonts space-separated TTF/OTF URLs. All fonts are fetched in
+//              parallel while the engine/scene load, cached per page for
+//              repeated embeds, and registered before the scene compiles.
 //   sealed     page-driven mode: no center play affordance and no click
 //              gestures — playback belongs to the page's own JS (play/pause/
 //              seek below). With `autoplay`, the scene also resumes by itself

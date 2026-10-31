@@ -32,6 +32,7 @@ impl AmxPlayer {
     /// Open Sans faces remain the default.
     pub fn add_font(&mut self, bytes: &[u8]) {
         self.fonts.push(bytes.to_vec());
+        self.font_context = None;
     }
 
     /// Register an imported `.amx` module (the file's text) so later
@@ -126,10 +127,14 @@ impl AmxPlayer {
         source: &str,
         assets: Option<Arc<AssetCache>>,
     ) -> Result<JsValue, JsError> {
-        let mut font_context = FontContext::new();
-        for bytes in &self.fonts {
-            font_context.load_font_bytes(bytes.clone());
-        }
+        let font_context = if let Some(context) = &self.font_context {
+            context.clone()
+        } else {
+            let mut context = FontContext::new();
+            context.load_fonts(self.fonts.iter().cloned());
+            self.font_context = Some(context.clone());
+            context
+        };
         let modules: Vec<(std::path::PathBuf, String)> = self
             .modules
             .iter()

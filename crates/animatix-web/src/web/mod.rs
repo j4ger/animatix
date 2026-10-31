@@ -20,6 +20,7 @@ pub use engine::{create_player, debug_gpu_drain, init_engine};
 use std::cell::RefCell;
 
 use animatix::composition::BuildTarget;
+use animatix::renderer::text::FontContext;
 use animatix::timeline::{BuildQuality, SceneDimensions};
 use animatix_render::core::RendererCore;
 use animatix_render::filter_backend::GpuFilterBackend;
@@ -80,6 +81,9 @@ pub struct AmxPlayer {
     /// Fonts registered through [`AmxPlayer::add_font`], applied to the text
     /// compiler the next time [`AmxPlayer::load_source`] builds the scene.
     fonts: Vec<Vec<u8>>,
+    /// Built from `fonts` once and reused across reloads. `None` means the
+    /// cached context is stale because `add_font` changed the set.
+    font_context: Option<FontContext>,
     /// Imported `.amx` modules registered through [`AmxPlayer::add_module`],
     /// joined into the build's source map (keyed by resolved import path, the
     /// keys [`crate::dto::LoadResultDto::missing_imports`] reports).

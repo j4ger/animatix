@@ -7,6 +7,29 @@ const {
   ASPECTS,
 } = core;
 import { AmxPlayerBase } from "./base.js";
+
+// Font bytes are page-scoped: duplicated `data-fonts` URLs across embeds share
+// one in-flight fetch, and a later element reuses the resolved bytes. A failed
+// fetch is evicted so a retry can recover instead of pinning the failure.
+const FONT_PROMISES = new Map();
+
+function fetchFontBytes(url) {
+  let pending = FONT_PROMISES.get(url);
+  if (!pending) {
+    pending = fetch(url)
+      .then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.arrayBuffer().then((buffer) => new Uint8Array(buffer));
+      })
+      .catch((err) => {
+        FONT_PROMISES.delete(url);
+        throw err;
+      });
+    FONT_PROMISES.set(url, pending);
+  }
+  return pending;
+}
+
 export class AmxPlayerView extends AmxPlayerBase {
   _renderSkeleton() {
     // Reserve the figure's box up front so lazy loading never reflows the
@@ -378,21 +401,49 @@ export class AmxPlayerView extends AmxPlayerBase {
     return this.hasAttribute("autoplay") && !REDUCED_MOTION && !SAVE_DATA;
   }
 
+  _fontUrls() {
+    const raw = this.getAttribute("data-fonts");
+    if (!raw) return [];
+    const seen = new Set();
+    const urls = [];
+    for (const value of raw.split(/\s+/).filter(Boolean)) {
+      try {
+        const url = new URL(value, document.baseURI).href;
+        if (!seen.has(url)) {
+          seen.add(url);
+          urls.push(url);
+        }
+      } catch (err) {
+        console.warn(`amx-player: invalid font URL '${value}' skipped (${err.message})`);
+      }
+    }
+    return urls;
+  }
+
+  /// Fetch all `data-fonts` in parallel. The page-scoped cache in
+  /// [`fetchFontBytes`] makes a page with several embeds pay once per URL.
+  _fetchFonts() {
+    if (!this._fontBytesPromise) {
+      const jobs = this._fontUrls().map(async (url) => {
+        try {
+          return await fetchFontBytes(url);
+        } catch (err) {
+          console.warn(`amx-player: font '${url}' skipped (${err.message})`);
+          return null;
+        }
+      });
+      this._fontBytesPromise = Promise.all(jobs).then((fonts) => fonts.filter(Boolean));
+    }
+    return this._fontBytesPromise;
+  }
+
   /// `data-fonts` — space-separated TTF/OTF URLs, registered before the scene
   /// compiles so `font_family` can name them. A failed font is skipped with a
   /// console warning rather than blocking the figure.
   async _loadFonts(module) {
-    const fonts = this.getAttribute("data-fonts");
-    if (!fonts || !this._player.add_font) return;
-    for (const url of fonts.split(/\s+/).filter(Boolean)) {
-      try {
-        const response = await fetch(new URL(url, document.baseURI));
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        this._player.add_font(new Uint8Array(await response.arrayBuffer()));
-      } catch (err) {
-        console.warn(`amx-player: font '${url}' skipped (${err.message})`);
-      }
-    }
+    if (!this._player?.add_font) return;
+    const fonts = await this._fetchFonts();
+    for (const bytes of fonts) this._player.add_font(bytes);
   }
 
   /// Fetch the scene's imports and assets, then build. Imports beyond the

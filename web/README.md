@@ -485,11 +485,14 @@ cd web/tools && npm install && npm run build:embed
   scene and its imports). Dynamic
   `url = expr` assignments are not listed.
 - **Runtime fonts** — set `data-fonts` on the embed to a space-separated list
-  of TTF/OTF URLs; they are registered before the scene compiles, so
-  `font_family` can name them. WOFF2 is not decodable. Without a font covering
-  the script, non-Latin text renders empty (the sandbox cannot see system
-  fonts, and only Open Sans + Fira Math + a Noto Sans SC subset are bundled) —
-  though the build now warns which characters are uncovered.
+  of TTF/OTF URLs. The URLs are fetched in parallel with the engine/scene and
+  cached per page, so repeated embeds share one download; fonts are registered
+  before the scene compiles, so `font_family` can name them. A failed fetch is
+  skipped with a console warning instead of blocking the figure. WOFF2 is not
+  decodable. Without a font covering the script, non-Latin text renders empty
+  (the sandbox cannot see system fonts, and only Open Sans + Fira Math + a
+  Noto Sans SC subset are bundled) — though the build now warns which
+  characters are uncovered.
 - **Audio tracks are not played** (no Web Audio wiring yet).
 - **Export** stays desktop-only (video via FFmpeg; PNG/WebP via raster-encode).
 - Native plugins don't exist on this platform; `libloading`-based extensions

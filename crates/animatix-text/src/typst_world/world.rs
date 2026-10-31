@@ -1,5 +1,5 @@
 #[cfg(feature = "rich-text")]
-use crate::font_context::{BUNDLED_FONTS, FontContext, VARIABLE_FONT_FACES};
+use crate::font_context::{BUNDLED_FONT_FACES, BUNDLED_FONTS, FontContext, VARIABLE_FONT_FACES};
 #[cfg(feature = "rich-text")]
 use animatix_core::error::RenderError;
 #[cfg(feature = "rich-text")]
@@ -37,9 +37,10 @@ fn build_world(
     let mut fonts = Vec::with_capacity(BUNDLED_FONTS.len() + extra_fonts.len());
     let mut book = FontBook::new();
 
-    // Load bundled fonts
-    for bf in BUNDLED_FONTS {
-        let font = Font::new(Bytes::new(bf.data), 0).ok_or_else(|| {
+    // Load bundled fonts. The parsed faces are process-wide; only the
+    // refcounted handles are cloned into this world.
+    for (bf, cached) in BUNDLED_FONTS.iter().zip(BUNDLED_FONT_FACES.iter()) {
+        let font = cached.clone().ok_or_else(|| {
             RenderError::TextCompilation(format!("Failed to load bundled font: {}", bf.family))
         })?;
         book.push(font.info().clone());

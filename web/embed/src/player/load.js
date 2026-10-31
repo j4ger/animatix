@@ -64,6 +64,9 @@ export class AmxPlayerLoad extends AmxPlayerView {
     try {
       const requested = this._profile();
       const initialProfile = requested === "auto" ? "slim" : requested;
+      // Start font fetches before the engine download so a slow font overlaps
+      // wasm startup instead of adding another serial phase after it.
+      this._fontBytesPromise = this._fetchFonts();
       const sourcePromise = fetch(src).then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.text();
