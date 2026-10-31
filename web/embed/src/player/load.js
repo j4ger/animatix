@@ -33,13 +33,13 @@ export class AmxPlayerLoad extends AmxPlayerView {
     return "slim";
   }
 
-  async _playerWithEngine(module, source, src) {
+  async _playerWithEngine(module, source, src, profile) {
     const player = await module.create_player(this._canvas);
     this._player = player;
     if (typeof player.set_quality === "function") {
       player.set_quality(this._quality());
     }
-    await this._loadFonts(module);
+    await this._loadFonts(module, profile);
     if (this.getAttribute("src") !== src) return null;
     return {
       module,
@@ -67,6 +67,7 @@ export class AmxPlayerLoad extends AmxPlayerView {
       // Start font fetches before the engine download so a slow font overlaps
       // wasm startup instead of adding another serial phase after it.
       this._fontBytesPromise = this._fetchFonts();
+      this._defaultFontsPromise = this._fetchDefaultFonts(initialProfile);
       const sourcePromise = fetch(src).then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.text();
@@ -75,7 +76,7 @@ export class AmxPlayerLoad extends AmxPlayerView {
       const source = await sourcePromise;
       if (this.getAttribute("src") !== src) return; // changed while loading
 
-      let loaded = await this._playerWithEngine(module, source, src);
+      let loaded = await this._playerWithEngine(module, source, src, initialProfile);
       if (!loaded) return;
       let required = Number(loaded.result.required_features ?? 0) >>> 0;
 
@@ -85,8 +86,9 @@ export class AmxPlayerLoad extends AmxPlayerView {
           console.info(
             `amx-player: ${src} needs ${target} engine (features ${required}), upgrading`,
           );
+          this._defaultFontsPromise = this._fetchDefaultFonts(target);
           const targetModule = await loadEngine(target);
-          const upgraded = await this._playerWithEngine(targetModule, source, src);
+          const upgraded = await this._playerWithEngine(targetModule, source, src, target);
           if (!upgraded) return;
           loaded = upgraded;
           required = Number(loaded.result.required_features ?? 0) >>> 0;

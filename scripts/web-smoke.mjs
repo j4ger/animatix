@@ -154,10 +154,18 @@ function pageProbe() {
       }
       results.push({ src, bytes });
     }
+    const fontRequests = performance
+      .getEntriesByType("resource")
+      .map((entry) => entry.name)
+      .filter((name) => /\/fonts\/[^/]+\.gz(?:[?#]|$)/.test(name));
+    if (!fontRequests.length) {
+      return { error: "no external font pack request observed" };
+    }
     return {
       players: players.length,
       canvases: results.map((result) => result.bytes),
       sources: results.map((result) => result.src),
+      fontRequests: fontRequests.length,
     };
   })();
 }

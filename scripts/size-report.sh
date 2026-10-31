@@ -41,9 +41,9 @@ line() {
 status=0
 echo "Web engine packages:"
 for spec in \
-  "pkg-slim:web/pkg-slim/animatix_web_bg.wasm:7200000" \
-  "pkg-assets:web/pkg-assets/animatix_web_bg.wasm:8200000" \
-  "pkg-full:web/pkg/animatix_web_bg.wasm:31500000"; do
+  "pkg-slim:web/pkg-slim/animatix_web_bg.wasm:5400000" \
+  "pkg-assets:web/pkg-assets/animatix_web_bg.wasm:6600000" \
+  "pkg-full:web/pkg/animatix_web_bg.wasm:28000000"; do
   label="${spec%%:*}"
   rest="${spec#*:}"
   path="${rest%%:*}"
@@ -57,6 +57,16 @@ for spec in \
     fi
   fi
 done
+
+echo "External fonts:"
+line "font-pack" "web/fonts"
+if [ "$check" = true ] && [ -e "web/fonts" ]; then
+  actual="$(du -sb web/fonts | cut -f1)"
+  if [ "$actual" -gt 2400000 ]; then
+    echo "size budget exceeded: web/fonts is $actual bytes (max 2400000)" >&2
+    status=1
+  fi
+fi
 
 if [ -e "$site" ]; then
   echo "Site:"

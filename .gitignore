@@ -38,6 +38,9 @@ web/**/*.br
 web/pkg-slim/
 web/pkg-assets/
 web/embed/amx-player.js
+# Generated gzip font twins and license; web/fonts/manifest.json is tracked.
+web/fonts/*.gz
+web/fonts/LICENSE-OpenSans.txt
 # The Pages/release staging directory scripts/site-artifact.sh assembles.
 _site/
 # The `video` release build uses its own target dir so it cannot clobber the

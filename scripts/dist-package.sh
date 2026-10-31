@@ -11,7 +11,7 @@
 #   macos          same two binaries, no `video`, .zip
 #   windows        same two .exe, no `video`, .zip
 #   site           the deployed tree (scripts/site-artifact.sh), .zip
-#   wasm           web/pkg-slim, web/pkg-assets and web/pkg, one .zip each
+#   wasm           web/pkg-slim, web/pkg-assets, web/pkg and the external font pack
 #
 # The version in the filename is the workspace version from Cargo.toml. When a tag
 # triggered the build, ANIMATIX_RELEASE_VERSION says which one, and a mismatch is
@@ -99,6 +99,12 @@ case "$platform" in
       (cd "$d" && zip -qrX "$dist/animatix-${NAME_V}-wasm-${label}.zip" .)
       echo "wrote dist/animatix-${NAME_V}-wasm-${label}.zip"
     done
+    [ -f web/fonts/manifest.json ] || {
+      echo "error: web/fonts/manifest.json missing — run scripts/web-fonts.sh sync first." >&2
+      exit 1
+    }
+    (cd web/fonts && zip -qrX "$dist/animatix-${NAME_V}-wasm-fonts.zip" .)
+    echo "wrote dist/animatix-${NAME_V}-wasm-fonts.zip"
     ;;
   *)
     echo "error: unknown platform: $platform" >&2

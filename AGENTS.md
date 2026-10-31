@@ -7,12 +7,12 @@ Animatix is a Rust workspace for a layout-first animation DSL (`.amx`). Pipeline
 - `crates/animatix-core`: shared vocabulary — capability enums, effect contract types, the built-in **property descriptor table**, icon glyphs, `RenderError`; zero engine/parser deps.
 - `crates/animatix-std`: built-in catalog (effect definitions, primitive identity cards); the single source for built-in metadata.
 - `crates/animatix-syntax`: parser, AST, module system, diagnostics, formatter, property/type layer; contract tables derive from `animatix-std`.
-- `crates/animatix-text`: typst/fontdb text compiler behind the engine's `text` feature.
+- `crates/animatix-text`: typst/fontdb text compiler behind the engine's `text` feature; native builds embed fonts via `bundled-fonts`, web packages load `web/fonts`.
 - `crates/animatix`: engine — timeline ECS world/stores, build/evaluate, `BehaviorDef` family systems, composition, frame vocabulary.
 - `crates/animatix-render`: GPU presentation above the engine — Vello/wgpu core, filter backend, offscreen frames, transitions, export encoders. One-way: public engine API only.
 - `crates/animatix-cli`, `crates/animatix-gui`: CLI and eframe/egui IDE (preview, inspector, `SourceEdit`).
 - `crates/animatix-analyzer`, `crates/animatix-lsp`: language intelligence and its LSP wrapper; update the analyzer when syntax changes.
-- `crates/animatix-web`: wasm32 playback (no in-browser editor); `SourcesOnly` module reuse, offscreen vello blitted to WebGPU; site/embed docs in `web/README.md`.
+- `crates/animatix-web`: wasm32 playback (no in-browser editor); `SourcesOnly` module reuse, offscreen vello blitted to WebGPU; web packages ship the external `web/fonts` pack; site/embed docs in `web/README.md`.
 - `crates/animatix-plugin-api`, `-demo`, `-tooling`: native plugin C ABI, example, tooling. `crates/eparts`: themed egui widgets.
 - `crates/animatix-syntax/src/token.rs`: the single lossless tokenizer (parser input, LSP tokens, GUI highlighting).
 - `docs`: `roadmap.md` is remaining work only, `docs/history/` is the archive (`history.md` is a pointer), `docs/ecs.md` is normative ECS + structure contract. `examples/` has demos; `dogfood/` has in-progress projects and probes.
@@ -59,7 +59,7 @@ cargo build -p animatix-cli --features video
 cargo build -p animatix-gui --features video   # GUI has no video by default
 ```
 
-Both features forward to `animatix-render/video`; the engine has none. Native CLI/GUI keep rendering, text, and SVG enabled by default; `animatix-web` exposes `rich-text`, `image-decode`, and `svg` as opt-in features for the `pkg-slim` / `pkg-assets` profiles. Other real switches are `perf-tracing` (default-on), `serde`, `plugin-loading`, and `video` on CLI/GUI. Without FFmpeg, PNG/WebP still export; MP4/WebM/MOV/GIF require `video`.
+Both features forward to `animatix-render/video`; the engine has none. Native CLI/GUI keep rendering, text, and SVG enabled by default; `animatix-web` exposes `rich-text`, `image-decode`, and `svg` as opt-in features for the `pkg-slim` / `pkg-assets` profiles. Other real switches are `perf-tracing` (default-on), `bundled-fonts` (native default; off in web packages), `serde`, `plugin-loading`, and `video` on CLI/GUI. Without FFmpeg, PNG/WebP still export; MP4/WebM/MOV/GIF require `video`.
 
 ## Adding or Changing a Property
 

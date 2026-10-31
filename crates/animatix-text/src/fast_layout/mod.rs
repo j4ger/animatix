@@ -10,12 +10,15 @@
 use animatix_core::error::RenderError;
 use kurbo::{Affine, BezPath, Shape};
 
-use crate::font_context::{BUNDLED_FONTS, FontContext, bundled_face, resolve_font_family};
+use crate::font_context::{FontContext, bundled_face, resolve_font_family};
 use crate::typst_world::{PathBuilder, center_text_paths, is_cjk_char};
 use crate::{CompiledText, TextPath};
 
+mod fallback;
 mod shaping;
 mod wrapped;
+
+use fallback::fallback_faces;
 
 pub use shaping::compile_text_fast;
 pub use wrapped::compile_text_fast_wrapped;
@@ -145,12 +148,7 @@ fn resolve_faces(
     let line_gap = primary_face.ttf.line_gap() as f32;
 
     let mut faces = vec![primary_face];
-    faces.extend(
-        BUNDLED_FONTS
-            .iter()
-            .filter(|bf| bf.family != resolved_family)
-            .filter_map(|bf| FastPathFace::from_data(bf.data, 0, bf.family.to_string())),
-    );
+    faces.extend(fallback_faces(font_ctx, &resolved_family));
 
     Ok(ResolvedFaces {
         faces,

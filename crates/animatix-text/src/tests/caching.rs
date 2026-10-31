@@ -523,6 +523,7 @@ fn missing_glyph_probe_reports_uncovered_chars() {
     bare_db.load_font_data(BUNDLED_FONTS[0].data.to_vec());
     let bare_ctx = FontContext {
         db: std::sync::Arc::new(bare_db),
+        registered_faces: Vec::new(),
         epoch: font_env_epoch(),
     };
     let missing = missing_text_glyphs(

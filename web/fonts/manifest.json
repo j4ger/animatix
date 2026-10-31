@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "profiles": {
+    "slim": [
+      "OpenSans-Regular.ttf.gz",
+      "OpenSans-Bold.ttf.gz",
+      "NotoSansSC-Common.ttf.gz"
+    ],
+    "assets": [
+      "OpenSans-Regular.ttf.gz",
+      "OpenSans-Bold.ttf.gz",
+      "NotoSansSC-Common.ttf.gz"
+    ],
+    "full": [
+      "OpenSans-Regular.ttf.gz",
+      "OpenSans-Bold.ttf.gz",
+      "OpenSans-Italic.ttf.gz",
+      "OpenSans-BoldItalic.ttf.gz",
+      "OpenSans-Variable.ttf.gz",
+      "OpenSans-Italic-Variable.ttf.gz",
+      "NotoSansSC-Common.ttf.gz",
+      "FiraMath-Regular.otf.gz"
+    ]
+  }
+}

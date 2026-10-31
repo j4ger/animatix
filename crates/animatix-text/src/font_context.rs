@@ -15,6 +15,10 @@ use typst::text::Font;
 pub struct FontContext {
     /// The underlying font database, shared process-wide (only read after load).
     pub(crate) db: std::sync::Arc<fontdb::Database>,
+    /// Faces explicitly registered through [`Self::load_fonts`]. Kept separate
+    /// from the system faces in `db` so the fast path can fall back to the
+    /// caller-provided font pack without scanning unrelated system fonts.
+    pub(crate) registered_faces: Vec<fontdb::ID>,
     /// Font-environment generation: memo keys include this value, so contexts
     /// created after [`advance_font_env_epoch`] miss the stale-font cache.
     pub(crate) epoch: u64,
@@ -60,6 +64,7 @@ impl FontContext {
     pub fn new() -> Self {
         Self {
             db: std::sync::Arc::clone(system_fonts_db()),
+            registered_faces: Vec::new(),
             epoch: font_env_epoch(),
         }
     }
@@ -220,12 +225,13 @@ impl FontContext {
         I: IntoIterator<Item = Vec<u8>>,
     {
         let mut db = (*self.db).clone();
-        let mut loaded = false;
+        let mut loaded = Vec::new();
         for bytes in fonts {
-            db.load_font_data(bytes);
-            loaded = true;
+            let ids = db.load_font_source(fontdb::Source::Binary(std::sync::Arc::new(bytes)));
+            loaded.extend(ids);
         }
-        if loaded {
+        if !loaded.is_empty() {
+            self.registered_faces.extend(loaded);
             self.db = std::sync::Arc::new(db);
             self.epoch = advance_font_env_epoch();
         }
@@ -277,6 +283,25 @@ impl FontContext {
         let data = leaked_face_data(self, id)?;
         let face_index = self.db.face(id).map(|f| f.index).unwrap_or(0);
         Some((data, face_index))
+    }
+
+    /// Faces registered through [`Self::load_fonts`], in registration order.
+    /// The fast path uses these as fallback when no bundled static faces are
+    /// compiled in (the web font-pack build).
+    pub(crate) fn loaded_faces(&self) -> Vec<LoadedFace> {
+        self.registered_faces
+            .iter()
+            .filter_map(|id| {
+                let face = self.db.face(*id)?;
+                let family = face.families.first()?.0.clone();
+                let data = leaked_face_data(self, *id)?;
+                Some(LoadedFace {
+                    family,
+                    data,
+                    index: face.index,
+                })
+            })
+            .collect()
     }
 }
 
@@ -461,6 +486,13 @@ pub(crate) struct BundledFont {
     pub(crate) style: &'static str,
 }
 
+/// One face explicitly registered at runtime, for fast-path fallback.
+pub(crate) struct LoadedFace {
+    pub(crate) family: String,
+    pub(crate) data: &'static [u8],
+    pub(crate) index: u32,
+}
+
 /// The bundled face of `family` answering a weight/style query: style decides
 /// first, then the nearest available weight.
 pub(crate) fn bundled_face(family: &str, weight: f32, style: &str) -> Option<&'static BundledFont> {
@@ -478,6 +510,7 @@ pub(crate) static BUNDLED_FONTS: &[BundledFont] = &[
     // Open Sans static faces (Apache-2.0; provenance/SHA-256 in
     // assets/fonts/README.md). `ttf-parser` reads `fvar` but never applies
     // deltas, so the fast path needs static weights.
+    #[cfg(feature = "bundled-fonts")]
     BundledFont {
         family: "Open Sans",
         data: include_bytes!("../assets/fonts/OpenSans-Regular.ttf"),
@@ -485,16 +518,19 @@ pub(crate) static BUNDLED_FONTS: &[BundledFont] = &[
         style: "normal",
     },
     // Noto Sans SC subset (SIL OFL 1.1): 3755 GB2312 hanzi plus CJK punctuation,
-    // fullwidth forms and ASCII at weight 400. Not gated: the slim build's only
-    // shaper needs this face for zero-config CJK coverage.
+    // fullwidth forms and ASCII at weight 400. Not rich-text-gated: the slim
+    // build's only shaper needs this face for zero-config CJK coverage.
+    #[cfg(feature = "bundled-fonts")]
     BundledFont {
         family: "Noto Sans SC",
         data: include_bytes!("../assets/fonts/NotoSansSC-Common.ttf"),
         weight: 400.0,
         style: "normal",
     },
-    // Not gated: plain-Latin titles on the slim embed ask for bold (~220 KB).
-    // The italic faces stay gated; only a non-embedded example uses italics.
+    // Not rich-text-gated: plain-Latin titles on the slim embed ask for bold
+    // (~220 KB). The italic faces stay gated; only a non-embedded example uses
+    // italics.
+    #[cfg(feature = "bundled-fonts")]
     BundledFont {
         family: "Open Sans",
         data: include_bytes!("../assets/fonts/OpenSans-Bold.ttf"),
@@ -502,7 +538,7 @@ pub(crate) static BUNDLED_FONTS: &[BundledFont] = &[
         style: "normal",
     },
     // Gated: the slim build ships Regular alone, so `bundled_face` cannot reach it.
-    #[cfg(feature = "rich-text")]
+    #[cfg(all(feature = "rich-text", feature = "bundled-fonts"))]
     BundledFont {
         family: "Open Sans",
         data: include_bytes!("../assets/fonts/OpenSans-Italic.ttf"),
@@ -510,7 +546,7 @@ pub(crate) static BUNDLED_FONTS: &[BundledFont] = &[
         style: "italic",
     },
     // Gated: the slim build ships Regular alone, so `bundled_face` cannot reach it.
-    #[cfg(feature = "rich-text")]
+    #[cfg(all(feature = "rich-text", feature = "bundled-fonts"))]
     BundledFont {
         family: "Open Sans",
         data: include_bytes!("../assets/fonts/OpenSans-BoldItalic.ttf"),
@@ -518,7 +554,7 @@ pub(crate) static BUNDLED_FONTS: &[BundledFont] = &[
         style: "italic",
     },
     // Gated: the slim build ships Regular alone, so `bundled_face` cannot reach it.
-    #[cfg(feature = "rich-text")]
+    #[cfg(all(feature = "rich-text", feature = "bundled-fonts"))]
     BundledFont {
         family: "Fira Math",
         data: include_bytes!("../assets/fonts/FiraMath-Regular.otf"),
@@ -566,12 +602,14 @@ pub(crate) static VARIABLE_FONT_FACES: std::sync::LazyLock<Vec<Font>> = std::syn
 
 #[cfg(feature = "rich-text")]
 pub(crate) static VARIABLE_FONTS: &[BundledFont] = &[
+    #[cfg(feature = "bundled-fonts")]
     BundledFont {
         family: "Open Sans",
         data: include_bytes!("../assets/fonts/OpenSans-Variable.ttf"),
         weight: 400.0,
         style: "normal",
     },
+    #[cfg(feature = "bundled-fonts")]
     BundledFont {
         family: "Open Sans",
         data: include_bytes!("../assets/fonts/OpenSans-Italic-Variable.ttf"),

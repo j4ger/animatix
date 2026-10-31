@@ -34,6 +34,9 @@
 //   data-fonts space-separated TTF/OTF URLs. All fonts are fetched in
 //              parallel while the engine/scene load, cached per page for
 //              repeated embeds, and registered before the scene compiles.
+//   data-font-base  (on the loader script) base URL for the automatic font
+//              pack. Defaults to the `fonts/` sibling of the engine packages;
+//              set it when the pack is hosted on a separate origin or path.
 //   sealed     page-driven mode: no center play affordance and no click
 //              gestures — playback belongs to the page's own JS (play/pause/
 //              seek below). With `autoplay`, the scene also resumes by itself

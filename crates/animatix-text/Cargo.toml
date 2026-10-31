@@ -5,13 +5,16 @@ edition.workspace = true
 rust-version.workspace = true
 
 [features]
-default = ["rich-text"]
+default = ["rich-text", "bundled-fonts"]
 # Rich text: Typst-powered markup (*bold*), Code blocks (syntect highlighting),
 # and Math/Equation compilation. The plain-text fast path (direct shaping via
 # ttf-parser) is always available; disabling this feature removes the Typst
 # stack (and its transitive wasmi/hayagriva/hayro/regex payload) entirely —
 # used by the slim playback-only web profile.
 rich-text = ["dep:typst", "dep:typst-layout", "dep:syntect"]
+# Font bytes are embedded in native builds. Web builds disable this and load
+# the same faces from the external `web/fonts` pack instead.
+bundled-fonts = []
 
 [dependencies]
 animatix-core = { path = "../animatix-core" }

@@ -25,6 +25,11 @@ animatix-syntax = { path = "../animatix-syntax" }
 animatix-std = { path = "../animatix-std" }
 serde = { workspace = true }
 
+[dev-dependencies]
+# Native host tests exercise the full text pipeline; wasm packages built for
+# the web load the external font pack instead of embedding these bytes.
+animatix = { path = "../animatix", features = ["bundled-fonts"] }
+
 # Web-only stack. The cdylib target is wasm32-unknown-unknown; native builds
 # compile the pure host-side modules (parse/build pipeline + DTOs) for the
 # workspace test gates and skip everything below.

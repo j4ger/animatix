@@ -1,6 +1,6 @@
 import * as core from "./core.js";
 const {
-  FRAME_RATE, DEBUG_BY_URL, LOADER_SCRIPT, RUNTIME_BASE, engineBases, REDUCED_MOTION,
+  FRAME_RATE, DEBUG_BY_URL, LOADER_SCRIPT, RUNTIME_BASE, engineBases, fontBase, REDUCED_MOTION,
   SAVE_DATA, FADE_EACH, ICONS, enginePromises, loadEngine, instances, QUALITY_STEPS,
   SLOW_TICK_MS, FAST_TICK_MS, setQualityStep, tick, ensureLoop, SCROLL_SETTLE_MS,
   LOAD_MAX_DEFER_MS, LOAD_RETRY_MS, LOAD_STALL_MS, pumpLoads, enqueueLoad, dequeueLoad,
@@ -26,6 +26,57 @@ function fetchFontBytes(url) {
         throw err;
       });
     FONT_PROMISES.set(url, pending);
+  }
+  return pending;
+}
+
+const FONT_PACK_PROMISES = new Map();
+
+async function gunzip(bytes) {
+  if (typeof DecompressionStream !== "function") {
+    throw new Error("this browser cannot decompress the gzip font pack");
+  }
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+/// Load the profile font pack from `fonts/manifest.json`. The manifest names
+/// only the files for that profile, so slim pages never download the rich
+/// italic/variable/math set. The page-level cache means a second embed with
+/// the same profile reuses both the manifest and the decompressed bytes.
+export function fetchFontPack(base, profile) {
+  // `assets` deliberately shares the slim face set; only `full` adds the rich
+  // italic/variable/math faces.
+  const packProfile = profile === "assets" ? "slim" : profile;
+  const key = `${base}|${packProfile}`;
+  let pending = FONT_PACK_PROMISES.get(key);
+  if (!pending) {
+    pending = (async () => {
+      const response = await fetch(`${base}/manifest.json`);
+      if (!response.ok) throw new Error(`font manifest HTTP ${response.status}`);
+      const manifest = await response.json();
+      const files = manifest.profiles?.[packProfile];
+      if (!Array.isArray(files) || files.length === 0) {
+        throw new Error(`font manifest has no '${packProfile}' profile`);
+      }
+      return Promise.all(
+        files.map(async (file) => {
+          const fontResponse = await fetch(`${base}/${file}`);
+          if (!fontResponse.ok) throw new Error(`font '${file}' HTTP ${fontResponse.status}`);
+          const buffer = await fontResponse.arrayBuffer();
+          // A proxy may have already decoded the gzip payload; do not
+          // decompress it twice.
+          const encoding = fontResponse.headers.get("content-encoding");
+          return encoding === "gzip" || encoding === "br"
+            ? new Uint8Array(buffer)
+            : gunzip(buffer);
+        }),
+      );
+    })().catch((err) => {
+      FONT_PACK_PROMISES.delete(key);
+      throw err;
+    });
+    FONT_PACK_PROMISES.set(key, pending);
   }
   return pending;
 }
@@ -437,13 +488,31 @@ export class AmxPlayerView extends AmxPlayerBase {
     return this._fontBytesPromise;
   }
 
-  /// `data-fonts` — space-separated TTF/OTF URLs, registered before the scene
-  /// compiles so `font_family` can name them. A failed font is skipped with a
-  /// console warning rather than blocking the figure.
-  async _loadFonts(module) {
+  /// The profile font pack is immutable per base/profile; cache the promise
+  /// so an auto upgrade can fetch the full pack while the engine downloads.
+  _fetchDefaultFonts(profile) {
+    if (!this._defaultFontsPromise || this._defaultFontsProfile !== profile) {
+      this._defaultFontsProfile = profile;
+      this._defaultFontsPromise = fetchFontPack(fontBase(), profile);
+    }
+    return this._defaultFontsPromise;
+  }
+
+  /// Register the profile font pack first, then page-supplied `data-fonts`.
+  /// A failed default pack is fatal: without it the wasm build has no faces
+  /// and rendering text would silently degrade to tofu.
+  async _loadFonts(module, profile) {
     if (!this._player?.add_font) return;
-    const fonts = await this._fetchFonts();
-    for (const bytes of fonts) this._player.add_font(bytes);
+    let defaults;
+    try {
+      defaults = await this._fetchDefaultFonts(profile);
+    } catch (err) {
+      console.error(`amx-player: font pack unavailable (${err.message})`);
+      throw new Error(`font pack unavailable: ${err.message}`);
+    }
+    for (const bytes of defaults) this._player.add_font(bytes);
+    const custom = await this._fetchFonts();
+    for (const bytes of custom) this._player.add_font(bytes);
   }
 
   /// Fetch the scene's imports and assets, then build. Imports beyond the

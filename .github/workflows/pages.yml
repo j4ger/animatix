@@ -1,10 +1,11 @@
 # Deploy the web site (homepage, language tour, demos) to GitHub Pages.
 #
-# The deploy artifact is the runtime web tree plus web/pkg-slim and
-# web/pkg-assets (web/pkg is a release asset, not a site payload). They are
-# gitignored, so CI rebuilds them on every run. GitHub Pages does not negotiate brotli
-# precompression, so the .br twins are dropped from the artifact (the raw
-# .wasm files are what gets served).
+# The deploy artifact is the runtime web tree plus web/pkg-slim,
+# web/pkg-assets and the generated web/fonts gzip pack (web/pkg is a release
+# asset, not a site payload). They are gitignored, so CI rebuilds them on every
+# run. GitHub Pages does not negotiate brotli precompression, so the .br twins
+# are dropped from the artifact (the raw .wasm files are what gets served; the
+# font pack is explicitly gzip and is decompressed by the player).
 #
 # This workflow used to own three checks that PR CI did not run — the embed
 # bundle build, the site scene build in both profiles, and the wasm compile —

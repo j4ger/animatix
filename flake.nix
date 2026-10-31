@@ -65,6 +65,7 @@
           })
           pkgs.binaryen
           pkgs.brotli
+          pkgs.nodejs_22
           pkgs.pkg-config
         ] ++ wasm-bindgen-cli;
       in

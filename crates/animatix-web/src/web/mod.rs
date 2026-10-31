@@ -70,19 +70,15 @@ pub struct AmxPlayer {
     /// two scene renders cannot stomp each other's intermediate textures.
     filter_backend: Option<GpuFilterBackend>,
     filter_backend_to: Option<GpuFilterBackend>,
-    /// Offscreen vello target at scene resolution (scene is rendered here,
-    /// then blitted to the canvas surface). During a transition this holds the
-    /// *outgoing* scene, [`Self::offscreen_to`] the incoming one.
+    /// Offscreen vello target at scene resolution; during a transition this
+    /// holds the outgoing scene and [`Self::offscreen_to`] the incoming one.
     offscreen: Option<OffscreenTarget>,
     offscreen_to: Option<OffscreenTarget>,
-    /// The transition compositor's blended output; the blit source for that
-    /// frame. Needs `TEXTURE_BINDING` for exactly that reason.
+    /// The transition compositor's blended output; needs `TEXTURE_BINDING`.
     composite: Option<OffscreenTarget>,
-    /// Fonts registered through [`AmxPlayer::add_font`], applied to the text
-    /// compiler the next time [`AmxPlayer::load_source`] builds the scene.
+    /// Fonts registered through [`AmxPlayer::add_font`], applied on next load.
     fonts: Vec<Vec<u8>>,
-    /// Built from `fonts` once and reused across reloads. `None` means the
-    /// cached context is stale because `add_font` changed the set.
+    /// Cached context derived from `fonts`; invalidated by `add_font`.
     font_context: Option<FontContext>,
     /// Imported `.amx` modules registered through [`AmxPlayer::add_module`],
     /// joined into the build's source map (keyed by resolved import path, the

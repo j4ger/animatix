@@ -67,6 +67,10 @@ for d in web/pkg-slim web/pkg-assets; do
   fi
 done
 
+# The external font pack is part of the runtime contract now; fail before
+# assembling a site whose text would have no faces.
+bash scripts/web-fonts.sh --check
+
 # Build the distributable embed player bundle if it is missing or older than
 # *any* file under web/embed/src — including the player/*.js modules the bare
 # entry point imports. Copying src/amx-player.js alone is not a bundle: its
@@ -116,6 +120,7 @@ runtime_entries=(
   scenes
   pkg-slim
   pkg-assets
+  fonts
 )
 for entry in "${runtime_entries[@]}"; do
   [ -e "web/$entry" ] || {
@@ -137,12 +142,17 @@ for forbidden in tools pkg embed/src node_modules; do
     exit 1
   fi
 done
+if find "$out/fonts" -type f \( -name '*.ttf' -o -name '*.otf' \) -print -quit | grep -q .; then
+  echo "error: site artifact contains uncompressed font files; ship the .gz pack only." >&2
+  exit 1
+fi
 
 echo "site assembled at $out:"
 du -sh "$out"
 for d in pkg-slim pkg-assets; do
   printf '  web/%s: %s bytes\n' "$d" "$(wc -c < "$out/$d/animatix_web_bg.wasm" | tr -d ' ')"
 done
+printf '  fonts: %s bytes (%s files)\n' "$(du -sb "$out/fonts" | awk '{print $1}')" "$(find "$out/fonts" -type f | wc -l | tr -d ' ')"
 
 if [ -n "$zip_name" ]; then
   # Zip from inside the directory so the archive holds `index.html`, not

@@ -205,6 +205,7 @@ jobs:
             echo "| \`*-wasm-slim.zip\` | playback-only engine (no Typst/raster/SVG) |"
             echo "| \`*-wasm-assets.zip\` | raster/SVG engine without Typst |"
             echo "| \`*-wasm-full.zip\` | full engine, the profile rich demos use |"
+            echo "| \`*-wasm-fonts.zip\` | external gzip font pack, deploy beside any wasm zip |"
             echo "| \`*-linux-gnu-video.tar.gz\` | CLI + GUI, **with** FFmpeg video export |"
             echo "| \`*-macos.zip\`, \`*-windows.zip\` | CLI + GUI, **without** video export |"
             echo

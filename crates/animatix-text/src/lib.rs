@@ -123,5 +123,9 @@ pub struct CompiledText {
 // ─────────────────────────────────────────────────────────────
 
 #[path = "tests/text_tests.rs"]
-#[cfg(test)]
+#[cfg(all(test, feature = "bundled-fonts"))]
 mod tests;
+
+#[path = "tests/external_fonts.rs"]
+#[cfg(all(test, not(feature = "bundled-fonts")))]
+mod external_font_tests;

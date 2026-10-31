@@ -253,6 +253,7 @@ fn test_font_db() -> &'static std::sync::Arc<fontdb::Database> {
 fn test_font_ctx() -> FontContext {
     FontContext {
         db: std::sync::Arc::clone(test_font_db()),
+        registered_faces: Vec::new(),
         epoch: font_env_epoch(),
     }
 }

@@ -122,6 +122,13 @@ pub fn missing_text_glyphs(
                 .filter(|bf| bf.family != resolved_family)
                 .filter_map(|bf| ttf_parser::Face::parse(bf.data, 0).ok()),
         );
+        faces.extend(
+            font_ctx
+                .loaded_faces()
+                .into_iter()
+                .filter(|face| face.family != resolved_family)
+                .filter_map(|face| ttf_parser::Face::parse(face.data, face.index).ok()),
+        );
 
         for c in chars {
             if !missing.contains(&c) && faces.iter().all(|face| face.glyph_index(c).is_none()) {

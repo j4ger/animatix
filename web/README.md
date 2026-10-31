@@ -44,7 +44,9 @@ web/demos/                   demo hub (course-style cards + posters) and the dem
 web/demos/transformer/       "The Transformer Architecture, Animated" — seven scenes + article page
 web/scenes/hero.amx          the homepage hero scene
 web/pkg/, web/pkg-assets/, web/pkg-slim/  build output (gitignored)
+web/fonts/                   external gzip font pack (generated; manifest tracked)
 scripts/build-web.sh         wasm build + wasm-bindgen + wasm-opt + brotli
+scripts/web-fonts.sh         sync/check the external gzip font pack
 scripts/serve-web.py         local static server with brotli negotiation
 .github/workflows/pages.yml  deploys web/ + the runtime engine builds to GitHub Pages
 crates/animatix-web/tests/site_scenes.rs
@@ -79,9 +81,9 @@ The demo pages serve the playback-only profile; build all three packages (or jus
 scripts/ensure-web-pkg.sh             # release build (or --dev for ~20s debug rebuild)
 
 # Or manual profile builds:
-scripts/build-web.sh --slim          # playback-only (~6.8 MB raw / ~2.4 MB brotli q6)
-scripts/build-web.sh --assets        # image/SVG, no Typst (~7.9 MB raw / ~2.8 MB brotli q6)
-scripts/build-web.sh                 # full profile  (~31.0 MB raw / ~9.0 MB brotli q11)
+scripts/build-web.sh --slim          # playback-only (~5.25 MB raw / ~1.33 MB q11 wasm)
+scripts/build-web.sh --assets        # image/SVG, no Typst (~6.4 MB raw / ~1.65 MB q11)
+scripts/build-web.sh                 # full profile  (~27.7 MB raw / ~7.5 MB q11)
 python3 scripts/serve-web.py 8124    # serves web/ with live-reload no-cache headers
 # open http://127.0.0.1:8124/
 ```
@@ -155,15 +157,20 @@ time is unchanged (the browser frame is GPU-bound, and an A/B of the two builds
 could not separate them).
 
 The seven demo scenes use plain text only, so they run on the slim engine —
-~2.1 MB over the wire at q11 instead of ~9 MB for full. The default `auto`
-profile starts at slim and upgrades only when a scene needs image/SVG or rich
-text; new pages need no `profile` attribute. The `assets` profile is the
-smallest package for Image/Svg scenes; `full` is for Typst markup and
+about 2.3 MB over the wire at q11 (1.33 MB wasm + 0.96 MB gzip font pack)
+instead of about 9.5 MB for full (7.49 MB wasm + 2.06 MB fonts). The default
+`auto` profile starts at slim and upgrades only when a scene needs image/SVG
+or rich text; new pages need no `profile` attribute. The `assets` profile is
+the smallest package for Image/Svg scenes; `full` is for Typst markup and
 equations. Explicit profiles never fall back to a smaller package.
 
 Deploying is the same story: run the build script, copy `web/` (plus the
-`pkg*` output) to any static host. Requirements: a WebGPU browser (Chrome/Edge
-113+, Firefox 141+, Safari 26+); embeds show guidance when it's missing.
+`pkg*` output and `web/fonts/`) to any static host. Requirements: a WebGPU
+browser (Chrome/Edge 113+, Firefox 141+, Safari 26+); embeds show guidance
+when it's missing. The font pack is gzip and is decompressed with the native
+`DecompressionStream` API (the same browser baseline). It is loaded from the
+`fonts/` sibling by default; set `data-font-base` on the loader script when it
+is hosted elsewhere.
 
 ### GitHub Pages
 
@@ -181,11 +188,13 @@ site-artifact   scripts/site-artifact.sh assembles _site
 ```
 
 `site-artifact` is the same script the release pipeline zips with, and it encodes
-the parts of "what the artifact is" that are easy to get wrong: `pkg-slim` and `pkg-assets` must be **release** builds (a `.dev` marker or a
-non-release `.build` stamp is refused, because a debug bundle is several times
-larger); the full `pkg` is not deployed, `web/tools` and `web/embed/src` are
-never copied, and `.nojekyll` is written because otherwise Pages runs the tree
-through Jekyll, which silently drops any directory beginning with `_`.
+the parts of "what the artifact is" that are easy to get wrong: `pkg-slim` and
+`pkg-assets` must be **release** builds (a `.dev` marker or a non-release
+`.build` stamp is refused, because a debug bundle is several times larger);
+the full `pkg` is not deployed; the generated `web/fonts` gzip pack is required
+and checked; `web/tools` and `web/embed/src` are never copied; and `.nojekyll`
+is written because otherwise Pages runs the tree through Jekyll, which silently
+drops any directory beginning with `_`.
 
 The wasm-bindgen-cli version is read from the pin in
 `crates/animatix-web/Cargo.toml` by `scripts/wasm-tools.sh`; `.#web-build` carries
@@ -296,6 +305,9 @@ Behavior:
   legacy exact-directory form; anything else is a parent directory expected to
   contain all three. Default: the parent of the directory this component lives
   in; the default `auto` path starts at `pkg-slim` and upgrades on demand.
+- **`data-font-base`** also goes on the `<script>` tag and names the directory
+  holding the gzip font pack (default: the `fonts/` sibling of the engine
+  packages). Use it when the font pack is hosted on another origin or path.
 
 ### Looping
 
@@ -484,15 +496,16 @@ cd web/tools && npm install && npm run build:embed
   the literal url string, so asset names share one flat namespace across the
   scene and its imports). Dynamic
   `url = expr` assignments are not listed.
-- **Runtime fonts** — set `data-fonts` on the embed to a space-separated list
-  of TTF/OTF URLs. The URLs are fetched in parallel with the engine/scene and
-  cached per page, so repeated embeds share one download; fonts are registered
-  before the scene compiles, so `font_family` can name them. A failed fetch is
-  skipped with a console warning instead of blocking the figure. WOFF2 is not
-  decodable. Without a font covering the script, non-Latin text renders empty
-  (the sandbox cannot see system fonts, and only Open Sans + Fira Math + a
-  Noto Sans SC subset are bundled) — though the build now warns which
-  characters are uncovered.
+- **Runtime fonts** — the web engine no longer embeds font bytes. The player
+  loads `fonts/manifest.json` and the gzip files for the active profile in
+  parallel with the engine/scene, caches them per page, and registers them
+  before the scene compiles. Set `data-fonts` on the embed for additional
+  TTF/OTF URLs; those are fetched in parallel and cached too, but are
+  additive to the profile pack. A failed custom font is skipped with a
+  console warning; a missing profile font pack is a fatal, explicit
+  `font-pack` error. WOFF2 is not decodable. Without a face covering the
+  script, non-Latin text renders empty — the build warns which characters are
+  uncovered.
 - **Audio tracks are not played** (no Web Audio wiring yet).
 - **Export** stays desktop-only (video via FFmpeg; PNG/WebP via raster-encode).
 - Native plugins don't exist on this platform; `libloading`-based extensions
@@ -512,7 +525,7 @@ multi-scene blends. What differs is the platform around it:
 | Rich text (Typst markup, Code highlighting, Math) | ✓ | ✓ | falls back to the plain fast path |
 | `Image` assets | ✓ | ✓ | hard feature-gate error |
 | `Svg` actors | ✓ | ✓ | primitive unregistered: `unknown-actor-type` warning, actor skipped |
-| System fonts | scanned | none (bundle + `data-fonts` only) | same |
+| System fonts | scanned | none (profile font pack + `data-fonts` only) | same |
 | Extensions (`plugin-loading`) | ✓ | ✗ | ✗ |
 | Audio | muxed at export | not played | not played |
 | Export (video / PNG / WebP) | ✓ | ✗ | ✗ |
@@ -540,24 +553,27 @@ The default build carries the full feature set (Typst rich text, raster
 decoding, SVG). `--slim` compiles those out — Text falls back to the plain fast
 path (no markup/Code highlighting/Math), image/SVG assets report diagnostics —
 and `--assets` keeps raster/SVG while dropping Typst. Current sizes are printed
-by the build script; q11 release measurements are about **31.0 MB full → 9.0 MB
-brotli**, **7.9 MB assets → 2.8 MB q6**, and **6.8 MB slim → 2.1 MB q11**.
+by the build script; q11 release measurements are about **27.7 MB full → 7.5 MB
+wasm brotli**, **6.4 MB assets → 1.65 MB q11**, and **5.25 MB slim → 1.33 MB
+q11**, before the external font pack (2.06 MB gzip across all profiles).
 
 ```bash
 scripts/build-web.sh --slim     # emits web/pkg-slim/
 scripts/build-web.sh --assets   # emits web/pkg-assets/
 ```
 
-(The bundled bold/italic faces and Fira Math are rich-text-only — the plain
-fast path always uses a family's first face — so slim carries Open Sans
-Regular alone.)
+(Slim carries Open Sans Regular/Bold and the Noto CJK subset in the external
+pack; full adds the italic, variable and Fira Math faces. The plain fast path
+still resolves static faces first.)
 
 `--slim` is the profile for motion-graphics embeds that use plain text only;
 `--assets` is the smallest profile for Image/Svg scenes; explainers with
 equations or styled text need the full build. The feature flags behind these
 profiles are `animatix-text/rich-text`, `animatix/image-decode` and
 `animatix/svg`; `animatix-web` exposes them as default features so
-`--no-default-features` selects the slim set.
+`--no-default-features` selects the slim set. `animatix-text/bundled-fonts`
+stays on for native builds and is off in every web package, which is why the
+wasm files no longer contain font bytes.
 
 ## Diagnostics & probes
 

@@ -35,9 +35,13 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 
+# Keep the external pack in sync with the vendored native assets before every
+# build; the wasm packages themselves contain no font bytes.
+bash scripts/web-fonts.sh sync
+
 profile_args=(--profile wasm-release)
 out_profile="wasm-release"
-feature_args=()
+feature_args=(--no-default-features --features rich-text,image-decode,svg,raster-encode)
 variant="full"
 out_dir="web/pkg"
 for arg in "$@"; do

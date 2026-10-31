@@ -69,3 +69,11 @@ every build (the slim web embed too); the two italics are `rich-text` only.
 SHA-256 table (fails loudly on mismatch). To re-vendor on purpose, replace the
 files from a trusted source, update the hash table (in this README and in the
 script), and re-run the script.
+## Web font pack
+
+Native builds embed these files through the `bundled-fonts` feature. Web
+packages compile that feature out and load the same bytes from `web/fonts/`:
+`scripts/web-fonts.sh sync` generates deterministic `.gz` twins from this
+directory, and `web/fonts/manifest.json` selects the faces for the slim,
+assets and full profiles. The manifest is tracked; generated gzip files are
+not. Run `scripts/web-fonts.sh --check` after changing a font or the manifest.

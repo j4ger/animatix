@@ -53,6 +53,8 @@ export class AmxPlayerBase extends HTMLElement {
     this._blackout = false;
     this._marks = null;
     this._fontBytesPromise = null; // page-cached data-fonts fetch; see view.js
+    this._defaultFontsPromise = null; // profile font pack; see view.js
+    this._defaultFontsProfile = null;
     this._loadWantedAt = 0; // set when the scheduler queues this player; see pumpLoads
     this._hudFlash = null;
     this._hudSkip = null;
@@ -141,6 +143,8 @@ export class AmxPlayerBase extends HTMLElement {
     this._player = null;
     this._time = 0;
     this._fontBytesPromise = null;
+    this._defaultFontsPromise = null;
+    this._defaultFontsProfile = null;
     this._renderSkeleton();
     this._maybeStartLoading();
   }

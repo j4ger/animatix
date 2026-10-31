@@ -52,6 +52,12 @@ done
 expected_profile=release
 [ "$mode_dev" = true ] && expected_profile=dev
 
+# The font pack is generated from the same source tree, independent of whether
+# the wasm packages happen to be fresh. `--check` stays read-only.
+if [ "$mode_check" != true ]; then
+  bash scripts/web-fonts.sh sync
+fi
+
 current_head=unknown
 if command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   current_head="$(git rev-parse HEAD 2>/dev/null || echo unknown)"

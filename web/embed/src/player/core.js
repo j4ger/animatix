@@ -57,6 +57,14 @@ function engineDirs() {
   };
 }
 
+function fontBase() {
+  const override = LOADER_SCRIPT?.getAttribute("data-font-base");
+  if (override) return new URL(override, document.baseURI).href.replace(/\/$/, "");
+  // Fonts sit beside the package directories, not inside any one profile.
+  const dirs = engineDirs();
+  return new URL("../fonts/", `${dirs.slim}/`).href.replace(/\/$/, "");
+}
+
 function engineBases(profile) {
   const dirs = engineDirs();
   // A package may fall back to a larger package that contains it, but never
@@ -303,7 +311,7 @@ const ASPECTS = {
 };
 
 export {
-  FRAME_RATE, DEBUG_BY_URL, LOADER_SCRIPT, RUNTIME_BASE, engineBases, REDUCED_MOTION,
+  FRAME_RATE, DEBUG_BY_URL, LOADER_SCRIPT, RUNTIME_BASE, engineBases, fontBase, REDUCED_MOTION,
   SAVE_DATA, FADE_EACH, ICONS, enginePromises, loadEngine, instances, rafRunning,
   lastT, QUALITY_STEPS, SLOW_TICK_MS, FAST_TICK_MS, qualityStep, slowTicks, fastTicks,
   setQualityStep, tick, ensureLoop, SCROLL_SETTLE_MS, LOAD_MAX_DEFER_MS, LOAD_RETRY_MS,

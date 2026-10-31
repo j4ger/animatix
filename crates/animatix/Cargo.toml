@@ -15,10 +15,13 @@ autobenches = false
 # (the GPU *presentation* stack lives in `animatix-render`). Modelling them as
 # features produced `#[cfg(not(feature = ...))]` branches that no supported
 # build could ever compile, so they were removed.
-default = ["perf-tracing", "rich-text", "image-decode", "svg"]
+default = ["perf-tracing", "rich-text", "image-decode", "svg", "bundled-fonts"]
 # Rich text (Typst markup / Code highlighting / Math). Off in the slim
 # playback-only web profile; Text falls back to the plain fast path.
 rich-text = ["animatix-text/rich-text"]
+# Native builds embed the vendored font bytes. Web builds disable this and
+# load the external font pack instead.
+bundled-fonts = ["animatix-text/bundled-fonts"]
 # Raster image decoding (PNG/JPEG/WebP/GIF files referenced by scenes).
 image-decode = ["dep:image"]
 # SVG asset loading and the SVG->AST import path.
