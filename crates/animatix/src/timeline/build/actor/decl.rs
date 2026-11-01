@@ -10,6 +10,59 @@ mod anchors;
 mod props;
 
 impl Timeline {
+    /// Warn when a later declaration reuses an existing scene-global label
+    /// under a different parent. Same-parent re-declaration is legal morphing;
+    /// cross-parent reuse silently moves the shared entity and leaves the old
+    /// scope without that child.
+    fn warn_duplicate_label_parent(
+        &self,
+        label: &str,
+        parent_label: Option<&str>,
+        diagnostics: &mut Vec<Diagnostic>,
+        decl_span: Option<crate::ast::Span>,
+    ) {
+        let Some(existing_id) = self.world.get_id(label) else {
+            return;
+        };
+        let old_parent = self
+            .world
+            .hierarchy(existing_id)
+            .parent
+            .and_then(|parent_id| self.world.label(parent_id));
+        match (old_parent, parent_label) {
+            (Some(old_parent), Some(new_parent)) if old_parent != new_parent => {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::DuplicateLabel,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "Actor label '{label}' is already declared under '{old_parent}'; \
+                             reusing it under '{new_parent}' re-parents it and leaves the old \
+                             scope without that child"
+                        ),
+                    )
+                    .with_subject(label)
+                    .with_ast_span(decl_span),
+                );
+            },
+            (None, Some(new_parent)) => {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::DuplicateLabel,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "Actor label '{label}' is already declared at scene root; reusing \
+                             it inside '{new_parent}' re-parents the shared actor"
+                        ),
+                    )
+                    .with_subject(label)
+                    .with_ast_span(decl_span),
+                );
+            },
+            _ => {},
+        }
+    }
+
     pub(crate) fn process_actor_decl(
         &mut self,
         label: &str,
@@ -22,6 +75,7 @@ impl Timeline {
         diagnostics: &mut Vec<Diagnostic>,
         decl_span: Option<crate::ast::Span>,
     ) {
+        self.warn_duplicate_label_parent(label, parent_label, diagnostics, decl_span);
         self.add_node(label.to_string(), parent_label);
 
         if self.try_dispatch_prior(

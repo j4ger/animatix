@@ -1,0 +1,54 @@
+// 31 — Effect Recipes: Four Ready-to-Use Look Chains
+// One Filter scope per recipe, applied to the same checker backdrop so the
+// looks can be compared side by side. Child labels are unique because actor
+// labels are scene-global; `img` reused in every scope would re-parent one
+// shared image into the last scope (docs/spec.md §7).
+//
+//   Glow  : Blur + Bloom(threshold 0.55, intensity 0.8, keep 1.0)
+//   Film  : ColorGrade + Grain + Vignette
+//   Neon  : ColorGrade + Bloom(threshold 0.6, intensity 1.0, keep 1.0)
+//   Paper : ColorGrade + Grain
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+// Static reference: declare everything after a #0s marker so every recipe is
+// visible by default (actors declared before the first keyframe are hidden).
+#0s
+
+title: Text, text: "Effect Recipes", font_size: 28, color: text.primary, at: (640, 40)
+subtitle: Text, text: "four chains, one checker backdrop", font_size: 15, color: text.muted, at: (640, 68)
+
+// Top-left — Glow: a soft blurred copy added back only where the frame is bright.
+r_glow: Filter, at: (340, 225) {
+  blur_glow: Blur, radius: 12
+  glow_glow: Bloom, threshold: 0.55, intensity: 0.8, keep: 1.0
+  art_glow: Image, url: "../assets/checker.png", size: (520, 210)
+}
+
+// Top-right — Film: warm grade, animated grain, and a soft vignette.
+r_film: Filter, at: (940, 225) {
+  grade_film: ColorGrade, brightness: 1.02, contrast: 1.15, saturate: 0.82, sepia: 0.12
+  grain_film: Grain, amount: 0.35, seed: 11, monochrome: true
+  vignette_film: Vignette, amount: 0.75, radius: 0.55, softness: 0.6
+  art_film: Image, url: "../assets/checker.png", size: (520, 210)
+}
+
+// Bottom-left — Neon: hard saturated grade with the bloom gate wide open.
+r_neon: Filter, at: (340, 505) {
+  grade_neon: ColorGrade, brightness: 1.05, contrast: 1.35, saturate: 1.8
+  glow_neon: Bloom, threshold: 0.6, intensity: 1.0, keep: 1.0
+  art_neon: Image, url: "../assets/checker.png", size: (520, 210)
+}
+
+// Bottom-right — Paper: muted grade with fine monochrome grain.
+r_paper: Filter, at: (940, 505) {
+  grade_paper: ColorGrade, brightness: 1.03, contrast: 1.08, saturate: 0.35, sepia: 0.25
+  grain_paper: Grain, amount: 0.28, seed: 5, monochrome: true
+  art_paper: Image, url: "../assets/checker.png", size: (520, 210)
+}
+
+// Labels under each recipe.
+l_glow: Text, text: "Glow — Blur → Bloom(0.55, 0.8)", font_size: 16, color: text.secondary, at: (340, 356)
+l_film: Text, text: "Film — ColorGrade → Grain → Vignette", font_size: 16, color: text.secondary, at: (940, 356)
+l_neon: Text, text: "Neon — ColorGrade → Bloom(0.6, 1.0)", font_size: 16, color: text.secondary, at: (340, 636)
+l_paper: Text, text: "Paper — ColorGrade → Grain", font_size: 16, color: text.secondary, at: (940, 636)

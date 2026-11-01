@@ -587,3 +587,39 @@ voice.volume = 0.2 [1s]
     assert!((seg.volume_at(2.0) - 0.2).abs() < 1e-3);
     assert!((seg.volume_at(1.5) - 0.6).abs() < 0.1);
 }
+
+/// Actor labels are scene-global in the runtime world. A child label reused
+/// under a different Filter scope silently re-parents the shared entity and
+/// leaves the first scope empty; the build must warn instead of rendering one
+/// cell as an empty hole.
+#[test]
+fn duplicate_label_across_filter_parents_warns() {
+    let source = r#"
+config { resolution: (320, 180) }
+#0s
+a: Filter, at: (80, 90) {
+  fx_a: Blur, radius: 4
+  art: Rect, size: (40, 40)
+}
+b: Filter, at: (240, 90) {
+  fx_b: Blur, radius: 4
+  art: Rect, size: (40, 40)
+}
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report =
+        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+
+    let warnings: Vec<_> = report
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == crate::diagnostics::DiagnosticCode::DuplicateLabel)
+        .collect();
+    assert_eq!(warnings.len(), 1, "expected one duplicate-label warning: {warnings:?}");
+    assert!(
+        warnings[0].message.contains("art") && warnings[0].message.contains("re-parents"),
+        "warning should name the label and explain the re-parenting: {}",
+        warnings[0].message
+    );
+}
