@@ -21,6 +21,7 @@ mod tests;
 pub use build::parse_set_pair;
 pub use diagnostics::OutputFormat;
 use extensions::{CliExtensions, load_cli_extensions};
+use review::types::{Detail, FailOn, RenderMode};
 
 #[derive(ClapParser, Debug)]
 #[command(author, version, about, long_about = "Animatix CLI Tool")]
@@ -256,13 +257,12 @@ enum Commands {
         #[arg(long, default_value = "text")]
         format: OutputFormat,
     },
-    /// Verify rendered frames against declared visibility/ink checks
+    /// Strict contract gate for generated scenes
     ///
-    /// Reads a line-based checks file (default: `verify.txt` beside the input)
-    /// and asserts what is actually on screen — an actor is visible, a frame is
-    /// not blank, or two times differ. Catches silent visual regressions that
-    /// `check`/`lint` and a whole-frame smoke test both miss. See
-    /// `dogfood/README.md` for the check grammar.
+    /// With no `--checks` and no `verify.txt`, derives visibility, draw, ink,
+    /// reveal, resting-composition, and dead-beat checks from the scene. An
+    /// existing `verify.txt` keeps the legacy line-based pixel checker; `--auto`
+    /// forces the zero-config path. See `docs/review.md` for the report schema.
     Verify {
         /// Path to the .amx file
         input: PathBuf,
@@ -276,6 +276,38 @@ enum Commands {
         /// Checks file (default: `verify.txt` in the input's directory)
         #[arg(long)]
         checks: Option<PathBuf>,
+
+        /// Use the zero-config auto verifier even when a verify.txt exists
+        #[arg(long)]
+        auto: bool,
+
+        /// Render tier: auto, always, or never
+        #[arg(long, value_enum, default_value = "auto")]
+        render: RenderMode,
+
+        /// Maximum number of issues retained in the report
+        #[arg(long, default_value_t = 20)]
+        max_issues: usize,
+
+        /// Maximum number of structural/render sample frames
+        #[arg(long, default_value_t = 32)]
+        max_frames: usize,
+
+        /// Which issue severities produce exit code 1
+        #[arg(long, value_enum, default_value = "error")]
+        fail_on: FailOn,
+
+        /// Text verbosity: summary or full
+        #[arg(long, value_enum, default_value = "summary")]
+        detail: Detail,
+
+        /// Emit a compact JSON brief for an LLM repair loop
+        #[arg(long)]
+        brief: bool,
+
+        /// Optional directory for rendered issue frames
+        #[arg(long)]
+        frames_dir: Option<PathBuf>,
 
         /// Output image width (defaults to the file's `config { resolution: .. }`, else 1280)
         #[arg(long)]
@@ -360,6 +392,7 @@ fn main() {
     };
     tracing_subscriber::fmt()
         .with_env_filter(filter)
+        .with_writer(std::io::stderr)
         .with_ansi(!args.no_color)
         .init();
 
@@ -519,6 +552,14 @@ fn dispatch(command: Commands, extensions: &CliExtensions) {
         Commands::Verify {
             input,
             checks,
+            auto,
+            render,
+            max_issues,
+            max_frames,
+            fail_on,
+            detail,
+            brief,
+            frames_dir,
             width,
             height,
             set,
@@ -527,6 +568,14 @@ fn dispatch(command: Commands, extensions: &CliExtensions) {
             commands::verify::run(
                 &input,
                 checks.as_ref(),
+                auto,
+                render,
+                max_issues,
+                max_frames,
+                fail_on,
+                detail,
+                brief,
+                frames_dir.as_ref(),
                 width,
                 height,
                 &set,

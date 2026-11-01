@@ -15,10 +15,10 @@ The four review-adjacent commands answer different questions.
 | `animatix check <file>` | Does the source build, type-check, and produce expected diagnostics? | None | Fast build gate |
 | `animatix review <file>` | Are there structural layout, visibility, or timing defects? | No `verify.txt`; GPU optional | **Default automatic authoring gate** |
 | `animatix storyboard <file>` | What does the animation look like across its beats and resting frame? | GPU | Qualitative visual review |
-| `animatix verify <file>` | Do declared pixel-regression checks still pass? | `verify.txt` and GPU | Internal regression escape hatch |
+| `animatix verify <file>` | Does the scene satisfy the strict visibility, draw, ink, and resting-composition contract? | No `verify.txt`; GPU optional (`--render auto`) | **Strict gate for generated scenes**; legacy `verify.txt` still supported |
 
 `check` exits 0 with warnings, and 1 when an error diagnostic exists.
-`storyboard` and `verify` exit 1 when they cannot render or a check fails.
+`storyboard` exits 1 when it cannot render. `verify` uses a three-way auto-mode policy: 0 pass/warn, 1 verification failure, 2 cannot run; legacy checks mode keeps its historical exit behavior.
 `review` has the three-way exit policy described below.
 
 ## `animatix review`
@@ -153,24 +153,99 @@ animatix storyboard examples/gallery/fft_explain.amx -o /tmp/storyboard.png
 control the sampled times and grid. Use it for cues, overlaps, clipping, and
 the resting composition; it does not produce a machine-checkable issue list.
 
-## `animatix verify` (legacy/internal)
+## `animatix verify`
 
-`animatix verify` remains available as an **internal pixel-regression escape
-hatch**, not the default authoring gate. It renders frames at declared times
-and checks a line-based file (default `verify.txt` beside the input):
+`verify` is the **strict contract gate** for generated scenes. It needs no
+`verify.txt` and no GPU: by default it derives the contract from the built
+scene and evaluates structural rules, then adds pixel rules when an offscreen
+adapter is available.
 
 ```bash
-animatix verify dogfood/projects/effects-wave1/entry.amx
-animatix verify scene.amx --checks custom.verify.txt --format json
+animatix verify scene.amx
+animatix verify scene.amx --format json --render never
+animatix verify scene.amx --auto --checks legacy.verify.txt   # rejected: choose one mode
+animatix verify scene.amx --checks legacy.verify.txt          # legacy pixel checks
 ```
 
-The existing transformer corpus contains 196 `verify.txt` checks, and dogfood
-projects may carry their own. Keep those files and checks working; new projects
-should use `animatix review` instead. `--emit-verify` on `review` can suggest
-lines from measured facts, but the output is review material and is never
-written over an existing file automatically.
+Mode selection:
 
-The check grammar is documented in [`../dogfood/README.md`](../dogfood/README.md).
+- No `--checks` and no `verify.txt` beside the input: zero-config **auto**.
+- A `verify.txt` beside the input: legacy **checks** mode, preserved for the
+  existing transformer corpus and dogfood projects.
+- `--auto` forces auto mode even when an old sidecar exists.
+- `--checks PATH` explicitly selects the legacy checker.
+
+Auto mode derives the usable contract from the scene itself: actors that
+should be visible, their reveal windows, draw presence, per-actor ink, resting
+composition, and dead beats. It reports a compact issue list instead of a
+pass/fail-only check, so an LLM can act on the result. The primary rule ids are
+`build.error`, `build.never-revealed`, `actor.opacity-never-positive`,
+`actor.never-on-frame`, `actor.draw-missing`, `actor.ink-missing`,
+`actor.reveal-missing`, `actor.clipped`, `text.overflow`, `beat.static`,
+`frame.blank`, `rest.ink-floor`, `rest.cast-erased`, `transition.endpoint`, and
+`scene.duration`.
+
+### Flags
+
+| Flag | Default | Meaning |
+|------|---------|---------|
+| `--auto` | — | Force auto mode even if `verify.txt` exists |
+| `--checks <path>` | `verify.txt` beside input, if present | Legacy line-based checks |
+| `--render auto\|always\|never` | `auto` | Pixel tier; `never` is structural-only, `always` treats a missing adapter as cannot-run |
+| `--max-frames N` | `32` | Structural/render sample cap |
+| `--max-issues N` | `20` | Cap on retained issues; errors are never dropped |
+| `--fail-on error\|warning\|never` | `error` | Which severities produce exit 1; cannot-run still exits 2 |
+| `--detail summary\|full` | `summary` | Text verbosity; full adds fix snippets and suggestions |
+| `--brief` | — | Compact JSON for an LLM repair loop (`kind: "verify.brief"`); ignored in text mode |
+| `--frames-dir <dir>` | — | Save rendered issue frames |
+| `--format text\|json` | `text` | Text report or stable JSON (`schema_version: 1`, `kind: "verify"`) |
+| `--width`, `--height` | config resolution, else `1280x720` | Canvas override |
+| `--set NAME=VALUE` | — | Build-time variable override (repeatable) |
+
+Exit codes are three-way in auto mode: **0** pass or warnings below the
+threshold, **1** verification failure (build/source error or a failed rule),
+and **2** the verifier could not run (missing input, plugin failure, or
+`--render always` without an adapter). Legacy checks mode keeps its historical
+exit behavior: 1 for a failed check or a renderer failure.
+
+### JSON contract
+
+Auto mode emits one parseable document even for build errors:
+
+```json
+{
+  "schema_version": 1,
+  "kind": "verify",
+  "input": "scene.amx",
+  "mode": "auto",
+  "verdict": "fail",
+  "target": { "kind": "single_scene", "duration_s": 2.0, "resolution": [1280, 720] },
+  "render": { "status": "skipped", "reason": "--render never" },
+  "coverage": { "structural": "complete", "render": "skipped", "complete": false },
+  "contract": { "scenes": 1, "actors": 4, "visual_actors": 4, "visible_windows": 4, "beats": 3 },
+  "issues": [
+    {
+      "rule_id": "build.never-revealed",
+      "severity": "error",
+      "confidence": "high",
+      "scene": "main",
+      "time_s": null,
+      "actor": "title",
+      "source_line": 3,
+      "message": "Actor `title` ... remains invisible throughout playback.",
+      "evidence": { "diagnostic_code": "never-revealed" },
+      "fix": { "kind": "add-entrance", "target": "title", "source_line": 3, "snippet": "fade-in title [600ms]" },
+      "suggestion": "Add an entrance action ..."
+    }
+  ],
+  "summary": { "errors": 1, "warnings": 0, "infos": 0, "issues_omitted": 0 }
+}
+```
+
+`coverage.complete` is false whenever the render tier was skipped. The issue
+list is capped by `--max-issues`, but errors bypass the cap. Legacy checks mode
+keeps its original `verify: N of M checks passed` text output for
+`scripts/transformer-verify.sh` and `scripts/dogfood-verify.sh`.
 
 ## Limitations
 
@@ -191,6 +266,7 @@ The check grammar is documented in [`../dogfood/README.md`](../dogfood/README.md
 - **Structural evaluation has no filter backend.** `SceneProgram`s are
   evaluated without GPU effects, so structural facts describe the unfiltered
   content. Effect appearance and filter-only defects require the render tier.
-- **`review` is not a pixel-regression suite.** It samples beats and reports
-  evidence; it does not replace exact-frame `verify.txt` checks where a project
-  deliberately wants them.
+- **`review` is heuristic; `verify` is the strict gate.** `review` samples beats
+  and reports evidence for authoring. `verify` applies the generated-scene
+  contract and, when a project carries exact-frame `verify.txt` checks, keeps
+  the legacy pixel checker as a separate strict mode.

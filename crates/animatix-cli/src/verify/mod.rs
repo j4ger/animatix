@@ -1,3 +1,9 @@
+//! `animatix verify`: strict generated-scene contract checks.
+//!
+//! `auto` owns the zero-config mode built on shared `review` facts. The
+//! line-based checker below remains for projects with an existing
+//! `verify.txt`; both feed the same CLI, but auto mode has its own JSON report.
+
 use super::BuildTarget;
 use animatix::timeline::SceneDimensions;
 use std::path::Path;
@@ -7,6 +13,18 @@ use crate::frame_source::{
     actor_visibility, differing_fraction, frame_ink_fraction, region_differing_fraction,
     render_frame_observable, verify_time_key,
 };
+
+pub(crate) mod auto;
+pub(crate) mod report;
+
+fn bounds_for_label(
+    bounds: &std::collections::HashMap<(String, String), Box2>,
+    label: &str,
+) -> Option<Box2> {
+    bounds
+        .iter()
+        .find_map(|((_scene, candidate), bounds)| (candidate == label).then_some(*bounds))
+}
 
 pub(crate) struct VerifyCheck {
     kind: VerifyKind,
@@ -191,7 +209,7 @@ pub(crate) fn run_verify_checks(
         let (passed, detail) = match check.kind {
             VerifyKind::Visible | VerifyKind::Invisible => {
                 let label = check.label.as_deref().unwrap_or_default();
-                let bounds = entry.bounds.get(label).copied();
+                let bounds = bounds_for_label(&entry.bounds, label);
                 let visibility = actor_visibility(
                     &view,
                     bounds,
@@ -254,7 +272,7 @@ pub(crate) fn run_verify_checks(
                             "rendered frame buffer has an unexpected size".to_string()
                         })?;
                 let min = check.threshold.unwrap_or(0.01);
-                match after.bounds.get(label).copied() {
+                match bounds_for_label(&after.bounds, label) {
                     Some(bounds) => {
                         let bounds: Box2 = bounds;
                         let region = bounds.padded(BOUNDS_PAD);

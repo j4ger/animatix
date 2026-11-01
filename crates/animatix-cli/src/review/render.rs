@@ -98,7 +98,7 @@ pub(crate) fn run_render_tier(
         let ink_fraction = frame_ink_fraction(&view, DEFAULT_TOLERANCE);
 
         let mut actor_ink = BTreeMap::new();
-        for (label, bounds) in &rendered.bounds {
+        for ((scene, label), bounds) in &rendered.bounds {
             let visibility = actor_visibility(
                 &view,
                 Some(*bounds),
@@ -107,7 +107,7 @@ pub(crate) fn run_render_tier(
                 DEFAULT_MIN_INK_PIXELS,
             );
             if visibility.ink_fraction > 0.0 {
-                actor_ink.insert(label.clone(), visibility.ink_fraction);
+                actor_ink.insert((scene.clone(), label.clone()), visibility.ink_fraction);
             }
         }
 

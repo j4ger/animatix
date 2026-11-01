@@ -2489,7 +2489,7 @@ automatic gate.
 | `animatix check <file>` | Build/type/diagnostic gate: parse errors, unresolved names, never-revealed warnings | None |
 | `animatix review <file>` | Automatic structural review of layout, visibility, and timing, with an optional GPU pixel tier | No `verify.txt`; GPU optional (`--render auto` skips the pixel tier when no adapter exists) |
 | `animatix storyboard <file>` | Qualitative visual review: a contact sheet of keyframe beats and the resting frame | GPU |
-| `animatix verify <file>` | Internal pixel-regression escape hatch over declared `verify.txt` checks | `verify.txt` and GPU |
+| `animatix verify <file>` | Strict zero-config contract gate for generated scenes; legacy `verify.txt` checks still run when a sidecar exists | No `verify.txt`; GPU optional (`--render auto`); legacy path needs GPU |
 
 `animatix review` builds the target, evaluates scene programs at sample times,
 and reports issues with a stable rule id, severity, confidence, source line,
@@ -2511,10 +2511,7 @@ actor, time, evidence, and suggestion. It exits 0 when no issue reaches the
 | `--frames-dir <dir>` | — | Save rendered review PNG samples |
 | `--emit-verify <path>` | — | Write suggested `verify.txt` lines; refuses to overwrite |
 
-`animatix verify` remains available as an **internal pixel-regression escape
-hatch** with the existing 196-check corpus (the transformer scene set). It is
-not the default authoring gate and new projects do not need a `verify.txt`; the
-file remains supported for legacy projects that already carry one. See
+`animatix verify` is the **strict contract gate** for generated scenes: without a `verify.txt` it derives visibility, draw, ink, reveal, resting-composition, and dead-beat checks from the scene itself. It is not the default authoring gate; `animatix review` remains the tolerant structural reviewer. Legacy projects with a `verify.txt` (including the 196-check transformer corpus) keep the original line-based pixel checks and text output; `--auto` forces the new mode when a sidecar should be ignored. See
 [`review.md`](review.md) for the complete review guide, JSON schema, rule
 list, exit codes, and limitations.
 

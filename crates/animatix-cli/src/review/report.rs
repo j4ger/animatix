@@ -68,6 +68,7 @@ impl ReviewReport {
                     "rule_id": issue.rule_id,
                     "severity": issue.severity.as_str(),
                     "confidence": issue.confidence.as_str(),
+                    "scene": issue.scene,
                     "time_s": issue.time_s,
                     "actor": issue.actor,
                     "source_line": issue.source_line,
@@ -177,7 +178,7 @@ impl ReviewReport {
                 };
                 lines.push(format!("ink {:.3} {:.4}", sample.time_s, threshold));
                 let mut visible = 0usize;
-                for (label, fraction) in &sample.actor_ink {
+                for ((_scene, label), fraction) in &sample.actor_ink {
                     if *fraction >= 0.01 && visible < 8 {
                         lines.push(format!("visible {:.3} {label}", sample.time_s));
                         visible += 1;
@@ -254,7 +255,9 @@ pub(crate) fn run_review(
     )?;
 
     apply_render_facts(&mut facts, &render);
-    let RuleRun { issues, skipped } = rules::evaluate(&facts, options.policy);
+    let RuleRun {
+        issues, skipped, ..
+    } = rules::evaluate(&facts, options.policy);
     Ok(ReviewReport {
         input: input.display().to_string(),
         target: facts.target.clone(),
@@ -269,7 +272,7 @@ pub(crate) fn run_review(
 /// Fill missing declaration lines from the analyzer's label index. Expanded
 /// component actors may not carry a declaration span on the built entity; the
 /// analyzer can still point at the source declaration the label came from.
-fn resolve_actor_source_lines(input: &Path, facts: &mut ReviewFacts) {
+pub(crate) fn resolve_actor_source_lines(input: &Path, facts: &mut ReviewFacts) {
     let Ok(source) = std::fs::read_to_string(input) else {
         return;
     };
@@ -341,11 +344,13 @@ mod tests {
                 cast: 1,
                 actors: Vec::new(),
                 ink_fraction: None,
+                state_digest: None,
             }],
             issues: vec![RuleIssue {
                 rule_id: "test.rule",
                 severity,
                 confidence: Confidence::High,
+                scene: None,
                 time_s: Some(0.0),
                 actor: Some("box".into()),
                 source_line: Some(1),

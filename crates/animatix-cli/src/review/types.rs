@@ -164,6 +164,8 @@ pub(crate) struct RuleIssue {
     pub severity: Severity,
     /// Rule confidence.
     pub confidence: Confidence,
+    /// Scene owning the finding, when known.
+    pub scene: Option<String>,
     /// Sample time the finding refers to, if any.
     pub time_s: Option<f64>,
     /// Actor label the finding refers to, if any.
@@ -187,8 +189,9 @@ pub(crate) struct RenderSampleFacts {
     pub ink_fraction: f32,
     /// Fraction of pixels changed from the previous rendered sample.
     pub changed_from_prev: Option<f32>,
-    /// Per-actor ink fraction inside the actor's bounds.
-    pub actor_ink: std::collections::BTreeMap<String, f32>,
+    /// Per-actor ink fraction inside the actor's bounds, keyed by
+    /// `(scene, label)` so multi-scene compositions cannot collide.
+    pub actor_ink: std::collections::BTreeMap<(String, String), f32>,
     /// Active transition, when this sample landed inside a blend.
     pub transition: Option<crate::frame_source::TransitionFact>,
 }

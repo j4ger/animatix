@@ -60,6 +60,9 @@ Out of scope for the first bring-up:
    +--> animatix review (Automatic structural review, optional GPU pixel tier)
    |       |
    |       v (clean)
+   +--> animatix verify (Strict generated-scene contract; structural by default)
+   |       |
+   |       v (clean)
    +--> animatix storyboard (Multi-panel contact sheet image)
            |
            v

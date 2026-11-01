@@ -37,11 +37,13 @@ candidate provides the better visual outcome, motion polish, or DSL ergonomics?"
    ```bash
    cargo run --bin animatix -- image dogfood/projects/<name>/entry.amx --time 1.0 --output /tmp/dogfood.png
    ```
-   Legacy projects that already carry a `verify.txt` may still run the content
-   checks as an optional regression floor:
+   New projects can also run the strict zero-config verifier, which adds
+   draw/ink/reveal/rest checks and needs no sidecar:
    ```bash
-   cargo run --bin animatix -- verify dogfood/projects/<name>/entry.amx
+   cargo run --bin animatix -- verify dogfood/projects/<name>/entry.amx --render never
    ```
+   Legacy projects that already carry a `verify.txt` still run the content
+   checks; use `--auto` to force the new mode when a sidecar should be ignored.
 4. When the grammar blocks the intent, create a minimal probe under
    `probes/`. The probe should reproduce the gap with the smallest possible
    `.amx`, not with the whole project.
@@ -111,17 +113,21 @@ Inspect the contact sheet to verify:
 - Layouts and labels do not collide or overflow scene boundaries.
 - The resting frame holds a finished, readable figure (not an empty plate).
 
-### 3. Optional Legacy Regression Floors (`verify.txt`)
+### 3. Strict Contract and Legacy Regression Floors (`animatix verify`)
 
-`animatix verify` remains as an internal pixel-regression escape hatch for
-projects that already carry a companion `verify.txt`; it is not required for new
-projects and is not the primary authoring gate:
+`animatix verify` has two modes. With no `verify.txt` beside the input it is a
+strict zero-config contract gate for generated scenes (structural rules by
+default; add `--render auto` for pixel rules). If a companion `verify.txt`
+exists it keeps the legacy line-based pixel checker:
 
 ```bash
-cargo run --bin animatix -- verify dogfood/projects/<name>/entry.amx
+cargo run --bin animatix -- verify dogfood/projects/<name>/entry.amx --render never
+cargo run --bin animatix -- verify dogfood/projects/<name>/entry.amx --checks verify.txt
 ```
 
-It renders the frame(s) at the named times and prints one PASS/FAIL per line.
+The legacy checks render the frame(s) at the named times and print one PASS/FAIL
+per line. Auto mode prints a compact issue list with `fix` hints; see
+`docs/review.md` for the JSON schema.
 The file is line-based: one check per line, `#` comments and blank lines
 ignored, times are **global** composition times (see `animatix timeline`).
 

@@ -147,17 +147,23 @@ impl Box2 {
     }
 }
 
-/// Per-actor world-space bounds recorded during a frame, keyed by label.
+/// Per-actor world-space bounds recorded during a frame, keyed by
+/// `(scene, label)`.
 ///
 /// Reads [`SceneProgram::precise_bounds`], which is only populated on the
 /// observable evaluation path — use
 /// `animatix_render::offscreen::OffscreenRenderer::render_timeline_observable`
 /// so the bounds and the pixels come from the same evaluation.
-pub(crate) fn bounds_map(program: &SceneProgram) -> HashMap<String, Box2> {
+pub(crate) fn bounds_map(program: &SceneProgram, scene: &str) -> HashMap<(String, String), Box2> {
     program
         .precise_bounds
         .iter()
-        .map(|(label, rect)| (label.clone(), Box2::new(rect.x0, rect.y0, rect.x1, rect.y1)))
+        .map(|(label, rect)| {
+            (
+                (scene.to_string(), label.clone()),
+                Box2::new(rect.x0, rect.y0, rect.x1, rect.y1),
+            )
+        })
         .collect()
 }
 
@@ -254,8 +260,8 @@ pub(crate) fn resolve_frame_target<'a>(
 pub(crate) struct ObservableFrame {
     /// RGBA pixels.
     pub(crate) frame: animatix_render::offscreen::RenderedFrame,
-    /// World-space actor bounds keyed by label.
-    pub(crate) bounds: HashMap<String, Box2>,
+    /// World-space actor bounds keyed by `(scene, label)`.
+    pub(crate) bounds: HashMap<(String, String), Box2>,
     /// Active transition, when the sample sits inside a blend.
     pub(crate) transition: Option<TransitionFact>,
 }
@@ -278,7 +284,7 @@ pub(crate) fn render_frame_observable(
             )?;
             Ok(ObservableFrame {
                 frame,
-                bounds: bounds_map(&program),
+                bounds: bounds_map(&program, "main"),
                 transition: None,
             })
         },
@@ -294,7 +300,7 @@ pub(crate) fn render_frame_observable(
             )?;
             Ok(ObservableFrame {
                 frame,
-                bounds: bounds_map(&program),
+                bounds: bounds_map(&program, &scene.name),
                 transition: None,
             })
         },
@@ -320,7 +326,7 @@ pub(crate) fn render_frame_observable(
                 DebugRenderOptions::default(),
                 &mut fb,
             );
-            let mut bounds = bounds_map(&from_program);
+            let mut bounds = bounds_map(&from_program, &from.name);
             let mut fb = None;
             let to_program = to.timeline.evaluate_program_with_debug(
                 blend.to_local,
@@ -328,9 +334,7 @@ pub(crate) fn render_frame_observable(
                 DebugRenderOptions::default(),
                 &mut fb,
             );
-            for (label, rect) in bounds_map(&to_program) {
-                bounds.entry(label).or_insert(rect);
-            }
+            bounds.extend(bounds_map(&to_program, &to.name));
             Ok(ObservableFrame {
                 frame,
                 bounds,

@@ -14,7 +14,7 @@ use animatix::timeline::{
 use animatix_syntax::diagnostics::{Diagnostic, DiagnosticSeverity};
 
 use crate::diagnostics::backticked_label;
-use crate::frame_source::{Box2, evaluate_program_frame};
+use crate::frame_source::{BOUNDS_PAD, Box2, evaluate_program_frame};
 
 use super::types::{RenderFacts, Severity, SiteRestFacts, TargetKind};
 
@@ -43,6 +43,10 @@ pub(crate) struct ActorFact {
     pub max_effective_opacity: f32,
     /// Directly renders visual ink.
     pub visual: bool,
+    /// Container that lays out or groups children rather than drawing itself.
+    pub is_group_like: bool,
+    /// Primitive category (shape, text, media, plot, container, annotation).
+    pub category: ActorCategory,
     /// Text-engine actor.
     pub is_text: bool,
     /// Plot/chart actor.
@@ -68,6 +72,14 @@ pub(crate) struct ActorFrameFact {
     pub bounds: Option<Box2>,
     /// Fraction of the actor's bounds that lies inside the canvas.
     pub on_frame_fraction: f64,
+    /// Fraction of the padded bounds that lies inside the canvas. Zero-area
+    /// primitives such as `Line` and `Arrow` need padding before this measure
+    /// is meaningful.
+    pub padded_on_frame_fraction: f64,
+    /// Number of `SceneItem`s this actor emitted at this sample, when known.
+    pub draw_items: Option<u32>,
+    /// Number of `RenderCommand`s those items emitted, when known.
+    pub draw_commands: Option<u32>,
     /// Evaluated `text_max_width` (0 = no wrap).
     pub text_max_width: Option<f32>,
     /// Evaluated `overflow` mode.
@@ -87,6 +99,8 @@ pub(crate) struct FrameFact {
     pub cast: usize,
     /// Whole-frame ink fraction when the render tier measured this sample.
     pub ink_fraction: Option<f32>,
+    /// Structural state digest used by `beat.static` without a renderer.
+    pub state_digest: Option<u64>,
     /// Per-actor measurements.
     pub actors: Vec<ActorFrameFact>,
 }
@@ -247,11 +261,12 @@ pub(crate) fn collect_facts(
     let duration_s = super::samples::target_duration_s(target);
     let mut probe_times = Vec::new();
     for action in &actions {
-        if action.category == ActionCategory::Entrance {
-            let probe = (action.start_s + action.duration_s + 0.05).max(0.0).min(duration_s);
-            if !base_times.iter().any(|sample| (*sample - probe).abs() < 0.001) {
-                probe_times.push(probe);
-            }
+        if matches!(action.category, ActionCategory::Reorder) {
+            continue;
+        }
+        let probe = (action.start_s + action.duration_s + 0.05).max(0.0).min(duration_s);
+        if !base_times.iter().any(|sample| (*sample - probe).abs() < 0.001) {
+            probe_times.push(probe);
         }
     }
     probe_times.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
@@ -362,6 +377,8 @@ fn collect_actors_from_timeline(
             effect_scope_ancestors,
             parent_is_stack,
             visual: caps.renders_visual_content(),
+            is_group_like: caps.is_group_like(),
+            category: caps.category,
             is_text: caps.text.is_some() || caps.text_paths,
             is_plot: caps.category == ActorCategory::Plot,
             is_effect_scope: caps.is_effect_scope(),
@@ -400,6 +417,12 @@ fn evaluate_frame(
     let mut by_actor: BTreeMap<(String, String), ActorFrameFact> = BTreeMap::new();
 
     for part in &program_frame.parts {
+        let mut draw_counts: BTreeMap<&str, (u32, u32)> = BTreeMap::new();
+        for item in &part.program.items {
+            let entry = draw_counts.entry(item.label.as_str()).or_insert((0, 0));
+            entry.0 += 1;
+            entry.1 += item.commands.len() as u32;
+        }
         for item in &part.program.items {
             let bounds = part
                 .program
@@ -409,7 +432,13 @@ fn evaluate_frame(
             let (text_max_width, text_overflow) =
                 text_measurements(part.timeline, &item.label, time_ms);
             let measured_text_width = bounds.map(|b| (b.x1 - b.x0).max(0.0) as f32);
-            let on_frame_fraction = bounds.map_or(0.0, |b| on_frame_fraction(b, dimensions));
+            let raw_on_frame_fraction = bounds.map_or(0.0, |b| on_frame_fraction(b, dimensions));
+            let padded_on_frame_fraction =
+                bounds.map_or(0.0, |b| on_frame_fraction(b.padded(BOUNDS_PAD), dimensions));
+            let (draw_items, draw_commands) = draw_counts
+                .get(item.label.as_str())
+                .copied()
+                .map_or((None, None), |(items, commands)| (Some(items), Some(commands)));
             by_actor.insert(
                 (part.scene.clone(), item.label.clone()),
                 ActorFrameFact {
@@ -417,7 +446,10 @@ fn evaluate_frame(
                     label: item.label.clone(),
                     opacity: Some(item.opacity),
                     bounds,
-                    on_frame_fraction,
+                    on_frame_fraction: raw_on_frame_fraction,
+                    padded_on_frame_fraction,
+                    draw_items,
+                    draw_commands,
                     text_max_width,
                     text_overflow,
                     measured_text_width,
@@ -444,6 +476,9 @@ fn evaluate_frame(
                     opacity: Some(opacity),
                     bounds: None,
                     on_frame_fraction: 0.0,
+                    padded_on_frame_fraction: 0.0,
+                    draw_items: None,
+                    draw_commands: None,
                     text_max_width,
                     text_overflow,
                     measured_text_width: None,
@@ -462,16 +497,42 @@ fn evaluate_frame(
             visual
                 && frame_actor.opacity.unwrap_or(0.0) > 0.01
                 && frame_actor.bounds.is_some()
-                && frame_actor.on_frame_fraction > 0.0
+                && frame_actor.padded_on_frame_fraction > 0.0
         })
         .count();
+    let state_digest = frame_state_digest(&actor_frames);
     Ok(FrameFact {
         time_s,
         scene: program_frame.scene,
         cast,
         ink_fraction: None,
+        state_digest: Some(state_digest),
         actors: actor_frames,
     })
+}
+
+/// Stable within a run; used only to compare consecutive structural samples.
+fn frame_state_digest(actors: &[ActorFrameFact]) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325u64;
+    let mut write = |value: u64| {
+        hash ^= value;
+        hash = hash.wrapping_mul(0x1000_0000_01b3);
+    };
+    for actor in actors {
+        for byte in actor.scene.as_bytes().iter().chain(actor.label.as_bytes()) {
+            write(u64::from(*byte));
+        }
+        write((actor.opacity.unwrap_or(0.0) * 1000.0) as u64);
+        for value in actor
+            .bounds
+            .map_or([0.0; 4], |bounds| [bounds.x0, bounds.y0, bounds.x1, bounds.y1])
+        {
+            write((value * 1000.0) as i64 as u64);
+        }
+        write(u64::from(actor.draw_items.unwrap_or(0)));
+        write(u64::from(actor.draw_commands.unwrap_or(0)));
+    }
+    hash
 }
 
 fn text_measurements(

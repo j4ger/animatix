@@ -6,12 +6,13 @@
 //! ink, beat changes) through the shared `frame_source` helpers, so `review`
 //! and `verify` cannot drift apart.
 
-mod facts;
-mod render;
-mod report;
-mod rules;
-mod samples;
-mod types;
+pub(crate) mod facts;
+pub(crate) mod render;
+pub(crate) mod report;
+pub(crate) mod rules;
+pub(crate) mod samples;
+pub(crate) mod types;
+pub(crate) mod verify_rules;
 
 pub(crate) use report::{run_review, write_verify_file};
 pub(crate) use types::{
