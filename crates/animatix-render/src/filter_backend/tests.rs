@@ -424,6 +424,123 @@ fn gpu_filter_blur_softens_a_hard_boundary() {
     );
 }
 
+/// Bloom is a composite: it adds the pre-chain original back onto the running
+/// result. On a black canvas, a mid-gray rect run through `Blur` alone has a
+/// dimmed edge; appending `Bloom` restores the original's light on top of it.
+#[test]
+fn bloom_adds_the_pre_chain_original_to_the_blur() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+
+    let mut scene = filled_scene(
+        vello::peniko::Color::from_rgba8(0, 0, 0, 255),
+        kurbo::Rect::new(0.0, 0.0, 64.0, 64.0),
+    );
+    let rect = filled_scene(
+        vello::peniko::Color::from_rgba8(128, 128, 128, 255),
+        kurbo::Rect::new(20.0, 20.0, 44.0, 44.0),
+    );
+    scene.encoding_mut().append(rect.encoding(), &None);
+
+    let blurred = render(&mut backend, &scene, DIMS, &blur_chain(6.0));
+
+    let mut chain = blur_chain(6.0);
+    chain.instances.push(EffectInstance {
+        id: EffectId::new("Bloom"),
+        enabled: true,
+        params: EffectParams {
+            values: vec![EffectParamValue::F32(1.0), EffectParamValue::F32(1.0)],
+        },
+    });
+    let bloomed = render(&mut backend, &scene, DIMS, &chain);
+
+    let w = bloomed.natural_size[0] as usize;
+    let (x, y) = (20usize, 32usize);
+    let before = blurred.data.data.data()[(y * w + x) * 4];
+    let after = bloomed.data.data.data()[(y * w + x) * 4];
+    assert!(
+        after > before + 20,
+        "Bloom must add the pre-chain original at the blurred rect edge, \
+         got blur={before} blur+bloom={after}"
+    );
+}
+
+/// `Bloom.threshold` gates the added light by the running result's luma. Two
+/// flat regions — a bright one above the threshold and a dark one below it —
+/// run through the same `Blur → Bloom` chain: at threshold 0.6 only the bright
+/// region brightens. At threshold 0 both regions brighten, which is the
+/// historical exposure lift the gate must not disturb.
+#[test]
+fn bloom_threshold_brightens_only_bright_regions() {
+    let Some(mut backend) = gpu_backend(DIMS) else {
+        return;
+    };
+
+    // Opaque black canvas with a bright (230) and a dark (60) opaque rect,
+    // separated far enough that a small blur cannot mix them.
+    let mut scene = filled_scene(
+        vello::peniko::Color::from_rgba8(0, 0, 0, 255),
+        kurbo::Rect::new(0.0, 0.0, 64.0, 64.0),
+    );
+    let bright = filled_scene(
+        vello::peniko::Color::from_rgba8(230, 230, 230, 255),
+        kurbo::Rect::new(6.0, 20.0, 26.0, 44.0),
+    );
+    let dark = filled_scene(
+        vello::peniko::Color::from_rgba8(60, 60, 60, 255),
+        kurbo::Rect::new(38.0, 20.0, 58.0, 44.0),
+    );
+    scene.encoding_mut().append(bright.encoding(), &None);
+    scene.encoding_mut().append(dark.encoding(), &None);
+
+    let blur_bloom_chain = |threshold: f32| {
+        let mut chain = blur_chain(3.0);
+        chain.instances.push(EffectInstance {
+            id: EffectId::new("Bloom"),
+            enabled: true,
+            params: EffectParams {
+                values: vec![
+                    EffectParamValue::F32(1.0), // intensity
+                    EffectParamValue::F32(1.0), // keep
+                    EffectParamValue::F32(threshold),
+                ],
+            },
+        });
+        chain
+    };
+    let red = |image: &SceneImage, x: usize, y: usize| {
+        let w = image.natural_size[0] as usize;
+        image.data.data.data()[(y * w + x) * 4]
+    };
+
+    let plain = render(&mut backend, &scene, DIMS, &EffectChain::default());
+    let (plain_bright, plain_dark) = (red(&plain, 16, 32), red(&plain, 48, 32));
+
+    let gated = render(&mut backend, &scene, DIMS, &blur_bloom_chain(0.6));
+    let (gated_bright, gated_dark) = (red(&gated, 16, 32), red(&gated, 48, 32));
+    assert!(
+        gated_bright > plain_bright + 15,
+        "threshold 0.6 must still brighten the bright region, got plain={plain_bright} gated={gated_bright}"
+    );
+    assert!(
+        gated_dark.abs_diff(plain_dark) <= 3,
+        "threshold 0.6 must leave the dark region alone, got plain={plain_dark} gated={gated_dark}"
+    );
+
+    let open = render(&mut backend, &scene, DIMS, &blur_bloom_chain(0.0));
+    let (open_bright, open_dark) = (red(&open, 16, 32), red(&open, 48, 32));
+    assert!(
+        open_bright > plain_bright + 15,
+        "threshold 0 must still brighten the bright region, got plain={plain_bright} bloom={open_bright}"
+    );
+    assert!(
+        open_dark > plain_dark + 20,
+        "threshold 0 must preserve the historical exposure lift on dark regions, \
+         got plain={plain_dark} bloom={open_dark}"
+    );
+}
+
 /// Check that the colour-grade pass mutates pixels: a red rectangle with
 /// `saturate: 0` must desaturate to gray.
 #[test]
@@ -724,31 +841,70 @@ fn edge_lights_the_step_boundary() {
 }
 
 /// LensDistortion must displace samples: a band that survives at the
-/// control setting must move out of a near-edge pixel at high `amount`,
-/// while the centre (radius 0) is untouched either way.
+/// control setting must move out of a near-edge pixel at `amount: 24` scene
+/// pixels, while the centre (radius 0) is untouched either way.
 #[test]
 fn lens_distortion_displaces_samples_toward_the_centre() {
     let Some(mut backend) = gpu_backend(DIMS) else {
         return;
     };
 
-    // White band over the leftmost 16 columns.
-    let scene = filled_scene(vello::peniko::Color::WHITE, kurbo::Rect::new(0.0, 0.0, 16.0, 64.0));
+    // White band over the leftmost 6 columns.
+    let scene = filled_scene(vello::peniko::Color::WHITE, kurbo::Rect::new(0.0, 0.0, 6.0, 64.0));
 
     let control = effect_chain("LensDistortion", vec![EffectParamValue::F32(0.0)]);
     let control_image = render(&mut backend, &scene, DIMS, &control);
     let cw = control_image.natural_size[0] as usize;
     let control_raw = control_image.data.data.data();
-    assert!(control_raw[(32 * cw + 8) * 4] > 200, "control must show the white band at x=8");
+    assert!(control_raw[(32 * cw + 2) * 4] > 200, "control must show the white band at x=2");
 
-    let warped = effect_chain("LensDistortion", vec![EffectParamValue::F32(130.0)]);
+    let warped = effect_chain("LensDistortion", vec![EffectParamValue::F32(24.0)]);
     let image = render(&mut backend, &scene, DIMS, &warped);
     let w = image.natural_size[0] as usize;
     let raw = image.data.data.data();
     assert!(
-        raw[(32 * w + 8) * 4] < 60,
+        raw[(32 * w + 2) * 4] < 60,
         "the warp must pull the band out of the near-edge pixel, got {}",
-        raw[(32 * w + 8) * 4]
+        raw[(32 * w + 2) * 4]
+    );
+}
+
+/// `LensDistortion.amount` is a scene-pixel distance, so the raster scale must
+/// not change how far an edge moves: full raster and half raster have to land
+/// on the same scene coordinate. Without the declared pixel unit the half-raster
+/// chain would apply the same number in half-size texels and displace twice as
+/// far in scene pixels.
+#[test]
+fn lens_distortion_keeps_the_same_scene_pixel_displacement_at_half_raster() {
+    let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+        return;
+    };
+    let scene = filled_scene(vello::peniko::Color::WHITE, kurbo::Rect::new(0.0, 0.0, 16.0, 64.0));
+    let chain = effect_chain("LensDistortion", vec![EffectParamValue::F32(24.0)]);
+
+    let mut full = GpuFilterBackend::new(device.clone(), queue.clone(), DIMS)
+        .expect("backend at scene resolution");
+    let full_image = render(&mut full, &scene, DIMS, &chain);
+    let full_w = full_image.natural_size[0] as usize;
+    let full_edge = edge_mid_scene_x(full_image.data.data.data(), full_w, 32, 64, 1);
+    assert!(
+        (5..20).contains(&full_edge),
+        "the distorted band edge must stay visible on the left half, got x={full_edge}"
+    );
+
+    let mut half = GpuFilterBackend::new(device, queue, DIMS).expect("backend at half raster");
+    half.set_raster_scale(0.5);
+    let half_image = render(&mut half, &scene, DIMS, &chain);
+    assert_eq!(
+        half_image.natural_size,
+        [32.0, 32.0],
+        "the chain should have dispatched at the reduced raster"
+    );
+    let half_edge = edge_mid_scene_x(half_image.data.data.data(), 32, 16, 32, 2);
+    assert!(
+        full_edge.abs_diff(half_edge) <= 3,
+        "amount 24 px must displace the same scene pixels at half raster: \
+         full edge x={full_edge}, half edge x={half_edge}"
     );
 }
 

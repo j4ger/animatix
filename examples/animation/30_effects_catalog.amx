@@ -1,7 +1,8 @@
-// 30 — Effects Catalog: All 13 Built-in Post-Processing Effects
-// One Filter scope per effect, applied to the same checker backdrop, so the
-// effects can be compared side by side. Effects are labelled children of a
-// Filter scope, applied in declaration order (docs/effects.md).
+// 30 — Effects Catalog: All 14 Built-in Post-Processing Effects in 13 Filter Scopes
+// One Filter scope per cell, applied to the same checker backdrop, so the
+// effects can be compared side by side. Most cells hold one effect; the blur
+// cell stacks Blur then Bloom. Effects are labelled children of a Filter scope,
+// applied in declaration order (docs/effects.md).
 //
 // Performance boundary (see docs/roadmap.md): this is a deliberate stress
 // reference — 13 simultaneous effect scopes at 720p. On integrated GPUs
@@ -15,11 +16,12 @@ config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 #0s
 
 title: Text, text: "Effects Catalog", font_size: 28, color: text.primary, at: (640, 42)
-subtitle: Text, text: "each cell = one Filter scope + one effect", font_size: 15, color: text.muted, at: (640, 70)
+subtitle: Text, text: "one Filter scope per cell; 13 scopes, 14 effects", font_size: 15, color: text.muted, at: (640, 70)
 
-// Row 1 — blur / grade / chromatic / sharpen
+// Row 1 — blur → bloom / grade / chromatic / sharpen
 f_blur: Filter, at: (170, 190) {
   fx: Blur, radius: 8
+  glow: Bloom, intensity: 0.8, keep: 1.0
   img: Image, url: "../assets/checker.png", size: (250, 110)
 }
 f_grade: Filter, at: (470, 190) {
@@ -67,7 +69,7 @@ f_edge: Filter, at: (770, 500) {
   img: Image, url: "../assets/checker.png", size: (250, 110)
 }
 f_lens: Filter, at: (1070, 500) {
-  fx: LensDistortion, amount: 0.45
+  fx: LensDistortion, amount: 24
   img: Image, url: "../assets/checker.png", size: (250, 110)
 }
 
@@ -76,10 +78,10 @@ f_posterize: Filter, at: (170, 625) {
   fx: Posterize, levels: 4
   img: Image, url: "../assets/checker.png", size: (250, 110)
 }
-note: Text, text: "13 built-in effects; every stage animates like any other property (see 08_effects)", font_size: 14, color: text.muted, at: (660, 625)
+note: Text, text: "14 built-in effects across 13 Filter scopes; every stage animates like any other property (see 08_effects)", font_size: 14, color: text.muted, at: (660, 625)
 
 // Labels under each cell.
-l_blur: Text, text: "Blur", font_size: 14, color: text.secondary, at: (170, 262)
+l_blur: Text, text: "Blur → Bloom", font_size: 14, color: text.secondary, at: (170, 262)
 l_grade: Text, text: "ColorGrade", font_size: 14, color: text.secondary, at: (470, 262)
 l_chroma: Text, text: "ChromaticAberration", font_size: 14, color: text.secondary, at: (770, 262)
 l_sharpen: Text, text: "Sharpen", font_size: 14, color: text.secondary, at: (1070, 262)

@@ -361,4 +361,28 @@ mod tests {
         assert_eq!(chain.instances.len(), 1);
         assert_eq!(chain.instances[0].params.f32_at(0), 8.0);
     }
+
+    /// `Bloom.intensity` starts at its identity 0, so a bare Bloom stage adds
+    /// nothing and must not cost a pass; `intensity > 0` is what makes it
+    /// contribute.
+    #[test]
+    fn bare_bloom_is_skipped() {
+        let mut track = EffectChainTrack::default();
+        track.stages.push(EffectStage::new("glow".into(), EffectId::new("Bloom")));
+
+        assert!(
+            track.build_chain(0).instances.is_empty(),
+            "a bare Bloom at intensity 0 must be skipped as identity"
+        );
+
+        let stage = track.stage_mut("glow").expect("glow stage");
+        stage
+            .param_track_mut("intensity", EffectParamKind::F32)
+            .add_keyframe(0, PropertyValue::F32(0.8));
+        assert_eq!(
+            track.build_chain(0).instances.len(),
+            1,
+            "Bloom above identity must stay in the chain"
+        );
+    }
 }

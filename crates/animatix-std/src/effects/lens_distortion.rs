@@ -12,13 +12,11 @@ use animatix_core::effect::{
 /// `amount` is the corner displacement in scene pixels: positive pulls the
 /// sampled coordinate toward the centre (pincushion), negative pushes it
 /// outward (barrel). Identity `0` leaves the frame untouched.
-pub const LENS_DISTORTION_PARAMS: &[EffectParamSpec] = &[EffectParamSpec::new(
-    "amount",
-    EffectParamKind::F32,
-    EffectParamValue::F32(0.0),
-    0,
-    4,
-)];
+pub const LENS_DISTORTION_PARAMS: &[EffectParamSpec] =
+    &[
+        EffectParamSpec::new("amount", EffectParamKind::F32, EffectParamValue::F32(0.0), 0, 4)
+            .pixel(),
+    ];
 
 pub(crate) const LENS_DISTORTION_WGSL: &str = concat!(
     include_str!("effect_context.wgsl"),
@@ -49,10 +47,11 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let offset = uv - vec2<f32>(0.5);
     // 1.0 at the corners, 0.0 at the centre.
     let radius2 = dot(offset, offset) * 2.0;
-    // Scaling by the diagonal keeps the corner displacement within `amount`
-    // pixels on both axes, which is what `support` reports.
+    // `offset` is in UV units; the corner offset is half the diagonal in
+    // pixels. Solving `(diagonal / 2) * scale = amount` at `radius2 = 1`
+    // makes the corner displacement exactly `amount` scene pixels.
     let diagonal = max(length(vec2<f32>(size)), 1.0);
-    let scale = params.amount * radius2 / diagonal;
+    let scale = params.amount * radius2 * 2.0 / diagonal;
     let sample_uv = clamp(vec2<f32>(0.5) + offset * (1.0 - scale), vec2<f32>(0.0), vec2<f32>(1.0));
     let texel = textureSampleLevel(src, samp, sample_uv, 0.0);
     textureStore(dst, coord, texel);
@@ -90,8 +89,8 @@ impl Effect for LensDistortion {
         out[0..4].copy_from_slice(&params.f32_at(0).to_le_bytes());
     }
 
-    /// Displaces samples; `amount` is the corner displacement in pixels, and
-    /// the diagonal scaling keeps the true maximum at `0.707 × amount`.
+    /// Displaces samples; `amount` is the radial corner displacement in scene
+    /// pixels, so the support is exactly `|amount|`.
     fn support(&self, params: &EffectParams) -> f32 {
         params.f32_at(0).abs()
     }

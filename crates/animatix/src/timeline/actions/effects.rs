@@ -5,22 +5,30 @@ use crate::easing::Easing;
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
-fn effect_timing_params() -> Vec<ActionParam> {
-    let mut params = vec![
-        ActionParam {
-            name: "intensity".to_string(),
-            description:
-                "Intensity/strength of the effect (e.g. [intensity: 10.0] for shake amplitude)"
-                    .to_string(),
-            type_info: "number".to_string(),
-        },
+/// Timing modifiers shared by the effect actions that only take an intensity.
+fn intensity_timing_params() -> Vec<ActionParam> {
+    let mut params = vec![ActionParam {
+        name: "intensity".to_string(),
+        description:
+            "Intensity/strength of the effect (e.g. [intensity: 10.0] for shake amplitude)"
+                .to_string(),
+        type_info: "number".to_string(),
+    }];
+    params.extend(base_timing_params());
+    params
+}
+
+/// Shake also takes an oscillation count; Pulse and Bounce do not.
+fn shake_timing_params() -> Vec<ActionParam> {
+    let mut params = intensity_timing_params();
+    params.insert(
+        1,
         ActionParam {
             name: "frequency".to_string(),
             description: "Number of oscillations (e.g. [frequency: 5] for shake count)".to_string(),
             type_info: "number".to_string(),
         },
-    ];
-    params.extend(base_timing_params());
+    );
     params
 }
 
@@ -34,7 +42,7 @@ impl BuiltinAction for Shake {
             category: "Effects".to_string(),
             description: "Shakes the target with rapid oscillating horizontal motion.".to_string(),
             params: vec![],
-            modifiers: effect_timing_params(),
+            modifiers: shake_timing_params(),
         }
     }
 
@@ -96,13 +104,6 @@ impl BuiltinAction for Shake {
             // Get starting offset
             let start_offset = geometry.motion_offset.get(t_start_ms, [0.0, 0.0]);
 
-            // Duration per shake cycle
-            let _cycle_duration = if frequency > 0 {
-                duration_ms / frequency as f64
-            } else {
-                duration_ms
-            };
-
             // Generate alternating shake keyframes
             for i in 0..frequency {
                 let cycle_progress = i as f64 / frequency as f64;
@@ -140,7 +141,7 @@ impl BuiltinAction for Pulse {
             description: "Pulses the target by scaling up and then returning to normal."
                 .to_string(),
             params: vec![],
-            modifiers: effect_timing_params(),
+            modifiers: intensity_timing_params(),
         }
     }
 
@@ -241,7 +242,7 @@ pub struct Bounce;
 
 impl BuiltinAction for Bounce {
     fn signature(&self) -> ActionSignature {
-        let mut modifiers = effect_timing_params();
+        let mut modifiers = intensity_timing_params();
         modifiers.push(ActionParam {
             name: "restitution".to_string(),
             description:

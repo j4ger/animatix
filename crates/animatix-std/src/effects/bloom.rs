@@ -5,13 +5,19 @@
 //! running result, so a glow could replace the frame or blur it, but never
 //! brighten the frame with it.
 //!
-//! Bloom is therefore a *composite*, not a whole effect: it does nothing useful
-//! on its own and everything useful after a blur.
+//! Bloom is therefore a *composite*, not a whole effect. Its identity is
+//! `intensity: 0` (with `keep` at 1), so a bare `Bloom` contributes nothing and
+//! is skipped. A positive `intensity` adds the pre-chain original back onto the
+//! running result — an exposure lift when Bloom runs alone — and `Blur` followed
+//! by `Bloom` is the glow: the blurred copy is added over the untouched frame.
+//! `threshold` gates that addition by the running result's luma: at its identity
+//! 0 the gate is off and the historical bloom behaviour is unchanged; above 0
+//! only pixels brighter than the threshold receive the added light.
 //!
 //! ```amx
 //! stage: Filter, bounds: (0, 0, 1280, 720) {
 //!   blur: Blur, radius: 14
-//!   glow: Bloom, intensity: 0.8
+//!   glow: Bloom, intensity: 0.8, threshold: 0.55
 //!   // …the scene's own actors, which the chain above lights
 //! }
 //! ```
@@ -22,11 +28,18 @@ use animatix_core::effect::{
 
 /// `Bloom` parameters.
 pub const BLOOM_PARAMS: &[EffectParamSpec] = &[
-    EffectParamSpec::new("intensity", EffectParamKind::F32, EffectParamValue::F32(0.7), 0, 4),
+    // Identity 0 contributes nothing. Above 0 it adds the pre-chain original
+    // back onto the running result: an exposure lift on its own, and a glow
+    // after a blur.
+    EffectParamSpec::new("intensity", EffectParamKind::F32, EffectParamValue::F32(0.0), 0, 4),
     // How much of the un-blurred frame to keep underneath the glow. At 0 the
     // pass is a plain blurred copy of the scene; at 1 the glow sits on the
     // original, which is the point.
     EffectParamSpec::new("keep", EffectParamKind::F32, EffectParamValue::F32(1.0), 4, 4),
+    // Luma below which the running result receives no added light. 0 disables
+    // the gate entirely, preserving the historical bloom behaviour; luma is
+    // 0..1, so the useful range is 0..1.
+    EffectParamSpec::new("threshold", EffectParamKind::F32, EffectParamValue::F32(0.0), 8, 4),
 ];
 
 pub(crate) const BLOOM_WGSL: &str = concat!(
@@ -35,6 +48,8 @@ pub(crate) const BLOOM_WGSL: &str = concat!(
 struct BloomParams {
     intensity: f32,
     keep: f32,
+    threshold: f32,
+    _pad0: f32,
 }
 
 // The running chain result — for a bloom, whatever the previous pass left
@@ -59,15 +74,25 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let glow = textureLoad(src, vec2<i32>(coord), 0);
     let add = clamp(params.intensity, 0.0, 4.0);
     let keep = clamp(params.keep, 0.0, 1.0);
+    let threshold = clamp(params.threshold, 0.0, 1.0);
+
+    // Gate the added light by the running result's luma: below the threshold a
+    // dark region keeps only its own light, while a bright one still blooms.
+    // At threshold 0 the gate is disabled so the historical behaviour — add
+    // the running result everywhere — is preserved exactly.
+    let luma = dot(glow.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
+    let gate = select(1.0, smoothstep(threshold, threshold + 0.1, luma), threshold > 0.0);
+    let added_alpha = glow.a * add * gate;
+    let added_rgb = glow.rgb * add * gate;
 
     // Additive, in premultiplied space: the render target is premultiplied, so
     // the result has to keep `rgb <= a` or the composite fringes at the scope's
     // semi-transparent edges. A glow also *creates* coverage where the blurred
     // copy has alpha, which is the point of it. Where both texels are opaque
     // this is identical to clamping the colour alone.
-    let out_alpha = clamp(base.a + glow.a * add, 0.0, 1.0);
+    let out_alpha = clamp(base.a + added_alpha, 0.0, 1.0);
     let rgb = clamp(
-        base.rgb * keep + glow.rgb * add,
+        base.rgb * keep + added_rgb,
         vec3<f32>(0.0),
         vec3<f32>(out_alpha),
     );
@@ -105,6 +130,7 @@ impl Effect for Bloom {
         out.fill(0);
         out[0..4].copy_from_slice(&params.f32_at(0).to_le_bytes());
         out[4..8].copy_from_slice(&params.f32_at(1).to_le_bytes());
+        out[8..12].copy_from_slice(&params.f32_at(2).to_le_bytes());
     }
 
     /// Reads one texel from each of two textures — no neighbourhood, so a
