@@ -157,12 +157,6 @@ being rendered — no staleness, no heuristics — and the 64-px quantization me
 a region that grows or shrinks between frames rarely reallocates.
 `Blur.radius` animating simply widens the region automatically.
 
-Composite ordering: the zero-readback path keeps the existing
-`can_post_composite_filter` precondition ("this scope is the last rendered
-element"), under which a rect-scoped composite can never overwrite later
-geometry. Generalising that precondition to per-region intersection remains an
-optional optimization.
-
 Two constraints:
 
 - **Allocation stability.** An animating support would resize the target every
@@ -171,11 +165,19 @@ Two constraints:
   cached per size, so animated regions stay in steady state. Only a region that
   covers the whole scene allocates canvas-sized textures; the PF-7/PF-9 budget
   is preserved.
-- **Composite ordering.** A rect-scoped composite is applied after the full
-  scene render, so it overwrites anything drawn later inside its rect. The
-  zero-readback path therefore keeps the existing `can_post_composite_filter`
-  precondition ("this scope is the last rendered element"); generalising it to
-  "no later sibling intersects the ROI" is part of the derived-ROI work.
+- **Composite ordering.** A zero-readback rect-scoped composite is applied after
+  the full scene render, so it would overwrite anything drawn later inside its
+  rect; only tail Filter scopes use that fast path. Non-tail scopes use the
+  inline readback path, which draws the filtered region back into the Vello
+  scene in declaration order and therefore preserves painter order. Generalising
+  the zero-readback precondition to "no later sibling intersects the ROI" is an
+  optional performance improvement, not a correctness requirement.
+
+> **Filter child labels are scene-global.** Give every child of every Filter
+> scope a unique label (`img_blur`, `img_grade`, …). Reusing a child label such
+> as `img` across two Filter scopes re-parents the single shared actor into the
+> later scope; the earlier scope silently renders empty. `animatix check`
+> reports `duplicate-label`.
 
 ## 4. GPU pass contract
 

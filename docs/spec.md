@@ -607,13 +607,16 @@ circle: Ellipse, at: (0, 0)
 circle: Ellipse, at: (100, 100) [2s]
 ```
 
-> **Duplicate labels vs. morph.** Re-declaring a label at a *later* keyframe is
-> the morph form and is legal. Declaring the same label twice in one scope —
-> the same keyframe, two keyframes with the same timestamp, one scene's top
-> level, or one container's children — is a conflict and is flagged as a
-> `duplicate-label` warning by `animatix check`, `animatix lint`, and the LSP
-> (`// lint-disable: duplicate-label` suppresses it). Scenes are separate
-> namespaces: the same label may appear in different scenes.
+> **Duplicate labels vs. morph.** Re-declaring a label at a *later* keyframe,
+> under the same parent, is the morph form and is legal. Actor labels are
+> scene-global in the runtime world: declaring the same label twice at one
+> timestamp, or reusing a label under a different container, is a conflict and
+> is flagged as a `duplicate-label` warning by `animatix check`/the build (the
+> analyzer also flags same-scope duplicates, and `// lint-disable:
+> duplicate-label` suppresses the analyzer form). Reusing a label under another
+> container re-parents the shared entity and leaves the old scope without that
+> child. Scenes are separate namespaces: the same label may appear in different
+> scenes.
 
 > **Unused declarations.** A `let` binding nothing reads is a **warning**. An
 > unreferenced *actor* is only a **hint**: declaring an actor is itself what puts

@@ -398,8 +398,13 @@ Composite at region origin (readback path) or batched blit with dynamic uniform 
   fallback, because arbitrary WGSL has no host path.
 - **Nested scopes** are allowed; each level adds one offscreen round-trip.
 - **Zero-readback** requires the scope to be the last rendered element
-  (`can_post_composite_filter`); otherwise the readback path composites at the
-  region origin.
+  (`can_post_composite_filter`); non-tail scopes take the inline readback path,
+  which composites at the region origin inside the Vello scene and preserves
+  painter order. The last-element restriction is therefore a performance gate,
+  not a correctness requirement.
+- **Filter child labels are scene-global.** Give children of each Filter scope
+  unique labels; reusing one across scopes re-parents the shared actor into the
+  later scope and leaves the earlier scope empty (`duplicate-label` warning).
 
 #### Open questions
 

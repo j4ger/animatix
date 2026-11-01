@@ -682,6 +682,12 @@ Built-in effects (14): `Blur`, `Bloom`, `ColorGrade`, `ChromaticAberration`,
 `Edge`, `LensDistortion`, `Posterize`. See [`effects.md`](effects.md) for
 parameters, identity values, ROI rules, and the GPU ABI.
 
+> **Labels are scene-global.** Give every child of every `Filter` scope a
+> unique label (`img_blur`, `img_grade`, …). Reusing a child label such as
+> `img` across two Filter scopes re-parents the single shared entity into the
+> later scope, so the earlier scope silently renders empty. `animatix check`
+> reports this as `duplicate-label`.
+
 ## Mask
 
 Clips its children to a shape. By default the clip is the Mask's own rectangular

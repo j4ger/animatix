@@ -70,6 +70,7 @@ tokens + colorscheme, `motion.amx` motion vocabulary, `TitleCard`).
 | `animation/06_reactive.amx` | Reactive expressions and `is_animating(&prop)` state queries |
 | `animation/08_effects.amx` | Filter, shake, pulse, bounce |
 | `animation/30_effects_catalog.amx` | All 14 built-in effects across 13 Filter scopes (Blur … Posterize) |
+| `animation/31_effect_recipes.amx` | Four look recipes: Glow, Film, Neon, Paper |
 | `animation/42_grow_shrink.amx` | Pivot-anchored `grow-in` / `shrink-out` scale presets |
 | `animation/21_actions.amx` | Entrance, motion, exit, and effect actions |
 
