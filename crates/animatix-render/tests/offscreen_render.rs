@@ -64,11 +64,12 @@ fn render(
 }
 
 /// A transition frame at the fixtures' shared 0.5s sample time.
-fn transition(
+fn transition_with_id(
     renderer: &mut OffscreenRenderer,
     from: &Timeline,
     to: &Timeline,
     progress: f32,
+    transition_id: &str,
     dims: SceneDimensions,
 ) -> RenderedFrame {
     use animatix::easing::Easing;
@@ -80,12 +81,40 @@ fn transition(
             to,
             0.5,
             progress,
-            "fade".to_string(),
+            transition_id.to_string(),
             Easing::Linear,
             dims,
             DebugRenderOptions::default(),
         )
         .expect("transition frame")
+}
+
+/// A fade transition frame at the fixtures' shared 0.5s sample time.
+fn transition(
+    renderer: &mut OffscreenRenderer,
+    from: &Timeline,
+    to: &Timeline,
+    progress: f32,
+    dims: SceneDimensions,
+) -> RenderedFrame {
+    transition_with_id(renderer, from, to, progress, "fade", dims)
+}
+
+/// A full-bleed solid-colour scene for transition pixel probes.
+fn solid_scene_at(color: &str, width: u32, height: u32) -> Timeline {
+    build_checked(&format!(
+        "config {{ colorscheme: \"editorial-dark\", resolution: ({width}, {height}) }}\n\
+         #0s\n\
+         r: Rect, size: (400, 400), color: {color}, at: ({}, {})\n\
+         fade-in r [100ms]\n",
+        width / 2,
+        height / 2
+    ))
+}
+
+/// A square full-bleed solid-colour scene.
+fn solid_scene(color: &str, size: u32) -> Timeline {
+    solid_scene_at(color, size, size)
 }
 
 fn average(frame: &RenderedFrame) -> [f32; 3] {
@@ -434,6 +463,168 @@ fn transition_midframe_blends_both_scenes() {
             "channel {channel}: mid {mid_avg:?} should sit between {start_avg:?} and {end_avg:?}"
         );
     }
+}
+
+/// The new transition arms share the exact endpoint contract: progress 0 is
+/// the outgoing scene and progress 1 the incoming one, before feather/zoom
+/// math could leave a half-lit edge pixel.
+#[test]
+fn new_transition_endpoints_return_from_and_to_frames() {
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let dims = SceneDimensions {
+        width: 64,
+        height: 64,
+    };
+    let warm = solid_scene("(0.9, 0.1, 0.1, 1)", 64);
+    let cool = solid_scene("(0.1, 0.2, 0.9, 1)", 64);
+
+    let direct_from = renderer
+        .render_timeline_with_debug(&warm, 0.5, dims, DebugRenderOptions::default())
+        .expect("outgoing single-scene frame");
+    let direct_to = renderer
+        .render_timeline_with_debug(&cool, 0.5, dims, DebugRenderOptions::default())
+        .expect("incoming single-scene frame");
+    let (from_avg, to_avg) = (average(&direct_from), average(&direct_to));
+
+    for id in ["iris", "clock-wipe", "zoom-through"] {
+        let start = transition_with_id(&mut renderer, &warm, &cool, 0.0, id, dims);
+        let end = transition_with_id(&mut renderer, &warm, &cool, 1.0, id, dims);
+        let (start_avg, end_avg) = (average(&start), average(&end));
+        for channel in 0..3 {
+            assert!(
+                (start_avg[channel] - from_avg[channel]).abs() < 1.0,
+                "{id} progress 0 must equal the outgoing scene: {start_avg:?} vs {from_avg:?}"
+            );
+            assert!(
+                (end_avg[channel] - to_avg[channel]).abs() < 1.0,
+                "{id} progress 1 must equal the incoming scene: {end_avg:?} vs {to_avg:?}"
+            );
+        }
+    }
+}
+
+/// Iris is a centre-out radial reveal: at half progress the centre already
+/// shows the incoming scene while the corners still show the outgoing one.
+#[test]
+fn iris_reveals_from_the_centre() {
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let dims = SceneDimensions {
+        width: 64,
+        height: 64,
+    };
+    let warm = solid_scene("(0.9, 0.1, 0.1, 1)", 64);
+    let cool = solid_scene("(0.1, 0.2, 0.9, 1)", 64);
+
+    let mid = transition_with_id(&mut renderer, &warm, &cool, 0.5, "iris", dims);
+    let centre = pixel(&mid.rgba, 64, 32, 32);
+    let corner = pixel(&mid.rgba, 64, 2, 2);
+    assert!(
+        centre[2] > 150 && centre[0] < 100,
+        "iris centre must show the incoming scene, got {centre:?}"
+    );
+    assert!(
+        corner[0] > 150 && corner[2] < 100,
+        "iris corners must still show the outgoing scene, got {corner:?}"
+    );
+}
+
+/// The iris radius is corrected by the render target's aspect ratio: on a
+/// 2:1 target a horizontal offset twice a vertical one is twice as far from
+/// the centre, so it stays on the outgoing side while the vertical one is
+/// already revealed.
+#[test]
+fn iris_aspect_correction_uses_render_dimensions() {
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let dims = SceneDimensions {
+        width: 128,
+        height: 64,
+    };
+    let warm = solid_scene_at("(0.9, 0.1, 0.1, 1)", 128, 64);
+    let cool = solid_scene_at("(0.1, 0.2, 0.9, 1)", 128, 64);
+
+    let mid = transition_with_id(&mut renderer, &warm, &cool, 0.5, "iris", dims);
+    // uv.x offset 0.32 on a 2:1 target is a physical distance of 0.64, beyond
+    // the half-progress radius (~0.56); the same uv.y offset is 0.32, inside.
+    let horizontally_far = pixel(&mid.rgba, 128, 105, 32);
+    let vertically_near = pixel(&mid.rgba, 128, 64, 52);
+    assert!(
+        horizontally_far[0] > 150 && horizontally_far[2] < 100,
+        "iris must use the horizontal aspect when measuring distance, got {horizontally_far:?}"
+    );
+    assert!(
+        vertically_near[2] > 150 && vertically_near[0] < 100,
+        "iris must reveal a vertical offset that is physically nearer, got {vertically_near:?}"
+    );
+}
+
+/// Clock wipe sweeps clockwise from 12 o'clock: at half progress the right
+/// half is the incoming scene and the left half is still outgoing.
+#[test]
+fn clock_wipe_sweeps_clockwise() {
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let dims = SceneDimensions {
+        width: 64,
+        height: 64,
+    };
+    let warm = solid_scene("(0.9, 0.1, 0.1, 1)", 64);
+    let cool = solid_scene("(0.1, 0.2, 0.9, 1)", 64);
+
+    let mid = transition_with_id(&mut renderer, &warm, &cool, 0.5, "clock-wipe", dims);
+    let right = pixel(&mid.rgba, 64, 56, 32);
+    let left = pixel(&mid.rgba, 64, 8, 32);
+    assert!(
+        right[2] > 150 && right[0] < 100,
+        "clock wipe must have revealed the right half, got {right:?}"
+    );
+    assert!(
+        left[0] > 150 && left[2] < 100,
+        "clock wipe must not have reached the left half yet, got {left:?}"
+    );
+}
+
+/// Zoom-through holds the outgoing scene through the first half (the crossfade
+/// starts at 0.55) and lands on the incoming scene late in the transition.
+#[test]
+fn zoom_through_crossfades_late() {
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let dims = SceneDimensions {
+        width: 64,
+        height: 64,
+    };
+    let warm = solid_scene("(0.9, 0.1, 0.1, 1)", 64);
+    let cool = solid_scene("(0.1, 0.2, 0.9, 1)", 64);
+
+    let direct_from = renderer
+        .render_timeline_with_debug(&warm, 0.5, dims, DebugRenderOptions::default())
+        .expect("outgoing single-scene frame");
+    let from_avg = average(&direct_from);
+
+    let mid = transition_with_id(&mut renderer, &warm, &cool, 0.5, "zoom-through", dims);
+    let mid_avg = average(&mid);
+    for channel in 0..3 {
+        assert!(
+            (mid_avg[channel] - from_avg[channel]).abs() < 1.0,
+            "channel {channel}: zoom-through must still show the outgoing scene at 0.5 \
+             (late crossfade), got {mid_avg:?} vs {from_avg:?}"
+        );
+    }
+
+    let late = transition_with_id(&mut renderer, &warm, &cool, 0.9, "zoom-through", dims);
+    let late_avg = average(&late);
+    assert!(
+        late_avg[2] > 150.0 && late_avg[0] < 100.0,
+        "zoom-through must have crossed to the incoming scene by 0.9, got {late_avg:?}"
+    );
 }
 
 /// A shared `shared_id` must be suppressed from both scene rasters and drawn

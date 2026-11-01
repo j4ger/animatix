@@ -10,8 +10,8 @@ use crate::core::RendererCore;
 /// GPU-based compositor for scene transition effects.
 ///
 /// Renders a fullscreen quad with a WGSL shader that blends two input textures
-/// based on transition progress and type. Supports fade and directional wipe
-/// transitions.
+/// based on transition progress and type. Supports cut, fade, directional
+/// wipe/push, iris, clock-wipe and zoom-through transitions.
 pub struct TransitionCompositor {
     pipeline: wgpu::RenderPipeline,
     bind_group_layout: wgpu::BindGroupLayout,
@@ -25,15 +25,23 @@ pub struct TransitionCompositor {
 struct TransitionUniforms {
     progress: f32,
     transition_type: u32,
-    _padding: [f32; 2],
+    /// Physical aspect ratio (`width / height`) for the aspect-corrected
+    /// radial/angular transitions.
+    aspect: f32,
+    _padding: f32,
 }
 
 impl TransitionUniforms {
-    fn new(progress: f32, transition_id: &str) -> Self {
+    fn new(progress: f32, transition_id: &str, aspect: f32) -> Self {
         Self {
             progress: progress.clamp(0.0, 1.0),
             transition_type: animatix_syntax::transition_registry::shader_case(transition_id),
-            _padding: [0.0; 2],
+            aspect: if aspect.is_finite() && aspect > 0.0 {
+                aspect
+            } else {
+                1.0
+            },
+            _padding: 0.0,
         }
     }
 }
@@ -42,6 +50,8 @@ const TRANSITION_SHADER_WGSL: &str = r#"
 struct Uniforms {
     progress: f32,
     transition_type: u32,
+    aspect: f32,
+    _padding: f32,
 }
 
 struct VertexOutput {
@@ -81,6 +91,15 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    // Exact endpoint guards: before any transition math (and regardless of the
+    // easing curve) progress 0 is the outgoing scene and 1 is the incoming one.
+    if (uniforms.progress <= 0.0) {
+        return textureSampleLevel(from_texture, texture_sampler, in.uv, 0.0);
+    }
+    if (uniforms.progress >= 1.0) {
+        return textureSampleLevel(to_texture, texture_sampler, in.uv, 0.0);
+    }
+
     let feather: f32 = 0.04;
     var alpha: f32 = uniforms.progress;
 
@@ -142,6 +161,41 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             } else {
                 return textureSampleLevel(to_texture, texture_sampler, uv_to, 0.0);
             }
+        }
+        case 10u: { // Iris
+            let centered = in.uv - vec2<f32>(0.5, 0.5);
+            // Aspect-corrected distance from the centre (physical pixels, not
+            // UV units); the radius reaches the farthest corner at progress 1.
+            let dist = length(vec2<f32>(centered.x * uniforms.aspect, centered.y));
+            let max_radius = 0.5 * length(vec2<f32>(uniforms.aspect, 1.0));
+            let radius = uniforms.progress * max_radius;
+            alpha = 1.0 - smoothstep(radius - feather, radius + feather, dist);
+        }
+        case 11u: { // ClockWipe
+            let centered = in.uv - vec2<f32>(0.5, 0.5);
+            // Clockwise angle from 12 o'clock, measured with the x axis
+            // aspect-corrected so the sweep rate is angular in physical space.
+            let angle = atan2(centered.x * uniforms.aspect, -centered.y);
+            let angle01 = fract(angle / 6.28318530718 + 1.0);
+            alpha = 1.0 - smoothstep(uniforms.progress - feather, uniforms.progress + feather, angle01);
+        }
+        case 12u: { // ZoomThrough
+            let p = uniforms.progress;
+            let center = vec2<f32>(0.5, 0.5);
+            // Dividing the UV offset by the zoom magnifies the scene, so the
+            // outgoing shot pushes in (1.0 -> 1.35) while the incoming one
+            // settles from a wider framing (0.8 -> 1.0). Clamping keeps every
+            // sample inside the source textures at both extremes.
+            let zoom_from = mix(1.0, 1.35, p);
+            let zoom_to = mix(0.8, 1.0, p);
+            let uv_from = clamp(center + (in.uv - center) / zoom_from, vec2<f32>(0.0), vec2<f32>(1.0));
+            let uv_to = clamp(center + (in.uv - center) / zoom_to, vec2<f32>(0.0), vec2<f32>(1.0));
+            let from_color = textureSampleLevel(from_texture, texture_sampler, uv_from, 0.0);
+            let to_color = textureSampleLevel(to_texture, texture_sampler, uv_to, 0.0);
+            // Hold the outgoing scene while it zooms, then crossfade over the
+            // last 45% so the incoming scene lands on its own zoom.
+            let crossfade = smoothstep(0.55, 1.0, p);
+            return mix(from_color, to_color, crossfade);
         }
         default: {
             alpha = uniforms.progress;
@@ -271,16 +325,19 @@ impl TransitionCompositor {
         from_view: &wgpu::TextureView,
         to_view: &wgpu::TextureView,
         output_view: &wgpu::TextureView,
-        _width: u32,
-        _height: u32,
+        width: u32,
+        height: u32,
         progress: f32,
         transition_id: &str,
         easing: animatix::easing::Easing,
     ) -> Result<(), String> {
         // Apply easing to progress
         let eased_progress = animatix::easing::apply_easing(progress, easing);
-        // Update uniform buffer
-        let uniforms = TransitionUniforms::new(eased_progress, transition_id);
+        // Update uniform buffer. `height.max(1)` keeps the aspect finite even
+        // for a degenerate surface; the offscreen path rejects zero sizes
+        // before this point.
+        let aspect = width as f32 / height.max(1) as f32;
+        let uniforms = TransitionUniforms::new(eased_progress, transition_id, aspect);
         queue.write_buffer(&self.uniform_buffer, 0, bytemuck::bytes_of(&uniforms));
 
         // Reuse or create bind group for this frame
@@ -513,6 +570,73 @@ pub fn composite_flip_overlay(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every `case Nu:` arm in the shader, in source order.
+    fn wgsl_switch_cases(shader: &str) -> Vec<u32> {
+        shader
+            .match_indices("case ")
+            .filter_map(|(index, _)| {
+                let rest = &shader[index + "case ".len()..];
+                let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+                if digits.is_empty() {
+                    return None;
+                }
+                rest[digits.len()..].strip_prefix('u')?.strip_prefix(':')?;
+                digits.parse().ok()
+            })
+            .collect()
+    }
+
+    /// Registry-only check (no GPU): every transition id must point at a
+    /// real WGSL switch arm, and the arm numbers must be unique and
+    /// contiguous from zero. Without this a new registry row would silently
+    /// fall through to the shader's default fade.
+    #[test]
+    fn registry_shader_cases_match_wgsl_switch_arms() {
+        use animatix_syntax::transition_registry::REGISTRY;
+
+        let mut registry_cases: Vec<u32> = REGISTRY.iter().map(|def| def.shader_case).collect();
+        registry_cases.sort_unstable();
+        assert_eq!(
+            registry_cases,
+            (0..registry_cases.len() as u32).collect::<Vec<_>>(),
+            "REGISTRY shader cases must be unique and contiguous from 0"
+        );
+
+        let mut shader_cases = wgsl_switch_cases(TRANSITION_SHADER_WGSL);
+        shader_cases.sort_unstable();
+        assert_eq!(
+            shader_cases, registry_cases,
+            "every REGISTRY shader_case needs exactly one `case Nu:` arm in TRANSITION_SHADER_WGSL"
+        );
+
+        for def in REGISTRY {
+            assert!(
+                TRANSITION_SHADER_WGSL.contains(&format!("case {}u:", def.shader_case)),
+                "transition '{}' has shader_case {} but no matching WGSL arm",
+                def.id,
+                def.shader_case
+            );
+        }
+    }
+
+    /// The CPU-side uniform must stay byte-compatible with the WGSL struct:
+    /// 16 bytes, `aspect` occupying the old padding slot at offset 8.
+    #[test]
+    fn transition_uniforms_match_wgsl_layout() {
+        use std::mem::{offset_of, size_of};
+
+        assert_eq!(size_of::<TransitionUniforms>(), 16);
+        assert_eq!(offset_of!(TransitionUniforms, progress), 0);
+        assert_eq!(offset_of!(TransitionUniforms, transition_type), 4);
+        assert_eq!(offset_of!(TransitionUniforms, aspect), 8);
+        assert!(TRANSITION_SHADER_WGSL.contains("aspect: f32"));
+
+        let uniforms = TransitionUniforms::new(2.0, "iris", f32::NAN);
+        assert_eq!(uniforms.progress, 1.0, "progress is clamped to [0, 1]");
+        assert_eq!(uniforms.transition_type, 10);
+        assert_eq!(uniforms.aspect, 1.0, "invalid aspect falls back to square");
+    }
 
     fn timeline(source: &str) -> Timeline {
         let (ast, errors) = animatix_syntax::parser::parse_source(source);

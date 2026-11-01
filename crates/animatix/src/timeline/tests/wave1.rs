@@ -88,6 +88,31 @@ fn test_push_transitions_in_registry() {
 }
 
 #[test]
+fn test_iris_clock_wipe_and_zoom_through_transitions_in_registry() {
+    for (name, shader_case) in [("iris", 10), ("clock-wipe", 11), ("zoom-through", 12)] {
+        let def = transition_registry::find(name)
+            .unwrap_or_else(|| panic!("Expected transition '{name}' to be recognized"));
+        assert_eq!(def.shader_case, shader_case, "'{name}' must use its own shader arm");
+        assert!(
+            (500..=700).contains(&def.default_duration_ms),
+            "'{name}' default duration should be in the 500-700ms band, got {}",
+            def.default_duration_ms
+        );
+        assert!(!def.display_name.is_empty(), "'{name}' needs a display name");
+        assert!(
+            transition_registry::all_ids().contains(&name),
+            "'{name}' must be part of the generated id list"
+        );
+    }
+
+    // FLIP is a `shared_id` overlay, not a transition id.
+    assert!(
+        transition_registry::find("flip").is_none(),
+        "FLIP must not be registered as a `play` transition"
+    );
+}
+
+#[test]
 fn test_text_fill_gradient_build() {
     let source = r##"
 #0s

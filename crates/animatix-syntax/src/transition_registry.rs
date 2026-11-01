@@ -77,6 +77,24 @@ pub static REGISTRY: &[TransitionDef] = &[
         default_duration_ms: 300,
         shader_case: 9,
     },
+    TransitionDef {
+        id: "iris",
+        display_name: "Iris",
+        default_duration_ms: 600,
+        shader_case: 10,
+    },
+    TransitionDef {
+        id: "clock-wipe",
+        display_name: "Clock Wipe",
+        default_duration_ms: 600,
+        shader_case: 11,
+    },
+    TransitionDef {
+        id: "zoom-through",
+        display_name: "Zoom Through",
+        default_duration_ms: 700,
+        shader_case: 12,
+    },
 ];
 
 /// Look up a transition definition by its ID.
