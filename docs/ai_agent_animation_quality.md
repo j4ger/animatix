@@ -498,8 +498,9 @@ work.
 ## Open Design Questions
 
 1. Should review policy live in a separate `review.toml` or in `.amx` config?
-   The plan starts with `review.toml` to avoid changing the language until the
-   policy model is proven.
+   The shipped v1 uses `--policy default|site`; `review.toml` remains a future
+   option and should only be added if it proves unavoidable, because a second
+   hand-maintained policy file recreates the authoring burden `review` removes.
 2. Should actor roles be inferred or explicit? The plan infers from primitive
    types and containers, then allows optional explicit roles only when needed.
 3. How should z-order be represented? Declaration order and opacity are enough
