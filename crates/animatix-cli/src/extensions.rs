@@ -9,6 +9,12 @@ pub struct CliExtensions {
     pub manifests: Vec<ExtensionManifest>,
 }
 
+impl Default for CliExtensions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CliExtensions {
     pub fn new() -> Self {
         Self {

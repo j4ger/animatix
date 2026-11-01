@@ -4,6 +4,7 @@ pub mod fmt;
 pub mod lint;
 pub mod plugin;
 pub mod render;
+pub mod review;
 pub mod storyboard;
 pub mod timeline;
 pub mod verify;

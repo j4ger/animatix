@@ -11,6 +11,8 @@ mod build;
 mod commands;
 mod diagnostics;
 mod extensions;
+mod frame_source;
+mod review;
 mod verify;
 
 #[cfg(test)]
@@ -18,7 +20,7 @@ mod tests;
 
 pub use build::parse_set_pair;
 pub use diagnostics::OutputFormat;
-use extensions::load_cli_extensions;
+use extensions::{CliExtensions, load_cli_extensions};
 
 #[derive(ClapParser, Debug)]
 #[command(author, version, about, long_about = "Animatix CLI Tool")]
@@ -287,6 +289,14 @@ enum Commands {
         #[arg(long, default_value = "text")]
         format: OutputFormat,
     },
+    /// Automatically review an animation for layout, visibility, and timing defects
+    ///
+    /// Structural review runs on the CPU and needs no `verify.txt` and no GPU.
+    /// `--render auto` adds pixel checks when an offscreen adapter is available.
+    Review {
+        #[command(flatten)]
+        args: commands::review::ReviewArgs,
+    },
     /// Format .amx files in-place
     Fmt {
         /// Files or directories to format (default: current directory)
@@ -361,7 +371,11 @@ fn main() {
         },
     };
 
-    match args.command {
+    dispatch(args.command, &extensions);
+}
+
+fn dispatch(command: Commands, extensions: &CliExtensions) {
+    match command {
         Commands::Timeline { input } => {
             commands::timeline::run(&input);
         },
@@ -400,7 +414,7 @@ fn main() {
                 output,
                 debug_bounds,
                 &set,
-                &extensions,
+                extensions,
             );
         },
 
@@ -434,7 +448,7 @@ fn main() {
                 preset,
                 export_preset.as_deref(),
                 &set,
-                &extensions,
+                extensions,
             );
         },
 
@@ -464,7 +478,7 @@ fn main() {
                 threads,
                 export_preset.as_deref(),
                 &set,
-                &extensions,
+                extensions,
             );
         },
 
@@ -489,7 +503,7 @@ fn main() {
                 max_frames,
                 debug_bounds,
                 output,
-                &extensions,
+                extensions,
             );
         },
 
@@ -499,7 +513,7 @@ fn main() {
             format,
             set,
         } => {
-            commands::check::run(&file, render_smoke, &format, &set, &extensions);
+            commands::check::run(&file, render_smoke, &format, &set, extensions);
         },
 
         Commands::Verify {
@@ -517,9 +531,11 @@ fn main() {
                 height,
                 &set,
                 &format,
-                &extensions,
+                extensions,
             );
         },
+
+        Commands::Review { args } => commands::review::run(args, extensions),
 
         Commands::Fmt {
             paths,
@@ -535,7 +551,7 @@ fn main() {
             deny_warnings,
             config,
         } => {
-            commands::lint::run(&paths, &format, deny_warnings, config.as_ref(), &extensions);
+            commands::lint::run(&paths, &format, deny_warnings, config.as_ref(), extensions);
         },
     }
 }

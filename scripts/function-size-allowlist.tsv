@@ -3,7 +3,6 @@
 # function is split, shortened below its threshold, renamed or moved; never add
 # a row for new code and never raise an existing maximum. See docs/ecs.md §8.
 crates/animatix-analyzer/src/completer/values.rs	value_for_property	239
-crates/animatix-cli/src/main.rs	main	205
 crates/animatix-gui/src/app/interaction/keyboard/registry.rs	register_defaults	388
 crates/animatix-gui/src/app/panels/curves_panel.rs	curves_panel_ui	401
 crates/animatix-gui/src/app/panels/inspector/property_groups/mod.rs	build_property_groups	347

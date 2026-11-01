@@ -1,10 +1,12 @@
 use super::BuildTarget;
-use animatix::timeline::{DebugRenderOptions, SceneDimensions};
+use animatix::timeline::SceneDimensions;
 use std::path::Path;
 
-mod frame;
-
-use frame::{Box2, FrameView, verify_time_key};
+use crate::frame_source::{
+    BOUNDS_PAD, Box2, DEFAULT_MIN_INK_PIXELS, DEFAULT_TOLERANCE, FrameView, ObservableFrame,
+    actor_visibility, differing_fraction, frame_ink_fraction, region_differing_fraction,
+    render_frame_observable, verify_time_key,
+};
 
 pub(crate) struct VerifyCheck {
     kind: VerifyKind,
@@ -151,101 +153,6 @@ pub(crate) fn parse_verify_checks(path: &Path) -> Result<Vec<VerifyCheck>, Strin
     Ok(checks)
 }
 
-/// A rendered verification frame: pixels plus the per-actor bounds from the
-/// same evaluation.
-struct VerifyFrame {
-    frame: animatix_render::offscreen::RenderedFrame,
-    bounds: std::collections::HashMap<String, Box2>,
-}
-
-/// Render one frame at global `time_s`, resolving the active scene (and any
-/// transition blend) for multi-scene files.
-fn render_verify_frame(
-    renderer: &mut animatix_render::offscreen::OffscreenRenderer,
-    target: &BuildTarget,
-    dimensions: SceneDimensions,
-    time_s: f64,
-) -> Result<VerifyFrame, String> {
-    match target {
-        BuildTarget::SingleScene(timeline) => {
-            let (frame, program) = renderer.render_timeline_observable(
-                timeline,
-                time_s,
-                dimensions,
-                DebugRenderOptions::default(),
-            )?;
-            Ok(VerifyFrame {
-                frame,
-                bounds: frame::bounds_map(&program),
-            })
-        },
-        BuildTarget::MultiScene(composition) => {
-            if !composition.has_scenes() {
-                return Err("Composition has no scenes to render".into());
-            }
-            let (scene_name, local_time_s, blend) = composition.evaluate(time_s);
-            if let Some(blend) = blend {
-                let from_scene = composition
-                    .scenes
-                    .get(&blend.from_scene)
-                    .ok_or_else(|| format!("From scene '{}' not found", blend.from_scene))?;
-                let to_scene = composition
-                    .scenes
-                    .get(&blend.to_scene)
-                    .ok_or_else(|| format!("To scene '{}' not found", blend.to_scene))?;
-                let frame = renderer.render_transition(
-                    &from_scene.timeline,
-                    blend.from_local,
-                    &to_scene.timeline,
-                    blend.to_local,
-                    blend.progress as f32,
-                    blend.id.clone(),
-                    blend.easing,
-                    dimensions,
-                    DebugRenderOptions::default(),
-                )?;
-                // The compositor does not hand back bounds, so a `visible`
-                // check during a blend consults both scenes and accepts a hit
-                // in either (the actor may be in either side of the crossfade).
-                let mut fb = None;
-                let from_program = from_scene.timeline.evaluate_program_with_debug(
-                    blend.from_local,
-                    dimensions,
-                    DebugRenderOptions::default(),
-                    &mut fb,
-                );
-                let mut bounds = frame::bounds_map(&from_program);
-                let mut fb = None;
-                let to_program = to_scene.timeline.evaluate_program_with_debug(
-                    blend.to_local,
-                    dimensions,
-                    DebugRenderOptions::default(),
-                    &mut fb,
-                );
-                for (label, rect) in frame::bounds_map(&to_program) {
-                    bounds.entry(label).or_insert(rect);
-                }
-                Ok(VerifyFrame { frame, bounds })
-            } else {
-                let scene = composition
-                    .scenes
-                    .get(&scene_name)
-                    .ok_or_else(|| format!("Scene '{scene_name}' not found"))?;
-                let (frame, program) = renderer.render_timeline_observable(
-                    &scene.timeline,
-                    local_time_s,
-                    dimensions,
-                    DebugRenderOptions::default(),
-                )?;
-                Ok(VerifyFrame {
-                    frame,
-                    bounds: frame::bounds_map(&program),
-                })
-            }
-        },
-    }
-}
-
 /// Result of running one check.
 pub(crate) struct VerifyOutcome {
     pub line: usize,
@@ -262,12 +169,13 @@ pub(crate) fn run_verify_checks(
     checks: &[VerifyCheck],
     dimensions: SceneDimensions,
 ) -> Result<Vec<VerifyOutcome>, String> {
-    let mut cache: std::collections::HashMap<u64, VerifyFrame> = std::collections::HashMap::new();
+    let mut cache: std::collections::HashMap<u64, ObservableFrame> =
+        std::collections::HashMap::new();
     for check in checks {
         for time_s in std::iter::once(check.time_s).chain(check.second_time_s) {
             let key = verify_time_key(time_s);
             if let std::collections::hash_map::Entry::Vacant(slot) = cache.entry(key) {
-                slot.insert(render_verify_frame(renderer, target, dimensions, time_s)?);
+                slot.insert(render_frame_observable(renderer, target, dimensions, time_s)?);
             }
         }
     }
@@ -284,12 +192,12 @@ pub(crate) fn run_verify_checks(
             VerifyKind::Visible | VerifyKind::Invisible => {
                 let label = check.label.as_deref().unwrap_or_default();
                 let bounds = entry.bounds.get(label).copied();
-                let visibility = frame::actor_visibility(
+                let visibility = actor_visibility(
                     &view,
                     bounds,
                     reference,
-                    frame::DEFAULT_TOLERANCE,
-                    frame::DEFAULT_MIN_INK_PIXELS,
+                    DEFAULT_TOLERANCE,
+                    DEFAULT_MIN_INK_PIXELS,
                 );
                 let want_visible = check.kind == VerifyKind::Visible;
                 let detail = match bounds {
@@ -305,7 +213,7 @@ pub(crate) fn run_verify_checks(
                 (want_visible == visibility.visible, detail)
             },
             VerifyKind::Ink => {
-                let fraction = frame::frame_ink_fraction(&view, frame::DEFAULT_TOLERANCE);
+                let fraction = frame_ink_fraction(&view, DEFAULT_TOLERANCE);
                 let min = check.threshold.unwrap_or(0.005);
                 (
                     f64::from(fraction) >= min,
@@ -321,8 +229,7 @@ pub(crate) fn run_verify_checks(
                         .ok_or_else(|| {
                             "rendered frame buffer has an unexpected size".to_string()
                         })?;
-                let changed =
-                    frame::differing_fraction(&view, &other_view, frame::DEFAULT_TOLERANCE);
+                let changed = differing_fraction(&view, &other_view, DEFAULT_TOLERANCE);
                 let min = check.threshold.unwrap_or(0.001);
                 (
                     f64::from(changed) >= min,
@@ -350,12 +257,12 @@ pub(crate) fn run_verify_checks(
                 match after.bounds.get(label).copied() {
                     Some(bounds) => {
                         let bounds: Box2 = bounds;
-                        let region = bounds.padded(frame::BOUNDS_PAD);
-                        let changed = frame::region_differing_fraction(
+                        let region = bounds.padded(BOUNDS_PAD);
+                        let changed = region_differing_fraction(
                             &view,
                             &after_view,
                             region,
-                            frame::DEFAULT_TOLERANCE,
+                            DEFAULT_TOLERANCE,
                         );
                         (
                             f64::from(changed) >= min,

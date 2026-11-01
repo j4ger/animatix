@@ -17,10 +17,15 @@ animatix-analyzer = { path = "../animatix-analyzer" }
 animatix-plugin-tooling = { path = "../animatix-plugin-tooling" }
 animatix-syntax = { path = "../animatix-syntax" }
 clap = { version = "4.5.0", features = ["derive"] }
+image = { workspace = true, features = ["png"] }
 serde_json = "1"
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 walkdir = "2.5"
+
+[lib]
+name = "animatix_cli"
+path = "src/lib.rs"
 
 [[bin]]
 name = "animatix"

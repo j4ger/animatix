@@ -22,35 +22,47 @@ pub fn load_and_build(
     extensions: &CliExtensions,
     defines: &[(String, String)],
 ) -> (BuildTarget, Vec<Diagnostic>) {
-    let (ast, namespaces, type_diagnostics) = match ModuleGraph::new().load_program(input) {
-        Ok(mut program) => {
-            let diagnostics = program.typecheck();
-            let mut expansion_errors = Vec::new();
-            let expanded = program.expand_components(&mut expansion_errors);
-            let mut diagnostics = diagnostics;
-            for error in expansion_errors {
-                diagnostics.push(Diagnostic::error(
-                    animatix_syntax::diagnostics::DiagnosticCode::UnknownAction,
-                    animatix_syntax::diagnostics::DiagnosticPhase::Build,
-                    error,
-                ));
-            }
-            (expanded, program.namespaces, diagnostics)
+    match try_load_and_build(input, extensions, defines) {
+        Ok((target, diagnostics)) => {
+            print_build_diagnostics(&diagnostics);
+            (target, diagnostics)
         },
         Err(e) => {
-            error!("Error: {}", e);
+            error!("{e}");
             std::process::exit(1);
         },
+    }
+}
+
+/// Fallible variant of [`load_and_build`] for commands that own their exit
+/// codes (`review` maps load failures to exit 2). Does not print diagnostics;
+/// callers decide whether to surface them.
+pub fn try_load_and_build(
+    input: &Path,
+    extensions: &CliExtensions,
+    defines: &[(String, String)],
+) -> Result<(BuildTarget, Vec<Diagnostic>), String> {
+    let (ast, namespaces, type_diagnostics) = {
+        let mut program =
+            ModuleGraph::new().load_program(input).map_err(|e| format!("Error: {e}"))?;
+        let diagnostics = program.typecheck();
+        let mut expansion_errors = Vec::new();
+        let expanded = program.expand_components(&mut expansion_errors);
+        let mut diagnostics = diagnostics;
+        for error in expansion_errors {
+            diagnostics.push(Diagnostic::error(
+                animatix_syntax::diagnostics::DiagnosticCode::UnknownAction,
+                animatix_syntax::diagnostics::DiagnosticPhase::Build,
+                error,
+            ));
+        }
+        (expanded, program.namespaces, diagnostics)
     };
 
     let mut ctx = animatix::extension_context::ExtensionContext::new();
-    let disposers = match extensions.install_into(&mut ctx) {
-        Ok(disposers) => disposers,
-        Err(e) => {
-            error!("Plugin install failed: {e}");
-            std::process::exit(1);
-        },
-    };
+    let disposers = extensions
+        .install_into(&mut ctx)
+        .map_err(|e| format!("Plugin install failed: {e}"))?;
     let context = std::sync::Arc::new(ctx);
     let report = BuildTarget::from_ast_with_context_and_defines(
         &ast,
@@ -61,9 +73,8 @@ pub fn load_and_build(
     );
     let mut all_diagnostics = type_diagnostics;
     all_diagnostics.extend(report.diagnostics);
-    print_build_diagnostics(&all_diagnostics);
     let _disposers = disposers;
-    (report.output, all_diagnostics)
+    Ok((report.output, all_diagnostics))
 }
 
 /// Resolution declared by the file via top-level `config { resolution: (w, h) }`,

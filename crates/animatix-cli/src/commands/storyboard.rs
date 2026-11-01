@@ -20,6 +20,44 @@ pub fn run(
     output: Option<PathBuf>,
     extensions: &CliExtensions,
 ) {
+    match render_storyboard(
+        input,
+        set,
+        cols,
+        tile_width,
+        tile_height,
+        times,
+        max_frames,
+        debug_bounds,
+        output,
+        extensions,
+    ) {
+        Ok((output_file, frame_count)) => {
+            println!("Storyboard saved to {} ({} frames)", output_file.display(), frame_count);
+        },
+        Err(e) => {
+            error!("Error: {e}");
+            std::process::exit(1);
+        },
+    }
+}
+
+/// Render a storyboard without printing or exiting, so `review --storyboard`
+/// can compose it into its own report flow. Output bytes and semantics are
+/// exactly those of [`run`].
+#[allow(clippy::too_many_arguments)] // mirrors the CLI surface above
+pub(crate) fn render_storyboard(
+    input: &Path,
+    set: &[(String, String)],
+    cols: Option<usize>,
+    tile_width: Option<u32>,
+    tile_height: Option<u32>,
+    times: Option<Vec<f64>>,
+    max_frames: usize,
+    debug_bounds: bool,
+    output: Option<PathBuf>,
+    extensions: &CliExtensions,
+) -> Result<(PathBuf, usize), String> {
     info!("Generating storyboard for {}", input.display());
     let (target, _) = load_and_build(input, extensions, set);
     let configured_resolution = configured_resolution(&target);
@@ -69,19 +107,11 @@ pub fn run(
         },
     };
 
-    match result {
-        Ok(frame_count) => {
-            println!("Storyboard saved to {} ({} frames)", output_file.display(), frame_count);
-        },
-        Err(e) => {
-            error!("Error: {e}");
-            std::process::exit(1);
-        },
-    }
+    result.map(|frame_count| (output_file, frame_count)).map_err(|e| e.to_string())
 }
 
 /// Automatically select a diverse set of keyframe beat timestamps and the resting frame.
-pub fn compute_auto_storyboard_times(target: &BuildTarget, max_frames: usize) -> Vec<f64> {
+pub(crate) fn compute_auto_storyboard_times(target: &BuildTarget, max_frames: usize) -> Vec<f64> {
     let max_frames = max_frames.max(2);
     let (mut key_times, duration_s) = match target {
         BuildTarget::SingleScene(timeline) => {

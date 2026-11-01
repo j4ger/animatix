@@ -1,4 +1,4 @@
-//! Content-level frame verification primitives for the `verify` command.
+//! Shared frame-source helpers for `verify` and `review`.
 //!
 //! The dogfood loop's blind spot is *silent* visual failure: an actor that
 //! should be on screen is not drawn, or an animation that should move is
@@ -10,16 +10,19 @@
 //! These helpers turn rendered RGBA pixels plus evaluated actor bounds into
 //! explicit facts, so a `verify.txt` beside a dogfood project can assert "the
 //! curve is actually visible at t=5.0" instead of relying on a human to notice
-//! its absence in one frame.
+//! its absence in one frame. `review` reuses the exact same pixel math and
+//! frame-resolution logic, so the two commands cannot drift apart.
 //!
 //! The reference color for "inks differs from background" checks is the frame's
-//! own modal color ([`FrameView::modal_color`]); comparing pixels to pixels
+//! own modal color (`FrameView::modal_color`); comparing pixels to pixels
 //! sidesteps any sRGB/linear mismatch between the render target and the
 //! declared scene background.
 
 use std::collections::HashMap;
 
+use animatix::composition::{BuildTarget, CompositionScene, TransitionBlend};
 use animatix::timeline::scene_program::SceneProgram;
+use animatix::timeline::{DebugRenderOptions, SceneDimensions};
 
 /// Per-channel difference above which a pixel counts as "ink" (fraction of the
 /// 0..255 range). 0.02 ≈ 5/255 — above dithering/rounding noise, below any
@@ -161,6 +164,267 @@ pub(crate) fn bounds_map(program: &SceneProgram) -> HashMap<String, Box2> {
 /// Cache key for a rendered verification time, in milliseconds.
 pub(crate) fn verify_time_key(time_s: f64) -> u64 {
     (time_s * 1000.0).round() as u64
+}
+
+/// A resolved scene (or transition blend) at one global time.
+///
+/// Both `verify` and `review` resolve multi-scene time through this single
+/// function, so a transition can never be interpreted differently by the two
+/// commands.
+pub(crate) enum FrameTarget<'a> {
+    /// A single-scene file.
+    Single {
+        /// The scene timeline.
+        timeline: &'a animatix::timeline::Timeline,
+    },
+    /// A multi-scene file outside a transition.
+    Scene {
+        /// The active scene.
+        scene: &'a CompositionScene,
+        /// Time within that scene.
+        local_time_s: f64,
+    },
+    /// A multi-scene file inside a transition blend.
+    Transition {
+        /// Outgoing scene.
+        from: &'a CompositionScene,
+        /// Incoming scene.
+        to: &'a CompositionScene,
+        /// Transition blend parameters, including local times.
+        blend: TransitionBlend,
+    },
+}
+
+/// Stable report description of an active transition.
+#[derive(Clone, Debug)]
+pub(crate) struct TransitionFact {
+    /// Outgoing scene name.
+    pub(crate) from_scene: String,
+    /// Incoming scene name.
+    pub(crate) to_scene: String,
+    /// Raw (linear) progress in `0..=1`.
+    pub(crate) progress: f64,
+    /// Transition identifier.
+    pub(crate) id: String,
+}
+
+/// Resolve the active scene/transition at `time_s`, or explain why it cannot be
+/// resolved. The error strings match the ones `verify` has always surfaced.
+pub(crate) fn resolve_frame_target<'a>(
+    target: &'a BuildTarget,
+    time_s: f64,
+) -> Result<FrameTarget<'a>, String> {
+    match target {
+        BuildTarget::SingleScene(timeline) => Ok(FrameTarget::Single { timeline }),
+        BuildTarget::MultiScene(composition) => {
+            if !composition.has_scenes() {
+                return Err("Composition has no scenes to render".into());
+            }
+            let (scene_name, local_time_s, blend) = composition.evaluate(time_s);
+            if let Some(blend) = blend {
+                let from_scene = composition
+                    .scenes
+                    .get(&blend.from_scene)
+                    .ok_or_else(|| format!("From scene '{}' not found", blend.from_scene))?;
+                let to_scene = composition
+                    .scenes
+                    .get(&blend.to_scene)
+                    .ok_or_else(|| format!("To scene '{}' not found", blend.to_scene))?;
+                Ok(FrameTarget::Transition {
+                    from: from_scene,
+                    to: to_scene,
+                    blend,
+                })
+            } else {
+                let scene = composition
+                    .scenes
+                    .get(&scene_name)
+                    .ok_or_else(|| format!("Scene '{scene_name}' not found"))?;
+                Ok(FrameTarget::Scene {
+                    scene,
+                    local_time_s,
+                })
+            }
+        },
+    }
+}
+
+/// One rendered frame plus the bounds and scene identity from the same
+/// evaluation.
+pub(crate) struct ObservableFrame {
+    /// RGBA pixels.
+    pub(crate) frame: animatix_render::offscreen::RenderedFrame,
+    /// World-space actor bounds keyed by label.
+    pub(crate) bounds: HashMap<String, Box2>,
+    /// Active transition, when the sample sits inside a blend.
+    pub(crate) transition: Option<TransitionFact>,
+}
+
+/// Render one frame at global `time_s`, resolving the active scene (and any
+/// transition blend) for multi-scene files.
+pub(crate) fn render_frame_observable(
+    renderer: &mut animatix_render::offscreen::OffscreenRenderer,
+    target: &BuildTarget,
+    dimensions: SceneDimensions,
+    time_s: f64,
+) -> Result<ObservableFrame, String> {
+    match resolve_frame_target(target, time_s)? {
+        FrameTarget::Single { timeline } => {
+            let (frame, program) = renderer.render_timeline_observable(
+                timeline,
+                time_s,
+                dimensions,
+                DebugRenderOptions::default(),
+            )?;
+            Ok(ObservableFrame {
+                frame,
+                bounds: bounds_map(&program),
+                transition: None,
+            })
+        },
+        FrameTarget::Scene {
+            scene,
+            local_time_s,
+        } => {
+            let (frame, program) = renderer.render_timeline_observable(
+                &scene.timeline,
+                local_time_s,
+                dimensions,
+                DebugRenderOptions::default(),
+            )?;
+            Ok(ObservableFrame {
+                frame,
+                bounds: bounds_map(&program),
+                transition: None,
+            })
+        },
+        FrameTarget::Transition { from, to, blend } => {
+            let frame = renderer.render_transition(
+                &from.timeline,
+                blend.from_local,
+                &to.timeline,
+                blend.to_local,
+                blend.progress as f32,
+                blend.id.clone(),
+                blend.easing,
+                dimensions,
+                DebugRenderOptions::default(),
+            )?;
+            // The compositor does not hand back bounds, so a `visible`
+            // check during a blend consults both scenes and accepts a hit
+            // in either (the actor may be in either side of the crossfade).
+            let mut fb = None;
+            let from_program = from.timeline.evaluate_program_with_debug(
+                blend.from_local,
+                dimensions,
+                DebugRenderOptions::default(),
+                &mut fb,
+            );
+            let mut bounds = bounds_map(&from_program);
+            let mut fb = None;
+            let to_program = to.timeline.evaluate_program_with_debug(
+                blend.to_local,
+                dimensions,
+                DebugRenderOptions::default(),
+                &mut fb,
+            );
+            for (label, rect) in bounds_map(&to_program) {
+                bounds.entry(label).or_insert(rect);
+            }
+            Ok(ObservableFrame {
+                frame,
+                bounds,
+                transition: Some(TransitionFact {
+                    from_scene: blend.from_scene,
+                    to_scene: blend.to_scene,
+                    progress: blend.progress,
+                    id: blend.id,
+                }),
+            })
+        },
+    }
+}
+
+/// One evaluated (not rendered) program, used by `review`'s structural tier.
+pub(crate) struct ProgramPart<'a> {
+    /// Scene label owning this program.
+    pub(crate) scene: String,
+    /// Timeline the program was evaluated from (for actor track lookups).
+    pub(crate) timeline: &'a animatix::timeline::Timeline,
+    /// The observable program itself.
+    pub(crate) program: SceneProgram,
+}
+
+/// Structural evaluation of one frame without a GPU/filter backend.
+pub(crate) struct ProgramFrame<'a> {
+    /// Human-readable scene label.
+    pub(crate) scene: String,
+    /// One program per active scene (two during a transition blend).
+    pub(crate) parts: Vec<ProgramPart<'a>>,
+}
+
+/// Evaluate the active scene program(s) at `time_s` with no filter backend.
+pub(crate) fn evaluate_program_frame<'a>(
+    target: &'a BuildTarget,
+    dimensions: SceneDimensions,
+    time_s: f64,
+) -> Result<ProgramFrame<'a>, String> {
+    match resolve_frame_target(target, time_s)? {
+        FrameTarget::Single { timeline } => Ok(ProgramFrame {
+            scene: "main".to_string(),
+            parts: vec![ProgramPart {
+                scene: "main".to_string(),
+                timeline,
+                program: timeline.evaluate_program_with_debug(
+                    time_s,
+                    dimensions,
+                    DebugRenderOptions::default(),
+                    &mut None,
+                ),
+            }],
+        }),
+        FrameTarget::Scene {
+            scene,
+            local_time_s,
+        } => Ok(ProgramFrame {
+            scene: scene.name.clone(),
+            parts: vec![ProgramPart {
+                scene: scene.name.clone(),
+                timeline: &scene.timeline,
+                program: scene.timeline.evaluate_program_with_debug(
+                    local_time_s,
+                    dimensions,
+                    DebugRenderOptions::default(),
+                    &mut None,
+                ),
+            }],
+        }),
+        FrameTarget::Transition { from, to, blend } => Ok(ProgramFrame {
+            scene: format!("{} -> {}", from.name, to.name),
+            parts: vec![
+                ProgramPart {
+                    scene: from.name.clone(),
+                    timeline: &from.timeline,
+                    program: from.timeline.evaluate_program_with_debug(
+                        blend.from_local,
+                        dimensions,
+                        DebugRenderOptions::default(),
+                        &mut None,
+                    ),
+                },
+                ProgramPart {
+                    scene: to.name.clone(),
+                    timeline: &to.timeline,
+                    program: to.timeline.evaluate_program_with_debug(
+                        blend.to_local,
+                        dimensions,
+                        DebugRenderOptions::default(),
+                        &mut None,
+                    ),
+                },
+            ],
+        }),
+    }
 }
 
 /// Whether an actor actually put ink on screen.

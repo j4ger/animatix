@@ -286,3 +286,64 @@ fn ast_force_prints_partial_ast_when_parse_errors_occur() {
 
     std::fs::remove_dir_all(dir).ok();
 }
+
+#[test]
+fn review_cli_parses_every_documented_flag() {
+    use clap::Parser;
+
+    let args = crate::Args::try_parse_from([
+        "animatix",
+        "review",
+        "demo.amx",
+        "--format",
+        "json",
+        "--policy",
+        "site",
+        "--samples",
+        "keyframes",
+        "--max-frames",
+        "12",
+        "--render",
+        "never",
+        "--detail",
+        "full",
+        "--storyboard",
+        "board.png",
+        "--frames-dir",
+        "frames",
+        "--fail-on",
+        "warning",
+        "--emit-verify",
+        "suggested.verify.txt",
+        "--set",
+        "answer=42",
+    ])
+    .expect("review arguments must parse");
+    match args.command {
+        crate::Commands::Review { args } => {
+            assert_eq!(args.input, PathBuf::from("demo.amx"));
+            assert_eq!(args.format, crate::OutputFormat::Json);
+            assert_eq!(args.policy, crate::review::Policy::Site);
+            assert_eq!(args.samples, crate::review::SampleSpec::Keyframes);
+            assert_eq!(args.max_frames, 12);
+            assert_eq!(args.render, crate::review::RenderMode::Never);
+            assert_eq!(args.detail, crate::review::Detail::Full);
+            assert_eq!(args.storyboard, Some(PathBuf::from("board.png")));
+            assert_eq!(args.frames_dir, Some(PathBuf::from("frames")));
+            assert_eq!(args.fail_on, crate::review::FailOn::Warning);
+            assert_eq!(args.emit_verify, Some(PathBuf::from("suggested.verify.txt")));
+            assert_eq!(args.set, vec![("answer".to_string(), "42".to_string())]);
+        },
+        other => panic!("expected review command, got {other:?}"),
+    }
+}
+
+#[test]
+fn review_cli_rejects_unknown_sample_mode() {
+    use clap::Parser;
+
+    assert!(
+        crate::Args::try_parse_from(["animatix", "review", "demo.amx", "--samples", "nope"])
+            .is_err()
+    );
+}
