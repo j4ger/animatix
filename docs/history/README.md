@@ -17,6 +17,7 @@ mixed history and open work). Split into monthly volumes on 2026-10-29; the old
 | [`2026-08.md`](2026-08.md) | August 2026 | 10 entries |
 | [`2026-09.md`](2026-09.md) | September 2026 | 21 entries |
 | [`2026-10.md`](2026-10.md) | October 2026 | 31 entries |
+| [`2026-11.md`](2026-11.md) | November 2026 | 1 entry |
 
 ## August 2026 — [`2026-08.md`](2026-08.md)
 
@@ -88,6 +89,10 @@ mixed history and open work). Split into monthly volumes on 2026-10-29; the old
 - `max_item_width`: a layout width cap with an available name (2026-10-26)
 - The `Applicable::Everything` audit: the rows were right, the record was missing (2026-10-26)
 - Roadmap cleanup (2026-10-30)
+
+## November 2026 — [`2026-11.md`](2026-11.md)
+
+- Author Review, Effect Contract, and Motion Additions (2026-11-01)
 
 ## Themes
 

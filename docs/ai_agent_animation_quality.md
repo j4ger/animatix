@@ -1,6 +1,6 @@
 # AI Agent Animation Quality
 
-Status: design proposal and bring-up plan.
+Status: Phase 0/1 implemented as `animatix review`; phases 2–6 remain a design proposal and bring-up plan. See [`review.md`](review.md) for the shipped command.
 
 ## Purpose
 
@@ -57,6 +57,9 @@ Out of scope for the first bring-up:
    +--> animatix check (Fast CPU gate: syntax, types, never-revealed)
    |       |
    |       v (clean)
+   +--> animatix review (Automatic structural review, optional GPU pixel tier)
+   |       |
+   |       v (clean)
    +--> animatix storyboard (Multi-panel contact sheet image)
            |
            v
@@ -73,7 +76,7 @@ Out of scope for the first bring-up:
            v (detects layout collisions, dead beats, or blank rest frames)
      Edits .amx source
            |
-           +--> re-check & re-storyboard
+           +--> re-check, re-review & re-storyboard
 ```
 
 ## Existing Building Blocks
@@ -86,11 +89,16 @@ Out of scope for the first bring-up:
 | `Timeline::hit_regions` | world-space AABBs per actor | overlap and layout facts |
 | `DocumentSession::timeline_index` | source line to keyframe time | issue-to-source mapping |
 | `animatix-cli image` | single-frame export | scripted frame extraction |
-| review GUI | A/B playback and comments | human feedback collection |
-| `review.json` | variant, time, severity, note | structured review corpus |
-| `dogfood/runs` | focused A/B experiments | data collection and calibration |
+| `animatix review` | deterministic structural facts, optional pixel measurements, rule issues, stable JSON report, exit policy | first-pass agent review and default automatic gate |
+| `animatix review --storyboard` | review report plus a contact-sheet image | one-call automatic + visual pass |
+| `review` JSON (`schema_version: 1`) | frame facts, issues, evidence, severity/confidence | structured review corpus |
+| `dogfood/projects/` and `dogfood/arena/` | focused real-content projects and A/B candidate battles | data collection and calibration |
 
 ## Data Protocol
+
+> The shipped Phase 0/1 schema is the smaller `schema_version: 1` report in
+> [`review.md`](review.md) (target/frame/summary facts plus issues). The richer
+> protocol below remains the target for phases 2–6.
 
 ### Scene Facts
 
@@ -252,7 +260,9 @@ informational warnings.
 ## Policy Configuration
 
 A project-level `review.toml` configures tolerances without changing the
-animation language.
+animation language. This file is future work: the shipped `animatix review`
+exposes the built-in `--policy default|site` profiles, and no `review.toml`
+loading exists yet.
 
 ```toml
 policy_version = 1
@@ -291,11 +301,11 @@ rule engine, a cloud model, or an edge model.
 ```text
 1. Read brief.
 2. Generate or select one or more candidate .amx files.
-3. Run eval: render storyboard, emit facts, run rules.
+3. Run review: emit facts and rules, and optionally render a storyboard.
 4. Ask reviewers to produce structured issues.
 5. Rank candidates and choose one to edit.
 6. Map issues to source lines and edit the .amx file.
-7. Re-run eval.
+7. Re-run review.
 8. Compare before/after reports.
 9. Stop when hard checks pass and review improvements plateau.
 10. If needed, send the top candidate to a human A/B review.
@@ -306,52 +316,51 @@ history file so the agent can detect oscillation and avoid repeating edits.
 
 ## Implementation Phases
 
-### Phase 0: Review Protocol and Evaluator Skeleton
+### Phase 0: Review Protocol and Evaluator Skeleton (implemented as `animatix review`)
 
-Goal: add a deterministic `animatix eval` command that produces frames and
-facts.
+Goal: produce deterministic scene facts, a stable report, and optional rendered
+frames. This phase shipped as the `review` command in `animatix-cli` rather
+than a separate `crates/animatix-review` crate.
 
-Tasks:
+Implemented:
 
-- Add `crates/animatix-review` to the workspace.
-- Define `SceneFacts`, `FrameFact`, `ActorFact`, `OverlapEvent`, `RuleIssue`,
-  `ReviewReport`, and `ReviewPolicy` with serde.
-- Add `eval` subcommand to `animatix-cli`.
-- Reuse existing renderer and timeline APIs to extract actor bounds and layout
-  information.
-- Render storyboard frames at user-selected times.
-- Write facts as JSON alongside the storyboard.
-- Add unit tests for schema serialization and facts from a small scene.
-- Add a regression test that runs `eval` on at least one curated example.
+- `SceneFacts`-derived `ReviewReport` with `schema_version: 1`, target facts,
+  frame facts, issues, and summary counts.
+- Structural evaluation of sampled `SceneProgram`s with no filter backend, plus
+  an optional `--render auto|always|never` pixel tier.
+- Optional `--storyboard` and `--frames-dir` output.
+- Unit tests for schema serialization and rule evaluation, plus CLI integration
+  tests.
 
-Exit criteria:
+Exit criteria (met):
 
-- `cargo run --bin animatix -- eval examples/gallery/fft_explain.amx --times 0.2,1.0,2.2 --json report.json --storyboard frames/` works.
-- The report contains actor bounds, opacity, keyframe times, and overlap events.
+- `cargo run --bin animatix -- review examples/gallery/fft_explain.amx --format json` works without a GPU or `verify.txt`.
+- The report contains actor bounds/opacity facts, keyframe timing, and issues with evidence.
 - No model or external service is required.
 
-### Phase 1: Minimal Rule Engine and Calibration
+### Phase 1: Minimal Rule Engine and Calibration (implemented subset)
 
 Goal: make the evaluator useful as a first-pass reviewer.
 
-Tasks:
+Shipped in `animatix review`:
 
-- Implement rules 1-6 from the initial rule set.
-- Implement `review.toml` policy loading and defaults.
-- Build a known-good corpus from curated `examples/` and `dogfood/projects/`.
-- Run the rule engine over the corpus and tune defaults to avoid obvious false
-  positives.
-- Add special cases for Stack, Group, Callout, Legend, background content, and
-  transition overlap.
-- Create an intentionally broken variant to verify the rules catch seeded
-  defects.
-- Emit a `ReviewReport` with both facts and issues.
+- 11 default structural/render rules plus two `--policy site` resting-frame
+  rules (the full list is in [`review.md`](review.md)).
+- Stack/Group/effect-scope/callout/legend exclusions for overlap candidates.
+- Per-issue evidence, confidence, severity, time, actor, and source line.
+- A stable `schema_version: 1` JSON report and text output.
 
-Exit criteria:
+Still future work:
+
+- `review.toml` policy loading and per-project tolerances.
+- Corpus-wide calibration and a seeded bad-variant benchmark.
+- Additional rules 7–10 from the initial rule set.
+
+Exit criteria (partly met):
 
 - Known-good examples produce no hard errors under the default policy.
-- A seeded bad variant catches at least five distinct issue categories.
-- Issues include time, actor, category, severity, and evidence.
+- A seeded bad variant catches the shipped issue categories.
+- Issues include time, actor, rule id, severity, confidence, and evidence.
 
 ### Phase 2: Demo and Human Review Data
 
@@ -363,7 +372,7 @@ Tasks:
 - Create an arena battle under `dogfood/arena/battles/` with `good.amx` and
   `bad.amx`.
 - Render storyboards for both variants.
-- Generate eval reports for both variants.
+- Generate review reports for both variants.
 - Use the Web Arena (`web/arena/`) for side-by-side synchronized comparison.
 - Capture review feedback with timeline notes, category tags, and rubric ratings.
 - Render and save frames at the exact time of each human comment.
@@ -391,11 +400,11 @@ Tasks:
   map actor/time issues to source lines.
 - Create one brief where the agent starts from a broken candidate and reaches a
   passing candidate.
-- Record the before/after diff and re-eval report.
+- Record the before/after diff and re-review report.
 
 Exit criteria:
 
-- The agent can consume `report.json`, make source edits, re-run eval, and show
+- The agent can consume `report.json`, make source edits, re-run review, and show
   improvement.
 - The loop history is stored as files, so it can be replayed or audited.
 - No model is required for this phase.

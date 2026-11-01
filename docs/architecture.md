@@ -333,14 +333,15 @@ the `EFFECTS` bootstrap array. Plugin effects wrap FFI-declared data
 |------|------|
 | `primitives/filter.rs` | `FilterPrimitive` — the container that owns a chain |
 | `animatix-core/src/effect.rs` | `Effect` trait, `EffectId`, parameter schema types, `identity_for` / `kind_layout` / `uniform_size_for` |
-| `animatix-std/src/effects/mod.rs` | `EFFECTS` array, dispatch (`effect` / `effect_for_type`), `pack_generic`, plugin registry |
+| `animatix-std/src/lib.rs` | `EFFECTS` bootstrap array, dispatch (`effect` / `effect_for_type`), `pack_generic`, plugin registry |
+| `animatix-std/src/effects/mod.rs` | Effect modules and re-exports — one file per effect definition |
 | `animatix-std/src/effects/blur.rs` | `Blur` — separable Gaussian, two passes |
 | `animatix-std/src/effects/color_grade.rs` | `ColorGrade` — 4×4 colour matrix composed on the host |
 | `animatix-std/src/effects/chromatic_aberration.rs` | `ChromaticAberration` — sub-pixel channel split via the linear sampler |
 | `timeline/effects/track.rs` | `EffectChainTrack` / `EffectStage` — animatable storage (`DynTrack`-backed parameters) |
 | `timeline/effects/chain.rs` | `EffectChain`, `EffectRegion`, `PendingComposite`, `FilterBackend` |
 | `timeline/build/effect.rs` | Lowering: effect children become stages on the owning scope's chain |
-| `animatix-render/src/filter_backend.rs` | `GpuFilterBackend` — GPU render, N-pass dispatch, readback / zero-readback composite |
+| `animatix-render/src/filter_backend/` | `GpuFilterBackend` — GPU render, per-pass dispatch and submit, readback / zero-readback composite |
 | `timeline/scene_eval/` | Renders the scope's content to a sub-scene, samples the chain, derives the ROI, dispatches the backend |
 
 Adding a built-in effect is one new file plus one `EFFECTS` entry: the identity
@@ -356,7 +357,7 @@ Evaluate content children → vello::Scene (sub-scene)
 GpuFilterBackend::render_scene_to_image_gpu_filtered()  (or …_to_pending_composite)
   → GPU render the sub-scene to texture A
   → per effect, per declared pass, ping-pong A ↔ B
-    (compute passes fused into a single CommandEncoder & queue submit)
+    (one CommandEncoder and queue.submit per pass — see docs/effects.md §4.6)
   → readback, or park a PendingComposite from the dynamic TexturePool for a viewport-scoped blit
   ↓
 Composite at region origin (readback path) or batched blit with dynamic uniform offsets (zero-readback path)
@@ -370,13 +371,20 @@ Composite at region origin (readback path) or batched blit with dynamic uniform 
   appended directly.
 - **Region of interest.** The processed region is the content bounds recorded
   during sub-scene evaluation, padded by the chain's worst-case spatial support
-  and clamped to the scene — or an authored `bounds: (x, y, w, h)`. GPU textures
-  stay at full scene capacity, so a region that grows or shrinks between frames
-  never reallocates.
-- **Command fusion & Texture Pooling.** In `GpuFilterBackend`, back-to-back compute
-  passes and intermediate layer copies are fused into a single `CommandEncoder` /
-  `queue.submit()`. Intermediate textures are drawn from an internal `TexturePool`
-  recycled per-frame by the engine's `drain_pending_layers` via `FilterBackend::recycle_pending_composite`.
+  and clamped to the scene — or an authored `bounds: (x, y, w, h)`. Region-scoped
+  scratch targets are sized to the region, quantized to 64-px steps, and cached
+  per quantized size, so a region that grows or shrinks between frames rarely
+  reallocates; only a whole-scene region allocates canvas-sized textures.
+- **Per-pass submit & Texture Pooling.** Each effect pass is encoded and
+  submitted in its own `CommandEncoder` / `queue.submit()`: back-to-back compute
+  passes sharing ping-pong textures in one encoder are not portable across
+  drivers (probe 009), so they are deliberately not fused (see
+  `docs/effects.md` §4.6). Intermediate pending composites come from an internal
+  `TexturePool` recycled per-frame by the engine's `drain_pending_layers` via
+  `FilterBackend::recycle_pending_composite`.
+- **Second input (ABI v2).** Binding 5 carries the pre-chain original of the
+  scope, copied by the host before pass 0; `Bloom` is its first consumer. The
+  earlier open question about a second input texture is resolved.
 - **Batched Blit Pipeline.** Multiple pending composite layers are drawn in a single
   batched render pass using 256-byte aligned dynamic uniform offsets (`BatchedBlitPipeline`),
   collapsing $N$ blits into 1 GPU draw pass.
@@ -401,10 +409,6 @@ Composite at region origin (readback path) or batched blit with dynamic uniform 
 2. **Per-region intersection** — generalising `can_post_composite_filter` from
    "last rendered element" to "no later sibling intersects the ROI" would let
    mid-scene scopes use the zero-readback path too.
-3. **Second input texture** — bloom/glow add-back, soft shadows, and a generic
-   chain-level `mix` all need the original alongside the processed image. This is
-   a deliberate ABI bump when a real effect needs it, not a speculative field
-   (`docs/effects.md` §4.1).
 
 ---
 

@@ -43,10 +43,10 @@ Use these rules when generating `.amx` files:
 | 3D | `Graph3D`, `Line3D`, `Polyhedron` | — | **Not supported** | — | Yes | Explicitly not planned; all rendering is 2D |
 | Primitives | `Code` | Yes | Runtime-real | Yes | Yes | `language` selects Typst syntax highlighting; token colours follow the colorscheme (empty/unknown renders plain). See `examples/basics/31_code.amx` |
 | Plotting | `Graph`, `PlotCurve`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane` | Yes | Runtime-real | Yes | Yes | `PlotCurve` with `kind: cartesian|polar|parametric|implicit`. See `examples/data/07_plots.amx`, `examples/data/18_number_plane_contours.amx` |
-| Post-processing | `Filter` scope + effect chain (`Blur`, `ColorGrade`) | Yes | Runtime-real | Yes | Yes | Effects are labelled child declarations of a `Filter` scope (`soft: Blur, radius: 10`); animate with `scope.stage.param = value`. GPU-only; no backend means skip + diagnostic. See `examples/animation/08_effects.amx` (composition) and `examples/animation/30_effects_catalog.amx` (all 13 side by side) |
+| Post-processing | `Filter` scope + ordered effect chain (14 built-ins) | Yes | Runtime-real | Yes | Yes | Effects are labelled child declarations of a `Filter` scope (`soft: Blur, radius: 10`); animate with `scope.stage.param = value`. GPU-only; no backend means skip + diagnostic. See `examples/animation/08_effects.amx` (composition) and `examples/animation/30_effects_catalog.amx` (14 effects across 13 Filter scopes) |
 | Morphing | re-declaration morphing + path/text interpolation | Yes | Runtime-real | Yes | Yes | Core morph path via re-declaration |
 | Morphing | `strategy:auto\|match\|fade`, `path_arc`, `stretch` | Yes (scoped) | Runtime-real on timed path-morphing | Yes | Yes | |
-| Actions | Entrance: `fade-in`, `draw-in`, `wipe-in`, `reveal-in`; Motion: `move`, `shift`, `rotate`, `scale`; Exit: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`; Effects: `shake`, `pulse`, `bounce`; Reorder: `swap`, `reorder` | Yes | Runtime-real | Yes | Yes | Built-ins |
+| Actions | Motion: `move`, `shift`, `rotate`, `scale`; Entrance: `fade-in`, `draw-in`, `wipe-in`, `reveal-in`, `settle-in`, `pop-in`, `grow-in`; Exit: `fade-out`, `wipe-out`, `reveal-out`, `draw-out`, `shrink-out`; Effects: `shake`, `pulse`, `bounce`; Highlight: `highlight`, `unhighlight`; Persistence: `persist`, `remove`; Reorder: `swap`, `reorder` (25 built-ins) | Yes | Runtime-real | Yes | Yes | Built-ins |
 | Actions | broader verb-first surface | Yes | Partial | Partial | Yes | Shape exists; small subset implemented |
 | Composition | `sequence { ... }` | Yes | Runtime-real | Yes | Yes | Sequential composition; nested sequences and staggers supported |
 | Composition | `stagger [150ms] { ... }` | Yes | Runtime-real | Yes | Yes | Shared interval offset; nested sequences and staggers supported |
@@ -333,10 +333,13 @@ a slow end":
 
 | The statement is | Default | Why |
 |------------------|---------|-----|
-| an entrance (`fade-in`, `wipe-in`, `reveal-in`, `draw-in`, `settle-in`, `pop-in`) | `expo-out` | arrivals decelerate into place |
-| an exit (`fade-out`, `wipe-out`, `reveal-out`, `draw-out`, `remove`) | `ease-in` | departures accelerate away |
+| an entrance (`fade-in`, `wipe-in`, `reveal-in`, `draw-in`, `settle-in`, `pop-in`, `grow-in`) | `expo-out` | arrivals decelerate into place |
+| an exit (`fade-out`, `wipe-out`, `reveal-out`, `draw-out`, `remove`, `shrink-out`) | `ease-in` | departures accelerate away |
 | a reposition (any other action) | `ease-in-out` | it starts and ends at rest |
-| an oscillating effect (`shake`, `pulse`, `bounce`, `highlight`) | `linear` | the shape *is* the effect; easing it softens it |
+| an oscillating effect (`shake`, `pulse`, `bounce`, `highlight`, `unhighlight`) | `linear` | the shape *is* the effect; easing it softens it |
+
+`persist` has no animated span — timing modifiers are ignored — so easing does
+not apply to it.
 
 An explicit `ease:` always wins, and `ease: linear` still means linear. A
 statement with no duration has nothing to ease.
@@ -387,12 +390,13 @@ functions of progress — `ease_out(t)`, `expo_out(t)`, `spring(t)` — for
 
 Duplicate modifier keys: last value wins. `ease` without duration = instant change.
 
-**Built-in Actions:**
+**Built-in Actions (25):**
 - **Motion:** `move`, `shift`, `rotate`, `scale`
-- **Entrance:** `fade-in`, `draw-in`, `wipe-in`, `reveal-in`
-- **Exit:** `fade-out`, `wipe-out`, `reveal-out`, `draw-out`
+- **Entrance:** `fade-in`, `draw-in`, `wipe-in`, `reveal-in`, `settle-in`, `pop-in`, `grow-in`
+- **Exit:** `fade-out`, `wipe-out`, `reveal-out`, `draw-out`, `shrink-out`
 - **Effects:** `shake`, `pulse`, `bounce`
 - **Highlight:** `highlight`, `unhighlight` — animate highlight overlay on Equation fragments or Typst actors (whole-actor highlighting)
+- **Persistence:** `persist`, `remove`
 - **Reorder:** `swap`, `reorder`
 
 **Action signatures for generation:**
@@ -403,6 +407,10 @@ Duplicate modifier keys: last value wins. `ease` without duration = instant chan
 | `draw-in` on text | `draw-in target [duration, ease]` (typewriter) or `draw-in target [by: word, duration]` (word by word) |
 | `settle-in` | `settle-in target [duration, delay, ease]` — fade plus a few percent of scale, so the actor arrives instead of appearing |
 | `pop-in` | `pop-in target [duration, delay, ease]` — fade plus a scale-up with a back overshoot |
+| `grow-in` | `grow-in target [duration, delay, ease, from: center \| left \| right \| top \| bottom \| (x, y)]` — scale from zero to the authored scale at an optional pivot |
+| `shrink-out` | `shrink-out target [duration, delay, ease, to: center \| left \| right \| top \| bottom \| (x, y)]` — scale from the authored scale to zero without fading |
+| `persist` | `persist target1, target2, ...` (also `persist camera`) — no timing modifiers |
+| `remove` | `remove target1, target2, ... [duration, delay, ease]` (also `remove camera`) |
 | `move` | `move target [to: Vec2 \| along: {commands}, orient, duration, ease, anticipate]` |
 | `shift` | `shift target [by: Vec2, duration, ease, anticipate]` |
 | `rotate` | `rotate target [by: Num, duration, ease]` |
@@ -427,6 +435,14 @@ onto the actor's own authored scale, so an element comes to rest rather than
 being dialled up in opacity alone. `settle-in` starts at 92% size and arrives on
 `expo-out`; `pop-in` starts at 60% and arrives on `back` (one overshoot). An
 explicit `ease:` overrides the preset's arrival curve.
+
+**Scale presets.** `grow-in` and `shrink-out` animate only the actor's scale,
+with no fade: `grow-in` ramps zero → authored scale (lifting a hidden-by-default
+actor), and `shrink-out` ramps authored scale → zero, leaving opacity untouched
+so a later `grow-in` restores the actor. Both accept `from:`/`to:` with
+`center` (default), `left`, `right`, `top`, `bottom`, or a local `(x, y)` pivot,
+which sets the point the scale grows from or collapses toward. A bottom-anchored
+`grow-in` is the bar-chart rise; `shrink-out` + `grow-in` is a reversible exit.
 
 **Motion along a path.** `move target [along: {…}, 2s]` travels a route instead
 of translating. The commands are the same list `Path, commands:` takes, sampled
@@ -807,7 +823,7 @@ eye/lock view toggles, `solo` round-trips through `.amx` and undo.
 | `Path` | `commands: {move_to(...), line_to(...), curve_to(...), close()}` |
 | `Text` / `Typst` / `Code` | `text` / `code`, `font_size`, `font_family`, `font_weight`, `font_style`, `line_height`, `letter_spacing`, `word_spacing`, `text_max_width`, `text_align`, `text_anchor`, `overflow` |
 | `Image` / `Svg` | `url` |
-| `Filter` | none directly; declares effect children (`Blur`, `ColorGrade`, `Sharpen`, `Vignette`, `MotionBlur`, `Grain`, `Levels`, …) whose parameters animate as `scope.stage.param` |
+| `Filter` | `bounds` (processed region); declares effect children (`Blur`, `ColorGrade`, `Sharpen`, `Vignette`, `MotionBlur`, `Grain`, `Levels`, …) whose parameters animate as `scope.stage.param` |
 | `Graph` / plots | `x_domain`, `y_domain`, `func`, `kind`, `resolution`, `density`, `levels` |
 | `Row` / `Col` / `Grid` / `Stack` | `gap` / `gap: (row, col)`, `padding` / `padding: (top, right, bottom, left)`, `align`, `vertical_align` (Row/Col), `cols` (Grid) |
 
@@ -1116,10 +1132,10 @@ nothing (the pass and the offscreen round-trip are skipped).
 | Effect | Parameters | Description |
 |--------|------------|-------------|
 | `Blur` | `radius` (default 0) | Gaussian blur radius in px; two passes (H then V) |
-| `Bloom` | `intensity` (0.7), `keep` (1.0) | Adds the chain's current state back onto the pre-chain original (ABI v2 binding 5). Meaningful *after* a `Blur` in the same scope: `blur: Blur, radius: 14` then `glow: Bloom, intensity: 0.8` is a glow; `Bloom` alone just brightens. `keep` is how much of the untouched frame stays underneath |
+| `Bloom` | `intensity` (0), `keep` (1.0), `threshold` (0) | Adds the chain's current state back onto the pre-chain original (ABI v2 binding 5). Identity is `intensity: 0` with `keep: 1.0`, so a bare `Bloom` contributes nothing and is skipped; positive `intensity` is an exposure lift. Meaningful *after* a `Blur` in the same scope: `blur: Blur, radius: 14` then `glow: Bloom, intensity: 0.8` is the glow; `Bloom` alone just lifts exposure. `keep` is how much of the untouched frame stays underneath; `threshold` gates the added light by the running result's luma (0 disables the gate, useful range 0..1) |
 | `ColorGrade` | `brightness` (1.0), `contrast` (1.0), `saturate` (1.0), `hue_rotate` (0), `sepia` (0) | Colour matrix, composed sepia → hue → saturate → contrast → brightness |
 | `ChromaticAberration` | `offset` (default 0) | Radial RGB channel separation in px; single pass through the linear sampler |
-| `Sharpen` | `amount` (0), `radius` (0, px) | Unsharp mask: adds the pixel−local-average residual back at `amount` strength; box kernel of `radius` texels |
+| `Sharpen` | `amount` (0), `radius` (0, px) | Unsharp mask: adds the pixel−local-average residual back at `amount` strength; box kernel of `radius` scene pixels |
 | `Vignette` | `amount` (0), `radius` (0.9), `softness` (0.6), `color` (black) | Darkens toward the edges; `radius`/`softness` are fractions of the half minimum dimension (start / spread) |
 | `MotionBlur` | `length` (0, px), `angle` (0, degrees) | Directional smear sampled through the linear sampler; 0° = right, counter-clockwise |
 | `Grain` | `amount` (0), `seed` (0), `monochrome` (false) | Film-grain noise driven by the timeline clock, so it animates without a keyframe |
@@ -1136,10 +1152,12 @@ scope is a build diagnostic. Nested `Filter` scopes are allowed; each level adds
 one offscreen pass. The GPU pass contract is specified in `docs/effects.md`.
 
 **Region of interest.** An optional `bounds: (x, y, w, h)` (scene pixels)
-restricts effect harvesting to that region — the filtered result is read back
-only inside `bounds` expanded by the chain's worst-case effect support (e.g.
-the blur radius), so padding never clips, and composited back at the region
-origin. Without `bounds`, the whole scene is processed.
+restricts the processed region — the sub-scene renders, seeds, dispatches, and
+harvests only inside `bounds` expanded by the chain's worst-case effect support
+(e.g. the blur radius), then composites back at the region origin. Without
+`bounds`, the region is derived from the content subtree's world bounds, padded
+by the same worst-case support and clamped to the scene; only a region that
+covers the whole scene falls back to full-canvas textures.
 
 ### Glass (Backdrop Blur)
 
@@ -2388,7 +2406,7 @@ Returns a `Value::Object` with typed fields. Field reads (`p.x`, `p.a.b`) are im
 
 ---
 
-## 17. CLI Export
+## 17. CLI Commands
 
 **Video (`animatix video`) and GIF (`animatix gif`) exports require the `video` feature** (see AGENTS.md for the Nix/FFmpeg setup):
 
@@ -2417,7 +2435,7 @@ animatix gif examples/layout/12_reorder.amx -o out.gif --hold 2.0
 animatix gif examples/layout/12_reorder.amx -o out.gif --duration 3.0
 ```
 
-**Build-time overrides (`--set`).** `image`, `video`, `gif`, `check`, `storyboard` and `verify`
+**Build-time overrides (`--set`).** `image`, `video`, `gif`, `check`, `review`, `storyboard` and `verify`
 accept a repeatable `--set NAME=VALUE` that seeds a build-time variable, which is
 how one template renders many data variants:
 
@@ -2457,6 +2475,45 @@ animatix gif examples/gallery/brand_reel/main.amx -o out.gif --fps 10
 **Storyboard contact sheet (`animatix storyboard`):** Renders keyframe beats and the resting frame into a single multi-panel contact sheet grid (PNG/WebP) for visual inspection, scene reviews, and AI agent feedback loops. Automatically samples keyframe cues and the final resting frame, or accepts custom timestamps via `--times`. Accepts `--cols`, `--tile-width`, `--tile-height`, and `--max-frames`.
 
 **GUI Preview Audio:** The `animatix-gui` preview panel plays audio segments from `Audio` actors in sync with the timeline during playback. Audio files are decoded via `rodio` and cached in memory. Playback automatically starts, seeks, and pauses in sync with the timeline controller. Missing or unplayable audio files produce a warning but do not block preview.
+
+### Review and Verification
+
+The authoring loop has four distinct commands; only `review` is the default
+automatic gate.
+
+| Command | Role | Requirements |
+|---------|------|--------------|
+| `animatix check <file>` | Build/type/diagnostic gate: parse errors, unresolved names, never-revealed warnings | None |
+| `animatix review <file>` | Automatic structural review of layout, visibility, and timing, with an optional GPU pixel tier | No `verify.txt`; GPU optional (`--render auto` skips the pixel tier when no adapter exists) |
+| `animatix storyboard <file>` | Qualitative visual review: a contact sheet of keyframe beats and the resting frame | GPU |
+| `animatix verify <file>` | Internal pixel-regression escape hatch over declared `verify.txt` checks | `verify.txt` and GPU |
+
+`animatix review` builds the target, evaluates scene programs at sample times,
+and reports issues with a stable rule id, severity, confidence, source line,
+actor, time, evidence, and suggestion. It exits 0 when no issue reaches the
+`--fail-on` threshold, 1 when an issue does, and 2 when the review cannot run
+(build errors, `--render always` without a working adapter, or a failed
+`--storyboard`/`--emit-verify` write). Important flags:
+
+| Flag | Default | Meaning |
+|------|---------|---------|
+| `--policy` | `default` | `default` or `site` (site adds resting-composition checks mirroring `scripts/site-rest-check.py`) |
+| `--samples` | `auto` | `auto`, `keyframes`, or a frame count `N` (at least 2) |
+| `--max-frames` | `24` | Upper bound on the automatic/regular sample grid |
+| `--render` | `auto` | `auto` (skip without an adapter), `always`, or `never` |
+| `--detail` | `summary` | `summary` or `full` text detail; JSON is always complete |
+| `--format` | `text` | `text` or `json` (`schema_version: 1`) |
+| `--fail-on` | `error` | `error`, `warning`, or `never`; cannot-run still exits 2 |
+| `--storyboard <path>` | — | Also render a storyboard PNG after the review |
+| `--frames-dir <dir>` | — | Save rendered review PNG samples |
+| `--emit-verify <path>` | — | Write suggested `verify.txt` lines; refuses to overwrite |
+
+`animatix verify` remains available as an **internal pixel-regression escape
+hatch** with the existing 196-check corpus (the transformer scene set). It is
+not the default authoring gate and new projects do not need a `verify.txt`; the
+file remains supported for legacy projects that already carry one. See
+[`review.md`](review.md) for the complete review guide, JSON schema, rule
+list, exit codes, and limitations.
 
 ### Multi-Scene Composition
 
@@ -2526,7 +2583,7 @@ play Diagram [fade, 300ms]
 graph: Rect, size: (400, 400)
 ```
 
-**Supported transitions:** `cut`, `fade`, `wipe-left`, `wipe-right`, `wipe-up`, `wipe-down`, `push-left`, `push-right`, `push-up`, `push-down`. Transition blending uses a dual offscreen render path with the `TransitionCompositor` WGSL shader.
+**Supported transitions (13):** `cut`, `fade`, `wipe-left`, `wipe-right`, `wipe-up`, `wipe-down`, `push-left`, `push-right`, `push-up`, `push-down`, `iris`, `clock-wipe`, `zoom-through`. Transition blending uses a dual offscreen render path with the `TransitionCompositor` WGSL shader. `shared_id` is a cross-scene shared-element (FLIP) overlay, not a `play` transition id.
 
 ### Per-Scene Configuration
 
@@ -2771,6 +2828,37 @@ persist row  // carries row + a + b together
 | `PersistTargetNotCarried` | `persist` used in the last scene or a single-scene file (no successor to receive the carry) |
 | `CarryAmbiguousPredecessor` | Scene has multiple predecessors in the play graph (only walk-order predecessor is used) |
 | `PersistAfterRemove` | `persist` follows `remove` for the same actor in the same scene |
+
+---
+
+## 20. Wave 1–4 Semantics (Implemented)
+
+The Delightful Animation & Kinetic Design plan
+([`delightful_animation_plan.md`](delightful_animation_plan.md)) landed in four
+waves. The plan remains the design rationale; this section states the
+author-facing semantics that are now part of the language.
+
+| Wave | Semantics | Authoring surface |
+|------|-----------|-------------------|
+| 1 — Channels & high-ROI | Text gradient fills; feathered wipes and push transitions; spatial/radial stagger; camera parallax | `fill_gradient`, `gradient_extend`, `gradient_space` on text-like actors; `play ... [wipe-* \| push-*, duration]`; `stagger [each: 40ms, from: center \| top-left \| (x, y), metric: euclidean \| manhattan]`; `parallax: F32` |
+| 2 — Topology & typography | Post-layout orthogonal connectors; split-text reveals; pre-baked rolling counters; standard card/boundary components | `Connector` (`routing: elbow \| l-bend \| straight`); `reveal-in ... [by: char \| word \| line, stagger: ...]`; `Counter`; `CardNode` / `BoundaryBox` in `examples/lib/ui.amx` |
+| 3 — Materials & 2.5D | Native analytic Gaussian shadows; 2.5D perspective tilt; closed-loop idle micro-motion | `shadow` (`(offset_x, offset_y, blur, spread)`), `shadow_color`; `rotate_x`, `rotate_y`, `perspective`; `idle: "float" \| "breath"` |
+| 4 — Camera & continuity | Target-tracking camera; shared-element FLIP overlay; spring handoff with initial velocity; interactive step pauses | `camera.focus` / `camera.focus_on = "actor"` with `[padding: N]`; `shared_id: "key"` (a FLIP overlay, not a transition id); `spring-v0(damping, frequency, v0)`; `#step N` |
+
+Semantics that are easy to miss:
+
+- **Everything is build-time synthetic where possible.** Spatial stagger order,
+  split-text boundaries, idle tracks, and path-following moves are expanded
+  into keyframes at build time, preserving stateless scrubbing and parallel
+  export.
+- **`shared_id` is not a transition.** It matches actors with the same non-empty
+  `shared_id` across the two scenes of any `play` transition and draws a
+  floating FLIP overlay; `transition_registry` contains no `flip` id.
+- **`#step N` adds a pause point, not a keyframe.** The timeline records it in
+  `pause_points` so the player can stop there; it does not change timing.
+- **Text gradients use the same gradient values as shapes.** `linear(...)`,
+  `radial(...)`, and `sweep(...)` apply to text-like actors; `gradient_space`
+  still defaults to `oklab`.
 
 ---
 

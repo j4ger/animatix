@@ -653,10 +653,34 @@ Root layout containers can omit `at` and default to `scene.center`. Scene-relati
 
 ## Filter
 
-Post-processes its children with `blur`, `brightness`, `contrast`, `saturate`,
-`hue_rotate`, and `sepia`. Children render into an offscreen target that is filtered
-and composited back. Without a GPU filter backend the effect is skipped, the children
-render unfiltered, and a runtime diagnostic is emitted.
+A compositing scope with an **ordered effect chain**. Declare effects as
+labelled children before the content; they are not actors and do not render on
+their own:
+
+```animatix
+bg: Filter, bounds: (0, 0, 1280, 720) {
+  soft: Blur, radius: 10
+  warm: ColorGrade, contrast: 1.15
+  photo: Image, url: "photo.jpg", size: fill
+}
+#1.5s
+bg.soft.radius = 24 [1.5s, ease: ease-out]
+```
+
+Effects apply in declaration order; a stage whose parameters are all at their
+identity values (or whose `enabled` is `false`) is skipped. If every stage is
+skipped, the offscreen round-trip is skipped too. Content renders into a
+region-sized offscreen target, is filtered, and composites back at the region
+origin. An optional `bounds: (x, y, w, h)` (scene pixels) sets the processed
+region; without it, the region is derived from the content subtree's bounds,
+padded by the chain's worst-case spatial support, and clamped to the scene.
+Without a GPU filter backend the effects are skipped, the children render
+unfiltered, and a runtime diagnostic is emitted.
+
+Built-in effects (14): `Blur`, `Bloom`, `ColorGrade`, `ChromaticAberration`,
+`Sharpen`, `Vignette`, `MotionBlur`, `Grain`, `Levels`, `DropShadow`, `Duotone`,
+`Edge`, `LensDistortion`, `Posterize`. See [`effects.md`](effects.md) for
+parameters, identity values, ROI rules, and the GPU ABI.
 
 ## Mask
 

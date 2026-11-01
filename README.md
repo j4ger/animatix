@@ -48,19 +48,19 @@ features. The remaining switches are `perf-tracing` (default-on), `serde`,
 
 ## What's Shipped
 
-**Primitives:** `Text`, `Typst`, `Code`, `Svg`, `Image`, `Audio`, `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Equation`/`Fragment`
+**Primitives:** `Text`, `Typst`, `Code`, `Math`, `Svg`, `Image`, `Audio`, `Rect`, `Ellipse`, `Line`, `Arrow`, `Polygon`, `Path`, `Equation`/`Fragment`, `Connector`, `Counter`, `Callout`, `Legend`, `Captions`, `Cue`
 
 **Plotting:** `Graph`, `PlotCurve` (cartesian/polar/parametric/implicit), `BarChart`, `VectorField`, `Heatmap`, `ContourSet`, `NumberPlane`
 
-**Containers:** `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`
+**Containers:** `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Glass`, `Mask`
 
-**Animation:** Keyframes, morphing, 20+ built-in actions (`fade-in`, `draw-in`, `move`, `shift`, `rotate`, `scale`, `swap`, `reorder`, `shake`, `pulse`, `bounce`, …), easing curves, sequence/stagger composition
+**Animation:** Keyframes, morphing, 25 built-in actions (`fade-in`, `draw-in`, `move`, `shift`, `rotate`, `scale`, `grow-in`, `shrink-out`, `swap`, `reorder`, `shake`, `pulse`, `bounce`, …), easing curves, sequence/stagger composition
 
 **Language:** Reactive `always` blocks, compile-time `for`, `pub component` with slots, module imports, gradual type system, colorschemes
 
-**Multi-scene:** Scene declarations, transitions (fade/wipe/cut), cross-file composition, auto-routed CLI export
+**Multi-scene:** Scene declarations, 13 transitions (cut, fade, wipes/pushes, iris, clock-wipe, zoom-through), cross-file composition, auto-routed CLI export
 
-**Tooling:** CLI renderer (image; video/GIF/WebM behind the `video` feature), scene checker/verifier (`animatix check`, `animatix verify`), GUI shell, Tree-sitter grammar, LSP server
+**Tooling:** CLI renderer (image; video/GIF/WebM behind the `video` feature), checker/linter/reviewer (`animatix check`, `animatix lint`, `animatix review`), qualitative storyboard contact sheets (`animatix storyboard`), GUI shell, Tree-sitter grammar, LSP server. `animatix verify` remains available as an internal pixel-regression escape hatch, not the default authoring gate.
 
 Full language spec: [`docs/spec.md`](docs/spec.md) · All primitives: [`docs/primitives.md`](docs/primitives.md) · All properties: [`docs/properties.md`](docs/properties.md)
 

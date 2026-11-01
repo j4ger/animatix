@@ -140,16 +140,12 @@ Only applicable to `Filter` actors. See [`architecture.md`](architecture.md) §6
 | Property | Type | Animated | Assignable | Applies to |
 |----------|------|----------|------------|------------|
 | `bounds` | Vec4 | ✓ | ✓ | Filter |
-| `blur` | F32 | ✓ | ✓ | Filter |
-| `brightness` | F32 | ✓ | ✓ | Filter |
-| `contrast` | F32 | ✓ | ✓ | Filter |
-| `saturate` | F32 | ✓ | ✓ | Filter |
-| `hue_rotate` | F32 | ✓ | ✓ | Filter |
-| `sepia` | F32 | ✓ | ✓ | Filter |
 
-The post-processing knobs (`blur`, `brightness`, `contrast`, `saturate`,
-`hue_rotate`, `sepia`) are parsed by the `Filter` primitive itself; `bounds` is
-the registry-backed clip rectangle.
+`bounds` is the registry-backed clip rectangle for the processed region.
+Effect parameters (`Blur.radius`, `Bloom.intensity`, and the rest) are **not**
+actor properties: they are declared per-stage children of the scope and
+animate as `scope.stage.param`. See [`effects.md`](effects.md) for the full
+parameter and identity tables.
 
 ## Shape-Specific
 

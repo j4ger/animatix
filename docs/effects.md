@@ -44,7 +44,9 @@ Rules:
   (`PluginEffectData`) and use the identical identity convention
   (`[x, y, z, w]` interpreted per kind).
 - **Every effect has an implicit `enabled: Bool`** (default `true`, animatable).
-  There is no generic `mix` in v1.
+  There is no generic `mix` parameter: a pass that balances the original frame
+  against the running result exposes an effect-specific control instead —
+  `Bloom.keep` is that control for the one built-in that needs it.
 
 Assignment syntax is scope-qualified: `scope.stage.param = value`. Parameters
 are addressed by their authored names; the chain is sampled per frame into the
@@ -67,9 +69,9 @@ Identity values are declarative, never callbacks — they must be expressible
 across the FFI boundary. `enabled` is *not* part of the identity rule; an
 unauthored `enabled` resolves to `true`.
 
-Built-in examples:
+Built-in identity values:
 
-| Effect | Parameter | Identity |
+| Effect | Parameter | Identity value |
 |---|---|---|
 | `Blur` | `radius` | `0` |
 | `ColorGrade` | `brightness` | `1.0` |
@@ -82,6 +84,7 @@ Built-in examples:
 | `Sharpen` | `radius` | `0` |
 | `Bloom` | `intensity` | `0` |
 | `Bloom` | `keep` | `1.0` |
+| `Bloom` | `threshold` | `0` |
 | `Vignette` | `amount` | `0` |
 | `Vignette` | `radius` | `0.9` |
 | `Vignette` | `softness` | `0.6` |
@@ -107,14 +110,23 @@ Built-in examples:
 | `DropShadow` | `softness` | `0` |
 | `DropShadow` | `color` | `(0, 0, 0, 1)` |
 
+**Parameter units.** Most parameters are unitless, normalized fractions, or
+angles. Exactly seven are lengths in **scene pixels**:
+`Blur.radius`, `ChromaticAberration.offset`, `Sharpen.radius`,
+`MotionBlur.length`, `DropShadow.offset`, `DropShadow.softness`, and
+`LensDistortion.amount`. All seven scale with the render resolution the same
+way actor geometry does; the remaining length-like parameters are fractions of
+a local reference (for example `Vignette.radius` and `Vignette.softness` are
+fractions of the half minimum dimension).
+
 ## 3. Spatial support and ROI
 
 Every effect declares a **spatial support**: how far outside a pixel it reads,
-in scene pixels, as a function of its parameters (blur reads `radius` texels; a
-colour matrix reads nothing). Support is the `Effect::support` method; the
-chain's `worst_case_support()` evaluates it over every parametric keyframe time
-and sums the per-stage maxima, so the result is constant per track (PF-7: no
-per-frame reallocation).
+in scene pixels, as a function of its parameters (blur reads `radius` scene
+pixels; a colour matrix reads nothing). Support is the `Effect::support` method;
+the chain's `worst_case_support()` evaluates it over every parametric keyframe
+time and sums the per-stage maxima, so the result is constant per track (PF-7:
+no per-frame reallocation).
 
 **Implemented (explicit knob).** `Filter, bounds: (x, y, w, h)` restricts the
 effect to that region: the sub-scene is rendered, seeded, dispatched, and
@@ -155,8 +167,10 @@ Two constraints:
 
 - **Allocation stability.** An animating support would resize the target every
   frame. The region uses the *worst-case* support over the effect track's
-  parameter range, and the GPU textures stay at full scene capacity (only the
-  readback and composite shrink), preserving the PF-7/PF-9 budget.
+  parameter range, and region scratch targets are quantized to 64-px steps and
+  cached per size, so animated regions stay in steady state. Only a region that
+  covers the whole scene allocates canvas-sized textures; the PF-7/PF-9 budget
+  is preserved.
 - **Composite ordering.** A rect-scoped composite is applied after the full
   scene render, so it overwrites anything drawn later inside its rect. The
   zero-readback path therefore keeps the existing `can_post_composite_filter`
@@ -179,7 +193,7 @@ binding layout.
   the scope, copied by the host before pass 0 runs, so a pass can add light back
   onto what the scene looked like rather than onto whatever the previous pass
   left. `Bloom` is its first consumer (`Blur` then `Bloom` in one scope is a
-  glow; `Bloom` alone is a brightening). v1 had one input and no second
+  glow; `Bloom` alone is an exposure lift). v1 had one input and no second
   reserved — the bump was made deliberately, with its cost measured: one extra
   full-region copy per scope per frame, and one extra texture per scratch set.
 

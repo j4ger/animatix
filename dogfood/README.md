@@ -25,13 +25,20 @@ candidate provides the better visual outcome, motion polish, or DSL ergonomics?"
 1. Pick a real brief: an explainer, dashboard, generative piece, or content
    port. Write the brief in `projects/<name>/brief.md`.
 2. Author the scene in idiomatic Animatix first. Do not start with workarounds.
-3. Run the standard checks from the workspace root:
+3. Run the standard automatic gates from the workspace root:
    ```bash
    cargo run --bin animatix -- check dogfood/projects/<name>/entry.amx
    cargo run --bin animatix -- lint dogfood/projects/<name>/entry.amx
+   cargo run --bin animatix -- review dogfood/projects/<name>/entry.amx
+   ```
+   `animatix review` is the default automatic review gate: it needs no
+   `verify.txt` and no GPU (the pixel tier is skipped when no adapter exists).
+   A still render remains useful for eyeballing a single frame:
+   ```bash
    cargo run --bin animatix -- image dogfood/projects/<name>/entry.amx --time 1.0 --output /tmp/dogfood.png
    ```
-   When the project has a `verify.txt`, run the content checks too:
+   Legacy projects that already carry a `verify.txt` may still run the content
+   checks as an optional regression floor:
    ```bash
    cargo run --bin animatix -- verify dogfood/projects/<name>/entry.amx
    ```
@@ -69,10 +76,29 @@ See `arena/README.md` for the full agent workflow, Web Arena controls, and feedb
 green while a single actor silently disappears — `examples/data/07_plots.amx`
 shipped with an invisible headline curve through both gates.
 
-### 1. Primary Visual Review (`animatix storyboard`)
+### 1. Primary Automatic Review (`animatix review`)
 
-For both AI agents and human authors, the primary visual inspection tool is the
-storyboard contact sheet:
+`review` is the default automatic gate for new projects and does not need a
+`verify.txt`:
+
+```bash
+cargo run --bin animatix -- review dogfood/projects/<name>/entry.amx
+```
+
+It builds the target, evaluates sampled frames on the CPU, and applies the
+structural rules (hidden/never-revealed actors, clipping, text overflow,
+independent overlap candidates, entrance visibility, redundant keyframes).
+When an offscreen GPU adapter is available, `--render auto` (the default) adds
+whole-frame ink, per-actor ink, beat-change, and transition-endpoint checks.
+Use `--format json` for the stable `schema_version: 1` report, `--policy site`
+for the resting-composition policy, and `--storyboard` when both the automatic
+report and a visual contact sheet are wanted. `review` exits 1 on an issue that
+reaches `--fail-on` and 2 when the review cannot run.
+
+### 2. Qualitative Visual Review (`animatix storyboard`)
+
+For both AI agents and human authors, the qualitative visual inspection tool is
+the storyboard contact sheet:
 
 ```bash
 cargo run --bin animatix -- storyboard dogfood/projects/<name>/entry.amx
@@ -85,11 +111,11 @@ Inspect the contact sheet to verify:
 - Layouts and labels do not collide or overflow scene boundaries.
 - The resting frame holds a finished, readable figure (not an empty plate).
 
-### 2. Optional Regression Floors (`verify.txt`)
+### 3. Optional Legacy Regression Floors (`verify.txt`)
 
-For complex GPU-level filter pipelines (such as multi-scope offscreen composites),
-a project may optionally carry a companion `verify.txt` to assert automated
-regression floors:
+`animatix verify` remains as an internal pixel-regression escape hatch for
+projects that already carry a companion `verify.txt`; it is not required for new
+projects and is not the primary authoring gate:
 
 ```bash
 cargo run --bin animatix -- verify dogfood/projects/<name>/entry.amx
@@ -99,8 +125,9 @@ It renders the frame(s) at the named times and prints one PASS/FAIL per line.
 The file is line-based: one check per line, `#` comments and blank lines
 ignored, times are **global** composition times (see `animatix timeline`).
 
-`verify.txt` is an **optional regression floor**, not a mandatory prerequisite
-for authoring new scenes. It is most useful for calibration against tricky GPU
+`verify.txt` is an **optional legacy regression floor**, not a mandatory
+prerequisite for authoring new scenes. Existing projects that already carry one
+keep working unchanged. It is most useful for calibration against tricky GPU
 boundaries like `effects-wave1`:
 `dogfood/projects/effects-wave1/verify.txt` is the calibration example for the
 hard case: a full-canvas `Filter` scope whose bounds contain every other actor.
@@ -128,7 +155,9 @@ the change in the actor's region, so a curve that never appears fails. A single
 actor's footprint can also be too small to threshold (a high-degree partial sum
 overlaps its siblings almost everywhere); use a scene-level `differs` there.
 
-Run every project through the content gate plus the `check` warning allowlist:
+Run `animatix review` on every project and keep the `check` warning allowlist.
+The local script below covers `check` and legacy `verify` only — it does not
+invoke `review` yet:
 
 ```bash
 bash scripts/dogfood-verify.sh

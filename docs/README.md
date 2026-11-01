@@ -6,6 +6,8 @@
 | [`primitives.md`](primitives.md) | Users | Quick reference for every scene primitive, graph primitive, and container |
 | [`properties.md`](properties.md) | Users | Property reference table: all actor properties, types, and applicability |
 | [`effects.md`](effects.md) | Users | Effect chain model: built-in effects, parameters, support regions, and the second-input ABI |
+| [`review.md`](review.md) | Users | `animatix review` guide: command roles, flags, JSON schema, rules, exit codes, and limitations |
+| [`extension_authoring.md`](extension_authoring.md) | Contributors | Registering primitives, actions, functions, and native plugins |
 | [`architecture.md`](architecture.md) | Contributors | System architecture: pipeline, data structures, runtime, layout, rendering, property system, composition |
 | [`ecs.md`](ecs.md) | Contributors | Timeline entity/component design: `World` stores, label→id boundary, component checklist, snapshots, structure gate |
 | [`primitive_abstraction.md`](primitive_abstraction.md) | Contributors | Primitive trait model: what is unified, accepted boundaries, remaining non-uniformity, deferred decisions, and a recommended order |
@@ -28,6 +30,7 @@
 - **All primitives**: `primitives.md`
 - **All properties**: `properties.md`
 - **Effect chain and parameters**: `effects.md`
+- **Review, storyboard, and verification**: `review.md`
 - **System architecture**: `architecture.md`
 - **Timeline ECS / component storage**: `ecs.md`
 - **Primitive abstraction status/gaps**: `primitive_abstraction.md`

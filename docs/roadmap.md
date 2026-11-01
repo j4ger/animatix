@@ -50,7 +50,6 @@ display-matched raster/quality work, and measured web/native gap are archived in
 
 | Feature | Notes | Status |
 |---|---|---|
-| Delightful Animation & Kinetic Design ([`docs/delightful_animation_plan.md`](delightful_animation_plan.md)) | Comprehensive architecture plan for kinetic typography (split-text, text gradient, rolling counters), continuous physics (spring handoff, spatial stagger, lead-follow), native erf Gaussian shadows, 2.5D perspective tilt, smart camera target-tracking, and feathered/FLIP transitions. Phased across Waves 1–4. | Planning / Wave 1 scoped |
 | `Code` custom highlighting theme | Token colours now follow the active colorscheme via a role→named-token palette (`ResolvedColorscheme::highlight_palette`, resolved at build). A fully custom palette (arbitrary per-role colours, or a user-supplied `.tmTheme`) is not exposed as an authoring surface; deferred until a real content need. | Not started |
 | Re-declaration morphs sharing one keyframe stamp | When two actor re-declarations share a single `#t` stamp, the actors render their **target** geometry on every frame before the morph starts (an `Ellipse`→`Rect` re-declaration shows a square on pre-morph frames; a size-less `Polygon` leaked as a default-size `Ellipse`). One re-declaration per stamp is safe — `web/tour/scenes/morph.amx` exercises the full sequence leak-free. Found while frame-auditing `web/scenes/hero.amx` (probes in the 2026-10-01 site session); the hero now choreographs its trio with rotations/resizes instead. Fix direction: a morph track's pre-start evaluation must hold the *previous* declaration, not the target. | Not started |
 
@@ -256,12 +255,12 @@ the page, not just the scene.
   escapes are `.amx`'s and which belong to the payload — a per-property or
   per-actor-kind rule, not a global one. `docs/spec.md` currently documents
   neither, which is the smaller half of the problem.
-- **`differs` cannot see a thin rule.** The check samples the frame sparsely, so
-  a beat whose entire change is a 3px line (0.26% of a 1280×720 plate) reads
-  0.00% — three beats in the transformer set are like this and are recorded as
-  comments in the `*.verify.txt` files rather than asserted at a floor the
-  sampler cannot honour. A region-scoped `differs` (the same idea as `reveals`,
-  which already restricts to an actor's bounds) would close it.
+- **`differs` compares every pixel, so thin rules are visible.** The old
+  sparse-sampling caveat is gone: a beat whose entire change is a 3px line
+  (0.26% of a 1280×720 plate) is measured at full resolution and can be
+  asserted. A region-scoped `differs` (the same idea as `reveals`, which
+  already restricts to an actor's bounds) remains a convenience for thresholds
+  that should apply to one actor's region instead of the whole frame.
 - **The block pulse in `pipeline.amx` is a whisper.** As the token climbs, each
   block grows to 584×83 and settles back: 1.0% of that block's region changes,
   which is legible as motion but not as an event. Left alone deliberately —
