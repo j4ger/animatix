@@ -183,8 +183,12 @@ pub(super) fn default_easing_for(host: ModifierHost, subject: Option<&str>) -> E
         return Easing::Linear;
     }
     match subject.unwrap_or_default() {
-        "fade-in" | "wipe-in" | "reveal-in" | "draw-in" | "settle-in" | "pop-in" => Easing::ExpoOut,
-        "fade-out" | "wipe-out" | "reveal-out" | "draw-out" | "remove" => Easing::EaseIn,
+        "fade-in" | "wipe-in" | "reveal-in" | "draw-in" | "settle-in" | "pop-in" | "grow-in" => {
+            Easing::ExpoOut
+        },
+        "fade-out" | "wipe-out" | "reveal-out" | "draw-out" | "remove" | "shrink-out" => {
+            Easing::EaseIn
+        },
         // Oscillating effects are continuous loops: their shape is the effect,
         // so easing them would soften it. Everything else travels, and a
         // travel that starts and ends at rest reads as intentional.

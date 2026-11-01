@@ -1,0 +1,48 @@
+// 42 — Grow & Shrink: Pivot-Anchored Scale Entrances and Exits
+// Showcases:
+//   - `grow-in` from a bottom edge (bar chart rising out of its baseline)
+//   - `grow-in` centre default with a hidden-by-default reveal
+//   - `shrink-out` that collapses a card without fading it
+//   - `grow-in` restoring the card afterwards (the exit is reversible)
+
+import "../lib/theme.amx"
+import "../lib/ui.amx"
+
+config { colorscheme: "editorial-dark", resolution: (1280, 720) }
+
+// Bars are declared before the first keyframe: grow-in lifts their hidden
+// opacity seed while the scale ramp rises from each bar's bottom edge.
+bar1: Rect, size: (64, 160), at: (480, 540), corner_radius: 10, color: accent.primary
+bar2: Rect, size: (64, 240), at: (580, 500), corner_radius: 10, color: accent.success
+bar3: Rect, size: (64, 320), at: (680, 460), corner_radius: 10, color: accent.warning
+bar4: Rect, size: (64, 400), at: (780, 420), corner_radius: 10, color: accent.danger
+
+#0s
+title: Text, text: "Grow & Shrink", font_size: 38, font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 60)
+caption: Text, text: "bars grow from bottom · card collapses and returns", font_size: 16, color: text.secondary, anchor: scene.top, offset: (0, 108)
+
+card: CardNode,
+  title: "Scale, not opacity",
+  eyebrow: "SHRINK-OUT",
+  sub: "collapses to a point, then returns",
+  width: 330,
+  height: 190,
+  focal: true,
+  at: (1010, 430)
+
+grow-in title [500ms]
+grow-in caption [500ms, delay: 100ms]
+
+#0.4s
+stagger [90ms] {
+  grow-in bar1 [from: bottom, 800ms]
+  grow-in bar2 [from: bottom, 800ms]
+  grow-in bar3 [from: bottom, 800ms]
+  grow-in bar4 [from: bottom, 800ms]
+}
+
+#1.8s
+shrink-out card [700ms, ease: ease-in]
+
+#2.8s
+grow-in card [500ms, ease: expo-out]

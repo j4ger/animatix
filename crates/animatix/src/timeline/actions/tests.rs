@@ -187,6 +187,77 @@ fn action_signatures_include_reveal_in() {
     assert!(get_action_signatures().iter().any(|signature| signature.name == "reveal-in"));
 }
 
+fn modifier_names(action: &str) -> Vec<String> {
+    get_action_signatures()
+        .into_iter()
+        .find(|signature| signature.name == action)
+        .unwrap_or_else(|| panic!("action '{action}' is not registered"))
+        .modifiers
+        .into_iter()
+        .map(|param| param.name)
+        .collect()
+}
+
+#[test]
+fn pulse_and_bounce_signatures_do_not_declare_frequency() {
+    for action in ["pulse", "bounce"] {
+        let modifiers = modifier_names(action);
+        assert!(
+            modifiers.iter().any(|name| name == "intensity"),
+            "{action} must still declare intensity: {modifiers:?}"
+        );
+        assert!(
+            !modifiers.iter().any(|name| name == "frequency"),
+            "{action} does not read frequency and must not declare it: {modifiers:?}"
+        );
+    }
+}
+
+#[test]
+fn shake_signature_still_declares_frequency() {
+    let modifiers = modifier_names("shake");
+    assert!(
+        modifiers.iter().any(|name| name == "frequency"),
+        "shake reads frequency, so its signature must declare it: {modifiers:?}"
+    );
+}
+
+/// Pulse does not consume `frequency`; an authored key must be reported as an
+/// unsupported modifier rather than silently ignored.
+#[test]
+fn pulse_frequency_modifier_produces_unsupported_modifier_key() {
+    let mut timeline = Timeline::new();
+    timeline.spawn_entity("badge", "Rect");
+    let action = Action {
+        verb: "pulse".to_string(),
+        targets: vec!["badge".to_string()],
+        args: vec![],
+        modifiers: vec![
+            Modifier {
+                name: Some("frequency".to_string()),
+                value: crate::ast::Expr::Num(5.0),
+            },
+            Modifier {
+                name: None,
+                value: crate::ast::Expr::Ident("500ms".to_string()),
+            },
+        ],
+        byte_span: None,
+        target_index: vec![],
+    };
+
+    let mut diagnostics = Vec::new();
+    process_action(&action, 0.0, &mut timeline, &mut diagnostics, None);
+
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code == DiagnosticCode::UnsupportedModifierKey
+                && diagnostic.message.contains("frequency")),
+        "pulse [frequency: 5] must warn about the unsupported key, got: {diagnostics:?}"
+    );
+}
+
 #[test]
 fn vector_reveal_targets_reject_container_nodes_with_leaf_only_message() {
     let mut timeline = Timeline::new();
@@ -727,4 +798,217 @@ fn swap_action_animates_positions_smoothly() {
     assert_ne!(bar1_mid, bar1_end, "bar1 should not yet be at end position");
     assert_ne!(bar2_mid, bar2_start, "bar2 should have left start position");
     assert_ne!(bar2_mid, bar2_end, "bar2 should not yet be at end position");
+}
+
+// ── grow-in / shrink-out ──────────────────────────────────────────────
+
+fn build_source(source: &str) -> (Timeline, Vec<crate::diagnostics::Diagnostic>) {
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report =
+        Timeline::build_with_diagnostics(ast.as_ref().expect("parsed AST"), &HashMap::new());
+    (report.output, report.diagnostics)
+}
+
+#[test]
+fn grow_in_center_reaches_authored_scale_and_lifts_hidden_default() {
+    let (timeline, diagnostics) = build_source(
+        r#"
+box: Rect, size: (160, 80), at: (320, 240), scale: 1.5
+
+#0s
+grow-in box [1s]
+"#,
+    );
+
+    let box_id = timeline.world.get_id("box").expect("box id");
+    let style = timeline.world.style(box_id);
+    let geometry = timeline.world.geometry(box_id);
+    assert_eq!(geometry.scale.get(0, 1.0), 0.0, "grow-in starts at zero scale");
+    assert_eq!(
+        geometry.scale.get(1000, 1.0),
+        1.5,
+        "grow-in must land on the authored scale, not a hardcoded 1.0"
+    );
+    assert_eq!(style.opacity.get(0, 1.0), 0.0, "hidden-by-default seed");
+    assert_eq!(style.opacity.get(1000, 1.0), 1.0, "grow-in lifts the seed");
+    assert!(
+        !timeline.world.meta(box_id).hidden_by_default,
+        "the hidden flag is consumed by the lift"
+    );
+    assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
+}
+
+#[test]
+fn grow_in_does_not_fade_an_already_visible_actor() {
+    let (timeline, diagnostics) = build_source(
+        r#"
+#0s
+box: Rect, size: (160, 80), at: (320, 240), opacity: 0.4
+
+grow-in box [500ms]
+"#,
+    );
+
+    let box_id = timeline.world.get_id("box").expect("box id");
+    let style = timeline.world.style(box_id);
+    assert_eq!(
+        style.opacity.get(500, 1.0),
+        0.4,
+        "a scale entrance must leave an authored, visible opacity alone"
+    );
+    assert_eq!(timeline.world.geometry(box_id).scale.get(500, 1.0), 1.0);
+    assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
+}
+
+#[test]
+fn grow_in_from_bottom_keeps_the_bottom_edge_fixed() {
+    let (timeline, diagnostics) = build_source(
+        r#"
+#0s
+box: Rect, size: (160, 80), at: (320, 240)
+
+grow-in box [from: bottom, 1s]
+"#,
+    );
+
+    let dimensions = crate::timeline::SceneDimensions::default();
+    // Local half-extents are (80, 40); the bottom edge is the local point
+    // (0, 40) and must stay at the same world y for the whole ramp.
+    for time_ms in [0u64, 250, 500, 750, 1000] {
+        let affine = timeline
+            .actor_world_affine("box", time_ms, dimensions)
+            .expect("box world affine");
+        let bottom = affine * kurbo::Point::new(0.0, 40.0);
+        assert!(
+            (bottom.x - 320.0).abs() < 0.01,
+            "bottom edge x drifted at {time_ms}ms: {bottom:?}"
+        );
+        assert!(
+            (bottom.y - 280.0).abs() < 0.01,
+            "bottom edge y drifted at {time_ms}ms: {bottom:?}"
+        );
+    }
+    assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
+}
+
+#[test]
+fn shrink_out_reaches_zero_scale_without_touching_opacity() {
+    let (timeline, diagnostics) = build_source(
+        r#"
+#0s
+card: Rect, size: (300, 180), at: (640, 360), opacity: 0.8
+
+shrink-out card [to: top, 1s]
+"#,
+    );
+
+    let card_id = timeline.world.get_id("card").expect("card id");
+    let style = timeline.world.style(card_id);
+    let geometry = timeline.world.geometry(card_id);
+    assert_eq!(geometry.scale.get(0, 1.0), 1.0, "starts at the authored scale");
+    assert!(
+        geometry.scale.get(500, 1.0) > 0.0 && geometry.scale.get(500, 1.0) < 1.0,
+        "mid-ramp scale should be between authored and zero"
+    );
+    assert_eq!(geometry.scale.get(1000, 1.0), 0.0, "shrink-out ends at zero scale");
+    for time_ms in [0u64, 250, 500, 750, 1000] {
+        assert_eq!(
+            style.opacity.get(time_ms, 1.0),
+            0.8,
+            "shrink-out must not touch opacity at {time_ms}ms"
+        );
+    }
+    assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
+}
+
+#[test]
+fn grow_in_unknown_origin_warns() {
+    let (timeline, diagnostics) = build_source(
+        r#"
+#0s
+box: Rect, size: (160, 80), at: (320, 240)
+
+grow-in box [from: sideways, 1s]
+"#,
+    );
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == DiagnosticCode::InvalidModifierValue
+                && diagnostic.message.contains("sideways")
+        }),
+        "unknown origin must be reported, got: {diagnostics:?}"
+    );
+    let box_id = timeline.world.get_id("box").expect("box id");
+    assert_eq!(
+        timeline.world.geometry(box_id).scale.get(1000, 1.0),
+        1.0,
+        "an unknown origin falls back to the centre pivot and still grows"
+    );
+}
+
+#[test]
+fn grow_in_non_center_origin_on_zero_size_actor_warns() {
+    let (_, diagnostics) = build_source(
+        r#"
+#0s
+box: Rect, size: (0, 0), at: (320, 240)
+
+grow-in box [from: bottom, 1s]
+"#,
+    );
+
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == DiagnosticCode::InvalidModifierValue
+                && diagnostic.message.contains("zero-size")
+        }),
+        "a non-centre pivot on a zero-size actor must be reported, got: {diagnostics:?}"
+    );
+}
+
+#[test]
+fn shrink_out_then_grow_in_restores_the_authored_scale() {
+    let (timeline, diagnostics) = build_source(
+        r#"
+#0s
+box: Rect, size: (160, 80), at: (320, 240), scale: 1.25
+
+shrink-out box [1s]
+
+#1s
+grow-in box [1s]
+"#,
+    );
+
+    let box_id = timeline.world.get_id("box").expect("box id");
+    let scale = timeline.world.geometry(box_id).scale.get(2_000, 1.0);
+    assert_eq!(
+        scale, 1.25,
+        "grow-in after shrink-out must restore the authored scale, not stay at zero"
+    );
+    assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
+}
+
+#[test]
+fn grow_in_leaves_a_visible_actor_without_an_opacity_track_alone() {
+    let (timeline, diagnostics) = build_source(
+        r#"
+#0s
+box: Rect, size: (160, 80), at: (320, 240)
+
+grow-in box [500ms]
+"#,
+    );
+
+    let box_id = timeline.world.get_id("box").expect("box id");
+    let style = timeline.world.style(box_id);
+    assert_eq!(
+        style.opacity.as_ref().map(|track| track.keyframes().len()),
+        Some(1),
+        "a visible actor without an authored opacity must not receive a fade track"
+    );
+    assert_eq!(style.opacity.get(250, 1.0), 1.0);
+    assert!(diagnostics.is_empty(), "unexpected diagnostics: {diagnostics:?}");
 }

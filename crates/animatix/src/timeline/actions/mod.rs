@@ -18,6 +18,8 @@ pub mod reorder;
 /// Reveal actions that animate vector stroke and fill visibility
 /// (draw-in, reveal-in, wipe-out, reveal-out, draw-out).
 pub mod reveal;
+/// Pivot-anchored scale presets (`grow-in`, `shrink-out`).
+pub mod scale_presets;
 
 use effects::{Bounce, Pulse, Shake};
 use entrance::{FadeIn, WipeIn};
@@ -29,6 +31,7 @@ use presets::{PopIn, SettleIn};
 use registry::{ActionSignature, BuiltinAction};
 use reorder::{Reorder, Swap};
 use reveal::{DrawIn, DrawOut, RevealIn, RevealOut, WipeOut};
+use scale_presets::{GrowIn, ShrinkOut};
 use tracing::debug;
 
 use crate::ast::Action;

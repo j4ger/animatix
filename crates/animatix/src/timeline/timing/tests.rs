@@ -8,7 +8,9 @@ fn default_easing_follows_the_statements_role() {
     assert_eq!(default_easing_for(ModifierHost::Action, Some("fade-in")), Easing::ExpoOut);
     assert_eq!(default_easing_for(ModifierHost::Action, Some("settle-in")), Easing::ExpoOut);
     assert_eq!(default_easing_for(ModifierHost::Action, Some("pop-in")), Easing::ExpoOut);
+    assert_eq!(default_easing_for(ModifierHost::Action, Some("grow-in")), Easing::ExpoOut);
     assert_eq!(default_easing_for(ModifierHost::Action, Some("fade-out")), Easing::EaseIn);
+    assert_eq!(default_easing_for(ModifierHost::Action, Some("shrink-out")), Easing::EaseIn);
     assert_eq!(default_easing_for(ModifierHost::Action, Some("remove")), Easing::EaseIn);
     assert_eq!(default_easing_for(ModifierHost::Action, Some("move")), Easing::EaseInOut);
     assert_eq!(

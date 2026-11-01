@@ -31,6 +31,8 @@ pub(super) enum BuiltinActionKind {
     Bounce,
     SettleIn,
     PopIn,
+    GrowIn,
+    ShrinkOut,
     Highlight,
     Unhighlight,
     Swap,
@@ -39,7 +41,7 @@ pub(super) enum BuiltinActionKind {
 
 impl BuiltinActionKind {
     /// Every built-in action, in registry/signature-listing order.
-    pub(super) const ALL: [Self; 23] = [
+    pub(super) const ALL: [Self; 25] = [
         Self::FadeIn,
         Self::WipeIn,
         Self::Move,
@@ -59,6 +61,8 @@ impl BuiltinActionKind {
         Self::Bounce,
         Self::SettleIn,
         Self::PopIn,
+        Self::GrowIn,
+        Self::ShrinkOut,
         Self::Highlight,
         Self::Unhighlight,
         Self::Swap,
@@ -87,6 +91,8 @@ impl BuiltinActionKind {
             "bounce" => Self::Bounce,
             "settle-in" => Self::SettleIn,
             "pop-in" => Self::PopIn,
+            "grow-in" => Self::GrowIn,
+            "shrink-out" => Self::ShrinkOut,
             "highlight" => Self::Highlight,
             "unhighlight" => Self::Unhighlight,
             "swap" => Self::Swap,
@@ -118,6 +124,8 @@ impl BuiltinAction for BuiltinActionKind {
             Self::Bounce => Bounce.signature(),
             Self::SettleIn => SettleIn.signature(),
             Self::PopIn => PopIn.signature(),
+            Self::GrowIn => GrowIn.signature(),
+            Self::ShrinkOut => ShrinkOut.signature(),
             Self::Highlight => Highlight.signature(),
             Self::Unhighlight => Unhighlight.signature(),
             Self::Swap => Swap.signature(),
@@ -152,6 +160,8 @@ impl BuiltinAction for BuiltinActionKind {
             Self::Bounce => Bounce.execute(action, time_ms, timeline, diagnostics),
             Self::SettleIn => SettleIn.execute(action, time_ms, timeline, diagnostics),
             Self::PopIn => PopIn.execute(action, time_ms, timeline, diagnostics),
+            Self::GrowIn => GrowIn.execute(action, time_ms, timeline, diagnostics),
+            Self::ShrinkOut => ShrinkOut.execute(action, time_ms, timeline, diagnostics),
             Self::Highlight => Highlight.execute(action, time_ms, timeline, diagnostics),
             Self::Unhighlight => Unhighlight.execute(action, time_ms, timeline, diagnostics),
             Self::Swap => Swap.execute(action, time_ms, timeline, diagnostics),
