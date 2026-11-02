@@ -1,0 +1,480 @@
+/* Animatix site — v2 design language: "Observatory Editorial".
+ *
+ * The 2026-11 redesign (web/DESIGN.md §2) keeps the dark ground because the
+ * scenes glow, but replaces the flat obsidian + single amber + uniform card
+ * grid with three things the old system lacked: depth (layered washes, grain,
+ * per-work glows), editorial type (a serif display voice at true display
+ * scale, mono for every instrument readout), and full-bleed asymmetric stages
+ * instead of centered cards.
+ *
+ * Pages link THIS stylesheet instead of site.css once rewritten; site.css
+ * stays alive only for pages that have not migrated yet. Nothing here depends
+ * on a webfont: the display voice is the system serif stack the old tokens
+ * declared and never used, the instrument voice is the mono stack.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* ground: a touch bluer and deeper than the old #08090d so the layered
+     washes read as atmosphere rather than as a tinted card */
+  --bg: #06070b;
+  --bg-raise: #0c0f16;
+  --ink: #f6f8fb;
+  --dim: #c3ccd8;
+  --faint: #8b96a5;
+  --muted: #5c6674;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-soft: rgba(255, 255, 255, 0.05);
+
+  /* work palettes — mirror web/demos/lib/theme.amx so a page and its scenes
+     share one hue. --work is set per section by [data-palette]. */
+  --ember: #f5b942;
+  --tide: #38bdf8;
+  --moss: #34d399;
+  --orchid: #818cf8;
+  --coral: #fb7185;
+  --work: var(--ember);
+  --work-glow: rgba(245, 185, 66, 0.16);
+
+  --mono: ui-monospace, "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+  --sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --display: Charter, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+
+  --measure: 1240px;
+  --gutter: clamp(20px, 4vw, 56px);
+
+  --expo-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-palette="tide"]   { --work: var(--tide);   --work-glow: rgba(56, 189, 248, 0.16); }
+[data-palette="moss"]   { --work: var(--moss);   --work-glow: rgba(52, 211, 153, 0.16); }
+[data-palette="orchid"] { --work: var(--orchid); --work-glow: rgba(129, 140, 248, 0.18); }
+[data-palette="coral"]  { --work: var(--coral);  --work-glow: rgba(251, 113, 133, 0.16); }
+[data-palette="ember"]  { --work: var(--ember);  --work-glow: rgba(245, 185, 66, 0.16); }
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background-color: var(--bg);
+  /* three fixed washes + a turbulence grain: depth without a picture */
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse 70% 42% at 18% -8%, rgba(245, 185, 66, 0.07) 0%, transparent 70%),
+    radial-gradient(ellipse 55% 40% at 88% 12%, rgba(56, 189, 248, 0.05) 0%, transparent 70%),
+    radial-gradient(ellipse 80% 55% at 50% 108%, rgba(129, 140, 248, 0.05) 0%, transparent 72%);
+  background-attachment: fixed;
+  color: var(--dim);
+  font: 16px/1.65 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.wrap {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 40px var(--gutter) 96px;
+}
+
+::selection { background: color-mix(in srgb, var(--work) 32%, transparent); color: #fff; }
+
+/* ── editorial type ────────────────────────────────────────────────── */
+
+h1, h2, h3 {
+  color: var(--ink);
+  font-family: var(--display);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.04;
+  margin: 0;
+  text-wrap: balance;
+}
+
+h1 { font-size: clamp(44px, 7.2vw, 96px); }
+h2 { font-size: clamp(32px, 4.6vw, 58px); }
+h3 { font-size: clamp(22px, 2.4vw, 30px); line-height: 1.15; }
+
+.lede {
+  font-family: var(--display);
+  font-size: clamp(18px, 1.6vw, 22px);
+  line-height: 1.55;
+  color: var(--dim);
+  max-width: 46ch;
+  margin: 20px 0 0;
+}
+
+.kicker {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--work);
+  margin: 0 0 14px;
+}
+
+/* section head: oversized serif numeral, title, and a rule that runs to the
+   gutter — the editorial replacement for the old numbered pill */
+.edit-head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 28px;
+  align-items: start;
+  margin: 0 0 40px;
+}
+
+.edit-head .num {
+  font-family: var(--display);
+  font-size: clamp(56px, 8vw, 120px);
+  line-height: 0.82;
+  color: transparent;
+  -webkit-text-stroke: 1px color-mix(in srgb, var(--work) 55%, transparent);
+}
+
+.edit-head .rule {
+  grid-column: 1 / -1;
+  height: 1px;
+  margin-top: 26px;
+  background: linear-gradient(90deg, var(--work), transparent 78%);
+}
+
+/* ── full-bleed stages ─────────────────────────────────────────────── */
+
+/* edge-to-edge cinematic crop: the player renders 16:9 and the wrapper crops
+   to 21:9 with fit=cover, so a scene fills the viewport width like film */
+.stage-full {
+  position: relative;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  aspect-ratio: 21 / 9;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.stage-full amx-player { width: 100%; height: 100%; display: block; }
+
+.stage-full::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.55);
+}
+
+/* a framed stage for bordered figures: hairline edge, work-tinted aura */
+.stage-frame {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--bg-raise);
+  box-shadow: 0 24px 60px -28px rgba(0, 0, 0, 0.85);
+}
+
+.stage-frame::before {
+  content: "";
+  position: absolute;
+  inset: -40% -20% auto;
+  height: 80%;
+  background: radial-gradient(ellipse at 50% 0%, var(--work-glow), transparent 70%);
+  pointer-events: none;
+}
+
+/* copy beside a stage: the asymmetric replacement for centered card stacks */
+.side-split {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: clamp(28px, 4vw, 64px);
+  align-items: center;
+}
+
+@media (max-width: 900px) {
+  .side-split { grid-template-columns: 1fr; }
+}
+
+/* ── instrument readouts ───────────────────────────────────────────── */
+
+.readout {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  color: var(--faint);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.readout::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--work);
+  box-shadow: 0 0 8px var(--work-glow);
+}
+
+/* ── controls ──────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font: 600 14.5px/1 var(--sans);
+  text-decoration: none;
+  padding: 13px 22px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.18s var(--expo-out), background 0.18s, border-color 0.18s;
+}
+
+.btn:active { transform: translateY(1px); }
+
+.btn.primary {
+  background: var(--work);
+  color: #08090d;
+  box-shadow: 0 6px 24px -8px var(--work-glow);
+}
+
+.btn.primary:hover { transform: translateY(-1px); }
+
+.btn.ghost {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--line);
+  color: var(--ink);
+  backdrop-filter: blur(10px);
+}
+
+.btn.ghost:hover { border-color: color-mix(in srgb, var(--work) 45%, transparent); }
+
+/* parameter sliders (DESIGN §3): mono label, work-tinted track */
+.param-row {
+  display: grid;
+  grid-template-columns: 12ch 1fr 8ch;
+  align-items: center;
+  gap: 14px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--faint);
+  padding: 8px 0;
+}
+
+.param-row input[type="range"] {
+  width: 100%;
+  accent-color: var(--work);
+  background: transparent;
+}
+
+.param-row output { color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ── catalog (manifest-generated) ──────────────────────────────────── */
+
+.work-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: clamp(20px, 2.6vw, 40px);
+}
+
+.work-tile {
+  display: grid;
+  gap: 14px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.work-tile .stage-frame { aspect-ratio: 16 / 9; }
+
+.work-tile h3 { font-size: 24px; }
+
+.work-tile p { margin: 0; color: var(--faint); font-size: 14.5px; line-height: 1.55; }
+
+.work-tile:hover .stage-frame { border-color: color-mix(in srgb, var(--work) 50%, transparent); }
+
+/* ── footer ────────────────────────────────────────────────────────── */
+
+footer.site {
+  border-top: 1px solid var(--line-soft);
+  margin-top: 80px;
+  padding-top: 28px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+footer.site a { color: var(--faint); text-decoration: none; }
+footer.site a:hover { color: var(--work); }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  * { transition: none !important; }
+}
+
+/* ── migrated-page components (home / showcase / gallery) ─────────── */
+
+/* the injected chrome footer carries no class; style it positionally */
+.wrap > footer {
+  border-top: 1px solid var(--line-soft);
+  margin-top: 80px;
+  padding-top: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 28px;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+.wrap > footer a { color: var(--faint); text-decoration: none; }
+.wrap > footer a:hover { color: var(--work); }
+
+/* hero: editorial copy band, then the plate runs edge to edge */
+.hero-band { padding: clamp(48px, 8vw, 120px) 0 clamp(28px, 4vw, 56px); }
+.hero-band h1 em { font-style: italic; color: var(--work); }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 14px; margin: 32px 0 26px; }
+.hero-metrics { display: flex; flex-wrap: wrap; gap: 10px 26px; }
+
+/* featured work: stage left, copy right, work-tinted aura behind */
+.work-feature {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.85fr);
+  gap: clamp(24px, 3.4vw, 56px);
+  align-items: center;
+  margin: 0 0 clamp(40px, 5vw, 84px);
+}
+.work-feature .stage-frame { aspect-ratio: 16 / 9; }
+.work-feature-copy { display: grid; gap: 16px; align-content: center; }
+.work-feature-copy p { margin: 0; color: var(--faint); line-height: 1.6; }
+@media (max-width: 900px) { .work-feature { grid-template-columns: 1fr; } }
+
+.tag-strip { display: flex; flex-wrap: wrap; gap: 8px; }
+.tag-chip {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--work) 35%, transparent);
+  color: color-mix(in srgb, var(--work) 80%, #fff);
+  background: color-mix(in srgb, var(--work) 8%, transparent);
+}
+
+/* channel rail: the showcase's work switcher under the full-bleed stage */
+.channel-rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(150px, 1fr);
+  gap: 1px;
+  background: var(--line-soft);
+  border: 1px solid var(--line-soft);
+  overflow-x: auto;
+}
+.channel-rail button {
+  appearance: none;
+  border: 0;
+  background: var(--bg);
+  color: var(--faint);
+  font: 500 13px/1.3 var(--sans);
+  text-align: left;
+  padding: 14px 16px;
+  cursor: pointer;
+  display: grid;
+  gap: 4px;
+  transition: background 0.18s, color 0.18s;
+}
+.channel-rail button .n { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.channel-rail button[aria-selected="true"] { background: var(--bg-raise); color: var(--ink); }
+.channel-rail button[aria-selected="true"] .n { color: var(--work); }
+.channel-rail button:hover { color: var(--ink); }
+
+/* the duality: code left, scroll-scrubbed stage right (home §01) */
+.duality {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  gap: clamp(24px, 3vw, 48px);
+  align-items: start;
+}
+@media (max-width: 900px) { .duality { grid-template-columns: 1fr; } }
+.duality pre {
+  margin: 0;
+  padding: 22px 24px;
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font: 13.5px/1.75 var(--mono);
+  color: var(--dim);
+  overflow-x: auto;
+}
+.duality pre .line { display: block; padding: 1px 8px; margin: 0 -8px; border-radius: 6px; cursor: pointer; }
+.duality pre .line.live { background: color-mix(in srgb, var(--work) 14%, transparent); color: var(--ink); }
+.duality pre .kw { color: var(--work); }
+.duality pre .num { color: var(--tide); }
+.duality pre .str { color: var(--moss); }
+.duality pre .prop { color: var(--orchid); }
+.duality pre .at { color: var(--coral); }
+.duality pre .cmt { color: var(--muted); }
+.stage-note {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+.stage-note .beat { color: var(--work); }
+
+/* capability list replacing the bento card grid */
+.pillars { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: clamp(20px, 3vw, 44px); }
+.pillars > div { border-top: 1px solid var(--line); padding-top: 18px; }
+.pillars h3 { font-size: 22px; margin: 0 0 10px; }
+.pillars p { margin: 0; color: var(--faint); font-size: 14.5px; line-height: 1.6; }
+.pillars .readout { margin-bottom: 12px; }
+
+/* gallery figures */
+.figure-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: clamp(24px, 3vw, 48px); }
+.figure-grid figure { margin: 0; display: grid; gap: 12px; }
+.figure-grid .stage-frame { aspect-ratio: 16 / 9; }
+.figure-grid figcaption { display: grid; gap: 8px; color: var(--faint); font-size: 14px; line-height: 1.55; }
+.figure-grid figcaption a { color: var(--work); font-family: var(--mono); font-size: 12px; text-decoration: none; }
+.figure-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.figure-head h3 { font-size: 21px; }
+.figure-head span { font-family: var(--mono); font-size: 11.5px; color: var(--work); letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* ── showcase page: theater meta + filter bar ─────────────────────── */
+.theater-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr);
+  gap: clamp(20px, 3vw, 48px);
+  align-items: end;
+  padding: clamp(20px, 3vw, 40px) 0 clamp(28px, 4vw, 56px);
+}
+.theater-meta h2 { font-size: clamp(28px, 3.6vw, 46px); }
+.theater-meta p { margin: 12px 0 0; color: var(--faint); line-height: 1.6; max-width: 62ch; }
+.theater-actions { display: grid; gap: 10px; justify-items: start; }
+@media (max-width: 900px) { .theater-meta { grid-template-columns: 1fr; } }
+
+.filter-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 32px; }
+.filter-bar button {
+  appearance: none;
+  cursor: pointer;
+  font: 600 12.5px/1 var(--mono);
+  letter-spacing: 0.06em;
+  color: var(--faint);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 9px 16px;
+  transition: all 0.18s;
+}
+.filter-bar button:hover { color: var(--ink); border-color: var(--line); }
+.filter-bar button[aria-pressed="true"] {
+  color: #08090d;
+  background: var(--work);
+  border-color: var(--work);
+}

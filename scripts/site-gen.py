@@ -10,10 +10,10 @@ pages carry generated regions delimited by markers:
 
 Supported blocks, per page:
 
-    index.html         works-featured   spotlight card + three supplementary cards
-    demos/index.html   works-channels   theater channel switcher buttons
+    index.html         works-featured   flagship feature + three work tiles
+    demos/index.html   works-channels   the full-bleed stage's channel rail
     demos/index.html   works-data       <script type="application/json"> payload
-    demos/index.html   works-catalog    the filterable catalog grid
+    demos/index.html   works-catalog    the filterable work grid
     gallery.html       works-gallery    the standalone figure grid
 
 Usage:
@@ -21,9 +21,9 @@ Usage:
     scripts/site-gen.py --check    # exit 1 if any block disagrees with the manifest
 
 `content-sync.sh` runs --check, so a hand-edited generated block is a gate
-failure rather than a drift nobody notices. The emitter is deliberately dumb:
-it prints markup in the site's existing class vocabulary and escapes nothing
-but what json/html require, because the manifest is authored, not uploaded.
+failure rather than a drift nobody notices. The emitter prints markup in the
+v2 class vocabulary (web/site/v2.css); the manifest is authored, not uploaded,
+so escaping is limited to what html/json require.
 """
 
 from __future__ import annotations
@@ -54,6 +54,30 @@ def e(value: str) -> str:
     return html.escape(value, quote=True)
 
 
+# ── shared fragments ────────────────────────────────────────────────────────
+
+
+def tile(w: dict, prefix: str, hover: bool = True) -> list[str]:
+    play = " data-hoverplay" if hover else " autoplay loop hold=\"1.5\""
+    out = [
+        f'''        <a class="work-tile" data-palette="{e(w['palette'])}" href="{prefix}{e(w['deck'])}">''',
+        '''          <div class="stage-frame">''',
+        f'''            <amx-player src="{prefix}{e(w['poster'])}" sealed{play} aspect="16:9"''',
+        f'''                        title="{e(w['title'])}"></amx-player>''',
+        '''          </div>''',
+        f'''          <span class="kicker">{e(w['kicker'])} · {w['scenes']} scenes</span>''',
+        f'''          <h3>{e(w['title'])}</h3>''',
+        f'''          <p>{e(w['blurb'])}</p>''',
+        '''          <div class="tag-strip">''',
+    ]
+    out += [f'''            <span class="tag-chip">{e(t)}</span>''' for t in w["tags"][:3]]
+    out += [
+        '''          </div>''',
+        '''        </a>''',
+    ]
+    return out
+
+
 # ── emitters ────────────────────────────────────────────────────────────────
 
 
@@ -61,38 +85,27 @@ def emit_featured(works: list[dict]) -> str:
     flag = next(w for w in works if w.get("flagship"))
     rest = [w for w in works if w is not flag][:3]
     out = [
-        f'''      <a class="demo-spotlight" href="./demos/{e(flag['deck'])}" data-work="{e(flag['id'])}">''',
-        '''        <div class="spotlight-poster">''',
-        f'''          <span class="poster-badge live">Live Scene · {flag['scenes']} scenes</span>''',
-        f'''          <amx-player src="./demos/{e(flag['poster'])}" sealed autoplay loop''',
-        '''                      hold="1.5" aspect="16:9"'''
-        f''' title="{e(flag['title'])}"></amx-player>''',
+        f'''      <div class="work-feature" data-palette="{e(flag['palette'])}">''',
+        '''        <div class="stage-frame">''',
+        f'''          <amx-player src="./demos/{e(flag['poster'])}" sealed autoplay loop hold="1.5" aspect="16:9"''',
+        f'''                      title="{e(flag['title'])}"></amx-player>''',
         '''        </div>''',
-        '''        <div class="spotlight-info">''',
-        f'''          <span class="demo-tag">{e(flag['kicker'])} · {flag['scenes']} Scenes</span>''',
-        f'''          <h3 class="spotlight-title">{e(flag['title'])}</h3>''',
-        f'''          <p class="spotlight-blurb">{e(flag['blurb'])}</p>''',
-        '''          <span class="spotlight-action">Launch walkthrough →</span>''',
+        '''        <div class="work-feature-copy">''',
+        f'''          <span class="kicker">{e(flag['kicker'])} · {flag['scenes']} scenes · flagship</span>''',
+        f'''          <h3>{e(flag['title'])}</h3>''',
+        f'''          <p>{e(flag['blurb'])}</p>''',
+        '''          <div class="tag-strip">''',
+    ]
+    out += [f'''            <span class="tag-chip">{e(t)}</span>''' for t in flag["tags"]]
+    out += [
+        '''          </div>''',
+        f'''          <span><a class="btn primary" href="./demos/{e(flag['deck'])}">Launch walkthrough →</a></span>''',
         '''        </div>''',
-        '''      </a>''',
-        '''      <div class="demos-grid">''',
+        '''      </div>''',
+        '''      <div class="work-grid">''',
     ]
     for w in rest:
-        out += [
-            f'''        <a class="demo-card" href="./demos/{e(w['deck'])}" data-work="{e(w['id'])}">''',
-            '''          <div class="demo-poster">''',
-            '''            <span class="poster-badge">Hover to play</span>''',
-            f'''            <amx-player src="./demos/{e(w['poster'])}" sealed data-hoverplay''',
-            f'''                        aspect="16:9" title="{e(w['title'])}"></amx-player>''',
-            '''          </div>''',
-            '''          <div class="demo-content">''',
-            f'''            <span class="demo-tag">{e(w['kicker'])} · {w['scenes']} Scenes</span>''',
-            f'''            <h4>{e(w['title'])}</h4>''',
-            f'''            <p>{e(w['blurb'])}</p>''',
-            '''            <span class="demo-link">Explore walkthrough →</span>''',
-            '''          </div>''',
-            '''        </a>''',
-        ]
+        out += tile(w, "./demos/")
     out.append('''      </div>''')
     return "\n".join(out)
 
@@ -100,19 +113,15 @@ def emit_featured(works: list[dict]) -> str:
 def emit_channels(works: list[dict]) -> str:
     out = []
     for i, w in enumerate(works):
-        active = " active" if i == 0 else ""
         selected = "true" if i == 0 else "false"
         out += [
-            f'''        <button class="channel-btn{active}" type="button" data-channel="{i}" role="tab" aria-selected="{selected}">''',
-            f'''          <span class="channel-num">{i + 1:02d}</span>''',
-            '''          <span class="channel-info">''',
-            f'''            <span class="channel-title">{e(w['short'])}</span>''',
-            f'''            <span class="channel-tag">{e(w['kicker'])}</span>''',
-            '''          </span>''',
+            f'''        <button type="button" data-channel="{i}" role="tab" aria-selected="{selected}" data-palette="{e(w['palette'])}">''',
+            f'''          <span class="n">{i + 1:02d}</span>''',
+            f'''          <span>{e(w['short'])}</span>''',
+            f'''          <span class="n">{e(w['kicker'])}</span>''',
             '''        </button>''',
-            '''''',
         ]
-    return "\n".join(out).rstrip()
+    return "\n".join(out)
 
 
 def emit_data(works: list[dict]) -> str:
@@ -137,64 +146,37 @@ def emit_data(works: list[dict]) -> str:
 
 
 def emit_catalog(works: list[dict]) -> str:
-    out = []
+    out = ['''      <div class="work-grid" id="catalog-grid">''']
     for w in works:
-        featured = " featured" if w.get("flagship") else ""
-        badge = (
-            f"Live Scene · {w['scenes']}s" if w.get("flagship")
-            else f"Hover to play · {w['scenes']} scene{'s' if w['scenes'] != 1 else ''}"
-        )
-        autoplay = " autoplay loop\n                        hold=\"1.5\"" if w.get("flagship") else " data-hoverplay"
-        out += [
-            f'''        <article class="catalog-card{featured}" data-category="{e(w['category'])}" data-work="{e(w['id'])}" data-palette="{e(w['palette'])}">''',
-            '''          <div class="catalog-poster">''',
-            f'''            <span class="catalog-badge{' live' if w.get('flagship') else ''}">{e(badge)}</span>''',
-            f'''            <amx-player src="{e(w['poster'])}" sealed{autoplay} aspect="16:9"''',
-            f'''                        title="{e(w['title'])}"></amx-player>''',
-            '''          </div>''',
-            '''          <div class="catalog-content">''',
-            f'''            <span class="catalog-kicker">{e(w['kicker'])} · {w['scenes']} Scenes{' · Flagship Deck' if w.get('flagship') else ''}</span>''',
-            f'''            <h3 class="catalog-title">{e(w['title'])}</h3>''',
-            f'''            <p class="catalog-blurb">{e(w['blurb'])}</p>''',
-            '''            <div class="catalog-tags-strip">''',
-        ]
-        out += [f'''              <span class="tag-chip">{e(t)}</span>''' for t in w["tags"]]
-        out += [
-            '''            </div>''',
-            '''            <div class="catalog-card-actions">''',
-            f'''              <a class="btn-catalog-deck" href="./{e(w['deck'])}">Launch Deck ⊞</a>''',
-            f'''              <a class="btn-catalog-src" href="{e(w['poster'])}" target="_blank" rel="noopener noreferrer">Source ↗</a>''',
-            '''            </div>''',
-            '''          </div>''',
-            '''        </article>''',
-            '''''',
-        ]
+        out += tile(w, "")
+        out.append('''''')
+    out.append('''      </div>''')
     return "\n".join(out).rstrip()
 
 
 def emit_gallery(works: list[dict]) -> str:
-    out = []
+    out = ['''    <div class="figure-grid">''']
     for w in works:
         for fig in w.get("figures", []):
             out += [
-                '''      <figure data-work="{0}">'''.format(e(w["id"])),
-                '''        <div class="figure-header">''',
-                f'''          <h3 class="figure-title">{e(fig['title'])}</h3>''',
-                f'''          <span class="figure-tag">{e(w['kicker'])}</span>''',
+                f'''      <figure data-palette="{e(w['palette'])}">''',
+                '''        <div class="figure-head">''',
+                f'''          <h3>{e(fig['title'])}</h3>''',
+                f'''          <span>{e(w['kicker'])}</span>''',
                 '''        </div>''',
-                f'''        <amx-player src="./demos/{e(fig['scene'])}"''',
-                '''                    autoplay loop controls hold="1" aspect="16:9"''',
-                f'''                    title="{e(fig['title'])}"></amx-player>''',
+                '''        <div class="stage-frame">''',
+                f'''          <amx-player src="./demos/{e(fig['scene'])}"''',
+                '''                      autoplay loop controls hold="1" aspect="16:9"''',
+                f'''                      title="{e(fig['title'])}"></amx-player>''',
+                '''        </div>''',
                 '''        <figcaption>''',
-                f'''          <span class="cap">{e(fig['caption'])}</span>''',
-                '''          <div class="fig-actions">''',
-                f'''            <a class="src" href="./demos/{e(fig['scene'])}">{e(pathlib.Path(fig['scene']).name)} ↗</a>''',
-                '''          </div>''',
+                f'''          <span>{e(fig['caption'])}</span>''',
+                f'''          <a href="./demos/{e(fig['scene'])}">{e(pathlib.Path(fig['scene']).name)} ↗</a>''',
                 '''        </figcaption>''',
                 '''      </figure>''',
-                '''''',
             ]
-    return "\n".join(out).rstrip()
+    out.append('''    </div>''')
+    return "\n".join(out)
 
 
 EMITTERS = {

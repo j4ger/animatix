@@ -186,7 +186,7 @@
 
   // ── hover-play & touch-toggle posters ─────────────────────────────
   for (const el of document.querySelectorAll("amx-player[data-hoverplay]")) {
-    const card = el.closest("a.hub-card, a.demo-card, .hub-card, .demo-card") ?? el;
+    const card = el.closest("a.hub-card, a.demo-card, .hub-card, .demo-card, a.work-tile, .work-tile") ?? el;
     const whenReady = new Promise((res) => {
       if (el._state === "ready") res();
       else el.addEventListener("amxready", () => res(), { once: true });
@@ -206,7 +206,7 @@
   }
 
   // ── theater mode (gallery) ────────────────────────────────────────
-  for (const figure of document.querySelectorAll(".gallery figure, figure.tour-embed, .gallery-grid figure, .recipes-grid figure")) {
+  for (const figure of document.querySelectorAll(".gallery figure, figure.tour-embed, .gallery-grid figure, .recipes-grid figure, .figure-grid figure")) {
     const caption = figure.querySelector("figcaption");
     if (!caption || !document.fullscreenEnabled) continue;
     if (caption.querySelector(".theater-btn")) continue;

@@ -47,6 +47,14 @@ pub let ink = Colorscheme {
 // itself is untouched. `extends: "ink"` resolves because user-declared
 // schemes join the build AST through the import (built-ins first, then any
 // declared scheme; an unknown base only warns).
+//
+// `ember` is the amber work palette under its manifest/CSS name (web/works.json
+// "palette", web/site/v2.css [data-palette]); it is ink verbatim, kept as an
+// alias so a scene's colorscheme word and its page's palette token agree.
+
+pub let ember = Colorscheme {
+  extends: "ink"
+}
 
 pub let tide = Colorscheme {
   extends: "ink",

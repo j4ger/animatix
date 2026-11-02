@@ -7,194 +7,192 @@
   <meta name="description" content="Declarative .amx scenes playing in the browser through the Animatix WebGPU engine — one custom element embeds any of them.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./site.css">
+  <link rel="stylesheet" href="./site/v2.css">
 </head>
 <body>
 
   <div class="wrap">
-    <header class="page-header">
-      <div class="page-eyebrow">
-        <a href="./demos/" style="color: inherit; text-decoration: none;">← SHOWCASE</a>
-        <span>·</span>
-        <span>STANDALONE FIGURES</span>
-      </div>
-      <h1 class="page-title">Eight figures, one engine.</h1>
-      <p class="page-lede">
-        Isolated declarative scene files rendered live by the WebGPU engine with timeline scrubbing and theater mode.
+    <header class="hero-band">
+      <p class="kicker"><a href="./demos/" style="color: inherit; text-decoration: none;">← Showcase</a> · Standalone figures</p>
+      <h1>Nine figures, <em>one engine</em>.</h1>
+      <p class="lede">
+        Isolated declarative scene files rendered live by the WebGPU engine, with
+        timeline scrubbing and theater mode on every plate.
       </p>
-      <div class="page-stat-strip">
-        <span class="stat-pill">8 Live Figures</span>
-        <span class="stat-pill">2.3 MB Slim Runtime</span>
-        <span class="stat-pill">60 FPS WebGPU</span>
-        <span class="stat-pill">Theater Mode Ready</span>
+      <div class="hero-metrics">
+        <span class="readout">live figures</span>
+        <span class="readout">2.3 MB slim runtime</span>
+        <span class="readout">60 FPS WebGPU</span>
+        <span class="readout">theater mode ready</span>
       </div>
     </header>
 
-    <div class="gallery-grid">
-      <!-- site-gen:works-gallery:start -->
-      <figure data-work="transformer">
-        <div class="figure-header">
-          <h3 class="figure-title">The Transformer Blueprint</h3>
-          <span class="figure-tag">Deep Learning</span>
+    <!-- site-gen:works-gallery:start -->
+    <div class="figure-grid">
+      <figure data-palette="ember">
+        <div class="figure-head">
+          <h3>The Transformer Blueprint</h3>
+          <span>Deep Learning</span>
         </div>
-        <amx-player src="./demos/transformer/scenes/overview.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="The Transformer Blueprint"></amx-player>
+        <div class="stage-frame">
+          <amx-player src="./demos/transformer/scenes/overview.amx"
+                      autoplay loop controls hold="1" aspect="16:9"
+                      title="The Transformer Blueprint"></amx-player>
+        </div>
         <figcaption>
-          <span class="cap">Tokens climb through stacked attention and feed-forward blocks to the LM head.</span>
-          <div class="fig-actions">
-            <a class="src" href="./demos/transformer/scenes/overview.amx">overview.amx ↗</a>
-          </div>
+          <span>Tokens climb through stacked attention and feed-forward blocks to the LM head.</span>
+          <a href="./demos/transformer/scenes/overview.amx">overview.amx ↗</a>
         </figcaption>
       </figure>
-
-      <figure data-work="topology">
-        <div class="figure-header">
-          <h3 class="figure-title">Distributed Event Fabric</h3>
-          <span class="figure-tag">Cloud Infrastructure</span>
+      <figure data-palette="tide">
+        <div class="figure-head">
+          <h3>Distributed Event Fabric</h3>
+          <span>Cloud Infrastructure</span>
         </div>
-        <amx-player src="./demos/topology/scene.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="Distributed Event Fabric"></amx-player>
+        <div class="stage-frame">
+          <amx-player src="./demos/topology/scene.amx"
+                      autoplay loop controls hold="1" aspect="16:9"
+                      title="Distributed Event Fabric"></amx-player>
+        </div>
         <figcaption>
-          <span class="cap">Smart orthogonal routing with fillet corners, edge proxies, and a live telemetry counter.</span>
-          <div class="fig-actions">
-            <a class="src" href="./demos/topology/scene.amx">scene.amx ↗</a>
-          </div>
+          <span>Smart orthogonal routing with fillet corners, edge proxies, and a live telemetry counter.</span>
+          <a href="./demos/topology/scene.amx">scene.amx ↗</a>
         </figcaption>
       </figure>
-
-      <figure data-work="epicycles">
-        <div class="figure-header">
-          <h3 class="figure-title">Harmonic Epicycles</h3>
-          <span class="figure-tag">Harmonic Physics</span>
+      <figure data-palette="orchid">
+        <div class="figure-head">
+          <h3>Harmonic Epicycles</h3>
+          <span>Harmonic Physics</span>
         </div>
-        <amx-player src="./demos/epicycles/hero.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="Harmonic Epicycles"></amx-player>
+        <div class="stage-frame">
+          <amx-player src="./demos/epicycles/hero.amx"
+                      autoplay loop controls hold="1" aspect="16:9"
+                      title="Harmonic Epicycles"></amx-player>
+        </div>
         <figcaption>
-          <span class="cap">Four harmonic circles rotating at odd integer frequencies synthesize a square wave.</span>
-          <div class="fig-actions">
-            <a class="src" href="./demos/epicycles/hero.amx">hero.amx ↗</a>
-          </div>
+          <span>Four harmonic circles rotating at odd integer frequencies synthesize a square wave.</span>
+          <a href="./demos/epicycles/hero.amx">hero.amx ↗</a>
         </figcaption>
       </figure>
-
-      <figure data-work="sorting">
-        <div class="figure-header">
-          <h3 class="figure-title">Sorting, Choreographed</h3>
-          <span class="figure-tag">Algorithmic Stage</span>
+      <figure data-palette="coral">
+        <div class="figure-head">
+          <h3>Sorting, Choreographed</h3>
+          <span>Algorithmic Stage</span>
         </div>
-        <amx-player src="./demos/sorting/sort.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="Sorting, Choreographed"></amx-player>
+        <div class="stage-frame">
+          <amx-player src="./demos/sorting/sort.amx"
+                      autoplay loop controls hold="1" aspect="16:9"
+                      title="Sorting, Choreographed"></amx-player>
+        </div>
         <figcaption>
-          <span class="cap">Insertion sort staged with animated bars, pairwise swaps, and algorithmic tallying.</span>
-          <div class="fig-actions">
-            <a class="src" href="./demos/sorting/sort.amx">sort.amx ↗</a>
-          </div>
+          <span>Insertion sort staged with animated bars, pairwise swaps, and algorithmic tallying.</span>
+          <a href="./demos/sorting/sort.amx">sort.amx ↗</a>
         </figcaption>
       </figure>
-
-      <figure data-work="matrix">
-        <div class="figure-header">
-          <h3 class="figure-title">A Matrix Is a Machine</h3>
-          <span class="figure-tag">Linear Algebra</span>
+      <figure data-palette="moss">
+        <div class="figure-head">
+          <h3>A Matrix Is a Machine</h3>
+          <span>Linear Algebra</span>
         </div>
-        <amx-player src="./demos/matrix/rotation.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="A Matrix Is a Machine"></amx-player>
+        <div class="stage-frame">
+          <amx-player src="./demos/matrix/rotation.amx"
+                      autoplay loop controls hold="1" aspect="16:9"
+                      title="A Matrix Is a Machine"></amx-player>
+        </div>
         <figcaption>
-          <span class="cap">The basis vectors lead, the coordinate grid follows, and matrix chips track the columns.</span>
-          <div class="fig-actions">
-            <a class="src" href="./demos/matrix/rotation.amx">rotation.amx ↗</a>
-          </div>
+          <span>The basis vectors lead, the coordinate grid follows, and matrix chips track the columns.</span>
+          <a href="./demos/matrix/rotation.amx">rotation.amx ↗</a>
         </figcaption>
       </figure>
-
-      <figure data-work="gradient">
-        <div class="figure-header">
-          <h3 class="figure-title">The Loss Surface</h3>
-          <span class="figure-tag">Optimization &amp; Calculus</span>
+      <figure data-palette="ember">
+        <div class="figure-head">
+          <h3>The Loss Surface</h3>
+          <span>Optimization &amp; Calculus</span>
         </div>
-        <amx-player src="./demos/gradient/losssurface.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="The Loss Surface"></amx-player>
+        <div class="stage-frame">
+          <amx-player src="./demos/gradient/losssurface.amx"
+                      autoplay loop controls hold="1" aspect="16:9"
+                      title="The Loss Surface"></amx-player>
+        </div>
         <figcaption>
-          <span class="cap">Concentric contour rings and the radial gradient vector field pointing uphill.</span>
-          <div class="fig-actions">
-            <a class="src" href="./demos/gradient/losssurface.amx">losssurface.amx ↗</a>
-          </div>
+          <span>Concentric contour rings and the radial gradient vector field pointing uphill.</span>
+          <a href="./demos/gradient/losssurface.amx">losssurface.amx ↗</a>
         </figcaption>
       </figure>
-
-      <figure data-work="morph">
-        <div class="figure-header">
-          <h3 class="figure-title">Morph Lab</h3>
-          <span class="figure-tag">Topological Synthesis</span>
+      <figure data-palette="orchid">
+        <div class="figure-head">
+          <h3>Morph Lab</h3>
+          <span>Topological Synthesis</span>
         </div>
-        <amx-player src="./demos/morph/scene.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="Morph Lab"></amx-player>
+        <div class="stage-frame">
+          <amx-player src="./demos/morph/scene.amx"
+                      autoplay loop controls hold="1" aspect="16:9"
+                      title="Morph Lab"></amx-player>
+        </div>
         <figcaption>
-          <span class="cap">One blob, three interpolation strategies, synthesized cubic Bezier control points at 60 FPS.</span>
-          <div class="fig-actions">
-            <a class="src" href="./demos/morph/scene.amx">scene.amx ↗</a>
-          </div>
+          <span>One blob, three interpolation strategies, synthesized cubic Bezier control points at 60 FPS.</span>
+          <a href="./demos/morph/scene.amx">scene.amx ↗</a>
         </figcaption>
       </figure>
-
-      <figure data-work="kinetic">
-        <div class="figure-header">
-          <h3 class="figure-title">Kinetic Typography &amp; Glass</h3>
-          <span class="figure-tag">Motion Design</span>
+      <figure data-palette="coral">
+        <div class="figure-head">
+          <h3>Kinetic Typography &amp; Glass</h3>
+          <span>Motion Design</span>
         </div>
-        <amx-player src="./demos/kinetic/scene.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="Kinetic Typography &amp; Glass"></amx-player>
+        <div class="stage-frame">
+          <amx-player src="./demos/kinetic/scene.amx"
+                      autoplay loop controls hold="1" aspect="16:9"
+                      title="Kinetic Typography &amp; Glass"></amx-player>
+        </div>
         <figcaption>
-          <span class="cap">Split-text baseline emergence, 2.5D perspective tilt, and real-time GPU frosted glass.</span>
-          <div class="fig-actions">
-            <a class="src" href="./demos/kinetic/scene.amx">scene.amx ↗</a>
-          </div>
+          <span>Split-text baseline emergence, 2.5D perspective tilt, and real-time GPU frosted glass.</span>
+          <a href="./demos/kinetic/scene.amx">scene.amx ↗</a>
         </figcaption>
       </figure>
-
-      <figure data-work="hash">
-        <div class="figure-header">
-          <h3 class="figure-title">Two Keys, One Bucket</h3>
-          <span class="figure-tag">Data Structures</span>
+      <figure data-palette="tide">
+        <div class="figure-head">
+          <h3>Two Keys, One Bucket</h3>
+          <span>Data Structures</span>
         </div>
-        <amx-player src="./demos/hash/collision.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="Two Keys, One Bucket"></amx-player>
+        <div class="stage-frame">
+          <amx-player src="./demos/hash/collision.amx"
+                      autoplay loop controls hold="1" aspect="16:9"
+                      title="Two Keys, One Bucket"></amx-player>
+        </div>
         <figcaption>
-          <span class="cap">A hash collision triggers linked-list overflow chaining below the target bucket.</span>
-          <div class="fig-actions">
-            <a class="src" href="./demos/hash/collision.amx">collision.amx ↗</a>
-          </div>
+          <span>A hash collision triggers linked-list overflow chaining below the target bucket.</span>
+          <a href="./demos/hash/collision.amx">collision.amx ↗</a>
         </figcaption>
       </figure>
-<!-- site-gen:works-gallery:end -->
     </div>
+<!-- site-gen:works-gallery:end -->
 
-    <div class="howto-card">
-      <div class="howto-header">
-        <span class="howto-tag">INTEGRATION</span>
-        <h3>Embedding an Animatix Scene</h3>
+    <section style="margin-top: clamp(48px, 7vw, 96px);">
+      <div class="edit-head" data-palette="tide">
+        <span class="num">§</span>
+        <div>
+          <p class="kicker">Integration</p>
+          <h2>Embedding a scene</h2>
+        </div>
+        <div class="rule"></div>
       </div>
-      <p>
-        The figures above originate from our curated interactive walkthroughs.
-        Embedding any scene on the web requires just one script tag and custom element:
+      <p class="lede">
+        The figures above originate from the curated walkthroughs. Embedding any scene
+        on the web takes one script tag and one custom element:
       </p>
-      <pre>&lt;script type="module" src="./embed/amx-player.js" data-runtime-base="./pkg-slim"&gt;&lt;/script&gt;
+      <div class="duality">
+        <pre>&lt;script type="module" src="./embed/amx-player.js" data-runtime-base="./pkg-slim"&gt;&lt;/script&gt;
 
 &lt;amx-player src="./scenes/topology.amx" autoplay loop hold="1.5" aspect="16:9"&gt;&lt;/amx-player&gt;</pre>
-      <div class="howto-footer">
-        <span>Vector and plain text scenes use the 2.3 MB <code class="inline">pkg-slim</code> bundle; load the full engine for Typst equations.</span>
-        <a href="./README.md">web/README.md ↗</a>
+        <div>
+          <p style="color: var(--faint); line-height: 1.6;">
+            Vector and plain-text scenes run on the 2.3 MB <span class="readout">pkg-slim</span>
+            bundle; load the full engine for Typst equations.
+          </p>
+          <p><a class="btn ghost" href="./README.md">web/README.md →</a></p>
+        </div>
       </div>
-    </div>
-
+    </section>
   </div>
 
   <script type="module" src="./embed/amx-player.js" data-runtime-base="./pkg-slim"></script>

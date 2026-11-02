@@ -7,398 +7,287 @@
   <meta name="description" content="Curated interactive explainers built with Animatix — deep learning, cloud topology, kinetic typography, and harmonic physics rendered at 60 FPS in WebGPU.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0e14'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="../site.css">
+  <link rel="stylesheet" href="../site/v2.css">
 </head>
 <body>
 
   <div class="wrap">
-    <header class="page-header">
-      <div class="page-eyebrow">
-        <span>SHOWCASE EXHIBITION</span>
-      </div>
-      <h1 class="page-title">Watch complex systems unfold.</h1>
-      <p class="page-lede">
-        Interactive presentation decks, standalone mathematical figures, and motion design recipes running live in your browser over WebGPU.
+    <header class="hero-band">
+      <p class="kicker">Showcase exhibition</p>
+      <h1>Watch complex systems <em>unfold</em>.</h1>
+      <p class="lede">
+        Interactive presentation decks, standalone mathematical figures, and motion
+        design recipes — every diagram a declarative scene file, running live over WebGPU.
       </p>
-      <div class="page-stat-strip">
-        <span class="stat-pill">9 Curated Works</span>
-        <span class="stat-pill">30+ Interactive Scenes</span>
-        <span class="stat-pill">60 FPS WebGPU</span>
-        <span class="stat-pill">Zero Video Buffering</span>
+      <div class="hero-metrics">
+        <span class="readout">9 curated works</span>
+        <span class="readout">30+ interactive scenes</span>
+        <span class="readout">60 FPS WebGPU</span>
+        <span class="readout">zero video buffering</span>
       </div>
     </header>
+  </div>
 
-    <!-- ── The Living Theater Feature Stage ── -->
-    <section class="theater-hero" aria-label="Interactive Showcase Stage">
-      <div class="theater-aura"></div>
-      <div class="theater-screen">
-        <div class="theater-hud">
-          <span id="theater-hud-file" class="theater-hud-file">
-            <span class="live-dot"></span>
-            <span>transformer/scenes/overview.amx</span>
-          </span>
-          <span class="theater-hud-live">
-            <span class="live-dot"></span>
-            <span>60 FPS · WebGPU</span>
-          </span>
-        </div>
+  <!-- ── the living theater: full-bleed stage + channel rail ── -->
+  <div class="stage-full" id="theater-stage" data-palette="ember">
+    <amx-player id="theater-player" src="transformer/scenes/overview.amx" sealed autoplay loop
+                hold="1.5" aspect="16:9" fit="cover"
+                title="The transformer block, drawn as an Animatix scene"></amx-player>
+  </div>
 
-        <div class="theater-stage-body">
-          <amx-player id="theater-player" src="transformer/scenes/overview.amx" sealed autoplay loop
-                      hold="1.5" aspect="16:9"
-                      title="The transformer block, drawn as an Animatix scene"></amx-player>
-        </div>
-
-        <div class="theater-caption-bar">
-          <div class="theater-meta">
-            <span id="theater-kicker" class="theater-kicker">Deep Learning · 7 Scenes · Flagship</span>
-            <h2 id="theater-title" class="theater-title">The Transformer Architecture, Animated</h2>
-            <p id="theater-desc" class="theater-desc">
-              The mechanism behind frontier language models, built up step-by-step: tokens, positional encodings, self-attention, and the feed-forward stack.
-            </p>
-          </div>
-          <div class="theater-actions">
-            <a id="theater-btn-walkthrough" class="btn-theater-primary" href="./transformer/">
-              Launch Deck <span>⊞</span>
-            </a>
-            <a id="theater-btn-source" class="btn-theater-ghost" href="transformer/scenes/overview.amx" target="_blank" rel="noopener noreferrer">
-              Source ↗
-            </a>
-          </div>
-        </div>
+  <div class="wrap">
+    <div class="theater-meta">
+      <div>
+        <p class="kicker" id="theater-kicker">Deep Learning · 7 Scenes · Flagship</p>
+        <h2 id="theater-title">The Transformer Architecture, Animated</h2>
+        <p id="theater-desc">
+          The mechanism behind frontier language models, built up step-by-step: tokens,
+          positional encodings, scaled dot-product attention, multi-head subspaces, and the
+          feed-forward stack.
+        </p>
       </div>
+      <div class="theater-actions">
+        <span class="readout" id="theater-hud-file">transformer/scenes/overview.amx</span>
+        <a id="theater-btn-walkthrough" class="btn primary" href="./transformer/">Launch deck →</a>
+        <a id="theater-btn-source" class="btn ghost" href="transformer/scenes/overview.amx"
+           target="_blank" rel="noopener noreferrer">Source ↗</a>
+      </div>
+    </div>
 
-      <!-- Channel Switcher Strip -->
-      <div class="theater-channels" role="tablist" aria-label="Showcase Channels">
-        <!-- site-gen:works-channels:start -->
-        <button class="channel-btn active" type="button" data-channel="0" role="tab" aria-selected="true">
-          <span class="channel-num">01</span>
-          <span class="channel-info">
-            <span class="channel-title">The Transformer</span>
-            <span class="channel-tag">Deep Learning</span>
-          </span>
+    <div class="channel-rail" role="tablist" aria-label="Showcase channels">
+      <!-- site-gen:works-channels:start -->
+        <button type="button" data-channel="0" role="tab" aria-selected="true" data-palette="ember">
+          <span class="n">01</span>
+          <span>The Transformer</span>
+          <span class="n">Deep Learning</span>
         </button>
-
-        <button class="channel-btn" type="button" data-channel="1" role="tab" aria-selected="false">
-          <span class="channel-num">02</span>
-          <span class="channel-info">
-            <span class="channel-title">Event Fabric</span>
-            <span class="channel-tag">Cloud Infrastructure</span>
-          </span>
+        <button type="button" data-channel="1" role="tab" aria-selected="false" data-palette="tide">
+          <span class="n">02</span>
+          <span>Event Fabric</span>
+          <span class="n">Cloud Infrastructure</span>
         </button>
-
-        <button class="channel-btn" type="button" data-channel="2" role="tab" aria-selected="false">
-          <span class="channel-num">03</span>
-          <span class="channel-info">
-            <span class="channel-title">Fourier Circles</span>
-            <span class="channel-tag">Harmonic Physics</span>
-          </span>
+        <button type="button" data-channel="2" role="tab" aria-selected="false" data-palette="orchid">
+          <span class="n">03</span>
+          <span>Fourier Circles</span>
+          <span class="n">Harmonic Physics</span>
         </button>
-
-        <button class="channel-btn" type="button" data-channel="3" role="tab" aria-selected="false">
-          <span class="channel-num">04</span>
-          <span class="channel-info">
-            <span class="channel-title">Insertion Sort</span>
-            <span class="channel-tag">Algorithmic Stage</span>
-          </span>
+        <button type="button" data-channel="3" role="tab" aria-selected="false" data-palette="coral">
+          <span class="n">04</span>
+          <span>Insertion Sort</span>
+          <span class="n">Algorithmic Stage</span>
         </button>
-
-        <button class="channel-btn" type="button" data-channel="4" role="tab" aria-selected="false">
-          <span class="channel-num">05</span>
-          <span class="channel-info">
-            <span class="channel-title">2×2 Matrix</span>
-            <span class="channel-tag">Linear Algebra</span>
-          </span>
+        <button type="button" data-channel="4" role="tab" aria-selected="false" data-palette="moss">
+          <span class="n">05</span>
+          <span>2×2 Matrix</span>
+          <span class="n">Linear Algebra</span>
         </button>
-
-        <button class="channel-btn" type="button" data-channel="5" role="tab" aria-selected="false">
-          <span class="channel-num">06</span>
-          <span class="channel-info">
-            <span class="channel-title">Gradient Descent</span>
-            <span class="channel-tag">Optimization &amp; Calculus</span>
-          </span>
+        <button type="button" data-channel="5" role="tab" aria-selected="false" data-palette="ember">
+          <span class="n">06</span>
+          <span>Gradient Descent</span>
+          <span class="n">Optimization &amp; Calculus</span>
         </button>
-
-        <button class="channel-btn" type="button" data-channel="6" role="tab" aria-selected="false">
-          <span class="channel-num">07</span>
-          <span class="channel-info">
-            <span class="channel-title">Morph Lab</span>
-            <span class="channel-tag">Topological Synthesis</span>
-          </span>
+        <button type="button" data-channel="6" role="tab" aria-selected="false" data-palette="orchid">
+          <span class="n">07</span>
+          <span>Morph Lab</span>
+          <span class="n">Topological Synthesis</span>
         </button>
-
-        <button class="channel-btn" type="button" data-channel="7" role="tab" aria-selected="false">
-          <span class="channel-num">08</span>
-          <span class="channel-info">
-            <span class="channel-title">Kinetic Glass</span>
-            <span class="channel-tag">Motion Design</span>
-          </span>
+        <button type="button" data-channel="7" role="tab" aria-selected="false" data-palette="coral">
+          <span class="n">08</span>
+          <span>Kinetic Glass</span>
+          <span class="n">Motion Design</span>
         </button>
-
-        <button class="channel-btn" type="button" data-channel="8" role="tab" aria-selected="false">
-          <span class="channel-num">09</span>
-          <span class="channel-info">
-            <span class="channel-title">Where Keys Live</span>
-            <span class="channel-tag">Data Structures</span>
-          </span>
+        <button type="button" data-channel="8" role="tab" aria-selected="false" data-palette="tide">
+          <span class="n">09</span>
+          <span>Where Keys Live</span>
+          <span class="n">Data Structures</span>
         </button>
 <!-- site-gen:works-channels:end -->
-      </div>
-    </section>
+    </div>
 
-    <!-- ── Filterable Walkthrough Catalog ── -->
-    <section class="catalog-section" aria-label="Curated Walkthrough Catalog">
-      <div class="sec-head">
-        <span class="sec-num">CATALOG</span>
-        <h2>Explore by Domain</h2>
-      </div>
-
-      <!-- Filter Controls -->
-      <div class="catalog-filter-bar" role="toolbar" aria-label="Filter walkthroughs by domain">
-        <button class="filter-pill active" type="button" data-filter="all">All Works (9)</button>
-        <button class="filter-pill" type="button" data-filter="ml">Deep Learning &amp; AI</button>
-        <button class="filter-pill" type="button" data-filter="systems">Cloud &amp; Systems</button>
-        <button class="filter-pill" type="button" data-filter="math">Mathematics &amp; Physics</button>
-        <button class="filter-pill" type="button" data-filter="algorithms">Algorithms</button>
-        <button class="filter-pill" type="button" data-filter="design">Motion &amp; Design</button>
+    <!-- ── catalog ── -->
+    <section style="margin-top: clamp(48px, 7vw, 96px);">
+      <div class="edit-head" data-palette="orchid">
+        <span class="num">§</span>
+        <div>
+          <p class="kicker">Catalog</p>
+          <h2>Explore by domain</h2>
+        </div>
+        <div class="rule"></div>
       </div>
 
-      <!-- Grid of Walkthroughs -->
-      <div class="catalog-grid" id="catalog-grid">
-        <!-- site-gen:works-catalog:start -->
-        <article class="catalog-card featured" data-category="ml" data-work="transformer" data-palette="ember">
-          <div class="catalog-poster">
-            <span class="catalog-badge live">Live Scene · 7s</span>
-            <amx-player src="transformer/scenes/overview.amx" sealed autoplay loop
-                        hold="1.5" aspect="16:9"
+      <div class="filter-bar" role="toolbar" aria-label="Filter walkthroughs by domain">
+        <button type="button" data-filter="all" aria-pressed="true">All works</button>
+        <button type="button" data-filter="ml" aria-pressed="false">Deep learning &amp; AI</button>
+        <button type="button" data-filter="systems" aria-pressed="false">Cloud &amp; systems</button>
+        <button type="button" data-filter="math" aria-pressed="false">Mathematics &amp; physics</button>
+        <button type="button" data-filter="algorithms" aria-pressed="false">Algorithms</button>
+        <button type="button" data-filter="design" aria-pressed="false">Motion &amp; design</button>
+      </div>
+
+      <!-- site-gen:works-catalog:start -->
+      <div class="work-grid" id="catalog-grid">
+        <a class="work-tile" data-palette="ember" href="transformer/">
+          <div class="stage-frame">
+            <amx-player src="transformer/scenes/overview.amx" sealed data-hoverplay aspect="16:9"
                         title="The Transformer Architecture, Animated"></amx-player>
           </div>
-          <div class="catalog-content">
-            <span class="catalog-kicker">Deep Learning · 7 Scenes · Flagship Deck</span>
-            <h3 class="catalog-title">The Transformer Architecture, Animated</h3>
-            <p class="catalog-blurb">The mechanism behind frontier language models, built up step-by-step: tokens, positional encodings, scaled dot-product attention, multi-head subspaces, and the feed-forward stack.</p>
-            <div class="catalog-tags-strip">
-              <span class="tag-chip">Self-Attention</span>
-              <span class="tag-chip">Feed-Forward</span>
-              <span class="tag-chip">Autoregressive Loop</span>
-              <span class="tag-chip">Interactive Deck</span>
-            </div>
-            <div class="catalog-card-actions">
-              <a class="btn-catalog-deck" href="./transformer/">Launch Deck ⊞</a>
-              <a class="btn-catalog-src" href="transformer/scenes/overview.amx" target="_blank" rel="noopener noreferrer">Source ↗</a>
-            </div>
+          <span class="kicker">Deep Learning · 7 scenes</span>
+          <h3>The Transformer Architecture, Animated</h3>
+          <p>The mechanism behind frontier language models, built up step-by-step: tokens, positional encodings, scaled dot-product attention, multi-head subspaces, and the feed-forward stack.</p>
+          <div class="tag-strip">
+            <span class="tag-chip">Self-Attention</span>
+            <span class="tag-chip">Feed-Forward</span>
+            <span class="tag-chip">Autoregressive Loop</span>
           </div>
-        </article>
+        </a>
 
-        <article class="catalog-card" data-category="systems" data-work="topology" data-palette="tide">
-          <div class="catalog-poster">
-            <span class="catalog-badge">Hover to play · 3 scenes</span>
+        <a class="work-tile" data-palette="tide" href="topology/">
+          <div class="stage-frame">
             <amx-player src="topology/scene.amx" sealed data-hoverplay aspect="16:9"
                         title="The Distributed Event Fabric"></amx-player>
           </div>
-          <div class="catalog-content">
-            <span class="catalog-kicker">Cloud Infrastructure · 3 Scenes</span>
-            <h3 class="catalog-title">The Distributed Event Fabric</h3>
-            <p class="catalog-blurb">High-throughput edge ingress, partitioned log streaming, and Raft consensus — events you can watch cross the wire, not boxes that fade in.</p>
-            <div class="catalog-tags-strip">
-              <span class="tag-chip">Orthogonal Connectors</span>
-              <span class="tag-chip">Live Telemetry</span>
-              <span class="tag-chip">Raft Consensus</span>
-            </div>
-            <div class="catalog-card-actions">
-              <a class="btn-catalog-deck" href="./topology/">Launch Deck ⊞</a>
-              <a class="btn-catalog-src" href="topology/scene.amx" target="_blank" rel="noopener noreferrer">Source ↗</a>
-            </div>
+          <span class="kicker">Cloud Infrastructure · 3 scenes</span>
+          <h3>The Distributed Event Fabric</h3>
+          <p>High-throughput edge ingress, partitioned log streaming, and Raft consensus — events you can watch cross the wire, not boxes that fade in.</p>
+          <div class="tag-strip">
+            <span class="tag-chip">Orthogonal Connectors</span>
+            <span class="tag-chip">Live Telemetry</span>
+            <span class="tag-chip">Raft Consensus</span>
           </div>
-        </article>
+        </a>
 
-        <article class="catalog-card" data-category="math" data-work="epicycles" data-palette="orchid">
-          <div class="catalog-poster">
-            <span class="catalog-badge">Hover to play · 5 scenes</span>
+        <a class="work-tile" data-palette="orchid" href="epicycles/">
+          <div class="stage-frame">
             <amx-player src="epicycles/hero.amx" sealed data-hoverplay aspect="16:9"
                         title="Circles That Draw a Square Wave"></amx-player>
           </div>
-          <div class="catalog-content">
-            <span class="catalog-kicker">Harmonic Physics · 5 Scenes</span>
-            <h3 class="catalog-title">Circles That Draw a Square Wave</h3>
-            <p class="catalog-blurb">Fourier analysis as spinning mechanical dials: harmonic circles at odd integer frequencies stacking into a sharp square wave with scrolling history traces.</p>
-            <div class="catalog-tags-strip">
-              <span class="tag-chip">PlotCurve</span>
-              <span class="tag-chip">Rolling Time Trace</span>
-              <span class="tag-chip">Harmonics</span>
-            </div>
-            <div class="catalog-card-actions">
-              <a class="btn-catalog-deck" href="./epicycles/">Launch Deck ⊞</a>
-              <a class="btn-catalog-src" href="epicycles/hero.amx" target="_blank" rel="noopener noreferrer">Source ↗</a>
-            </div>
+          <span class="kicker">Harmonic Physics · 5 scenes</span>
+          <h3>Circles That Draw a Square Wave</h3>
+          <p>Fourier analysis as spinning mechanical dials: harmonic circles at odd integer frequencies stacking into a sharp square wave with scrolling history traces.</p>
+          <div class="tag-strip">
+            <span class="tag-chip">PlotCurve</span>
+            <span class="tag-chip">Rolling Time Trace</span>
+            <span class="tag-chip">Harmonics</span>
           </div>
-        </article>
+        </a>
 
-        <article class="catalog-card" data-category="algorithms" data-work="sorting" data-palette="coral">
-          <div class="catalog-poster">
-            <span class="catalog-badge">Hover to play · 4 scenes</span>
+        <a class="work-tile" data-palette="coral" href="sorting/">
+          <div class="stage-frame">
             <amx-player src="sorting/scene.amx" sealed data-hoverplay aspect="16:9"
                         title="Sorting, Staged"></amx-player>
           </div>
-          <div class="catalog-content">
-            <span class="catalog-kicker">Algorithmic Stage · 4 Scenes</span>
-            <h3 class="catalog-title">Sorting, Staged</h3>
-            <p class="catalog-blurb">Eight bars perform insertion sort directed entirely by a build-time timeline function: every comparison lights a tick, every swap is emitted algorithmically.</p>
-            <div class="catalog-tags-strip">
-              <span class="tag-chip">Build-time Fn</span>
-              <span class="tag-chip">Dynamic Swaps</span>
-              <span class="tag-chip">Comparison Tally</span>
-            </div>
-            <div class="catalog-card-actions">
-              <a class="btn-catalog-deck" href="./sorting/">Launch Deck ⊞</a>
-              <a class="btn-catalog-src" href="sorting/scene.amx" target="_blank" rel="noopener noreferrer">Source ↗</a>
-            </div>
+          <span class="kicker">Algorithmic Stage · 4 scenes</span>
+          <h3>Sorting, Staged</h3>
+          <p>Eight bars perform insertion sort directed entirely by a build-time timeline function: every comparison lights a tick, every swap is emitted algorithmically.</p>
+          <div class="tag-strip">
+            <span class="tag-chip">Build-time Fn</span>
+            <span class="tag-chip">Dynamic Swaps</span>
+            <span class="tag-chip">Comparison Tally</span>
           </div>
-        </article>
+        </a>
 
-        <article class="catalog-card" data-category="math" data-work="matrix" data-palette="moss">
-          <div class="catalog-poster">
-            <span class="catalog-badge">Hover to play · 3 scenes</span>
+        <a class="work-tile" data-palette="moss" href="matrix/">
+          <div class="stage-frame">
             <amx-player src="matrix/rotation.amx" sealed data-hoverplay aspect="16:9"
                         title="A Matrix Is a Machine"></amx-player>
           </div>
-          <div class="catalog-content">
-            <span class="catalog-kicker">Linear Algebra · 3 Scenes</span>
-            <h3 class="catalog-title">A Matrix Is a Machine</h3>
-            <p class="catalog-blurb">Linear algebra as spatial transformation: a 2×2 matrix bends the coordinate grid, basis vectors lead, and the determinant collapses through zero.</p>
-            <div class="catalog-tags-strip">
-              <span class="tag-chip">Coordinate Grid</span>
-              <span class="tag-chip">Basis Vectors</span>
-              <span class="tag-chip">Determinant</span>
-            </div>
-            <div class="catalog-card-actions">
-              <a class="btn-catalog-deck" href="./matrix/">Launch Deck ⊞</a>
-              <a class="btn-catalog-src" href="matrix/rotation.amx" target="_blank" rel="noopener noreferrer">Source ↗</a>
-            </div>
+          <span class="kicker">Linear Algebra · 3 scenes</span>
+          <h3>A Matrix Is a Machine</h3>
+          <p>Linear algebra as spatial transformation: a 2×2 matrix bends the coordinate grid, basis vectors lead, and the determinant collapses through zero.</p>
+          <div class="tag-strip">
+            <span class="tag-chip">Coordinate Grid</span>
+            <span class="tag-chip">Basis Vectors</span>
+            <span class="tag-chip">Determinant</span>
           </div>
-        </article>
+        </a>
 
-        <article class="catalog-card" data-category="ml" data-work="gradient" data-palette="ember">
-          <div class="catalog-poster">
-            <span class="catalog-badge">Hover to play · 4 scenes</span>
+        <a class="work-tile" data-palette="ember" href="gradient/">
+          <div class="stage-frame">
             <amx-player src="gradient/scene.amx" sealed data-hoverplay aspect="16:9"
                         title="Rolling Downhill: Gradient Descent"></amx-player>
           </div>
-          <div class="catalog-content">
-            <span class="catalog-kicker">Optimization &amp; Calculus · 4 Scenes</span>
-            <h3 class="catalog-title">Rolling Downhill: Gradient Descent</h3>
-            <p class="catalog-blurb">Optimization topography: steepest-descent vector fields, contour tracing, and why the learning-rate step size decides convergence.</p>
-            <div class="catalog-tags-strip">
-              <span class="tag-chip">Loss Surface</span>
-              <span class="tag-chip">Vector Field</span>
-              <span class="tag-chip">Learning Rate</span>
-            </div>
-            <div class="catalog-card-actions">
-              <a class="btn-catalog-deck" href="./gradient/">Launch Deck ⊞</a>
-              <a class="btn-catalog-src" href="gradient/scene.amx" target="_blank" rel="noopener noreferrer">Source ↗</a>
-            </div>
+          <span class="kicker">Optimization &amp; Calculus · 4 scenes</span>
+          <h3>Rolling Downhill: Gradient Descent</h3>
+          <p>Optimization topography: steepest-descent vector fields, contour tracing, and why the learning-rate step size decides convergence.</p>
+          <div class="tag-strip">
+            <span class="tag-chip">Loss Surface</span>
+            <span class="tag-chip">Vector Field</span>
+            <span class="tag-chip">Learning Rate</span>
           </div>
-        </article>
+        </a>
 
-        <article class="catalog-card" data-category="design" data-work="morph" data-palette="orchid">
-          <div class="catalog-poster">
-            <span class="catalog-badge">Hover to play · 1 scene</span>
+        <a class="work-tile" data-palette="orchid" href="morph/">
+          <div class="stage-frame">
             <amx-player src="morph/scene.amx" sealed data-hoverplay aspect="16:9"
                         title="Morph Lab: Generative Vector Kinetics"></amx-player>
           </div>
-          <div class="catalog-content">
-            <span class="catalog-kicker">Topological Synthesis · 1 Scenes</span>
-            <h3 class="catalog-title">Morph Lab: Generative Vector Kinetics</h3>
-            <p class="catalog-blurb">Continuous vector interpolation across three strategies: vertex index matching, curved circular trajectories, and proportional length remapping.</p>
-            <div class="catalog-tags-strip">
-              <span class="tag-chip">strategy: match</span>
-              <span class="tag-chip">path_arc Hint</span>
-              <span class="tag-chip">stretch</span>
-            </div>
-            <div class="catalog-card-actions">
-              <a class="btn-catalog-deck" href="./morph/">Launch Deck ⊞</a>
-              <a class="btn-catalog-src" href="morph/scene.amx" target="_blank" rel="noopener noreferrer">Source ↗</a>
-            </div>
+          <span class="kicker">Topological Synthesis · 1 scenes</span>
+          <h3>Morph Lab: Generative Vector Kinetics</h3>
+          <p>Continuous vector interpolation across three strategies: vertex index matching, curved circular trajectories, and proportional length remapping.</p>
+          <div class="tag-strip">
+            <span class="tag-chip">strategy: match</span>
+            <span class="tag-chip">path_arc Hint</span>
+            <span class="tag-chip">stretch</span>
           </div>
-        </article>
+        </a>
 
-        <article class="catalog-card" data-category="design" data-work="kinetic" data-palette="coral">
-          <div class="catalog-poster">
-            <span class="catalog-badge">Hover to play · 3 scenes</span>
+        <a class="work-tile" data-palette="coral" href="kinetic/">
+          <div class="stage-frame">
             <amx-player src="kinetic/scene.amx" sealed data-hoverplay aspect="16:9"
                         title="Fluid Typography &amp; Spatial Depth"></amx-player>
           </div>
-          <div class="catalog-content">
-            <span class="catalog-kicker">Motion Design · 3 Scenes</span>
-            <h3 class="catalog-title">Fluid Typography &amp; Spatial Depth</h3>
-            <p class="catalog-blurb">Editorial motion design and tactile digital physics: split-text baseline emergence, 2.5D perspective tilt, and real-time GPU frosted glass.</p>
-            <div class="catalog-tags-strip">
-              <span class="tag-chip">Split-Text Reveal</span>
-              <span class="tag-chip">Glass Blur Compute</span>
-              <span class="tag-chip">Perspective Tilt</span>
-            </div>
-            <div class="catalog-card-actions">
-              <a class="btn-catalog-deck" href="./kinetic/">Launch Deck ⊞</a>
-              <a class="btn-catalog-src" href="kinetic/scene.amx" target="_blank" rel="noopener noreferrer">Source ↗</a>
-            </div>
+          <span class="kicker">Motion Design · 3 scenes</span>
+          <h3>Fluid Typography &amp; Spatial Depth</h3>
+          <p>Editorial motion design and tactile digital physics: split-text baseline emergence, 2.5D perspective tilt, and real-time GPU frosted glass.</p>
+          <div class="tag-strip">
+            <span class="tag-chip">Split-Text Reveal</span>
+            <span class="tag-chip">Glass Blur Compute</span>
+            <span class="tag-chip">Perspective Tilt</span>
           </div>
-        </article>
+        </a>
 
-        <article class="catalog-card" data-category="algorithms" data-work="hash" data-palette="tide">
-          <div class="catalog-poster">
-            <span class="catalog-badge">Hover to play · 4 scenes</span>
+        <a class="work-tile" data-palette="tide" href="hash/">
+          <div class="stage-frame">
             <amx-player src="hash/scene.amx" sealed data-hoverplay aspect="16:9"
                         title="Where Keys Live: Hash Tables"></amx-player>
           </div>
-          <div class="catalog-content">
-            <span class="catalog-kicker">Data Structures · 4 Scenes</span>
-            <h3 class="catalog-title">Where Keys Live: Hash Tables</h3>
-            <p class="catalog-blurb">Hash tables staged as theatre: a hash you can follow by eye, collision chaining, and constant-time key lookups without search iterations.</p>
-            <div class="catalog-tags-strip">
-              <span class="tag-chip">Modulo Arithmetic</span>
-              <span class="tag-chip">Linked Chaining</span>
-              <span class="tag-chip">O(1) Lookup</span>
-            </div>
-            <div class="catalog-card-actions">
-              <a class="btn-catalog-deck" href="./hash/">Launch Deck ⊞</a>
-              <a class="btn-catalog-src" href="hash/scene.amx" target="_blank" rel="noopener noreferrer">Source ↗</a>
-            </div>
+          <span class="kicker">Data Structures · 4 scenes</span>
+          <h3>Where Keys Live: Hash Tables</h3>
+          <p>Hash tables staged as theatre: a hash you can follow by eye, collision chaining, and constant-time key lookups without search iterations.</p>
+          <div class="tag-strip">
+            <span class="tag-chip">Modulo Arithmetic</span>
+            <span class="tag-chip">Linked Chaining</span>
+            <span class="tag-chip">O(1) Lookup</span>
           </div>
-        </article>
+        </a>
+
+      </div>
 <!-- site-gen:works-catalog:end -->
+    </section>
+
+    <!-- ── discovery bridges ── -->
+    <section style="margin-top: clamp(48px, 7vw, 96px);">
+      <div class="work-grid">
+        <a class="work-tile" data-palette="moss" href="../gallery.html">
+          <span class="kicker">Standalone exhibition</span>
+          <h3>The scene gallery</h3>
+          <p>Isolated mathematical and diagrammatic figures with instant source
+             inspection and theater mode.</p>
+        </a>
+        <a class="work-tile" data-palette="coral" href="../recipes/">
+          <span class="kicker">Creative techniques</span>
+          <h3>Animation recipes</h3>
+          <p>Nine focused techniques: bloom glows, camera pushes, marching ants,
+             and counter tickers.</p>
+        </a>
       </div>
     </section>
-
-    <!-- ── Discovery Bridges ── -->
-    <section class="cards hub" style="margin-top: 48px;">
-      <a class="hub-card" href="../gallery.html">
-        <span class="hub-body">
-          <span class="demo-kicker">Standalone Exhibition</span>
-          <span class="hub-title">The Scene Gallery</span>
-          <span class="hub-blurb">
-            Eight isolated mathematical and diagrammatic figures with instant source inspection and theater mode.
-          </span>
-          <span class="open">Open the gallery →</span>
-        </span>
-      </a>
-
-      <a class="hub-card" href="../recipes/">
-        <span class="hub-body">
-          <span class="demo-kicker">Creative Techniques</span>
-          <span class="hub-title">Animation Recipes</span>
-          <span class="hub-blurb">
-            Nine focused techniques: bloom glows, camera pushes, marching ants, and counter tickers.
-          </span>
-          <span class="open">Browse recipes →</span>
-        </span>
-      </a>
-    </section>
-
   </div>
 
-  <script type="module" src="../embed/amx-player.js" data-runtime-base="../pkg-slim"></script>
+  <script type="module" src="../embed/amx-player.js"></script>
   <script src="../site-chrome.js" data-root="../" data-section="demos"></script>
 
-  <!-- Interactive Theater & Filtering Controller -->  <!-- site-gen:works-data:start -->
+  <!-- site-gen:works-data:start -->
     <script type="application/json" id="works-data">
     [
       {
@@ -504,80 +393,47 @@
     </script>
 <!-- site-gen:works-data:end -->
 
+  <!-- Theater & filter controller: reads the manifest payload, no hand-copied metadata -->
   <script>
     (function () {
-      const channels = JSON.parse(document.getElementById("works-data").textContent);
-      const PALETTE_ACCENT = {
-        ember: "rgba(245, 185, 66, 0.22)",
-        tide: "rgba(56, 189, 248, 0.22)",
-        moss: "rgba(52, 211, 153, 0.22)",
-        orchid: "rgba(129, 140, 248, 0.22)",
-        coral: "rgba(251, 113, 133, 0.22)"
-      };
-      const accentOf = (ch) => PALETTE_ACCENT[ch.palette] || PALETTE_ACCENT.ember;
-
-
-      const theaterHero = document.querySelector(".theater-hero");
+      const works = JSON.parse(document.getElementById("works-data").textContent);
+      const stage = document.getElementById("theater-stage");
       const player = document.getElementById("theater-player");
-      const hudFile = document.getElementById("theater-hud-file");
+      const hud = document.getElementById("theater-hud-file");
       const kicker = document.getElementById("theater-kicker");
       const title = document.getElementById("theater-title");
       const desc = document.getElementById("theater-desc");
-      const btnWalkthrough = document.getElementById("theater-btn-walkthrough");
-      const btnSource = document.getElementById("theater-btn-source");
-      const channelButtons = document.querySelectorAll(".channel-btn");
+      const btnDeck = document.getElementById("theater-btn-walkthrough");
+      const btnSrc = document.getElementById("theater-btn-source");
 
-      channelButtons.forEach((btn) => {
+      document.querySelectorAll(".channel-rail button").forEach((btn) => {
         btn.addEventListener("click", () => {
-          const idx = parseInt(btn.dataset.channel, 10);
-          const ch = channels[idx];
-          if (!ch) return;
-
-          channelButtons.forEach((b) => {
-            b.classList.remove("active");
-            b.setAttribute("aria-selected", "false");
+          const w = works[parseInt(btn.dataset.channel, 10)];
+          if (!w) return;
+          document.querySelectorAll(".channel-rail button").forEach((b) => {
+            b.setAttribute("aria-selected", b === btn ? "true" : "false");
           });
-          btn.classList.add("active");
-          btn.setAttribute("aria-selected", "true");
-
-          // Update stage player & metadata
-          player.setAttribute("src", ch.src);
-          if (theaterHero) {
-            theaterHero.style.setProperty("--theater-accent", accentOf(ch));
-          }
-          if (hudFile) {
-            hudFile.innerHTML = '<span class="live-dot"></span><span>' + ch.file + '</span>';
-          }
-          if (kicker) kicker.textContent = ch.kicker;
-          if (title) title.textContent = ch.title;
-          if (desc) desc.textContent = ch.desc;
-          if (btnWalkthrough) btnWalkthrough.setAttribute("href", ch.link);
-          if (btnSource) btnSource.setAttribute("href", ch.src);
+          stage.dataset.palette = w.palette;
+          player.setAttribute("src", w.src);
+          hud.textContent = w.file;
+          kicker.textContent = w.kicker;
+          title.textContent = w.title;
+          desc.textContent = w.desc;
+          btnDeck.setAttribute("href", w.link);
+          btnSrc.setAttribute("href", w.src);
         });
       });
 
-      // Category filter pills
-      const filterPills = document.querySelectorAll(".filter-pill");
-      const catalogCards = document.querySelectorAll(".catalog-card");
-
-      filterPills.forEach((pill) => {
+      const pills = document.querySelectorAll(".filter-bar button");
+      const grid = document.getElementById("catalog-grid");
+      pills.forEach((pill) => {
         pill.addEventListener("click", () => {
+          pills.forEach((p) => p.setAttribute("aria-pressed", p === pill ? "true" : "false"));
           const filter = pill.dataset.filter;
-
-          filterPills.forEach((p) => p.classList.remove("active"));
-          pill.classList.add("active");
-
-          catalogCards.forEach((card) => {
-            if (filter === "all") {
-              card.style.display = "";
-            } else {
-              const cats = (card.dataset.category || "").split(" ");
-              if (cats.includes(filter)) {
-                card.style.display = "";
-              } else {
-                card.style.display = "none";
-              }
-            }
+          const tiles = grid ? Array.from(grid.children) : [];
+          tiles.forEach((tile, i) => {
+            const w = works[i];
+            tile.style.display = !w || filter === "all" || w.category === filter ? "" : "none";
           });
         });
       });

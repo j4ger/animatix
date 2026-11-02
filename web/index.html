@@ -10,82 +10,58 @@
   <meta property="og:image" content="https://j4ger.github.io/animatix/assets/og.png">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0e14'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="./site.css">
+  <link rel="stylesheet" href="./site/v2.css">
 </head>
 <body>
 
   <div class="wrap">
 
-    <!-- ── Hero: Precision Split Layout ── -->
-    <header class="hero-split">
-      <div class="hero-content">
-        <div class="hero-eyebrow">
-          <span class="eyebrow-dot"></span>
-          <span>Declarative Vector Animation</span>
-        </div>
-
-        <h1 class="hero-title">Explain complex ideas in <span class="text-gradient-amber">vector motion</span>.</h1>
-
-        <p class="hero-lede">
-          A layout-first DSL and 60 FPS Rust engine for technical diagrams, mathematics, and motion graphics.
-        </p>
-
-        <div class="hero-actions">
-          <a class="btn primary" href="./demos/">Explore Showcase <span class="arrow">→</span></a>
-          <a class="btn secondary" href="./tour/">Interactive Tour</a>
-        </div>
-
-        <div class="hero-quick-install">
-          <button class="btn-copy" type="button" data-copy="cargo run -p animatix-gui" title="Copy CLI launch command">
-            <span class="term-prompt">$</span>
-            <span class="term-text">cargo run -p animatix-gui</span>
-            <span class="copy-tag">Copy</span>
-          </button>
-        </div>
-
-        <div class="hero-metrics">
-          <span class="metric-item"><span class="metric-dot"></span>WebGPU 60 FPS</span>
-          <span class="metric-item"><span class="metric-dot"></span>Typst Math Core</span>
-          <span class="metric-item"><span class="metric-dot"></span>4K Video Export</span>
-          <span class="metric-item"><span class="metric-dot"></span>2.3 MB Slim Runtime</span>
-        </div>
+    <!-- ── hero: editorial band, then the plate runs edge to edge ── -->
+    <header class="hero-band">
+      <p class="kicker">Declarative vector animation · Rust + WebGPU</p>
+      <h1>Explain complex ideas in <em>vector motion</em>.</h1>
+      <p class="lede">
+        A layout-first DSL and a 60 FPS Rust engine for technical diagrams,
+        mathematics, and motion graphics — authored as text, compiled to light.
+      </p>
+      <div class="hero-actions">
+        <a class="btn primary" href="./demos/">Explore the showcase →</a>
+        <a class="btn ghost" href="./tour/">Interactive tour</a>
       </div>
-
-      <div class="hero-stage">
-        <div class="stage-canvas">
-          <div class="stage-canvas-hud">
-            <span class="stage-hud-tag">scenes/hero.amx</span>
-            <span class="stage-hud-live"><span class="live-dot"></span>60 FPS · WebGPU</span>
-          </div>
-          <div class="stage-canvas-body">
-            <amx-player src="./scenes/hero.amx" eager autoplay loop hold="1.5" aspect="16:9"
-                        title="Animatix — a declarative animation language"></amx-player>
-          </div>
-          <div class="stage-canvas-caption">
-            <span>Compiled live by the Rust WebGPU engine in your browser.</span>
-            <a class="stage-source-link" href="./scenes/hero.amx" target="_blank" rel="noopener noreferrer">Source ↗</a>
-          </div>
-        </div>
+      <div class="hero-metrics">
+        <span class="readout">WebGPU 60 FPS</span>
+        <span class="readout">Typst math core</span>
+        <span class="readout">4K video export</span>
+        <span class="readout">2.3 MB slim runtime</span>
       </div>
     </header>
 
-    <!-- ── Section 01: The Language ── -->
+  </div>
+
+  <div class="stage-full" data-palette="ember">
+    <amx-player src="./scenes/hero.amx" eager autoplay loop hold="1.5" aspect="16:9" fit="cover"
+                title="Animatix — a declarative animation language"></amx-player>
+  </div>
+
+  <div class="wrap">
+
+    <!-- ── 01 · the language ── -->
     <section id="language">
-      <div class="sec-head">
-        <span class="sec-num">01</span>
-        <h2>Choreography as clean syntax</h2>
+      <div class="edit-head" data-palette="ember">
+        <span class="num">01</span>
+        <div>
+          <p class="kicker">The language</p>
+          <h2>Choreography as clean syntax</h2>
+        </div>
+        <div class="rule"></div>
       </div>
-      <p class="sec-sub">
-        Actors, keyframe beats, and temporal verbs describe motion with mathematical clarity.
-        Scroll to scrub the playhead, or click any line of code to jump to its beat.
+      <p class="lede">
+        Actors, keyframe beats, and temporal verbs describe motion with mathematical
+        clarity. Scroll to scrub the playhead, or click any line of code to jump to its beat.
       </p>
 
       <div class="duality">
-        <div class="duality-code-card">
-          <div class="duality-code-header">
-            <span class="file-name">scenes/sample.amx</span>
-            <span class="pill-hint">Click line to jump</span>
-          </div>
-          <pre><span class="line"><span class="cmt">// one actor, three beats of choreography</span></span>
+        <pre><span class="line"><span class="cmt">// one actor, three beats of choreography</span></span>
 <span class="line">box: <span class="prop">Rect</span>, size: (<span class="num">220</span>, <span class="num">220</span>), color: <span class="prop">accent.primary</span>, at: (<span class="num">640</span>, <span class="num">360</span>)</span>
 <span class="line" data-t="0.5,1.5"><span class="at">#0.5s</span></span>
 <span class="line" data-t="0.5,1.5"><span class="kw">fade-in</span> box [<span class="num">600ms</span>, ease: <span class="str">ease-out</span>]</span>
@@ -93,229 +69,153 @@
 <span class="line" data-t="1.5,3.0">box: <span class="prop">Ellipse</span>, size: (<span class="num">220</span>, <span class="num">170</span>), color: <span class="prop">accent.success</span> [<span class="num">900ms</span>, strategy: <span class="str">match</span>]</span>
 <span class="line" data-t="3.0,4.2"><span class="at">#3.0s</span></span>
 <span class="line" data-t="3.0,4.2"><span class="kw">shift</span> box [by: (<span class="num">280</span>, <span class="num">0</span>), <span class="num">800ms</span>, ease: <span class="str">ease-in-out</span>]</span></pre>
-        </div>
 
-        <div class="stage-col">
-          <figure>
+        <div>
+          <div class="stage-frame" data-palette="ember">
             <amx-player src="./scenes/sample.amx" sealed aspect="16:9"
                         title="The sample scene, scrubbed by scrolling or clicking"></amx-player>
-          </figure>
+          </div>
           <div class="stage-note">
             <span>Scroll or click code to scrub</span>
             <span class="beat">#0.0s</span>
           </div>
         </div>
       </div>
-
-      <!-- Architectural Pillars -->
-      <div class="pillars-row">
-        <div class="pillar-card">
-          <div class="pillar-tag">01 / LAYOUT FIRST</div>
-          <h3>Anchors &amp; Relative Grids</h3>
-          <p>Actors anchor to coordinate bounds and parent layouts without coordinate drift.</p>
-        </div>
-        <div class="pillar-card">
-          <div class="pillar-tag">02 / TEMPORAL VERBS</div>
-          <h3>Declarative Kinetics</h3>
-          <p>Inline durations, bezier easing curves (<code class="inline">ease-out</code>, <code class="inline">spring</code>), and automated vector morphing.</p>
-        </div>
-        <div class="pillar-card">
-          <div class="pillar-tag">03 / REACTIVE IR</div>
-          <h3>Compiled Bytecode</h3>
-          <p>Frame-time closures and <code class="inline">always</code> blocks execute at 60 FPS in bytecode with zero allocations.</p>
-        </div>
-      </div>
     </section>
 
-    <!-- ── Section 02: Engine Architecture (Bento) ── -->
+    <!-- ── 02 · engine architecture ── -->
     <section id="inside">
-      <div class="sec-head">
-        <span class="sec-num">02</span>
-        <h2>Engine architecture</h2>
+      <div class="edit-head" data-palette="tide">
+        <span class="num">02</span>
+        <div>
+          <p class="kicker">Inside</p>
+          <h2>One coherent pipeline</h2>
+        </div>
+        <div class="rule"></div>
       </div>
-      <p class="sec-sub">
-        Designed from the ground up as a single coherent pipeline for technical diagramming and mathematical animation.
-      </p>
 
-      <div class="bento-grid">
-        <!-- Prominent Hero Bento Card (Spans 2 columns) -->
-        <div class="bento-card hero-span">
-          <div class="bento-header">
-            <span class="bento-eyebrow">CORE RUNTIME</span>
-            <span class="bento-badge">60 FPS WebGPU</span>
-          </div>
-          <h3>Pure Rust &amp; WebGPU Pipeline</h3>
-          <p>
-            Hardware-accelerated 2D vector rasterization powered by Vello and custom WGSL compute shaders.
-            Compiles natively for desktop or down to a 2.3 MB slim runtime for web playback.
-          </p>
-          <div class="bento-spec-pills">
-            <span class="pill-spec">Vello Renderer</span>
-            <span class="pill-spec">WGSL Shaders</span>
-            <span class="pill-spec">2.3 MB runtime</span>
-            <span class="pill-spec">Zero C++ Runtime</span>
-          </div>
+      <div class="pillars">
+        <div>
+          <span class="readout">Core runtime</span>
+          <h3>Pure Rust &amp; WebGPU</h3>
+          <p>Hardware-accelerated 2D vector rasterization powered by Vello and custom
+             WGSL compute shaders — native on desktop, a 2.3 MB slim runtime in the browser.</p>
         </div>
-
-        <!-- Bento Card 2: Typst Core -->
-        <div class="bento-card">
-          <div class="bento-header">
-            <span class="bento-eyebrow">TYPESETTING</span>
-            <span class="bento-badge">Typst Core</span>
-          </div>
-          <h3>Math &amp; Code Typography</h3>
-          <p>
-            Mathematical notation, LaTeX-grade equations, and syntax-highlighted code compiled
-            directly via Typst into vector glyph actors.
-          </p>
-          <div class="bento-spec-pills">
-            <span class="pill-spec">Vector Glyphs</span>
-            <span class="pill-spec">Typst Engine</span>
-          </div>
+        <div>
+          <span class="readout">Typesetting</span>
+          <h3>Math &amp; code typography</h3>
+          <p>Mathematical notation and syntax-highlighted code compiled directly via Typst
+             into vector glyph actors.</p>
         </div>
-
-        <!-- Bento Card 3: GPU Shaders -->
-        <div class="bento-card">
-          <div class="bento-header">
-            <span class="bento-eyebrow">POST-PROCESSING</span>
-            <span class="bento-badge">14 Passes</span>
-          </div>
-          <h3>GPU Shader Scopes</h3>
-          <p>
-            Real-time Gaussian blur, bloom, chromatic aberration, and frosted glass materials executing per frame.
-          </p>
-          <div class="bento-spec-pills">
-            <span class="pill-spec">Bloom &amp; Blur</span>
-            <span class="pill-spec">Glass Materials</span>
-          </div>
+        <div>
+          <span class="readout">Post-processing</span>
+          <h3>GPU shader scopes</h3>
+          <p>Real-time Gaussian blur, bloom, chromatic aberration, and frosted glass
+             materials executing per frame.</p>
         </div>
-
-        <!-- Bento Card 4: Reactive IR -->
-        <div class="bento-card">
-          <div class="bento-header">
-            <span class="bento-eyebrow">EXECUTION</span>
-            <span class="bento-badge">IR Bytecode</span>
-          </div>
-          <h3>Compiled Reactive IR</h3>
-          <p>
-            Expressions, comprehensions, and orbital physics lowered into compact IR bytecode
-            for zero-allocation evaluation at 60 FPS.
-          </p>
-          <div class="bento-spec-pills">
-            <span class="pill-spec">Zero-Alloc Loop</span>
-            <span class="pill-spec">Orbit Physics</span>
-          </div>
-        </div>
-
-        <!-- Bento Card 5: Developer Tooling -->
-        <div class="bento-card">
-          <div class="bento-header">
-            <span class="bento-eyebrow">TOOLING</span>
-            <span class="bento-badge">Studio + LSP</span>
-          </div>
-          <h3>Desktop Studio &amp; Tooling</h3>
-          <p>
-            Real-time desktop GUI with live reload, language server protocol (LSP) diagnostics,
-            and headless 4K MP4 / WebM video export.
-          </p>
-          <div class="bento-spec-pills">
-            <span class="pill-spec">LSP Server</span>
-            <span class="pill-spec">4K Video Export</span>
-          </div>
+        <div>
+          <span class="readout">Execution</span>
+          <h3>Compiled reactive IR</h3>
+          <p>Expressions, comprehensions, and orbital physics lowered into compact IR
+             bytecode for zero-allocation evaluation at 60 FPS.</p>
         </div>
       </div>
     </section>
 
-    <!-- ── Section 03: Featured Demos ── -->
+    <!-- ── 03 · featured works ── -->
     <section id="demos">
-      <div class="sec-head">
-        <span class="sec-num">03</span>
-        <h2>Interactive explainers</h2>
+      <div class="edit-head" data-palette="orchid">
+        <span class="num">03</span>
+        <div>
+          <p class="kicker">Showcase</p>
+          <h2>Interactive explainers</h2>
+        </div>
+        <div class="rule"></div>
       </div>
-      <p class="sec-sub">
-        Technical walkthroughs where every diagram, formula, and curve is a declarative scene file.
-      </p>
 
       <!-- site-gen:works-featured:start -->
-      <a class="demo-spotlight" href="./demos/transformer/" data-work="transformer">
-        <div class="spotlight-poster">
-          <span class="poster-badge live">Live Scene · 7 scenes</span>
-          <amx-player src="./demos/transformer/scenes/overview.amx" sealed autoplay loop
-                      hold="1.5" aspect="16:9" title="The Transformer Architecture, Animated"></amx-player>
+      <div class="work-feature" data-palette="ember">
+        <div class="stage-frame">
+          <amx-player src="./demos/transformer/scenes/overview.amx" sealed autoplay loop hold="1.5" aspect="16:9"
+                      title="The Transformer Architecture, Animated"></amx-player>
         </div>
-        <div class="spotlight-info">
-          <span class="demo-tag">Deep Learning · 7 Scenes</span>
-          <h3 class="spotlight-title">The Transformer Architecture, Animated</h3>
-          <p class="spotlight-blurb">The mechanism behind frontier language models, built up step-by-step: tokens, positional encodings, scaled dot-product attention, multi-head subspaces, and the feed-forward stack.</p>
-          <span class="spotlight-action">Launch walkthrough →</span>
-        </div>
-      </a>
-      <div class="demos-grid">
-        <a class="demo-card" href="./demos/topology/" data-work="topology">
-          <div class="demo-poster">
-            <span class="poster-badge">Hover to play</span>
-            <amx-player src="./demos/topology/scene.amx" sealed data-hoverplay
-                        aspect="16:9" title="The Distributed Event Fabric"></amx-player>
+        <div class="work-feature-copy">
+          <span class="kicker">Deep Learning · 7 scenes · flagship</span>
+          <h3>The Transformer Architecture, Animated</h3>
+          <p>The mechanism behind frontier language models, built up step-by-step: tokens, positional encodings, scaled dot-product attention, multi-head subspaces, and the feed-forward stack.</p>
+          <div class="tag-strip">
+            <span class="tag-chip">Self-Attention</span>
+            <span class="tag-chip">Feed-Forward</span>
+            <span class="tag-chip">Autoregressive Loop</span>
+            <span class="tag-chip">Interactive Deck</span>
           </div>
-          <div class="demo-content">
-            <span class="demo-tag">Cloud Infrastructure · 3 Scenes</span>
-            <h4>The Distributed Event Fabric</h4>
-            <p>High-throughput edge ingress, partitioned log streaming, and Raft consensus — events you can watch cross the wire, not boxes that fade in.</p>
-            <span class="demo-link">Explore walkthrough →</span>
+          <span><a class="btn primary" href="./demos/transformer/">Launch walkthrough →</a></span>
+        </div>
+      </div>
+      <div class="work-grid">
+        <a class="work-tile" data-palette="tide" href="./demos/topology/">
+          <div class="stage-frame">
+            <amx-player src="./demos/topology/scene.amx" sealed data-hoverplay aspect="16:9"
+                        title="The Distributed Event Fabric"></amx-player>
+          </div>
+          <span class="kicker">Cloud Infrastructure · 3 scenes</span>
+          <h3>The Distributed Event Fabric</h3>
+          <p>High-throughput edge ingress, partitioned log streaming, and Raft consensus — events you can watch cross the wire, not boxes that fade in.</p>
+          <div class="tag-strip">
+            <span class="tag-chip">Orthogonal Connectors</span>
+            <span class="tag-chip">Live Telemetry</span>
+            <span class="tag-chip">Raft Consensus</span>
           </div>
         </a>
-        <a class="demo-card" href="./demos/epicycles/" data-work="epicycles">
-          <div class="demo-poster">
-            <span class="poster-badge">Hover to play</span>
-            <amx-player src="./demos/epicycles/hero.amx" sealed data-hoverplay
-                        aspect="16:9" title="Circles That Draw a Square Wave"></amx-player>
+        <a class="work-tile" data-palette="orchid" href="./demos/epicycles/">
+          <div class="stage-frame">
+            <amx-player src="./demos/epicycles/hero.amx" sealed data-hoverplay aspect="16:9"
+                        title="Circles That Draw a Square Wave"></amx-player>
           </div>
-          <div class="demo-content">
-            <span class="demo-tag">Harmonic Physics · 5 Scenes</span>
-            <h4>Circles That Draw a Square Wave</h4>
-            <p>Fourier analysis as spinning mechanical dials: harmonic circles at odd integer frequencies stacking into a sharp square wave with scrolling history traces.</p>
-            <span class="demo-link">Explore walkthrough →</span>
+          <span class="kicker">Harmonic Physics · 5 scenes</span>
+          <h3>Circles That Draw a Square Wave</h3>
+          <p>Fourier analysis as spinning mechanical dials: harmonic circles at odd integer frequencies stacking into a sharp square wave with scrolling history traces.</p>
+          <div class="tag-strip">
+            <span class="tag-chip">PlotCurve</span>
+            <span class="tag-chip">Rolling Time Trace</span>
+            <span class="tag-chip">Harmonics</span>
           </div>
         </a>
-        <a class="demo-card" href="./demos/sorting/" data-work="sorting">
-          <div class="demo-poster">
-            <span class="poster-badge">Hover to play</span>
-            <amx-player src="./demos/sorting/scene.amx" sealed data-hoverplay
-                        aspect="16:9" title="Sorting, Staged"></amx-player>
+        <a class="work-tile" data-palette="coral" href="./demos/sorting/">
+          <div class="stage-frame">
+            <amx-player src="./demos/sorting/scene.amx" sealed data-hoverplay aspect="16:9"
+                        title="Sorting, Staged"></amx-player>
           </div>
-          <div class="demo-content">
-            <span class="demo-tag">Algorithmic Stage · 4 Scenes</span>
-            <h4>Sorting, Staged</h4>
-            <p>Eight bars perform insertion sort directed entirely by a build-time timeline function: every comparison lights a tick, every swap is emitted algorithmically.</p>
-            <span class="demo-link">Explore walkthrough →</span>
+          <span class="kicker">Algorithmic Stage · 4 scenes</span>
+          <h3>Sorting, Staged</h3>
+          <p>Eight bars perform insertion sort directed entirely by a build-time timeline function: every comparison lights a tick, every swap is emitted algorithmically.</p>
+          <div class="tag-strip">
+            <span class="tag-chip">Build-time Fn</span>
+            <span class="tag-chip">Dynamic Swaps</span>
+            <span class="tag-chip">Comparison Tally</span>
           </div>
         </a>
       </div>
 <!-- site-gen:works-featured:end -->
 
-      <div style="display: flex; justify-content: center; margin-top: 32px;">
-        <a class="btn secondary" href="./demos/">Browse All Showcase Works →</a>
-      </div>
+      <p style="margin-top: 40px;">
+        <a class="btn ghost" href="./demos/">Browse all showcase works →</a>
+      </p>
     </section>
 
-    <!-- ── Section 04: Quickstart & Documentation ── -->
-    <section class="quickstart" id="start">
-      <div class="sec-head">
-        <span class="sec-num">04</span>
-        <h2>Developer workflow</h2>
+    <!-- ── 04 · developer workflow ── -->
+    <section id="start">
+      <div class="edit-head" data-palette="moss">
+        <span class="num">04</span>
+        <div>
+          <p class="kicker">Workflow</p>
+          <h2>From text to 4K video</h2>
+        </div>
+        <div class="rule"></div>
       </div>
-      <p class="sec-sub">
-        Run locally with Cargo, inspect formal grammar specifications, or export 4K video frames.
-      </p>
 
-      <div class="quickstart-layout">
-        <!-- Terminal Workflow Card -->
-        <div class="terminal-box">
-          <div class="terminal-bar">
-            <span class="terminal-title">Cargo CLI Workflow</span>
-            <button class="btn-copy terminal-copy" type="button" data-copy="cargo run -p animatix-gui" title="Copy studio command">Copy Studio</button>
-          </div>
-          <pre><span class="cmt"># 1. Open the interactive desktop studio</span>
+      <div class="side-split">
+        <pre><span class="cmt"># 1. Open the interactive desktop studio</span>
 cargo run -p animatix-gui
 
 <span class="cmt"># 2. Render a single high-res vector frame</span>
@@ -324,36 +224,26 @@ cargo run -p animatix-cli -- image examples/basics/00_hello.amx -o hello.png
 <span class="cmt"># 3. Export a 60 FPS video (MP4 / WebM)</span>
 cargo run -p animatix-cli --features video -- \
   video examples/gallery/epicycles.amx -o epicycles.mp4</pre>
-        </div>
 
-        <!-- Documentation & Specs Cards -->
-        <div class="specs-box">
-          <a class="spec-card" href="https://github.com/j4ger/animatix/blob/main/docs/spec.md" target="_blank" rel="noopener noreferrer">
-            <div class="spec-icon">§</div>
-            <div class="spec-info">
-              <h4>Language Specification</h4>
-              <p>Complete formal grammar, AST definitions, and primitive actor catalog in <span class="path">docs/spec.md</span>.</p>
-            </div>
-            <span class="spec-arrow">↗</span>
-          </a>
-
-          <a class="spec-card" href="https://github.com/j4ger/animatix/tree/main/examples" target="_blank" rel="noopener noreferrer">
-            <div class="spec-icon">★</div>
-            <div class="spec-info">
-              <h4>59 Runnable Examples</h4>
-              <p>Curated animations including math curves, physics models, and diagrammatic transitions.</p>
-            </div>
-            <span class="spec-arrow">↗</span>
-          </a>
-
-          <a class="spec-card" href="./README.md">
-            <div class="spec-icon">◆</div>
-            <div class="spec-info">
-              <h4>Web Component Integration</h4>
-              <p>Embed reference for the zero-dependency <code class="inline">&lt;amx-player&gt;</code> custom element in <span class="path">web/README.md</span>.</p>
-            </div>
-            <span class="spec-arrow">→</span>
-          </a>
+        <div class="pillars">
+          <div>
+            <span class="readout">Specification</span>
+            <h3><a href="https://github.com/j4ger/animatix/blob/main/docs/spec.md" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;">Language specification ↗</a></h3>
+            <p>Complete formal grammar, AST definitions, and primitive actor catalog in
+               docs/spec.md.</p>
+          </div>
+          <div>
+            <span class="readout">Examples</span>
+            <h3><a href="https://github.com/j4ger/animatix/tree/main/examples" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;">59 runnable examples ↗</a></h3>
+            <p>Curated animations including math curves, physics models, and diagrammatic
+               transitions.</p>
+          </div>
+          <div>
+            <span class="readout">Embedding</span>
+            <h3><a href="./README.md" style="color: inherit; text-decoration: none;">Web component integration →</a></h3>
+            <p>Embed reference for the zero-dependency &lt;amx-player&gt; custom element in
+               web/README.md.</p>
+          </div>
         </div>
       </div>
     </section>
