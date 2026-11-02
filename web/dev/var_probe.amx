@@ -1,0 +1,26 @@
+// Var probe: the smallest scene a parameter-slider demo can drive.
+//
+// `amp` and `hue` are build-time variables whose `let` is the template's
+// default. A page overrides them with <amx-player data-vars='{"amp":320}'> or
+// `player.setVars({ amp: 320, hue: 0.85 })`; the desktop CLI overrides the same
+// names with `--set`. Both feed the engine's one `--set` mechanism, so a frame
+// rendered here and a frame rebuilt in the browser must agree:
+//
+//   animatix image web/dev/var_probe.amx --set amp=320 --set hue=0.85 \
+//     --time 1 -o target/review/var_probe.png
+
+config { colorscheme: "editorial-dark", resolution: (640, 360), duration: 2.0 }
+
+let amp = 200   // ellipse diameter, scene units
+let hue = 0.5   // 0..1: steel at 0, amber at 1
+
+// Declared before the first keyframe with no explicit opacity, so both are
+// seeded hidden and the fade-ins below reveal them: sample at t >= 0.9s.
+ring: Ellipse, size: (amp * 1.4, amp * 1.4), at: (320, 180),
+  color: rgb(hue, 0.72, 1.0 - hue), opacity: 0.22
+dot: Ellipse, size: (amp, amp), at: (320, 180), color: rgb(hue, 0.72, 1.0 - hue)
+
+#0.3s
+fade-in ring [400ms, ease: expo-out]
+#0.5s
+fade-in dot [400ms, ease: expo-out]

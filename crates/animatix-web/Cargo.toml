@@ -24,6 +24,11 @@ animatix-core = { path = "../animatix-core" }
 animatix-syntax = { path = "../animatix-syntax" }
 animatix-std = { path = "../animatix-std" }
 serde = { workspace = true }
+# Dropped/invalid values log through `tracing`, never `println!` (Code Style).
+# The browser has no subscriber, so a `warn!` here serves native tests and any
+# host that installs one; the wasm boundary additionally reports drops to JS by
+# returning the accepted count from `AmxPlayer::set_vars`.
+tracing = { workspace = true }
 
 [dev-dependencies]
 # Native host tests exercise the full text pipeline; wasm packages built for

@@ -39,6 +39,9 @@ export class AmxPlayerLoad extends AmxPlayerView {
     if (typeof player.set_quality === "function") {
       player.set_quality(this._quality());
     }
+    // Push the build-time vars before the first build, so a `data-vars` scene
+    // compiles with its overrides instead of compiling twice.
+    this._applyVars(player);
     await this._loadFonts(module, profile);
     if (this.getAttribute("src") !== src) return null;
     return {
@@ -175,6 +178,10 @@ export class AmxPlayerLoad extends AmxPlayerView {
       }
 
       this._state = "ready";
+      // A `setVars`/`data-vars` change that landed while this load was in
+      // flight is not in the document that just built; apply it now rather
+      // than dropping it. A no-op when the player already has this exact set.
+      this._syncVars();
       if (this._shouldAutoplay()) {
         this._loop = this.hasAttribute("loop");
         this.play();

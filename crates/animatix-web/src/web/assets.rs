@@ -17,10 +17,59 @@ use super::AmxPlayer;
 impl AmxPlayer {
     /// Parse + build `source`, replacing the loaded document on success.
     ///
+    /// Applies the variable overrides registered with [`AmxPlayer::set_vars`],
+    /// the modules registered with [`AmxPlayer::add_module`], and the quality
+    /// set with [`AmxPlayer::set_quality`].
+    ///
     /// Returns a [`LoadResultDto`] as a JS object; on parse/build failure the
     /// previous document stays loaded for last-known-good rendering.
     pub fn load_source(&mut self, source: &str) -> Result<JsValue, JsError> {
         self.load_source_with_cache(source, None)
+    }
+
+    /// Set the build-time variable overrides every later `load_source`
+    /// applies: the wasm half of the CLI's repeatable `--set NAME=VALUE`, and
+    /// what the embed's `data-vars` attribute and `setVars()` method feed.
+    ///
+    /// `vars` is a plain JS object mapping a name to a number, string or
+    /// boolean — `{ amp: 320, label: "Q3", mirrored: true }` — and the call
+    /// *replaces* the whole set, so a page changing one value sends them all
+    /// (the embed merges for you). `null`/`undefined` clears it. Each entry is
+    /// rendered into Animatix expression text by [`crate::host::vars`], and the
+    /// engine's own parser decides what that text means: a name that is not an
+    /// identifier, or a value that does not parse, comes back as a build
+    /// diagnostic on the next load instead of an error here. A JSON string
+    /// becomes a string *literal*, not a number — write numbers as numbers.
+    ///
+    /// Returns how many entries were accepted. A value this boundary cannot
+    /// render (an object, an array, `null`, `NaN`, a string the literal grammar
+    /// cannot hold) is dropped with a `tracing::warn!` and left out of the
+    /// count, so a caller comparing it with `Object.keys(vars).length` sees the
+    /// drop rather than guessing. Never panics.
+    ///
+    /// Like fonts, modules and quality the set persists across loads, and
+    /// because it is baked in at build time a change means a re-load.
+    pub fn set_vars(&mut self, vars: &JsValue) -> Result<u32, JsError> {
+        self.vars = js_var_defines(vars)?;
+        Ok(u32::try_from(self.vars.len()).unwrap_or(u32::MAX))
+    }
+
+    /// The overrides [`AmxPlayer::set_vars`] rendered, as an array of
+    /// `{ name, value }` ([`crate::dto::VarOverrideDto`]) where `value` is the
+    /// expression text the engine parses. Read-back for a page confirming what
+    /// a scalar became — the getter beside its setter, like
+    /// [`AmxPlayer::render_scale`].
+    pub fn vars(&self) -> Result<JsValue, JsError> {
+        let rendered: Vec<crate::dto::VarOverrideDto> = self
+            .vars
+            .iter()
+            .map(|(name, value)| crate::dto::VarOverrideDto {
+                name: name.clone(),
+                value: value.clone(),
+            })
+            .collect();
+        serde_wasm_bindgen::to_value(&rendered)
+            .map_err(|e| JsError::new(&format!("failed to serialize var overrides: {e}")))
     }
 
     /// Register an in-memory font (TTF/OTF) so later `load_source` calls can
@@ -140,12 +189,13 @@ impl AmxPlayer {
             .iter()
             .map(|(path, text)| (std::path::PathBuf::from(path), text.clone()))
             .collect();
-        let built = host::build_document_with_modules(
+        let built = host::build_document_with_vars(
             source,
             &modules,
             Arc::new(font_context),
             self.quality,
             assets,
+            &self.vars,
         );
         let BuiltDocument { target, result } = built;
 
@@ -169,5 +219,101 @@ impl AmxPlayer {
 
         serde_wasm_bindgen::to_value(&result)
             .map_err(|e| JsError::new(&format!("failed to serialize build result: {e}")))
+    }
+}
+
+/// Render a JS object of `name -> number|string|boolean` into the engine's
+/// `(name, expression text)` pairs. `null`/`undefined` is the empty set; any
+/// other non-object is a caller error rather than a value to drop.
+fn js_var_defines(vars: &JsValue) -> Result<Vec<(String, String)>, JsError> {
+    if vars.is_null() || vars.is_undefined() {
+        return Ok(Vec::new());
+    }
+    let Some(object) = vars.dyn_ref::<js_sys::Object>() else {
+        return Err(JsError::new(
+            "set_vars expects an object of name -> number|string|boolean (or null to clear)",
+        ));
+    };
+    let mut defines = Vec::new();
+    for entry in js_sys::Object::entries(object).iter() {
+        // `Object.entries` yields `[key, value]` pairs; anything else here is a
+        // host exotic object, and an override we cannot name is one to skip.
+        let Some(pair) = entry.dyn_ref::<js_sys::Array>() else {
+            tracing::warn!("set_vars: skipping a non-pair entry from Object.entries");
+            continue;
+        };
+        let value = pair.get(1);
+        let Some(name) = pair.get(0).as_string() else {
+            tracing::warn!("set_vars: skipping an entry whose key is not a string");
+            continue;
+        };
+        if let Some(define) = var_define(&name, &value) {
+            defines.push(define);
+        }
+    }
+    Ok(defines)
+}
+
+/// One `(name, expression text)` pair, or `None` — logged — when the JS value
+/// has no faithful Animatix literal form.
+///
+/// The *name* is passed through untouched: what a variable may be called is the
+/// engine parser's rule, and duplicating it here would be a second parser that
+/// can drift. Rendering the *value* is this boundary's job, because the page
+/// sent a scalar and the engine reads source text.
+fn var_define(name: &str, value: &JsValue) -> Option<(String, String)> {
+    let text = if let Some(number) = value.as_f64() {
+        match host::vars::number_expr(number) {
+            Some(text) => text,
+            None => {
+                tracing::warn!(
+                    "var '{name}': {number} has no Animatix number literal; override dropped"
+                );
+                return None;
+            },
+        }
+    } else if let Some(text) = value.as_string() {
+        match host::vars::string_expr(&text) {
+            Some(literal) => literal,
+            None => {
+                tracing::warn!(
+                    "var '{name}': {text:?} cannot be written as an Animatix string literal \
+                     (a control character, a backslash, or both quote kinds); override dropped"
+                );
+                return None;
+            },
+        }
+    } else if let Some(flag) = value.as_bool() {
+        // `true`/`false` are the DSL's own boolean literals.
+        flag.to_string()
+    } else {
+        tracing::warn!(
+            "var '{name}': {} cannot override a build-time variable; expected a number, string \
+             or boolean, so the override was dropped",
+            js_kind(value)
+        );
+        return None;
+    };
+    Some((name.to_string(), text))
+}
+
+/// A readable JS type name for the dropped-value warning above. Deliberately
+/// not `JSON::stringify`: that throws on a circular value, and the warning path
+/// must be the one thing here that cannot fail.
+fn js_kind(value: &JsValue) -> &'static str {
+    if value.is_null() {
+        "`null`"
+    } else if value.is_undefined() {
+        "`undefined`"
+    } else if value.is_function() {
+        "a function"
+    } else if value.is_symbol() {
+        "a symbol"
+    } else if value.is_bigint() {
+        "a BigInt"
+    } else if value.is_object() {
+        "an object or array"
+    } else {
+        "a value of an unsupported type"
     }
 }

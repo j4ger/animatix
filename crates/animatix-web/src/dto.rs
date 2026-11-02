@@ -82,6 +82,25 @@ pub struct LoadResultDto {
     pub pause_points: Vec<f64>,
 }
 
+/// One build-time variable override crossing the wasm boundary — the web shape
+/// of the CLI's repeatable `--set NAME=VALUE`.
+///
+/// `value` is Animatix **expression text**, not a JSON scalar: the engine parses
+/// it with the language's own grammar (`animatix::timeline::build::defines`), so
+/// `320`, `"Q3 Revenue"` and `(1.0, 0.2, 0.3)` all mean what they would mean in
+/// the file, and there is deliberately no second value parser. A page supplies
+/// plain JSON (`{ amp: 320, label: "Q3" }`) to `AmxPlayer::set_vars`, which
+/// renders each entry into this pair; `AmxPlayer::vars` reads the rendered set
+/// back, which is how a page learns what the engine actually received.
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct VarOverrideDto {
+    /// Build-environment name. The scene's `let NAME = …` is its default; the
+    /// override shadows that default (single-scene documents only).
+    pub name: String,
+    /// Expression text seeded into the build environment.
+    pub value: String,
+}
+
 /// Frame-dedup counters, for measuring the raster skip rather than assuming it:
 /// `drawn` ticks did the GPU work, `deduped` ticks found the same frame already
 /// on the canvas and returned without even acquiring a swapchain image.

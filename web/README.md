@@ -72,6 +72,11 @@ same set the LSP surfaces — for the editor panel. A failed build throws with
 blanks the figure. Reset restores the original source; edits live only on
 the page.
 
+The parameter-slider counterpart is `setVars(obj)`: build-time overrides —
+the CLI's `--set NAME=VALUE` — merged into the scene's `let` defaults and
+rebuilt in place, debounced, with the playback position preserved. See
+`data-vars` under "Embedding scenes in any page".
+
 ## Run it
 
 The demo pages serve the playback-only profile; build all three packages (or just the profile you need):
@@ -241,8 +246,9 @@ Behavior:
   bar below the picture — play/pause, landmark scrubber, time, speed),
   `hold` (seconds, default 0.7), `title` (a11y label, shown while loading),
   `aspect` (`16:9`/`4:3`/`1:1`/`9:16`, auto-detected from the scene
-  afterwards), `profile` (below), `quality` (below), `sealed` and `fit`
-  (page-driven mode, below), `debug-frame` (frame readout, below).
+  afterwards), `profile` (below), `quality` (below), `data-vars` (build-time
+  overrides, below), `sealed` and `fit` (page-driven mode, below),
+  `debug-frame` (frame readout, below).
 - **Controls UX** — the strip lives *below* the canvas, full-height and
   always visible: it never covers the picture, and it doubles as the
   timeline inspector. The engine reports the author's `#2s` keyframe
@@ -286,6 +292,24 @@ Behavior:
   plot-family sampling (a draft build samples plot curves with 4× the
   tolerance). Changing the attribute rebuilds the scene. Not to be confused with
   *raster* scale, which the element also chooses for itself (below).
+- **`data-vars` / `setVars(obj)`** — build-time variable overrides, the web form
+  of the CLI's repeatable `--set NAME=VALUE`: each name shadows the scene's own
+  `let NAME = …` default, so one template serves many values
+  (`web/demos/var_probe.amx` is the probe scene a slider demo can drive). The
+  attribute holds a JSON object of number/string/boolean values — write numbers
+  as numbers, because a JSON string becomes a string *literal*; `setVars`
+  *merges* into the set in effect (so a slider sends just its own name) and
+  rebuilds in place, debounced ~150 ms: the loaded source, fonts, fetched
+  imports and assets stay registered, playback keeps its proportional position
+  (the same normalized `t` on the new timeline) and a playing embed keeps
+  playing. A set that does not build warns and keeps the previous document, so
+  an out-of-range slider value never blanks the figure; a value the engine
+  cannot hold (an object, `NaN`, a string with a newline or a backslash) is
+  dropped with a console warning, and the wasm `set_vars` reports how many
+  entries it accepted. `player.vars` reads the set back. Overrides reach a
+  single-scene document only — a composition reports `vars-not-applied` as a
+  warning diagnostic, because the browser installs no `tracing` subscriber to
+  hear the engine's own note.
 - **Raster scale** — internal, no attribute. A browser frame costs a full-target
   vello pass (measured: an empty 1280×720 scene costs what a full one does), so
   the element sizes both ends of its frame to what it actually shows: the canvas
@@ -530,6 +554,7 @@ multi-scene blends. What differs is the platform around it:
 | Audio | muxed at export | not played | not played |
 | Export (video / PNG / WebP) | ✓ | ✗ | ✗ |
 | Build quality | `Production` (export), `Draft` (GUI editing) | `quality` attribute: `draft` default, `preview`/`production` opt-in | same |
+| Build-time vars | `--set NAME=VALUE` | `data-vars` attribute / `setVars()` | same |
 
 The pixel-level consequence of that last row: plot-family actors (`Graph`,
 `PlotCurve`, `VectorField`, …) sample with 4× the tolerance under the default

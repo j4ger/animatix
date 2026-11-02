@@ -81,6 +81,54 @@ export function fetchFontPack(base, profile) {
   return pending;
 }
 
+// ── build-time variable overrides (`data-vars` / `setVars`) ──────────
+//
+// One rebuild is a synchronous wasm build (23–54 ms measured for a tour scene),
+// and a parameter slider writes on every `input` event — so the rebuild is
+// debounced: a drag costs one build, after the last movement. 150 ms is the
+// same tradeoff `_applyRenderScale`'s resize debounce makes.
+const VARS_DEBOUNCE_MS = 150;
+
+/// Parse a `data-vars` JSON object. A malformed attribute warns and yields an
+/// empty set rather than throwing: markup must not be able to break the
+/// element, and the scene then builds on its own `let` defaults.
+function parseVarsAttribute(raw) {
+  if (!raw) return {};
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    console.warn(`amx-player: data-vars is not valid JSON (${err.message})`);
+    return {};
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    console.warn("amx-player: data-vars must be a JSON object of name -> number|string");
+    return {};
+  }
+  return parsed;
+}
+
+/// Keep only the scalars the engine can hold. It drops anything else too — but
+/// with a `tracing::warn!`, and a browser installs no tracing subscriber, so
+/// this console line is the one a page author actually sees.
+function scalarVars(vars) {
+  const scalars = {};
+  for (const [name, value] of Object.entries(vars)) {
+    const usable =
+      typeof value === "number"
+        ? Number.isFinite(value)
+        : typeof value === "string" || typeof value === "boolean";
+    if (usable) {
+      scalars[name] = value;
+    } else {
+      console.warn(
+        `amx-player: var '${name}' is not a finite number, string or boolean — dropped`,
+      );
+    }
+  }
+  return scalars;
+}
+
 export class AmxPlayerView extends AmxPlayerBase {
   _renderSkeleton() {
     // Reserve the figure's box up front so lazy loading never reflows the
@@ -532,6 +580,14 @@ export class AmxPlayerView extends AmxPlayerBase {
     const failed = new Set(); // paths whose fetch failed; never retried
     const assets = new Map(); // resolved asset URL -> { key, payload }
 
+    // Cached for an in-place rebuild (`applySource`, `_rebuildWithVars`). The
+    // wasm player keeps registered fonts and modules across loads, but asset
+    // payloads are handed in per build, so a rebuild without this cache would
+    // drop every Image/Svg the scene loaded. Assigned before the retry loop so
+    // the Map identity is shared and a later round's fetch lands in the cache.
+    this._loadedSource = source;
+    this._loadedAssets = assets;
+
     let result = null;
     for (let round = 0; round < 24; round += 1) {
       for (const [path, text] of modules) player.add_module(path, text);
@@ -619,7 +675,7 @@ export class AmxPlayerView extends AmxPlayerBase {
     if (this._state !== "ready" || !this._player) {
       throw new Error("the player has not finished loading yet");
     }
-    const result = this._player.load_source(text);
+    const result = this._buildWithAssets(this._player, text, this._loadedAssets);
     const diags = result?.diagnostics ?? [];
     if (!result?.ok) {
       const err = new Error(
@@ -628,6 +684,27 @@ export class AmxPlayerView extends AmxPlayerBase {
       err.diagnostics = diags;
       throw err;
     }
+    this._installDocument(result);
+    if (this._playing) {
+      this._time = 0;
+      this._restTime = 0;
+    } else {
+      // Park on the finished frame — frame 0 of these scenes is an empty
+      // stage, and an editor who hit Apply on a paused figure should see
+      // what they built, not nothing.
+      this._restTime = this._duration;
+      this._time = this._duration;
+    }
+    this._renderScene();
+    return diags;
+  }
+
+  /// Install a freshly built document's extent, landmarks and cycle, and put
+  /// the display-matched raster scale back. Shared by `applySource` (edited
+  /// text) and `_rebuildWithVars` (the same text with new build-time vars):
+  /// both replace the document under a live player, and neither owns the
+  /// playhead — the caller decides where the clock lands.
+  _installDocument(result) {
     this._duration = Math.max(result.duration_s, 0.05);
     if (result.width && result.height) {
       this._canvas.width = Math.round(result.width);
@@ -645,25 +722,152 @@ export class AmxPlayerView extends AmxPlayerBase {
     if (strip) strip.setAttribute("aria-valuemax", String(this._duration));
     const track = this.shadowRoot?.querySelector(".track");
     if (track) track.setAttribute("aria-valuemax", String(this._duration));
-    // The edit may have moved or added keyframes, so re-draw the landmark
+    // The rebuild may have moved or added keyframes, so re-draw the landmark
     // layer the strip's ticks come from; snapping already reads `_markers`,
     // and leaving the drawn marks stale would point the playhead at nothing.
     this._renderMarks();
     // A resolution change above reset the backing store to the scene's own
     // size; put the display-matched scale back.
     this._applyRenderScale();
-    if (this._playing) {
-      this._time = 0;
-      this._restTime = 0;
-    } else {
-      // Park on the finished frame — frame 0 of these scenes is an empty
-      // stage, and an editor who hit Apply on a paused figure should see
-      // what they built, not nothing.
-      this._restTime = this._duration;
-      this._time = this._duration;
+  }
+
+  // ── build-time variables (`data-vars` / `setVars`) ────────────────
+
+  /// The vars in effect: `data-vars` declares the set, `setVars` merges into
+  /// it. `_vars === null` means "nothing merged yet", so the attribute is read
+  /// (and parsed) on demand.
+  _varsObject() {
+    if (this._vars) return this._vars;
+    return parseVarsAttribute(this.getAttribute("data-vars"));
+  }
+
+  /// `data-vars` changed. The attribute is declarative, so it replaces the set
+  /// in effect rather than merging into whatever `setVars` accumulated.
+  _varsFromAttribute() {
+    this._vars = parseVarsAttribute(this.getAttribute("data-vars"));
+  }
+
+  /// Push the set to the wasm player and remember what was pushed, so a change
+  /// landing mid-load is applied once the document is ready instead of lost.
+  /// Returns false when this engine build has no vars channel at all.
+  _applyVars(player) {
+    if (typeof player?.set_vars !== "function") return false;
+    const vars = scalarVars(this._varsObject());
+    try {
+      const accepted = player.set_vars(vars);
+      const given = Object.keys(vars).length;
+      if (typeof accepted === "number" && accepted < given) {
+        console.warn(`amx-player: the engine accepted ${accepted} of ${given} var override(s)`);
+      }
+      this._varsApplied = JSON.stringify(vars);
+      return true;
+    } catch (err) {
+      console.warn(`amx-player: set_vars failed (${err.message})`);
+      return false;
     }
+  }
+
+  /// Override build-time variables and rebuild the current scene with them —
+  /// the entry point a parameter slider drives. Equivalent to the CLI's
+  /// repeatable `--set NAME=VALUE`: each name shadows the scene's own
+  /// `let NAME = …` default, and a JSON string becomes a string literal (write
+  /// numbers as numbers, not `"320"`).
+  ///
+  /// `obj` is *merged* into the vars in effect, so a slider sends just its own
+  /// name; `data-vars` remains the declarative base. The rebuild is debounced
+  /// (`VARS_DEBOUNCE_MS`) and happens in place — the loaded source, fonts,
+  /// imports and assets stay — and playback keeps its proportional position:
+  /// the same normalized `t` on the new timeline, playing state unchanged.
+  /// A set that fails to build warns and keeps the previous document, so a
+  /// value outside the scene's range never blanks the figure.
+  setVars(obj) {
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
+      console.warn("amx-player: setVars expects an object of name -> number|string");
+      return;
+    }
+    this._vars = { ...this._varsObject(), ...obj };
+    this._scheduleVarsRebuild();
+  }
+
+  /// A copy of the vars in effect — the `data-vars` base plus every `setVars`
+  /// merge — for a page reading back what it last set.
+  get vars() {
+    return { ...this._varsObject() };
+  }
+
+  _scheduleVarsRebuild() {
+    clearTimeout(this._varsTimer);
+    this._varsTimer = null;
+    if (this._state === "error") {
+      // A load that failed on the vars in effect gets one clean retry with the
+      // new set: `data-vars` in markup is the only way to be wrong before the
+      // first build, and fixing it should not need a `src` poke. Same path as
+      // the error veil's Retry button.
+      this._resetForReload();
+      return;
+    }
+    // Before the first ready state there is no document to rebuild: the set is
+    // stored, `_playerWithEngine` pushes it when the player exists, and
+    // `_syncVars` catches a change that landed after that push.
+    if (this._state !== "ready") return;
+    this._varsTimer = setTimeout(() => {
+      this._varsTimer = null;
+      this._rebuildWithVars();
+    }, VARS_DEBOUNCE_MS);
+  }
+
+  /// Apply a vars change that landed while a load was in flight. Called once
+  /// the document is ready; a no-op when the player already has this exact set.
+  _syncVars() {
+    if (typeof this._player?.set_vars !== "function") return;
+    if (this._varsApplied === JSON.stringify(scalarVars(this._varsObject()))) return;
+    this._rebuildWithVars();
+  }
+
+  /// Rebuild the loaded document with the vars now in effect, in place.
+  _rebuildWithVars() {
+    const player = this._player;
+    if (this._state !== "ready" || !player) return;
+    if (this._loadedSource === null) {
+      // Nothing cached to rebuild from: fall back to the full reload path,
+      // which refetches the scene and rebuilds from scratch.
+      this._resetForReload();
+      return;
+    }
+    // An engine without the vars channel keeps the document it has; rebuilding
+    // would produce the same frame and cost a build.
+    if (!this._applyVars(player)) return;
+
+    const previousDuration = this._duration;
+    const previousTime = Math.min(this._time, previousDuration);
+    const frac =
+      previousDuration > 0 ? Math.min(Math.max(previousTime / previousDuration, 0), 1) : 0;
+
+    let result;
+    try {
+      result = this._buildWithAssets(player, this._loadedSource, this._loadedAssets);
+    } catch (err) {
+      console.warn(`amx-player: rebuilding with new vars failed (${err?.message ?? err})`);
+      return;
+    }
+    const diags = result?.diagnostics ?? [];
+    if (!result?.ok) {
+      const first = diags.find((d) => d.severity === "error") ?? diags[0];
+      console.warn(
+        `amx-player: these vars did not build; keeping the previous document (${first?.message ?? "build failed"})`,
+        diags,
+      );
+      return;
+    }
+    this._installDocument(result);
+    // Proportional position: the same normalized t on the new timeline, so a
+    // paused figure stays where the reader left it and a playing one continues
+    // from the equivalent beat instead of restarting. `_playing` is
+    // deliberately untouched — the shared rAF loop keeps driving it.
+    this._time = frac * this._duration;
+    this._restTime = this._time;
     this._renderScene();
-    return diags;
+    this._syncControls();
   }
 
   /// Queue the scene load. Everything that could make a player start on its own

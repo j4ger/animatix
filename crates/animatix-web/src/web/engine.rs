@@ -185,6 +185,7 @@ pub async fn create_player(canvas: HtmlCanvasElement) -> Result<AmxPlayer, JsErr
             fonts: Vec::new(),
             font_context: None,
             modules: Vec::new(),
+            vars: Vec::new(),
             quality: BuildQuality::Draft,
             offscreen: None,
             offscreen_to: None,

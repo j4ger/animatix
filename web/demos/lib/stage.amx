@@ -1,0 +1,132 @@
+// stage.amx — the portfolio's shared house-style stage furniture.
+//
+// The four components here are the frame every work's scenes compose in
+// (web/DESIGN.md §1): a CONSTANT lit backdrop (`StageFloor`), a left-anchored
+// editorial title block (`ActHead`), a bottom-left caption band (`Caption`)
+// and a data chip (`Readout`). They are deliberately motion-free: the floor is
+// lit at t=0 and stays lit through the resting frame, so entrances animate
+// *within* a composed stage instead of revealing one. Atmospheric,
+// motion-reactive depth stays `amb.Ambience`'s job; this layer is the constant
+// stage under it.
+//
+// Every actor declared here carries an explicit `opacity:` — an actor
+// declared before the first keyframe without one is seeded opacity 0 and
+// would leave the t=0 frame black (the defect house-style rule 1 forbids).
+// Backdrop actors also carry `legend: false` so the floor never leaks into a
+// `Legend` scan or the build-time stats sampler.
+//
+// Layout note (measured, not guessed): a Row/Col node is its CONTENT box and
+// is centred on the container's `at`, so `align: "start"` only left-aligns
+// children *with each other*. A transparent full-width spacer Rect makes the
+// content box exactly as wide as the column, which pins the editorial left
+// edge at `at.x - width / 2` for every leaf child (ActHead, Readout). Text
+// extents are glyph widths and `Text` never reads `size` (check warns
+// `inapplicable-property`), so a Row can never pin variable-length text to a
+// constant scene x — Caption therefore places its band manually inside a
+// `Group`. `Group` wrappers *inside* a Row/Col publish a zero cross-extent
+// and inflate the main axis, so layout children sit directly in their
+// container; layout containers also drop `at`/`offset` on children.
+//
+// Formatter note: `animatix fmt` drops free-standing `//` comments (only
+// trailing property comments survive), so this library ships un-fmt'd on
+// purpose; the shipped libs (ambience.amx, ui.amx) are likewise hand-formatted.
+//
+// Type floors (web/DESIGN.md §1.5): titles 64, captions 24, readout values 28,
+// kickers 18, tags/labels 16 — nothing in this file renders below 16 px.
+//
+// Usage:
+//   import "lib/theme.amx"
+//   import "lib/stage.amx"
+//   config { colorscheme: "tide", resolution: (1280, 720) }
+//
+//   floor: StageFloor
+//   head:  ActHead, kicker: "ACT I", title: "Attention", sub: "one question"
+//   cap:   Caption, text: "Queries weigh every key.", tag: "attention.amx"
+//   chip:  Readout, label: "HEADS", value: "8", at: (250, 560)
+
+// ── StageFloor ─────────────────────────────────────────────────────────────
+// A constant lit backdrop: base plate, two screen-blended radial glows, a
+// hairline motif grid (5 verticals at scene_width*v/6, 3 horizontals) and an
+// edge vignette. Nothing here reacts to scene statistics. `glow` and `grid`
+// scale the two decorative layers; 0 switches a layer off. The glow ramps are
+// the ambience.amx vocabulary (screen blend, ramp to transparent); their
+// container opacities are what make the wash readable at card size.
+
+pub component StageFloor(accent: Color = accent.primary, glow: Num = 1.0, grid: Num = 1.0) {
+  plate: Rect, size: (fill, fill), color: scene.background, anchor: scene.center, opacity: 1, legend: false
+
+  glow_key: Ellipse, size: (1900, 1200), blend: "screen", opacity: 0.55 * glow,
+    fill_gradient: radial((0.5, 0.5), 0.65, {(0%, accent * 0.30), (45%, accent * 0.10), (100%, (0, 0, 0, 0))}),
+    at: (scene_width * 0.32, scene_height * 0.30), legend: false
+
+  glow_fill: Ellipse, size: (1500, 1000), blend: "screen", opacity: 0.40 * glow,
+    fill_gradient: radial((0.5, 0.5), 0.65, {(0%, accent * 0.22), (45%, accent * 0.08), (100%, (0, 0, 0, 0))}),
+    at: (scene_width * 0.76, scene_height * 0.74), legend: false
+
+  for v, i in {1, 2, 3, 4, 5} {
+    gv[i]: Line, from: (0, 0), to: (0, scene_height), stroke: text.muted, stroke_width: 1,
+      at: (scene_width * v / 6, 0), opacity: 0.035 * grid, legend: false
+  }
+
+  for h, i in {1, 2, 3} {
+    gh[i]: Line, from: (0, 0), to: (scene_width, 0), stroke: text.muted, stroke_width: 1,
+      at: (0, scene_height * h / 4), opacity: 0.035 * grid, legend: false
+  }
+
+  vignette: Rect, size: (fill, fill), anchor: scene.center, opacity: 1, legend: false,
+    fill_gradient: radial((0.5, 0.5), 0.75, {(0%, (0, 0, 0, 0)), (62%, (0, 0, 0, 0)), (100%, (0, 0, 0, 0.55))})
+}
+
+// ── ActHead ────────────────────────────────────────────────────────────────
+// LEFT-anchored editorial title block: kicker, display title, optional sub
+// and a short accent rule in a 1088-wide column centred on (640, 120), so the
+// text column starts at x=96 on every scene regardless of title length. The
+// trailing transparent `edge` spacer is what pins that width (see the layout
+// note above); the centred EYEBROW / Title / subtitle stack is retired
+// (DESIGN.md §1.6).
+
+pub component ActHead(kicker: Str = "", title: Str, sub: Str = "", accent: Color = accent.primary) {
+  root: Col, size: (1088, 220), gap: 10, align: "start", at: (640, 120), opacity: 1 {
+    kicker_text: Text, text: kicker, font_size: 18, font_weight: 600, color: accent, text_max_width: 1088, text_align: "left", opacity: if kicker == "" { 0 } else { 1 }
+    title_text: Text, text: title, font_size: 64, font_weight: "bold", color: text.primary, text_max_width: 1088, text_align: "left", opacity: 1
+    sub_text: Text, text: sub, font_size: 24, color: text.secondary, text_max_width: 1088, text_align: "left", opacity: if sub == "" { 0 } else { 1 }
+    rule: Rect, size: (96, 4), color: accent, opacity: 1
+    edge: Rect, size: (1088, 1), color: (0, 0, 0, 0), opacity: 1, legend: false
+  }
+}
+
+// ── Caption ────────────────────────────────────────────────────────────────
+// Bottom-left caption band at y≈668: a 4 px accent tick at x=64, one line of
+// secondary text starting at x=80 (max 900 px) and a mono tag column at
+// x=992. Measured engine behaviour forces the container choice: a Row/Col
+// node is its content box centred on `at`, and text extents are glyph
+// widths, so a Row can never pin its tick to a constant x across captions of
+// different length (nested fixed-width slots are not admitted into the
+// parent layout). A `Group` with manual `at` placement is the one composition
+// that lands the band at the same pixels on every scene.
+
+pub component Caption(text: Str, tag: Str = "", accent: Color = accent.primary) {
+  root: Group, opacity: 1 {
+    tick: Rect, size: (4, 28), color: accent, at: (66, 668), opacity: 1
+    body: Text, text: text, font_size: 24, color: text.secondary, text_max_width: 900, text_align: "left", text_anchor: "left", at: (80, 668), opacity: 1
+    tag_text: Text, text: tag, font_size: 16, font_family: "mono", color: text.muted, text_anchor: "left", at: (992, 668), opacity: if tag == "" { 0 } else { 1 }
+  }
+}
+
+// ── Readout ────────────────────────────────────────────────────────────────
+// A data chip: value over label on a surface.primary plate with rounded
+// corners (`corner_radius`, per docs/properties.md; docs/primitives.md §Rect
+// omits it). The inner column's transparent `edge` spacer pins the text
+// column to the chip's left padding. Place the chip with `at` (centre-based,
+// like every actor position).
+
+pub component Readout(label: Str, value: Str, accent: Color = accent.primary) {
+  root: Stack, size: (240, 84), align: "center", opacity: 1 {
+    bg: Rect, size: (240, 84), corner_radius: 12, color: surface.primary, opacity: 1
+    content: Col, gap: 4, align: "start", opacity: 1 {
+      value_text: Text, text: value, font_size: 28, color: accent, opacity: 1
+      label_text: Text, text: label, font_size: 16, color: text.secondary, opacity: 1
+      edge: Rect, size: (204, 1), color: (0, 0, 0, 0), opacity: 1, legend: false
+    }
+  }
+}

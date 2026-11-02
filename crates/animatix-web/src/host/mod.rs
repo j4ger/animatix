@@ -12,9 +12,13 @@ mod library;
 mod markers;
 #[cfg(test)]
 mod tests;
+/// Public because the wasm boundary renders page JSON into expression text
+/// with it (`web::assets::set_vars`); the other modules here serve `host` only.
+pub mod vars;
 
 pub use build::{
     BuiltDocument, build_document, build_document_with_assets, build_document_with_modules,
+    build_document_with_vars,
 };
 pub use features::required_features;
 pub use library::{BUILD_ID, ENTRY_PATH, bundled_library, identity_digest};

@@ -34,6 +34,15 @@
 //   data-fonts space-separated TTF/OTF URLs. All fonts are fetched in
 //              parallel while the engine/scene load, cached per page for
 //              repeated embeds, and registered before the scene compiles.
+//   data-vars  JSON object of build-time variable overrides, e.g.
+//              '{"amp": 320, "label": "Q3"}' — the web form of the CLI's
+//              repeatable `--set NAME=VALUE`. Each name shadows the scene's own
+//              `let NAME = …` default, so one template serves many values.
+//              Values are numbers, strings or booleans; write numbers as JSON
+//              numbers, because a JSON string becomes a string *literal*.
+//              Changing the attribute replaces the set in effect and rebuilds
+//              the scene in place (debounced). Overrides reach a single-scene
+//              document only; a composition reports that they did not.
 //   data-font-base  (on the loader script) base URL for the automatic font
 //              pack. Defaults to the `fonts/` sibling of the engine packages;
 //              set it when the pack is hosted on a separate origin or path.
@@ -61,6 +70,18 @@
 //              resumes playback towards the next step (or snaps immediately
 //              to it if in-flight). Left Arrow / PageUp rewinds to the
 //              previous step; 'f' toggles fullscreen, 'b' toggles blackout.
+//
+// Scripting a ready player (besides the `sealed` mode's play()/pause()/seek()
+// and the `duration`/`time` getters):
+//   setVars(obj)  merge build-time overrides (`data-vars` shape) and rebuild in
+//              place, debounced ~150 ms: the loaded source, fonts, imports and
+//              assets stay registered, playback keeps its proportional position
+//              (the same normalized t on the new timeline) and a playing embed
+//              keeps playing. A set that does not build warns and keeps the
+//              previous document, so a slider's out-of-range value never blanks
+//              the figure. This is what a parameter-slider demo drives.
+//   vars       getter: a copy of the overrides in effect.
+//   applySource(text)  rebuild from edited text — the live-editor entry point.
 //
 // The engine directories come from the loader <script>'s `data-runtime-base`
 // (absolute, or relative to the page). A value ending in `pkg-slim`,

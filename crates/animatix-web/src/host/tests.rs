@@ -195,6 +195,11 @@ fn build_demo_scene(source: &str) -> BuiltDocument {
                 include_str!("../../../../web/demos/lib/ambience.amx")
             } else if key.ends_with("components.amx") {
                 include_str!("../../../../web/demos/lib/components.amx")
+            } else if key.ends_with("stage.amx") {
+                // The house-style stage furniture (web/DESIGN.md §1); every
+                // rewritten walkthrough scene imports it, so the demo-scene
+                // build test has to be able to close that import graph.
+                include_str!("../../../../web/demos/lib/stage.amx")
             } else {
                 panic!("demo scenes should only import site demo lib files, got {key}");
             };
@@ -400,4 +405,176 @@ fn single_scene_persist_target_stays_unwarned() {
         "single-scene web documents keep persisted actors quiet, got {:?}",
         doc.result.diagnostics
     );
+}
+
+// ── build-time variable overrides: the CLI's `--set`, driven from a page ─────
+
+/// The web vars channel *is* the CLI's `--set NAME=VALUE`: an override shadows
+/// the scene's own `let` default and reaches the build environment.
+#[test]
+fn vars_shadow_the_authored_let_defaults() {
+    const SOURCE: &str = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360), duration: 1.0 }
+
+let amp = 200
+let label = "default"
+
+#0s
+dot: Ellipse, size: (amp, amp), at: (320, 180)
+fade-in dot [100ms]
+"#;
+    let vars = vec![
+        ("amp".to_string(), "320".to_string()),
+        ("label".to_string(), "'overridden'".to_string()),
+    ];
+    let doc = build_document_with_vars(
+        SOURCE,
+        &[],
+        Arc::new(FontContext::new()),
+        BuildQuality::Draft,
+        None,
+        &vars,
+    );
+    assert!(doc.result.ok, "the overrides must build: {:?}", doc.result.diagnostics);
+    let Some(BuildTarget::SingleScene(timeline)) = &doc.target else {
+        panic!("expected a single-scene document");
+    };
+    assert_eq!(timeline.env().get("amp"), Some(animatix::timeline::Value::Num(320.0)));
+    assert_eq!(
+        timeline.env().get("label"),
+        Some(animatix::timeline::Value::Str("overridden".to_string())),
+        "a single-quoted literal reaches the environment as its text"
+    );
+
+    // The same source with no overrides keeps the authored defaults, so an
+    // empty var list is exactly the pre-existing behaviour.
+    let doc = build_document(SOURCE, Arc::new(FontContext::new()), BuildQuality::Draft);
+    assert!(doc.result.ok, "diagnostics: {:?}", doc.result.diagnostics);
+    let Some(BuildTarget::SingleScene(timeline)) = &doc.target else {
+        panic!("expected a single-scene document");
+    };
+    assert_eq!(timeline.env().get("amp"), Some(animatix::timeline::Value::Num(200.0)));
+}
+
+/// What [`vars::string_expr`] renders must survive the engine's parser as the
+/// same text — the round-trip the quote-picking rule exists for. The DSL's
+/// literals are raw (an escape pair is skipped, never interpreted), so this is
+/// the assertion that keeps a page's string from reaching the scene corrupted.
+#[test]
+fn a_rendered_string_var_round_trips_through_the_engine_parser() {
+    for input in [
+        "Q3 Revenue",
+        "say \"hi\"",
+        "it's fine",
+        "",
+        "unicode ✓",
+        "#ff8666",
+    ] {
+        let Some(literal) = vars::string_expr(input) else {
+            panic!("'{input}' must render as a literal");
+        };
+        let doc = build_document_with_vars(
+            "#0s\ndot: Ellipse, size: (30, 30), at: (60, 60)\n",
+            &[],
+            Arc::new(FontContext::new()),
+            BuildQuality::Draft,
+            None,
+            &[("label".to_string(), literal)],
+        );
+        assert!(doc.result.ok, "'{input}' must build: {:?}", doc.result.diagnostics);
+        let Some(BuildTarget::SingleScene(timeline)) = &doc.target else {
+            panic!("'{input}': expected a single-scene document");
+        };
+        assert_eq!(
+            timeline.env().get("label"),
+            Some(animatix::timeline::Value::Str(input.to_string())),
+            "'{input}' must reach the build environment unchanged"
+        );
+    }
+}
+
+/// A value the engine cannot parse comes back as a build *diagnostic*: the web
+/// channel has no exit code to fail with, and a slider feeding garbage must not
+/// take the player down (nor panic).
+#[test]
+fn an_unparseable_var_is_a_diagnostic_not_a_panic() {
+    const SOURCE: &str = "config { resolution: (320, 180) }\n#0s\ndot: Ellipse, size: (30, 30)\n";
+    let doc = build_document_with_vars(
+        SOURCE,
+        &[],
+        Arc::new(FontContext::new()),
+        BuildQuality::Draft,
+        None,
+        &[
+            ("amp".to_string(), "200 +".to_string()),
+            ("9bad".to_string(), "1".to_string()),
+        ],
+    );
+    assert!(!doc.result.ok, "a bad override must fail the build");
+    assert!(doc.target.is_none(), "a failed build installs no document");
+    let messages: Vec<&str> = doc.result.diagnostics.iter().map(|d| d.message.as_str()).collect();
+    assert!(
+        messages
+            .iter()
+            .any(|m| m.contains("amp") && m.contains("not a valid expression")),
+        "the unparseable value is reported: {messages:?}"
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|m| m.contains("9bad") && m.contains("not a valid identifier")),
+        "the invalid name is reported by the engine's one parser: {messages:?}"
+    );
+}
+
+/// Overrides reach a single scene only. The engine logs that and moves on; the
+/// browser installs no `tracing` subscriber, so the host build repeats it as a
+/// warning diagnostic the page can actually see — without failing the build.
+#[test]
+fn vars_on_a_composition_report_they_are_not_applied() {
+    const MULTISCENE: &str = include_str!("../../../../examples/composition/14_multiscene.amx");
+    let doc = build_document_with_vars(
+        MULTISCENE,
+        &[],
+        Arc::new(FontContext::new()),
+        BuildQuality::Draft,
+        None,
+        &[("amp".to_string(), "320".to_string())],
+    );
+    assert!(doc.result.ok, "the note must not fail the build: {:?}", doc.result.diagnostics);
+    let note = doc
+        .result
+        .diagnostics
+        .iter()
+        .find(|d| d.code == "vars-not-applied")
+        .expect("a composition must report that overrides did not reach it");
+    assert_eq!(note.severity, "warning");
+
+    let doc = build_document(MULTISCENE, Arc::new(FontContext::new()), BuildQuality::Draft);
+    assert!(
+        !doc.result.diagnostics.iter().any(|d| d.code == "vars-not-applied"),
+        "with nothing overridden there is nothing to report: {:?}",
+        doc.result.diagnostics
+    );
+}
+
+/// The boundary's whole rendering rule: JSON scalars become expression text, and
+/// the shapes the DSL's raw literals cannot hold are refused — so the caller logs
+/// the drop instead of handing the engine text that means something else.
+#[test]
+fn var_values_render_as_animatix_expression_text() {
+    assert_eq!(vars::number_expr(320.0).as_deref(), Some("320"));
+    assert_eq!(vars::number_expr(0.5).as_deref(), Some("0.5"));
+    assert_eq!(vars::number_expr(-12.25).as_deref(), Some("-12.25"));
+    assert_eq!(vars::number_expr(1e21).as_deref(), Some("1000000000000000000000"));
+    assert_eq!(vars::number_expr(f64::NAN), None);
+    assert_eq!(vars::number_expr(f64::INFINITY), None);
+
+    assert_eq!(vars::string_expr("Q3 Revenue").as_deref(), Some("\"Q3 Revenue\""));
+    assert_eq!(vars::string_expr("say \"hi\"").as_deref(), Some("'say \"hi\"'"));
+    assert_eq!(vars::string_expr("").as_deref(), Some("\"\""));
+    assert_eq!(vars::string_expr("both 'quotes' and \"doubles\""), None);
+    assert_eq!(vars::string_expr("back\\slash"), None);
+    assert_eq!(vars::string_expr("two\nlines"), None);
+    assert_eq!(vars::string_expr("tab\there"), None);
 }

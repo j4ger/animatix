@@ -21,6 +21,7 @@ export class AmxPlayerBase extends HTMLElement {
     "quality",
     "presentation",
     "data-fonts",
+    "data-vars",
   ];
 
   constructor() {
@@ -55,6 +56,11 @@ export class AmxPlayerBase extends HTMLElement {
     this._fontBytesPromise = null; // page-cached data-fonts fetch; see view.js
     this._defaultFontsPromise = null; // profile font pack; see view.js
     this._defaultFontsProfile = null;
+    this._vars = null; // merged build-time overrides; null = read `data-vars`
+    this._varsTimer = null; // setVars/data-vars debounce; see view.js
+    this._varsApplied = null; // signature last pushed to the wasm player
+    this._loadedSource = null; // scene text, cached for an in-place rebuild
+    this._loadedAssets = new Map(); // fetched asset payloads; see _loadScene
     this._loadWantedAt = 0; // set when the scheduler queues this player; see pumpLoads
     this._hudFlash = null;
     this._hudSkip = null;
@@ -93,6 +99,7 @@ export class AmxPlayerBase extends HTMLElement {
     this._renderScaleObserver?.disconnect();
     clearTimeout(this._renderScaleRetry);
     clearTimeout(this._resizeDebounceTimer);
+    clearTimeout(this._varsTimer);
     clearTimeout(this._hudTimer);
     clearTimeout(this._skipHudTimer);
     clearTimeout(this._singleTapTimer);
@@ -128,6 +135,16 @@ export class AmxPlayerBase extends HTMLElement {
       }
       this._resetForReload();
     }
+    if (name === "data-vars" && this._initialized) {
+      // Build-time variable overrides. The attribute is the declarative set, so
+      // it replaces what is in effect (an earlier `setVars` merge does not
+      // survive it), and the rebuild is debounced because a page wiring a
+      // slider writes it on every input event. Vars are baked in at build time,
+      // so like `quality` this means a rebuild — but an in-place one: the loaded
+      // source, fonts, fetched imports and assets all stay registered.
+      this._varsFromAttribute();
+      this._scheduleVarsRebuild();
+    }
     if ((name === "src" || name === "profile" || name === "data-fonts") && this._initialized) {
       // profile selects which wasm instance backs this element; switching it
       // is a full reload (and, for a first switch on the page, a second
@@ -145,6 +162,14 @@ export class AmxPlayerBase extends HTMLElement {
     this._fontBytesPromise = null;
     this._defaultFontsPromise = null;
     this._defaultFontsProfile = null;
+    // A reload builds a fresh player, so nothing has been pushed to it yet and
+    // the cached document inputs belonged to the player being dropped. `_vars`
+    // itself survives: the page's parameter set outlives one engine instance.
+    clearTimeout(this._varsTimer);
+    this._varsTimer = null;
+    this._varsApplied = null;
+    this._loadedSource = null;
+    this._loadedAssets = new Map();
     this._renderSkeleton();
     this._maybeStartLoading();
   }

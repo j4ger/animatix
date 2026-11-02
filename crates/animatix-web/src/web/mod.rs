@@ -84,6 +84,9 @@ pub struct AmxPlayer {
     /// joined into the build's source map (keyed by resolved import path, the
     /// keys [`crate::dto::LoadResultDto::missing_imports`] reports).
     modules: Vec<(String, String)>,
+    /// Build-time variable overrides for every later load — the embed's
+    /// `data-vars` / `setVars`. See [`AmxPlayer::set_vars`] for the rules.
+    vars: Vec<(String, String)>,
     /// Build quality for the next [`AmxPlayer::load_source`] (the embed's
     /// `quality` attribute). Draft matches the GUI's editing preview;
     /// Production matches what a desktop export renders. Quality is baked in
@@ -103,18 +106,14 @@ pub struct AmxPlayer {
     /// offscreen holds up to the surface, so a scale below 1 trades detail for
     /// fill rate without touching layout.
     render_scale: f32,
-    /// Reusable re-encode buffer for a scaled raster
-    /// ([`animatix_render::offscreen::RasterFit::Scaled`]); owned here so a
-    /// scaled frame does not allocate a scene per render.
+    /// Reusable re-encode buffer for a scaled raster, so a scaled frame does
+    /// not allocate a scene per render.
     scaled: vello::Scene,
-    /// Guards against re-rasterizing a frame the canvas already shows. A looping
-    /// embed spends its whole `hold` window drawing the same finished frame —
-    /// 13% of ticks on the tour, and tens of milliseconds each for a filtered
-    /// figure — and the raster, unlike evaluation, is the expensive part.
+    /// Guards against re-rasterizing a frame the canvas already shows; the
+    /// raster, unlike evaluation, is the expensive part of a tick.
     dedup: animatix::timeline::frame_signature::FrameDedup,
-    /// Bumped on every document build. The timeline's own epoch cannot tell a
-    /// rebuilt scene from an untouched one (both start at 0), and the editor path
-    /// rebuilds at the same playhead time.
+    /// Bumped on every document build: the timeline's own epoch cannot tell a
+    /// rebuilt scene from an untouched one (both start at 0).
     document_generation: u64,
     /// Diagnostics only: how many ticks the dedup absorbed and how many it drew,
     /// so `debug_dedup_stats` can prove the skip is happening rather than

@@ -319,6 +319,7 @@ dependencies = [
  "kurbo",
  "serde",
  "serde-wasm-bindgen",
+ "tracing",
  "vello",
  "wasm-bindgen",
  "wasm-bindgen-futures",

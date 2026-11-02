@@ -1,0 +1,35 @@
+// stage_probe.amx — proof plate for the house-style stage library.
+//
+// Composes every component in stage.amx on the `tide` palette and proves
+// web/DESIGN.md §1 rules 1–3 by eye: tile 1 (t=0) of the storyboard contact
+// sheet is a lit, composed stage (floor glow + hairline grid + title block,
+// not black); the resting frame is the fullest frame because nothing fades
+// out; and the only motion — the dial's single turn per cycle — starts at
+// t=0, so there is no dead hold.
+//
+// Embed on the site as
+//   <amx-player src="lib/stage_probe.amx" autoplay loop hold="1.2">
+// An `autoplay loop` cycle is `duration` + `hold`; the held frame shows this
+// whole plate, which is what house-style rule 2 demands. In the DSL the loop
+// is declared with `seamless_loop: true` (autoplay/loop/hold are player
+// attributes, not config keys).
+
+import "../demos/lib/theme.amx"
+import "../demos/lib/stage.amx"
+
+config { colorscheme: "tide", resolution: (1280, 720), duration: 8, seamless_loop: true }
+
+floor: StageFloor
+
+head: ActHead, kicker: "HOUSE STYLE", title: "A Lit Stage at t=0", sub: "StageFloor, ActHead, Caption and Readout, drawn in the tide palette"
+
+dial: Ellipse, size: (420, 420), at: (880, 410), fill_opacity: 0, stroke: accent.primary, stroke_width: 14,
+  stroke_gradient: sweep(0, {accent.primary, accent.success, accent.info, accent.primary}), opacity: 1
+
+chip: Readout, label: "PALETTE", value: "tide", at: (250, 560)
+
+cap: Caption, text: "The floor is constant; the dial turns once per cycle.", tag: "stage_probe.amx"
+
+always {
+  dial.rotation = t * 0.7853981634
+}

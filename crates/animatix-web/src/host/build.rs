@@ -48,7 +48,7 @@ pub fn build_document_with_assets(
 }
 
 /// Parse, typecheck, expand, and build `source` with `modules` pre-registered
-/// in the source map.
+/// in the source map, and no build-time variable overrides.
 ///
 /// `modules` are the `.amx` files the shell fetched for this scene beyond the
 /// bundled library, keyed by the *resolved* import path (what the module
@@ -62,6 +62,26 @@ pub fn build_document_with_modules(
     font_context: Arc<FontContext>,
     quality: BuildQuality,
     assets: Option<Arc<AssetCache>>,
+) -> BuiltDocument {
+    build_document_with_vars(source, modules, font_context, quality, assets, &[])
+}
+
+/// [`build_document_with_modules`] plus `vars`, the web shape of the CLI's
+/// repeatable `--set NAME=VALUE`: `(name, expression text)` pairs seeded into
+/// the build environment, where each shadows the scene's own `let NAME = …`
+/// default. An empty slice reproduces the no-override build exactly.
+///
+/// Rendering a page's JSON values into that expression text is
+/// [`super::vars`]'s job; parsing and evaluating it stays the engine's, so a
+/// bad name or value comes back as a build diagnostic rather than a second
+/// parser's guess.
+pub fn build_document_with_vars(
+    source: &str,
+    modules: &[(PathBuf, String)],
+    font_context: Arc<FontContext>,
+    quality: BuildQuality,
+    assets: Option<Arc<AssetCache>>,
+    vars: &[(String, String)],
 ) -> BuiltDocument {
     let path = PathBuf::from(ENTRY_PATH);
     let mut diagnostics: Vec<DiagnosticDto> = Vec::new();
@@ -141,6 +161,7 @@ pub fn build_document_with_modules(
             asset_cache: assets,
             extensions: Some(context),
             skip_persist_target_warning: true,
+            defines: vars,
             ..Default::default()
         },
     );
@@ -148,6 +169,25 @@ pub fn build_document_with_modules(
     let build_diagnostics = report.diagnostics;
 
     diagnostics.extend(build_diagnostics.iter().map(DiagnosticDto::from_diagnostic));
+
+    // The engine only *logs* that overrides do not reach a multi-scene
+    // composition, and the browser installs no `tracing` subscriber — so the
+    // note would be lost exactly where it matters. Report it as a warning
+    // diagnostic instead: not an error, so the document still installs and
+    // plays on its authored defaults.
+    if !vars.is_empty() && matches!(target, BuildTarget::MultiScene(_)) {
+        diagnostics.push(DiagnosticDto {
+            severity: "warning".to_string(),
+            code: "vars-not-applied".to_string(),
+            message: "Build-time variable overrides reach a single-scene document only; this \
+                      composition keeps each scene's own `let` defaults."
+                .to_string(),
+            subject: None,
+            line: None,
+            column: None,
+            span: None,
+        });
+    }
 
     let (duration_s, width, height) = document_extent(&target);
     let markers = timeline_markers(&expanded, &target);
