@@ -52,6 +52,26 @@ BIN = pathlib.Path(__file__).resolve().parent.parent / "target" / "debug" / "ani
 
 # The held frame must keep at least this much of the plateau's coverage.
 REST_FLOOR = 0.35
+
+# Scenes rewritten under web/DESIGN.md §1 carry `// house-style: <note>` and are
+# held to a stricter contract: the held frame is the fullest composition, and
+# the FIRST frame already carries ink (no fade-from-black openings). The marker
+# makes the rollout staged — legacy plates keep the old floor until they are
+# rewritten and opt in — and auditable, because the marker lives in the scene.
+HOUSE_FLOOR = 0.80
+# Absolute, not a ratio: the open rule forbids a BLACK first frame, and a dense
+# diagram's plateau would make any honest titled stage fail a ratio test (a
+# 44%-ink blueprint resting on a 7%-ink lit title stage is compliant, not a
+# defect). 5% whole-frame ink is a lit room; a fade-from-black measures ~0.
+FIRST_FLOOR = 5.0
+
+
+def house_style(path: pathlib.Path) -> str | None:
+    """The note of a scene rewritten under the house style, if it declares one."""
+    m = re.search(r"(?m)^//\s*house-style:\s*(.+)$", path.read_text())
+    return m.group(1).strip() if m else None
+
+
 def players() -> list[pathlib.Path]:
     """Every .amx a page embeds, found through the players rather than the tree."""
     scenes: list[pathlib.Path] = []
@@ -140,7 +160,7 @@ def check(path: pathlib.Path) -> list[str]:
             round(content_start + i * 0.5, 2)
             for i in range(int((end - content_start) / 0.5) + 1)
         ]
-        samples = sorted({*samples, round(content_start, 2), held})
+        samples = sorted({*samples, round(content_start, 2), held, 0.0})
     else:
         stamp = [t for t in beats(path) if t <= duration + 0.01]
         # Sample the whole arc so the plateau is the real peak, not one beat's guess.
@@ -151,12 +171,23 @@ def check(path: pathlib.Path) -> list[str]:
 
     peak = max(ink.values())
     problems: list[str] = []
+    floor = HOUSE_FLOOR if house_style(path) else REST_FLOOR
     # A sparse closing title card is a composition too: with a 1% floor its
     # 0.7% text could be erased to 0 and still be skipped as "nearly blank".
-    if peak > 0.1 and ink.get(held, 0.0) < REST_FLOOR * peak:
+    if peak > 0.1 and ink.get(held, 0.0) < floor * peak:
         problems.append(
             f"{rel}: the held frame is {ink[held]:.1f}% ink against a {peak:.1f}% "
-            f"plateau — a closing beat erases the cast (dur={duration:.2f}s)"
+            f"plateau — a closing beat erases the cast "
+            f"(floor {floor:.2f}, dur={duration:.2f}s)"
+        )
+    # House-style §1: ink at t=0, measured absolutely (see FIRST_FLOOR). A
+    # fade-from-black opening measures near zero here, which is exactly the
+    # defect the rule exists to kill.
+    if house_style(path) and ink.get(0.0, 0.0) < FIRST_FLOOR:
+        problems.append(
+            f"{rel}: the first frame is {ink.get(0.0, 0.0):.1f}% ink — below the "
+            f"{FIRST_FLOOR:.1f}% lit-stage floor, so the scene opens on black "
+            f"(house-style §1)"
         )
     return problems
 
@@ -171,15 +202,20 @@ def main() -> int:
         return 2
     failures: list[str] = []
     exempt: list[str] = []
+    house: list[str] = []
     for scene in scenes:
         if why := exemption(scene):
             exempt.append(f"{scene.relative_to(ROOT.parent)}: {why}")
             continue
+        if note := house_style(scene):
+            house.append(f"{scene.relative_to(ROOT.parent)}: {note}")
         for problem in check(scene):
             print(problem)
             failures.append(problem)
     for note in exempt:
         print(f"exempt (declared by the scene): {note}")
+    for note in house:
+        print(f"house-style (rest floor {HOUSE_FLOOR:.2f} + first frame >= {FIRST_FLOOR:.1f}% ink): {note}")
     status = "FAIL" if failures else "ok"
     print(
         f"\n{status}: {len(scenes)} embedded scenes checked, "

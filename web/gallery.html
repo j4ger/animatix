@@ -30,15 +30,15 @@
     </header>
 
     <div class="gallery-grid">
-      <!-- 01: Deep Learning -->
-      <figure>
+      <!-- site-gen:works-gallery:start -->
+      <figure data-work="transformer">
         <div class="figure-header">
           <h3 class="figure-title">The Transformer Blueprint</h3>
           <span class="figure-tag">Deep Learning</span>
         </div>
         <amx-player src="./demos/transformer/scenes/overview.amx"
                     autoplay loop controls hold="1" aspect="16:9"
-                    title="The full transformer architecture map"></amx-player>
+                    title="The Transformer Blueprint"></amx-player>
         <figcaption>
           <span class="cap">Tokens climb through stacked attention and feed-forward blocks to the LM head.</span>
           <div class="fig-actions">
@@ -47,49 +47,30 @@
         </figcaption>
       </figure>
 
-      <!-- 02: Cloud Infrastructure -->
-      <figure>
+      <figure data-work="topology">
         <div class="figure-header">
           <h3 class="figure-title">Distributed Event Fabric</h3>
           <span class="figure-tag">Cloud Infrastructure</span>
         </div>
         <amx-player src="./demos/topology/scene.amx"
                     autoplay loop controls hold="1" aspect="16:9"
-                    title="The distributed event fabric architecture"></amx-player>
+                    title="Distributed Event Fabric"></amx-player>
         <figcaption>
-          <span class="cap">Smart orthogonal routing with fillet corners, edge proxies, and live telemetry counter.</span>
+          <span class="cap">Smart orthogonal routing with fillet corners, edge proxies, and a live telemetry counter.</span>
           <div class="fig-actions">
             <a class="src" href="./demos/topology/scene.amx">scene.amx ↗</a>
           </div>
         </figcaption>
       </figure>
 
-      <!-- 03: Kinetic Design -->
-      <figure>
-        <div class="figure-header">
-          <h3 class="figure-title">Kinetic Typography &amp; Glass</h3>
-          <span class="figure-tag">Motion Design</span>
-        </div>
-        <amx-player src="./demos/kinetic/scene.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="Fluid typography and spatial glass studio"></amx-player>
-        <figcaption>
-          <span class="cap">Split-text baseline emergence, 2.5D perspective tilt, and real-time GPU frosted glass.</span>
-          <div class="fig-actions">
-            <a class="src" href="./demos/kinetic/scene.amx">scene.amx ↗</a>
-          </div>
-        </figcaption>
-      </figure>
-
-      <!-- 04: Harmonic Physics -->
-      <figure>
+      <figure data-work="epicycles">
         <div class="figure-header">
           <h3 class="figure-title">Harmonic Epicycles</h3>
-          <span class="figure-tag">Fourier Mechanics</span>
+          <span class="figure-tag">Harmonic Physics</span>
         </div>
         <amx-player src="./demos/epicycles/hero.amx"
                     autoplay loop controls hold="1" aspect="16:9"
-                    title="Spinning circles stacking into a square wave"></amx-player>
+                    title="Harmonic Epicycles"></amx-player>
         <figcaption>
           <span class="cap">Four harmonic circles rotating at odd integer frequencies synthesize a square wave.</span>
           <div class="fig-actions">
@@ -98,15 +79,30 @@
         </figcaption>
       </figure>
 
-      <!-- 05: Linear Algebra -->
-      <figure>
+      <figure data-work="sorting">
+        <div class="figure-header">
+          <h3 class="figure-title">Sorting, Choreographed</h3>
+          <span class="figure-tag">Algorithmic Stage</span>
+        </div>
+        <amx-player src="./demos/sorting/sort.amx"
+                    autoplay loop controls hold="1" aspect="16:9"
+                    title="Sorting, Choreographed"></amx-player>
+        <figcaption>
+          <span class="cap">Insertion sort staged with animated bars, pairwise swaps, and algorithmic tallying.</span>
+          <div class="fig-actions">
+            <a class="src" href="./demos/sorting/sort.amx">sort.amx ↗</a>
+          </div>
+        </figcaption>
+      </figure>
+
+      <figure data-work="matrix">
         <div class="figure-header">
           <h3 class="figure-title">A Matrix Is a Machine</h3>
           <span class="figure-tag">Linear Algebra</span>
         </div>
         <amx-player src="./demos/matrix/rotation.amx"
                     autoplay loop controls hold="1" aspect="16:9"
-                    title="A 2×2 rotation tracking basis vectors"></amx-player>
+                    title="A Matrix Is a Machine"></amx-player>
         <figcaption>
           <span class="cap">The basis vectors lead, the coordinate grid follows, and matrix chips track the columns.</span>
           <div class="fig-actions">
@@ -115,15 +111,14 @@
         </figcaption>
       </figure>
 
-      <!-- 06: Optimization -->
-      <figure>
+      <figure data-work="gradient">
         <div class="figure-header">
           <h3 class="figure-title">The Loss Surface</h3>
-          <span class="figure-tag">Optimization</span>
+          <span class="figure-tag">Optimization &amp; Calculus</span>
         </div>
         <amx-player src="./demos/gradient/losssurface.amx"
                     autoplay loop controls hold="1" aspect="16:9"
-                    title="Contour map of quadratic loss surface"></amx-player>
+                    title="The Loss Surface"></amx-player>
         <figcaption>
           <span class="cap">Concentric contour rings and the radial gradient vector field pointing uphill.</span>
           <div class="fig-actions">
@@ -132,15 +127,46 @@
         </figcaption>
       </figure>
 
-      <!-- 07: Data Structures -->
-      <figure>
+      <figure data-work="morph">
+        <div class="figure-header">
+          <h3 class="figure-title">Morph Lab</h3>
+          <span class="figure-tag">Topological Synthesis</span>
+        </div>
+        <amx-player src="./demos/morph/scene.amx"
+                    autoplay loop controls hold="1" aspect="16:9"
+                    title="Morph Lab"></amx-player>
+        <figcaption>
+          <span class="cap">One blob, three interpolation strategies, synthesized cubic Bezier control points at 60 FPS.</span>
+          <div class="fig-actions">
+            <a class="src" href="./demos/morph/scene.amx">scene.amx ↗</a>
+          </div>
+        </figcaption>
+      </figure>
+
+      <figure data-work="kinetic">
+        <div class="figure-header">
+          <h3 class="figure-title">Kinetic Typography &amp; Glass</h3>
+          <span class="figure-tag">Motion Design</span>
+        </div>
+        <amx-player src="./demos/kinetic/scene.amx"
+                    autoplay loop controls hold="1" aspect="16:9"
+                    title="Kinetic Typography &amp; Glass"></amx-player>
+        <figcaption>
+          <span class="cap">Split-text baseline emergence, 2.5D perspective tilt, and real-time GPU frosted glass.</span>
+          <div class="fig-actions">
+            <a class="src" href="./demos/kinetic/scene.amx">scene.amx ↗</a>
+          </div>
+        </figcaption>
+      </figure>
+
+      <figure data-work="hash">
         <div class="figure-header">
           <h3 class="figure-title">Two Keys, One Bucket</h3>
           <span class="figure-tag">Data Structures</span>
         </div>
         <amx-player src="./demos/hash/collision.amx"
                     autoplay loop controls hold="1" aspect="16:9"
-                    title="Hash collision chaining"></amx-player>
+                    title="Two Keys, One Bucket"></amx-player>
         <figcaption>
           <span class="cap">A hash collision triggers linked-list overflow chaining below the target bucket.</span>
           <div class="fig-actions">
@@ -148,23 +174,7 @@
           </div>
         </figcaption>
       </figure>
-
-      <!-- 08: Algorithms -->
-      <figure>
-        <div class="figure-header">
-          <h3 class="figure-title">Sorting, Choreographed</h3>
-          <span class="figure-tag">Algorithms</span>
-        </div>
-        <amx-player src="./demos/sorting/sort.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="Insertion sort staged as bars"></amx-player>
-        <figcaption>
-          <span class="cap">Insertion sort staged with animated bars, pairwise swaps, and algorithmic tallying.</span>
-          <div class="fig-actions">
-            <a class="src" href="./demos/sorting/sort.amx">sort.amx ↗</a>
-          </div>
-        </figcaption>
-      </figure>
+<!-- site-gen:works-gallery:end -->
     </div>
 
     <div class="howto-card">

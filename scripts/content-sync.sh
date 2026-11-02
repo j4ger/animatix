@@ -21,6 +21,8 @@
 #     declared forked means the desktop and the browser run different components.
 #   - `web/demos/posters/` ships PNGs no page references: bytes deployed to every
 #     visitor for a picture nothing draws.
+#   - `web/works.json` feeds generated blocks in the portfolio pages. A hand edit
+#     inside a `site-gen` block shows the old copy live while the manifest moves on.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -155,6 +157,19 @@ for spec in "slim:--slim" "full:full profile"; do
     fail "README line $line says $label is ~$claim MB raw; the built bundle is $actual MB (${drift}% off) — update web/README.md from scripts/build-web.sh's own output"
   fi
 done
+
+# ── 7. generated page blocks match the works manifest ─────────────────────────
+# `web/works.json` is the single source for every showcased work's identity
+# (title, blurb, tags, poster, deck, palette, figures, slider params); the pages
+# carry generated regions between `site-gen:<block>:start|end` markers. A
+# hand-edited block renders fine and drifts silently — exactly the class of
+# defect this script exists for — so the generator's own --check is the gate.
+if python3 scripts/site-gen.py --check >/dev/null 2>&1; then
+  ok "every site-gen block in web/*.html matches web/works.json"
+else
+  fail "a generated page block disagrees with web/works.json — run: python3 scripts/site-gen.py"
+  python3 scripts/site-gen.py --check 2>&1 | sed 's/^/       /' >&2 || true
+fi
 
 if [ "$FAILED" -ne 0 ]; then
   echo "=== content-sync FAILED ===" >&2

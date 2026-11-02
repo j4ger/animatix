@@ -1,0 +1,240 @@
+{
+  "$schema": "Single source of truth for every showcased work. Pages render generated blocks from this file via scripts/site-gen.py; hand-edited blocks fail scripts/content-sync.sh.",
+  "works": [
+    {
+      "id": "transformer",
+      "title": "The Transformer Architecture, Animated",
+      "short": "The Transformer",
+      "kicker": "Deep Learning",
+      "category": "ml",
+      "palette": "ember",
+      "scenes": 7,
+      "flagship": true,
+      "poster": "transformer/scenes/overview.amx",
+      "deck": "transformer/",
+      "blurb": "The mechanism behind frontier language models, built up step-by-step: tokens, positional encodings, scaled dot-product attention, multi-head subspaces, and the feed-forward stack.",
+      "tags": [
+        "Self-Attention",
+        "Feed-Forward",
+        "Autoregressive Loop",
+        "Interactive Deck"
+      ],
+      "params": [],
+      "figures": [
+        {
+          "scene": "transformer/scenes/overview.amx",
+          "title": "The Transformer Blueprint",
+          "caption": "Tokens climb through stacked attention and feed-forward blocks to the LM head."
+        }
+      ]
+    },
+    {
+      "id": "topology",
+      "title": "The Distributed Event Fabric",
+      "short": "Event Fabric",
+      "kicker": "Cloud Infrastructure",
+      "category": "systems",
+      "palette": "tide",
+      "scenes": 3,
+      "flagship": false,
+      "poster": "topology/scene.amx",
+      "deck": "topology/",
+      "blurb": "High-throughput edge ingress, partitioned log streaming, and Raft consensus — events you can watch cross the wire, not boxes that fade in.",
+      "tags": [
+        "Orthogonal Connectors",
+        "Live Telemetry",
+        "Raft Consensus"
+      ],
+      "params": [],
+      "figures": [
+        {
+          "scene": "topology/scene.amx",
+          "title": "Distributed Event Fabric",
+          "caption": "Smart orthogonal routing with fillet corners, edge proxies, and a live telemetry counter."
+        }
+      ]
+    },
+    {
+      "id": "epicycles",
+      "title": "Circles That Draw a Square Wave",
+      "short": "Fourier Circles",
+      "kicker": "Harmonic Physics",
+      "category": "math",
+      "palette": "orchid",
+      "scenes": 5,
+      "flagship": false,
+      "poster": "epicycles/hero.amx",
+      "deck": "epicycles/",
+      "blurb": "Fourier analysis as spinning mechanical dials: harmonic circles at odd integer frequencies stacking into a sharp square wave with scrolling history traces.",
+      "tags": [
+        "PlotCurve",
+        "Rolling Time Trace",
+        "Harmonics"
+      ],
+      "params": [],
+      "figures": [
+        {
+          "scene": "epicycles/hero.amx",
+          "title": "Harmonic Epicycles",
+          "caption": "Four harmonic circles rotating at odd integer frequencies synthesize a square wave."
+        }
+      ]
+    },
+    {
+      "id": "sorting",
+      "title": "Sorting, Staged",
+      "short": "Insertion Sort",
+      "kicker": "Algorithmic Stage",
+      "category": "algorithms",
+      "palette": "coral",
+      "scenes": 4,
+      "flagship": false,
+      "poster": "sorting/scene.amx",
+      "deck": "sorting/",
+      "blurb": "Eight bars perform insertion sort directed entirely by a build-time timeline function: every comparison lights a tick, every swap is emitted algorithmically.",
+      "tags": [
+        "Build-time Fn",
+        "Dynamic Swaps",
+        "Comparison Tally"
+      ],
+      "params": [],
+      "figures": [
+        {
+          "scene": "sorting/sort.amx",
+          "title": "Sorting, Choreographed",
+          "caption": "Insertion sort staged with animated bars, pairwise swaps, and algorithmic tallying."
+        }
+      ]
+    },
+    {
+      "id": "matrix",
+      "title": "A Matrix Is a Machine",
+      "short": "2×2 Matrix",
+      "kicker": "Linear Algebra",
+      "category": "math",
+      "palette": "moss",
+      "scenes": 3,
+      "flagship": false,
+      "poster": "matrix/rotation.amx",
+      "deck": "matrix/",
+      "blurb": "Linear algebra as spatial transformation: a 2×2 matrix bends the coordinate grid, basis vectors lead, and the determinant collapses through zero.",
+      "tags": [
+        "Coordinate Grid",
+        "Basis Vectors",
+        "Determinant"
+      ],
+      "params": [],
+      "figures": [
+        {
+          "scene": "matrix/rotation.amx",
+          "title": "A Matrix Is a Machine",
+          "caption": "The basis vectors lead, the coordinate grid follows, and matrix chips track the columns."
+        }
+      ]
+    },
+    {
+      "id": "gradient",
+      "title": "Rolling Downhill: Gradient Descent",
+      "short": "Gradient Descent",
+      "kicker": "Optimization & Calculus",
+      "category": "ml",
+      "palette": "ember",
+      "scenes": 4,
+      "flagship": false,
+      "poster": "gradient/scene.amx",
+      "deck": "gradient/",
+      "blurb": "Optimization topography: steepest-descent vector fields, contour tracing, and why the learning-rate step size decides convergence.",
+      "tags": [
+        "Loss Surface",
+        "Vector Field",
+        "Learning Rate"
+      ],
+      "params": [],
+      "figures": [
+        {
+          "scene": "gradient/losssurface.amx",
+          "title": "The Loss Surface",
+          "caption": "Concentric contour rings and the radial gradient vector field pointing uphill."
+        }
+      ]
+    },
+    {
+      "id": "morph",
+      "title": "Morph Lab: Generative Vector Kinetics",
+      "short": "Morph Lab",
+      "kicker": "Topological Synthesis",
+      "category": "design",
+      "palette": "orchid",
+      "scenes": 1,
+      "flagship": false,
+      "poster": "morph/scene.amx",
+      "deck": "morph/",
+      "blurb": "Continuous vector interpolation across three strategies: vertex index matching, curved circular trajectories, and proportional length remapping.",
+      "tags": [
+        "strategy: match",
+        "path_arc Hint",
+        "stretch"
+      ],
+      "params": [],
+      "figures": [
+        {
+          "scene": "morph/scene.amx",
+          "title": "Morph Lab",
+          "caption": "One blob, three interpolation strategies, synthesized cubic Bezier control points at 60 FPS."
+        }
+      ]
+    },
+    {
+      "id": "kinetic",
+      "title": "Fluid Typography & Spatial Depth",
+      "short": "Kinetic Glass",
+      "kicker": "Motion Design",
+      "category": "design",
+      "palette": "coral",
+      "scenes": 3,
+      "flagship": false,
+      "poster": "kinetic/scene.amx",
+      "deck": "kinetic/",
+      "blurb": "Editorial motion design and tactile digital physics: split-text baseline emergence, 2.5D perspective tilt, and real-time GPU frosted glass.",
+      "tags": [
+        "Split-Text Reveal",
+        "Glass Blur Compute",
+        "Perspective Tilt"
+      ],
+      "params": [],
+      "figures": [
+        {
+          "scene": "kinetic/scene.amx",
+          "title": "Kinetic Typography & Glass",
+          "caption": "Split-text baseline emergence, 2.5D perspective tilt, and real-time GPU frosted glass."
+        }
+      ]
+    },
+    {
+      "id": "hash",
+      "title": "Where Keys Live: Hash Tables",
+      "short": "Where Keys Live",
+      "kicker": "Data Structures",
+      "category": "algorithms",
+      "palette": "tide",
+      "scenes": 4,
+      "flagship": false,
+      "poster": "hash/scene.amx",
+      "deck": "hash/",
+      "blurb": "Hash tables staged as theatre: a hash you can follow by eye, collision chaining, and constant-time key lookups without search iterations.",
+      "tags": [
+        "Modulo Arithmetic",
+        "Linked Chaining",
+        "O(1) Lookup"
+      ],
+      "params": [],
+      "figures": [
+        {
+          "scene": "hash/collision.amx",
+          "title": "Two Keys, One Bucket",
+          "caption": "A hash collision triggers linked-list overflow chaining below the target bucket."
+        }
+      ]
+    }
+  ]
+}
