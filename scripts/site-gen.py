@@ -188,6 +188,42 @@ EMITTERS = {
 }
 
 
+# ── per-deck parameter rails ────────────────────────────────────────────────
+# Each walkthrough deck page carries a `works-params` block: one slider row per
+# build-time `let` the work's scenes expose (web/DESIGN.md §3). deck.js wires
+# the inputs to `player.setVars`, which rebuilds in place through the engine's
+# one `--set` mechanism. A work with no params generates an empty block.
+
+
+def emit_params(works: list[dict], page: pathlib.Path) -> str:
+    work_id = page.parent.name
+    work = next((w for w in works if w["id"] == work_id), None)
+    params = (work or {}).get("params") or []
+    if not params:
+        return ""
+    out = [
+        f'''    <div class="param-rail" data-work="{e(work_id)}" data-palette="{e(work['palette'])}">''',
+        '''      <span class="readout">Live parameters · rebuilds the scenes in place</span>''',
+    ]
+    for p in params:
+        name = e(p["name"])
+        out += [
+            '''      <div class="param-row">''',
+            f'''        <label for="var-{name}">{name}</label>''',
+            f'''        <input id="var-{name}" type="range" min="{p['min']}" max="{p['max']}" step="{p['step']}" value="{p['default']}" data-var="{name}">''',
+            f'''        <output>{p['default']}</output>''',
+            '''      </div>''',
+        ]
+    out.append('''    </div>''')
+    return "\n".join(out)
+
+
+PARAM_PAGES = [WEB / "demos" / w / "index.html" for w in (
+    "transformer", "topology", "epicycles", "sorting", "matrix",
+    "gradient", "morph", "kinetic", "hash",
+)]
+
+
 # ── splice ──────────────────────────────────────────────────────────────────
 
 
@@ -206,8 +242,11 @@ def main() -> int:
     check = "--check" in sys.argv
     works = load_works()
     failed = False
-    for block, page in BLOCKS.items():
-        body = EMITTERS[block](works)
+    jobs: list[tuple[str, pathlib.Path, str]] = [
+        (block, page, EMITTERS[block](works)) for block, page in BLOCKS.items()
+    ]
+    jobs += [("works-params", page, emit_params(works, page)) for page in PARAM_PAGES]
+    for block, page, body in jobs:
         if not page.exists():
             print(f"skip: {page.relative_to(ROOT)} missing (block {block} not wired yet)")
             continue

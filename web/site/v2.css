@@ -478,3 +478,15 @@ footer.site a:hover { color: var(--work); }
   background: var(--work);
   border-color: var(--work);
 }
+
+/* ── parameter rail (deck pages, DESIGN §3) ───────────────────────── */
+.param-rail {
+  display: grid;
+  gap: 6px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line-soft);
+  padding: 16px 0 18px;
+  margin: 0 0 28px;
+}
+.param-rail:empty { display: none; }
+.param-rail .readout { margin-bottom: 6px; }

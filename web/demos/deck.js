@@ -284,6 +284,28 @@
   function init() {
     document.querySelectorAll('[data-amx-deck], .walkthrough-deck').forEach(el => {
       new AnimatixDeck(el);
+      initParamRails(el);
+    });
+  }
+
+  // Parameter rails (web/DESIGN.md §3): each slider row generated from
+  // web/works.json drives every player in the deck through `setVars`, which
+  // rebuilds the scene in place via the engine's one `--set` mechanism. A
+  // scene that does not declare the variable simply ignores the override.
+  function initParamRails(root) {
+    root.querySelectorAll('.param-rail input[data-var]').forEach((input) => {
+      const row = input.closest('.param-row');
+      const out = row ? row.querySelector('output') : null;
+      const apply = () => {
+        const value = Number(input.value);
+        if (out) out.textContent = String(value);
+        root.querySelectorAll('amx-player').forEach((player) => {
+          if (typeof player.setVars === 'function') {
+            player.setVars({ [input.dataset.var]: value });
+          }
+        });
+      };
+      input.addEventListener('input', apply);
     });
   }
 
