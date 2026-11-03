@@ -37,7 +37,7 @@ let plot_t = geo.cy - plot_h / 2
 // ── the stage ───────────────────────────────────────────────────────
 floor: StageFloor, glow: 1.2
 
-head: ActHead, kicker: "FIG 01 · THE DESTINATION", title: "A square wave from circles",
+goal_head: ActHead, kicker: "FIG 01 · THE DESTINATION", title: "A square wave from circles",
   sub: "the curve every later scene assembles"
 
 cap1: Caption, text: "Act I · The destination: sheer sides, flat tops, one impossible curve.", tag: "goal.amx"
