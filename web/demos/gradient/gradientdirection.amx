@@ -75,14 +75,14 @@ down_label: Text, text: "−∇L · downhill", font_size: 18, font_weight: 600, 
 // ── the step path, precomputed from lr ─────────────────────────────
 let px = x0
 let py = y0
-for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23} {
-  let nx = px - lr * 4 * px
-  let ny = py - lr * 2 * py
+for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} {
+  let nx = if i < steps { px - lr * 4 * px } else { px }
+  let ny = if i < steps { py - lr * 2 * py } else { py }
   seg[i]: Line, from: (480 + px * 80, 445 - py * 80), to: (480 + nx * 80, 445 - ny * 80),
     stroke: accent.success, stroke_width: 2.6, opacity: 0
   dot[i]: Ellipse, size: (8, 8), color: accent.secondary, at: (480 + px * 80, 445 - py * 80), opacity: 0
-  let px = nx
-  let py = ny
+  let px = if i < steps { nx } else { px }
+  let py = if i < steps { ny } else { py }
 }
 end_dot: Ellipse, size: (8, 8), color: accent.secondary, at: (480 + px * 80, 445 - py * 80), opacity: 0
 
@@ -96,7 +96,7 @@ basin_label: Text, text: "GLOBAL MINIMUM · L = 0", font_size: 16, font_family: 
   at: (480, 612), opacity: 0.8
 
 // ── the reading rail ──────────────────────────────────────────────
-loss_chip: Readout, label: "LOSS", value: "0.00", at: (1085, 248)
+loss_chip: Readout, label: "LOSS", value: format("{:.2}", 2 * px^2 + py^2), at: (1085, 248)
 lr_chip: Readout, label: "LEARNING RATE", value: format("{:.2}", lr), at: (1085, 585)
 
 eq_card: Rect, size: (250, 220), corner_radius: 16, color: surface.primary,
@@ -147,7 +147,7 @@ fade-in down_label [360ms, delay: 340ms, ease: expo-out]
 #4.5s
 fade-out cap2 [240ms, ease: ease-in]
 fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
-for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23} [step: 62ms] {
+for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} [step: 32ms] {
   draw-in seg[i] [110ms, ease: expo-out]
   fade-in dot[i] [90ms, ease: expo-out]
 }
