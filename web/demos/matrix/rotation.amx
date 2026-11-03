@@ -1,108 +1,214 @@
-import "../../demos/lib/theme.amx"
-import "../../demos/lib/ambience.amx"
+// house-style: Act I identity machine; Act II quarter-turn rotation; Act III bloom + camera push, rests on the turned grid with both basis vectors and det = 1.0.
+//
+// rotation.amx — "read the columns to find the basis".
+//
+// The second act of the matrix walkthrough turns the plane a quarter turn.
+// The two basis vectors are the columns of the matrix, so watching them land
+// *is* reading the matrix: i ends on (cos θ, sin θ), j on (−sin θ, cos θ), and
+// both stay unit length — the determinant never leaves 1.0.
+//
+// `theta` is the deck slider in degrees: `--set theta=35` starts the whole
+// figure 35° into the turn and the `always` block adds the authored sweep on
+// top, so the grid bends live. The declared geometry is computed at build time
+// from `theta`; `always` re-derives it each frame from the same rotation.
+//
+// Type floors (DESIGN §1.5): head 48, captions 24, readout values 28, labels
+// 16 — nothing renders below 16 px.
 
-config { resolution: (1280, 720) }
+import "../lib/theme.amx"
+import "../lib/stage.amx"
 
-# Rotation
-config { colorscheme: "ink", duration: 7.8 }
+config { colorscheme: "moss", resolution: (1280, 720), duration: 9.0 }
 
-bg: Ambience, tint: accent.info, seed: 505
+// The slider target: the extra rotation (degrees) carried by the whole animation.
+let theta = 0.0
 
-mat_card: Rect, size: (220, 190), at: (236, 226), corner_radius: 12,
-  color: surface.primary, stroke: stroke.default, stroke_width: 1
+// Plane geometry. The plane is a Mask at (916, 420) whose children live in
+// plane-local coordinates, so the rotated grid cannot leak past the plate.
+let cx = 0
+let cy = 0
+let s = 90
 
-a2_t: Text, text: "1.0", font_size: 26, color: accent.primary, at: (196, 170)
-b2_t: Text, text: "0.0", font_size: 26, color: accent.success, at: (276, 170)
-c2_t: Text, text: "0.0", font_size: 26, color: accent.primary, at: (196, 226)
-d2_t: Text, text: "1.0", font_size: 26, color: accent.success, at: (276, 226)
-m2_brace: Line, from: (170, 152), to: (170, 248), stroke_width: 2, color: text.muted
-det2_t: Text, text: "det = 1.0", font_size: 19, color: accent.success, at: (236, 286)
+// Baseline (frame-0) rotation and the resting quarter-turn after it.
+let th0 = deg(theta)
+let a0 = cos(th0)
+let b0 = -sin(th0)
+let c0 = sin(th0)
+let d0 = cos(th0)
 
-for x, i in {-2, -1, 0, 1, 2} {
-  rv[i]: Line, from: (760, 400), to: (760, 400), stroke: stroke.default, stroke_width: 1.5
-  rh[i]: Line, from: (760, 400), to: (760, 400), stroke: stroke.default, stroke_width: 1.5
+// Resting entries, declared on every Readout so the storyboard shows the
+// final/total value (frame-time `.text` writes do not render offline).
+let th1 = th0 + pi / 2
+let af = cos(th1)
+let bf = -sin(th1)
+let cf = sin(th1)
+let df = cos(th1)
+
+// ── the stage ───────────────────────────────────────────────────────
+floor: StageFloor, glow: 1.35
+
+head_kicker: Text, text: "FIG 02 · ROTATION · DET = 1.0", font_size: 18,
+  font_weight: 600, color: accent.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (96, 44), opacity: 1
+head_title: Text, text: "Columns are where the basis lands", font_size: 48, font_weight: "bold",
+  color: text.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (96, 96), opacity: 1
+head_rule: Rect, size: (96, 4), color: accent.primary,
+  anchor: scene.top_left, offset: (96, 150), opacity: 1
+
+cap1: Caption, text: "Act I · The identity again: two basis vectors, one square, one matrix.", tag: "rotation.amx"
+cap2: Caption, text: "Act II · θ turns: column 1 chases i, column 2 chases j, det stays 1.0.", tag: "rotation.amx", opacity: 0
+cap3: Caption, text: "Act III · A quarter turn later the columns have become the story.", tag: "rotation.amx", opacity: 0
+
+// ── the machine panel ───────────────────────────────────────────────
+panel: Rect, size: (520, 420), corner_radius: 18, color: surface.secondary,
+  stroke: stroke.default, stroke_width: 1.2, at: (356, 380), opacity: 0.9
+
+panel_title: Text, text: "MATRIX M · ROTATION", font_size: 18, font_family: "mono", color: text.secondary,
+  text_anchor: "left", anchor: scene.top_left, offset: (112, 180), opacity: 1
+
+a_chip: Readout, label: "COL 1 · ROW 1", value: format("{:.1}", af), at: (232, 252)
+b_chip: Readout, label: "COL 2 · ROW 1", value: format("{:.1}", bf), at: (480, 252)
+c_chip: Readout, label: "COL 1 · ROW 2", value: format("{:.1}", cf), at: (232, 344)
+d_chip: Readout, label: "COL 2 · ROW 2", value: format("{:.1}", df), at: (480, 344)
+
+det_chip: Readout, label: "DETERMINANT", value: format("{:.1}", af * df - bf * cf), at: (232, 470)
+det_note: Text, text: "length preserved = 1.0", font_size: 20, color: text.muted,
+  text_anchor: "left", anchor: scene.top_left, offset: (372, 458), opacity: 1
+
+formula: Text, text: "M = [[cos θ, −sin θ], [sin θ, cos θ]]", font_size: 18, font_family: "mono",
+  color: text.secondary, text_anchor: "left", anchor: scene.top_left, offset: (112, 548), opacity: 1
+
+// ── the plane ───────────────────────────────────────────────────────
+plane: Mask, size: (600, 480), at: (916, 420), opacity: 1 {
+  clip_shape: Rect, size: (600, 480), opacity: 1
+
+  grid_card: Rect, size: (600, 480), corner_radius: 18, color: surface.primary,
+    stroke: stroke.default, stroke_width: 1.2, opacity: 0.72
+
+  bloom: Ellipse, size: (700, 540), blend: "screen", opacity: 0,
+    fill_gradient: radial((0.5, 0.5), 0.70, {(0%, accent.primary * 0.32), (55%, accent.primary * 0.10), (100%, (0, 0, 0, 0))})
+
+  // Seven vertical and seven horizontal grid lines, rotated by the param
+  // baseline. `always` replaces every endpoint with the frame angle.
+  for gx, i in {-3, -2, -1, 0, 1, 2, 3} {
+    gv[i]: Line, from: (cx + s * (a0 * gx - 2.4 * b0), cy - s * (c0 * gx - 2.4 * d0)),
+      to: (cx + s * (a0 * gx + 2.4 * b0), cy - s * (c0 * gx + 2.4 * d0)),
+      stroke: stroke.default, stroke_width: 1.3, opacity: 0.75
+  }
+
+  for gy, i in {-2.4, -1.6, -0.8, 0, 0.8, 1.6, 2.4} {
+    gh[i]: Line, from: (cx + s * (a0 * -3.2 + b0 * gy), cy - s * (c0 * -3.2 + d0 * gy)),
+      to: (cx + s * (a0 * 3.2 + b0 * gy), cy - s * (c0 * 3.2 + d0 * gy)),
+      stroke: stroke.default, stroke_width: 1.3, opacity: 0.75
+  }
+
+  x_axis: Line, from: (cx - s * 3.2 * a0, cy + s * 3.2 * c0),
+    to: (cx + s * 3.2 * a0, cy - s * 3.2 * c0),
+    stroke: text.muted, stroke_width: 1.8, opacity: 0.9
+  y_axis: Line, from: (cx + s * 2.4 * b0, cy + s * 2.4 * d0),
+    to: (cx - s * 2.4 * b0, cy - s * 2.4 * d0),
+    stroke: text.muted, stroke_width: 1.8, opacity: 0.9
+
+  origin_dot: Ellipse, size: (10, 10), color: accent.primary, at: (cx, cy), opacity: 1
+  x_lab: Text, text: "x", font_size: 18, color: text.muted, at: (cx + s * 2.2 * a0, cy - s * 2.2 * c0 + 16), opacity: 1
+  y_lab: Text, text: "y", font_size: 18, color: text.muted, at: (cx + s * 2.2 * b0 + 14, cy - s * 2.2 * d0 + 6), opacity: 1
+
+  // The unit square in matrix coordinates: (0,0), (1,0), (1,1), (0,1).
+  sq_bottom: Line, from: (cx, cy), to: (cx + s * a0, cy - s * c0), stroke: accent.warning, stroke_width: 2.4, opacity: 0.95
+  sq_top: Line, from: (cx + s * b0, cy - s * d0), to: (cx + s * (a0 + b0), cy - s * (c0 + d0)),
+    stroke: accent.warning, stroke_width: 2.4, opacity: 0.95
+  sq_left: Line, from: (cx, cy), to: (cx + s * b0, cy - s * d0), stroke: accent.warning, stroke_width: 2.4, opacity: 0.95
+  sq_right: Line, from: (cx + s * a0, cy - s * c0), to: (cx + s * (a0 + b0), cy - s * (c0 + d0)),
+    stroke: accent.warning, stroke_width: 2.4, opacity: 0.95
+
+  // The columns, drawn: i is column 1, j is column 2.
+  i_hat: Arrow, from: (cx, cy), to: (cx + s * a0, cy - s * c0), head_size: 12,
+    stroke: accent.primary, stroke_width: 4, opacity: 1
+  j_hat: Arrow, from: (cx, cy), to: (cx + s * b0, cy - s * d0), head_size: 12,
+    stroke: accent.info, stroke_width: 4, opacity: 1
+  i_t: Text, text: "i", font_size: 22, color: accent.primary, at: (cx + s * a0 + 20, cy - s * c0 - 14), opacity: 1
+  j_t: Text, text: "j", font_size: 22, color: accent.info, at: (cx + s * b0 + 18, cy - s * d0 - 14), opacity: 1
 }
-ri_hat: Line, from: (760, 400), to: (870, 400), stroke: accent.primary, stroke_width: 3.5
-rj_hat: Line, from: (760, 400), to: (760, 290), stroke: accent.success, stroke_width: 3.5
-sq_top: Line, from: (760, 290), to: (870, 290), stroke: accent.warning, stroke_width: 2.0
-sq_right: Line, from: (870, 400), to: (870, 290), stroke: accent.warning, stroke_width: 2.0
 
-#0.3s
-fade-in mat_card [300ms, ease: expo-out]
-fade-in rv__0 [260ms, ease: expo-out]
-fade-in rv__1 [260ms, ease: expo-out]
-fade-in rv__2 [260ms, ease: expo-out]
-fade-in rv__3 [260ms, ease: expo-out]
-fade-in rv__4 [260ms, ease: expo-out]
-fade-in rh__0 [260ms, ease: expo-out]
-fade-in rh__1 [260ms, ease: expo-out]
-fade-in rh__2 [260ms, ease: expo-out]
-fade-in rh__3 [260ms, ease: expo-out]
-fade-in rh__4 [260ms, ease: expo-out]
-fade-in sq_top [300ms, ease: expo-out]
-fade-in sq_right [300ms, ease: expo-out]
-fade-in ri_hat [300ms, ease: expo-out]
-fade-in m2_brace [260ms, ease: expo-out]
-fade-in rj_hat [300ms, ease: expo-out]
-fade-in a2_t [240ms, ease: expo-out]
-fade-in b2_t [240ms, ease: expo-out]
-fade-in c2_t [240ms, ease: expo-out]
-fade-in d2_t [240ms, ease: expo-out]
-fade-in det2_t [240ms, ease: expo-out]
+#0.2s
+fade-in sq_bottom [360ms, ease: expo-out]
+fade-in sq_top [360ms, delay: 60ms, ease: expo-out]
+fade-in sq_left [360ms, delay: 120ms, ease: expo-out]
+fade-in sq_right [360ms, delay: 180ms, ease: expo-out]
+
+#1.0s
+fade-out cap1 [240ms, ease: ease-in]
+fade-in cap2 [280ms, delay: 200ms, ease: expo-out]
 
 always {
-  // A quarter turn between t = 2.5 and t = 6.5.
-  let v = clamp((t - 2.5) / 4.0, 0, 1)
-  let th = v * v * (3 - 2 * v) * (pi / 2)
+  // Smoothstep quarter turn, 0.4s → 5.6s. `theta` is the build-time baseline;
+  // the frame-time angle is baseline + sweep, so a --set rebuild starts the
+  // whole figure already turned.
+  let u = clamp((t - 0.4) / 5.2, 0, 1)
+  let th = deg(theta) + (u * u * (3 - 2 * u)) * (pi / 2)
   let a = cos(th)
   let b = -sin(th)
   let c = sin(th)
   let d = cos(th)
-  let cx = 760
-  let cy = 400
-  let s = 110
 
-  ri_hat.to = (cx + s * a, cy - s * c)
-  rj_hat.to = (cx + s * b, cy - s * d)
+  // Vertical grid lines: x = gx, y sweeps -2.4 … 2.4.
+  for gx, i in {-3, -2, -1, 0, 1, 2, 3} {
+    gv[i].from = (cx + s * (a * gx - 2.4 * b), cy - s * (c * gx - 2.4 * d))
+    gv[i].to = (cx + s * (a * gx + 2.4 * b), cy - s * (c * gx + 2.4 * d))
+  }
+
+  // Horizontal grid lines: y = gy, x sweeps -3.2 … 3.2.
+  for gy, i in {-2.4, -1.6, -0.8, 0, 0.8, 1.6, 2.4} {
+    gh[i].from = (cx + s * (a * -3.2 + b * gy), cy - s * (c * -3.2 + d * gy))
+    gh[i].to = (cx + s * (a * 3.2 + b * gy), cy - s * (c * 3.2 + d * gy))
+  }
+
+  // Axes and their labels rotate with the grid.
+  x_axis.from = (cx - s * 3.2 * a, cy + s * 3.2 * c)
+  x_axis.to = (cx + s * 3.2 * a, cy - s * 3.2 * c)
+  y_axis.from = (cx + s * 2.4 * b, cy + s * 2.4 * d)
+  y_axis.to = (cx - s * 2.4 * b, cy - s * 2.4 * d)
+  x_lab.at = (cx + s * 2.2 * a, cy - s * 2.2 * c + 16)
+  y_lab.at = (cx + s * 2.2 * b + 14, cy - s * 2.2 * d + 6)
+
+  // The unit square in matrix coordinates: (0,0), (1,0), (1,1), (0,1).
+  sq_bottom.from = (cx, cy)
+  sq_bottom.to = (cx + s * a, cy - s * c)
   sq_top.from = (cx + s * b, cy - s * d)
   sq_top.to = (cx + s * (a + b), cy - s * (c + d))
+  sq_left.from = (cx, cy)
+  sq_left.to = (cx + s * b, cy - s * d)
   sq_right.from = (cx + s * a, cy - s * c)
   sq_right.to = (cx + s * (a + b), cy - s * (c + d))
 
-  rv__0.from = (cx + s * (a * -2 + b * -2.4), cy - s * (c * -2 + d * -2.4))
-  rv__0.to = (cx + s * (a * -2 + b * 2.4), cy - s * (c * -2 + d * 2.4))
-  rv__1.from = (cx + s * (a * -1 + b * -2.4), cy - s * (c * -1 + d * -2.4))
-  rv__1.to = (cx + s * (a * -1 + b * 2.4), cy - s * (c * -1 + d * 2.4))
-  rv__2.from = (cx, cy - s * (c * 0 + d * -2.4))
-  rv__2.to = (cx, cy - s * (c * 0 + d * 2.4))
-  rv__3.from = (cx + s * (a * 1 + b * -2.4), cy - s * (c * 1 + d * -2.4))
-  rv__3.to = (cx + s * (a * 1 + b * 2.4), cy - s * (c * 1 + d * 2.4))
-  rv__4.from = (cx + s * (a * 2 + b * -2.4), cy - s * (c * 2 + d * -2.4))
-  rv__4.to = (cx + s * (a * 2 + b * 2.4), cy - s * (c * 2 + d * 2.4))
+  // Basis vectors and their labels — the columns, live.
+  i_hat.to = (cx + s * a, cy - s * c)
+  j_hat.to = (cx + s * b, cy - s * d)
+  i_t.at = (cx + s * a + 20, cy - s * c - 14)
+  j_t.at = (cx + s * b + 18, cy - s * d - 14)
 
-  rh__0.from = (cx + s * (a * -2.4 + b * -2), cy - s * (c * -2.4 + d * -2))
-  rh__0.to = (cx + s * (a * 2.4 + b * -2), cy - s * (c * 2.4 + d * -2))
-  rh__1.from = (cx + s * (a * -2.4 + b * -1), cy - s * (c * -2.4 + d * -1))
-  rh__1.to = (cx + s * (a * 2.4 + b * -1), cy - s * (c * 2.4 + d * -1))
-  rh__2.from = (cx + s * (a * -2.4 + b * 0), cy - s * (c * -2.4 + d * 0))
-  rh__2.to = (cx + s * (a * 2.4 + b * 0), cy - s * (c * 2.4 + d * 0))
-  rh__3.from = (cx + s * (a * -2.4 + b * 1), cy - s * (c * -2.4 + d * 1))
-  rh__3.to = (cx + s * (a * 2.4 + b * 1), cy - s * (c * 2.4 + d * 1))
-  rh__4.from = (cx + s * (a * -2.4 + b * 2), cy - s * (c * -2.4 + d * 2))
-  rh__4.to = (cx + s * (a * 2.4 + b * 2), cy - s * (c * 2.4 + d * 2))
-
-  a2_t.text = format("{:.1}", a)
-  b2_t.text = format("{:.1}", b)
-  c2_t.text = format("{:.1}", c)
-  d2_t.text = format("{:.1}", d)
-  det2_t.text = format("det = {:.1}", a * d - b * c)
+  a_chip.value_text.text = format("{:.1}", a)
+  b_chip.value_text.text = format("{:.1}", b)
+  c_chip.value_text.text = format("{:.1}", c)
+  d_chip.value_text.text = format("{:.1}", d)
+  det_chip.value_text.text = format("{:.1}", a * d - b * c)
 }
 
-// ── Scene 3: Collapse and flip — the determinant crosses zero ───────────────
+// ── Act III · payoff ────────────────────────────────────────────────
+// The bloom sweeps behind the turned plane while the camera pushes and
+// settles back, so the resting frame is the quarter-turned grid, its square,
+// both basis vectors and det = 1.0 held on the lit stage.
+#6.6s
+fade-out cap2 [240ms, ease: ease-in]
+fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
+bloom.opacity = 0.42 [700ms, ease: expo-out]
+camera.zoom = 1.06 [1.2s, ease: ease-in-out]
 
-// Cut point: this divider belongs to the plate (./scene.amx). The section it names
-// is a later figure in its own file — nothing is missing from the scene above.
+#7.8s
+bloom.opacity = 0.18 [800ms, ease: ease-in-out]
+camera.zoom = 1.0 [1.0s, ease: ease-in-out]
 
-// No erase cascade: the embed dissolves the finished frame into the next cycle
-// itself, so clearing the plate only blanked the figure through the `hold` at the
-// end of the loop. The composition now rests complete.
+// ── Rest ────────────────────────────────────────────────────────────
+// The turned grid, the unit square, both basis vectors and the matrix chips
+// hold; nothing erases.
