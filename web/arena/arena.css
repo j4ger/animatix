@@ -1,29 +1,35 @@
 /* Animatix Arena — Precision Evaluation & Review Studio */
 
 .arena-wrap {
-  max-width: 1540px;
+  /* the studio shares the v2 measure so the page header, nav and stage align */
+  max-width: var(--measure);
   margin: 0 auto;
-  padding: 24px 32px 80px;
+  padding: 24px var(--gutter) 96px;
 }
 
 .arena-header {
   margin-bottom: 24px;
 }
 
+/* the arena header is an editorial band, not the full-height home hero */
+.arena-header.hero-band {
+  padding: clamp(20px, 3vw, 36px) 0 clamp(16px, 2vw, 24px);
+}
+
 .arena-topbar {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border-soft);
+  gap: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
 }
 
 .arena-title-group {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
 }
 
 .arena-badge {
@@ -39,10 +45,23 @@
 }
 
 .arena-title {
-  font-size: 22px;
+  font-family: var(--display);
+  font-size: clamp(30px, 3.6vw, 48px);
   font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
   color: var(--ink);
   margin: 0;
+  max-width: 22ch;
+}
+
+.arena-field-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
 }
 
 .arena-controls-top {
@@ -50,6 +69,7 @@
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  margin-left: auto;
 }
 
 .arena-select {
@@ -96,29 +116,30 @@
 }
 
 .arena-brief-panel {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius-card);
-  padding: 14px 18px;
-  margin-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  margin-top: 22px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  background: none;
+  border: 0;
+  border-radius: 0;
 }
 
 .brief-label {
   font-family: var(--mono);
   font-size: 11px;
-  color: var(--accent);
+  color: var(--work);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
 }
 
 .brief-text {
-  font-size: 14px;
-  line-height: 1.5;
+  font-family: var(--display);
+  font-size: clamp(17px, 1.5vw, 20px);
+  line-height: 1.55;
   color: var(--dim);
   margin: 0;
+  max-width: 72ch;
 }
 
 .brief-tags {
@@ -141,13 +162,13 @@
 /* Master Timeline Transport Bar */
 .arena-transport-bar {
   position: sticky;
-  top: 16px;
+  top: 72px;
   z-index: 100;
-  background: rgba(15, 18, 26, 0.95);
+  background: color-mix(in srgb, var(--bg-raise) 94%, transparent);
   backdrop-filter: blur(12px);
-  border: 1px solid var(--card-border-hover);
+  border: 1px solid var(--line);
   border-radius: var(--radius-card);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
   padding: 12px 20px;
   margin-bottom: 24px;
   display: flex;
@@ -309,13 +330,35 @@
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 9;
-  background: #000;
+  background: var(--bg);
+  overflow: hidden;
 }
 
 .variant-player-container amx-player {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
   display: block;
+}
+
+.variant-player-container .poster-plate {
+  z-index: 2;
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 0%, var(--work-glow), transparent 70%),
+    linear-gradient(160deg, var(--bg-raise), var(--bg));
+}
+
+.variant-player-container:has(amx-player[data-ready]) .poster-plate,
+.variant-player-container:has(amx-player[data-error]) .poster-plate {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.variant-player-container:has(amx-player[data-ready]) amx-player,
+.variant-player-container:has(amx-player[data-error]) amx-player {
+  z-index: 3;
 }
 
 /* Code Inspector & Live Scratchpad */
@@ -405,10 +448,25 @@
 }
 
 .dock-title {
-  font-size: 16px;
+  font-family: var(--display);
+  font-size: clamp(22px, 2.4vw, 30px);
   font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
   color: var(--ink);
   margin: 0;
+}
+
+.dock-hint {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.outcome-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .decision-buttons {
@@ -447,7 +505,7 @@
 /* Rubric Grid */
 .rubric-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
   background: rgba(0, 0, 0, 0.2);
   padding: 16px;

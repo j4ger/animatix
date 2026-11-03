@@ -7,24 +7,25 @@
   <meta name="description" content="Side-by-side synchronized WebGPU evaluation studio for Animatix scenes, primitives, and language features.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0e14'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="../site.css">
+  <link rel="stylesheet" href="../site/v2.css">
   <link rel="stylesheet" href="./arena.css">
 </head>
 <body>
 
-  <div class="arena-wrap">
+  <div class="wrap arena-wrap" data-palette="ember">
     <!-- Topbar & Battle Selector -->
-    <header class="arena-header">
+    <header class="hero-band arena-header">
       <div class="arena-topbar">
         <div class="arena-title-group">
-          <span class="arena-badge">EVAL STUDIO</span>
+          <p class="kicker">Eval studio · comparative review</p>
           <h1 class="arena-title" id="battle-title">Loading Battle...</h1>
         </div>
 
         <div class="arena-controls-top">
-          <label style="font-size:12px;color:var(--muted);margin-right:4px;">Battle:</label>
+          <label class="arena-field-label" for="battle-select">Battle</label>
           <select class="arena-select" id="battle-select"></select>
 
-          <div class="mode-pills">
+          <div class="mode-pills" role="group" aria-label="Review mode">
             <button class="mode-btn active" data-mode="blind">Blind Battle</button>
             <button class="mode-btn" data-mode="inspector">Code Inspector</button>
           </div>
@@ -33,7 +34,7 @@
 
       <!-- Brief Panel -->
       <div class="arena-brief-panel">
-        <div class="brief-label">Content Goal &amp; Hypothesis</div>
+        <span class="readout brief-label">Content goal &amp; hypothesis</span>
         <p class="brief-text" id="brief-text">Loading brief...</p>
         <div class="brief-tags" id="brief-tags"></div>
       </div>
@@ -51,7 +52,7 @@
       <button class="transport-btn" id="master-step-fwd-btn" title="Step Forward (Right Arrow)">▶</button>
       <div class="timecode-display" id="timecode-display">#0.00s / #3.00s</div>
 
-      <div class="speed-select">
+      <div class="speed-select" role="group" aria-label="Playback speed">
         <button class="speed-btn" data-speed="0.25">0.25x</button>
         <button class="speed-btn" data-speed="0.5">0.5x</button>
         <button class="speed-btn active" data-speed="1.0">1x</button>
@@ -65,7 +66,7 @@
     <section class="arena-decision-dock">
       <div class="dock-header">
         <h2 class="dock-title">Reviewer Decision &amp; Rubric Evaluation</h2>
-        <span style="font-size:12px;color:var(--muted)">Select candidate or rate quality to unmask and guide next iteration</span>
+        <span class="dock-hint">Select candidate or rate quality to unmask and guide next iteration</span>
       </div>
 
       <!-- Main Decision Buttons -->
@@ -141,7 +142,7 @@
       </div>
 
       <!-- Outcome Summary & Submit -->
-      <div style="display:flex;flex-direction:column;gap:6px;">
+      <div class="outcome-summary">
         <span class="rubric-label">Overall Summary &amp; Agent Directives</span>
         <textarea class="note-input" id="outcome-summary-input" rows="2" placeholder="Summary notes or specific directives for the agent or compiler..."></textarea>
       </div>

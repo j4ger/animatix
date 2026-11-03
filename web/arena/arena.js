@@ -143,11 +143,15 @@
             <span class="variant-badge">${String.fromCharCode(65 + i)}</span>
             <span class="variant-label" id="variant-label-${v.id}">${displayName}</span>
           </div>
-          <button class="choice-btn" style="min-width:auto;padding:4px 10px;font-size:12px;" data-vote="${v.id}">
+          <button class="choice-btn" style="min-width:auto;padding:5px 12px;font-size:12px;flex:0 0 auto;" data-vote="${v.id}">
             Pick This
           </button>
         </div>
         <div class="variant-player-container">
+          <div class="poster-plate" aria-hidden="true">
+            <span class="poster-name">${displayName}</span>
+            <span class="poster-hint">live WebGPU plate</span>
+          </div>
           <amx-player src="${srcPath}" controls aspect="16:9"></amx-player>
         </div>
         <div class="variant-code-section" id="code-section-${v.id}" style="${activeMode === 'blind' ? 'display:none;' : ''}">
@@ -163,6 +167,8 @@
       arenaStage.appendChild(card);
 
       const playerEl = card.querySelector("amx-player");
+      playerEl.addEventListener("amxready", () => { playerEl.dataset.ready = "1"; }, { once: true });
+      playerEl.addEventListener("amxerror", () => { playerEl.dataset.error = "1"; }, { once: true });
       players.push({ id: v.id, el: playerEl, card: card });
 
       // Fetch code source for inspector/scratchpad

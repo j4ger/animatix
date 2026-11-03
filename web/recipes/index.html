@@ -7,190 +7,272 @@
   <meta name="description" content="Nine essential animation techniques that make an Animatix scene look lit, fluid, and alive.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230b0e14'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="../site.css">
+  <link rel="stylesheet" href="../site/v2.css">
 </head>
 <body>
 
   <div class="wrap">
-    <header class="page-header">
-      <div class="page-eyebrow">
-        <a href="../demos/" style="color: inherit; text-decoration: none;">← SHOWCASE</a>
-        <span>·</span>
-        <span>CREATIVE TECHNIQUES</span>
-      </div>
-      <h1 class="page-title">Nine moves, not nine features.</h1>
-      <p class="page-lede">
-        Techniques that make scenes feel organic and alive: ambient lighting, continuous drift, purposeful easing curves, and synchronized captions.
+
+    <header class="hero-band" data-palette="ember">
+      <p class="kicker"><a href="../demos/" style="color: inherit; text-decoration: none;">← Showcase</a> · Creative techniques</p>
+      <h1>Nine moves, <em>not nine features</em>.</h1>
+      <p class="lede">
+        Techniques that make scenes feel organic and alive: ambient lighting, continuous
+        drift, purposeful easing curves, and synchronized captions — from two-point
+        lighting and marching ants to camera pushes, bloom passes, and count-up tickers.
       </p>
-      <div class="page-stat-strip">
-        <span class="stat-pill">9 Creative Recipes</span>
-        <span class="stat-pill">Pure Text .amx Files</span>
-        <span class="stat-pill">60 FPS WebGPU Playback</span>
+      <div class="hero-metrics">
+        <span class="readout">9 creative recipes</span>
+        <span class="readout">Pure-text .amx files</span>
+        <span class="readout">60 FPS WebGPU playback</span>
+        <span class="readout">Copy-paste components</span>
       </div>
     </header>
 
-    <div class="recipes-grid">
-      <figure>
-        <div class="figure-header">
-          <h3 class="figure-title">Two-Point Lighting</h3>
-          <span class="figure-tag">Light &amp; Depth</span>
+    <section id="recipes">
+      <div class="edit-head" data-palette="ember">
+        <span class="num">01</span>
+        <div>
+          <p class="kicker">The set</p>
+          <h2>Nine single-move studies</h2>
         </div>
-        <amx-player src="./scenes/two_point_light.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="A warm key and a cool fill on screen blend"></amx-player>
-        <figcaption>
-          <span class="cap">Warm key wash behind the subject and cool fill wash, both using <code class="inline">blend: "screen"</code> and drifting on seeded noise.</span>
-          <div class="fig-actions">
-            <a class="src" href="./scenes/two_point_light.amx">two_point_light.amx ↗</a>
-          </div>
-        </figcaption>
-      </figure>
-
-      <figure>
-        <div class="figure-header">
-          <h3 class="figure-title">Marching Ants Border</h3>
-          <span class="figure-tag">Paths &amp; Strokes</span>
-        </div>
-        <amx-player src="./scenes/marching_ants.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="An animated dash offset on a rule and a frame"></amx-player>
-        <figcaption>
-          <span class="cap">Animating <code class="inline">dash_offset</code> creates a seamless infinite conveyor effect around borders and vectors.</span>
-          <div class="fig-actions">
-            <a class="src" href="./scenes/marching_ants.amx">marching_ants.amx ↗</a>
-          </div>
-        </figcaption>
-      </figure>
-
-      <figure>
-        <div class="figure-header">
-          <h3 class="figure-title">Count-Up Ticker</h3>
-          <span class="figure-tag">Reactive Typography</span>
-        </div>
-        <amx-player src="./scenes/count_up.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="A number counting up, driven by an always block"></amx-player>
-        <figcaption>
-          <span class="cap">Reactive per-frame expressions format numerical counters smoothly with non-linear easing.</span>
-          <div class="fig-actions">
-            <a class="src" href="./scenes/count_up.amx">count_up.amx ↗</a>
-          </div>
-        </figcaption>
-      </figure>
-
-      <figure>
-        <div class="figure-header">
-          <h3 class="figure-title">Camera Push and Pan</h3>
-          <span class="figure-tag">Scene Camera</span>
-        </div>
-        <amx-player src="./scenes/camera_push.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="A scene camera pushing in and panning across a wide plate"></amx-player>
-        <figcaption>
-          <span class="cap">Keyframing <code class="inline">camera.zoom</code> and <code class="inline">camera.at</code> creates smooth cinematic focal shifts.</span>
-          <div class="fig-actions">
-            <a class="src" href="./scenes/camera_push.amx">camera_push.amx ↗</a>
-          </div>
-        </figcaption>
-      </figure>
-
-      <figure>
-        <div class="figure-header">
-          <h3 class="figure-title">Word-by-Word Reveal</h3>
-          <span class="figure-tag">Text Choreography</span>
-        </div>
-        <amx-player src="./scenes/word_reveal.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="A caption drawn in word by word"></amx-player>
-        <figcaption>
-          <span class="cap"><code class="inline">draw-in [by: word]</code> animates typography word by word with precise cadence.</span>
-          <div class="fig-actions">
-            <a class="src" href="./scenes/word_reveal.amx">word_reveal.amx ↗</a>
-          </div>
-        </figcaption>
-      </figure>
-
-      <figure>
-        <div class="figure-header">
-          <h3 class="figure-title">Analytic Sparks</h3>
-          <span class="figure-tag">Procedural Particles</span>
-        </div>
-        <amx-player src="./scenes/analytic_sparks.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="A particle burst computed from seeds, not simulated"></amx-player>
-        <figcaption>
-          <span class="cap">Deterministic seed-based functions evaluate particle trajectories forward and backward without state drift.</span>
-          <div class="fig-actions">
-            <a class="src" href="./scenes/analytic_sparks.amx">analytic_sparks.amx ↗</a>
-          </div>
-        </figcaption>
-      </figure>
-
-      <figure>
-        <div class="figure-header">
-          <h3 class="figure-title">Bloom Lighting</h3>
-          <span class="figure-tag">GPU Shaders</span>
-        </div>
-        <amx-player src="./scenes/bloom_stage.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="A blur and a bloom in one filter scope"></amx-player>
-        <figcaption>
-          <span class="cap">Multi-pass GPU filter scopes combine gaussian blur and luminance thresholding into a glowing bloom pass.</span>
-          <div class="fig-actions">
-            <a class="src" href="./scenes/bloom_stage.amx">bloom_stage.amx ↗</a>
-          </div>
-        </figcaption>
-      </figure>
-
-      <figure>
-        <div class="figure-header">
-          <h3 class="figure-title">The Bar Race</h3>
-          <span class="figure-tag">Data Visualization</span>
-        </div>
-        <amx-player src="./scenes/bar_race.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="A bar chart swapping datasets, bars matched by label"></amx-player>
-        <figcaption>
-          <span class="cap">Keyframing chart datasets animates heights and positions smoothly while preserving entity identity.</span>
-          <div class="fig-actions">
-            <a class="src" href="./scenes/bar_race.amx">bar_race.amx ↗</a>
-          </div>
-        </figcaption>
-      </figure>
-
-      <figure style="grid-column: 1 / -1;">
-        <div class="figure-header">
-          <h3 class="figure-title">The Glass Card</h3>
-          <span class="figure-tag">Backdrop Filter</span>
-        </div>
-        <amx-player src="./scenes/glass_card.amx"
-                    autoplay loop controls hold="1" aspect="16:9"
-                    title="A panel that frosts the moving plate behind it, not its own label"></amx-player>
-        <figcaption>
-          <span class="cap">A <code class="inline">Glass</code> container isolates underlying background layers, applying realtime blur while keeping foreground text razor sharp.</span>
-          <div class="fig-actions">
-            <a class="src" href="./scenes/glass_card.amx">glass_card.amx ↗</a>
-          </div>
-        </figcaption>
-      </figure>
-    </div>
-
-    <div class="howto-card">
-      <div class="howto-header">
-        <span class="howto-tag">STANDARD LIBRARY</span>
-        <h3>Reusable Recipe Components</h3>
+        <div class="rule"></div>
       </div>
-      <p>
-        These patterns are bundled directly as importable components in
-        <a href="https://github.com/j4ger/animatix/tree/main/examples/lib" target="_blank" rel="noopener noreferrer">examples/lib/light.amx</a> —
-        including <code class="inline">KeyLight</code>, <code class="inline">CoolLight</code>,
-        <code class="inline">MarchingRail</code>, <code class="inline">Ticker</code>, and <code class="inline">Breather</code>.
-        Import them into any scene:
+      <p class="lede">
+        Each recipe isolates one technique. Every plate below is a live declarative
+        scene, and its <span class="readout">.amx</span> file is one click away.
       </p>
-      <pre>import "lib/light.amx"
+
+      <div class="figure-grid" style="margin-top: clamp(28px, 4vw, 48px);">
+
+        <figure data-palette="ember">
+          <div class="figure-head">
+            <h3>Two-Point Lighting</h3>
+            <span>Light &amp; Depth</span>
+          </div>
+          <div class="stage-frame">
+            <div class="poster-plate" aria-hidden="true">
+              <span class="poster-name">Two-Point Lighting</span>
+              <span class="poster-hint">live recipe · click to play</span>
+            </div>
+            <amx-player src="./scenes/two_point_light.amx"
+                        autoplay loop controls hold="1" aspect="16:9" no-veil
+                        title="A warm key and a cool fill on screen blend"></amx-player>
+          </div>
+          <figcaption>
+            <span>Warm key wash behind the subject and cool fill wash, both using <code class="inline">blend: "screen"</code> and drifting on seeded noise.</span>
+            <div class="fig-actions">
+              <a href="./scenes/two_point_light.amx">two_point_light.amx ↗</a>
+            </div>
+          </figcaption>
+        </figure>
+
+        <figure data-palette="tide">
+          <div class="figure-head">
+            <h3>Marching Ants Border</h3>
+            <span>Paths &amp; Strokes</span>
+          </div>
+          <div class="stage-frame">
+            <div class="poster-plate" aria-hidden="true">
+              <span class="poster-name">Marching Ants Border</span>
+              <span class="poster-hint">live recipe · click to play</span>
+            </div>
+            <amx-player src="./scenes/marching_ants.amx"
+                        autoplay loop controls hold="1" aspect="16:9" no-veil
+                        title="An animated dash offset on a rule and a frame"></amx-player>
+          </div>
+          <figcaption>
+            <span>Animating <code class="inline">dash_offset</code> creates a seamless infinite conveyor effect around borders and vectors.</span>
+            <div class="fig-actions">
+              <a href="./scenes/marching_ants.amx">marching_ants.amx ↗</a>
+            </div>
+          </figcaption>
+        </figure>
+
+        <figure data-palette="moss">
+          <div class="figure-head">
+            <h3>Count-Up Ticker</h3>
+            <span>Reactive Typography</span>
+          </div>
+          <div class="stage-frame">
+            <div class="poster-plate" aria-hidden="true">
+              <span class="poster-name">Count-Up Ticker</span>
+              <span class="poster-hint">live recipe · click to play</span>
+            </div>
+            <amx-player src="./scenes/count_up.amx"
+                        autoplay loop controls hold="1" aspect="16:9" no-veil
+                        title="A number counting up, driven by an always block"></amx-player>
+          </div>
+          <figcaption>
+            <span>Reactive per-frame expressions format numerical counters smoothly with non-linear easing.</span>
+            <div class="fig-actions">
+              <a href="./scenes/count_up.amx">count_up.amx ↗</a>
+            </div>
+          </figcaption>
+        </figure>
+
+        <figure data-palette="orchid">
+          <div class="figure-head">
+            <h3>Camera Push and Pan</h3>
+            <span>Scene Camera</span>
+          </div>
+          <div class="stage-frame">
+            <div class="poster-plate" aria-hidden="true">
+              <span class="poster-name">Camera Push and Pan</span>
+              <span class="poster-hint">live recipe · click to play</span>
+            </div>
+            <amx-player src="./scenes/camera_push.amx"
+                        autoplay loop controls hold="1" aspect="16:9" no-veil
+                        title="A scene camera pushing in and panning across a wide plate"></amx-player>
+          </div>
+          <figcaption>
+            <span>Keyframing <code class="inline">camera.zoom</code> and <code class="inline">camera.at</code> creates smooth cinematic focal shifts.</span>
+            <div class="fig-actions">
+              <a href="./scenes/camera_push.amx">camera_push.amx ↗</a>
+            </div>
+          </figcaption>
+        </figure>
+
+        <figure data-palette="coral">
+          <div class="figure-head">
+            <h3>Word-by-Word Reveal</h3>
+            <span>Text Choreography</span>
+          </div>
+          <div class="stage-frame">
+            <div class="poster-plate" aria-hidden="true">
+              <span class="poster-name">Word-by-Word Reveal</span>
+              <span class="poster-hint">live recipe · click to play</span>
+            </div>
+            <amx-player src="./scenes/word_reveal.amx"
+                        autoplay loop controls hold="1" aspect="16:9" no-veil
+                        title="A caption drawn in word by word"></amx-player>
+          </div>
+          <figcaption>
+            <span><code class="inline">draw-in [by: word]</code> animates typography word by word with precise cadence.</span>
+            <div class="fig-actions">
+              <a href="./scenes/word_reveal.amx">word_reveal.amx ↗</a>
+            </div>
+          </figcaption>
+        </figure>
+
+        <figure data-palette="ember">
+          <div class="figure-head">
+            <h3>Analytic Sparks</h3>
+            <span>Procedural Particles</span>
+          </div>
+          <div class="stage-frame">
+            <div class="poster-plate" aria-hidden="true">
+              <span class="poster-name">Analytic Sparks</span>
+              <span class="poster-hint">live recipe · click to play</span>
+            </div>
+            <amx-player src="./scenes/analytic_sparks.amx"
+                        autoplay loop controls hold="1" aspect="16:9" no-veil
+                        title="A particle burst computed from seeds, not simulated"></amx-player>
+          </div>
+          <figcaption>
+            <span>Deterministic seed-based functions evaluate particle trajectories forward and backward without state drift.</span>
+            <div class="fig-actions">
+              <a href="./scenes/analytic_sparks.amx">analytic_sparks.amx ↗</a>
+            </div>
+          </figcaption>
+        </figure>
+
+        <figure data-palette="ember">
+          <div class="figure-head">
+            <h3>Bloom Lighting</h3>
+            <span>GPU Shaders</span>
+          </div>
+          <div class="stage-frame">
+            <div class="poster-plate" aria-hidden="true">
+              <span class="poster-name">Bloom Lighting</span>
+              <span class="poster-hint">live recipe · click to play</span>
+            </div>
+            <amx-player src="./scenes/bloom_stage.amx"
+                        autoplay loop controls hold="1" aspect="16:9" no-veil
+                        title="A blur and a bloom in one filter scope"></amx-player>
+          </div>
+          <figcaption>
+            <span>Multi-pass GPU filter scopes combine gaussian blur and luminance thresholding into a glowing bloom pass.</span>
+            <div class="fig-actions">
+              <a href="./scenes/bloom_stage.amx">bloom_stage.amx ↗</a>
+            </div>
+          </figcaption>
+        </figure>
+
+        <figure data-palette="tide">
+          <div class="figure-head">
+            <h3>The Bar Race</h3>
+            <span>Data Visualization</span>
+          </div>
+          <div class="stage-frame">
+            <div class="poster-plate" aria-hidden="true">
+              <span class="poster-name">The Bar Race</span>
+              <span class="poster-hint">live recipe · click to play</span>
+            </div>
+            <amx-player src="./scenes/bar_race.amx"
+                        autoplay loop controls hold="1" aspect="16:9" no-veil
+                        title="A bar chart swapping datasets, bars matched by label"></amx-player>
+          </div>
+          <figcaption>
+            <span>Keyframing chart datasets animates each bar to its new value while preserving its slot and entity identity.</span>
+            <div class="fig-actions">
+              <a href="./scenes/bar_race.amx">bar_race.amx ↗</a>
+            </div>
+          </figcaption>
+        </figure>
+
+        <figure data-palette="orchid">
+          <div class="figure-head">
+            <h3>The Glass Card</h3>
+            <span>Backdrop Filter</span>
+          </div>
+          <div class="stage-frame">
+            <div class="poster-plate" aria-hidden="true">
+              <span class="poster-name">The Glass Card</span>
+              <span class="poster-hint">live recipe · click to play</span>
+            </div>
+            <amx-player src="./scenes/glass_card.amx"
+                        autoplay loop controls hold="1" aspect="16:9" no-veil
+                        title="A panel that frosts the moving plate behind it, not its own label"></amx-player>
+          </div>
+          <figcaption>
+            <span>A <code class="inline">Glass</code> container isolates underlying background layers, applying realtime blur while keeping foreground text razor sharp.</span>
+            <div class="fig-actions">
+              <a href="./scenes/glass_card.amx">glass_card.amx ↗</a>
+            </div>
+          </figcaption>
+        </figure>
+
+      </div>
+    </section>
+
+    <section id="library" style="margin-top: clamp(56px, 8vw, 112px);">
+      <div class="edit-head" data-palette="tide">
+        <span class="num">02</span>
+        <div>
+          <p class="kicker">Standard library</p>
+          <h2>Reusable recipe components</h2>
+        </div>
+        <div class="rule"></div>
+      </div>
+
+      <div class="side-split">
+        <div>
+          <p>
+            These patterns are bundled directly as importable components in
+            <a href="https://github.com/j4ger/animatix/tree/main/examples/lib" target="_blank" rel="noopener noreferrer">examples/lib/light.amx</a> —
+            including <code class="inline">KeyLight</code>, <code class="inline">CoolLight</code>,
+            <code class="inline">MarchingRail</code>, <code class="inline">Ticker</code>, and <code class="inline">Breather</code>.
+            Import them into any scene.
+          </p>
+          <p><a class="btn ghost" href="https://github.com/j4ger/animatix/tree/main/examples/lib" target="_blank" rel="noopener noreferrer">Browse the component library ↗</a></p>
+        </div>
+        <pre class="code-block">import "lib/light.amx"
 
 light: KeyLight, anchor: scene.center, offset: (0, -100)
 ticker: Ticker, at: (640, 360), target: 100, duration: 2s</pre>
-    </div>
+      </div>
+    </section>
 
   </div>
 
