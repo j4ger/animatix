@@ -651,7 +651,7 @@ parent. `align` positions each layer against that box: `"start"` = top-left,
 
 **Properties:**
 - `align`: Str (`"start"` | `"center"` | `"end"`)
-- `gap`: Number (accepted but ignored — Stack is an overlap container)
+- `gap`: Number (accepted but ignored — Stack is an overlap container; the build emits an `ignored-stack-gap` warning naming the container)
 - `padding`: Number
 
 Root layout containers can omit `at` and default to `scene.center`. Scene-relative placement via `anchor: scene.*`, `offset`, and percentage-based `at` is supported.

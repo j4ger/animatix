@@ -685,7 +685,7 @@ Implemented: `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`.
 
 **Declaration-time measure/place contract:** Layout containers consume each child's `size` track at timeline build; children with explicit `at` opt into manual placement instead.
 
-**Warning:** Setting `at` or `position` on a child of a layout container (Row/Col/Grid/Stack) triggers a build-time warning. In a managed layout, `at`/`position` is ignored — the container owns placement. Use `transform` for visual offsets without disrupting the parent's layout algorithm. A bare `offset` on a layout-managed child is likewise ignored (it only modifies an `at`/`anchor` binding) and reported as `ignored-offset`.
+**Warning:** Setting `at` or `position` on a child of a layout container (Row/Col/Grid/Stack) triggers a build-time warning. The container still owns the layout slot; the authored value is applied as a manual local offset on top of that slot, so the actor keeps its slot but can overlap its siblings. Use `transform` for visual offsets that leave the parent's layout algorithm untouched. A bare `offset` on a layout-managed child is ignored (it only modifies an `at`/`anchor` binding) and reported as `ignored-offset`.
 
 ```animatix
 row: Row, gap: 12, padding: 20, align: "center" {
@@ -833,6 +833,8 @@ eye/lock view toggles, `solo` round-trips through `.amx` and undo.
 | `Filter` | `bounds` (processed region); declares effect children (`Blur`, `ColorGrade`, `Sharpen`, `Vignette`, `MotionBlur`, `Grain`, `Levels`, …) whose parameters animate as `scope.stage.param` |
 | `Graph` / plots | `x_domain`, `y_domain`, `func`, `kind`, `resolution`, `density`, `levels` |
 | `Row` / `Col` / `Grid` / `Stack` | `gap` / `gap: (row, col)`, `padding` / `padding: (top, right, bottom, left)`, `align`, `vertical_align` (Row/Col), `cols` (Grid) |
+
+`Stack` is an overlap container: a declared `gap` is ignored and the build emits an `ignored-stack-gap` warning. `at` / `offset` on a layout-managed child are applied as manual local offsets on top of its slot and the build warns; prefer `transform` for visual offsets.
 
 > **Anchoring text:** `at` / `anchor` position the **centre** of the text
 > block. That is easy to miss for left-aligned copy: a title at

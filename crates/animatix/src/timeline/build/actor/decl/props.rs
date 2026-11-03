@@ -606,7 +606,7 @@ impl Timeline {
                                 DiagnosticCode::AbsolutePositionOnLayoutManagedChild,
                                 DiagnosticPhase::Build,
                                 format!(
-                                    "Actor '{label}' in container '{parent}' has 'at'/'position' which is ignored in managed layouts. Use 'transform' instead for visual offsets without disrupting layout.",
+                                    "Actor '{label}' in container '{parent}' has 'at'/'position', which is applied as a manual local offset on top of its layout slot: the actor keeps its slot but can overlap its siblings. Use 'transform' for visual offsets that leave layout untouched.",
                                 ),
                             )
                             .with_subject(label),

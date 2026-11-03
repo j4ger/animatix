@@ -576,18 +576,3 @@ tracked.
   after the numeric fast paths (currently `stage/modifier_exec` is sub-µs).
 - **Verification**: `stage/build_frame_env` and `vm_vs_ir` suites; the
   `is_animating` and closure parity tests are the behavior pins.
-
-### 5. Layout warnings and Stack spacing inconsistencies
-
-- **Scope**: `crates/animatix/src/timeline/build/actor/decl/props.rs`,
-  `crates/animatix/src/timeline/layout.rs`.
-- **Current behaviour**: `at` on a layout-managed child is honoured as a manual
-  local position by the renderer, but the existing `layout-managed-position`
-  warning still calls it ignored (the `offset` case now has its own accurate
-  warning). `Stack` ignores `gap` with only a tracing line, no build
-  diagnostic.
-- **Remaining target**: make the warning text match the honoured `at`
-  behaviour (or reject it), and surface `Stack gap` as a build warning so the
-  two spacing rules cannot diverge silently.
-- **Verification**: `timeline::tests::build_diagnostics` offset/position cases;
-  a Stack-gap probe must warn once per container.

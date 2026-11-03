@@ -211,6 +211,66 @@ fn absolute_position_on_layout_managed_child_warning() {
         has_warning,
         "Expected AbsolutePositionOnLayoutManagedChild warning when a Row child has 'at'"
     );
+    // The message must not claim the value is ignored: the renderer applies
+    // `at` as a manual local offset on top of the layout slot.
+    let warning = report
+        .diagnostics
+        .iter()
+        .find(|d| {
+            d.code
+                == animatix_syntax::diagnostics::DiagnosticCode::AbsolutePositionOnLayoutManagedChild
+        })
+        .expect("warning present");
+    assert!(
+        warning.message.contains("manual local offset"),
+        "`at` warning should describe the honoured offset behaviour, got: {}",
+        warning.message
+    );
+}
+
+#[test]
+fn stack_gap_warns_it_is_ignored() {
+    let source = r#"
+#0s
+stack0: Stack, size: (200, 200), gap: 12 {
+  a: Rect, size: (50, 50), color: accent.primary
+}
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report =
+        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+    let warning = report
+        .diagnostics
+        .iter()
+        .find(|d| d.code == animatix_syntax::diagnostics::DiagnosticCode::IgnoredStackGap)
+        .expect("Stack gap must emit IgnoredStackGap");
+    assert!(
+        warning.message.contains("Stack container 'stack0'"),
+        "warning should name the Stack, got: {}",
+        warning.message
+    );
+}
+
+#[test]
+fn stack_without_gap_does_not_warn() {
+    let source = r#"
+#0s
+stack0: Stack, size: (200, 200) {
+  a: Rect, size: (50, 50), color: accent.primary
+}
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report =
+        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+    assert!(
+        !report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == animatix_syntax::diagnostics::DiagnosticCode::IgnoredStackGap),
+        "no gap should mean no warning"
+    );
 }
 
 #[test]

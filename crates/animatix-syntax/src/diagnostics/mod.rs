@@ -105,6 +105,8 @@ pub enum DiagnosticCode {
     ConflictingPositionBinding,
     /// Coordinate system friction: an offset was ignored.
     IgnoredOffset,
+    /// A Stack container declared `gap`, which it does not use.
+    IgnoredStackGap,
     /// Multi-scene composition: a scene name was used more than once.
     DuplicateSceneName,
     /// Multi-scene composition: the play target was not found.

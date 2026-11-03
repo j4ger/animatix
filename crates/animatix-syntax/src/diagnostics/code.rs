@@ -51,6 +51,7 @@ impl fmt::Display for DiagnosticCode {
                 write!(f, "conflicting-position-binding")
             },
             DiagnosticCode::IgnoredOffset => write!(f, "ignored-offset"),
+            DiagnosticCode::IgnoredStackGap => write!(f, "ignored-stack-gap"),
             DiagnosticCode::DuplicateSceneName => write!(f, "duplicate-scene-name"),
             DiagnosticCode::PlayTargetNotFound => write!(f, "play-target-not-found"),
             DiagnosticCode::PlayCycleDetected => write!(f, "play-cycle-detected"),

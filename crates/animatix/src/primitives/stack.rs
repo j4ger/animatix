@@ -101,12 +101,19 @@ impl Primitive for StackPrimitive {
             }
         }
 
-        // Emit diagnostic warning if gap is set on Stack (Stack is an overlap container, gap is
-        // contradictory)
+        // A Stack overlaps its layers, so `gap` cannot do anything. Say so as a
+        // build warning (it used to be a tracing line nobody saw) so an author
+        // does not spend time tuning a value that is dropped.
         if saw_gap {
-            tracing::warn!(
-                "Stack container '{}' has gap set — gap is ignored on Stack (Stack is an overlap container)",
-                label
+            ctx.diagnostics.push(
+                Diagnostic::warning(
+                    crate::diagnostics::DiagnosticCode::IgnoredStackGap,
+                    crate::diagnostics::DiagnosticPhase::Build,
+                    format!(
+                        "Stack container '{label}' declares 'gap' which is ignored: Stack is an overlap container and positions its layers by alignment, not by gaps. Remove the 'gap', or use Row/Col for a spaced layout."
+                    ),
+                )
+                .with_subject(label),
             );
         }
 
