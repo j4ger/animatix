@@ -78,17 +78,11 @@ cap1: Caption, text: format("Act I · {:.0} bars, shuffled: every value on the f
 cap2: Caption, text: "Act II · The key slides left; every inversion is a swap the build-time loop emits.", tag: "scene.amx", opacity: 0
 cap3: Caption, text: format("Act III · Ascending — {:.0} comparisons, 15 swaps, all emitted.", n * (n - 1) / 2), tag: "scene.amx", opacity: 0
 
-// ── the key marker ──────────────────────────────────────────────────
-key_note: Callout, from: (640, 206), target: bar[1], place: top, standoff: 12,
-  label: "KEY", label_at: (0, -30), color: text.primary, stroke: accent.primary,
-  stroke_width: 2, head_size: 10, opacity: 0
-
 // ── the build-time sort ─────────────────────────────────────────────
 fn insertion_sort(values: List<Num>) {
   let order = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
   for key in {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} [step: 1800ms] {
     if key < n {
-      key_note.target = bar[order[key]] [160ms]
       for j in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10} [step: 150ms] {
         if j < key {
           if values[order[key - j]] < values[order[key - j - 1]] {
@@ -101,7 +95,6 @@ fn insertion_sort(values: List<Num>) {
           if key == n - 1 {
             if j == key - 1 {
               fade-out cap2 [240ms, ease: ease-in]
-              fade-out key_note [240ms, ease: ease-in]
               fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
               fade-in sorted_mark [320ms, delay: 300ms, ease: expo-out]
               draw-in sorted_rule [700ms, delay: 300ms, ease: expo-out]
@@ -120,9 +113,6 @@ fn insertion_sort(values: List<Num>) {
 }
 
 // ── choreography ────────────────────────────────────────────────────
-#0.35s
-fade-in key_note [360ms, ease: expo-out]
-
 #0.9s
 fade-out cap1 [240ms, ease: ease-in]
 fade-in cap2 [280ms, delay: 200ms, ease: expo-out]
