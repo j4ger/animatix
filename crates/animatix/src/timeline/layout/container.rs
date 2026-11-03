@@ -40,6 +40,78 @@ impl Timeline {
         );
     }
 
+    /// Publish a container's measured extent into its `layout_size` track.
+    ///
+    /// Nested layout containers must report the extent their content actually
+    /// covers, not the default 100×100 box: when an unsized `Col` sits inside a
+    /// `Stack`, or a `Row` inside a `Col`, the parent has to reserve the real
+    /// content box or the child's rows spill into its neighbours. The same
+    /// write implements the documented `size: auto` / `size: fit` shrink-wrap
+    /// for Row/Col/Grid, and a Stack's union extent (it overlaps its layers, so
+    /// its box is the largest layer per axis) is just the special case where
+    /// `compute_container_size` returns a union instead of a flow size.
+    ///
+    /// An explicit fixed `size` stays authoritative: the author declared a box.
+    pub(crate) fn publish_measured_container_extent(
+        &mut self,
+        container_label: &str,
+        size: [f32; 2],
+        time_ms: u64,
+    ) {
+        if size[0] <= 0.0 && size[1] <= 0.0 {
+            return;
+        }
+        let Some(container_id) = self.world.get_id(container_label) else {
+            return;
+        };
+        if self.world.geometry(container_id).size_spec.is_some_and(|spec| spec.is_fixed()) {
+            return;
+        }
+        let half = [size[0] / 2.0, size[1] / 2.0];
+        self.world
+            .geometry
+            .get_mut(container_id)
+            .ensure_layout_size(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
+            .add_keyframe(time_ms, half, Easing::Linear);
+    }
+
+    /// Publish the union of a `Group`'s children as the group's own extent.
+    ///
+    /// `Group` is a structural wrapper: it lays nothing out and paints nothing,
+    /// so its layout extent is exactly the placed extent of its children. A
+    /// group nested in a Row/Col otherwise publishes the default 100×100 box,
+    /// which inflates the main axis and reports a cross-extent unrelated to the
+    /// content it wraps (`*_wrap: Group` around a single text line).
+    pub(crate) fn publish_group_measured_extent(&mut self, label: &str, time_ms: u64) {
+        let Some(group_id) = self.world.get_id(label) else {
+            return;
+        };
+        let children: Vec<crate::timeline::EntityId> =
+            self.world.hierarchy(group_id).children.clone();
+        let mut half = [0.0f32, 0.0f32];
+        for child in children {
+            let geometry = self.world.geometry(child);
+            let Some(child_half) = geometry.layout_size_last() else {
+                continue;
+            };
+            let position = geometry.position.last([0.0, 0.0]);
+            half[0] = half[0].max(position[0].abs() + child_half[0]);
+            half[1] = half[1].max(position[1].abs() + child_half[1]);
+        }
+        if half[0] <= 0.0 && half[1] <= 0.0 {
+            return;
+        }
+        // A declared fixed size stays authoritative.
+        if self.world.geometry(group_id).size_spec.is_some_and(|spec| spec.is_fixed()) {
+            return;
+        }
+        self.world
+            .geometry
+            .get_mut(group_id)
+            .ensure_layout_size(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
+            .add_keyframe(time_ms, half, Easing::Linear);
+    }
+
     pub(crate) fn build_layout_children(
         &self,
         container_label: &str,

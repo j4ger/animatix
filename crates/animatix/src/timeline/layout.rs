@@ -56,39 +56,62 @@ pub struct ChildExtent {
     pub placement_mode: PlacementMode,
 }
 
-/// Pure layout computation for a Stack container.
-/// Stack places all children at origin (0, 0) on the main axis,
-/// but honors `align` for cross-axis positioning.
+/// Pure layout computation for a Stack container with no declared extent.
 #[cfg(test)]
 pub(crate) fn compute_stack_layout(children: &[ChildExtent], align: &str) -> Vec<[f32; 2]> {
-    compute_stack_layout_results(children, align)
+    compute_stack_layout_in_box(children, align, [0.0, 0.0])
+}
+
+/// Pure layout computation for a Stack inside a box of `container_size`
+/// logical pixels (tests only).
+#[cfg(test)]
+pub(crate) fn compute_stack_layout_in_box(
+    children: &[ChildExtent],
+    align: &str,
+    container_size: [f32; 2],
+) -> Vec<[f32; 2]> {
+    compute_stack_layout_results(children, align, container_size, [0.0; 4])
         .into_iter()
         .map(|r| r.position)
         .collect()
 }
 
+/// Full Stack layout computation inside a box of `container_size`.
 pub(crate) fn compute_stack_layout_results(
     children: &[ChildExtent],
     align: &str,
+    container_size: [f32; 2],
+    padding: [f32; 4],
 ) -> Vec<super::taffy_layout::TaffyLayoutResult> {
-    // Stack is an overlap container — all children share the same origin,
-    // creating a layered visual effect. The `align` property controls
-    // cross-axis positioning within the stack's conceptual extent.
+    // Stack is an overlap container — every child is aligned against the same
+    // box instead of flowing along a main axis. `align` therefore applies to
+    // both axes: `"start"` puts the child's top-left corner on the box's
+    // top-left corner, `"end"` its bottom-right on the box's bottom-right, and
+    // `"center"` (the default) keeps the child centred on the origin.
     //
-    // Since Stack has no intrinsic main/cross axis direction, we apply
-    // alignment symmetrically: both X and Y axes respond to align.
-    //
-    // - "start":  children are shifted toward negative X/Y (top-left)
-    // - "center": children stay at origin (default)
-    // - "end":    children are shifted toward positive X/Y (bottom-right)
+    // The box is the union of the declared container extent and the children's
+    // measured extent. The union matters because an unsized Stack still carries
+    // the default 100×100 `size` track; aligning a larger child inside that
+    // phantom box would push its centre off the origin.
+    let inner = [
+        (container_size[0] - padding[0] - padding[2]).max(0.0),
+        (container_size[1] - padding[1] - padding[3]).max(0.0),
+    ];
+    let measured = stack_union_extent(children);
+    let box_size = [inner[0].max(measured[0]), inner[1].max(measured[1])];
+
     children
         .iter()
         .map(|child| {
-            // Use the child's own half-size to position relative to origin
-            // "start" aligns to top-left, "center" at origin, "end" aligns to bottom-right
             let position = match align {
-                "start" => [-child.half_size[0], -child.half_size[1]],
-                "end" => [child.half_size[0], child.half_size[1]],
+                "start" => [
+                    -box_size[0] / 2.0 + child.half_size[0],
+                    -box_size[1] / 2.0 + child.half_size[1],
+                ],
+                "end" => [
+                    box_size[0] / 2.0 - child.half_size[0],
+                    box_size[1] / 2.0 - child.half_size[1],
+                ],
                 _ => [0.0, 0.0], // center
             };
             super::taffy_layout::TaffyLayoutResult {
@@ -97,6 +120,19 @@ pub(crate) fn compute_stack_layout_results(
             }
         })
         .collect()
+}
+
+/// Union extent (full width/height) of a Stack's children.
+///
+/// Stack children overlap at the origin, so the union is the largest child
+/// extent per axis — the box the Stack must cover to contain every layer.
+pub(crate) fn stack_union_extent(children: &[ChildExtent]) -> [f32; 2] {
+    children.iter().fold([0.0, 0.0], |acc, child| {
+        [
+            acc[0].max(child.half_size[0] * 2.0),
+            acc[1].max(child.half_size[1] * 2.0),
+        ]
+    })
 }
 #[cfg(test)]
 pub(crate) fn compute_container_size(
@@ -167,8 +203,21 @@ pub(crate) fn compute_container_size_with_specs(
             )
         };
         output.container_size
+    } else if metadata.layout_type == super::LayoutType::Stack {
+        // A Stack overlap container sizes to the union of its layers: the
+        // largest child extent per axis (padding included), so a Stack nested
+        // in another container publishes a real extent instead of zero.
+        let union = stack_union_extent(children);
+        if union[0] <= 0.0 && union[1] <= 0.0 {
+            [0.0, 0.0]
+        } else {
+            [
+                union[0] + metadata.padding[0] + metadata.padding[2],
+                union[1] + metadata.padding[1] + metadata.padding[3],
+            ]
+        }
     } else {
-        // Stack or unknown: no meaningful container size
+        // Unknown container type: no meaningful container size
         [0.0, 0.0]
     }
 }

@@ -644,9 +644,14 @@ Structured two-dimensional layout with `cols` and `gap` for deterministic declar
 ## Stack
 
 Layered composition. Overlaps layout-managed children around a shared origin.
+The Stack sizes to the union of its children's measured extents (largest layer
+per axis, padding included), so a nested Stack publishes a real box to its
+parent. `align` positions each layer against that box: `"start"` = top-left,
+`"center"` = shared origin, `"end"` = bottom-right.
 
 **Properties:**
-- `gap`: Number
+- `align`: Str (`"start"` | `"center"` | `"end"`)
+- `gap`: Number (accepted but ignored — Stack is an overlap container)
 - `padding`: Number
 
 Root layout containers can omit `at` and default to `scene.center`. Scene-relative placement via `anchor: scene.*`, `offset`, and percentage-based `at` is supported.

@@ -680,12 +680,12 @@ Implemented: `Row`, `Col`, `Grid`, `Stack`, `Group`, `Filter`, `Mask`.
 
 - **Row/Col:** `gap` (spacing, single value or per-axis tuple `(row_gap, col_gap)`), `padding` (inset, single value or per-side tuple `(top, right, bottom, left)`), `align` ("start" | "center" | "end"), `vertical_align` ("baseline" — aligns children by their text baseline instead of the container's cross-axis center)
 - **Grid:** `cols` + `gap` + `padding`
-- **Stack:** Overlapping children around shared origin; supports `padding`, `align` ("start" | "center" | "end")
-- **Group:** Non-layout grouping/transform inheritance
+- **Stack:** Overlapping children around a shared origin; supports `padding`, `align` ("start" | "center" | "end"). A Stack sizes to the union of its children's measured extents (largest layer per axis, padding included); `align` positions each layer against that box — `start` puts its top-left on the box's top-left, `end` its bottom-right on the box's bottom-right.
+- **Group:** Non-layout grouping/transform inheritance. A Group publishes the union of its children's placed extents to a parent layout, so `*_wrap: Group` wrappers only reserve the space their content actually uses.
 
 **Declaration-time measure/place contract:** Layout containers consume each child's `size` track at timeline build; children with explicit `at` opt into manual placement instead.
 
-**Warning:** Setting `at` or `position` on a child of a layout container (Row/Col/Grid/Stack) triggers a build-time warning. In a managed layout, `at`/`position` is ignored — the container owns placement. Use `transform` for visual offsets without disrupting the parent's layout algorithm.
+**Warning:** Setting `at` or `position` on a child of a layout container (Row/Col/Grid/Stack) triggers a build-time warning. In a managed layout, `at`/`position` is ignored — the container owns placement. Use `transform` for visual offsets without disrupting the parent's layout algorithm. A bare `offset` on a layout-managed child is likewise ignored (it only modifies an `at`/`anchor` binding) and reported as `ignored-offset`.
 
 ```animatix
 row: Row, gap: 12, padding: 20, align: "center" {

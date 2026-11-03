@@ -599,6 +599,7 @@ impl Timeline {
                 if self.world.caps(parent_id).layout_container {
                     let has_at = extracted.at_expr.is_some();
                     let has_position = props.iter().any(|p| p.name == "position");
+                    let has_anchor = extracted.anchor_expr.is_some();
                     if has_at || has_position {
                         diagnostics.push(
                             Diagnostic::warning(
@@ -606,6 +607,21 @@ impl Timeline {
                                 DiagnosticPhase::Build,
                                 format!(
                                     "Actor '{label}' in container '{parent}' has 'at'/'position' which is ignored in managed layouts. Use 'transform' instead for visual offsets without disrupting layout.",
+                                ),
+                            )
+                            .with_subject(label),
+                        );
+                    }
+                    // `offset` only modifies an `at`/`anchor` binding. With
+                    // neither, the child stays layout-managed and the offset is
+                    // dropped silently, so name the child and the property.
+                    if extracted.offset_expr.is_some() && !has_at && !has_position && !has_anchor {
+                        diagnostics.push(
+                            Diagnostic::warning(
+                                crate::diagnostics::DiagnosticCode::IgnoredOffset,
+                                crate::diagnostics::DiagnosticPhase::Build,
+                                format!(
+                                    "Actor '{label}' in container '{parent}' has 'offset' which is ignored: a layout-managed child's position comes from the container, and 'offset' only applies with 'at' or 'anchor'. Use 'transform' for a visual offset.",
                                 ),
                             )
                             .with_subject(label),

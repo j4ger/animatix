@@ -141,7 +141,12 @@ impl LayoutEngine {
         }
 
         if is_stack {
-            compute_stack_layout_results(children, &metadata.align)
+            compute_stack_layout_results(
+                children,
+                &metadata.align,
+                parent_content_size,
+                metadata.padding,
+            )
         } else if is_grid {
             compute_grid_layout_results_with_specs(
                 children,

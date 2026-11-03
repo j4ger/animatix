@@ -623,3 +623,60 @@ b: Filter, at: (240, 90) {
         warnings[0].message
     );
 }
+
+/// Regression: a layout-managed child's bare `offset` used to die silently —
+/// only `at`/`position` were reported. The warning must name the child and the
+/// ignored property so the author can find the dropped value.
+#[test]
+fn layout_managed_child_offset_warns() {
+    let source = r#"
+config { resolution: (320, 180) }
+#0s
+row: Row, size: (300, 60), gap: 8 {
+  a: Rect, size: (40, 40), offset: (0, 10)
+}
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report =
+        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+
+    let warnings: Vec<_> = report
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == crate::diagnostics::DiagnosticCode::IgnoredOffset)
+        .collect();
+    assert_eq!(warnings.len(), 1, "expected one ignored-offset warning: {warnings:?}");
+    assert!(
+        warnings[0].message.contains("'a'")
+            && warnings[0].message.contains("offset")
+            && warnings[0].message.contains("row"),
+        "warning should name the child, the container and the property: {}",
+        warnings[0].message
+    );
+}
+
+/// `offset` combined with `at` is a different case: the child opts out of
+/// layout placement, so the offset is reported by the position-binding path
+/// (with `at`) rather than duplicated by the layout-managed-child check.
+#[test]
+fn layout_managed_child_at_plus_offset_reports_once() {
+    let source = r#"
+config { resolution: (320, 180) }
+#0s
+row: Row, size: (300, 60) {
+  a: Rect, size: (40, 40), at: (10, 10), offset: (0, 10)
+}
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report =
+        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+
+    let offset_warnings = report
+        .diagnostics
+        .iter()
+        .filter(|d| d.code == crate::diagnostics::DiagnosticCode::IgnoredOffset)
+        .count();
+    assert_eq!(offset_warnings, 1, "offset with `at` must be reported exactly once");
+}

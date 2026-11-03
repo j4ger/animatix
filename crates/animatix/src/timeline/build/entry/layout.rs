@@ -92,6 +92,12 @@ impl Timeline {
             child_extents.len()
         );
 
+        // A container without an explicit fixed `size` publishes the extent its
+        // content actually covers (Stack: the union of its layers; Row/Col/
+        // Grid: the flow size) so a nested container participates in its
+        // parent's layout by the real box instead of the default 100×100.
+        self.publish_measured_container_extent(label, container_size, time_ms);
+
         // Propagate container width to text children
         self.propagate_text_child_widths(label, container_size, time_ms, diagnostics);
 
