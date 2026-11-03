@@ -211,6 +211,21 @@ pub(crate) fn evaluate_shape_render(
 ) -> Result<Option<Vec<RenderCommand>>, crate::renderer::error::RenderError> {
     use crate::timeline::TrackAccessor;
 
+    // Cross-type morph: a re-declaration that changes the primitive type
+    // (Rect→Ellipse, Polygon→Path, …) keeps the declaration-time path list in
+    // `vector_paths` — start keyframe = source shape, end keyframe = target,
+    // interpolated by the morph machinery. During the switch window draw that
+    // interpolated outline instead of the endpoint primitive, whose geometry
+    // would otherwise snap. This lives in the shape family so behavior
+    // dispatch still goes through `BehaviorDef::evaluate`.
+    if !ctx.vector_paths.is_empty()
+        && ctx.shape.is_some_and(|shape| shape.cross_type_morph_at(ctx.time_ms))
+    {
+        return Ok(Some(vec![RenderCommand::Paths {
+            paths: ctx.vector_paths.to_vec(),
+        }]));
+    }
+
     let style_tracks = ctx.style;
     let style = sample_shape_style(style_tracks, ctx.caps, ctx.time_ms, ctx.overrides);
     let shape = ctx.shape.expect("shape styling requires shape component");
