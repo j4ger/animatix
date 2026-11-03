@@ -69,10 +69,6 @@ blank: LabeledBox, label: "?", width: 116, height: 54, text_size: 18, corner: 12
   fill: surface.secondary, stroke: text.muted, stroke_width: 2, at: (938, 592)
 caret: Rect, size: (3, 30), corner_radius: 1, color: accent.primary, at: (938, 592), opacity: 0.9
 
-// The generated token "street" that replaces the blank at the payoff.
-street: LabeledBox, label: "street", width: 116, height: 54, text_size: 18, corner: 12,
-  fill: surface.primary, stroke: accent.primary, stroke_width: 2.2, at: (938, 592), opacity: 0
-
 // ── Connectors on Vertical Spine ────────────────────────────────────
 up1: Arrow, from: (560, 556), to: (560, 542), head_size: 8, stroke_width: 2, stroke: text.muted, opacity: 0
 up2: Arrow, from: (560, 491), to: (560, 473), head_size: 8, stroke_width: 2, stroke: text.muted, opacity: 0
@@ -277,7 +273,11 @@ loop_arrow.opacity = 0.95 [260ms, delay: 500ms]
 
 #7.6s
 fade-out blank [260ms, ease: ease-in]
-pop-in street [380ms, ease: expo-out]
+// Declared inside its cue: an instance-level `opacity: 0` does not reach a
+// component's inner actors, so a pre-declared `street` box leaked its outline
+// from frame 0. Declaring it here makes it exist only from the payoff.
+street: LabeledBox, label: "street", width: 116, height: 54, text_size: 18, corner: 12,
+  fill: surface.primary, stroke: accent.primary, stroke_width: 2.2, at: (938, 592)
 pulse street [600ms, intensity: 0.05, delay: 500ms]
 camera.zoom = 1.05 [1.2s, ease: ease-in-out]
 
