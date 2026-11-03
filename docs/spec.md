@@ -144,6 +144,10 @@ that reads as "start hidden", and all four entrance actions (`fade-in`,
 `reveal-in` leave a non-zero authored opacity untouched, since they reveal by
 stroke and fill progress rather than by fading.
 
+A scheduled entrance owns its whole window: `draw-in line [600ms]` at `#1s`
+leaves the line unpainted from frame 0 until its start, even when `opacity: 1`
+is authored. The authored opacity is the settled value, not a frame-0 stroke.
+
 A single declaration is enough to express a resting translucency: write
 `actor.opacity = 0.4 [300ms]` if you want an explicit fade to a partial value.
 
@@ -1699,6 +1703,8 @@ btn: Button, text: "Submit"
 **Shipped behavior:**
 - `pub` required for cross-file visibility
 - Instance props bind to component params by name
+- Universal `at`/`anchor`/`offset` props apply to the expanded instance root
+- Instance `opacity` is a group opacity: it multiplies into the component subtree, including the root's own authored opacity (`0.5` on both renders at `0.25`)
 - Nested labels are instance-prefixed (isolated per instance)
 - External dotted assignment: `left.badge.color = red`
 - RHS dotted lookup: `echo.at = right.badge.at`

@@ -170,7 +170,7 @@ impl Primitive for RowPrimitive {
 #[cfg(test)]
 mod tests {
     use crate::diagnostics::{BuildReport, DiagnosticCode};
-    use crate::timeline::{LayoutType, Timeline};
+    use crate::timeline::{DebugRenderOptions, LayoutType, SceneDimensions, Timeline};
 
     fn build(source: &str) -> BuildReport<Timeline> {
         let (ast, errors) = animatix_syntax::parser::parse_source(source);
@@ -238,5 +238,40 @@ mod tests {
         let metadata = report.output.container_layout("row").expect("row metadata");
         assert_eq!(metadata.align, "center");
         assert_eq!(metadata.vertical_align, "center");
+    }
+
+    #[test]
+    fn row_container_paints_no_commands_of_its_own() {
+        // The visual "capsule" in a zero-gap bar lane is not a container
+        // background: the layout container must stay command-free, and only
+        // its children paint.
+        let report = build(
+            r#"#0s
+row: Row, gap: 10 {
+    a: Rect, size: (20, 40), color: accent.primary
+}"#,
+        );
+        let mut filter_backend = None;
+        let program = report.output.evaluate_program_with_debug(
+            0.0,
+            SceneDimensions {
+                width: 640,
+                height: 360,
+            },
+            DebugRenderOptions::default(),
+            &mut filter_backend,
+        );
+        let row = program
+            .items
+            .iter()
+            .find(|item| item.label == "row")
+            .expect("the row actor must be evaluated");
+        assert!(row.commands.is_empty(), "Row must not paint a background of its own");
+        let child = program
+            .items
+            .iter()
+            .find(|item| item.label == "a")
+            .expect("the child rect must be evaluated");
+        assert!(!child.commands.is_empty(), "the child still paints");
     }
 }

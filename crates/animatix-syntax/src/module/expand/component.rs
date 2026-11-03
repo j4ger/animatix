@@ -167,6 +167,32 @@ pub(super) fn stmt_to_inline_item(stmt: &Stmt) -> Option<InlineItem> {
 /// component parameter remain template bindings, not forwards.
 pub(crate) const INSTANCE_FORWARDED_PROPS: &[&str] = &["opacity", "at", "anchor", "offset"];
 
+/// Apply an instance-level `opacity` to a single-root component's root actor
+/// as a multiplicative group opacity.
+///
+/// Forwarding the value as a plain property would make it replace the root
+/// actor's own authored opacity (`0.5` on both would stay `0.5` instead of
+/// `0.25`) — a component instance must behave like a group, not like a style
+/// override. Compose the root's existing expression with the instance one; a
+/// root without an authored opacity gets the instance value unchanged.
+fn multiply_instance_opacity(props: &mut Vec<Property>, instance_opacity: &Property) {
+    let existing = props.iter().rposition(|p| p.name == "opacity").map(|index| props.remove(index));
+    let value = match existing {
+        Some(root_opacity) => Expr::Binary(
+            Box::new(root_opacity.value),
+            crate::ast::BinaryOp::Mul,
+            Box::new(instance_opacity.value.clone()),
+        ),
+        None => instance_opacity.value.clone(),
+    };
+    props.push(Property {
+        name: "opacity".to_string(),
+        value,
+        value_span: instance_opacity.value_span,
+        trailing_comment: None,
+    });
+}
+
 pub(super) fn expand_component_instance(
     instance_label: &str,
     instance_props: &[Property],
@@ -331,13 +357,19 @@ pub(super) fn expand_component_instance(
     }
 
     // Single-root (or no-actor) body: the instance label lives on the root
-    // actor. Forward the universal instance props onto it so instance-level
-    // placement/visibility works without wrapping.
-    if !forwarded.is_empty() {
+    // actor. Forward placement props onto it so instance-level placement works
+    // without wrapping; `opacity` is composed multiplicatively with the root's
+    // own authored value so the instance acts as a group opacity.
+    let instance_opacity = forwarded.iter().find(|p| p.name == "opacity").cloned();
+    let forwarded: Vec<Property> = forwarded.into_iter().filter(|p| p.name != "opacity").collect();
+    if !forwarded.is_empty() || instance_opacity.is_some() {
         for stmt in actors.iter_mut().chain(hoisted.iter_mut()) {
             if let Stmt::ActorDecl { label, props, .. } = stmt {
                 if label == instance_label {
                     props.extend(forwarded.iter().cloned());
+                    if let Some(opacity) = &instance_opacity {
+                        multiply_instance_opacity(props, opacity);
+                    }
                     break;
                 }
             }

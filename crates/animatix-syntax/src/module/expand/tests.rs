@@ -177,6 +177,53 @@ t: Tint, opacity: 0.5
 }
 
 #[test]
+fn test_instance_opacity_multiplies_with_root_opacity() {
+    // An instance `opacity` is a group opacity, not a style override: a root
+    // actor already authored `opacity: 0.5` must receive `0.5 * 0.5`, not a
+    // replacement `0.5`.
+    let source = r#"
+pub component Box() {
+  r: Rect, size: (100, 100), opacity: 0.5
+}
+
+b: Box, opacity: 0.5
+"#;
+    let (stmts, _errors) = crate::parser::parse_source(source);
+    let stmts = stmts.unwrap();
+    let mut components = std::collections::HashMap::new();
+    for stmt in &stmts {
+        if let Stmt::ComponentDef(def, _) = stmt {
+            components.insert(
+                def.name.clone(),
+                super::super::ComponentEntry {
+                    definition: def.clone(),
+                    actions: Default::default(),
+                    source_path: std::path::PathBuf::new(),
+                },
+            );
+        }
+    }
+    let (expanded, _registry) = expand_statements(&stmts, &components);
+    let root = expanded
+        .iter()
+        .find_map(|s| match s {
+            Stmt::ActorDecl { label, props, .. } if label == "b" => Some(props),
+            _ => None,
+        })
+        .expect("expanded root actor 'b'");
+    let opacities: Vec<&Expr> =
+        root.iter().filter(|p| p.name == "opacity").map(|p| &p.value).collect();
+    assert_eq!(opacities.len(), 1, "the root must carry exactly one composed opacity");
+    match opacities[0] {
+        Expr::Binary(left, crate::ast::BinaryOp::Mul, right) => {
+            assert!(matches!(left.as_ref(), Expr::Num(n) if (*n - 0.5).abs() < 1e-9));
+            assert!(matches!(right.as_ref(), Expr::Num(n) if (*n - 0.5).abs() < 1e-9));
+        },
+        other => panic!("expected `root_opacity * instance_opacity`, got {other:?}"),
+    }
+}
+
+#[test]
 fn test_expand_component_inside_scene_body() {
     let source = r#"
 pub component Box(size: Num = 20) {

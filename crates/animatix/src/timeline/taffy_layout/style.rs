@@ -2,6 +2,23 @@
 
 use super::*;
 
+/// Resolve an `auto`/`fit` dimension to the child's already-measured extent.
+///
+/// `parse_size_spec` only sees the AST, so a dimension written as a non-literal
+/// expression (e.g. `size: (104, v * 3.0)`) parses as `Auto` even though the
+/// build resolves the expression to a concrete number before layout. Passing
+/// `Dimension::auto()` to Taffy made the leaf measure as zero, so a mixed row
+/// of expression-sized children collapsed to the container centre — the visual
+/// "capsule" in a `gap: 0` bar lane. The measured `layout_size` is the resolved
+/// extent, which is exactly what auto/fit means here.
+fn measured_dimension(measured: f32) -> Dimension {
+    if measured > 0.0 {
+        Dimension::length(measured)
+    } else {
+        Dimension::auto()
+    }
+}
+
 pub(super) fn build_child_style(
     spec: Option<ChildSizeSpec>,
     half_size: [f32; 2],
@@ -15,6 +32,8 @@ pub(super) fn build_child_style(
     let width_dim = if width_is_fill {
         // Fill: use auto with flex_grow to take remaining space
         Dimension::auto()
+    } else if matches!(spec.width, SizeSpec::Auto | SizeSpec::Fit) {
+        measured_dimension(half_size[0] * 2.0)
     } else if parent_content_size[0] > 0.0 {
         // Pre-resolve against parent width so Taffy doesn't need to know about percentages
         let abs = spec.width.resolve_absolute(parent_content_size[0]);
@@ -37,6 +56,8 @@ pub(super) fn build_child_style(
     let height_is_fill = matches!(spec.height, SizeSpec::Fill);
     let height_dim = if height_is_fill {
         Dimension::auto()
+    } else if matches!(spec.height, SizeSpec::Auto | SizeSpec::Fit) {
+        measured_dimension(half_size[1] * 2.0)
     } else if parent_content_size[1] > 0.0 {
         let abs = spec.height.resolve_absolute(parent_content_size[1]);
         let clamped = if let Some(min_h) = constraints.min_height {

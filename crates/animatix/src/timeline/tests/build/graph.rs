@@ -478,6 +478,36 @@ draw-in underline [1s, ease: linear]
 }
 
 #[test]
+fn draw_in_scheduled_after_the_declaration_starts_hidden() {
+    // An authored `opacity: 1` is the settled value, not a pre-entrance
+    // state: a `draw-in` at #1s must leave the line unpainted from frame 0
+    // instead of showing the full stroke until the action begins.
+    let source = r#"
+config { colorscheme: "editorial-dark", resolution: (640, 360) }
+
+line_a: Line, from: (100, 180), to: (540, 180), stroke: accent.primary,
+  stroke_width: 6, opacity: 1
+
+#1s
+draw-in line_a [600ms, ease: linear]
+    "#;
+    let report = build(source);
+    assert_clean(&report);
+    let timeline = report.output;
+    let stroked = |time: f64| -> usize {
+        render_paths(&timeline, time).iter().filter(|vp| vp.stroke.is_some()).count()
+    };
+
+    assert_eq!(stroked(0.0), 0, "the line must not paint before its draw-in");
+    assert_eq!(stroked(0.9), 0, "still hidden until the action begins");
+    assert!(stroked(1.3) > 0, "mid-draw must paint a partial stroke");
+    assert!(stroked(1.7) > 0, "the draw completes on its authored duration");
+
+    let shape_id = timeline.world.get_id("line_a").expect("line entity");
+    assert_eq!(timeline.world.style(shape_id).stroke_progress.get(0, 1.0), 0.0);
+}
+
+#[test]
 fn dash_pattern_stamps_paths_and_dash_offset_animates() {
     // `dash_pattern`/`dash_offset` ride outside the shape-command memo, so a
     // static pattern is stamped on every frame and an animated offset (the

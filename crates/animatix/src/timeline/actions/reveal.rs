@@ -26,6 +26,33 @@ fn ensure_reveal_stroke(
         .add_keyframe(time_ms, color, Easing::Linear);
 }
 
+/// Seed a scalar track's pre-entrance value.
+///
+/// A declaration writes its settled value as the track's first keyframe
+/// (`stroke_progress: 1.0` by default). A later `draw-in` adds a start
+/// keyframe at `t_start`, but [`PropertyTrack`](crate::timeline::PropertyTrack)
+/// evaluates to its *first* keyframe for every earlier time, so the actor
+/// paints its settled state from frame 0 and only pops invisible when the
+/// entrance begins. Replace that first keyframe with the pre-state so the
+/// entrance owns its whole window.
+fn seed_pre_entrance_value(
+    track: &mut Option<crate::timeline::PropertyTrack<f32>>,
+    t_start_ms: u64,
+    value: f32,
+) {
+    let Some(first_time) =
+        track.as_ref().and_then(|t| t.keyframes().as_slice().first().map(|k| k.time_ms))
+    else {
+        return;
+    };
+    if first_time >= t_start_ms {
+        return;
+    }
+    if let Some(track) = track.as_mut() {
+        track.add_keyframe(first_time, value, Easing::Linear);
+    }
+}
+
 /// Returns true when a primitive emits text glyph paths.
 fn is_text_like(timeline: &Timeline, id: crate::timeline::EntityId) -> bool {
     timeline
@@ -288,17 +315,23 @@ impl BuiltinAction for DrawIn {
                     },
                 }
             } else {
+                // Reveal the fill to its authored value, not blindly to 1.0: a
+                // stroke-only Path (fill_opacity seeded 0) must stay unfilled
+                // after the draw completes. Read it before seeding the
+                // pre-entrance state below, which rewrites the first keyframe.
+                let authored_fill = style.fill_opacity.get(t_start_ms, 1.0);
+
+                // A scheduled `draw-in` must not paint the settled stroke/fill
+                // from frame 0: the declaration's first keyframe is the settled
+                // value, so seed that keyframe with the entrance pre-state.
+                seed_pre_entrance_value(&mut style.stroke_progress, t_start_ms, 0.0);
+                seed_pre_entrance_value(&mut style.fill_opacity, t_start_ms, 0.0);
                 ensure_reveal_stroke(style, caps, t_start_ms);
                 if delay_ms > 0.0 && duration_ms == 0.0 && t_start_ms > 0 {
                     let guard_time = t_start_ms.saturating_sub(1);
                     super::ensure_guard_keyframe(&mut style.stroke_progress, guard_time, 1.0);
                     super::ensure_guard_keyframe(&mut style.fill_opacity, guard_time, 1.0);
                 }
-
-                // Reveal the fill to its authored value, not blindly to 1.0: a
-                // stroke-only Path (fill_opacity seeded 0) must stay unfilled
-                // after the draw completes.
-                let authored_fill = style.fill_opacity.get(t_start_ms, 1.0);
 
                 style.stroke_progress.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);
                 style.fill_opacity.ensure(1.0).add_keyframe(t_start_ms, 0.0, Easing::Linear);

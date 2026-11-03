@@ -593,3 +593,41 @@ fn test_constraints_default() {
     assert_eq!(c.min_height, None);
     assert_eq!(c.max_height, None);
 }
+
+#[test]
+fn expression_sized_children_use_measured_extent_for_cross_axis_alignment() {
+    // `size: (104, v * 3.0)` parses its height as `SizeSpec::Auto` because the
+    // expression is not a literal. Taffy must still use the measured half-size
+    // for that leaf instead of collapsing it to zero, or `align: "end"` cannot
+    // bottom-align the row and every bar sits on the container centre (the
+    // "capsule" seen through a zero-gap bar lane).
+    let children = vec![
+        make_child(104.0, 126.0, PlacementMode::LayoutManaged),
+        make_child(104.0, 51.0, PlacementMode::LayoutManaged),
+        make_child(104.0, 279.0, PlacementMode::LayoutManaged),
+        make_child(104.0, 15.0, PlacementMode::LayoutManaged),
+    ];
+    let specs: Vec<Option<ChildSizeSpec>> = children
+        .iter()
+        .map(|c| {
+            Some(ChildSizeSpec::from_parts(SizeSpec::Fixed(c.half_size[0] * 2.0), SizeSpec::Auto))
+        })
+        .collect();
+    let constraints = vec![SizeConstraints::default(); 4];
+    let out = compute_taffy_linear_layout_with_specs(
+        &children,
+        LayoutType::Row,
+        [0.0, 0.0],
+        [0.0; 4],
+        "end",
+        &[],
+        "end",
+        &specs,
+        &constraints,
+        [0.0, 0.0],
+    );
+
+    assert_eq!(out.container_size, [416.0, 279.0]);
+    let ys: Vec<f32> = out.positions.iter().map(|p| p.position[1]).collect();
+    assert_eq!(ys, vec![76.5, 114.0, 0.0, 132.0], "children must bottom-align, not centre");
+}

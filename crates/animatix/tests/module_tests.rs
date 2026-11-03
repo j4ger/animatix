@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use animatix::composition::BuildTarget;
-use animatix::timeline::{BuildOptions, Timeline};
+use animatix::timeline::{BuildOptions, DebugRenderOptions, SceneDimensions, Timeline};
 use animatix_syntax::ast::{Expr, Stmt};
 use animatix_syntax::module::{LoadedProgram, ModuleError, ModuleGraph};
 
@@ -1164,6 +1164,60 @@ fn contains_actor(stmts: &[Stmt], label: &str, ty: &str) -> bool {
         },
         _ => false,
     })
+}
+
+#[test]
+fn component_instance_opacity_multiplies_with_root_opacity() {
+    // A component instance behaves like a group: instance `opacity: 0.5` on a
+    // root actor already authored `opacity: 0.5` must render at 0.25, not let
+    // the instance value replace the root's own value.
+    let program = load_scene(
+        "instance_opacity_multiplies",
+        &[(
+            "scene.amx",
+            r#"
+pub component Box() {
+    box: Stack, size: (100, 100), opacity: 0.5 {
+        r: Rect, size: (100, 100), color: (1.0, 0.0, 0.0, 1.0), opacity: 1
+    }
+}
+
+#0s
+b: Box, at: (320, 180), opacity: 0.5
+"#,
+        )],
+    );
+    let timeline = Timeline::build(&expanded(&program));
+    let mut filter_backend = None;
+    let frame = timeline.evaluate_program_with_debug(
+        0.0,
+        SceneDimensions {
+            width: 640,
+            height: 360,
+        },
+        DebugRenderOptions::default(),
+        &mut filter_backend,
+    );
+    let item = frame
+        .items
+        .iter()
+        .find(|item| item.label == "b")
+        .expect("the expanded root actor must render");
+    assert!(
+        (item.opacity - 0.25).abs() < 1e-6,
+        "instance opacity must multiply into the root's authored opacity, got {}",
+        item.opacity
+    );
+    let child = frame
+        .items
+        .iter()
+        .find(|item| item.label == "b.r")
+        .expect("the component's inner actor must render");
+    assert!(
+        (child.opacity - 0.25).abs() < 1e-6,
+        "the composed opacity must reach the component's inner actors, got {}",
+        child.opacity
+    );
 }
 
 #[test]
