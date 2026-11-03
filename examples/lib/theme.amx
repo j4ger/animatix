@@ -1,4 +1,108 @@
-pub let gallery = Colorscheme { extends: "editorial-dark", scene.background: (0.02, 0.04, 0.07, 1), text.primary: (0.96, 0.97, 0.99, 1), text.secondary: (0.72, 0.76, 0.82, 1), text.muted: (0.52, 0.56, 0.64, 1), accent.primary: (0.38, 0.78, 1, 1), accent.secondary: (0.5, 0.7, 0.98, 1), accent.success: (0.35, 0.86, 0.63, 1), accent.warning: (0.98, 0.83, 0.44, 1), accent.danger: (1, 0.5, 0.55, 1), accent.info: (0.5, 0.8, 0.95, 1), surface.primary: (0.1, 0.14, 0.2, 1), surface.secondary: (0.06, 0.1, 0.15, 1), stroke.default: (0.4, 0.46, 0.54, 1), auto: ((0.38, 0.78, 1, 1), (0.5, 0.7, 0.98, 1), (0.35, 0.86, 0.63, 1), (0.98, 0.83, 0.44, 1), (1, 0.5, 0.55, 1)) }
+// theme.amx — the site-wide scene identity: the "ink" colorscheme, the four
+// per-work palettes, and the shared design tokens.
+//
+// `ink` is the one palette every web scene draws in, so the plates melt into
+// the page: scene.background equals the site stylesheet's `--bg` exactly, the
+// bone-white text matches the page's `--ink`, and the lead accent is the site
+// wordmark's amber. Hues are rationed — amber leads, bone supports, coral is
+// the drama voice, sage and steel only appear where a diagram genuinely needs
+// a third/fourth semantic channel. Scenes opt in with
+// `import "../lib/theme.amx"` (path relative to the scene) and
+// `config { colorscheme: "ink" }`.
+//
+// The old "gallery" scheme (a blue/green variant of editorial-dark) was
+// replaced by `ink` in the redesign; all former references now say "ink".
+
+pub let ink = Colorscheme {
+  extends: "editorial-dark",
+  scene.background: (0.031, 0.035, 0.051, 1),
+  text.primary: (0.973, 0.980, 0.988, 1),
+  text.secondary: (0.796, 0.835, 0.882, 1),
+  text.muted: (0.478, 0.537, 0.635, 1),
+  surface.primary: (0.063, 0.078, 0.118, 1),
+  surface.secondary: (0.043, 0.055, 0.082, 1),
+  stroke.default: (0.180, 0.224, 0.302, 1),
+  accent.primary: (0.980, 0.745, 0.220, 1),
+  accent.secondary: (0.973, 0.980, 0.988, 1),
+  accent.success: (0.204, 0.835, 0.565, 1),
+  accent.warning: (1.0, 0.443, 0.322, 1),
+  accent.danger: (1.0, 0.282, 0.380, 1),
+  accent.info: (0.220, 0.741, 0.980, 1),
+  auto: (
+    (0.980, 0.745, 0.220, 1),
+    (0.220, 0.741, 0.980, 1),
+    (0.204, 0.835, 0.565, 1),
+    (1.0, 0.443, 0.322, 1),
+    (0.753, 0.518, 0.988, 1)
+  )
+}
+
+// ── Per-work palettes ──────────────────────────────────────────────────────
+// One palette per showcased work (web/DESIGN.md §1.8, web/works.json
+// "palette"): each extends `ink` and overrides only the lead accent, so the
+// bone text, ink ground and surfaces stay identical site-wide while every
+// work tints its own stage. `auto` is ink's cycle reordered so the work hue
+// leads and `color: auto` picks it first. Scenes opt in with
+// `config { colorscheme: "tide" }` (etc.) after importing this file; `ink`
+// itself is untouched. `extends: "ink"` resolves because user-declared
+// schemes join the build AST through the import (built-ins first, then any
+// declared scheme; an unknown base only warns).
+//
+// `ember` is the amber work palette under its manifest/CSS name (web/works.json
+// "palette", web/site/v2.css [data-palette]); it is ink verbatim, kept as an
+// alias so a scene's colorscheme word and its page's palette token agree.
+
+pub let ember = Colorscheme {
+  extends: "ink"
+}
+
+pub let tide = Colorscheme {
+  extends: "ink",
+  accent.primary: (0.22, 0.74, 0.98, 1),
+  auto: (
+    (0.22, 0.74, 0.98, 1),
+    (0.980, 0.745, 0.220, 1),
+    (0.204, 0.835, 0.565, 1),
+    (1.0, 0.443, 0.322, 1),
+    (0.753, 0.518, 0.988, 1)
+  )
+}
+
+pub let moss = Colorscheme {
+  extends: "ink",
+  accent.primary: (0.20, 0.84, 0.56, 1),
+  auto: (
+    (0.20, 0.84, 0.56, 1),
+    (0.980, 0.745, 0.220, 1),
+    (0.220, 0.741, 0.980, 1),
+    (1.0, 0.443, 0.322, 1),
+    (0.753, 0.518, 0.988, 1)
+  )
+}
+
+pub let orchid = Colorscheme {
+  extends: "ink",
+  accent.primary: (0.75, 0.52, 0.99, 1),
+  auto: (
+    (0.75, 0.52, 0.99, 1),
+    (0.980, 0.745, 0.220, 1),
+    (0.220, 0.741, 0.980, 1),
+    (0.204, 0.835, 0.565, 1),
+    (1.0, 0.443, 0.322, 1)
+  )
+}
+
+pub let coral = Colorscheme {
+  extends: "ink",
+  accent.primary: (1.0, 0.44, 0.32, 1),
+  auto: (
+    (1.0, 0.44, 0.32, 1),
+    (0.980, 0.745, 0.220, 1),
+    (0.220, 0.741, 0.980, 1),
+    (0.204, 0.835, 0.565, 1),
+    (0.753, 0.518, 0.988, 1)
+  )
+}
 
 pub let gap_xs = 4
 

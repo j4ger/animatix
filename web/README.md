@@ -248,6 +248,8 @@ Behavior:
   `aspect` (`16:9`/`4:3`/`1:1`/`9:16`, auto-detected from the scene
   afterwards), `profile` (below), `quality` (below), `data-vars` (build-time
   overrides, below), `sealed` and `fit` (page-driven mode, below),
+  `no-veil` (suppress the generic loading veil so a page can paint its own
+  `.poster-plate` under the player; error veils still show),
   `debug-frame` (frame readout, below).
 - **Controls UX** — the strip lives *below* the canvas, full-height and
   always visible: it never covers the picture, and it doubles as the
