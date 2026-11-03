@@ -1,57 +1,156 @@
-// 2.5D Perspective Projection & Frosted Glass — Scene 2 of Kinetic Studio
-import "../../demos/lib/theme.amx"
-import "../../demos/lib/ui.amx"
-import "../../demos/lib/ambience.amx"
+// house-style: frosted-glass study; three acts, payoff is a camera push over a live
+// backdrop blur, rests on the sharp panel over the fully frosted bar field.
+//
+// Kinetic figure 02 (web/DESIGN.md §1.8: glass appears once, and only over
+// something worth frosting). The house head names the figure; the mechanism act
+// is the panel itself — 76 px display type held sharp above the frost. The
+// gradient bar field behind it is load-bearing, not decoration: a backdrop blur
+// has nothing to show without high-frequency detail moving under the panel, so
+// the field drifts for the whole loop while the frost ramps to `frost` and the
+// plane sweeps its yaw.
+//
+// `tilt` (degrees) and `frost` (blur px) are the deck sliders: `--set tilt=N` and
+// `--set frost=N` re-angle the panel and re-tune the blur without touching the
+// choreography. The 1.4x pitch share is deliberate — rotate_x / rotate_y are
+// orthographic radians (a pure 2D affine in this engine), so a matched pitch
+// reads shallower than the yaw and the plane would not read as one surface.
+//
+// Type floors (DESIGN §1.5): display 76, lede 22, kicker 18 mono, captions 24,
+// readout values 28 — nothing below 16 px.
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 6.0 }
+import "../lib/theme.amx"
+import "../lib/stage.amx"
 
-bg: Ambience, tint: accent.info, seed: 888
+config { colorscheme: "coral", resolution: (1280, 720), duration: 9.0 }
 
-h_kicker: Text, text: "KINETIC STUDIO", font_size: 11, font_weight: 600, color: accent.info,
-  anchor: scene.top, offset: (0, 36)
-h_title: Text, text: "Frosted Glass & 2.5D Projection", font_size: 32, font_weight: "bold",
-  color: text.primary, anchor: scene.top, offset: (0, 68)
-h_sub: Text, text: "Dynamic pitch and yaw transforms with real-time GPU backdrop blur",
-  font_size: 14, color: text.secondary, anchor: scene.top, offset: (0, 98)
+// The slider targets. `tilt` is the authored angle in degrees; the pitch below
+// carries a 1.4x share so the pair reads as one tilted surface.
+let tilt = 10
+let frost = 24
 
-pattern: Group, at: (640, 380) {
-  for (dx, h, dy, col), i in {
-    (-220, 260, 10, accent.primary),
-    (-110, 320, -20, accent.warning),
-    (0, 240, 30, accent.info),
-    (110, 300, -10, accent.primary),
-    (220, 210, 20, accent.warning)
-  } {
-    bars[i]: Rect, size: (48, h), at: (dx, dy), color: col, corner_radius: 8, opacity: 0.38
-  }
+// ── the stage ───────────────────────────────────────────────────────
+floor: StageFloor, glow: 0.75
+
+head: ActHead, kicker: "FIG 02 · FROSTED GLASS", title: "Frost over a moving field",
+  sub: "a live backdrop blur on a panel tilted out of the page"
+
+cap1: Caption, text: "Act I · Fourteen gradient bars keep the field moving under the panel.", tag: "glass.amx"
+cap2: Caption, text: "Act II · The frost ramps to 24 px while the plane sweeps its yaw.", tag: "glass.amx", opacity: 0
+cap3: Caption, text: "Act III · Full frost, sharp type: the field dissolves, the panel holds.", tag: "glass.amx", opacity: 0
+
+// Specs: declared at their final values, rewritten every frame in `always` so the
+// numbers follow `--set frost=N` / `--set tilt=N` (frame-time text writes do not
+// render offline, so the declared string is also the storyboard's proof).
+chip_frost: Readout, label: "FROST RADIUS", value: "24 px", at: (1140, 330), opacity: 0
+chip_tilt: Readout, label: "PLANE TILT", value: "10°", at: (1140, 440), opacity: 0
+
+// ── the field: what the frost gets to eat ───────────────────────────
+// Wide, saturated, high-frequency: 46 px bars on a 68 px pitch, with thin sky
+// needles threaded between them. Everything here is moving (see `always`), so the
+// frosted window always has fresh detail to destroy.
+field_glow: Ellipse, size: (1500, 520), at: (540, 430), blend: "screen", opacity: 0.34,
+  fill_gradient: radial((0.5, 0.5), 0.6, {(0%, "#ff6f4a30"), (55%, "#ff6f4a10"), (100%, "#ff6f4a00")}),
+  legend: false
+
+for (x, cy, h), i in {
+  (100, 430, 290), (166, 415, 180), (232, 450, 330), (298, 420, 220), (364, 440, 300),
+  (430, 410, 160), (496, 435, 260), (562, 418, 200), (628, 448, 320), (694, 412, 170),
+  (760, 438, 280), (826, 408, 150), (892, 430, 250), (958, 422, 230)
+} {
+  bars[i]: Rect, size: (46, h), corner_radius: 8, at: (x, cy), opacity: 1,
+    fill_gradient: linear(180, {accent.primary, "#f5b942"})
 }
 
-glass: Glass, at: (640, 380), size: (580, 280), corner_radius: 20 {
-  frost: Blur, radius: 24
-  surface: Rect, size: (580, 280), corner_radius: 20, color: "#ffffff14", stroke: "#ffffff40", stroke_width: 1.5,
-    shadow: (0, 20, 40, 0), shadow_color: (0, 0, 0, 0.4)
-  body: Col, size: (520, 220), gap: 12, align: "center" {
-    tag: Text, text: "GPU BACKDROP SHADER", font_size: 13, font_weight: 600, color: accent.primary
-    lbl: Text, text: "Perspective Projection", font_size: 34, font_weight: "bold", color: text.primary
-    desc: Text, text: "Pitch and yaw transforms simulate physical material elevation above background layers.", font_size: 15, color: text.secondary, text_align: "center", text_max_width: 480
-  }
+for (x, cy, h), i in {
+  (133, 430, 140), (199, 415, 210), (265, 440, 120), (331, 420, 180), (397, 435, 230),
+  (463, 410, 130), (529, 435, 190), (595, 418, 160), (661, 442, 220), (727, 415, 140),
+  (793, 432, 200), (859, 408, 130), (925, 428, 185)
+} {
+  needles[i]: Rect, size: (8, h), corner_radius: 4, at: (x, cy), opacity: 0.85,
+    fill_gradient: linear(180, {accent.info, "#7c5cff"})
 }
 
-#0.0s
-fade-in h_kicker [400ms, ease: expo-out]
-fade-in h_title [500ms, delay: 50ms, ease: expo-out]
-fade-in h_sub [500ms, delay: 100ms, ease: expo-out]
-fade-in pattern [400ms]
-fade-in glass [400ms]
+// The payoff flare, behind the panel so the frost gets to soften it too.
+bloom: Ellipse, size: (980, 430), at: (540, 440), blend: "screen", opacity: 0,
+  fill_gradient: radial((0.5, 0.5), 0.55, {(0%, "#ff70524a"), (55%, "#ff705214"), (100%, "#ff705200")}),
+  legend: false
 
-#1.0s
-glass.rotate_y = 0.22 [1.8s, ease: ease-in-out]
-glass.rotate_x = -0.12 [1.8s, ease: ease-in-out]
+// ── the panel ───────────────────────────────────────────────────────
+// One Glass scope: the only frosted region in the scene. Its surface is a child
+// Rect, not the scope's own fill — the frost is sampled from the finished frame,
+// so anything the scope paints would sit inside the pixels that get blurred.
+// The frost window is deliberately smaller than the surface: rotating the scope
+// makes the engine blur the *axis-aligned* bounds of the tilted panel, and that
+// bounds rect would otherwise stick out past the surface's sheared edge as a
+// grey wedge. The surface turns the overshoot into a clear glass rim instead.
+glass: Glass, at: (540, 440), size: (700, 200), corner_radius: 30,
+  rotate_y: tilt * 0.0174532925, rotate_x: 0 - tilt * 0.0279252680, opacity: 1 {
+  soft: Blur, radius: frost
+  surface: Rect, size: (760, 250), corner_radius: 30,
+    color: "#ffffff14", stroke: "#ffffff45", stroke_width: 1.5,
+    shadow: (0, 26, 56, 0), shadow_color: (0, 0, 0, 0.45), opacity: 1
+  tag: Text, text: "GLASS SCOPE · LIVE BACKDROP BLUR", font_size: 18, font_family: "mono",
+    font_weight: 600, color: accent.primary, at: (0, -58), opacity: 1
+  display: Text, text: "Frosted depth", font_size: 76, font_weight: "bold",
+    color: text.primary, at: (0, 6), opacity: 1
+  desc: Text, text: "The field behind it dissolves; the type on it does not.",
+    font_size: 22, color: text.secondary, text_align: "center", text_max_width: 640,
+    at: (0, 78), opacity: 1
+}
 
-#3.5s
-glass.rotate_y = -0.15 [1.6s, ease: ease-in-out]
-glass.rotate_x = 0.08 [1.6s, ease: ease-in-out]
+// ── Act I · the hook ────────────────────────────────────────────────
+// Floor, head, field and panel are already composed at t=0; the first motion is
+// the field's own drift (woken in `always`) and the first yaw sweep at 0.35 s.
+#0.35s
+glass.rotate_y = 0 - tilt * 0.0174532925 * 0.80 [1.8s, ease: ease-in-out]
+glass.rotate_x = tilt * 0.0279252680 * 0.70 [1.8s, ease: ease-in-out]
 
-#5.2s
-glass.rotate_y = 0.0 [800ms, ease: ease-out]
-glass.rotate_x = 0.0 [800ms, ease: ease-out]
+// ── Act II · the mechanism ──────────────────────────────────────────
+// The frost climbs, the plane swings back through its rest pose and the spec
+// chips arrive with the numbers they will now track.
+#2.8s
+fade-out cap1 [240ms, ease: ease-in]
+fade-in cap2 [280ms, delay: 200ms, ease: expo-out]
+fade-in chip_frost [420ms, ease: expo-out]
+fade-in chip_tilt [420ms, delay: 160ms, ease: expo-out]
+glass.rotate_y = tilt * 0.0174532925 [2.0s, ease: ease-in-out]
+glass.rotate_x = 0 - tilt * 0.0279252680 [2.0s, ease: ease-in-out]
+
+// ── Act III · the payoff ────────────────────────────────────────────
+// Bloom flare plus a camera push that settles back, so the held frame is the
+// whole figure at rest: field, frosted panel and both spec chips.
+#6.8s
+fade-out cap2 [240ms, ease: ease-in]
+fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
+bloom.opacity = 0.38 [700ms, ease: expo-out]
+camera.zoom = 1.05 [1.2s, ease: ease-in-out]
+
+#8.0s
+bloom.opacity = 0.20 [900ms, ease: ease-in-out]
+camera.zoom = 1.0 [1.0s, ease: ease-in-out]
+
+// ── Rest ────────────────────────────────────────────────────────────
+// Frost at `frost`, tilt at `tilt`, the field still drifting, every chip and
+// caption lit. Nothing erases.
+
+always {
+  // The field never stops: per-bar phase offsets make a travelling wave, and the
+  // needles drift on a slower counter-orbit so the blur reads as motion, not as
+  // a frozen grey plate.
+  for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13} {
+    bars[i].shift = (16 * sin(t * 0.52 + i * 0.45), 22 * sin(t * 0.83 + i * 0.62))
+    bars[i].scale = 1.0 + 0.06 * sin(t * 0.90 + i * 0.55)
+  }
+  for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12} {
+    needles[i].shift = (11 * sin(t * 0.61 + i * 0.80), 30 * sin(t * 0.74 + i * 0.50))
+    needles[i].opacity = 0.55 + 0.30 * (0.5 + 0.5 * sin(t * 1.1 + i * 0.9))
+  }
+
+  // The frost ramps from a faint breath to the authored radius and holds there.
+  soft.radius = frost * (0.20 + 0.80 * clamp((t - 0.15) / 3.0, 0, 1))
+
+  // Live specs: the blur the panel is actually running and the plane's current
+  // yaw. `deg` converts the orthographic radian property back to degrees.
+  chip_frost.value_text.text = format("{:.0f} px", soft.radius)
+  chip_tilt.value_text.text = format("{:.0f}°", abs(deg(glass.rotate_y)))
+}
