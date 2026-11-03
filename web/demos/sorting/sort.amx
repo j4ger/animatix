@@ -53,22 +53,15 @@ let bars_x = 640 + (12 - n) * 52
 let row_left = bars_x - 624
 let slot_mid = 52
 
-pub component Bars(values: List<Num>, n: Num, at: Vec2 = (640, 437)) {
-  // Managed layout children must carry a LITERAL size here: a passed binding
-  // in `size` (e.g. `bar_w: pitch`) collapses the Row to a single column in
-  // this engine build, so the slot width is authored and `n` only gates the
-  // opacity of the tail slots.
-  row: Row, at: at, gap: 0, align: "end", vertical_align: "end" {
-    for v, i in values {
-      bar[i]: Rect, size: (104, v * 3.0), corner_radius: 3,
-        stroke: scene.background, stroke_width: 2,
-        fill_gradient: linear(0, {accent.primary * 0.15, accent.primary}),
-        opacity: if i < n { 1 } else { 0 }
-    }
-  }
+// Absolute per-bar actors: a Row container paints an unwanted capsule through
+// the lane in this build, so the row is laid out by arithmetic instead.
+for v, i in values {
+  bar[i]: Rect, size: (104, v * 3.0), corner_radius: 3,
+    stroke: scene.background, stroke_width: 2,
+    fill_gradient: linear(0, {accent.primary * 0.15, accent.primary}),
+    at: (row_left + i * 104 + slot_mid, 586 - v * 1.5),
+    opacity: if i < n { 1 } else { 0 }
 }
-
-bars: Bars, values: values, n: n, at: (bars_x, 446.5)
 
 baseline: Rect, size: (1248, 2), color: stroke.default, at: (640, 586), opacity: 1
 base_glow: Rect, size: (1248, 14), color: accent.primary, blend: "screen",
@@ -151,7 +144,7 @@ cap2: Caption, text: "Act II · The key slides left; each inversion is a swap th
 cap3: Caption, text: format("Act III · Ascending — {:.0} comparisons, {:.0} swaps, all emitted.", n * (n - 1) / 2, swap_total), tag: "sort.amx", opacity: 0
 
 // ── the key marker ──────────────────────────────────────────────────
-key_note: Callout, from: (640, 206), target: bars.bar[1], place: top, standoff: 12,
+key_note: Callout, from: (640, 206), target: bar[1], place: top, standoff: 12,
   label: "KEY", label_at: (0, -30), color: text.primary, stroke: accent.primary,
   stroke_width: 2, head_size: 10, opacity: 0
 
@@ -160,15 +153,18 @@ key_note: Callout, from: (640, 206), target: bars.bar[1], place: top, standoff: 
 // the bars currently at the two slots being exchanged. `[step:]` advances the
 // build clock: one key every 2.2 s, one comparison every 0.2 s. The payoff is
 // emitted from inside the final comparison so its timing follows `n` too.
-fn insertion_sort(bars, values: List<Num>) {
+fn insertion_sort(values: List<Num>) {
   let order = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
   for key in {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} [step: 2200ms] {
     if key < n {
-      key_note.target = bars.bar[order[key]] [180ms]
+      key_note.target = bar[order[key]] [180ms]
       for j in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10} [step: 200ms] {
         if j < key {
           if values[order[key - j]] < values[order[key - j - 1]] {
-            swap bars.bar[order[key - j]], bars.bar[order[key - j - 1]] [180ms]
+            // Absolute bars are not layout-managed children, so `swap` is not
+            // applicable: emit the two position moves the swap would perform.
+            bar[order[key - j]].at = (row_left + (key - j - 1) * 104 + slot_mid, 586 - values[order[key - j]] * 1.5) [180ms, ease: ease-in-out]
+            bar[order[key - j - 1]].at = (row_left + (key - j) * 104 + slot_mid, 586 - values[order[key - j - 1]] * 1.5) [180ms, ease: ease-in-out]
             let order = list_swap(order, key - j, key - j - 1)
           }
           if key == n - 1 {
@@ -215,7 +211,7 @@ for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} [step: 18ms] {
 #1.0s
 fade-out cap1 [240ms, ease: ease-in]
 fade-in cap2 [280ms, delay: 200ms, ease: expo-out]
-insertion_sort(bars, values)
+insertion_sort(values)
 
 // `always` counts the same build-time schedule at frame time. Comparisons are
 // exact by construction (key k always performs k of them); swaps read the
