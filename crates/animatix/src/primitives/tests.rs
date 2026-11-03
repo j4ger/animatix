@@ -296,3 +296,70 @@ fn runtime_text_content_crossfade_compiles_both_endpoints() {
         "Expected midpoint cross-fade opacities"
     );
 }
+
+/// A frame-time `.text` write recompiles glyph paths; those paths must be what
+/// the renderer draws, not the declaration's precompiled hardware glyph run.
+/// Before the fix `RenderCommand::Text` carried that stale run and the draw
+/// path preferred it over the frame paths, so offline frames showed the
+/// declared string.
+#[test]
+fn runtime_text_override_drops_declared_hardware_layout() {
+    use crate::timeline::{DebugRenderOptions, SceneDimensions, Timeline};
+
+    let source = r#"
+config { colorscheme: "paper", resolution: (400, 200) }
+
+#0s
+counter: Text, text: "DECLAREDTEXT", font_size: 64, at: (200, 100)
+
+always {
+  counter.text = format("{:.0}", 100 * t)
+}
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let timeline = Timeline::build_with_diagnostics(
+        &ast.expect("parsed AST"),
+        &std::collections::HashMap::new(),
+    )
+    .output;
+
+    let program = timeline.evaluate_program_with_debug(
+        0.5,
+        SceneDimensions {
+            width: 400,
+            height: 200,
+        },
+        DebugRenderOptions::default(),
+        &mut None,
+    );
+    let item = program
+        .items
+        .iter()
+        .find(|item| item.label == "counter")
+        .expect("counter text item");
+    let (paths, hardware_layout) = item
+        .commands
+        .iter()
+        .find_map(|command| match command {
+            RenderCommand::Text {
+                paths,
+                hardware_layout,
+                ..
+            } => Some((paths, hardware_layout)),
+            _ => None,
+        })
+        .expect("counter Text command");
+
+    // "50" at t=0.5 — two glyphs, not the twelve in "DECLAREDTEXT". The path
+    // count also proves the frame-time string reached the draw command.
+    assert!(
+        paths.len() <= 3,
+        "expected the frame-time string's glyphs, got {} paths",
+        paths.len()
+    );
+    assert!(
+        hardware_layout.is_none(),
+        "frame-time text must not reuse the declared hardware glyph layout"
+    );
+}

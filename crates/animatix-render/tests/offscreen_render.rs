@@ -311,6 +311,20 @@ fn pixel(data: &[u8], size: u32, x: u32, y: u32) -> [u8; 4] {
     [data[base], data[base + 1], data[base + 2], data[base + 3]]
 }
 
+/// Count glyph ink (dark pixels on the `paper` colorscheme) inside a box.
+fn dark_ink_in(frame: &RenderedFrame, x0: u32, y0: u32, x1: u32, y1: u32) -> usize {
+    let mut ink = 0;
+    for y in y0..y1 {
+        for x in x0..x1 {
+            let p = pixel(&frame.rgba, frame.width, x, y);
+            if p[0] < 128 && p[1] < 128 && p[2] < 128 {
+                ink += 1;
+            }
+        }
+    }
+    ink
+}
+
 /// `corner_radius` must reach the rasterizer: with a radius the corner pixels
 /// stay empty while the edge midpoints and the interior are painted, and with
 /// no radius the corner is painted.
@@ -342,6 +356,71 @@ round: Rect, at: (150, 50), size: (60, 60), color: (1, 1, 1, 1), corner_radius: 
     assert!(red_at(122, 22) < 40, "rounded corner must stay empty");
     assert!(red_at(150, 22) > 200, "the top edge must still be painted");
     assert!(red_at(150, 50) > 200, "the interior must be painted");
+}
+
+/// Regression: an `always { actor.text = ... }` write must replace the declared
+/// string in an offline frame. The declaration seeds `text.static_paths` and a
+/// precompiled hardware glyph run; before the fix the renderer replayed that
+/// declared run and ignored the frame-time string (and could draw both when the
+/// CPU paths were also emitted).
+///
+/// The declared string is much wider than either frame string, so a stale run —
+/// or a ghost of both strings — leaves far more ink in the text box than the
+/// frame value alone. At 0.5s the frame string is "50"; at 1.5s it is "150".
+#[test]
+fn frame_time_text_override_replaces_declared_glyphs_offline() {
+    let Some(mut renderer) = new_renderer() else {
+        return;
+    };
+    let animated = build_checked(
+        r#"
+config { colorscheme: "paper", resolution: (400, 200) }
+
+#0s
+counter: Text, text: "DECLAREDTEXT", font_size: 64, at: (200, 100)
+
+always {
+  counter.text = format("{:.0}", 100 * t)
+}
+"#,
+    );
+    // Same declaration without the frame-time write: the ink a stale cache
+    // would replay.
+    let declared = build_checked(
+        r#"
+config { colorscheme: "paper", resolution: (400, 200) }
+
+#0s
+counter: Text, text: "DECLAREDTEXT", font_size: 64, at: (200, 100)
+"#,
+    );
+    let dims = SceneDimensions {
+        width: 400,
+        height: 200,
+    };
+    // The text box comfortably covers either string at font_size 64.
+    let (x0, y0, x1, y1) = (50, 45, 350, 155);
+
+    let declared_ink = dark_ink_in(&render(&mut renderer, &declared, 0.5, dims), x0, y0, x1, y1);
+    let first_ink = dark_ink_in(&render(&mut renderer, &animated, 0.5, dims), x0, y0, x1, y1);
+    let second_ink = dark_ink_in(&render(&mut renderer, &animated, 1.5, dims), x0, y0, x1, y1);
+
+    assert!(declared_ink > 0, "fixture must draw the declared string");
+    assert!(first_ink > 0, "frame-time text must draw at 0.5s");
+    assert!(second_ink > 0, "frame-time text must draw at 1.5s");
+    // "150" has one more digit than "50"; the old bug rendered the same
+    // declared run at both times.
+    assert!(
+        second_ink > first_ink,
+        "frame-time text must change between times: 0.5s={first_ink}px, 1.5s={second_ink}px"
+    );
+    // A stale declared run or a declared+override ghost would fill roughly the
+    // declared string's box; the frame strings are much shorter.
+    assert!(
+        first_ink * 4 < declared_ink * 3 && second_ink * 4 < declared_ink * 3,
+        "frame-time text must replace the declared glyphs, not replay/ghost them: \
+         declared={declared_ink}px, 0.5s={first_ink}px, 1.5s={second_ink}px"
+    );
 }
 
 #[test]

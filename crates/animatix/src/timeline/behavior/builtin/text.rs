@@ -20,6 +20,7 @@ fn evaluate_text_kind(
     default_font_size: f32,
 ) -> Result<Option<Vec<RenderCommand>>, RenderError> {
     let style = ctx.style;
+    let has_text_ctx = text_ctx.is_some();
 
     let (paths, clip_path) = if let Some(text_ctx) = text_ctx {
         evaluate_text_paths(ctx, text_ctx, kind, default_font_size)
@@ -40,9 +41,21 @@ fn evaluate_text_kind(
         let col = style.color.get(ctx.time_ms, [1.0, 1.0, 1.0, 1.0]);
         let tint_color = Some(crate::renderer::text::f32_color_to_rgba8(&col));
         let text = ctx.text.expect("text primitive requires text component");
+        // `text.hardware_layout` was compiled from the declaration's static
+        // glyphs. With a text context it is only a valid fast path while `paths`
+        // *is* that static allocation: a frame-time `.text`/style override
+        // recompiles through `evaluate_text_paths` and returns a different
+        // `Arc`, so replaying the declared glyph run would hide the frame-time
+        // string. Position-only overrides leave the static `Arc` untouched and
+        // keep the fast path. Without a text context `evaluate_paths_and_clip`
+        // rebuilds the static paths as a fresh `Arc`; no override was applied,
+        // so the declared layout still describes them.
+        let static_paths = text.static_paths.as_ref();
         let hardware_layout = if text.char_progress.is_none()
             && text.text_anchor.get(ctx.time_ms, "center".to_string()) == "center"
-        {
+            && static_paths.is_some_and(|static_paths| {
+                !has_text_ctx || std::sync::Arc::ptr_eq(static_paths, &paths)
+            }) {
             text.hardware_layout.clone()
         } else {
             None

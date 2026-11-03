@@ -16,6 +16,13 @@ pub(crate) fn recompile_text_at_assignment(
     font_ctx: &crate::renderer::text::FontContext,
     text_compiler: &mut crate::renderer::text::TextCompiler,
 ) -> Result<(), RenderError> {
+    // A `.text` (or anchor) write invalidates the declaration-time static glyph
+    // caches: `evaluate_text_paths` would otherwise take its static branch and
+    // replay the old string before the new text-path keyframes are consulted.
+    text.static_paths = None;
+    text.hardware_layout = None;
+    text.static_split_clip = None;
+
     if duration_ms > 0.0 {
         let start_val = text.text_content.get(t_start_ms, String::new());
         text.text_content

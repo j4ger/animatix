@@ -163,5 +163,9 @@ label.text = "after""#,
         let text = report.output.world().text_or_default(id);
         assert_eq!(text.text_content.get(0, String::new()), "before");
         assert_eq!(text.text_content.get(500, String::new()), "after");
+        // The assignment recompiles paths; the declaration's static glyph
+        // caches must not shadow them for the rest of the timeline.
+        assert!(text.static_paths.is_none(), "static paths must be invalidated");
+        assert!(text.hardware_layout.is_none(), "hardware layout must be invalidated");
     }
 }
