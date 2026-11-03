@@ -229,14 +229,14 @@ down_label: Text, text: "−∇L · downhill", font_size: 18, font_weight: 600, 
 // ── the step path, precomputed from lr ─────────────────────────────
 let px = x0
 let py = y0
-for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23} {
-  let nx = px - lr * 4 * px
-  let ny = py - lr * 2 * py
+for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} {
+  let nx = if i < steps { px - lr * 4 * px } else { px }
+  let ny = if i < steps { py - lr * 2 * py } else { py }
   seg[i]: Line, from: (480 + px * 80, 445 - py * 80), to: (480 + nx * 80, 445 - ny * 80),
     stroke: accent.success, stroke_width: 2.6, opacity: 0
   dot[i]: Ellipse, size: (8, 8), color: accent.secondary, at: (480 + px * 80, 445 - py * 80), opacity: 0
-  let px = nx
-  let py = ny
+  let px = if i < steps { nx } else { px }
+  let py = if i < steps { ny } else { py }
 }
 end_dot: Ellipse, size: (8, 8), color: accent.secondary, at: (480 + px * 80, 445 - py * 80), opacity: 0
 
@@ -250,7 +250,7 @@ basin_label: Text, text: "GLOBAL MINIMUM · L = 0", font_size: 16, font_family: 
   at: (480, 612), opacity: 0.8
 
 // ── the reading rail ──────────────────────────────────────────────
-loss_chip: Readout, label: "LOSS", value: "0.00", at: (1085, 248)
+loss_chip: Readout, label: "LOSS", value: format("{:.2}", 2 * px^2 + py^2), at: (1085, 248)
 lr_chip: Readout, label: "LEARNING RATE", value: format("{:.2}", lr), at: (1085, 585)
 
 eq_card: Rect, size: (250, 220), corner_radius: 16, color: surface.primary,
@@ -301,7 +301,7 @@ fade-in down_label [360ms, delay: 340ms, ease: expo-out]
 #4.5s
 fade-out cap2 [240ms, ease: ease-in]
 fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
-for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23} [step: 62ms] {
+for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} [step: 32ms] {
   draw-in seg[i] [110ms, ease: expo-out]
   fade-in dot[i] [90ms, ease: expo-out]
 }
@@ -395,14 +395,14 @@ axis_y_label: Text, text: "y", font_size: 16, font_family: "mono", color: text.m
 // --set lr=0.35 the x factor (1 − 4 lr) goes negative and the path zigzags.
 let px = x0
 let py = y0
-for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23} {
-  let nx = px - lr * 4 * px
-  let ny = py - lr * 2 * py
+for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} {
+  let nx = if i < steps { px - lr * 4 * px } else { px }
+  let ny = if i < steps { py - lr * 2 * py } else { py }
   seg[i]: Line, from: (480 + px * 80, 445 - py * 80), to: (480 + nx * 80, 445 - ny * 80),
     stroke: accent.primary, stroke_width: 2.8, opacity: 0
   dot[i]: Ellipse, size: (8, 8), color: accent.secondary, at: (480 + px * 80, 445 - py * 80), opacity: 0
-  let px = nx
-  let py = ny
+  let px = if i < steps { nx } else { px }
+  let py = if i < steps { ny } else { py }
 }
 end_dot: Ellipse, size: (9, 9), color: accent.secondary, at: (480 + px * 80, 445 - py * 80), opacity: 0
 
@@ -437,8 +437,8 @@ path_label: Text, text: format("−∇L PATH · lr {:.2}", lr), font_size: 16, f
 // ── the live counters ─────────────────────────────────────────────
 // Declared at the resting values so the storyboard's held frame is legible;
 // `always` rewrites them for live playback, where the counters tick.
-loss_chip: Readout, label: "LOSS", value: "0.00", at: (1085, 262)
-step_chip: Readout, label: "STEP", value: "24", at: (1085, 352)
+loss_chip: Readout, label: "LOSS", value: format("{:.2}", 2 * px^2 + py^2), at: (1085, 262)
+step_chip: Readout, label: "STEP", value: format("{:.0}", steps), at: (1085, 352)
 lr_chip: Readout, label: "LEARNING RATE", value: format("{:.2}", lr), at: (1085, 442)
 
 eq_card: Rect, size: (250, 150), corner_radius: 16, color: surface.primary,
@@ -482,7 +482,7 @@ fade-out first_arrow [240ms, ease: ease-in]
 fade-out first_label [240ms, ease: ease-in]
 fade-out first_dot [240ms, ease: ease-in]
 fade-in path_label [360ms, delay: 220ms, ease: expo-out]
-for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23} [step: 55ms] {
+for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} [step: 32ms] {
   draw-in seg[i] [110ms, ease: expo-out]
   fade-in dot[i] [90ms, ease: expo-out]
 }
@@ -563,7 +563,7 @@ head_rule: Rect, size: (96, 4), color: accent.primary,
 
 cap1: Caption, text: "Act I · One bowl, three rates: the step size writes the ending.", tag: "learningrate.amx"
 cap2: Caption, text: "Act II · Left 0.02 crawls; right 0.35 overshoots; the middle is your lr.", tag: "learningrate.amx", opacity: 0
-cap3: Caption, text: "Act III · Twenty-four steps at your rate — the middle panel earns the basin.", tag: "learningrate.amx", opacity: 0
+cap3: Caption, text: format("Act III · {} steps at your rate — the middle panel earns the basin.", steps), tag: "learningrate.amx", opacity: 0
 
 // ── the three plates ───────────────────────────────────────────────
 panel_left: Rect, size: (350, 400), corner_radius: 18, color: surface.secondary,
@@ -621,40 +621,40 @@ mid_glow: Ellipse, size: (180, 180), at: (640, 455), blend: "screen", opacity: 0
 // Left: lr = 0.02 — 24 steps, still well short of the basin.
 let lx = x0
 let ly = y0
-for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23} {
-  let nx = lx - r_left * 4 * lx
-  let ny = ly - r_left * 2 * ly
+for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} {
+  let nx = if i < steps { lx - r_left * 4 * lx } else { lx }
+  let ny = if i < steps { ly - r_left * 2 * ly } else { ly }
   lseg[i]: Line, from: (250 + lx * 40, 455 - ly * 40), to: (250 + nx * 40, 455 - ny * 40),
     stroke: text.muted, stroke_width: 2.2, opacity: 0
   ldot[i]: Ellipse, size: (5, 5), color: text.secondary, at: (250 + lx * 40, 455 - ly * 40), opacity: 0
-  let lx = nx
-  let ly = ny
+  let lx = if i < steps { nx } else { lx }
+  let ly = if i < steps { ny } else { ly }
 }
 
 // Middle: lr = the slider — the live comparison.
 let mx = x0
 let my = y0
-for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23} {
-  let nx = mx - lr * 4 * mx
-  let ny = my - lr * 2 * my
+for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} {
+  let nx = if i < steps { mx - lr * 4 * mx } else { mx }
+  let ny = if i < steps { my - lr * 2 * my } else { my }
   mseg[i]: Line, from: (640 + mx * 40, 455 - my * 40), to: (640 + nx * 40, 455 - ny * 40),
     stroke: accent.success, stroke_width: 3.0, opacity: 0
   mdot[i]: Ellipse, size: (7, 7), color: accent.secondary, at: (640 + mx * 40, 455 - my * 40), opacity: 0
-  let mx = nx
-  let my = ny
+  let mx = if i < steps { nx } else { mx }
+  let my = if i < steps { ny } else { my }
 }
 
 // Right: lr = 0.35 — the x factor goes negative and the path overshoots.
 let rx = x0
 let ry = y0
-for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23} {
-  let nx = rx - r_right * 4 * rx
-  let ny = ry - r_right * 2 * ry
+for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} {
+  let nx = if i < steps { rx - r_right * 4 * rx } else { rx }
+  let ny = if i < steps { ry - r_right * 2 * ry } else { ry }
   rseg[i]: Line, from: (1030 + rx * 40, 455 - ry * 40), to: (1030 + nx * 40, 455 - ny * 40),
     stroke: accent.danger, stroke_width: 2.2, opacity: 0
   rdot[i]: Ellipse, size: (5, 5), color: text.secondary, at: (1030 + rx * 40, 455 - ry * 40), opacity: 0
-  let rx = nx
-  let ry = ny
+  let rx = if i < steps { nx } else { rx }
+  let ry = if i < steps { ny } else { ry }
 }
 
 // The static end markers for the fixed-rate lanes, and the moving middle ball.
@@ -674,8 +674,8 @@ verdict_right: Text, text: format("overshoots · L {:.2}", 2 * rx^2 + ry^2), fon
   font_family: "mono", color: accent.danger, at: (1030, 616), opacity: 1
 
 // ── top-right readouts ────────────────────────────────────────────
-step_chip: Readout, label: "STEPS", value: "24", at: (1085, 76)
-loss_chip: Readout, label: "LOSS · YOUR RATE", value: "0.00", at: (1085, 176)
+step_chip: Readout, label: "STEPS", value: format("{:.0}", steps), at: (1085, 76)
+loss_chip: Readout, label: "LOSS · YOUR RATE", value: format("{:.2}", 2 * mx^2 + my^2), at: (1085, 176)
 
 // ── Act I · three plates arrive ───────────────────────────────────
 #0.05s
@@ -712,17 +712,17 @@ fade-in verdict_right [300ms, delay: 740ms, ease: expo-out]
 #4.5s
 fade-out cap2 [240ms, ease: ease-in]
 fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
-for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23} [step: 48ms] {
+for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} [step: 32ms] {
   draw-in lseg[i] [100ms, ease: expo-out]
   fade-in ldot[i] [80ms, ease: expo-out]
   draw-in rseg[i] [100ms, delay: 14ms, ease: expo-out]
   fade-in rdot[i] [80ms, delay: 14ms, ease: expo-out]
 }
-fade-in left_ball [260ms, delay: 1.28s, ease: expo-out]
-fade-in right_ball [260ms, delay: 1.34s, ease: expo-out]
+fade-in left_ball [260ms, delay: 1.62s, ease: expo-out]
+fade-in right_ball [260ms, delay: 1.68s, ease: expo-out]
 
 #4.9s
-for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23} [step: 48ms] {
+for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47} [step: 32ms] {
   draw-in mseg[i] [100ms, ease: expo-out]
   fade-in mdot[i] [80ms, ease: expo-out]
 }
