@@ -27,15 +27,20 @@ const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const CHROME = process.env.CHROME || "chromium";
 const PYTHON = process.env.PYTHON || "python3";
 
-// Pages that exercise the load shapes: the hero grid, a single walkthrough
-// player, a slim multi-player demo, and the SVG asset probe.
+// Pages that exercise the load shapes: the home hero, the showcase theater and
+// catalog, a full-bleed gallery, a walkthrough deck, the interactive tour, the
+// recipes/arena pages, and the SVG asset probe (now under web/dev/).
 const PAGES = process.env.SMOKE_PAGES
   ? process.env.SMOKE_PAGES.split(",")
   : [
       "/",
+      "/demos/",
+      "/gallery.html",
       "/demos/transformer/index.html",
-      "/demos/matrix/index.html",
-      "/demos/svg-probe/index.html",
+      "/tour/",
+      "/recipes/",
+      "/arena/",
+      "/dev/svg-probe/index.html",
     ];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -117,6 +122,15 @@ function pageProbe() {
 
     const players = [...document.querySelectorAll("amx-player")];
     if (!players.length) return { error: "no <amx-player> element on the page" };
+
+    // Deck pages present one slide at a time and keep the hidden players idle
+    // by design. Switch to Article mode so every player is reachable, the way
+    // a reader who wants to see them all would.
+    const articleBtn = document.querySelector('.btn-deck-mode[data-mode="article"]');
+    if (articleBtn) {
+      articleBtn.click();
+      await sleep(400);
+    }
 
     // Players below the fold load on intersection, and the loader deliberately
     // drops a queued player that has already been scrolled past. Walk them one

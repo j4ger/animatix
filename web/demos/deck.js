@@ -186,6 +186,10 @@
       this.mode = mode;
       localStorage.setItem('amx-deck-view-mode', mode);
       this.updateViewModeDOM();
+      // The view-mode class alone does not restore slide display: deck mode
+      // wrote `display: none` inline on the inactive slides, so Article mode
+      // has to re-run the slide pass or the page keeps showing one slide.
+      this.updateSlideDOM();
 
       if (mode === 'article') {
         // Scroll active slide into view
