@@ -1,42 +1,68 @@
-import "../../demos/lib/theme.amx"
-import "../../demos/lib/ambience.amx"
-import "../../demos/lib/ui.amx"
-config { resolution: (1280, 720) }
+// house-style: title act — a shuffled row already standing on a lit stage; payoff is a camera push and a bloom sweep along the ghost bars, and the rest holds the full silhouette.
+//
+// 01 · The stage — the deck's opening figure.
+//
+// Act I of the sorting walkthrough: the problem, stated as a picture. Eight
+// ghost silhouettes of the shuffled values stand on the baseline; the title and
+// the two facts sit above them. Nothing here is the algorithm yet — the row is
+// the question the next three figures answer.
+//
+// House-style §1: StageFloor, head and caption are authored opaque, so frame 0
+// is a lit, titled stage. §5: nothing below 16 px — labels 18, head 48.
 
-# Overture
-config { colorscheme: "ink", dynamic_layout: true, duration: 6 }
+import "../lib/theme.amx"
+import "../lib/stage.amx"
 
-bg: Ambience, tint: accent.primary, seed: 101
+config { colorscheme: "coral", resolution: (1280, 720), duration: 6.0 }
 
-hero: TitleCard,
-  title: "Sorting Theatre",
-  kicker: "ALGORITHMIC STAGE · INSERTION SORT",
-  sub: "Eight bars directed entirely by a single build-time timeline algorithm",
-  at: (640, 180)
+let values = {42, 17, 93, 5, 68, 31, 76, 12}
 
-// The baseline floor for the bars
-floor: Path,
-  commands: {move_to(180, 570), line_to(1100, 570)},
-  stroke: stroke.default, stroke_width: 1.5, fill_opacity: 0.0,
-  dash_pattern: {8, 6}
+// ── stage ───────────────────────────────────────────────────────────
+floor: StageFloor, glow: 1.2, grid: 1.4
 
-// Silhouette ghost bars in background showing the initial unsorted arrangement
-for v, i in {42, 17, 93, 5, 68, 31, 76, 12} {
-  ghost[i]: Rect, size: (84, v * 1.5), corner_radius: 8,
-    stroke: stroke.default, stroke_width: 1.2, fill_opacity: 0.05, color: accent.primary,
-    at: (260 + i * 108, 570 - (v * 0.75))
+head_kicker: Text, text: "FIG 01 · THE STAGE", font_size: 18, font_weight: 600,
+  color: accent.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (96, 44), opacity: 1
+head_title: Text, text: "Eight bars, one algorithm", font_size: 48, font_weight: "bold",
+  color: text.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (96, 96), opacity: 1
+head_rule: Rect, size: (96, 4), color: accent.primary,
+  anchor: scene.top_left, offset: (96, 150), opacity: 1
+
+// ── the shuffled row, as silhouette ─────────────────────────────────
+// Ghost bars carry a faint fill and a hairline edge: the row is legible at t=0
+// but visually "unresolved", which is exactly the Act I idea.
+baseline: Rect, size: (1248, 2), color: stroke.default, at: (640, 580), opacity: 0.8
+base_glow: Rect, size: (1248, 14), color: accent.primary, blend: "screen",
+  at: (640, 586), opacity: 0.10
+
+for v, i in values {
+  ghost[i]: Rect, size: (104, v * 2.6), corner_radius: 3,
+    color: accent.primary, fill_opacity: 0.06,
+    stroke: stroke.default, stroke_width: 1,
+    at: (268 + i * 104, 578.5 - v * 1.3), opacity: 1
+  glab[i]: Text, text: format("{:.0}", v), font_size: 18, color: text.muted,
+    at: (268 + i * 104, 614), opacity: 1
 }
 
-#0s
-fade-in floor [500ms, ease: expo-out]
-fade-in hero [800ms, ease: expo-out]
-stagger [50ms] {
-  fade-in ghost__0 [400ms, ease: expo-out]
-  fade-in ghost__1 [400ms, ease: expo-out]
-  fade-in ghost__2 [400ms, ease: expo-out]
-  fade-in ghost__3 [400ms, ease: expo-out]
-  fade-in ghost__4 [400ms, ease: expo-out]
-  fade-in ghost__5 [400ms, ease: expo-out]
-  fade-in ghost__6 [400ms, ease: expo-out]
-  fade-in ghost__7 [400ms, ease: expo-out]
-}
+// ── the two facts ───────────────────────────────────────────────────
+cmp_chip: Readout, label: "COMPARISONS", value: "28", at: (1060, 250)
+swap_chip: Readout, label: "SWAPS", value: "15", at: (1060, 360)
+
+cap1: Caption, text: "Act I · A shuffled row and a single rule: take the next key and walk it left.", tag: "overture.amx"
+
+// ── payoff & rest ───────────────────────────────────────────────────
+// The sweep arrives with the first camera move, so the plate has motion inside
+// the half-second rule; the rest frame is the full silhouette with both facts.
+// A wide screen-blend band that sweeps the ghost row at the payoff.
+sweep: Rect, size: (900, 360), at: (-200, 430), blend: "screen", opacity: 0,
+  fill_gradient: linear(90, {(0%, accent.primary * 0.0), (50%, accent.primary * 0.4), (100%, accent.primary * 0.0)})
+
+#0.15s
+sweep.opacity = 0.55 [260ms, ease: expo-out]
+sweep.at = (1500, 430) [1400ms, ease: ease-out]
+camera.zoom = 1.03 [1200ms, ease: ease-in-out]
+
+#1.6s
+sweep.opacity = 0 [600ms, delay: 500ms, ease: ease-in-out]
+camera.zoom = 1.0 [1200ms, delay: 400ms, ease: ease-in-out]

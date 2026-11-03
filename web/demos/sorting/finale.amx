@@ -1,61 +1,73 @@
-import "../../demos/lib/theme.amx"
-import "../../demos/lib/ambience.amx"
-import "../../demos/lib/ui.amx"
-config { resolution: (1280, 720) }
+// house-style: result act — the sorted row on a lit stage; payoff is a camera push with a bloom sweep over the row, and the rest holds the ordered bars plus the final metrics.
+//
+// 04 · The result — the deck's closing figure.
+//
+// Act III of the sorting walkthrough: every comparison and swap has been
+// emitted by the build-time algorithm, and this is what it bought — a monotonic
+// row, a check mark, and the two totals the mechanism spent.
+//
+// House-style §1: floor, head, caption, bars and metrics are authored opaque, so
+// frame 0 is the solved picture. §5: value labels 18, title 48, chips 28.
 
-pub component Bars(values: List<Num>, color: Color, at: Vec2 = (640, 400), bar_w: Num = 84, scale: Num = 3.0, gap: Num = 24) {
-  row: Row, at: at, gap: gap, align: "end" {
-    for v, i in values {
-      bar[i]: Rect, size: (bar_w, v * scale), corner_radius: 8,
-        fill_gradient: linear(0, {"#0a0e16", color})
-    }
-  }
+import "../lib/theme.amx"
+import "../lib/stage.amx"
+
+config { colorscheme: "coral", resolution: (1280, 720), duration: 7.0 }
+
+let sorted = {5, 12, 17, 31, 42, 68, 76, 93}
+
+// ── stage ───────────────────────────────────────────────────────────
+floor: StageFloor, glow: 1.25, grid: 1.4
+
+head_kicker: Text, text: "FIG 04 · THE RESULT", font_size: 18, font_weight: 600,
+  color: accent.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (96, 44), opacity: 1
+head_title: Text, text: "The row, ordered", font_size: 48, font_weight: "bold",
+  color: text.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (96, 96), opacity: 1
+head_rule: Rect, size: (96, 4), color: accent.primary,
+  anchor: scene.top_left, offset: (96, 150), opacity: 1
+
+// ── the sorted row ──────────────────────────────────────────────────
+baseline: Rect, size: (1248, 2), color: stroke.default, at: (640, 580), opacity: 0.8
+base_glow: Rect, size: (1248, 16), color: accent.primary, blend: "screen",
+  at: (640, 586), opacity: 0.16
+
+for v, i in sorted {
+  bar[i]: Rect, size: (104, v * 2.6), corner_radius: 3,
+    stroke: scene.background, stroke_width: 2,
+    fill_gradient: linear(0, {accent.primary * 0.18, accent.primary}),
+    at: (268 + i * 104, 578.5 - v * 1.3), opacity: 1
+  lab[i]: Text, text: format("{:.0}", v), font_size: 18, color: text.secondary,
+    at: (268 + i * 104, 614), opacity: 1
 }
 
-# Finale
-config { colorscheme: "ink", dynamic_layout: true, duration: 8 }
-
-bg: Ambience, tint: accent.warning, seed: 303
-
+// The verdict: a check glyph and one word, top-right, clear of the head band.
 tick_mark: Path, icon: "check", stroke: accent.success, stroke_width: 3,
-  fill_opacity: 0.0, anchor: scene.top, offset: (-90, 52), scale: 2.2
+  fill_opacity: 0.0, at: (1090, 320), scale: 2.2, opacity: 1
+verdict: Text, text: "SORTED", font_size: 30, font_weight: 600, font_family: "mono",
+  color: accent.success, text_anchor: "left", at: (1124, 322), opacity: 1
 
-finale_title: Text, text: "Sorted", font_size: 42, font_weight: "bold",
-  color: text.primary, anchor: scene.top, offset: (28, 56)
+// ── the metrics ─────────────────────────────────────────────────────
+// Four chips in the band above the bars, clear of the caption band below.
+cmp_chip: Readout, label: "COMPARISONS", value: "28", at: (250, 205)
+swap_chip: Readout, label: "SWAPS", value: "15", at: (520, 205)
+time_chip: Readout, label: "TIME", value: "O(n²)", at: (790, 205)
+space_chip: Readout, label: "SPACE", value: "O(1)", at: (1060, 205)
 
-finale_sub: Text, text: "Monotonic ascending order achieved in 28 comparisons and 15 swaps",
-  font_size: 15, color: text.secondary, anchor: scene.top, offset: (0, 104)
+cap1: Caption, text: "Act III · Twenty-eight comparisons, fifteen swaps, one monotonic row.", tag: "finale.amx", opacity: 1
 
-// The baseline floor for the bars
-floor: Path,
-  commands: {move_to(160, 545), line_to(1120, 545)},
-  stroke: stroke.default, stroke_width: 2, fill_opacity: 0.0,
-  dash_pattern: {9, 7}
+// ── payoff & rest ───────────────────────────────────────────────────
+// The bloom sweeps the row as the camera pushes; both settle back so the rest
+// frame is the whole solved picture (house-style §2, §7).
+sweep: Rect, size: (900, 380), at: (-200, 420), blend: "screen", opacity: 0,
+  fill_gradient: linear(90, {(0%, accent.success * 0.0), (50%, accent.success * 0.45), (100%, accent.success * 0.0)})
 
-finale_bars: Bars, values: {5, 12, 17, 31, 42, 68, 76, 93}, color: accent.primary
+#0.2s
+sweep.opacity = 0.6 [260ms, ease: expo-out]
+sweep.at = (1520, 420) [1500ms, ease: ease-out]
+camera.zoom = 1.045 [1300ms, ease: ease-in-out]
 
-metrics_card: Rect, size: (860, 54), at: (640, 638), corner_radius: 12,
-  color: surface.primary, stroke: stroke.default, stroke_width: 1
-
-metric_row: Row, at: (640, 638), gap: 20, align: "center" {
-  chip_time: Chip, label: "Time: O(n²)", width: 130, height: 32, color: surface.secondary, text_color: accent.warning
-  chip_space: Chip, label: "Space: O(1)", width: 130, height: 32, color: surface.secondary, text_color: accent.success
-  chip_comps: Chip, label: "Comparisons: 28", width: 160, height: 32, color: surface.secondary, text_color: accent.info
-  chip_swaps: Chip, label: "Swaps: 15", width: 120, height: 32, color: surface.secondary, text_color: accent.primary
-}
-
-#0s
-fade-in finale_title [500ms, ease: expo-out]
-fade-in finale_sub [500ms, delay: 100ms, ease: expo-out]
-fade-in floor [500ms, ease: expo-out]
-fade-in finale_bars [600ms, ease: expo-out]
-fade-in metrics_card [500ms, delay: 200ms, ease: expo-out]
-stagger [80ms] {
-  fade-in chip_time [400ms, ease: expo-out]
-  fade-in chip_space [400ms, ease: expo-out]
-  fade-in chip_comps [400ms, ease: expo-out]
-  fade-in chip_swaps [400ms, ease: expo-out]
-}
-
-#0.6s
-draw-in tick_mark [600ms, ease: expo-out]
+#2.0s
+sweep.opacity = 0 [700ms, delay: 500ms, ease: ease-in-out]
+camera.zoom = 1.0 [1300ms, delay: 400ms, ease: ease-in-out]

@@ -1,96 +1,191 @@
-// Morph Lab: Generative Vector Kinetics
-// Showcases declarative shape morphing across topological strategies:
-//   - match: vertex-index correspondence
-//   - path_arc: circular trajectory hinting
-//   - stretch: proportional length remapping
+// house-style: morph comparison; three acts, payoff is a camera push with a bloom flare, rests on three stars on one shared stage.
+//
+// Morph figure 01. The old plate put three identical grey cards in a row, so the
+// strategies read as three unrelated exhibits. This one is a single instrument:
+// one raised stage plate, one bench line, three stations on it. All three shapes
+// start as the SAME 16-point star and end as the SAME 16-point round ring, so the
+// only difference on screen is the road each strategy takes between them —
+// `match` pairs vertices by index, `path_arc` curves every vertex journey, and
+// `stretch` normalises both ends to their bounds before blending.
+//
+// Every morph is Polygon -> Polygon with 16 points on both ends: that is what
+// makes a span interpolate a real hybrid instead of pinching to a silhouette
+// swap (docs/roadmap.md, "Morph: strategy: fade has no cross-fade for state
+// shapes"). The ring is a 16-gon, not an Ellipse, for the same reason.
+//
+// `arc` is the deck slider. DSL note: the `path_arc` morph modifier is parsed
+// from a numeric literal only — a build-time `let` there warns
+// `invalid-modifier-value: Unsupported path_arc value ... expected a numeric
+// radians hint` — so the compiled hint below is the literal 0.35 and `arc`
+// drives the station label and the PATH ARC readout instead.
+//
+// Type floors (DESIGN §1.5): head title 64, captions 24, readout values 28,
+// station names 18 mono, descriptors 16 — nothing below 16 px.
 
-import "../../demos/lib/theme.amx"
-import "../../demos/lib/ui.amx"
-import "../../demos/lib/ambience.amx"
+import "../lib/theme.amx"
+import "../lib/stage.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 8.5 }
+config { colorscheme: "orchid", resolution: (1280, 720), duration: 10.0 }
 
-// Ambient dynamic lighting
-bg: Ambience, tint: accent.primary, seed: 456
+// The slider target: `--set arc=N` re-tunes the path_arc hint.
+let arc = 0.35
 
-// Architecture Header
-h_kicker: Text, text: "MORPH LAB", font_size: 11, font_weight: 600, color: accent.primary,
-  anchor: scene.top, offset: (0, 36)
-h_title: Text, text: "Generative Vector Kinetics", font_size: 32, font_weight: "bold",
-  color: text.primary, anchor: scene.top, offset: (0, 68)
-h_sub: Text, text: "Continuous topological interpolation across vertex correspondence, arc curvature, and length remapping",
-  font_size: 14, color: text.secondary, anchor: scene.top, offset: (0, 98)
+// ── the stage ───────────────────────────────────────────────────────
+floor: StageFloor, glow: 0.85
 
-// Stage pedestals / glass frames
-pod_l: Rect, size: (300, 360), at: (260, 390), corner_radius: 16,
-  color: surface.primary, stroke: stroke.default, stroke_width: 1
-pod_c: Rect, size: (300, 360), at: (640, 390), corner_radius: 16,
-  color: surface.primary, stroke: stroke.default, stroke_width: 1
-pod_r: Rect, size: (300, 360), at: (1020, 390), corner_radius: 16,
-  color: surface.primary, stroke: stroke.default, stroke_width: 1
+head: ActHead, kicker: "FIG 01 · MORPH STRATEGIES", title: "Same start, same end",
+  sub: "one shared stage · three roads between two silhouettes"
 
-// Pedestal Headers
-lbl_l: Text, text: "VERTEX CORRESPONDENCE", font_size: 11, font_weight: 600, color: text.muted, at: (260, 240)
-lbl_c: Text, text: "ARC CURVATURE TRAJECTORY", font_size: 11, font_weight: 600, color: text.muted, at: (640, 240)
-lbl_r: Text, text: "PROPORTIONAL REMAPPING", font_size: 11, font_weight: 600, color: text.muted, at: (1020, 240)
+cap1: Caption, text: "Act I · Three identical stars: one source, one target, three strategies.", tag: "scene.amx"
+cap2: Caption, text: "Act II · The vertices travel — match, path_arc and stretch take different roads.", tag: "scene.amx", opacity: 0
+cap3: Caption, text: "Act III · Same destination, three roads home: the comparison holds.", tag: "scene.amx", opacity: 0
 
-// Strategy badges
-tag_l: Chip, label: "strategy: match", width: 140, height: 28, color: surface.secondary, text_color: accent.warning, at: (260, 530)
-tag_c: Chip, label: "path_arc: 0.35", width: 140, height: 28, color: surface.secondary, text_color: accent.info, at: (640, 530)
-tag_r: Chip, label: "stretch: true", width: 140, height: 28, color: surface.secondary, text_color: accent.success, at: (1020, 530)
+// Specs: declared at their final values, rewritten every frame in `always`.
+chip_arc: Readout, label: "PATH ARC", value: "0.35", at: (1140, 74), opacity: 0
+chip_morph: Readout, label: "MORPH", value: "round → star", at: (1140, 176), opacity: 0
 
-// The Three Morphing Actors
-shape_a: Path,
-  commands: {move_to(-65, -15), curve_to(-20, -65, 45, -60, 65, -10), curve_to(80, 45, 15, 70, -30, 50), curve_to(-70, 35, -85, 20, -65, -15)},
-  color: accent.primary, at: (260, 385)
+// ── the shared stage ────────────────────────────────────────────────
+// ONE plate, ONE bench line, three stations. Nothing here is a card.
+plate: Rect, size: (1100, 410), at: (640, 442), corner_radius: 30,
+  fill_gradient: linear(180, {surface.primary, "#0a0e1c"}),
+  stroke: stroke.default, stroke_width: 1.2, opacity: 1, legend: false
 
-shape_b: Polygon,
-  points: {(0, -60), (15, -20), (55, -20), (22, 8), (35, 50), (0, 25), (-35, 50), (-22, 8), (-55, -20), (-15, -20)},
-  color: accent.info, at: (640, 385)
+plate_glow: Ellipse, size: (980, 340), at: (640, 430), blend: "screen", opacity: 0.30,
+  fill_gradient: radial((0.5, 0.5), 0.6, {(0%, "#a855f726"), (60%, "#a855f70a"), (100%, "#a855f700")}),
+  legend: false
 
-shape_c: Ellipse, size: (120, 120), color: accent.success, at: (1020, 385)
+// The payoff flare: over the board, under the shapes, so it never washes them.
+bloom: Ellipse, size: (1080, 420), at: (640, 430), blend: "screen", opacity: 0,
+  fill_gradient: radial((0.5, 0.5), 0.6, {(0%, "#a855f74a"), (55%, "#a855f714"), (100%, "#a855f700")}),
+  legend: false
 
-caption: Text, text: "Animatix synthesizes intermediate cubic Bezier control points in real-time at 60 FPS",
-  font_size: 13, color: text.muted, anchor: scene.bottom, offset: (0, -24)
+bench: Line, from: (-520, 0), to: (520, 0), stroke: stroke.default, stroke_width: 1,
+  at: (640, 562), opacity: 1
+tick_a: Rect, size: (2, 12), color: stroke.default, at: (400, 562), opacity: 1
+tick_b: Rect, size: (2, 12), color: stroke.default, at: (640, 562), opacity: 1
+tick_c: Rect, size: (2, 12), color: stroke.default, at: (880, 562), opacity: 1
 
-#0.0s
-fade-in h_kicker [400ms, ease: expo-out]
-fade-in h_title [500ms, delay: 50ms, ease: expo-out]
-fade-in h_sub [500ms, delay: 100ms, ease: expo-out]
-fade-in pod_l [400ms]
-fade-in pod_c [400ms]
-fade-in pod_r [400ms]
-fade-in lbl_l [400ms]
-fade-in lbl_c [400ms]
-fade-in lbl_r [400ms]
-fade-in tag_l [400ms]
-fade-in tag_c [400ms]
-fade-in tag_r [400ms]
-fade-in shape_a [500ms]
-fade-in shape_b [500ms]
-fade-in shape_c [500ms]
-fade-in caption [500ms]
+// ── three stations, one source shape ────────────────────────────────
+// 16-point star, radius 130 / 62. Both ends of every morph are 16-point
+// polygons so the span is a true hybrid (see the header note).
+for i in {0, 1, 2} {
+  shapes[i]: Polygon,
+    points: {(0, -130), (23.7, -57.3), (91.9, -91.9), (57.3, -23.7), (130, 0), (57.3, 23.7), (91.9, 91.9), (23.7, 57.3), (0, 130), (-23.7, 57.3), (-91.9, 91.9), (-57.3, 23.7), (-130, 0), (-57.3, -23.7), (-91.9, -91.9), (-23.7, -57.3)},
+    fill_gradient: linear(160, {accent.primary, "#b794f6"}),
+    at: (400 + i * 240, 398), opacity: 1
+}
 
-// Wave 1: Morph to new geometries
-#1.6s
-shape_a: Polygon, points: {(0, -65), (65, 0), (0, 65), (-65, 0)}, color: accent.warning, at: (260, 385) [1.1s, strategy: match]
-shape_b: Polygon, points: {(0, -60), (35, -35), (60, 0), (35, 35), (0, 60), (-35, 35), (-60, 0), (-35, -35)}, color: accent.primary, at: (640, 385) [1.1s, path_arc: 0.35]
-shape_c: Rect, size: (110, 110), corner_radius: 20, color: accent.info, at: (1020, 385) [1.1s, stretch: true]
+shapes[1].fill_gradient = linear(160, {accent.info, "#7c5cff"})
+shapes[2].fill_gradient = linear(160, {accent.success, "#4fd1c5"})
 
-// Wave 2: Morph to circular and acute forms
-#3.8s
-shape_a: Ellipse, size: (130, 130), color: accent.primary, at: (260, 385) [1.2s, strategy: match]
-shape_b: Ellipse, size: (130, 130), color: accent.success, at: (640, 385) [1.2s, path_arc: 0.35]
-shape_c: Polygon, points: {(0, -65), (55, 45), (-55, 45)}, color: accent.warning, at: (1020, 385) [1.2s, stretch: true]
+// Station labels: strategy above, its character below. `path_arc` is rewritten
+// from `arc` in `always`, so the label follows the slider.
+name_a: Text, text: "match", font_size: 18, font_family: "mono", font_weight: 600,
+  color: accent.primary, at: (400, 586), opacity: 0
+desc_a: Text, text: "vertex index", font_size: 16, color: text.muted, at: (400, 610), opacity: 0
+name_b: Text, text: "path_arc: 0.35", font_size: 18, font_family: "mono", font_weight: 600,
+  color: accent.info, at: (640, 586), opacity: 0
+desc_b: Text, text: "curved trajectory", font_size: 16, color: text.muted, at: (640, 610), opacity: 0
+name_c: Text, text: "stretch: true", font_size: 18, font_family: "mono", font_weight: 600,
+  color: accent.success, at: (880, 586), opacity: 0
+desc_c: Text, text: "bounds-normalised", font_size: 16, color: text.muted, at: (880, 610), opacity: 0
 
-// Wave 3: Harmonic convergence — all three become luminous 10-point stars
-#6.0s
-shape_a: Polygon, points: {(0, -60), (15, -20), (55, -20), (22, 8), (35, 50), (0, 25), (-35, 50), (-22, 8), (-55, -20), (-15, -20)}, color: accent.primary, at: (260, 385) [1.2s, strategy: match]
-shape_b: Polygon, points: {(0, -60), (15, -20), (55, -20), (22, 8), (35, 50), (0, 25), (-35, 50), (-22, 8), (-55, -20), (-15, -20)}, color: accent.info, at: (640, 385) [1.2s, path_arc: 0.35]
-shape_c: Polygon, points: {(0, -60), (15, -20), (55, -20), (22, 8), (35, 50), (0, 25), (-35, 50), (-22, 8), (-55, -20), (-15, -20)}, color: accent.success, at: (1020, 385) [1.2s, stretch: true]
+// ── Act I · the hook ────────────────────────────────────────────────
+// Plate and three stars are ink at t=0; the bench draws in under them and the
+// station labels arrive in station order, so the first motion starts at 0.3 s.
+#0.3s
+draw-in bench [700ms, ease: expo-out]
+stagger [90ms] {
+  fade-in tick_a [260ms, delay: 300ms, ease: expo-out]
+  fade-in tick_b [260ms, delay: 390ms, ease: expo-out]
+  fade-in tick_c [260ms, delay: 480ms, ease: expo-out]
+}
 
-// Closing settle: pulse
-#7.4s
-pulse shape_a [600ms, intensity: 1.15]
-pulse shape_b [600ms, intensity: 1.15]
-pulse shape_c [600ms, intensity: 1.15]
+#0.5s
+stagger [120ms] {
+  fade-in name_a [420ms, ease: expo-out]
+  fade-in desc_a [420ms, ease: expo-out]
+  fade-in name_b [420ms, ease: expo-out]
+  fade-in desc_b [420ms, ease: expo-out]
+  fade-in name_c [420ms, ease: expo-out]
+  fade-in desc_c [420ms, ease: expo-out]
+}
+
+// ── Act II · the mechanism ──────────────────────────────────────────
+// Star -> 16-gon ring. Same two silhouettes at every station; only the
+// strategy differs. `strategy: match` on the left, the `arc` hint in the
+// middle, bounds-normalised `stretch` on the right.
+#2.2s
+fade-out cap1 [240ms, ease: ease-in]
+fade-in cap2 [280ms, delay: 200ms, ease: expo-out]
+
+shapes[0]: Polygon,
+  points: {(0, -118), (45.2, -109.0), (83.4, -83.4), (109.0, -45.2), (118, 0), (109.0, 45.2), (83.4, 83.4), (45.2, 109.0), (0, 118), (-45.2, 109.0), (-83.4, 83.4), (-109.0, 45.2), (-118, 0), (-109.0, -45.2), (-83.4, -83.4), (-45.2, -109.0)},
+  fill_gradient: linear(160, {accent.primary, "#b794f6"}),
+  at: (400, 398) [1.8s, strategy: match]
+
+shapes[1]: Polygon,
+  points: {(0, -118), (45.2, -109.0), (83.4, -83.4), (109.0, -45.2), (118, 0), (109.0, 45.2), (83.4, 83.4), (45.2, 109.0), (0, 118), (-45.2, 109.0), (-83.4, 83.4), (-109.0, 45.2), (-118, 0), (-109.0, -45.2), (-83.4, -83.4), (-45.2, -109.0)},
+  fill_gradient: linear(160, {accent.info, "#7c5cff"}),
+  at: (640, 398) [1.8s, path_arc: 0.35]
+
+shapes[2]: Polygon,
+  points: {(0, -118), (45.2, -109.0), (83.4, -83.4), (109.0, -45.2), (118, 0), (109.0, 45.2), (83.4, 83.4), (45.2, 109.0), (0, 118), (-45.2, 109.0), (-83.4, 83.4), (-109.0, 45.2), (-118, 0), (-109.0, -45.2), (-83.4, -83.4), (-45.2, -109.0)},
+  fill_gradient: linear(160, {accent.success, "#4fd1c5"}),
+  at: (880, 398) [1.8s, stretch: true]
+
+#4.4s
+fade-in chip_arc [420ms, ease: expo-out]
+fade-in chip_morph [420ms, delay: 160ms, ease: expo-out]
+
+// The return trip: ring -> star, same three strategies.
+#5.8s
+shapes[0]: Polygon,
+  points: {(0, -130), (23.7, -57.3), (91.9, -91.9), (57.3, -23.7), (130, 0), (57.3, 23.7), (91.9, 91.9), (23.7, 57.3), (0, 130), (-23.7, 57.3), (-91.9, 91.9), (-57.3, 23.7), (-130, 0), (-57.3, -23.7), (-91.9, -91.9), (-23.7, -57.3)},
+  fill_gradient: linear(160, {accent.primary, "#b794f6"}),
+  at: (400, 398) [1.6s, strategy: match]
+
+shapes[1]: Polygon,
+  points: {(0, -130), (23.7, -57.3), (91.9, -91.9), (57.3, -23.7), (130, 0), (57.3, 23.7), (91.9, 91.9), (23.7, 57.3), (0, 130), (-23.7, 57.3), (-91.9, 91.9), (-57.3, 23.7), (-130, 0), (-57.3, -23.7), (-91.9, -91.9), (-23.7, -57.3)},
+  fill_gradient: linear(160, {accent.info, "#7c5cff"}),
+  at: (640, 398) [1.6s, path_arc: 0.35]
+
+shapes[2]: Polygon,
+  points: {(0, -130), (23.7, -57.3), (91.9, -91.9), (57.3, -23.7), (130, 0), (57.3, 23.7), (91.9, 91.9), (23.7, 57.3), (0, 130), (-23.7, 57.3), (-91.9, 91.9), (-57.3, 23.7), (-130, 0), (-57.3, -23.7), (-91.9, -91.9), (-23.7, -57.3)},
+  fill_gradient: linear(160, {accent.success, "#4fd1c5"}),
+  at: (880, 398) [1.6s, stretch: true]
+
+// ── Act III · the payoff ────────────────────────────────────────────
+// The three roads land on the same three stars; a bloom flare and a camera
+// push settle over the finished instrument, which holds into the rest.
+#7.6s
+fade-out cap2 [240ms, ease: ease-in]
+fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
+bloom.opacity = 0.40 [700ms, ease: expo-out]
+camera.zoom = 1.05 [1.2s, ease: ease-in-out]
+
+#8.6s
+bloom.opacity = 0.22 [900ms, ease: ease-in-out]
+camera.zoom = 1.0 [1.0s, ease: ease-in-out]
+
+// ── Rest ────────────────────────────────────────────────────────────
+// Three stars, one board, one bench line, three labelled stations and the two
+// spec chips. Nothing erases.
+
+always {
+  // Live morph phase: 0 at the star, 1 at the ring, and back again.
+  let up = clamp((t - 2.2) / 1.8, 0, 1)
+  let down = clamp((t - 5.8) / 1.6, 0, 1)
+  let ph = up * (1 - down)
+
+  // Station names stay lit while their strategy is the one under the cursor:
+  // the arc label tracks the slider, the shared MORPH chip names the current road.
+  name_b.text = format("path_arc: {:.2f}", arc)
+  chip_arc.value_text.text = format("{:.2f}", arc)
+  chip_morph.value_text.text = if t < 2.3 { "star → round" } else { if ph > 0.5 { "star → round" } else { "round → star" } }
+
+  // A slow breath keeps the board alive between beats without moving a station.
+  shapes[0].rotation = 0.022 * sin(t * 0.75)
+  shapes[1].rotation = 0.022 * sin(t * 0.75 + 1.1)
+  shapes[2].rotation = 0.022 * sin(t * 0.75 + 2.2)
+}
