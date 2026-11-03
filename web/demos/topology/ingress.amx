@@ -57,16 +57,16 @@ for i in {0, 1, 2} {
 }
 
 // ── the live proxy pool (replicas drives the drawn fan-out) ─────────
-for i in {0, 1, 2, 3} {
-  proxy_slot[i]: Rect, size: (304, 40), corner_radius: 9,
+for i in {0, 1, 2, 3, 4, 5} {
+  proxy_slot[i]: Rect, size: (304, 30), corner_radius: 9,
     color: if i < replicas { surface.primary } else { surface.secondary },
     stroke: if i < replicas { accent.primary } else { stroke.default },
-    stroke_width: 1.4, at: (645, 350 + i * 48),
-    opacity: if i < replicas { 1 } else { 0.25 }
+    stroke_width: 1.4, at: (645, 318 + i * 34),
+    opacity: if i < replicas { 1 } else { 0.18 }
   proxy_text[i]: Text, text: format("envoy-0{:.0} · TLS", i + 1), font_size: 18,
     color: if i < replicas { text.primary } else { text.muted },
-    at: (645, 350 + i * 48),
-    opacity: if i < replicas { 1 } else { 0.25 }
+    at: (645, 318 + i * 34),
+    opacity: if i < replicas { 1 } else { 0.02 }
 }
 
 // A health scan rides the active replicas; `always` places it on the slot that
@@ -131,7 +131,7 @@ always {
   bloom_out.dash_offset = (t * 66) % 90
 
   let slot = floor(fract(t * 0.45) * replicas)
-  scan_bar.at = (645, 350 + slot * 48 + 16)
+  scan_bar.at = (645, 318 + slot * 34 + 13)
   scan_bar.opacity = if t > 0.9 { 0.55 } else { 0 }
 
   tput.value_text.text = format("{:.1}k msg/s", 184.5 + 4.2 * sin(t * 2.1) + 0.9 * sin(t * 7.3))
