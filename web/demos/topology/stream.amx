@@ -112,7 +112,7 @@ always {
     let k = s - lane * 5
     let born = -0.9 + lane * 0.11 + k * 0.92
     let age = t - born
-    seg[s].opacity = if age <= 0 { 0 } else { (0.35 + 0.65 * exp(0 - age * 1.6)) * (if lane < partitions { 1 } else { 0.10 }) }
+    seg[s].opacity = if age <= 0 { 0 } else { (0.60 + 0.40 * exp(0 - age * 1.6)) * (if lane < partitions { 1 } else { 0.10 }) }
   }
 
   for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
