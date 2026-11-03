@@ -1,206 +1,168 @@
+// house-style: three acts — harmonic hook, period-doubling matrix, fusion payoff with a camera push.
 // 02 · Positional encoding — harmonic sinusoidal spectrum injected into token order.
 //
-// Unifies with the global example sentence:
-//   Col 0: The | Col 1: animal | Col 2: didn't | Col 3: cross
-//   Col 4: the | Col 5: street | Col 6: because | Col 7: it
+// The question this figure answers: attention is order-blind, so where does
+// sequence order come from? Three acts:
+//   I.  Eight token positions line up over an empty spectral grid.
+//   II. The grid fills with sinusoids at doubling wavelengths — fine rows
+//       oscillate quickly, coarse rows slowly. The legend and the fusion card
+//       state the mechanism: x_i = e_i + p_i.
+//   III. A cursor scans the columns, re-reading one position's fingerprint, and
+//       the camera pushes into the matrix before settling on the full spectrum.
 //
-// Pipeline:
-//   1. Harmonic Basis: Distinct frequency sinusoids across feature dimensions.
-//   2. Period Doubling: Lower rows double the wavelength (periods 3 → 6 → 12 → 24).
-//   3. Coordinate Fusion: Position vector adds element-wise to token embedding:
-//      x_i = Embed(t_i) + PE(i)
+// House-style §1: StageFloor + compact head + caption carry frame 0.
+// House-style §5: 48 px title (compact head, the diagram owns the top band),
+// row labels 18, axis labels 16, formulas 22, captions 24 — nothing below 16.
+//
+// Slider: `wavelength` is the coarse-row period; rows quote wavelength/8,
+// wavelength/4, wavelength/2 and wavelength, and the cell pattern is generated
+// from the same value (range 8-48, step 4).
 
 import "../../lib/theme.amx"
-import "../../lib/ambience.amx"
+import "../../lib/stage.amx"
 import "../lib/components.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 7.4 }
 
-bg: Ambience, tint: accent.info, base_opacity: 0.14, seed: 20
+let wavelength = 24
+// 8 positions × 4 spectral rows, generated so the wavelength slider also
+// changes the harmonic field rather than only the copy.
+let cells = (0, 32)
 
-// ── Header / Narration (top-left) ───────────────────────────────────
-head_eyebrow: Text, text: "FIG 02 // HARMONIC POSITIONAL SPECTRUM", font_size: 13,
-  color: accent.info, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 48)
+// ── the stage ───────────────────────────────────────────────────────
+floor: StageFloor, glow: 1.25
 
-phase1: Text, text: "1 · Sinusoidal spectrum generates unique temporal fingerprint", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
-phase2: Text, text: "2 · Geometric period doubling: fine -> coarse temporal resolution", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
-phase3: Text, text: "3 · Element-wise vector addition fuses order into token embedding", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
+head_eyebrow: Text, text: "FIG 02 · HARMONIC POSITIONAL SPECTRUM", font_size: 18,
+  font_weight: 600, color: accent.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (96, 44), opacity: 0
+head_title: Text, text: "Order is injected", font_size: 48, font_weight: "bold",
+  color: text.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (96, 96), opacity: 1
+head_rule: Rect, size: (96, 4), color: accent.primary,
+  anchor: scene.top_left, offset: (96, 150), opacity: 1
 
-formula_chip: Stack, at: (1080, 68) {
-  f_bg: Rect, size: (260, 40), corner_radius: 10, color: surface.primary,
+cap1: Caption, text: "Act I · Attention is order-blind; position must be supplied.",
+  tag: "positional.amx", opacity: 1
+cap2: Caption, text: "Act II · Each row doubles its wavelength: fine resolution to coarse.",
+  tag: "positional.amx", opacity: 0
+cap3: Caption, text: "Act III · The spectrum adds element-wise to the token embedding.",
+  tag: "positional.amx", opacity: 0
+
+pos_chip: Readout, label: "POSITIONS", value: "8", at: (1090, 210)
+wave_chip: Readout, label: "MAX WAVELENGTH", value: format("{:.0}", wavelength), at: (1090, 300)
+
+// The formula epigraph sits top-right, clear of the left-anchored head.
+formula_chip: Stack, at: (1000, 78), size: (380, 50), opacity: 0 {
+  f_bg: Rect, size: (380, 50), corner_radius: 12, color: surface.primary,
     stroke: stroke.default, stroke_width: 1.2
-  f_txt: Text, text: "PE(pos, 2i) = sin(pos / 10000^{2i/d})", font_size: 13, color: text.secondary
+  f_txt: Text, text: "PE = sin(pos / 10000^(2i/d))", font_size: 22, color: accent.info
 }
 
-// ── Token Chips Row (Directly above column axis) ────────────────────
-token_chips: Row, at: (560, 150), gap: 10, align: "center" {
-  tc0: LabeledBox, label: "The", width: 74, height: 38, text_size: 13, corner: 8
-  tc1: LabeledBox, label: "animal", width: 74, height: 38, text_size: 13, corner: 8
-  tc2: LabeledBox, label: "didn't", width: 74, height: 38, text_size: 13, corner: 8
-  tc3: LabeledBox, label: "cross", width: 74, height: 38, text_size: 13, corner: 8
-  tc4: LabeledBox, label: "the", width: 74, height: 38, text_size: 13, corner: 8
-  tc5: LabeledBox, label: "street", width: 74, height: 38, text_size: 13, corner: 8
-  tc6: LabeledBox, label: "because", width: 74, height: 38, text_size: 13, corner: 8
-  tc7: LabeledBox, label: "it", width: 74, height: 38, text_size: 13, corner: 8
+// ── Token positions above the matrix ────────────────────────────────
+token_chips: Row, at: (540, 182), gap: 8, align: "center" {
+  tc0: LabeledBox, label: "The", width: 84, height: 36, text_size: 16, corner: 8
+  tc1: LabeledBox, label: "animal", width: 84, height: 36, text_size: 16, corner: 8
+  tc2: LabeledBox, label: "didn't", width: 84, height: 36, text_size: 16, corner: 8
+  tc3: LabeledBox, label: "cross", width: 84, height: 36, text_size: 16, corner: 8
+  tc4: LabeledBox, label: "the", width: 84, height: 36, text_size: 16, corner: 8
+  tc5: LabeledBox, label: "street", width: 84, height: 36, text_size: 16, corner: 8
+  tc6: LabeledBox, label: "because", width: 84, height: 36, text_size: 16, corner: 8
+  tc7: LabeledBox, label: "it", width: 84, height: 36, text_size: 16, corner: 8
 }
 
-// ── Positional Matrix: 8 columns × 4 rows of 74px cells ─────────────
-matrix: Grid, cols: 8, gap: 10, at: (560, 360) {
-  // Period 3 (Fine resolution)
-  c00: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c01: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c02: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c03: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c04: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c05: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c06: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c07: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-
-  // Period 6
-  c10: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c11: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c12: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c13: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c14: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c15: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c16: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c17: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-
-  // Period 12
-  c20: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c21: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c22: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c23: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c24: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c25: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c26: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c27: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-
-  // Period 24 (Coarse resolution)
-  c30: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c31: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c32: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c33: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c34: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c35: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c36: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-  c37: Rect, size: (74, 74), corner_radius: 10, color: accent.info, opacity: 0.0
-}
-
-// Row frequency labels on left
-row_labels: Col, at: (150, 360), gap: 10, align: "end" {
-  r0: Stack, size: (120, 74) { lab0: Text, text: "λ = 3 (dim 0)", font_size: 14, color: text.secondary, text_align: "right" }
-  r1: Stack, size: (120, 74) { lab1: Text, text: "λ = 6 (dim 2)", font_size: 14, color: text.secondary, text_align: "right" }
-  r2: Stack, size: (120, 74) { lab2: Text, text: "λ = 12 (dim 4)", font_size: 14, color: text.secondary, text_align: "right" }
-  r3: Stack, size: (120, 74) { lab3: Text, text: "λ = 24 (dim 6)", font_size: 14, color: text.secondary, text_align: "right" }
-}
-
-// Column position indices below
-axis_row: Row, at: (560, 552), gap: 10, align: "center" {
-  c0: Stack, size: (74, 20) { p0: Text, text: "pos 0", font_size: 13, color: text.secondary }
-  c1: Stack, size: (74, 20) { p1: Text, text: "pos 1", font_size: 13, color: text.secondary }
-  c2: Stack, size: (74, 20) { p2: Text, text: "pos 2", font_size: 13, color: text.secondary }
-  c3: Stack, size: (74, 20) { p3: Text, text: "pos 3", font_size: 13, color: text.secondary }
-  c4: Stack, size: (74, 20) { p4: Text, text: "pos 4", font_size: 13, color: text.secondary }
-  c5: Stack, size: (74, 20) { p5: Text, text: "pos 5", font_size: 13, color: text.secondary }
-  c6: Stack, size: (74, 20) { p6: Text, text: "pos 6", font_size: 13, color: text.secondary }
-  c7: Stack, size: (74, 20) { p7: Text, text: "pos 7", font_size: 13, color: text.secondary }
-}
-
-// ── Right Sidebar: Legend & Fusion Card ─────────────────────────────
-legend: Col, at: (1070, 260), gap: 12, align: "center" {
-  key_cap: Text, text: "Harmonic Amplitude Scale", font_size: 13, color: text.muted
-  key_swatches: Row, gap: 8, align: "center" {
-    key_lo: Rect, size: (24, 24), corner_radius: 6, color: accent.info, opacity: 0.0
-    key_mid: Rect, size: (24, 24), corner_radius: 6, color: accent.info, opacity: 0.0
-    key_hi: Rect, size: (24, 24), corner_radius: 6, color: accent.info, opacity: 0.0
-  }
-  key_labels: Row, gap: 14, align: "center" {
-    key_lo_t: Text, text: "-1.0", font_size: 12, color: text.muted
-    key_zero: Text, text: "0.0", font_size: 12, color: text.muted
-    key_hi_t: Text, text: "+1.0", font_size: 12, color: text.muted
+// ── The spectral matrix: 8 positions × 4 wavelengths ────────────────
+matrix: Grid, cols: 8, gap: 10, at: (540, 387) {
+  for i in cells {
+    c[i]: Rect, size: (84, 76), corner_radius: 10, color: accent.info, opacity: 0
   }
 }
 
-fusion_card: Stack, at: (1070, 440) {
-  f_card_bg: Rect, size: (220, 110), corner_radius: 14, color: surface.primary,
-    stroke: accent.info, stroke_width: 1.5
+// Row wavelengths: each row halves the previous one's frequency.
+lab0: Text, text: format("λ = {:.0}", wavelength / 8), font_size: 18, color: text.secondary,
+  text_anchor: "right", at: (162, 258), opacity: 0
+lab1: Text, text: format("λ = {:.0}", wavelength / 4), font_size: 18, color: text.secondary,
+  text_anchor: "right", at: (162, 344), opacity: 0
+lab2: Text, text: format("λ = {:.0}", wavelength / 2), font_size: 18, color: text.secondary,
+  text_anchor: "right", at: (162, 430), opacity: 0
+lab3: Text, text: format("λ = {:.0}", wavelength), font_size: 18, color: text.secondary,
+  text_anchor: "right", at: (162, 516), opacity: 0
+
+// Position axis below the matrix.
+axis_row: Row, at: (540, 575), gap: 8, align: "center" {
+  c0: Stack, size: (84, 20) { p0: Text, text: "pos 0", font_size: 16, color: text.secondary }
+  c1: Stack, size: (84, 20) { p1: Text, text: "pos 1", font_size: 16, color: text.secondary }
+  c2: Stack, size: (84, 20) { p2: Text, text: "pos 2", font_size: 16, color: text.secondary }
+  c3: Stack, size: (84, 20) { p3: Text, text: "pos 3", font_size: 16, color: text.secondary }
+  c4: Stack, size: (84, 20) { p4: Text, text: "pos 4", font_size: 16, color: text.secondary }
+  c5: Stack, size: (84, 20) { p5: Text, text: "pos 5", font_size: 16, color: text.secondary }
+  c6: Stack, size: (84, 20) { p6: Text, text: "pos 6", font_size: 16, color: text.secondary }
+  c7: Stack, size: (84, 20) { p7: Text, text: "pos 7", font_size: 16, color: text.secondary }
+}
+
+// ── Right rail: amplitude legend and the fusion identity ────────────
+// Explicitly placed (not a Col): the legend has to sit exactly under the
+// MAX WAVELENGTH chip, and a nested Col's measured content box drifted up
+// into it in the first pass.
+key_cap: Text, text: "Harmonic amplitude", font_size: 18, color: text.secondary,
+  text_anchor: "center", at: (1090, 392), opacity: 0
+key_lo: Rect, size: (28, 28), corner_radius: 6, color: accent.info, at: (1040, 430), opacity: 0
+key_mid: Rect, size: (28, 28), corner_radius: 6, color: accent.info, at: (1090, 430), opacity: 0
+key_hi: Rect, size: (28, 28), corner_radius: 6, color: accent.info, at: (1140, 430), opacity: 0
+key_lo_t: Text, text: "-1.0", font_size: 16, color: text.muted, text_anchor: "center", at: (1040, 462), opacity: 0
+key_zero: Text, text: "0.0", font_size: 16, color: text.muted, text_anchor: "center", at: (1090, 462), opacity: 0
+key_hi_t: Text, text: "+1.0", font_size: 16, color: text.muted, text_anchor: "center", at: (1140, 462), opacity: 0
+
+fusion_card: Stack, at: (1090, 540), size: (240, 118), opacity: 0 {
+  f_card_bg: Rect, size: (240, 118), corner_radius: 16, color: surface.primary,
+    stroke: accent.info, stroke_width: 1.6
   f_card_col: Col, gap: 6, align: "center" {
-    f_c_title: Text, text: "Vector Fusion", font_size: 15, color: text.primary
-    f_c_eq: Text, text: "x_i = e_i + p_i", font_size: 18, color: accent.info
-    f_c_sub: Text, text: "Element-wise addition", font_size: 12, color: text.muted
+    f_c_title: Text, text: "Vector Fusion", font_size: 18, color: text.primary
+    f_c_eq: Text, text: "x_i = e_i + p_i", font_size: 24, color: accent.info
+    f_c_sub: Text, text: "element-wise addition", font_size: 16, color: text.muted
   }
 }
 
-// Column scanning cursor: highlights one position's fingerprint
-cursor: Rect, size: (92, 344), corner_radius: 12, color: accent.primary,
-  fill_opacity: 0.0, stroke: accent.primary, stroke_width: 2.5, opacity: 0.0, at: (266, 360)
+// Column scanning cursor: one position's fingerprint, ringed, with a
+// screen-blend glow that travels with it (the Act III bloom).
+cursor_stack: Stack, at: (218, 387), size: (94, 356), opacity: 0 {
+  cursor_glow: Rect, size: (94, 356), corner_radius: 12, color: accent.info,
+    blend: "screen", opacity: 0
+  cursor: Rect, size: (94, 356), corner_radius: 12, color: accent.primary,
+    fill_opacity: 0, stroke: accent.primary, stroke_width: 2.5
+}
 
 // ── Timeline Choreography ───────────────────────────────────────────
+// Act I — the hook: positions arrive over an empty spectral field.
 #0.10s
 fade-in head_eyebrow [260ms, ease: expo-out]
-fade-in phase1 [300ms, ease: expo-out]
 fade-in formula_chip [320ms, ease: expo-out]
-stagger [60ms] {
-  fade-in tc0 [280ms, ease: expo-out]
-  fade-in tc1 [280ms, ease: expo-out]
-  fade-in tc2 [280ms, ease: expo-out]
-  fade-in tc3 [280ms, ease: expo-out]
-  fade-in tc4 [280ms, ease: expo-out]
-  fade-in tc5 [280ms, ease: expo-out]
-  fade-in tc6 [280ms, ease: expo-out]
-  fade-in tc7 [280ms, ease: expo-out]
+stagger [55ms] {
+  fade-in tc0 [260ms, ease: expo-out]
+  fade-in tc1 [260ms, ease: expo-out]
+  fade-in tc2 [260ms, ease: expo-out]
+  fade-in tc3 [260ms, ease: expo-out]
+  fade-in tc4 [260ms, ease: expo-out]
+  fade-in tc5 [260ms, ease: expo-out]
+  fade-in tc6 [260ms, ease: expo-out]
+  fade-in tc7 [260ms, ease: expo-out]
 }
 
+// Act II — the mechanism: the harmonic field resolves row by row.
 #0.80s
-stagger [25ms] {
-  c00.opacity = 0.61 [260ms]
-  c01.opacity = 0.95 [260ms]
-  c02.opacity = 0.27 [260ms]
-  c03.opacity = 0.61 [260ms]
-  c04.opacity = 0.95 [260ms]
-  c05.opacity = 0.27 [260ms]
-  c06.opacity = 0.61 [260ms]
-  c07.opacity = 0.95 [260ms]
-  c10.opacity = 0.61 [260ms]
-  c11.opacity = 0.95 [260ms]
-  c12.opacity = 0.95 [260ms]
-  c13.opacity = 0.61 [260ms]
-  c14.opacity = 0.27 [260ms]
-  c15.opacity = 0.27 [260ms]
-  c16.opacity = 0.61 [260ms]
-  c17.opacity = 0.95 [260ms]
-  c20.opacity = 0.61 [260ms]
-  c21.opacity = 0.81 [260ms]
-  c22.opacity = 0.95 [260ms]
-  c23.opacity = 1.00 [260ms]
-  c24.opacity = 0.95 [260ms]
-  c25.opacity = 0.81 [260ms]
-  c26.opacity = 0.61 [260ms]
-  c27.opacity = 0.42 [260ms]
-  c30.opacity = 0.61 [260ms]
-  c31.opacity = 0.71 [260ms]
-  c32.opacity = 0.81 [260ms]
-  c33.opacity = 0.89 [260ms]
-  c34.opacity = 0.95 [260ms]
-  c35.opacity = 0.99 [260ms]
-  c36.opacity = 1.00 [260ms]
-  c37.opacity = 0.99 [260ms]
+for i in cells [step: 22ms] {
+  c[i].opacity = clamp(0.55 + 0.42 * sin((i - floor(i / 8) * 8) * 0.9 * (24 / wavelength) / (floor(i / 8) + 1)), 0.12, 0.96) [300ms]
 }
 
 #1.80s
-fade-out phase1 [240ms, ease: ease-in]
-fade-in phase2 [280ms, delay: 240ms, ease: expo-out]
+fade-out cap1 [240ms, ease: ease-in]
+fade-in cap2 [280ms, delay: 200ms, ease: expo-out]
 stagger [60ms] {
   fade-in lab0 [260ms, ease: expo-out]
   fade-in lab1 [260ms, ease: expo-out]
   fade-in lab2 [260ms, ease: expo-out]
   fade-in lab3 [260ms, ease: expo-out]
 }
-stagger [35ms] {
+stagger [30ms] {
   fade-in p0 [220ms, ease: expo-out]
   fade-in p1 [220ms, ease: expo-out]
   fade-in p2 [220ms, ease: expo-out]
@@ -225,22 +187,34 @@ stagger [50ms] {
 }
 fade-in fusion_card [340ms, delay: 180ms, ease: expo-out]
 
+// Act III — the cursor re-reads one column, then the camera pushes in on the
+// full spectrum and the fusion card pulses once.
 #3.50s
-fade-out phase2 [240ms, ease: ease-in]
-fade-in phase3 [280ms, delay: 240ms, ease: expo-out]
-fade-in cursor [220ms, ease: expo-out]
+fade-out cap2 [240ms, ease: ease-in]
+fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
+fade-in cursor_stack [220ms, ease: expo-out]
+cursor_glow.opacity = 0.26 [300ms]
 sequence {
-  shift cursor [by: (84, 0), 160ms, ease: expo-out]
-  shift cursor [by: (84, 0), 160ms, delay: 100ms, ease: expo-out]
-  shift cursor [by: (84, 0), 160ms, delay: 100ms, ease: expo-out]
-  shift cursor [by: (84, 0), 160ms, delay: 100ms, ease: expo-out]
-  shift cursor [by: (84, 0), 160ms, delay: 100ms, ease: expo-out]
-  shift cursor [by: (84, 0), 160ms, delay: 100ms, ease: expo-out]
-  shift cursor [by: (84, 0), 160ms, delay: 100ms, ease: expo-out]
+  shift cursor_stack [by: (92, 0), 160ms, ease: expo-out]
+  shift cursor_stack [by: (92, 0), 160ms, delay: 100ms, ease: expo-out]
+  shift cursor_stack [by: (92, 0), 160ms, delay: 100ms, ease: expo-out]
+  shift cursor_stack [by: (92, 0), 160ms, delay: 100ms, ease: expo-out]
+  shift cursor_stack [by: (92, 0), 160ms, delay: 100ms, ease: expo-out]
+  shift cursor_stack [by: (92, 0), 160ms, delay: 100ms, ease: expo-out]
+  shift cursor_stack [by: (92, 0), 160ms, delay: 100ms, ease: expo-out]
 }
 pulse fusion_card [600ms, intensity: 0.04, delay: 1800ms]
-fade-out cursor [300ms, delay: 1900ms, ease: ease-in]
+fade-out cursor_stack [300ms, delay: 1900ms, ease: ease-in]
 
-// ── Outro Rest Frame ────────────────────────────────────────────────
-#7.00s
-// Complete harmonic matrix and fusion indicators stand held for looping.
+// Payoff: push into the spectrum and settle.
+#5.50s
+camera.zoom = 1.04 [1.2s, ease: ease-in-out]
+pulse fusion_card [700ms, intensity: 0.05, delay: 400ms]
+
+#6.20s
+camera.zoom = 1.0 [1.1s, ease: ease-in-out]
+
+// ── Rest ────────────────────────────────────────────────────────────
+#7.20s
+// Eight positions, four harmonic rows, the legend and the fusion identity all
+// stand. The cursor has done its pass; nothing else erases.
