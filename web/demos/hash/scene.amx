@@ -1,297 +1,304 @@
-// hash.amx — "Where keys live" — a tiny hash table staged as theatre.
+// house-style: the full hash lifecycle; three acts, payoff is a camera push on the resolved chain with a bloom sweep.
 //
-// The hash rule is chosen to be followable by eye: add the letter positions
-// (a=1, b=2, …), then take mod 8.
-//   cat = 3+1+20 = 24 → bucket 0      dog = 4+15+7 = 26 → bucket 2
-//   sun = 19+21+14 = 54 → bucket 6    owl = 15+23+12 = 50 → bucket 2 (collision)
-//   cow = 3+15+23 = 41 → bucket 1 (empty: a miss)
+// Figure 05 · The whole table, one pass. This is the plate behind the deck's
+// opening slide and the work's poster frame: every earlier figure compressed
+// into one run. Act I files all five keys (cat, dog, sun, cow and owl) from
+// their workings into the rack. Act II draws the collision that puts owl
+// below dog in the shared bucket. Act III runs one query down that chain —
+// two probes, one found key — then pushes the camera and blooms the chain.
 //
-// Every drop-in is a keyframed shift; the formula line narrates each beat.
+// `modulus` is the deck slider (2..12); every remainder, bucket centre and
+// landing slot is recomputed from it. The chain and the two-probe beat only
+// exist while dog (26) and owl (50) share a remainder, which they do at the
+// default 8; a setting that separates them hides the connector and the
+// second probe.
+//
+// Type floors (DESIGN §1.5): title 48 (compact head), kicker 18, captions 24,
+// readout values 28, bucket indices 22, key chips 18, arithmetic 22-24 —
+// nothing here renders below 16 px.
 
 import "../../demos/lib/theme.amx"
-import "../../demos/lib/components.amx"
-import "../../demos/lib/ambience.amx"
+import "../../demos/lib/stage.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720) }
+config { colorscheme: "tide", resolution: (1280, 720), duration: 12.2 }
 
-// ── Scene 1: Where keys live ─────────────────────────────────────────────────
+let modulus = 8
+let cat_bucket = 24 % modulus
+let dog_bucket = 26 % modulus
+let sun_bucket = 54 % modulus
+let cow_bucket = 41 % modulus
+let owl_bucket = 50 % modulus
 
-# Buckets
-config { colorscheme: "ink", duration: 8 }
+// ── the stage ───────────────────────────────────────────────────────
+floor: StageFloor, glow: 1.25, grid: 1.2
 
-bg1: Ambience, tint: accent.primary, seed: 707
+head_kicker: Text, text: "FIG 05 · HASH TABLE / FULL LIFECYCLE", font_size: 18,
+  font_weight: 600, color: accent.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (96, 44), opacity: 1
+head_title: Text, text: "The whole table, one pass", font_size: 48, font_weight: "bold",
+  color: text.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (96, 96), opacity: 1
+head_rule: Rect, size: (96, 4), color: accent.primary,
+  anchor: scene.top_left, offset: (96, 150), opacity: 1
 
-bk_title: Text, text: "Where Keys Live", font_size: 38, font_weight: "bold",
-  color: text.primary, anchor: scene.top, offset: (0, 44)
-bk_sub: Text, text: "hash(key) = sum of letter positions mod 8",
-  font_size: 15, color: text.secondary, anchor: scene.top, offset: (0, 88)
+cap1: Caption, text: "Act I · Five keys, one rule: sum the letters, take the remainder.", tag: "scene.amx"
+cap2: Caption, text: "Act II · owl joins dog's bucket — the chain hangs below.", tag: "scene.amx", opacity: 0
+cap3: Caption, text: "Act III · One query, two probes, one found key — the table answers.", tag: "scene.amx", opacity: 0
 
-chassis_lbl: Text, text: "MODULO 8 BUCKET ARRAY", font_size: 11, font_weight: 600,
-  color: text.muted, at: (220, 440)
-table_chassis: Rect, size: (1120, 84), at: (640, 500), corner_radius: 12,
-  color: surface.primary, stroke: stroke.default, stroke_width: 1
+v_found: Text, text: "FOUND · owl · 2 probes", font_size: 22, font_weight: 600,
+  color: accent.success, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (660, 44), opacity: 0
 
-b0: LabeledBox, label: "0", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (164, 500)
-b1: LabeledBox, label: "1", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (300, 500)
-b2: LabeledBox, label: "2", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (436, 500)
-b3: LabeledBox, label: "3", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (572, 500)
-b4: LabeledBox, label: "4", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (708, 500)
-b5: LabeledBox, label: "5", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (844, 500)
-b6: LabeledBox, label: "6", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (980, 500)
-b7: LabeledBox, label: "7", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (1116, 500)
+// ── the rack ────────────────────────────────────────────────────────
+// Four slot rows: maximum modulus 2 can stack four of the five keys in one
+// bucket, so the rack carries enough capacity for the whole slider range.
+let arr_x = 96
+let arr_w = 884
+let bucket_w = min(180, arr_w / modulus - 10)
 
-formula_box: Rect, size: (480, 48), at: (640, 240), corner_radius: 10,
-  color: surface.primary, stroke: stroke.default, stroke_width: 1, opacity: 0.0
+arr_head: Text, text: format("BUCKET ARRAY · MODULO {:.0}", modulus), font_size: 16,
+  font_family: "mono", color: text.muted, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (96, 166), opacity: 1
 
-f_cat: Text, text: "cat: 3+1+20 = 24   24 mod 8 = 0", font_size: 18, font_weight: 600,
-  color: text.secondary, at: (640, 240), opacity: 0.0
-f_dog: Text, text: "dog: 4+15+7 = 26   26 mod 8 = 2", font_size: 18, font_weight: 600,
-  color: text.secondary, at: (640, 240), opacity: 0.0
-f_sun: Text, text: "sun: 19+21+14 = 54   54 mod 8 = 6", font_size: 18, font_weight: 600,
-  color: text.secondary, at: (640, 240), opacity: 0.0
-
-chip_cat: LabeledBox, label: "cat", width: 110, height: 52, text_size: 20, fill: accent.primary, at: (164, 240)
-chip_dog: LabeledBox, label: "dog", width: 110, height: 52, text_size: 20, fill: accent.primary, at: (300, 240)
-chip_sun: LabeledBox, label: "sun", width: 110, height: 52, text_size: 20, fill: accent.primary, at: (980, 240)
-
-bk_cap: Text, text: "the hash picks the bucket — the key never chooses where it lives",
-  font_size: 15, color: text.muted, anchor: scene.bottom, offset: (0, -40), opacity: 0.0
-
-#0.0s
-fade-in bk_title [500ms, ease: expo-out]
-fade-in bk_sub [500ms, delay: 100ms, ease: expo-out]
-fade-in table_chassis [400ms, ease: expo-out]
-fade-in chassis_lbl [400ms, ease: expo-out]
-stagger [60ms] {
-  fade-in b0 [300ms, ease: expo-out]
-  fade-in b1 [300ms, ease: expo-out]
-  fade-in b2 [300ms, ease: expo-out]
-  fade-in b3 [300ms, ease: expo-out]
-  fade-in b4 [300ms, ease: expo-out]
-  fade-in b5 [300ms, ease: expo-out]
-  fade-in b6 [300ms, ease: expo-out]
-  fade-in b7 [300ms, ease: expo-out]
+for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
+  rack[i]: Rect, size: (bucket_w, 300), corner_radius: 12,
+    fill_gradient: linear(90, {(0%, accent.primary * 0.16), (55%, surface.primary), (100%, surface.secondary)}),
+    stroke: stroke.default, stroke_width: 1.4,
+    at: (arr_x + (i + 0.5) * arr_w / modulus, 360),
+    opacity: if i < modulus { 1 } else { 0 }
+  div0[i]: Line, from: (0 - bucket_w / 2 + 6, 0), to: (bucket_w / 2 - 6, 0),
+    stroke: stroke.default, stroke_width: 1, at: (arr_x + (i + 0.5) * arr_w / modulus, 285),
+    opacity: if i < modulus { 0.6 } else { 0 }
+  div1[i]: Line, from: (0 - bucket_w / 2 + 6, 0), to: (bucket_w / 2 - 6, 0),
+    stroke: stroke.default, stroke_width: 1, at: (arr_x + (i + 0.5) * arr_w / modulus, 360),
+    opacity: if i < modulus { 0.6 } else { 0 }
+  div2[i]: Line, from: (0 - bucket_w / 2 + 6, 0), to: (bucket_w / 2 - 6, 0),
+    stroke: stroke.default, stroke_width: 1, at: (arr_x + (i + 0.5) * arr_w / modulus, 435),
+    opacity: if i < modulus { 0.6 } else { 0 }
+  idx[i]: Text, text: format("{:.0}", i), font_size: 22, font_weight: "bold",
+    color: accent.primary, at: (arr_x + (i + 0.5) * arr_w / modulus, 204),
+    opacity: if i < modulus { 1 } else { 0 }
 }
 
-// cat → bucket 0
-#1.6s
-fade-in formula_box [260ms, ease: expo-out]
-fade-in f_cat [260ms, ease: expo-out]
-#2.1s
-fade-in chip_cat [260ms, ease: expo-out]
-#2.5s
-shift chip_cat [by: (0, 260), 520ms, ease: ease-in]
-fade-out f_cat [220ms, ease: ease-in]
+// ── the arithmetic bank ─────────────────────────────────────────────
+// Five columns, one per key, in insertion order. Each key's column lights as
+// the key is filed and stays lit, so the resting frame carries the whole
+// working of the table: its sum, its divisor and its bucket.
+arith_panel: Rect, size: (884, 125), at: (538, 582), corner_radius: 14,
+  color: surface.primary, stroke: stroke.default, stroke_width: 1.2, opacity: 1
+arith_head: Text, text: "HASH ARITHMETIC", font_size: 16, font_family: "mono",
+  color: text.muted, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (112, 526), opacity: 1
+arith_hint: Text, text: "sum  →  remainder  →  bucket", font_size: 16, font_family: "mono",
+  color: text.muted, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (740, 526), opacity: 1
 
-// dog → bucket 2
-#3.4s
-fade-in f_dog [260ms, ease: expo-out]
-#3.9s
-fade-in chip_dog [260ms, ease: expo-out]
-#4.3s
-shift chip_dog [by: (0, 260), 520ms, ease: ease-in]
-fade-out f_dog [220ms, ease: ease-in]
+ar_cat_key: Text, text: format("cat → {:.0}", cat_bucket), font_size: 22, font_weight: "bold",
+  color: accent.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (112, 552), opacity: 0
+ar_cat_sum: Text, text: "3 + 1 + 20", font_size: 22, font_family: "mono",
+  color: text.secondary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (112, 580), opacity: 0
+ar_cat_mod: Text, text: format("24 % {:.0} = {:.0}", modulus, cat_bucket), font_size: 22,
+  font_family: "mono", font_weight: 600, color: accent.primary, text_align: "left",
+  text_anchor: "left", anchor: scene.top_left, offset: (112, 608), opacity: 0
 
-// sun → bucket 6
-#5.2s
-fade-in f_sun [260ms, ease: expo-out]
-#5.7s
-fade-in chip_sun [260ms, ease: expo-out]
-#6.1s
-shift chip_sun [by: (0, 260), 520ms, ease: ease-in]
-fade-out f_sun [220ms, ease: ease-in]
-fade-out formula_box [220ms, ease: ease-in]
-fade-in bk_cap [300ms, ease: expo-out]
+ar_dog_key: Text, text: format("dog → {:.0}", dog_bucket), font_size: 22, font_weight: "bold",
+  color: accent.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (282, 552), opacity: 0
+ar_dog_sum: Text, text: "4 + 15 + 7", font_size: 22, font_family: "mono",
+  color: text.secondary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (282, 580), opacity: 0
+ar_dog_mod: Text, text: format("26 % {:.0} = {:.0}", modulus, dog_bucket), font_size: 22,
+  font_family: "mono", font_weight: 600, color: accent.primary, text_align: "left",
+  text_anchor: "left", anchor: scene.top_left, offset: (282, 608), opacity: 0
 
-play Collision [wipe-left, 500ms]
+ar_sun_key: Text, text: format("sun → {:.0}", sun_bucket), font_size: 22, font_weight: "bold",
+  color: accent.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (452, 552), opacity: 0
+ar_sun_sum: Text, text: "19 + 21 + 14", font_size: 22, font_family: "mono",
+  color: text.secondary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (452, 580), opacity: 0
+ar_sun_mod: Text, text: format("54 % {:.0} = {:.0}", modulus, sun_bucket), font_size: 22,
+  font_family: "mono", font_weight: 600, color: accent.primary, text_align: "left",
+  text_anchor: "left", anchor: scene.top_left, offset: (452, 608), opacity: 0
 
-// ── Scene 2: Collision — two keys, one bucket ────────────────────────────────
+ar_cow_key: Text, text: format("cow → {:.0}", cow_bucket), font_size: 22, font_weight: "bold",
+  color: accent.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (622, 552), opacity: 0
+ar_cow_sum: Text, text: "3 + 15 + 23", font_size: 22, font_family: "mono",
+  color: text.secondary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (622, 580), opacity: 0
+ar_cow_mod: Text, text: format("41 % {:.0} = {:.0}", modulus, cow_bucket), font_size: 22,
+  font_family: "mono", font_weight: 600, color: accent.primary, text_align: "left",
+  text_anchor: "left", anchor: scene.top_left, offset: (622, 608), opacity: 0
 
-# Collision
-config { colorscheme: "ink", duration: 5 }
+ar_owl_key: Text, text: format("owl → {:.0}", owl_bucket), font_size: 22, font_weight: "bold",
+  color: accent.warning, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (792, 552), opacity: 0
+ar_owl_sum: Text, text: "15 + 23 + 12", font_size: 22, font_family: "mono",
+  color: text.secondary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (792, 580), opacity: 0
+ar_owl_mod: Text, text: format("50 % {:.0} = {:.0}", modulus, owl_bucket), font_size: 22,
+  font_family: "mono", font_weight: 600, color: accent.warning, text_align: "left",
+  text_anchor: "left", anchor: scene.top_left, offset: (792, 608), opacity: 0
 
-bg2: Ambience, tint: accent.warning, seed: 808
-
-col_title: Text, text: "Two Keys, One Bucket", font_size: 38, font_weight: "bold",
-  color: text.primary, anchor: scene.top, offset: (0, 44)
-col_sub: Text, text: "Separate chaining resolves hash conflicts",
-  font_size: 15, color: text.secondary, anchor: scene.top, offset: (0, 88)
-
-chassis_lbl_c: Text, text: "MODULO 8 BUCKET ARRAY", font_size: 11, font_weight: 600,
-  color: text.muted, at: (220, 440)
-table_chassis_c: Rect, size: (1120, 84), at: (640, 500), corner_radius: 12,
-  color: surface.primary, stroke: stroke.default, stroke_width: 1
-
-b0c: LabeledBox, label: "0", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (164, 500)
-b1c: LabeledBox, label: "1", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (300, 500)
-b2c: LabeledBox, label: "2", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (436, 500)
-b3c: LabeledBox, label: "3", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (572, 500)
-b4c: LabeledBox, label: "4", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (708, 500)
-b5c: LabeledBox, label: "5", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (844, 500)
-b6c: LabeledBox, label: "6", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (980, 500)
-b7c: LabeledBox, label: "7", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (1116, 500)
-
-// dog already lives in bucket 2.
-resident: LabeledBox, label: "dog", width: 110, height: 52, text_size: 20, fill: accent.primary, at: (436, 500)
-
-formula_box_c: Rect, size: (460, 48), at: (760, 250), corner_radius: 10,
-  color: surface.primary, stroke: stroke.default, stroke_width: 1, opacity: 0.0
-
-col_f: Text, text: "owl: 15+23+12 = 50   50 mod 8 = 2 — taken", font_size: 17, font_weight: 600,
-  color: text.secondary, at: (760, 250), opacity: 0.0
-
-chip_owl: LabeledBox, label: "owl", width: 110, height: 52, text_size: 20, fill: accent.warning, at: (436, 250)
-
-chain: Line, from: (436, 528), to: (436, 560), stroke: accent.warning, stroke_width: 2, opacity: 0.0
-col_note: Text, text: "collision: owl chains below resident key dog at index 2", font_size: 15,
-  color: accent.warning, anchor: scene.bottom, offset: (0, -40), opacity: 0.0
-
-#0.0s
-fade-in col_title [500ms, ease: expo-out]
-fade-in col_sub [500ms, delay: 100ms, ease: expo-out]
-fade-in table_chassis_c [400ms, ease: expo-out]
-fade-in chassis_lbl_c [400ms, ease: expo-out]
-stagger [60ms] {
-  fade-in b0c [300ms, ease: expo-out]
-  fade-in b1c [300ms, ease: expo-out]
-  fade-in b2c [300ms, ease: expo-out]
-  fade-in b3c [300ms, ease: expo-out]
-  fade-in b4c [300ms, ease: expo-out]
-  fade-in b5c [300ms, ease: expo-out]
-  fade-in b6c [300ms, ease: expo-out]
-  fade-in b7c [300ms, ease: expo-out]
+// ── chips, chain and probe ──────────────────────────────────────────
+pub component KeyChip(label: Str, width: Num = 96, fill: Color = accent.primary, ink: Color = scene.background) {
+  root: Stack, size: (width, 42) {
+    bg: Rect, size: (width, 42), corner_radius: 9, color: fill, opacity: 1
+    label_text: Text, text: label, font_size: 18, font_weight: 600, color: ink, opacity: 1
+  }
 }
-fade-in resident [300ms, delay: 400ms, ease: expo-out]
 
-#1.4s
-fade-in chip_owl [300ms, ease: expo-out]
-fade-in formula_box_c [260ms, ease: expo-out]
-fade-in col_f [260ms, ease: expo-out]
-#2.0s
-shift chip_owl [by: (0, 250), 520ms, ease: ease-in]
-#2.7s
-shift chip_owl [by: (0, 84), 320ms, ease: spring]
-fade-in chain [240ms, ease: expo-out]
-fade-out col_f [200ms, ease: ease-in]
-fade-out formula_box_c [200ms, ease: ease-in]
-fade-in col_note [300ms, ease: expo-out]
+// Slot row per key: how many earlier keys already share its bucket. Buckets
+// are filled in insertion order, so this is also the chain position.
+let dog_slot = if dog_bucket == cat_bucket { 1 } else { 0 }
+let sun_slot = (if sun_bucket == cat_bucket { 1 } else { 0 }) + (if sun_bucket == dog_bucket { 1 } else { 0 })
+let cow_slot = (if cow_bucket == cat_bucket { 1 } else { 0 }) + (if cow_bucket == dog_bucket { 1 } else { 0 }) + (if cow_bucket == sun_bucket { 1 } else { 0 })
+let owl_slot = (if owl_bucket == cat_bucket { 1 } else { 0 }) + (if owl_bucket == dog_bucket { 1 } else { 0 }) + (if owl_bucket == sun_bucket { 1 } else { 0 }) + (if owl_bucket == cow_bucket { 1 } else { 0 })
 
-play Lookup [wipe-left, 500ms]
+chip_cat: KeyChip, label: "cat", width: min(150, bucket_w - 12), fill: accent.primary, at: (330, 540), opacity: 0
+chip_dog: KeyChip, label: "dog", width: min(150, bucket_w - 12), fill: accent.primary, at: (500, 540), opacity: 0
+chip_sun: KeyChip, label: "sun", width: min(150, bucket_w - 12), fill: accent.primary, at: (670, 540), opacity: 0
+chip_cow: KeyChip, label: "cow", width: min(150, bucket_w - 12), fill: accent.primary, at: (840, 540), opacity: 0
+chip_owl: KeyChip, label: "owl", width: min(150, bucket_w - 12), fill: accent.warning, at: (930, 540), opacity: 0
 
-// ── Scene 3: Lookup — hits and misses ────────────────────────────────────────
+// The stored dog→owl chain. Built at insertion time; hidden by construction
+// when a slider setting separates the two remainders.
+chain: Line, from: (0, 21), to: (0, owl_slot * 75 - 21), stroke: accent.warning, stroke_width: 2.5,
+  stroke_progress: 0, opacity: if (dog_bucket == owl_bucket) && (owl_slot == dog_slot + 1) { 1 } else { 0 },
+  at: (arr_x + (dog_bucket + 0.5) * arr_w / modulus, 252)
 
-# Lookup
-config { colorscheme: "ink", duration: 12.6 }
-
-bg3: Ambience, tint: accent.success, seed: 909
-
-lk_title: Text, text: "Lookup Theatre", font_size: 38, font_weight: "bold",
-  color: text.primary, anchor: scene.top, offset: (0, 44)
-lk_sub: Text, text: "Hash first to find bucket, then traverse chain",
-  font_size: 15, color: text.secondary, anchor: scene.top, offset: (0, 88)
-
-chassis_lbl_l: Text, text: "MODULO 8 BUCKET ARRAY", font_size: 11, font_weight: 600,
-  color: text.muted, at: (220, 440)
-table_chassis_l: Rect, size: (1120, 84), at: (640, 500), corner_radius: 12,
-  color: surface.primary, stroke: stroke.default, stroke_width: 1
-
-b0l: LabeledBox, label: "0", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (164, 500)
-b1l: LabeledBox, label: "1", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (300, 500)
-b2l: LabeledBox, label: "2", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (436, 500)
-b3l: LabeledBox, label: "3", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (572, 500)
-b4l: LabeledBox, label: "4", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (708, 500)
-b5l: LabeledBox, label: "5", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (844, 500)
-b6l: LabeledBox, label: "6", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (980, 500)
-b7l: LabeledBox, label: "7", width: 120, height: 56, text_size: 17, fill: surface.secondary, at: (1116, 500)
-
-// residents: sun in 6; dog + owl chained in 2.
-r_sun: LabeledBox, label: "sun", width: 110, height: 52, text_size: 20, fill: accent.primary, at: (980, 500)
-r_dog: LabeledBox, label: "dog", width: 110, height: 52, text_size: 20, fill: accent.primary, at: (436, 500)
-r_owl: LabeledBox, label: "owl", width: 110, height: 52, text_size: 20, fill: accent.warning, at: (436, 585)
-r_chain: Line, from: (436, 528), to: (436, 560), stroke: accent.warning, stroke_width: 2
-
-formula_box_l: Rect, size: (360, 44), at: (640, 160), corner_radius: 10,
-  color: surface.primary, stroke: stroke.default, stroke_width: 1, opacity: 0.0
-
-q_f1: Text, text: "sun: 54 mod 8 = 6", font_size: 17, font_weight: 600,
-  color: text.secondary, at: (640, 160), opacity: 0.0
-q_f2: Text, text: "owl: 50 mod 8 = 2", font_size: 17, font_weight: 600,
-  color: text.secondary, at: (640, 160), opacity: 0.0
-q_f3: Text, text: "cow: 41 mod 8 = 1", font_size: 17, font_weight: 600,
-  color: text.secondary, at: (640, 160), opacity: 0.0
-
-q_chip: LabeledBox, label: "sun?", width: 110, height: 52, text_size: 20, fill: accent.warning, at: (980, 250)
-q2: LabeledBox, label: "owl?", width: 110, height: 52, text_size: 20, fill: accent.warning, at: (436, 250)
-q3: LabeledBox, label: "cow?", width: 110, height: 52, text_size: 20, fill: accent.warning, at: (300, 250)
-
-v_hit1: Text, text: "FOUND: O(1) direct hit in bucket 6", font_size: 16, font_weight: 600,
-  color: accent.success, anchor: scene.bottom, offset: (0, -40), opacity: 0.0
-v_hit2: Text, text: "FOUND: traversed chain in bucket 2", font_size: 16, font_weight: 600,
-  color: accent.success, anchor: scene.bottom, offset: (0, -40), opacity: 0.0
-verdict_miss: Text, text: "NOT FOUND: bucket 1 is empty", font_size: 16, font_weight: 600,
-  color: accent.danger, anchor: scene.bottom, offset: (0, -40), opacity: 0.0
-
-#0.0s
-fade-in lk_title [500ms, ease: expo-out]
-fade-in lk_sub [500ms, delay: 100ms, ease: expo-out]
-fade-in table_chassis_l [400ms, ease: expo-out]
-fade-in chassis_lbl_l [400ms, ease: expo-out]
-stagger [60ms] {
-  fade-in b0l [300ms, ease: expo-out]
-  fade-in b1l [300ms, ease: expo-out]
-  fade-in b2l [300ms, ease: expo-out]
-  fade-in b3l [300ms, ease: expo-out]
-  fade-in b4l [300ms, ease: expo-out]
-  fade-in b5l [300ms, ease: expo-out]
-  fade-in b6l [300ms, ease: expo-out]
-  fade-in b7l [300ms, ease: expo-out]
+// Query chip and probe tick for the closing lookup.
+pub component QueryChip(label: Str, width: Num = 96) {
+  root: Stack, size: (width, 42) {
+    bg: Rect, size: (width, 42), corner_radius: 9, color: surface.secondary, stroke: accent.primary, stroke_width: 1.6, opacity: 1
+    label_text: Text, text: label, font_size: 18, font_weight: 600, color: accent.primary, opacity: 1
+  }
 }
-fade-in r_sun [300ms, delay: 400ms, ease: expo-out]
-fade-in r_dog [300ms, delay: 500ms, ease: expo-out]
-fade-in r_owl [300ms, delay: 600ms, ease: expo-out]
-fade-in r_chain [240ms, delay: 700ms, ease: expo-out]
 
-// query 1: sun → bucket 6 → found
-#2.0s
-fade-in q_chip [300ms, ease: expo-out]
-fade-in formula_box_l [260ms, ease: expo-out]
-fade-in q_f1 [260ms, ease: expo-out]
-#2.6s
-shift q_chip [by: (0, 250), 520ms, ease: ease-in]
-#3.3s
-fade-out q_f1 [200ms, ease: ease-in]
-fade-out formula_box_l [200ms, ease: ease-in]
-fade-in v_hit1 [260ms, ease: expo-out]
-#4.4s
-fade-out q_chip [300ms, ease: ease-in]
-fade-out v_hit1 [240ms, ease: ease-in]
+q_owl: QueryChip, label: "owl?", width: min(150, bucket_w - 12), at: (930, 540), opacity: 0
+probe: Rect, size: (4, 46), corner_radius: 2, color: accent.primary, at: (1000, 100), opacity: 0
 
-// query 2: owl → bucket 2 → compare dog ≠ owl → down the chain → found
-#5.2s
-fade-in q2 [300ms, ease: expo-out]
-fade-in formula_box_l [260ms, ease: expo-out]
-fade-in q_f2 [260ms, ease: expo-out]
-#5.9s
-shift q2 [by: (0, 250), 520ms, ease: ease-in]
-#6.6s
-fade-out q_f2 [200ms, ease: ease-in]
-fade-out formula_box_l [200ms, ease: ease-in]
-#7.2s
-shift q2 [by: (0, 85), 300ms, ease: spring]
-#8.3s
-fade-out q2 [260ms, ease: ease-in]
-fade-in v_hit2 [260ms, ease: expo-out]
+// ── live counters ───────────────────────────────────────────────────
+chip_bucket: Readout, label: "BUCKET", value: "2", at: (1110, 250)
+chip_probes: Readout, label: "PROBES", value: "2", at: (1110, 360)
+chip_chain: Readout, label: "CHAIN", value: "2", at: (1110, 470)
+
+// Payoff bloom on the resolved chain.
+bloom: Ellipse, size: (520, 520), blend: "screen", opacity: 0,
+  at: (arr_x + (dog_bucket + 0.5) * arr_w / modulus, 420),
+  fill_gradient: radial((0.5, 0.5), 0.62, {(0%, accent.primary * 0.50), (42%, accent.primary * 0.18), (100%, (0, 0, 0, 0))})
+
+// ── Act I · five keys ───────────────────────────────────────────────
+// The empty rack and the arithmetic header are lit at t=0; cat's working is
+// the first motion 300 ms in. Each key follows the same reveal → travel →
+// settle beat so the table reads as one repeated operation.
+#0.3s
+fade-in ar_cat_key [220ms, ease: expo-out]
+fade-in ar_cat_sum [220ms, delay: 80ms, ease: expo-out]
+fade-in ar_cat_mod [240ms, delay: 150ms, ease: expo-out]
+fade-out arith_hint [200ms, ease: ease-in]
+fade-in chip_cat [220ms, delay: 260ms, ease: expo-out]
+
+#0.85s
+chip_cat.at = (arr_x + (cat_bucket + 0.5) * arr_w / modulus, 252) [600ms, ease: ease-in-out]
+
+#1.55s
+pulse chip_cat [360ms, intensity: 0.06]
+fade-in ar_dog_key [220ms, ease: expo-out]
+fade-in ar_dog_sum [220ms, delay: 80ms, ease: expo-out]
+fade-in ar_dog_mod [240ms, delay: 150ms, ease: expo-out]
+fade-in chip_dog [220ms, delay: 260ms, ease: expo-out]
+
+#2.15s
+chip_dog.at = (arr_x + (dog_bucket + 0.5) * arr_w / modulus, 252 + dog_slot * 75) [600ms, ease: ease-in-out]
+
+#2.85s
+pulse chip_dog [360ms, intensity: 0.06]
+fade-in ar_sun_key [220ms, ease: expo-out]
+fade-in ar_sun_sum [220ms, delay: 80ms, ease: expo-out]
+fade-in ar_sun_mod [240ms, delay: 150ms, ease: expo-out]
+fade-in chip_sun [220ms, delay: 260ms, ease: expo-out]
+
+#3.45s
+chip_sun.at = (arr_x + (sun_bucket + 0.5) * arr_w / modulus, 252 + sun_slot * 75) [600ms, ease: ease-in-out]
+
+#4.15s
+pulse chip_sun [360ms, intensity: 0.06]
+fade-in ar_cow_key [220ms, ease: expo-out]
+fade-in ar_cow_sum [220ms, delay: 80ms, ease: expo-out]
+fade-in ar_cow_mod [240ms, delay: 150ms, ease: expo-out]
+fade-in chip_cow [220ms, delay: 260ms, ease: expo-out]
+
+#4.75s
+chip_cow.at = (arr_x + (cow_bucket + 0.5) * arr_w / modulus, 252 + cow_slot * 75) [600ms, ease: ease-in-out]
+
+// ── Act II · the collision ──────────────────────────────────────────
+#5.45s
+pulse chip_cow [360ms, intensity: 0.06]
+fade-in ar_owl_key [220ms, ease: expo-out]
+fade-in ar_owl_sum [220ms, delay: 80ms, ease: expo-out]
+fade-in ar_owl_mod [240ms, delay: 150ms, ease: expo-out]
+fade-in chip_owl [220ms, delay: 260ms, ease: expo-out]
+
+#6.05s
+chip_owl.at = (arr_x + (owl_bucket + 0.5) * arr_w / modulus, 252 + owl_slot * 75) [600ms, ease: ease-in-out]
+
+#6.2s
+fade-out cap1 [220ms, ease: ease-in]
+fade-in cap2 [260ms, delay: 180ms, ease: expo-out]
+
+#6.75s
+pulse chip_owl [380ms, intensity: 0.06]
+draw-in chain [360ms, ease: expo-out]
+
+// ── Act III · one query down the chain ─────────────────────────────
+#7.4s
+fade-out cap2 [220ms, ease: ease-in]
+fade-in cap3 [260ms, delay: 180ms, ease: expo-out]
+fade-in q_owl [220ms, delay: 200ms, ease: expo-out]
+
+#7.9s
+q_owl.at = (arr_x + (owl_bucket + 0.5) * arr_w / modulus, 168) [600ms, ease: ease-in-out]
+
+#8.6s
+probe.opacity = 1 [180ms]
+probe.at = (arr_x + (dog_bucket + 0.5) * arr_w / modulus - bucket_w / 2 - 10, 252) [220ms]
+
+#8.9s
+pulse chip_dog [300ms, intensity: 0.07]
+probe.at = (arr_x + (owl_bucket + 0.5) * arr_w / modulus - bucket_w / 2 - 10, 252 + owl_slot * 75) [300ms]
+
 #9.2s
-fade-out v_hit2 [240ms, ease: ease-in]
+pulse chip_owl [340ms, intensity: 0.06]
+fade-in v_found [300ms, ease: expo-out]
+fade-out q_owl [200ms, ease: ease-in]
+fade-out probe [200ms, ease: ease-in]
 
-// query 3: cow → bucket 1 → empty → not found
-#9.9s
-fade-in q3 [300ms, ease: expo-out]
-fade-in formula_box_l [260ms, ease: expo-out]
-fade-in q_f3 [260ms, ease: expo-out]
-#10.5s
-shift q3 [by: (0, 250), 520ms, ease: ease-in]
-#11.2s
-fade-out q_f3 [200ms, ease: ease-in]
-fade-out formula_box_l [200ms, ease: ease-in]
-fade-in verdict_miss [260ms, ease: expo-out]
+// ── the payoff ──────────────────────────────────────────────────────
+#9.4s
+camera.zoom = 1.06 [1.1s, ease: ease-in-out]
+bloom.opacity = 0.70 [500ms, ease: expo-out]
+
+#10.0s
+bloom.at = (arr_x + (dog_bucket + 0.5) * arr_w / modulus, 250) [1.1s, ease: ease-in-out]
+
+#10.8s
+bloom.opacity = 0.10 [800ms, ease: ease-in-out]
+camera.zoom = 1.0 [1.0s, ease: ease-in-out]
+
+// ── Rest ────────────────────────────────────────────────────────────
+// Five keys filed, four buckets occupied, the dog→owl chain drawn, all five
+// workings lit, and FOUND · owl · 2 probes in the top band. The poster frame.
+#11.8s
+
+always {
+  let b = if t >= 6.05 { owl_bucket } else { if t >= 4.75 { cow_bucket } else { if t >= 3.45 { sun_bucket } else { if t >= 2.15 { dog_bucket } else { cat_bucket } } } }
+  let probes = if t >= 8.9 { 2 } else { if t >= 8.6 { 1 } else { 0 } }
+  let chain_len = if t >= 6.05 { if dog_bucket == owl_bucket { 2 } else { 1 } } else { if t >= 2.15 { 1 } else { 0 } }
+  chip_bucket.value_text.text = format("{:.0}", b)
+  chip_probes.value_text.text = format("{:.0}", probes)
+  chip_chain.value_text.text = format("{:.0}", chain_len)
+}
