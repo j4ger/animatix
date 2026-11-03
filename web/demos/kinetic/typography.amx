@@ -1,38 +1,104 @@
-// Split-Text Baseline Masks & Gradients — Scene 1 of Kinetic Studio
+// house-style: split-text reveal study; three acts, payoff is a camera push over a
+// gradient bloom, rests on the full quote with the display plane flattened.
+//
+// Kinetic is a typography showcase (web/DESIGN.md §1 note): the house head names
+// the figure, and the oversized split-text lines below it ARE the mechanism
+// act — 104 px display type revealed word-by-word then glyph-by-glyph through
+// baseline masks, with the baseline rules drawing in under each line so the
+// mask is visible rather than implied.
+//
+// `tilt` is the deck-wide slider: the display plane rides a 2.5D tilt (the
+// engine's rotate_x/rotate_y are orthographic radians, so the pitch carries a
+// 1.4x share to make the plane read) and flattens onto the page at the payoff.
+// `--set tilt=N` re-angles the plane live.
+//
+// Type floors (DESIGN §1.5): display 104, lede 26, attribution 18 mono, captions
+// 24 (stage.Caption), readout values 28 — nothing below 16 px.
+
 import "../../demos/lib/theme.amx"
-import "../../demos/lib/ui.amx"
-import "../../demos/lib/ambience.amx"
+import "../../demos/lib/stage.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 6.0 }
+config { colorscheme: "coral", resolution: (1280, 720), duration: 9.0 }
 
-bg: Ambience, tint: accent.primary, seed: 999
+// The slider target: `--set tilt=N` re-angles the display plane.
+let tilt = 10
 
-h_kicker: Text, text: "KINETIC STUDIO", font_size: 11, font_weight: 600, color: accent.primary,
-  anchor: scene.top, offset: (0, 36)
-h_title: Text, text: "Split-Text Kinetic Typography", font_size: 32, font_weight: "bold",
-  color: text.primary, anchor: scene.top, offset: (0, 68)
-h_sub: Text, text: "Word-by-word reveal animations with baseline clipping and linear gradient fill",
-  font_size: 14, color: text.secondary, anchor: scene.top, offset: (0, 98)
+// ── the stage ───────────────────────────────────────────────────────
+floor: StageFloor, glow: 1.15
 
-stage_box: Rect, size: (920, 280), color: surface.primary, corner_radius: 16,
-  stroke: stroke.default, stroke_width: 1, at: (640, 380)
+head: ActHead, kicker: "FIG · SPLIT-TEXT REVEAL", title: "Type that arrives in pieces",
+  sub: "baseline masks, per-word stagger, one gradient brush"
 
-quote: Col, at: (640, 380), gap: 18, align: "center" {
-  l1: Text, text: "Motion is meaning, not decoration.", font_size: 34, font_weight: "bold",
-    fill_gradient: linear(90, {"#f5b942", "#fb7185"}), text_align: "center"
-  l2: Text, text: "Choreographed with declarative precision across time and space.", font_size: 20, color: text.secondary, text_align: "center"
-  author: Text, text: "— ANIMATIX KINETIC MANIFESTO", font_size: 12, font_weight: 600, color: text.muted, letter_spacing: 3
+cap1: Caption, text: "Act I · One word lifts through its baseline mask; the rest waits below the line.", tag: "typography.amx"
+cap2: Caption, text: "Act II · Word by word, then glyph by glyph, the gradient brush paints the claim.", tag: "typography.amx", opacity: 0
+cap3: Caption, text: "Act III · The plane flattens onto the page and the whole quote holds.", tag: "typography.amx", opacity: 0
+
+chip_split: Readout, label: "SPLIT", value: "word → char", at: (1150, 300), opacity: 0
+chip_tilt: Readout, label: "PLANE TILT", value: format("{:.0}°", tilt), at: (1150, 400), opacity: 0
+
+// ── the showcased plane ─────────────────────────────────────────────
+// One Group so the whole quote tilts and flattens as a single sheet of type.
+// Children are placed in plane-local coordinates; text_anchor pins the left
+// edge at scene x=96 (the editorial column the head's rule starts on).
+plane: Group, at: (640, 400), rotate_y: tilt * 0.0174532925, rotate_x: 0 - tilt * 0.024434610, opacity: 1 {
+  bloom: Ellipse, size: (980, 340), at: (-180, -48), blend: "screen", opacity: 0,
+    fill_gradient: radial((0.5, 0.5), 0.6, {(0%, "#ff705240"), (45%, "#ff705214"), (100%, "#ff705200")})
+
+  // The two baseline rules are on the lit stage at t=0 — the empty masks the
+  // words are about to lift through (house-style §1: the subject's silhouette
+  // is ink at frame 0). They brighten as their line lands.
+  base1: Rect, size: (540, 3), color: accent.primary, at: (-274, -56), opacity: 0.3
+  base2: Rect, size: (500, 3), color: "#f5b942", at: (-294, 88), opacity: 0.3
+
+  l1: Text, text: "MOTION IS", font_size: 96, font_weight: "bold", color: text.primary,
+    text_align: "left", text_anchor: "left", at: (-544, -120), opacity: 0
+  l2: Text, text: "MEANING.", font_size: 96, font_weight: "bold",
+    fill_gradient: linear(90, {accent.primary, "#f5b942"}),
+    text_align: "left", text_anchor: "left", at: (-544, 24), opacity: 0
+
+  l3: Text, text: "not decoration — baseline-masked, staggered, sprung.",
+    font_size: 26, color: text.secondary, text_align: "left", text_anchor: "left",
+    text_max_width: 880, at: (-544, 152), opacity: 0
+  l4: Text, text: "— THE KINETIC MANIFESTO", font_size: 18, font_weight: 600,
+    font_family: "mono", color: text.muted, letter_spacing: 3,
+    text_anchor: "left", at: (-544, 200), opacity: 0
 }
 
-#0.0s
-fade-in h_kicker [400ms, ease: expo-out]
-fade-in h_title [500ms, delay: 50ms, ease: expo-out]
-fade-in h_sub [500ms, delay: 100ms, ease: expo-out]
-fade-in stage_box [400ms]
-fade-in quote [400ms]
+// ── Act I · the hook ────────────────────────────────────────────────
+// The floor, head and caption are lit at t=0; the first word starts lifting
+// 50 ms in, so there is no dead plate and no fade-from-black.
+#0.05s
+reveal-in l1 [by: word, offset_y: 26, 900ms, ease: ease-out]
+base1.opacity = 0.9 [600ms, delay: 500ms, ease: expo-out]
 
-#0.4s
-reveal-in l1 [by: word, offset_y: 24, 700ms, ease: ease-out]
+// ── Act II · the mechanism ──────────────────────────────────────────
+#1.7s
+fade-out cap1 [240ms, ease: ease-in]
+fade-in cap2 [280ms, delay: 200ms, ease: expo-out]
+reveal-in l2 [by: char, offset_y: 30, 1500ms, ease: ease-out]
+base2.opacity = 0.9 [700ms, delay: 1000ms, ease: expo-out]
 
-#1.2s
-reveal-in l2 [by: word, offset_y: 18, 700ms, ease: ease-out]
+#3.9s
+fade-in l3 [700ms, ease: expo-out]
+fade-in l4 [500ms, delay: 320ms, ease: expo-out]
+fade-in chip_split [420ms, ease: expo-out]
+fade-in chip_tilt [420ms, delay: 160ms, ease: expo-out]
+
+// ── Act III · the payoff ────────────────────────────────────────────
+// The plane flattens onto the page while the camera pushes a touch and the
+// gradient bloom settles behind the claim; everything holds into the rest.
+#6.6s
+fade-out cap2 [240ms, ease: ease-in]
+fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
+plane.rotate_y = 0.0 [1.5s, ease: ease-in-out]
+plane.rotate_x = 0.0 [1.5s, ease: ease-in-out]
+bloom.opacity = 0.34 [700ms, ease: expo-out]
+camera.zoom = 1.04 [1.2s, ease: ease-in-out]
+
+#8.0s
+bloom.opacity = 0.22 [900ms, ease: ease-in-out]
+camera.zoom = 1.0 [1.0s, ease: ease-in-out]
+
+// ── Rest ────────────────────────────────────────────────────────────
+// The full quote — both display lines, both baseline rules, lede, attribution,
+// spec chips and the settled bloom — holds; nothing erases.
