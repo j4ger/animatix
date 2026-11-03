@@ -52,6 +52,12 @@ Shared primitives live in `web/demos/lib/stage.amx` (`StageFloor`, `ActHead`,
 `Caption`, `Readout`); atmospheric depth in `web/demos/lib/ambience.amx`
 (`Ambience`). A scene imports both rather than re-deriving a backdrop.
 
+Readouts and counters may be declared at their final value and rewritten
+frame-time in `always { }`: since the 2026-11 text-cache fix the offline
+render path (`image`/`storyboard`) draws the frame-time string exactly like
+playback, so `Readout.value_text.text = format(...)` is safe in both paths
+(see `docs/history/2026-11.md`).
+
 ## 2. Page visual language
 
 Dark ground, real depth, editorial type — the scenes glow, so the page stays

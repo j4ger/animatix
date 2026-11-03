@@ -576,26 +576,3 @@ tracked.
   after the numeric fast paths (currently `stage/modifier_exec` is sub-µs).
 - **Verification**: `stage/build_frame_env` and `vm_vs_ir` suites; the
   `is_animating` and closure parity tests are the behavior pins.
-
-
-### 5. Frame-time text overrides do not invalidate the offline glyph cache
-
-- **Scope**: `animatix-render` offscreen frame path / text glyph cache
-  invalidation; surfaces in `animatix image` and `animatix storyboard`.
-- **Current behaviour**: an `always { actor.text = ... }` (or any frame-time
-  `.text` write) renders its DECLARED string in offline renders while
-  frame-time geometry/position writes from the same block render correctly.
-  Repro: `examples/animation/33_count_up_ticker.amx` shows "0%" at t=1.0;
-  `web/demos/gradient/descent.amx` shows its declared loss at t=4.0. The live
-  web player and GUI playback are believed correct (the count-up ticker is a
-  documented recipe), so the defect is specific to the offscreen cache key not
-  including the frame-time text value.
-- **Workaround in force**: scenes declare the final/total string and rewrite it
-  per-frame in `always` for live playback, so both paths read truthfully
-  (web/DESIGN.md §5). Storyboards therefore never show a mid-count value.
-- **Remaining target**: include the resolved frame-time text in the glyph cache
-  key (or invalidate on text-property write) so offline renders agree with
-  playback; then drop the dual-declare workaround from the house style.
-- **Verification**: `animatix storyboard examples/animation/33_count_up_ticker.amx`
-  shows a mid-count percentage in a middle tile; a new render-path test pins
-  `image --time` against the live player's frame text.
