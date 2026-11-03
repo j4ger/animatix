@@ -13,25 +13,32 @@
 // plots at the same scale the wipe into §02 carries the wave across at an
 // unchanged height.
 //
+// House-style floor (web/DESIGN.md §1): the stage is 1280×720 with the left
+// 160 px reserved for the editorial head's rule and the bottom 60 px for the
+// caption band. The chain pivots at x=280 and the plot occupies x=530…1210;
+// `cy` is the shared centre line both columns are built around. The plot box
+// is 302 px tall, so its top sits at y≈254 — clear of ActHead's 220 px band —
+// and its bottom at y≈556, clear of the readout row at y≈613.
+//
 // (Every export here is a literal or a stdlib expression — a module's `pub let`
 // cannot reference its own sibling bindings, since exports evaluate outside the
 // module scope.)
 
 // ── the pen ─────────────────────────────────────────────────────────
-pub let R = 128 // base epicycle radius, px
-pub let pivot_x = 240 // base circle centre; the chain reaches +215 from here
-pub let cy = 396 // the shared centre line of both columns
+pub let R = 110 // base epicycle radius, px
+pub let pivot_x = 280 // base circle centre; the six-harmonic chain reaches +206 from here
+pub let cy = 405 // the shared centre line of both columns
 
 // ── the plot ────────────────────────────────────────────────────────
-// Left edge 540 clears the chain's widest reach (455). The box height is not
-// a taste call: scenes write it as `2 * y_hi * pi * R / 4`, which is the
+// Left edge 530 clears the six-chain's widest reach (486). The box height is
+// not a taste call: scenes write it as `2 * y_hi * pi * R / 4`, which is the
 // statement "one y-unit is R·pi/4 px" — the tie-line invariant above.
 //
 // y_lo/y_hi are two literals rather than `-y_hi` at the call site: a unary
 // minus applied to a dotted module path (`-geo.y_hi`) evaluates to nothing and
 // `y_domain` then silently falls back to its ±10 default, with no diagnostic.
 pub let graph_cx = 870
-pub let graph_w = 660
+pub let graph_w = 680
 pub let y_lo = -1.75 // the partial sums overshoot 1.5 at the corners
 pub let y_hi = 1.75
 
