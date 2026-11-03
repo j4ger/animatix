@@ -27,6 +27,8 @@ let dog_bucket = 26 % modulus
 let owl_bucket = 50 % modulus
 let sun_bucket = 54 % modulus
 let cow_bucket = 41 % modulus
+let sun_slot = if sun_bucket == dog_bucket { 1 } else { 0 }
+let owl_slot = (if owl_bucket == dog_bucket { 1 } else { 0 }) + (if owl_bucket == sun_bucket { 1 } else { 0 })
 
 // ── the stage ───────────────────────────────────────────────────────
 floor: StageFloor, glow: 1.25, grid: 1.2
@@ -90,17 +92,17 @@ pub component KeyChip(label: Str, width: Num = 96, fill: Color = accent.primary,
   }
 }
 
-r_sun: KeyChip, label: "sun", width: min(150, bucket_w - 12), fill: accent.primary, at: (arr_x + (sun_bucket + 0.5) * arr_w / modulus, 260), opacity: 1
+r_sun: KeyChip, label: "sun", width: min(150, bucket_w - 12), fill: accent.primary, at: (arr_x + (sun_bucket + 0.5) * arr_w / modulus, 260 + sun_slot * 100), opacity: 1
 r_dog: KeyChip, label: "dog", width: min(150, bucket_w - 12), fill: accent.primary, at: (arr_x + (dog_bucket + 0.5) * arr_w / modulus, 260), opacity: 1
 r_owl: KeyChip, label: "owl", width: min(150, bucket_w - 12), fill: accent.warning,
-  at: (arr_x + (owl_bucket + 0.5) * arr_w / modulus, if dog_bucket == owl_bucket { 360 } else { 260 }), opacity: 1
+  at: (arr_x + (owl_bucket + 0.5) * arr_w / modulus, 260 + owl_slot * 100), opacity: 1
 
 // The stored chain is part of the table from frame 0 — the lookup is what
 // animates, not the data. When the slider separates the pair the connector is
 // a build-time no-op.
-chain: Line, from: (0, -29), to: (0, 29), stroke: accent.warning, stroke_width: 2.5,
-  opacity: if dog_bucket == owl_bucket { 1 } else { 0 },
-  at: (arr_x + (dog_bucket + 0.5) * arr_w / modulus, 310)
+chain: Line, from: (0, 21), to: (0, owl_slot * 100 - 21), stroke: accent.warning, stroke_width: 2.5,
+  opacity: if (dog_bucket == owl_bucket) && (owl_slot == 1) { 1 } else { 0 },
+  at: (arr_x + (dog_bucket + 0.5) * arr_w / modulus, 260)
 
 // ── query chips ─────────────────────────────────────────────────────
 pub component QueryChip(label: Str, width: Num = 96) {
@@ -233,7 +235,7 @@ probe.at = (arr_x + (dog_bucket + 0.5) * arr_w / modulus - bucket_w / 2 - 10, 26
 
 #6.5s
 pulse r_dog [320ms, intensity: 0.07]
-probe.at = (arr_x + (owl_bucket + 0.5) * arr_w / modulus - bucket_w / 2 - 10, if dog_bucket == owl_bucket { 360 } else { 260 }) [300ms]
+probe.at = (arr_x + (owl_bucket + 0.5) * arr_w / modulus - bucket_w / 2 - 10, 260 + owl_slot * 100) [300ms]
 
 #6.9s
 pulse r_owl [340ms, intensity: 0.06]
@@ -267,7 +269,7 @@ always {
   // Live counters: bucket under the probe, probes spent, chain walked.
   let b = if t >= 5.6 { owl_bucket } else { if t >= 2.8 { sun_bucket } else { cow_bucket } }
   let probes = if t >= 6.9 { 2 } else { if t >= 1.6 { 1 } else { 0 } }
-  let chain_len = if t >= 5.6 { if dog_bucket == owl_bucket { 2 } else { 1 } } else { if t >= 2.8 { 1 } else { 0 } }
+  let chain_len = if t >= 5.6 { if (dog_bucket == owl_bucket) && (owl_slot == 1) { 2 } else { 1 } } else { if t >= 2.8 { 1 } else { 0 } }
   chip_bucket.value_text.text = format("{:.0}", b)
   chip_probes.value_text.text = format("{:.0}", probes)
   chip_chain.value_text.text = format("{:.0}", chain_len)
