@@ -32,7 +32,11 @@ impl Timeline {
             &mut diagnostics,
         );
 
-        // 2. Lower declarations, keyframes and actions into tracks; attach
+        // 2. Validate format templates before evaluation silently mishandles
+        //    an unsupported placeholder.
+        super::format_specs::validate_format_specs(&seeded.ast, &mut diagnostics);
+
+        // 3. Lower declarations, keyframes and actions into tracks; attach
         //    the transcripts the seeding pass collected.
         super::walk::walk_statements(
             &mut timeline,
@@ -41,15 +45,15 @@ impl Timeline {
             &mut diagnostics,
         );
 
-        // 3. Lower `always` bodies to IR and validate their property references.
+        // 4. Lower `always` bodies to IR and validate their property references.
         super::walk::lower_modifiers(&mut timeline, &mut diagnostics);
 
-        // 4. Post-walk validation: reveals, duration/loop seam, registrations.
+        // 5. Post-walk validation: reveals, duration/loop seam, registrations.
         super::validate::validate_reveals(&timeline, &mut diagnostics);
         super::validate::validate_duration_and_seam(&mut timeline, &mut diagnostics);
         super::validate::validate_actors(&mut timeline, &mut diagnostics);
 
-        // 5. Freeze the environment and derive legend/idle/audio state.
+        // 6. Freeze the environment and derive legend/idle/audio state.
         super::finalize::finalize_assets_legend(&mut timeline, &mut diagnostics);
 
         BuildReport::new(timeline, diagnostics)

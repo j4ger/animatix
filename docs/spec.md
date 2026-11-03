@@ -1255,10 +1255,11 @@ always {
 }
 ```
 
-> `format`'s placeholders are `{}` (the next argument) and `{.N}` (the next
-> argument at `N` decimal places). Anything else between the braces — `{x}`,
-> `{:.1f}`, `{:,}` — is emitted literally, on purpose: an unsupported spec shows
-> up in the render instead of silently substituting something else.
+> `format`'s placeholders are `{}` (the next argument), `{:.N}` (the next
+> argument at `N` decimal places), and `{:.Nf}` (the fixed-point spelling with
+> `N` decimal places). Anything else between the braces — `{x}`, `{:d}`,
+> `{:,}` — falls back to default formatting, and the build warns with the actor
+> and the unsupported specifier instead of leaving the typo silent.
 
 **`for`**: Compile-time structural expansion.
 ```animatix
@@ -1272,6 +1273,12 @@ for item in items {
 color = if value > 0 { green } else { red }
 pulse.size = if (t % 1.0) < 0.5 { (120, 120) } else { (180, 180) }
 ```
+
+`if` / `else` also work as build-time structural blocks around declarations:
+the condition is evaluated during the build and only the taken branch is
+instantiated, so `if banks == 2 { for i in {0, 1} { lane[i]: Rect, ... } }`
+declares `lane__0` / `lane__1` exactly as the unconditional form would.
+`match` blocks are structural in the same way.
 
 Model: `for` for structure, keyframes for declarative timed animation, `always` for stateless runtime behavior.
 

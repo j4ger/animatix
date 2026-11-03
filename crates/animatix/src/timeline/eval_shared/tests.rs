@@ -303,6 +303,17 @@ fn test_builtin_format_precision() {
     .unwrap();
     assert_eq!(result.as_str(), "y = 0.71");
 
+    // `{:.Nf}` is the fixed-point spelling authors expect (Python-style).
+    let result =
+        eval_builtin_fn("format", &[Value::Str("{:.1f}k msg/s".to_string()), Value::Num(184.5)])
+            .unwrap();
+    assert_eq!(result.as_str(), "184.5k msg/s");
+
+    // `{:.0}` rounds to no fractional digits.
+    let result =
+        eval_builtin_fn("format", &[Value::Str("{:.0}".to_string()), Value::Num(2.6)]).unwrap();
+    assert_eq!(result.as_str(), "3");
+
     // Multiple placeholders mix precision and default formatting.
     let result = eval_builtin_fn(
         "format",
@@ -327,10 +338,12 @@ fn test_builtin_format_precision() {
     .unwrap();
     assert_eq!(result.as_str(), "hi");
 
-    // Unrecognized specs stay literal instead of silently consuming a value.
+    // Unrecognized specs fall back to default formatting and still consume
+    // their argument, so later placeholders stay aligned. The build pass is
+    // what names the bad specifier (see `build::format` tests).
     let result =
         eval_builtin_fn("format", &[Value::Str("{:d} {}".to_string()), Value::Num(7.0)]).unwrap();
-    assert_eq!(result.as_str(), "{:d} 7");
+    assert_eq!(result.as_str(), "7 {}");
 
     // More placeholders than values keeps the extras literal.
     let result =

@@ -2,6 +2,13 @@
 
 use super::*;
 
+/// Build-walk cursor shared by nested conditional branches, so a keyframe in a
+/// branch advances the same build clock a top-level keyframe would.
+struct WalkState {
+    has_seen_keyframe: bool,
+    current_build_time_ms: f64,
+}
+
 /// Walk the (speech-lowered) AST, lowering actor declarations, keyframes and
 /// actions into the timeline.
 ///
@@ -15,46 +22,11 @@ pub(super) fn walk_statements(
     transcripts: std::collections::HashMap<String, animatix_text::transcript::SpeechTranscript>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let mut has_seen_keyframe = false;
-    let mut current_build_time_ms = 0.0;
-    for stmt in ast {
-        match stmt {
-            Stmt::Config { .. } => {},
-            Stmt::Keyframe { time, body, .. } => {
-                has_seen_keyframe = true;
-                timeline.default_opacity = 1.0;
-                current_build_time_ms = time_to_ms_at_beat(time, timeline.beat_duration_ms());
-                timeline.process_body(current_build_time_ms, body, None, diagnostics);
-            },
-            Stmt::RelativeKeyframe { offset, body, .. } => {
-                has_seen_keyframe = true;
-                timeline.default_opacity = 1.0;
-                current_build_time_ms += time_to_ms_at_beat(offset, timeline.beat_duration_ms());
-                timeline.process_body(current_build_time_ms, body, None, diagnostics);
-            },
-            Stmt::ActorDecl { .. }
-            | Stmt::Assignment { .. }
-            | Stmt::Sequence { .. }
-            | Stmt::Stagger { .. }
-            | Stmt::LetDecl { .. }
-            | Stmt::Always { .. }
-            | Stmt::ForLoop { .. }
-            | Stmt::Step { .. } => {
-                let saved_opacity = timeline.default_opacity;
-                if !has_seen_keyframe {
-                    timeline.default_opacity = 0.0;
-                }
-                timeline.process_body(
-                    current_build_time_ms,
-                    std::slice::from_ref(stmt),
-                    None,
-                    diagnostics,
-                );
-                timeline.default_opacity = saved_opacity;
-            },
-            _ => {}, // Config/import/type aliases are handled by earlier phases
-        }
-    }
+    let mut state = WalkState {
+        has_seen_keyframe: false,
+        current_build_time_ms: 0.0,
+    };
+    walk_statements_inner(timeline, ast, &mut state, diagnostics);
 
     // Attach the pre-pass transcripts now that every declaration has created
     // its entity.
@@ -65,6 +37,117 @@ pub(super) fn walk_statements(
     // Names written by always blocks — a plot closure capturing one of these
     // must resample per frame (see ProceduralPlot::is_dynamic).
     timeline.frame_written_vars = Timeline::collect_frame_written_vars(&timeline.modifiers);
+}
+
+/// The statement walk proper. `if`/`match` blocks are build-time structural
+/// forms: evaluate the condition here, then walk only the branch that is taken
+/// so its declarations, keyframes and loop expansions are lowered exactly like
+/// top-level statements.
+fn walk_statements_inner(
+    timeline: &mut Timeline,
+    ast: &[Stmt],
+    state: &mut WalkState,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for stmt in ast {
+        match stmt {
+            Stmt::Config { .. } => {},
+            Stmt::Keyframe { time, body, .. } => {
+                state.has_seen_keyframe = true;
+                timeline.default_opacity = 1.0;
+                state.current_build_time_ms = time_to_ms_at_beat(time, timeline.beat_duration_ms());
+                timeline.process_body(state.current_build_time_ms, body, None, diagnostics);
+            },
+            Stmt::RelativeKeyframe { offset, body, .. } => {
+                state.has_seen_keyframe = true;
+                timeline.default_opacity = 1.0;
+                state.current_build_time_ms +=
+                    time_to_ms_at_beat(offset, timeline.beat_duration_ms());
+                timeline.process_body(state.current_build_time_ms, body, None, diagnostics);
+            },
+            Stmt::Conditional {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                let eval_env = timeline.build_eval_env(state.current_build_time_ms as u64);
+                let branch = match evaluate_expr(condition, &eval_env) {
+                    Ok(value) if value.is_truthy() => Some(then_branch.as_slice()),
+                    Ok(_) => else_branch.as_deref(),
+                    Err(e) => {
+                        diagnostics.push(Diagnostic::error(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            format!("Failed to evaluate `if` condition: {e}; skipping the block."),
+                        ));
+                        None
+                    },
+                };
+                if let Some(branch) = branch {
+                    walk_statements_inner(timeline, branch, state, diagnostics);
+                }
+            },
+            Stmt::Match {
+                scrutinee, arms, ..
+            } => {
+                let eval_env = timeline.build_eval_env(state.current_build_time_ms as u64);
+                let value = match evaluate_expr(scrutinee, &eval_env) {
+                    Ok(value) => value,
+                    Err(e) => {
+                        diagnostics.push(Diagnostic::error(
+                            DiagnosticCode::ModuleExportEvalError,
+                            DiagnosticPhase::Build,
+                            format!("Failed to evaluate match scrutinee: {e}; skipping match."),
+                        ));
+                        continue;
+                    },
+                };
+                let mut matched = false;
+                for (pattern, body) in arms {
+                    if pattern_matches(pattern, &value) {
+                        walk_statements_inner(timeline, body, state, diagnostics);
+                        matched = true;
+                        break;
+                    }
+                }
+                if !matched
+                    && !arms
+                        .iter()
+                        .any(|(pattern, _)| matches!(pattern, crate::ast::MatchPattern::Wildcard))
+                {
+                    diagnostics.push(Diagnostic::warning(
+                        DiagnosticCode::InvalidPropertyValue,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "match scrutinee evaluated to {value:?} but no arm matched and no `_` wildcard arm was provided"
+                        ),
+                    ));
+                }
+            },
+            Stmt::ActorDecl { .. }
+            | Stmt::Assignment { .. }
+            | Stmt::Sequence { .. }
+            | Stmt::Stagger { .. }
+            | Stmt::LetDecl { .. }
+            | Stmt::Always { .. }
+            | Stmt::ForLoop { .. }
+            | Stmt::Step { .. } => {
+                let saved_opacity = timeline.default_opacity;
+                if !state.has_seen_keyframe {
+                    timeline.default_opacity = 0.0;
+                }
+                timeline.process_body(
+                    state.current_build_time_ms,
+                    std::slice::from_ref(stmt),
+                    None,
+                    diagnostics,
+                );
+                timeline.default_opacity = saved_opacity;
+            },
+            _ => {}, // Config/import/type aliases are handled by earlier phases
+        }
+    }
 }
 
 /// Lower the collected `always` bodies into IR for frame-time interpretation.

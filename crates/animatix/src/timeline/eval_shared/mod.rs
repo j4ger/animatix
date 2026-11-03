@@ -33,3 +33,4 @@ mod tests;
 pub use binary::eval_binary_op;
 pub use builtins::eval_builtin_fn;
 pub use convert::{value_to_color, value_to_f64, value_to_list, value_to_vec2, value_to_vec3};
+pub(crate) use format::unsupported_specifiers;

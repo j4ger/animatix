@@ -373,15 +373,14 @@ impl Timeline {
                     else_branch,
                     ..
                 } => {
-                    let eval_env = self.build_eval_env(time_ms as u64);
-                    let truthy = evaluate_expr(condition, &eval_env)
-                        .map(|value| value.is_truthy())
-                        .unwrap_or(false);
-                    if truthy {
-                        self.process_body(time_ms, then_branch, parent_label, diagnostics);
-                    } else if let Some(else_branch) = else_branch {
-                        self.process_body(time_ms, else_branch, parent_label, diagnostics);
-                    }
+                    self.process_conditional(
+                        time_ms,
+                        condition,
+                        then_branch,
+                        else_branch.as_deref(),
+                        parent_label,
+                        diagnostics,
+                    );
                 },
                 Stmt::Step { .. } => {
                     let t = time_ms as u64;
@@ -428,6 +427,38 @@ impl Timeline {
                     ));
                 },
             }
+        }
+    }
+
+    /// Process a build-time `if` statement. The condition is evaluated once
+    /// against the build environment; only the selected branch's statements
+    /// are lowered at this time.
+    fn process_conditional(
+        &mut self,
+        time_ms: f64,
+        condition: &Expr,
+        then_branch: &[Stmt],
+        else_branch: Option<&[Stmt]>,
+        parent_label: Option<&str>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let eval_env = self.build_eval_env(time_ms as u64);
+        match evaluate_expr(condition, &eval_env) {
+            Ok(value) if value.is_truthy() => {
+                self.process_body(time_ms, then_branch, parent_label, diagnostics);
+            },
+            Ok(_) => {
+                if let Some(else_branch) = else_branch {
+                    self.process_body(time_ms, else_branch, parent_label, diagnostics);
+                }
+            },
+            Err(e) => {
+                diagnostics.push(Diagnostic::error(
+                    DiagnosticCode::InvalidPropertyValue,
+                    DiagnosticPhase::Build,
+                    format!("Failed to evaluate `if` condition: {e}; skipping the block."),
+                ));
+            },
         }
     }
 

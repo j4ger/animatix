@@ -13,6 +13,7 @@ use crate::timeline::layout::ChildExtent;
 
 mod builders;
 mod finalize;
+mod format_specs;
 mod impl_mod;
 mod layout;
 mod options;

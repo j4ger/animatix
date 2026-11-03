@@ -13,15 +13,24 @@ pub(super) fn eval_unary_math(
 
 // ─── Shared format implementation ─────────────────────────────────────────────
 
+/// A supported placeholder form in a `format()` template.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum FormatSpec {
+    /// `{}` — the next argument with default formatting.
+    Default,
+    /// `{:.N}` (legacy) or `{:.Nf}` — fixed point with `N` fractional digits.
+    Fixed { precision: usize },
+}
+
 /// Format one argument value for `format()` substitution.
-pub(super) fn format_value(arg: &Value, precision: Option<usize>) -> String {
+pub(super) fn format_value(arg: &Value, spec: FormatSpec) -> String {
     match arg {
         Value::PropRef { label, prop } => {
             format!("&{label}.{prop} (not a value; read {label}.{prop})")
         },
-        Value::Num(n) => match precision {
-            Some(digits) => format!("{:.*}", digits, n),
-            None => {
+        Value::Num(n) => match spec {
+            FormatSpec::Fixed { precision } => format!("{:.*}", precision, n),
+            FormatSpec::Default => {
                 if n.fract() == 0.0 {
                     format!("{}", *n as i64)
                 } else {
@@ -47,14 +56,11 @@ pub(super) fn format_value(arg: &Value, precision: Option<usize>) -> String {
 /// What a `{...}` sequence starting at `open` (the index of `{`) means.
 pub(super) enum Placeholder {
     /// Recognized placeholder: braces end at `close`, value formatted with
-    /// the given precision (`{}` → `None`).
-    Subst {
-        close: usize,
-        precision: Option<usize>,
-    },
-    /// Braces with an unsupported spec (`{:d}`) — keep them literal but
-    /// continue scanning after them so later placeholders still substitute.
-    Literal { close: usize },
+    /// the given spec (`{}` → [`FormatSpec::Default`]).
+    Subst { close: usize, spec: FormatSpec },
+    /// Braces with an unsupported spec (`{:d}`, `{:,}`) — fall back to default
+    /// formatting but continue scanning so later placeholders still align.
+    Unsupported { close: usize, spec: String },
     /// No closing brace — emit the rest of the template verbatim.
     Unterminated,
 }
@@ -65,25 +71,54 @@ pub(super) fn parse_placeholder(template: &str, open: usize) -> Placeholder {
     };
     let close = open + close;
     let spec = &template[open + 1..close];
-    // Only `{:.N}` precision specs are supported; `{}` means "next value,
-    // default formatting".
     if spec.is_empty() {
         return Placeholder::Subst {
             close,
-            precision: None,
+            spec: FormatSpec::Default,
         };
     }
     if let Some(rest) = spec.strip_prefix(':') {
-        if let Some(digits) = rest.strip_prefix('.') {
-            if let Ok(n) = digits.parse::<usize>() {
+        if let Some(raw_precision) = rest.strip_prefix('.') {
+            // Both `{:.N}` (the historical spelling) and `{:.Nf}` (fixed
+            // point, Python-style) mean N fractional digits.
+            let digits = raw_precision.strip_suffix('f').unwrap_or(raw_precision);
+            if !digits.is_empty()
+                && digits.bytes().all(|byte| byte.is_ascii_digit())
+                && let Ok(precision) = digits.parse::<usize>()
+            {
                 return Placeholder::Subst {
                     close,
-                    precision: Some(n),
+                    spec: FormatSpec::Fixed { precision },
                 };
             }
         }
     }
-    Placeholder::Literal { close }
+    Placeholder::Unsupported {
+        close,
+        spec: spec.to_string(),
+    }
+}
+
+/// Unsupported specifier texts in a template, in source order.
+///
+/// The evaluator falls back to default formatting for these placeholders; this
+/// list lets the build report name each one instead of leaving the author to
+/// notice a silently different value in the output.
+pub(crate) fn unsupported_specifiers(template: &str) -> Vec<String> {
+    let mut issues = Vec::new();
+    let mut byte_pos = 0;
+    while let Some(open) = template[byte_pos..].find('{') {
+        let open = byte_pos + open;
+        match parse_placeholder(template, open) {
+            Placeholder::Subst { close, .. } => byte_pos = close + 1,
+            Placeholder::Unsupported { close, spec } => {
+                issues.push(spec);
+                byte_pos = close + 1;
+            },
+            Placeholder::Unterminated => break,
+        }
+    }
+    issues
 }
 
 pub(super) fn eval_format(args: &[Value]) -> Result<Value, EvalError> {
@@ -101,8 +136,8 @@ pub(super) fn eval_format(args: &[Value]) -> Result<Value, EvalError> {
         let open = byte_pos + open;
         output.push_str(&template[byte_pos..open]);
         match parse_placeholder(template, open) {
-            Placeholder::Subst { close, precision } if arg_index < rest.len() => {
-                output.push_str(&format_value(&rest[arg_index], precision));
+            Placeholder::Subst { close, spec } if arg_index < rest.len() => {
+                output.push_str(&format_value(&rest[arg_index], spec));
                 arg_index += 1;
                 byte_pos = close + 1;
             },
@@ -112,8 +147,17 @@ pub(super) fn eval_format(args: &[Value]) -> Result<Value, EvalError> {
                 output.push_str(&template[open..=close]);
                 byte_pos = close + 1;
             },
-            Placeholder::Literal { close } => {
-                output.push_str(&template[open..=close]);
+            Placeholder::Unsupported { close, .. } => {
+                // The build pass warns with the actor and specifier. Render
+                // the value with default formatting instead of leaving brace
+                // syntax in the output; with no value left, keep the braces
+                // visible as the over-placeholder signal.
+                if arg_index < rest.len() {
+                    output.push_str(&format_value(&rest[arg_index], FormatSpec::Default));
+                    arg_index += 1;
+                } else {
+                    output.push_str(&template[open..=close]);
+                }
                 byte_pos = close + 1;
             },
             Placeholder::Unterminated => {
