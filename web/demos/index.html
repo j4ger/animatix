@@ -128,7 +128,11 @@
       <div class="work-grid" id="catalog-grid">
         <a class="work-tile" data-palette="ember" href="transformer/">
           <div class="stage-frame">
-            <amx-player src="transformer/scenes/overview.amx" sealed data-hoverplay aspect="16:9"
+            <div class="poster-plate" aria-hidden="true">
+              <span class="poster-name">The Transformer</span>
+              <span class="poster-hint">hover to play</span>
+            </div>
+            <amx-player src="transformer/scenes/overview.amx" sealed data-hoverplay no-veil aspect="16:9"
                         title="The Transformer Architecture, Animated"></amx-player>
           </div>
           <span class="kicker">Deep Learning · 7 scenes</span>
@@ -143,7 +147,11 @@
 
         <a class="work-tile" data-palette="tide" href="topology/">
           <div class="stage-frame">
-            <amx-player src="topology/scene.amx" sealed data-hoverplay aspect="16:9"
+            <div class="poster-plate" aria-hidden="true">
+              <span class="poster-name">Event Fabric</span>
+              <span class="poster-hint">hover to play</span>
+            </div>
+            <amx-player src="topology/scene.amx" sealed data-hoverplay no-veil aspect="16:9"
                         title="The Distributed Event Fabric"></amx-player>
           </div>
           <span class="kicker">Cloud Infrastructure · 3 scenes</span>
@@ -158,7 +166,11 @@
 
         <a class="work-tile" data-palette="orchid" href="epicycles/">
           <div class="stage-frame">
-            <amx-player src="epicycles/hero.amx" sealed data-hoverplay aspect="16:9"
+            <div class="poster-plate" aria-hidden="true">
+              <span class="poster-name">Fourier Circles</span>
+              <span class="poster-hint">hover to play</span>
+            </div>
+            <amx-player src="epicycles/hero.amx" sealed data-hoverplay no-veil aspect="16:9"
                         title="Circles That Draw a Square Wave"></amx-player>
           </div>
           <span class="kicker">Harmonic Physics · 5 scenes</span>
@@ -173,7 +185,11 @@
 
         <a class="work-tile" data-palette="coral" href="sorting/">
           <div class="stage-frame">
-            <amx-player src="sorting/scene.amx" sealed data-hoverplay aspect="16:9"
+            <div class="poster-plate" aria-hidden="true">
+              <span class="poster-name">Insertion Sort</span>
+              <span class="poster-hint">hover to play</span>
+            </div>
+            <amx-player src="sorting/scene.amx" sealed data-hoverplay no-veil aspect="16:9"
                         title="Sorting, Staged"></amx-player>
           </div>
           <span class="kicker">Algorithmic Stage · 4 scenes</span>
@@ -188,7 +204,11 @@
 
         <a class="work-tile" data-palette="moss" href="matrix/">
           <div class="stage-frame">
-            <amx-player src="matrix/rotation.amx" sealed data-hoverplay aspect="16:9"
+            <div class="poster-plate" aria-hidden="true">
+              <span class="poster-name">2×2 Matrix</span>
+              <span class="poster-hint">hover to play</span>
+            </div>
+            <amx-player src="matrix/rotation.amx" sealed data-hoverplay no-veil aspect="16:9"
                         title="A Matrix Is a Machine"></amx-player>
           </div>
           <span class="kicker">Linear Algebra · 3 scenes</span>
@@ -203,7 +223,11 @@
 
         <a class="work-tile" data-palette="ember" href="gradient/">
           <div class="stage-frame">
-            <amx-player src="gradient/scene.amx" sealed data-hoverplay aspect="16:9"
+            <div class="poster-plate" aria-hidden="true">
+              <span class="poster-name">Gradient Descent</span>
+              <span class="poster-hint">hover to play</span>
+            </div>
+            <amx-player src="gradient/scene.amx" sealed data-hoverplay no-veil aspect="16:9"
                         title="Rolling Downhill: Gradient Descent"></amx-player>
           </div>
           <span class="kicker">Optimization &amp; Calculus · 4 scenes</span>
@@ -218,7 +242,11 @@
 
         <a class="work-tile" data-palette="orchid" href="morph/">
           <div class="stage-frame">
-            <amx-player src="morph/scene.amx" sealed data-hoverplay aspect="16:9"
+            <div class="poster-plate" aria-hidden="true">
+              <span class="poster-name">Morph Lab</span>
+              <span class="poster-hint">hover to play</span>
+            </div>
+            <amx-player src="morph/scene.amx" sealed data-hoverplay no-veil aspect="16:9"
                         title="Morph Lab: Generative Vector Kinetics"></amx-player>
           </div>
           <span class="kicker">Topological Synthesis · 1 scenes</span>
@@ -233,7 +261,11 @@
 
         <a class="work-tile" data-palette="coral" href="kinetic/">
           <div class="stage-frame">
-            <amx-player src="kinetic/scene.amx" sealed data-hoverplay aspect="16:9"
+            <div class="poster-plate" aria-hidden="true">
+              <span class="poster-name">Kinetic Glass</span>
+              <span class="poster-hint">hover to play</span>
+            </div>
+            <amx-player src="kinetic/scene.amx" sealed data-hoverplay no-veil aspect="16:9"
                         title="Fluid Typography &amp; Spatial Depth"></amx-player>
           </div>
           <span class="kicker">Motion Design · 3 scenes</span>
@@ -248,7 +280,11 @@
 
         <a class="work-tile" data-palette="tide" href="hash/">
           <div class="stage-frame">
-            <amx-player src="hash/scene.amx" sealed data-hoverplay aspect="16:9"
+            <div class="poster-plate" aria-hidden="true">
+              <span class="poster-name">Where Keys Live</span>
+              <span class="poster-hint">hover to play</span>
+            </div>
+            <amx-player src="hash/scene.amx" sealed data-hoverplay no-veil aspect="16:9"
                         title="Where Keys Live: Hash Tables"></amx-player>
           </div>
           <span class="kicker">Data Structures · 4 scenes</span>
@@ -299,7 +335,24 @@
         "desc": "The mechanism behind frontier language models, built up step-by-step: tokens, positional encodings, scaled dot-product attention, multi-head subspaces, and the feed-forward stack.",
         "link": "./transformer/",
         "palette": "ember",
-        "params": []
+        "params": [
+          {
+            "name": "depth",
+            "label": "block depth",
+            "default": 12,
+            "min": 4,
+            "max": 24,
+            "step": 1
+          },
+          {
+            "name": "heads",
+            "label": "attention heads",
+            "default": 12,
+            "min": 1,
+            "max": 16,
+            "step": 1
+          }
+        ]
       },
       {
         "id": "topology",
@@ -310,7 +363,24 @@
         "desc": "High-throughput edge ingress, partitioned log streaming, and Raft consensus — events you can watch cross the wire, not boxes that fade in.",
         "link": "./topology/",
         "palette": "tide",
-        "params": []
+        "params": [
+          {
+            "name": "replicas",
+            "label": "replicas",
+            "default": 3,
+            "min": 1,
+            "max": 6,
+            "step": 1
+          },
+          {
+            "name": "partitions",
+            "label": "log partitions",
+            "default": 12,
+            "min": 4,
+            "max": 24,
+            "step": 2
+          }
+        ]
       },
       {
         "id": "epicycles",
@@ -321,7 +391,16 @@
         "desc": "Fourier analysis as spinning mechanical dials: harmonic circles at odd integer frequencies stacking into a sharp square wave with scrolling history traces.",
         "link": "./epicycles/",
         "palette": "orchid",
-        "params": []
+        "params": [
+          {
+            "name": "harmonics",
+            "label": "harmonic terms",
+            "default": 4,
+            "min": 1,
+            "max": 6,
+            "step": 1
+          }
+        ]
       },
       {
         "id": "sorting",
@@ -332,7 +411,16 @@
         "desc": "Eight bars perform insertion sort directed entirely by a build-time timeline function: every comparison lights a tick, every swap is emitted algorithmically.",
         "link": "./sorting/",
         "palette": "coral",
-        "params": []
+        "params": [
+          {
+            "name": "n",
+            "label": "bars",
+            "default": 8,
+            "min": 4,
+            "max": 12,
+            "step": 1
+          }
+        ]
       },
       {
         "id": "matrix",
@@ -343,7 +431,24 @@
         "desc": "Linear algebra as spatial transformation: a 2×2 matrix bends the coordinate grid, basis vectors lead, and the determinant collapses through zero.",
         "link": "./matrix/",
         "palette": "moss",
-        "params": []
+        "params": [
+          {
+            "name": "shear",
+            "label": "shear",
+            "default": 0.0,
+            "min": -1.0,
+            "max": 1.0,
+            "step": 0.05
+          },
+          {
+            "name": "theta",
+            "label": "rotation °",
+            "default": 0.0,
+            "min": 0,
+            "max": 90,
+            "step": 5
+          }
+        ]
       },
       {
         "id": "gradient",
@@ -354,7 +459,24 @@
         "desc": "Optimization topography: steepest-descent vector fields, contour tracing, and why the learning-rate step size decides convergence.",
         "link": "./gradient/",
         "palette": "ember",
-        "params": []
+        "params": [
+          {
+            "name": "lr",
+            "label": "learning rate",
+            "default": 0.1,
+            "min": 0.01,
+            "max": 0.5,
+            "step": 0.01
+          },
+          {
+            "name": "steps",
+            "label": "steps",
+            "default": 24,
+            "min": 8,
+            "max": 48,
+            "step": 4
+          }
+        ]
       },
       {
         "id": "morph",
@@ -376,7 +498,24 @@
         "desc": "Editorial motion design and tactile digital physics: split-text baseline emergence, 2.5D perspective tilt, and real-time GPU frosted glass.",
         "link": "./kinetic/",
         "palette": "coral",
-        "params": []
+        "params": [
+          {
+            "name": "tilt",
+            "label": "tilt °",
+            "default": 10,
+            "min": 0,
+            "max": 24,
+            "step": 1
+          },
+          {
+            "name": "frost",
+            "label": "frost px",
+            "default": 24,
+            "min": 0,
+            "max": 48,
+            "step": 2
+          }
+        ]
       },
       {
         "id": "hash",
@@ -387,7 +526,16 @@
         "desc": "Hash tables staged as theatre: a hash you can follow by eye, collision chaining, and constant-time key lookups without search iterations.",
         "link": "./hash/",
         "palette": "tide",
-        "params": []
+        "params": [
+          {
+            "name": "modulus",
+            "label": "buckets",
+            "default": 8,
+            "min": 4,
+            "max": 12,
+            "step": 1
+          }
+        ]
       }
     ]
     </script>

@@ -61,7 +61,7 @@ let g11 = 0.0
 // ── the stage ───────────────────────────────────────────────────────
 floor: StageFloor, glow: 1.3
 
-head: ActHead, kicker: "FIG 03 · THE MECHANISM", title: "Harmonic epicycles",
+hero_head: ActHead, kicker: "FIG 03 · THE MECHANISM", title: "Harmonic epicycles",
   sub: "odd terms stack until the square wave appears"
 
 cap1: Caption, text: "Act I · One circle: the pen writes a pure sine.", tag: "hero.amx"

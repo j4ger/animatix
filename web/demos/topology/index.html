@@ -34,7 +34,19 @@
     </header>
 
     <!-- site-gen:works-params:start -->
-
+    <div class="param-rail" data-work="topology" data-palette="tide">
+      <span class="readout">Live parameters · rebuilds the scenes in place</span>
+      <div class="param-row">
+        <label for="var-replicas">replicas</label>
+        <input id="var-replicas" type="range" min="1" max="6" step="1" value="3" data-var="replicas">
+        <output>3</output>
+      </div>
+      <div class="param-row">
+        <label for="var-partitions">partitions</label>
+        <input id="var-partitions" type="range" min="4" max="24" step="2" value="12" data-var="partitions">
+        <output>12</output>
+      </div>
+    </div>
 <!-- site-gen:works-params:end -->
 
     <div class="deck-slides-container">

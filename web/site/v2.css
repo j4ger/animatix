@@ -148,7 +148,9 @@ h3 { font-size: clamp(22px, 2.4vw, 30px); line-height: 1.15; }
   position: relative;
   width: 100vw;
   margin-left: calc(50% - 50vw);
-  aspect-ratio: 21 / 9;
+  /* 16:9, not 21:9: the scenes are composed to a 16:9 frame, and a 21:9
+     crop cuts the title band and caption off the plate. */
+  aspect-ratio: 16 / 9;
   overflow: hidden;
   background: var(--bg);
 }
@@ -366,9 +368,8 @@ footer.site a:hover { color: var(--work); }
 
 /* channel rail: the showcase's work switcher under the full-bleed stage */
 .channel-rail {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(150px, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   gap: 1px;
   background: var(--line-soft);
   border: 1px solid var(--line-soft);
@@ -385,6 +386,8 @@ footer.site a:hover { color: var(--work); }
   cursor: pointer;
   display: grid;
   gap: 4px;
+  flex: 1 1 140px;
+  min-width: 0;
   transition: background 0.18s, color 0.18s;
 }
 .channel-rail button .n { font-family: var(--mono); font-size: 11px; color: var(--muted); }
@@ -490,3 +493,95 @@ footer.site a:hover { color: var(--work); }
 }
 .param-rail:empty { display: none; }
 .param-rail .readout { margin-bottom: 6px; }
+
+/* v2 kicker is plain instrument text; site.css's pill decoration is retired */
+.kicker {
+  display: block;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  margin: 0 0 14px;
+  width: auto;
+  letter-spacing: 0.14em;
+}
+
+/* terminal / code blocks outside the duality */
+.code-block {
+  margin: 0;
+  padding: 22px 24px;
+  background: var(--bg-raise);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font: 13px/1.8 var(--mono);
+  color: var(--dim);
+  overflow-x: auto;
+}
+.code-block .cmt { color: var(--muted); }
+
+/* poster plate: the designed face of a tile while its player is still loading
+   (or before hover starts it). Sits under the player; the player covers it
+   once its first frame paints, so a catalog never reads as empty boxes. */
+.stage-frame { position: relative; }
+.poster-plate {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  text-align: center;
+  padding: 20px;
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 0%, var(--work-glow), transparent 70%),
+    linear-gradient(160deg, var(--bg-raise), var(--bg));
+}
+.poster-plate .poster-name {
+  font-family: var(--display);
+  font-size: clamp(18px, 2vw, 26px);
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.poster-plate .poster-hint {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.stage-frame > amx-player { position: relative; z-index: 1; display: block; }
+
+/* chrome-injected theater buttons inside figure captions */
+.figure-grid .theater-btn {
+  justify-self: start;
+  width: auto;
+  margin: 0;
+  padding: 5px 10px;
+  font: 600 10.5px/1 var(--mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.figure-grid .theater-btn:hover { color: var(--ink); border-color: var(--color-mix, var(--line)); }
+
+/* the plate is the top layer until the first frame lands, then it fades away */
+.poster-plate { z-index: 2; transition: opacity 0.35s ease; }
+.stage-frame > amx-player { z-index: 1; }
+.stage-frame:has(amx-player[data-ready]) .poster-plate,
+.stage-frame:has(amx-player[data-error]) .poster-plate {
+  opacity: 0;
+  pointer-events: none;
+}
+.stage-frame:has(amx-player[data-ready]) > amx-player,
+.stage-frame:has(amx-player[data-error]) > amx-player { z-index: 3; }
+
+/* deck pages carry long titles; the home display size would wrap them to
+   four lines, so the walkthrough header caps its h1 harder */
+.walkthrough-deck .hero-title,
+.walkthrough-deck h1 {
+  font-size: clamp(38px, 4.6vw, 64px);
+  max-width: 24ch;
+}

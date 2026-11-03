@@ -396,6 +396,10 @@ export class AmxPlayerView extends AmxPlayerBase {
   }
 
   _showVeil(text, isError) {
+    // A page may paint its own designed poster plate underneath the player.
+    // The generic veil would cover it with a text box, so `no-veil` suppresses
+    // the non-error veil; errors must stay visible either way.
+    if (!isError && this.hasAttribute("no-veil")) return;
     this._veil.className = `veil show${isError ? " error" : ""}`;
     this._veil.replaceChildren();
     const msg = document.createElement("div");

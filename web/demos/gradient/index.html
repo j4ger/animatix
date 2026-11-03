@@ -34,7 +34,19 @@
     </header>
 
     <!-- site-gen:works-params:start -->
-
+    <div class="param-rail" data-work="gradient" data-palette="ember">
+      <span class="readout">Live parameters · rebuilds the scenes in place</span>
+      <div class="param-row">
+        <label for="var-lr">lr</label>
+        <input id="var-lr" type="range" min="0.01" max="0.5" step="0.01" value="0.1" data-var="lr">
+        <output>0.1</output>
+      </div>
+      <div class="param-row">
+        <label for="var-steps">steps</label>
+        <input id="var-steps" type="range" min="8" max="48" step="4" value="24" data-var="steps">
+        <output>24</output>
+      </div>
+    </div>
 <!-- site-gen:works-params:end -->
 
     <div class="deck-slides-container">

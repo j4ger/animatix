@@ -70,7 +70,12 @@
   nav.append(inner, ruler);
   document.body.prepend(nav);
 
-  const wrap = document.querySelector(".wrap");
+  // A page may split its body across several .wrap bands (full-bleed stages
+  // between them). The footer and the section ruler belong to the LAST band,
+  // not the first: appending to the first used to bury the rest of the page
+  // under the footer.
+  const wraps = document.querySelectorAll(".wrap");
+  const wrap = wraps.length ? wraps[wraps.length - 1] : null;
   if (!wrap) return;
   const footer = document.createElement("footer");
   const left = document.createElement("span");
@@ -183,6 +188,15 @@
   window.addEventListener("load", measure);
   measure();
   sync();
+
+  // ── player readiness markers ──────────────────────────────────────
+  // Pages paint a `.poster-plate` under each player; CSS needs to know when
+  // the first real frame has arrived so the plate can fade out. Errors also
+  // count as "done" so a retry veil is never hidden behind the plate.
+  for (const el of document.querySelectorAll("amx-player")) {
+    el.addEventListener("amxready", () => { el.dataset.ready = "1"; }, { once: true });
+    el.addEventListener("amxerror", () => { el.dataset.error = "1"; }, { once: true });
+  }
 
   // ── hover-play & touch-toggle posters ─────────────────────────────
   for (const el of document.querySelectorAll("amx-player[data-hoverplay]")) {
