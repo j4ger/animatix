@@ -6,55 +6,71 @@
   <title>Dynamic Background Shading (Ambience) — Animatix</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="../site.css">
+  <link rel="stylesheet" href="../site/v2.css">
   <script type="module" src="../embed/amx-player.js" data-runtime-base="../pkg-slim"></script>
 </head>
 <body>
   <div class="wrap">
-    <header>
-      <p class="kicker">Animatix · STAT-1 Preview</p>
-      <h1>Dynamic Background Shading</h1>
+    <header class="hero-band">
+      <p class="kicker">Animatix · STAT-1 preview</p>
+      <h1>Dynamic background <em>shading</em></h1>
       <p class="lede">
         Reactive background lighting driven analytically by scene motion statistics
         with <strong>zero GPU readback</strong> and <strong>zero frame-time allocation</strong>.
-        The wash brightens during energetic action and smoothly relaxes when movement settles.
+        The wash brightens during energetic action and relaxes when movement settles.
       </p>
-      <ul class="meta">
-        <li>Analytical scene statistics (<code class="inline">scene.stats.motion</code>)</li>
-        <li>Continuous one-pole filter (<code class="inline">curve_smooth</code>)</li>
-        <li>Single declarative component: <code class="inline">bg: Ambience</code></li>
-      </ul>
+      <div class="hero-metrics">
+        <span class="readout">scene.stats.motion</span>
+        <span class="readout">curve_smooth</span>
+        <span class="readout">one component: Ambience</span>
+      </div>
     </header>
 
     <section>
-      <div class="sec-head"><h2>1. Standalone Motion Tracking &amp; Ambient Wash</h2></div>
-      <p>
+      <div class="edit-head" data-palette="orchid">
+        <span class="num">01</span>
+        <div>
+          <p class="kicker">Standalone</p>
+          <h2>Ambient wash tracks motion</h2>
+        </div>
+        <div class="rule"></div>
+      </div>
+      <p class="lede">
         As the hero and satellite actors move, the background glow reacts to their motion energy.
       </p>
-      <figure class="tour-embed">
+      <div class="stage-frame" data-palette="orchid" style="margin-top: 28px;">
         <amx-player src="ambience.amx" autoplay loop controls hold="1"
                     aspect="16:9" title="Standalone Ambience Component"></amx-player>
-        <figcaption>
-          <span class="cap">Driven by <code class="inline">curve_smooth(&amp;scene.stats.motion, t, tau)</code>.</span>
-          <a class="src" href="ambience.amx">ambience.amx ↗</a>
-        </figcaption>
-      </figure>
+      </div>
+      <p style="margin-top: 12px;">
+        <span class="readout">Driven by curve_smooth(scene.stats.motion, t, tau)</span>
+        <a class="btn ghost" style="margin-left: 16px;" href="ambience.amx">ambience.amx ↗</a>
+      </p>
     </section>
 
     <section>
-      <div class="sec-head"><h2>2. Applied in a Diagram Scene (Matrix Shear)</h2></div>
-      <p>
+      <div class="edit-head" data-palette="tide">
+        <span class="num">02</span>
+        <div>
+          <p class="kicker">Applied</p>
+          <h2>Behind a live diagram</h2>
+        </div>
+        <div class="rule"></div>
+      </div>
+      <p class="lede">
         Integrated directly behind the live 2×2 matrix transformation plane with
         <code class="inline">bg: Ambience, tint: accent.warning</code>.
       </p>
-      <figure class="tour-embed">
+      <div class="stage-frame" data-palette="tide" style="margin-top: 28px;">
         <amx-player src="matrix/shear.amx" autoplay loop controls hold="1.5"
                     aspect="16:9" title="Matrix Shear with Ambience"></amx-player>
-        <figcaption>
-          <span class="cap">The ambient glow breathes with the grid and vector movements.</span>
-          <a class="src" href="matrix/shear.amx">matrix/shear.amx ↗</a>
-        </figcaption>
-      </figure>
+      </div>
+      <p style="margin-top: 12px;">
+        <span class="readout">The ambient glow breathes with the grid and vector movements.</span>
+        <a class="btn ghost" style="margin-left: 16px;" href="matrix/shear.amx">matrix/shear.amx ↗</a>
+      </p>
     </section>
   </div>
+  <script src="../site-chrome.js" data-root="../" data-section="demos"></script>
 </body>
 </html>
