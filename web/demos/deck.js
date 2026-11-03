@@ -30,7 +30,11 @@
         nav = document.createElement('nav');
         nav.className = 'deck-stepper-bar';
         nav.setAttribute('aria-label', 'Deck Navigation');
-        this.root.insertBefore(nav, this.slides[0]);
+        // Slides live inside `.deck-slides-container`, not directly under the
+        // deck root; inserting before slides[0] against the root threw
+        // NotFoundError and killed the whole deck init (all slides left
+        // visible, no stepper, no lazy player management).
+        (this.slides[0].parentNode || this.root).insertBefore(nav, this.slides[0]);
       }
       this.nav = nav;
 
