@@ -1,155 +1,184 @@
+// house-style: three acts — pronoun hook, QK softmax race, value-gathering payoff with a camera push.
 // 03 · Scaled dot-product self-attention with explicit Q, K, V mechanism.
 //
-// Explains the fundamental question: Why and how does the model resolve "it" to "animal"?
+// The question: why does "it" resolve to "animal"? Three acts:
+//   I.  Five tokens land on the stage; the last one is marked as the Query.
+//   II. Every token projects a Key, the Query scores all five, softmax turns the
+//       scores into weights and one bar wins.
+//   III. The winning Value is gathered into an output context vector; the
+//       pronoun now carries the noun's features. The camera pushes in and settles.
 //
-// Pipeline:
-//   1. Query emitted: Token "it" casts Query vector Q_it probing all prior tokens.
-//   2. Key matching: Each token projects its Key vector K_i; dot-product Q · Kᵀ measures affinity.
-//   3. Softmax weights: Raw scores scale by 1/√d_k and normalize into probability weights (Σ = 1.0).
-//   4. Value aggregation: Values V_i are weighted by attention weights to synthesize the output z_it.
-//      The resulting vector for "it" now carries the rich semantic features of "animal".
+// House-style §1: StageFloor + compact head + caption are opaque at t=0.
+// House-style §5: title 48 (compact head; the token row owns the top band),
+// captions 24, readout values 28, bars labels 18/16, formulas 22 — all >=16.
+//
+// Slider: `dim` is the key width d_k quoted by the formula chip and the readout.
 
 import "../../lib/theme.amx"
-import "../../lib/ambience.amx"
+import "../../lib/stage.amx"
 import "../lib/components.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 8.4 }
 
-bg: Ambience, tint: accent.primary, base_opacity: 0.14, seed: 30
+let dim = 64
 
-// ── header / narration (top-left) ───────────────────────────────────
-head_eyebrow: Text, text: "FIG 03 // SCALED DOT-PRODUCT ATTENTION", font_size: 13,
-  color: accent.primary, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 48)
+// ── the stage ───────────────────────────────────────────────────────
+floor: StageFloor, glow: 1.3
 
-phase1: Text, text: "1 · “it” projects Query probing prior Keys", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
-phase2: Text, text: "2 · Affinities scored: Q * K^T / sqrt(d_k)", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
-phase3: Text, text: "3 · Softmax normalizes into probability weights", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
-phase4: Text, text: "4 · Values weighted & pooled: “it” absorbs “animal”", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
+head_eyebrow: Text, text: "FIG 03 · SCALED DOT-PRODUCT ATTENTION", font_size: 18,
+  font_weight: 600, color: accent.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (96, 44), opacity: 0
+head_title: Text, text: "Who is “it”?", font_size: 48, font_weight: "bold",
+  color: text.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (96, 96), opacity: 1
+head_rule: Rect, size: (96, 4), color: accent.primary,
+  anchor: scene.top_left, offset: (96, 150), opacity: 1
 
-formula_chip: Stack, at: (1080, 68) {
-  f_bg: Rect, size: (260, 40), corner_radius: 10, color: surface.primary,
+cap1: Caption, text: "Act I · Every token emits a Query; “it” asks who it refers to.",
+  tag: "attention.amx", opacity: 1
+cap2: Caption, text: "Act II · Query·Key scores race across the sentence; softmax picks a winner.",
+  tag: "attention.amx", opacity: 0
+cap3: Caption, text: "Act III · Values gather: “it” absorbs the features of “animal”.",
+  tag: "attention.amx", opacity: 0
+
+formula_chip: Stack, at: (980, 78), size: (420, 50), opacity: 0 {
+  f_bg: Rect, size: (420, 50), corner_radius: 12, color: surface.primary,
     stroke: stroke.default, stroke_width: 1.2
-  f_txt: Text, text: "Attention(Q, K, V) = softmax(QK^T / sqrt(d_k))V", font_size: 13, color: text.secondary
+  f_txt: Text, text: format("softmax(QK^T / √{:.0}) V", dim), font_size: 22, color: text.secondary
 }
 
-// ── Level 1: Input Tokens (y = 150) ─────────────────────────────────
-tok_row: Row, at: (640, 150), gap: 24, align: "center" {
-  tok1: LabeledBox, label: "The", width: 140, height: 50, text_size: 20
-  tok2: LabeledBox, label: "animal", width: 140, height: 50, text_size: 20
-  tok3: LabeledBox, label: "didn't", width: 140, height: 50, text_size: 20
-  tok4: LabeledBox, label: "cross", width: 140, height: 50, text_size: 20
-  tok5: LabeledBox, label: "it", width: 140, height: 50, text_size: 20,
+dim_chip: Readout, label: "KEY DIMENSION", value: format("{:.0}", dim), at: (1090, 210)
+score_chip: Readout, label: "TOP WEIGHT", value: "62%", at: (1090, 300)
+
+// ── Act I: tokens, with the query token marked ──────────────────────
+// A screen-blend halo marks the Query; it also gives Act II's first beat a
+// motion while the Key row is still settling.
+q_halo: Ellipse, size: (240, 240), blend: "screen", opacity: 0,
+  fill_gradient: radial((0.5, 0.5), 0.6, {(0%, accent.warning * 0.18), (100%, (0, 0, 0, 0))}),
+  at: (872, 190)
+
+tok_row: Row, at: (540, 190), gap: 16, align: "center" {
+  tok1: LabeledBox, label: "The", width: 150, height: 54, text_size: 20
+  tok2: LabeledBox, label: "animal", width: 150, height: 54, text_size: 20
+  tok3: LabeledBox, label: "didn't", width: 150, height: 54, text_size: 20
+  tok4: LabeledBox, label: "cross", width: 150, height: 54, text_size: 20
+  tok5: LabeledBox, label: "it", width: 150, height: 54, text_size: 20,
     fill: surface.primary, stroke: accent.warning, stroke_width: 2.2
 }
 
-q_badge: Text, text: "QUERY TOKEN", font_size: 11, color: accent.warning, at: (968, 110)
+q_badge: Text, text: "QUERY TOKEN", font_size: 16, color: accent.warning,
+  text_anchor: "center", at: (872, 252), opacity: 0
 
-// ── Level 2: Key & Query Vectors (y = 222) ──────────────────────────
-k_label: Text, text: "Key vectors (K):", font_size: 13, color: text.muted,
-  text_align: "right", at: (190, 222)
+// ── Act II: Key projections and the score race ──────────────────────
+k_label: Text, text: "Key vectors (K)", font_size: 18, color: text.muted,
+  text_align: "left", text_anchor: "left", at: (96, 262), opacity: 0
 
-k_row: Row, at: (640, 222), gap: 24, align: "center" {
-  k1: LabeledBox, label: "K1 (det)", width: 140, height: 36, text_size: 14,
+// The beam is declared before the Key row so it passes *behind* the chips —
+// the Query probing the sentence, not a stroke painted over its labels.
+beam_q_k: Arrow, from: (872, 224), to: (372, 270), head_size: 12,
+  stroke: accent.primary, stroke_width: 4.5, opacity: 0
+beam_glow: Arrow, from: (872, 224), to: (372, 270), head_size: 12,
+  stroke: accent.primary, stroke_width: 13, blend: "screen", opacity: 0
+
+// A soft screen-blend band sweeps the Key row as the Query scans it.
+key_sweep: Rect, size: (860, 44), corner_radius: 10, color: accent.primary,
+  blend: "screen", opacity: 0, at: (540, 292)
+
+k_row: Row, at: (540, 292), gap: 16, align: "center" {
+  k1: LabeledBox, label: "K1 · determiner", width: 150, height: 38, text_size: 16,
     fill: surface.secondary, text_color: accent.info, corner: 8, stroke: stroke.default
-  k2: LabeledBox, label: "K2 (noun: subject)", width: 140, height: 36, text_size: 14,
+  k2: LabeledBox, label: "K2 · subject", width: 150, height: 38, text_size: 16,
     fill: surface.secondary, text_color: accent.info, corner: 8, stroke: stroke.default
-  k3: LabeledBox, label: "K3 (negation)", width: 140, height: 36, text_size: 14,
+  k3: LabeledBox, label: "K3 · negation", width: 150, height: 38, text_size: 16,
+    fill: surface.secondary, text_color: accent.warning, corner: 8, stroke: stroke.default
+  k4: LabeledBox, label: "K4 · verb", width: 150, height: 38, text_size: 16,
     fill: surface.secondary, text_color: accent.info, corner: 8, stroke: stroke.default
-  k4: LabeledBox, label: "K4 (verb)", width: 140, height: 36, text_size: 14,
-    fill: surface.secondary, text_color: accent.info, corner: 8, stroke: stroke.default
-  k5: LabeledBox, label: "K5 (pronoun)", width: 140, height: 36, text_size: 14,
+  k5: LabeledBox, label: "K5 · pronoun", width: 150, height: 38, text_size: 16,
     fill: surface.secondary, text_color: accent.warning, corner: 8, stroke: accent.warning
 }
 
-// ── Level 3: Attention Weight Bars (y = 390 baseline) ───────────────
-score_guide: Text, text: "Attention weights: softmax(Q5 * K^T / sqrt(d_k)):", font_size: 13,
-  color: text.muted, text_align: "left", at: (180, 290)
+base_rule: Line, from: (150, 520), to: (930, 520), stroke_width: 1.5,
+  color: stroke.default, opacity: 0
 
-base_rule: Line, from: (240, 440), to: (1040, 440), stroke_width: 1.5,
-  color: stroke.default, opacity: 0.0
+// Bars are placed individually (not a Row) so the winner ring and the beam
+// can share exact coordinates with bar 2.
+b1: Rect, size: (60, 18), corner_radius: 6, color: accent.primary, at: (180, 511), opacity: 0
+b2: Rect, size: (60, 150), corner_radius: 6, color: accent.primary, at: (360, 445), opacity: 0
+b3: Rect, size: (60, 14), corner_radius: 6, color: accent.primary, at: (540, 513), opacity: 0
+b4: Rect, size: (60, 10), corner_radius: 6, color: accent.primary, at: (720, 515), opacity: 0
+b5: Rect, size: (60, 76), corner_radius: 6, color: accent.warning, at: (900, 482), opacity: 0
 
-bars_row: Row, at: (640, 360), size: (800, 160), gap: 110, align: "end" {
-  b1: Rect, size: (54, 18), corner_radius: 5, color: accent.primary, opacity: 0.0
-  b2: Rect, size: (54, 150), corner_radius: 5, color: accent.primary, opacity: 0.0
-  b3: Rect, size: (54, 14), corner_radius: 5, color: accent.primary, opacity: 0.0
-  b4: Rect, size: (54, 10), corner_radius: 5, color: accent.primary, opacity: 0.0
-  b5: Rect, size: (54, 76), corner_radius: 5, color: accent.warning, opacity: 0.0
-}
+winner_ring: Rect, size: (78, 170), corner_radius: 12, color: accent.primary,
+  fill_opacity: 0, stroke: accent.primary, stroke_width: 2.4, at: (360, 445), opacity: 0
+winner_tag: Text, text: "WINNER · 62% ON “ANIMAL”", font_size: 16, color: accent.primary,
+  text_anchor: "left", at: (500, 385), opacity: 0
 
-// Winning highlight beacon on "animal"
-winner_ring: Rect, size: (72, 168), corner_radius: 10, color: accent.primary,
-  fill_opacity: 0.0, stroke: accent.primary, stroke_width: 2.2, at: (475, 365)
-winner_tag: Text, text: "WINNER 62%", font_size: 12, color: accent.primary, at: (475, 268)
+// ── Act III: weighted value gathering and the context vector ─────────
+w1: Text, text: "0.05", font_size: 16, color: text.secondary, text_anchor: "center", at: (180, 548), opacity: 0
+w2: Text, text: "0.62", font_size: 18, color: accent.primary, text_anchor: "center", at: (360, 548), opacity: 0
+w3: Text, text: "0.04", font_size: 16, color: text.secondary, text_anchor: "center", at: (540, 548), opacity: 0
+w4: Text, text: "0.02", font_size: 16, color: text.secondary, text_anchor: "center", at: (720, 548), opacity: 0
+w5: Text, text: "0.27", font_size: 16, color: accent.warning, text_anchor: "center", at: (900, 548), opacity: 0
 
-// Dynamic spotlight connector from Q5 down to K2 & bar2
-beam_q_k: Arrow, from: (968, 244), to: (475, 282), head_size: 14,
-  stroke: accent.primary, stroke_width: 4.5, opacity: 0.0
-
-weights_row: Row, at: (640, 466), gap: 24, align: "center" {
-  w1_box: Stack, size: (140, 24) { w1: Text, text: "0.05", font_size: 15, color: text.secondary }
-  w2_box: Stack, size: (140, 24) { w2: Text, text: "0.62", font_size: 16, color: accent.primary }
-  w3_box: Stack, size: (140, 24) { w3: Text, text: "0.04", font_size: 15, color: text.secondary }
-  w4_box: Stack, size: (140, 24) { w4: Text, text: "0.02", font_size: 15, color: text.secondary }
-  w5_box: Stack, size: (140, 24) { w5: Text, text: "0.27", font_size: 15, color: accent.warning }
-}
-
-// ── Level 4: Value Gathering & Output Representation (y = 570 - 640) ─
-v_stream_line: Arrow, from: (475, 484), to: (640, 560), head_size: 12,
-  stroke: accent.primary, stroke_width: 3.0, opacity: 0.0
-v5_stream_line: Arrow, from: (968, 484), to: (690, 560), head_size: 10,
-  stroke: accent.warning, stroke_width: 2.0, opacity: 0.0
-
-out_card: Stack, at: (640, 608) {
-  out_bg: Rect, size: (720, 64), corner_radius: 14, color: surface.primary,
-    stroke: accent.primary, stroke_width: 1.8
-  out_col: Col, gap: 4, align: "center" {
-    out_t1: Text, text: "Output Context Vector z_it = 0.62·V(animal) + 0.27·V(it) + ...",
-      font_size: 16, color: text.primary
-    out_t2: Text, text: "Antecedent resolved: pronoun “it” now embeds entity “animal”",
-      font_size: 13, color: accent.primary
-  }
-}
+v_stream_line: Arrow, from: (360, 532), to: (520, 586), head_size: 12,
+  stroke: accent.primary, stroke_width: 3.0, opacity: 0
+v5_stream_line: Arrow, from: (900, 532), to: (560, 586), head_size: 10,
+  stroke: accent.warning, stroke_width: 2.0, opacity: 0
 
 // ── Timeline Choreography ───────────────────────────────────────────
+// The readout counts the winner's share up as softmax firms.
+always {
+  score_chip.value_text.text = format("{:.0}%", round(62 * clamp((t - 2.2) / 1.2, 0, 1)))
+}
+
+// Act I — the hook: the sentence lands and the query is flagged.
 #0.10s
 fade-in head_eyebrow [260ms, ease: expo-out]
-fade-in phase1 [300ms, ease: expo-out]
-fade-in formula_chip [340ms, ease: expo-out]
+fade-in formula_chip [320ms, ease: expo-out]
 stagger [80ms] {
-  fade-in tok1 [320ms, ease: expo-out]
-  fade-in tok2 [320ms, ease: expo-out]
-  fade-in tok3 [320ms, ease: expo-out]
-  fade-in tok4 [320ms, ease: expo-out]
-  fade-in tok5 [320ms, ease: expo-out]
+  fade-in tok1 [300ms, ease: expo-out]
+  fade-in tok2 [300ms, ease: expo-out]
+  fade-in tok3 [300ms, ease: expo-out]
+  fade-in tok4 [300ms, ease: expo-out]
+  fade-in tok5 [300ms, ease: expo-out]
 }
-fade-in q_badge [300ms, delay: 240ms, ease: expo-out]
+fade-in q_badge [280ms, delay: 360ms, ease: expo-out]
 
-#1.20s
+// Act II — keys arrive, then the Query scores them.
+#1.00s
 fade-in k_label [280ms, ease: expo-out]
 stagger [70ms] {
-  fade-in k1 [300ms, ease: expo-out]
-  fade-in k2 [300ms, ease: expo-out]
-  fade-in k3 [300ms, ease: expo-out]
-  fade-in k4 [300ms, ease: expo-out]
-  fade-in k5 [300ms, ease: expo-out]
+  fade-in k1 [280ms, ease: expo-out]
+  fade-in k2 [280ms, ease: expo-out]
+  fade-in k3 [280ms, ease: expo-out]
+  fade-in k4 [280ms, ease: expo-out]
+  fade-in k5 [280ms, ease: expo-out]
 }
 
+// The Query beacon swells while the rows settle, and a screen-blend band
+// sweeps the Key row — the picture keeps moving between the Key reveal and
+// the score race.
+#1.40s
+q_halo.opacity = 1.0 [560ms, ease: expo-out]
+key_sweep.opacity = 0.18 [420ms, ease: expo-out]
+
 #2.10s
-fade-out phase1 [240ms, ease: ease-in]
-fade-in phase2 [280ms, delay: 240ms, ease: expo-out]
+fade-out cap1 [240ms, ease: ease-in]
+fade-in cap2 [280ms, delay: 200ms, ease: expo-out]
+score_guide: Text, text: "Attention weights  =  softmax(Q5 · Kᵀ / √d_k)", font_size: 18,
+  color: text.muted, text_align: "left", text_anchor: "left", at: (96, 330), opacity: 0
 fade-in score_guide [300ms, ease: expo-out]
 draw-in base_rule [400ms, ease: expo-out]
 base_rule.opacity = 0.45 [360ms]
 draw-in beam_q_k [540ms, ease: expo-out]
 beam_q_k.opacity = 0.95 [480ms]
+draw-in beam_glow [540ms, ease: expo-out]
+beam_glow.opacity = 0.28 [480ms]
+
+#2.35s
+key_sweep.opacity = 0 [260ms, ease: ease-in]
 
 #3.10s
-fade-out phase2 [240ms, ease: ease-in]
-fade-in phase3 [280ms, delay: 240ms, ease: expo-out]
 stagger [90ms] {
   b1.opacity = 0.45 [320ms]
   b2.opacity = 1.00 [360ms]
@@ -158,31 +187,46 @@ stagger [90ms] {
   b5.opacity = 0.85 [320ms]
 }
 stagger [70ms] {
-  fade-in w1 [260ms, ease: expo-out]
-  fade-in w2 [280ms, ease: expo-out]
-  fade-in w3 [260ms, ease: expo-out]
-  fade-in w4 [260ms, ease: expo-out]
-  fade-in w5 [260ms, ease: expo-out]
+  fade-in w1 [240ms, ease: expo-out]
+  fade-in w2 [260ms, ease: expo-out]
+  fade-in w3 [240ms, ease: expo-out]
+  fade-in w4 [240ms, ease: expo-out]
+  fade-in w5 [240ms, ease: expo-out]
 }
 fade-in winner_ring [360ms, delay: 200ms, ease: expo-out]
-fade-in winner_tag [300ms, delay: 300ms, ease: expo-out]
+fade-in winner_tag [300ms, delay: 320ms, ease: expo-out]
 pulse b2 [600ms, intensity: 0.05, delay: 350ms]
 
+// Act III — values stream into the context vector.
 #4.60s
-fade-out phase3 [240ms, ease: ease-in]
-fade-in phase4 [280ms, delay: 240ms, ease: expo-out]
+fade-out cap2 [240ms, ease: ease-in]
+fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
 draw-in v_stream_line [500ms, ease: expo-out]
 v_stream_line.opacity = 0.95 [450ms]
-draw-in v5_stream_line [450ms, ease: expo-out, delay: 100ms]
+draw-in v5_stream_line [450ms, delay: 100ms, ease: expo-out]
 v5_stream_line.opacity = 0.70 [400ms, delay: 100ms]
 
 #5.40s
-wipe-in out_card [460ms, ease: expo-out]
-fade-in out_t1 [300ms, delay: 160ms, ease: expo-out]
-fade-in out_t2 [300ms, delay: 280ms, ease: expo-out]
+out_card: Stack, at: (540, 620), size: (760, 64), opacity: 0 {
+  out_bg: Rect, size: (760, 64), corner_radius: 14, color: surface.primary,
+    stroke: accent.primary, stroke_width: 1.8
+  out_col: Col, gap: 4, align: "center" {
+    out_t1: Text, text: "Output z_it = 0.62·V(animal) + 0.27·V(it) + …", font_size: 18, color: text.primary
+    out_t2: Text, text: "Antecedent resolved: the pronoun now embeds the entity", font_size: 16, color: accent.primary
+  }
+}
+fade-in out_card [420ms, ease: expo-out]
 pulse out_card [650ms, intensity: 0.03, delay: 400ms]
 
-// ── Outro Rest Frame ────────────────────────────────────────────────
-// Holds the complete explanatory diagram with all indicators and context intact.
-#7.80s
-// Rest composition remains complete and stable for web holding loop.
+// Payoff: the lens pushes into the resolved pronoun, then settles back.
+#6.40s
+camera.zoom = 1.05 [1.0s, ease: ease-in-out]
+beam_glow.opacity = 0.16 [800ms, ease: ease-in-out]
+
+#7.30s
+camera.zoom = 1.0 [1.0s, ease: ease-in-out]
+
+// ── Rest ────────────────────────────────────────────────────────────
+#8.30s
+// Tokens, keys, bars, winner ring, value streams and the context card all
+// stand; the beam keeps the sentence's two ends connected.
