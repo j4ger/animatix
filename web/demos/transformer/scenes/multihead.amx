@@ -1,134 +1,135 @@
+// house-style: three acts — single-head blur hook, specialist head cards, concat payoff with a camera push.
 // 04 · Multi-head attention — parallel specialized subspaces & linear recombination.
 //
-// Explains: Why multiple heads instead of one large attention matrix?
-// A single attention head averages out different semantic relations.
-// Splitting d_model into 12 heads (each d_k = 64) allows parallel specialization:
-//   Head 1: Coreference (pronoun "it" → antecedent "animal")
-//   Head 2: Syntactic Dependency (verb "cross" → object "street")
-//   Head 3: Local Context & Negation (operator "didn't" → action "cross")
+// Why more than one head? A single attention map averages every relation into
+// one blur. Three acts:
+//   I.  One state projects into parallel subspaces — three head cards appear.
+//   II. Each head fills its own attention map: coreference, syntax, local
+//       context. Same tokens, different relation, all at once.
+//   III. Every head drops into the concatenation rail; W_O projects the joint
+//       vector back to d_model. The camera pushes in and settles.
 //
-// Finally, all 12 heads concatenate and project back through W_O into d_model.
+// House-style §1: StageFloor + compact head + caption are opaque at t=0.
+// House-style §5: title 48 (compact head; the cards own the top band), card
+// titles 20, sublabels 16, formula 22, captions 24 — nothing below 16.
+//
+// Slider: `heads` is the head count quoted by the formula, the readout, the
+// concat rail and the narration (range 4-16, step 2).
 
 import "../../lib/theme.amx"
-import "../../lib/ambience.amx"
+import "../../lib/stage.amx"
+import "../lib/components.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 7.2 }
 
-bg: Ambience, tint: accent.primary, base_opacity: 0.14, seed: 40
+let heads = 12
 
-// ── Header / Narration (top-left) ───────────────────────────────────
-head_eyebrow: Text, text: "FIG 04 // MULTI-HEAD ATTENTION SUBSPACES", font_size: 13,
-  color: accent.primary, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 48)
+// ── the stage ───────────────────────────────────────────────────────
+floor: StageFloor, glow: 1.35
 
-phase1: Text, text: "1 · 768-dim state projects into 12 parallel 64-dim subspaces", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
-phase2: Text, text: "2 · Heads specialize: coreference, syntax, and local context concurrently", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
-phase3: Text, text: "3 · Concatenate 12 head vectors and synthesize via linear projection W_O", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
+head_eyebrow: Text, text: "FIG 04 · MULTI-HEAD ATTENTION SUBSPACES", font_size: 18,
+  font_weight: 600, color: accent.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (96, 44), opacity: 0
+head_title: Text, text: "Many heads, one output", font_size: 48, font_weight: "bold",
+  color: text.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (96, 96), opacity: 1
+head_rule: Rect, size: (96, 4), color: accent.primary,
+  anchor: scene.top_left, offset: (96, 150), opacity: 1
 
-formula_chip: Stack, at: (1080, 68) {
-  f_bg: Rect, size: (260, 40), corner_radius: 10, color: surface.primary,
-    stroke: stroke.default, stroke_width: 1.2
-  f_txt: Text, text: "MultiHead = Concat(head_1..head_h) W_O", font_size: 13, color: text.secondary
+cap1: Caption, text: "Act I · One head averages every relation into a single blur.",
+  tag: "multihead.amx", opacity: 1
+cap2: Caption, text: format("Act II · {:.0} heads specialize: coreference, syntax, local context.", heads),
+  tag: "multihead.amx", opacity: 0
+cap3: Caption, text: "Act III · Concatenate every head, then project back through W_O.",
+  tag: "multihead.amx", opacity: 0
+
+heads_chip: Readout, label: "HEADS", value: format("{:.0}", heads), at: (1090, 210)
+dhead_chip: Readout, label: "D_HEAD", value: "64", at: (1090, 300)
+
+// ── Act I–II: three specialist head cards ───────────────────────────
+// Flat placement, not a Col inside a Stack: the nested Col's measured extent
+// drifted the title into the attention grid. Explicit centres keep the cards
+// pixel-stable across the three head colours.
+panel_a: Rect, size: (270, 280), corner_radius: 18, color: surface.primary,
+  stroke: accent.primary, stroke_width: 1.6, opacity: 0, at: (231, 300)
+panel_b: Rect, size: (270, 280), corner_radius: 18, color: surface.primary,
+  stroke: accent.success, stroke_width: 1.6, opacity: 0, at: (518, 300)
+panel_c: Rect, size: (270, 280), corner_radius: 18, color: surface.primary,
+  stroke: accent.info, stroke_width: 1.6, opacity: 0, at: (805, 300)
+
+title_a: Text, text: "Head 1 · Coreference", font_size: 20, color: accent.primary,
+  text_anchor: "center", at: (231, 186), opacity: 0
+title_b: Text, text: "Head 2 · Syntax", font_size: 20, color: accent.success,
+  text_anchor: "center", at: (518, 186), opacity: 0
+title_c: Text, text: "Head 3 · Local context", font_size: 20, color: accent.info,
+  text_anchor: "center", at: (805, 186), opacity: 0
+
+sub_a: Text, text: "“it” → “animal” · 0.88", font_size: 16, color: text.muted,
+  text_anchor: "center", at: (231, 214), opacity: 0
+sub_b: Text, text: "“cross” → “street” · 0.92", font_size: 16, color: text.muted,
+  text_anchor: "center", at: (518, 214), opacity: 0
+sub_c: Text, text: "“didn't” → “cross” · 0.85", font_size: 16, color: text.muted,
+  text_anchor: "center", at: (805, 214), opacity: 0
+
+head1_grid: Grid, cols: 3, gap: 8, at: (231, 330) {
+  h1_00: Rect, size: (56, 48), corner_radius: 8, color: accent.primary, opacity: 0
+  h1_01: Rect, size: (56, 48), corner_radius: 8, color: accent.primary, opacity: 0
+  h1_02: Rect, size: (56, 48), corner_radius: 8, color: accent.primary, opacity: 0
+  h1_10: Rect, size: (56, 48), corner_radius: 8, color: accent.primary, opacity: 0
+  h1_11: Rect, size: (56, 48), corner_radius: 8, color: accent.primary, opacity: 0
+  h1_12: Rect, size: (56, 48), corner_radius: 8, color: accent.primary, opacity: 0
+  h1_20: Rect, size: (56, 48), corner_radius: 8, color: accent.primary, opacity: 0
+  h1_21: Rect, size: (56, 48), corner_radius: 8, color: accent.primary, opacity: 0
+  h1_22: Rect, size: (56, 48), corner_radius: 8, color: accent.primary, opacity: 0
 }
 
-// ── Attention Head Cards (y = 290) ──────────────────────────────────
-heads: Row, at: (640, 280), gap: 30, align: "center" {
-  head_a_stack: Stack, size: (320, 280) {
-    panel_a: Rect, size: (320, 280), corner_radius: 18, color: surface.primary,
-      stroke: accent.primary, stroke_width: 1.6, opacity: 0.0
-    head_a_content: Col, gap: 12, align: "center" {
-      title_a: Text, text: "Head 1: Coreference (d_k=64)", font_size: 15, color: accent.primary
-      sub_a: Text, text: "“it” -> “animal” (0.88)", font_size: 12, color: text.muted
-      head1_grid: Grid, cols: 3, gap: 10 {
-        h1_00: Rect, size: (62, 52), corner_radius: 8, color: accent.primary, opacity: 0.0
-        h1_01: Rect, size: (62, 52), corner_radius: 8, color: accent.primary, opacity: 0.0
-        h1_02: Rect, size: (62, 52), corner_radius: 8, color: accent.primary, opacity: 0.0
-        h1_10: Rect, size: (62, 52), corner_radius: 8, color: accent.primary, opacity: 0.0
-        h1_11: Rect, size: (62, 52), corner_radius: 8, color: accent.primary, opacity: 0.0
-        h1_12: Rect, size: (62, 52), corner_radius: 8, color: accent.primary, opacity: 0.0
-        h1_20: Rect, size: (62, 52), corner_radius: 8, color: accent.primary, opacity: 0.0
-        h1_21: Rect, size: (62, 52), corner_radius: 8, color: accent.primary, opacity: 0.0
-        h1_22: Rect, size: (62, 52), corner_radius: 8, color: accent.primary, opacity: 0.0
-      }
-    }
-  }
-
-  head_b_stack: Stack, size: (320, 280) {
-    panel_b: Rect, size: (320, 280), corner_radius: 18, color: surface.primary,
-      stroke: accent.success, stroke_width: 1.6, opacity: 0.0
-    head_b_content: Col, gap: 12, align: "center" {
-      title_b: Text, text: "Head 2: Syntactic Dep (d_k=64)", font_size: 15, color: accent.success
-      sub_b: Text, text: "“cross” -> “street” (0.92)", font_size: 12, color: text.muted
-      head2_grid: Grid, cols: 3, gap: 10 {
-        h2_00: Rect, size: (62, 52), corner_radius: 8, color: accent.success, opacity: 0.0
-        h2_01: Rect, size: (62, 52), corner_radius: 8, color: accent.success, opacity: 0.0
-        h2_02: Rect, size: (62, 52), corner_radius: 8, color: accent.success, opacity: 0.0
-        h2_10: Rect, size: (62, 52), corner_radius: 8, color: accent.success, opacity: 0.0
-        h2_11: Rect, size: (62, 52), corner_radius: 8, color: accent.success, opacity: 0.0
-        h2_12: Rect, size: (62, 52), corner_radius: 8, color: accent.success, opacity: 0.0
-        h2_20: Rect, size: (62, 52), corner_radius: 8, color: accent.success, opacity: 0.0
-        h2_21: Rect, size: (62, 52), corner_radius: 8, color: accent.success, opacity: 0.0
-        h2_22: Rect, size: (62, 52), corner_radius: 8, color: accent.success, opacity: 0.0
-      }
-    }
-  }
-
-  head_c_stack: Stack, size: (320, 280) {
-    panel_c: Rect, size: (320, 280), corner_radius: 18, color: surface.primary,
-      stroke: accent.info, stroke_width: 1.6, opacity: 0.0
-    head_c_content: Col, gap: 12, align: "center" {
-      title_c: Text, text: "Head 3: Local Context (d_k=64)", font_size: 15, color: accent.info
-      sub_c: Text, text: "“didn't” -> “cross” (0.85)", font_size: 12, color: text.muted
-      head3_grid: Grid, cols: 3, gap: 10 {
-        h3_00: Rect, size: (62, 52), corner_radius: 8, color: accent.info, opacity: 0.0
-        h3_01: Rect, size: (62, 52), corner_radius: 8, color: accent.info, opacity: 0.0
-        h3_02: Rect, size: (62, 52), corner_radius: 8, color: accent.info, opacity: 0.0
-        h3_10: Rect, size: (62, 52), corner_radius: 8, color: accent.info, opacity: 0.0
-        h3_11: Rect, size: (62, 52), corner_radius: 8, color: accent.info, opacity: 0.0
-        h3_12: Rect, size: (62, 52), corner_radius: 8, color: accent.info, opacity: 0.0
-        h3_20: Rect, size: (62, 52), corner_radius: 8, color: accent.info, opacity: 0.0
-        h3_21: Rect, size: (62, 52), corner_radius: 8, color: accent.info, opacity: 0.0
-        h3_22: Rect, size: (62, 52), corner_radius: 8, color: accent.info, opacity: 0.0
-      }
-    }
-  }
+head2_grid: Grid, cols: 3, gap: 8, at: (518, 330) {
+  h2_00: Rect, size: (56, 48), corner_radius: 8, color: accent.success, opacity: 0
+  h2_01: Rect, size: (56, 48), corner_radius: 8, color: accent.success, opacity: 0
+  h2_02: Rect, size: (56, 48), corner_radius: 8, color: accent.success, opacity: 0
+  h2_10: Rect, size: (56, 48), corner_radius: 8, color: accent.success, opacity: 0
+  h2_11: Rect, size: (56, 48), corner_radius: 8, color: accent.success, opacity: 0
+  h2_12: Rect, size: (56, 48), corner_radius: 8, color: accent.success, opacity: 0
+  h2_20: Rect, size: (56, 48), corner_radius: 8, color: accent.success, opacity: 0
+  h2_21: Rect, size: (56, 48), corner_radius: 8, color: accent.success, opacity: 0
+  h2_22: Rect, size: (56, 48), corner_radius: 8, color: accent.success, opacity: 0
 }
 
-// ── Drop Arrows into Concatenation ──────────────────────────────────
-drop_a: Arrow, from: (290, 432), to: (290, 480), head_size: 12,
-  stroke_width: 2.2, stroke: accent.primary, opacity: 0.0
-drop_b: Arrow, from: (640, 432), to: (640, 480), head_size: 12,
-  stroke_width: 2.2, stroke: accent.success, opacity: 0.0
-drop_c: Arrow, from: (990, 432), to: (990, 480), head_size: 12,
-  stroke_width: 2.2, stroke: accent.info, opacity: 0.0
-
-// ── Concatenation & Recombination Row (y = 510) ─────────────────────
-segs: Row, at: (640, 510), gap: 30 {
-  seg_a: Rect, size: (320, 48), corner_radius: 10, color: accent.primary, opacity: 0.0
-  seg_b: Rect, size: (320, 48), corner_radius: 10, color: accent.success, opacity: 0.0
-  seg_c: Rect, size: (320, 48), corner_radius: 10, color: accent.info, opacity: 0.0
+head3_grid: Grid, cols: 3, gap: 8, at: (805, 330) {
+  h3_00: Rect, size: (56, 48), corner_radius: 8, color: accent.info, opacity: 0
+  h3_01: Rect, size: (56, 48), corner_radius: 8, color: accent.info, opacity: 0
+  h3_02: Rect, size: (56, 48), corner_radius: 8, color: accent.info, opacity: 0
+  h3_10: Rect, size: (56, 48), corner_radius: 8, color: accent.info, opacity: 0
+  h3_11: Rect, size: (56, 48), corner_radius: 8, color: accent.info, opacity: 0
+  h3_12: Rect, size: (56, 48), corner_radius: 8, color: accent.info, opacity: 0
+  h3_20: Rect, size: (56, 48), corner_radius: 8, color: accent.info, opacity: 0
+  h3_21: Rect, size: (56, 48), corner_radius: 8, color: accent.info, opacity: 0
+  h3_22: Rect, size: (56, 48), corner_radius: 8, color: accent.info, opacity: 0
 }
 
-concat_label: Text, text: "Concat [ Head 1 (64) | Head 2 (64) | Head 3 (64) | ... | Head 12 (64) ]",
-  font_size: 13, color: text.secondary, at: (640, 510)
+// ── Act III: drop into the concat rail, then W_O ────────────────────
+// A screen-blend handoff band lights the gap between cards and rail.
+handoff_band: Rect, size: (860, 26), corner_radius: 13, color: accent.primary,
+  blend: "screen", opacity: 0, at: (518, 454)
 
-// ── Level 4: Linear Output Projection W_O (y = 600) ─────────────────
-proj_arrow: Arrow, from: (640, 538), to: (640, 574), head_size: 10,
-  stroke_width: 2, stroke: stroke.default, opacity: 0.0
-
-out_card: Stack, at: (640, 614) {
-  out_bg: Rect, size: (720, 52), corner_radius: 12, color: surface.primary,
-    stroke: accent.primary, stroke_width: 1.5
-  out_txt: Text, text: "Output Synthesis: (Concat × W_O) restores 768-dim residual representation",
-    font_size: 14, color: text.primary
+segs: Row, at: (518, 490), gap: 17 {
+  seg_a: Rect, size: (270, 44), corner_radius: 10, color: accent.primary, opacity: 0
+  seg_b: Rect, size: (270, 44), corner_radius: 10, color: accent.success, opacity: 0
+  seg_c: Rect, size: (270, 44), corner_radius: 10, color: accent.info, opacity: 0
 }
+
+proj_arrow: Arrow, from: (518, 552), to: (518, 572), head_size: 10,
+  stroke_width: 2.2, stroke: accent.primary, opacity: 0
 
 // ── Timeline Choreography ───────────────────────────────────────────
+// Act I — three panels land, titles resolve, then the maps fill one head at a time.
 #0.10s
 fade-in head_eyebrow [260ms, ease: expo-out]
-fade-in phase1 [300ms, ease: expo-out]
+formula_chip: Stack, at: (950, 78), size: (470, 50), opacity: 0 {
+  f_bg: Rect, size: (470, 50), corner_radius: 12, color: surface.primary,
+    stroke: stroke.default, stroke_width: 1.2
+  f_txt: Text, text: format("MultiHead = Concat(head₁..head{:.0}) W_O", heads), font_size: 22, color: text.secondary
+}
 fade-in formula_chip [320ms, ease: expo-out]
 stagger [100ms] {
   panel_a.opacity = 0.85 [360ms]
@@ -149,9 +150,9 @@ stagger [90ms] {
 }
 
 #1.10s
-fade-out phase1 [240ms, ease: ease-in]
-fade-in phase2 [280ms, delay: 240ms, ease: expo-out]
-stagger [35ms] {
+fade-out cap1 [240ms, ease: ease-in]
+fade-in cap2 [280ms, delay: 200ms, ease: expo-out]
+stagger [30ms] {
   h1_00.opacity = 0.95 [280ms]
   h1_01.opacity = 0.45 [280ms]
   h1_02.opacity = 0.20 [280ms]
@@ -165,7 +166,7 @@ stagger [35ms] {
 pulse h1_00 [500ms, intensity: 0.05, delay: 350ms]
 
 #2.00s
-stagger [35ms] {
+stagger [30ms] {
   h2_00.opacity = 0.25 [280ms]
   h2_01.opacity = 0.40 [280ms]
   h2_02.opacity = 0.30 [280ms]
@@ -179,7 +180,7 @@ stagger [35ms] {
 pulse h2_12 [500ms, intensity: 0.05, delay: 350ms]
 
 #2.90s
-stagger [35ms] {
+stagger [30ms] {
   h3_00.opacity = 0.60 [280ms]
   h3_01.opacity = 0.90 [280ms]
   h3_02.opacity = 0.25 [280ms]
@@ -192,33 +193,54 @@ stagger [35ms] {
 }
 pulse h3_21 [500ms, intensity: 0.05, delay: 350ms]
 
+// Act III — heads hand off to the concat rail.
 #3.80s
-fade-out phase2 [240ms, ease: ease-in]
-fade-in phase3 [280ms, delay: 240ms, ease: expo-out]
-stagger [100ms] {
-  draw-in drop_a [280ms, ease: expo-out]
-  drop_a.opacity = 0.8 [260ms]
-  draw-in drop_b [280ms, ease: expo-out]
-  drop_b.opacity = 0.8 [260ms]
-  draw-in drop_c [280ms, ease: expo-out]
-  drop_c.opacity = 0.8 [260ms]
+fade-out cap2 [240ms, ease: ease-in]
+fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
+drop_a: Arrow, from: (231, 442), to: (231, 466), head_size: 12,
+  stroke_width: 3.2, stroke: accent.primary, opacity: 0
+drop_b: Arrow, from: (518, 442), to: (518, 466), head_size: 12,
+  stroke_width: 3.2, stroke: accent.success, opacity: 0
+drop_c: Arrow, from: (805, 442), to: (805, 466), head_size: 12,
+  stroke_width: 3.2, stroke: accent.info, opacity: 0
+stagger [70ms] {
+  fade-in drop_a [260ms, ease: expo-out]
+  fade-in drop_b [260ms, ease: expo-out]
+  fade-in drop_c [260ms, ease: expo-out]
 }
+handoff_band.opacity = 0.22 [400ms, ease: expo-out]
 
 #4.30s
+concat_label: Text, text: format("CONCAT  ·  {:.0} HEADS × 64  =  768", heads), font_size: 18,
+  color: text.secondary, text_anchor: "center", at: (518, 530), opacity: 0
+fade-in concat_label [300ms, ease: expo-out]
 stagger [90ms] {
   seg_a.opacity = 0.85 [300ms]
   seg_b.opacity = 0.85 [300ms]
   seg_c.opacity = 0.85 [300ms]
 }
-fade-in concat_label [280ms, delay: 200ms, ease: expo-out]
+handoff_band.opacity = 0.0 [500ms, ease: ease-in-out]
 
 #5.10s
-draw-in proj_arrow [260ms, ease: expo-out]
-proj_arrow.opacity = 0.7 [240ms]
-wipe-in out_card [360ms, delay: 140ms, ease: expo-out]
-fade-in out_txt [280ms, delay: 280ms, ease: expo-out]
-pulse out_card [600ms, intensity: 0.03, delay: 400ms]
+out_card: Stack, at: (518, 600), size: (860, 60), opacity: 0 {
+  out_bg: Rect, size: (860, 60), corner_radius: 14, color: surface.primary,
+    stroke: accent.primary, stroke_width: 1.8
+  out_txt: Text, text: format("Output synthesis: Concat × W_O restores the 768-dim residual stream ({:.0} heads)", heads),
+    font_size: 18, color: text.primary
+}
+fade-in out_card [360ms, ease: expo-out]
+draw-in proj_arrow [260ms, delay: 80ms, ease: expo-out]
+proj_arrow.opacity = 0.8 [240ms, delay: 80ms]
+pulse out_card [600ms, intensity: 0.03, delay: 420ms]
 
-// ── Outro Rest Frame ────────────────────────────────────────────────
-#6.80s
-// Complete multihead cards, concat segments, and projection output stand held.
+// Payoff: push into the assembled stack and settle.
+#5.70s
+camera.zoom = 1.035 [900ms, ease: ease-in-out]
+
+#6.60s
+camera.zoom = 1.0 [600ms, ease: ease-in-out]
+
+// ── Rest ────────────────────────────────────────────────────────────
+#7.10s
+// Three head cards with their maps, the three-segment concat rail and the W_O
+// output card all stand. Nothing erases.
