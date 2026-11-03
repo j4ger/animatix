@@ -1,30 +1,52 @@
-// hero.amx — §03 the stack.
+// house-style: epicycle-stack act; three acts, payoff is a screen-blend bloom of the traced wave.
 //
-// Circles ride on circles. Each added harmonic flattens the tops and steepens
-// the sides, and the equation underneath fills out term by term.
+// §03 the stack. Circles ride on circles. Each added harmonic flattens the tops
+// and steepens the sides, and the equation across the top fills out term by
+// term.
+//
+// `harmonics` is the deck-wide slider: 1..6 odd terms. The generated chain is
+// always declared for all six possible terms; the loop over `{1, 3, 5, 7, 9,
+// 11}` gates each ring, arm and equation term on `i < harmonics`, so the count
+// is a build-time fact that drives the drawing rather than six hand-copied
+// scenes.
 //
 // The three `g*` gates are this scene's single source of truth. One `always`
 // block ramps each 0 → 1 on its beat, and the epicycle chain, the plotted
 // curve and the equation's reveal all read those same numbers — the wave
 // cannot drift out of step with the circles because there is one schedule here,
 // not three hand-copied copies of it. The chain is a loop over the harmonics
-// rather than four hand-unrolled `let c2x/c2y/…` blocks, and the plot dot is
+// rather than six hand-unrolled `let c2x/c2y/…` blocks, and the plot dot is
 // placed with `Graph.map()` at the plot's left edge (see fourier.amx for why
 // the tie-line comes out horizontal). The wave scrolls — newest sample under
 // the pen, history flowing right — so unlike §02's first draft there is no
 // leading edge for a marker to fall out of step with.
+//
+// The rest frame stops the clock at 98.6% of the sweep instead of a full 4π. At
+// exactly one span every harmonic's sine is zero, which folds the whole chain
+// onto the x-axis and leaves a pile of tiny collapsed circles — the defect in
+// the old hero plate. A 350° stop keeps every ring open while the completed wave holds.
 
 import "../../demos/lib/theme.amx"
+import "../../demos/lib/stage.amx"
 import "fourier.amx" as geo
 
 config { resolution: (1280, 720) }
 
 # Hero
-config { colorscheme: "ink", dynamic_layout: true, duration: 19.4 }
+config { colorscheme: "orchid", dynamic_layout: true, duration: 11.8 }
 
-// Harmonic identity: one hue per odd k, reused by the chain, the equation row
-// and the spectrum in §04 so the reader can track k=5 across three figures.
-let cols = {accent.info, accent.success, accent.primary, accent.danger}
+// The slider target: `--set harmonics=N` (1..6) chooses how many odd chains draw.
+let harmonics = 4
+
+// Plot frame geometry, derived from the shared R/cy so the tie-line invariant
+// (fourier.amx) holds for every act that draws this box.
+let plot_h = 2 * geo.y_hi * pi * geo.R / 4
+let plot_l = geo.graph_cx - geo.graph_w / 2
+let plot_t = geo.cy - plot_h / 2
+
+// Harmonic identity: one hue per odd k, reused by the chain and the equation
+// row so the reader can track k=5 across the two.
+let cols = {accent.info, accent.success, accent.primary, accent.warning, accent.danger, accent.secondary}
 
 // The pen's angle, published by the always block and read by the plot closure,
 // so the wave is the chain's own history rather than a second copy of the clock.
@@ -33,94 +55,150 @@ let th_now = 0.0
 let g3 = 0.0
 let g5 = 0.0
 let g7 = 0.0
+let g9 = 0.0
+let g11 = 0.0
 
-import "../../demos/lib/ambience.amx"
+// ── the stage ───────────────────────────────────────────────────────
+floor: StageFloor, glow: 1.3
 
-bg: Ambience, tint: accent.info, seed: 80
+head: ActHead, kicker: "FIG 03 · THE MECHANISM", title: "Harmonic epicycles",
+  sub: "odd terms stack until the square wave appears"
 
-hero_hub: Ellipse, size: (9, 9), color: text.muted, at: (geo.pivot_x, geo.cy)
+cap1: Caption, text: "Act I · One circle: the pen writes a pure sine.", tag: "hero.amx"
+cap2: Caption, text: "Act II · Each odd harmonic rides the last — tops flatten, sides steepen.", tag: "hero.amx", opacity: 0
+cap3: Caption, text: "Act III · Six circles at most; the completed wave and open chain hold.", tag: "hero.amx", opacity: 0
 
-for k, i in {1, 3, 5, 7} {
+// ── the chain ───────────────────────────────────────────────────────
+hero_hub: Ellipse, size: (11, 11), color: accent.secondary, at: (geo.pivot_x, geo.cy), opacity: 1
+
+// Every possible term is declared; the always block gates ring/arm opacity and
+// scale on both its time beat and the `harmonics` count. Declaring all six and
+// gating them keeps the for-loop structural while the slider decides how many
+// actually draw.
+for k, i in {1, 3, 5, 7, 9, 11} {
   ring[i]: Ellipse, size: (2 * geo.R / k, 2 * geo.R / k), stroke: cols[i],
-    fill_opacity: 0, stroke_width: 2, at: (geo.pivot_x, geo.cy)  // scaled per frame, see always
+    fill_opacity: 0, stroke_width: 2, at: (geo.pivot_x, geo.cy), opacity: 0
   arm[i]: Line, from: (geo.pivot_x, geo.cy), to: (geo.pivot_x, geo.cy),
-    stroke: cols[i], stroke_width: 1.5, opacity: 0.5
+    stroke: cols[i], stroke_width: 1.5, opacity: 0
 }
 
-tip: Ellipse, size: (16, 16), color: accent.primary, at: (geo.pivot_x + geo.R, geo.cy)
+tip: Ellipse, size: (16, 16), color: accent.primary, at: (geo.pivot_x + geo.R, geo.cy), opacity: 1
 
-hero_graph: Graph, at: (geo.graph_cx, geo.cy), size: (geo.graph_w, 2 * geo.y_hi * pi * geo.R / 4),
-  x_domain: (0, geo.span), y_domain: (geo.y_lo, geo.y_hi), tick_labels: "y" {
-    hi: PlotCurve, kind: "cartesian", func: (x) => 1,
-      stroke: stroke.default, stroke_width: 1.5, dash_pattern: {9, 7}
-    lo: PlotCurve, kind: "cartesian", func: (x) => -1,
-      stroke: stroke.default, stroke_width: 1.5, dash_pattern: {9, 7}
-    hero_wave: PlotCurve, kind: "cartesian",
-      func: (x) => (4 / pi) * (sin(th_now - x) + g3 * sin(3 * (th_now - x)) / 3 + g5 * sin(5 * (th_now - x)) / 5 + g7 * sin(7 * (th_now - x)) / 7),
-      color: accent.primary, stroke_width: 3.5
+// ── the plot ────────────────────────────────────────────────────────
+hero_graph: Graph, at: (geo.graph_cx, geo.cy), size: (geo.graph_w, plot_h),
+  x_domain: (0, geo.span), y_domain: (geo.y_lo, geo.y_hi),
+  grid: "false", ticks: "false", tick_labels: "false", opacity: 1 {
+  hi: PlotCurve, kind: "cartesian", func: (x) => 1,
+    stroke: stroke.default, stroke_width: 1.5, dash_pattern: {9, 7}, opacity: 1
+  lo: PlotCurve, kind: "cartesian", func: (x) => -1,
+    stroke: stroke.default, stroke_width: 1.5, dash_pattern: {9, 7}, opacity: 1
+  hero_wave: PlotCurve, kind: "cartesian",
+    func: (x) => (4 / pi) * (sin(th_now - x) + g3 * sin(3 * (th_now - x)) / 3 + g5 * sin(5 * (th_now - x)) / 5 + g7 * sin(7 * (th_now - x)) / 7 + g9 * sin(9 * (th_now - x)) / 9 + g11 * sin(11 * (th_now - x)) / 11),
+    color: accent.primary, stroke_width: 3.5, opacity: 1
+  hero_glow: PlotCurve, kind: "cartesian",
+    func: (x) => (4 / pi) * (sin(th_now - x) + g3 * sin(3 * (th_now - x)) / 3 + g5 * sin(5 * (th_now - x)) / 5 + g7 * sin(7 * (th_now - x)) / 7 + g9 * sin(9 * (th_now - x)) / 9 + g11 * sin(11 * (th_now - x)) / 11),
+    color: accent.primary, stroke_width: 16, blend: "screen", opacity: 0
 }
 
 // Pinned to the plot's left edge, where the wave's newest sample lives.
-wave_dot: Ellipse, size: (14, 14), color: accent.primary,
-  at: (geo.graph_cx - geo.graph_w / 2, geo.cy)
+wave_dot: Ellipse, size: (14, 14), color: accent.primary, at: (plot_l, geo.cy), opacity: 1
 
-hero_link: Line, from: (geo.pivot_x + geo.R, geo.cy), to: (geo.graph_cx - geo.graph_w / 2, geo.cy),
+hero_link: Line, from: (geo.pivot_x + geo.R, geo.cy), to: (plot_l, geo.cy),
   stroke: accent.secondary, stroke_width: 1.25, opacity: 0.26
 
+// Hand-drawn y labels: Graph's own tick labels compile at 10 px, below the
+// house-style floor. Graph still draws its axis and arrow; only the numbers are
+// ours, at a readable 16 px.
+ylab_p1: Text, text: "+1", font_size: 16, font_family: "mono", color: text.muted,
+  text_anchor: "right", at: (plot_l - 14, geo.cy - pi * geo.R / 4), opacity: 0.9
+ylab_0: Text, text: "0", font_size: 16, font_family: "mono", color: text.muted,
+  text_anchor: "right", at: (plot_l - 14, geo.cy), opacity: 0.9
+ylab_m1: Text, text: "-1", font_size: 16, font_family: "mono", color: text.muted,
+  text_anchor: "right", at: (plot_l - 14, geo.cy + pi * geo.R / 4), opacity: 0.9
+
+hero_axis: Text, text: "θ — the chain's history, newest under the ball", font_size: 16,
+  color: text.muted, text_anchor: "left", at: (plot_l, plot_t - 26), opacity: 0.9
+
+// ── the equation row ────────────────────────────────────────────────
 // Each term carries its harmonic's hue and appears on the beat its circle is
 // added. An opacity-0 child still holds its layout slot, so the row is spaced
 // for the finished equation from the start and never jumps as it fills out.
-eq_row: Row, anchor: scene.bottom, offset: (0, -64), gap: 12, align: "center" {
-  eq_1: Text, text: "y(x) = sin x", font_size: 25, color: accent.info
-  for k, i in {3, 5, 7} {
-    eqt[i]: Text, text: format("+ sin {:.0}x/{:.0}", k, k), font_size: 25,
-      color: cols[i + 1], opacity: 0
+// The always block writes each term's opacity from the same `g*` gate the
+// chain uses; the declaration below is the build-time fallback used by offline
+// evaluation.
+eq_row: Row, at: (640, 178), gap: 10, align: "center", opacity: 1 {
+  eq_1: Text, text: "y(x) = sin x", font_size: 22, color: accent.info, opacity: 1
+  for k, i in {3, 5, 7, 9, 11} {
+    eqt[i]: Text, text: format("+ sin {:.0}x/{:.0}", k, k), font_size: 22,
+      color: cols[i + 1], opacity: if i < harmonics - 1 { 1 } else { 0 }
   }
 }
 
-#0.15s
-fade-in hero_graph [550ms, ease: expo-out]
-fade-in ring__0, arm__0, hero_hub [450ms, ease: expo-out]
+// ── the numbers ─────────────────────────────────────────────────────
+chip_h: Readout, label: "HARMONICS", value: format("{:.0}", harmonics), at: (620, 613), opacity: 0
+chip_f: Readout, label: "FREQUENCY", value: format("1–{:.0}×", 2 * harmonics - 1), at: (880, 613), opacity: 0
+chip_a: Readout, label: "AMPLITUDE", value: "1.00", at: (1140, 613), opacity: 0
 
-#0.95s
-stagger [80ms] {
-  fade-in tip [400ms, ease: expo-out]
-  fade-in wave_dot [400ms, ease: expo-out]
-  fade-in hero_link [400ms, ease: expo-out]
-  fade-in eq_1 [400ms, ease: expo-out]
+// ── Act I · the hook ────────────────────────────────────────────────
+// The first ring, hub and plot frame are lit at t=0; the pen starts turning
+// immediately and the equation is already on the page.
+#0.15s
+pulse hero_hub [500ms, intensity: 0.05]
+
+// ── Act II · the mechanism ──────────────────────────────────────────
+// Each harmonic gets its own beat; the always block owns the gate ramps and
+// therefore the ring, arm, wave and equation term all arrive together.
+#2.2s
+fade-out cap1 [240ms, ease: ease-in]
+fade-in cap2 [280ms, delay: 200ms, ease: expo-out]
+
+#4.6s
+stagger [110ms] {
+  fade-in chip_h [380ms, ease: expo-out]
+  fade-in chip_f [380ms, ease: expo-out]
+  fade-in chip_a [380ms, ease: expo-out]
 }
 
-#1.4s
-fade-in hi, lo [400ms, ease: expo-out]
-fade-in hero_wave [300ms, ease: expo-out]
+// ── Act III · the payoff ────────────────────────────────────────────
+// The traced wave gets its screen-blend bloom and the camera pushes a touch
+// and settles, leaving the full open chain and the completed wave as the rest.
+#9.4s
+fade-out cap2 [240ms, ease: ease-in]
+fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
+hero_glow.opacity = 0.30 [700ms, ease: expo-out]
+camera.zoom = 1.04 [1.2s, ease: ease-in-out]
 
-// The beats here and the `g*` ramps in the always block are the same three
-// numbers on purpose; a new harmonic means one line in each place, not four.
-#4s
-fade-in ring__1, arm__1, eqt__0 [450ms, ease: expo-out]
+#10.5s
+hero_glow.opacity = 0.16 [700ms, ease: ease-in-out]
+camera.zoom = 1.0 [1.0s, ease: ease-in-out]
 
-#9s
-fade-in ring__2, arm__2, eqt__1 [450ms, ease: expo-out]
-
-#14s
-fade-in ring__3, arm__3, eqt__2 [450ms, ease: expo-out]
+// ── Rest ────────────────────────────────────────────────────────────
+// The open chain, its hub, the completed wave and the filled equation row
+// hold. Nothing erases; the loop wraps onto itself.
 
 always {
-  let s3 = clamp((t - 4.0) / 1.5, 0.0, 1.0)
-  let s5 = clamp((t - 9.0) / 1.5, 0.0, 1.0)
-  let s7 = clamp((t - 14.0) / 1.5, 0.0, 1.0)
-  // Smoothstep, not the raw ramp. A linear clamp has a velocity kink at both
-  // ends, and the wave morphs at exactly that rate, so each gate started and
-  // stopped its reshape with a visible twitch.
-  g3 = s3 * s3 * (3 - 2 * s3)
-  g5 = s5 * s5 * (3 - 2 * s5)
-  g7 = s7 * s7 * (3 - 2 * s7)
+  // Harmonic gates: 1.35 s apart, smoothstepped so the wave does not kink.
+  let s3 = clamp((t - 2.2) / 1.0, 0.0, 1.0)
+  let s5 = clamp((t - 3.55) / 1.0, 0.0, 1.0)
+  let s7 = clamp((t - 4.9) / 1.0, 0.0, 1.0)
+  let s9 = clamp((t - 6.25) / 1.0, 0.0, 1.0)
+  let s11 = clamp((t - 7.6) / 1.0, 0.0, 1.0)
+  let e3 = s3 * s3 * (3 - 2 * s3)
+  let e5 = s5 * s5 * (3 - 2 * s5)
+  let e7 = s7 * s7 * (3 - 2 * s7)
+  let e9 = s9 * s9 * (3 - 2 * s9)
+  let e11 = s11 * s11 * (3 - 2 * s11)
+  g3 = if harmonics > 1 { e3 } else { 0.0 }
+  g5 = if harmonics > 2 { e5 } else { 0.0 }
+  g7 = if harmonics > 3 { e7 } else { 0.0 }
+  g9 = if harmonics > 4 { e9 } else { 0.0 }
+  g11 = if harmonics > 5 { e11 } else { 0.0 }
 
-  let u = clamp((t - 1.4) / 16.0, 0.0, 1.0)
+  let u = clamp((t - 0.15) / 10.0, 0.0, 0.986)
   th_now = geo.span * u
   let th = th_now
-  let wts = {1.0, g3, g5, g7}
-  let rad = {geo.R, geo.R / 3, geo.R / 5, geo.R / 7}
+  let wts = {1.0, g3, g5, g7, g9, g11}
+  let rad = {geo.R, geo.R / 3, geo.R / 5, geo.R / 7, geo.R / 9, geo.R / 11}
 
   // Walk the chain: circle i is centred where harmonic i-1's vector ended, and
   // its own weighted radius reaches the next centre. `sum` is the same partial
@@ -128,7 +206,7 @@ always {
   let cx = geo.pivot_x
   let cy = geo.cy
   let sum = 0.0
-  for k, i in {1, 3, 5, 7} {
+  for k, i in {1, 3, 5, 7, 9, 11} {
     ring[i].at = (cx, cy)
     arm[i].from = (cx, cy)
     let reach = wts[i] * rad[i]
@@ -136,17 +214,22 @@ always {
     let ny = cy - reach * sin(k * th)
     arm[i].to = (nx, ny)
     // The circle is scaled to its own weight, so its rim passes through the
-    // joint the arm reaches: radius (R/k)·wts[i] = reach, exactly. Declaring a
-    // constant radius while the arm ramped up from zero left the joint sitting
-    // at a fraction of the way to a full-size circle for the whole 1.5s.
-    // A multiplier says "this circle, shrunk by its weight" without restating
-    // the radius the declaration above already carries.
+    // joint the arm reaches: radius (R/k)·wts[i] = reach, exactly. A multiplier
+    // says "this circle, shrunk by its weight" without restating the radius
+    // the declaration above already carries.
     ring[i].scale = wts[i]
+    ring[i].opacity = wts[i] * 0.95
+    arm[i].opacity = wts[i] * 0.6
     let sum = sum + wts[i] * sin(k * th) / k
     let cx = nx
     let cy = ny
   }
   tip.at = (cx, cy)
+
+  // The equation row is the same gate as the chain, one term per harmonic.
+  for k, i in {3, 5, 7, 9, 11} {
+    eqt[i].opacity = wts[i + 1]
+  }
 
   // Bound to names because a path-call (`hero_graph.map(…)`) rejects binary
   // operators in its argument list — see docs/roadmap.md.
@@ -157,5 +240,3 @@ always {
   hero_link.from = (cx, cy)
   hero_link.to = dp
 }
-
-
