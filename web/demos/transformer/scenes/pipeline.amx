@@ -33,7 +33,7 @@ floor: StageFloor, glow: 1.35
 head_eyebrow: Text, text: "FIG 06 · DEEP LAYER STACK & LOGIT PROJECTION", font_size: 18,
   font_weight: 600, color: accent.primary, text_align: "left", text_anchor: "left",
   anchor: scene.top_left, offset: (96, 44), opacity: 0
-head_title: Text, text: "Twelve layers to a word", font_size: 48, font_weight: "bold",
+head_title: Text, text: format("{:.0} layers to a word", stages), font_size: 48, font_weight: "bold",
   color: text.primary, text_align: "left", text_anchor: "left",
   anchor: scene.top_left, offset: (96, 96), opacity: 1
 head_rule: Rect, size: (96, 4), color: accent.primary,
