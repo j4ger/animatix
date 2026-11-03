@@ -1,112 +1,157 @@
-// complexplane.amx — §05 why circles at all.
+// house-style: complex-plane act; three acts, payoff is a camera push-and-settle over the full unit circle.
 //
-// The closing figure says what the previous three implied: a term of the
-// series is a *rotating vector*, and its imaginary part is the sine. So the
-// unit circle gets the two projections that make that visible — a drop to the
-// real axis (cos θ) and a run to the imaginary axis (sin θ) — plus a live
-// readout that names the angle the vector has swept.
+// §05 why circles at all. The closing figure says what the previous three
+// implied: a term of the series is a *rotating vector*, and its imaginary part
+// is the sine. So the unit circle gets the two projections that make that
+// visible — a drop to the real axis (cos θ) and a run to the imaginary axis
+// (sin θ) — plus a readout that names the angle the vector has swept.
 //
 // The rotation runs counter-clockwise, the same sense as §02 and §03: the
 // figure's claim is that this is the *same* pen, and a clockwise turn here
-// would contradict the sine the reader just watched it write.
+// would contradict the sine the reader just watched it write. The rest frame
+// stops at 93% of the sweep so the vector keeps its two projections open
+// instead of parking on the real axis.
+//
+// Frame-time `.text` writes do not render offline (storyboard/image): the angle
+// chip declares its final value below and the `always` block rewrites it for
+// live playback. Every other property in the block is a geometry write and
+// renders in both paths.
 
 import "../../demos/lib/theme.amx"
+import "../../demos/lib/stage.amx"
 import "fourier.amx" as geo
 
 config { resolution: (1280, 720) }
 
-# ComplexPlane
-config { colorscheme: "ink", dynamic_layout: true, duration: 11.5 }
+// plate-body: ComplexPlane
+config { colorscheme: "orchid", dynamic_layout: true, duration: 9.0 }
 
-let plane_x = 400
-let plane_y = geo.cy
+let plane_x = 370
+let plane_y = 400
 // px per unit. The NumberPlane below is sized from this, so the circle of
 // radius `unit` really is the unit circle of the grid behind it — sizing the
 // two independently is how a "unit circle" ends up drawn at 1.23.
-let unit = 160
+let unit = 125
 
-cp_title: Text, text: "Why circles? Complex exponentials", font_size: 38,
-  font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 52)
+// The vector's angle, published by the always block and read by the geometry.
+let th_now = 0.0
 
+// ── the stage ───────────────────────────────────────────────────────
+floor: StageFloor, glow: 1.2
+
+cp_head: ActHead, kicker: "FIG 05 · THE COMPLEX PLANE", title: "One vector, two shadows",
+  sub: "a term of the series is a rotating vector"
+
+cap1: Caption, text: "Act I · One rotating vector, e^(iθ), on the unit circle.", tag: "complexplane.amx"
+cap2: Caption, text: "Act II · Its real shadow is cos θ; its imaginary shadow is sin θ.", tag: "complexplane.amx", opacity: 0
+cap3: Caption, text: "Act III · Every term of the series is this same turn, moving k times faster.", tag: "complexplane.amx", opacity: 0
+
+// ── the plane ───────────────────────────────────────────────────────
 grid: NumberPlane, x_domain: (-1.6, 1.6), y_domain: (-1.6, 1.6),
   size: (3.2 * unit, 3.2 * unit), at: (plane_x, plane_y),
   x_range: (-1, 1, 0.5), y_range: (-1, 1, 0.5),
-  stroke: surface.secondary, stroke_width: 1.0
+  stroke: stroke.default, stroke_width: 1.0, opacity: 1
 
 unit_circle: Ellipse, size: (2 * unit, 2 * unit), stroke: accent.info,
-  fill_opacity: 0, stroke_width: 2, at: (plane_x, plane_y)
+  fill_opacity: 0, stroke_width: 2, at: (plane_x, plane_y), opacity: 1
 
 vector: Line, from: (plane_x, plane_y), to: (plane_x + unit, plane_y),
-  stroke: accent.primary, stroke_width: 3
+  stroke: accent.primary, stroke_width: 3, opacity: 1
 
 // The two projections: this is the sentence "e^(iθ) = cos θ + i sin θ" drawn
 // as geometry rather than written down.
 drop_v: Line, from: (plane_x + unit, plane_y), to: (plane_x + unit, plane_y),
-  stroke: accent.secondary, stroke_width: 1.25, opacity: 0.42
+  stroke: accent.secondary, stroke_width: 1.25, opacity: 0
 drop_h: Line, from: (plane_x + unit, plane_y), to: (plane_x + unit, plane_y),
-  stroke: accent.secondary, stroke_width: 1.25, opacity: 0.42
+  stroke: accent.secondary, stroke_width: 1.25, opacity: 0
 
-vec_tip: Ellipse, size: (15, 15), color: accent.primary, at: (plane_x + unit, plane_y)
+vec_tip: Ellipse, size: (15, 15), color: accent.primary, at: (plane_x + unit, plane_y), opacity: 1
 
-cp_re: Text, text: "Re", font_size: 19, color: text.muted,
-  at: (plane_x + 272, plane_y + 26)
-cp_im: Text, text: "Im", font_size: 19, color: text.muted,
-  at: (plane_x + 26, plane_y - 250)
-cp_read: Text, text: "theta = 0.00 rad", font_size: 21, color: accent.warning,
-  at: (plane_x, plane_y + 252)
+cp_re: Text, text: "Re", font_size: 16, color: text.muted,
+  at: (plane_x + unit + 30, plane_y + 22), opacity: 0
+cp_im: Text, text: "Im", font_size: 16, color: text.muted,
+  at: (plane_x - 54, plane_y - unit - 18), opacity: 0
+real_mark: Text, text: "1", font_size: 16, font_family: "mono", color: text.muted,
+  at: (plane_x + unit, plane_y + 22), opacity: 0.9
+imag_mark: Text, text: "i", font_size: 16, font_family: "mono", color: text.muted,
+  at: (plane_x - 20, plane_y - unit - 8), opacity: 0.9
 
-cp_eq: Text, text: "e^(i theta) = cos(theta) + i sin(theta)", font_size: 27,
-  color: accent.primary, anchor: scene.center, offset: (330, -110)
+// The final value is what offline rendering shows; the always block rewrites
+// it for live playback (see the header note).
+cp_read: Text, text: "θ = 5.40 rad", font_size: 22, font_family: "mono",
+  color: accent.warning, text_anchor: "center", at: (plane_x, 610), opacity: 0
+
+// ── the editorial column ────────────────────────────────────────────
+cp_eq: Text, text: "e^(iθ) = cos θ + i sin θ", font_size: 28, color: accent.primary,
+  text_align: "left", text_anchor: "left", at: (640, 250), opacity: 1
 cp_note: Text, text: "one term of the series is one vector, turning at k times the base rate",
-  font_size: 20, color: text.secondary, anchor: scene.center, offset: (330, -44),
-  text_max_width: 380, text_align: "center"
-cp_note2: Text, text: "its radius is a(k), and its height is a(k) sin(k theta)",
-  font_size: 20, color: text.secondary, anchor: scene.center, offset: (330, 22),
-  text_max_width: 380, text_align: "center"
-
+  font_size: 18, color: text.secondary, text_align: "left", text_anchor: "left",
+  text_max_width: 460, at: (640, 320), opacity: 0
+cp_note2: Text, text: "its radius is a(k), and its height is a(k) sin(kθ)",
+  font_size: 18, color: text.secondary, text_align: "left", text_anchor: "left",
+  text_max_width: 460, at: (640, 390), opacity: 0
 endnote: Text, text: "sum enough circles and even a square wave is just rotation",
-  font_size: 20, color: text.muted, anchor: scene.center, offset: (330, 130),
-  text_max_width: 380, text_align: "center"
+  font_size: 20, color: text.muted, text_align: "left", text_anchor: "left",
+  text_max_width: 460, at: (640, 490), opacity: 0
+
+// ── the numbers ─────────────────────────────────────────────────────
+chip_h: Readout, label: "HARMONICS", value: "1", at: (620, 613), opacity: 0
+chip_f: Readout, label: "FREQUENCY", value: "1×", at: (880, 613), opacity: 0
+chip_a: Readout, label: "AMPLITUDE", value: "1.00", at: (1140, 613), opacity: 0
+
+// ── Act I · the hook ────────────────────────────────────────────────
+// The plane, unit circle and vector are lit at t=0; the vector starts turning
+// immediately.
+#0.15s
+pulse unit_circle [600ms, intensity: 0.04]
+
+// ── Act II · the mechanism ──────────────────────────────────────────
+#2.0s
+fade-out cap1 [240ms, ease: ease-in]
+fade-in cap2 [280ms, delay: 200ms, ease: expo-out]
+fade-in drop_v [420ms, ease: expo-out]
+fade-in drop_h [420ms, delay: 100ms, ease: expo-out]
+fade-in cp_re [360ms, delay: 220ms, ease: expo-out]
+fade-in cp_im [360ms, delay: 300ms, ease: expo-out]
+fade-in cp_read [360ms, delay: 100ms, ease: expo-out]
+
+#3.2s
+fade-in cp_note [500ms, ease: expo-out]
+
+#4.2s
+fade-in cp_note2 [500ms, delay: 120ms, ease: expo-out]
+
+#5.0s
+stagger [110ms] {
+  fade-in chip_h [380ms, ease: expo-out]
+  fade-in chip_f [380ms, ease: expo-out]
+  fade-in chip_a [380ms, ease: expo-out]
+}
+
+// ── Act III · the payoff ────────────────────────────────────────────
+#6.6s
+fade-out cap2 [240ms, ease: ease-in]
+fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
+fade-in endnote [500ms, ease: expo-out]
+camera.zoom = 1.04 [1.2s, ease: ease-in-out]
+
+#7.8s
+camera.zoom = 1.0 [1.0s, ease: ease-in-out]
+
+// ── Rest ────────────────────────────────────────────────────────────
+// The unit circle, vector, both projections, formula and readouts hold.
 
 always {
-  let u = clamp((t - 1.2) / 9.0, 0.0, 1.0)
-  let th = geo.span * u
-  let tx = plane_x + unit * cos(th)
-  let ty = plane_y - unit * sin(th)
+  let u = clamp((t - 0.15) / 8.2, 0.0, 0.93)
+  th_now = geo.span * u
+  let tx = plane_x + unit * cos(th_now)
+  let ty = plane_y - unit * sin(th_now)
   vector.to = (tx, ty)
   vec_tip.at = (tx, ty)
   drop_v.from = (tx, ty)
   drop_v.to = (tx, plane_y)
   drop_h.from = (tx, ty)
   drop_h.to = (plane_x, ty)
-  cp_read.text = format("theta = {:.2} rad", th)
+  let thm = th_now - tau * floor(th_now / tau)
+  cp_read.text = format("θ = {:.2} rad", thm)
 }
-
-#0.15s
-fade-in cp_title [550ms, ease: expo-out]
-fade-in grid [600ms, ease: expo-out]
-fade-in unit_circle [600ms, ease: expo-out]
-
-#1s
-fade-in vector, vec_tip [400ms, ease: expo-out]
-
-#1.6s
-stagger [110ms] {
-  fade-in drop_v [400ms, ease: expo-out]
-  fade-in drop_h [400ms, ease: expo-out]
-  fade-in cp_re [400ms, ease: expo-out]
-  fade-in cp_im [400ms, ease: expo-out]
-  fade-in cp_read [400ms, ease: expo-out]
-}
-
-#3.4s
-fade-in cp_eq [600ms, ease: expo-out]
-
-#4.6s
-fade-in cp_note [500ms, ease: expo-out]
-
-#5.8s
-fade-in cp_note2 [500ms, ease: expo-out]
-
-#8.4s
-fade-in endnote [600ms, ease: expo-out]

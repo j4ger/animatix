@@ -27,7 +27,7 @@ import "fourier.amx" as geo
 
 config { resolution: (1280, 720) }
 
-# OneCircle
+// plate-body: OneCircle
 config { colorscheme: "orchid", dynamic_layout: true, duration: 9.6 }
 
 // Plot frame geometry, derived from the shared R/cy so the tie-line invariant

@@ -22,7 +22,7 @@ import "fourier.amx" as geo
 
 config { resolution: (1280, 720) }
 
-# Goal
+// plate-body: Goal
 config { colorscheme: "orchid", dynamic_layout: true, duration: 8.4 }
 
 // The slider target: `--set harmonics=N` (1..6) chooses how many odd terms sum.

@@ -22,7 +22,7 @@ import "../../demos/lib/stage.amx"
 
 config { resolution: (1280, 720) }
 
-# Spectrum
+// plate-body: Spectrum
 config { colorscheme: "orchid", dynamic_layout: true, duration: 8.4 }
 
 // The slider target: `--set harmonics=N` (1..6) chooses how many odd bars stand.

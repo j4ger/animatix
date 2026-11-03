@@ -32,7 +32,7 @@ import "fourier.amx" as geo
 
 config { resolution: (1280, 720) }
 
-# Hero
+// plate-body: Hero
 config { colorscheme: "orchid", dynamic_layout: true, duration: 11.8 }
 
 // The slider target: `--set harmonics=N` (1..6) chooses how many odd chains draw.

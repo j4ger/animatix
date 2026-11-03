@@ -14,11 +14,15 @@ So the acts are the source and the plate is generated:
     scripts/epicycles-plate.py --check    # fail if scene.amx is stale
 
 The plate also gets the one thing the standalone acts must not have: a closing
-beat that clears each heading before its wipe. All five acts title at
-`scene.top, offset: (0, 52)`, so a crossfade superimposes two headings into an
-unreadable third. Clearing them in an act file would erase part of the cast from
-the frame its embed holds (see scripts/site-rest-check.py), which is why the
-cascade belongs to the plate and not to the acts.
+beat that clears each heading before its wipe. Every act carries a house-style
+head anchored in the same top-left column, so a crossfade superimposes two
+headings into an unreadable third. Clearing them in an act file would erase part
+of the cast from the frame its embed holds (see scripts/site-rest-check.py),
+which is why the cascade belongs to the plate and not to the acts.
+
+The plate is a composition, so it needs the union of the acts' imports here —
+the act bodies start at their `# Scene` line and their own import blocks do not
+travel with them.
 """
 
 from __future__ import annotations
@@ -30,16 +34,18 @@ HERE = pathlib.Path(__file__).resolve().parent.parent / "web" / "demos" / "epicy
 
 # (file, scene label, actors the plate clears before the wipe to the next act)
 ACTS = [
-    ("goal.amx", "Goal", ["goal_axis"]),
-    ("onecircle.amx", "OneCircle", ["one_title", "one_hint"]),
-    ("hero.amx", "Hero", ["eq_row"]),
+    ("goal.amx", "Goal", ["goal_head", "goal_eq", "goal_eq_sub", "goal_gibbs", "goal_axis"]),
+    ("onecircle.amx", "OneCircle", ["one_title", "one_hint", "one_formula", "one_axis"]),
+    ("hero.amx", "Hero", ["hero_head", "eq_row", "hero_axis"]),
     ("spectrum.amx", "Spectrum", ["spec_title", "spec_eq", "spec_note"]),
     ("complexplane.amx", "ComplexPlane", []),
 ]
 
 TRANSITION_MS = 500
 
-HEADER = """// scene.amx — the plate: the whole walkthrough in one playthrough.
+HEADER = """// house-style: five-act plate; wipes join five house-style acts, rests on the complex plane.
+//
+// scene.amx — the plate: the whole walkthrough in one playthrough.
 //
 // GENERATED — do not edit. This file is derived from the five act files by
 // `scripts/epicycles-plate.py`; edit an act and re-run it. `--check` fails when
@@ -58,11 +64,12 @@ HEADER = """// scene.amx — the plate: the whole walkthrough in one playthrough
 //     The `#Xs` stamp in front of a `play` is parsed but dropped by the
 //     composition builder, so the durations above are the schedule.
 //   * Every join is a wipe, and each act's headings clear themselves just
-//     before it. All five acts title at `scene.top, offset: (0, 52)`; a `fade`
-//     would superimpose two of them into an unreadable third.
+//     before it. Every act carries its house-style head in the same top-left
+//     column, so a `fade` would superimpose two of them into an unreadable
+//     third.
 
 import "../../demos/lib/theme.amx"
-import "../../demos/lib/ambience.amx"
+import "../../demos/lib/stage.amx"
 import "fourier.amx" as geo
 
 config {
@@ -74,10 +81,21 @@ config {
 
 
 def act_body(fname: str, scene: str) -> str:
-    """The act's own text, from its `# Scene` header to the end of the file."""
+    """The act's own text, from its `// plate-body: <Scene>` marker down.
+
+    The acts stay single-timeline files (no `# Scene` statement): a `# Scene`
+    statement makes the file a composition, and build-time `--set` overrides —
+    the deck slider's one channel — reach a single-timeline document only. The
+    plate is the only file that needs scene statements, so `build()` emits them
+    around these bodies.
+    """
     lines = (HERE / fname).read_text().splitlines()
-    start = next(i for i, ln in enumerate(lines) if ln.strip() == f"# {scene}")
-    return "\n".join(lines[start:]).rstrip()
+    marker = f"// plate-body: {scene}"
+    start = next(i for i, ln in enumerate(lines) if ln.strip() == marker)
+    body = lines[start + 1 :]
+    while body and not body[0].strip():
+        body = body[1:]
+    return "\n".join(body).rstrip()
 
 
 def outro(clear: list[str], duration: float) -> str:
@@ -103,6 +121,7 @@ def build() -> str:
     for i, (fname, scene, clear) in enumerate(ACTS):
         rule = "─" * max(4, 56 - len(scene) - len(fname))
         out.append(f"\n// ── act: {scene}  (source: {fname}) {rule}\n\n")
+        out.append(f"# {scene}\n\n")
         body = act_body(fname, scene)
         out.append(body)
         out.append(outro(clear, duration_of(body)))
