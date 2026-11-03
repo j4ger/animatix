@@ -228,6 +228,19 @@ impl UnaryOp {
     }
 }
 
+/// Whether an operand of a binary expression needs parentheses to re-parse.
+///
+/// The grammar parses `if`/`match`/closures/`let` chains only at the top of an
+/// expression, never as an atom in a binary operand position, so those kinds
+/// must stay wrapped even when their own precedence would allow them.
+fn binary_operand_needs_parens(expr: &Expr, parent: &BinaryOp) -> bool {
+    match expr {
+        Expr::Binary(_, child_op, _) => op_precedence(child_op) <= op_precedence(parent),
+        Expr::Conditional(..) | Expr::Closure(..) | Expr::Match(..) | Expr::LetChain(..) => true,
+        _ => false,
+    }
+}
+
 /// Serialize an expression to source text.
 ///
 /// Expressions are always inline (no depth/indent needed).
@@ -268,24 +281,29 @@ pub fn format_expr(expr: &Expr) -> String {
         Expr::Binary(lhs, op, rhs) => {
             let lhs_str = format_expr(lhs);
             let rhs_str = format_expr(rhs);
-            let lhs_out = match lhs.as_ref() {
-                Expr::Binary(_, child_op, _) if op_precedence(child_op) <= op_precedence(op) => {
-                    format!("({})", lhs_str)
-                },
-                _ => lhs_str,
+            let lhs_out = if binary_operand_needs_parens(lhs, op) {
+                format!("({})", lhs_str)
+            } else {
+                lhs_str
             };
-            let rhs_out = match rhs.as_ref() {
-                Expr::Binary(_, child_op, _) if op_precedence(child_op) <= op_precedence(op) => {
-                    format!("({})", rhs_str)
-                },
-                _ => rhs_str,
+            let rhs_out = if binary_operand_needs_parens(rhs, op) {
+                format!("({})", rhs_str)
+            } else {
+                rhs_str
             };
             format!("{} {} {}", lhs_out, op.as_str(), rhs_out)
         },
         Expr::Unary(op, expr) => {
             let inner = format_expr(expr);
+            // `if`, `match`, closures, and `let` chains are full expressions
+            // in the grammar, not atoms: `!if c { a } else { b }` does not
+            // parse, so the operand has to stay parenthesized.
             let inner_out = match expr.as_ref() {
-                Expr::Binary(_, _, _) => format!("({})", inner),
+                Expr::Binary(..)
+                | Expr::Conditional(..)
+                | Expr::Closure(..)
+                | Expr::Match(..)
+                | Expr::LetChain(..) => format!("({})", inner),
                 _ => inner,
             };
             format!("{}{}", op.as_str(), inner_out)

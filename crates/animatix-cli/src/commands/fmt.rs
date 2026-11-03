@@ -50,7 +50,7 @@ pub fn format_file(
     let (stmts, errors) = animatix_syntax::parser::parse_source(&source);
     let stmts = stmts.ok_or_else(|| format!("Parse error: {:?}", errors))?;
 
-    let formatted = formatter.format(&stmts);
+    let formatted = formatter.format_source(&source, &stmts);
 
     if check {
         if source != formatted {

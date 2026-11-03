@@ -23,7 +23,7 @@ pub(crate) async fn formatting(
             None => return Ok(None),
         };
         let fmt = animatix_syntax::formatter::Formatter::default();
-        let formatted = fmt.format(stmts);
+        let formatted = fmt.format_source(source, stmts);
         if source == formatted {
             return Ok(None);
         }

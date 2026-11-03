@@ -165,7 +165,7 @@ impl EditorBuffer {
         if let Some(stmts) = stmts {
             if errs.is_empty() {
                 let formatter = animatix_syntax::formatter::Formatter::default();
-                let formatted = formatter.format(&stmts);
+                let formatted = formatter.format_source(&self.text, &stmts);
                 if formatted != self.text {
                     self.replace_text(formatted);
                     return true;

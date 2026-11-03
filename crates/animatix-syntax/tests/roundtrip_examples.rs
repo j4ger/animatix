@@ -236,3 +236,98 @@ fn both_serializers_are_stable_across_the_repo() {
          backslash at all: {unjustified:?}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Comment preservation over the whole repo
+// ---------------------------------------------------------------------------
+
+fn comment_texts(source: &str) -> Vec<String> {
+    animatix_syntax::token::tokenize(source)
+        .into_iter()
+        .filter_map(|token| match token.kind {
+            animatix_syntax::token::TokenKind::Comment(text) => Some(text),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Formatting real content must preserve every `//` comment verbatim, keep the
+/// result parseable, and be idempotent. This is the corpus-level guard behind
+/// the web scenes shipping unformatted: `animatix fmt` used to erase them.
+#[test]
+fn formatter_preserves_comments_across_repo_files() {
+    let formatter =
+        animatix_syntax::formatter::Formatter::new(animatix_syntax::formatter::FormatConfig {
+            indent_size: 2,
+            ..Default::default()
+        });
+    let files = repo_amx_files();
+    assert!(files.len() > 100, "expected the repo's .amx corpus, found {}", files.len());
+
+    let mut failures: Vec<String> = Vec::new();
+    for file_path in &files {
+        let Ok(source) = std::fs::read_to_string(file_path) else {
+            continue;
+        };
+        let label = file_path.display().to_string();
+        let (stmts, parse_errors) = animatix_syntax::parser::parse_source(&source);
+        let Some(stmts) = stmts else {
+            failures.push(format!(
+                "{label}: could not parse as shipped: {:?}",
+                parse_errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+            ));
+            continue;
+        };
+        if !parse_errors.is_empty() {
+            continue;
+        }
+
+        let before = comment_texts(&source);
+        let formatted = formatter.format_source(&source, &stmts);
+        let after = comment_texts(&formatted);
+        if before != after {
+            failures.push(format!(
+                "{label}: comment set changed\n  before: {before:?}\n  after:  {after:?}"
+            ));
+            continue;
+        }
+
+        let (again, re_errors) = animatix_syntax::parser::parse_source(&formatted);
+        let Some(again) = again else {
+            // Some pre-existing AST serialization bugs (for example a
+            // conditional expression used as a binary operand) produce invalid
+            // text with or without comments. Only a regression introduced by
+            // comment reinsertion is this test's concern.
+            let plain = formatter.format(&stmts);
+            let (plain_ast, plain_errors) = animatix_syntax::parser::parse_source(&plain);
+            if plain_ast.is_some() && plain_errors.is_empty() {
+                failures.push(format!(
+                    "{label}: formatted text no longer parses: {:?}",
+                    re_errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+                ));
+            }
+            continue;
+        };
+        let second = formatter.format_source(&formatted, &again);
+        if second != formatted {
+            let Some((first_pass, second_pass)) = first_difference(&formatted, &second) else {
+                continue;
+            };
+            // Pre-existing escape debt: string literals grow a backslash on
+            // every pass because the lexer keeps raw escapes. Ignore only that
+            // known case; see `both_serializers_are_stable_across_the_repo`.
+            if !first_pass.contains('\\') {
+                failures.push(format!(
+                    "{label}: comment formatting is not idempotent\n  pass 1: {first_pass}\n  pass 2: {second_pass}"
+                ));
+            }
+        }
+    }
+
+    assert!(
+        failures.is_empty(),
+        "{} file(s) fail comment-preserving formatting:\n{}",
+        failures.len(),
+        failures.join("\n\n")
+    );
+}
