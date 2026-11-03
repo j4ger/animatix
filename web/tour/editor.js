@@ -160,9 +160,13 @@
 
       const row = document.createElement("div");
       row.className = "stage-row";
+      // The page frames each player in `.stage-frame`; keep that shell when the
+      // editor is closed and split the row into stage + textarea when it opens.
+      const frame = figure.querySelector(".stage-frame");
       const stageCol = document.createElement("div");
-      stageCol.className = "stage-col";
-      player.replaceWith(row);
+      stageCol.className = frame ? "stage-col stage-frame" : "stage-col";
+      if (frame) frame.replaceWith(row);
+      else player.replaceWith(row);
       stageCol.append(player);
       const { col, textarea, panel, status, apply: applyBtn, reset, done } = buildEditorCol();
       row.append(stageCol, col);
@@ -191,7 +195,8 @@
       });
 
       const caption = figure.querySelector("figcaption");
-      if (caption) caption.append(toggle);
+      const actions = caption?.querySelector(".fig-actions") ?? caption;
+      if (actions) actions.append(toggle);
     }
   }
 

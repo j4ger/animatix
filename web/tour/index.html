@@ -7,28 +7,169 @@
   <meta name="description" content="An eleven-section tour of the .amx language: actors and keyframes, timing and easing, motion actions, morphing, GPU filters and glass, light and camera, text and math, plots, reactive expressions, components and modules, scenes and tooling.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0f17'/%3E%3Cpath d='M8 22L16 9l8 13h-4.2L16 16.4 12.2 22z' fill='%23f5b942'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="../site.css">
+  <link rel="stylesheet" href="../site/v2.css">
+  <style>
+    /* Tour page: contents index and live-figure editor chrome.
+       Everything else rides on the v2 components in site/v2.css. */
+    .tour-toc { margin: 0 0 clamp(48px, 7vw, 96px); }
+    .tour-toc .kicker { margin-bottom: 18px; }
+    .tour-toc ol {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0 30px;
+    }
+    .tour-toc li { border-top: 1px solid var(--line); }
+    .tour-toc a {
+      display: flex;
+      gap: 12px;
+      padding: 11px 0 12px;
+      color: var(--faint);
+      text-decoration: none;
+      font-size: 14.5px;
+      line-height: 1.4;
+    }
+    .tour-toc a:hover { color: var(--ink); }
+    .tour-toc .n {
+      padding-top: 2px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--work);
+    }
+    @media (max-width: 1000px) { .tour-toc ol { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 560px) { .tour-toc ol { grid-template-columns: 1fr; } }
+
+    /* copy + source beside the live stage; editing expands to full width */
+    .tour-split {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      align-items: start;
+    }
+    .tour-copy { min-width: 0; }
+    .tour-copy p:first-child { margin-top: 0; }
+    .tour-copy .code-block { margin-top: 22px; }
+    .tour-copy .code-block .kw { color: var(--work); }
+    .tour-copy .code-block .num { color: var(--tide); }
+    .tour-copy .code-block .str { color: var(--moss); }
+    .tour-copy .code-block .prop { color: var(--orchid); }
+    .tour-copy .code-block .at { color: var(--coral); }
+    .tour-copy .code-block .cmt { color: var(--muted); }
+    .tour-copy .code-block .fn { color: var(--tide); }
+
+    .tour-embed { margin: 0; }
+    .tour-embed .stage-frame { aspect-ratio: 16 / 9; }
+    .tour-embed .stage-frame > amx-player,
+    .tour-embed .stage-frame > img.plate {
+      display: block;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      border-radius: 0;
+    }
+    .tour-embed .stage-frame > img.plate { object-fit: cover; }
+    .tour-embed figcaption {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px 18px;
+      margin-top: 12px;
+      font-size: 14px;
+      color: var(--faint);
+    }
+    .tour-embed figcaption .cap { flex: 1 1 30ch; }
+    .tour-embed figcaption .fig-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 14px;
+    }
+    .tour-embed figcaption a.src {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--work);
+      text-decoration: none;
+    }
+    .tour-embed figcaption a.src:hover { color: var(--ink); }
+    .tour-embed .edit-toggle {
+      font: 600 10.5px/1 var(--mono);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--work);
+      background: transparent;
+      border: 1px solid color-mix(in srgb, var(--work) 40%, transparent);
+      border-radius: 999px;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    .tour-embed .edit-toggle:hover { color: var(--ink); }
+    .tour-embed .theater-btn {
+      font: 600 10.5px/1 var(--mono);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: transparent;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    .tour-embed .theater-btn:hover {
+      color: var(--ink);
+      border-color: color-mix(in srgb, var(--work) 45%, transparent);
+    }
+    .tour-embed .editor-btn {
+      background: var(--bg-raise);
+      border-color: var(--line);
+      color: var(--dim);
+    }
+    .tour-embed .editor-btn:hover {
+      color: var(--ink);
+      border-color: color-mix(in srgb, var(--work) 45%, transparent);
+    }
+    .tour-embed .editor-btn.primary {
+      background: var(--work);
+      border-color: var(--work);
+      color: #08090d;
+    }
+    .tour-embed .editor-text { background: var(--bg); border-color: var(--line); }
+    .tour-embed .editor-text:focus-visible { outline-color: var(--work); }
+    .tour-embed .diag { background: var(--bg-raise); border-color: var(--line); }
+    .tour-embed .diag-error { border-left-color: var(--err); }
+    .tour-embed .diag-warning { border-left-color: var(--work); }
+    .tour-embed .editor-status.ok { color: var(--moss); }
+    .tour-embed .editor-status.warn { color: var(--work); }
+    .tour-embed .editor-status.error { color: var(--err); }
+    .tour-embed.editing { grid-column: 1 / -1; }
+    .tour-embed.editing .stage-row { gap: 20px; }
+
+    .tour-howto { margin-top: clamp(56px, 8vw, 96px); }
+    .tour-howto .edit-head { margin-bottom: 28px; }
+    .tour-howto p { margin: 18px 0 0; max-width: 68ch; }
+
+    @media (max-width: 900px) { .tour-split { grid-template-columns: 1fr; } }
+  </style>
 </head>
 <body>
 
   <div class="wrap">
-    <header class="page-header">
-      <div class="page-eyebrow">
-        <span>LANGUAGE TOUR</span>
-      </div>
-      <h1 class="page-title">Eleven scenes, start to finish.</h1>
-      <p class="page-lede">
+    <header class="hero-band">
+      <p class="kicker">Language tour</p>
+      <h1>Eleven scenes, <em>start to finish</em>.</h1>
+      <p class="lede">
         Every capability of <code class="inline">.amx</code>, one short section at a time. Every figure is a live WebGPU scene compiling in your browser as you read, with the declarative source code that drives it beside it.
       </p>
-      <div class="page-stat-strip">
-        <span class="stat-pill">11 Interactive Chapters</span>
-        <span class="stat-pill">In-Browser Live Editing</span>
-        <span class="stat-pill">Realtime Diagnostics</span>
-        <span class="stat-pill">2.3 MB Slim Runtime</span>
+      <div class="hero-metrics">
+        <span class="readout">11 Interactive Chapters</span>
+        <span class="readout">In-Browser Live Editing</span>
+        <span class="readout">Realtime Diagnostics</span>
+        <span class="readout">2.3 MB Slim Runtime</span>
       </div>
     </header>
 
-    <nav class="toc" aria-label="Contents">
-      <p class="toc-title">Contents</p>
+    <nav class="tour-toc" data-palette="ember" aria-label="Contents">
+      <p class="kicker">Contents</p>
       <ol>
         <li><a href="#s1"><span class="n">01</span>Actors &amp; keyframes</a></li>
         <li><a href="#s2"><span class="n">02</span>Timing: sequence, stagger, easing</a></li>
@@ -44,12 +185,18 @@
       </ol>
     </nav>
 
-    <section id="s1">
-      <div class="sec-head"><span class="sec-num">01</span><h2>Actors &amp; keyframes</h2></div>
-      <p>
-        A scene is a list of <strong>actors</strong> (types and properties) and <strong>keyframes</strong>. A keyframe stamp (<code class="inline">#1.6s</code>) marks a beat, and assignments interpolate from the previous beat.
-      </p>
-      <pre><span class="prop">box</span>: <span class="prop">Rect</span>, size: (<span class="num">240</span>, <span class="num">240</span>), at: (<span class="num">420</span>, <span class="num">390</span>), corner_radius: <span class="num">18</span>,
+    <section id="s1" data-palette="ember">
+      <div class="edit-head">
+        <span class="num">01</span>
+        <div><h2>Actors &amp; keyframes</h2></div>
+        <div class="rule"></div>
+      </div>
+      <div class="side-split tour-split">
+        <div class="tour-copy">
+          <p>
+            A scene is a list of <strong>actors</strong> (types and properties) and <strong>keyframes</strong>. A keyframe stamp (<code class="inline">#1.6s</code>) marks a beat, and assignments interpolate from the previous beat.
+          </p>
+          <pre class="code-block"><span class="prop">box</span>: <span class="prop">Rect</span>, size: (<span class="num">240</span>, <span class="num">240</span>), at: (<span class="num">420</span>, <span class="num">390</span>), corner_radius: <span class="num">18</span>,
   fill_gradient: <span class="fn">linear</span>(<span class="num">135</span>, {<span class="str">"#f5b942"</span>, <span class="str">"#ff8666"</span>})
 
 <span class="at">#1.6s</span>
@@ -58,24 +205,34 @@
 <span class="at">#2.9s</span>
 box.size = (<span class="num">340</span>, <span class="num">130</span>) [<span class="num">700ms</span>, ease: <span class="str">ease-out</span>]
 box.fill_gradient = <span class="fn">linear</span>(<span class="num">135</span>, {<span class="str">"#ece7db"</span>, <span class="str">"#b9b3a6"</span>}) [<span class="num">700ms</span>, ease: <span class="str">ease-out</span>]</pre>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="scenes/syntax.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="Actors and keyframes"></amx-player>
-        <figcaption>
-          <span class="cap">One rect settles in, eases across, resizes and
-            recolours; the dashed rule below <em>is</em> the timeline — a tick
-            pops onto it at the moment each stamp fires.</span>
-          <a class="src" href="scenes/syntax.amx">scenes/syntax.amx ↗</a>
-        </figcaption>
-      </figure>
+        </div>
+        <figure class="tour-embed" data-editable>
+          <div class="stage-frame">
+            <amx-player src="scenes/syntax.amx" autoplay loop controls hold="1.5"
+                        aspect="16:9" title="Actors and keyframes"></amx-player>
+          </div>
+          <figcaption>
+            <span class="cap">One rect settles in, eases across, resizes and
+              recolours; the dashed rule below <em>is</em> the timeline — a tick
+              pops onto it at the moment each stamp fires.</span>
+            <span class="fig-actions"><a class="src" href="scenes/syntax.amx">scenes/syntax.amx ↗</a></span>
+          </figcaption>
+        </figure>
+      </div>
     </section>
 
-    <section id="s2">
-      <div class="sec-head"><span class="sec-num">02</span><h2>Timing: sequence, stagger, easing</h2></div>
-      <p>
-        Choreography blocks compose actions: <code class="inline">stagger</code> overlaps verbs on a delay curve, <code class="inline">sequence</code> runs them back-to-back, and assignments take named easing curves.
-      </p>
-      <pre>row: <span class="prop">Row</span>, anchor: scene.center, gap: <span class="num">64</span>, align: <span class="str">"center"</span>, offset: (<span class="num">0</span>, -<span class="num">40</span>) {
+    <section id="s2" data-palette="tide">
+      <div class="edit-head">
+        <span class="num">02</span>
+        <div><h2>Timing: sequence, stagger, easing</h2></div>
+        <div class="rule"></div>
+      </div>
+      <div class="side-split tour-split">
+        <div class="tour-copy">
+          <p>
+            Choreography blocks compose actions: <code class="inline">stagger</code> overlaps verbs on a delay curve, <code class="inline">sequence</code> runs them back-to-back, and assignments take named easing curves.
+          </p>
+          <pre class="code-block">row: <span class="prop">Row</span>, anchor: scene.center, gap: <span class="num">64</span>, align: <span class="str">"center"</span>, offset: (<span class="num">0</span>, -<span class="num">40</span>) {
   <span class="kw">for</span> color, i in {<span class="prop">accent.primary</span>, <span class="prop">text.primary</span>, <span class="cmt">…</span>} {
     square[i]: <span class="prop">Rect</span>, size: (<span class="num">120</span>, <span class="num">120</span>), color: color, corner_radius: <span class="num">14</span>
   }
@@ -91,24 +248,34 @@ box.fill_gradient = <span class="fn">linear</span>(<span class="num">135</span>,
 <span class="kw">move</span> drop[<span class="num">0</span>] [to: (<span class="num">0</span>, <span class="num">105</span>), <span class="num">900ms</span>, ease: <span class="str">linear</span>]
 <span class="cmt">…</span>
 <span class="kw">move</span> drop[<span class="num">4</span>] [to: (<span class="num">0</span>, <span class="num">105</span>), <span class="num">900ms</span>, ease: <span class="str">bounce</span>]</pre>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="scenes/timing.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="Sequence, stagger and easing"></amx-player>
-        <figcaption>
-          <span class="cap">Five squares stagger in and grow back to back, then
-            five drops make one identical move under five named eases — linear
-            falls behind, bounce has already landed and is still wobbling.</span>
-          <a class="src" href="scenes/timing.amx">scenes/timing.amx ↗</a>
-        </figcaption>
-      </figure>
+        </div>
+        <figure class="tour-embed" data-editable>
+          <div class="stage-frame">
+            <amx-player src="scenes/timing.amx" autoplay loop controls hold="1.5"
+                        aspect="16:9" title="Sequence, stagger and easing"></amx-player>
+          </div>
+          <figcaption>
+            <span class="cap">Five squares stagger in and grow back to back, then
+              five drops make one identical move under five named eases — linear
+              falls behind, bounce has already landed and is still wobbling.</span>
+            <span class="fig-actions"><a class="src" href="scenes/timing.amx">scenes/timing.amx ↗</a></span>
+          </figcaption>
+        </figure>
+      </div>
     </section>
 
-    <section id="s3">
-      <div class="sec-head"><span class="sec-num">03</span><h2>Motion actions</h2></div>
-      <p>
-        Common motion verbs are built-in: <code class="inline">shift</code>, <code class="inline">rotate</code>, <code class="inline">scale</code>, and entrance pairs (<code class="inline">fade-in</code>, <code class="inline">draw-in</code>, <code class="inline">reveal-in</code>) gate opacity and geometry.
-      </p>
-      <pre><span class="at">#1.5s</span>
+    <section id="s3" data-palette="moss">
+      <div class="edit-head">
+        <span class="num">03</span>
+        <div><h2>Motion actions</h2></div>
+        <div class="rule"></div>
+      </div>
+      <div class="side-split tour-split">
+        <div class="tour-copy">
+          <p>
+            Common motion verbs are built-in: <code class="inline">shift</code>, <code class="inline">rotate</code>, <code class="inline">scale</code>, and entrance pairs (<code class="inline">fade-in</code>, <code class="inline">draw-in</code>, <code class="inline">reveal-in</code>) gate opacity and geometry.
+          </p>
+          <pre class="code-block"><span class="at">#1.5s</span>
 <span class="kw">shift</span> actor [by: (<span class="num">160</span>, <span class="num">0</span>), <span class="num">800ms</span>, ease: <span class="str">ease-in-out</span>, anticipate: <span class="num">90ms</span>]
 
 <span class="at">#2.5s</span>
@@ -119,46 +286,66 @@ box.fill_gradient = <span class="fn">linear</span>(<span class="num">135</span>,
 
 <span class="at">#4.5s</span>
 actor.fill_gradient = <span class="fn">linear</span>(<span class="num">135</span>, {<span class="str">"#ff9f0a"</span>, <span class="str">"#ff5c5c"</span>}) [<span class="num">600ms</span>]</pre>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="scenes/actions.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="Motion actions and an always-driven satellite"></amx-player>
-        <figcaption>
-          <span class="cap">A square runs shift → rotate → scale → recolor while
-            a satellite rides an <code class="inline">always</code> orbit — see
-            §09.</span>
-          <a class="src" href="scenes/actions.amx">scenes/actions.amx ↗</a>
-        </figcaption>
-      </figure>
+        </div>
+        <figure class="tour-embed" data-editable>
+          <div class="stage-frame">
+            <amx-player src="scenes/actions.amx" autoplay loop controls hold="1.5"
+                        aspect="16:9" title="Motion actions and an always-driven satellite"></amx-player>
+          </div>
+          <figcaption>
+            <span class="cap">A square runs shift → rotate → scale → recolor while
+              a satellite rides an <code class="inline">always</code> orbit — see
+              §09.</span>
+            <span class="fig-actions"><a class="src" href="scenes/actions.amx">scenes/actions.amx ↗</a></span>
+          </figcaption>
+        </figure>
+      </div>
     </section>
 
-    <section id="s4">
-      <div class="sec-head"><span class="sec-num">04</span><h2>Morphing</h2></div>
-      <p>
-        Re-declaring an actor at a later keyframe automatically morphs its vector path using strategies: <code class="inline">auto</code>, <code class="inline">match</code> (vertex matching), or <code class="inline">path_arc</code> trajectory hints.
-      </p>
-      <pre><span class="at">#2s</span>
+    <section id="s4" data-palette="orchid">
+      <div class="edit-head">
+        <span class="num">04</span>
+        <div><h2>Morphing</h2></div>
+        <div class="rule"></div>
+      </div>
+      <div class="side-split tour-split">
+        <div class="tour-copy">
+          <p>
+            Re-declaring an actor at a later keyframe automatically morphs its vector path using strategies: <code class="inline">auto</code>, <code class="inline">match</code> (vertex matching), or <code class="inline">path_arc</code> trajectory hints.
+          </p>
+          <pre class="code-block"><span class="at">#2s</span>
 circle: <span class="prop">Polygon</span>, points: {(<span class="num">85</span>, <span class="num">0</span>), (<span class="num">85</span>, <span class="num">35</span>), <span class="cmt">… sixteen-point square …</span>}, fill_gradient: <span class="fn">linear</span>(<span class="num">135</span>, {<span class="str">"#f2efe7"</span>, <span class="str">"#b9b3a6"</span>}) [<span class="num">1s</span>, strategy: <span class="str">auto</span>]
 
 <span class="at">#5s</span>
 poly: <span class="prop">Polygon</span>, points: {(<span class="num">0</span>, -<span class="num">95</span>), (<span class="num">24</span>, -<span class="num">30</span>), <span class="cmt">… ten-point star …</span>} [<span class="num">1.5s</span>, path_arc: <span class="num">0.3</span>]</pre>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="scenes/morph.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="Shape morphing strategies"></amx-player>
-        <figcaption>
-          <span class="cap">Circle to square to hexagon, a star round trip, a
-            tipped diamond, a stretched trapezoid — a different morph strategy
-            each beat, then the colors unify.</span>
-          <a class="src" href="scenes/morph.amx">scenes/morph.amx ↗</a>
-        </figcaption>
-      </figure>
+        </div>
+        <figure class="tour-embed" data-editable>
+          <div class="stage-frame">
+            <amx-player src="scenes/morph.amx" autoplay loop controls hold="1.5"
+                        aspect="16:9" title="Shape morphing strategies"></amx-player>
+          </div>
+          <figcaption>
+            <span class="cap">Circle to square to hexagon, a star round trip, a
+              tipped diamond, a stretched trapezoid — a different morph strategy
+              each beat, then the colors unify.</span>
+            <span class="fig-actions"><a class="src" href="scenes/morph.amx">scenes/morph.amx ↗</a></span>
+          </figcaption>
+        </figure>
+      </div>
     </section>
 
-    <section id="s5">
-      <div class="sec-head"><span class="sec-num">05</span><h2>GPU filters &amp; effects</h2></div>
-      <p>
-        Post-processing effects (<code class="inline">Blur</code>, <code class="inline">Bloom</code>, <code class="inline">ColorGrade</code>, <code class="inline">Vignette</code>) run as GPU shader passes inside a <code class="inline">Filter</code> scope. Their properties keyframe like any actor.
-      </p>
-      <pre>panel: <span class="prop">Filter</span>, anchor: scene.center {
+    <section id="s5" data-palette="coral">
+      <div class="edit-head">
+        <span class="num">05</span>
+        <div><h2>GPU filters &amp; effects</h2></div>
+        <div class="rule"></div>
+      </div>
+      <div class="side-split tour-split">
+        <div class="tour-copy">
+          <p>
+            Post-processing effects (<code class="inline">Blur</code>, <code class="inline">Bloom</code>, <code class="inline">ColorGrade</code>, <code class="inline">Vignette</code>) run as GPU shader passes inside a <code class="inline">Filter</code> scope. Their properties keyframe like any actor.
+          </p>
+          <pre class="code-block">panel: <span class="prop">Filter</span>, anchor: scene.center {
   soft: <span class="prop">Blur</span>, radius: <span class="num">0</span>
   glow: <span class="prop">Bloom</span>, intensity: <span class="num">0</span>, keep: <span class="num">1.0</span>
   grade: <span class="prop">ColorGrade</span>, brightness: <span class="num">1.0</span>
@@ -169,22 +356,28 @@ poly: <span class="prop">Polygon</span>, points: {(<span class="num">0</span>, -
 <span class="at">#1.8s</span>
 panel.soft.radius = <span class="num">14</span> [<span class="num">1.2s</span>, ease: <span class="str">ease-out</span>]
 panel.glow.intensity = <span class="num">1.0</span> [<span class="num">0.5s</span>, ease: <span class="str">ease-out</span>]</pre>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="scenes/effects.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="Animated GPU filters"></amx-player>
-        <figcaption>
-          <span class="cap">Blur swells and a bloom lights the sphere through
-            it, a vignette breathes in, brightness dips — all keyframed
-            parameters, plus
-            <code class="inline">shake</code>/<code class="inline">pulse</code> on the chip.</span>
-          <a class="src" href="scenes/effects.amx">scenes/effects.amx ↗</a>
-        </figcaption>
-      </figure>
+        </div>
+        <figure class="tour-embed" data-editable>
+          <div class="stage-frame">
+            <amx-player src="scenes/effects.amx" autoplay loop controls hold="1.5"
+                        aspect="16:9" title="Animated GPU filters"></amx-player>
+          </div>
+          <figcaption>
+            <span class="cap">Blur swells and a bloom lights the sphere through
+              it, a vignette breathes in, brightness dips — all keyframed
+              parameters, plus
+              <code class="inline">shake</code>/<code class="inline">pulse</code> on the chip.</span>
+            <span class="fig-actions"><a class="src" href="scenes/effects.amx">scenes/effects.amx ↗</a></span>
+          </figcaption>
+        </figure>
+      </div>
 
-      <p>
-        <code class="inline">Glass</code> composites backdrop blur: it copies the finished pixels behind its rect, runs a blur pass, and paints sharp children on top.
-      </p>
-      <pre>card: <span class="prop">Glass</span>, at: (<span class="num">640</span>, <span class="num">360</span>), size: (<span class="num">520</span>, <span class="num">250</span>), corner_radius: <span class="num">26</span> {
+      <div class="side-split tour-split" style="margin-top: clamp(40px, 6vw, 72px);">
+        <div class="tour-copy">
+          <p>
+            <code class="inline">Glass</code> composites backdrop blur: it copies the finished pixels behind its rect, runs a blur pass, and paints sharp children on top.
+          </p>
+          <pre class="code-block">card: <span class="prop">Glass</span>, at: (<span class="num">640</span>, <span class="num">360</span>), size: (<span class="num">520</span>, <span class="num">250</span>), corner_radius: <span class="num">26</span> {
   frost: <span class="prop">Blur</span>, radius: <span class="num">0</span>
   surface: <span class="prop">Rect</span>, size: (<span class="num">520</span>, <span class="num">250</span>), corner_radius: <span class="num">26</span>,
     color: <span class="str">"#ffffff1f"</span>, stroke: <span class="str">"#ffffff59"</span>, stroke_width: <span class="num">1.5</span>
@@ -193,26 +386,36 @@ panel.glow.intensity = <span class="num">1.0</span> [<span class="num">0.5s</spa
 
 <span class="at">#1.8s</span>
 frost.radius = <span class="num">22</span> [<span class="num">900ms</span>, ease: <span class="str">ease-in-out</span>]</pre>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="scenes/glass.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="A Glass scope frosting the plate behind it"></amx-player>
-        <figcaption>
-          <span class="cap">The bars travel under the panel while
-            <code class="inline">frost.radius</code> ramps to 22, settles back to
-            4, then climbs to 44 — the blur eats the plate, never the card's
-            border or its text, because both are children of the scope.</span>
-          <a class="src" href="scenes/glass.amx">scenes/glass.amx ↗</a>
-        </figcaption>
-      </figure>
+        </div>
+        <figure class="tour-embed" data-editable>
+          <div class="stage-frame">
+            <amx-player src="scenes/glass.amx" autoplay loop controls hold="1.5"
+                        aspect="16:9" title="A Glass scope frosting the plate behind it"></amx-player>
+          </div>
+          <figcaption>
+            <span class="cap">The bars travel under the panel while
+              <code class="inline">frost.radius</code> ramps to 22, settles back to
+              4, then climbs to 44 — the blur eats the plate, never the card's
+              border or its text, because both are children of the scope.</span>
+            <span class="fig-actions"><a class="src" href="scenes/glass.amx">scenes/glass.amx ↗</a></span>
+          </figcaption>
+        </figure>
+      </div>
     </section>
 
-    <section id="s6">
-      <div class="sec-head"><span class="sec-num">06</span><h2>Light &amp; camera</h2></div>
-      <p>
-        Atmospheric lighting combines screen-blended radial ramps with live camera moves (<code class="inline">camera.zoom</code>, <code class="inline">camera.at</code>) and animated dash offsets.
-      </p>
-      <pre>key: <span class="prop">Ellipse</span>, size: (<span class="num">760</span>, <span class="num">760</span>), blend: <span class="str">"screen"</span>,
-  fill_gradient: radial((<span class="num">0.5</span>, <span class="num">0.5</span>), <span class="num">0.5</span>,
+    <section id="s6" data-palette="tide">
+      <div class="edit-head">
+        <span class="num">06</span>
+        <div><h2>Light &amp; camera</h2></div>
+        <div class="rule"></div>
+      </div>
+      <div class="side-split tour-split">
+        <div class="tour-copy">
+          <p>
+            Atmospheric lighting combines screen-blended radial ramps with live camera moves (<code class="inline">camera.zoom</code>, <code class="inline">camera.at</code>) and animated dash offsets.
+          </p>
+          <pre class="code-block">key: <span class="prop">Ellipse</span>, size: (<span class="num">760</span>, <span class="num">760</span>), blend: <span class="str">"screen"</span>,
+  fill_gradient: <span class="fn">radial</span>((<span class="num">0.5</span>, <span class="num">0.5</span>), <span class="num">0.5</span>,
     {(<span class="num">0%</span>, <span class="str">"#f5b94233"</span>), (<span class="num">55%</span>, <span class="str">"#f5b9420f"</span>), (<span class="num">100%</span>, <span class="str">"#f5b94200"</span>)})
 
 <span class="at">#3.0s</span>
@@ -223,73 +426,103 @@ camera.zoom = <span class="num">1.35</span> [<span class="num">1100ms</span>, ea
 camera.at = (<span class="num">-60</span>, <span class="num">20</span>) [<span class="num">1100ms</span>, ease: <span class="str">expo-out</span>]
 
 <span class="prop">badge</span>: <span class="prop">Text</span>, text: <span class="str">"06 · LIGHT &amp; CAMERA"</span>, camera_follow: <span class="kw">false</span></pre>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="scenes/light_camera.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="A lit stage, a live edge, then the camera"></amx-player>
-        <figcaption>
-          <span class="cap">Flat plate &rarr; key &rarr; fill &rarr; marching rail
-            &rarr; bloom &rarr; push-in. The camera moves last because a camera move
-            on a flat scene is just a zoom on a flat scene — and watch the corner
-            badge while it does: <code class="inline">camera_follow: false</code>
-            pins an actor outside the camera, so the overlay is the one thing that
-            stays where it was authored.</span>
-          <a class="src" href="scenes/light_camera.amx">scenes/light_camera.amx ↗</a>
-        </figcaption>
-      </figure>
+        </div>
+        <figure class="tour-embed" data-editable>
+          <div class="stage-frame">
+            <amx-player src="scenes/light_camera.amx" autoplay loop controls hold="1.5"
+                        aspect="16:9" title="A lit stage, a live edge, then the camera"></amx-player>
+          </div>
+          <figcaption>
+            <span class="cap">Flat plate &rarr; key &rarr; fill &rarr; marching rail
+              &rarr; bloom &rarr; push-in. The camera moves last because a camera move
+              on a flat scene is just a zoom on a flat scene — and watch the corner
+              badge while it does: <code class="inline">camera_follow: false</code>
+              pins an actor outside the camera, so the overlay is the one thing that
+              stays where it was authored.</span>
+            <span class="fig-actions"><a class="src" href="scenes/light_camera.amx">scenes/light_camera.amx ↗</a></span>
+          </figcaption>
+        </figure>
+      </div>
     </section>
 
-    <section id="s7">
-      <div class="sec-head"><span class="sec-num">07</span><h2>Text &amp; math</h2></div>
-      <p>
-        Typst compiles LaTeX-grade mathematics (<code class="inline">Typst</code>), formulas, and syntax-highlighted code blocks (<code class="inline">Code</code>) directly into vector glyph actors.
-      </p>
-      <pre>eq1: <span class="prop">Typst</span>, text: <span class="str">"$ x(t) = sum_(k) A_k dot sin(2 pi f_k t) $"</span>,
+    <section id="s7" data-palette="ember">
+      <div class="edit-head">
+        <span class="num">07</span>
+        <div><h2>Text &amp; math</h2></div>
+        <div class="rule"></div>
+      </div>
+      <div class="side-split tour-split">
+        <div class="tour-copy">
+          <p>
+            Typst compiles LaTeX-grade mathematics (<code class="inline">Typst</code>), formulas, and syntax-highlighted code blocks (<code class="inline">Code</code>) directly into vector glyph actors.
+          </p>
+          <pre class="code-block">eq1: <span class="prop">Typst</span>, text: <span class="str">"$ x(t) = sum_(k) A_k dot sin(2 pi f_k t) $"</span>,
   font_size: <span class="num">30</span>, color: <span class="prop">text.primary</span>, anchor: scene.center
 
 code1: <span class="prop">Code</span>, code: <span class="str">"def attention(q, k):"</span>, language: <span class="str">"python"</span>, font_size: <span class="num">26</span></pre>
-      <figure class="tour-embed" data-editable>
-        <img class="plate" src="stills/textmath.png" width="1280" height="720"
-             alt="Typst-rendered equations and syntax-highlighted code on a dark plate">
-        <figcaption>
-          <span class="cap">A still, not a live figure: Typst math and
-            highlighted code need the full engine profile, so this plate was
-            rendered by the CLI's <code class="inline">image</code> command —
-            the same scene plays live on a desktop.</span>
-          <a class="src" href="scenes/textmath.amx">scenes/textmath.amx ↗</a>
-        </figcaption>
-      </figure>
+        </div>
+        <figure class="tour-embed">
+          <div class="stage-frame">
+            <img class="plate" src="stills/textmath.png" width="1280" height="720"
+                 alt="Typst-rendered equations and syntax-highlighted code on a dark plate">
+          </div>
+          <figcaption>
+            <span class="cap">A still, not a live figure: Typst math and
+              highlighted code need the full engine profile, so this plate was
+              rendered by the CLI's <code class="inline">image</code> command —
+              the same scene plays live on a desktop.</span>
+            <span class="fig-actions"><a class="src" href="scenes/textmath.amx">scenes/textmath.amx ↗</a></span>
+          </figcaption>
+        </figure>
+      </div>
     </section>
 
-    <section id="s8">
-      <div class="sec-head"><span class="sec-num">08</span><h2>Plots &amp; data</h2></div>
-      <p>
-        Plots are native actors: <code class="inline">Graph</code>, <code class="inline">PlotCurve</code> (cartesian, polar, parametric), <code class="inline">VectorField</code>, and <code class="inline">BarChart</code> evaluate directly in data coordinates.
-      </p>
-      <pre>main: <span class="prop">Graph</span>, x_domain: (-<span class="num">6</span>, <span class="num">6</span>), y_domain: (-<span class="num">3</span>, <span class="num">3</span>), size: (<span class="num">640</span>, <span class="num">420</span>) {
+    <section id="s8" data-palette="moss">
+      <div class="edit-head">
+        <span class="num">08</span>
+        <div><h2>Plots &amp; data</h2></div>
+        <div class="rule"></div>
+      </div>
+      <div class="side-split tour-split">
+        <div class="tour-copy">
+          <p>
+            Plots are native actors: <code class="inline">Graph</code>, <code class="inline">PlotCurve</code> (cartesian, polar, parametric), <code class="inline">VectorField</code>, and <code class="inline">BarChart</code> evaluate directly in data coordinates.
+          </p>
+          <pre class="code-block">main: <span class="prop">Graph</span>, x_domain: (-<span class="num">6</span>, <span class="num">6</span>), y_domain: (-<span class="num">3</span>, <span class="num">3</span>), size: (<span class="num">640</span>, <span class="num">420</span>) {
   sine: <span class="prop">PlotCurve</span>, kind: <span class="str">"cartesian"</span>, func: (x) =&gt; <span class="fn">sin</span>(x),
     color: <span class="prop">accent.primary</span>, stroke_width: <span class="num">3</span>, stroke_progress: <span class="num">0</span>
 }
 
 <span class="at">#1.8s</span>
 sine.stroke_progress = <span class="num">1.0</span> [<span class="num">2.4s</span>, ease: <span class="str">ease-in-out</span>]</pre>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="scenes/plots.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="Plots are actors"></amx-player>
-        <figcaption>
-          <span class="cap">A curve traces itself via
-            <code class="inline">stroke_progress</code>; a gradient field fades
-            in beside it.</span>
-          <a class="src" href="scenes/plots.amx">scenes/plots.amx ↗</a>
-        </figcaption>
-      </figure>
+        </div>
+        <figure class="tour-embed" data-editable>
+          <div class="stage-frame">
+            <amx-player src="scenes/plots.amx" autoplay loop controls hold="1.5"
+                        aspect="16:9" title="Plots are actors"></amx-player>
+          </div>
+          <figcaption>
+            <span class="cap">A curve traces itself via
+              <code class="inline">stroke_progress</code>; a gradient field fades
+              in beside it.</span>
+            <span class="fig-actions"><a class="src" href="scenes/plots.amx">scenes/plots.amx ↗</a></span>
+          </figcaption>
+        </figure>
+      </div>
     </section>
 
-    <section id="s9">
-      <div class="sec-head"><span class="sec-num">09</span><h2>Reactive expressions</h2></div>
-      <p>
-        Beyond keyframes, an <code class="inline">always</code> block evaluates every frame for orbits, physics, and state-machine queries like <code class="inline">is_animating()</code> with zero runtime allocations.
-      </p>
-      <pre><span class="kw">always</span> {
+    <section id="s9" data-palette="orchid">
+      <div class="edit-head">
+        <span class="num">09</span>
+        <div><h2>Reactive expressions</h2></div>
+        <div class="rule"></div>
+      </div>
+      <div class="side-split tour-split">
+        <div class="tour-copy">
+          <p>
+            Beyond keyframes, an <code class="inline">always</code> block evaluates every frame for orbits, physics, and state-machine queries like <code class="inline">is_animating()</code> with zero runtime allocations.
+          </p>
+          <pre class="code-block"><span class="kw">always</span> {
   cross_h.at = ring.at
   dot.at = ring.at
   <span class="cmt">… the other four follow the ring the same way …</span>
@@ -306,24 +539,34 @@ sine.stroke_progress = <span class="num">1.0</span> [<span class="num">2.4s</spa
     status.text = <span class="str">"TRACKING — keyframe active"</span>
   }
 }</pre>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="scenes/reactive.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="A reactive focus reticle"></amx-player>
-        <figcaption>
-          <span class="cap">The reticle follows the ring by expression; while a
-            keyframe drives it the status reads TRACKING, at rest it breathes
-            green.</span>
-          <a class="src" href="scenes/reactive.amx">scenes/reactive.amx ↗</a>
-        </figcaption>
-      </figure>
+        </div>
+        <figure class="tour-embed" data-editable>
+          <div class="stage-frame">
+            <amx-player src="scenes/reactive.amx" autoplay loop controls hold="1.5"
+                        aspect="16:9" title="A reactive focus reticle"></amx-player>
+          </div>
+          <figcaption>
+            <span class="cap">The reticle follows the ring by expression; while a
+              keyframe drives it the status reads TRACKING, at rest it breathes
+              green.</span>
+            <span class="fig-actions"><a class="src" href="scenes/reactive.amx">scenes/reactive.amx ↗</a></span>
+          </figcaption>
+        </figure>
+      </div>
     </section>
 
-    <section id="s10">
-      <div class="sec-head"><span class="sec-num">10</span><h2>Components &amp; modules</h2></div>
-      <p>
-        <code class="inline">pub component</code> creates reusable actors with typed parameters and slot markers, imported across files via <code class="inline">import</code>.
-      </p>
-      <pre><span class="kw">import</span> <span class="str">"../lib/components.amx"</span>
+    <section id="s10" data-palette="coral">
+      <div class="edit-head">
+        <span class="num">10</span>
+        <div><h2>Components &amp; modules</h2></div>
+        <div class="rule"></div>
+      </div>
+      <div class="side-split tour-split">
+        <div class="tour-copy">
+          <p>
+            <code class="inline">pub component</code> creates reusable actors with typed parameters and slot markers, imported across files via <code class="inline">import</code>.
+          </p>
+          <pre class="code-block"><span class="kw">import</span> <span class="str">"../lib/components.amx"</span>
 
 row: <span class="prop">Row</span>, anchor: scene.center, gap: <span class="num">28</span>, align: <span class="str">"center"</span> {
   c1: <span class="prop">LabeledBox</span>, label: <span class="str">"Query"</span>, width: <span class="num">240</span>, height: <span class="num">140</span>, text_size: <span class="num">30</span>
@@ -334,38 +577,57 @@ row: <span class="prop">Row</span>, anchor: scene.center, gap: <span class="num"
 
 <span class="at">#3.2s</span>
 <span class="kw">shift</span> row [by: (<span class="num">0</span>, -<span class="num">40</span>), <span class="num">500ms</span>, ease: <span class="str">spring</span>, anticipate: <span class="num">80ms</span>]</pre>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="scenes/components.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="Imported components"></amx-player>
-        <figcaption>
-          <span class="cap">Three instances of one imported chip component —
-            instance-level entrances, one container
-            <code class="inline">shift</code>.</span>
-          <a class="src" href="scenes/components.amx">scenes/components.amx ↗</a>
-        </figcaption>
-      </figure>
+        </div>
+        <figure class="tour-embed" data-editable>
+          <div class="stage-frame">
+            <amx-player src="scenes/components.amx" autoplay loop controls hold="1.5"
+                        aspect="16:9" title="Imported components"></amx-player>
+          </div>
+          <figcaption>
+            <span class="cap">Three instances of one imported chip component —
+              instance-level entrances, one container
+              <code class="inline">shift</code>.</span>
+            <span class="fig-actions"><a class="src" href="scenes/components.amx">scenes/components.amx ↗</a></span>
+          </figcaption>
+        </figure>
+      </div>
     </section>
 
-    <section id="s11">
-      <div class="sec-head"><span class="sec-num">11</span><h2>Scenes, transitions &amp; tooling</h2></div>
-      <p>
-        Join multiple scenes with GPU transitions (<code class="inline">play</code> fade, wipes). Supported by a complete toolchain: formatter, linter, LSP diagnostics, and 4K MP4 export.
-      </p>
-      <pre><span class="kw">play</span> Diagram [fade, <span class="num">450ms</span>]
+    <section id="s11" data-palette="tide">
+      <div class="edit-head">
+        <span class="num">11</span>
+        <div><h2>Scenes, transitions &amp; tooling</h2></div>
+        <div class="rule"></div>
+      </div>
+      <div class="side-split tour-split">
+        <div class="tour-copy">
+          <p>
+            Join multiple scenes with GPU transitions (<code class="inline">play</code> fade, wipes). Supported by a complete toolchain: formatter, linter, LSP diagnostics, and 4K MP4 export.
+          </p>
+          <pre class="code-block"><span class="kw">play</span> Diagram [fade, <span class="num">450ms</span>]
 <span class="cmt">// …later…</span>
 <span class="kw">play</span> Outro [wipe-left, <span class="num">450ms</span>]</pre>
-      <figure class="tour-embed" data-editable>
-        <amx-player src="scenes/scenes.amx" autoplay loop controls hold="1.5"
-                    aspect="16:9" title="Scenes and GPU transitions"></amx-player>
-        <figcaption>
-          <span class="cap">Three scenes in one file: the intro dissolves into
-            a graph, the graph wipes into the outro.</span>
-          <a class="src" href="scenes/scenes.amx">scenes/scenes.amx ↗</a>
-        </figcaption>
-      </figure>
-      <div class="howto">
-        <h2>The toolchain</h2>
-        <pre><span class="cmt"># check a scene for named diagnostics (never-revealed, duplicate-label, …)</span>
+        </div>
+        <figure class="tour-embed" data-editable>
+          <div class="stage-frame">
+            <amx-player src="scenes/scenes.amx" autoplay loop controls hold="1.5"
+                        aspect="16:9" title="Scenes and GPU transitions"></amx-player>
+          </div>
+          <figcaption>
+            <span class="cap">Three scenes in one file: the intro dissolves into
+              a graph, the graph wipes into the outro.</span>
+            <span class="fig-actions"><a class="src" href="scenes/scenes.amx">scenes/scenes.amx ↗</a></span>
+          </figcaption>
+        </figure>
+      </div>
+
+      <div class="tour-howto">
+        <div class="edit-head" data-palette="moss">
+          <span class="num">§</span>
+          <div><h2>The toolchain</h2></div>
+          <div class="rule"></div>
+        </div>
+        <pre class="code-block"><span class="cmt"># check a scene for named diagnostics (never-revealed, duplicate-label, …)</span>
 animatix check scene.amx
 
 <span class="cmt"># format, lint, and inspect the timeline the compiler built</span>
@@ -376,7 +638,7 @@ animatix timeline scene.amx
 <span class="cmt"># export a frame — or a film with the video feature</span>
 animatix image scene.amx --time <span class="num">2.0</span> -o frame.png
 animatix video scene.amx --export-preset <span class="str">1080p60</span> -o film.mp4</pre>
-        <p style="margin-bottom:0">
+        <p>
           The <a href="https://github.com/j4ger/animatix/blob/main/docs/spec.md">full
           language specification</a> covers everything this tour sketches —
           types and strict mode, colorschemes, plugin ABI, and the formatter's
