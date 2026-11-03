@@ -1,74 +1,169 @@
-import "../../demos/lib/theme.amx"
-import "../../demos/lib/ambience.amx"
+// house-style: landscape hook + payoff — the contour survey resolves into a blooming basin; rest holds the full surface, fall line and basin marker.
+//
+// The opening act of the gradient-descent walkthrough. It answers one question
+// before any stepping happens: what is the thing the model is standing on?
+//
+// Act I (0.0–2.2 s): the surface arrives inside a lit editorial stage — heat
+// wash, contour rings, axes, basin. Act II (2.2–4.3 s): the gradient vector
+// field fades in and a dashed fall line is drawn from a start point at the rim;
+// arrows point uphill, so the fall line is the one everyone forgets. Act III
+// (4.3–7.2 s): a probe follows the fall line into the basin, the basin blooms,
+// and the camera pushes a touch before settling back onto the full surface.
+//
+// Type floors (DESIGN §1.5): nothing renders below 16 px; formula lines 26/22,
+// readout values 28, captions 24, the ActHead title 64.
+//
+// The surface is an elongated bowl, L(x, y) = 2x² + y², so the path can show
+// the two curvature directions later: the x axis is the fast one, y the slow
+// one. Its full loss range lives on the right-hand card.
 
-config { resolution: (1280, 720) }
+import "../lib/theme.amx"
+import "../lib/stage.amx"
 
-# LossSurface
-config { colorscheme: "ink", duration: 5.0 }
+config { colorscheme: "ember", resolution: (1280, 720), duration: 7.8 }
 
-bg: Ambience, tint: accent.primary, seed: 444
+// The walkthrough's slider is introduced here as a value only: the descent
+// scenes read it for real. `--set lr=N` on those files re-derives their paths
+// at build time.
+let lr = 0.1
 
-step_title: Text, text: "1. The Loss Surface", font_size: 38, font_weight: "bold",
-  color: text.primary, anchor: scene.top, offset: (0, 48)
+floor: StageFloor, glow: 1.25
 
-// Heatmap wash
-heat: Ellipse, size: (560, 560), at: (420, 380),
-  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, "#30d15820"), (26%, "#ffd60a12"), (62%, "#ff86662a"), (86%, "#ff2d5538"), (100%, "#ff2d5500")}),
-  blend: "screen"
+head: ActHead, kicker: "FIG 01 · THE LOSS SURFACE", title: "The shape of loss",
+  sub: "Height is loss; the basin is what every step is trying to find."
 
-// Contour map of the loss function f(x, y) = x² + y²
-contours: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 4, 9, 16, 25},
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (500, 500), at: (420, 380),
-  resolution: 96, color: accent.primary, stroke_width: 2.0
+cap1: Caption, text: "Act I · Rings of equal loss; the innermost loop is the basin.", tag: "losssurface.amx"
+cap2: Caption, text: "Act II · Arrows are the gradient: everywhere they point uphill.", tag: "losssurface.amx", opacity: 0
+cap3: Caption, text: "Act III · Downhill is the fall line — follow it and the basin collects you.", tag: "losssurface.amx", opacity: 0
 
-// Gradient vector field: ∇f = (2x, 2y) pointing radially outward (uphill)
-field: VectorField, func: (x, y) => (x, y), density: 8,
-  x_domain: (-4, 4), y_domain: (-4, 4), size: (500, 500), at: (420, 380),
-  color: text.muted
+// ── the surface plate ──────────────────────────────────────────────
+// A constant panel (visible at t=0) anchors the map inside the frame. The plot
+// is 80 px per unit: x ∈ [-5.5, 5.5], y ∈ [-2.5, 2.5].
+plot_panel: Rect, size: (880, 400), corner_radius: 20, color: surface.secondary,
+  opacity: 0.55, stroke: stroke.default, stroke_width: 1.2, at: (480, 445), legend: false
 
-// Global minimum at (0, 0)
-min_dot: Ellipse, size: (16, 16), at: (420, 380),
-  fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#d8f0dc"), (45%, "#30d158"), (100%, "#0d5c2e")})
+heat: Ellipse, size: (860, 390), at: (480, 445), blend: "screen", opacity: 0.9,
+  fill_gradient: radial((0.5, 0.5), 0.6, {(0%, accent.success * 0.30), (32%, accent.success * 0.10),
+    (56%, accent.primary * 0.08), (78%, accent.warning * 0.20), (100%, accent.danger * 0.36)})
 
-// Side panel framing the objective & color legend
-side_card: Rect, size: (280, 320), at: (980, 380), corner_radius: 12,
-  color: surface.primary, stroke: stroke.default, stroke_width: 1
-card_kicker: Text, text: "OBJECTIVE SURFACE", font_size: 11, font_weight: 600,
-  color: accent.primary, at: (980, 250)
-card_fn: Text, text: "L(x, y) = x² + y²", font_size: 20, font_weight: "bold",
-  color: text.primary, at: (980, 280)
-card_opt: Text, text: "Minimum: (0, 0)  ·  L = 0", font_size: 13,
-  color: accent.success, at: (980, 310)
+// Contour levels L = 2x² + y². At y = 0 the rings sit at x = 1, 2, 3, 4, 5.
+contours: ContourSet, func: (x, y) => 2 * x^2 + y^2, levels: {2, 8, 18, 32, 50},
+  x_domain: (-5.5, 5.5), y_domain: (-2.5, 2.5), size: (880, 400), at: (480, 445),
+  resolution: 128, color: accent.primary, stroke_width: 2.0, opacity: 0.85
 
-legend_bar: Rect, size: (180, 14), at: (980, 370), corner_radius: 7,
-  fill_gradient: linear(90, {"#30d158", "#ffd60a", "#ff8666", "#ff2d55"})
-legend_lo: Text, text: "low loss", font_size: 12, color: text.muted, at: (910, 396)
-legend_hi: Text, text: "high loss", font_size: 12, color: text.muted, at: (1050, 396)
+axis_x: Line, from: (40, 445), to: (920, 445), stroke: text.muted, stroke_width: 1, opacity: 0.20
+axis_y: Line, from: (480, 245), to: (480, 645), stroke: text.muted, stroke_width: 1, opacity: 0.20
+axis_x_label: Text, text: "x", font_size: 16, font_family: "mono", color: text.muted, at: (906, 465), opacity: 0.8
+axis_y_label: Text, text: "y", font_size: 16, font_family: "mono", color: text.muted, at: (496, 262), opacity: 0.8
+ring_label: Text, text: "L = 8", font_size: 16, font_family: "mono", color: accent.primary, at: (650, 465), opacity: 0
 
-card_field: Text, text: "Arrows: grad L (steepest ascent)", font_size: 12,
-  color: text.secondary, at: (980, 440)
+// The gradient field: ∇L = (4x, 2y). The primitive normalises the arrows, so
+// this reads as direction only — the magnitudes live in the card.
+field: VectorField, func: (x, y) => (4 * x, 2 * y), density: 10,
+  x_domain: (-5.5, 5.5), y_domain: (-2.5, 2.5), size: (880, 400), at: (480, 445),
+  color: text.muted, opacity: 0
 
-caption: Text, text: "Contours denote equal loss; vector arrows point uphill",
-  font_size: 15, color: text.muted, anchor: scene.bottom, offset: (0, -40)
+// A start point on the rim and its fall line — the one direction the field
+// does not name. The ball is the future descent, parked at the rim.
+start_ball: Ellipse, size: (20, 20), at: (768, 301), opacity: 0,
+  fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffffff"), (45%, "#f4efe2"), (100%, "#6e6a62")})
+start_ring: Ellipse, size: (48, 48), stroke: accent.secondary, stroke_width: 1.6, opacity: 0, at: (768, 301)
+start_label: Text, text: "START", font_size: 16, font_family: "mono", color: text.secondary, at: (768, 266), opacity: 0
 
-#0.5s
-fade-in step_title [500ms, ease: expo-out]
-fade-in side_card [500ms, ease: expo-out]
-fade-in card_kicker [400ms, ease: expo-out]
-fade-in card_fn [400ms, ease: expo-out]
-fade-in card_opt [400ms, ease: expo-out]
-fade-in legend_bar [400ms, ease: expo-out]
-fade-in legend_lo [400ms, ease: expo-out]
-fade-in legend_hi [400ms, ease: expo-out]
-fade-in card_field [400ms, ease: expo-out]
+fall_line: Line, from: (768, 301), to: (480, 445), stroke: accent.success, stroke_width: 2.2,
+  dash_pattern: {10, 8}, opacity: 0
+fall_label: Text, text: "−∇L · fall line", font_size: 16, font_family: "mono", color: accent.success,
+  at: (700, 356), opacity: 0
 
-#1.0s
-fade-in heat [700ms, ease: expo-out]
-stagger [150ms] {
-  fade-in contours [600ms, ease: expo-out]
-  fade-in field [600ms, ease: expo-out]
-  fade-in min_dot [400ms, ease: expo-out]
+// The basin marker: a screen-blended bloom under a ring and a core dot.
+basin_glow: Ellipse, size: (220, 220), at: (480, 445), blend: "screen", opacity: 0.35,
+  fill_gradient: radial((0.5, 0.5), 0.55, {(0%, accent.success * 0.55), (45%, accent.success * 0.20), (100%, (0, 0, 0, 0))})
+basin_ring: Ellipse, size: (54, 54), stroke: accent.success, stroke_width: 2, opacity: 0.9, at: (480, 445)
+basin_core: Ellipse, size: (12, 12), at: (480, 445), opacity: 1,
+  fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#eafff0"), (45%, "#45d488"), (100%, "#0d5c2e")})
+basin_label: Text, text: "GLOBAL MINIMUM · L = 0", font_size: 16, font_family: "mono", color: accent.success,
+  at: (480, 612), opacity: 0.8
+
+// The probe that rides the fall line at the payoff.
+probe: Ellipse, size: (20, 20), at: (768, 301), opacity: 0,
+  fill_gradient: radial((0.34, 0.28), 0.66, {(0%, "#ffffff"), (45%, "#f4efe2"), (100%, "#6e6a62")})
+probe_glow: Ellipse, size: (92, 92), at: (768, 301), blend: "screen", opacity: 0,
+  fill_gradient: radial((0.5, 0.5), 0.5, {(0%, accent.primary * 0.60), (58%, accent.primary * 0.16), (100%, (0, 0, 0, 0))})
+
+// ── the reading rail ────────────────────────────────────────────────
+loss_chip: Readout, label: "LOSS AT THE BASIN", value: "0.00", at: (1085, 285)
+start_chip: Readout, label: "LOSS AT START", value: "29.16", at: (1085, 390)
+
+eq_card: Rect, size: (250, 190), corner_radius: 16, color: surface.primary,
+  stroke: stroke.default, stroke_width: 1.2, at: (1085, 532), opacity: 1
+eq_kicker: Text, text: "THE BOWL", font_size: 16, font_weight: 600, font_family: "mono",
+  color: accent.primary, at: (1085, 464), opacity: 1
+eq_line: Text, text: "L(x, y) = 2x² + y²", font_size: 26, font_weight: "bold",
+  color: text.primary, at: (1085, 500), opacity: 1
+eq_grad: Text, text: "∇L = (4x, 2y)", font_size: 22, color: text.secondary, at: (1085, 540), opacity: 1
+eq_min: Text, text: "minimum at (0, 0) · L = 0", font_size: 18, color: accent.success, at: (1085, 576), opacity: 1
+eq_lr: Text, text: format("learning rate lr = {:.2}", lr), font_size: 16, font_family: "mono",
+  color: text.muted, at: (1085, 606), opacity: 1
+
+// ── Act I · the surface is already a stage ─────────────────────────
+#0.05s
+fade-in heat [800ms, ease: expo-out]
+draw-in contours [950ms, ease: expo-out]
+fade-in axis_x [500ms, ease: expo-out]
+fade-in axis_y [500ms, ease: expo-out]
+fade-in axis_x_label [400ms, delay: 220ms, ease: expo-out]
+fade-in axis_y_label [400ms, delay: 220ms, ease: expo-out]
+pop-in basin_core [420ms, delay: 280ms, ease: expo-out]
+fade-in basin_ring [500ms, delay: 280ms, ease: expo-out]
+fade-in basin_glow [700ms, delay: 280ms, ease: expo-out]
+
+// ── Act II · the field names uphill ────────────────────────────────
+#2.2s
+fade-out cap1 [240ms, ease: ease-in]
+fade-in cap2 [280ms, delay: 200ms, ease: expo-out]
+fade-in field [800ms, ease: expo-out]
+field.opacity = 0.55 [500ms, delay: 400ms, ease: ease-in-out]
+fade-in ring_label [400ms, delay: 300ms, ease: expo-out]
+pop-in start_ball [420ms, delay: 260ms, ease: expo-out]
+fade-in start_ring [500ms, delay: 260ms, ease: expo-out]
+fade-in start_label [400ms, delay: 340ms, ease: expo-out]
+draw-in fall_line [750ms, delay: 420ms, ease: expo-out]
+fade-in fall_label [420ms, delay: 300ms, ease: expo-out]
+
+// ── Act III · the probe takes the fall line ────────────────────────
+#4.3s
+fade-out cap2 [240ms, ease: ease-in]
+fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
+fade-out start_ball [220ms, ease: ease-in]
+fade-out start_ring [220ms, ease: ease-in]
+fade-out start_label [220ms, ease: ease-in]
+pop-in probe [360ms, ease: expo-out]
+fade-in probe_glow [700ms, ease: expo-out]
+camera.zoom = 1.05 [1.3s, ease: ease-in-out]
+
+#5.65s
+basin_glow.opacity = 1.0 [320ms, ease: expo-out]
+pulse basin_ring [620ms, intensity: 0.06]
+basin_ring.stroke_width = 3.2 [320ms, ease: expo-out]
+
+#6.45s
+basin_glow.opacity = 0.34 [900ms, ease: ease-in-out]
+basin_ring.stroke_width = 2.0 [900ms, ease: ease-in-out]
+camera.zoom = 1.0 [1.1s, ease: ease-in-out]
+
+// ── Rest ───────────────────────────────────────────────────────────
+#7.1s
+// The whole surface — heat, five contour rings, gradient field, fall line,
+// probe and basin marker — holds. Nothing erases.
+
+// The probe rides the fall line as an analytic function of time; both chips
+// count down live, while their declared values keep the resting frame legible.
+always {
+  let p = clamp((t - 4.35) / 1.45, 0, 1)
+  let e = p * p * (3 - 2 * p)
+  probe.at = (768 - 288 * e, 301 + 144 * e)
+  probe_glow.at = probe.at
+  let loss = 29.16 * (1 - e)^2
+  loss_chip.value_text.text = format("{:.2}", loss)
+  start_chip.value_text.text = format("{:.2}", 29.16 * (1 - e)^2)
 }
-
-#3.5s
-fade-in caption [500ms, ease: expo-out]
