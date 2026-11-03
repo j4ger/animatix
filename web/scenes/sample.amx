@@ -1,4 +1,4 @@
-// house-style: teaching figure — the home page's code/stage duality: one actor, three beats, held on the moved box.
+// house-style: teaching figure — the home page's code/stage duality: one actor, three beats, held on the moved shape.
 //
 // sample.amx — the home page's code/stage duality figure.
 //
@@ -8,7 +8,7 @@
 // data-t="start,end" line markers) to match.
 //
 // House-style §1: StageFloor, the compact head, the caption and the two
-// readouts are authored opaque, so frame 0 is a lit, titled stage; the box
+// readouts are authored opaque, so frame 0 is a lit, titled stage; the shape
 // itself still *fades in* at 0.5 s because that entrance is the lesson.
 // §5: title 44, caption 24, readout 28/16 — nothing below 16.
 
@@ -35,14 +35,14 @@ dur_chip: Readout, label: "DURATION", value: "4.4s", at: (1070, 220)
 cap1: Caption, text: "Act I · One rectangle, three beats: appear, become, move.", tag: "sample.amx"
 
 // ── the actor ───────────────────────────────────────────────────────
-box: Rect, size: (220, 220), color: accent.primary, at: (640, 360)
+shape: Rect, size: (220, 220), color: accent.primary, at: (640, 360)
 
 // ── the three beats (kept in lockstep with the home page's code block) ──
 #0.5s
-fade-in box [600ms, ease: expo-out]
+fade-in shape [600ms, ease: expo-out]
 
 #1.5s
-box: Ellipse, size: (220, 170), color: accent.success [900ms, strategy: match]
+shape: Ellipse, size: (220, 170), color: accent.success [900ms, strategy: match]
 
 #3.0s
-shift box [by: (280, 0), 800ms, ease: ease-in-out]
+shift shape [by: (280, 0), 800ms, ease: ease-in-out]

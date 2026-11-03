@@ -409,10 +409,14 @@ footer.site a:hover { color: var(--work); }
   background: var(--bg-raise);
   border: 1px solid var(--line);
   border-radius: 12px;
-  font: 13.5px/1.75 var(--mono);
+  font: 12.5px/1.8 var(--mono);
   color: var(--dim);
   overflow-x: auto;
+  /* The sample's longest line is intentionally wider than the column; keep
+     the card clean rather than parking a horizontal scrollbar under it. */
+  scrollbar-width: none;
 }
+.duality pre::-webkit-scrollbar { display: none; }
 .duality pre .line { display: block; padding: 1px 8px; margin: 0 -8px; border-radius: 6px; cursor: pointer; }
 .duality pre .line.live { background: color-mix(in srgb, var(--work) 14%, transparent); color: var(--ink); }
 .duality pre .kw { color: var(--work); }
