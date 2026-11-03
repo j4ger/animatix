@@ -1,16 +1,43 @@
+// house-style: teaching figure — the home page's code/stage duality: one actor, three beats, held on the moved box.
+//
 // sample.amx — the home page's code/stage duality figure.
 //
 // This scene IS the code block beside it on the page, beat for beat: the
 // stage scrubs with scroll and the code line owning the current beat lights
 // up. If you change a beat here, change the block on index.html (and its
 // data-t="start,end" line markers) to match.
+//
+// House-style §1: StageFloor, the compact head, the caption and the two
+// readouts are authored opaque, so frame 0 is a lit, titled stage; the box
+// itself still *fades in* at 0.5 s because that entrance is the lesson.
+// §5: title 44, caption 24, readout 28/16 — nothing below 16.
 
 import "../demos/lib/theme.amx"
+import "../demos/lib/stage.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 4.2 }
+config { colorscheme: "ink", resolution: (1280, 720), duration: 4.4 }
 
+// ── the stage ───────────────────────────────────────────────────────
+floor: StageFloor, glow: 1.15, grid: 1.2
+
+head_kicker: Text, text: "THE LANGUAGE", font_size: 18, font_weight: 600,
+  color: accent.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (96, 44), opacity: 1
+head_title: Text, text: "One actor, three beats", font_size: 44, font_weight: "bold",
+  color: text.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (96, 92), opacity: 1
+head_rule: Rect, size: (96, 4), color: accent.primary,
+  anchor: scene.top_left, offset: (96, 152), opacity: 1
+
+beats_chip: Readout, label: "BEATS", value: "3", at: (1070, 120)
+dur_chip: Readout, label: "DURATION", value: "4.4s", at: (1070, 220)
+
+cap1: Caption, text: "Act I · One rectangle, three beats: appear, become, move.", tag: "sample.amx"
+
+// ── the actor ───────────────────────────────────────────────────────
 box: Rect, size: (220, 220), color: accent.primary, at: (640, 360)
 
+// ── the three beats (kept in lockstep with the home page's code block) ──
 #0.5s
 fade-in box [600ms, ease: expo-out]
 
