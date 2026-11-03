@@ -1,61 +1,179 @@
-import "../../demos/lib/theme.amx"
-import "../../demos/lib/ui.amx"
-import "../../demos/lib/ambience.amx"
+// house-style: Act I starts the producer-to-partition stream, Act II fills the twelve-lane log segment by segment, Act III pays off with a leader-election pulse and a camera push into the partitioned log; rest is the full wall with traffic still entering.
+//
+// 02 · The partitioned commit log — "The log is the spine."
+//
+// This is the scene the old walkthrough never had: the partitions are a wall of
+// append-only segment cells that actually append (frame-time opacity keyed to
+// each lane's own clock), a commit cursor rides each lane, packets travel the
+// producer fan-in in `always`, and the throughput / lag readouts count live.
+// The `partitions` slider changes how many of the twelve drawn lanes are active.
+//
+// House-style §1: the floor, head, log panel and lane rails are lit at t=0.
+// House-style §5: partition labels 18, readout values 28, captions 24.
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 6.0 }
+import "../lib/theme.amx"
+import "../lib/stage.amx"
 
-bg: Ambience, tint: accent.info, seed: 222
+config { colorscheme: "tide", resolution: (1280, 720), duration: 9.0 }
 
-h_kicker: Text, text: "STREAM PIPELINE", font_size: 11, font_weight: 600, color: accent.info, anchor: scene.top, offset: (0, 36)
-h_title: Text, text: "Partitioned Broker Fabric", font_size: 32, font_weight: "bold", color: text.primary, anchor: scene.top, offset: (0, 68)
-h_sub: Text, text: "High-throughput parallel partitions with real-time stream consumer lag tracking", font_size: 14, color: text.secondary, anchor: scene.top, offset: (0, 98)
+// Slider target: `--set partitions=N` lights N of the twelve drawn lanes.
+let partitions = 12
 
-producer: CardNode, title: "Event Producer", eyebrow: "SOURCE", sub: "JSON & Protobuf Streams", at: (260, 360), width: 220, height: 105
-part0: CardNode, title: "Partition #0", eyebrow: "BROKER A", sub: "Leader (AZ-1a)", at: (640, 230), width: 220, height: 86, focal: true
-part1: CardNode, title: "Partition #1", eyebrow: "BROKER B", sub: "Leader (AZ-1b)", at: (640, 360), width: 220, height: 86, focal: true
-part2: CardNode, title: "Partition #2", eyebrow: "BROKER C", sub: "Leader (AZ-1c)", at: (640, 490), width: 220, height: 86, focal: true
-consumer: CardNode, title: "Consumer Group", eyebrow: "SINK", sub: "Real-time Flink & Analytics", at: (1020, 360), width: 220, height: 105
+// ── the stage ───────────────────────────────────────────────────────
+floor: StageFloor, glow: 1.1
 
-c_p0: Connector, from: producer.east, to: part0.west, routing: "elbow", corner_radius: 12, arrow: true, stroke: accent.primary, stroke_width: 2.0
-c_p1: Connector, from: producer.east, to: part1.west, routing: "straight", arrow: true, stroke: accent.primary, stroke_width: 2.0
-c_p2: Connector, from: producer.east, to: part2.west, routing: "elbow", corner_radius: 12, arrow: true, stroke: accent.primary, stroke_width: 2.0
+head: ActHead, kicker: "FIG 02 · PARTITIONED LOG", title: "The log is the spine",
+  sub: format("one producer, {:.0} partitions, one consumer group", partitions)
 
-c_c0: Connector, from: part0.east, to: consumer.west, routing: "elbow", corner_radius: 12, arrow: true, stroke: accent.info, stroke_width: 2.0
-c_c1: Connector, from: part1.east, to: consumer.west, routing: "straight", arrow: true, stroke: accent.info, stroke_width: 2.0
-c_c2: Connector, from: part2.east, to: consumer.west, routing: "elbow", corner_radius: 12, arrow: true, stroke: accent.info, stroke_width: 2.0
+cap1: Caption, text: "Act I · The producer starts writing; partition zero takes the first segment.", tag: "stream.amx"
+cap2: Caption, text: "Act II · Segment by segment the wall fills, lane by lane.", tag: "stream.amx", opacity: 0
+cap3: Caption, text: format("Act III · A broker dies; P{:.0} wins the election and the log keeps appending.", min(7, partitions - 1)), tag: "stream.amx", opacity: 0
 
-stat_panel: Rect, size: (860, 52), color: surface.primary, corner_radius: 10, stroke: stroke.default, stroke_width: 1, anchor: scene.bottom, offset: (0, -44)
-stat_row: Row, anchor: scene.bottom, offset: (0, -47), gap: 40, align: "center" {
-  m_label: Text, text: "EVENT WRITE RATE:", font_size: 11, font_weight: 600, color: text.muted
-  m_val: Text, text: "48,000 msg/sec", font_size: 13, font_weight: 600, color: accent.primary
-  lag_label: Text, text: "CONSUMER GROUP LAG:", font_size: 11, font_weight: 600, color: text.muted
-  lag_val: Text, text: "0 records (Real-time)", font_size: 13, font_weight: 600, color: accent.success
+// ── the log panel ───────────────────────────────────────────────────
+log_box: Rect, size: (640, 380), at: (700, 450), corner_radius: 16,
+  color: (0.043, 0.055, 0.082, 0.52), stroke: stroke.default, stroke_width: 1.4,
+  dash_pattern: {8, 8}, opacity: 1
+log_glow: Ellipse, size: (920, 460), at: (700, 450), blend: "screen", opacity: 0,
+  fill_gradient: radial((0.5, 0.5), 0.6, {(0%, accent.primary * 0.20), (55%, accent.primary * 0.06), (100%, (0, 0, 0, 0))})
+
+log_title: Text, text: format("PARTITIONED COMMIT LOG · {:.0} PARTITIONS", partitions),
+  font_size: 18, font_weight: 600, color: accent.primary, at: (700, 282), opacity: 1
+
+// ── twelve lanes, five segments each ───────────────────────────────
+// Each lane is one partition; the five cells are its append-only segments. The
+// newest segment flashes bright and settles, so the wall reads as writing, not
+// as a bar chart. `partitions` dims lanes above the requested count.
+for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
+  lane_track[i]: Rect, size: (620, 22), corner_radius: 5, color: surface.secondary,
+    stroke: stroke.default, stroke_width: 1, at: (700, 300 + i * 28),
+    opacity: if i < partitions { 1 } else { 0.16 }
+  lane_label[i]: Text, text: format("P{:.0}", i), font_size: 18, font_weight: 600,
+    color: text.secondary, text_anchor: "left", at: (405, 300 + i * 28),
+    opacity: if i < partitions { 1 } else { 0.16 }
 }
 
-#0.0s
-fade-in h_kicker [400ms, ease: expo-out]
-fade-in h_title [500ms, delay: 50ms, ease: expo-out]
-fade-in h_sub [500ms, delay: 100ms, ease: expo-out]
-fade-in producer [400ms]
-fade-in part0 [400ms]
-fade-in part1 [400ms]
-fade-in part2 [400ms]
-fade-in consumer [400ms]
-fade-in stat_panel [400ms]
-fade-in stat_row [400ms]
-
-#0.5s
-stagger [80ms] {
-  draw-in c_p0 [400ms, ease: ease-out]
-  draw-in c_p1 [400ms, ease: ease-out]
-  draw-in c_p2 [400ms, ease: ease-out]
-}
-#+0.2s
-stagger [80ms] {
-  draw-in c_c0 [400ms, ease: ease-out]
-  draw-in c_c1 [400ms, ease: ease-out]
-  draw-in c_c2 [400ms, ease: ease-out]
+// 60 segment cells, addressed as seg[0..59]; lane = floor(s/5), k = s mod 5.
+for s in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59} {
+  seg[s]: Rect, size: (100, 14), corner_radius: 3, color: accent.primary,
+    at: (470 + (s - floor(s / 5) * 5) * 106, 300 + floor(s / 5) * 28), opacity: 1
 }
 
-#1.2s
-m_val.text = "124,000 msg/sec" [2.8s, ease: ease-out]
+// ── producer and consumer ──────────────────────────────────────────
+producer: Rect, size: (200, 140), corner_radius: 14, color: surface.primary,
+  stroke: accent.primary, stroke_width: 1.6, at: (175, 470), opacity: 1
+producer_t: Text, text: "Event producer", font_size: 20, font_weight: "bold", color: text.primary, at: (175, 448), opacity: 1
+producer_s: Text, text: "protobuf · 48 KB/s", font_size: 16, color: text.secondary, at: (175, 482), opacity: 1
+
+consumer: Rect, size: (210, 110), corner_radius: 14, color: surface.primary,
+  stroke: accent.info, stroke_width: 1.6, at: (1150, 380), opacity: 0
+consumer_t: Text, text: "Consumer group", font_size: 20, font_weight: "bold", color: text.primary, at: (1150, 362), opacity: 0
+consumer_s: Text, text: "Flink · analytics", font_size: 16, color: text.secondary, at: (1150, 394), opacity: 0
+
+// ── the fan-in and the commit rail ─────────────────────────────────
+fan_trunk: Path, commands: {move_to(275, 470), line_to(310, 470)},
+  stroke: accent.primary, stroke_width: 3, fill_opacity: 0.0, dash_pattern: {10, 8}, opacity: 0.9
+fan_bus: Path, commands: {move_to(310, 300), line_to(310, 608)},
+  stroke: accent.primary, stroke_width: 3, fill_opacity: 0.0, dash_pattern: {10, 8}, opacity: 0.75
+
+for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
+  fan_stub[i]: Path, commands: {move_to(310, 300 + i * 28), line_to(390, 300 + i * 28)},
+    stroke: accent.primary, stroke_width: 1.6, fill_opacity: 0.0, dash_pattern: {8, 7},
+    opacity: if i < partitions { 0.55 } else { 0.10 }
+}
+
+commit_rail: Arrow, from: (1010, 380), to: (1045, 380), head_size: 10, stroke_width: 3,
+  stroke: accent.info, opacity: 0
+
+// ── packets and commit cursors ─────────────────────────────────────
+for j in {0, 1, 2, 3, 4, 5} {
+  packet[j]: Rect, size: (16, 7), corner_radius: 3, color: accent.primary, at: (275, 470), opacity: 1
+}
+for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
+  cursor[i]: Rect, size: (3, 16), corner_radius: 1, color: accent.success, at: (470, 300 + i * 28), opacity: 0
+}
+
+// ── leader-election pulse ──────────────────────────────────────────
+leader_ring: Rect, size: (648, 32), corner_radius: 8, color: (0, 0, 0, 0),
+  stroke: accent.warning, stroke_width: 2, at: (700, 496), opacity: 0
+leader_tag: Text, text: format("P{:.0} · LEADER ELECTED", min(7, partitions - 1)), font_size: 18, font_weight: 600,
+  color: accent.success, at: (700, 246), opacity: 0
+
+// ── readouts ───────────────────────────────────────────────────────
+tput: Readout, label: "THROUGHPUT", value: "124k msg/s", at: (1150, 510), opacity: 1
+lag_chip: Readout, label: "PARTITION LAG", value: "0 records", at: (1150, 600), opacity: 1
+
+// ── live motion ────────────────────────────────────────────────────
+// Segment appends, commit cursors, packet routes and the leader pulse are all
+// frame-time functions of t; the readout texts are declared at their resting
+// values and rewritten here so the live player counts.
+always {
+  for s in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59} {
+    let lane = floor(s / 5)
+    let k = s - lane * 5
+    let born = -0.9 + lane * 0.11 + k * 0.92
+    let age = t - born
+    seg[s].opacity = if age <= 0 { 0 } else { (0.35 + 0.65 * exp(0 - age * 1.6)) * (if lane < partitions { 1 } else { 0.10 }) }
+  }
+
+  for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11} {
+    let progress = clamp((t - 1.8) / 4.8, 0, 1)
+    cursor[i].at = (470 + 524 * progress, 300 + i * 28)
+    cursor[i].opacity = if t > 1.8 { 0.65 } else { 0 }
+  }
+
+  for j in {0, 1, 2, 3, 4, 5} {
+    let lane = j * 2
+    let ly = 300 + lane * 28
+    let p = fract(t / 2.8 + j * 0.17)
+    let x = if p < 0.18 { 275 + 35 * (p / 0.18) } else { if p < 0.62 { 310 } else { 310 + 80 * ((p - 0.62) / 0.38) } }
+    let y = if p < 0.18 { 470 } else { if p < 0.62 { 470 + (ly - 470) * ((p - 0.18) / 0.44) } else { ly } }
+    packet[j].at = (x, y)
+    packet[j].opacity = clamp((0.95 - p) / 0.07, 0, 1) * (if lane < partitions { 1 } else { 0 })
+  }
+
+  fan_trunk.dash_offset = (t * 26) % 18
+  fan_bus.dash_offset = (t * 30) % 18
+
+  leader_ring.at = (700, 300 + min(7, partitions - 1) * 28)
+  leader_ring.opacity = if t > 6.9 { 0.18 + 0.30 * (0.5 + 0.5 * sin((t - 6.9) * 7.4)) } else { 0 }
+  leader_ring.stroke = if t > 7.5 { accent.success } else { accent.warning }
+
+  tput.value_text.text = format("{:.1}k msg/s", 124 + 7.5 * sin(t * 2.4) + 2.1 * sin(t * 8.1))
+}
+
+// ── Act I · the hook ───────────────────────────────────────────────
+// Frame 0 is already the lit log: producer, the twelve rails and the first
+// segments. The first segment flash starts at 0.1 s.
+
+// ── Act II · the mechanism ─────────────────────────────────────────
+#1.8s
+fade-out cap1 [240ms, ease: ease-in]
+fade-in cap2 [280ms, delay: 180ms, ease: expo-out]
+
+// The consumer group joins once the wall is clearly writing — the diagram grows
+// rightward instead of presenting every box at once.
+#3.2s
+fade-in consumer [380ms, ease: expo-out]
+fade-in consumer_t [320ms, delay: 120ms, ease: expo-out]
+fade-in consumer_s [300ms, delay: 220ms, ease: expo-out]
+fade-in commit_rail [340ms, delay: 260ms, ease: expo-out]
+
+// ── Act III · the payoff ───────────────────────────────────────────
+// The election pulse wins the lane, then the camera pushes into the log and the
+// glow settles behind it; traffic keeps entering on the fan-in.
+#6.9s
+fade-out cap2 [240ms, ease: ease-in]
+fade-in cap3 [280ms, delay: 180ms, ease: expo-out]
+fade-in leader_tag [320ms, delay: 220ms, ease: expo-out]
+log_glow.opacity = 0.34 [600ms, ease: expo-out]
+camera.zoom = 1.05 [1.2s, ease: ease-in-out]
+camera.at = (-20, 0) [1.2s, ease: ease-in-out]
+
+#8.0s
+camera.zoom = 1.0 [1.0s, ease: ease-in-out]
+camera.at = (0, 0) [1.0s, ease: ease-in-out]
+log_glow.opacity = 0.16 [900ms, ease: ease-in-out]
+
+// ── Rest ───────────────────────────────────────────────────────────
+// The whole wall — twelve lanes, every segment, the consumer group and the
+// elected leader — holds with packets still entering the fan-in.
