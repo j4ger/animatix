@@ -1,76 +1,176 @@
-// Kinetic Typography & Glass Studio — An interactive motion design showcase.
-// Showcases:
-//   - Split-text reveal-in with baseline masking
-//   - Linear text gradient brush
-//   - 2.5D perspective tilt and analytical soft shadows
-//   - Frosted Glass backdrop blur with sharp foreground typography
+// house-style: kinetic master figure; three acts, payoff is a camera push with a bloom flare, rests on the assembled stack.
+//
+// Kinetic figure 00 (web/DESIGN.md §1.7): the work's master walkthrough. It puts
+// all three mechanisms on one lit stage instead of three captioned cards:
+//   1. Act I — the split-text hook: "TYPE MAKES" lifts word-by-word through its
+//      baseline mask, the empty mask already drawn under it at t=0.
+//   2. Act II — the mechanism: the gradient brush paints "SPACE." glyph by
+//      glyph while the frosted lens sweeps its yaw over the gradient bar field
+//      and the frost climbs to `frost`. The lens is the only Glass in the scene
+//      and it sits over a moving field, per DESIGN §1.8.
+//   3. Act III — the payoff: bloom flare + camera push-and-settle; the whole
+//      stack holds into the resting frame.
+//
+// `tilt` (degrees) and `frost` (blur px) are the deck sliders: `--set tilt=N` /
+// `--set frost=N` re-angle the lens and re-tune the blur. The pitch carries a
+// 1.6x share because rotate_x / rotate_y are orthographic radians (a pure 2D
+// affine here), so a matched pitch reads shallower than the yaw.
+//
+// Type floors (DESIGN §1.5): display 96, lede 24, kicker 18 mono, captions
+// 24, readout values 28 — nothing below 16 px.
 
-import "../../demos/lib/theme.amx"
-import "../../demos/lib/ui.amx"
-import "../../demos/lib/ambience.amx"
+import "../lib/theme.amx"
+import "../lib/stage.amx"
 
-config { colorscheme: "ink", resolution: (1280, 720), duration: 8.0 }
+config { colorscheme: "coral", resolution: (1280, 720), duration: 10.0 }
 
-// ── Background Ambience ───────────────────────────────────────────────────
-bg: Ambience, tint: accent.primary, seed: 123
+// The slider targets, shared with glass.amx so the deck's two figures agree.
+let tilt = 10
+let frost = 24
 
-// ── Architecture Header ────────────────────────────────────────────────────
-h_kicker: Text, text: "KINETIC STUDIO", font_size: 11, font_weight: 600, color: accent.primary,
-  anchor: scene.top, offset: (0, 36)
-h_title: Text, text: "Tactile Digital Physics & Glass", font_size: 32, font_weight: "bold",
-  color: text.primary, anchor: scene.top, offset: (0, 68)
-h_sub: Text, text: "Hardware-accelerated frosted blur, 2.5D perspective projection, and spring kinematics",
-  font_size: 14, color: text.secondary, anchor: scene.top, offset: (0, 98)
+// ── the stage ───────────────────────────────────────────────────────
+floor: StageFloor, glow: 1.0
 
-// ── Backdrop Geometry Plate (Provides texture for Glass blur) ──────────────
-plate: Group, at: (640, 390) {
-  for (dx, h, dy, col), i in {
-    (-280, 260, 20, accent.primary),
-    (-180, 340, -20, accent.warning),
-    (-80, 200, 50, accent.info),
-    (20, 300, 0, accent.primary),
-    (120, 360, -30, accent.warning),
-    (220, 240, 30, accent.info)
-  } {
-    bars[i]: Rect, size: (52, h), at: (dx, dy), color: col, corner_radius: 10, opacity: 0.50
-  }
+head: ActHead, kicker: "FIG 00 · KINETIC STUDIO", title: "Three moves, one stage",
+  sub: "split text · gradient brush · frosted 2.5D lens"
+
+cap1: Caption, text: "Act I · The display line lifts word by word out of its baseline mask.", tag: "scene.amx"
+cap2: Caption, text: "Act II · Gradient fills the claim; the lens wakes and the frost climbs.", tag: "scene.amx", opacity: 0
+cap3: Caption, text: "Act III · Frost, tilt and camera settle — the whole stack holds.", tag: "scene.amx", opacity: 0
+
+// ── the field + the lens (right column) ─────────────────────────────
+// The field is what makes the frost legible: saturated bars on a 56 px pitch,
+// drifting under a lens that is deliberately smaller than its own surface (the
+// rim hides the axis-aligned bounds the engine blurs for a tilted Glass).
+for (x, cy, h), i in {
+  (660, 440, 240), (716, 420, 180), (772, 450, 320), (828, 425, 200), (884, 445, 280),
+  (940, 415, 170), (996, 440, 300), (1052, 420, 210), (1108, 450, 330), (1164, 415, 190),
+  (1220, 435, 260)
+} {
+  bars[i]: Rect, size: (36, h), corner_radius: 8, at: (x, cy), opacity: 1,
+    fill_gradient: linear(180, {accent.primary, "#f5b942"})
 }
 
-// ── Floating 2.5D Glass Card with Shadow & Tilt ─────────────────────────────
-glass_card: Glass, at: (640, 390), size: (620, 280), corner_radius: 20 {
-  frost: Blur, radius: 24
-  surface: Rect, size: (620, 280), corner_radius: 20,
-    color: "#ffffff16", stroke: "#ffffff55", stroke_width: 1.5,
-    shadow: (0, 28, 56, 0), shadow_color: (0, 0, 0, 0.55)
-  content: Col, size: (560, 220), gap: 12, align: "center" {
-    card_kicker: Text, text: "SPATIAL MOTION SCOPE", font_size: 12, font_weight: 600, color: accent.primary
-    card_title: Text, text: "Tactile Digital Physics", font_size: 30, font_weight: "bold", color: text.primary
-    card_desc: Text,
-      text: "Every layer projects into 2.5D coordinate space with real-time perspective distortion, spring-driven momentum, and zero rasterization artifacts.",
-      font_size: 14, color: text.secondary, text_align: "center", text_max_width: 500
-    card_hud: Row, gap: 16, align: "center" {
-      pill_blur: Chip, label: "24px Gaussian Frost", width: 165, height: 28, color: surface.secondary, text_color: text.primary
-      pill_fps: Chip, label: "60 FPS WebGPU", width: 145, height: 28, color: surface.secondary, text_color: accent.success
-    }
-  }
+for (x, cy, h), i in {
+  (688, 440, 130), (744, 420, 190), (800, 445, 110), (856, 425, 170), (912, 440, 210),
+  (968, 415, 120), (1024, 440, 180), (1080, 420, 140), (1136, 445, 200), (1192, 425, 120)
+} {
+  needles[i]: Rect, size: (6, h), corner_radius: 3, at: (x, cy), opacity: 0.85,
+    fill_gradient: linear(180, {accent.info, "#7c5cff"})
 }
 
-// ── Timeline Choreography ──────────────────────────────────────────────────
-#0.0s
-fade-in h_kicker [400ms, ease: expo-out]
-fade-in h_title [500ms, delay: 50ms, ease: expo-out]
-fade-in h_sub [500ms, delay: 100ms, ease: expo-out]
-fade-in plate [400ms]
-fade-in glass_card [400ms]
+// Payoff flare: behind the lens, so the frost softens it along with the field.
+bloom: Ellipse, size: (1050, 520), at: (700, 430), blend: "screen", opacity: 0,
+  fill_gradient: radial((0.5, 0.5), 0.6, {(0%, "#ff70524a"), (55%, "#ff705214"), (100%, "#ff705200")}),
+  legend: false
 
-#1.2s
-glass_card.rotate_y = 0.18 [1.6s, ease: ease-in-out]
-glass_card.rotate_x = -0.10 [1.6s, ease: ease-in-out]
+lens: Glass, at: (940, 430), size: (340, 220), corner_radius: 24,
+  rotate_y: tilt * 0.0174532925, rotate_x: 0 - tilt * 0.0279252680, opacity: 1 {
+  soft: Blur, radius: frost
+  surface: Rect, size: (380, 250), corner_radius: 24,
+    color: "#ffffff14", stroke: "#ffffff45", stroke_width: 1.5,
+    shadow: (0, 22, 48, 0), shadow_color: (0, 0, 0, 0.45), opacity: 1
+  tag: Text, text: "GLASS LENS · BACKDROP BLUR", font_size: 18, font_family: "mono",
+    font_weight: 600, color: accent.primary, at: (0, -72), opacity: 1
+  word: Text, text: "FROSTED", font_size: 56, font_weight: "bold", color: text.primary,
+    at: (0, -16), opacity: 1
+  note: Text, text: "the field behind it dissolves", font_size: 18, color: text.secondary,
+    at: (0, 44), opacity: 1
+}
 
-#3.6s
-glass_card.rotate_y = -0.12 [1.8s, ease: ease-in-out]
-glass_card.rotate_x = 0.08 [1.8s, ease: ease-in-out]
+// ── the display plane (left column) ─────────────────────────────────
+// The house head names the figure above; these two lines ARE the mechanism act.
+// The baseline rules are on the lit stage at t=0 — the empty masks the words
+// will lift through — and brighten as each line lands.
+kicker: Text, text: "01 · SPLIT TEXT + GRADIENT BRUSH", font_size: 18, font_family: "mono",
+  font_weight: 600, color: accent.primary, text_align: "left", text_anchor: "left",
+  at: (96, 258), opacity: 1
 
-#6.0s
-glass_card.rotate_y = 0.0 [1.2s, ease: ease-out]
-glass_card.rotate_x = 0.0 [1.2s, ease: ease-out]
+base1: Rect, size: (300, 3), color: accent.primary, at: (246, 368), opacity: 0.30
+base2: Rect, size: (330, 3), color: "#f5b942", at: (261, 536), opacity: 0.30
+
+l1: Text, text: "TYPE", font_size: 96, font_weight: "bold", color: text.primary,
+  text_align: "left", text_anchor: "left", at: (96, 318), opacity: 0
+l2: Text, text: "MAKES", font_size: 96, font_weight: "bold", color: text.primary,
+  text_align: "left", text_anchor: "left", at: (96, 402), opacity: 0
+l3: Text, text: "SPACE.", font_size: 96, font_weight: "bold",
+  fill_gradient: linear(90, {accent.primary, "#f5b942"}),
+  text_align: "left", text_anchor: "left", at: (96, 486), opacity: 0
+
+lede: Text, text: "one lit stage, three mechanisms, no dead frame", font_size: 24,
+  color: text.secondary, text_anchor: "left", at: (96, 580), opacity: 0
+attrib: Text, text: "— THE KINETIC STACK", font_size: 18, font_weight: 600,
+  font_family: "mono", color: text.muted, letter_spacing: 3,
+  text_anchor: "left", at: (96, 614), opacity: 0
+
+// Specs: declared at their final values, rewritten every frame in `always`.
+chip_frost: Readout, label: "FROST RADIUS", value: "24 px", at: (1140, 74), opacity: 0
+chip_tilt: Readout, label: "LENS TILT", value: "10°", at: (1140, 176), opacity: 0
+
+// ── Act I · the hook ────────────────────────────────────────────────
+// The stage is lit and the lens/field are already composed at t=0; the first
+// word lifts 50 ms in, so there is no dead plate.
+#0.05s
+reveal-in l1 [by: word, offset_y: 26, 900ms, ease: ease-out]
+base1.opacity = 0.90 [600ms, delay: 500ms, ease: expo-out]
+
+#1.0s
+reveal-in l2 [by: word, offset_y: 26, 700ms, ease: ease-out]
+
+// ── Act II · the mechanism ──────────────────────────────────────────
+// Glyph-by-glyph gradient fill; the lens wakes and sweeps its yaw over the field.
+#2.0s
+fade-out cap1 [240ms, ease: ease-in]
+fade-in cap2 [280ms, delay: 200ms, ease: expo-out]
+reveal-in l3 [by: char, offset_y: 30, 1500ms, ease: ease-out]
+base2.opacity = 0.90 [700ms, delay: 1000ms, ease: expo-out]
+
+#3.0s
+fade-in lede [700ms, ease: expo-out]
+fade-in attrib [500ms, delay: 320ms, ease: expo-out]
+
+#4.2s
+fade-in chip_frost [420ms, ease: expo-out]
+fade-in chip_tilt [420ms, delay: 160ms, ease: expo-out]
+lens.rotate_y = 0 - tilt * 0.0174532925 * 0.80 [1.8s, ease: ease-in-out]
+lens.rotate_x = tilt * 0.0279252680 * 0.70 [1.8s, ease: ease-in-out]
+
+#6.2s
+lens.rotate_y = tilt * 0.0174532925 [2.0s, ease: ease-in-out]
+lens.rotate_x = 0 - tilt * 0.0279252680 [2.0s, ease: ease-in-out]
+
+// ── Act III · the payoff ────────────────────────────────────────────
+// Bloom flare plus a camera push that settles back; the lens, the field, the
+// display lines and both spec chips hold as one composition.
+#7.6s
+fade-out cap2 [240ms, ease: ease-in]
+fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
+bloom.opacity = 0.40 [700ms, ease: expo-out]
+camera.zoom = 1.05 [1.2s, ease: ease-in-out]
+
+#8.8s
+bloom.opacity = 0.22 [900ms, ease: ease-in-out]
+camera.zoom = 1.0 [1.0s, ease: ease-in-out]
+
+// ── Rest ────────────────────────────────────────────────────────────
+// The assembled stack: all three display lines, both baseline rules, lede,
+// attribution, the frosted lens over its drifting field and both chips.
+
+always {
+  // The field keeps moving under the lens for the whole loop.
+  for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10} {
+    bars[i].shift = (13 * sin(t * 0.52 + i * 0.45), 18 * sin(t * 0.83 + i * 0.62))
+    bars[i].scale = 1.0 + 0.06 * sin(t * 0.90 + i * 0.55)
+  }
+  for i in {0, 1, 2, 3, 4, 5, 6, 7, 8, 9} {
+    needles[i].shift = (9 * sin(t * 0.61 + i * 0.80), 24 * sin(t * 0.74 + i * 0.50))
+    needles[i].opacity = 0.55 + 0.30 * (0.5 + 0.5 * sin(t * 1.1 + i * 0.9))
+  }
+
+  // Frost wakes over the mechanism act and holds at the authored radius.
+  soft.radius = frost * (0.22 + 0.78 * clamp((t - 3.2) / 3.0, 0, 1))
+
+  // Live specs: the blur the lens is running and its current yaw in degrees.
+  chip_frost.value_text.text = format("{:.0f} px", soft.radius)
+  chip_tilt.value_text.text = format("{:.0f}°", abs(deg(lens.rotate_y)))
+}
