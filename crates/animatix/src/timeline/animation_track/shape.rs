@@ -137,6 +137,31 @@ impl ShapeTracks {
         if name != actor_type { name } else { actor_type }
     }
 
+    /// True when `time_ms` falls inside a `shape_type` segment whose two
+    /// endpoint types differ — i.e. a cross-type morph (Rect→Ellipse,
+    /// Polygon→Path, …). In that window the interpolated `vector_paths` list
+    /// is the geometry to draw, not either endpoint primitive.
+    ///
+    /// At an exact keyframe the surrounding segment halves agree (the key
+    /// itself appears in both lookups), so the boundary frames render the
+    /// endpoint primitive and the interior renders the interpolated paths.
+    pub fn cross_type_morph_at(&self, time_ms: u64) -> bool {
+        let Some(track) = self.shape_type.as_ref() else {
+            return false;
+        };
+        let slice = track.keyframes.as_slice();
+        if slice.len() < 2 {
+            return false;
+        }
+        let next = slice.partition_point(|entry| entry.time_ms <= time_ms);
+        let before = next.checked_sub(1).and_then(|i| slice.get(i));
+        let after = slice.get(next);
+        match (before, after) {
+            (Some(a), Some(b)) => a.payload.0 != b.payload.0,
+            _ => false,
+        }
+    }
+
     /// Evaluate vector paths at `time_ms`, applying morphing if configured.
     ///
     /// A track with no `vector_paths` evaluates to an empty list; geometric

@@ -650,6 +650,8 @@ circle: Ellipse, at: (100, 100) [2s]
 ```
 `strategy: fade` cross-fades between overlapping states by rendering both source and target path sets at partial opacity.
 
+A timed re-declaration that changes the primitive type (`Rect` → `Ellipse`, `Polygon` → `Path`, …) morphs between the two outlines over its duration: the start and end geometry are sampled into path keyframes and drawn as an interpolated path for the switch window. `strategy: match` additionally aligns closed outlines by bearing, so a square→ellipse transition keeps its width rather than folding through corner-to-axis pairing. Endpoint frames still render the endpoint primitive exactly.
+
 Timed `Text.text` and `Typst.content` assignments cross-fade both endpoint glyph sets by default, so the swap does not hard-cut at the midpoint string snapshot.
 
 **Instant Change:** Zero duration or property assignment.

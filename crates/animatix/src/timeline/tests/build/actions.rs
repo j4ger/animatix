@@ -294,6 +294,14 @@ box: Ellipse, size: (140, 140), color: accent.success [900ms, strategy: match]
     assert_eq!(shape.render_type_name(timeline.world.actor_type(track), 500), "Rect");
     assert_eq!(shape.render_type_name(timeline.world.actor_type(track), 1_400), "Rect");
     assert_eq!(shape.render_type_name(timeline.world.actor_type(track), 2_400), "Ellipse");
+
+    // The interpolated-path render window is the open interval of the type
+    // switch: endpoint frames draw the endpoint primitive, the interior draws
+    // the morphing silhouette.
+    assert!(!shape.cross_type_morph_at(500));
+    assert!(!shape.cross_type_morph_at(1_400));
+    assert!(shape.cross_type_morph_at(1_900));
+    assert!(!shape.cross_type_morph_at(2_400));
 }
 
 #[test]

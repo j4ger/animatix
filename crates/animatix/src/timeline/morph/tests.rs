@@ -520,3 +520,37 @@ fn fade_vello_paths_empty_target() {
     assert_eq!(result.len(), 1);
     assert_eq!(result[0].fill.unwrap().to_rgba8().a, 50); // 200 * 0.25
 }
+
+#[test]
+fn match_closed_shapes_morph_without_collapsing() {
+    // A square→ellipse morph must interpolate the silhouette: at the midpoint
+    // every point stays between the two outlines. The old corner-to-axis
+    // pairing folded the shape to a diamond at half size; radial re-sampling
+    // keeps width constant and shrinks only height toward the ellipse.
+    use kurbo::Shape;
+    let rect = kurbo::Rect::new(-110.0, -110.0, 110.0, 110.0).to_path(0.1);
+    let ellipse = kurbo::Ellipse::new((0.0, 0.0), (110.0, 85.0), 0.0).to_path(0.1);
+    let options = MorphOptions {
+        strategy: MorphStrategy::Match,
+        path_arc: 0.0,
+        stretch: false,
+    };
+    let mid = morph_paths_with_options(&rect, &ellipse, 0.5, options);
+    let bounds = mid.bounding_box();
+    let width = bounds.x1 - bounds.x0;
+    let height = bounds.y1 - bounds.y0;
+    assert!(
+        (width - 220.0).abs() < 1.5,
+        "mid-morph width must stay at the square width, got {width}"
+    );
+    assert!(
+        height > 175.0 && height < 215.0,
+        "mid-morph height must sit between the ellipse (170) and square (220), got {height}"
+    );
+    // The sampled outline is a dense polyline, not the old 5-element fold.
+    assert!(
+        mid.elements().len() >= 60,
+        "expected a dense outline, got {}",
+        mid.elements().len()
+    );
+}

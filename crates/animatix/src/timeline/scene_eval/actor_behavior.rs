@@ -22,6 +22,26 @@ impl Timeline {
         node_overrides: Option<&std::collections::HashMap<String, Value>>,
         vector_paths: &[VelloPath],
     ) -> Option<Vec<crate::primitives::RenderCommand>> {
+        // ── Cross-type morph ──
+        // A re-declaration that changes the primitive type (Rect→Ellipse,
+        // Polygon→Path, …) keeps the declaration-time path list in the
+        // `vector_paths` track: start keyframe = source shape, end keyframe =
+        // target shape, interpolated by the morph machinery. Rendering the
+        // endpoint primitive for that window throws the interpolation away and
+        // snaps the silhouette, so inside the window draw the interpolated
+        // paths instead.
+        if let Some(def) = self.behavior_for_node(node_id, time_ms) {
+            if def.caps.is_shape
+                && !vector_paths.is_empty()
+                && self.world.shape_or_default(node_id).cross_type_morph_at(time_ms)
+            {
+                self.world.begin_shape_commands(node_id);
+                return Some(vec![crate::primitives::RenderCommand::Paths {
+                    paths: vector_paths.to_vec(),
+                }]);
+            }
+        }
+
         // ── Behavior evaluation ──
         // The behavior's evaluate() is the direct render path.
         // `Some(commands)` draws the commands and records a hit region;

@@ -1,6 +1,7 @@
 //! Path/subpath/segment alignment.
 
 use super::*;
+use kurbo::Shape;
 
 use super::interpolate::lerp_point;
 
@@ -142,7 +143,7 @@ pub fn align_subpaths_with_strategy(
     let mut new_tgt = BezPath::new();
 
     for (src_sub, tgt_sub) in pairs {
-        let (aligned_src, aligned_tgt) = align_segments(&src_sub, &tgt_sub);
+        let (aligned_src, aligned_tgt) = align_segments_with_strategy(&src_sub, &tgt_sub, strategy);
         for el in aligned_src {
             new_src.push(el);
         }
@@ -200,8 +201,44 @@ pub fn align_segments(
     source_subpath: &[PathEl],
     target_subpath: &[PathEl],
 ) -> (Vec<PathEl>, Vec<PathEl>) {
-    let mut src_curves = to_curves(source_subpath);
-    let mut tgt_curves = to_curves(target_subpath);
+    align_segments_with_strategy(source_subpath, target_subpath, MorphStrategy::Auto)
+}
+
+/// Strategy-aware segment alignment.
+///
+/// `Match` additionally phase-aligns closed loops: the same geometric loop can
+/// start at any vertex, so an index-based pairing of a rectangle and an
+/// ellipse maps a corner to a control point and twists the morph (the visible
+/// "notch" in a Rect→Ellipse transition). For closed subpaths we try every
+/// rotation of the target curve list (and its reverse) and keep the one whose
+/// curve start points are closest to the source's.
+pub fn align_segments_with_strategy(
+    source_subpath: &[PathEl],
+    target_subpath: &[PathEl],
+    strategy: MorphStrategy,
+) -> (Vec<PathEl>, Vec<PathEl>) {
+    // `Match` on two closed loops needs a correspondence, not just equal
+    // segment counts: pairing a square's corners with an ellipse's axis
+    // points folds the morph to half size at t=0.5. Re-sample both outlines
+    // by angle around the centre — every i-th sample is the same bearing on
+    // both shapes — then the pointwise interpolation is a true silhouette
+    // morph.
+    let (mut source_owned, mut target_owned) = (source_subpath.to_vec(), target_subpath.to_vec());
+    if strategy == MorphStrategy::Match && closed_like(&source_owned) && closed_like(&target_owned)
+    {
+        source_owned = resample_closed_radial(&source_owned, 64);
+        target_owned = resample_closed_radial(&target_owned, 64);
+    }
+    let mut src_curves = to_curves(&source_owned);
+    let mut tgt_curves = to_curves(&target_owned);
+
+    // `to_curves` turns a `ClosePath` into a line back to the subpath start,
+    // which for an already-closed loop (Rect, Ellipse) is a zero-length
+    // curve. Left in, a phase rotation can pair that degenerate segment with a
+    // real arc and fold the morph into a spike, so drop degenerate segments
+    // before pairing.
+    remove_degenerate_curves(&mut src_curves);
+    remove_degenerate_curves(&mut tgt_curves);
 
     // Make sure they have the same number of elements
     while src_curves.len() < tgt_curves.len() && !src_curves.is_empty() {
@@ -253,7 +290,248 @@ pub fn align_segments(
         }
     }
 
+    if strategy == MorphStrategy::Match
+        && src_curves.len() == tgt_curves.len()
+        && src_curves.len() > 1
+        && is_closed_subpath(source_subpath)
+        && is_closed_subpath(target_subpath)
+    {
+        tgt_curves = phase_align_closed(&src_curves, &tgt_curves);
+    }
+
     (src_curves, tgt_curves)
+}
+
+/// A subpath is closed when it carries `ClosePath` or ends where it started
+/// (`extract_subpaths` drops the explicit `ClosePath` for some inputs).
+fn closed_like(elements: &[PathEl]) -> bool {
+    if elements.iter().any(|el| matches!(el, PathEl::ClosePath)) {
+        return true;
+    }
+    let mut points = elements.iter().filter_map(|el| match el {
+        PathEl::MoveTo(p) => Some(*p),
+        PathEl::LineTo(p) => Some(*p),
+        PathEl::CurveTo(_, _, p) => Some(*p),
+        PathEl::QuadTo(_, p) => Some(*p),
+        PathEl::ClosePath => None,
+    });
+    let first = points.next();
+    let last = points.last();
+    matches!((first, last), (Some(a), Some(b)) if a.distance(b) < 1e-6)
+}
+
+/// Re-sample a closed outline at `samples` evenly spaced bearings around its
+/// bounding-box centre. The returned path starts at 12 o'clock and runs
+/// clockwise, so two shapes share an index-to-bearing correspondence.
+fn resample_closed_radial(elements: &[PathEl], samples: usize) -> Vec<PathEl> {
+    let path = BezPath::from_vec(elements.to_vec());
+    let bbox = path.bounding_box();
+    let center = Point::new((bbox.x0 + bbox.x1) / 2.0, (bbox.y0 + bbox.y1) / 2.0);
+    const STEPS_PER_SEGMENT: usize = 24;
+    let mut polyline: Vec<Point> = Vec::new();
+    for segment in path.segments() {
+        for i in 0..=STEPS_PER_SEGMENT {
+            polyline.push(segment.eval(i as f64 / STEPS_PER_SEGMENT as f64));
+        }
+    }
+    if polyline.len() < 2 {
+        return elements.to_vec();
+    }
+    let mut outline = Vec::with_capacity(samples);
+    for i in 0..samples {
+        let theta =
+            -std::f64::consts::FRAC_PI_2 + std::f64::consts::TAU * (i as f64) / (samples as f64);
+        let dir = (theta.cos(), theta.sin());
+        let mut farthest = 0.0;
+        for edge in polyline.windows(2) {
+            if let Some(t) = ray_segment_hit(center, dir, edge[0], edge[1]) {
+                if t > farthest {
+                    farthest = t;
+                }
+            }
+        }
+        outline.push(if farthest > 0.0 {
+            Point::new(center.x + dir.0 * farthest, center.y + dir.1 * farthest)
+        } else {
+            center
+        });
+    }
+    let mut result = Vec::with_capacity(samples + 2);
+    result.push(PathEl::MoveTo(outline[0]));
+    for point in outline.iter().skip(1) {
+        result.push(PathEl::LineTo(*point));
+    }
+    result.push(PathEl::ClosePath);
+    result
+}
+
+/// Ray `o + t·d` against segment `a→b`; returns `t > 0` for a hit inside the
+/// segment.
+fn ray_segment_hit(o: Point, d: (f64, f64), a: Point, b: Point) -> Option<f64> {
+    let ex = b.x - a.x;
+    let ey = b.y - a.y;
+    let denom = d.0 * ey - d.1 * ex;
+    if denom.abs() < 1e-12 {
+        return None;
+    }
+    let qx = a.x - o.x;
+    let qy = a.y - o.y;
+    let t = (qx * ey - qy * ex) / denom;
+    let u = (d.1 * qx - d.0 * qy) / denom;
+    if t > 1e-9 && (0.0..=1.0).contains(&u) {
+        Some(t)
+    } else {
+        None
+    }
+}
+
+/// Drop zero-length curve segments (the closing segment of an already-closed
+/// path) so they cannot be paired with a real segment during morph alignment.
+fn remove_degenerate_curves(curves: &mut Vec<PathEl>) {
+    let mut current = Point::ZERO;
+    let mut keep = Vec::with_capacity(curves.len());
+    for el in curves.drain(..) {
+        match &el {
+            PathEl::MoveTo(p) => {
+                current = *p;
+                keep.push(el);
+            },
+            PathEl::CurveTo(p1, p2, p3) => {
+                let degenerate = current.distance(*p1) < 1e-6
+                    && current.distance(*p2) < 1e-6
+                    && current.distance(*p3) < 1e-6;
+                if !degenerate {
+                    current = *p3;
+                    keep.push(el);
+                }
+            },
+            PathEl::LineTo(p) => {
+                if current.distance(*p) >= 1e-6 {
+                    current = *p;
+                    keep.push(el);
+                }
+            },
+            PathEl::ClosePath => {},
+            _ => keep.push(el),
+        }
+    }
+    *curves = keep;
+}
+
+fn is_closed_subpath(elements: &[PathEl]) -> bool {
+    elements.iter().any(|el| matches!(el, PathEl::ClosePath))
+}
+
+/// One closed curve as `(start, end, element)`.
+fn closed_segments(curves: &[PathEl]) -> Vec<(Point, Point, PathEl)> {
+    let mut segments = Vec::new();
+    let mut current = Point::ZERO;
+    for el in curves {
+        match el {
+            PathEl::MoveTo(p) => current = *p,
+            PathEl::CurveTo(_, _, p3) => {
+                segments.push((current, *p3, el.clone()));
+                current = *p3;
+            },
+            PathEl::LineTo(p) => {
+                segments.push((current, *p, el.clone()));
+                current = *p;
+            },
+            PathEl::ClosePath => {},
+            _ => {},
+        }
+    }
+    segments
+}
+
+fn reverse_element(el: &PathEl) -> PathEl {
+    match el {
+        PathEl::CurveTo(c1, c2, end) => PathEl::CurveTo(*c2, *c1, *end),
+        other => other.clone(),
+    }
+}
+
+fn rotated_closed(
+    segments: &[(Point, Point, PathEl)],
+    start_index: usize,
+    reversed: bool,
+) -> Vec<PathEl> {
+    let n = segments.len();
+    let mut seq: Vec<(Point, Point, PathEl)> = if reversed {
+        segments
+            .iter()
+            .rev()
+            .map(|(start, end, el)| (*end, *start, reverse_element(el)))
+            .collect()
+    } else {
+        segments.to_vec()
+    };
+    let offset = start_index % n;
+    let start = seq[(offset + n - 1) % n].1;
+    let mut out = vec![PathEl::MoveTo(start)];
+    for i in 0..n {
+        let (_, _, el) = seq[(offset + i) % n].clone();
+        out.push(el);
+    }
+    out.push(PathEl::ClosePath);
+    if reversed {
+        // no-op; kept explicit for symmetry with the rotation path
+        seq.clear();
+    }
+    out
+}
+
+/// Midpoint of one curve segment. Corner-based cost (`segment start`) maps a
+/// square's corners onto an ellipse's axis endpoints and rotates the morph by
+/// 45°; the side midpoints are what correspond on a square→circle morph, so
+/// use the geometric midpoint of each segment.
+fn segment_midpoint(segment: &(Point, Point, PathEl)) -> Point {
+    let (start, end, el) = segment;
+    match el {
+        PathEl::CurveTo(p1, p2, _) => {
+            let cubic = CubicBez::new(*start, *p1, *p2, *end);
+            cubic.eval(0.5)
+        },
+        PathEl::LineTo(_) => Point::new((start.x + end.x) / 2.0, (start.y + end.y) / 2.0),
+        _ => *start,
+    }
+}
+
+fn phase_align_closed(source: &[PathEl], target: &[PathEl]) -> Vec<PathEl> {
+    let src_segments = closed_segments(source);
+    let tgt_segments = closed_segments(target);
+    if src_segments.is_empty() || src_segments.len() != tgt_segments.len() {
+        return target.to_vec();
+    }
+    let n = tgt_segments.len();
+    let mut best_cost = f64::INFINITY;
+    let mut best = target.to_vec();
+    for reversed in [false, true] {
+        // Build the candidate sequence once per direction so starts can be read
+        // without rebuilding a BezPath per rotation.
+        let seq: Vec<(Point, Point, PathEl)> = if reversed {
+            tgt_segments
+                .iter()
+                .rev()
+                .map(|(start, end, el)| (*end, *start, reverse_element(el)))
+                .collect()
+        } else {
+            tgt_segments.clone()
+        };
+        for offset in 0..n {
+            let mut cost = 0.0;
+            for i in 0..n {
+                let src_mid = segment_midpoint(&src_segments[i]);
+                let tgt_mid = segment_midpoint(&seq[(offset + i) % n]);
+                cost += src_mid.distance(tgt_mid);
+            }
+            if cost < best_cost {
+                best_cost = cost;
+                best = rotated_closed(&tgt_segments, offset, reversed);
+            }
+        }
+    }
+    best
 }
 
 pub(super) fn path_centroid_key(path: &BezPath, other: &BezPath) -> std::cmp::Ordering {
