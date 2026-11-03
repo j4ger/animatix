@@ -1,132 +1,112 @@
+// house-style: three acts — token-entry hook, layer-stack climb, logit payoff with a camera push.
 // 06 · The deep layer stack & vocabulary logit projection.
 //
-// Explains:
-//   1. Iterative Refinement: Raw embeddings enter Block 1. Through N=12 layers,
-//      representations evolve from low-level surface grammar to abstract semantic logic.
-//   2. LM Head Projection: Unembeds 768-dim final hidden state into 50,257 vocabulary logits.
-//   3. Next-Token Selection: Softmax produces probability distribution; highest score
-//      ("street", 41%) wins the autoregressive step.
+// The walkthrough's closing figure. Three acts:
+//   I.  Tokens enter the base of the stack; the depth ruler states how many
+//       blocks they will cross.
+//   II. The stack builds bottom-up — Block 01 surface syntax, Block 06 entity
+//       relations, Block 12 abstract intent — each with its evolving
+//       representation strip.
+//   III. The LM head un-embeds the final state into 50,257 logits; the
+//       probability panel ranks them and "street" wins. The camera pushes in
+//       on the completed tower and settles into the resting frame.
+//
+// House-style §1: StageFloor + compact head + caption are opaque at t=0.
+// House-style §5: title 48 (compact head; the tower owns the top band), block
+// titles 18, sublabels 16, readout values 28, captions 24 — nothing below 16.
+//
+// Slider: `stages` is the layer count quoted by the badge, the readout and the
+// narration, and it drives the number of depth-ruler ticks (range 6-24, step 2).
 
 import "../../lib/theme.amx"
-import "../../lib/ambience.amx"
+import "../../lib/stage.amx"
 import "../lib/components.amx"
 
 config { colorscheme: "ink", resolution: (1280, 720), duration: 8.2 }
 
-bg: Ambience, tint: accent.danger, base_opacity: 0.14, seed: 60
+let stages = 12
+let stage_span = (0, stages)
 
-// ── Header / Narration (top-left) ───────────────────────────────────
-head_eyebrow: Text, text: "FIG 06 // DEEP LAYER STACK & LOGIT PROJECTION", font_size: 13,
-  color: accent.danger, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 48)
+// ── the stage ───────────────────────────────────────────────────────
+floor: StageFloor, glow: 1.35
 
-phase1: Text, text: "1 · Token embeddings enter the base of the N-layer stack", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
-phase2: Text, text: "2 · Hierarchical refinement: grammar -> coreference -> semantic intent", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
-phase3: Text, text: "3 · LM Head projects 768-dim state to 50,257 vocabulary logits", font_size: 18, color: text.primary,
-  text_max_width: 500, text_align: "left", text_anchor: "left", anchor: scene.top_left, offset: (80, 74)
+head_eyebrow: Text, text: "FIG 06 · DEEP LAYER STACK & LOGIT PROJECTION", font_size: 18,
+  font_weight: 600, color: accent.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (96, 44), opacity: 0
+head_title: Text, text: "Twelve layers to a word", font_size: 48, font_weight: "bold",
+  color: text.primary, text_align: "left", text_anchor: "left",
+  anchor: scene.top_left, offset: (96, 96), opacity: 1
+head_rule: Rect, size: (96, 4), color: accent.primary,
+  anchor: scene.top_left, offset: (96, 150), opacity: 1
 
-stack_badge: Stack, at: (1080, 68) {
-  s_bg: Rect, size: (260, 40), corner_radius: 10, color: surface.primary,
-    stroke: stroke.default, stroke_width: 1.2
-  s_txt: Text, text: "N = 12 Layers · 124M Parameters", font_size: 13, color: text.secondary
+cap1: Caption, text: "Act I · Token embeddings enter the base of the N-layer stack.",
+  tag: "pipeline.amx", opacity: 1
+cap2: Caption, text: format("Act II · {:.0} blocks refine grammar, then coreference, then intent.", stages),
+  tag: "pipeline.amx", opacity: 0
+cap3: Caption, text: "Act III · The LM head projects into 50,257 logits; softmax picks “street”.",
+  tag: "pipeline.amx", opacity: 0
+
+layers_chip: Readout, label: "LAYERS", value: format("{:.0}", stages), at: (1090, 180)
+vocab_chip: Readout, label: "VOCAB LOGITS", value: "50,257", at: (1090, 270)
+
+// ── Act I: input tokens on the baseline ─────────────────────────────
+in_row: Row, at: (480, 600), gap: 16, align: "center" {
+  in1: LabeledBox, label: "The", width: 110, height: 48, text_size: 18, corner: 10
+  in2: LabeledBox, label: "animal", width: 110, height: 48, text_size: 18, corner: 10
+  in3: LabeledBox, label: "didn't", width: 110, height: 48, text_size: 18, corner: 10
+  in4: LabeledBox, label: "cross", width: 110, height: 48, text_size: 18, corner: 10
+  in5: LabeledBox, label: "the", width: 110, height: 48, text_size: 18, corner: 10
 }
 
-// ── Input Tokens (Bottom baseline, y = 580) ─────────────────────────
-in_row: Row, at: (560, 580), gap: 16, align: "center" {
-  in1: LabeledBox, label: "The", width: 110, height: 48, text_size: 16, corner: 10
-  in2: LabeledBox, label: "animal", width: 110, height: 48, text_size: 16, corner: 10
-  in3: LabeledBox, label: "didn't", width: 110, height: 48, text_size: 16, corner: 10
-  in4: LabeledBox, label: "cross", width: 110, height: 48, text_size: 16, corner: 10
-  in5: LabeledBox, label: "the", width: 110, height: 48, text_size: 16, corner: 10
+// A generated depth ruler: its tick count is the `stages` slider.
+depth_label: Text, text: "DEPTH", font_size: 16, color: text.muted,
+  text_align: "left", text_anchor: "left", at: (96, 240), opacity: 1
+for s in stage_span {
+  depth_tick[s]: Rect, size: (8, 2), corner_radius: 1, color: accent.primary,
+    opacity: 0.42, at: (100, 604 - s * (320 / stages))
 }
 
-// ── The Tower Stack (y = 460, 350, 240) ─────────────────────────────
+// ── Act II: the tower ───────────────────────────────────────────────
 b1: Rect, size: (590, 80), corner_radius: 16, color: surface.primary,
-  stroke: stroke.default, stroke_width: 1.5, opacity: 0.0, at: (560, 460)
+  stroke: stroke.default, stroke_width: 1.5, opacity: 0, at: (480, 500)
 b2: Rect, size: (590, 80), corner_radius: 16, color: surface.primary,
-  stroke: stroke.default, stroke_width: 1.5, opacity: 0.0, at: (560, 350)
+  stroke: stroke.default, stroke_width: 1.5, opacity: 0, at: (480, 390)
 b3: Rect, size: (590, 80), corner_radius: 16, color: surface.primary,
-  stroke: accent.primary, stroke_width: 1.8, opacity: 0.0, at: (560, 240)
+  stroke: accent.primary, stroke_width: 1.8, opacity: 0, at: (480, 280)
 
-b1_t: Text, text: "Block 01 // Surface Syntax & Part-of-Speech", font_size: 15, color: text.primary, at: (600, 460)
-b2_t: Text, text: "Block 06 // Entity Relations & Coreference", font_size: 15, color: text.primary, at: (600, 350)
-b3_t: Text, text: "Block 12 // Abstract Intent & Semantic Prediction", font_size: 15, color: accent.primary, at: (600, 240)
-
-// Intensity strips showing representation evolving per layer
-s1_strip: Row, at: (340, 460), gap: 6, align: "center" {
-  s1_0: Rect, size: (24, 24), corner_radius: 5, color: accent.primary, opacity: 0.0
-  s1_1: Rect, size: (24, 24), corner_radius: 5, color: accent.primary, opacity: 0.0
-  s1_2: Rect, size: (24, 24), corner_radius: 5, color: accent.primary, opacity: 0.0
-  s1_3: Rect, size: (24, 24), corner_radius: 5, color: accent.primary, opacity: 0.0
+s1_strip: Row, at: (730, 500), gap: 4, align: "center" {
+  s1_0: Rect, size: (18, 18), corner_radius: 4, color: accent.primary, opacity: 0
+  s1_1: Rect, size: (18, 18), corner_radius: 4, color: accent.primary, opacity: 0
+  s1_2: Rect, size: (18, 18), corner_radius: 4, color: accent.primary, opacity: 0
+  s1_3: Rect, size: (18, 18), corner_radius: 4, color: accent.primary, opacity: 0
+}
+s2_strip: Row, at: (730, 390), gap: 4, align: "center" {
+  s2_0: Rect, size: (18, 18), corner_radius: 4, color: accent.success, opacity: 0
+  s2_1: Rect, size: (18, 18), corner_radius: 4, color: accent.success, opacity: 0
+  s2_2: Rect, size: (18, 18), corner_radius: 4, color: accent.success, opacity: 0
+  s2_3: Rect, size: (18, 18), corner_radius: 4, color: accent.success, opacity: 0
+}
+s3_strip: Row, at: (730, 280), gap: 4, align: "center" {
+  s3_0: Rect, size: (18, 18), corner_radius: 4, color: accent.danger, opacity: 0
+  s3_1: Rect, size: (18, 18), corner_radius: 4, color: accent.danger, opacity: 0
+  s3_2: Rect, size: (18, 18), corner_radius: 4, color: accent.danger, opacity: 0
+  s3_3: Rect, size: (18, 18), corner_radius: 4, color: accent.danger, opacity: 0
 }
 
-s2_strip: Row, at: (340, 350), gap: 6, align: "center" {
-  s2_0: Rect, size: (24, 24), corner_radius: 5, color: accent.success, opacity: 0.0
-  s2_1: Rect, size: (24, 24), corner_radius: 5, color: accent.success, opacity: 0.0
-  s2_2: Rect, size: (24, 24), corner_radius: 5, color: accent.success, opacity: 0.0
-  s2_3: Rect, size: (24, 24), corner_radius: 5, color: accent.success, opacity: 0.0
-}
-
-s3_strip: Row, at: (340, 240), gap: 6, align: "center" {
-  s3_0: Rect, size: (24, 24), corner_radius: 5, color: accent.danger, opacity: 0.0
-  s3_1: Rect, size: (24, 24), corner_radius: 5, color: accent.danger, opacity: 0.0
-  s3_2: Rect, size: (24, 24), corner_radius: 5, color: accent.danger, opacity: 0.0
-  s3_3: Rect, size: (24, 24), corner_radius: 5, color: accent.danger, opacity: 0.0
-}
-
-// Upward flow arrows
-up1: Arrow, from: (560, 546), to: (560, 506), head_size: 10, stroke_width: 2, stroke: text.muted, opacity: 0.0
-up2: Arrow, from: (560, 414), to: (560, 396), head_size: 10, stroke_width: 2, stroke: text.muted, opacity: 0.0
-up3: Arrow, from: (560, 304), to: (560, 286), head_size: 10, stroke_width: 2, stroke: text.muted, opacity: 0.0
-up_top: Arrow, from: (560, 194), to: (560, 172), head_size: 10, stroke_width: 2, stroke: accent.primary, opacity: 0.0
-
-// ── Top Level: LM Head & Logit Distribution (y = 140 - 150) ─────────
-lm_stack: Stack, at: (560, 146) {
-  lm_box: Rect, size: (590, 46), corner_radius: 12, color: surface.primary,
-    stroke: accent.primary, stroke_width: 2, opacity: 0.0
-  lm_txt: Text, text: "Language Model Head: Linear(768 -> 50,257) + Softmax", font_size: 15, color: text.primary
-}
-
-// Next-Token Probability Bars on Right (x = 1040)
-prob_panel: Stack, at: (1040, 350) {
-  p_bg: Rect, size: (260, 300), corner_radius: 16, color: surface.primary,
-    stroke: stroke.default, stroke_width: 1.4
-  p_col: Col, gap: 14, align: "center" {
-    p_title: Text, text: "Next Token Probabilities", font_size: 14, color: text.primary
-    row_p0: Row, gap: 8, align: "center" {
-      pw0: Text, text: "“street”", font_size: 13, color: accent.primary
-      pb0: Rect, size: (110, 16), corner_radius: 4, color: accent.primary, opacity: 0.0
-      pv0: Text, text: "0.41", font_size: 13, color: accent.primary
-    }
-    row_p1: Row, gap: 8, align: "center" {
-      pw1: Text, text: "“road”  ", font_size: 13, color: text.secondary
-      pb1: Rect, size: (60, 16), corner_radius: 4, color: text.secondary, opacity: 0.0
-      pv1: Text, text: "0.22", font_size: 13, color: text.secondary
-    }
-    row_p2: Row, gap: 8, align: "center" {
-      pw2: Text, text: "“bridge”", font_size: 13, color: text.secondary
-      pb2: Rect, size: (32, 16), corner_radius: 4, color: text.secondary, opacity: 0.0
-      pv2: Text, text: "0.12", font_size: 13, color: text.secondary
-    }
-    row_p3: Row, gap: 8, align: "center" {
-      pw3: Text, text: "“path”  ", font_size: 13, color: text.secondary
-      pb3: Rect, size: (14, 16), corner_radius: 4, color: text.secondary, opacity: 0.0
-      pv3: Text, text: "0.05", font_size: 13, color: text.secondary
-    }
-    p_verdict: Text, text: "Predicted Token: street", font_size: 13, color: accent.primary
-  }
-}
-
-// Climbing pulse dot
-climb_dot: Ellipse, size: (16, 16), color: accent.primary, opacity: 0.0, at: (560, 560)
+// Climbing pulse dot: one token's signal rising through the stack.
+climb_dot: Ellipse, size: (16, 16), color: accent.primary, opacity: 0, at: (480, 566)
 
 // ── Timeline Choreography ───────────────────────────────────────────
+// Act I — the sentence lands and the depth ruler lights.
 #0.10s
 fade-in head_eyebrow [260ms, ease: expo-out]
-fade-in phase1 [300ms, ease: expo-out]
+stack_badge: Stack, at: (1000, 78), size: (380, 50), opacity: 0 {
+  s_bg: Rect, size: (380, 50), corner_radius: 12, color: surface.primary,
+    stroke: stroke.default, stroke_width: 1.2
+  s_txt: Text, text: format("N = {:.0} LAYERS · 124M PARAMETERS", stages), font_size: 18, color: text.secondary
+}
 fade-in stack_badge [320ms, ease: expo-out]
-stagger [80ms] {
+stagger [60ms] {
   fade-in in1 [300ms, ease: expo-out]
   fade-in in2 [300ms, ease: expo-out]
   fade-in in3 [300ms, ease: expo-out]
@@ -134,13 +114,18 @@ stagger [80ms] {
   fade-in in5 [300ms, ease: expo-out]
 }
 
+// Act II — the stack climbs: each block lands on the one below.
 #1.00s
-draw-in up1 [260ms, ease: expo-out]
-up1.opacity = 0.7 [240ms]
-fade-out phase1 [240ms, ease: ease-in]
-fade-in phase2 [280ms, delay: 240ms, ease: expo-out]
+up1: Arrow, from: (480, 570), to: (480, 546), head_size: 10, stroke_width: 2,
+  stroke: text.muted, opacity: 0
+fade-in up1 [260ms, ease: expo-out]
+up1.opacity = 0.70 [240ms]
+fade-out cap1 [240ms, ease: ease-in]
+fade-in cap2 [280ms, delay: 200ms, ease: expo-out]
 b1.opacity = 0.90 [380ms]
-fade-in b1_t [260ms, delay: 180ms, ease: expo-out]
+b1_t: Text, text: "Block 01 · Surface syntax & part-of-speech", font_size: 18, color: text.primary,
+  text_anchor: "center", at: (480, 500), opacity: 0
+fade-in b1_t [260ms, delay: 140ms, ease: expo-out]
 stagger [40ms] {
   s1_0.opacity = 0.40 [260ms]
   s1_1.opacity = 0.85 [260ms]
@@ -149,10 +134,14 @@ stagger [40ms] {
 }
 
 #1.80s
-draw-in up2 [260ms, ease: expo-out]
-up2.opacity = 0.7 [240ms]
+up2: Arrow, from: (480, 456), to: (480, 436), head_size: 10, stroke_width: 2,
+  stroke: text.muted, opacity: 0
+fade-in up2 [260ms, ease: expo-out]
+up2.opacity = 0.70 [240ms]
 b2.opacity = 0.90 [380ms]
-fade-in b2_t [260ms, delay: 180ms, ease: expo-out]
+b2_t: Text, text: "Block 06 · Entity relations & coreference", font_size: 18, color: text.primary,
+  text_anchor: "center", at: (480, 390), opacity: 0
+fade-in b2_t [240ms, delay: 140ms, ease: expo-out]
 stagger [40ms] {
   s2_0.opacity = 0.70 [260ms]
   s2_1.opacity = 0.40 [260ms]
@@ -161,10 +150,14 @@ stagger [40ms] {
 }
 
 #2.60s
-draw-in up3 [260ms, ease: expo-out]
-up3.opacity = 0.7 [240ms]
+up3: Arrow, from: (480, 346), to: (480, 326), head_size: 10, stroke_width: 2,
+  stroke: text.muted, opacity: 0
+fade-in up3 [260ms, ease: expo-out]
+up3.opacity = 0.70 [240ms]
 b3.opacity = 0.95 [380ms]
-fade-in b3_t [260ms, delay: 180ms, ease: expo-out]
+b3_t: Text, text: "Block 12 · Abstract intent & semantic prediction", font_size: 18, color: accent.primary,
+  text_anchor: "center", at: (480, 280), opacity: 0
+fade-in b3_t [240ms, delay: 140ms, ease: expo-out]
 stagger [40ms] {
   s3_0.opacity = 0.90 [260ms]
   s3_1.opacity = 0.60 [260ms]
@@ -172,44 +165,77 @@ stagger [40ms] {
   s3_3.opacity = 0.95 [260ms]
 }
 
+// Act III — the LM head and the logit ranking.
 #3.40s
-fade-out phase2 [240ms, ease: ease-in]
-fade-in phase3 [280ms, delay: 240ms, ease: expo-out]
-draw-in up_top [280ms, ease: expo-out]
-up_top.opacity = 0.8 [260ms]
-lm_box.opacity = 0.95 [360ms]
+fade-out cap2 [240ms, ease: ease-in]
+fade-in cap3 [280ms, delay: 200ms, ease: expo-out]
+up_top: Arrow, from: (480, 236), to: (480, 216), head_size: 10, stroke_width: 2,
+  stroke: accent.primary, opacity: 0
+fade-in up_top [260ms, ease: expo-out]
+up_top.opacity = 0.80 [240ms]
+lm_box: Rect, size: (590, 46), corner_radius: 12, color: surface.primary,
+  stroke: accent.primary, stroke_width: 2, opacity: 0, at: (480, 190)
+lm_txt: Text, text: "Language Model Head · Linear(768 → 50,257) + Softmax", font_size: 18,
+  color: text.primary, text_anchor: "center", at: (480, 190), opacity: 0
+lm_box.opacity = 0.95 [320ms]
 fade-in lm_txt [280ms, delay: 160ms, ease: expo-out]
 
 #4.10s
+prob_panel: Stack, at: (1080, 480), size: (260, 300), opacity: 0 {
+  p_bg: Rect, size: (260, 300), corner_radius: 16, color: surface.primary,
+    stroke: stroke.default, stroke_width: 1.4
+}
+p_title: Text, text: "Next-token probabilities", font_size: 18, color: text.primary,
+  text_anchor: "center", at: (1080, 360), opacity: 0
+pw0: Text, text: "“street”", font_size: 16, color: accent.primary, text_anchor: "left", at: (980, 402), opacity: 0
+pb0: Rect, size: (100, 16), corner_radius: 4, color: accent.primary, at: (1090, 402), opacity: 0
+pv0: Text, text: "0.41", font_size: 16, color: accent.primary, text_anchor: "right", at: (1180, 402), opacity: 0
+pw1: Text, text: "“road”", font_size: 16, color: text.secondary, text_anchor: "left", at: (980, 438), opacity: 0
+pb1: Rect, size: (54, 16), corner_radius: 4, color: text.secondary, at: (1090, 438), opacity: 0
+pv1: Text, text: "0.22", font_size: 16, color: text.secondary, text_anchor: "right", at: (1180, 438), opacity: 0
+pw2: Text, text: "“bridge”", font_size: 16, color: text.secondary, text_anchor: "left", at: (980, 474), opacity: 0
+pb2: Rect, size: (28, 16), corner_radius: 4, color: text.secondary, at: (1090, 474), opacity: 0
+pv2: Text, text: "0.12", font_size: 16, color: text.secondary, text_anchor: "right", at: (1180, 474), opacity: 0
+pw3: Text, text: "“path”", font_size: 16, color: text.secondary, text_anchor: "left", at: (980, 510), opacity: 0
+pb3: Rect, size: (12, 16), corner_radius: 4, color: text.secondary, at: (1090, 510), opacity: 0
+pv3: Text, text: "0.05", font_size: 16, color: text.secondary, text_anchor: "right", at: (1180, 510), opacity: 0
+p_verdict: Text, text: "Predicted: “street”", font_size: 16, color: accent.primary,
+  text_anchor: "center", at: (1080, 560), opacity: 0
 fade-in prob_panel [380ms, ease: expo-out]
-fade-in p_title [260ms, delay: 140ms, ease: expo-out]
+stagger [60ms] {
+  fade-in p_title [260ms, ease: expo-out]
+  fade-in pw0 [240ms, ease: expo-out]
+  fade-in pv0 [240ms, ease: expo-out]
+  fade-in pw1 [240ms, ease: expo-out]
+  fade-in pv1 [240ms, ease: expo-out]
+  fade-in pw2 [240ms, ease: expo-out]
+  fade-in pv2 [240ms, ease: expo-out]
+  fade-in pw3 [240ms, ease: expo-out]
+  fade-in pv3 [240ms, ease: expo-out]
+  fade-in p_verdict [260ms, ease: expo-out]
+}
 stagger [70ms] {
   pb0.opacity = 1.00 [280ms]
   pb1.opacity = 0.50 [280ms]
   pb2.opacity = 0.35 [280ms]
   pb3.opacity = 0.20 [280ms]
 }
-stagger [70ms] {
-  fade-in pw0 [240ms, ease: expo-out]
-  fade-in pw1 [240ms, ease: expo-out]
-  fade-in pw2 [240ms, ease: expo-out]
-  fade-in pw3 [240ms, ease: expo-out]
-}
-stagger [70ms] {
-  fade-in pv0 [240ms, ease: expo-out]
-  fade-in pv1 [240ms, ease: expo-out]
-  fade-in pv2 [240ms, ease: expo-out]
-  fade-in pv3 [240ms, ease: expo-out]
-}
-fade-in p_verdict [300ms, delay: 350ms, ease: expo-out]
 
-// Token signal climbs the tower
-#5.10s
-fade-in climb_dot [200ms, ease: expo-out]
-shift climb_dot [by: (0, -410), 1600ms, ease: ease-in-out]
-fade-out climb_dot [260ms, delay: 1500ms, ease: ease-in]
-pulse pb0 [600ms, intensity: 0.05, delay: 1400ms]
+// The token signal climbs the finished tower as the ranking settles.
+#4.80s
+fade-in climb_dot [220ms, ease: expo-out]
+shift climb_dot [by: (0, -370), 1600ms, ease: ease-in-out]
+fade-out climb_dot [260ms, delay: 1480ms, ease: ease-in]
 
-// ── Outro Rest Frame ────────────────────────────────────────────────
-#7.80s
-// Complete tower, blocks, and logit ranking stand held for loop.
+// Payoff: push into the completed tower, then settle for the rest frame.
+#6.40s
+camera.zoom = 1.04 [1.0s, ease: ease-in-out]
+pulse pb0 [600ms, intensity: 0.05, delay: 300ms]
+
+#7.40s
+camera.zoom = 1.0 [0.8s, ease: ease-in-out]
+
+// ── Rest ────────────────────────────────────────────────────────────
+#8.10s
+// Inputs, three blocks with their strips, the LM head and the probability
+// panel all stand. Nothing erases; the stack rests on its tokens.
