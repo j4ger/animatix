@@ -164,8 +164,21 @@ def emit_catalog(works: list[dict]) -> str:
 
 def emit_gallery(works: list[dict]) -> str:
     out = ['''    <div class="figure-grid">''']
+    # One live leader, hover-play for the rest. Nine simultaneous autoplaying
+    # WebGPU canvases is nine full-target Vello passes per frame; on an iGPU or
+    # a software adapter the whole page drops below 60 fps. A hover figure is
+    # still one gesture from playing, and the gallery stays a catalog rather
+    # than nine competing cinemas.
+    first_figure = True
     for w in works:
         for fig in w.get("figures", []):
+            if first_figure:
+                play = '''                      autoplay loop controls hold="1" aspect="16:9"'''
+                hint = "live figure · click to play"
+                first_figure = False
+            else:
+                play = '''                      data-hoverplay loop controls hold="1" aspect="16:9"'''
+                hint = "hover to play · click for controls"
             out += [
                 f'''      <figure data-palette="{e(w['palette'])}">''',
                 '''        <div class="figure-head">''',
@@ -175,10 +188,10 @@ def emit_gallery(works: list[dict]) -> str:
                 '''        <div class="stage-frame">''',
                 '''          <div class="poster-plate" aria-hidden="true">''',
                 f'''            <span class="poster-name">{e(fig['title'])}</span>''',
-                '''            <span class="poster-hint">live figure · click to play</span>''',
+                f'''            <span class="poster-hint">{hint}</span>''',
                 '''          </div>''',
                 f'''          <amx-player src="./demos/{e(fig['scene'])}" no-veil''',
-                '''                      autoplay loop controls hold="1" aspect="16:9"''',
+                play,
                 f'''                      title="{e(fig['title'])}"></amx-player>''',
                 '''        </div>''',
                 '''        <figcaption>''',

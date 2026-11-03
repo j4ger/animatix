@@ -157,6 +157,7 @@ function loadEngine(profile) {
 const instances = new Set();
 let rafRunning = false;
 let lastT = 0;
+let pendingDt = 0;
 
 // Page-wide render-scale adaptation. A frame's GPU cost tracks the number of
 // pixels the offscreen target holds — an empty 1280x720 scene measures the same
@@ -168,7 +169,7 @@ let lastT = 0;
 // stretch of comfortable frames. Stepping one notch at a time and reading the
 // clock is deliberate: the alternative — sizing by how many embeds happen to be
 // playing — guesses at work it cannot measure.
-const QUALITY_STEPS = [1, 0.88, 0.75];
+const QUALITY_STEPS = [1, 0.85, 0.7, 0.55, 0.42, 0.32, 0.25];
 const SLOW_TICK_MS = 24; // a 60 Hz tick that misses its vsync lands at ~33 ms
 const FAST_TICK_MS = 18.5;
 let qualityStep = 0;
@@ -186,26 +187,46 @@ function setQualityStep(step) {
 /// scale to how long the tick actually took.
 function tick(t) {
   const dtMs = t - lastT;
-  const dt = Math.min(dtMs / 1000, 0.1);
   lastT = t;
+  pendingDt += Math.min(dtMs / 1000, 0.1);
+  // Scenes are authored on a 60 fps grid. On a 120/144 Hz display a bare rAF
+  // loop would render two frames per authored frame — pure extra GPU work with
+  // no visual gain. Accumulate the elapsed time and only run the timeline on a
+  // 60 Hz step.
+  if (dtMs < 1000 / FRAME_RATE - 1) {
+    requestAnimationFrame(tick);
+    return;
+  }
+  const dt = pendingDt;
+  pendingDt = 0;
   let anyPlaying = false;
   for (const inst of instances) {
     if (inst.advance(dt)) anyPlaying = true;
   }
   if (anyPlaying) {
     if (dtMs > 100) {
-      // Background tab resumption or long GC stall — ignore for quality adjustment.
+      // A long stall means the render itself is far past budget (typically a
+      // software WebGPU adapter). Step hard, not one notch at a time.
+      if (dtMs > 250) {
+        setQualityStep(qualityStep + 2);
+        slowTicks = 0;
+        fastTicks = 0;
+      } else {
+        setQualityStep(qualityStep + 1);
+        slowTicks = 0;
+        fastTicks = 0;
+      }
     } else if (dtMs > SLOW_TICK_MS) {
       slowTicks += 1;
       fastTicks = 0;
-      if (slowTicks >= 12) {
+      if (slowTicks >= 5) {
         setQualityStep(qualityStep + 1);
         slowTicks = 0;
       }
     } else if (dtMs < FAST_TICK_MS) {
       fastTicks += 1;
       if (slowTicks > 0) slowTicks -= 1;
-      if (fastTicks >= 30) {
+      if (fastTicks >= 45) {
         setQualityStep(qualityStep - 1);
         fastTicks = 0;
       }

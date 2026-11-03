@@ -744,10 +744,14 @@ Two changes, both in the web player and its embed:
    dimensions feed `resolve_bound_position`. The canvas blit already scaled the
    offscreen up, so nothing downstream changed.
 2. **Page-wide adaptation** — the shared rAF loop watches its own tick interval:
-   eight consecutive ticks over 24 ms (a missed vsync at 60 Hz) step every playing
-   embed down one quality notch; ninety comfortable ticks step it back up. This is
-   the part that answers "six embeds on a slow iGPU" using a measured signal
-   instead of guessing from the embed count.
+   five consecutive ticks over 24 ms (a missed vsync at 60 Hz) step every playing
+   embed down one quality notch; forty-five comfortable ticks step it back up. A
+   single 100–250 ms tick jumps one notch, and a tick over 250 ms jumps two, so a
+   software WebGPU adapter reaches the 0.25 floor in a few frames instead of
+   spending its first seconds at 1 fps. The loop also caps itself to the 60 fps
+   scene grid (a 120/144 Hz display no longer renders two frames per authored
+   frame) and defers autoplay draws while the page is scrolling; `seek`-driven
+   scrub figures defer their draw to the scroll settle for the same reason.
 
 Measured, six embeds of `attention.amx` on one page:
 

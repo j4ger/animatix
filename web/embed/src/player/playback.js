@@ -108,6 +108,15 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
         return false;
       }
     }
+    // A scroll is a compositor job; a synchronous GPU frame in the middle of
+    // it is what makes a long page feel stuck. Keep the timeline moving but
+    // skip the draw until the scroll settles (the next tick renders the new
+    // position).
+    if (performance.now() - core.lastScrollAt < SCROLL_SETTLE_MS) {
+      this._restTime = this._time;
+      if (this._controls) this._syncControls();
+      return true;
+    }
     this._renderScene();
     if (this._controls) this._syncControls();
     return true;

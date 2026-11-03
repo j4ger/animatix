@@ -321,8 +321,13 @@ Behavior:
   compositor no reason to resample. Layout is unaffected — the timeline still
   evaluates against the scene's `SceneDimensions`. When the page cannot hold the
   frame anyway, the shared rAF loop steps every playing embed down one quality
-  notch (×0.85 → ×0.5) on a measured slow-tick signal and steps back up after a
-  comfortable stretch. `player.set_render_scale(s)` / `render_scale()` set and
+  notch (×0.85 → ×0.25) on a measured slow-tick signal and steps back up after a
+  comfortable stretch; a tick longer than 100 ms jumps two notches at once, which
+  is what lets a software WebGPU adapter settle quickly instead of spending its
+  first seconds at 1 fps. The loop is capped to the 60 fps timeline grid, and
+  autoplay rendering is skipped while the page is scrolling (the position is
+  kept and drawn at the scroll settle) so a GPU frame cannot wedge itself into
+  every scroll tick. `player.set_render_scale(s)` / `render_scale()` set and
   read the raster scale directly; `docs/performance_evaluation.md` §3.7 has the
   numbers, including how this compares with the native renderer.
 - **`data-runtime-base`** goes on the `<script>` tag, not the element: it

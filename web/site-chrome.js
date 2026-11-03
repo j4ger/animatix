@@ -258,14 +258,31 @@
     });
 
     const clamp01 = (x) => Math.min(Math.max(x, 0), 1);
+    let lastScrubT = -1;
+    let lastScrubAt = -Infinity;
+    let scrubTimer = 0;
     function scrub() {
       if (!ready || !player) return;
       const r = duality.getBoundingClientRect();
       const vh = window.innerHeight;
+      // Scrolling anywhere else on the page used to seek this offscreen player
+      // and force a full scene render per scroll frame. Only scrub when the
+      // duality is actually in view, and skip sub-frame deltas.
+      if (r.bottom < -vh * 0.1 || r.top > vh * 1.1) return;
       const span = r.height + vh * 0.5;
       const p = clamp01((vh * 0.85 - r.top) / span);
       const t = p * player.duration;
-      player.seek(t);
+      if (Math.abs(t - lastScrubT) < 1 / 120) return;
+      lastScrubT = t;
+      // `seek()` renders the frame synchronously. During a scroll that is a
+      // GPU frame wedged into every scroll tick; defer the draw to the settle
+      // point and only update the editorial state now.
+      if (performance.now() - lastScrubAt < 160) {
+        clearTimeout(scrubTimer);
+        scrubTimer = setTimeout(() => { player.seek(t); }, 180);
+      } else {
+        player.seek(t);
+      }
       if (beatOut) beatOut.textContent = fmt(t);
       for (const ln of lines) {
         const [a, b] = ln.dataset.t.split(",").map(Number);
@@ -273,6 +290,7 @@
       }
     }
     window.addEventListener("scroll", () => {
+      lastScrubAt = performance.now();
       requestAnimationFrame(scrub);
     }, { passive: true });
     window.addEventListener("resize", () => requestAnimationFrame(scrub), { passive: true });
