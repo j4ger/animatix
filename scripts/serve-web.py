@@ -13,8 +13,11 @@
   engine sources and warns loudly on startup and via HTTP headers.
 
 Usage:
-  python3 scripts/serve-web.py [port] [root] [--cache] [--no-cache]
-  (default port 8124, serves web/, no-cache default)
+  python3 scripts/serve-web.py [port] [root] [--host HOST] [--cache] [--no-cache]
+  (default port 8124, host 127.0.0.1, serves web/, no-cache default)
+
+  --host 0.0.0.0 exposes the server to the LAN/Tailscale; the default loopback
+  binding is deliberately private.
 """
 import argparse
 import http.server
@@ -374,6 +377,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Animatix local web server")
     parser.add_argument("port", nargs="?", type=int, default=8124, help="Port (default: 8124)")
     parser.add_argument("root", nargs="?", type=str, default=None, help="Root directory (default: web/)")
+    parser.add_argument("--host", default=os.environ.get("SERVE_HOST", "127.0.0.1"),
+                        help="Bind address (default: 127.0.0.1; use 0.0.0.0 for Tailscale/LAN)")
     parser.add_argument("--cache", action="store_true", help="Enable 5-min caching for .wasm (production simulation)")
     parser.add_argument("--no-cache", action="store_true", help="Disable caching for all files (default)")
 
@@ -397,9 +402,10 @@ if __name__ == "__main__":
         print_staleness_banner(WASM_STALENESS)
 
     cache_desc = "disabled (live reload mode)" if NO_CACHE_MODE else "enabled (max-age=300 for wasm)"
-    print(f"serving {WEB_DIR} at http://127.0.0.1:{port}/ [caching: {cache_desc}]")
+    shown_host = "127.0.0.1" if args.host in ("", "0.0.0.0", "::") else args.host
+    print(f"serving {WEB_DIR} at http://{shown_host}:{port}/ (bind {args.host}) [caching: {cache_desc}]")
 
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    server = http.server.ThreadingHTTPServer((args.host, port), Handler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
