@@ -278,6 +278,25 @@
     });
   }
 
+  // A slider `input` can fire many times per frame; each seek renders ALL
+  // players synchronously. Coalesce to one seek per animation frame using the
+  // latest value. `stepFrame` and the loop's wrap still need an immediate seek,
+  // so they call `seekAll` directly.
+  let pendingSeek = null;
+  let seekRaf = 0;
+  function seekAllThrottled(time) {
+    pendingSeek = time;
+    if (seekRaf) return;
+    seekRaf = requestAnimationFrame(() => {
+      seekRaf = 0;
+      if (pendingSeek !== null) {
+        const t = pendingSeek;
+        pendingSeek = null;
+        seekAll(t);
+      }
+    });
+  }
+
   function stepFrame(forward) {
     pauseAll();
     const dt = forward ? 1 / 60 : -1 / 60;
@@ -483,7 +502,7 @@
 
   timelineSlider.addEventListener("input", (e) => {
     pauseAll();
-    seekAll(parseFloat(e.target.value));
+    seekAllThrottled(parseFloat(e.target.value));
   });
 
   document.querySelectorAll(".speed-btn").forEach((btn) => {

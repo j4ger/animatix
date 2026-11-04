@@ -307,7 +307,15 @@
       const apply = () => {
         const value = Number(input.value);
         if (out) out.textContent = String(value);
-        root.querySelectorAll('amx-player').forEach((player) => {
+        // `setVars` is a synchronous wasm rebuild (23–54 ms) on every player.
+        // Broadcasting it to all slides turned one slider drag into N queued
+        // long tasks; only the slide the reader is looking at needs the change.
+        // Fall back to the rail's own slide, then to every player only when no
+        // slide can be identified (older markup without .deck-slide wrappers).
+        const scope = row?.closest('.deck-slide, section.chapter') || root;
+        const targets = scope.querySelectorAll('amx-player');
+        const list = targets.length ? targets : root.querySelectorAll('amx-player');
+        list.forEach((player) => {
           if (typeof player.setVars === 'function') {
             player.setVars({ [input.dataset.var]: value });
           }

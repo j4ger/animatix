@@ -467,11 +467,23 @@ export class AmxPlayerLoad extends AmxPlayerView {
   }
 
   /// Push the current time/state into the control bar. Called from the shared
-  /// rAF (`advance`) and from scrub/keyboard seeks; DOM writes are transform
-  /// and text only, so per-frame updates are cheap.
+  /// rAF (`advance`) — i.e. up to 60×/s per controls-bearing player. Only the
+  /// playhead transforms are cheap enough to write every frame; the SVG icon is
+  /// an `innerHTML` parse that rebuilt DOM nodes 60×/s on every controls page,
+  /// so all discrete values are cached and written only when they change.
   _syncControls() {
     const c = this._controls;
     if (!c) return;
+    // A rebuild (`applySource`, `_installDocument`, `_buildControls`) swaps the
+    // control set or the duration: force every cached value to be rewritten.
+    let s = this._syncCache;
+    if (!s || s.track !== c.track || s.duration !== this._duration
+        || s.debugMode !== this._debugFrame) {
+      s = this._syncCache = {
+        track: c.track, duration: this._duration, debugMode: this._debugFrame,
+        icon: null, label: null, chip: null, chipAt: 0, value: null, dbg: null,
+      };
+    }
     // The playhead can legally sit past the timeline (a loop's hold rest),
     // but every control reads in timeline units: clamp so the chip, the fill
     // and the slider value can never report more than `duration`.
@@ -480,30 +492,59 @@ export class AmxPlayerLoad extends AmxPlayerView {
     c.fill.style.transform = `scaleX(${frac})`;
     c.cursor.style.left = `${frac * 100}%`;
 
-    // Sync play/pause toggle button icon and aria-label
+    // Sync play/pause toggle button icon and aria-label — only on a change.
+    let icon;
+    let label;
     if (this._playing) {
-      c.playToggle.innerHTML = ICONS.pause;
-      c.playToggle.setAttribute("aria-label", "Pause");
+      icon = ICONS.pause;
+      label = "Pause";
     } else if (this._time >= this._duration && !this._looping()) {
-      c.playToggle.innerHTML = ICONS.replay;
-      c.playToggle.setAttribute("aria-label", "Replay");
+      icon = ICONS.replay;
+      label = "Replay";
     } else {
-      c.playToggle.innerHTML = ICONS.play;
-      c.playToggle.setAttribute("aria-label", "Play");
+      icon = ICONS.play;
+      label = "Play";
+    }
+    if (icon !== s.icon) {
+      c.playToggle.innerHTML = icon;
+      s.icon = icon;
+      s.chipAt = 0; // a state change must refresh the readout immediately
+    }
+    if (label !== s.label) {
+      c.playToggle.setAttribute("aria-label", label);
+      s.label = label;
     }
 
-    if (this._debugFrame) {
-      // `rs` is the adaptive render scale the quality controller settled on.
-      // It belongs in the report because a shimmer that only appears at a
-      // reduced raster scale is a different defect from a geometry one.
-      const rs = this._renderScale ?? 1;
-      c.chip.textContent =
-        `f${this.frame} / ${this.totalFrames}  ${shown.toFixed(3)}s  @${FRAME_RATE}fps  rs${rs.toFixed(2)}`;
-      c.chip.classList.add("dbg");
-    } else {
-      c.chip.textContent = `${shown.toFixed(1)} / ${this._duration.toFixed(1)}`;
-      c.chip.classList.remove("dbg");
+    const now = performance.now();
+    const chipDue = now - s.chipAt >= 100; // ~10 Hz; the readout does not need 60 Hz
+    if (chipDue) {
+      let text;
+      let dbg;
+      if (this._debugFrame) {
+        // `rs` is the adaptive render scale the quality controller settled on.
+        // It belongs in the report because a shimmer that only appears at a
+        // reduced raster scale is a different defect from a geometry one.
+        const rs = this._renderScale ?? 1;
+        text = `f${this.frame} / ${this.totalFrames}  ${shown.toFixed(3)}s  @${FRAME_RATE}fps  rs${rs.toFixed(2)}`;
+        dbg = true;
+      } else {
+        text = `${shown.toFixed(1)} / ${this._duration.toFixed(1)}`;
+        dbg = false;
+      }
+      if (text !== s.chip) {
+        c.chip.textContent = text;
+        s.chip = text;
+      }
+      if (dbg !== s.dbg) {
+        c.chip.classList.toggle("dbg", dbg);
+        s.dbg = dbg;
+      }
+      s.chipAt = now;
     }
-    c.track.setAttribute("aria-valuenow", shown.toFixed(1));
+    const value = shown.toFixed(1);
+    if (value !== s.value) {
+      c.track.setAttribute("aria-valuenow", value);
+      s.value = value;
+    }
   }
 }

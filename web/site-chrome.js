@@ -261,7 +261,9 @@
     let lastScrubT = -1;
     let lastScrubAt = -Infinity;
     let scrubTimer = 0;
+    let scrubQueued = false;
     function scrub() {
+      scrubQueued = false;
       if (!ready || !player) return;
       const r = duality.getBoundingClientRect();
       const vh = window.innerHeight;
@@ -289,10 +291,18 @@
         ln.classList.toggle("live", t >= a && t < b);
       }
     }
+    const queueScrub = () => {
+      // One rAF per frame at most. A scroll event fires more often than the
+      // compositor paints; without this guard every event forced its own
+      // getBoundingClientRect() layout read and seek.
+      if (scrubQueued) return;
+      scrubQueued = true;
+      requestAnimationFrame(scrub);
+    };
     window.addEventListener("scroll", () => {
       lastScrubAt = performance.now();
-      requestAnimationFrame(scrub);
+      queueScrub();
     }, { passive: true });
-    window.addEventListener("resize", () => requestAnimationFrame(scrub), { passive: true });
+    window.addEventListener("resize", queueScrub, { passive: true });
   }
 })();
