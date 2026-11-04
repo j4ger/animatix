@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>vello_hybrid (WebGL2) vs vello compute (WebGPU) — perf probe</title>
+<style>
+  :root { color-scheme: dark; --bg:#0b0e14; --ink:#ece7db; --muted:#8a93a3; --line:#232936; --accent:#f5b942; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  header { padding:20px 24px 8px; }
+  h1 { font-size:16px; margin:0 0 4px; letter-spacing:.02em; }
+  p.note { color:var(--muted); margin:0; max-width:70ch; }
+  .wrap { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:16px 24px; }
+  .pane { border:1px solid var(--line); border-radius:10px; overflow:hidden; background:#0d1119; }
+  .pane h2 { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin:0; padding:8px 12px; border-bottom:1px solid var(--line); }
+  canvas { display:block; width:100%; height:auto; background:#000; }
+  .controls { display:flex; flex-wrap:wrap; gap:10px; align-items:end; padding:0 24px 8px; }
+  label { display:flex; flex-direction:column; gap:4px; font-size:11px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; }
+  select, input, button { font:inherit; background:#141a24; color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:6px 8px; }
+  button { cursor:pointer; }
+  button:disabled { opacity:.4; cursor:not-allowed; }
+  button.primary { background:var(--accent); color:#191200; border-color:var(--accent); font-weight:700; }
+  .status { padding:0 24px 8px; color:var(--muted); min-height:1.4em; }
+  .err { color:#ef6a6a; }
+  table { border-collapse:collapse; width:calc(100% - 48px); margin:0 24px 32px; }
+  th, td { text-align:right; padding:6px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th:first-child, td:first-child { text-align:left; }
+  thead th { color:var(--muted); font-weight:600; font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
+  td.bad { color:#ef6a6a; }
+  code { color:var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>vello_hybrid (WebGL2) vs vello compute (WebGPU) — per-frame cost</h1>
+  <p class="note">
+    Same synthetic vector scene, two renderers, one wasm module. Times are per frame.
+    <code>submit</code> = CPU build+encode+submit; <code>gpu</code> = the rest after a GPU sync;
+    <code>clear</code> = empty-scene fixed overhead. Compute renders offscreen then blits
+    (production path); hybrid renders straight to the WebGL2 canvas. Sync differs by backend
+    (<code>onSubmittedWorkDone</code> vs <code>readPixels</code>) — both wait for the GPU.
+    Not representative of effects/transitions/text shaping, which this probe excludes.
+  </p>
+</header>
+
+<div class="controls">
+  <label>Scene
+    <select id="scene"><option value="light">light (~70 shapes)</option><option value="dense" selected>dense (~384 shapes)</option></select>
+  </label>
+  <label>Resolution
+    <select id="res">
+      <option value="1280x720" selected>1280×720</option>
+      <option value="640x360">640×360</option>
+    </select>
+  </label>
+  <label>Frames <input id="frames" type="number" min="1" value="90" style="width:80px"></label>
+  <label>Warmup <input id="warmup" type="number" min="0" value="10" style="width:72px"></label>
+  <label>Reps <input id="reps" type="number" min="1" value="5" style="width:64px"></label>
+  <button id="run-compute" class="primary">Run compute</button>
+  <button id="run-hybrid" class="primary">Run hybrid</button>
+  <button id="run-all">Run all</button>
+</div>
+<div id="status" class="status"></div>
+
+<div class="wrap">
+  <div class="pane"><h2>compute · WebGPU</h2><canvas id="c-compute" width="1280" height="720"></canvas></div>
+  <div class="pane"><h2>hybrid · WebGL2</h2><canvas id="c-hybrid" width="1280" height="720"></canvas></div>
+</div>
+
+<table id="out">
+  <thead><tr>
+    <th>backend</th><th>scene</th><th>res</th><th>per-frame ms</th><th>submit ms</th><th>gpu ms</th><th>clear ms</th><th>implied fps</th>
+  </tr></thead>
+  <tbody></tbody>
+</table>
+
+<script type="module" src="./hybrid-vs-compute.js"></script>
+</body>
+</html>
