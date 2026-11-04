@@ -54,7 +54,6 @@ crates/animatix/src/timeline/property_engine/declaration.rs	write_property_field
 crates/animatix/src/timeline/scene_eval/containers/captions.rs	render_captions_children	305
 crates/animatix/src/timeline/scene_eval/containers/equation.rs	render_equation_children	210
 crates/animatix/src/timeline/scene_eval/containers/filter.rs	render_filter_children	212
-crates/animatix/src/timeline/scene_eval/frame_render.rs	render_frame_roots	217
 crates/animatix/src/timeline/timing/parsing.rs	parse_timing_modifiers	355
 crates/animatix/src/timeline/value_parser.rs	parse_value	372
 crates/eparts/src/tokens/theme/light.rs	light	224

@@ -577,3 +577,182 @@ fn spawn_seen(timeline: &mut Timeline, label: &str, actor_type: &str) -> EntityI
     timeline.world.meta_mut(id).first_seen_ms = 0;
     id
 }
+
+// ---------------------------------------------------------------------------
+// Per-subtree static-cache gating and the clone-free presentation path
+// ---------------------------------------------------------------------------
+
+fn build_timeline(src: &str) -> Timeline {
+    let (ast, errors) = animatix_syntax::parser::parse_source(src);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new()).output
+}
+
+/// A backend supplied on every frame (as the web player does) without any
+/// GPU work. It only needs to exist so `backend_can_run` is true; the default
+/// trait methods make the filter fall back to inline children harmlessly.
+struct StubBackend;
+
+impl crate::timeline::effects::FilterBackend for StubBackend {
+    fn render_scene_to_image_gpu_filtered(
+        &mut self,
+        _scene: &vello::Scene,
+        _dimensions: SceneDimensions,
+        _region: Option<crate::timeline::effects::EffectRegion>,
+        _chain: &crate::timeline::effects::EffectChain,
+    ) -> Result<crate::timeline::image::SceneImage, String> {
+        Err("stub backend does not render".to_string())
+    }
+}
+
+/// Compare two encoded vello scenes stream-by-stream (vello does not derive
+/// `PartialEq`/`Debug` for `Scene`/`Encoding`, but every stream is public and
+/// its element type is `PartialEq`).
+fn assert_same_encoding(a: &vello::Scene, b: &vello::Scene) {
+    let ea = a.encoding();
+    let eb = b.encoding();
+    assert!(ea.path_data == eb.path_data, "path_data stream differs");
+    assert!(ea.draw_data == eb.draw_data, "draw_data stream differs");
+    assert!(ea.path_tags == eb.path_tags, "path_tags stream differs");
+    assert!(ea.draw_tags == eb.draw_tags, "draw_tags stream differs");
+    assert!(ea.transforms == eb.transforms, "transforms stream differs");
+    assert!(ea.styles == eb.styles, "styles stream differs");
+    assert_eq!(ea.n_paths, eb.n_paths);
+    assert_eq!(ea.n_path_segments, eb.n_path_segments);
+    assert_eq!(ea.n_clips, eb.n_clips);
+    assert_eq!(ea.n_open_clips, eb.n_open_clips);
+    assert_eq!(ea.flags, eb.flags);
+}
+
+/// With a backend present, the whole-frame `backend_can_run` flag is true for
+/// a filtered scene. The old `allow_static` gate was that whole-frame flag, so
+/// it disabled the static-subtree cache for *every* root. The per-root gate
+/// must still cache a fully-static root while vetoing the effect-scope root.
+#[test]
+fn static_root_caches_when_another_root_has_an_effect_scope() {
+    let timeline = build_timeline(
+        "config { resolution: (200, 200) }\n\
+         #0s\n\
+         plane: Rect, size: (20, 20), color: (1.0, 0.0, 0.0, 1.0), at: (10, 10)\n\
+         fx: Filter, at: (100, 100), size: (60, 60), blur: 4 {\n\
+           inner: Rect, size: (20, 20), color: (0.0, 1.0, 0.0, 1.0), at: (10, 10)\n\
+         }\n",
+    );
+    let dims = SceneDimensions {
+        width: 200,
+        height: 200,
+    };
+    let mut stub = StubBackend;
+    {
+        let mut backend: Option<&mut dyn crate::timeline::effects::FilterBackend> = Some(&mut stub);
+        let _ =
+            timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default(), &mut backend);
+    }
+
+    assert!(
+        timeline.has_static_subtree_cached("plane", dims, false, DebugRenderOptions::default()),
+        "a fully-static root must still cache in a scene that also has a Filter scope"
+    );
+    assert!(
+        !timeline.has_static_subtree_cached("fx", dims, false, DebugRenderOptions::default()),
+        "the effect-scope root must bypass the cache: its composite lives in the backend side channel"
+    );
+}
+
+/// A filter whose parameter animates across frames must never have its
+/// encoding cached and replayed: with a backend active the composite is held
+/// in the pending side channel, so a cached vello Scene would drop it. The
+/// static-subtree cache must stay empty for such a root and the conservative
+/// whole-frame cache must stay off.
+#[test]
+fn animated_filter_scope_is_never_cached_or_replayed() {
+    let timeline = build_timeline(
+        "config { resolution: (200, 200) }\n\
+         #0s\n\
+         fx: Filter {\n\
+           soft: Blur, radius: 2\n\
+           inner: Rect, size: (80, 80), color: (0.9, 0.3, 0.25, 1.0), at: (100, 100)\n\
+         }\n\
+         #1s\n\
+         soft.radius = 12 [1s]\n",
+    );
+    let dims = SceneDimensions {
+        width: 200,
+        height: 200,
+    };
+    assert!(timeline.has_effect_scopes, "the scene must contain an effect scope");
+
+    let mut stub = StubBackend;
+    {
+        let mut backend: Option<&mut dyn crate::timeline::effects::FilterBackend> = Some(&mut stub);
+        // Two frames where `soft.radius` differs (2 at t=0, 12 after the tween).
+        let _s0 =
+            timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default(), &mut backend);
+        let _s1 =
+            timeline.evaluate_with_debug(2.0, dims, DebugRenderOptions::default(), &mut backend);
+    }
+
+    assert!(
+        !timeline.has_static_subtree_cached("fx", dims, false, DebugRenderOptions::default()),
+        "a subtree containing an animated filter parameter must not be cached (no stale composite)"
+    );
+    assert!(
+        timeline.eval_caches.frame_cache.borrow().is_none(),
+        "the whole-frame cache stays conservatively gated on backend_can_run in a filtered scene"
+    );
+}
+
+/// Cached subtree encodings are invalidated by `content_epoch`: every content
+/// mutation funnels through `invalidate_frame_cache`, which bumps the epoch and
+/// clears the static-subtree cache, so no stale encoding can be replayed.
+#[test]
+fn static_subtree_encoding_is_invalidated_by_content_epoch() {
+    let timeline = build_timeline(
+        "config { resolution: (200, 200) }\n\
+         #0s\n\
+         plane: Rect, size: (20, 20), color: (1.0, 0.0, 0.0, 1.0), at: (10, 10)\n",
+    );
+    let dims = SceneDimensions {
+        width: 200,
+        height: 200,
+    };
+    let _ = timeline.evaluate(0.0, dims);
+    assert!(
+        timeline.has_static_subtree_cached("plane", dims, false, DebugRenderOptions::default()),
+        "static root should be cached before invalidation"
+    );
+    let epoch_before = timeline.content_epoch();
+    timeline.invalidate_frame_cache();
+    assert!(timeline.content_epoch() > epoch_before, "invalidation bumps content_epoch");
+    assert!(
+        timeline.eval_caches.static_subtree_cache.borrow().is_empty(),
+        "a content_epoch bump must clear cached subtree encodings"
+    );
+}
+
+/// `evaluate_for_presentation` must produce the same encoded scene as the
+/// default path at the same time, but must never populate `frame_cache`.
+#[test]
+fn presentation_scene_matches_debug_and_skips_frame_cache() {
+    let dims = SceneDimensions {
+        width: 800,
+        height: 600,
+    };
+
+    let timeline = make_minimal_timeline();
+    let via_debug =
+        timeline.evaluate_with_debug(1.0, dims, DebugRenderOptions::default(), &mut None);
+    let via_presentation = timeline.evaluate_for_presentation(1.0, dims, &mut None);
+    assert_same_encoding(&via_debug, &via_presentation);
+
+    let fresh = make_minimal_timeline();
+    assert!(
+        fresh.eval_caches.frame_cache.borrow().is_none(),
+        "a fresh timeline has no frame cache"
+    );
+    let _ = fresh.evaluate_for_presentation(1.0, dims, &mut None);
+    assert!(
+        fresh.eval_caches.frame_cache.borrow().is_none(),
+        "evaluate_for_presentation must not write eval_caches.frame_cache"
+    );
+}

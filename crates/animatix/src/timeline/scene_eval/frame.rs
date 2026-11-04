@@ -94,6 +94,53 @@ impl Timeline {
         .scene
     }
 
+    /// Evaluate the timeline straight into a [`vello::Scene`] for presentation.
+    ///
+    /// This is the web player's hot path. Unlike [`Self::evaluate_with_debug`]
+    /// it never writes `eval_caches.frame_cache` (which is keyed on `time_ms`
+    /// and so misses on every animation frame anyway) and never clones the
+    /// encoded scene: the scene is moved out to the caller. A single reusable
+    /// buffer is parked back via [`Self::recycle_presentation_scene`] after
+    /// rasterizing, reusing the existing `scene_buffer` / `overrides_buffer` /
+    /// `env_pool` recycling so steady-state frames allocate nothing.
+    ///
+    /// The clone-free behaviour is opt-in by calling this method explicitly;
+    /// GUI, export, CLI and test entry points keep their exact existing
+    /// semantics (they still publish/restore the frame cache).
+    pub fn evaluate_for_presentation(
+        &self,
+        time_s: f64,
+        scene_dimensions: SceneDimensions,
+        filter_backend: &mut Option<&mut dyn crate::timeline::effects::FilterBackend>,
+    ) -> vello::Scene {
+        let empty_overrides = std::collections::HashMap::new();
+        let mut state = self.prepare_frame(
+            time_s,
+            scene_dimensions,
+            DebugRenderOptions::default(),
+            filter_backend,
+            false,
+            &[],
+            &empty_overrides,
+            true,
+        );
+        self.run_frame_modifiers(&mut state);
+        self.render_frame_roots(&mut state, filter_backend);
+        self.store_frame_presentation(state)
+    }
+
+    /// Park a presentation scene back for reuse on the next frame.
+    ///
+    /// `reset()` keeps the encoding buffer's allocation, so
+    /// [`Self::evaluate_for_presentation`] picks it up from `scene_buffer` and
+    /// re-encodes in place instead of allocating a fresh `vello::Scene`. Call
+    /// this after the scene has been rasterized; a caller that skips it (e.g.
+    /// an early error return) simply makes the next frame allocate once.
+    pub fn recycle_presentation_scene(&self, mut scene: vello::Scene) {
+        scene.reset();
+        *self.eval_caches.scene_buffer.borrow_mut() = Some(scene);
+    }
+
     /// Whether a supplied filter backend could actually be consulted while
     /// building a frame.
     ///
@@ -102,6 +149,14 @@ impl Timeline {
     /// one (the web player passes it on every frame) would otherwise never
     /// cache anything. Debug options are a separate matter: they change what is
     /// drawn, so they always block.
+    ///
+    /// This stays the conservative *whole-frame* gate for `restore_frame_cache`
+    /// and `store_frame`: a cached frame is one vello Scene, and a frame that
+    /// consulted the backend carries composites in the backend's pending side
+    /// channel that such a Scene cannot reproduce. Recovering those per frame
+    /// is not feasible, so the frame cache is simply off for filtered scenes.
+    /// The static-subtree cache is a finer, per-root decision and does refine
+    /// this (see `frame_render::render_frame_roots` / `subtree_has_effect_scope`).
     pub(super) fn backend_can_run(
         &self,
         filter_backend: &Option<&mut dyn crate::timeline::effects::FilterBackend>,
@@ -298,6 +353,7 @@ impl Timeline {
             collect_items,
             suppressed_actors,
             transient_overrides,
+            false,
         );
         self.run_frame_modifiers(&mut state);
         self.render_frame_roots(&mut state, filter_backend);
@@ -319,6 +375,7 @@ impl Timeline {
             String,
             std::collections::HashMap<String, Value>,
         >,
+        presentation: bool,
     ) -> FrameEvaluation<'a> {
         let time_ms = (time_s * 1000.0) as u64;
         let needs_frame_env = self.needs_frame_env();
@@ -333,7 +390,12 @@ impl Timeline {
         // scene is moved out — no clone — and becomes this frame's encode
         // buffer. Filter/debug frames bypass the frame cache (its entry stays
         // valid), so they recycle via scene_buffer instead.
-        let debug_or_filter = self.backend_can_run(filter_backend)
+        // `presentation` frames never consult or publish the frame cache, so
+        // they always recycle their encode target from `scene_buffer` (the
+        // buffer parked by `recycle_presentation_scene`), leaving frame_cache
+        // untouched for the GUI/export paths.
+        let debug_or_filter = presentation
+            || self.backend_can_run(filter_backend)
             || debug_options != DebugRenderOptions::default()
             || !transient_overrides.is_empty();
         let mut scene = if debug_or_filter {
@@ -547,5 +609,23 @@ impl Timeline {
         *self.eval_caches.overrides_buffer.borrow_mut() = state.overrides;
 
         program
+    }
+
+    /// Clone-free publish step for [`Self::evaluate_for_presentation`].
+    ///
+    /// Recycles the pooled frame environment and overrides buffer (same as
+    /// `store_frame`), clears hit regions (presentation never requests them),
+    /// and moves the authoritative encoded scene out. It deliberately does NOT
+    /// touch `frame_cache` and does NOT clone the scene: a frame keyed on
+    /// `time_ms` (the web player's animation loop) would otherwise pay a full
+    /// `vello::Scene` deep copy every frame. The caller parks the returned
+    /// scene back via `recycle_presentation_scene` for the next frame.
+    fn store_frame_presentation(&self, mut state: FrameEvaluation<'_>) -> vello::Scene {
+        self.eval_caches.hit_regions.borrow_mut().clear();
+        if let Some(env) = state.frame_env.take() {
+            *self.env_pool.borrow_mut() = Some(env);
+        }
+        *self.eval_caches.overrides_buffer.borrow_mut() = state.overrides;
+        state.scene
     }
 }

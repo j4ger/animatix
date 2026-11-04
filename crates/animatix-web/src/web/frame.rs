@@ -403,8 +403,14 @@ fn render_timeline(ctx: &mut FrameCtx<'_>, pass: ScenePass<'_>) -> Result<(), St
         fb.set_raster_scale(achieved);
     }
     let mut fb: Option<&mut dyn FilterBackend> = backend.as_mut().map(|b| b as _);
-    let scene = if suppressed.is_empty() {
-        timeline.evaluate_with_debug(time_s, ctx.dims, DebugRenderOptions::default(), &mut fb)
+    // The web player has its own raster-level `FrameDedup`, so the engine's
+    // `time_ms`-keyed frame cache only adds a full `vello::Scene` deep copy on
+    // every animation frame. Use the clone-free presentation entry point on the
+    // common single-scene path; FLIP transitions still need the suppressed
+    // program and keep their existing call.
+    let presentation = suppressed.is_empty();
+    let scene = if presentation {
+        timeline.evaluate_for_presentation(time_s, ctx.dims, &mut fb)
     } else {
         timeline
             .evaluate_program_with_suppressed(
@@ -429,7 +435,7 @@ fn render_timeline(ctx: &mut FrameCtx<'_>, pass: ScenePass<'_>) -> Result<(), St
     };
     // The shared rasterizer applies the scale to the encoding and drain, including
     // the backdrop region; the drain receives the factor, not a pre-scaled region.
-    rasterize_scene(
+    let result = rasterize_scene(
         &mut *ctx.core,
         ctx.device,
         ctx.queue,
@@ -442,7 +448,14 @@ fn render_timeline(ctx: &mut FrameCtx<'_>, pass: ScenePass<'_>) -> Result<(), St
         fit,
         backend.as_mut(),
         Some(&target.texture),
-    )
+    );
+    // Park the presentation scene back so the next frame reuses its encoding
+    // allocation instead of allocating a fresh `vello::Scene`. Transition
+    // frames keep their own (cloned) scene-buffer behaviour unchanged.
+    if presentation {
+        timeline.recycle_presentation_scene(scene);
+    }
+    result
 }
 
 impl OffscreenTarget {
