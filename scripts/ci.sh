@@ -434,6 +434,18 @@ MSG
   fi
   echo "workflows route every command through scripts/ci.sh"
 
+  # A job-level `if:` is evaluated before matrix expansion; GitHub rejects the
+  # whole workflow with "Unrecognized named-value: 'matrix'". Step-level `if:`
+  # (eight spaces) may use matrix.*, so only flag the four-space job scope.
+  if grep -nE '^    if:.*\bmatrix\.' .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null; then
+    cat >&2 <<'MSG'
+error: a job-level `if:` references matrix.* — GitHub evaluates job-level
+       conditions before the matrix exists and refuses the whole workflow.
+       Move the condition into the matrix/matrix-generation step instead.
+MSG
+    return 1
+  fi
+
   # Parity check: every pr/release gate must be scheduled in JOB_TABLE, every
   # job gate must exist in GATE_TABLE, and the job's shell/os/stage/setup must
   # be compatible with every gate it runs. The old check compared gate names
@@ -757,7 +769,14 @@ case "${1:-}" in
         exit 2
         ;;
     esac
-    job_rows "$stage" | python3 -c '
+    # The web build is path-filtered in ci.yml. Filter the generated matrix
+    # here rather than putting `matrix` in a job-level `if`: that context is
+    # not available at job scope and makes the whole workflow invalid.
+    if [ "${3:-}" = "--skip-web" ]; then
+      job_rows "$stage" | grep -v '^Web Build'$'\t' || true
+    else
+      job_rows "$stage"
+    fi | python3 -c '
 import json, sys
 rows = [l.rstrip("\n").split("\t") for l in sys.stdin if l.strip()]
 print(json.dumps({"include": [

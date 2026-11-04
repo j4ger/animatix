@@ -39,7 +39,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
-      web_changed: ${{ steps.changed.outputs.web }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -63,7 +62,17 @@ jobs:
         # pr-stage only. The release-stage rows (dist-linux, dist-macos,
         # dist-windows) build the shippable binaries — running them here would
         # cost three full release builds on every pull request.
-        run: echo "matrix=$(scripts/ci.sh --matrix pr)" >> "$GITHUB_OUTPUT"
+        env:
+          WEB_CHANGED: ${{ steps.changed.outputs.web }}
+        run: |
+          # Keep the path filter, but apply it when generating the matrix.
+          # `matrix` is not available to a job-level `if` in Actions.
+          if [ "$WEB_CHANGED" = "true" ]; then
+            matrix="$(scripts/ci.sh --matrix pr)"
+          else
+            matrix="$(scripts/ci.sh --matrix pr --skip-web)"
+          fi
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
   gate:
     name: ${{ matrix.name }}
@@ -72,9 +81,6 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
-    # `web-build` carries the browser smoke and is the only minutes-long gate;
-    # the other matrix entries always run.
-    if: ${{ !contains(matrix.gate, 'web-build') || needs.plan.outputs.web_changed == 'true' }}
     steps:
       - uses: actions/checkout@v5
         with:
