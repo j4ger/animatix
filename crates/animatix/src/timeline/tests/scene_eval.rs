@@ -270,7 +270,7 @@ fn static_scene_skips_frame_env() {
 #[test]
 fn static_subtree_cache_works_alongside_modifiers() {
     let timeline = timeline_from(
-        r#"
+        r##"
         config { colorscheme: "editorial-dark" }
 
         static_box: Rect, size: (100, 100), color: accent.primary, at: (50, 50)
@@ -279,7 +279,7 @@ fn static_subtree_cache_works_alongside_modifiers() {
         always {
             dynamic_box.at = (200 + t * 10, 200)
         }
-    "#,
+    "##,
     );
 
     let static_id = timeline.get_entity_id("static_box").expect("static_box id");
@@ -302,11 +302,11 @@ fn static_subtree_cache_works_alongside_modifiers() {
 #[test]
 fn time_dependent_caps_prevent_static_subtree_caching() {
     let timeline = timeline_from(
-        r#"
+        r##"
         subs: Captions, style: "karaoke", at: (640, 600) {
             c1: Cue, start: 0.5, end: 1.5, text: "Hello"
         }
-    "#,
+    "##,
     );
 
     let subs = timeline.world.tracks.get_id("subs").expect("subs track must exist");
@@ -386,7 +386,7 @@ fn equation_frames_reuse_one_typst_compilation() {
     // document on *every* frame. Nothing about that body changes while
     // scrubbing, so all frames must collapse onto one compilation instead of
     // re-running Typst per frame (see benches/equation_frame.rs).
-    let source = r#"
+    let source = r##"
 config { colorscheme: "editorial-dark" }
 
 #0s
@@ -402,7 +402,7 @@ eq: Equation, font_size: 48, color: text.primary, at: (960, 540) {
 always {
   eq.at = (960 + 40 * sin(t), 540)
 }
-"#;
+"##;
     let (stmts, errors) = animatix_syntax::parser::parse_source(source);
     assert!(errors.is_empty(), "parse errors: {errors:?}");
     let timeline = Timeline::build(&stmts.expect("parsed AST"));
@@ -447,14 +447,14 @@ fn runtime_empty_text_override_clears_stale_glyphs() {
 
 #[test]
 fn text_content_assignment_crossfades_paths_at_midpoint() {
-    let source = r#"
+    let source = r##"
         config { colorscheme: "editorial-dark" }
 
         label: Text, text: "Hello", font_size: 48
 
         #1s
         label.text = "World" [1s]
-    "#;
+    "##;
     let report = build_source(source);
     assert!(
         without_content_lints(&report.diagnostics).next().is_none(),
@@ -494,7 +494,7 @@ fn text_content_assignment_crossfades_paths_at_midpoint() {
 #[test]
 fn hierarchy_preserves_authored_order() {
     let report = build_source(
-        r#"
+        r##"
         root1: Group {
             child1: Rect, size: (10, 10)
             child2: Group {
@@ -502,7 +502,7 @@ fn hierarchy_preserves_authored_order() {
             }
         }
         root2: Rect, size: (20, 20)
-    "#,
+    "##,
     );
     assert!(
         !report.diagnostics.iter().any(|d| d.is_error()),
@@ -641,5 +641,137 @@ subs: Captions, at: (960, 900), font_size: 32, text_max_width: 640 {
     assert!(
         inside.encoding().draw_tags.len() > after.encoding().draw_tags.len(),
         "expected the caption to stop drawing after its window"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Blend layer bounds (scene_eval/render.rs)
+// ---------------------------------------------------------------------------
+
+/// The historical unbounded blend layer is a ±1e9 `Rect`. Its clip-path
+/// coordinates are stored as f32 bit patterns in `Scene::encoding().path_data`
+/// (vello encodes clip shapes in local coordinates and carries the affine
+/// separately), so a full-surface layer is detectable without a rendered-frame
+/// readback. A tight rect never produces a coordinate near this magnitude in a
+/// normally-sized scene. Inspection stays on the encoded `vello::Scene` per
+/// AGENTS.md — engine unit tests must not depend on `animatix-render` readback.
+fn encoded_blend_clip_is_unbounded(scene: &vello::Scene) -> bool {
+    scene.encoding().path_data.iter().any(|&bits| {
+        let value = f32::from_bits(bits);
+        value.is_finite() && value.abs() >= 1.0e8
+    })
+}
+
+/// A `blend: "screen"` child that reaches outside its parent's own bounds is
+/// exactly the case a tight, parent-sized clip would wrongly cut. The
+/// conservative fallback must keep the full-surface layer so the child still
+/// composites. Structural assertions on the encoded scene, not a pixel A/B.
+#[test]
+fn blend_screen_child_outside_parent_keeps_unbounded_layer() {
+    let timeline = timeline_from(
+        r##"
+        outer: Rect, size: (100, 100), color: "#ff0000", blend: "screen", at: (400, 300), opacity: 1 {
+            inner: Rect, size: (400, 400), color: "#0000ff", at: (300, 300), opacity: 1
+        }
+        "##,
+    );
+    let scene = timeline.evaluate(0.0, HD);
+
+    // A blend node that has children is a container: its own world-space bounds
+    // are not recorded, so `blend_layer_clip_rect` cannot prove a tight rect and
+    // must keep the full-surface layer. That is exactly the safety net for the
+    // "child reaches outside the parent" case — a child that overflows a
+    // parent-sized clip is never cut. (Leaf blend actors — the StageFloor glows —
+    // do record bounds and take the tight path; see
+    // `static_blend_scene_uses_bounded_clip_with_stable_structure`.)
+    assert!(
+        timeline.precise_bounds_for("outer").is_none(),
+        "a blend container records no own bounds, so the tight clip is not provable"
+    );
+    assert!(
+        encoded_blend_clip_is_unbounded(&scene),
+        "child outside parent bounds must take the unbounded-layer fallback"
+    );
+    assert_eq!(
+        scene.encoding().n_clips,
+        2,
+        "the blend layer (push/pop pair) must still be present"
+    );
+}
+
+/// A camera-active scene must not get a tight world-space clip: the camera
+/// moves the picture under the layer, so keep the historical unbounded layer.
+#[test]
+fn blend_layer_falls_back_when_camera_is_active() {
+    let timeline = timeline_from(
+        r##"
+        glow: Rect, size: (200, 200), color: "#ff8800", blend: "screen", at: (400, 300), opacity: 1
+        always { camera.at = (4.0, 4.0) }
+        "##,
+    );
+    assert!(timeline.camera_used.get(), "test setup: camera must be active");
+    let scene = timeline.evaluate(0.0, HD);
+    assert!(
+        encoded_blend_clip_is_unbounded(&scene),
+        "camera-active blend layer must take the unbounded fallback"
+    );
+}
+
+/// A mask/clip ancestor wraps the blend node in another clip layer; the
+/// conservative gate must keep the unbounded layer (no wrong nested clip).
+#[test]
+fn blend_layer_falls_back_when_mask_or_clip_is_present() {
+    let timeline = timeline_from(
+        r##"
+        plane: Mask, size: (300, 300), at: (400, 300), opacity: 1 {
+            clip_shape: Rect, size: (300, 300), opacity: 1
+            glow: Rect, size: (200, 200), color: "#ff8800", blend: "screen", opacity: 1
+        }
+        "##,
+    );
+    let scene = timeline.evaluate(0.0, HD);
+    assert!(
+        encoded_blend_clip_is_unbounded(&scene),
+        "mask/clip-bearing blend subtree must take the unbounded fallback"
+    );
+}
+
+/// Where bounds are well-defined (static, no camera/mask/effects, contained
+/// children) the tight rect is used, and the encoded output stays structurally
+/// stable across frames. A same-build control (identical scene without blend)
+/// proves the only structural change is the single blend layer — draw geometry
+/// is untouched (docs/roadmap.md:111 — prefer structural over pixel A/B).
+#[test]
+fn static_blend_scene_uses_bounded_clip_with_stable_structure() {
+    let timeline = timeline_from(
+        r##"
+        glow: Rect, size: (200, 200), color: "#ff8800", blend: "screen", at: (400, 300), opacity: 1
+        "##,
+    );
+    let first = timeline.evaluate(0.0, HD);
+    let second = timeline.evaluate(1.0, HD);
+    assert_eq!(
+        first.encoding().draw_tags.len(),
+        second.encoding().draw_tags.len(),
+        "static blend encoding must be structurally stable between frames"
+    );
+    assert_eq!(first.encoding().n_clips, second.encoding().n_clips);
+    assert_eq!(first.encoding().n_paths, second.encoding().n_paths);
+
+    let control = timeline_from(
+        r##"
+        glow: Rect, size: (200, 200), color: "#ff8800", at: (400, 300), opacity: 1
+        "##,
+    )
+    .evaluate(0.0, HD);
+    assert_eq!(control.encoding().n_clips, 0, "control has no blend layer");
+    assert_eq!(
+        first.encoding().n_clips,
+        2,
+        "blend scene still encodes exactly one push/pop layer pair"
+    );
+    assert!(
+        !encoded_blend_clip_is_unbounded(&first),
+        "well-defined static bounds must use the tight rect, not the unbounded fallback"
     );
 }

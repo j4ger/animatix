@@ -2,6 +2,53 @@
 
 use super::*;
 
+/// The historical full-surface blend layer. Kept as the fallback whenever a
+/// tight, world-space clip cannot be proven correct; a wrong clip is a visible
+/// correctness regression, while this rect is only a perf cost.
+#[inline]
+fn unbounded_blend_layer_rect() -> kurbo::Rect {
+    kurbo::Rect::new(-1.0e9, -1.0e9, 1.0e9, 1.0e9)
+}
+
+/// Whether a rect is usable as a clip: all coordinates finite and positive
+/// area. Non-finite or degenerate bounds must never reach `push_layer`.
+#[inline]
+fn blend_rect_usable(r: kurbo::Rect) -> bool {
+    r.x0.is_finite()
+        && r.y0.is_finite()
+        && r.x1.is_finite()
+        && r.y1.is_finite()
+        && r.width() > 0.0
+        && r.height() > 0.0
+}
+
+/// A node that renders its children through a clip, offscreen effect scope, or
+/// filter backend. `precise_bounds` from such subtrees cannot be trusted as a
+/// complete world-space ink union, so a tight blend clip is unsafe around them.
+fn blend_node_is_special(caps: animatix_core::caps::ActorCaps, has_effects: bool) -> bool {
+    caps.is_effect_scope()
+        || caps.child_processing == animatix_core::caps::ChildProcessingKind::Mask
+        || has_effects
+}
+
+/// Whether an affine is the identity within a tight epsilon. `precise_bounds`
+/// are world-space (the full accumulated ancestor transform), while the layer
+/// clip shape is expressed in the caller's `parent_transform` space; those two
+/// spaces only coincide when `parent_transform` is the identity. Rather than
+/// inverting a possibly-singular affine to map the rect back, a non-identity
+/// parent transform keeps the unbounded fallback.
+#[inline]
+fn affine_is_identity(a: kurbo::Affine) -> bool {
+    const EPS: f64 = 1.0e-9;
+    let c = a.as_coeffs();
+    (c[0] - 1.0).abs() < EPS
+        && c[1].abs() < EPS
+        && c[2].abs() < EPS
+        && (c[3] - 1.0).abs() < EPS
+        && c[4].abs() < EPS
+        && c[5].abs() < EPS
+}
+
 impl Timeline {
     /// Check whether a filter actor can safely use zero-readback post-render compositing.
     /// This is only safe when the filter is the last child in every ancestor container
@@ -62,9 +109,38 @@ impl Timeline {
         if !self.world.exists(node_id) {
             return;
         }
-        let blend = self.track_blend_mode(node_id, frame.time_ms);
-        if let Some(mix) = blend {
-            let unbounded = kurbo::Rect::new(-1.0e9, -1.0e9, 1.0e9, 1.0e9);
+        let Some(mix) = self.track_blend_mode(node_id, frame.time_ms) else {
+            // No blend: draw the subtree straight into the current scene. This
+            // fast path is byte-for-byte the pre-change behaviour.
+            self.render_node_subtree(
+                node_id,
+                parent_transform,
+                parent_opacity,
+                layout_positions,
+                allow_pending_composites,
+                frame,
+                out,
+            );
+            return;
+        };
+
+        // A `blend:` actor wraps its subtree in a Vello clip layer. Historically
+        // that layer spanned the whole surface (±1e9) so nothing could be
+        // clipped by accident; every blended subtree then forces a
+        // full-canvas composite on every frame (the `StageFloor` glows are the
+        // hot case, see docs/effects.md §"layer is full-surface"). Where the
+        // subtree's world-space ink bounds are provably known and simple we
+        // clip to those bounds instead. A wrong clip is a visible correctness
+        // regression while the unbounded layer is only a perf cost, so the
+        // conservative gate keeps the historical layer whenever there is any
+        // doubt (camera, mask/clip, effect scope, non-finite affine).
+        if !self.blend_bounds_are_safe(node_id, parent_transform) {
+            tracing::debug!(
+                target: "animatix::blend_bounds",
+                "blend layer '{}': unbounded fallback (subtree not provably simple)",
+                self.world.label(node_id).unwrap_or("")
+            );
+            let unbounded = unbounded_blend_layer_rect();
             out.scene.push_layer(
                 vello::peniko::Fill::NonZero,
                 vello::peniko::BlendMode::new(mix, vello::peniko::Compose::SrcOver),
@@ -72,8 +148,82 @@ impl Timeline {
                 parent_transform,
                 &unbounded,
             );
+            self.render_node_subtree(
+                node_id,
+                parent_transform,
+                parent_opacity,
+                layout_positions,
+                allow_pending_composites,
+                frame,
+                out,
+            );
+            out.scene.pop_layer();
+            return;
         }
 
+        // Two-pass, mirroring the Filter ROI derivation (containers/filter.rs):
+        // render the blended subtree once into a scratch scene so its per-node
+        // world-space bounds land in the `precise_bounds` slot table
+        // (`record_precise_bounds` is global, not per-scene). Ordering matters:
+        // `prepare_frame` clears the slot table at frame start, so the scratch
+        // render here REPOPULATES it before `blend_layer_clip_rect` reads it
+        // below — bounds from a previous frame are never relied upon. Rendering
+        // into a scratch scene and appending is the same pattern the
+        // static-subtree cache already relies on.
+        let mut scratch = vello::Scene::new();
+        out.with_scene(&mut scratch, |swapped| {
+            self.render_node_subtree(
+                node_id,
+                parent_transform,
+                parent_opacity,
+                layout_positions,
+                allow_pending_composites,
+                frame,
+                swapped,
+            );
+        });
+
+        // `None` means bounds were unavailable, degenerate, non-finite, or a
+        // child extended beyond the parent's own bounds: keep the full-surface
+        // layer rather than risking a wrong clip. The gate above guarantees the
+        // parent transform is (near) identity here, so a world-space rect
+        // pushed with `Affine::IDENTITY` clips in exactly the space the draws
+        // were encoded in; the fallback keeps the original `parent_transform`.
+        let clip = self.blend_layer_clip_rect(node_id);
+        let (rect, transform) = match clip {
+            Some(r) => (r, kurbo::Affine::IDENTITY),
+            None => {
+                tracing::debug!(
+                    target: "animatix::blend_bounds",
+                    "blend layer '{}': unbounded fallback (bounds unavailable or unsafe)",
+                    self.world.label(node_id).unwrap_or("")
+                );
+                (unbounded_blend_layer_rect(), parent_transform)
+            },
+        };
+        out.scene.push_layer(
+            vello::peniko::Fill::NonZero,
+            vello::peniko::BlendMode::new(mix, vello::peniko::Compose::SrcOver),
+            1.0,
+            transform,
+            &rect,
+        );
+        out.scene.encoding_mut().append(scratch.encoding(), &None);
+        out.scene.pop_layer();
+    }
+
+    /// Draw one node and its children into `out` (no blend layer). Shared by the
+    /// no-blend and unbounded-fallback paths, and by the tightened scratch pass.
+    fn render_node_subtree(
+        &self,
+        node_id: EntityId,
+        parent_transform: kurbo::Affine,
+        parent_opacity: f32,
+        layout_positions: &crate::timeline::layout::LayoutPositions,
+        allow_pending_composites: bool,
+        frame: &crate::primitives::RenderFrame<'_>,
+        out: &mut crate::primitives::RenderOutputs<'_, '_>,
+    ) {
         let (global_transform, global_opacity) = self.render_actor_node_by_id(
             node_id,
             parent_transform,
@@ -83,7 +233,6 @@ impl Timeline {
             frame,
             out,
         );
-
         self.render_node_children_by_id(
             node_id,
             global_transform,
@@ -92,9 +241,122 @@ impl Timeline {
             frame,
             out,
         );
+    }
 
-        if blend.is_some() {
-            out.scene.pop_layer();
+    /// Whether a tight, world-space clip for this blend subtree is provably
+    /// safe. Conservative by construction: a camera transform, a non-identity
+    /// accumulated `parent_transform` (world-space `precise_bounds` and the
+    /// parent-space clip would otherwise disagree), any mask/clip or effect
+    /// scope in the ancestor chain or the subtree, or a non-finite affine keeps
+    /// the historical unbounded layer.
+    fn blend_bounds_are_safe(&self, node_id: EntityId, parent_transform: kurbo::Affine) -> bool {
+        if self.camera_used.get() {
+            return false;
+        }
+        let coeffs = parent_transform.as_coeffs();
+        if !coeffs.iter().all(|c| c.is_finite()) || !affine_is_identity(parent_transform) {
+            return false;
+        }
+        // Ancestors: a mask/clip or effect scope above the blend node wraps it
+        // in another clip / offscreen composite, which a plain world-space
+        // rect here cannot be proven to compose with. Walk the ECS `parent`
+        // back-reference; bound the walk defensively against a corrupt tree.
+        let mut cursor = self.world.hierarchy(node_id).parent;
+        let mut guard = 0usize;
+        while let Some(id) = cursor {
+            guard += 1;
+            if guard > 4096 || !self.world.exists(id) {
+                return false;
+            }
+            if blend_node_is_special(self.world.caps(id), self.world.effects(id).is_some()) {
+                return false;
+            }
+            cursor = self.world.hierarchy(id).parent;
+        }
+        // Descendants: no mask/clip, no effect scope with a support radius.
+        !self.blend_subtree_has_special(node_id)
+    }
+
+    fn blend_subtree_has_special(&self, id: EntityId) -> bool {
+        if !self.world.exists(id) {
+            return true;
+        }
+        if blend_node_is_special(self.world.caps(id), self.world.effects(id).is_some()) {
+            return true;
+        }
+        for &child_id in &self.world.hierarchy(id).children {
+            if self.blend_subtree_has_special(child_id) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Derive the tight layer rect from the subtree's recorded world-space
+    /// bounds — a `subtree_bounds_union`-style walk over the existing
+    /// `precise_bounds` slot table (no new label-keyed map). Returns `None` so
+    /// the caller falls back to the unbounded layer whenever bounds are
+    /// unavailable, degenerate, non-finite, or a descendant's ink extends
+    /// beyond the blend node's own bounds.
+    fn blend_layer_clip_rect(&self, node_id: EntityId) -> Option<kurbo::Rect> {
+        let label = self.world.label(node_id).unwrap_or("");
+        let own = self.precise_bounds_for(label)?;
+        if !blend_rect_usable(own) {
+            return None;
+        }
+        let mut accumulated = own;
+        let mut outside = false;
+        for &child_id in &self.world.hierarchy(node_id).children {
+            self.blend_union_bounds(child_id, own, &mut accumulated, &mut outside);
+        }
+        if outside {
+            // A child extends beyond its parent's own bounds: the tight rect
+            // cannot be trusted, so keep the full-surface layer.
+            return None;
+        }
+        // A small pad keeps antialiased edge pixels from being clipped by the
+        // rect boundary; it is negligible next to the ±1e9 fallback.
+        let pad = 2.0;
+        let padded = kurbo::Rect::new(
+            accumulated.x0 - pad,
+            accumulated.y0 - pad,
+            accumulated.x1 + pad,
+            accumulated.y1 + pad,
+        );
+        if !blend_rect_usable(padded) {
+            return None;
+        }
+        Some(padded)
+    }
+
+    /// Union a descendant's recorded bounds into `accumulated` and flag when it
+    /// is not contained by the blend node's own bounds.
+    fn blend_union_bounds(
+        &self,
+        id: EntityId,
+        own: kurbo::Rect,
+        accumulated: &mut kurbo::Rect,
+        outside: &mut bool,
+    ) {
+        if !self.world.exists(id) {
+            return;
+        }
+        if let Some(label) = self.world.label(id) {
+            if let Some(rect) = self.precise_bounds_for(label) {
+                if !blend_rect_usable(rect) {
+                    // NaN/Inf in a recorded rect: treat as unsafe so the caller
+                    // keeps the unbounded layer rather than dropping the value.
+                    *outside = true;
+                    return;
+                }
+                if rect.x0 < own.x0 || rect.y0 < own.y0 || rect.x1 > own.x1 || rect.y1 > own.y1 {
+                    *outside = true;
+                }
+                *accumulated = accumulated.union(rect);
+            }
+        }
+        for &child_id in &self.world.hierarchy(id).children {
+            self.blend_union_bounds(child_id, own, accumulated, outside);
         }
     }
 
