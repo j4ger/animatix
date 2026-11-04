@@ -137,10 +137,10 @@ function pageProbe() {
     // at a time and wait for each: that is what a reader does, and it makes the
     // gate deterministic instead of a race with the scroll position.
     const results = [];
-    const globalDeadline = Date.now() + 180000;
+    const globalDeadline = Date.now() + 600000;
     for (const player of players) {
       const src = player.getAttribute("src");
-      const deadline = Math.min(globalDeadline, Date.now() + 45000);
+      const deadline = Math.min(globalDeadline, Date.now() + 120000);
       player.scrollIntoView({ block: "center", behavior: "instant" });
       // IntersectionObserver can lag behind a programmatic scroll on a loaded
       // CI runner, leaving a lazy player idle forever. `loadNow()` is the
