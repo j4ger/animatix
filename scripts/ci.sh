@@ -333,6 +333,10 @@ gate_web_build() {
     [ -f "$d/.build" ] || { echo "error: $d/.build stamp missing after build" >&2; return 1; }
     [ ! -f "$d/.dev" ] || { echo "error: $d is a --dev bundle after a release build" >&2; return 1; }
   done
+  # web-smoke loads web/embed/amx-player.js. It is gitignored, so a fresh CI
+  # checkout does not have it and artifacts do not cross jobs; build it in this
+  # job before the smoke gate serves the site.
+  gate_embed_build
 }
 
 gate_web_smoke() {
