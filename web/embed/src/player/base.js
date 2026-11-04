@@ -71,6 +71,19 @@ export class AmxPlayerBase extends HTMLElement {
     this._lastTapX = 0;
     this._resumeOnScrubEnd = false;
     this._lastSnappedMarker = null;
+    // Per-instance adaptive quality (see core.js tick / playback controller).
+    this._qualityScale = 1; // budget-driven raster multiplier (1 = display match)
+    this._desiredFps = FRAME_RATE;
+    this._targetFps = FRAME_RATE;
+    this._costMs = 0; // EMA of this embed's own render time
+    this._lastRenderAt = 0;
+    this._wantRender = false;
+    this._scaleTrial = null;
+    this._scaleIneffective = false;
+    this._why = "ok";
+    this._deviceBox = null; // exact device-pixel size from ResizeObserver
+    this._dprQuery = null;
+    this._onDprChange = null;
   }
 
   connectedCallback() {
@@ -97,6 +110,15 @@ export class AmxPlayerBase extends HTMLElement {
   disconnectedCallback() {
     this._observer?.disconnect();
     this._renderScaleObserver?.disconnect();
+    if (this._dprQuery && this._onDprChange) {
+      try {
+        this._dprQuery.removeEventListener("change", this._onDprChange);
+      } catch {
+        /* ignore */
+      }
+      this._dprQuery = null;
+      this._onDprChange = null;
+    }
     clearTimeout(this._renderScaleRetry);
     clearTimeout(this._resizeDebounceTimer);
     clearTimeout(this._varsTimer);

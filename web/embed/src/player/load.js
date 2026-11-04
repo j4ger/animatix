@@ -157,10 +157,36 @@ export class AmxPlayerLoad extends AmxPlayerView {
       setTimeout(() => {
         if (this._skeleton?.isConnected) this._skeleton.remove();
       }, 300);
+      // A fresh document starts sharp and at full cadence; the budget
+      // controller steps down only if this machine cannot hold it, and never
+      // inherits a degraded raster from the previous scene.
+      this._qualityScale = 1;
+      this._desiredFps = FRAME_RATE;
+      this._targetFps = FRAME_RATE;
+      this._costMs = 0;
+      this._scaleTrial = null;
+      this._scaleIneffective = false;
+      this._why = "ok";
+      this._reseedClock();
+      this._watchDpr();
       // Only now does the canvas have a laid-out size to match the raster to.
       this._applyRenderScale();
-      this._renderScaleObserver = new ResizeObserver(() => this._applyRenderScale(false));
-      this._renderScaleObserver.observe(this._stage);
+      this._renderScaleObserver = new ResizeObserver((entries) => {
+        const entry = entries[0];
+        const box = entry?.devicePixelContentBoxSize?.[0];
+        if (box && box.inlineSize > 0 && box.blockSize > 0) {
+          this._deviceBox = { w: box.inlineSize, h: box.blockSize };
+        } else if (entry?.contentRect && entry.contentRect.width > 0) {
+          const dpr = window.devicePixelRatio || 1;
+          this._deviceBox = { w: entry.contentRect.width * dpr, h: entry.contentRect.height * dpr };
+        }
+        this._applyRenderScale(false);
+      });
+      try {
+        this._renderScaleObserver.observe(this._stage, { box: "device-pixel-content-box" });
+      } catch {
+        this._renderScaleObserver.observe(this._stage);
+      }
       // A cold first load can still report a zero-sized box at this point, and
       // an environment that never delivers ResizeObserver would then keep the
       // full-resolution fallback for the life of the page. Re-apply once the

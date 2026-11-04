@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>amx-player adaptive-quality probe</title>
+<style>
+  body { margin: 0; background: #0b0e14; color: #ece7db; font: 12px/1.4 ui-monospace, monospace; }
+  #grid { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px; }
+  amx-player { display: block; background: #111; }
+  #out { padding: 8px 12px; color: #8fc7a3; white-space: pre-wrap; }
+</style>
+<script>
+  // Classic script, before the module bundle runs: capture errors and pick
+  // which bundle to load (new vs the pre-change legacy copy) via ?bundle=.
+  window.__console_errors = [];
+  const __oe = console.error.bind(console);
+  console.error = (...a) => { window.__console_errors.push(a.map(String).join(" ")); __oe(...a); };
+  const q = new URLSearchParams(location.search);
+  window.__cfg = {
+    n: Math.max(1, Number(q.get("n") || 12)),
+    w: Math.max(80, Number(q.get("w") || 320)),
+    h: Math.max(60, Number(q.get("h") || 180)),
+    bundle: q.get("bundle") === "legacy" ? "legacy" : "new",
+    scene: q.get("scene") || "./adaptive_probe.amx",
+  };
+  const loader = document.createElement("script");
+  loader.type = "module";
+  loader.src = window.__cfg.bundle === "legacy" ? "../embed/amx-player.legacy.js" : "../embed/amx-player.js";
+  loader.setAttribute("data-runtime-base", "../pkg-slim");
+  document.head.appendChild(loader);
+</script>
+</head>
+<body>
+<div id="grid"></div>
+<pre id="out">running…</pre>
+<script type="module">
+  await customElements.whenDefined("amx-player");
+  const cfg = window.__cfg;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const grid = document.getElementById("grid");
+  const players = [];
+  for (let i = 0; i < cfg.n; i++) {
+    const el = document.createElement("amx-player");
+    el.setAttribute("src", cfg.scene);
+    el.setAttribute("autoplay", "");
+    el.setAttribute("loop", "");
+    el.setAttribute("sealed", "");
+    el.style.width = cfg.w + "px";
+    el.style.height = cfg.h + "px";
+    grid.appendChild(el);
+    players.push(el);
+  }
+  const ready = await Promise.all(
+    players.map((p) =>
+      new Promise((res) => {
+        if (p._state === "ready") return res(true);
+        p.addEventListener("amxready", () => res(true), { once: true });
+        p.addEventListener("amxerror", () => res(false), { once: true });
+        setTimeout(() => res(false), 20000);
+      }),
+    ),
+  );
+  const ok = ready.filter(Boolean).length;
+
+  const scaleOf = (p) => (typeof p._renderScale === "number" ? p._renderScale : (p._player?.render_scale?.() ?? NaN));
+  const avgScale = () => {
+    const s = players.map(scaleOf).filter((x) => Number.isFinite(x));
+    return s.length ? s.reduce((a, b) => a + b, 0) / s.length : NaN;
+  };
+  const avgTargetFps = () => {
+    const s = players.map((p) => p.targetFps).filter((x) => Number.isFinite(x));
+    return s.length ? s.reduce((a, b) => a + b, 0) / s.length : null;
+  };
+
+  const samples = [];
+  let frames = 0;
+  let rafRun = true;
+  const t0 = performance.now();
+  // Headless / occluded windows never fire rAF. When the loader exposes the
+  // manual tick hook, drive the scheduler from a timer instead so the adaptive
+  // loop actually runs and can be observed.
+  const manual = new URLSearchParams(location.search).get("manual") === "1" && typeof window.__amxTick === "function";
+  if (manual) {
+    const timer = setInterval(() => {
+      if (!rafRun) return;
+      frames += 1;
+      window.__amxTick(performance.now());
+    }, 16);
+    window.__clearTick = () => clearInterval(timer);
+  } else {
+    (function raf() {
+      if (!rafRun) return;
+      frames += 1;
+      requestAnimationFrame(raf);
+    })();
+  }
+  const sample = () => samples.push({ t: (performance.now() - t0) / 1000, scale: avgScale(), fps: avgTargetFps() });
+
+  await sleep(1200);
+  sample();
+  const longBefore = avgScale();
+  // Exogenous stall: 300 ms of main-thread work. A renderer that reads the rAF
+  // gap as "slow" drops two raster steps here; the budget design must not.
+  const b = performance.now();
+  while (performance.now() - b < 300) {}
+  await sleep(350);
+  const longAfter = avgScale();
+  // Scroll: a compositor job, not a render-cost signal.
+  const scrollBefore = avgScale();
+  window.scrollTo(0, 40);
+  window.scrollTo(0, 0);
+  await sleep(400);
+  const scrollAfter = avgScale();
+
+  const framesAtSteady = frames;
+  for (let k = 0; k < 24; k++) {
+    sample();
+    await sleep(150);
+  }
+  rafRun = false;
+  if (window.__clearTick) window.__clearTick();
+  const elapsed = (performance.now() - t0) / 1000;
+  const steadyFps = frames / elapsed;
+  const late = samples.filter((s) => s.t > 2.6).map((s) => s.scale).filter((x) => Number.isFinite(x));
+  const summary = {
+    bundle: cfg.bundle,
+    n: cfg.n,
+    playersReady: ok,
+    avgScale: late.length ? late.reduce((a, b) => a + b, 0) / late.length : NaN,
+    minScale: late.length ? Math.min(...late) : NaN,
+    endScale: samples.length ? samples[samples.length - 1].scale : NaN,
+    avgTargetFps: avgTargetFps(),
+    pageFps: steadyFps,
+    manual,
+    longTaskDelta: longAfter - longBefore,
+    scrollDelta: scrollAfter - scrollBefore,
+    errors: window.__console_errors.length,
+  };
+  window.__adaptive = { cfg, summary, samples, errors: window.__console_errors };
+  document.getElementById("out").textContent = JSON.stringify(summary, null, 2);
+</script>
+</body>
+</html>

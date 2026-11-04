@@ -66,8 +66,21 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
   /// The debug line in the same words the chip shows, for `player.debugReport()`
   /// in a console or for the `c` key.
   debugReport() {
+    const cost = this._costMs > 0 ? `${this._costMs.toFixed(2)}ms` : "—";
     return `frame ${this.frame}/${this.totalFrames} @${FRAME_RATE}fps, ` +
-      `time ${this.time.toFixed(3)}s, render scale ${(this._renderScale ?? 1).toFixed(2)}`;
+      `time ${this.time.toFixed(3)}s, render scale ${(this._renderScale ?? 1).toFixed(2)}, ` +
+      `target ${this._targetFps ?? FRAME_RATE}fps, cost ${cost}, ${this._why || "ok"}`;
+  }
+
+  /// Per-instance budget controller state, read by the probe and the debug chip.
+  get targetFps() {
+    return this._targetFps ?? FRAME_RATE;
+  }
+  get costMs() {
+    return this._costMs ?? 0;
+  }
+  get qualityScale() {
+    return this._qualityScale ?? 1;
   }
 
   /// Called by the shared loop each frame. Returns whether it played.
@@ -114,10 +127,11 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
     // position).
     if (performance.now() - core.lastScrollAt < SCROLL_SETTLE_MS) {
       this._restTime = this._time;
+      this._wantRender = false; // never measure or adapt on a scroll frame
       if (this._controls) this._syncControls();
       return true;
     }
-    this._renderScene();
+    this._wantRender = true; // the scheduler renders when the instance is due
     if (this._controls) this._syncControls();
     return true;
   }
@@ -147,43 +161,25 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
     if (!this.isConnected) return;
     const sceneW = player.scene_width() || this._canvas.width;
     const sceneH = player.scene_height() || this._canvas.height;
-    const cssW = this._canvas.clientWidth || this._stage.clientWidth || 0;
-    const cssH = this._canvas.clientHeight || this._stage.clientHeight || 0;
-    const dpr = window.devicePixelRatio || 1;
-    const maxScale = Math.min(Math.max(1, dpr), 2.0);
-    // Before layout (display:none, pre-append) the element reports 0; render
-    // at full detail rather than clamping to a blurry minimum. Supports up to
-    // 2x Retina rendering for crisp vector display.
-    const display =
-      cssW > 0 && cssH > 0 && sceneW > 0 && sceneH > 0
-        ? Math.min(maxScale, (cssW * dpr) / sceneW, (cssH * dpr) / sceneH)
-        : 1;
-    const backingW = Math.max(1, Math.round(sceneW * display));
-    const backingH = Math.max(1, Math.round(sceneH * display));
-    const sizeChanged = this._canvas.width !== backingW || this._canvas.height !== backingH;
+    const geom = this._displayGeometry(sceneW, sceneH);
+    const sizeChanged =
+      this._canvas.width !== Math.max(1, Math.round(sceneW * geom)) ||
+      this._canvas.height !== Math.max(1, Math.round(sceneH * geom));
 
     const commit = () => {
       this._resizeDebounceTimer = null;
       if (!this.isConnected || !this._player) return;
-      const curCssW = this._canvas.clientWidth || this._stage.clientWidth || 0;
-      const curCssH = this._canvas.clientHeight || this._stage.clientHeight || 0;
-      const curDpr = window.devicePixelRatio || 1;
-      const curMaxScale = Math.min(Math.max(1, curDpr), 2.0);
-      const curDisplay =
-        curCssW > 0 && curCssH > 0 && sceneW > 0 && sceneH > 0
-          ? Math.min(curMaxScale, (curCssW * curDpr) / sceneW, (curCssH * curDpr) / sceneH)
-          : 1;
-      const curBackingW = Math.max(1, Math.round(sceneW * curDisplay));
-      const curBackingH = Math.max(1, Math.round(sceneH * curDisplay));
-      if (this._canvas.width !== curBackingW || this._canvas.height !== curBackingH) {
-        this._canvas.width = curBackingW;
-        this._canvas.height = curBackingH;
+      const cur = this._displayGeometry(sceneW, sceneH);
+      const bw = Math.max(1, Math.round(sceneW * cur));
+      const bh = Math.max(1, Math.round(sceneH * cur));
+      if (this._canvas.width !== bw || this._canvas.height !== bh) {
+        this._canvas.width = bw;
+        this._canvas.height = bh;
+        // A reallocation frame is not evidence of steady-state cost.
+        this._costMs = 0;
       }
-      // `core.qualityStep` is read through the module namespace on purpose: it
-      // is a `let` reassigned by `setQualityStep`, and a destructured copy
-      // would freeze at the value captured when this module first evaluated.
-      const curWanted = Math.min(2.0, Math.max(0.25, curDisplay * QUALITY_STEPS[core.qualityStep]));
-      this._renderScale = player.set_render_scale(curWanted);
+      const wanted = Math.min(2.0, Math.max(0.25, cur * (this._qualityScale || 1)));
+      this._renderScale = player.set_render_scale(wanted);
       if (!this._playing && this._state === "ready") {
         this._renderScene();
       }
@@ -193,7 +189,6 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
       clearTimeout(this._resizeDebounceTimer);
       this._resizeDebounceTimer = null;
     }
-
     if (immediate || !sizeChanged) {
       commit();
     } else {
@@ -201,10 +196,126 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
     }
   }
 
+  /// The raster scale where one scene unit maps to one device pixel, allowed to
+  /// supersample up to a pixel cap so a figure displayed larger than its
+  /// authored resolution still renders crisply. The canvas is always backed at
+  /// this size; `_qualityScale` is the separate, budget-driven multiplier.
+  _displayGeometry(sceneW, sceneH) {
+    if (!(sceneW > 0 && sceneH > 0)) return 1;
+    const cssW = this._canvas.clientWidth || this._stage.clientWidth || 0;
+    const cssH = this._canvas.clientHeight || this._stage.clientHeight || 0;
+    if (!(cssW > 0 && cssH > 0)) return 1;
+    const dpr = window.devicePixelRatio || 1;
+    let deviceW = cssW * dpr;
+    let deviceH = cssH * dpr;
+    if (this._deviceBox && this._deviceBox.w > 0) {
+      deviceW = this._deviceBox.w;
+      deviceH = this._deviceBox.h;
+    }
+    const maxPixels = 4000000;
+    const cap = Math.min(2.5, Math.sqrt(maxPixels / (sceneW * sceneH)));
+    const display = Math.min(cap, deviceW / sceneW, deviceH / sceneH);
+    return display > 0 ? display : 1;
+  }
+
+  // ── per-instance budget controller ──────────────────────────────
+  _dueRender(now) {
+    const interval = 1000 / Math.max(1, this._targetFps || FRAME_RATE);
+    return now - this._lastRenderAt >= interval - 1.5;
+  }
+
+  /// Record how long this embed's own render call took. This is the feedback
+  /// signal: it includes GPU backpressure on acquire but not the page's
+  /// scroll/GC/layout time.
+  _noteRenderMs(ms, now) {
+    this._lastRenderAt = now;
+    if (!(ms >= 0)) return;
+    const clamped = Math.min(ms, 200);
+    this._costMs = this._costMs > 0 ? this._costMs * 0.82 + clamped * 0.18 : clamped;
+  }
+
+  _reseedClock() {
+    this._lastRenderAt = performance.now();
+  }
+
+  /// Re-arm the raster when devicePixelRatio changes (moving between monitors,
+  /// browser zoom). ResizeObserver covers element size; this covers dpr.
+  _watchDpr() {
+    if (this._dprQuery && this._onDprChange) {
+      try {
+        this._dprQuery.removeEventListener("change", this._onDprChange);
+      } catch {
+        /* ignore */
+      }
+      this._dprQuery = null;
+      this._onDprChange = null;
+    }
+    if (!window.matchMedia) return;
+    const dpr = window.devicePixelRatio || 1;
+    try {
+      const query = window.matchMedia(`(resolution: ${dpr}dppx)`);
+      this._dprQuery = query;
+      this._onDprChange = () => {
+        this._deviceBox = null;
+        this._watchDpr();
+        this._applyRenderScale(true);
+      };
+      query.addEventListener("change", this._onDprChange);
+    } catch {
+      /* older browser: no dpr-change signal; ResizeObserver still covers size */
+    }
+  }
+
+  /// Turn this embed's slice of the page budget (ms of render time per second)
+  /// into a target cadence and, only if the cadence floor is still too slow, a
+  /// smaller raster — reverting the raster if it did not actually lower cost.
+  _adaptBudget(perInstanceMsPerSec) {
+    const MAX_FPS = 60;
+    const FLOOR_FPS = 20;
+    if (this._scaleTrial) {
+      if (this._costMs >= this._scaleTrial.costBefore * 0.9) {
+        this._qualityScale = this._scaleTrial.from;
+        this._scaleIneffective = true;
+        this._applyRenderScale(true);
+      }
+      this._scaleTrial = null;
+    }
+    const cost = Math.max(0.15, this._costMs || 1);
+    const desired = this._desiredFps || FRAME_RATE;
+    const refreshCap = Math.min(MAX_FPS, Math.max(30, Math.round(1000 / core.refreshInterval)));
+    const target = Math.min(desired, refreshCap, Math.max(FLOOR_FPS, Math.round(perInstanceMsPerSec / cost)));
+    const floorTooSlow = FLOOR_FPS * cost > perInstanceMsPerSec * 1.15;
+    if (floorTooSlow && !this._scaleIneffective) {
+      this._maybeReduceScale();
+      this._why = "budget:raster";
+    } else {
+      if (this._qualityScale < 1 && !floorTooSlow) this._maybeRaiseScale();
+      this._why = target < desired ? "budget:fps" : "ok";
+    }
+    this._targetFps = target;
+  }
+
+  _maybeReduceScale() {
+    const i = QUALITY_STEPS.indexOf(this._qualityScale);
+    if (this._scaleTrial || i < 0 || i >= QUALITY_STEPS.length - 1) return;
+    this._scaleTrial = { from: this._qualityScale, costBefore: this._costMs };
+    this._qualityScale = QUALITY_STEPS[i + 1];
+    this._applyRenderScale(true);
+  }
+
+  _maybeRaiseScale() {
+    const i = QUALITY_STEPS.indexOf(this._qualityScale);
+    if (i <= 0) return;
+    this._qualityScale = QUALITY_STEPS[i - 1];
+    this._scaleTrial = null;
+    this._applyRenderScale(true);
+  }
+
   _renderScene() {
     if (!this._player) return;
     try {
-      // render at the scene's own resolution; CSS scales it down
+      // The player rasterizes at its configured scale; the canvas backs the
+      // displayed device size, so a scale below display match upscales on blit.
       const t = this._playing ? Math.min(this._time, this._duration) : this._restTime;
       if (this._playing) this._restTime = t;
       this._player.render_frame(t);

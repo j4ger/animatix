@@ -312,24 +312,28 @@ Behavior:
   single-scene document only — a composition reports `vars-not-applied` as a
   warning diagnostic, because the browser installs no `tracing` subscriber to
   hear the engine's own note.
-- **Raster scale** — internal, no attribute. A browser frame costs a full-target
-  vello pass (measured: an empty 1280×720 scene costs what a full one does), so
-  the element sizes both ends of its frame to what it actually shows: the canvas
-  backing store becomes `displayed CSS px × devicePixelRatio` (capped at the
-  scene's own resolution, past which there is no more detail to render) and the
-  offscreen raster follows it, which makes the final blit 1:1 and leaves the
-  compositor no reason to resample. Layout is unaffected — the timeline still
-  evaluates against the scene's `SceneDimensions`. When the page cannot hold the
-  frame anyway, the shared rAF loop steps every playing embed down one quality
-  notch (×0.85 → ×0.25) on a measured slow-tick signal and steps back up after a
-  comfortable stretch; a tick longer than 100 ms jumps two notches at once, which
-  is what lets a software WebGPU adapter settle quickly instead of spending its
-  first seconds at 1 fps. The loop is capped to the 60 fps timeline grid, and
-  autoplay rendering is skipped while the page is scrolling (the position is
-  kept and drawn at the scroll settle) so a GPU frame cannot wedge itself into
-  every scroll tick. `player.set_render_scale(s)` / `render_scale()` set and
-  read the raster scale directly; `docs/performance_evaluation.md` §3.7 has the
-  numbers, including how this compares with the native renderer.
+- **Raster scale** — internal, no attribute. The canvas backing store tracks the
+  device pixels the element actually shows (`CSS px × devicePixelRatio`, read
+  from `devicePixelContentBoxSize`, and allowed to *supersample* up to a pixel
+  cap so a figure displayed larger than its authored resolution stays crisp),
+  and the offscreen raster follows it 1:1. Layout is unaffected — the timeline
+  still evaluates against the scene's `SceneDimensions`. When a page cannot hold
+  the frame rate the knobs are applied **per embed, cheapest first**: the budget
+  controller lowers that embed's *frame cadence* before it touches resolution,
+  because a browser frame's cost is a fixed per-render overhead (vello's two
+  compute passes + the blit), not fill rate, on a decent GPU — lowering
+  resolution there buys nothing and only blurs the figure. Resolution is reduced
+  only when even the lowest cadence cannot fit the page-wide budget
+  (`PAGE_BUDGET_MS_PER_S`, split evenly across the visible playing embeds), and a
+  reduction is kept only if it actually lowered measured cost (otherwise it is
+  reverted). The feedback is each embed's own render time, so a scroll, a GC
+  pause, a layout storm or a background tab resuming no longer costs a quality
+  notch (the old loop read the rAF gap and stepped down). The loop is capped to
+  the 60 fps timeline grid (measured refresh, so 120/144 Hz renders 60), and
+  autoplay draws are skipped while scrolling. `player.set_render_scale(s)` /
+  `render_scale()` still work; `web/dev/adaptive-probe.html` with the driver
+  `scripts/adaptive-probe.mjs` measures the policy (bundle=new vs the saved
+  legacy copy). `docs/performance_evaluation.md` §3.7 has the frame-cost numbers.
 - **`data-runtime-base`** goes on the `<script>` tag, not the element: it
   names the directory tree holding the engine builds — absolute or relative
   to the page. A value ending in `pkg`, `pkg-assets` or `pkg-slim` is the
@@ -657,6 +661,21 @@ wasm files no longer contain font bytes.
   copying pixels the way `debug_readback` does. `set_render_scale(s)` /
   `render_scale()` / `raster_width()` / `raster_height()` are the raster scale
   the numbers are taken at.
+- `web/dev/hybrid-vs-compute.html` — differential probe: the same synthetic
+  vector scene rendered by the classic vello compute renderer (WebGPU,
+  offscreen+blit) and by `vello_hybrid` (WebGL2, direct to canvas), from one
+  wasm module (`crates/animatix-hybrid-bench`). Build it with
+  `scripts/build-hybrid-bench.sh --dev` into `web/dev/pkg-hybrid-bench/`
+  (gitignored), open the page with `scripts/serve-web.py`, and press Run; it
+  reports per-frame `submit`/`gpu`/`clear` milliseconds and publishes
+  `window.__bench`. The headless end-to-end check is
+  `nix develop .#web-ci -c node scripts/hybrid-bench-smoke.mjs` (software
+  SwiftShader; proves the wiring, not performance). For real numbers run a
+  headed browser on the GPU: `HB_HEADED=1 HB_UNSAFE_WEBGPU=1 CHROME=/path/to/chromium
+  node scripts/hybrid-bench-smoke.mjs`. On hybrid-GPU laptops Chrome gives
+  WebGPU the discrete GPU but WebGL2 the integrated one, so the two backends are
+  not always on the same GPU — the page reports which adapter each got. Dev-only:
+  it measures raw renderer throughput, not effects, transitions or text shaping.
 
 > Two probe traps have burned this pipeline before (see `docs/history/2026-09.md`,
 > "The wasm-SVG item that never was"): a scene screenshot catches whatever

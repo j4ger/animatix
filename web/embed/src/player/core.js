@@ -159,79 +159,121 @@ let rafRunning = false;
 let lastT = 0;
 let pendingDt = 0;
 
-// Page-wide render-scale adaptation. A frame's GPU cost tracks the number of
-// pixels the offscreen target holds — an empty 1280x720 scene measures the same
-// as a full one, because the cost is vello's full-screen pass — so the lever for
-// "several figures on one page are choppy" is raster resolution, not content.
-// Every playing embed already renders at its own displayed size (see
-// `_applyRenderScale`); when the shared rAF still cannot hold a frame, the whole
-// page steps down a multiplier together, and steps back up only after a long
-// stretch of comfortable frames. Stepping one notch at a time and reading the
-// clock is deliberate: the alternative — sizing by how many embeds happen to be
-// playing — guesses at work it cannot measure.
+// ── adaptive quality: a per-instance budget ─────────────────────────
+//
+// A browser frame's cost is dominated by a fixed per-render overhead (vello's
+// two compute passes + the blit — ~0.9 ms even for an empty 1280×720 scene on
+// a discrete GPU), not by resolution. So the first knob is the *frame cadence*:
+// lowering resolution on a fast GPU buys nothing and only blurs the figure,
+// while rendering at 30 fps halves every cost with no sharpness loss. The raster
+// is reduced only when even the lowest cadence cannot fit the budget, and only
+// if the reduction actually lowers measured cost.
+//
+// The budget is page-wide (N playing embeds share one main thread and GPU); the
+// state is per embed; and the feedback is the time each instance spends inside
+// its own render call — not the wall-clock gap between rAF ticks, which also
+// records scroll, GC, layout and a background tab resuming.
 const QUALITY_STEPS = [1, 0.85, 0.7, 0.55, 0.42, 0.32, 0.25];
-const SLOW_TICK_MS = 24; // a 60 Hz tick that misses its vsync lands at ~33 ms
+// Kept for modules that still import them; the scheduler no longer uses a
+// global threshold pair.
+const SLOW_TICK_MS = 24;
 const FAST_TICK_MS = 18.5;
 let qualityStep = 0;
 let slowTicks = 0;
 let fastTicks = 0;
 
+const MAX_FPS = 60;
+const FLOOR_FPS = 20;
+// Headless/occluded windows deliver no rAF callbacks, so a probe may drive the
+// scheduler by hand via `?amxmanualtick`. Production never sets this.
+const MANUAL_TICK = /(?:\?|&)amxmanualtick\b/.test(location.search);
+// Total render time per second the page may spend across all playing embeds.
+// This is a *fraction of the frame*: a tick that renders N figures at 60 fps
+// has to fit in 16.7 ms, so the sustainable ceiling is near 1000 ms/s; leave a
+// margin for scroll, layout and the rest of the page. 0.9 of 900 keeps pages
+// with several figures at 60 fps instead of throttling them defensively.
+const PAGE_BUDGET_MS_PER_S = 900;
+const BUDGET_HEADROOM = 0.9;
+let allocationAccum = 0;
+// Learned from the first frames so a 120/144 Hz display renders the 60 fps
+// timeline at 60, rather than twice.
+let refreshInterval = 1000 / 60;
+let refreshFrames = 0;
+let refreshSum = 0;
+
+/// Manual/debug override: pin every embed to one rung of the scale ladder.
 function setQualityStep(step) {
   const next = Math.max(0, Math.min(QUALITY_STEPS.length - 1, step));
   if (next === qualityStep) return;
   qualityStep = next;
-  for (const inst of instances) inst._applyRenderScale();
+  for (const inst of instances) {
+    inst._qualityScale = QUALITY_STEPS[next];
+    inst._scaleTrial = null;
+    inst._scaleIneffective = false;
+    inst._applyRenderScale();
+  }
 }
 
-/// Drive `advance` for every playing instance, then adapt the page's render
-/// scale to how long the tick actually took.
+/// One shared rAF driver. Each tick advances every playing embed's clock, but
+/// renders an embed only when its own cadence is due.
 function tick(t) {
-  const dtMs = t - lastT;
+  const rawDt = t - lastT;
   lastT = t;
-  pendingDt += Math.min(dtMs / 1000, 0.1);
-  // Scenes are authored on a 60 fps grid. On a 120/144 Hz display a bare rAF
-  // loop would render two frames per authored frame — pure extra GPU work with
-  // no visual gain. Accumulate the elapsed time and only run the timeline on a
-  // 60 Hz step.
-  if (dtMs < 1000 / FRAME_RATE - 1) {
+
+  // Learn the display refresh interval from the first ~40 frames.
+  if (refreshFrames < 40) {
+    if (rawDt > 2) {
+      refreshSum += rawDt;
+      refreshFrames += 1;
+    }
+    if (refreshFrames === 40) {
+      const avg = refreshSum / 40;
+      if (avg > 3 && avg < 40) refreshInterval = avg;
+    }
+  }
+
+  if (!MANUAL_TICK && document.visibilityState === "hidden") {
+    requestAnimationFrame(tick);
+    return;
+  }
+  // A gap this long is not the renderer: a background tab resuming, a GC, a
+  // layout storm or a blocking script. Reset the clocks and never adapt.
+  if (rawDt > 200) {
+    pendingDt = 0;
+    for (const inst of instances) inst._reseedClock();
+    requestAnimationFrame(tick);
+    return;
+  }
+
+  pendingDt += Math.min(rawDt / 1000, 0.1);
+  // The timeline is authored at FRAME_RATE. Gate on *accumulated* time so a
+  // 120/144 Hz display steps on a 60 Hz grid instead of skipping every frame.
+  const frameMs = 1000 / FRAME_RATE;
+  if (pendingDt * 1000 < frameMs - 1) {
     requestAnimationFrame(tick);
     return;
   }
   const dt = pendingDt;
   pendingDt = 0;
+  const now = performance.now();
+
   let anyPlaying = false;
   for (const inst of instances) {
-    if (inst.advance(dt)) anyPlaying = true;
+    if (!inst.advance(dt)) continue;
+    anyPlaying = true;
+    if (inst._wantRender && inst._dueRender(now)) {
+      const t0 = performance.now();
+      inst._renderScene();
+      inst._noteRenderMs(performance.now() - t0, now);
+      inst._wantRender = false;
+    }
   }
+
   if (anyPlaying) {
-    if (dtMs > 100) {
-      // A long stall means the render itself is far past budget (typically a
-      // software WebGPU adapter). Step hard, not one notch at a time.
-      if (dtMs > 250) {
-        setQualityStep(qualityStep + 2);
-        slowTicks = 0;
-        fastTicks = 0;
-      } else {
-        setQualityStep(qualityStep + 1);
-        slowTicks = 0;
-        fastTicks = 0;
-      }
-    } else if (dtMs > SLOW_TICK_MS) {
-      slowTicks += 1;
-      fastTicks = 0;
-      if (slowTicks >= 5) {
-        setQualityStep(qualityStep + 1);
-        slowTicks = 0;
-      }
-    } else if (dtMs < FAST_TICK_MS) {
-      fastTicks += 1;
-      if (slowTicks > 0) slowTicks -= 1;
-      if (fastTicks >= 45) {
-        setQualityStep(qualityStep - 1);
-        fastTicks = 0;
-      }
-    } else if (slowTicks > 0) {
-      slowTicks -= 1;
+    allocationAccum += dt;
+    if (allocationAccum >= 0.5) {
+      allocationAccum = 0;
+      allocateBudget();
     }
     requestAnimationFrame(tick);
   } else {
@@ -239,12 +281,34 @@ function tick(t) {
   }
 }
 
+/// Re-split the page budget across the visible, playing embeds: each gets an
+/// equal slice, and turns it into a target cadence from its measured cost.
+function allocateBudget() {
+  const active = [];
+  for (const inst of instances) {
+    if (inst._visible && inst._playing && inst._state === "ready") active.push(inst);
+  }
+  const n = active.length;
+  if (!n) return;
+  const perInstanceMsPerSec = (PAGE_BUDGET_MS_PER_S * BUDGET_HEADROOM) / n;
+  for (const inst of active) inst._adaptBudget(perInstanceMsPerSec);
+}
+
 function ensureLoop() {
   if (!rafRunning) {
     rafRunning = true;
     lastT = performance.now();
+    for (const inst of instances) inst._reseedClock();
     requestAnimationFrame(tick);
   }
+}
+
+// Test hook: drive the scheduler by hand. A headless or occluded window never
+// fires rAF, so the adaptive loop cannot be observed there otherwise.
+if (MANUAL_TICK) {
+  lastT = performance.now();
+  window.__amxTick = (t) => tick(typeof t === "number" ? t : performance.now());
+  window.__amxInstances = () => [...instances];
 }
 
 // ── arrival scheduling ──────────────────────────────────────────────
@@ -337,5 +401,5 @@ export {
   lastT, QUALITY_STEPS, SLOW_TICK_MS, FAST_TICK_MS, qualityStep, slowTicks, fastTicks,
   setQualityStep, tick, ensureLoop, SCROLL_SETTLE_MS, LOAD_MAX_DEFER_MS, LOAD_RETRY_MS,
   LOAD_STALL_MS, loadQueue, arriving, loadTimer, lastScrollAt, pumpLoads, enqueueLoad,
-  dequeueLoad, ASPECTS,
+  dequeueLoad, ASPECTS, refreshInterval,
 };

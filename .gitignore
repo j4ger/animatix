@@ -37,6 +37,7 @@ web/tools/node_modules/
 web/**/*.br
 web/pkg-slim/
 web/pkg-assets/
+web/dev/pkg-hybrid-bench/
 web/embed/amx-player.js
 # Generated gzip font twins and license; web/fonts/manifest.json is tracked.
 web/fonts/*.gz
@@ -52,3 +53,6 @@ dist/
 # Editor-generated mirror of this file (its own header says so). Tracking it would
 # mean every .gitignore edit needs a second commit to resync a copy nothing reads.
 .zcodeignore
+
+# Test-only copy of the pre-adaptive-strategy embed bundle (A/B probe).
+web/embed/amx-player.legacy.js
