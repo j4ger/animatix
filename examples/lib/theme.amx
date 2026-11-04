@@ -56,6 +56,12 @@ pub let ember = Colorscheme {
   extends: "ink"
 }
 
+// Legacy name retained for the older gallery demos; the redesign uses `ink`
+// everywhere, so this is an alias rather than a separate palette.
+pub let gallery = Colorscheme {
+  extends: "ink"
+}
+
 pub let tide = Colorscheme {
   extends: "ink",
   accent.primary: (0.22, 0.74, 0.98, 1),
