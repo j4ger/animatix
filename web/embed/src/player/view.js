@@ -485,7 +485,7 @@ export class AmxPlayerView extends AmxPlayerBase {
           if (this._visible && this._isSealed() && !this._playing) this._resumeSealed();
         }
       },
-      { rootMargin: "200px" },
+      { rootMargin: "50px" },
     );
     this._observer.observe(this);
   }
@@ -730,6 +730,9 @@ export class AmxPlayerView extends AmxPlayerBase {
     // layer the strip's ticks come from; snapping already reads `_markers`,
     // and leaving the drawn marks stale would point the playhead at nothing.
     this._renderMarks();
+    // A rebuild can replace the whole document at the same playhead time; the
+    // shell's held-frame cache must not keep the previous canvas.
+    this._invalidateRestFrame();
     // A resolution change above reset the backing store to the scene's own
     // size; put the display-matched scale back.
     this._applyRenderScale();

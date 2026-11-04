@@ -159,20 +159,27 @@ let rafRunning = false;
 let lastT = 0;
 let pendingDt = 0;
 
-// ── adaptive quality: a per-instance budget ─────────────────────────
+// ── adaptive quality: real frame pressure, then a cadence ladder ─────
 //
-// A browser frame's cost is dominated by a fixed per-render overhead (vello's
-// two compute passes + the blit — ~0.9 ms even for an empty 1280×720 scene on
-// a discrete GPU), not by resolution. So the first knob is the *frame cadence*:
-// lowering resolution on a fast GPU buys nothing and only blurs the figure,
-// while rendering at 30 fps halves every cost with no sharpness loss. The raster
-// is reduced only when even the lowest cadence cannot fit the budget, and only
-// if the reduction actually lowers measured cost.
+// The 2026-11-04 "per-instance budget" controller fed on the synchronous CPU
+// time of `render_frame()`. That cannot see GPU work: `queue.submit` returns
+// before the GPU draws, and docs/performance_evaluation.md §3.7 measures
+// 0.49 ms of CPU encode for a frame whose GPU work is 3.5 ms. With that signal
+// the controller computed a 60 fps target and never lowered the raster on any
+// hardware — measured on six SwiftShader embeds: target 60 fps, achieved
+// ~1 fps, zero adaptation.
 //
-// The budget is page-wide (N playing embeds share one main thread and GPU); the
-// state is per embed; and the feedback is the time each instance spends inside
-// its own render call — not the wall-clock gap between rAF ticks, which also
-// records scroll, GC, layout and a background tab resuming.
+// The signal here is the ACHIEVED frame cadence: a missed-vsync ratio over the
+// committed 60 Hz steps. It is measured from the rAF timestamp gaps, which do
+// include GPU backpressure, but is gated so an exogenous 300 ms main-thread
+// stall, a scroll, or a hidden tab cannot masquerade as render cost.
+// `_costMs` is demoted to a relative weight (which embeds to stagger first) and
+// a diagnostic; it is NOT the primary control input.
+//
+// Strategy: a page-wide cadence ladder lowers every playing embed's target fps
+// first (cheap: no sharpness loss), and only at the ladder floor with sustained
+// pressure does it try a smaller raster — with a trial that is judged by the
+// pressure ratio, not by CPU encode time.
 const QUALITY_STEPS = [1, 0.85, 0.7, 0.55, 0.42, 0.32, 0.25];
 // Kept for modules that still import them; the scheduler no longer uses a
 // global threshold pair.
@@ -194,12 +201,28 @@ const MANUAL_TICK = /(?:\?|&)amxmanualtick\b/.test(location.search);
 // with several figures at 60 fps instead of throttling them defensively.
 const PAGE_BUDGET_MS_PER_S = 900;
 const BUDGET_HEADROOM = 0.9;
-let allocationAccum = 0;
 // Learned from the first frames so a 120/144 Hz display renders the 60 fps
-// timeline at 60, rather than twice.
+// timeline at 60, rather than twice. Only short gaps are averaged: a 23–54 ms
+// synchronous wasm build during arrival scheduling must not pollute it.
 let refreshInterval = 1000 / 60;
 let refreshFrames = 0;
 let refreshSum = 0;
+
+// Frame-pressure bookkeeping. `lastCommittedT` is updated ONLY on a committed
+// 60 Hz step, so a 120/144 Hz display still measures ~16.7 ms per step.
+const CADENCE_STEPS = [60, 50, 40, 30, 24, 20];
+const MISSED_STEP_MS = (1000 / FRAME_RATE) * 1.4; // >23.3 ms at 60 Hz
+const EXOGENOUS_GAP_MS = 200;
+let cadenceStep = 0;
+let pagePressure = 0;
+let lastCommittedT = 0;
+let pressureSteps = 0;
+let pressureMissed = 0;
+let cleanWindows = 0;
+let longGapRun = 0;
+let maxRendersPerTick = 1;
+let lastWindowAt = 0;
+const pausedByVisibility = new Set();
 
 /// Manual/debug override: pin every embed to one rung of the scale ladder.
 function setQualityStep(step) {
@@ -209,7 +232,7 @@ function setQualityStep(step) {
   for (const inst of instances) {
     inst._qualityScale = QUALITY_STEPS[next];
     inst._scaleTrial = null;
-    inst._scaleIneffective = false;
+    inst._scaleIneffectiveUntil = 0;
     inst._applyRenderScale();
   }
 }
@@ -217,12 +240,28 @@ function setQualityStep(step) {
 /// One shared rAF driver. Each tick advances every playing embed's clock, but
 /// renders an embed only when its own cadence is due.
 function tick(t) {
+  // Seed the loop's own clock from the first timestamp it actually receives.
+  // In manual-tick mode the probe hands us a virtual clock, so seeding from
+  // `performance.now()` at ensureLoop() time (which is later, once the player
+  // is ready) would make the first many ticks look like negative gaps and be
+  // swallowed. Seeding lazily keeps `rawDt`, the pressure window and the
+  // committed-step interval all on the SAME clock.
+  if (lastT === 0) {
+    lastT = t;
+    lastWindowAt = t;
+    lastCommittedT = t;
+    pendingDt = 0;
+    requestAnimationFrame(tick);
+    return;
+  }
   const rawDt = t - lastT;
   lastT = t;
 
-  // Learn the display refresh interval from the first ~40 frames.
+  // Learn the display refresh interval from the first ~40 frames. Only short
+  // gaps count: serialised synchronous wasm builds (23–54 ms each) land exactly
+  // in this window and would otherwise cap the target fps for the page's life.
   if (refreshFrames < 40) {
-    if (rawDt > 2) {
+    if (rawDt > 2 && rawDt < 40) {
       refreshSum += rawDt;
       refreshFrames += 1;
     }
@@ -236,13 +275,22 @@ function tick(t) {
     requestAnimationFrame(tick);
     return;
   }
-  // A gap this long is not the renderer: a background tab resuming, a GC, a
-  // layout storm or a blocking script. Reset the clocks and never adapt.
-  if (rawDt > 200) {
-    pendingDt = 0;
-    for (const inst of instances) inst._reseedClock();
-    requestAnimationFrame(tick);
-    return;
+  // A SINGLE gap this long is exogenous: a background tab resuming, a GC, a
+  // layout storm or a blocking script. Ignore it and reset the clocks. But
+  // SUSTAINED long gaps are the shape of a GPU that cannot keep up (a software
+  // WebGPU adapter delivers one rAF per second), so from the second one on we
+  // clamp and keep measuring instead of going permanently blind.
+  if (rawDt > EXOGENOUS_GAP_MS) {
+    longGapRun += 1;
+    if (longGapRun < 2) {
+      pendingDt = 0;
+      lastCommittedT = t;
+      for (const inst of instances) inst._reseedClock();
+      requestAnimationFrame(tick);
+      return;
+    }
+  } else {
+    longGapRun = 0;
   }
 
   pendingDt += Math.min(rawDt / 1000, 0.1);
@@ -257,22 +305,59 @@ function tick(t) {
   pendingDt = 0;
   const now = performance.now();
 
+  // Pressure is measured on committed steps only, from the rAF timestamp gap.
+  // The manual-tick probe feeds fake monotonic timestamps with ~40 ms deltas;
+  // real `performance.now()` barely advances there, so any pressure signal
+  // derived from render cost would be unable to see the injection.
+  const committedInterval = lastCommittedT > 0
+    ? Math.min(Math.max(t - lastCommittedT, 0), EXOGENOUS_GAP_MS)
+    : 0;
+  lastCommittedT = t;
+  const scrollActive = now - lastScrollAt < SCROLL_SETTLE_MS;
+  const measurable = (MANUAL_TICK || document.visibilityState === "visible")
+    && !scrollActive && committedInterval > 0;
+  if (measurable) {
+    pressureSteps += 1;
+    if (committedInterval > MISSED_STEP_MS) pressureMissed += 1;
+  }
+
   let anyPlaying = false;
+  let rendersThisTick = 0;
   for (const inst of instances) {
     if (!inst.advance(dt)) continue;
     anyPlaying = true;
-    if (inst._wantRender && inst._dueRender(now)) {
+    if (inst._wantRender && inst._dueRender(now) && rendersThisTick < maxRendersPerTick) {
       const t0 = performance.now();
       inst._renderScene();
       inst._noteRenderMs(performance.now() - t0, now);
       inst._wantRender = false;
+      rendersThisTick += 1;
     }
   }
 
   if (anyPlaying) {
-    allocationAccum += dt;
-    if (allocationAccum >= 0.5) {
-      allocationAccum = 0;
+    // Window boundaries are WALL-CLOCK (on the rAF timestamp `t`, the same
+    // clock as `rawDt`), not the sum of `dt`: on a machine slow enough to be
+    // the reason this exists, one tick can be ~1 s and a clamped `dt` (≤0.1 s)
+    // would take ten ticks to fill a 0.5 s window — so pressure would never be
+    // computed exactly when it is highest.
+    if (t - lastWindowAt >= 500) {
+      lastWindowAt = t;
+      pagePressure = pressureSteps > 0 ? pressureMissed / pressureSteps : 0;
+      pressureSteps = 0;
+      pressureMissed = 0;
+      if (pagePressure > 0.25) {
+        cadenceStep = Math.min(CADENCE_STEPS.length - 1, cadenceStep + 1);
+        cleanWindows = 0;
+      } else if (pagePressure < 0.05) {
+        cleanWindows += 1;
+        if (cleanWindows >= 3) {
+          cadenceStep = Math.max(0, cadenceStep - 1);
+          cleanWindows = 0;
+        }
+      } else {
+        cleanWindows = 0;
+      }
       allocateBudget();
     }
     requestAnimationFrame(tick);
@@ -281,8 +366,11 @@ function tick(t) {
   }
 }
 
-/// Re-split the page budget across the visible, playing embeds: each gets an
-/// equal slice, and turns it into a target cadence from its measured cost.
+/// Re-split the work across the visible, playing embeds. The cadence ladder is
+/// page-wide; each embed gets a phase offset so N renders do not all land in the
+/// same rAF tick, plus a hard per-tick cap derived from the ladder. `_costMs`
+/// only decides who is staggered first (costliest first) — it no longer decides
+/// whether adaptation happens at all.
 function allocateBudget() {
   const active = [];
   for (const inst of instances) {
@@ -290,14 +378,30 @@ function allocateBudget() {
   }
   const n = active.length;
   if (!n) return;
+  active.sort((a, b) => (b._costMs || 0) - (a._costMs || 0));
+  const pageTargetFps = CADENCE_STEPS[cadenceStep];
   const perInstanceMsPerSec = (PAGE_BUDGET_MS_PER_S * BUDGET_HEADROOM) / n;
-  for (const inst of active) inst._adaptBudget(perInstanceMsPerSec);
+  maxRendersPerTick = Math.max(1, Math.ceil(n * pageTargetFps / FRAME_RATE));
+  for (let i = 0; i < n; i += 1) {
+    active[i]._adaptBudget(pageTargetFps, perInstanceMsPerSec, i, n, pagePressure);
+  }
 }
 
 function ensureLoop() {
   if (!rafRunning) {
     rafRunning = true;
-    lastT = performance.now();
+    // Real rAF: seed from the wall clock. Manual tick: leave zeroed so `tick`
+    // lazily seeds from the probe's virtual clock on its first timestamp.
+    if (MANUAL_TICK) {
+      lastT = 0;
+      lastWindowAt = 0;
+    } else {
+      lastT = performance.now();
+      lastWindowAt = performance.now();
+    }
+    lastCommittedT = 0;
+    pressureSteps = 0;
+    pressureMissed = 0;
     for (const inst of instances) inst._reseedClock();
     requestAnimationFrame(tick);
   }
@@ -306,9 +410,39 @@ function ensureLoop() {
 // Test hook: drive the scheduler by hand. A headless or occluded window never
 // fires rAF, so the adaptive loop cannot be observed there otherwise.
 if (MANUAL_TICK) {
-  lastT = performance.now();
+  // Leave lastT zeroed: `tick` seeds from the first virtual timestamp it
+  // receives, so the probe's virtual clock and the loop share one time base.
+  lastT = 0;
+  lastWindowAt = 0;
   window.__amxTick = (t) => tick(typeof t === "number" ? t : performance.now());
   window.__amxInstances = () => [...instances];
+}
+
+// Polling `visibilityState` inside tick() is not enough: a hidden tab leaves
+// `_playing` flags set, which keeps `allocateBudget`'s active set populated and
+// lets a page-driven play() fire into a hidden document. Pause explicitly on
+// hide and resume ONLY the embeds this listener paused, and only while they are
+// still connected, ready and visible — an embed the page paused on purpose is
+// never resurrected.
+if (!MANUAL_TICK && typeof document.addEventListener === "function") {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      for (const inst of [...instances]) {
+        if (inst._playing) {
+          pausedByVisibility.add(inst);
+          inst.pause();
+        }
+      }
+    } else {
+      for (const inst of pausedByVisibility) {
+        if (inst.isConnected && inst._state === "ready" && inst._visible) inst.play();
+      }
+      pausedByVisibility.clear();
+      lastCommittedT = 0;
+      pressureSteps = 0;
+      pressureMissed = 0;
+    }
+  });
 }
 
 // ── arrival scheduling ──────────────────────────────────────────────
@@ -401,5 +535,5 @@ export {
   lastT, QUALITY_STEPS, SLOW_TICK_MS, FAST_TICK_MS, qualityStep, slowTicks, fastTicks,
   setQualityStep, tick, ensureLoop, SCROLL_SETTLE_MS, LOAD_MAX_DEFER_MS, LOAD_RETRY_MS,
   LOAD_STALL_MS, loadQueue, arriving, loadTimer, lastScrollAt, pumpLoads, enqueueLoad,
-  dequeueLoad, ASPECTS, refreshInterval,
+  dequeueLoad, ASPECTS, refreshInterval, CADENCE_STEPS, cadenceStep, pagePressure,
 };

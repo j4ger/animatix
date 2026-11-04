@@ -36,6 +36,7 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
     if (this._state !== "ready") return;
     this._time = Math.min(Math.max(time, 0), this._duration);
     this._restTime = this._time;
+    this._invalidateRestFrame();
     this._renderScene();
     this._syncControls();
   }
@@ -69,7 +70,8 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
     const cost = this._costMs > 0 ? `${this._costMs.toFixed(2)}ms` : "—";
     return `frame ${this.frame}/${this.totalFrames} @${FRAME_RATE}fps, ` +
       `time ${this.time.toFixed(3)}s, render scale ${(this._renderScale ?? 1).toFixed(2)}, ` +
-      `target ${this._targetFps ?? FRAME_RATE}fps, cost ${cost}, ${this._why || "ok"}`;
+      `target ${this._targetFps ?? FRAME_RATE}fps, cost ${cost}, ` +
+      `pressure ${(this._pressure ?? 0).toFixed(2)}, ${this._why || "ok"}`;
   }
 
   /// Per-instance budget controller state, read by the probe and the debug chip.
@@ -81,6 +83,11 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
   }
   get qualityScale() {
     return this._qualityScale ?? 1;
+  }
+  /// Fraction of committed 60 Hz steps that missed their vsync (0..1). This is
+  /// the real frame-pressure signal; `costMs` is only a relative weight now.
+  get pressure() {
+    return this._pressure ?? 0;
   }
 
   /// Called by the shared loop each frame. Returns whether it played.
@@ -180,6 +187,7 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
       }
       const wanted = Math.min(2.0, Math.max(0.25, cur * (this._qualityScale || 1)));
       this._renderScale = player.set_render_scale(wanted);
+      this._invalidateRestFrame();
       if (!this._playing && this._state === "ready") {
         this._renderScene();
       }
@@ -200,6 +208,11 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
   /// supersample up to a pixel cap so a figure displayed larger than its
   /// authored resolution still renders crisply. The canvas is always backed at
   /// this size; `_qualityScale` is the separate, budget-driven multiplier.
+  /// Display-matched raster, with a hard cap on supersampling. A HiDPI pane
+  /// asks for more device pixels than a 1280×720 scene has detail to give
+  /// (docs/performance_evaluation.md §3.7), so 2× supersampling quadrupled GPU
+  /// work for no visible gain. The cap also bounds the first frames before the
+  /// embed's `_applyRenderScale` has run.
   _displayGeometry(sceneW, sceneH) {
     if (!(sceneW > 0 && sceneH > 0)) return 1;
     const cssW = this._canvas.clientWidth || this._stage.clientWidth || 0;
@@ -212,21 +225,26 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
       deviceW = this._deviceBox.w;
       deviceH = this._deviceBox.h;
     }
-    const maxPixels = 4000000;
-    const cap = Math.min(2.5, Math.sqrt(maxPixels / (sceneW * sceneH)));
+    const MAX_RASTER_PIXELS = 2000000;
+    const MAX_SUPERSAMPLE = 1.5;
+    const cap = Math.min(MAX_SUPERSAMPLE, Math.sqrt(MAX_RASTER_PIXELS / (sceneW * sceneH)));
     const display = Math.min(cap, deviceW / sceneW, deviceH / sceneH);
     return display > 0 ? display : 1;
   }
 
-  // ── per-instance budget controller ──────────────────────────────
+  // ── per-instance cadence / phase ──────────────────────────────────
   _dueRender(now) {
     const interval = 1000 / Math.max(1, this._targetFps || FRAME_RATE);
-    return now - this._lastRenderAt >= interval - 1.5;
+    // Stagger N embeds across one cadence interval instead of aligning every
+    // `_lastRenderAt` to the same instant (the old `ensureLoop` behaviour),
+    // which piled all their GPU work into a single rAF tick.
+    const phase = this._phaseOffset || 0;
+    return now - this._lastRenderAt - phase >= interval - 1.5;
   }
 
-  /// Record how long this embed's own render call took. This is the feedback
-  /// signal: it includes GPU backpressure on acquire but not the page's
-  /// scroll/GC/layout time.
+  /// Record how long this embed's own render call took. This is NOT the frame
+  /// cost — `queue.submit` returns before the GPU draws — it is a relative
+  /// weight for deciding which embeds to stagger first, and a diagnostic.
   _noteRenderMs(ms, now) {
     this._lastRenderAt = now;
     if (!(ms >= 0)) return;
@@ -266,39 +284,52 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
     }
   }
 
-  /// Turn this embed's slice of the page budget (ms of render time per second)
-  /// into a target cadence and, only if the cadence floor is still too slow, a
-  /// smaller raster — reverting the raster if it did not actually lower cost.
-  _adaptBudget(perInstanceMsPerSec) {
+  /// Apply the page-wide cadence ladder. `pageTargetFps` comes from the
+  /// measured missed-vsync ratio in core.js; `_costMs` is deliberately NOT the
+  /// input — it cannot see GPU work (docs/performance_evaluation.md §3.7).
+  /// Only at the ladder floor with sustained pressure do we try a smaller
+  /// raster, and a trial is judged by the pressure ratio, not by CPU encode
+  /// time (which barely changes with resolution, so the old check always
+  /// declared every trial ineffective and then locked raster reduction out
+  /// for the rest of the document's life).
+  _adaptBudget(pageTargetFps, perInstanceMsPerSec, index, n, pressure) {
     const MAX_FPS = 60;
     const FLOOR_FPS = 20;
+    const now = performance.now();
+    this._phaseOffset = (index / Math.max(1, n)) * (1000 / Math.max(1, pageTargetFps));
+    this._pressure = pressure;
+
     if (this._scaleTrial) {
-      if (this._costMs >= this._scaleTrial.costBefore * 0.9) {
+      if (pressure >= this._scaleTrial.pressureBefore * 0.9) {
         this._qualityScale = this._scaleTrial.from;
-        this._scaleIneffective = true;
+        // Cooldown, not a permanent lock: a transiently ineffective trial must
+        // not disable raster reduction for the rest of the page's life.
+        this._scaleIneffectiveUntil = now + 30000;
         this._applyRenderScale(true);
       }
       this._scaleTrial = null;
     }
-    const cost = Math.max(0.15, this._costMs || 1);
+
     const desired = this._desiredFps || FRAME_RATE;
     const refreshCap = Math.min(MAX_FPS, Math.max(30, Math.round(1000 / core.refreshInterval)));
-    const target = Math.min(desired, refreshCap, Math.max(FLOOR_FPS, Math.round(perInstanceMsPerSec / cost)));
-    const floorTooSlow = FLOOR_FPS * cost > perInstanceMsPerSec * 1.15;
-    if (floorTooSlow && !this._scaleIneffective) {
-      this._maybeReduceScale();
+    const target = Math.max(FLOOR_FPS, Math.min(desired, refreshCap, pageTargetFps));
+    const floorReached = pageTargetFps <= FLOOR_FPS;
+    const scaleBlocked = this._scaleIneffectiveUntil && now < this._scaleIneffectiveUntil;
+    if (floorReached && pressure > 0.25 && !scaleBlocked) {
+      this._maybeReduceScale(pressure);
       this._why = "budget:raster";
     } else {
-      if (this._qualityScale < 1 && !floorTooSlow) this._maybeRaiseScale();
+      if (this._qualityScale < 1 && pressure < 0.05) this._maybeRaiseScale();
       this._why = target < desired ? "budget:fps" : "ok";
     }
     this._targetFps = target;
+    void perInstanceMsPerSec; // kept for callers that log the split budget
   }
 
-  _maybeReduceScale() {
+  _maybeReduceScale(pressure) {
     const i = QUALITY_STEPS.indexOf(this._qualityScale);
     if (this._scaleTrial || i < 0 || i >= QUALITY_STEPS.length - 1) return;
-    this._scaleTrial = { from: this._qualityScale, costBefore: this._costMs };
+    this._scaleTrial = { from: this._qualityScale, pressureBefore: pressure };
     this._qualityScale = QUALITY_STEPS[i + 1];
     this._applyRenderScale(true);
   }
@@ -311,21 +342,49 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
     this._applyRenderScale(true);
   }
 
+  /// Forget the cached held-frame key. Every path that can change the presented
+  /// pixels without changing the playhead must call this, or the shell dedup
+  /// would keep showing a stale canvas forever (the same hazard FrameDedup
+  /// documents for a failed present).
+  _invalidateRestFrame() {
+    this._renderRevision = (this._renderRevision || 0) + 1;
+    this._lastRenderKey = null;
+  }
+
   _renderScene() {
     if (!this._player) return;
+    // The loop's dissolve is a canvas opacity change, not a new frame: it must
+    // keep running even while the held frame itself is deduplicated.
+    const alpha = this._loopAlpha();
+    if (alpha !== this._lastAlpha) {
+      this._canvas.style.opacity = String(alpha);
+      this._lastAlpha = alpha;
+    }
+    // A loop rests on its finished frame for the whole `hold` window. The wasm
+    // FrameDedup would skip the raster, but the shell still paid a wasm call, a
+    // pair of performance.now() reads and a controls sync 60×/s. Skip the tick
+    // here whenever nothing the frame depends on changed. `_renderRevision` is
+    // bumped by every path that can change the presented pixels without
+    // changing `t` (scale, document rebuild, reload, device, seek, play).
+    const t = this._playing ? Math.min(this._time, this._duration) : this._restTime;
+    if (this._playing) this._restTime = t;
+    const key = `${t}|${this._renderScale}|${this._renderRevision}|${this._playing}`;
+    const nowMs = performance.now();
+    // A short TTL bounds the damage if anything external cleared the canvas
+    // (a swapchain reconfigure, a lost device) without going through one of
+    // our invalidation hooks: the held frame is redrawn at most twice a second
+    // instead of staying blank forever.
+    const stale = this._lastRenderWall === undefined || nowMs - this._lastRenderWall > 500;
+    if (key === this._lastRenderKey && !stale) return;
     try {
-      // The player rasterizes at its configured scale; the canvas backs the
-      // displayed device size, so a scale below display match upscales on blit.
-      const t = this._playing ? Math.min(this._time, this._duration) : this._restTime;
-      if (this._playing) this._restTime = t;
       this._player.render_frame(t);
+      this._lastRenderKey = key;
+      this._lastRenderWall = nowMs;
       this._renderFailures = 0;
-      const alpha = this._loopAlpha();
-      if (alpha !== this._lastAlpha) {
-        this._canvas.style.opacity = String(alpha);
-        this._lastAlpha = alpha;
-      }
     } catch (err) {
+      // Never cache a failed render: the identical tick after it must retry.
+      this._lastRenderKey = null;
+      this._lastRenderWall = undefined;
       // One warning per failure run. This is the shared rAF loop: a persistent
       // fault (a lost device, an engine that trapped mid-frame) would otherwise
       // print at frame rate and bury everything else on the page.

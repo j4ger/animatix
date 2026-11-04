@@ -80,6 +80,12 @@ export class AmxPlayerBase extends HTMLElement {
     this._wantRender = false;
     this._scaleTrial = null;
     this._scaleIneffective = false;
+    this._scaleIneffectiveUntil = 0;
+    this._pressure = 0;
+    this._phaseOffset = 0;
+    this._renderRevision = 0; // bumped by anything that changes pixels at a fixed t
+    this._lastRenderKey = null; // shell-side held-frame dedup (see _invalidateRestFrame)
+    this._lastRenderWall = undefined;
     this._why = "ok";
     this._deviceBox = null; // exact device-pixel size from ResizeObserver
     this._dprQuery = null;
@@ -192,6 +198,7 @@ export class AmxPlayerBase extends HTMLElement {
     this._varsApplied = null;
     this._loadedSource = null;
     this._loadedAssets = new Map();
+    this._invalidateRestFrame();
     this._renderSkeleton();
     this._maybeStartLoading();
   }
