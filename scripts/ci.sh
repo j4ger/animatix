@@ -342,7 +342,20 @@ gate_web_smoke() {
   # Loading the real pages is the only thing that exercises the embed's module
   # wiring and the wasm glue together. The static gates all passed while every
   # player on the site was throwing `ReferenceError: qualityStep is not defined`.
-  node scripts/web-smoke.mjs
+  #
+  # The browser smoke is the one gate that depends on a real Chromium process
+  # and a local HTTP server; a cold or overloaded runner occasionally reaches
+  # the player before its scene fetch has completed. A second attempt catches
+  # that startup race without weakening the checks.
+  local attempt
+  for attempt in 1 2; do
+    if node scripts/web-smoke.mjs; then
+      return 0
+    fi
+    echo "web-smoke: attempt $attempt failed; retrying after browser startup" >&2
+    sleep 2
+  done
+  return 1
 }
 
 gate_wasm_check() {
