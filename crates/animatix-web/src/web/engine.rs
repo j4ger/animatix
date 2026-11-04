@@ -193,7 +193,11 @@ pub async fn create_player(canvas: HtmlCanvasElement) -> Result<AmxPlayer, JsErr
             dims: SceneDimensions::default(),
             duration_s: 0.1,
             target: None,
-            render_scale: 1.0,
+            // Conservative pre-JS default: `_applyRenderScale()` runs later,
+            // so on HiDPI a 1.0 default would rasterize the first frames at
+            // 2x. 0.85 stays inside MIN_RENDER_SCALE..=MAX_RENDER_SCALE and
+            // keeps the pre-JS frames cheap; `set_render_scale` still wins.
+            render_scale: 0.85,
             scaled: vello::Scene::new(),
             dedup: animatix::timeline::frame_signature::FrameDedup::new(),
             document_generation: 0,
