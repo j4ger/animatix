@@ -100,6 +100,7 @@ jobs:
       # runner image's preinstalled Android/.NET/GHC toolchains are not used by
       # this project and otherwise leave the Nix build with too little disk.
       - name: Free disk space
+        if: runner.os == 'Linux'
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
             /usr/local/share/boost /usr/local/share/chromium
