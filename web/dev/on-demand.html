@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>animatix-web — on-demand rendering A/B</title>
+    <!-- Self-contained QA demo. Not part of the published site. -->
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        max-width: 1180px; margin: 0 auto; padding: 28px;
+        background: #0a0f17; color: #e2e7ee;
+        font: 14px/1.55 system-ui, -apple-system, sans-serif;
+      }
+      h1 { font-size: 19px; margin: 0 0 6px; }
+      h2 { font-size: 14px; margin: 0 0 4px; color: #e2e7ee; }
+      .lede { color: #9aa5b4; margin: 0 0 20px; max-width: 900px; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+      .panel { border: 1px solid #253040; border-radius: 10px; padding: 14px; background: #0e1520; }
+      .panel.always { border-color: #5a2f2a; }
+      .panel.demand { border-color: #245139; }
+      .tag { font: 11px/1.4 ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; color: #9aa5b4; }
+      .panel.always .tag { color: #e08b72; }
+      .panel.demand .tag { color: #75c98d; }
+      amx-player { display: block; width: 100%; border: 1px solid #1c2634; border-radius: 7px; }
+      .sub { color: #9aa5b4; font-size: 12px; min-height: 34px; }
+      .controls { display: flex; gap: 8px; margin: 20px 0 12px; flex-wrap: wrap; }
+      button {
+        background: #172232; color: #dbe4ef; border: 1px solid #314156;
+        border-radius: 7px; padding: 7px 12px; font: 12px/1.2 inherit; cursor: pointer;
+      }
+      button:hover { border-color: #5b7290; }
+      button.primary { border-color: #3d6f52; color: #b9f0c9; }
+      table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+      th, td { padding: 6px 9px; border-bottom: 1px solid #202b3a; text-align: right; }
+      th:first-child, td:first-child { text-align: left; color: #9aa5b4; font-weight: 400; }
+      th { color: #9aa5b4; font-weight: 500; }
+      .num { font-family: ui-monospace, monospace; }
+      .ok { color: #75c98d; }
+      .warn { color: #e3bd72; }
+      .bad { color: #e2704a; }
+      #note { color: #9aa5b4; font-size: 12px; margin-top: 14px; }
+      .spacer { height: 1700px; }
+      @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <h1>On-demand rendering A/B</h1>
+    <p class="lede">
+      Same scene, same player, two schedulers. <b>Always</b> calls
+      <code>render_frame()</code> from every rAF callback, even while pausing or
+      offscreen. <b>On-demand</b> is the player's real scheduler: it only advances
+      while visible, renders at the 60 fps timeline grid, skips drawing while the
+      page scrolls, and stops completely when paused. Scroll the page to watch
+      the right-hand render rate fall to zero while the left keeps burning frames.
+    </p>
+
+    <div class="grid">
+      <section class="panel always">
+        <div class="tag">Always render · naive</div>
+        <h2>Every animation frame draws</h2>
+        <div class="sub">Independent rAF loop; ignores visibility and pause.</div>
+        <amx-player id="always" src="../demos/transformer/scenes/attention.amx" sealed no-veil
+                    aspect="16:9" title="Always-render panel"></amx-player>
+      </section>
+      <section class="panel demand">
+        <div class="tag">On demand · scheduler</div>
+        <h2>Only when there is something to show</h2>
+        <div class="sub">Visible + playing + new 60 fps tick; slews during scroll; zero when paused.</div>
+        <amx-player id="demand" src="../demos/transformer/scenes/attention.amx" sealed autoplay loop no-veil
+                    aspect="16:9" title="On-demand panel"></amx-player>
+      </section>
+    </div>
+
+    <div class="controls">
+      <button id="toggle" class="primary">Pause on-demand</button>
+      <button id="scroll">Scroll test (2s)</button>
+      <button id="reset">Reset counters</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>metric</th><th>always</th><th>on-demand</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>render calls / s</td><td class="num" id="a-calls">–</td><td class="num" id="d-calls">–</td></tr>
+        <tr><td>GPU frames drawn / s</td><td class="num" id="a-drawn">–</td><td class="num" id="d-drawn">–</td></tr>
+        <tr><td>deduped / s</td><td class="num" id="a-dedup">–</td><td class="num" id="d-dedup">–</td></tr>
+        <tr><td>render ms / call</td><td class="num" id="a-ms">–</td><td class="num" id="d-ms">–</td></tr>
+        <tr><td>state</td><td class="num" id="a-state">–</td><td class="num" id="d-state">–</td></tr>
+        <tr><td>long tasks / 2s</td><td class="num" id="lt">–</td><td class="num" id="lt2">–</td></tr>
+        <tr><td>display rAF / s</td><td class="num" id="raf">–</td><td class="num" id="raf2">–</td></tr>
+      </tbody>
+    </table>
+    <p id="note">
+      Counters are sampled once per 2 s window and reset each window. The upper
+      panel intentionally never pauses; the lower panel uses
+      <code>&lt;amx-player autoplay&gt;</code> plus its own visibility/scroll
+      scheduler. The scroll button moves both panels out of the viewport for 2 s.
+    </p>
+    <div class="spacer"></div>
+
+    <script type="module" src="../embed/amx-player.js" data-runtime-base="../pkg-slim"></script>
+    <script type="module">
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      const alwaysEl = document.getElementById("always");
+      const demandEl = document.getElementById("demand");
+      const note = document.getElementById("note");
+      const errors = [];
+      window.addEventListener("error", (e) => errors.push(String(e.message ?? e)));
+      window.addEventListener("unhandledrejection", (e) => errors.push(String(e.reason ?? e)));
+
+      // IntersectionObserver is not delivered in every automated environment;
+      // nudge the documented load entry point so the demo also works in a probe.
+      const kick = () => {
+        for (const el of [alwaysEl, demandEl]) {
+          if (el && el._state === "idle") { el._visible = true; el._maybeStartLoading(); }
+        }
+      };
+      for (let i = 0; i < 60; i++) {
+        kick();
+        if (alwaysEl._state === "ready" && demandEl._state === "ready") break;
+        await sleep(500);
+      }
+      if (alwaysEl._state !== "ready" || demandEl._state !== "ready") {
+        note.textContent = `load failed: always=${alwaysEl._state}, demand=${demandEl._state}; errors=${errors.join("; ")}`;
+        throw new Error("demo scene failed to load");
+      }
+
+      // Count every render_frame call and the wall time spent inside it. This is
+      // the number the scheduler exists to reduce; debug_dedup_stats splits the
+      // calls the renderer actually rasterized from the ones it skipped.
+      const counters = { always: { calls: 0, ms: 0 }, demand: { calls: 0, ms: 0 } };
+      for (const [name, el] of [["always", alwaysEl], ["demand", demandEl]]) {
+        const orig = el._renderScene.bind(el);
+        el._renderScene = function () {
+          const t0 = performance.now();
+          const out = orig();
+          counters[name].calls += 1;
+          counters[name].ms += performance.now() - t0;
+          return out;
+        };
+        counters[name].drawn = el._player.debug_dedup_stats?.().drawn ?? 0;
+        counters[name].deduped = el._player.debug_dedup_stats?.().deduped ?? 0;
+      }
+
+      // Declared before any rAF is scheduled: the requestAnimationFrame wrapper
+      // (installed below) and the sample window both read these bindings, and
+      // an rAF callback that fires during module evaluation must not hit their
+      // temporal dead zone.
+      let windowRaf = 0;
+      let windowLong = 0;
+      let windowStart = performance.now();
+
+      // Naive scheduler: one independent rAF loop, always rendering. It ignores
+      // the element's own `_playing`/`_visible` state on purpose — that is the
+      // baseline this demo compares against.
+      let alwaysTime = 0;
+      let last = performance.now();
+      function alwaysLoop(now) {
+        try {
+          const dt = Math.min((now - last) / 1000, 0.1);
+          last = now;
+          alwaysTime = (alwaysTime + dt) % Math.max(alwaysEl.duration, 0.05);
+          alwaysEl._time = alwaysTime;
+          alwaysEl._restTime = alwaysTime;
+          alwaysEl._renderScene();
+        } catch (err) {
+          window.__alwaysErr = String(err?.stack ?? err);
+          return;
+        }
+        requestAnimationFrame(alwaysLoop);
+      }
+      requestAnimationFrame(alwaysLoop);
+
+      try {
+        new PerformanceObserver((list) => {
+          for (const _ of list.getEntries()) windowLong += 1;
+        }).observe({ entryTypes: ["longtask"] });
+      } catch {}
+
+      // Sample in 2 s windows: calls/s, drawn/s, deduped/s, ms/call and the
+      // display rAF rate. A pause during a window is visible in `demand calls/s`
+      // rather than being lost in a cumulative total.
+      function countRaf() {
+        windowRaf += 1;
+        requestAnimationFrame(countRaf);
+      }
+      requestAnimationFrame(countRaf);
+
+      function sample() {
+        const now = performance.now();
+        const elapsed = (now - windowStart) / 1000;
+        const a = alwaysEl._player.debug_dedup_stats?.() ?? { drawn: 0, deduped: 0 };
+        const d = demandEl._player.debug_dedup_stats?.() ?? { drawn: 0, deduped: 0 };
+        const callsA = counters.always.calls - (counters.always.lastCalls ?? 0);
+        const callsD = counters.demand.calls - (counters.demand.lastCalls ?? 0);
+        const msA = counters.always.ms - (counters.always.lastMs ?? 0);
+        const msD = counters.demand.ms - (counters.demand.lastMs ?? 0);
+        const fmt = (n) => (Number.isFinite(n) ? n.toFixed(1) : "–");
+        document.getElementById("a-calls").textContent = fmt(callsA / elapsed);
+        document.getElementById("d-calls").textContent = fmt(callsD / elapsed);
+        document.getElementById("a-drawn").textContent = fmt((a.drawn - (counters.always.lastDrawn ?? 0)) / elapsed);
+        document.getElementById("d-drawn").textContent = fmt((d.drawn - (counters.demand.lastDrawn ?? 0)) / elapsed);
+        document.getElementById("a-dedup").textContent = fmt((a.deduped - (counters.always.lastDeduped ?? 0)) / elapsed);
+        document.getElementById("d-dedup").textContent = fmt((d.deduped - (counters.demand.lastDeduped ?? 0)) / elapsed);
+        document.getElementById("a-ms").textContent = fmt(callsA ? msA / callsA : 0);
+        document.getElementById("d-ms").textContent = fmt(callsD ? msD / callsD : 0);
+        document.getElementById("a-state").textContent = `${alwaysEl._state} · playing`;
+        document.getElementById("d-state").textContent = `${demandEl._state} · ${demandEl._playing ? "playing" : "paused"}${demandEl._visible ? "" : " · offscreen"}`;
+        document.getElementById("raf").textContent = fmt(windowRaf / elapsed);
+        document.getElementById("raf2").textContent = fmt(windowRaf / elapsed);
+        document.getElementById("lt").textContent = String(windowLong);
+        document.getElementById("lt2").textContent = String(windowLong);
+        counters.always.lastCalls = counters.always.calls;
+        counters.demand.lastCalls = counters.demand.calls;
+        counters.always.lastMs = counters.always.ms;
+        counters.demand.lastMs = counters.demand.ms;
+        counters.always.lastDrawn = a.drawn;
+        counters.always.lastDeduped = a.deduped;
+        counters.demand.lastDrawn = d.drawn;
+        counters.demand.lastDeduped = d.deduped;
+        windowStart = now;
+        windowRaf = 0;
+        windowLong = 0;
+      }
+      const sampler = setInterval(sample, 2000);
+
+      document.getElementById("toggle").addEventListener("click", () => {
+        const playing = demandEl._playing;
+        if (playing) demandEl.pause(); else demandEl.play();
+        document.getElementById("toggle").textContent = playing ? "Play on-demand" : "Pause on-demand";
+      });
+      document.getElementById("scroll").addEventListener("click", () => {
+        const bottom = document.body.scrollHeight;
+        window.scrollTo({ top: bottom, behavior: "smooth" });
+        setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 2000);
+      });
+      document.getElementById("reset").addEventListener("click", () => {
+        windowStart = performance.now();
+        windowRaf = 0;
+        windowLong = 0;
+        for (const k of ["always", "demand"]) {
+          counters[k].lastCalls = counters[k].calls;
+          counters[k].lastMs = counters[k].ms;
+          counters[k].lastDrawn = 0;
+          counters[k].lastDeduped = 0;
+        }
+      });
+
+      window.__onDemandDemo = {
+        ready: true,
+        elements: { alwaysEl, demandEl },
+        counters,
+        get snapshot() {
+          return {
+            always: { calls: counters.always.calls, ms: counters.always.ms },
+            demand: { calls: counters.demand.calls, ms: counters.demand.ms },
+            demandState: demandEl._state,
+            demandPlaying: demandEl._playing,
+            demandVisible: demandEl._visible,
+            alwaysState: alwaysEl._state,
+            errors,
+          };
+        },
+      };
+    </script>
+  </body>
+</html>
