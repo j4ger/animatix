@@ -337,12 +337,17 @@ the same staleness hazard, and both are deliberately bypassed rather than keyed:
 **Per-actor `blend:` is not the effect pipeline.** It is a Vello node-level
 `push_layer` in `evaluate_node`, so it composites the actor's whole subtree
 against whatever is behind it in the scene, with no offscreen texture and no GPU
-pass. Known limits worth revisiting: the layer is full-surface rather than the
-node's bounds, `blend` on `Filter`/`Mask` scopes is untested, and there is no
-per-actor `Compose` control (only `Mix` names are parsed). A backdrop blur is not
-part of the effect pipeline either: it is the `Glass` scope, whose chain runs on a
-copy of the live render target rather than on the scope's own sub-scene (§4.7), so
-no chain input can ever express it — see `docs/spec.md` ("Glass").
+pass. The layer rect is the subtree's world-space bounds union when that is
+**provably safe** (a leaf/identity-transform subtree, no camera/mask/effect scope
+inside, no child overflowing its parent) — which covers the house-style
+`StageFloor` glow ellipses on 40+ scenes — and falls back to the historical
+full-surface rect otherwise; a wrong clip would be visible, so the fallback is
+deliberately conservative (`docs/history/2026-11.md`). Remaining limits: `blend`
+on `Filter`/`Mask` scopes is untested, and there is no per-actor `Compose` control
+(only `Mix` names are parsed). A backdrop blur is not part of the effect pipeline
+either: it is the `Glass` scope, whose chain runs on a copy of the live render
+target rather than on the scope's own sub-scene (§4.7), so no chain input can
+ever express it — see `docs/spec.md` ("Glass").
 
 ## 7. Plugin authoring (implemented, ABI snapshot 9)
 

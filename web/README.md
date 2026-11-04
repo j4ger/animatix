@@ -314,26 +314,33 @@ Behavior:
   hear the engine's own note.
 - **Raster scale** — internal, no attribute. The canvas backing store tracks the
   device pixels the element actually shows (`CSS px × devicePixelRatio`, read
-  from `devicePixelContentBoxSize`, and allowed to *supersample* up to a pixel
-  cap so a figure displayed larger than its authored resolution stays crisp),
-  and the offscreen raster follows it 1:1. Layout is unaffected — the timeline
-  still evaluates against the scene's `SceneDimensions`. When a page cannot hold
-  the frame rate the knobs are applied **per embed, cheapest first**: the budget
-  controller lowers that embed's *frame cadence* before it touches resolution,
-  because a browser frame's cost is a fixed per-render overhead (vello's two
-  compute passes + the blit), not fill rate, on a decent GPU — lowering
-  resolution there buys nothing and only blurs the figure. Resolution is reduced
-  only when even the lowest cadence cannot fit the page-wide budget
-  (`PAGE_BUDGET_MS_PER_S`, split evenly across the visible playing embeds), and a
-  reduction is kept only if it actually lowered measured cost (otherwise it is
-  reverted). The feedback is each embed's own render time, so a scroll, a GC
-  pause, a layout storm or a background tab resuming no longer costs a quality
-  notch (the old loop read the rAF gap and stepped down). The loop is capped to
-  the 60 fps timeline grid (measured refresh, so 120/144 Hz renders 60), and
-  autoplay draws are skipped while scrolling. `player.set_render_scale(s)` /
-  `render_scale()` still work; `web/dev/adaptive-probe.html` with the driver
-  `scripts/adaptive-probe.mjs` measures the policy (bundle=new vs the saved
-  legacy copy). `docs/performance_evaluation.md` §3.7 has the frame-cost numbers.
+  from `devicePixelContentBoxSize`), supersampling only up to a **1.5× / 2-megapixel**
+  cap (a HiDPI pane asks for more device pixels than a 1280×720 scene has detail
+  to give, so 2× bought nothing but quadrupled GPU work). Plain `devicePixelRatio`
+  is still honoured up to that cap. Layout is unaffected — the timeline still
+  evaluates against the scene's `SceneDimensions`.
+- **Adaptive quality** — the compensation for a page that cannot hold the frame
+  rate is a page-wide **cadence ladder** (`CADENCE_STEPS = 60,50,40,30,24,20`),
+  applied **fps before raster**: lowering a frame's *rate* costs no sharpness,
+  while lowering resolution blurs the figure. The feedback is a **gated
+  missed-vsync ratio** measured from the rAF timestamp gaps on the committed 60 Hz
+  steps — *not* each embed's own render time. `queue.submit` returns before the
+  GPU draws, so render time cannot see GPU cost (a 3.5 ms GPU frame reports
+  ~0.5 ms of CPU encode); a controller fed on it never adapts. A single
+  exogenous >200 ms stall, a scroll, or a hidden tab is excluded, so those do not
+  cost a quality notch. Only at the ladder floor (20 fps) with sustained pressure
+  is a smaller raster tried, and a trial is judged by the pressure ratio, not by
+  CPU encode time (which barely changes with resolution). Each embed is given a
+  phase offset so N figures do not all render in one tick, and a hard per-tick
+  cap derived from the ladder. The loop is capped to the 60 fps timeline grid
+  (measured refresh, so 120/144 Hz renders 60), autoplay draws are skipped while
+  scrolling, and an embed whose held frame has not changed is not re-rendered.
+  `player.set_render_scale(s)` / `render_scale()` still work; `player.pressure`
+  and `debugReport()` report the live signal. `web/dev/adaptive-probe.html` with
+  `scripts/adaptive-probe.mjs` measures the policy: `AP_MANUAL=0` is real rAF
+  (needs a headed window), `AP_MANUAL=1` is the synthetic-tick mode used by CI
+  (`AP_INJECT=<steps>` injects pressure deterministically). §3.7 of
+  `docs/performance_evaluation.md` has the frame-cost numbers.
 - **`data-runtime-base`** goes on the `<script>` tag, not the element: it
   names the directory tree holding the engine builds — absolute or relative
   to the page. A value ending in `pkg`, `pkg-assets` or `pkg-slim` is the

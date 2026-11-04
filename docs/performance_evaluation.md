@@ -1065,6 +1065,46 @@ running under system load looks like. The lesson is the one the gate exists for:
 a single flagged row is a hypothesis, not a finding, and re-running the bench
 costs two minutes.
 
+### The adaptive controller's signal (2026-11-04/05)
+
+A regression landed the day the per-embed budget controller was introduced: its
+feedback was the *synchronous CPU time of `render_frame()`* — the exact quantity
+§"Why the harness drives frames itself" above shows is blind to GPU work
+(0.49 ms for a 3.5 ms frame). With `cost ≈ 0.5 ms` the controller computed
+`target = 60 fps`, `floorTooSlow = false` on **every** machine, so it never
+lowered cadence or raster. Baseline captured on six software-WebGPU embeds with
+real rAF: `avgTargetFps 60`, achieved `pageFps ≈ 1.0`, `avgScale` unchanged —
+"the page is unusable" while the harness reported green, because synthetic
+manual ticks can never expose GPU saturation.
+
+The fix replaces the signal with a **gated missed-vsync ratio** measured from the
+rAF timestamp gaps on the committed 60 Hz steps (wall-clock window, so a
+catastrophically slow machine that delivers ~1 rAF/s still fills the window), and
+drives a page-wide **cadence ladder** `[60,50,40,30,24,20]` — fps before raster.
+`_costMs` is demoted to a relative weight; raster is reduced only at the ladder
+floor, and a scale trial is judged by the pressure ratio (CPU encode time is
+resolution-insensitive, so the old check always declared trials ineffective and
+then locked raster reduction out for good).
+
+Deterministic evidence (headless software WebGPU, `scripts/adaptive-probe.mjs`,
+4 embeds, `AP_MANUAL=1` with `AP_INJECT=60 AP_INJECT_GAP=40`, i.e. 60 synthetic
+~40 ms steps — above the 23.3 ms missed-vsync threshold, below the 200 ms
+long-gap reset):
+
+| run | avgTargetFps | avgScale | `longTaskDelta` | `scrollDelta` |
+|---|---|---|---|---|
+| no injection (control) | 60 | 0.25 | 0 | 0 |
+| + injected pressure | **30** (`min 30`) | 0.25 (raster untouched) | 0 | 0 |
+
+So pressure lowers cadence and not resolution, and an exogenous 300 ms stall + a
+scroll still produce no notch (`adaptation-probe`'s existing assertions hold).
+**Real-rAF fps on real hardware is still unmeasured in this environment** — a
+headless tab delivers no rAF callbacks and this display delivers no compositor
+frames — so the throughput acceptance (§"Still open (web)": rAF-cadence sampling
+in automation) remains a task for the owner's machine. The probe now supports
+both modes deliberately: `AP_MANUAL=0` real rAF (headed only), `AP_MANUAL=1` the
+deterministic synthetic path used by CI.
+
 ---
 
 ## 4. How regressions are caught (gates)
