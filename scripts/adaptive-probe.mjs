@@ -1,12 +1,31 @@
 #!/usr/bin/env node
 // Drives web/dev/adaptive-probe.html in Chromium and prints the adaptive-quality
-// summary it publishes on `window.__adaptive`.
+// summary it publishes on `window.__adaptive`. See web/dev/perf-probe.html for
+// the frame-cost harness (a different probe).
 //
 // Env:
 //   AP_BUNDLE=new|legacy  AP_N=<count>  AP_W=<cssW>  AP_H=<cssH>  AP_SCENE=<url>
+//   AP_MANUAL=1|0         manual-tick (default, 1) vs real-rAF (0). Manual mode
+//                         appends amxmanualtick=1 and drives the scheduler from a
+//                         synthetic 16 ms setInterval — a perfect cadence that
+//                         CANNOT expose GPU saturation. Set AP_MANUAL=0 to run
+//                         the real requestAnimationFrame scheduler: then we do
+//                         NOT append amxmanualtick=1, so core.js keeps its normal
+//                         visibility guard. real-rAF is the ONLY mode that can
+//                         validate GPU-pressure adaptation.
+//   AP_HEADED=1           alias for HB_HEADED=1 (both open a real window).
+//                         real-rAF (AP_MANUAL=0) REQUIRES a headed window:
+//                         headless/backgrounded tabs deliver no rAF callbacks,
+//                         so nothing runs and the measured fps is ~0.
+//   AP_INJECT=<steps>     manual mode only: have the page call
+//   AP_INJECT_GAP=<ms>    window.__amxInjectPressure(steps, gap) once, so the
+//                         controller's down-step path is exercised
+//                         deterministically in headless CI (default gap 40 ms).
 //   HB_HEADED=1           real window on a real GPU (Linux WebGPU needs
 //                         HB_UNSAFE_WEBGPU=1; run with the NVIDIA ICD env)
-//   HB_SOFTWARE=1         force SwiftShader (headless, reproducible anywhere)
+//   HB_SOFTWARE=1         force SwiftShader (reproducible anywhere). Its fps is a
+//                         SOFTWARE number, NOT a real-GPU measurement — do not
+//                         read it as real-GPU fps.
 //   CHROME=/path/to/chromium
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
@@ -18,7 +37,7 @@ import net from "node:net";
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const CHROME = process.env.CHROME || "chromium";
 const PYTHON = process.env.PYTHON || "python3";
-const HEADED = process.env.HB_HEADED === "1";
+const HEADED = process.env.HB_HEADED === "1" || process.env.AP_HEADED === "1";
 const SOFTWARE = process.env.HB_SOFTWARE === "1";
 const UNSAFE = process.env.HB_UNSAFE_WEBGPU === "1";
 
@@ -28,7 +47,17 @@ const w = process.env.AP_W || "320";
 const h = process.env.AP_H || "180";
 const scene = process.env.AP_SCENE || "./adaptive_probe.amx";
 const manual = process.env.AP_MANUAL === "0" ? "0" : "1";
-const PAGE = `/dev/adaptive-probe.html?bundle=${encodeURIComponent(bundle)}&n=${n}&w=${w}&h=${h}&scene=${encodeURIComponent(scene)}&manual=${manual}&amxmanualtick=1`;
+const inject = process.env.AP_INJECT || "";
+const injectGap = process.env.AP_INJECT_GAP || "40";
+// Only manual-tick mode installs the synthetic scheduler hook. real-rAF mode
+// must NOT carry amxmanualtick=1: that flag replaces the real scheduler AND
+// disables core.js's visibility guard, which would hide the very GPU-saturation
+// behaviour we are trying to measure.
+const manualTick = manual === "1" ? "&amxmanualtick=1" : "";
+const injectQuery = manual === "1" && inject
+  ? `&inject=${encodeURIComponent(inject)}&injectGap=${encodeURIComponent(injectGap)}`
+  : "";
+const PAGE = `/dev/adaptive-probe.html?bundle=${encodeURIComponent(bundle)}&n=${n}&w=${w}&h=${h}&scene=${encodeURIComponent(scene)}&manual=${manual}${manualTick}${injectQuery}`;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -126,6 +155,16 @@ async function main() {
     });
     const { result } = await cdp.send("Runtime.evaluate", { expression: "JSON.stringify(window.__adaptive.summary)", returnByValue: true });
     console.log(result.value);
+    // Identify what actually ran so nobody mistakes SwiftShader fps for a
+    // real-GPU number, or a synthetic manual-tick cadence for real display rAF.
+    const mode = manual === "0" ? "real-rAF" : "manual-tick";
+    const adapter = SOFTWARE ? "SOFTWARE SwiftShader (HB_SOFTWARE=1)" : "real GPU";
+    let achieved = "";
+    try { const s = JSON.parse(result.value); if (typeof s?.achievedFps === "number") achieved = ` achievedFps=${s.achievedFps.toFixed(2)}`; } catch {}
+    console.error(`[adaptive-probe] mode=${mode} | adapter=${adapter}${achieved}${SOFTWARE ? " | NOTE: SwiftShader fps is NOT a real-GPU number" : ""}`);
+    if (mode === "real-rAF" && !HEADED) {
+      console.error("[adaptive-probe] WARNING: real-rAF requires a headed window (HB_HEADED=1 / AP_HEADED=1); headless/backgrounded tabs deliver no rAF callbacks.");
+    }
     const errs = await cdp.send("Runtime.evaluate", { expression: "JSON.stringify((window.__adaptive && window.__adaptive.errors)||[])", returnByValue: true });
     if (errs.result.value && errs.result.value !== "[]") console.error("page errors:", errs.result.value.slice(0, 1000));
   } catch (e) {

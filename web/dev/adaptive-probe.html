@@ -77,16 +77,34 @@
   let frames = 0;
   let rafRun = true;
   const t0 = performance.now();
+  const params = new URLSearchParams(location.search);
+  // real-rAF is the ONLY mode that can validate GPU-pressure adaptation: only a
+  // real requestAnimationFrame loop (driven by the scheduler itself) delivers the
+  // actual display cadence, so GPU saturation shows up as missed vsyncs. In
+  // manual-tick mode we synthesise a perfect 16 ms cadence, which can never
+  // expose GPU saturation; it exists purely so the controller can be observed in
+  // headless/occluded windows that deliver no rAF callbacks. Never read fps from
+  // manual-tick mode as real-GPU evidence.
   // Headless / occluded windows never fire rAF. When the loader exposes the
   // manual tick hook, drive the scheduler from a timer instead so the adaptive
   // loop actually runs and can be observed.
-  const manual = new URLSearchParams(location.search).get("manual") === "1" && typeof window.__amxTick === "function";
+  const manual = params.get("manual") === "1" && typeof window.__amxTick === "function";
+  const mode = manual ? "manual-tick" : "real-rAF";
+  // A single monotonic virtual clock feeds EVERY manual __amxTick call. Pressure
+  // injection can then widen the timestamp deltas (e.g. to 40 ms) for a bounded
+  // number of consecutive steps and hand control straight back to the 16 ms
+  // cadence, without ever producing a backwards jump or a >200 ms "long-gap"
+  // reset between the injected steps and the normal loop.
+  const NORMAL_STEP_MS = 16;
+  let vclock = performance.now();
+  let injecting = false;
   if (manual) {
     const timer = setInterval(() => {
-      if (!rafRun) return;
+      if (!rafRun || injecting) return;
+      vclock += NORMAL_STEP_MS;
       frames += 1;
-      window.__amxTick(performance.now());
-    }, 16);
+      window.__amxTick(vclock);
+    }, NORMAL_STEP_MS);
     window.__clearTick = () => clearInterval(timer);
   } else {
     (function raf() {
@@ -95,6 +113,33 @@
       requestAnimationFrame(raf);
     })();
   }
+  // Controllable synthetic pressure injection (manual-tick mode only). Drives
+  // __amxTick with LARGER consecutive timestamp deltas so that repeated ~35-45 ms
+  // gaps (above the ~23.3 ms missed-vsync threshold, below the 200 ms long-gap
+  // reset) accumulate sustained pressure and exercise the controller's down-step
+  // path deterministically in headless CI. Never use a single 300 ms stall for
+  // injection: that is a long-gap reset / exogenous stall and would break the
+  // longTaskDelta ~= 0 assertion. Reset to the normal 16 ms cadence afterwards.
+  window.__amxInjectPressure = (steps = 40, intervalMs = 40) => {
+    if (!manual || typeof window.__amxTick !== "function") {
+      return { injected: 0, reason: "manual-tick mode is not active" };
+    }
+    const count = Math.max(0, Math.floor(Number(steps) || 0));
+    // Clamp the gap into the safe band: strictly above a missed vsync (~23.3 ms)
+    // and strictly below the 200 ms long-gap reset.
+    const gap = Math.min(199, Math.max(24, Number(intervalMs) || 40));
+    injecting = true;
+    try {
+      for (let i = 0; i < count; i++) {
+        vclock += gap;
+        frames += 1;
+        window.__amxTick(vclock);
+      }
+    } finally {
+      injecting = false; // hand back to the normal 16 ms cadence
+    }
+    return { injected: count, intervalMs: gap };
+  };
   const sample = () => samples.push({ t: (performance.now() - t0) / 1000, scale: avgScale(), fps: avgTargetFps() });
 
   await sleep(1200);
@@ -113,26 +158,100 @@
   await sleep(400);
   const scrollAfter = avgScale();
 
-  const framesAtSteady = frames;
+  // Optional deterministic pressure exercise for headless CI: ?inject=<steps>
+  // (optionally ?injectGap=<ms>) drives __amxInjectPressure once, before the
+  // steady window, so the final avgTargetFps reflects the controller's down-step
+  // path. It is opt-in: with no `inject` param the default manual run is unchanged.
+  const injectSteps = Number(params.get("inject") || 0);
+  const injectGap = Number(params.get("injectGap") || 40);
+  const injection = injectSteps > 0 ? window.__amxInjectPressure(injectSteps, injectGap) : null;
+
+  const steadyStartFrames = frames;
+  const steadyStartAt = performance.now();
   for (let k = 0; k < 24; k++) {
     sample();
     await sleep(150);
   }
   rafRun = false;
   if (window.__clearTick) window.__clearTick();
+  const steadyElapsed = (performance.now() - steadyStartAt) / 1000;
+  // Measured display-rAF (manual-tick: scheduler tick) cadence over the steady
+  // window only — unaffected by warm-up, the exogenous 300 ms stall or injection.
+  const achievedFps = steadyElapsed > 0 ? (frames - steadyStartFrames) / steadyElapsed : 0;
   const elapsed = (performance.now() - t0) / 1000;
   const steadyFps = frames / elapsed;
   const late = samples.filter((s) => s.t > 2.6).map((s) => s.scale).filter((x) => Number.isFinite(x));
+
+  // Tolerant per-player reads. The scheduler agent may add or rename getters, so
+  // a missing getter must NEVER throw or break the probe — report null instead.
+  const numbers = (fn) => {
+    const out = [];
+    for (const p of players) {
+      try {
+        const v = fn(p);
+        if (typeof v === "number" && Number.isFinite(v)) out.push(v);
+      } catch { /* getter unavailable: skip this player */ }
+    }
+    return out;
+  };
+  const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+  // `pressure`: prefer a dedicated numeric getter (p.pressure / p.debugPressure /
+  // p.gpuPressure) if the controller exposes one; else fall back to debugReport(),
+  // which may return an object with a numeric pressure field or a scrapeable
+  // string. Never throws; returns null when the signal is unavailable.
+  const readPressure = (p) => {
+    for (const key of ["pressure", "debugPressure", "gpuPressure"]) {
+      try {
+        const raw = p?.[key];
+        const v = typeof raw === "function" ? raw.call(p) : raw;
+        if (typeof v === "number" && Number.isFinite(v)) return v;
+      } catch { /* ignore */ }
+    }
+    try {
+      if (typeof p?.debugReport === "function") {
+        const r = p.debugReport();
+        if (r && typeof r === "object") {
+          for (const key of ["pressure", "debugPressure", "gpuPressure"]) {
+            if (typeof r[key] === "number" && Number.isFinite(r[key])) return r[key];
+          }
+        } else if (typeof r === "string") {
+          const m = r.match(/pressure[^\d-]*(-?\d+(?:\.\d+)?)/i);
+          if (m) return Number(m[1]);
+        }
+      }
+    } catch { /* ignore */ }
+    return null;
+  };
+  // `avgCostMs`: prefer the p.costMs getter, else scrape `cost Xms` from
+  // debugReport(). Tolerant — returns NaN (filtered out) when unavailable.
+  const readCostMs = (p) => {
+    try {
+      const c = p?.costMs;
+      if (typeof c === "number" && Number.isFinite(c)) return c;
+      if (typeof p?.debugReport === "function") {
+        const m = String(p.debugReport()).match(/cost\s+(-?\d+(?:\.\d+)?)ms/i);
+        if (m) return Number(m[1]);
+      }
+    } catch { /* ignore */ }
+    return NaN;
+  };
+  const targetFpsVals = numbers((p) => p.targetFps);
   const summary = {
     bundle: cfg.bundle,
     n: cfg.n,
+    mode,
     playersReady: ok,
     avgScale: late.length ? late.reduce((a, b) => a + b, 0) / late.length : NaN,
     minScale: late.length ? Math.min(...late) : NaN,
     endScale: samples.length ? samples[samples.length - 1].scale : NaN,
     avgTargetFps: avgTargetFps(),
+    minTargetFps: targetFpsVals.length ? Math.min(...targetFpsVals) : null,
     pageFps: steadyFps,
+    achievedFps,
+    pressure: mean(numbers(readPressure)),
+    avgCostMs: mean(numbers(readCostMs)),
     manual,
+    injection,
     longTaskDelta: longAfter - longBefore,
     scrollDelta: scrollAfter - scrollBefore,
     errors: window.__console_errors.length,
