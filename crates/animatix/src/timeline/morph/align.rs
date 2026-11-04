@@ -316,7 +316,7 @@ fn closed_like(elements: &[PathEl]) -> bool {
         PathEl::ClosePath => None,
     });
     let first = points.next();
-    let last = points.last();
+    let last = points.next_back();
     matches!((first, last), (Some(a), Some(b)) if a.distance(b) < 1e-6)
 }
 
@@ -430,11 +430,11 @@ fn closed_segments(curves: &[PathEl]) -> Vec<(Point, Point, PathEl)> {
         match el {
             PathEl::MoveTo(p) => current = *p,
             PathEl::CurveTo(_, _, p3) => {
-                segments.push((current, *p3, el.clone()));
+                segments.push((current, *p3, *el));
                 current = *p3;
             },
             PathEl::LineTo(p) => {
-                segments.push((current, *p, el.clone()));
+                segments.push((current, *p, *el));
                 current = *p;
             },
             PathEl::ClosePath => {},
@@ -447,7 +447,7 @@ fn closed_segments(curves: &[PathEl]) -> Vec<(Point, Point, PathEl)> {
 fn reverse_element(el: &PathEl) -> PathEl {
     match el {
         PathEl::CurveTo(c1, c2, end) => PathEl::CurveTo(*c2, *c1, *end),
-        other => other.clone(),
+        other => *other,
     }
 }
 
@@ -470,7 +470,7 @@ fn rotated_closed(
     let start = seq[(offset + n - 1) % n].1;
     let mut out = vec![PathEl::MoveTo(start)];
     for i in 0..n {
-        let (_, _, el) = seq[(offset + i) % n].clone();
+        let (_, _, el) = seq[(offset + i) % n];
         out.push(el);
     }
     out.push(PathEl::ClosePath);
