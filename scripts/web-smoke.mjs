@@ -142,6 +142,13 @@ function pageProbe() {
       const src = player.getAttribute("src");
       const deadline = Math.min(globalDeadline, Date.now() + 45000);
       player.scrollIntoView({ block: "center", behavior: "instant" });
+      // IntersectionObserver can lag behind a programmatic scroll on a loaded
+      // CI runner, leaving a lazy player idle forever. `loadNow()` is the
+      // player's public eager-load path, so use it after making the element
+      // visible; the readiness/render assertions below are unchanged.
+      if (player._state === "idle" && typeof player.loadNow === "function") {
+        player.loadNow();
+      }
       while (player._state !== "ready") {
         const smoke = window.__amxSmoke || { errors: [] };
         if (smoke.errors.length) return { error: `amxerror on ${src}: ${smoke.errors[0]}` };
