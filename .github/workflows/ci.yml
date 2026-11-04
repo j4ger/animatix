@@ -28,6 +28,12 @@ on:
 env:
   CARGO_TERM_COLOR: always
   ANIMATIX_COMMIT_BASE: ${{ github.event.before }}
+  # The hosted runners occasionally fail to fetch one store path (FlakeHub 401
+  # or a partial cache.nixos response). Prefer building that path from source
+  # over failing the whole gate; the binary caches still satisfy everything
+  # they can.
+  NIX_CONFIG: |
+    fallback = true
 
 permissions:
   contents: read

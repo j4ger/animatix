@@ -36,6 +36,8 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  NIX_CONFIG: |
+    fallback = true
 
 jobs:
   # Resolved once, so no job has to re-derive "which version is this" and get a

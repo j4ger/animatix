@@ -225,10 +225,12 @@ async function main() {
       "--disable-dev-shm-usage",
       "--disable-gpu-sandbox",
       "--enable-unsafe-webgpu",
-      // Dawn still initializes Vulkan with no host GPU; disabling the surface
-      // is what lets that work headless on the lavapipe ICD in .#web-smoke.
+      // Dawn initializes Vulkan even without a host GPU. Prefer the bundled
+      // SwiftShader ICD so a runner with no /dev/dri still gets an adapter;
+      // --disable-vulkan-surface keeps the headless path surface-free.
       "--disable-vulkan-surface",
       "--use-angle=vulkan",
+      "--use-vulkan=swiftshader",
       "--enable-features=Vulkan",
       "--no-first-run",
       "--no-default-browser-check",

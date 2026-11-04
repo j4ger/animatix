@@ -30,6 +30,8 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: "0"
   GH_REPO: ${{ github.repository }}
+  NIX_CONFIG: |
+    fallback = true
 
 jobs:
   check:
