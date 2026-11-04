@@ -34,6 +34,7 @@ env:
   # they can.
   NIX_CONFIG: |
     fallback = true
+    extra-substituters = https://cache.nixos.org/
 
 permissions:
   contents: read
