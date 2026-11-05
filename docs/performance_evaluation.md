@@ -1105,6 +1105,49 @@ in automation) remains a task for the owner's machine. The probe now supports
 both modes deliberately: `AP_MANUAL=0` real rAF (headed only), `AP_MANUAL=1` the
 deterministic synthetic path used by CI.
 
+### Page raster budget (2026-11-05)
+
+The per-element display cap (1.5× / 2 MP) only bounds one figure. A page with
+seven 1080p embeds still asks for their sum. `web/embed/src/player/core.js` now
+enforces a page-wide budget over the **playing and visible** set:
+
+```
+totalDesired = Σ sceneW·sceneH·displayScale²
+pagePixelScale = totalDesired > 4,000,000 × 1.05
+               ? max(0.25, sqrt(4,000,000 / totalDesired))
+               : 1
+effectiveScale = min(pressureScale, pagePixelScale)
+```
+
+The override is `window.__amxPageRasterPixels` (read at allocation time).
+`_effectiveScale()` is a `min`, not a product: the pressure ladder and the area
+budget must not compound. When pressure does bind, the ladder strides extra
+rungs for large embeds (≥1.5 MP: +2, ≥0.6 MP: +1) so a 2 MP figure does not burn
+a whole 500 ms window on a 0.85 step.
+
+Measured on the transformer page with all seven 1109×624 CSS figures visible at
+DPR 1.5 (`scripts/web-page-perf.mjs`, real RTX 4060, headed Vulkan): the
+display-matched raster would be 7 × 1.56 MP = 10.9 MP; the page budget set every
+`render_scale` to 0.7874 (7 × 571,428 = **4.00 MP**). Frame pacing at a 165 Hz
+display: p50 6.1 ms, p95 12.2 ms, max 18.2 ms, zero frames >33 ms; fps 131.5
+(above the 60 fps animation target — rAF is refresh-bound, not a GPU-cost
+number). The tour page's 11 visible figures total 3.97 MP and stay at their
+display-matched 0.626 scale, confirming the budget does not touch a page that
+already fits.
+
+Deterministic probe coverage: `scripts/adaptive-probe.mjs` takes
+`AP_PAGE_PIXELS`; at 640×360 / six players the 1 MP budget yields
+`avgScale 0.425`, `pageRasterPixels 1.0 MP`; at 700×394 a 1.5 MP budget yields
+`avgScale 0.521`, `pageRasterPixels 1.5 MP`; a 50 k budget correctly fails at
+the 0.25 engine floor (`86,400 > 55,000`, exit 1).
+
+`scripts/web-page-perf.mjs` is the new headed real-GPU page-pacing baseline
+(`WPP_PAGE`, `WPP_SECONDS`, `WPP_ALL_VISIBLE`, `WPP_SOFTWARE`). It records the
+adapter, per-player render scale/pressure/raster pixels, and the rAF interval
+distribution into `target/perf/web-baseline.json` / `target/perf/pages/`; use it
+before and after a page-level change, and use `web/dev/perf-probe.html` for GPU
+frame cost.
+
 ---
 
 ## 4. How regressions are caught (gates)
