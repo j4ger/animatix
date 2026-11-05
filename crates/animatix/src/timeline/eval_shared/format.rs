@@ -77,20 +77,20 @@ pub(super) fn parse_placeholder(template: &str, open: usize) -> Placeholder {
             spec: FormatSpec::Default,
         };
     }
-    if let Some(rest) = spec.strip_prefix(':') {
-        if let Some(raw_precision) = rest.strip_prefix('.') {
-            // Both `{:.N}` (the historical spelling) and `{:.Nf}` (fixed
-            // point, Python-style) mean N fractional digits.
-            let digits = raw_precision.strip_suffix('f').unwrap_or(raw_precision);
-            if !digits.is_empty()
-                && digits.bytes().all(|byte| byte.is_ascii_digit())
-                && let Ok(precision) = digits.parse::<usize>()
-            {
-                return Placeholder::Subst {
-                    close,
-                    spec: FormatSpec::Fixed { precision },
-                };
-            }
+    if let Some(rest) = spec.strip_prefix(':')
+        && let Some(raw_precision) = rest.strip_prefix('.')
+    {
+        // Both `{:.N}` (the historical spelling) and `{:.Nf}` (fixed
+        // point, Python-style) mean N fractional digits.
+        let digits = raw_precision.strip_suffix('f').unwrap_or(raw_precision);
+        if !digits.is_empty()
+            && digits.bytes().all(|byte| byte.is_ascii_digit())
+            && let Ok(precision) = digits.parse::<usize>()
+        {
+            return Placeholder::Subst {
+                close,
+                spec: FormatSpec::Fixed { precision },
+            };
         }
     }
     Placeholder::Unsupported {

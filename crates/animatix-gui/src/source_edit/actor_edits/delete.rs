@@ -65,10 +65,10 @@ fn delete_actor_recursive(stmts: &mut Vec<Stmt>, label: &str) -> bool {
                 if delete_actor_recursive(then_branch, label) {
                     return true;
                 }
-                if let Some(else_stmts) = else_branch {
-                    if delete_actor_recursive(else_stmts, label) {
-                        return true;
-                    }
+                if let Some(else_stmts) = else_branch
+                    && delete_actor_recursive(else_stmts, label)
+                {
+                    return true;
                 }
             },
             Stmt::ForLoop { body, .. } => {

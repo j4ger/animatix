@@ -47,10 +47,10 @@ pub(crate) fn inject_property_into_env(
             continue;
         }
 
-        if let Some(allowed) = allowed_props {
-            if !allowed.contains(schema.name) {
-                continue;
-            }
+        if let Some(allowed) = allowed_props
+            && !allowed.contains(schema.name)
+        {
+            continue;
         }
 
         // Read via the actor-resolved read_source (handles Field, Alias,
@@ -83,12 +83,10 @@ pub(crate) fn inject_property_into_env(
 
         // Inject the animation-state flag under the internal animating_flag
         // key (read by `is_animating(&label.prop)`).
-        if inject_animating_flags {
-            if let Some(storage) = read_source.storage_field() {
-                let flag_key = crate::timeline::env_keys::animating_flag(label, schema.name);
-                let animating = world.is_field_currently_animating(id, storage, time_ms);
-                env.set(&flag_key, Value::Bool(animating));
-            }
+        if inject_animating_flags && let Some(storage) = read_source.storage_field() {
+            let flag_key = crate::timeline::env_keys::animating_flag(label, schema.name);
+            let animating = world.is_field_currently_animating(id, storage, time_ms);
+            env.set(&flag_key, Value::Bool(animating));
         }
     }
 }
@@ -125,10 +123,10 @@ pub(crate) fn inject_extension_properties_into_env(
         if !spec.injectable || plan.get(spec.id).is_none() {
             continue;
         }
-        if let Some(allowed) = allowed_props {
-            if !allowed.contains(&spec.name) {
-                continue;
-            }
+        if let Some(allowed) = allowed_props
+            && !allowed.contains(&spec.name)
+        {
+            continue;
         }
         let Some(pv) = read_property_plan_slot(plan, spec.id, time_ms) else {
             continue;
@@ -311,14 +309,14 @@ pub(crate) fn effective_transform(
     resolved: crate::timeline::property_registry::ResolvedPropertyRead,
     default: [f32; 6],
 ) -> [f32; 6] {
-    if let Some(Value::List(items)) = overrides.and_then(|ov| ov.get(name)) {
-        if items.len() == 6 {
-            let mut t = default;
-            for (i, item) in items.iter().enumerate() {
-                t[i] = item.as_num() as f32;
-            }
-            return t;
+    if let Some(Value::List(items)) = overrides.and_then(|ov| ov.get(name))
+        && items.len() == 6
+    {
+        let mut t = default;
+        for (i, item) in items.iter().enumerate() {
+            t[i] = item.as_num() as f32;
         }
+        return t;
     }
     if let Some((schema, slot)) = resolved
         && let Some(pv) = read_property_value_resolved(id, plan, world, schema, slot, time_ms)

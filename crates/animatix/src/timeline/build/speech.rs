@@ -29,19 +29,19 @@ pub fn collect_transcripts_from_ast(
                 // transcript-bearing (today Audio and Captions).
                 if animatix_std::caps_for_type(ty).is_some_and(|caps| caps.transcript) {
                     for prop in props {
-                        if prop.name == "transcript" {
-                            if let Expr::Str(ref path) = prop.value {
-                                let normalized = asset_cache.normalize_asset_url(path);
-                                match std::fs::read_to_string(&normalized) {
-                                    Ok(content) => {
-                                        match animatix_text::transcript::parse_transcript_auto(
-                                            &content,
-                                        ) {
-                                            Ok(parsed) => {
-                                                transcripts.insert(label.clone(), parsed);
-                                            },
-                                            Err(e) => {
-                                                diagnostics.push(
+                        if prop.name == "transcript"
+                            && let Expr::Str(ref path) = prop.value
+                        {
+                            let normalized = asset_cache.normalize_asset_url(path);
+                            match std::fs::read_to_string(&normalized) {
+                                Ok(content) => {
+                                    match animatix_text::transcript::parse_transcript_auto(&content)
+                                    {
+                                        Ok(parsed) => {
+                                            transcripts.insert(label.clone(), parsed);
+                                        },
+                                        Err(e) => {
+                                            diagnostics.push(
                                                     Diagnostic::warning(
                                                         DiagnosticCode::InvalidConfigValue,
                                                         DiagnosticPhase::Build,
@@ -51,11 +51,11 @@ pub fn collect_transcripts_from_ast(
                                                     )
                                                     .with_subject(label),
                                                 );
-                                            },
-                                        }
-                                    },
-                                    Err(e) => {
-                                        diagnostics.push(
+                                        },
+                                    }
+                                },
+                                Err(e) => {
+                                    diagnostics.push(
                                             Diagnostic::warning(
                                                 DiagnosticCode::InvalidConfigValue,
                                                 DiagnosticPhase::Build,
@@ -65,8 +65,7 @@ pub fn collect_transcripts_from_ast(
                                             )
                                             .with_subject(label),
                                         );
-                                    },
-                                }
+                                },
                             }
                         }
                     }

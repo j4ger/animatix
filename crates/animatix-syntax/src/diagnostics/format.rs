@@ -42,14 +42,14 @@ pub fn format_diagnostic(diagnostic: &Diagnostic) -> String {
 pub fn format_diagnostic_with_source(diagnostic: &Diagnostic, source: &str) -> String {
     let mut output = format_diagnostic(diagnostic);
 
-    if let Some(span) = &diagnostic.location.span {
-        if let Some((line_text, caret_offset, caret_len)) = extract_source_snippet(source, span) {
-            output.push('\n');
-            output.push_str(&line_text);
-            output.push('\n');
-            output.push_str(&" ".repeat(caret_offset));
-            output.push_str(&"^".repeat(caret_len.max(1)));
-        }
+    if let Some(span) = &diagnostic.location.span
+        && let Some((line_text, caret_offset, caret_len)) = extract_source_snippet(source, span)
+    {
+        output.push('\n');
+        output.push_str(&line_text);
+        output.push('\n');
+        output.push_str(&" ".repeat(caret_offset));
+        output.push_str(&"^".repeat(caret_len.max(1)));
     }
 
     output

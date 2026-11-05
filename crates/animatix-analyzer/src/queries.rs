@@ -43,10 +43,10 @@ impl Analyzer {
         // guard keeps later queries working instead of cascading.
         {
             let cache = self.diagnostics_cache.lock().unwrap_or_else(|e| e.into_inner());
-            if let Some((cached_key, cached)) = cache.as_ref() {
-                if *cached_key == key {
-                    return cached.as_ref().clone();
-                }
+            if let Some((cached_key, cached)) = cache.as_ref()
+                && *cached_key == key
+            {
+                return cached.as_ref().clone();
             }
         }
         let computed = std::sync::Arc::new(self.compute_diagnostics(config));

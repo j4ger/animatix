@@ -51,7 +51,7 @@ mod tests {
 
         let mut normal = None;
         let mut normal_sibling = None;
-        let _ = ctx.run_ui(input(), |ui| {
+        let _ = crate::run_ui(&ctx, input(), |ui| {
             normal = Some(ui.stable_selectable_label(false, "Grid"));
             normal_sibling = Some(ui.label("next"));
         });
@@ -61,7 +61,7 @@ mod tests {
         let mut hovered_sibling = None;
         let mut hover_input = input();
         hover_input.events.push(egui::Event::PointerMoved(pointer));
-        let _ = ctx.run_ui(hover_input, |ui| {
+        let _ = crate::run_ui(&ctx, hover_input, |ui| {
             hovered = Some(ui.stable_selectable_label(false, "Grid"));
             hovered_sibling = Some(ui.label("next"));
         });
@@ -86,7 +86,7 @@ mod tests {
         };
 
         let mut normal = None;
-        let _ = ctx.run_ui(input(), |ui| {
+        let _ = crate::run_ui(&ctx, input(), |ui| {
             normal = Some(ui.add(crate::widget::button::Button::primary("Create")));
         });
 
@@ -94,7 +94,7 @@ mod tests {
         let mut hovered = None;
         let mut hover_input = input();
         hover_input.events.push(egui::Event::PointerMoved(pointer));
-        let _ = ctx.run_ui(hover_input, |ui| {
+        let _ = crate::run_ui(&ctx, hover_input, |ui| {
             hovered = Some(ui.add(crate::widget::button::Button::primary("Create")));
         });
 
@@ -107,7 +107,7 @@ mod tests {
             pressed: true,
             modifiers: egui::Modifiers::default(),
         });
-        let _ = ctx.run_ui(active_input, |ui| {
+        let _ = crate::run_ui(&ctx, active_input, |ui| {
             active = Some(ui.add(crate::widget::button::Button::primary("Create")));
         });
 

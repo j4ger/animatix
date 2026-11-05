@@ -169,10 +169,10 @@ pub(super) fn expand_target_call(
         }
     }
     for param in &template.params {
-        if !bound.contains(param.name.as_str()) {
-            if let Some(default) = &param.default {
-                values.insert(param.name.clone(), default.clone());
-            }
+        if !bound.contains(param.name.as_str())
+            && let Some(default) = &param.default
+        {
+            values.insert(param.name.clone(), default.clone());
         }
     }
     let unconsumed: Vec<Modifier> = action

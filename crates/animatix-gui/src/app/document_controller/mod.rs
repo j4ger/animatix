@@ -170,21 +170,21 @@ impl DocumentController<'_> {
 
         // Start move drag for the new actor at the original position
         let time_ms = (self.preview_store.preview.playback.current_time_s() * 1000.0) as u64;
-        if let Some(timeline) = self.document_store.source.document.active_timeline() {
-            if let Some(id) = timeline.get_entity_id(original_label) {
-                let position = timeline
-                    .world()
-                    .geometry(id)
-                    .position
-                    .as_ref()
-                    .map(|p| p.evaluate(time_ms))
-                    .unwrap_or([0.0, 0.0]);
-                self.ui_store.interaction.drag_state = DragState::Move {
-                    primary: new_label.clone(),
-                    actors: vec![(new_label, position)],
-                    start_scene: kurbo::Point::new(position[0] as f64, position[1] as f64),
-                };
-            }
+        if let Some(timeline) = self.document_store.source.document.active_timeline()
+            && let Some(id) = timeline.get_entity_id(original_label)
+        {
+            let position = timeline
+                .world()
+                .geometry(id)
+                .position
+                .as_ref()
+                .map(|p| p.evaluate(time_ms))
+                .unwrap_or([0.0, 0.0]);
+            self.ui_store.interaction.drag_state = DragState::Move {
+                primary: new_label.clone(),
+                actors: vec![(new_label, position)],
+                start_scene: kurbo::Point::new(position[0] as f64, position[1] as f64),
+            };
         }
     }
 

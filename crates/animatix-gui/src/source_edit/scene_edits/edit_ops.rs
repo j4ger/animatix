@@ -32,10 +32,10 @@ pub(crate) fn reorder_scenes(
     for original_stmt in &original {
         match original_stmt {
             Stmt::Scene { .. } => {
-                if let Some(name) = scene_iter.next() {
-                    if let Some(scene) = scene_map.get(&name) {
-                        reordered.push(scene.clone());
-                    }
+                if let Some(name) = scene_iter.next()
+                    && let Some(scene) = scene_map.get(&name)
+                {
+                    reordered.push(scene.clone());
                 }
             },
             other => reordered.push(other.clone()),
@@ -74,11 +74,11 @@ pub(crate) fn set_play_target(
         Some(target_scene) => {
             let mut updated = false;
             for stmt in body.iter_mut() {
-                if let Stmt::Play { scene_name, .. } = stmt {
-                    if !updated {
-                        *scene_name = target_scene.to_string();
-                        updated = true;
-                    }
+                if let Stmt::Play { scene_name, .. } = stmt
+                    && !updated
+                {
+                    *scene_name = target_scene.to_string();
+                    updated = true;
                 }
             }
             if !updated {
@@ -249,11 +249,9 @@ fn rename_scene_in_stmt(stmt: &mut Stmt, old_name: &str, new_name: &str) -> bool
                 renamed = true;
             }
         },
-        Stmt::Play { scene_name, .. } => {
-            if scene_name == old_name {
-                *scene_name = new_name.into();
-                renamed = true;
-            }
+        Stmt::Play { scene_name, .. } if scene_name == old_name => {
+            *scene_name = new_name.into();
+            renamed = true;
         },
         _ => {},
     }

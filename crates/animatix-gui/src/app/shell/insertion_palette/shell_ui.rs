@@ -42,7 +42,7 @@ impl GuiShell {
         // Capture clicks on backdrop to close
         let backdrop_response = ui.interact(
             screen_rect,
-            ui.id().with("insertion_palette_backdrop"),
+            ui.scope_id().with("insertion_palette_backdrop"),
             egui::Sense::click(),
         );
         if backdrop_response.clicked() {
@@ -317,11 +317,11 @@ impl GuiShell {
         let mut selected =
             modes.iter().position(|&mode| mode == self.insertion_palette.mode).unwrap_or(0);
         TabBar::new("insertion_mode_tabs", &mut selected, &labels).show(&mut content);
-        if let Some(mode) = modes.get(selected).copied() {
-            if mode != self.insertion_palette.mode {
-                self.insertion_palette.mode = mode;
-                self.insertion_palette.rebuild_filter();
-            }
+        if let Some(mode) = modes.get(selected).copied()
+            && mode != self.insertion_palette.mode
+        {
+            self.insertion_palette.mode = mode;
+            self.insertion_palette.rebuild_filter();
         }
         content.add_space(sp.base.space_3);
 
@@ -359,11 +359,9 @@ impl GuiShell {
                 enter_pressed = true;
             }
         });
-        if enter_pressed {
-            if let Some(item) = self.insertion_palette.selected_item().cloned() {
-                self.execute_palette_item(item);
-                return;
-            }
+        if enter_pressed && let Some(item) = self.insertion_palette.selected_item().cloned() {
+            self.execute_palette_item(item);
+            return;
         }
 
         // Item list
@@ -381,7 +379,7 @@ impl GuiShell {
                 let row_rect =
                     Rect::from_min_size(row_rect.min, Vec2::new(row_rect.width(), item_h));
 
-                let row_id = ui.id().with(format!("pal_item_{}", vis_idx));
+                let row_id = ui.scope_id().with(format!("pal_item_{}", vis_idx));
                 let row_resp = ui.interact(row_rect, row_id, egui::Sense::click());
 
                 if row_resp.hovered() || is_selected {
@@ -400,8 +398,9 @@ impl GuiShell {
                     clicked_item = Some(item.clone());
                 }
 
-                #[allow(deprecated)]
-                ui.allocate_ui_at_rect(row_rect.shrink(4.0), |ui| {
+                // `allocate_ui_at_rect` was removed in egui 0.37; it was a thin
+                // wrapper around `scope_builder(UiBuilder::new().max_rect(..))`.
+                ui.scope_builder(egui::UiBuilder::new().max_rect(row_rect.shrink(4.0)), |ui| {
                     ui.horizontal(|ui| {
                         ui.label(
                             RichText::new(&item.icon).size(TextRole::Body.size()).color(item.color),

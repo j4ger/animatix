@@ -46,20 +46,20 @@ impl<'a> TypeEnv<'a> {
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         for param in params {
-            if let Some(annotation) = &param.param_type {
-                if let Some(alias) = self.typed.unresolved_alias(annotation) {
-                    diagnostics.push(
-                        Diagnostic::warning(
-                            DiagnosticCode::UnknownTypeAlias,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "Parameter '{}' of {} '{}' references unknown type alias '{}'",
-                                param.name, owner_kind, owner_name, alias
-                            ),
-                        )
-                        .with_subject(format!("{}.{}.{}", owner_kind, owner_name, param.name)),
-                    );
-                }
+            if let Some(annotation) = &param.param_type
+                && let Some(alias) = self.typed.unresolved_alias(annotation)
+            {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::UnknownTypeAlias,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "Parameter '{}' of {} '{}' references unknown type alias '{}'",
+                            param.name, owner_kind, owner_name, alias
+                        ),
+                    )
+                    .with_subject(format!("{}.{}.{}", owner_kind, owner_name, param.name)),
+                );
             }
         }
     }
@@ -76,12 +76,13 @@ impl<'a> TypeEnv<'a> {
             def.params.iter().map(|p| (p.name.as_str(), p)).collect();
 
         for prop in props {
-            if let Some(param) = param_map.get(prop.name.as_str()) {
-                if let Some(expected) = &param.param_type {
-                    let actual = typing::infer_expr_type(&prop.value, &self.typed);
-                    let expected = self.typed.resolve_annotation(expected);
-                    if !typing::is_subtype(&actual, &expected) {
-                        diagnostics.push(
+            if let Some(param) = param_map.get(prop.name.as_str())
+                && let Some(expected) = &param.param_type
+            {
+                let actual = typing::infer_expr_type(&prop.value, &self.typed);
+                let expected = self.typed.resolve_annotation(expected);
+                if !typing::is_subtype(&actual, &expected) {
+                    diagnostics.push(
                             Diagnostic::error(
                                 DiagnosticCode::TypeMismatch,
                                 DiagnosticPhase::Build,
@@ -97,7 +98,6 @@ impl<'a> TypeEnv<'a> {
                             .with_subject(format!("{}.{}", component_name, prop.name))
                             .with_byte_span(prop.value_span),
                         );
-                    }
                 }
             }
         }

@@ -31,6 +31,42 @@ pub mod toggle;
 pub mod tooltip;
 pub mod traits;
 
+/// A source accepted wherever a widget takes an identifier.
+///
+/// egui 0.37 removed `impl From<&str> for egui::Id`, so widget constructors
+/// cannot take `impl Into<Id>` and still accept string literals. This trait
+/// fills that gap: strings are hashed into a fresh root [`egui::Id`] with
+/// [`egui::Id::unique`], while an existing [`egui::Id`] is passed through
+/// unchanged — re-hashing it would silently change widget identity.
+pub trait IntoWidgetId {
+    /// Resolve this source into an [`egui::Id`].
+    fn into_widget_id(self) -> egui::Id;
+}
+
+impl IntoWidgetId for egui::Id {
+    fn into_widget_id(self) -> egui::Id {
+        self
+    }
+}
+
+impl IntoWidgetId for &str {
+    fn into_widget_id(self) -> egui::Id {
+        egui::Id::unique(self)
+    }
+}
+
+impl IntoWidgetId for String {
+    fn into_widget_id(self) -> egui::Id {
+        egui::Id::unique(self)
+    }
+}
+
+impl IntoWidgetId for &String {
+    fn into_widget_id(self) -> egui::Id {
+        egui::Id::unique(self)
+    }
+}
+
 pub use color_picker::{
     ColorPicker, ColorPickerResponse, color_to_hex_rgb, color_to_hex_rgba, parse_hex_color,
 };

@@ -1,3 +1,6 @@
+#[cfg(feature = "dev-screenshots")]
+use super::*;
+
 /// Bounded whole-window screenshot driver (visual layout review).
 ///
 /// Enabled with `ANIMATIX_SCREENSHOT=<png>` (and optional
@@ -7,7 +10,7 @@
 /// so a review can cover both the wide layout and the compact one (mirrors the
 /// `--width`/`--height` flags of the `widget-screenshot` binary).
 #[cfg(feature = "dev-screenshots")]
-struct ScreenshotSession {
+pub(super) struct ScreenshotSession {
     path: PathBuf,
     after_frames: u32,
     frame: u32,
@@ -17,7 +20,7 @@ struct ScreenshotSession {
 
 #[cfg(feature = "dev-screenshots")]
 impl ScreenshotSession {
-    fn from_env() -> Option<Self> {
+    pub(super) fn from_env() -> Option<Self> {
         let path = PathBuf::from(std::env::var_os("ANIMATIX_SCREENSHOT")?);
         let after_frames = std::env::var("ANIMATIX_SCREENSHOT_FRAMES")
             .ok()
@@ -39,49 +42,43 @@ impl ScreenshotSession {
 
 #[cfg(feature = "dev-screenshots")]
 impl AnimatixApp {
-    fn drive_screenshot(&mut self, ui: &mut egui::Ui) {
+    pub(super) fn drive_screenshot(&mut self, ui: &mut egui::Ui) {
         let Some(session) = self.screenshot.as_mut() else {
             return;
         };
         session.frame += 1;
         if session.frame < session.after_frames {
-            if session.frame == 1 {
-                if let Some(size) = session.size {
-                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
-                }
+            if session.frame == 1
+                && let Some(size) = session.size
+            {
+                ui.ctx().send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
             }
             ui.ctx().request_repaint();
             return;
         }
         if !session.requested {
-            ui.ctx()
-                .send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
+            // egui 0.37 replaced the `Event::Screenshot` round-trip with a
+            // one-shot callback on the viewport command. The callback may run on
+            // a render thread, so clone the `Context` (thread-safe) and request
+            // a repaint when it completes.
+            let ctx = ui.ctx().clone();
+            let path = session.path.clone();
+            let pixels_per_point = ctx.pixels_per_point();
+            let callback_ctx = ctx.clone();
+            ctx.request_screenshot(move |image| {
+                match save_window_screenshot(&image, pixels_per_point, &path) {
+                    Ok(()) => {
+                        tracing::info!("workspace screenshot saved to {}", path.display());
+                        callback_ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    },
+                    Err(error) => tracing::error!("workspace screenshot failed: {error}"),
+                }
+                callback_ctx.request_repaint();
+            });
             session.requested = true;
         }
 
-        let mut saved = false;
-        ui.input(|i| {
-            for event in &i.raw.events {
-                if let egui::Event::Screenshot { image, .. } = event {
-                    match save_window_screenshot(image, i.pixels_per_point, &session.path) {
-                        Ok(()) => {
-                            tracing::info!(
-                                "workspace screenshot saved to {}",
-                                session.path.display()
-                            );
-                            saved = true;
-                        },
-                        Err(error) => tracing::error!("workspace screenshot failed: {error}"),
-                    }
-                }
-            }
-        });
-
-        if saved {
-            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-        } else {
-            ui.ctx().request_repaint();
-        }
+        ui.ctx().request_repaint();
     }
 }
 

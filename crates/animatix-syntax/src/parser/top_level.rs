@@ -173,11 +173,11 @@ pub fn group_scenes(flat: Vec<Stmt>) -> Vec<Stmt> {
                 // which belongs to no keyframe — demote the block into the
                 // scene body, leaving `Scene.config` empty for the composition
                 // to fall back on keyframe-span duration.
-                if let Some(Stmt::Scene { ref mut config, .. }) = current_scene {
-                    if let Stmt::Config { settings, .. } = stmt {
-                        config.extend(settings);
-                        continue;
-                    }
+                if let Some(Stmt::Scene { ref mut config, .. }) = current_scene
+                    && let Stmt::Config { settings, .. } = stmt
+                {
+                    config.extend(settings);
+                    continue;
                 }
                 result.push(stmt);
             },
@@ -221,19 +221,19 @@ pub(crate) fn parse_transition_from_modifiers(
                 transition_id = Some(name.clone());
             },
             (None, Expr::Ident(name)) if name.ends_with("ms") => {
-                if let Ok(ms) = name.trim_end_matches("ms").parse::<u64>() {
-                    if duration_ms == 0 {
-                        duration_ms = ms;
-                    }
+                if let Ok(ms) = name.trim_end_matches("ms").parse::<u64>()
+                    && duration_ms == 0
+                {
+                    duration_ms = ms;
                 }
             },
             (None, Expr::Ident(name))
                 if name.ends_with('s') && !name.starts_with(|c: char| c.is_alphabetic()) =>
             {
-                if let Ok(s) = name.trim_end_matches('s').parse::<f64>() {
-                    if duration_ms == 0 {
-                        duration_ms = (s * 1000.0) as u64;
-                    }
+                if let Ok(s) = name.trim_end_matches('s').parse::<f64>()
+                    && duration_ms == 0
+                {
+                    duration_ms = (s * 1000.0) as u64;
                 }
             },
             _ => {},

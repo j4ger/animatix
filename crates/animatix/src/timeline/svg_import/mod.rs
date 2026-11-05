@@ -144,16 +144,17 @@ pub(crate) fn parse_viewbox_config(svg_node: &Node) -> Option<Stmt> {
     // Fallback: width and height attributes
     let w = svg_node.attribute("width").and_then(|v| v.parse::<f64>().ok());
     let h = svg_node.attribute("height").and_then(|v| v.parse::<f64>().ok());
-    if let (Some(w), Some(h)) = (w, h) {
-        if w > 0.0 && h > 0.0 {
-            return Some(Stmt::Config {
-                settings: vec![Property::new(
-                    "size",
-                    Expr::Tuple(vec![Expr::Num(w), Expr::Num(h)]),
-                )],
-                span: None,
-            });
-        }
+    if let (Some(w), Some(h)) = (w, h)
+        && w > 0.0
+        && h > 0.0
+    {
+        return Some(Stmt::Config {
+            settings: vec![Property::new(
+                "size",
+                Expr::Tuple(vec![Expr::Num(w), Expr::Num(h)]),
+            )],
+            span: None,
+        });
     }
 
     None

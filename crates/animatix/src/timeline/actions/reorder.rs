@@ -112,11 +112,11 @@ impl BuiltinAction for Swap {
         // after `t_start_ms` means a previous swap is still in flight; a
         // keyframe exactly at `t_start_ms` is that swap's end boundary, so
         // back-to-back swaps (`step`-sequenced loops) are allowed.
-        if let Some(component) = timeline.child_order(&parent) {
-            if let Some((&pending_time, _)) =
+        if let Some(component) = timeline.child_order(&parent)
+            && let Some((&pending_time, _)) =
                 component.track.keyframes.next_keyframe(t_start_ms + 1)
-            {
-                diagnostics.push(
+        {
+            diagnostics.push(
                     Diagnostic::warning(
                         DiagnosticCode::ConflictingModifierKey,
                         DiagnosticPhase::Build,
@@ -127,8 +127,7 @@ impl BuiltinAction for Swap {
                     )
                     .with_subject(format!("{} {}, {}", action.verb, child_a, child_b)),
                 );
-                return;
-            }
+            return;
         }
 
         // Get current order. The animated order stores entity ids; the action's
@@ -348,9 +347,10 @@ impl BuiltinAction for Reorder {
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         // Check for overlapping reorder on same container
-        if let Some(component) = timeline.child_order(container) {
-            if let Some((&pending_time, _)) = component.track.keyframes.next_keyframe(t_start_ms) {
-                diagnostics.push(
+        if let Some(component) = timeline.child_order(container)
+            && let Some((&pending_time, _)) = component.track.keyframes.next_keyframe(t_start_ms)
+        {
+            diagnostics.push(
                     Diagnostic::warning(
                         DiagnosticCode::ConflictingModifierKey,
                         DiagnosticPhase::Build,
@@ -361,8 +361,7 @@ impl BuiltinAction for Reorder {
                     )
                     .with_subject(format!("{} {}", action.verb, container)),
                 );
-                return;
-            }
+            return;
         }
 
         // Set keyframes: hold current order at start time, then transition to new order

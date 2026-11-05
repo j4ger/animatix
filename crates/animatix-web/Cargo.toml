@@ -44,9 +44,8 @@ console_error_panic_hook = "0.1"
 js-sys = "0.3"
 kurbo = { workspace = true }
 serde-wasm-bindgen = "0.6"
-# Pinned pre-#1558 (atlas residency), matching animatix/animatix-render — see
-# the comment on their `vello` entries.
-vello = { git = "https://github.com/linebender/vello", rev = "d8686d52", default-features = false, features = ["wgpu"] }
+# Shared vello version (see the comment on the workspace entry).
+vello = { workspace = true }
 # Pinned to the installed wasm-bindgen-cli version; a mismatch fails at
 # `wasm-bindgen` glue generation time. futures 0.4.78 is the line that pins
 # the same wasm-bindgen version.

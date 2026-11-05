@@ -16,11 +16,11 @@ pub(in crate::source_edit) fn set_property(
     let source_prop = canonical_to_source(property);
 
     // 1. Try to find an ActorDecl and update its property.
-    if let Some(actor_decl) = find_actor_decl_mut(stmts, actor) {
-        if let Some(prop) = find_prop_mut(actor_decl, source_prop) {
-            prop.value = value.clone();
-            return Ok(());
-        }
+    if let Some(actor_decl) = find_actor_decl_mut(stmts, actor)
+        && let Some(prop) = find_prop_mut(actor_decl, source_prop)
+    {
+        prop.value = value.clone();
+        return Ok(());
     }
 
     // 2. Try to find an Assignment statement and update its value.

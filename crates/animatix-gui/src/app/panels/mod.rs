@@ -77,7 +77,7 @@ pub(crate) struct LibraryDragPayload {
 /// egui's data store lives on the shared `Context`, so a payload inserted by a
 /// sidebar row is readable from the preview panel in the same frame.
 pub(crate) fn library_drag_id() -> egui::Id {
-    egui::Id::new("library_drag_payload")
+    egui::Id::unique("library_drag_payload")
 }
 
 /// Store the in-flight library drag payload.
@@ -181,7 +181,7 @@ mod tests {
     fn library_drag_id_is_stable() {
         // The sidebar writes and the preview panel reads this id; it must not
         // drift between the two call sites.
-        assert_eq!(library_drag_id(), egui::Id::new("library_drag_payload"));
+        assert_eq!(library_drag_id(), egui::Id::unique("library_drag_payload"));
     }
 
     #[test]

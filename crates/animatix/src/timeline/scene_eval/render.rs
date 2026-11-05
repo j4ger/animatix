@@ -341,19 +341,19 @@ impl Timeline {
         if !self.world.exists(id) {
             return;
         }
-        if let Some(label) = self.world.label(id) {
-            if let Some(rect) = self.precise_bounds_for(label) {
-                if !blend_rect_usable(rect) {
-                    // NaN/Inf in a recorded rect: treat as unsafe so the caller
-                    // keeps the unbounded layer rather than dropping the value.
-                    *outside = true;
-                    return;
-                }
-                if rect.x0 < own.x0 || rect.y0 < own.y0 || rect.x1 > own.x1 || rect.y1 > own.y1 {
-                    *outside = true;
-                }
-                *accumulated = accumulated.union(rect);
+        if let Some(label) = self.world.label(id)
+            && let Some(rect) = self.precise_bounds_for(label)
+        {
+            if !blend_rect_usable(rect) {
+                // NaN/Inf in a recorded rect: treat as unsafe so the caller
+                // keeps the unbounded layer rather than dropping the value.
+                *outside = true;
+                return;
             }
+            if rect.x0 < own.x0 || rect.y0 < own.y0 || rect.x1 > own.x1 || rect.y1 > own.y1 {
+                *outside = true;
+            }
+            *accumulated = accumulated.union(rect);
         }
         for &child_id in &self.world.hierarchy(id).children {
             self.blend_union_bounds(child_id, own, accumulated, outside);

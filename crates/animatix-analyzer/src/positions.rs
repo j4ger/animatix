@@ -32,30 +32,33 @@ impl Analyzer {
             let col = col + 1;
             match occ.kind {
                 OccurrenceKind::Label | OccurrenceKind::Variable => {
-                    if let Some(info) = table.labels.get_mut(&occ.name) {
-                        if info.line == 0 && info.col == 0 {
-                            info.line = line;
-                            info.col = col;
-                            info.span = Some(span);
-                        }
+                    if let Some(info) = table.labels.get_mut(&occ.name)
+                        && info.line == 0
+                        && info.col == 0
+                    {
+                        info.line = line;
+                        info.col = col;
+                        info.span = Some(span);
                     }
                 },
                 OccurrenceKind::Component => {
-                    if let Some(info) = table.components.get_mut(&occ.name) {
-                        if info.line == 0 && info.col == 0 {
-                            info.line = line;
-                            info.col = col;
-                            info.span = Some(span);
-                        }
+                    if let Some(info) = table.components.get_mut(&occ.name)
+                        && info.line == 0
+                        && info.col == 0
+                    {
+                        info.line = line;
+                        info.col = col;
+                        info.span = Some(span);
                     }
                 },
                 OccurrenceKind::Scene => {
-                    if let Some(info) = table.scenes.get_mut(&occ.name) {
-                        if info.line == 0 && info.col == 0 {
-                            info.line = line;
-                            info.col = col;
-                            info.span = Some(span);
-                        }
+                    if let Some(info) = table.scenes.get_mut(&occ.name)
+                        && info.line == 0
+                        && info.col == 0
+                    {
+                        info.line = line;
+                        info.col = col;
+                        info.span = Some(span);
                     }
                 },
                 _ => {},

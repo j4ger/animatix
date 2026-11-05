@@ -183,10 +183,10 @@ impl ShapeTracks {
                 .unwrap_or(true);
             if constant {
                 let epoch = self.vector_paths_epoch.get();
-                if let Some((memo_epoch, shared)) = self.vector_paths_memo.borrow().as_ref() {
-                    if *memo_epoch == epoch {
-                        return Arc::clone(shared);
-                    }
+                if let Some((memo_epoch, shared)) = self.vector_paths_memo.borrow().as_ref()
+                    && *memo_epoch == epoch
+                {
+                    return Arc::clone(shared);
                 }
                 let computed = Arc::new(self.evaluate_vector_paths_value(style, time_ms));
                 *self.vector_paths_memo.borrow_mut() = Some((epoch, Arc::clone(&computed)));
@@ -229,10 +229,10 @@ impl ShapeTracks {
     /// determines the path (fixed default tolerance), so the memo is
     /// self-validating and needs no epoch.
     pub fn shape_path_memoized(&self, shape: &KurboShape) -> Arc<kurbo::BezPath> {
-        if let Some((cached_shape, shared)) = self.shape_path_memo.borrow().as_ref() {
-            if cached_shape == shape {
-                return Arc::clone(shared);
-            }
+        if let Some((cached_shape, shared)) = self.shape_path_memo.borrow().as_ref()
+            && cached_shape == shape
+        {
+            return Arc::clone(shared);
         }
         let built = Arc::new(shape.to_path_default());
         *self.shape_path_memo.borrow_mut() = Some((shape.clone(), Arc::clone(&built)));

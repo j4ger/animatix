@@ -1,4 +1,4 @@
-use egui::{Color32, Id, Rect, Response, Sense, Vec2, WidgetInfo, WidgetType};
+use egui::{Color32, Id, Rect, Response, Role, Sense, Vec2, WidgetInfo};
 
 use crate::tokens::spatial::component::ICON_SLOT_WIDTH;
 use crate::tokens::spatial::{ROW_M, density, spatial};
@@ -314,9 +314,8 @@ impl<'a> Row<'a> {
             // Principle 3: override egui's default PointingHand with Default arrow.
             response: {
                 let response = row_response.on_hover_cursor(egui::CursorIcon::Default);
-                response.widget_info(|| {
-                    WidgetInfo::labeled(WidgetType::SelectableLabel, ui.is_enabled(), self.label)
-                });
+                response
+                    .widget_info(|| WidgetInfo::labeled(Role::Button, ui.is_enabled(), self.label));
                 response
             },
         }

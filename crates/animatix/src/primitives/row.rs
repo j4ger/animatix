@@ -111,12 +111,11 @@ pub(crate) fn finalize_container_build(
     // Parse vertical_align property
     let mut vertical_align: Option<String> = None;
     for prop in props {
-        if prop.name == "vertical_align" {
-            if let Some(v) =
+        if prop.name == "vertical_align"
+            && let Some(v) =
                 evaluate_expr_with_lookup_diagnostic(&prop.value, env, ctx.diagnostics, label)
-            {
-                vertical_align = Some(v.as_str().to_string());
-            }
+        {
+            vertical_align = Some(v.as_str().to_string());
         }
     }
 

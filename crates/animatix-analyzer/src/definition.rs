@@ -56,35 +56,35 @@ pub fn definition_at(
     }
 
     // Check imported files for cross-file definitions
-    if let Some(workspace) = workspace {
-        if let Some(path) = path {
-            for import in &symbols.imports {
-                let import_path = Workspace::resolve_import_path(path, &import.path);
-                if let Some(symbols) = workspace.file_symbols(&import_path) {
-                    // Check labels in imported file
-                    if let Some(info) = symbols.labels.get(text) {
-                        return Some(Location {
-                            file: Some(import_path.display().to_string()),
-                            line: info.line.saturating_sub(1),
-                            col: info.col.saturating_sub(1),
-                        });
-                    }
-                    // Check components in imported file
-                    if let Some(info) = symbols.components.get(text) {
-                        return Some(Location {
-                            file: Some(import_path.display().to_string()),
-                            line: info.line.saturating_sub(1),
-                            col: info.col.saturating_sub(1),
-                        });
-                    }
-                    // Check scenes in imported file
-                    if let Some(info) = symbols.scenes.get(text) {
-                        return Some(Location {
-                            file: Some(import_path.display().to_string()),
-                            line: info.line.saturating_sub(1),
-                            col: info.col.saturating_sub(1),
-                        });
-                    }
+    if let Some(workspace) = workspace
+        && let Some(path) = path
+    {
+        for import in &symbols.imports {
+            let import_path = Workspace::resolve_import_path(path, &import.path);
+            if let Some(symbols) = workspace.file_symbols(&import_path) {
+                // Check labels in imported file
+                if let Some(info) = symbols.labels.get(text) {
+                    return Some(Location {
+                        file: Some(import_path.display().to_string()),
+                        line: info.line.saturating_sub(1),
+                        col: info.col.saturating_sub(1),
+                    });
+                }
+                // Check components in imported file
+                if let Some(info) = symbols.components.get(text) {
+                    return Some(Location {
+                        file: Some(import_path.display().to_string()),
+                        line: info.line.saturating_sub(1),
+                        col: info.col.saturating_sub(1),
+                    });
+                }
+                // Check scenes in imported file
+                if let Some(info) = symbols.scenes.get(text) {
+                    return Some(Location {
+                        file: Some(import_path.display().to_string()),
+                        line: info.line.saturating_sub(1),
+                        col: info.col.saturating_sub(1),
+                    });
                 }
             }
         }

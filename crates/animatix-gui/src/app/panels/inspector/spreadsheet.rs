@@ -172,7 +172,7 @@ pub(crate) fn render_property_spreadsheet(
 
     // ── Scrollable outer container ──
     egui::ScrollArea::both().auto_shrink([false; 2]).show(ui, |ui| {
-        egui::Grid::new(ui.id().with("spreadsheet_grid"))
+        egui::Grid::new(ui.scope_id().with("spreadsheet_grid"))
             .striped(true)
             .min_col_width(label_col_width)
             .spacing(Vec2::new(sp.base.space_2, 0.0))

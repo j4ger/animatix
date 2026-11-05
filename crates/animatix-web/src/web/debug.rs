@@ -163,7 +163,7 @@ impl AmxPlayer {
             });
         }
         ctx.queue.submit(std::iter::once(encoder.finish()));
-        frame.present();
+        ctx.queue.present(frame);
         // The screen now holds a flat colour that no frame signature describes,
         // so the next identical frame must draw rather than dedup.
         self.dedup.invalidate();

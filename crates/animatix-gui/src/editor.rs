@@ -162,14 +162,14 @@ impl EditorBuffer {
     /// Returns `true` if the source was modified.
     pub fn format_source(&mut self) -> bool {
         let (stmts, errs) = animatix_syntax::parser::parse_source(&self.text);
-        if let Some(stmts) = stmts {
-            if errs.is_empty() {
-                let formatter = animatix_syntax::formatter::Formatter::default();
-                let formatted = formatter.format_source(&self.text, &stmts);
-                if formatted != self.text {
-                    self.replace_text(formatted);
-                    return true;
-                }
+        if let Some(stmts) = stmts
+            && errs.is_empty()
+        {
+            let formatter = animatix_syntax::formatter::Formatter::default();
+            let formatted = formatter.format_source(&self.text, &stmts);
+            if formatted != self.text {
+                self.replace_text(formatted);
+                return true;
             }
         }
         false
@@ -310,33 +310,32 @@ impl EditorBuffer {
     /// Update `self.cursor_line` based on the focused cell, its header line offset,
     /// and the live caret position within its body.
     fn update_cursor_line(&mut self) {
-        if let Some(focused_idx) = self.cell_state.focused_cell {
-            if let Some(start_line) = self.source_line_for_cell(focused_idx) {
-                let cell = self.cells.get(focused_idx);
-                let header_lines = match cell {
-                    Some(Cell::Keyframe {
-                        attached_comment, ..
-                    }) => attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0) + 1,
-                    _ => 0,
-                };
-                let body_offset_lines = if let (Some(c), Some(char_idx)) =
-                    (cell, self.cell_state.focused_cursor_char)
-                {
+        if let Some(focused_idx) = self.cell_state.focused_cell
+            && let Some(start_line) = self.source_line_for_cell(focused_idx)
+        {
+            let cell = self.cells.get(focused_idx);
+            let header_lines = match cell {
+                Some(Cell::Keyframe {
+                    attached_comment, ..
+                }) => attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0) + 1,
+                _ => 0,
+            };
+            let body_offset_lines =
+                if let (Some(c), Some(char_idx)) = (cell, self.cell_state.focused_cursor_char) {
                     c.body().chars().take(char_idx).filter(|&ch| ch == '\n').count()
                 } else {
                     0
                 };
-                self.cursor_line = Some(start_line + header_lines + body_offset_lines);
-            }
+            self.cursor_line = Some(start_line + header_lines + body_offset_lines);
         }
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> egui::Response {
         // Handle pending scroll by mapping line to cell
-        if let Some(target_line) = self.pending_scroll_to_line.take() {
-            if let Some(cell_idx) = self.cell_index_for_source_line(target_line) {
-                self.cell_state.scroll_to_cell = Some(cell_idx);
-            }
+        if let Some(target_line) = self.pending_scroll_to_line.take()
+            && let Some(cell_idx) = self.cell_index_for_source_line(target_line)
+        {
+            self.cell_state.scroll_to_cell = Some(cell_idx);
         }
 
         // Track source changes from the cell editor
@@ -388,18 +387,18 @@ impl EditorBuffer {
         // cell A is removed if it became empty while it was focused.
         let prev = self.cell_state.prev_focused_cell;
         let curr = self.cell_state.focused_cell;
-        if prev != curr {
-            if let Some(prev_idx) = prev {
-                if prev_idx < self.cells.len() && self.cells[prev_idx].is_empty() {
-                    self.cells.remove(prev_idx);
-                    structurally_changed = true;
-                    // Adjust current focus if it was after the removed cell
-                    if let Some(ref mut c) = self.cell_state.focused_cell {
-                        if *c > prev_idx {
-                            *c -= 1;
-                        }
-                    }
-                }
+        if prev != curr
+            && let Some(prev_idx) = prev
+            && prev_idx < self.cells.len()
+            && self.cells[prev_idx].is_empty()
+        {
+            self.cells.remove(prev_idx);
+            structurally_changed = true;
+            // Adjust current focus if it was after the removed cell
+            if let Some(ref mut c) = self.cell_state.focused_cell
+                && *c > prev_idx
+            {
+                *c -= 1;
             }
         }
         self.cell_state.prev_focused_cell = self.cell_state.focused_cell;
@@ -416,7 +415,7 @@ impl EditorBuffer {
 
             // Mark response as changed so the workspace knows the source text was modified.
             let mut r =
-                ui.interact(response.rect, ui.id().with("cell_editor"), egui::Sense::click());
+                ui.interact(response.rect, ui.scope_id().with("cell_editor"), egui::Sense::click());
             r.mark_changed();
             return r;
         }
@@ -469,7 +468,7 @@ impl EditorBuffer {
             // Completion edited the source in place; signal the caller so the
             // document picks up the new text this frame.
             let mut r =
-                ui.interact(response.rect, ui.id().with("cell_editor"), egui::Sense::click());
+                ui.interact(response.rect, ui.scope_id().with("cell_editor"), egui::Sense::click());
             r.mark_changed();
             return r;
         }
@@ -600,9 +599,10 @@ mod tests {
     }
 
     fn render(ctx: &Context, store: &mut DocumentStore, raw: egui::RawInput) {
-        let _ = ctx.run_ui(raw, |ui| {
+        ctx.run_ui(raw, |ui| {
             let _ = store.source.editor.show(ui);
-        });
+        })
+        .drop_without_applying_deltas();
     }
 
     fn click(ctx: &Context, store: &mut DocumentStore, pos: Pos2) {

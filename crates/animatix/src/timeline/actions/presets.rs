@@ -110,16 +110,15 @@ fn run_preset(
                 authored * preset.start_factor,
                 Easing::Linear,
             );
-            if let Some(peak) = preset.overshoot {
-                if t_end_ms > t_start_ms {
-                    let peak_ms =
-                        t_start_ms + ((t_end_ms - t_start_ms) as f64 * OVERSHOOT_AT) as u64;
-                    geometry.scale.ensure(1.0).add_keyframe(
-                        peak_ms,
-                        authored * (1.0 + peak),
-                        Easing::EaseIn,
-                    );
-                }
+            if let Some(peak) = preset.overshoot
+                && t_end_ms > t_start_ms
+            {
+                let peak_ms = t_start_ms + ((t_end_ms - t_start_ms) as f64 * OVERSHOOT_AT) as u64;
+                geometry.scale.ensure(1.0).add_keyframe(
+                    peak_ms,
+                    authored * (1.0 + peak),
+                    Easing::EaseIn,
+                );
             }
             geometry.scale.ensure(1.0).add_keyframe(t_end_ms, authored, easing);
             authored

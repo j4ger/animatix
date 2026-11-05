@@ -19,7 +19,7 @@ pub(crate) fn render_empty_property_lane(
     let actor_type = timeline.world().actor_type(id);
     let caps = timeline.world().caps(id);
     let playhead_s = preview.playback.current_time_s();
-    let add_id = ui.id().with(("lane_add", track_idx, prop_name));
+    let add_id = ui.scope_id().with(("lane_add", track_idx, prop_name));
     let add_resp = ui.interact(prop_bar_area, add_id, Sense::click());
     if add_resp.hovered() {
         painter.rect_filled(

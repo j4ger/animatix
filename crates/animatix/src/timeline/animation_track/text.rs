@@ -98,12 +98,12 @@ impl TextTracks {
         style: &StyleTracks,
         time_ms: u64,
     ) -> (Vec<TextPath>, Option<kurbo::BezPath>) {
-        if let Some(content_track) = &self.text_content {
-            if !content_track.keyframes.is_empty() {
-                let current_text = content_track.evaluate(time_ms);
-                if current_text.is_empty() {
-                    return (Vec::new(), None);
-                }
+        if let Some(content_track) = &self.text_content
+            && !content_track.keyframes.is_empty()
+        {
+            let current_text = content_track.evaluate(time_ms);
+            if current_text.is_empty() {
+                return (Vec::new(), None);
             }
         }
         let default_paths = PropertyTrack::new(Vec::new());

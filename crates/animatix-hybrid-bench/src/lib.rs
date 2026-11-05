@@ -34,7 +34,7 @@ pub async fn run_compute(
     serde_wasm_bindgen::to_value(&r).map_err(|e| JsError::new(&e.to_string()))
 }
 
-/// Render the same scene with the WebGL2 hybrid backend.
+/// Render the same scene with the WebGL2 hybrid backend (sparse strips).
 #[wasm_bindgen]
 pub fn run_hybrid(
     canvas: web_sys::HtmlCanvasElement,

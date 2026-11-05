@@ -238,8 +238,12 @@ pub(crate) fn draw_context_menu(
         if any_hidden { "Show" } else { "Hide" },
     ));
 
-    let (clicked_idx, menu_rect) =
-        render_floating_menu(ui.ctx(), egui::Id::new("selection_context_menu"), menu_pos, &entries);
+    let (clicked_idx, menu_rect) = render_floating_menu(
+        ui.ctx(),
+        egui::Id::unique("selection_context_menu"),
+        menu_pos,
+        &entries,
+    );
 
     // Index layout: 0 header, 1 separator, 2..2+n actors, then 2+n separator and
     // the fixed action block.

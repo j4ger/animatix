@@ -197,12 +197,11 @@ impl LayoutEngine {
             // directly and the per-child `tracks.get` BTreeMap navigation
             // disappears from the steady-state frame.
             let cache = self.cache.borrow();
-            if let Some(bucket) = cache.get(&container_id) {
-                if bucket.children_are_keyframe_free {
-                    if let Some(positions) = &bucket.static_result {
-                        return std::sync::Arc::clone(positions);
-                    }
-                }
+            if let Some(bucket) = cache.get(&container_id)
+                && bucket.children_are_keyframe_free
+                && let Some(positions) = &bucket.static_result
+            {
+                return std::sync::Arc::clone(positions);
             }
         }
 
@@ -235,12 +234,12 @@ impl LayoutEngine {
 
         {
             let cache = self.cache.borrow();
-            if let Some(bucket) = cache.get(&container_id) {
-                if let Some((_, entry)) = bucket.entries.iter().find(|(key, _)| *key == dyn_key) {
-                    // Hit: share the cached positions (refcount bump, no clone
-                    // of the child map).
-                    return std::sync::Arc::clone(&entry.positions);
-                }
+            if let Some(bucket) = cache.get(&container_id)
+                && let Some((_, entry)) = bucket.entries.iter().find(|(key, _)| *key == dyn_key)
+            {
+                // Hit: share the cached positions (refcount bump, no clone
+                // of the child map).
+                return std::sync::Arc::clone(&entry.positions);
             }
         }
 

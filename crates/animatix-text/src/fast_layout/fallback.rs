@@ -12,17 +12,17 @@ use super::FastPathFace;
 pub(super) fn fallback_faces(font_ctx: &FontContext, primary_family: &str) -> Vec<FastPathFace> {
     let mut faces = Vec::new();
     for bf in BUNDLED_FONTS {
-        if bf.family != primary_family {
-            if let Some(face) = FastPathFace::from_data(bf.data, 0, bf.family.to_string()) {
-                faces.push(face);
-            }
+        if bf.family != primary_family
+            && let Some(face) = FastPathFace::from_data(bf.data, 0, bf.family.to_string())
+        {
+            faces.push(face);
         }
     }
     for loaded in font_ctx.loaded_faces() {
-        if loaded.family != primary_family {
-            if let Some(face) = FastPathFace::from_data(loaded.data, loaded.index, loaded.family) {
-                faces.push(face);
-            }
+        if loaded.family != primary_family
+            && let Some(face) = FastPathFace::from_data(loaded.data, loaded.index, loaded.family)
+        {
+            faces.push(face);
         }
     }
     faces

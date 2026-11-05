@@ -142,7 +142,9 @@ impl GpuFilterBackend {
             .map_err(|err| format!("Failed to receive mapped frame: {err}"))?
             .map_err(|err| format!("Failed to map filter frame: {err}"))?;
 
-        let data = buffer_slice.get_mapped_range();
+        let data = buffer_slice
+            .get_mapped_range()
+            .map_err(|err| format!("Failed to map filter frame: {err}"))?;
         let mut rgba = vec![0; (dimensions.width * dimensions.height * 4) as usize];
         for y in 0..dimensions.height as usize {
             let src_row = &data[y * self.bytes_per_row as usize
@@ -290,10 +292,9 @@ pub(super) fn scale_pixel_params(params: &[EffectParamSpec], scale: f32, uniform
     for spec in params.iter().filter(|spec| spec.is_pixel()) {
         let start = spec.offset as usize;
         let end = (spec.offset as usize + spec.size as usize).min(uniforms.len());
-        for lane in uniforms[start..end].chunks_exact_mut(4) {
-            let arr: [u8; 4] = lane.try_into().expect("chunks_exact(4) yields 4 bytes");
-            let v = f32::from_le_bytes(arr) * scale;
-            lane.copy_from_slice(&v.to_le_bytes());
+        for lane in uniforms[start..end].as_chunks_mut::<4>().0 {
+            let v = f32::from_le_bytes(*lane) * scale;
+            *lane = v.to_le_bytes();
         }
     }
 }

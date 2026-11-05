@@ -286,6 +286,7 @@ mod tests {
                 power_preference: wgpu::PowerPreference::default(),
                 compatible_surface: None,
                 force_fallback_adapter: true,
+                apply_limit_buckets: false,
             })
             .await
             .ok()?;
@@ -316,11 +317,11 @@ mod tests {
     #[test]
     fn renderer_core_has_renderer_after_init() {
         let maybe_device = pollster::block_on(create_headless_device());
-        if let Some((device, queue)) = maybe_device {
-            if let Ok(_core) = RendererCore::new(&device, &queue) {
-                // vello Renderer doesn't impl Debug, but we can verify it functions
-                // by checking it accepts render_vello_scene calls
-            }
+        if let Some((device, queue)) = maybe_device
+            && let Ok(_core) = RendererCore::new(&device, &queue)
+        {
+            // vello Renderer doesn't impl Debug, but we can verify it functions
+            // by checking it accepts render_vello_scene calls
         }
         // If no GPU is available, the test trivially passes
     }

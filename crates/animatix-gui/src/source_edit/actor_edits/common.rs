@@ -167,10 +167,10 @@ pub(super) fn extract_inline_item(stmts: &mut [Stmt], label: &str) -> Option<Inl
                 if let Some(extracted) = extract_inline_item(then_branch, label) {
                     return Some(extracted);
                 }
-                if let Some(else_branch) = else_branch {
-                    if let Some(extracted) = extract_inline_item(else_branch, label) {
-                        return Some(extracted);
-                    }
+                if let Some(else_branch) = else_branch
+                    && let Some(extracted) = extract_inline_item(else_branch, label)
+                {
+                    return Some(extracted);
                 }
             },
             Stmt::ForLoop { body, .. } => {

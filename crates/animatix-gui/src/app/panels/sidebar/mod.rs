@@ -111,15 +111,15 @@ pub(crate) fn sidebar_ui(ctx: &mut SidebarContext<'_>, ui: &mut egui::Ui) {
         ui.add_space(sp.base.space_3);
 
         // Slide-in animation on tab switch
-        let content_offset_id = ui.id().with("sidebar_slide");
+        let content_offset_id = ui.scope_id().with("sidebar_slide");
         if prev_tab != active_tab {
             ui.ctx().animate_value_with_time(content_offset_id, 6.0, 0.0);
             // Clear the file-tree / layer filters when leaving their tabs.
             if active_tab != SidebarTab::Project {
-                ui.data_mut(|d| d.remove::<String>(egui::Id::new(EXPLORER_FILTER_ID)));
+                ui.data_mut(|d| d.remove::<String>(egui::Id::unique(EXPLORER_FILTER_ID)));
             }
             if active_tab != SidebarTab::Outline {
-                ui.data_mut(|d| d.remove::<String>(egui::Id::new(LAYERS_FILTER_ID)));
+                ui.data_mut(|d| d.remove::<String>(egui::Id::unique(LAYERS_FILTER_ID)));
             }
         }
         let offset = anim::animate_toward(ui.ctx(), content_offset_id, 0.0, motion::PANEL);
@@ -183,7 +183,7 @@ pub(crate) fn sidebar_tab_content_ui(
         SidebarTab::Project => {
             let section = section_switcher(
                 ui,
-                ui.id().with("sidebar_project_section"),
+                ui.scope_id().with("sidebar_project_section"),
                 &[
                     (ProjectSection::Files, egui_phosphor::regular::FOLDER, "Files"),
                     (ProjectSection::Assets, egui_phosphor::regular::IMAGES, "Assets"),
@@ -214,7 +214,7 @@ pub(crate) fn sidebar_tab_content_ui(
         SidebarTab::Outline => {
             let section = section_switcher(
                 ui,
-                ui.id().with("sidebar_outline_section"),
+                ui.scope_id().with("sidebar_outline_section"),
                 &[
                     (OutlineSection::Layers, egui_phosphor::regular::STACK, "Layers"),
                     (OutlineSection::Scenes, egui_phosphor::regular::FILM_STRIP, "Scenes"),

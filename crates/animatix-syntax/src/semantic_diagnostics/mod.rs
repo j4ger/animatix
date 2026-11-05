@@ -254,10 +254,10 @@ fn collect_structural_container_labels(stmts: &[Stmt]) -> HashSet<String> {
                     children,
                     ..
                 } = item
+                    && !children.is_empty()
+                    && is_structural_container_type(ty)
                 {
-                    if !children.is_empty() && is_structural_container_type(ty) {
-                        structural.insert(label.clone());
-                    }
+                    structural.insert(label.clone());
                 }
             });
         }
@@ -330,14 +330,14 @@ fn find_decl_type_range(
     let mut index = label_index + 1;
     while index + 1 < tokens.len() {
         if matches!(tokens[index].kind, TokenKind::Colon) {
-            if let TokenKind::Ident(name) = &tokens[index + 1].kind {
-                if name == ty {
-                    let token = &tokens[index + 1];
-                    return Some((
-                        byte_to_line_col(source, token.span.start),
-                        byte_to_line_col(source, token.span.end),
-                    ));
-                }
+            if let TokenKind::Ident(name) = &tokens[index + 1].kind
+                && name == ty
+            {
+                let token = &tokens[index + 1];
+                return Some((
+                    byte_to_line_col(source, token.span.start),
+                    byte_to_line_col(source, token.span.end),
+                ));
             }
             break; // a different type name on this declaration
         }

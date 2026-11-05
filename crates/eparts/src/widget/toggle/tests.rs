@@ -101,7 +101,7 @@ fn ids_for_same_ptr() -> (egui::Id, egui::Id, egui::Id, egui::Id) {
     let mut under_a = egui::Id::NULL;
     let mut under_b = egui::Id::NULL;
     let mut top_level = egui::Id::NULL;
-    let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+    let _ = crate::run_ui(&ctx, egui::RawInput::default(), |ui| {
         top_level = animation_id(ui, &value as *const u32);
         ui.push_id("panel_a", |ui| {
             under_a = animation_id(ui, &value as *const u32);
@@ -111,7 +111,7 @@ fn ids_for_same_ptr() -> (egui::Id, egui::Id, egui::Id, egui::Id) {
         });
     });
     // The pre-fix construction: keyed on the raw address alone.
-    let legacy = egui::Id::new(&value as *const u32);
+    let legacy = egui::Id::unique(&value as *const u32);
     (under_a, under_b, top_level, legacy)
 }
 
@@ -132,7 +132,7 @@ fn animation_id_is_namespaced_by_parent_ui() {
 fn toggle_widgets_render_with_namespaced_animation_ids() {
     let ctx = egui::Context::default();
     let mut flag = false;
-    let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+    let _ = crate::run_ui(&ctx, egui::RawInput::default(), |ui| {
         ui.push_id("ns_panel", |ui| {
             ui.add(Checkbox::new(&mut flag).label("Check"));
             ui.add(Switch::new(&mut flag).label("Switch"));
@@ -170,7 +170,7 @@ fn toggle_widgets_render_in_both_themes() {
     for t in [theme::Theme::dark(), theme::Theme::light()] {
         crate::tokens::theme::set_theme(&ctx, t);
         let mut flag = false;
-        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+        let _ = crate::run_ui(&ctx, egui::RawInput::default(), |ui| {
             ui.add(Checkbox::new(&mut flag).label("Check"));
             ui.add(Switch::new(&mut flag).label("Switch"));
             ui.add_enabled(false, Checkbox::new(&mut flag).label("Disabled"));

@@ -200,10 +200,10 @@ impl ReviewReport {
         } else {
             lines.push("# render tier skipped: only structural `invisible` hints below.".into());
             for issue in &self.issues {
-                if issue.rule_id == "actor.opacity-never-positive" {
-                    if let Some(actor) = &issue.actor {
-                        lines.push(format!("invisible 0.000 {actor}"));
-                    }
+                if issue.rule_id == "actor.opacity-never-positive"
+                    && let Some(actor) = &issue.actor
+                {
+                    lines.push(format!("invisible 0.000 {actor}"));
                 }
             }
         }

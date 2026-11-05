@@ -71,14 +71,14 @@ pub(super) fn rewrite_expr(
 
                 // If the path starts with `self` followed by the root label, skip the root label
                 let rest = if first == "self" {
-                    if let Some((second, remaining)) = rest.split_first() {
-                        if root_label == Some(second.as_str()) {
-                            let mut result = split_rewritten_label(&rewritten_first);
-                            for seg in remaining {
-                                result.push(rewrite_label(seg, prefix, root_label, known_labels));
-                            }
-                            return Expr::Path(result);
+                    if let Some((second, remaining)) = rest.split_first()
+                        && root_label == Some(second.as_str())
+                    {
+                        let mut result = split_rewritten_label(&rewritten_first);
+                        for seg in remaining {
+                            result.push(rewrite_label(seg, prefix, root_label, known_labels));
                         }
+                        return Expr::Path(result);
                     }
                     rest
                 } else {
@@ -261,18 +261,17 @@ pub(super) fn rewrite_label_path(
     // If the path starts with `self` followed by the root label, skip the root label
     // since `self` already resolves to the prefixed root actor.
     let rest = if first_str == "self" {
-        if let Some((second, remaining)) = rest_static.split_first() {
-            if root_label == Some(second) {
-                let mut result: Vec<TargetSegment> = split_rewritten_label(&rewritten_first)
-                    .into_iter()
-                    .map(TargetSegment::Static)
-                    .collect();
-                for seg in remaining {
-                    result
-                        .push(TargetSegment::Static(rewrite_path_segment(seg, prefix, root_label)));
-                }
-                return result;
+        if let Some((second, remaining)) = rest_static.split_first()
+            && root_label == Some(second)
+        {
+            let mut result: Vec<TargetSegment> = split_rewritten_label(&rewritten_first)
+                .into_iter()
+                .map(TargetSegment::Static)
+                .collect();
+            for seg in remaining {
+                result.push(TargetSegment::Static(rewrite_path_segment(seg, prefix, root_label)));
             }
+            return result;
         }
         rest
     } else {

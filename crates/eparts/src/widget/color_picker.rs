@@ -23,6 +23,7 @@ use egui::{Color32, CornerRadius, Id, Response, Stroke, Ui};
 use crate::spatial;
 use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::tokens::theme::theme;
+use crate::widget::IntoWidgetId;
 use crate::widget::input::TextField;
 use crate::widget::popover::Popover;
 
@@ -86,9 +87,9 @@ pub struct ColorPicker<'a> {
 
 impl<'a> ColorPicker<'a> {
     /// Create a new `ColorPicker` bound to `color`.
-    pub fn new(id: impl Into<Id>, color: &'a mut Color32) -> Self {
+    pub fn new(id: impl IntoWidgetId, color: &'a mut Color32) -> Self {
         Self {
-            id: id.into(),
+            id: id.into_widget_id(),
             color,
             show_alpha: true,
             swatches: Vec::new(),
@@ -196,17 +197,17 @@ impl<'a> ColorPicker<'a> {
                         matches!(s.len(), 6 | 8) && s.chars().all(|c| c.is_ascii_hexdigit())
                     })
                     .show(ui);
-                if hex_resp.response.lost_focus() || hex_resp.response.changed() {
-                    if let Some(parsed) = parse_hex_color(&hex_buf) {
-                        let new_color = if show_alpha {
-                            parsed
-                        } else {
-                            Color32::from_rgb(parsed.r(), parsed.g(), parsed.b())
-                        };
-                        if new_color != *color {
-                            *color = new_color;
-                            changed = true;
-                        }
+                if (hex_resp.response.lost_focus() || hex_resp.response.changed())
+                    && let Some(parsed) = parse_hex_color(&hex_buf)
+                {
+                    let new_color = if show_alpha {
+                        parsed
+                    } else {
+                        Color32::from_rgb(parsed.r(), parsed.g(), parsed.b())
+                    };
+                    if new_color != *color {
+                        *color = new_color;
+                        changed = true;
                     }
                 }
             });

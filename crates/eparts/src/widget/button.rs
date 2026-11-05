@@ -1,4 +1,4 @@
-use egui::{Color32, Response, Sense, Vec2, WidgetInfo, WidgetType};
+use egui::{Color32, Response, Role, Sense, Vec2, WidgetInfo};
 
 use crate::tokens::spatial::{RADIUS_S, ROW_M, SPACE_3, STROKE_WIDTH};
 use crate::tokens::theme;
@@ -474,13 +474,13 @@ impl egui::Widget for Button {
         );
 
         let response = finish_response(ui, response, self.tooltip);
-        if response.hovered() {
-            if let Some(cb) = self.on_hover.take() {
-                cb();
-            }
+        if response.hovered()
+            && let Some(cb) = self.on_hover.take()
+        {
+            cb();
         }
         response.widget_info(|| {
-            WidgetInfo::labeled(WidgetType::Button, ui.is_enabled(), accessible_label.clone())
+            WidgetInfo::labeled(Role::Button, ui.is_enabled(), accessible_label.clone())
         });
         response
     }

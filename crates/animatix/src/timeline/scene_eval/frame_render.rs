@@ -198,11 +198,11 @@ impl Timeline {
                 if debug_options.compute_hit_regions && !cached_hit_regions.is_empty() {
                     out.hit_regions.extend(cached_hit_regions.iter().cloned());
                 }
-                if let Some(items) = out.program_items.as_mut() {
-                    if !cached_items.is_empty() {
-                        items.reserve(cached_items.len());
-                        items.extend(cached_items.iter().cloned());
-                    }
+                if let Some(items) = out.program_items.as_mut()
+                    && !cached_items.is_empty()
+                {
+                    items.reserve(cached_items.len());
+                    items.extend(cached_items.iter().cloned());
                 }
                 hit = true;
             }

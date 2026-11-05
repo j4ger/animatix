@@ -279,14 +279,14 @@ pub(crate) fn parse_stop_color(value: &str) -> (u8, u8, u8) {
                 let b = u8::from_str_radix(&format!("{bc}{bc}"), 16).unwrap_or(0);
                 return (r, g, b);
             }
-        } else if hex.len() == 6 {
-            if let (Ok(r), Ok(g), Ok(b)) = (
+        } else if hex.len() == 6
+            && let (Ok(r), Ok(g), Ok(b)) = (
                 u8::from_str_radix(&hex[0..2], 16),
                 u8::from_str_radix(&hex[2..4], 16),
                 u8::from_str_radix(&hex[4..6], 16),
-            ) {
-                return (r, g, b);
-            }
+            )
+        {
+            return (r, g, b);
         }
         return (0, 0, 0);
     }
@@ -384,12 +384,12 @@ pub(crate) fn collect_masks_recursive(node: &Node, masks: &mut HashMap<String, M
         if !child.is_element() {
             continue;
         }
-        if child.tag_name().name() == "mask" {
-            if let Some(id) = child.attribute("id") {
-                let path_data = extract_shape_path_data(&child);
-                if !path_data.is_empty() {
-                    masks.insert(id.to_string(), MaskDef { path_data });
-                }
+        if child.tag_name().name() == "mask"
+            && let Some(id) = child.attribute("id")
+        {
+            let path_data = extract_shape_path_data(&child);
+            if !path_data.is_empty() {
+                masks.insert(id.to_string(), MaskDef { path_data });
             }
         }
         collect_masks_recursive(&child, masks);
@@ -405,10 +405,9 @@ pub(crate) fn resolve_gradient_url(
 ) -> Option<(u8, u8, u8)> {
     let value = value.trim();
     if let Some(inner) = value.strip_prefix("url(#") {
-        let id = if let Some(end) = inner.find(')') {
+        let id = {
+            let end = inner.find(')')?;
             &inner[..end]
-        } else {
-            return None;
         };
         if let Some(grad) = gradients.get(id) {
             Some(grad.approximate_solid_color())

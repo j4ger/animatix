@@ -227,7 +227,7 @@ fn paint_scene_edges(
         // Tooltip on hover
         let badge_resp = ui.interact(
             badge_rect,
-            ui.id().with(("transition_badge", src_name, &edge.to_scene)),
+            ui.scope_id().with(("transition_badge", src_name, &edge.to_scene)),
             Sense::hover(),
         );
         let dur_s = edge.transition.duration_ms as f64 / 1000.0;
@@ -238,7 +238,7 @@ fn paint_scene_edges(
         };
         text_tooltip(
             ui,
-            ui.id().with(("transition_tooltip", src_name, &edge.to_scene)),
+            ui.scope_id().with(("transition_tooltip", src_name, &edge.to_scene)),
             &badge_resp,
             &format!("{:?} → {} [{}]", edge.transition.id, edge.to_scene, dur_text),
         );
@@ -387,11 +387,11 @@ pub(crate) fn render_scene_track(
 
     // Scene track interaction (click to scrub, drag scene blocks to reorder)
     let scene_bar_resp =
-        ui.interact(bar_area, ui.id().with("scene_track"), Sense::click_and_drag());
-    if scene_bar_resp.drag_started() {
-        if let Some(hit) = scene_drag_start(&scene_bar_resp, comp, bar_area, coords) {
-            new_scene_drag = Some(hit);
-        }
+        ui.interact(bar_area, ui.scope_id().with("scene_track"), Sense::click_and_drag());
+    if scene_bar_resp.drag_started()
+        && let Some(hit) = scene_drag_start(&scene_bar_resp, comp, bar_area, coords)
+    {
+        new_scene_drag = Some(hit);
     }
     if scene_bar_resp.dragged() && scene_drag.is_some() {
         scene_drag_update(&scene_bar_resp, comp, bar_area, coords, &mut new_scene_drag);

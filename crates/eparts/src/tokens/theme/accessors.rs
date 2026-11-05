@@ -11,13 +11,13 @@ pub fn theme(ui: &egui::Ui) -> Theme {
 
 /// Read the current `Theme` from an `egui::Context`.
 pub fn theme_from_ctx(ctx: &Context) -> Theme {
-    ctx.data(|d| d.get_temp::<Theme>(egui::Id::new("eparts_theme")))
+    ctx.data(|d| d.get_temp::<Theme>(egui::Id::unique("eparts_theme")))
         .unwrap_or_default()
 }
 
 /// Store a new `Theme` in the `egui::Context`'s `Memory`.
 pub fn set_theme(ctx: &Context, theme: Theme) {
-    ctx.data_mut(|d| d.insert_temp(egui::Id::new("eparts_theme"), theme));
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique("eparts_theme"), theme));
 }
 
 // ── App theme choice / system auto-theme policy (B11) ─────────────────

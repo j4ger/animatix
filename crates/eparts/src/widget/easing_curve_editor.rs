@@ -133,7 +133,7 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
     let mut changed = false;
 
     // P1 handle
-    let p1_id = ui.id().with("easing_p1");
+    let p1_id = ui.scope_id().with("easing_p1");
     let p1_response = ui.interact(
         Rect::from_center_size(p1, Vec2::splat(handle_radius * 2.0)),
         p1_id,
@@ -156,7 +156,7 @@ pub fn easing_curve_editor(ui: &mut egui::Ui, state: EasingCurveState) -> Option
     painter.circle_stroke(p1, handle_radius + 1.5, Stroke::new(1.5, t.palette.text.primary));
 
     // P2 handle
-    let p2_id = ui.id().with("easing_p2");
+    let p2_id = ui.scope_id().with("easing_p2");
     let p2_response = ui.interact(
         Rect::from_center_size(p2, Vec2::splat(handle_radius * 2.0)),
         p2_id,

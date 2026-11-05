@@ -99,14 +99,14 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
     let theme = eparts::theme(ui);
     let sp = spatial(ui);
     let outer = ui.available_rect_before_wrap();
-
     // Focus the panel on click, not hover (mirrors the timeline): clicking the
     // curves editor focuses it and clicking elsewhere releases it.
     if ui.input(|i| i.pointer.primary_pressed()) {
         *ctx.timeline_focused = ui.rect_contains_pointer(outer);
     }
     if *ctx.timeline_focused {
-        let layer = egui::LayerId::new(egui::Order::Foreground, ui.id().with("curves_focus_ring"));
+        let layer =
+            egui::LayerId::new(egui::Order::Foreground, ui.scope_id().with("curves_focus_ring"));
         ui.ctx().layer_painter(layer).rect_stroke(
             outer.shrink(1.0),
             egui::CornerRadius::ZERO,
@@ -114,7 +114,6 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
             egui::StrokeKind::Inside,
         );
     }
-
     let Some(timeline) = ctx.timeline else {
         layout::empty_state(
             ui,
@@ -211,7 +210,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
     }
 
     // ── Legend ──────────────────────────────────────────────────────────
-    let visibility_id = ui.id().with("curves_visibility");
+    let visibility_id = ui.scope_id().with("curves_visibility");
     let mut visibility = curve_plot::legend_visibility(ui, visibility_id, &curves);
     let legend_rect = egui::Rect::from_min_size(
         Pos2::new(outer.left() + PLOT_PADDING, header_rect.bottom()),
@@ -260,7 +259,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
     curve_plot::draw_value_grid(&painter, &axis, theme);
 
     // ── Drag state ──────────────────────────────────────────────────────
-    let drag_id = ui.id().with("curves_kf_drag");
+    let drag_id = ui.scope_id().with("curves_kf_drag");
     let drag: Option<CurveDrag> = ui.data(|d| d.get_temp(drag_id));
     let shift_held = ui.input(|i| i.modifiers.shift);
     let mut new_drag = drag.clone();
@@ -307,7 +306,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
             let hit_rect = egui::Rect::from_center_size(draw_pos, Vec2::splat(KF_HIT_RADIUS * 2.0));
             let resp = ui.interact(
                 hit_rect,
-                ui.id().with(("curves_kf", curve.label.as_str(), i)),
+                ui.scope_id().with(("curves_kf", curve.label.as_str(), i)),
                 Sense::click_and_drag(),
             );
 
@@ -335,15 +334,16 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
 
     // ── Ruler interaction ───────────────────────────────────────────────
     draw_ruler(&painter, ruler_rect, &axis, duration_s, theme);
-    let ruler_resp = ui.interact(ruler_rect, ui.id().with("curves_ruler"), Sense::click_and_drag());
-    if ruler_resp.clicked() || ruler_resp.dragged() {
-        if let Some(pos) = ruler_resp.interact_pointer_pos() {
-            let mut t = axis.time_at_x(pos.x);
-            if !shift_held {
-                t = snap_time(t, ctx.snap_fps);
-            }
-            ctx.commands.push_back(Command::ScrubTo(t).into());
+    let ruler_resp =
+        ui.interact(ruler_rect, ui.scope_id().with("curves_ruler"), Sense::click_and_drag());
+    if (ruler_resp.clicked() || ruler_resp.dragged())
+        && let Some(pos) = ruler_resp.interact_pointer_pos()
+    {
+        let mut t = axis.time_at_x(pos.x);
+        if !shift_held {
+            t = snap_time(t, ctx.snap_fps);
         }
+        ctx.commands.push_back(Command::ScrubTo(t).into());
     }
 
     // ── Keyframe interactions ───────────────────────────────────────────
@@ -445,39 +445,39 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
             });
         }
 
-        if resp.dragged() {
-            if let (Some(d), Some(pos)) = (new_drag.as_mut(), resp.interact_pointer_pos()) {
-                d.accum += resp.drag_delta();
-                if d.mode.is_none() && d.accum.length() > DRAG_AXIS_THRESHOLD {
-                    d.mode = Some(if d.accum.x.abs() >= d.accum.y.abs() {
-                        DragMode::Time
+        if resp.dragged()
+            && let (Some(d), Some(pos)) = (new_drag.as_mut(), resp.interact_pointer_pos())
+        {
+            d.accum += resp.drag_delta();
+            if d.mode.is_none() && d.accum.length() > DRAG_AXIS_THRESHOLD {
+                d.mode = Some(if d.accum.x.abs() >= d.accum.y.abs() {
+                    DragMode::Time
+                } else {
+                    DragMode::Value
+                });
+            }
+            match d.mode {
+                Some(DragMode::Time) => {
+                    let t = axis.time_at_x(pos.x);
+                    d.target_time_s = if shift_held {
+                        t
                     } else {
-                        DragMode::Value
-                    });
-                }
-                match d.mode {
-                    Some(DragMode::Time) => {
-                        let t = axis.time_at_x(pos.x);
-                        d.target_time_s = if shift_held {
-                            t
-                        } else {
-                            snap_time(t, ctx.snap_fps)
-                        };
-                    },
-                    Some(DragMode::Value) => {
-                        if let Some(v) = d.value_edit.as_mut() {
-                            v.current_value = axis.value_at_y(pos.y);
-                        }
-                    },
-                    None => {},
-                }
+                        snap_time(t, ctx.snap_fps)
+                    };
+                },
+                Some(DragMode::Value) => {
+                    if let Some(v) = d.value_edit.as_mut() {
+                        v.current_value = axis.value_at_y(pos.y);
+                    }
+                },
+                None => {},
             }
         }
 
-        if resp.drag_stopped() {
-            if let Some(d) = new_drag.take() {
-                emit_drag_commands(ctx.commands, &d, &tracks, &scene, timeline);
-            }
+        if resp.drag_stopped()
+            && let Some(d) = new_drag.take()
+        {
+            emit_drag_commands(ctx.commands, &d, &tracks, &scene, timeline);
         }
     }
 

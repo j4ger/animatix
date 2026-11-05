@@ -70,7 +70,7 @@ impl PreviewContext<'_> {
                     egui::Tooltip::always_open(
                         ui.ctx().clone(),
                         ui.layer_id(),
-                        egui::Id::new("handle_tooltip"),
+                        egui::Id::unique("handle_tooltip"),
                         egui::PopupAnchor::Pointer,
                     )
                     .show(|ui| {
@@ -563,21 +563,21 @@ impl PreviewContext<'_> {
 
         let tx = self.preview_transform(preview_rect);
         let mut ghost_ops = Vec::new();
-        if let Some(prev_ms) = prev_time_ms {
-            if let Some(prev_props) = self.get_actor_props_at_time(actor, prev_ms) {
-                ghost_ops.extend(ghost_overlay_ops(
-                    &prev_props,
-                    crate::app::design_tokens::semantic::canvas::ghost_prev(),
-                ));
-            }
+        if let Some(prev_ms) = prev_time_ms
+            && let Some(prev_props) = self.get_actor_props_at_time(actor, prev_ms)
+        {
+            ghost_ops.extend(ghost_overlay_ops(
+                &prev_props,
+                crate::app::design_tokens::semantic::canvas::ghost_prev(),
+            ));
         }
-        if let Some(next_ms) = next_time_ms {
-            if let Some(next_props) = self.get_actor_props_at_time(actor, next_ms) {
-                ghost_ops.extend(ghost_overlay_ops(
-                    &next_props,
-                    crate::app::design_tokens::semantic::canvas::ghost_next(),
-                ));
-            }
+        if let Some(next_ms) = next_time_ms
+            && let Some(next_props) = self.get_actor_props_at_time(actor, next_ms)
+        {
+            ghost_ops.extend(ghost_overlay_ops(
+                &next_props,
+                crate::app::design_tokens::semantic::canvas::ghost_next(),
+            ));
         }
         execute_overlay_ops(ui.painter(), &ghost_ops, &tx);
     }

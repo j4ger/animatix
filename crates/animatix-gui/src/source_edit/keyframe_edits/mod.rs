@@ -43,10 +43,10 @@ fn assignment_target(actor: &str, property: &str) -> (Vec<TargetSegment>, String
 /// Return the body of a named composition scene, or `None` when absent.
 fn scene_body_mut<'a>(stmts: &'a mut [Stmt], scene_name: &str) -> Option<&'a mut Vec<Stmt>> {
     for stmt in stmts {
-        if let Stmt::Scene { name, body, .. } = stmt {
-            if name == scene_name {
-                return Some(body);
-            }
+        if let Stmt::Scene { name, body, .. } = stmt
+            && name == scene_name
+        {
+            return Some(body);
         }
     }
     None

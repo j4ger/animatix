@@ -587,41 +587,41 @@ impl Timeline {
         }
 
         let mut procedural_plot = None;
-        if is_vector_field || is_heatmap || is_contour_set {
-            if let Some((args, body, captures)) = func.as_ref() {
-                let plot_type = if is_vector_field {
-                    crate::timeline::plot::ProceduralPlotKind::VectorField
-                } else if is_heatmap {
-                    crate::timeline::plot::ProceduralPlotKind::Heatmap
-                } else {
-                    crate::timeline::plot::ProceduralPlotKind::ContourSet
-                };
-                let param_names: Vec<String> = plot_params.iter().map(|(n, _)| n.clone()).collect();
+        if (is_vector_field || is_heatmap || is_contour_set)
+            && let Some((args, body, captures)) = func.as_ref()
+        {
+            let plot_type = if is_vector_field {
+                crate::timeline::plot::ProceduralPlotKind::VectorField
+            } else if is_heatmap {
+                crate::timeline::plot::ProceduralPlotKind::Heatmap
+            } else {
+                crate::timeline::plot::ProceduralPlotKind::ContourSet
+            };
+            let param_names: Vec<String> = plot_params.iter().map(|(n, _)| n.clone()).collect();
 
-                procedural_plot = Some(ProceduralPlot {
-                    plot_type,
-                    kind: parsed.kind,
-                    func_args: args.clone(),
-                    func_body: (**body).clone(),
-                    actor_label: label.to_string(),
-                    param_names,
-                    p_x_domain: parsed.x_domain,
-                    p_y_domain: parsed.y_domain,
-                    p_size: [size[0] as f64, size[1] as f64],
-                    padding: [0.0; 4],
-                    t_domain: parsed.t_domain,
-                    tolerance: parsed.tolerance,
-                    max_depth: parsed.max_depth as usize,
-                    resolution: parsed.resolution as usize,
-                    density: parsed.density as usize,
-                    levels: parsed.levels.clone(),
-                    stroke_width: parsed.stroke_width,
-                    stroke_color: parsed.stroke_color,
-                    fill_color: parsed.color,
-                    params: plot_params.to_vec(),
-                    extra_captures: captures.clone(),
-                });
-            }
+            procedural_plot = Some(ProceduralPlot {
+                plot_type,
+                kind: parsed.kind,
+                func_args: args.clone(),
+                func_body: (**body).clone(),
+                actor_label: label.to_string(),
+                param_names,
+                p_x_domain: parsed.x_domain,
+                p_y_domain: parsed.y_domain,
+                p_size: [size[0] as f64, size[1] as f64],
+                padding: [0.0; 4],
+                t_domain: parsed.t_domain,
+                tolerance: parsed.tolerance,
+                max_depth: parsed.max_depth as usize,
+                resolution: parsed.resolution as usize,
+                density: parsed.density as usize,
+                levels: parsed.levels.clone(),
+                stroke_width: parsed.stroke_width,
+                stroke_color: parsed.stroke_color,
+                fill_color: parsed.color,
+                params: plot_params.to_vec(),
+                extra_captures: captures.clone(),
+            });
         }
 
         (vello_paths, procedural_plot)

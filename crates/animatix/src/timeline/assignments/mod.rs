@@ -492,27 +492,27 @@ impl Timeline {
             plan.easing,
             diagnostics,
         );
-
         // For stroke-only shapes, a `color` assignment also sets
         // `stroke_color` — they paint from it and nothing else.
-        if property == "color" && stroke_only {
-            if let Some(spv) = parse_property_value(
+        if property == "color"
+            && stroke_only
+            && let Some(spv) = parse_property_value(
                 schema.value_type,
                 value,
                 &plan.eval_env,
                 diagnostics,
                 &plan.subject,
-            ) {
-                self.world.write_property_field(
-                    plan.track_id,
-                    crate::timeline::ActorField::StrokeColor,
-                    spv,
-                    plan.t_start_ms,
-                    plan.t_end_ms,
-                    plan.easing,
-                    diagnostics,
-                );
-            }
+            )
+        {
+            self.world.write_property_field(
+                plan.track_id,
+                crate::timeline::ActorField::StrokeColor,
+                spv,
+                plan.t_start_ms,
+                plan.t_end_ms,
+                plan.easing,
+                diagnostics,
+            );
         }
 
         // If this property affects shape geometry, rebuild vector paths

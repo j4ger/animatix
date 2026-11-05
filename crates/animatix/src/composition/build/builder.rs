@@ -165,10 +165,10 @@ impl Composition {
     /// Looks for a `duration` property with a numeric value (in seconds).
     fn extract_duration_from_config(config: &[Property]) -> Option<f64> {
         for prop in config {
-            if prop.name == "duration" {
-                if let Expr::Num(val) = prop.value {
-                    return Some(val);
-                }
+            if prop.name == "duration"
+                && let Expr::Num(val) = prop.value
+            {
+                return Some(val);
             }
         }
         None

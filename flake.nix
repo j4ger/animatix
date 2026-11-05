@@ -97,6 +97,8 @@
             wayland
             mesa
 
+            # `stable.latest` tracks flake.lock's rust-overlay; the workspace
+            # MSRV is documented in `Cargo.toml` (1.95, set by egui 0.37).
             rust-bin.stable.latest.default
 
             # The release act. Pinned in practice by flake.lock's nixpkgs revision,

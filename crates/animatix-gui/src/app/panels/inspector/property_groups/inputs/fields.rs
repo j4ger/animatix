@@ -290,19 +290,21 @@ pub(super) fn render_color_input(
                 egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(false),
                 |ui| {
                     ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, 0.0);
-                    let response =
-                        ColorPicker::new(ui.id().with(("color", entry.name.as_str())), &mut color)
-                            .swatches(&[
-                                theme.palette.accent.primary,
-                                theme.palette.status.success,
-                                theme.palette.status.warning,
-                                theme.palette.status.error,
-                                theme.palette.text.primary,
-                                theme.palette.text.muted,
-                                theme.palette.surface.surface,
-                                theme.palette.surface.widget,
-                            ])
-                            .show(ui);
+                    let response = ColorPicker::new(
+                        ui.scope_id().with(("color", entry.name.as_str())),
+                        &mut color,
+                    )
+                    .swatches(&[
+                        theme.palette.accent.primary,
+                        theme.palette.status.success,
+                        theme.palette.status.warning,
+                        theme.palette.status.error,
+                        theme.palette.text.primary,
+                        theme.palette.text.muted,
+                        theme.palette.surface.surface,
+                        theme.palette.surface.widget,
+                    ])
+                    .show(ui);
                     ui.add(
                         egui::Label::new(
                             egui::RichText::new(color_to_hex_rgba(color))
@@ -356,7 +358,11 @@ pub(super) fn render_enum_input(
             *ui.style_mut() = flat_style.clone();
             ui.add_sized(
                 Vec2::new(ui.available_width(), row_height - sp.base.space_2),
-                Select::new(ui.id().with(("enum", entry.name.as_str())), &mut selected, variants),
+                Select::new(
+                    ui.scope_id().with(("enum", entry.name.as_str())),
+                    &mut selected,
+                    variants,
+                ),
             );
         },
     );
@@ -399,7 +405,7 @@ pub(super) fn render_enum_owned_input(
             ui.add_sized(
                 Vec2::new(ui.available_width(), row_height - sp.base.space_2),
                 Select::new(
-                    ui.id().with(("enum_owned", entry.name.as_str())),
+                    ui.scope_id().with(("enum_owned", entry.name.as_str())),
                     selected_ref,
                     variants.as_slice(),
                 ),

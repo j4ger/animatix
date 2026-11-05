@@ -115,12 +115,11 @@ impl Timeline {
                 .get(time_ms, PlacementMode::LayoutManaged);
             let mut base_position = self.world.geometry(node_id).position.get(time_ms, [0.0, 0.0]);
 
-            if self.dynamic_layout {
-                if let Some(layout_pos) = current_layout_positions.get_by_id(node_id) {
-                    if placement_mode == PlacementMode::LayoutManaged {
-                        base_position = *layout_pos;
-                    }
-                }
+            if self.dynamic_layout
+                && let Some(layout_pos) = current_layout_positions.get_by_id(node_id)
+                && placement_mode == PlacementMode::LayoutManaged
+            {
+                base_position = *layout_pos;
             }
 
             let binding = self

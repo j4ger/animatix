@@ -113,10 +113,10 @@ impl FastImplicitEvaluator {
     pub fn eval(&mut self, x: f64, y: f64) -> f64 {
         let mut sum = 0.0;
         for leaf in &mut self.leaves {
-            if let Some(y_slot) = leaf.y_slot {
-                if let Some(slot) = leaf.slots.get_mut(y_slot) {
-                    *slot = y;
-                }
+            if let Some(y_slot) = leaf.y_slot
+                && let Some(slot) = leaf.slots.get_mut(y_slot)
+            {
+                *slot = y;
             }
             if let FastExprKind::Scalar(ref expr) = leaf.program.expr {
                 sum += leaf.weight * expr.eval(x, &leaf.slots);

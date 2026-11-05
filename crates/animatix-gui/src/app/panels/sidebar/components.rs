@@ -20,7 +20,7 @@ pub(super) fn components_content_ui(ctx: &mut ComponentsContext<'_>, ui: &mut eg
         names.sort();
         for name in names {
             let entry = &ctx.components[name];
-            let row_id = ui.id().with(name);
+            let row_id = ui.scope_id().with(name);
             let response = row::Row::new(name)
                 .icon(Some(egui_phosphor::regular::CUBE))
                 .label_color(t.palette.text.secondary)

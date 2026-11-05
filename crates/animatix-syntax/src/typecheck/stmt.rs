@@ -42,35 +42,32 @@ impl<'a> TypeEnv<'a> {
                 for target in &action.targets {
                     // Try component timeline function first
                     let mut checked = false;
-                    if let Some(component_name) = self.labels.get(target) {
-                        if let Some(entry) = self.components.get(component_name) {
-                            if let Some(template) = entry.actions.get(&action.verb) {
-                                self.check_action_invocation(
-                                    &action.verb,
-                                    target,
-                                    component_name,
-                                    &template.params,
-                                    &action.modifiers,
-                                    action.byte_span,
-                                    diagnostics,
-                                );
-                                checked = true;
-                            }
-                        }
+                    if let Some(component_name) = self.labels.get(target)
+                        && let Some(entry) = self.components.get(component_name)
+                        && let Some(template) = entry.actions.get(&action.verb)
+                    {
+                        self.check_action_invocation(
+                            &action.verb,
+                            target,
+                            component_name,
+                            &template.params,
+                            &action.modifiers,
+                            action.byte_span,
+                            diagnostics,
+                        );
+                        checked = true;
                     }
                     // Fall back to module-scoped action
-                    if !checked {
-                        if let Some(template) = self.module_fns.get(&action.verb) {
-                            self.check_action_invocation(
-                                &action.verb,
-                                target,
-                                "module",
-                                &template.params,
-                                &action.modifiers,
-                                action.byte_span,
-                                diagnostics,
-                            );
-                        }
+                    if !checked && let Some(template) = self.module_fns.get(&action.verb) {
+                        self.check_action_invocation(
+                            &action.verb,
+                            target,
+                            "module",
+                            &template.params,
+                            &action.modifiers,
+                            action.byte_span,
+                            diagnostics,
+                        );
                     }
                 }
             },

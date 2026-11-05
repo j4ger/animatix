@@ -157,10 +157,8 @@ fn seed_assets(cache: &mut AssetCache, sources: &[Fetched]) -> Vec<String> {
                         }
                     }
                     #[cfg(feature = "image-decode")]
-                    if !svg {
-                        if let Err(e) = cache.insert_image_bytes(&url, &bytes) {
-                            unfetchable.push(format!("{url} ({path:?}): {e}"));
-                        }
+                    if !svg && let Err(e) = cache.insert_image_bytes(&url, &bytes) {
+                        unfetchable.push(format!("{url} ({path:?}): {e}"));
                     }
                 },
             }

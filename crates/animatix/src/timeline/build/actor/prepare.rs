@@ -98,12 +98,11 @@ impl Timeline {
             ) {
                 diagnostics.append(&mut diags);
             }
-            if let Some(id) = self.world.get_id(label) {
-                if self.world.decl_span.get(id).is_none()
-                    && let Some(span) = decl_span
-                {
-                    self.world.decl_span.get_or_insert_with(id, || span);
-                }
+            if let Some(id) = self.world.get_id(label)
+                && self.world.decl_span.get(id).is_none()
+                && let Some(span) = decl_span
+            {
+                self.world.decl_span.get_or_insert_with(id, || span);
             }
             return true;
         }
@@ -111,24 +110,23 @@ impl Timeline {
         // Extension primitives are dispatched through the active runtime
         // registry. Built-ins remain on the static actor-kind path below.
         let registry = self.primitive_registry.clone();
-        if let Some(primitive) = registry.find(ty) {
-            if !registry.is_builtin(ty) {
-                let caps =
-                    registry.info_of(ty).map(animatix_std::caps_from_info).unwrap_or_default();
-                return self.build_extension_actor(
-                    label,
-                    ty,
-                    primitive,
-                    caps,
-                    props,
-                    modifiers,
-                    children,
-                    time_ms,
-                    parent_label,
-                    diagnostics,
-                    decl_span,
-                );
-            }
+        if let Some(primitive) = registry.find(ty)
+            && !registry.is_builtin(ty)
+        {
+            let caps = registry.info_of(ty).map(animatix_std::caps_from_info).unwrap_or_default();
+            return self.build_extension_actor(
+                label,
+                ty,
+                primitive,
+                caps,
+                props,
+                modifiers,
+                children,
+                time_ms,
+                parent_label,
+                diagnostics,
+                decl_span,
+            );
         }
 
         // A behavior can be registered directly on the behavior table without

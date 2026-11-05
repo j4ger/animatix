@@ -140,7 +140,8 @@ fn trigger_fills_add_sized_rect() {
     let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(320.0, 120.0));
     let mut sel = None;
     let mut rect = None;
-    let _ = ctx.run_ui(
+    let _ = crate::run_ui(
+        &ctx,
         egui::RawInput {
             screen_rect: Some(screen),
             ..Default::default()
@@ -189,7 +190,7 @@ fn run_select(
     id: &'static str,
     selected: &mut Option<usize>,
 ) {
-    let _ = ctx.run_ui(input, |ui| {
+    let _ = crate::run_ui(ctx, input, |ui| {
         ui.add(Select::new(id, selected, &["A", "B", "C"]));
     });
 }
@@ -199,7 +200,7 @@ fn run_select(
 #[test]
 fn arrow_down_moves_highlight_and_consumes_event() {
     let ctx = egui::Context::default();
-    let select_id = egui::Id::new("kb_select");
+    let select_id = egui::Id::unique("kb_select");
     let trigger_id = select_id.with("__trigger");
     let highlight_key = select_id.with("__highlight");
     let popover_id = select_id.with("__popover");
@@ -212,7 +213,7 @@ fn arrow_down_moves_highlight_and_consumes_event() {
     let mut remaining = Vec::new();
     let mut input = base_input();
     input.events.push(key_event(Key::ArrowDown));
-    let _ = ctx.run_ui(input, |ui| {
+    let _ = crate::run_ui(&ctx, input, |ui| {
         ui.add(Select::new("kb_select", &mut selected, &["A", "B", "C"]));
         remaining = ui.input(|i| i.events.clone());
     });
@@ -236,7 +237,7 @@ fn arrow_down_moves_highlight_and_consumes_event() {
 #[test]
 fn enter_commits_highlight_and_closes() {
     let ctx = egui::Context::default();
-    let select_id = egui::Id::new("commit_select");
+    let select_id = egui::Id::unique("commit_select");
     let trigger_id = select_id.with("__trigger");
     let highlight_key = select_id.with("__highlight");
     let popover_id = select_id.with("__popover");
@@ -266,7 +267,7 @@ fn enter_commits_highlight_and_closes() {
 #[test]
 fn escape_closes_without_commit() {
     let ctx = egui::Context::default();
-    let select_id = egui::Id::new("esc_select");
+    let select_id = egui::Id::unique("esc_select");
     let trigger_id = select_id.with("__trigger");
     let popover_id = select_id.with("__popover");
 
@@ -293,14 +294,14 @@ fn escape_closes_without_commit() {
 #[test]
 fn arrow_ignored_when_trigger_unfocused() {
     let ctx = egui::Context::default();
-    let select_id = egui::Id::new("unfocused_select");
+    let select_id = egui::Id::unique("unfocused_select");
     let highlight_key = select_id.with("__highlight");
 
     let mut selected: Option<usize> = None;
     let mut remaining = Vec::new();
     let mut input = base_input();
     input.events.push(key_event(Key::ArrowDown));
-    let _ = ctx.run_ui(input, |ui| {
+    let _ = crate::run_ui(&ctx, input, |ui| {
         ui.add(Select::new("unfocused_select", &mut selected, &["A", "B", "C"]));
         remaining = ui.input(|i| i.events.clone());
     });
@@ -330,7 +331,8 @@ fn trigger_default_height_is_one_row() {
     let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(320.0, 400.0));
     let mut sel = None;
     let mut rect = None;
-    let _ = ctx.run_ui(
+    let _ = crate::run_ui(
+        &ctx,
         egui::RawInput {
             screen_rect: Some(screen),
             ..Default::default()

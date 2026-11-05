@@ -49,14 +49,14 @@ pub(super) fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) 
         return;
     }
 
-    let drag_id = ui.id().with("scene_drag");
+    let drag_id = ui.scope_id().with("scene_drag");
     let drag_data_id = drag_id.with("data");
     let drop_index_id = drag_id.with("drop_idx");
 
     egui::ScrollArea::vertical().auto_shrink([false; 2]).show(ui, |ui| {
         for (idx, scene_name) in scene_names.iter().enumerate() {
             let is_active = ctx.active_scene == Some(scene_name.as_str());
-            let row_id = ui.id().with(scene_name);
+            let row_id = ui.scope_id().with(scene_name);
 
             // Duration hint
             let duration_hint = composition
@@ -181,27 +181,27 @@ pub(super) fn scenes_content_ui(ctx: &mut ScenesContext<'_>, ui: &mut egui::Ui) 
 
         // Handle drop (outside the loop so is_dragging is in scope)
         let drag_active = ui.data(|d| d.get_temp::<(usize, String)>(drag_data_id)).is_some();
-        if drag_active && ui.input(|i| i.pointer.any_released()) {
-            if let Some((from_idx, _dragged_name)) =
+        if drag_active
+            && ui.input(|i| i.pointer.any_released())
+            && let Some((from_idx, _dragged_name)) =
                 ui.data(|d| d.get_temp::<(usize, String)>(drag_data_id))
-            {
-                let to_idx = ui.data(|d| d.get_temp::<usize>(drop_index_id)).unwrap_or(from_idx);
-                if from_idx != to_idx && to_idx <= scene_names.len() {
-                    let mut new_order = scene_names.clone();
-                    let removed = new_order.remove(from_idx);
-                    let insert_at = if to_idx > from_idx {
-                        to_idx - 1
-                    } else {
-                        to_idx
-                    };
-                    new_order.insert(insert_at.min(new_order.len()), removed);
-                    ctx.commands.push_back(Command::ReorderScenes(new_order).into());
-                }
-                ui.data_mut(|d| {
-                    d.remove::<(usize, String)>(drag_data_id);
-                    d.remove::<usize>(drop_index_id);
-                });
+        {
+            let to_idx = ui.data(|d| d.get_temp::<usize>(drop_index_id)).unwrap_or(from_idx);
+            if from_idx != to_idx && to_idx <= scene_names.len() {
+                let mut new_order = scene_names.clone();
+                let removed = new_order.remove(from_idx);
+                let insert_at = if to_idx > from_idx {
+                    to_idx - 1
+                } else {
+                    to_idx
+                };
+                new_order.insert(insert_at.min(new_order.len()), removed);
+                ctx.commands.push_back(Command::ReorderScenes(new_order).into());
             }
+            ui.data_mut(|d| {
+                d.remove::<(usize, String)>(drag_data_id);
+                d.remove::<usize>(drop_index_id);
+            });
         }
     });
 }

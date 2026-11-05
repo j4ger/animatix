@@ -32,12 +32,11 @@ pub(super) fn apply_property_edit_to_entity(
     let linear = Easing::Linear;
 
     // `scope.stage.param` edits address the scope's effect chain.
-    if let Some((stage, param)) = property.split_once('.') {
-        if let Some(effects) = world.effects_mut(id) {
-            if effects.write_param(stage, param, value.clone(), time_ms, time_ms, linear) {
-                return;
-            }
-        }
+    if let Some((stage, param)) = property.split_once('.')
+        && let Some(effects) = world.effects_mut(id)
+        && effects.write_param(stage, param, value.clone(), time_ms, time_ms, linear)
+    {
+        return;
     }
 
     // `place` and `legend` are tagged properties with a bespoke payload; the
@@ -266,16 +265,15 @@ fn apply_geometry_edit(
             true
         },
         "offset" => {
-            if let PV::Vec2(v) = value {
-                if let Some(ref mut pb_track) = geometry.position_binding {
-                    let current = pb_track.evaluate(time_ms);
-                    if let animatix::timeline::PositionBinding::SceneAnchor { anchor, .. } = current
-                    {
-                        let new_binding =
-                            animatix::timeline::PositionBinding::SceneAnchor { anchor, offset: *v };
-                        pb_track.set_default_value(new_binding);
-                        pb_track.add_keyframe(time_ms, new_binding, linear);
-                    }
+            if let PV::Vec2(v) = value
+                && let Some(ref mut pb_track) = geometry.position_binding
+            {
+                let current = pb_track.evaluate(time_ms);
+                if let animatix::timeline::PositionBinding::SceneAnchor { anchor, .. } = current {
+                    let new_binding =
+                        animatix::timeline::PositionBinding::SceneAnchor { anchor, offset: *v };
+                    pb_track.set_default_value(new_binding);
+                    pb_track.add_keyframe(time_ms, new_binding, linear);
                 }
             }
             true

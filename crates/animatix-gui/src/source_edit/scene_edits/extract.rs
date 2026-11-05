@@ -141,10 +141,10 @@ fn extract_actors_from_stmts(stmts: &mut Vec<Stmt>, labels: &[String], out: &mut
 /// Returns `None` if actors are at the top level (not inside any scene).
 fn find_containing_scene_name(stmts: &[Stmt], labels: &[String]) -> Option<String> {
     for stmt in stmts {
-        if let Stmt::Scene { name, body, .. } = stmt {
-            if scene_body_has_any_label(body, labels) {
-                return Some(name.clone());
-            }
+        if let Stmt::Scene { name, body, .. } = stmt
+            && scene_body_has_any_label(body, labels)
+        {
+            return Some(name.clone());
         }
     }
     None
@@ -154,10 +154,10 @@ fn find_containing_scene_name(stmts: &[Stmt], labels: &[String]) -> Option<Strin
 fn scene_body_has_any_label(stmts: &[Stmt], labels: &[String]) -> bool {
     let mut found = false;
     animatix_syntax::walk::walk_stmts(stmts, &mut |stmt| {
-        if let Stmt::ActorDecl { label, .. } = stmt {
-            if labels.contains(label) {
-                found = true;
-            }
+        if let Stmt::ActorDecl { label, .. } = stmt
+            && labels.contains(label)
+        {
+            found = true;
         }
     });
     found

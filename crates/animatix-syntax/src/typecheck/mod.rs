@@ -111,18 +111,17 @@ impl<'a> TypeEnv<'a> {
                 span,
                 is_pub: _,
             } = stmt
+                && let Some(alias) = self.typed.unresolved_alias(annotation)
             {
-                if let Some(alias) = self.typed.unresolved_alias(annotation) {
-                    alias_diagnostics.push(
-                        Diagnostic::warning(
-                            DiagnosticCode::UnknownTypeAlias,
-                            DiagnosticPhase::Build,
-                            format!("Type alias '{name}' references unknown type alias '{alias}'"),
-                        )
-                        .with_ast_span(*span)
-                        .with_subject(alias),
-                    );
-                }
+                alias_diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::UnknownTypeAlias,
+                        DiagnosticPhase::Build,
+                        format!("Type alias '{name}' references unknown type alias '{alias}'"),
+                    )
+                    .with_ast_span(*span)
+                    .with_subject(alias),
+                );
             }
             self.check_stmt(stmt, &mut diagnostics);
         }

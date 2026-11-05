@@ -172,8 +172,10 @@ fi
 
 # Include untracked-but-not-ignored files: a new source file must be gated
 # before it is staged, and the self-test probe is deliberately untracked.
+# `vendor/**` is third-party source kept verbatim (e.g. a patched crate); it
+# does not follow this repository's file/function structure contract.
 collect() {
-  git ls-files -z --cached --others --exclude-standard -- '*.rs'
+  git ls-files -z --cached --others --exclude-standard -- '*.rs' ':(exclude)vendor/**'
 }
 
 files=()

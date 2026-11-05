@@ -218,10 +218,10 @@ pub(super) fn load_autosave_prefs() -> AutosavePrefs {
 /// recent-file fields that `save_app_state` owns.
 pub(super) fn save_autosave_prefs(autosave: AutosavePrefs) {
     let path = app_state_path();
-    if let Some(parent) = path.parent() {
-        if let Err(e) = fs::create_dir_all(parent) {
-            tracing::warn!("Failed to create persistence directory {}: {}", parent.display(), e);
-        }
+    if let Some(parent) = path.parent()
+        && let Err(e) = fs::create_dir_all(parent)
+    {
+        tracing::warn!("Failed to create persistence directory {}: {}", parent.display(), e);
     }
     let mut state = fs::read_to_string(&path)
         .ok()
@@ -255,10 +255,10 @@ pub(super) fn load_recent_files() -> Vec<PathBuf> {
 
 pub(super) fn save_app_state(recent_file: &Path) {
     let path = app_state_path();
-    if let Some(parent) = path.parent() {
-        if let Err(e) = fs::create_dir_all(parent) {
-            tracing::warn!("Failed to create persistence directory {}: {}", parent.display(), e);
-        }
+    if let Some(parent) = path.parent()
+        && let Err(e) = fs::create_dir_all(parent)
+    {
+        tracing::warn!("Failed to create persistence directory {}: {}", parent.display(), e);
     }
     let mut state = fs::read_to_string(&path)
         .ok()
@@ -269,19 +269,19 @@ pub(super) fn save_app_state(recent_file: &Path) {
     state.recent_files.insert(0, recent_file.to_path_buf());
     state.recent_files.truncate(MAX_RECENT_FILES);
 
-    if let Ok(serialized) = ron::ser::to_string_pretty(&state, ron::ser::PrettyConfig::default()) {
-        if let Err(e) = fs::write(&path, serialized) {
-            tracing::warn!("Failed to write app state file {}: {}", path.display(), e);
-        }
+    if let Ok(serialized) = ron::ser::to_string_pretty(&state, ron::ser::PrettyConfig::default())
+        && let Err(e) = fs::write(&path, serialized)
+    {
+        tracing::warn!("Failed to write app state file {}: {}", path.display(), e);
     }
 }
 
 pub(super) fn clear_app_state() {
     let path = app_state_path();
-    if path.exists() {
-        if let Err(e) = fs::remove_file(&path) {
-            tracing::warn!("Failed to remove app state file {}: {}", path.display(), e);
-        }
+    if path.exists()
+        && let Err(e) = fs::remove_file(&path)
+    {
+        tracing::warn!("Failed to remove app state file {}: {}", path.display(), e);
     }
 }
 

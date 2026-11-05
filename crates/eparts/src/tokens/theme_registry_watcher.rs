@@ -87,20 +87,20 @@ impl ThemeRegistryWatcher {
             }
         }
 
-        if let Some(last) = self.last_event {
-            if now.duration_since(last) >= self.debounce_duration {
-                self.last_event = None;
-                return match ThemeRegistry::from_directory(&self.directory) {
-                    Ok(registry) => ThemeRegistryWatcherEvent::Reloaded(registry),
-                    Err(ThemeRegistryError::Io(e)) => ThemeRegistryWatcherEvent::Error(format!(
-                        "failed to read theme directory: {e}"
-                    )),
-                    Err(ThemeRegistryError::Theme(e)) => {
-                        ThemeRegistryWatcherEvent::Error(format!("failed to load theme file: {e}"))
-                    },
-                    Err(e) => ThemeRegistryWatcherEvent::Error(e.to_string()),
-                };
-            }
+        if let Some(last) = self.last_event
+            && now.duration_since(last) >= self.debounce_duration
+        {
+            self.last_event = None;
+            return match ThemeRegistry::from_directory(&self.directory) {
+                Ok(registry) => ThemeRegistryWatcherEvent::Reloaded(registry),
+                Err(ThemeRegistryError::Io(e)) => {
+                    ThemeRegistryWatcherEvent::Error(format!("failed to read theme directory: {e}"))
+                },
+                Err(ThemeRegistryError::Theme(e)) => {
+                    ThemeRegistryWatcherEvent::Error(format!("failed to load theme file: {e}"))
+                },
+                Err(e) => ThemeRegistryWatcherEvent::Error(e.to_string()),
+            };
         }
         ThemeRegistryWatcherEvent::NoChange
     }

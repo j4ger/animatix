@@ -89,14 +89,12 @@ pub fn run(
     let mut diagnostics = type_diagnostics;
     diagnostics.extend(report.diagnostics);
 
-    if render_smoke {
-        if let Err(e) = run_render_smoke(&report.output) {
-            diagnostics.push(Diagnostic::error(
-                DiagnosticCode::RenderFailure,
-                DiagnosticPhase::Render,
-                format!("Render smoke test failed: {e}"),
-            ));
-        }
+    if render_smoke && let Err(e) = run_render_smoke(&report.output) {
+        diagnostics.push(Diagnostic::error(
+            DiagnosticCode::RenderFailure,
+            DiagnosticPhase::Render,
+            format!("Render smoke test failed: {e}"),
+        ));
     }
 
     // Run semantic analysis (mirrors lint command behavior)

@@ -187,41 +187,39 @@ pub(super) fn check_stmt(
             } else {
                 let resolved = target.first().and_then(|seg| symbols.labels.get(seg.label_str()));
                 let label = target.first().map(|seg| seg.label_str()).unwrap_or("");
-                if let Some(info) = resolved {
-                    if let Some(ty) = &info.ty {
-                        if let Some(known_props) = symbols.properties.get(ty) {
-                            if !known_props.contains(property)
-                                && !info.plot_params.iter().any(|p| p == property)
-                            {
-                                diagnostics.push(span_diagnostic(
-                                    DiagnosticSeverity::Info,
-                                    DiagnosticCode::UnknownProperty,
-                                    format!(
-                                        "Property '{}' not commonly used on {} (may still be valid)",
-                                        property, ty
-                                    ),
-                                    line,
-                                    col,
-                                    end_col,
-                                ));
-                            }
+                if let Some(info) = resolved
+                    && let Some(ty) = &info.ty
+                    && let Some(known_props) = symbols.properties.get(ty)
+                {
+                    if !known_props.contains(property)
+                        && !info.plot_params.iter().any(|p| p == property)
+                    {
+                        diagnostics.push(span_diagnostic(
+                            DiagnosticSeverity::Info,
+                            DiagnosticCode::UnknownProperty,
+                            format!(
+                                "Property '{}' not commonly used on {} (may still be valid)",
+                                property, ty
+                            ),
+                            line,
+                            col,
+                            end_col,
+                        ));
+                    }
 
-                            let key = (ty.clone(), property.clone());
-                            if let Some(expected_type) = symbols.property_types.get(&key) {
-                                let actual_type =
-                                    actual_property_type(expected_type, value, symbols);
-                                if !crate::typing::is_subtype(&actual_type, expected_type) {
-                                    diagnostics.push(type_mismatch_diagnostic(
-                                        label,
-                                        property,
-                                        expected_type,
-                                        &actual_type,
-                                        line,
-                                        col,
-                                        end_col,
-                                    ));
-                                }
-                            }
+                    let key = (ty.clone(), property.clone());
+                    if let Some(expected_type) = symbols.property_types.get(&key) {
+                        let actual_type = actual_property_type(expected_type, value, symbols);
+                        if !crate::typing::is_subtype(&actual_type, expected_type) {
+                            diagnostics.push(type_mismatch_diagnostic(
+                                label,
+                                property,
+                                expected_type,
+                                &actual_type,
+                                line,
+                                col,
+                                end_col,
+                            ));
                         }
                     }
                 }

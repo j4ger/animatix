@@ -12,14 +12,14 @@
 //! The dropdown panel is rendered with [`crate::widget::popover::Popover`]
 //! so it participates in the overlay coordination layer (Escape, click-outside).
 
-use egui::{Align, Key, Rect, Response, Sense, Vec2, Widget, WidgetInfo, WidgetType};
+use egui::{Align, Key, Rect, Response, Role, Sense, Vec2, Widget, WidgetInfo};
 
 use crate::tokens::spatial::{RADIUS_M, ROW_M, STROKE_WIDTH, density};
 use crate::tokens::theme::theme;
 use crate::tokens::typography::TextRole;
-use crate::widget::button::Button;
 use crate::widget::input::TextField;
 use crate::widget::popover::Popover;
+use crate::widget::{IntoWidgetId, button::Button};
 
 /// A single option entry in the flat list.
 #[derive(Debug)]
@@ -78,7 +78,7 @@ pub struct Select<'a> {
 impl<'a> Select<'a> {
     /// Create a new flat `Select`.
     pub fn new<T: AsRef<str> + 'a>(
-        id: impl Into<egui::Id>,
+        id: impl IntoWidgetId,
         selected: &'a mut Option<usize>,
         options: &'a [T],
     ) -> Self {
@@ -92,7 +92,7 @@ impl<'a> Select<'a> {
             .collect();
 
         Self {
-            id: id.into(),
+            id: id.into_widget_id(),
             selected,
             flat_options,
             placeholder: "Select…",
@@ -107,7 +107,7 @@ impl<'a> Select<'a> {
     /// index refers to the position of the item within the flattened
     /// sequence of all items (headers do not count).
     pub fn grouped(
-        id: impl Into<egui::Id>,
+        id: impl IntoWidgetId,
         selected: &'a mut Option<usize>,
         groups: &'a [(&'a str, &'a [&'a str])],
     ) -> Self {
@@ -126,7 +126,7 @@ impl<'a> Select<'a> {
         }
 
         Self {
-            id: id.into(),
+            id: id.into_widget_id(),
             selected,
             flat_options,
             placeholder: "Select…",

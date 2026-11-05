@@ -58,17 +58,17 @@ pub(crate) fn apply_override_incremental(
 
         // Recalculate derived values when size changes, but don't overwrite
         // an explicit radius override.
-        if property == "size" {
-            if let Value::Vec2([w, h]) = value {
-                crate::timeline::env_keys::property_into(label, "radius", key);
-                if env.get_ref(key).is_none() {
-                    env.set(key, Value::Num(w.min(h) / 2.0));
-                }
-                crate::timeline::env_keys::property_into(label, "radius_x", key);
-                env.set(key, Value::Num(w / 2.0));
-                crate::timeline::env_keys::property_into(label, "radius_y", key);
-                env.set(key, Value::Num(h / 2.0));
+        if property == "size"
+            && let Value::Vec2([w, h]) = value
+        {
+            crate::timeline::env_keys::property_into(label, "radius", key);
+            if env.get_ref(key).is_none() {
+                env.set(key, Value::Num(w.min(h) / 2.0));
             }
+            crate::timeline::env_keys::property_into(label, "radius_x", key);
+            env.set(key, Value::Num(w / 2.0));
+            crate::timeline::env_keys::property_into(label, "radius_y", key);
+            env.set(key, Value::Num(h / 2.0));
         }
     });
 }

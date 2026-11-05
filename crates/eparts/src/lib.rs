@@ -44,6 +44,22 @@ pub use widget::tooltip::{Tooltip, text_tooltip};
 // ── Shared widget traits & Size (A1 + A2) ──────────────────────────
 pub use widget::traits::{Disableable, Selectable, Sizable, Size};
 
+/// Run one egui frame in tests without an integration painter.
+///
+/// egui 0.37's `FullOutput::textures_delta` panics when dropped with unapplied
+/// deltas (the initial font atlas alone is one), so clear it before returning
+/// output that tests may only inspect for shapes.
+#[cfg(test)]
+pub(crate) fn run_ui(
+    ctx: &egui::Context,
+    input: egui::RawInput,
+    run_ui: impl FnMut(&mut egui::Ui),
+) -> egui::FullOutput {
+    let mut output = ctx.run_ui(input, run_ui);
+    output.textures_delta.clear();
+    output
+}
+
 #[cfg(test)]
 mod export_tests {
     // Locks the public root surface: this module only compiles if the names

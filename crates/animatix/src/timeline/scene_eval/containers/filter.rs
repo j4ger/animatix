@@ -135,15 +135,14 @@ impl Timeline {
             },
         };
 
-        if let Some(r) = region {
-            if r.origin[0] >= scene_dimensions.width as f32
+        if let Some(r) = region
+            && (r.origin[0] >= scene_dimensions.width as f32
                 || r.origin[1] >= scene_dimensions.height as f32
                 || r.origin[0] + r.size.width as f32 <= 0.0
-                || r.origin[1] + r.size.height as f32 <= 0.0
-            {
-                // The effect scope's region of interest is entirely off-screen.
-                return;
-            }
+                || r.origin[1] + r.size.height as f32 <= 0.0)
+        {
+            // The effect scope's region of interest is entirely off-screen.
+            return;
         }
 
         // Always take the zero-readback path when a backend exists: the
@@ -151,26 +150,24 @@ impl Timeline {
         // declaration order, and the CPU readback path is the one that loses
         // full-canvas scopes in exported video (see docs/roadmap.md Known
         // Issues).
-        if allow_pending_composites {
-            if let Some(backend) = out.filter_backend.as_mut() {
-                match backend.render_scene_to_pending_composite(
-                    &sub_scene,
-                    scene_dimensions,
-                    region,
-                    &chain,
-                    global_opacity,
-                ) {
-                    Ok(()) => {
-                        // Filter output is stored as a pending GPU composite.
-                        // The renderer will blit it after the main scene render.
-                        return;
-                    },
-                    Err(e) => {
-                        tracing::warn!(
-                            "Zero-readback filter path failed, falling back to readback: {e}"
-                        );
-                    },
-                }
+        if allow_pending_composites && let Some(backend) = out.filter_backend.as_mut() {
+            match backend.render_scene_to_pending_composite(
+                &sub_scene,
+                scene_dimensions,
+                region,
+                &chain,
+                global_opacity,
+            ) {
+                Ok(()) => {
+                    // Filter output is stored as a pending GPU composite.
+                    // The renderer will blit it after the main scene render.
+                    return;
+                },
+                Err(e) => {
+                    tracing::warn!(
+                        "Zero-readback filter path failed, falling back to readback: {e}"
+                    );
+                },
             }
         }
 

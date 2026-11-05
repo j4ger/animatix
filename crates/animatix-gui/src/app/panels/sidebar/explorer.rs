@@ -6,7 +6,7 @@ pub(super) fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::
     let t = eparts::theme(ui);
     let sp = crate::app::design_tokens::spatial::spatial(ui);
     // ── Filter input ────────────────────────────────────────────────────────
-    let filter_id = egui::Id::new(EXPLORER_FILTER_ID);
+    let filter_id = egui::Id::unique(EXPLORER_FILTER_ID);
     let mut filter = ui.data(|d| d.get_temp::<String>(filter_id)).unwrap_or_default();
 
     ui.horizontal(|ui| {
@@ -114,7 +114,7 @@ pub(super) fn explorer_content_ui(ctx: &mut ExplorerContext<'_>, ui: &mut egui::
                 (Some(file_icon), color)
             };
 
-            let row_id = ui.id().with(entry.path.display().to_string());
+            let row_id = ui.scope_id().with(entry.path.display().to_string());
             let path = entry.path.clone();
             let is_dir = entry.is_dir;
             let response = row::Row::new(&entry.name)

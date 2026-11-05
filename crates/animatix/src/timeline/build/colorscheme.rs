@@ -41,30 +41,27 @@ impl Timeline {
                 value: Expr::Construct(type_name, properties),
                 ..
             } = stmt
+                && type_name == "Colorscheme"
             {
-                if type_name == "Colorscheme" {
-                    // Extract extends from properties
-                    let mut extends = None;
-                    let mut scheme_props = Vec::new();
-                    for prop in properties {
-                        if prop.name == "extends" {
-                            if let Expr::Str(base) = &prop.value {
-                                extends = Some(base.clone());
-                            }
-                        } else {
-                            scheme_props.push(prop.clone());
+                // Extract extends from properties
+                let mut extends = None;
+                let mut scheme_props = Vec::new();
+                for prop in properties {
+                    if prop.name == "extends" {
+                        if let Expr::Str(base) = &prop.value {
+                            extends = Some(base.clone());
                         }
+                    } else {
+                        scheme_props.push(prop.clone());
                     }
-                    if let Some(scheme) = ResolvedColorscheme::from_properties(
-                        name.clone(),
-                        &scheme_props,
-                        diagnostics,
-                    ) {
-                        if let Some(base_name) = extends {
-                            inheritance_edges.insert(name.clone(), base_name);
-                        }
-                        schemes.insert(name.clone(), scheme);
+                }
+                if let Some(scheme) =
+                    ResolvedColorscheme::from_properties(name.clone(), &scheme_props, diagnostics)
+                {
+                    if let Some(base_name) = extends {
+                        inheritance_edges.insert(name.clone(), base_name);
                     }
+                    schemes.insert(name.clone(), scheme);
                 }
             }
         }

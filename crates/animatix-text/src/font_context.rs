@@ -460,10 +460,10 @@ pub(crate) fn collect_fallback_fonts(
         if covered {
             continue;
         }
-        if let Some(id) = probe_char_face(font_ctx, ch) {
-            if !ids.contains(&id) {
-                ids.push(id);
-            }
+        if let Some(id) = probe_char_face(font_ctx, ch)
+            && !ids.contains(&id)
+        {
+            ids.push(id);
         }
         if ids.len() >= 8 {
             break;

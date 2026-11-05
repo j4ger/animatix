@@ -103,18 +103,18 @@ impl GalleryApp {
 
     fn apply_theme(&self, ctx: &egui::Context) {
         #[cfg(feature = "theme-json")]
-        if self.json_theme {
-            if let Some(file) = &self.theme_file {
-                let is_dark = self.theme_choice.is_dark(None);
-                let theme = if is_dark {
-                    file.dark_theme()
-                } else {
-                    file.light_theme()
-                };
-                set_theme(ctx, theme);
-                ctx.set_visuals(theme.to_visuals(is_dark));
-                return;
-            }
+        if self.json_theme
+            && let Some(file) = &self.theme_file
+        {
+            let is_dark = self.theme_choice.is_dark(None);
+            let theme = if is_dark {
+                file.dark_theme()
+            } else {
+                file.light_theme()
+            };
+            set_theme(ctx, theme);
+            ctx.set_visuals(theme.to_visuals(is_dark));
+            return;
         }
         let is_dark = self.theme_choice.is_dark(None);
         let theme = self.theme_choice.resolve(None);
@@ -126,31 +126,30 @@ impl GalleryApp {
 // ── eframe App impl ────────────────────────────────────────────────
 
 impl eframe::App for GalleryApp {
-    #[allow(deprecated)]
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        self.apply_theme(ctx);
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.apply_theme(ui.ctx());
 
         // Theme switcher bar
-        egui::TopBottomPanel::top("theme_bar").show(ctx, |ui| {
+        egui::Panel::top("theme_bar").show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Theme:");
                 if ui
                     .selectable_value(&mut self.theme_choice, AppThemeChoice::Light, "Light")
                     .clicked()
                 {
-                    self.apply_theme(ctx);
+                    self.apply_theme(ui.ctx());
                 }
                 if ui
                     .selectable_value(&mut self.theme_choice, AppThemeChoice::Dark, "Dark")
                     .clicked()
                 {
-                    self.apply_theme(ctx);
+                    self.apply_theme(ui.ctx());
                 }
                 if ui
                     .selectable_value(&mut self.theme_choice, AppThemeChoice::Auto, "Auto")
                     .clicked()
                 {
-                    self.apply_theme(ctx);
+                    self.apply_theme(ui.ctx());
                 }
                 ui.separator();
                 #[cfg(feature = "theme-json")]
@@ -169,7 +168,7 @@ impl eframe::App for GalleryApp {
                             ui.label("Missing examples/gallery.theme.json");
                         }
                     }
-                    self.apply_theme(ctx);
+                    self.apply_theme(ui.ctx());
                 }
                 ui.separator();
                 ui.label(format!(
@@ -184,13 +183,9 @@ impl eframe::App for GalleryApp {
         });
 
         // Main content
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             self.gallery_body(ui);
         });
-    }
-
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        self.gallery_body(ui);
     }
 }
 
@@ -340,7 +335,7 @@ impl GalleryApp {
                 let tooltip_trigger = ui.button("Hover for tooltip");
                 text_tooltip(
                     ui,
-                    ui.id().with("gallery_tooltip"),
+                    ui.scope_id().with("gallery_tooltip"),
                     &tooltip_trigger,
                     "Tooltip text here!",
                 );

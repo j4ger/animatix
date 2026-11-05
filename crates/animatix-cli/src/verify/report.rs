@@ -479,10 +479,10 @@ impl VerifyReport {
                     issue.message
                 );
                 if detail == Detail::Full {
-                    if let Some(fix) = &issue.fix {
-                        if let Some(snippet) = &fix.snippet {
-                            println!("      fix: {snippet}");
-                        }
+                    if let Some(fix) = &issue.fix
+                        && let Some(snippet) = &fix.snippet
+                    {
+                        println!("      fix: {snippet}");
                     }
                     println!("      hint: {}", issue.suggestion);
                 }

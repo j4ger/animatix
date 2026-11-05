@@ -275,16 +275,16 @@ impl Timeline {
                 continue;
             }
             let prop_subject = format!("{}.{}", label, prop.name);
-            if let Some(schema) = lookup_property(&prop.name) {
-                if let Some(pv) = parse_property_value(
+            if let Some(schema) = lookup_property(&prop.name)
+                && let Some(pv) = parse_property_value(
                     schema.value_type,
                     &prop.value,
                     &eval_env,
                     diagnostics,
                     &prop_subject,
-                ) {
-                    pending_writes.push((schema.field, pv));
-                }
+                )
+            {
+                pending_writes.push((schema.field, pv));
             }
         }
 
@@ -388,12 +388,11 @@ impl Timeline {
                     .unwrap_or_default();
                     if !path.is_empty() {
                         let normalized = self.asset_cache.normalize_asset_url(&path);
-                        if let Ok(content) = std::fs::read_to_string(&normalized) {
-                            if let Ok(t) =
+                        if let Ok(content) = std::fs::read_to_string(&normalized)
+                            && let Ok(t) =
                                 animatix_text::transcript::parse_transcript_auto(&content)
-                            {
-                                self.set_transcript(label, t);
-                            }
+                        {
+                            self.set_transcript(label, t);
                         }
                     }
                 },

@@ -87,55 +87,54 @@ pub fn resolve_connector_endpoint(
             (*pt, norm)
         },
         ConnectorEndpoint::Target { actor, anchor } => {
-            if let Some(resolver) = target_resolver {
-                if let Some((center, half_size)) =
+            if let Some(resolver) = target_resolver
+                && let Some((center, half_size)) =
                     resolver.target_bounds(actor, time_ms, scene_dimensions)
-                {
-                    let resolved_anchor = anchor.unwrap_or_else(|| {
-                        // Auto-choose the most direct anchor side facing the other position
-                        match other_pos {
-                            Some(other) => {
-                                let dx = other[0] - center[0];
-                                let dy = other[1] - center[1];
-                                if dx.abs() >= dy.abs() {
-                                    if dx >= 0.0 {
-                                        SceneAnchor::Right
-                                    } else {
-                                        SceneAnchor::Left
-                                    }
+            {
+                let resolved_anchor = anchor.unwrap_or_else(|| {
+                    // Auto-choose the most direct anchor side facing the other position
+                    match other_pos {
+                        Some(other) => {
+                            let dx = other[0] - center[0];
+                            let dy = other[1] - center[1];
+                            if dx.abs() >= dy.abs() {
+                                if dx >= 0.0 {
+                                    SceneAnchor::Right
                                 } else {
-                                    if dy >= 0.0 {
-                                        SceneAnchor::Bottom
-                                    } else {
-                                        SceneAnchor::Top
-                                    }
+                                    SceneAnchor::Left
                                 }
-                            },
-                            None => SceneAnchor::Right,
-                        }
-                    });
+                            } else {
+                                if dy >= 0.0 {
+                                    SceneAnchor::Bottom
+                                } else {
+                                    SceneAnchor::Top
+                                }
+                            }
+                        },
+                        None => SceneAnchor::Right,
+                    }
+                });
 
-                    const FRAC: f32 = std::f32::consts::FRAC_1_SQRT_2;
-                    return match resolved_anchor {
-                        SceneAnchor::Left => ([center[0] - half_size[0], center[1]], [-1.0, 0.0]),
-                        SceneAnchor::Right => ([center[0] + half_size[0], center[1]], [1.0, 0.0]),
-                        SceneAnchor::Top => ([center[0], center[1] - half_size[1]], [0.0, -1.0]),
-                        SceneAnchor::Bottom => ([center[0], center[1] + half_size[1]], [0.0, 1.0]),
-                        SceneAnchor::Center => (center, [0.0, 0.0]),
-                        SceneAnchor::TopLeft => {
-                            ([center[0] - half_size[0], center[1] - half_size[1]], [-FRAC, -FRAC])
-                        },
-                        SceneAnchor::TopRight => {
-                            ([center[0] + half_size[0], center[1] - half_size[1]], [FRAC, -FRAC])
-                        },
-                        SceneAnchor::BottomLeft => {
-                            ([center[0] - half_size[0], center[1] + half_size[1]], [-FRAC, FRAC])
-                        },
-                        SceneAnchor::BottomRight => {
-                            ([center[0] + half_size[0], center[1] + half_size[1]], [FRAC, FRAC])
-                        },
-                    };
-                }
+                const FRAC: f32 = std::f32::consts::FRAC_1_SQRT_2;
+                return match resolved_anchor {
+                    SceneAnchor::Left => ([center[0] - half_size[0], center[1]], [-1.0, 0.0]),
+                    SceneAnchor::Right => ([center[0] + half_size[0], center[1]], [1.0, 0.0]),
+                    SceneAnchor::Top => ([center[0], center[1] - half_size[1]], [0.0, -1.0]),
+                    SceneAnchor::Bottom => ([center[0], center[1] + half_size[1]], [0.0, 1.0]),
+                    SceneAnchor::Center => (center, [0.0, 0.0]),
+                    SceneAnchor::TopLeft => {
+                        ([center[0] - half_size[0], center[1] - half_size[1]], [-FRAC, -FRAC])
+                    },
+                    SceneAnchor::TopRight => {
+                        ([center[0] + half_size[0], center[1] - half_size[1]], [FRAC, -FRAC])
+                    },
+                    SceneAnchor::BottomLeft => {
+                        ([center[0] - half_size[0], center[1] + half_size[1]], [-FRAC, FRAC])
+                    },
+                    SceneAnchor::BottomRight => {
+                        ([center[0] + half_size[0], center[1] + half_size[1]], [FRAC, FRAC])
+                    },
+                };
             }
             ([0.0, 0.0], [1.0, 0.0])
         },
@@ -244,10 +243,10 @@ pub fn build_connector_path(
     // Deduplicate consecutive identical points
     let mut clean_pts: Vec<[f32; 2]> = Vec::with_capacity(waypoints.len());
     for &p in waypoints {
-        if let Some(last) = clean_pts.last() {
-            if (p[0] - last[0]).hypot(p[1] - last[1]) < 0.1 {
-                continue;
-            }
+        if let Some(last) = clean_pts.last()
+            && (p[0] - last[0]).hypot(p[1] - last[1]) < 0.1
+        {
+            continue;
         }
         clean_pts.push(p);
     }

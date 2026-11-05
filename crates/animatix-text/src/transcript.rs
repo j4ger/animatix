@@ -212,10 +212,10 @@ pub fn parse_transcript_json(json_str: &str) -> Result<SpeechTranscript, Transcr
         });
     }
 
-    if transcript.duration == 0.0 {
-        if let Some(last) = transcript.segments.last() {
-            transcript.duration = last.end_s;
-        }
+    if transcript.duration == 0.0
+        && let Some(last) = transcript.segments.last()
+    {
+        transcript.duration = last.end_s;
     }
 
     Ok(transcript)

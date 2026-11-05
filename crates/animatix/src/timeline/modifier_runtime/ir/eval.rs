@@ -791,12 +791,12 @@ pub(crate) fn compile_fast_vec2<'a>(
     arg_name: &str,
     slot_names: &mut Vec<&'a str>,
 ) -> Option<(FastScalarExpr, FastScalarExpr)> {
-    if let CompiledExpr::MakeVec(items) = expr {
-        if items.len() == 2 {
-            let x = compile_fast_scalar(&items[0], arg_name, slot_names)?;
-            let y = compile_fast_scalar(&items[1], arg_name, slot_names)?;
-            return Some((x, y));
-        }
+    if let CompiledExpr::MakeVec(items) = expr
+        && items.len() == 2
+    {
+        let x = compile_fast_scalar(&items[0], arg_name, slot_names)?;
+        let y = compile_fast_scalar(&items[1], arg_name, slot_names)?;
+        return Some((x, y));
     }
     None
 }

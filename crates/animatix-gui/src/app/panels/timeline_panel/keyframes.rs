@@ -426,8 +426,11 @@ fn render_aggregate_diamond(
         .map_or(kf_x, |delta| coords.time_to_x(kf_s + delta));
     let hit_size = (ds * 2.5).max(8.0);
     let dr = Rect::from_center_size(Pos2::new(draw_x, cy), Vec2::new(hit_size, hit_size));
-    let dresp =
-        ui.interact(dr, ui.id().with(("kf_diamond", track_idx, kf_ms)), Sense::click_and_drag());
+    let dresp = ui.interact(
+        dr,
+        ui.scope_id().with(("kf_diamond", track_idx, kf_ms)),
+        Sense::click_and_drag(),
+    );
     if dresp.hovered() || is_ms || is_drag || is_act {
         painter.circle_filled(
             Pos2::new(draw_x, cy),
@@ -582,7 +585,7 @@ pub(crate) fn render_property_keyframes(
         let dr = Rect::from_center_size(Pos2::new(draw_x, cy), Vec2::new(hit_size, hit_size));
         let dresp = ui.interact(
             dr,
-            ui.id().with(("prop_kf_diamond", track_idx, prop_name, kf_ms)),
+            ui.scope_id().with(("prop_kf_diamond", track_idx, prop_name, kf_ms)),
             Sense::click_and_drag(),
         );
         if dresp.hovered() || is_ms || is_drag || is_act {
@@ -662,17 +665,15 @@ pub(crate) fn render_property_keyframes(
                 ids,
             });
         }
-        if is_drag {
-            if let Some(pos) = dresp.interact_pointer_pos() {
-                let nt = coords.x_to_time(pos.x);
-                let (snapped, _) = if shift_held {
-                    (nt, None)
-                } else {
-                    snap_to_speech_or_fps(nt, snap_fps, speech_snap_targets)
-                };
-                if let Some(drag) = new_kf_drag.as_mut() {
-                    drag.target_s = snapped;
-                }
+        if is_drag && let Some(pos) = dresp.interact_pointer_pos() {
+            let nt = coords.x_to_time(pos.x);
+            let (snapped, _) = if shift_held {
+                (nt, None)
+            } else {
+                snap_to_speech_or_fps(nt, snap_fps, speech_snap_targets)
+            };
+            if let Some(drag) = new_kf_drag.as_mut() {
+                drag.target_s = snapped;
             }
         }
         if dresp.drag_stopped() && is_drag {

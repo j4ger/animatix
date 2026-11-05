@@ -236,40 +236,40 @@ impl PlaybackController {
         let old_time = self.current_time_s;
         let next_time = old_time + dt;
 
-        if self.presentation_mode && dt > 0.0 {
-            if let Some(&p) = self
+        if self.presentation_mode
+            && dt > 0.0
+            && let Some(&p) = self
                 .pause_points_s
                 .iter()
                 .find(|&&p| p > old_time + 0.0001 && p <= next_time + 0.0001)
-            {
-                self.current_time_s = p;
-                self.is_playing = false;
-                self.paused_at_step = true;
-                return;
-            }
+        {
+            self.current_time_s = p;
+            self.is_playing = false;
+            self.paused_at_step = true;
+            return;
         }
 
         self.current_time_s = next_time;
 
         // Loop region: if A and B are set, handle boundaries.
-        if let (Some(start), Some(end)) = (self.loop_start_s, self.loop_end_s) {
-            if end > start {
-                if self.ping_pong {
-                    if self.current_time_s >= end && self.ping_pong_direction > 0 {
-                        self.ping_pong_direction = -1;
-                        self.current_time_s = end;
-                        return;
-                    }
-                    if self.current_time_s <= start && self.ping_pong_direction < 0 {
-                        self.ping_pong_direction = 1;
-                        self.current_time_s = start;
-                        return;
-                    }
-                } else if self.current_time_s >= end {
-                    self.current_time_s = start;
-                    // Looping takes priority over end-of-timeline stop.
+        if let (Some(start), Some(end)) = (self.loop_start_s, self.loop_end_s)
+            && end > start
+        {
+            if self.ping_pong {
+                if self.current_time_s >= end && self.ping_pong_direction > 0 {
+                    self.ping_pong_direction = -1;
+                    self.current_time_s = end;
                     return;
                 }
+                if self.current_time_s <= start && self.ping_pong_direction < 0 {
+                    self.ping_pong_direction = 1;
+                    self.current_time_s = start;
+                    return;
+                }
+            } else if self.current_time_s >= end {
+                self.current_time_s = start;
+                // Looping takes priority over end-of-timeline stop.
+                return;
             }
         }
 

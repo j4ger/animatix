@@ -178,20 +178,19 @@ fn move_keyframe_time_inner(
                 Time::Seconds(new_offset_s)
             };
             // Adjust next relative keyframe's offset to compensate
-            if idx + 1 < stmts.len() {
-                if let Stmt::RelativeKeyframe {
+            if idx + 1 < stmts.len()
+                && let Stmt::RelativeKeyframe {
                     offset: next_offset,
                     ..
                 } = &mut stmts[idx + 1]
-                {
-                    let next_offset_s = time_to_seconds(next_offset) - delta_s;
-                    if next_offset_s >= 0.001 {
-                        *next_offset = if next_offset_s < 1.0 {
-                            Time::Milliseconds((next_offset_s * 1000.0).round() as u64)
-                        } else {
-                            Time::Seconds(next_offset_s)
-                        };
-                    }
+            {
+                let next_offset_s = time_to_seconds(next_offset) - delta_s;
+                if next_offset_s >= 0.001 {
+                    *next_offset = if next_offset_s < 1.0 {
+                        Time::Milliseconds((next_offset_s * 1000.0).round() as u64)
+                    } else {
+                        Time::Seconds(next_offset_s)
+                    };
                 }
             }
         },
@@ -253,16 +252,14 @@ fn contains_assignment(body: &[Stmt], actor: &str, property: &str) -> bool {
                 if contains_assignment(then_branch, actor, property) {
                     return true;
                 }
-                if let Some(else_b) = else_branch {
-                    if contains_assignment(else_b, actor, property) {
-                        return true;
-                    }
-                }
-            },
-            Stmt::ForLoop { body, .. } => {
-                if contains_assignment(body, actor, property) {
+                if let Some(else_b) = else_branch
+                    && contains_assignment(else_b, actor, property)
+                {
                     return true;
                 }
+            },
+            Stmt::ForLoop { body, .. } if contains_assignment(body, actor, property) => {
+                return true;
             },
             _ => {},
         }

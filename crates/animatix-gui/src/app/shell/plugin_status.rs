@@ -205,13 +205,11 @@ impl GuiShell {
                         .with_icon(egui_phosphor::regular::FILE_CODE),
                 )
                 .clicked()
-            {
-                if let Some(path) = rfd::FileDialog::new()
+                && let Some(path) = rfd::FileDialog::new()
                     .add_filter("Native plugin", &["so", "dylib", "dll"])
                     .pick_file()
-                {
-                    describe_library = Some(path);
-                }
+            {
+                describe_library = Some(path);
             }
 
             title_close

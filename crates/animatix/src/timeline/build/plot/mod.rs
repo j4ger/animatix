@@ -150,13 +150,11 @@ impl Timeline {
         let mut stroke_progress = style.stroke_progress.last(1.0);
 
         // If stroke_color was not explicitly set on track, check colorscheme's default stroke
-        if stroke_color == DEFAULT_WHITE {
-            if let Some(primitive_info) = self.primitive_registry.find(ty) {
-                if let Some(scheme_stroke) = self.get_default_color(primitive_info, &caps, "stroke")
-                {
-                    stroke_color = scheme_stroke;
-                }
-            }
+        if stroke_color == DEFAULT_WHITE
+            && let Some(primitive_info) = self.primitive_registry.find(ty)
+            && let Some(scheme_stroke) = self.get_default_color(primitive_info, &caps, "stroke")
+        {
+            stroke_color = scheme_stroke;
         }
 
         for prop in props {

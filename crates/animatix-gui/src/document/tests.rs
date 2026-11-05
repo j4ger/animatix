@@ -345,7 +345,7 @@ card: MetricCard
 
     let mut document = DocumentSession::from_error(entry.clone());
     document.source_text = fs::read_to_string(&entry)
-        .unwrap_or_else(|_| panic!("failed to read test file: {:?}", &entry));
+        .unwrap_or_else(|_| panic!("failed to read test file: {:?}", entry));
 
     let error = document.rebuild().expect_err("duplicate exports should fail");
 

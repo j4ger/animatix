@@ -155,10 +155,9 @@ pub(crate) fn collect_pure_fns(
             body,
             ..
         } = stmt
+            && return_type.is_some()
         {
-            if return_type.is_some() {
-                fns.push((name.clone(), params.clone(), body.clone()));
-            }
+            fns.push((name.clone(), params.clone(), body.clone()));
         }
     }
     fns

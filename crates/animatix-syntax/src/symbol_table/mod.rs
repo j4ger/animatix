@@ -189,10 +189,10 @@ pub(crate) fn component_signature<'a>(
             signature
                 .params
                 .insert(name.to_string(), typing::Type::from_annotation(annotation));
-        } else if let Some(default) = default {
-            if let Some(ty) = infer_default(default) {
-                signature.params.insert(name.to_string(), ty);
-            }
+        } else if let Some(default) = default
+            && let Some(ty) = infer_default(default)
+        {
+            signature.params.insert(name.to_string(), ty);
         }
     }
     signature

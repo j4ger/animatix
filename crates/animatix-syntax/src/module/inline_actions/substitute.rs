@@ -206,10 +206,11 @@ pub(super) fn substitute_params_in_target(
             TargetSegment::Static(s) => TargetSegment::Static(s.clone()),
             TargetSegment::Indexed { base, index } => {
                 let index = substitute_params_in_expr(index, bindings);
-                if let Expr::Num(n) = &index {
-                    if n.trunc() == *n && *n >= 0.0 {
-                        return TargetSegment::Static(array_actor_label(base, *n as usize));
-                    }
+                if let Expr::Num(n) = &index
+                    && n.trunc() == *n
+                    && *n >= 0.0
+                {
+                    return TargetSegment::Static(array_actor_label(base, *n as usize));
                 }
                 TargetSegment::Indexed {
                     base: base.clone(),
@@ -226,24 +227,22 @@ pub(super) fn substitute_params_in_expr(expr: &Expr, bindings: &HashMap<String, 
             bindings.get(name).cloned().unwrap_or_else(|| Expr::Ident(name.clone()))
         },
         Expr::Path(parts) => {
-            if let Some(first) = parts.first() {
-                if let Some(bound) = bindings.get(first) {
-                    if parts.len() == 1 {
-                        return bound.clone();
-                    }
-                    let rest = &parts[1..];
-                    return match bound {
-                        Expr::Ident(name) => Expr::Path(
-                            [name.clone()].into_iter().chain(rest.iter().cloned()).collect(),
-                        ),
-                        Expr::Path(inner) => {
-                            Expr::Path(inner.iter().chain(rest.iter()).cloned().collect())
-                        },
-                        other => {
-                            Expr::Method(Box::new(other.clone()), parts[1].clone(), Vec::new())
-                        },
-                    };
+            if let Some(first) = parts.first()
+                && let Some(bound) = bindings.get(first)
+            {
+                if parts.len() == 1 {
+                    return bound.clone();
                 }
+                let rest = &parts[1..];
+                return match bound {
+                    Expr::Ident(name) => {
+                        Expr::Path([name.clone()].into_iter().chain(rest.iter().cloned()).collect())
+                    },
+                    Expr::Path(inner) => {
+                        Expr::Path(inner.iter().chain(rest.iter()).cloned().collect())
+                    },
+                    other => Expr::Method(Box::new(other.clone()), parts[1].clone(), Vec::new()),
+                };
             }
             Expr::Path(parts.clone())
         },

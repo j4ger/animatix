@@ -170,22 +170,20 @@ impl Timeline {
         has_explicit_stroke: bool,
         state: &mut DeclarationPropertyState,
     ) {
-        if !has_explicit_color {
-            if let Some(primitive) = self.primitive_registry.find(ty) {
-                if let Some(scheme_color) = self.get_default_color(primitive, caps, "color") {
-                    state.color = scheme_color;
-                    if caps.category == ActorCategory::Plot {
-                        state.stroke_color = scheme_color;
-                    }
-                }
+        if !has_explicit_color
+            && let Some(primitive) = self.primitive_registry.find(ty)
+            && let Some(scheme_color) = self.get_default_color(primitive, caps, "color")
+        {
+            state.color = scheme_color;
+            if caps.category == ActorCategory::Plot {
+                state.stroke_color = scheme_color;
             }
         }
-        if !has_explicit_stroke {
-            if let Some(primitive) = self.primitive_registry.find(ty) {
-                if let Some(scheme_stroke) = self.get_default_color(primitive, caps, "stroke") {
-                    state.stroke_color = scheme_stroke;
-                }
-            }
+        if !has_explicit_stroke
+            && let Some(primitive) = self.primitive_registry.find(ty)
+            && let Some(scheme_stroke) = self.get_default_color(primitive, caps, "stroke")
+        {
+            state.stroke_color = scheme_stroke;
         }
     }
 
@@ -594,14 +592,15 @@ impl Timeline {
         props: &[Property],
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        if let Some(parent) = parent_label {
-            if let Some(parent_id) = self.world.get_id(parent) {
-                if self.world.caps(parent_id).layout_container {
-                    let has_at = extracted.at_expr.is_some();
-                    let has_position = props.iter().any(|p| p.name == "position");
-                    let has_anchor = extracted.anchor_expr.is_some();
-                    if has_at || has_position {
-                        diagnostics.push(
+        if let Some(parent) = parent_label
+            && let Some(parent_id) = self.world.get_id(parent)
+            && self.world.caps(parent_id).layout_container
+        {
+            let has_at = extracted.at_expr.is_some();
+            let has_position = props.iter().any(|p| p.name == "position");
+            let has_anchor = extracted.anchor_expr.is_some();
+            if has_at || has_position {
+                diagnostics.push(
                             Diagnostic::warning(
                                 DiagnosticCode::AbsolutePositionOnLayoutManagedChild,
                                 DiagnosticPhase::Build,
@@ -611,12 +610,12 @@ impl Timeline {
                             )
                             .with_subject(label),
                         );
-                    }
-                    // `offset` only modifies an `at`/`anchor` binding. With
-                    // neither, the child stays layout-managed and the offset is
-                    // dropped silently, so name the child and the property.
-                    if extracted.offset_expr.is_some() && !has_at && !has_position && !has_anchor {
-                        diagnostics.push(
+            }
+            // `offset` only modifies an `at`/`anchor` binding. With
+            // neither, the child stays layout-managed and the offset is
+            // dropped silently, so name the child and the property.
+            if extracted.offset_expr.is_some() && !has_at && !has_position && !has_anchor {
+                diagnostics.push(
                             Diagnostic::warning(
                                 crate::diagnostics::DiagnosticCode::IgnoredOffset,
                                 crate::diagnostics::DiagnosticPhase::Build,
@@ -626,8 +625,6 @@ impl Timeline {
                             )
                             .with_subject(label),
                         );
-                    }
-                }
             }
         }
     }

@@ -23,13 +23,14 @@ fn canvas_focus(text_edit_focused: bool) -> FocusContext {
 #[test]
 fn backspace_reaches_text_edit_when_focused() {
     let ctx = Context::default();
-    let edit_id = egui::Id::new("test_text_edit");
+    let edit_id = egui::Id::unique("test_text_edit");
     let mut text = "abc".to_owned();
 
-    let _ = ctx.run_ui(test_input(Vec::new()), |ui| {
+    ctx.run_ui(test_input(Vec::new()), |ui| {
         let response = ui.add(egui::TextEdit::singleline(&mut text).id(edit_id));
         response.request_focus();
-    });
+    })
+    .drop_without_applying_deltas();
     assert!(ctx.text_edit_focused(), "TextEdit should own keyboard focus");
 
     // Move the caret to the end so Backspace deletes a character.
@@ -54,11 +55,11 @@ fn backspace_reaches_text_edit_when_focused() {
     assert!(action.is_none(), "Backspace must not trigger a shortcut in a TextEdit");
 
     let mut changed = false;
-    let _ = egui::Area::new(egui::Id::new("test_area")).show(&ctx, |ui| {
+    let _ = egui::Area::new(egui::Id::unique("test_area")).show(&ctx, |ui| {
         let response = ui.add(egui::TextEdit::singleline(&mut text).id(edit_id));
         changed |= response.changed();
     });
-    let _ = ctx.end_pass();
+    ctx.end_pass().drop_without_applying_deltas();
 
     assert!(changed, "TextEdit should receive the Backspace event");
     assert_eq!(text, "ab");
@@ -67,31 +68,34 @@ fn backspace_reaches_text_edit_when_focused() {
 #[test]
 fn ime_commit_reaches_text_edit_after_focus_switch() {
     let ctx = Context::default();
-    let id_a = egui::Id::new("ime_a");
-    let id_b = egui::Id::new("ime_b");
+    let id_a = egui::Id::unique("ime_a");
+    let id_b = egui::Id::unique("ime_b");
     let mut text_a = "existing".to_owned();
     let mut text_b = String::new();
 
     // Give A focus first, then switch focus to B. In real input this click
     // is followed by IME events on a later frame.
-    let _ = ctx.run_ui(test_input(Vec::new()), |ui| {
+    ctx.run_ui(test_input(Vec::new()), |ui| {
         let resp_a = ui.add(egui::TextEdit::singleline(&mut text_a).id(id_a));
         resp_a.request_focus();
         let resp_b = ui.add(egui::TextEdit::singleline(&mut text_b).id(id_b));
         resp_b.request_focus();
-    });
+    })
+    .drop_without_applying_deltas();
     ctx.begin_pass(test_input(Vec::new()));
     show_text_edits(&ctx, &mut text_a, id_a, false, &mut text_b, id_b, true);
-    let _ = ctx.end_pass();
+    ctx.end_pass().drop_without_applying_deltas();
     assert!(ctx.text_edit_focused(), "B should own focus after switch");
 
     ctx.begin_pass(test_input(vec![
-        egui::Event::Ime(egui::ImeEvent::Enabled),
-        egui::Event::Ime(egui::ImeEvent::Preedit("ni".to_string())),
+        egui::Event::Ime(egui::ImeEvent::Preedit {
+            text: "ni".to_string(),
+            active_range_chars: None,
+        }),
         egui::Event::Ime(egui::ImeEvent::Commit("你".to_string())),
     ]));
     show_text_edits(&ctx, &mut text_a, id_a, false, &mut text_b, id_b, true);
-    let _ = ctx.end_pass();
+    ctx.end_pass().drop_without_applying_deltas();
 
     assert_eq!(text_b, "你", "focused TextEdit should commit IME text");
     assert_eq!(text_a, "existing");
@@ -106,7 +110,7 @@ fn show_text_edits(
     id_b: egui::Id,
     focus_b: bool,
 ) {
-    let _ = egui::Area::new(egui::Id::new("ime_area")).show(ctx, |ui| {
+    let _ = egui::Area::new(egui::Id::unique("ime_area")).show(ctx, |ui| {
         let resp_a = ui.add(egui::TextEdit::singleline(text_a).id(id_a));
         if focus_a {
             resp_a.request_focus();
@@ -133,7 +137,7 @@ fn backspace_canvas_shortcut_fires_when_no_text_focus() {
     ctx.begin_pass(input);
     let action = registry.check(&ctx, &canvas_focus(false));
     assert!(matches!(action, Some(KeyboardAction::DeleteSelection)));
-    let _ = ctx.end_pass();
+    ctx.end_pass().drop_without_applying_deltas();
 }
 
 #[test]

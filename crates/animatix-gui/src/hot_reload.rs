@@ -69,13 +69,13 @@ impl HotReloader {
         }
 
         // Check if debounce period has passed since last event
-        if let Some(last) = self.last_event {
-            if app_time.duration_since(last) >= self.debounce_duration {
-                self.last_event = None;
-                return ReloadStatus::ShouldReload {
-                    path: self.watched_path.clone(),
-                };
-            }
+        if let Some(last) = self.last_event
+            && app_time.duration_since(last) >= self.debounce_duration
+        {
+            self.last_event = None;
+            return ReloadStatus::ShouldReload {
+                path: self.watched_path.clone(),
+            };
         }
 
         ReloadStatus::NoChange

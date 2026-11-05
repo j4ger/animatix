@@ -136,10 +136,11 @@ impl DocumentSession {
             BuildTarget::SingleScene(mut timeline) => {
                 timeline.plot_path_cache = old_plot_cache;
                 // Reuse lowered modifier programs if modifier AST is unchanged.
-                if let Some((old_hash, old_ir)) = &old_modifier_data {
-                    if timeline.modifier_hash == *old_hash && !old_ir.is_empty() {
-                        timeline.modifier_programs = old_ir.clone();
-                    }
+                if let Some((old_hash, old_ir)) = &old_modifier_data
+                    && timeline.modifier_hash == *old_hash
+                    && !old_ir.is_empty()
+                {
+                    timeline.modifier_programs = old_ir.clone();
                 }
                 self.timeline = Some(timeline);
                 self.composition = None;
@@ -159,12 +160,12 @@ impl DocumentSession {
                 let scene_count = composition.scenes.len();
                 for scene in composition.scenes.values_mut() {
                     scene.timeline.plot_path_cache.clone_from(&old_plot_cache);
-                    if scene_count == 1 {
-                        if let Some((old_hash, old_ir)) = &old_modifier_data {
-                            if scene.timeline.modifier_hash == *old_hash && !old_ir.is_empty() {
-                                scene.timeline.modifier_programs = old_ir.clone();
-                            }
-                        }
+                    if scene_count == 1
+                        && let Some((old_hash, old_ir)) = &old_modifier_data
+                        && scene.timeline.modifier_hash == *old_hash
+                        && !old_ir.is_empty()
+                    {
+                        scene.timeline.modifier_programs = old_ir.clone();
                     }
                 }
                 self.timeline = None;
@@ -238,10 +239,11 @@ impl DocumentSession {
         // Apply caches and active_scene depending on single- vs multi-scene.
         if let Some(mut timeline) = output.timeline {
             timeline.plot_path_cache = old_plot_cache;
-            if let Some((old_hash, old_ir)) = &old_modifier_data {
-                if timeline.modifier_hash == *old_hash && !old_ir.is_empty() {
-                    timeline.modifier_programs = old_ir.clone();
-                }
+            if let Some((old_hash, old_ir)) = &old_modifier_data
+                && timeline.modifier_hash == *old_hash
+                && !old_ir.is_empty()
+            {
+                timeline.modifier_programs = old_ir.clone();
             }
             self.timeline = Some(timeline);
             self.composition = None;
@@ -259,12 +261,12 @@ impl DocumentSession {
             let scene_count = composition.scenes.len();
             for scene in composition.scenes.values_mut() {
                 scene.timeline.plot_path_cache.clone_from(&old_plot_cache);
-                if scene_count == 1 {
-                    if let Some((old_hash, old_ir)) = &old_modifier_data {
-                        if scene.timeline.modifier_hash == *old_hash && !old_ir.is_empty() {
-                            scene.timeline.modifier_programs = old_ir.clone();
-                        }
-                    }
+                if scene_count == 1
+                    && let Some((old_hash, old_ir)) = &old_modifier_data
+                    && scene.timeline.modifier_hash == *old_hash
+                    && !old_ir.is_empty()
+                {
+                    scene.timeline.modifier_programs = old_ir.clone();
                 }
             }
             self.timeline = None;

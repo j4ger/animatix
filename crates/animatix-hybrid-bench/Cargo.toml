@@ -16,9 +16,8 @@ crate-type = ["cdylib"]
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # Production compute path: RendererCore (vello Renderer + fullscreen blit).
 animatix-render = { path = "../animatix-render", default-features = false }
-vello = { git = "https://github.com/linebender/vello", rev = "d8686d52", default-features = false, features = ["wgpu"] }
-# WebGL2 backend. libm (not std) so the crate stays no_std and does not pull
-# vello_hybrid's own `wgpu` feature (which conflicts with `webgl`).
+vello = { workspace = true }
+# Sparse renderer on WebGL2. `libm` (not std) keeps the crate no_std.
 vello_hybrid = { git = "https://github.com/linebender/vello", rev = "d8686d52", default-features = false, features = ["webgl", "libm"] }
 wgpu = { workspace = true, features = ["webgpu", "fragile-send-sync-non-atomic-wasm"] }
 wasm-bindgen = "=0.2.128"

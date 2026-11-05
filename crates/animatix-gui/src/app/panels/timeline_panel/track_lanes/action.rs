@@ -79,91 +79,90 @@ pub(crate) fn render_action_blocks(
             // Interaction: click_and_drag for resize
             let action_resp = ui.interact(
                 br,
-                ui.id().with(("action_block", track_idx, event.start_time_ms)),
+                ui.scope_id().with(("action_block", track_idx, event.start_time_ms)),
                 Sense::click_and_drag(),
             );
 
             // Drag start: detect which edge by proximity
-            if action_resp.drag_started() {
-                if let Some(pos) = action_resp.interact_pointer_pos() {
-                    let dist_left = (pos.x - br.left()).abs();
-                    let dist_right = (pos.x - br.right()).abs();
-                    let edge = if dist_left <= dist_right {
-                        Edge::Left
-                    } else {
-                        Edge::Right
-                    };
-                    *new_action_drag =
-                        Some((track_idx, event.start_time_ms, edge, pos.x, start_s, duration_s));
-                }
+            if action_resp.drag_started()
+                && let Some(pos) = action_resp.interact_pointer_pos()
+            {
+                let dist_left = (pos.x - br.left()).abs();
+                let dist_right = (pos.x - br.right()).abs();
+                let edge = if dist_left <= dist_right {
+                    Edge::Left
+                } else {
+                    Edge::Right
+                };
+                *new_action_drag =
+                    Some((track_idx, event.start_time_ms, edge, pos.x, start_s, duration_s));
             }
 
             // During drag: visual feedback
-            if is_action_drag {
-                if let Some(&(_, _, edge, init_x, orig_start, orig_dur)) = action_drag {
-                    if let Some(pos) = action_resp.interact_pointer_pos() {
-                        let dx = pos.x - init_x;
-                        let dt = (dx / (coords.bar_width / coords.visible_s as f32)) as f64;
-                        match edge {
-                            Edge::Right => {
-                                let new_end_x = coords.time_to_x(orig_start + orig_dur + dt);
-                                painter.line_segment(
-                                    [
-                                        Pos2::new(new_end_x, br.top()),
-                                        Pos2::new(new_end_x, br.bottom()),
-                                    ],
-                                    Stroke::new(2.0, theme.palette.accent.primary),
-                                );
-                                let new_dur = (orig_dur + dt).max(0.1);
-                                let dur_text = if new_dur < 1.0 {
-                                    format!("{}ms", (new_dur * 1000.0).round())
-                                } else {
-                                    format!("{:.2}s", new_dur)
-                                };
-                                painter.text(
-                                    Pos2::new(new_end_x, br.top() - 4.0),
-                                    Align2::CENTER_BOTTOM,
-                                    dur_text,
-                                    FontId::monospace(10.0), // 10px mono: no TextRole
-                                    theme.palette.accent.primary,
-                                );
-                            },
-                            Edge::Left => {
-                                let new_start_x = coords.time_to_x(orig_start + dt);
-                                painter.line_segment(
-                                    [
-                                        Pos2::new(new_start_x, br.top()),
-                                        Pos2::new(new_start_x, br.bottom()),
-                                    ],
-                                    Stroke::new(2.0, theme.palette.accent.primary),
-                                );
-                            },
-                        }
-                    }
+            if is_action_drag
+                && let Some(&(_, _, edge, init_x, orig_start, orig_dur)) = action_drag
+                && let Some(pos) = action_resp.interact_pointer_pos()
+            {
+                let dx = pos.x - init_x;
+                let dt = (dx / (coords.bar_width / coords.visible_s as f32)) as f64;
+                match edge {
+                    Edge::Right => {
+                        let new_end_x = coords.time_to_x(orig_start + orig_dur + dt);
+                        painter.line_segment(
+                            [
+                                Pos2::new(new_end_x, br.top()),
+                                Pos2::new(new_end_x, br.bottom()),
+                            ],
+                            Stroke::new(2.0, theme.palette.accent.primary),
+                        );
+                        let new_dur = (orig_dur + dt).max(0.1);
+                        let dur_text = if new_dur < 1.0 {
+                            format!("{}ms", (new_dur * 1000.0).round())
+                        } else {
+                            format!("{:.2}s", new_dur)
+                        };
+                        painter.text(
+                            Pos2::new(new_end_x, br.top() - 4.0),
+                            Align2::CENTER_BOTTOM,
+                            dur_text,
+                            FontId::monospace(10.0), // 10px mono: no TextRole
+                            theme.palette.accent.primary,
+                        );
+                    },
+                    Edge::Left => {
+                        let new_start_x = coords.time_to_x(orig_start + dt);
+                        painter.line_segment(
+                            [
+                                Pos2::new(new_start_x, br.top()),
+                                Pos2::new(new_start_x, br.bottom()),
+                            ],
+                            Stroke::new(2.0, theme.palette.accent.primary),
+                        );
+                    },
                 }
             }
 
             // Drag stop: emit ResizeAction command
             if action_resp.drag_stopped() {
-                if let Some((_, _, edge, init_x, orig_start, orig_dur)) = *new_action_drag {
-                    if let Some(pos) = ui.input(|i| i.pointer.interact_pos()) {
-                        let dx = pos.x - init_x;
-                        let dt = (dx / (coords.bar_width / coords.visible_s as f32)) as f64;
-                        let (new_start_s, new_duration_s) = match edge {
-                            Edge::Right => (orig_start, (orig_dur + dt).max(0.1)),
-                            Edge::Left => {
-                                let ns = (orig_start + dt).max(0.0);
-                                (ns, (orig_dur - dt).max(0.1))
-                            },
-                        };
-                        commands.push_back(ShellAction::Command(Command::ResizeAction {
-                            verb: event.verb.clone(),
-                            targets: event.targets.clone(),
-                            old_start_s: orig_start,
-                            new_start_s,
-                            new_duration_s,
-                        }));
-                    }
+                if let Some((_, _, edge, init_x, orig_start, orig_dur)) = *new_action_drag
+                    && let Some(pos) = ui.input(|i| i.pointer.interact_pos())
+                {
+                    let dx = pos.x - init_x;
+                    let dt = (dx / (coords.bar_width / coords.visible_s as f32)) as f64;
+                    let (new_start_s, new_duration_s) = match edge {
+                        Edge::Right => (orig_start, (orig_dur + dt).max(0.1)),
+                        Edge::Left => {
+                            let ns = (orig_start + dt).max(0.0);
+                            (ns, (orig_dur - dt).max(0.1))
+                        },
+                    };
+                    commands.push_back(ShellAction::Command(Command::ResizeAction {
+                        verb: event.verb.clone(),
+                        targets: event.targets.clone(),
+                        old_start_s: orig_start,
+                        new_start_s,
+                        new_duration_s,
+                    }));
                 }
                 *new_action_drag = None;
             }

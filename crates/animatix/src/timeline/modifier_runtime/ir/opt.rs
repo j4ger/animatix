@@ -318,11 +318,11 @@ fn optimize_expr_scoped(
         CompiledExpr::Binary(left, op, right) => {
             let left_opt = optimize_expr_scoped(*left, shadow_names, const_env, stats);
             let right_opt = optimize_expr_scoped(*right, shadow_names, const_env, stats);
-            if let (CompiledExpr::Const(lv), CompiledExpr::Const(rv)) = (&left_opt, &right_opt) {
-                if let Ok(res) = eval_binary_op(lv.clone(), &op, rv.clone()) {
-                    stats.folded += 1;
-                    return CompiledExpr::Const(res);
-                }
+            if let (CompiledExpr::Const(lv), CompiledExpr::Const(rv)) = (&left_opt, &right_opt)
+                && let Ok(res) = eval_binary_op(lv.clone(), &op, rv.clone())
+            {
+                stats.folded += 1;
+                return CompiledExpr::Const(res);
             }
             CompiledExpr::Binary(Box::new(left_opt), op, Box::new(right_opt))
         },

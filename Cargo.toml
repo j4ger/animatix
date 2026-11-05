@@ -28,17 +28,23 @@ resolver = "2"
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.95"
 
 [workspace.dependencies]
-# egui stack — single source of truth, shared by eparts + animatix-gui
-egui            = { version = "0.34" }
-eframe          = { version = "0.34", default-features = false, features = ["default_fonts", "wgpu", "x11", "wayland"] }
-egui-phosphor   = { version = "0.12", default-features = false, features = ["regular"] }
-egui_tiles      = { version = "0.15", features = ["serde"] }
+# egui stack — single source of truth, shared by eparts + animatix-gui.
+# egui-phosphor is aliased to egui-pop-phosphor: the maintained fork of
+# egui-phosphor that supports egui 0.37 (upstream 0.14 still pins egui 0.36).
+# The alias keeps the `egui_phosphor::regular::*` / `add_to_fonts` API and the
+# same Phosphor codepoints, so no widget code changes. Switch back to upstream
+# `egui-phosphor` as soon as it ships an egui-0.37 release.
+egui            = { version = "0.37.0" }
+eframe          = { version = "0.37.0", default-features = false, features = ["default_fonts", "wgpu", "x11", "wayland"] }
+egui-phosphor   = { package = "egui-pop-phosphor", version = "0.15.0", default-features = false, features = ["regular"] }
+egui_tiles      = { version = "0.18.0", features = ["serde"] }
 
 # Shared graphics dep already duplicated across animatix + animatix-gui
-wgpu            = { version = "29.0.0", default-features = false }
+wgpu            = { version = "30.0.1", default-features = false }
+vello           = { version = "0.11.0", default-features = false, features = ["wgpu"] }
 
 # Shared runtime/serialization deps used by multiple workspace crates
 bytemuck        = "1.25.0"
@@ -91,3 +97,12 @@ lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = "symbols"
+
+# vello 0.11.0 still resizes the persistent image atlas to 1x1 on image-free
+# renders, which resurrects upstream #1558 for scenes that interleave image and
+# non-image renders — exactly our multi-scope filter pipeline. `vendor/vello` is
+# unmodified vello 0.11.0 except for `src/render.rs`: an image-free render keeps
+# the existing atlas alive instead of freeing/replacing it. Drop this patch (and
+# the vendored directory) when upstream ships the fix.
+[patch.crates-io]
+vello = { path = "vendor/vello" }

@@ -108,7 +108,7 @@ pub enum Density {
 
 /// The egui Memory key used to store the density preference.
 fn density_key() -> egui::Id {
-    egui::Id::new("eparts_density")
+    egui::Id::unique("eparts_density")
 }
 
 /// Read the current [`Density`] from an `egui::Context`.

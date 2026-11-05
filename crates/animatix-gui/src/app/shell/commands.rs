@@ -67,10 +67,10 @@ impl GuiShell {
     }
 
     pub(crate) fn save_persistence(&self) {
-        if let Some(parent) = self.workspace_store.persistence_path.parent() {
-            if let Err(e) = fs::create_dir_all(parent) {
-                tracing::warn!("Failed to create persistence directory: {}", e);
-            }
+        if let Some(parent) = self.workspace_store.persistence_path.parent()
+            && let Err(e) = fs::create_dir_all(parent)
+        {
+            tracing::warn!("Failed to create persistence directory: {}", e);
         }
         let persistence = WorkspacePersistence {
             tree: self.ui_store.view.tree.clone(),
@@ -106,10 +106,9 @@ impl GuiShell {
         };
         if let Ok(serialized) =
             ron::ser::to_string_pretty(&persistence, ron::ser::PrettyConfig::default())
+            && let Err(e) = fs::write(&self.workspace_store.persistence_path, serialized)
         {
-            if let Err(e) = fs::write(&self.workspace_store.persistence_path, serialized) {
-                tracing::warn!("Failed to write persistence file: {}", e);
-            }
+            tracing::warn!("Failed to write persistence file: {}", e);
         }
     }
 

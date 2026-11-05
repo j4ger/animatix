@@ -91,25 +91,24 @@ pub(super) fn handle_middle_click_pan(
     preview_rect: egui::Rect,
 ) {
     // ── Middle-click pan ──
-    if ui.input(|i| i.pointer.middle_down()) {
-        if let Some(mouse) = ui.ctx().input(|i| i.pointer.latest_pos()) {
-            if preview_rect.contains(mouse) {
-                let delta = ui.input(|i| i.pointer.delta());
-                if delta != Vec2::ZERO {
-                    let tx = preview::PreviewTransform::new(
-                        ctx.scene_dimensions,
-                        preview_rect,
-                        ctx.preview.viewport.preview_zoom,
-                        Vec2::ZERO,
-                    );
-                    let (scale, _) = tx.scale();
-                    let new_pan = Vec2::new(
-                        ctx.preview.viewport.preview_pan.x - delta.x * scale as f32,
-                        ctx.preview.viewport.preview_pan.y - delta.y * scale as f32,
-                    );
-                    ctx.preview.viewport.preview_pan = ctx.clamp_pan(new_pan, preview_rect);
-                }
-            }
+    if ui.input(|i| i.pointer.middle_down())
+        && let Some(mouse) = ui.ctx().input(|i| i.pointer.latest_pos())
+        && preview_rect.contains(mouse)
+    {
+        let delta = ui.input(|i| i.pointer.delta());
+        if delta != Vec2::ZERO {
+            let tx = preview::PreviewTransform::new(
+                ctx.scene_dimensions,
+                preview_rect,
+                ctx.preview.viewport.preview_zoom,
+                Vec2::ZERO,
+            );
+            let (scale, _) = tx.scale();
+            let new_pan = Vec2::new(
+                ctx.preview.viewport.preview_pan.x - delta.x * scale as f32,
+                ctx.preview.viewport.preview_pan.y - delta.y * scale as f32,
+            );
+            ctx.preview.viewport.preview_pan = ctx.clamp_pan(new_pan, preview_rect);
         }
     }
 
@@ -231,60 +230,60 @@ pub(super) fn handle_file_drop(
     if response.hovered() {
         let dropped_files = ui.input(|i| i.raw.dropped_files.clone());
         for file in dropped_files {
-            if let Some(path) = file.path {
-                let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
-                let path_str = path.to_string_lossy().to_string();
+            // eframe 0.37 exposes `DroppedFile` as a trait object; `path` is an accessor.
+            let path = file.path().to_path_buf();
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+            let path_str = path.to_string_lossy().to_string();
 
-                // .amx files: open directly instead of creating an actor
-                if ext == "amx" {
-                    ctx.commands.push_back(Command::OpenFile(path).into());
-                    continue;
-                }
-
-                let drop_pos = if let Some(mouse) = ui.ctx().input(|i| i.pointer.latest_pos()) {
-                    let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
-                    [scene.x as f32, scene.y as f32]
-                } else {
-                    [
-                        ctx.scene_dimensions.width as f32 / 2.0,
-                        ctx.scene_dimensions.height as f32 / 2.0,
-                    ]
-                };
-                let label = crate::app::utils::labels::unique_label(
-                    None,
-                    if ext == "svg" { "svg" } else { "image" },
-                );
-                let (ty, props) = if ext == "svg" {
-                    (
-                        "Svg".to_string(),
-                        vec![animatix_syntax::ast::Property {
-                            name: "url".into(),
-                            value: animatix_syntax::ast::Expr::Str(path_str),
-                            value_span: None,
-                            trailing_comment: None,
-                        }],
-                    )
-                } else {
-                    (
-                        "Image".to_string(),
-                        vec![animatix_syntax::ast::Property {
-                            name: "url".into(),
-                            value: animatix_syntax::ast::Expr::Str(path_str),
-                            value_span: None,
-                            trailing_comment: None,
-                        }],
-                    )
-                };
-                ctx.commands.push_back(
-                    Command::CreateActor {
-                        ty,
-                        label,
-                        position: drop_pos,
-                        props,
-                    }
-                    .into(),
-                );
+            // .amx files: open directly instead of creating an actor
+            if ext == "amx" {
+                ctx.commands.push_back(Command::OpenFile(path).into());
+                continue;
             }
+
+            let drop_pos = if let Some(mouse) = ui.ctx().input(|i| i.pointer.latest_pos()) {
+                let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
+                [scene.x as f32, scene.y as f32]
+            } else {
+                [
+                    ctx.scene_dimensions.width as f32 / 2.0,
+                    ctx.scene_dimensions.height as f32 / 2.0,
+                ]
+            };
+            let label = crate::app::utils::labels::unique_label(
+                None,
+                if ext == "svg" { "svg" } else { "image" },
+            );
+            let (ty, props) = if ext == "svg" {
+                (
+                    "Svg".to_string(),
+                    vec![animatix_syntax::ast::Property {
+                        name: "url".into(),
+                        value: animatix_syntax::ast::Expr::Str(path_str),
+                        value_span: None,
+                        trailing_comment: None,
+                    }],
+                )
+            } else {
+                (
+                    "Image".to_string(),
+                    vec![animatix_syntax::ast::Property {
+                        name: "url".into(),
+                        value: animatix_syntax::ast::Expr::Str(path_str),
+                        value_span: None,
+                        trailing_comment: None,
+                    }],
+                )
+            };
+            ctx.commands.push_back(
+                Command::CreateActor {
+                    ty,
+                    label,
+                    position: drop_pos,
+                    props,
+                }
+                .into(),
+            );
         }
     }
 }
@@ -304,30 +303,31 @@ pub(super) fn show_selection_editors(
     ctx.render_inline_text_editor(ui, preview_rect);
 
     // Floating property cards for selected actors (hide when inline editing)
-    if !is_dragging && ctx.selected_actors.len() == 1 && ctx.preview.inline_edit.is_none() {
-        if let Some(actor) = ctx.selected_actors.iter().next() {
-            if let Some(props) = ctx.get_actor_props(actor) {
-                let screen_pos = ctx.preview_scene_to_screen(
-                    preview_rect,
-                    kurbo::Point::new(props.position[0] as f64, props.position[1] as f64),
-                );
-                preview::property_popup::show_property_popup(
-                    ui,
-                    actor,
-                    &props,
-                    screen_pos,
-                    ctx.commands,
-                    is_dragging,
-                    ctx.timeline,
-                    ctx.preview.playback.current_time_s(),
-                    ctx.scene_dimensions,
-                    ctx.preview.viewport.preview_zoom,
-                    preview_rect,
-                    ctx.preview.viewport.preview_pan,
-                    ctx.active_scene,
-                );
-            }
-        }
+    if !is_dragging
+        && ctx.selected_actors.len() == 1
+        && ctx.preview.inline_edit.is_none()
+        && let Some(actor) = ctx.selected_actors.iter().next()
+        && let Some(props) = ctx.get_actor_props(actor)
+    {
+        let screen_pos = ctx.preview_scene_to_screen(
+            preview_rect,
+            kurbo::Point::new(props.position[0] as f64, props.position[1] as f64),
+        );
+        preview::property_popup::show_property_popup(
+            ui,
+            actor,
+            &props,
+            screen_pos,
+            ctx.commands,
+            is_dragging,
+            ctx.timeline,
+            ctx.preview.playback.current_time_s(),
+            ctx.scene_dimensions,
+            ctx.preview.viewport.preview_zoom,
+            preview_rect,
+            ctx.preview.viewport.preview_pan,
+            ctx.active_scene,
+        );
     }
 
     // Render the Floating Tool Island HUD hovering over the canvas

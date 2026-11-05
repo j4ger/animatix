@@ -251,10 +251,10 @@ impl Timeline {
         let mut delays = vec![0.0; n];
 
         for (idx, dist) in items {
-            if let Some(prev) = prev_dist {
-                if (dist - prev).abs() > 0.5 {
-                    ring += 1;
-                }
+            if let Some(prev) = prev_dist
+                && (dist - prev).abs() > 0.5
+            {
+                ring += 1;
             }
             prev_dist = Some(dist);
             delays[idx] = ring as f64 * parsed.interval_ms;

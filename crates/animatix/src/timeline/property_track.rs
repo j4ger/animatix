@@ -336,10 +336,10 @@ impl<T: Interpolate> PropertyTrack<T> {
     fn evaluate_with(&self, time_ms: u64, clone_val: impl Fn(&T) -> T) -> T {
         // Exact-time queries repeat within a frame; return the memoized value
         // and clone it according to the caller's strategy.
-        if let Some((cached_time, cached_value)) = self.last_evaluated.borrow().as_ref() {
-            if *cached_time == time_ms {
-                return clone_val(cached_value);
-            }
+        if let Some((cached_time, cached_value)) = self.last_evaluated.borrow().as_ref()
+            && *cached_time == time_ms
+        {
+            return clone_val(cached_value);
         }
 
         let result = if let Some((_found_time, prev_val, found_val, progress, found_easing)) =
@@ -433,13 +433,12 @@ impl PropertyTrack<[f32; 2]> {
     pub fn velocity_at(&self, time_ms: u64) -> [f32; 2] {
         if let Some((_found_time, prev_val, found_val, progress, duration, easing)) =
             self.interpolation_segment_with_duration(time_ms)
+            && duration > 0.0
         {
-            if duration > 0.0 {
-                let d_ease = crate::easing::easing_derivative(progress, *easing);
-                let dx = (found_val[0] - prev_val[0]) / duration * d_ease;
-                let dy = (found_val[1] - prev_val[1]) / duration * d_ease;
-                return [dx, dy];
-            }
+            let d_ease = crate::easing::easing_derivative(progress, *easing);
+            let dx = (found_val[0] - prev_val[0]) / duration * d_ease;
+            let dy = (found_val[1] - prev_val[1]) / duration * d_ease;
+            return [dx, dy];
         }
         [0.0, 0.0]
     }
@@ -450,11 +449,10 @@ impl PropertyTrack<f32> {
     pub fn velocity_at(&self, time_ms: u64) -> f32 {
         if let Some((_found_time, prev_val, found_val, progress, duration, easing)) =
             self.interpolation_segment_with_duration(time_ms)
+            && duration > 0.0
         {
-            if duration > 0.0 {
-                let d_ease = crate::easing::easing_derivative(progress, *easing);
-                return (found_val - prev_val) / duration * d_ease;
-            }
+            let d_ease = crate::easing::easing_derivative(progress, *easing);
+            return (found_val - prev_val) / duration * d_ease;
         }
         0.0
     }

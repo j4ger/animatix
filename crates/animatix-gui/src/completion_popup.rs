@@ -284,12 +284,11 @@ impl CompletionPopup {
 
         // Handle click outside to dismiss
         ui.input(|i| {
-            if i.pointer.any_pressed() {
-                if let Some(click_pos) = i.pointer.interact_pos() {
-                    if !popup_rect.contains(click_pos) {
-                        self.hide();
-                    }
-                }
+            if i.pointer.any_pressed()
+                && let Some(click_pos) = i.pointer.interact_pos()
+                && !popup_rect.contains(click_pos)
+            {
+                self.hide();
             }
         });
 

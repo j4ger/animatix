@@ -10,7 +10,6 @@ pub(super) fn render_scene_inspector(
     use crate::app::components::layout;
     let theme = eparts::theme(ui);
     let sp = spatial(ui);
-
     let Some(scene) = composition.scenes.get(active_scene) else {
         layout::empty_state(
             ui,
@@ -39,7 +38,6 @@ pub(super) fn render_scene_inspector(
                 .color(theme.palette.text.muted),
         );
         ui.add_space(sp.base.space_3);
-
         // ── Scene Properties ──
         layout::group_box(ui, format!("{} Properties", egui_phosphor::regular::WRENCH), |ui| {
             // Duration (editable — explicit or inferred from timeline keyframes)
@@ -58,13 +56,13 @@ pub(super) fn render_scene_inspector(
                     "Auto-detected from keyframes (drag to set explicit)"
                 };
                 let changed = drag.changed();
-                text_tooltip(ui, ui.id().with("scene_duration_tooltip"), &drag, tooltip);
+                text_tooltip(ui, ui.scope_id().with("scene_duration_tooltip"), &drag, tooltip);
                 if is_explicit {
                     // Small button to remove explicit duration
                     let revert = ui.add(Button::ghost("").with_icon(egui_phosphor::regular::X));
                     text_tooltip(
                         ui,
-                        ui.id().with("scene_duration_revert_tooltip"),
+                        ui.scope_id().with("scene_duration_revert_tooltip"),
                         &revert,
                         "Revert to auto-detected duration",
                     );
@@ -154,7 +152,7 @@ pub(super) fn render_scene_inspector(
                     None => Some(0),
                 };
                 ui.add(
-                    Select::new(ui.id().with("play_edge_target"), &mut sel_idx, &options)
+                    Select::new(ui.scope_id().with("play_edge_target"), &mut sel_idx, &options)
                         .placeholder("Select target…"),
                 );
                 if let Some(idx) = sel_idx {
@@ -189,8 +187,9 @@ pub(super) fn render_scene_inspector(
                     layout::labeled_row(ui, "Type", INSPECTOR_INPUT_WIDTH_FLOAT, |ui| {
                         let names: Vec<&str> = registry.iter().map(|d| d.display_name).collect();
                         let mut sel_idx = registry.iter().position(|d| d.id == edge.transition.id);
+                        let transition_id = ui.scope_id().with("transition_type");
                         ui.add(
-                            Select::new(ui.id().with("transition_type"), &mut sel_idx, &names)
+                            Select::new(transition_id, &mut sel_idx, &names)
                                 .placeholder("Select transition…"),
                         );
                         if let Some(idx) = sel_idx {
@@ -249,8 +248,9 @@ pub(super) fn render_scene_inspector(
                                     .unwrap_or(animatix_syntax::easing::Easing::Linear)
                                     == current_easing
                             });
+                        let easing_id = ui.scope_id().with("transition_easing");
                         ui.add(
-                            Select::new(ui.id().with("transition_easing"), &mut sel_idx, &names)
+                            Select::new(easing_id, &mut sel_idx, &names)
                                 .placeholder("Select easing…"),
                         );
                         if let Some(idx) = sel_idx {
@@ -334,7 +334,7 @@ pub(super) fn render_scene_inspector(
                         ui.cursor().min,
                         Vec2::new(ui.available_width(), sp.base.row_m),
                     ),
-                    ui.id().with(format!("scene_list_{}", scene_name)),
+                    ui.scope_id().with(format!("scene_list_{}", scene_name)),
                     egui::Sense::click(),
                 );
                 let bg = if is_active {

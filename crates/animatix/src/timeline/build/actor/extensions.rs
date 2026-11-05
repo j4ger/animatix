@@ -35,21 +35,20 @@ impl Timeline {
             &eval_env,
             diagnostics,
             label,
-        ) {
-            if let Some(id) = self.world.get_id(label) {
-                let t_start_ms = time_ms as u64;
-                let geometry = self.world.geometry_mut(id);
-                preserve_discrete_position_state_before(geometry, t_start_ms);
-                set_track_position_binding(geometry, t_start_ms, binding);
-                if let Some(bound_position) = bound_position {
-                    geometry.position.ensure([0.0, 0.0]).add_keyframe(
-                        t_start_ms,
-                        bound_position,
-                        Easing::Linear,
-                    );
-                }
-                mark_track_manual_position(geometry, t_start_ms);
+        ) && let Some(id) = self.world.get_id(label)
+        {
+            let t_start_ms = time_ms as u64;
+            let geometry = self.world.geometry_mut(id);
+            preserve_discrete_position_state_before(geometry, t_start_ms);
+            set_track_position_binding(geometry, t_start_ms, binding);
+            if let Some(bound_position) = bound_position {
+                geometry.position.ensure([0.0, 0.0]).add_keyframe(
+                    t_start_ms,
+                    bound_position,
+                    Easing::Linear,
+                );
             }
+            mark_track_manual_position(geometry, t_start_ms);
         }
 
         // Declared opacity/size write through the property plan slots.
@@ -59,31 +58,29 @@ impl Timeline {
                 "opacity" => {
                     if let Ok(crate::timeline::Value::Num(v)) =
                         super::evaluate_expr(&prop.value, &eval_env)
+                        && let Some(id) = self.world.get_id(label)
                     {
-                        if let Some(id) = self.world.get_id(label) {
-                            self.world.style_mut(id).opacity.ensure(1.0).add_keyframe(
-                                time_ms as u64,
-                                v.clamp(0.0, 1.0) as f32,
-                                Easing::Linear,
-                            );
-                        }
+                        self.world.style_mut(id).opacity.ensure(1.0).add_keyframe(
+                            time_ms as u64,
+                            v.clamp(0.0, 1.0) as f32,
+                            Easing::Linear,
+                        );
                     }
                 },
                 "size" => {
                     if let Ok(crate::timeline::Value::Vec2(v)) =
                         super::evaluate_expr(&prop.value, &eval_env)
+                        && let Some(id) = self.world.get_id(label)
                     {
-                        if let Some(id) = self.world.get_id(label) {
-                            let geometry = self.world.geometry_mut(id);
-                            geometry
-                                .size
-                                .ensure(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
-                                .add_keyframe(
-                                    time_ms as u64,
-                                    [v[0] as f32, v[1] as f32],
-                                    Easing::Linear,
-                                );
-                        }
+                        let geometry = self.world.geometry_mut(id);
+                        geometry
+                            .size
+                            .ensure(crate::timeline::DEFAULT_LAYOUT_HALF_SIZE)
+                            .add_keyframe(
+                                time_ms as u64,
+                                [v[0] as f32, v[1] as f32],
+                                Easing::Linear,
+                            );
                     }
                 },
                 _ => {},
@@ -133,24 +130,24 @@ impl Timeline {
         for prop in props {
             let subject = format!("{}.{}", label, prop.name);
             if let Some(schema) = crate::timeline::property_registry::lookup_property(&prop.name) {
-                if primitive.is_some_and(|primitive| primitive.declares_property(&prop.name)) {
-                    if let Some(pv) = crate::timeline::property_engine::parse_property_value(
+                if primitive.is_some_and(|primitive| primitive.declares_property(&prop.name))
+                    && let Some(pv) = crate::timeline::property_engine::parse_property_value(
                         schema.value_type,
                         &prop.value,
                         &eval_env,
                         diagnostics,
                         &subject,
-                    ) {
-                        self.world.write_property_field(
-                            track_id,
-                            schema.field_for_actor(&actor_caps, ty),
-                            pv,
-                            t_start_ms,
-                            t_end_ms,
-                            easing,
-                            diagnostics,
-                        );
-                    }
+                    )
+                {
+                    self.world.write_property_field(
+                        track_id,
+                        schema.field_for_actor(&actor_caps, ty),
+                        pv,
+                        t_start_ms,
+                        t_end_ms,
+                        easing,
+                        diagnostics,
+                    );
                 }
                 continue;
             }
@@ -378,12 +375,11 @@ impl Timeline {
             let mut position = self.world.geometry(existing_track_id).position.last([0.0, 0.0]);
             let eval_env = self.build_eval_env(time_ms as u64);
             for prop in props {
-                if prop.name == "at" || prop.name == "position" {
-                    if let Ok(super::Value::Vec2(pos)) =
+                if (prop.name == "at" || prop.name == "position")
+                    && let Ok(super::Value::Vec2(pos)) =
                         super::evaluate_expr(&prop.value, &eval_env)
-                    {
-                        position = [pos[0] as f32, pos[1] as f32];
-                    }
+                {
+                    position = [pos[0] as f32, pos[1] as f32];
                 }
             }
 
@@ -441,7 +437,6 @@ impl Timeline {
                 duration_ms,
                 delay_ms,
                 easing,
-                morph_options: _,
                 ..
             } = parse_timing_modifiers(
                 modifiers,

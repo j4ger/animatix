@@ -443,10 +443,10 @@ pub fn load_standard_library(env: &mut Environment) {
             captures.merge_into(&mut child_env);
             let param = params[0].clone();
             for (dst, src) in child_env.bindings.iter_mut().zip(env.bindings.iter()) {
-                if let Some((name, _)) = src {
-                    if *name == param {
-                        continue;
-                    }
+                if let Some((name, _)) = src
+                    && *name == param
+                {
+                    continue;
                 }
                 *dst = src.clone();
             }

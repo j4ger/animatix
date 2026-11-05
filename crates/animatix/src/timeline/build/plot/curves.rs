@@ -347,78 +347,79 @@ pub(super) fn validate_plot_func(
     let is_heatmap = primitive.plot == Some(PlotKind::Heatmap);
     let is_contour_set = primitive.plot == Some(PlotKind::ContourSet);
     let is_bar_chart = primitive.plot == Some(PlotKind::BarChart);
-    if let Some((args, body, _)) = func {
-        if !is_bar_chart {
-            let (expected_arity, expected_ty) = if is_vector_field {
-                (2, "vec2")
-            } else if is_heatmap || is_contour_set {
-                (2, "number")
-            } else {
-                match kind {
-                    PlotCurveKind::Cartesian | PlotCurveKind::Polar => (1, "number"),
-                    PlotCurveKind::Parametric => (1, "vec2"),
-                    PlotCurveKind::Implicit => (2, "number"),
-                }
-            };
-            if args.len() != expected_arity {
+    if let Some((args, body, _)) = func
+        && !is_bar_chart
+    {
+        let (expected_arity, expected_ty) = if is_vector_field {
+            (2, "vec2")
+        } else if is_heatmap || is_contour_set {
+            (2, "number")
+        } else {
+            match kind {
+                PlotCurveKind::Cartesian | PlotCurveKind::Polar => (1, "number"),
+                PlotCurveKind::Parametric => (1, "vec2"),
+                PlotCurveKind::Implicit => (2, "number"),
+            }
+        };
+        if args.len() != expected_arity {
+            diagnostics.push(
+                Diagnostic::error(
+                    DiagnosticCode::InvalidPlotFunc,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "{} expects a func with {} argument(s), got {}",
+                        ty,
+                        expected_arity,
+                        args.len()
+                    ),
+                )
+                .with_subject(label),
+            );
+        }
+        // Type-check by evaluating with a test input.
+        let mut test_env = initial_eval_env.clone();
+        for arg in args.iter() {
+            test_env.set(arg, Value::Num(0.0));
+        }
+        if let Ok(result) = evaluate_compiled_expr(body, &test_env) {
+            let ok = matches!(
+                (expected_ty, &result),
+                ("number", Value::Num(_)) | ("vec2", Value::Vec2(_))
+            );
+            if !ok {
                 diagnostics.push(
                     Diagnostic::error(
                         DiagnosticCode::InvalidPlotFunc,
                         DiagnosticPhase::Build,
                         format!(
-                            "{} expects a func with {} argument(s), got {}",
+                            "{} func should return {}, got {}",
                             ty,
-                            expected_arity,
-                            args.len()
+                            expected_ty,
+                            match result {
+                                Value::PropRef { label, prop } => {
+                                    format!("property reference &{label}.{prop}")
+                                },
+                                Value::Num(_) => "number".to_string(),
+                                Value::Vec2(_) => "vec2".to_string(),
+                                Value::Vec3(_) => "vec3".to_string(),
+                                Value::Vec4(_) => "vec4".to_string(),
+                                Value::Color(_) => "color".to_string(),
+                                Value::Str(_) => "string".to_string(),
+                                Value::List(_) => "list".to_string(),
+                                Value::NativeFn(_) => "function".to_string(),
+                                Value::Closure(_, _, _) => "closure".to_string(),
+                                Value::UserFn { name, .. } => format!("user function {name}"),
+                                Value::Object(name, _) => name.clone(),
+                                Value::Bool(_) => "bool".to_string(),
+                            }
                         ),
                     )
                     .with_subject(label),
                 );
             }
-            // Type-check by evaluating with a test input.
-            let mut test_env = initial_eval_env.clone();
-            for arg in args.iter() {
-                test_env.set(arg, Value::Num(0.0));
-            }
-            if let Ok(result) = evaluate_compiled_expr(body, &test_env) {
-                let ok = matches!(
-                    (expected_ty, &result),
-                    ("number", Value::Num(_)) | ("vec2", Value::Vec2(_))
-                );
-                if !ok {
-                    diagnostics.push(
-                        Diagnostic::error(
-                            DiagnosticCode::InvalidPlotFunc,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "{} func should return {}, got {}",
-                                ty,
-                                expected_ty,
-                                match result {
-                                    Value::PropRef { label, prop } => {
-                                        format!("property reference &{label}.{prop}")
-                                    },
-                                    Value::Num(_) => "number".to_string(),
-                                    Value::Vec2(_) => "vec2".to_string(),
-                                    Value::Vec3(_) => "vec3".to_string(),
-                                    Value::Vec4(_) => "vec4".to_string(),
-                                    Value::Color(_) => "color".to_string(),
-                                    Value::Str(_) => "string".to_string(),
-                                    Value::List(_) => "list".to_string(),
-                                    Value::NativeFn(_) => "function".to_string(),
-                                    Value::Closure(_, _, _) => "closure".to_string(),
-                                    Value::UserFn { name, .. } => format!("user function {name}"),
-                                    Value::Object(name, _) => name.clone(),
-                                    Value::Bool(_) => "bool".to_string(),
-                                }
-                            ),
-                        )
-                        .with_subject(label),
-                    );
-                }
-            }
-        } // end func validation guard (BarChart only)
-    } // end func validation guard
+        }
+    } // end func validation guard (BarChart only)
+    // end func validation guard
 }
 
 impl Timeline {

@@ -60,33 +60,33 @@ pub(super) fn resolve_timing(
 
     // Warn when the last scene in the walk order itself has persistent actors
     // (persistence flags set but no successor to carry them into).
-    if let Some(last_scene_name) = walk_order.last() {
-        if let Some(last_scene) = state.scenes.get(last_scene_name) {
-            for (label, flag) in last_scene.timeline.persistence_flags_iter() {
-                if flag {
-                    // Only warn if this scene really has no outgoing edge.
-                    let has_outgoing = state.edges.contains_key(last_scene_name);
-                    if !has_outgoing {
-                        // The camera is not an actor, so the warning must not
-                        // call it one — `persist camera` is a reserved target.
-                        let subject = if label == animatix_core::property::CAMERA_TARGET {
-                            "The scene camera".to_string()
-                        } else {
-                            format!("Actor '{}'", label)
-                        };
-                        state.diagnostics.push(
-                            Diagnostic::warning(
-                                DiagnosticCode::PersistTargetNotCarried,
-                                DiagnosticPhase::Build,
-                                format!(
-                                    "{} is persisted in scene '{}' but has no \
+    if let Some(last_scene_name) = walk_order.last()
+        && let Some(last_scene) = state.scenes.get(last_scene_name)
+    {
+        for (label, flag) in last_scene.timeline.persistence_flags_iter() {
+            if flag {
+                // Only warn if this scene really has no outgoing edge.
+                let has_outgoing = state.edges.contains_key(last_scene_name);
+                if !has_outgoing {
+                    // The camera is not an actor, so the warning must not
+                    // call it one — `persist camera` is a reserved target.
+                    let subject = if label == animatix_core::property::CAMERA_TARGET {
+                        "The scene camera".to_string()
+                    } else {
+                        format!("Actor '{}'", label)
+                    };
+                    state.diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::PersistTargetNotCarried,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "{} is persisted in scene '{}' but has no \
                                      successor scene to carry into.",
-                                    subject, last_scene_name,
-                                ),
-                            )
-                            .with_subject(last_scene_name),
-                        );
-                    }
+                                subject, last_scene_name,
+                            ),
+                        )
+                        .with_subject(last_scene_name),
+                    );
                 }
             }
         }
@@ -120,43 +120,41 @@ fn inject_carried_state(
         let has_successor = i + 1 < walk_order.len();
 
         // Warn when a scene has more than one predecessor (diamond topology).
-        if let Some(preds) = reverse_edges.get(&scene_name) {
-            if preds.len() > 1 {
-                state.diagnostics.push(
-                    Diagnostic::warning(
-                        DiagnosticCode::CarryAmbiguousPredecessor,
-                        DiagnosticPhase::Build,
-                        format!(
-                            "Scene '{}' is targeted by {} predecessor scenes; \
+        if let Some(preds) = reverse_edges.get(&scene_name)
+            && preds.len() > 1
+        {
+            state.diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::CarryAmbiguousPredecessor,
+                    DiagnosticPhase::Build,
+                    format!(
+                        "Scene '{}' is targeted by {} predecessor scenes; \
                              carry bag uses walk-order predecessor '{}' only.",
-                            scene_name,
-                            preds.len(),
-                            pred_name,
-                        ),
-                    )
-                    .with_subject(&scene_name),
-                );
-            }
+                        scene_name,
+                        preds.len(),
+                        pred_name,
+                    ),
+                )
+                .with_subject(&scene_name),
+            );
         }
 
         // Emit PersistTargetNotCarried for the predecessor if it's the last scene.
-        if !has_successor {
-            if let Some(pred) = state.scenes.get(&pred_name) {
-                for (label, flag) in pred.timeline.persistence_flags_iter() {
-                    if flag {
-                        state.diagnostics.push(
-                            Diagnostic::warning(
-                                DiagnosticCode::PersistTargetNotCarried,
-                                DiagnosticPhase::Build,
-                                format!(
-                                    "Actor '{}' is persisted in scene '{}' but has no \
+        if !has_successor && let Some(pred) = state.scenes.get(&pred_name) {
+            for (label, flag) in pred.timeline.persistence_flags_iter() {
+                if flag {
+                    state.diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::PersistTargetNotCarried,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Actor '{}' is persisted in scene '{}' but has no \
                                      successor scene to carry into.",
-                                    label, pred_name,
-                                ),
-                            )
-                            .with_subject(&pred_name),
-                        );
-                    }
+                                label, pred_name,
+                            ),
+                        )
+                        .with_subject(&pred_name),
+                    );
                 }
             }
         }
@@ -238,12 +236,11 @@ pub(super) fn finalize_global_timeline(
             current_time += scene.duration_s;
 
             // Apply transition overlap
-            if let Some(edge) = edges.get(name) {
-                if edge.transition.duration_ms > 0 {
-                    let overlap_s =
-                        (edge.transition.duration_ms as f64 / 1000.0).min(scene.duration_s);
-                    current_time -= overlap_s;
-                }
+            if let Some(edge) = edges.get(name)
+                && edge.transition.duration_ms > 0
+            {
+                let overlap_s = (edge.transition.duration_ms as f64 / 1000.0).min(scene.duration_s);
+                current_time -= overlap_s;
             }
         }
     }

@@ -53,7 +53,7 @@ pub fn render_multi_fcurve(
     }
 
     // Legend with visibility toggles
-    let visibility_id = ui.id().with("graph_visibility");
+    let visibility_id = ui.scope_id().with("graph_visibility");
     let mut visibility = curve_plot::legend_visibility(ui, visibility_id, &curves);
     let legend_height = 18.0f32;
     let legend_rect = egui::Rect::from_min_max(

@@ -109,13 +109,13 @@ pub(super) fn compute_walk_order(
             // No explicit edge — check if there's a next scene in declaration order
             // that hasn't been visited yet.
             let current_idx = declaration_order.iter().position(|n| n == &current);
-            if let Some(idx) = current_idx {
-                if idx + 1 < declaration_order.len() {
-                    let next = &declaration_order[idx + 1];
-                    if !visited.contains(next) {
-                        current = next.clone();
-                        continue;
-                    }
+            if let Some(idx) = current_idx
+                && idx + 1 < declaration_order.len()
+            {
+                let next = &declaration_order[idx + 1];
+                if !visited.contains(next) {
+                    current = next.clone();
+                    continue;
                 }
             }
             break;

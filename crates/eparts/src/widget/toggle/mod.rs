@@ -5,7 +5,7 @@
 
 use std::hash::Hash;
 
-use egui::{Color32, Pos2, Response, Sense, Stroke, StrokeKind, Vec2, WidgetInfo, WidgetType};
+use egui::{Color32, Pos2, Response, Role, Sense, Stroke, StrokeKind, Vec2, WidgetInfo};
 
 use crate::tokens::motion::{NORMAL, STANDARD, Transition};
 use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH, STROKE_WIDTH_THICK};
@@ -39,8 +39,8 @@ fn non_empty_or(label: Option<&str>, fallback: &str) -> String {
 /// under the parent [`egui::Ui`]'s id: two controls can otherwise collide when
 /// their backing values happen to share a recycled stack address, and state
 /// would leak across panels.
-fn animation_id(ui: &egui::Ui, value: impl Hash) -> egui::Id {
-    ui.id().with(value)
+fn animation_id(ui: &egui::Ui, value: impl Hash + std::fmt::Debug) -> egui::Id {
+    ui.scope_id().with(value)
 }
 
 /// Apply the default arrow cursor and render tooltips with the grace-period

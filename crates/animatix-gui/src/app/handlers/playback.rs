@@ -16,15 +16,14 @@ pub fn handle_scrub_to(
     preview_store.preview_dirty = true;
     sync_active_scene_from_time(document_store, preview_store);
     let mut effects: Vec<Effect> = vec![];
-    if ui_store.editor_sync_enabled {
-        if let Some(line) = document_store
+    if ui_store.editor_sync_enabled
+        && let Some(line) = document_store
             .source
             .document
             .find_keyframe_line_at(preview_store.preview.playback.current_time_s)
-        {
-            effects.push(Effect::EditorScroll(line));
-            effects.push(Effect::EditorHighlight(line));
-        }
+    {
+        effects.push(Effect::EditorScroll(line));
+        effects.push(Effect::EditorHighlight(line));
     }
     effects
 }
@@ -166,11 +165,11 @@ fn editor_sync_effects(
     time_s: f64,
 ) -> Vec<Effect> {
     let mut effects = vec![];
-    if ui_store.editor_sync_enabled {
-        if let Some(line) = document_store.source.document.find_keyframe_line_at(time_s) {
-            effects.push(Effect::EditorScroll(line));
-            effects.push(Effect::EditorHighlight(line));
-        }
+    if ui_store.editor_sync_enabled
+        && let Some(line) = document_store.source.document.find_keyframe_line_at(time_s)
+    {
+        effects.push(Effect::EditorScroll(line));
+        effects.push(Effect::EditorHighlight(line));
     }
     effects
 }

@@ -163,10 +163,10 @@ impl AudioEngine {
     }
 
     fn touch_cache(&mut self, path: &str) {
-        if let Some(pos) = self.cache_order.iter().position(|p| p == path) {
-            if let Some(cached_path) = self.cache_order.remove(pos) {
-                self.cache_order.push_back(cached_path);
-            }
+        if let Some(pos) = self.cache_order.iter().position(|p| p == path)
+            && let Some(cached_path) = self.cache_order.remove(pos)
+        {
+            self.cache_order.push_back(cached_path);
         }
     }
 

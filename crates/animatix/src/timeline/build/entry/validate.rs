@@ -44,10 +44,9 @@ pub(super) fn validate_reveals(timeline: &Timeline, diagnostics: &mut Vec<Diagno
                 .world
                 .get_id(parent)
                 .and_then(|id| timeline.world.style(id).opacity.as_ref())
+                && opacity_reveals(pt)
             {
-                if opacity_reveals(pt) {
-                    return true;
-                }
+                return true;
             }
             current = parent_of.get(parent).copied();
         }
@@ -195,10 +194,10 @@ pub(super) fn validate_duration_and_seam(
                     "curve_at",
                     &[val.clone(), Value::Num(timeline.duration_seconds())],
                 );
-                if let (Ok(f), Ok(l)) = (first, last) {
-                    if (f.as_num() - l.as_num()).abs() > 1e-3 {
-                        broken.push(format!("`{key}`"));
-                    }
+                if let (Ok(f), Ok(l)) = (first, last)
+                    && (f.as_num() - l.as_num()).abs() > 1e-3
+                {
+                    broken.push(format!("`{key}`"));
                 }
             }
         }

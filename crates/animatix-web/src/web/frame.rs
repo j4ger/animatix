@@ -156,7 +156,7 @@ impl AmxPlayer {
                 self.config.format,
             );
             drop(surface_view);
-            frame.present();
+            ctx.queue.present(frame);
             self.frames_drawn += 1;
             // Only now: this is the frame the canvas is showing, and the
             // signature is the claim that redrawing it would change nothing.

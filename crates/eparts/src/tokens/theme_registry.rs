@@ -121,12 +121,8 @@ fn resolve_file(
         light_base = base.light_theme();
     }
 
-    let dark = raw.dark.clone().map(|partial| partial.apply_to(dark_base)).unwrap_or(dark_base);
-    let light = raw
-        .light
-        .clone()
-        .map(|partial| partial.apply_to(light_base))
-        .unwrap_or(light_base);
+    let dark = raw.dark.map(|partial| partial.apply_to(dark_base)).unwrap_or(dark_base);
+    let light = raw.light.map(|partial| partial.apply_to(light_base)).unwrap_or(light_base);
 
     let merged = ThemeFile {
         name: raw.name.clone(),

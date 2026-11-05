@@ -313,22 +313,22 @@ pub(super) fn expand_component_instance(
         let mut children: Vec<InlineItem> = Vec::new();
         let mut root_size: Option<Property> = None;
         for mut stmt in actors {
-            if let Stmt::ActorDecl { label, props, .. } = &mut stmt {
-                if label == instance_label {
-                    // The component's first (root) statement carries the bare
-                    // instance label after rewriting. Move that label onto a
-                    // dotted child name so the wrapper Group can own the
-                    // instance label without a duplicate-track collision.
-                    // References to the instance root now resolve to the Group
-                    // (the whole component), which is the correct target after
-                    // the wrap.
-                    if let Some(root) = &root_label {
-                        *label = format!("{}.{}", instance_label, root);
-                    }
-                    // Snapshot the instance root's authored size so the wrapper
-                    // Group carries the component's bounds for layout parents.
-                    root_size = props.iter().find(|p| p.name == "size").cloned();
+            if let Stmt::ActorDecl { label, props, .. } = &mut stmt
+                && label == instance_label
+            {
+                // The component's first (root) statement carries the bare
+                // instance label after rewriting. Move that label onto a
+                // dotted child name so the wrapper Group can own the
+                // instance label without a duplicate-track collision.
+                // References to the instance root now resolve to the Group
+                // (the whole component), which is the correct target after
+                // the wrap.
+                if let Some(root) = &root_label {
+                    *label = format!("{}.{}", instance_label, root);
                 }
+                // Snapshot the instance root's authored size so the wrapper
+                // Group carries the component's bounds for layout parents.
+                root_size = props.iter().find(|p| p.name == "size").cloned();
             }
             if let Some(inline) = stmt_to_inline_item(&stmt) {
                 children.push(inline);
@@ -364,14 +364,14 @@ pub(super) fn expand_component_instance(
     let forwarded: Vec<Property> = forwarded.into_iter().filter(|p| p.name != "opacity").collect();
     if !forwarded.is_empty() || instance_opacity.is_some() {
         for stmt in actors.iter_mut().chain(hoisted.iter_mut()) {
-            if let Stmt::ActorDecl { label, props, .. } = stmt {
-                if label == instance_label {
-                    props.extend(forwarded.iter().cloned());
-                    if let Some(opacity) = &instance_opacity {
-                        multiply_instance_opacity(props, opacity);
-                    }
-                    break;
+            if let Stmt::ActorDecl { label, props, .. } = stmt
+                && label == instance_label
+            {
+                props.extend(forwarded.iter().cloned());
+                if let Some(opacity) = &instance_opacity {
+                    multiply_instance_opacity(props, opacity);
                 }
+                break;
             }
         }
     }

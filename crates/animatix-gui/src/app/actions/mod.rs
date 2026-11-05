@@ -184,7 +184,7 @@ impl GuiShell {
     /// Flush all pending drag edits to source.
     pub(crate) fn flush_pending_drag_edits(&mut self) {
         let pending: Vec<panels::PropertyEdit> =
-            self.ui_store.interaction.pending_drag_source_edits.drain(..).collect();
+            std::mem::take(&mut self.ui_store.interaction.pending_drag_source_edits);
         if pending.is_empty() {
             return;
         }

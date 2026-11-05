@@ -28,12 +28,12 @@ pub struct ThemeFile {
 impl ThemeFile {
     /// Resolve the dark theme, falling back to built-in dark.
     pub fn dark_theme(&self) -> Theme {
-        self.dark.clone().unwrap_or_default().apply_to(Theme::dark())
+        self.dark.unwrap_or_default().apply_to(Theme::dark())
     }
 
     /// Resolve the light theme, falling back to built-in light.
     pub fn light_theme(&self) -> Theme {
-        self.light.clone().unwrap_or_default().apply_to(Theme::light())
+        self.light.unwrap_or_default().apply_to(Theme::light())
     }
 
     /// Parse a theme file from JSON.

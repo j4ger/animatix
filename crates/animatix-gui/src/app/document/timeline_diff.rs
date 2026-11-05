@@ -36,10 +36,10 @@ pub(crate) fn collect_per_property_keyframes(
         opt: &Option<PropertyTrack<T>>,
         name: &'static str,
     ) {
-        if let Some(pt) = opt {
-            if !pt.keyframes().is_empty() {
-                result.push((name.to_string(), pt.keyframes().keys().copied().collect()));
-            }
+        if let Some(pt) = opt
+            && !pt.keyframes().is_empty()
+        {
+            result.push((name.to_string(), pt.keyframes().keys().copied().collect()));
         }
     }
     push(&mut result, &geometry.position, "position");

@@ -11,6 +11,7 @@ use egui::{Align, Layout, Vec2};
 
 use crate::tokens::theme::theme;
 use crate::tokens::typography::TextRole;
+use crate::widget::IntoWidgetId;
 use crate::widget::label::Label;
 
 /// A form layout container for labeled input rows.
@@ -39,9 +40,9 @@ pub struct Form {
 
 impl Form {
     /// Create a new form with the given source id.
-    pub fn new(id: impl Into<egui::Id>) -> Self {
+    pub fn new(id: impl IntoWidgetId) -> Self {
         Self {
-            _id: id.into(),
+            _id: id.into_widget_id(),
             num_columns: 2,
             label_width: 100.0,
         }

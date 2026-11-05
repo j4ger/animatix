@@ -103,3 +103,23 @@ pub fn build_vello(kind: &str, t: f64, width: u32, height: u32) -> vello::Scene 
     }
     scene
 }
+
+/// Encode the shared draw list into a `vello_hybrid::Scene` (sparse backends:
+/// WebGL2 and wgpu both consume the same scene type).
+pub fn build_hybrid(kind: &str, t: f64, width: u32, height: u32) -> vello_hybrid::Scene {
+    let mut scene = vello_hybrid::Scene::new(width.max(1) as u16, height.max(1) as u16);
+    scene.set_transform(vello::kurbo::Affine::IDENTITY);
+    scene.set_fill_rule(vello::peniko::Fill::NonZero);
+    for s in specs(kind, t, width, height) {
+        if let Some(c) = s.fill {
+            scene.set_paint(c);
+            scene.fill_path(&s.path);
+        }
+        if let Some((c, sw)) = s.stroke {
+            scene.set_paint(c);
+            scene.set_stroke(vello::kurbo::Stroke::new(sw as f64));
+            scene.stroke_path(&s.path);
+        }
+    }
+    scene
+}

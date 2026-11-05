@@ -24,6 +24,7 @@ async fn ensure_engine() -> Result<(), String> {
             power_preference: wgpu::PowerPreference::HighPerformance,
             compatible_surface: None,
             force_fallback_adapter: false,
+            apply_limit_buckets: false,
         })
         .await
         .map_err(|e| format!("no WebGPU adapter available: {e}"))?;
@@ -166,6 +167,7 @@ pub async fn create_player(canvas: HtmlCanvasElement) -> Result<AmxPlayer, JsErr
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format,
+            color_space: wgpu::SurfaceColorSpace::Auto,
             width: canvas.width().max(1),
             height: canvas.height().max(1),
             present_mode: wgpu::PresentMode::Fifo,

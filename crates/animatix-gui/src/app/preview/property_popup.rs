@@ -38,7 +38,7 @@ pub fn show_property_popup(
     let popup_w = 260.0;
     let popup_h = 170.0; // Slightly taller for better header spacing
     // Drag offset state (persisted between frames)
-    let drag_offset_id = ui.id().with(("popup_drag_offset", actor));
+    let drag_offset_id = ui.scope_id().with(("popup_drag_offset", actor));
     let drag_offset: Vec2 = ui.data(|d| d.get_temp(drag_offset_id)).unwrap_or(Vec2::ZERO);
     // Position: attached to top edge of actor, centered, with drag offset
     let popup_pos = Pos2::new(
@@ -70,7 +70,7 @@ pub fn show_property_popup(
     let header_rect =
         Rect::from_min_size(content.cursor().min, Vec2::new(content.available_width(), header_h));
     let header_resp =
-        ui.interact(header_rect, ui.id().with("popup_header"), Sense::click_and_drag());
+        ui.interact(header_rect, ui.scope_id().with("popup_header"), Sense::click_and_drag());
     if header_resp.dragged() {
         let new_offset = drag_offset + header_resp.drag_delta();
         ui.data_mut(|d| d.insert_temp(drag_offset_id, new_offset));
@@ -239,7 +239,8 @@ fn popup_property_row(
     let sp = spatial(ui);
     let row_h = 24.0;
     let row_rect = Rect::from_min_size(ui.cursor().min, Vec2::new(ui.available_width(), row_h));
-    let response = ui.interact(row_rect, ui.id().with((actor, property, "row")), Sense::click());
+    let response =
+        ui.interact(row_rect, ui.scope_id().with((actor, property, "row")), Sense::click());
     // Hover background
     if response.hovered() {
         ui.painter().rect_filled(row_rect, RADIUS_S as u8, theme.palette.surface.hover);
@@ -251,7 +252,7 @@ fn popup_property_row(
         Vec2::new(diamond_size + 6.0, diamond_size + 6.0), // Larger hit area
     );
     let diamond_resp =
-        ui.interact(diamond_rect, ui.id().with((actor, property, "diamond")), Sense::click());
+        ui.interact(diamond_rect, ui.scope_id().with((actor, property, "diamond")), Sense::click());
     let diamond_color = if has_keyframe || diamond_resp.hovered() {
         theme.palette.status.warning
     } else {
@@ -340,9 +341,8 @@ fn popup_property_row(
         _ => format!("{:.1}", values[0]),
     };
     // Interactive value: drag to change
-    let value_resp =
-        ui.interact(value_rect, ui.id().with((actor, property, "value")), Sense::click_and_drag());
-    // Highlight on hover
+    let value_id = ui.scope_id().with((actor, property, "value"));
+    let value_resp = ui.interact(value_rect, value_id, Sense::click_and_drag());
     if value_resp.hovered() {
         ui.painter()
             .rect_filled(value_rect, RADIUS_S as u8, theme.palette.surface.widget);

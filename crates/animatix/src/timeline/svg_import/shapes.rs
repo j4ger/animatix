@@ -157,10 +157,10 @@ pub(crate) fn convert_group(
     let label = make_label("group", counter);
     let mut props = transform_to_props(transform);
     // Opacity
-    if let Some(opacity_str) = node.attribute("opacity") {
-        if let Ok(opacity) = opacity_str.parse::<f64>() {
-            props.push(Property::new("opacity", Expr::Num(opacity)));
-        }
+    if let Some(opacity_str) = node.attribute("opacity")
+        && let Ok(opacity) = opacity_str.parse::<f64>()
+    {
+        props.push(Property::new("opacity", Expr::Num(opacity)));
     }
 
     let mut children_stmts = Vec::new();
@@ -558,10 +558,10 @@ pub(crate) fn add_fill_stroke_props(
     }
 
     // Fill opacity
-    if let Some(fill_opacity) = node.attribute("fill-opacity") {
-        if let Ok(op) = fill_opacity.parse::<f64>() {
-            props.push(Property::new("fill_opacity", Expr::Num(op)));
-        }
+    if let Some(fill_opacity) = node.attribute("fill-opacity")
+        && let Ok(op) = fill_opacity.parse::<f64>()
+    {
+        props.push(Property::new("fill_opacity", Expr::Num(op)));
     }
 
     // Stroke color — same as fill, supports url(#id) and inherit
@@ -583,17 +583,17 @@ pub(crate) fn add_fill_stroke_props(
     }
 
     // Stroke width
-    if let Some(stroke_width) = node.attribute("stroke-width") {
-        if let Ok(w) = stroke_width.parse::<f64>() {
-            props.push(Property::new("stroke_width", Expr::Num(w)));
-        }
+    if let Some(stroke_width) = node.attribute("stroke-width")
+        && let Ok(w) = stroke_width.parse::<f64>()
+    {
+        props.push(Property::new("stroke_width", Expr::Num(w)));
     }
 
     // Stroke opacity
-    if let Some(stroke_opacity) = node.attribute("stroke-opacity") {
-        if let Ok(op) = stroke_opacity.parse::<f64>() {
-            props.push(Property::new("stroke_opacity", Expr::Num(op)));
-        }
+    if let Some(stroke_opacity) = node.attribute("stroke-opacity")
+        && let Ok(op) = stroke_opacity.parse::<f64>()
+    {
+        props.push(Property::new("stroke_opacity", Expr::Num(op)));
     }
 
     // Stroke line cap: butt=0, round=1, square=2
@@ -626,9 +626,9 @@ pub(crate) fn add_fill_stroke_props(
     }
 
     // Overall opacity
-    if let Some(opacity) = node.attribute("opacity") {
-        if let Ok(op) = opacity.parse::<f64>() {
-            props.push(Property::new("opacity", Expr::Num(op)));
-        }
+    if let Some(opacity) = node.attribute("opacity")
+        && let Ok(op) = opacity.parse::<f64>()
+    {
+        props.push(Property::new("opacity", Expr::Num(op)));
     }
 }

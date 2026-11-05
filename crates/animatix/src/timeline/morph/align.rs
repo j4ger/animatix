@@ -344,10 +344,10 @@ fn resample_closed_radial(elements: &[PathEl], samples: usize) -> Vec<PathEl> {
         let dir = (theta.cos(), theta.sin());
         let mut farthest = 0.0;
         for edge in polyline.windows(2) {
-            if let Some(t) = ray_segment_hit(center, dir, edge[0], edge[1]) {
-                if t > farthest {
-                    farthest = t;
-                }
+            if let Some(t) = ray_segment_hit(center, dir, edge[0], edge[1])
+                && t > farthest
+            {
+                farthest = t;
             }
         }
         outline.push(if farthest > 0.0 {
@@ -679,15 +679,15 @@ pub(super) fn split_longest(curves: &mut Vec<PathEl>) -> bool {
         }
     }
 
-    if max_len >= 0.0 {
-        if let PathEl::CurveTo(p1, p2, p3) = curves[max_idx] {
-            let bez = CubicBez::new(max_last_pt, p1, p2, p3);
-            let b1 = bez.subsegment(0.0..0.5);
-            let b2 = bez.subsegment(0.5..1.0);
-            curves[max_idx] = PathEl::CurveTo(b1.p1, b1.p2, b1.p3);
-            curves.insert(max_idx + 1, PathEl::CurveTo(b2.p1, b2.p2, b2.p3));
-            return true;
-        }
+    if max_len >= 0.0
+        && let PathEl::CurveTo(p1, p2, p3) = curves[max_idx]
+    {
+        let bez = CubicBez::new(max_last_pt, p1, p2, p3);
+        let b1 = bez.subsegment(0.0..0.5);
+        let b2 = bez.subsegment(0.5..1.0);
+        curves[max_idx] = PathEl::CurveTo(b1.p1, b1.p2, b1.p3);
+        curves.insert(max_idx + 1, PathEl::CurveTo(b2.p1, b2.p2, b2.p3));
+        return true;
     }
 
     false

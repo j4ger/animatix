@@ -46,23 +46,21 @@ pub(super) fn library_drag_drop_ui(
         return;
     }
 
-    if over_preview {
-        if let Some(mouse) = pointer {
-            let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
-            let label = crate::app::utils::labels::unique_label(
-                ctx.timeline,
-                &crate::app::panels::library_drag_label_base(&payload),
-            );
-            ctx.commands.push_back(
-                Command::CreateActor {
-                    ty: payload.ty.clone(),
-                    label,
-                    position: [scene.x as f32, scene.y as f32],
-                    props: payload.props.clone(),
-                }
-                .into(),
-            );
-        }
+    if over_preview && let Some(mouse) = pointer {
+        let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
+        let label = crate::app::utils::labels::unique_label(
+            ctx.timeline,
+            &crate::app::panels::library_drag_label_base(&payload),
+        );
+        ctx.commands.push_back(
+            Command::CreateActor {
+                ty: payload.ty.clone(),
+                label,
+                position: [scene.x as f32, scene.y as f32],
+                props: payload.props.clone(),
+            }
+            .into(),
+        );
     }
     // Always clear on release so a drag that ends off-canvas leaves no payload.
     crate::app::panels::clear_library_drag(ui.ctx());

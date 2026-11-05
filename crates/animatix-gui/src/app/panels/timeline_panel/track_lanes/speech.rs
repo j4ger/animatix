@@ -41,11 +41,11 @@ fn speech_track_seek_area(
 ) {
     let speech_resp =
         ui.interact(bar_area, panel_id.with("speech_track_bar"), Sense::click_and_drag());
-    if speech_resp.clicked() || speech_resp.dragged() {
-        if let Some(pos) = speech_resp.interact_pointer_pos() {
-            let t = coords.x_to_time(pos.x);
-            commands.push_back(Command::ScrubTo(t).into());
-        }
+    if (speech_resp.clicked() || speech_resp.dragged())
+        && let Some(pos) = speech_resp.interact_pointer_pos()
+    {
+        let t = coords.x_to_time(pos.x);
+        commands.push_back(Command::ScrubTo(t).into());
     }
 }
 

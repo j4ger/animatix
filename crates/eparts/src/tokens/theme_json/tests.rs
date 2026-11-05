@@ -88,7 +88,7 @@ fn partial_serde_representation_matches_hand_written_shape() {
 
     // A populated partial emits the original key names and hex colors.
     let partial = PartialTheme::full_from(Theme::dark());
-    let value: serde_json::Value = serde_json::to_value(&partial).unwrap();
+    let value: serde_json::Value = serde_json::to_value(partial).unwrap();
     let obj = value.as_object().expect("theme object");
     for key in [
         "surface",

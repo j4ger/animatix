@@ -1,7 +1,7 @@
 # Animatix Clippy Configuration
 
 # Rust version used for clippy's MSRV-aware suggestions.
-msrv = "1.85"
+msrv = "1.95"
 
 # Functions above clippy's default 7-argument limit are allowed up to 15. This is
 # not a temporary allowance: dropping the ceiling to 10 immediately flags

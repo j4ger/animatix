@@ -124,10 +124,10 @@ fn update_assignment(
                 if let Ok(()) = update_assignment(then_branch, actor, property, value.clone()) {
                     return Ok(());
                 }
-                if let Some(else_b) = else_branch {
-                    if let Ok(()) = update_assignment(else_b, actor, property, value.clone()) {
-                        return Ok(());
-                    }
+                if let Some(else_b) = else_branch
+                    && let Ok(()) = update_assignment(else_b, actor, property, value.clone())
+                {
+                    return Ok(());
                 }
             },
             Stmt::ForLoop { body, .. } => {

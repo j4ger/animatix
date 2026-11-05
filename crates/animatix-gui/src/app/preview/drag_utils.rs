@@ -275,44 +275,44 @@ pub(crate) fn resolve_snap(
         }
     }
 
-    if let Some((container, _, _)) = ctx.find_layout_container(actor) {
-        if let Some(container_props) = ctx.get_actor_props(&container) {
-            if (nx - container_props.position[0]).abs() < threshold {
-                nx = container_props.position[0];
-                snapped_container = true;
-                snap_hud_text = Some(format!("{} center X", container));
-            }
-            if (ny - container_props.position[1]).abs() < threshold {
-                ny = container_props.position[1];
-                snapped_container = true;
-                snap_hud_text = Some(format!("{} center Y", container));
-            }
-            let c_hw = container_props.size[0] / 2.0;
-            let c_left = container_props.position[0] - c_hw;
-            let c_right = container_props.position[0] + c_hw;
-            if (nx - c_left).abs() < threshold {
-                nx = c_left;
-                snapped_container = true;
-                snap_hud_text = Some(format!("{} left", container));
-            }
-            if (nx - c_right).abs() < threshold {
-                nx = c_right;
-                snapped_container = true;
-                snap_hud_text = Some(format!("{} right", container));
-            }
-            let c_hh = container_props.size[1] / 2.0;
-            let c_top = container_props.position[1] - c_hh;
-            let c_bottom = container_props.position[1] + c_hh;
-            if (ny - c_top).abs() < threshold {
-                ny = c_top;
-                snapped_container = true;
-                snap_hud_text = Some(format!("{} top", container));
-            }
-            if (ny - c_bottom).abs() < threshold {
-                ny = c_bottom;
-                snapped_container = true;
-                snap_hud_text = Some(format!("{} bottom", container));
-            }
+    if let Some((container, _, _)) = ctx.find_layout_container(actor)
+        && let Some(container_props) = ctx.get_actor_props(&container)
+    {
+        if (nx - container_props.position[0]).abs() < threshold {
+            nx = container_props.position[0];
+            snapped_container = true;
+            snap_hud_text = Some(format!("{} center X", container));
+        }
+        if (ny - container_props.position[1]).abs() < threshold {
+            ny = container_props.position[1];
+            snapped_container = true;
+            snap_hud_text = Some(format!("{} center Y", container));
+        }
+        let c_hw = container_props.size[0] / 2.0;
+        let c_left = container_props.position[0] - c_hw;
+        let c_right = container_props.position[0] + c_hw;
+        if (nx - c_left).abs() < threshold {
+            nx = c_left;
+            snapped_container = true;
+            snap_hud_text = Some(format!("{} left", container));
+        }
+        if (nx - c_right).abs() < threshold {
+            nx = c_right;
+            snapped_container = true;
+            snap_hud_text = Some(format!("{} right", container));
+        }
+        let c_hh = container_props.size[1] / 2.0;
+        let c_top = container_props.position[1] - c_hh;
+        let c_bottom = container_props.position[1] + c_hh;
+        if (ny - c_top).abs() < threshold {
+            ny = c_top;
+            snapped_container = true;
+            snap_hud_text = Some(format!("{} top", container));
+        }
+        if (ny - c_bottom).abs() < threshold {
+            ny = c_bottom;
+            snapped_container = true;
+            snap_hud_text = Some(format!("{} bottom", container));
         }
     }
 
@@ -322,18 +322,18 @@ pub(crate) fn resolve_snap(
         .and_then(|geometry| geometry.position.as_ref())
     {
         let prev_kf_time = pos_track.keyframes().prev_keyframe_before(time_ms).map(|(&t, _)| t);
-        if let Some(kf_ms) = prev_kf_time {
-            if let Some(kf_props) = ctx.get_actor_props_at_time(actor, kf_ms) {
-                if (nx - kf_props.position[0]).abs() < threshold {
-                    nx = kf_props.position[0];
-                    snapped_keyframe = true;
-                    snap_hud_text = Some(format!("prev keyframe ({:.2}s)", kf_ms as f64 / 1000.0));
-                }
-                if (ny - kf_props.position[1]).abs() < threshold {
-                    ny = kf_props.position[1];
-                    snapped_keyframe = true;
-                    snap_hud_text = Some(format!("prev keyframe ({:.2}s)", kf_ms as f64 / 1000.0));
-                }
+        if let Some(kf_ms) = prev_kf_time
+            && let Some(kf_props) = ctx.get_actor_props_at_time(actor, kf_ms)
+        {
+            if (nx - kf_props.position[0]).abs() < threshold {
+                nx = kf_props.position[0];
+                snapped_keyframe = true;
+                snap_hud_text = Some(format!("prev keyframe ({:.2}s)", kf_ms as f64 / 1000.0));
+            }
+            if (ny - kf_props.position[1]).abs() < threshold {
+                ny = kf_props.position[1];
+                snapped_keyframe = true;
+                snap_hud_text = Some(format!("prev keyframe ({:.2}s)", kf_ms as f64 / 1000.0));
             }
         }
     }
@@ -435,25 +435,22 @@ pub(crate) fn finalize_drag_keyframes(old_drag_state: &DragState, ctx: &mut Prev
             DragState::Move {
                 primary, actors, ..
             } => {
-                if let Some(current_props) = ctx.get_actor_props(primary) {
-                    if !tl.has_keyframe_at(primary, "position", time_ms) {
-                        if let Some(start_pos) =
-                            actors.iter().find(|(l, _)| l == primary).map(|(_, p)| *p)
-                        {
-                            if current_props.position != start_pos {
-                                ctx.commands.push_back(
-                                    Command::PropertyEdit(PropertyEdit {
-                                        time_s: None,
-                                        actor: primary.clone(),
-                                        property: "position".into(),
-                                        value: PropertyValue::Vec2(current_props.position),
-                                        create_keyframe: true,
-                                    })
-                                    .into(),
-                                );
-                            }
-                        }
-                    }
+                if let Some(current_props) = ctx.get_actor_props(primary)
+                    && !tl.has_keyframe_at(primary, "position", time_ms)
+                    && let Some(start_pos) =
+                        actors.iter().find(|(l, _)| l == primary).map(|(_, p)| *p)
+                    && current_props.position != start_pos
+                {
+                    ctx.commands.push_back(
+                        Command::PropertyEdit(PropertyEdit {
+                            time_s: None,
+                            actor: primary.clone(),
+                            property: "position".into(),
+                            value: PropertyValue::Vec2(current_props.position),
+                            create_keyframe: true,
+                        })
+                        .into(),
+                    );
                 }
             },
             DragState::Scale {
@@ -498,21 +495,20 @@ pub(crate) fn finalize_drag_keyframes(old_drag_state: &DragState, ctx: &mut Prev
                 start_rotation,
                 ..
             } => {
-                if let Some(current_props) = ctx.get_actor_props(actor) {
-                    if !tl.has_keyframe_at(actor, "rotation", time_ms)
-                        && current_props.rotation != *start_rotation
-                    {
-                        ctx.commands.push_back(
-                            Command::PropertyEdit(PropertyEdit {
-                                time_s: None,
-                                actor: actor.clone(),
-                                property: "rotation".into(),
-                                value: PropertyValue::F32(current_props.rotation),
-                                create_keyframe: true,
-                            })
-                            .into(),
-                        );
-                    }
+                if let Some(current_props) = ctx.get_actor_props(actor)
+                    && !tl.has_keyframe_at(actor, "rotation", time_ms)
+                    && current_props.rotation != *start_rotation
+                {
+                    ctx.commands.push_back(
+                        Command::PropertyEdit(PropertyEdit {
+                            time_s: None,
+                            actor: actor.clone(),
+                            property: "rotation".into(),
+                            value: PropertyValue::F32(current_props.rotation),
+                            create_keyframe: true,
+                        })
+                        .into(),
+                    );
                 }
             },
             _ => {},

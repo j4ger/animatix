@@ -18,6 +18,7 @@ use egui::{Context, CornerRadius, Id, Order, Pos2, Rect, Response, Ui};
 
 use crate::spatial;
 use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
+use crate::widget::IntoWidgetId;
 use crate::widget::overlay::{
     OverlayLayer, clicked_outside, escape_pressed, is_topmost, push_overlay, remove_overlay,
 };
@@ -72,9 +73,9 @@ pub struct Popover {
 
 impl Popover {
     /// Create a popover; `id` must be unique among open overlays in the viewport.
-    pub fn new(id: impl Into<Id>) -> Self {
+    pub fn new(id: impl IntoWidgetId) -> Self {
         Self {
-            id: id.into(),
+            id: id.into_widget_id(),
             direction: PopoverDirection::default(),
             gap: 8.0,
             max_width: None,
@@ -135,8 +136,8 @@ impl Popover {
     }
 
     /// Return `true` if the popover is currently open, `false` otherwise.
-    pub fn is_open(ctx: &Context, id: impl Into<Id>) -> bool {
-        let id = id.into();
+    pub fn is_open(ctx: &Context, id: impl IntoWidgetId) -> bool {
+        let id = id.into_widget_id();
         ctx.data(|data| data.get_temp::<bool>(open_key(id)).unwrap_or(false))
     }
 
@@ -512,12 +513,12 @@ mod tests {
         let viewport_rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(400.0, 300.0));
         let mut ui = Ui::new(
             ctx.clone(),
-            Id::new("popover_focus_test"),
+            Id::unique("popover_focus_test"),
             egui::UiBuilder::new().max_rect(viewport_rect),
         );
 
         // Register a focusable widget so `m.focused()` becomes `Some(..)`.
-        let dummy_id = Id::new("dummy_focus_target");
+        let dummy_id = Id::unique("dummy_focus_target");
         ui.interact(
             Rect::from_min_max(Pos2::new(100.0, 100.0), Pos2::new(200.0, 130.0)),
             dummy_id,
@@ -526,7 +527,7 @@ mod tests {
 
         let trigger_response = ui.interact(
             Rect::from_min_max(Pos2::new(10.0, 10.0), Pos2::new(60.0, 40.0)),
-            Id::new("trigger"),
+            Id::unique("trigger"),
             Sense::click(),
         );
 
@@ -552,13 +553,13 @@ mod tests {
         let viewport_rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(400.0, 300.0));
         let mut ui = Ui::new(
             ctx.clone(),
-            Id::new("popover_cleanup_test"),
+            Id::unique("popover_cleanup_test"),
             egui::UiBuilder::new().max_rect(viewport_rect),
         );
 
         let trigger_response = ui.interact(
             Rect::from_min_max(Pos2::new(10.0, 10.0), Pos2::new(60.0, 40.0)),
-            Id::new("trigger3"),
+            Id::unique("trigger3"),
             Sense::click(),
         );
 

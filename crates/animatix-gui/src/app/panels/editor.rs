@@ -63,14 +63,14 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
                     .with_icon(egui_phosphor::regular::WARNING_CIRCLE)
                     .icon_color(theme.palette.status.error)
                     .with_size(eparts::Size::Sm);
-                if ui.add(btn).on_hover_text("Click to jump to first error").clicked() {
-                    if let Some(err) = ctx.diagnostics.iter().find(|d| {
+                if ui.add(btn).on_hover_text("Click to jump to first error").clicked()
+                    && let Some(err) = ctx.diagnostics.iter().find(|d| {
                         d.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error
-                    }) {
-                        let line = err.location.line.unwrap_or(1).saturating_sub(1);
-                        let col = err.location.column.unwrap_or(1).saturating_sub(1);
-                        ctx.editor.focus_diagnostic(line, col);
-                    }
+                    })
+                {
+                    let line = err.location.line.unwrap_or(1).saturating_sub(1);
+                    let col = err.location.column.unwrap_or(1).saturating_sub(1);
+                    ctx.editor.focus_diagnostic(line, col);
                 }
             } else if warning_count > 0 {
                 let text = if warning_count == 1 {
@@ -82,14 +82,14 @@ pub(crate) fn editor_ui(ctx: &mut EditorContext<'_>, ui: &mut egui::Ui) {
                     .with_icon(egui_phosphor::regular::WARNING)
                     .icon_color(theme.palette.status.warning)
                     .with_size(eparts::Size::Sm);
-                if ui.add(btn).on_hover_text("Click to jump to first warning").clicked() {
-                    if let Some(warn) = ctx.diagnostics.iter().find(|d| {
+                if ui.add(btn).on_hover_text("Click to jump to first warning").clicked()
+                    && let Some(warn) = ctx.diagnostics.iter().find(|d| {
                         d.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Warning
-                    }) {
-                        let line = warn.location.line.unwrap_or(1).saturating_sub(1);
-                        let col = warn.location.column.unwrap_or(1).saturating_sub(1);
-                        ctx.editor.focus_diagnostic(line, col);
-                    }
+                    })
+                {
+                    let line = warn.location.line.unwrap_or(1).saturating_sub(1);
+                    let col = warn.location.column.unwrap_or(1).saturating_sub(1);
+                    ctx.editor.focus_diagnostic(line, col);
                 }
             } else {
                 ui.label(

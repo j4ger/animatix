@@ -395,7 +395,7 @@ impl Widget for Select<'_> {
         let accessible = current_label.clone();
         response.widget_info(|| {
             WidgetInfo::selected(
-                WidgetType::ComboBox,
+                Role::ComboBox,
                 ui.is_enabled(),
                 selected.is_some(),
                 accessible.clone(),

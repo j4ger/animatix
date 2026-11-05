@@ -184,10 +184,10 @@ impl Timeline {
     /// spawned yet (the build assigns `color: auto` before the primitive
     /// creates the track; the world attaches the buffered slot on spawn).
     pub fn auto_color_slot(&self, label: &str) -> Option<usize> {
-        if let Some((pending_label, slot)) = &self.world.pending_auto_color {
-            if pending_label == label {
-                return Some(*slot);
-            }
+        if let Some((pending_label, slot)) = &self.world.pending_auto_color
+            && pending_label == label
+        {
+            return Some(*slot);
         }
         let id = self.world.get_id(label)?;
         self.world.auto_color.get(id).map(|component| component.slot)
@@ -204,12 +204,12 @@ impl Timeline {
             self.world.auto_color.insert(id, AutoColorComponent { slot });
             return;
         }
-        if let Some((pending_label, _)) = &self.world.pending_auto_color {
-            if pending_label != label {
-                tracing::warn!(
-                    "auto-color slot for '{label}' overwrote a pending slot for '{pending_label}'"
-                );
-            }
+        if let Some((pending_label, _)) = &self.world.pending_auto_color
+            && pending_label != label
+        {
+            tracing::warn!(
+                "auto-color slot for '{label}' overwrote a pending slot for '{pending_label}'"
+            );
         }
         self.world.pending_auto_color = Some((label.to_string(), slot));
     }

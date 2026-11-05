@@ -208,11 +208,11 @@ pub(crate) fn for_iter_values(iterable: &Expr, env: &Environment) -> Vec<Value> 
             Ok(val) => Some(val),
             Err(e) => {
                 // Fall back to named-color resolution for bare identifiers
-                if let Expr::Ident(_) = item {
-                    if let Ok(Some(color)) = resolve_color_in_env(item, env) {
-                        let [r, g, b, a] = color;
-                        return Some(Value::Color([r as f64, g as f64, b as f64, a as f64]));
-                    }
+                if let Expr::Ident(_) = item
+                    && let Ok(Some(color)) = resolve_color_in_env(item, env)
+                {
+                    let [r, g, b, a] = color;
+                    return Some(Value::Color([r as f64, g as f64, b as f64, a as f64]));
                 }
                 tracing::warn!("for_iter_values: failed to evaluate item {:?}: {}", item, e);
                 None

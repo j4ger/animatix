@@ -70,10 +70,10 @@ pub(crate) async fn code_action(
                         }));
                     }
                 }
-                if let Some(name) = diagnostic.subject.clone().filter(|s| !s.is_empty()) {
-                    if let Some(action) = declare_actor_action(analyzer.source(), &url, &name) {
-                        actions.push(CodeActionOrCommand::CodeAction(action));
-                    }
+                if let Some(name) = diagnostic.subject.clone().filter(|s| !s.is_empty())
+                    && let Some(action) = declare_actor_action(analyzer.source(), &url, &name)
+                {
+                    actions.push(CodeActionOrCommand::CodeAction(action));
                 }
             },
             "unknown-action" => {
@@ -101,10 +101,10 @@ pub(crate) async fn code_action(
                 }
             },
             "unused-label" => {
-                if let Some(name) = diagnostic.subject.clone().filter(|s| !s.is_empty()) {
-                    if let Some(action) = remove_declaration_action(analyzer, &url, &name, &index) {
-                        actions.push(CodeActionOrCommand::CodeAction(action));
-                    }
+                if let Some(name) = diagnostic.subject.clone().filter(|s| !s.is_empty())
+                    && let Some(action) = remove_declaration_action(analyzer, &url, &name, &index)
+                {
+                    actions.push(CodeActionOrCommand::CodeAction(action));
                 }
             },
             // Other codes have no quick fix to offer yet.
@@ -306,7 +306,7 @@ fn unused_removal_edits(
         return Vec::new();
     }
     // Reverse order: each edit's range stays valid as earlier ones are applied.
-    ranges.sort_unstable_by(|a, b| b.0.cmp(&a.0));
+    ranges.sort_unstable_by_key(|a| std::cmp::Reverse(a.0));
 
     let source = analyzer.source();
     let index = LineIndex::new(source);

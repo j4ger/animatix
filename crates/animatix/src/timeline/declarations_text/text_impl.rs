@@ -356,16 +356,16 @@ impl Timeline {
                 continue;
             }
             let prop_subject = format!("{}.{}", label_str, prop.name);
-            if let Some(schema) = lookup_property(&prop.name) {
-                if let Some(pv) = parse_property_value(
+            if let Some(schema) = lookup_property(&prop.name)
+                && let Some(pv) = parse_property_value(
                     schema.value_type,
                     &prop.value,
                     &eval_env,
                     diagnostics,
                     &prop_subject,
-                ) {
-                    pending_writes.push((schema.field_for_actor(&actor_caps, actor_type), pv));
-                }
+                )
+            {
+                pending_writes.push((schema.field_for_actor(&actor_caps, actor_type), pv));
             }
         }
 

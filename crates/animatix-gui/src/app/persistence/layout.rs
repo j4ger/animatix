@@ -85,7 +85,8 @@ pub(crate) fn build_tree_for(preset: LayoutPreset, width: f32, height: f32) -> T
         (1.0 - bottom_px / dock_h).clamp(0.1, 0.9),
     ));
 
-    let mut tree = Tree::new("workspace", root, tiles);
+    // egui_tiles 0.18 takes `impl Into<egui::Id>`; `&str` no longer converts.
+    let mut tree = Tree::new(egui::Id::unique("workspace"), root, tiles);
     activate_detail_tab(&mut tree, regions.tab);
     activate_bottom_tab(&mut tree, WorkspaceTab::Timeline);
     if regions.hide_surroundings {
@@ -153,11 +154,11 @@ pub(crate) fn apply_layout_preset(
     let dock_h = (height - VERTICAL_CHROME).max(1.0);
     let bottom_px = clamp_ratio(regions.bottom.0, dock_h, regions.bottom.1, regions.bottom.2);
     let top_frac = (1.0 - bottom_px / dock_h).clamp(0.1, 0.9);
-    if let Some(root) = tree.root {
-        if let Some(Tile::Container(Container::Linear(linear))) = tree.tiles.get_mut(root) {
-            linear.shares.set_share(top_row, top_frac);
-            linear.shares.set_share(bottom, 1.0 - top_frac);
-        }
+    if let Some(root) = tree.root
+        && let Some(Tile::Container(Container::Linear(linear))) = tree.tiles.get_mut(root)
+    {
+        linear.shares.set_share(top_row, top_frac);
+        linear.shares.set_share(bottom, 1.0 - top_frac);
     }
 
     let visible = !regions.hide_surroundings;
@@ -282,15 +283,15 @@ pub(crate) fn enforce_vertical_bounds(
         return;
     };
 
-    if tree.is_visible(bottom_region) {
-        if let Some(root) = tree.root {
-            let kids = vec![top_row, bottom_region];
-            if let Some(Tile::Container(Container::Linear(linear))) = tree.tiles.get_mut(root) {
-                let px = linear.shares.split(&kids, height);
-                let bottom_px = px[1].clamp(regions.bottom.1, regions.bottom.2);
-                linear.shares.set_share(top_row, (height - bottom_px).max(0.0));
-                linear.shares.set_share(bottom_region, bottom_px);
-            }
+    if tree.is_visible(bottom_region)
+        && let Some(root) = tree.root
+    {
+        let kids = vec![top_row, bottom_region];
+        if let Some(Tile::Container(Container::Linear(linear))) = tree.tiles.get_mut(root) {
+            let px = linear.shares.split(&kids, height);
+            let bottom_px = px[1].clamp(regions.bottom.1, regions.bottom.2);
+            linear.shares.set_share(top_row, (height - bottom_px).max(0.0));
+            linear.shares.set_share(bottom_region, bottom_px);
         }
     }
 }
@@ -413,10 +414,10 @@ pub(crate) fn active_group_tab(
         _ => return None,
     };
     for tab in members {
-        if let Some(id) = tree.tiles.find_pane(tab) {
-            if tabs.is_active(id) {
-                return Some(*tab);
-            }
+        if let Some(id) = tree.tiles.find_pane(tab)
+            && tabs.is_active(id)
+        {
+            return Some(*tab);
         }
     }
     None

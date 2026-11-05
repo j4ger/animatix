@@ -59,6 +59,7 @@
   <label>Reps <input id="reps" type="number" min="1" value="5" style="width:64px"></label>
   <button id="run-compute" class="primary">Run compute</button>
   <button id="run-hybrid" class="primary">Run hybrid</button>
+  <button id="run-hybrid-wgpu" class="primary">Run hybrid·wgpu</button>
   <button id="run-all">Run all</button>
 </div>
 <div id="status" class="status"></div>
@@ -66,6 +67,7 @@
 <div class="wrap">
   <div class="pane"><h2>compute · WebGPU</h2><canvas id="c-compute" width="1280" height="720"></canvas></div>
   <div class="pane"><h2>hybrid · WebGL2</h2><canvas id="c-hybrid" width="1280" height="720"></canvas></div>
+  <div class="pane"><h2>hybrid · wgpu</h2><canvas id="c-hwgpu" width="1280" height="720"></canvas></div>
 </div>
 
 <table id="out">

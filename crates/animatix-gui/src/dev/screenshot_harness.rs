@@ -93,17 +93,17 @@ fn render_rows(ui: &mut egui::Ui) {
         .icon(Some(egui_phosphor::regular::SQUARE))
         .has_children(true)
         .expanded(true);
-    row1.show(ui, ui.id().with("harness_row_1"));
+    row1.show(ui, ui.scope_id().with("harness_row_1"));
 
     let row2 = row::Row::new("Actor 2")
         .icon(Some(egui_phosphor::regular::CIRCLE))
         .selected(true);
-    row2.show(ui, ui.id().with("harness_row_2"));
+    row2.show(ui, ui.scope_id().with("harness_row_2"));
 
     let row3 = row::Row::new("Actor 3")
         .icon(Some(egui_phosphor::regular::TRIANGLE))
         .label_color(eparts::theme(ui).palette.text.muted);
-    row3.show(ui, ui.id().with("harness_row_3"));
+    row3.show(ui, ui.scope_id().with("harness_row_3"));
 }
 
 fn render_card(ui: &mut egui::Ui) {

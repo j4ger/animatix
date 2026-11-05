@@ -93,10 +93,10 @@ pub fn parse_dimension_spec(expr: &crate::ast::Expr) -> SizeSpec {
         Expr::Num(n) => SizeSpec::Fixed(*n as f32),
         Expr::Percent(pct) => SizeSpec::Percent(*pct as f32 / 100.0),
         Expr::Str(s) => {
-            if let Some(pct_str) = s.strip_suffix('%') {
-                if let Ok(pct) = pct_str.parse::<f32>() {
-                    return SizeSpec::Percent(pct / 100.0);
-                }
+            if let Some(pct_str) = s.strip_suffix('%')
+                && let Ok(pct) = pct_str.parse::<f32>()
+            {
+                return SizeSpec::Percent(pct / 100.0);
             }
             match s.as_str() {
                 "auto" => SizeSpec::Auto,

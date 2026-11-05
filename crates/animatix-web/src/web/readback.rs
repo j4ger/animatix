@@ -44,20 +44,27 @@ impl AmxPlayer {
                     let payload = match mapped {
                         Ok(()) => {
                             let slice = buffer.slice(..);
-                            let data = slice.get_mapped_range();
-                            let summary = summarize_pixels(
-                                &data,
-                                setup.width,
-                                setup.height,
-                                setup.bytes_per_row,
-                            );
-                            drop(data);
-                            // Dropping the mapped range does not unmap the
-                            // buffer; `filter_backend.rs` gets this right and
-                            // these two paths did not, so every probe left a
-                            // pinned mapping behind.
-                            buffer.unmap();
-                            summary
+                            match slice.get_mapped_range() {
+                                Ok(data) => {
+                                    let summary = summarize_pixels(
+                                        &data,
+                                        setup.width,
+                                        setup.height,
+                                        setup.bytes_per_row,
+                                    );
+                                    drop(data);
+                                    // Dropping the mapped range does not unmap the
+                                    // buffer; `filter_backend.rs` gets this right and
+                                    // these two paths did not, so every probe left a
+                                    // pinned mapping behind.
+                                    buffer.unmap();
+                                    summary
+                                },
+                                Err(err) => {
+                                    buffer.unmap();
+                                    format!("{{\"error\":\"map range failed: {err}\"}}")
+                                },
+                            }
                         },
                         Err(err) => format!("{{\"error\":\"map failed: {err}\"}}"),
                     };
@@ -90,12 +97,23 @@ impl AmxPlayer {
                     let pixels = match mapped {
                         Ok(()) => {
                             let slice = buffer.slice(..);
-                            let data = slice.get_mapped_range();
-                            let rgba =
-                                compact_rgba(&data, setup.width, setup.height, setup.bytes_per_row);
-                            drop(data);
-                            buffer.unmap();
-                            Ok(rgba)
+                            match slice.get_mapped_range() {
+                                Ok(data) => {
+                                    let rgba = compact_rgba(
+                                        &data,
+                                        setup.width,
+                                        setup.height,
+                                        setup.bytes_per_row,
+                                    );
+                                    drop(data);
+                                    buffer.unmap();
+                                    Ok(rgba)
+                                },
+                                Err(err) => {
+                                    buffer.unmap();
+                                    Err(format!("map range failed: {err}"))
+                                },
+                            }
                         },
                         Err(err) => Err(format!("map failed: {err}")),
                     };

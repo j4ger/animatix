@@ -180,10 +180,10 @@ pub fn evaluate_rect(
         corner_radius: ctx.shape.map(|s| s.corner_radius.get(ctx.time_ms, 0.0)).unwrap_or(0.0),
     };
 
-    if let Some(overrides) = ctx.overrides {
-        if let Some(Value::Num(radius)) = overrides.get("corner_radius") {
-            state.corner_radius = *radius as f32;
-        }
+    if let Some(overrides) = ctx.overrides
+        && let Some(Value::Num(radius)) = overrides.get("corner_radius")
+    {
+        state.corner_radius = *radius as f32;
     }
 
     evaluate_shape_render(render_rect, "Rect", ctx, &VectorShapeState::Rect(state))
@@ -210,10 +210,10 @@ pub fn evaluate_ellipse(
         rotation: if rot != 0.0 { rot } else { 0.0 },
     };
 
-    if let Some(overrides) = ctx.overrides {
-        if let Some(Value::Num(r)) = overrides.get("rotation") {
-            state.rotation = *r as f32;
-        }
+    if let Some(overrides) = ctx.overrides
+        && let Some(Value::Num(r)) = overrides.get("rotation")
+    {
+        state.rotation = *r as f32;
     }
 
     evaluate_shape_render(render_ellipse, "Ellipse", ctx, &VectorShapeState::Ellipse(state))
@@ -228,23 +228,19 @@ pub fn evaluate_line(
     let mut line_from = shape.line_from.get(ctx.time_ms, [-50.0, 0.0]);
     let mut line_to = shape.line_to.get(ctx.time_ms, [50.0, 0.0]);
 
-    if let Some((actor, anchor)) = shape.from_anchor.as_ref() {
-        if let Some(resolver) = ctx.target_resolver {
-            if let Some((centre, half)) =
-                resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions)
-            {
-                line_from = bounds_anchor_point(*anchor, centre, half);
-            }
-        }
+    if let Some((actor, anchor)) = shape.from_anchor.as_ref()
+        && let Some(resolver) = ctx.target_resolver
+        && let Some((centre, half)) =
+            resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions)
+    {
+        line_from = bounds_anchor_point(*anchor, centre, half);
     }
-    if let Some((actor, anchor)) = shape.to_anchor.as_ref() {
-        if let Some(resolver) = ctx.target_resolver {
-            if let Some((centre, half)) =
-                resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions)
-            {
-                line_to = bounds_anchor_point(*anchor, centre, half);
-            }
-        }
+    if let Some((actor, anchor)) = shape.to_anchor.as_ref()
+        && let Some(resolver) = ctx.target_resolver
+        && let Some((centre, half)) =
+            resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions)
+    {
+        line_to = bounds_anchor_point(*anchor, centre, half);
     }
 
     if let Some(overrides) = ctx.overrides {
@@ -275,23 +271,19 @@ pub fn evaluate_arrow(
     let mut line_to = shape.line_to.get(ctx.time_ms, [50.0, 0.0]);
     let head_size = shape.head_size.get(ctx.time_ms, 10.0);
 
-    if let Some((actor, anchor)) = shape.from_anchor.as_ref() {
-        if let Some(resolver) = ctx.target_resolver {
-            if let Some((centre, half)) =
-                resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions)
-            {
-                line_from = bounds_anchor_point(*anchor, centre, half);
-            }
-        }
+    if let Some((actor, anchor)) = shape.from_anchor.as_ref()
+        && let Some(resolver) = ctx.target_resolver
+        && let Some((centre, half)) =
+            resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions)
+    {
+        line_from = bounds_anchor_point(*anchor, centre, half);
     }
-    if let Some((actor, anchor)) = shape.to_anchor.as_ref() {
-        if let Some(resolver) = ctx.target_resolver {
-            if let Some((centre, half)) =
-                resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions)
-            {
-                line_to = bounds_anchor_point(*anchor, centre, half);
-            }
-        }
+    if let Some((actor, anchor)) = shape.to_anchor.as_ref()
+        && let Some(resolver) = ctx.target_resolver
+        && let Some((centre, half)) =
+            resolver.target_bounds(actor, ctx.time_ms, ctx.scene_dimensions)
+    {
+        line_to = bounds_anchor_point(*anchor, centre, half);
     }
 
     if let Some(overrides) = ctx.overrides {
@@ -334,10 +326,10 @@ pub fn evaluate_polygon(
         points,
     };
 
-    if let Some(overrides) = ctx.overrides {
-        if let Some(Value::Num(r)) = overrides.get("rotation") {
-            state.rotation = *r as f32;
-        }
+    if let Some(overrides) = ctx.overrides
+        && let Some(Value::Num(r)) = overrides.get("rotation")
+    {
+        state.rotation = *r as f32;
     }
 
     evaluate_shape_render(render_polygon, "Polygon", ctx, &VectorShapeState::Polygon(state))

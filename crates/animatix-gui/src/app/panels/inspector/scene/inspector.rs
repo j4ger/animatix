@@ -182,7 +182,7 @@ fn render_properties_card(
             ];
             let labels = ["Grouped", "Table", "Intensity"];
             let mut selected = modes.iter().position(|mode| *mode == view_mode).unwrap_or(0);
-            TabBar::new(seg_ui.id().with("property_view_tabs"), &mut selected, &labels)
+            TabBar::new(seg_ui.scope_id().with("property_view_tabs"), &mut selected, &labels)
                 .show(&mut seg_ui);
             if let Some(mode) = modes.get(selected).copied() {
                 *property_view_mode = mode;
@@ -282,7 +282,7 @@ fn render_actor_footer(
             let reset_pivot = ui.add(Button::ghost("Reset"));
             text_tooltip(
                 ui,
-                ui.id().with(("reset_pivot_tooltip", sel)),
+                ui.scope_id().with(("reset_pivot_tooltip", sel)),
                 &reset_pivot,
                 "Reset pivot to center",
             );
@@ -362,7 +362,7 @@ fn render_keyframes_card(
             let modes = [KeyframeViewMode::List, KeyframeViewMode::Curve];
             let labels = ["List", "Curve"];
             let mut selected = modes.iter().position(|mode| *mode == kf_view).unwrap_or(0);
-            TabBar::new(seg_ui.id().with("keyframe_view_tabs"), &mut selected, &labels)
+            TabBar::new(seg_ui.scope_id().with("keyframe_view_tabs"), &mut selected, &labels)
                 .show(&mut seg_ui);
             if let Some(mode) = modes.get(selected).copied() {
                 *keyframe_view_mode = mode;

@@ -29,15 +29,15 @@ impl Timeline {
         // the declaration's paths are stale, so rebuild the bars from the dataset
         // in effect. Gated on the side channel being non-empty, so a chart whose
         // data never animates pays nothing.
-        if !self.world.bar_data_transitions(node_id).is_empty() {
-            if let Some(layout) = self.world.bar_layout(node_id) {
-                let data = crate::timeline::plot::bar_data_at(
-                    self.world.bar_data(node_id),
-                    self.world.bar_data_transitions(node_id),
-                    time_ms,
-                );
-                vector_paths = std::sync::Arc::new(layout.paths_for(&data).0);
-            }
+        if !self.world.bar_data_transitions(node_id).is_empty()
+            && let Some(layout) = self.world.bar_layout(node_id)
+        {
+            let data = crate::timeline::plot::bar_data_at(
+                self.world.bar_data(node_id),
+                self.world.bar_data_transitions(node_id),
+                time_ms,
+            );
+            vector_paths = std::sync::Arc::new(layout.paths_for(&data).0);
         }
         // Re-sample procedural plots at frame time so they can reference `t`.
         // Use the shared frame_env if available; fall back to creating one on-demand

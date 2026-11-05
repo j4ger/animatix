@@ -253,10 +253,10 @@ pub fn collect_diagnostics_with_config(
             return false;
         }
         // Check if specific code is disabled
-        if let Some(code) = &d.code {
-            if config.is_disabled(code) {
-                return false;
-            }
+        if let Some(code) = &d.code
+            && config.is_disabled(code)
+        {
+            return false;
         }
         true
     });

@@ -34,7 +34,7 @@ pub(super) fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) 
         if !images.is_empty() {
             layout::section_header(ui, egui_phosphor::regular::IMAGE, "Images", Some(images.len()));
             for (path, _img) in &images {
-                let row_id = ui.id().with(path);
+                let row_id = ui.scope_id().with(path);
                 let filename =
                     std::path::Path::new(path).file_name().and_then(|n| n.to_str()).unwrap_or(path);
                 let response = row::Row::new(filename)
@@ -83,7 +83,7 @@ pub(super) fn assets_content_ui(ctx: &mut AssetsContext<'_>, ui: &mut egui::Ui) 
         if !svgs.is_empty() {
             layout::section_header(ui, egui_phosphor::regular::FILE_SVG, "SVGs", Some(svgs.len()));
             for (path, _svg) in &svgs {
-                let row_id = ui.id().with(path);
+                let row_id = ui.scope_id().with(path);
                 let filename =
                     std::path::Path::new(path).file_name().and_then(|n| n.to_str()).unwrap_or(path);
                 let response = row::Row::new(filename)

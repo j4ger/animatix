@@ -9,6 +9,8 @@
 //! ```
 
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use animatix_gui::dev::screenshot_harness::{WIDGET_REGISTRY, install_theme, render_widget};
 use eframe::egui;
@@ -61,7 +63,7 @@ struct ScreenshotApp {
     widget: String,
     output: PathBuf,
     frame_count: u32,
-    done: bool,
+    done: Arc<AtomicBool>,
     theme: Theme,
     dark: bool,
 }
@@ -73,7 +75,7 @@ impl ScreenshotApp {
             widget,
             output,
             frame_count: 0,
-            done: false,
+            done: Arc::new(AtomicBool::new(false)),
             theme,
             dark,
         }
@@ -95,7 +97,7 @@ impl eframe::App for ScreenshotApp {
         let theme = eparts::theme(ui);
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(theme.palette.surface.base))
-            .show_inside(ui, |ui| {
+            .show(ui, |ui| {
                 let content_rect = ui.available_rect_before_wrap().shrink(20.0);
                 ui.scope_builder(egui::UiBuilder::new().max_rect(content_rect), |ui| {
                     render_widget(ui, &self.widget, theme);
@@ -103,26 +105,27 @@ impl eframe::App for ScreenshotApp {
             });
 
         if self.frame_count == 2 {
-            ui.ctx()
-                .send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
-        }
-
-        if self.frame_count >= 2 {
-            ui.input(|i| {
-                for event in &i.raw.events {
-                    if let egui::Event::Screenshot { image, .. } = event {
-                        if let Err(e) = save_screenshot(image, i.pixels_per_point, &self.output) {
-                            eprintln!("Failed to save screenshot: {e}");
-                            std::process::exit(1);
-                        }
-                        println!("Screenshot saved to {}", self.output.display());
-                        self.done = true;
-                    }
+            // egui 0.37 delivers screenshots through a one-shot callback
+            // instead of an `Event::Screenshot`.
+            let ctx = ui.ctx().clone();
+            let output = self.output.clone();
+            let done = Arc::clone(&self.done);
+            let pixels_per_point = ctx.pixels_per_point();
+            let callback_ctx = ctx.clone();
+            ctx.request_screenshot(move |image| {
+                match save_screenshot(&image, pixels_per_point, &output) {
+                    Ok(()) => println!("Screenshot saved to {}", output.display()),
+                    Err(e) => {
+                        eprintln!("Failed to save screenshot: {e}");
+                        std::process::exit(1);
+                    },
                 }
+                done.store(true, Ordering::SeqCst);
+                callback_ctx.request_repaint();
             });
         }
 
-        if self.done {
+        if self.done.load(Ordering::SeqCst) {
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
         } else {
             ui.ctx().request_repaint();

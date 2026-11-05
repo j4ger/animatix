@@ -435,7 +435,7 @@ mod tests {
         let mut width = 0.0;
         // Two frames so layout is stable.
         for _ in 0..2 {
-            let _ = ctx.run_ui(base_input(), |ui| {
+            let _ = crate::run_ui(ctx, base_input(), |ui| {
                 width = ui.add(alert.clone()).rect.width();
             });
         }
@@ -500,7 +500,7 @@ mod tests {
         crate::tokens::typography::register_font_families(&ctx);
         for t in [Theme::dark(), Theme::light()] {
             set_theme(&ctx, t);
-            let _ = ctx.run_ui(base_input(), |ui| {
+            let _ = crate::run_ui(&ctx, base_input(), |ui| {
                 ui.add(ProgressBar::new(0.6).show_percentage(true));
                 ui.add(Badge::new("3"));
                 ui.add(Tag::new("filter").removable(true));

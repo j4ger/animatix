@@ -45,20 +45,20 @@ impl Timeline {
         let actor_type = self.world.actor_type(node_id);
         let name = self.world.shape_or_default(node_id).render_type_name(actor_type, time_ms);
         if name != actor_type {
-            if let Some(def) = self.behavior_registry.find(name) {
-                if let Some(handle) = crate::primitives::PrimitiveHandle::from_behavior(def) {
-                    return Some(handle);
-                }
+            if let Some(def) = self.behavior_registry.find(name)
+                && let Some(handle) = crate::primitives::PrimitiveHandle::from_behavior(def)
+            {
+                return Some(handle);
             }
             return self.primitive_registry.find_handle(name);
         }
         let idx = node_id.index();
         {
             let cache = self.eval_caches.primitive_handles.borrow();
-            if let Some(Some((cached_type, handle))) = cache.get(idx) {
-                if cached_type.as_ref() == actor_type {
-                    return Some(handle.clone());
-                }
+            if let Some(Some((cached_type, handle))) = cache.get(idx)
+                && cached_type.as_ref() == actor_type
+            {
+                return Some(handle.clone());
             }
         }
         let handle = if let Some(def) = self.behavior_for_node(node_id, time_ms) {

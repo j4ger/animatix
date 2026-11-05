@@ -91,7 +91,7 @@ fn paint_actor_row_background(
     theme: eparts::Theme,
 ) {
     let track_rect = layout.track_rect();
-    if layout.track_idx % 2 == 0 {
+    if layout.track_idx.is_multiple_of(2) {
         painter.rect_filled(track_rect, 0.0, theme.components.list.odd.bg);
     }
     if layout.is_selected {
@@ -122,8 +122,11 @@ fn render_actor_chevron(
         Pos2::new(chevron_x, layout.at_top + 2.0),
         Vec2::new(14.0, sp.timeline.track_row_height - 4.0),
     );
-    let chevron_resp =
-        ui.interact(chevron_rect, ui.id().with(("actor_chevron", actor_label)), Sense::click());
+    let chevron_resp = ui.interact(
+        chevron_rect,
+        ui.scope_id().with(("actor_chevron", actor_label)),
+        Sense::click(),
+    );
     painter.text(
         chevron_rect.center(),
         Align2::CENTER_CENTER,
@@ -159,8 +162,11 @@ fn render_property_expand_toggle(
         Pos2::new(prop_toggle_x, layout.at_top + 2.0),
         Vec2::new(14.0, sp.timeline.track_row_height - 4.0),
     );
-    let prop_toggle_resp =
-        ui.interact(prop_toggle_rect, ui.id().with(("prop_toggle", actor_label)), Sense::click());
+    let prop_toggle_resp = ui.interact(
+        prop_toggle_rect,
+        ui.scope_id().with(("prop_toggle", actor_label)),
+        Sense::click(),
+    );
     painter.text(
         prop_toggle_rect.center(),
         Align2::CENTER_CENTER,
@@ -221,7 +227,7 @@ fn render_actor_label(
     // Click on label to select actor.
     let label_resp = ui.interact(
         layout.label_rect(),
-        ui.id().with(("actor_label", layout.track_idx)),
+        ui.scope_id().with(("actor_label", layout.track_idx)),
         Sense::click(),
     );
     if label_resp.clicked() {
@@ -286,7 +292,8 @@ fn render_actor_state_controls(
     } else {
         egui_phosphor::regular::EYE_CLOSED
     };
-    let eye_resp = ui.interact(eye_rect, ui.id().with(("actor_eye", actor_label)), Sense::click());
+    let eye_resp =
+        ui.interact(eye_rect, ui.scope_id().with(("actor_eye", actor_label)), Sense::click());
     painter.text(
         eye_rect.center(),
         Align2::CENTER_CENTER,
@@ -316,7 +323,7 @@ fn render_actor_state_controls(
         Some(PropertyValue::Bool(true))
     );
     let solo_resp =
-        ui.interact(solo_rect, ui.id().with(("actor_solo", actor_label)), Sense::click());
+        ui.interact(solo_rect, ui.scope_id().with(("actor_solo", actor_label)), Sense::click());
     painter.text(
         solo_rect.center(),
         Align2::CENTER_CENTER,
@@ -360,7 +367,7 @@ fn render_actor_state_controls(
         egui_phosphor::regular::LOCK_KEY_OPEN
     };
     let lock_resp =
-        ui.interact(lock_rect, ui.id().with(("actor_lock", actor_label)), Sense::click());
+        ui.interact(lock_rect, ui.scope_id().with(("actor_lock", actor_label)), Sense::click());
     painter.text(
         lock_rect.center(),
         Align2::CENTER_CENTER,

@@ -34,14 +34,13 @@ pub(super) fn attach_trailing_comments(
         let mut best: Option<usize> = None;
         let mut best_end = 0usize;
         for (i, prop) in props.iter().enumerate() {
-            if let Some(span) = prop.value_span {
-                if span.end <= comment_start
-                    && !source[span.end..comment_start].contains('\n')
-                    && span.end >= best_end
-                {
-                    best = Some(i);
-                    best_end = span.end;
-                }
+            if let Some(span) = prop.value_span
+                && span.end <= comment_start
+                && !source[span.end..comment_start].contains('\n')
+                && span.end >= best_end
+            {
+                best = Some(i);
+                best_end = span.end;
             }
         }
         if let Some(i) = best {

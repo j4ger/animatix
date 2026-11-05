@@ -70,16 +70,16 @@ pub fn build_extra_fragment(
                     .add_keyframe(time_ms as u64, content_str, Easing::Linear);
             },
             "highlight_color" => {
-                if let Expr::Ident(name) = &prop.value {
-                    if name == "auto" {
-                        timeline
-                            .world
-                            .ensure_highlight(track_id)
-                            .highlight_color
-                            .ensure([0.3, 0.5, 1.0, 1.0])
-                            .add_keyframe(time_ms as u64, [0.3, 0.5, 1.0, 1.0], Easing::Linear);
-                        continue;
-                    }
+                if let Expr::Ident(name) = &prop.value
+                    && name == "auto"
+                {
+                    timeline
+                        .world
+                        .ensure_highlight(track_id)
+                        .highlight_color
+                        .ensure([0.3, 0.5, 1.0, 1.0])
+                        .add_keyframe(time_ms as u64, [0.3, 0.5, 1.0, 1.0], Easing::Linear);
+                    continue;
                 }
                 if let Some(color) = crate::timeline::parse_color_in_env_with_lookup_diagnostic(
                     label,

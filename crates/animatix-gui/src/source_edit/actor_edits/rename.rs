@@ -21,10 +21,10 @@ fn rename_in_stmt(stmts: &mut [Stmt], old_label: &str, new_label: &str) {
                 *label = new_label.to_string();
             }
             walk_inline_items_mut(children, &mut |item| {
-                if let InlineItem::Labeled { label, .. } = item {
-                    if label == old_label {
-                        *label = new_label.to_string();
-                    }
+                if let InlineItem::Labeled { label, .. } = item
+                    && label == old_label
+                {
+                    *label = new_label.to_string();
                 }
             });
         },

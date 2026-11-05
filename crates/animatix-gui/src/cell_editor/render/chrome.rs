@@ -56,15 +56,15 @@ pub(super) fn header_btn(ui: &mut egui::Ui, icon: &'static str, tooltip: &'stati
 /// **Does not** consume `pending_cursor_cell`; the caller must request focus
 /// after the `TextEdit` is added and then clear the flag.
 pub(super) fn apply_pending_cursor(ui: &mut egui::Ui, index: usize, state: &mut CellEditorState) {
-    if state.pending_cursor_cell == Some(index) {
-        if let Some(char_idx) = state.pending_cursor_char.take() {
-            let text_edit_id = ui.id().with(("cell_body", index));
-            let mut te_state =
-                egui::text_edit::TextEditState::load(ui.ctx(), text_edit_id).unwrap_or_default();
-            use egui::text::{CCursor, CCursorRange};
-            te_state.cursor.set_char_range(Some(CCursorRange::one(CCursor::new(char_idx))));
-            te_state.store(ui.ctx(), text_edit_id);
-        }
+    if state.pending_cursor_cell == Some(index)
+        && let Some(char_idx) = state.pending_cursor_char.take()
+    {
+        let text_edit_id = ui.scope_id().with(("cell_body", index));
+        let mut te_state =
+            egui::text_edit::TextEditState::load(ui.ctx(), text_edit_id).unwrap_or_default();
+        use egui::text::{CCursor, CCursorRange};
+        te_state.cursor.set_char_range(Some(CCursorRange::one(CCursor::new(char_idx))));
+        te_state.store(ui.ctx(), text_edit_id);
     }
 }
 

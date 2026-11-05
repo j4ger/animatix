@@ -182,15 +182,11 @@ impl DocumentStore {
 
         if success {
             // Skip re-publishing if current is already Clean with the same hash
-            if let Some(ref current) = self.current {
-                if current.source_hash == crate::app::document::version::SourceHash(hash)
-                    && matches!(
-                        current.status,
-                        crate::app::document::snapshot::SnapshotStatus::Clean
-                    )
-                {
-                    return;
-                }
+            if let Some(ref current) = self.current
+                && current.source_hash == crate::app::document::version::SourceHash(hash)
+                && matches!(current.status, crate::app::document::snapshot::SnapshotStatus::Clean)
+            {
+                return;
             }
             let snapshot = snapshot_from_session(&self.source.document, hash);
             self.publish_snapshot(snapshot);

@@ -133,10 +133,11 @@ impl Primitive for ArrowPrimitive {
         };
         match name {
             "from" => {
-                if let Expr::Path(segments) = value {
-                    if segments.len() == 2 && SceneAnchor::from_str(&segments[1]).is_some() {
-                        return true;
-                    }
+                if let Expr::Path(segments) = value
+                    && segments.len() == 2
+                    && SceneAnchor::from_str(&segments[1]).is_some()
+                {
+                    return true;
                 }
                 if let Some(parsed) =
                     parse_numeric_vec2_with_lookup_diagnostic(value, env, diagnostics, subject)
@@ -146,10 +147,11 @@ impl Primitive for ArrowPrimitive {
                 true
             },
             "to" => {
-                if let Expr::Path(segments) = value {
-                    if segments.len() == 2 && SceneAnchor::from_str(&segments[1]).is_some() {
-                        return true;
-                    }
+                if let Expr::Path(segments) = value
+                    && segments.len() == 2
+                    && SceneAnchor::from_str(&segments[1]).is_some()
+                {
+                    return true;
                 }
                 if let Some(parsed) =
                     parse_numeric_vec2_with_lookup_diagnostic(value, env, diagnostics, subject)

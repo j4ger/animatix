@@ -99,7 +99,7 @@ impl GuiShell {
         let is_running = matches!(self.export_store.export_status, ExportStatus::Running);
 
         // Backdrop click → close (only when not running)
-        let backdrop_id = ui.id().with("export_backdrop");
+        let backdrop_id = ui.scope_id().with("export_backdrop");
         let backdrop_response = ui.interact(screen_rect, backdrop_id, egui::Sense::click());
         if backdrop_response.clicked() && !is_running {
             self.export_store.export_dialog_open = false;
@@ -135,8 +135,8 @@ impl GuiShell {
         );
 
         // Lock cursor inside dialog — prevents underlying widgets from changing it
-        let dialog_block =
-            ui.interact(dialog_rect, ui.id().with("export_dialog_block"), egui::Sense::hover());
+        let block_id = ui.scope_id().with("export_dialog_block");
+        let dialog_block = ui.interact(dialog_rect, block_id, egui::Sense::hover());
         if dialog_block.hovered() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::Default);
         }

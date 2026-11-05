@@ -91,78 +91,72 @@ impl PreviewContext<'_> {
         let mut ops: Vec<PreviewOverlayOp> = Vec::new();
         if let Some(mouse) =
             ui.ctx().input(|i| i.pointer.latest_pos()).filter(|p| preview_rect.contains(*p))
-        {
-            if !self
+            && !self
                 .selected_actors
                 .contains(self.selection.hovered_actor.as_deref().unwrap_or(""))
-            {
-                ops.extend(cycle_indicator_ops(
-                    &theme,
-                    mouse,
-                    self.selection.cycle_index,
-                    self.selection.click_candidates.len(),
-                ));
-            }
+        {
+            ops.extend(cycle_indicator_ops(
+                &theme,
+                mouse,
+                self.selection.cycle_index,
+                self.selection.click_candidates.len(),
+            ));
         }
 
-        if self.preview.overlay.show_hover_highlight {
-            if let Some(hovered) = self.selection.hovered_actor.as_ref() {
-                if !self.selected_actors.contains(hovered) {
-                    if let Some(hover_rect) = preview::selection_screen_rect(
-                        &HashSet::from([hovered.clone()]),
-                        self.hit_regions,
-                        preview_rect,
-                        self.scene_dimensions,
-                        self.preview.viewport.preview_zoom,
-                        self.preview.viewport.preview_pan,
-                    ) {
-                        let scene_min = tx.screen_to_scene(hover_rect.min);
-                        let scene_max = tx.screen_to_scene(hover_rect.max);
-                        let hover_scene = kurbo::Rect::new(
-                            scene_min.x.min(scene_max.x),
-                            scene_min.y.min(scene_max.y),
-                            scene_min.x.max(scene_max.x),
-                            scene_min.y.max(scene_max.y),
-                        );
-                        ops.extend(hover_highlight_ops(&theme, hovered, hover_scene, tx));
-                    }
-                }
-            }
+        if self.preview.overlay.show_hover_highlight
+            && let Some(hovered) = self.selection.hovered_actor.as_ref()
+            && !self.selected_actors.contains(hovered)
+            && let Some(hover_rect) = preview::selection_screen_rect(
+                &HashSet::from([hovered.clone()]),
+                self.hit_regions,
+                preview_rect,
+                self.scene_dimensions,
+                self.preview.viewport.preview_zoom,
+                self.preview.viewport.preview_pan,
+            )
+        {
+            let scene_min = tx.screen_to_scene(hover_rect.min);
+            let scene_max = tx.screen_to_scene(hover_rect.max);
+            let hover_scene = kurbo::Rect::new(
+                scene_min.x.min(scene_max.x),
+                scene_min.y.min(scene_max.y),
+                scene_min.x.max(scene_max.x),
+                scene_min.y.max(scene_max.y),
+            );
+            ops.extend(hover_highlight_ops(&theme, hovered, hover_scene, tx));
         }
         execute_overlay_ops(ui.painter(), &ops, &tx);
 
-        if self.preview.overlay.show_snap_guides {
-            if let DragState::Move { primary, .. } | DragState::Scale { actor: primary, .. } =
+        if self.preview.overlay.show_snap_guides
+            && let DragState::Move { primary, .. } | DragState::Scale { actor: primary, .. } =
                 &self.drag_state
-            {
-                self.draw_snap_guides(ui, preview_rect, primary);
-            }
+        {
+            self.draw_snap_guides(ui, preview_rect, primary);
         }
 
-        if self.preview.overlay.show_snap_guides {
-            if let Some(ref label) = self.preview.snap.snap_hud_label {
-                if let Some(mouse) = ui.ctx().input(|i| i.pointer.latest_pos()) {
-                    let hud_pos = mouse + Vec2::new(12.0, -24.0);
-                    let galley = ui.painter().layout_no_wrap(
-                        label.clone(),
-                        TextRole::BodyS.font_id(),
-                        theme.palette.status.success,
-                    );
-                    let padding = Vec2::new(8.0, 4.0);
-                    let bg_rect = egui::Rect::from_min_size(hud_pos, galley.size() + padding * 2.0);
-                    ui.painter().rect_filled(bg_rect, 3.0, theme.palette.overlay.tooltip_bg);
-                    ui.painter().rect_stroke(
-                        bg_rect,
-                        3.0,
-                        egui::Stroke::new(
-                            STROKE_WIDTH,
-                            crate::app::design_tokens::semantic::canvas::snap_guide_line(),
-                        ),
-                        egui::StrokeKind::Outside,
-                    );
-                    ui.painter().galley(hud_pos + padding, galley, theme.palette.status.success);
-                }
-            }
+        if self.preview.overlay.show_snap_guides
+            && let Some(ref label) = self.preview.snap.snap_hud_label
+            && let Some(mouse) = ui.ctx().input(|i| i.pointer.latest_pos())
+        {
+            let hud_pos = mouse + Vec2::new(12.0, -24.0);
+            let galley = ui.painter().layout_no_wrap(
+                label.clone(),
+                TextRole::BodyS.font_id(),
+                theme.palette.status.success,
+            );
+            let padding = Vec2::new(8.0, 4.0);
+            let bg_rect = egui::Rect::from_min_size(hud_pos, galley.size() + padding * 2.0);
+            ui.painter().rect_filled(bg_rect, 3.0, theme.palette.overlay.tooltip_bg);
+            ui.painter().rect_stroke(
+                bg_rect,
+                3.0,
+                egui::Stroke::new(
+                    STROKE_WIDTH,
+                    crate::app::design_tokens::semantic::canvas::snap_guide_line(),
+                ),
+                egui::StrokeKind::Outside,
+            );
+            ui.painter().galley(hud_pos + padding, galley, theme.palette.status.success);
         }
 
         // ── Performance HUD ──

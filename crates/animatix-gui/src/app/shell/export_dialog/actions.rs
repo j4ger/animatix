@@ -200,12 +200,12 @@ impl GuiShell {
             self.export_store.export_status = ExportStatus::Failed("Output path is empty".into());
             return;
         }
-        if let Some(parent) = output_path.parent() {
-            if !parent.exists() {
-                self.export_store.export_status =
-                    ExportStatus::Failed(format!("Directory does not exist: {}", parent.display()));
-                return;
-            }
+        if let Some(parent) = output_path.parent()
+            && !parent.exists()
+        {
+            self.export_store.export_status =
+                ExportStatus::Failed(format!("Directory does not exist: {}", parent.display()));
+            return;
         }
 
         let debug = animatix::timeline::DebugRenderOptions {

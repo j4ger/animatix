@@ -8,7 +8,7 @@
 //!
 //! - **Idempotent**: formatting already-formatted code produces byte-identical output.
 //! - **Configurable**: indent size, blank line rules, trailing commas.
-//! - **AST-based**: delegates to [`format_core`](crate::format_core) for the actual serialization,
+//! - **AST-based**: delegates to [`format_core`] for the actual serialization,
 //!   with formatting options applied on top.
 //! - **Comment-preserving**: [`crate::formatter::Formatter::format_source`] reinserts every `//` comment from
 //!   the source token stream; [`crate::formatter::Formatter::format`] alone sees only the AST and cannot.

@@ -14,6 +14,7 @@ impl OffscreenRenderer {
                 power_preference: wgpu::PowerPreference::default(),
                 compatible_surface: None,
                 force_fallback_adapter: false,
+                apply_limit_buckets: false,
             })
             .await
             .map_err(|err| format!("Failed to find an appropriate adapter: {err}"))?;
@@ -332,7 +333,9 @@ impl OffscreenRenderer {
             .map_err(|err| format!("Failed to receive mapped frame: {err}"))?
             .map_err(|err| format!("Failed to map preview frame: {err}"))?;
 
-        let data = buffer_slice.get_mapped_range();
+        let data = buffer_slice
+            .get_mapped_range()
+            .map_err(|err| format!("Failed to map preview frame: {err}"))?;
         // Reuse the previous frame's readback buffer when the
         // encoder has already consumed it (strong count back to our handle);
         // `Arc::make_mut` clones only when someone still holds a reference.
@@ -379,18 +382,16 @@ impl OffscreenRenderer {
         // Composite diagnostics: report how much of the composed output is
         // opaque when `ANIMATIX_DUMP_STAGES` is set, so a regressed composite
         // is visible in the log without re-running under a GPU capture.
-        if std::env::var_os("ANIMATIX_DUMP_STAGES").is_some() {
-            if let Some(output_texture) = self.output_texture.as_ref() {
-                if let Some(fb) = self.filter_backend.as_mut() {
-                    let img =
-                        fb.debug_readback_texture(output_texture, wgpu::Origin3d::ZERO, dimensions);
-                    let data = img.data.data.data();
-                    let n = data.len() / 4;
-                    let step = (n / 300).max(1);
-                    let opaque = (0..n).step_by(step).filter(|&i| data[i * 4 + 3] > 100).count();
-                    eprintln!("[dump] output_view opaque={opaque}/{}", n / step);
-                }
-            }
+        if std::env::var_os("ANIMATIX_DUMP_STAGES").is_some()
+            && let Some(output_texture) = self.output_texture.as_ref()
+            && let Some(fb) = self.filter_backend.as_mut()
+        {
+            let img = fb.debug_readback_texture(output_texture, wgpu::Origin3d::ZERO, dimensions);
+            let data = img.data.data.data();
+            let n = data.len() / 4;
+            let step = (n / 300).max(1);
+            let opaque = (0..n).step_by(step).filter(|&i| data[i * 4 + 3] > 100).count();
+            eprintln!("[dump] output_view opaque={opaque}/{}", n / step);
         }
         let pending = self.begin_readback(dimensions)?;
         self.wait_frame(pending)

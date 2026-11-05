@@ -98,12 +98,7 @@ fn lower_modifier_stmt(stmt: &Stmt) -> Result<Vec<ModifierIrStmt>, IrLowerError>
                 }])
             }
         },
-        Stmt::LetDecl {
-            name,
-            value,
-            is_pub: _,
-            ..
-        } => Ok(vec![ModifierIrStmt::Let {
+        Stmt::LetDecl { name, value, .. } => Ok(vec![ModifierIrStmt::Let {
             name: name.clone(),
             value: compile_expr(value)?,
         }]),
@@ -172,13 +167,14 @@ pub fn compile_expr(expr: &Expr) -> Result<CompiledExpr, IrLowerError> {
             // resolved from the frame env at evaluation time, not eagerly
             // injected. Exclude `scene.*` (preserves existing scene anchor
             // injection path) and non-2-part paths.
-            if parts.len() == 2 && parts[0] != "scene" {
-                if let Some(anchor) = SceneAnchor::from_str(&parts[1]) {
-                    return Ok(CompiledExpr::AnchorLookup {
-                        actor: parts[0].clone(),
-                        anchor,
-                    });
-                }
+            if parts.len() == 2
+                && parts[0] != "scene"
+                && let Some(anchor) = SceneAnchor::from_str(&parts[1])
+            {
+                return Ok(CompiledExpr::AnchorLookup {
+                    actor: parts[0].clone(),
+                    anchor,
+                });
             }
             Ok(CompiledExpr::LoadEnv(parts.join(".")))
         },
@@ -195,13 +191,13 @@ pub fn compile_expr(expr: &Expr) -> Result<CompiledExpr, IrLowerError> {
         Expr::Unary(op, expr) => {
             if *op == crate::ast::UnaryOp::Ref {
                 // `&label.prop` — the parser guarantees a two-segment path.
-                if let Expr::Path(parts) = expr.as_ref() {
-                    if let [label, prop] = parts.as_slice() {
-                        return Ok(CompiledExpr::PropRef {
-                            label: label.clone(),
-                            prop: prop.clone(),
-                        });
-                    }
+                if let Expr::Path(parts) = expr.as_ref()
+                    && let [label, prop] = parts.as_slice()
+                {
+                    return Ok(CompiledExpr::PropRef {
+                        label: label.clone(),
+                        prop: prop.clone(),
+                    });
                 }
                 return Err(IrLowerError::UnsupportedStatement(
                     "& expects a two-segment path: &actor.prop",

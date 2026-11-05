@@ -36,24 +36,23 @@ impl GestureHandler for MotionPathGesture {
 
                 // Scan position keyframes for a hit
                 let hit_radius = PREVIEW_HANDLE_HIT_RADIUS;
-                if let Some(timeline) = ctx.timeline {
-                    if let Some(id) = timeline.get_entity_id(&actor) {
-                        if let Some(pos_track) = &timeline.world().geometry(id).position {
-                            for (&time_ms, (kf_pos, _)) in pos_track.keyframes() {
-                                let screen = ctx.preview_scene_to_screen(
-                                    preview_rect,
-                                    kurbo::Point::new(kf_pos[0] as f64, kf_pos[1] as f64),
-                                );
-                                if pos.distance(screen) <= hit_radius * 2.0 {
-                                    *ctx.drag_state = DragState::MotionPath {
-                                        actor: actor.clone(),
-                                        time_ms,
-                                        start_position: *kf_pos,
-                                        start_scene: scene,
-                                    };
-                                    return GestureResult::Claimed;
-                                }
-                            }
+                if let Some(timeline) = ctx.timeline
+                    && let Some(id) = timeline.get_entity_id(&actor)
+                    && let Some(pos_track) = &timeline.world().geometry(id).position
+                {
+                    for (&time_ms, (kf_pos, _)) in pos_track.keyframes() {
+                        let screen = ctx.preview_scene_to_screen(
+                            preview_rect,
+                            kurbo::Point::new(kf_pos[0] as f64, kf_pos[1] as f64),
+                        );
+                        if pos.distance(screen) <= hit_radius * 2.0 {
+                            *ctx.drag_state = DragState::MotionPath {
+                                actor: actor.clone(),
+                                time_ms,
+                                start_position: *kf_pos,
+                                start_scene: scene,
+                            };
+                            return GestureResult::Claimed;
                         }
                     }
                 }

@@ -180,7 +180,7 @@ fn render_compact_track_row(
             let size = if is_current { 3.5 } else { 2.5 };
             let dot_pos = egui::pos2(x, strip_rect.center().y);
             let dot_rect = egui::Rect::from_center_size(dot_pos, egui::vec2(8.0, 8.0));
-            let dot_id = ui.id().with(("kf_dot", track.name.as_str(), *time_ms));
+            let dot_id = ui.scope_id().with(("kf_dot", track.name.as_str(), *time_ms));
             let dot_response = ui.interact(dot_rect, dot_id, egui::Sense::click());
             ui.painter().circle_filled(dot_pos, size, color);
 
@@ -211,10 +211,8 @@ fn render_compact_track_row(
             });
 
             // Per-dot hover tooltip with value and easing info
-            Tooltip::new(ui.id().with(("kf_dot_tooltip", track.name.as_str(), *time_ms))).show(
-                ui,
-                &dot_response,
-                |ui| {
+            Tooltip::new(ui.scope_id().with(("kf_dot_tooltip", track.name.as_str(), *time_ms)))
+                .show(ui, &dot_response, |ui| {
                     ui.label(format!("{:.2}s", *time_ms as f64 / 1000.0));
                     ui.label(
                         egui::RichText::new(value)
@@ -226,8 +224,7 @@ fn render_compact_track_row(
                             .size(TextRole::Micro.size())
                             .color(theme.palette.text.muted),
                     );
-                },
-            );
+                });
         }
 
         // Current time indicator
@@ -247,20 +244,20 @@ fn render_compact_track_row(
         // Click to scrub
         let strip_response = ui.interact(
             strip_rect,
-            ui.id().with(("compact_strip", track.name.as_str())),
+            ui.scope_id().with(("compact_strip", track.name.as_str())),
             egui::Sense::click_and_drag(),
         );
-        if strip_response.clicked() || strip_response.dragged() {
-            if let Some(pos) = strip_response.interact_pointer_pos() {
-                let fraction =
-                    ((pos.x - strip_rect.left()) / strip_rect.width()).clamp(0.0, 1.0) as f64;
-                commands.push_back(Command::ScrubTo(fraction * duration_s).into());
-            }
+        if (strip_response.clicked() || strip_response.dragged())
+            && let Some(pos) = strip_response.interact_pointer_pos()
+        {
+            let fraction =
+                ((pos.x - strip_rect.left()) / strip_rect.width()).clamp(0.0, 1.0) as f64;
+            commands.push_back(Command::ScrubTo(fraction * duration_s).into());
         }
     }
 
     // Hover tooltip showing keyframe values
-    Tooltip::new(ui.id().with(("compact_track_tooltip", track.name.as_str()))).show(
+    Tooltip::new(ui.scope_id().with(("compact_track_tooltip", track.name.as_str()))).show(
         ui,
         &response,
         |ui| {

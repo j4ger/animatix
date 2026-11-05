@@ -33,7 +33,7 @@ impl GuiShell {
         let mut close = false;
         let active_tab = self.ui_store.sidebar_tab;
 
-        egui::Area::new(egui::Id::new("compact_sidebar_drawer"))
+        egui::Area::new(egui::Id::unique("compact_sidebar_drawer"))
             .order(egui::Order::Foreground)
             .fixed_pos(egui::pos2(screen.left() + margin, screen.top() + margin))
             .show(ui.ctx(), |ui| {
@@ -53,7 +53,7 @@ impl GuiShell {
                         // still win the hit test.
                         let _ = ui.interact(
                             ui.max_rect(),
-                            ui.id().with("drawer_block"),
+                            ui.scope_id().with("drawer_block"),
                             egui::Sense::drag(),
                         );
                         ui.horizontal(|ui| {
@@ -141,7 +141,7 @@ impl GuiShell {
         let mut close = false;
         let mut switch_to: Option<WorkspaceTab> = None;
 
-        egui::Area::new(egui::Id::new("compact_detail_drawer"))
+        egui::Area::new(egui::Id::unique("compact_detail_drawer"))
             .order(egui::Order::Foreground)
             .fixed_pos(egui::pos2(screen.right() - margin - width, screen.top() + margin))
             .show(ui.ctx(), |ui| {
@@ -159,7 +159,7 @@ impl GuiShell {
                         // sidebar drawer for the rationale).
                         let _ = ui.interact(
                             ui.max_rect(),
-                            ui.id().with("drawer_block"),
+                            ui.scope_id().with("drawer_block"),
                             egui::Sense::drag(),
                         );
                         ui.horizontal(|ui| {

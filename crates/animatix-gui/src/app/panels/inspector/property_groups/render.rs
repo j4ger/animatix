@@ -11,7 +11,7 @@ pub(crate) fn render_property_group(
     active_scene: Option<&str>,
 ) {
     let theme = eparts::theme(ui);
-    let group_id = ui.id().with(("prop_group", group.name));
+    let group_id = ui.scope_id().with(("prop_group", group.name));
     let mut expanded = ui.data(|d| d.get_temp::<bool>(group_id)).unwrap_or(true);
     let sp = spatial(ui);
 
@@ -154,7 +154,7 @@ pub(crate) fn render_property_row(
     );
     let kf_btn_resp = ui.interact(
         kf_btn_rect,
-        ui.id().with(("kf_btn", entry.name.as_str())),
+        ui.scope_id().with(("kf_btn", entry.name.as_str())),
         egui::Sense::click(),
     );
 

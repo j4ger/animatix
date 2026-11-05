@@ -124,7 +124,7 @@ fn readback_bright(device: &wgpu::Device, queue: &wgpu::Queue, texture: &wgpu::T
     if let Err(e) = rx.recv().unwrap() {
         panic!("map failed: {e:?}");
     }
-    let data = slice.get_mapped_range();
+    let data = slice.get_mapped_range().expect("mapped range");
     let mut bright = 0usize;
     for i in 0..(1280 * 720) as usize {
         if data[i * 4] > 60 {
@@ -142,6 +142,7 @@ fn run_case(name: &str, use_cpu: bool, steps: &[(&str, f32)]) {
         power_preference: wgpu::PowerPreference::default(),
         compatible_surface: None,
         force_fallback_adapter: false,
+        apply_limit_buckets: false,
     }))
     .expect("adapter");
     let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {

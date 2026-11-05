@@ -156,11 +156,10 @@ btn.position = (10, 20)"#,
             if let Stmt::Assignment {
                 property, value, ..
             } = stmt
+                && property == "color"
             {
-                if property == "color" {
-                    assert_eq!(*value, Expr::Ident("blue".into()));
-                    found = true;
-                }
+                assert_eq!(*value, Expr::Ident("blue".into()));
+                found = true;
             }
         }
     }
@@ -589,10 +588,10 @@ bg: Filter {
         time_s: 1.0,
     };
     assert!(apply_edit(&mut stmts, merge).is_ok());
-    if let Stmt::RelativeKeyframe { body, .. } = &stmts[1] {
-        if let Stmt::Assignment { value, .. } = &body[0] {
-            assert_eq!(*value, Expr::Num(24.0));
-        }
+    if let Stmt::RelativeKeyframe { body, .. } = &stmts[1]
+        && let Stmt::Assignment { value, .. } = &body[0]
+    {
+        assert_eq!(*value, Expr::Num(24.0));
     }
 
     // Easing and moving resolve the same dotted target.

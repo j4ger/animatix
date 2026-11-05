@@ -136,7 +136,7 @@ impl<'a> egui::Widget for Checkbox<'a> {
         let response = finish_response(ui, response, self.tooltip);
         response.widget_info(|| {
             WidgetInfo::selected(
-                WidgetType::Checkbox,
+                Role::CheckBox,
                 ui.is_enabled(),
                 *self.value,
                 accessible_label.clone(),

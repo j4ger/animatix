@@ -99,11 +99,11 @@ impl<'a> TimelineStrip<'a> {
             t.palette.status.warning,
         );
 
-        if response.clicked() || response.dragged() {
-            if let Some(pos) = response.interact_pointer_pos() {
-                let frac = ((pos.x - track.left()) / track.width()).clamp(0.0, 1.0) as f64;
-                return Some(frac * self.duration_s);
-            }
+        if (response.clicked() || response.dragged())
+            && let Some(pos) = response.interact_pointer_pos()
+        {
+            let frac = ((pos.x - track.left()) / track.width()).clamp(0.0, 1.0) as f64;
+            return Some(frac * self.duration_s);
         }
 
         None

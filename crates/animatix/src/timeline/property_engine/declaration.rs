@@ -201,23 +201,15 @@ pub fn write_property_fields(
         && name != "legend"
         && name != "callout_place"
         && let Some(id) = crate::timeline::property_registry::property_id(name)
+        && let Some(plan) = fields.property_plan.as_mut()
     {
-        if let Some(plan) = fields.property_plan.as_mut() {
-            let kind = plan
-                .get(id)
-                .map(|slot| slot.kind)
-                .unwrap_or(crate::timeline::PropertyKind::Generic);
-            if write_property_plan_slot_on(
-                plan,
-                id,
-                kind,
-                value.clone(),
-                t_start_ms,
-                t_end_ms,
-                easing,
-            ) {
-                return;
-            }
+        let kind = plan
+            .get(id)
+            .map(|slot| slot.kind)
+            .unwrap_or(crate::timeline::PropertyKind::Generic);
+        if write_property_plan_slot_on(plan, id, kind, value.clone(), t_start_ms, t_end_ms, easing)
+        {
+            return;
         }
     }
 

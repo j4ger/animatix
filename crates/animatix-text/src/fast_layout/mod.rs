@@ -311,17 +311,16 @@ fn finalize_layout(
             let face = &faces[pg.face_idx];
             let centered_x = pg.x - center_x as f32;
             let centered_y = pg.y - center_y as f32;
-            if let Some(last_run) = runs.last_mut() {
-                if std::ptr::eq(last_run.font_data, face.font_data)
-                    && last_run.font_index == face.font_index
-                {
-                    last_run.glyphs.push(HardwareGlyph {
-                        id: pg.id,
-                        x: centered_x,
-                        y: centered_y,
-                    });
-                    continue;
-                }
+            if let Some(last_run) = runs.last_mut()
+                && std::ptr::eq(last_run.font_data, face.font_data)
+                && last_run.font_index == face.font_index
+            {
+                last_run.glyphs.push(HardwareGlyph {
+                    id: pg.id,
+                    x: centered_x,
+                    y: centered_y,
+                });
+                continue;
             }
             runs.push(HardwareGlyphRun {
                 font_data: face.font_data,

@@ -276,8 +276,11 @@ pub(crate) fn draw_legend(
                 theme.palette.text.disabled
             },
         );
-        let item_response =
-            ui.interact(item_rect, ui.id().with(("legend", &curve.label)), egui::Sense::click());
+        let item_response = ui.interact(
+            item_rect,
+            ui.scope_id().with(("legend", &curve.label)),
+            egui::Sense::click(),
+        );
         if item_response.clicked() {
             visibility.insert(curve.label.clone(), !is_visible);
         }

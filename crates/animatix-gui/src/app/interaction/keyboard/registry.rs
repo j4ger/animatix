@@ -70,14 +70,14 @@ impl ShortcutRegistry {
     fn validate_conflicts(&self) -> Result<(), KeyBindingError> {
         let mut seen: HashMap<KeyboardShortcut, &str> = HashMap::new();
         for (shortcut, info) in &self.shortcuts {
-            if let Some(previous) = seen.insert(*shortcut, info.name) {
-                if previous != info.name {
-                    return Err(KeyBindingError::Conflict(
-                        shortcut_hint_text(shortcut),
-                        previous.to_string(),
-                        info.name.to_string(),
-                    ));
-                }
+            if let Some(previous) = seen.insert(*shortcut, info.name)
+                && previous != info.name
+            {
+                return Err(KeyBindingError::Conflict(
+                    shortcut_hint_text(shortcut),
+                    previous.to_string(),
+                    info.name.to_string(),
+                ));
             }
         }
         Ok(())

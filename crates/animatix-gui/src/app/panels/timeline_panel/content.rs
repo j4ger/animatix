@@ -59,17 +59,17 @@ pub(crate) fn draw_loop_region(
     preview: &PreviewPaneState,
     coords: &TimelineCoords,
 ) {
-    if let (Some(ls), Some(le)) = (preview.playback.loop_start_s, preview.playback.loop_end_s) {
-        if le > ls {
-            let lx = coords.time_to_x(ls);
-            let rx = coords.time_to_x(le);
-            if (rx - lx).abs() > 2.0 {
-                p.rect_filled(
-                    Rect::from_min_max(Pos2::new(lx, y_top), Pos2::new(rx, y_bot)),
-                    0.0,
-                    timeline::loop_region(),
-                );
-            }
+    if let (Some(ls), Some(le)) = (preview.playback.loop_start_s, preview.playback.loop_end_s)
+        && le > ls
+    {
+        let lx = coords.time_to_x(ls);
+        let rx = coords.time_to_x(le);
+        if (rx - lx).abs() > 2.0 {
+            p.rect_filled(
+                Rect::from_min_max(Pos2::new(lx, y_top), Pos2::new(rx, y_bot)),
+                0.0,
+                timeline::loop_region(),
+            );
         }
     }
 }
@@ -338,21 +338,21 @@ impl TimelineRowCtx<'_> {
             );
         }
 
-        if let Some(tl) = timeline {
-            if let Some(id) = tl.get_entity_id(actor_label) {
-                let mut kf_ctx = self.keyframe_ctx();
-                keyframes::render_actor_keyframes(
-                    ui,
-                    tl.world().geometry(id),
-                    tl.world().style(id),
-                    tl.world().shape_or_default(id),
-                    tl.world().text_or_default(id),
-                    actor_label,
-                    track_idx,
-                    bar_area,
-                    &mut kf_ctx,
-                );
-            }
+        if let Some(tl) = timeline
+            && let Some(id) = tl.get_entity_id(actor_label)
+        {
+            let mut kf_ctx = self.keyframe_ctx();
+            keyframes::render_actor_keyframes(
+                ui,
+                tl.world().geometry(id),
+                tl.world().style(id),
+                tl.world().shape_or_default(id),
+                tl.world().text_or_default(id),
+                actor_label,
+                track_idx,
+                bar_area,
+                &mut kf_ctx,
+            );
         }
 
         draw_loop_region(
@@ -365,7 +365,7 @@ impl TimelineRowCtx<'_> {
 
         // Track bar right-click: bulk operations for selected keyframes
         let track_bar_resp =
-            ui.interact(bar_area, ui.id().with(("track_bar", track_idx)), Sense::click());
+            ui.interact(bar_area, ui.scope_id().with(("track_bar", track_idx)), Sense::click());
         keyframes::handle_track_bar_context_menu(
             &track_bar_resp,
             actor_label,
@@ -377,20 +377,12 @@ impl TimelineRowCtx<'_> {
         self.draw_track_guides(ui, bar_area, at_bot);
         let mut current_y = at_bot;
 
-        if self.expanded_properties.contains(actor_label) {
-            if let Some(tl) = timeline {
-                if let Some(id) = tl.get_entity_id(actor_label) {
-                    current_y = self.render_property_lanes(
-                        ui,
-                        tl,
-                        id,
-                        actor_label,
-                        depth,
-                        track_idx,
-                        current_y,
-                    );
-                }
-            }
+        if self.expanded_properties.contains(actor_label)
+            && let Some(tl) = timeline
+            && let Some(id) = tl.get_entity_id(actor_label)
+        {
+            current_y =
+                self.render_property_lanes(ui, tl, id, actor_label, depth, track_idx, current_y);
         }
 
         current_y
@@ -536,7 +528,7 @@ pub(crate) fn render_timeline_content(ctx: &mut TimelineContext<'_>, ui: &mut eg
         .retain(|(_, instant)| now.duration_since(*instant) < Duration::from_millis(300));
     let duration_s = preview.playback.duration_s.max(0.1);
     let snap_fps = ctx.snap_fps;
-    let panel_id = ui.id().with("timeline_panel");
+    let panel_id = ui.scope_id().with("timeline_panel");
     let active_scene = ctx.active_scene;
     let scene_for_selection = active_scene.map(ToOwned::to_owned);
     let shift_held = ui.input(|i| i.modifiers.shift);
@@ -705,7 +697,7 @@ fn update_timeline_focus(
     // Visible cue for the focus state that scopes Delete to keyframes.
     if *focused {
         let layer =
-            egui::LayerId::new(egui::Order::Foreground, ui.id().with("timeline_focus_ring"));
+            egui::LayerId::new(egui::Order::Foreground, ui.scope_id().with("timeline_focus_ring"));
         ui.ctx().layer_painter(layer).rect_stroke(
             outer_rect.shrink(1.0),
             egui::CornerRadius::ZERO,
@@ -839,10 +831,10 @@ fn actor_rows(
     let mut extra_prop_lanes = 0usize;
     if let Some(tl) = timeline {
         for (actor_label, _) in &actor_tree {
-            if expanded_properties.contains(actor_label) {
-                if let Some(id) = tl.get_entity_id(actor_label) {
-                    extra_prop_lanes += collect_actor_lanes(tl, id).len();
-                }
+            if expanded_properties.contains(actor_label)
+                && let Some(id) = tl.get_entity_id(actor_label)
+            {
+                extra_prop_lanes += collect_actor_lanes(tl, id).len();
             }
         }
     }

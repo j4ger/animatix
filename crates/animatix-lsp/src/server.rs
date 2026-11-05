@@ -186,7 +186,7 @@ impl Backend {
                 None
             } else {
                 let mut workspace = Workspace::new();
-                for (_uri, analyzer) in analyzers.iter() {
+                for analyzer in analyzers.values() {
                     if let Some(path) = analyzer.path() {
                         workspace.add_file(path.to_path_buf(), analyzer.source());
                     }

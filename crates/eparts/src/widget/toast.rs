@@ -194,7 +194,8 @@ impl ToastQueue {
             let rect = Rect::from_min_size(Pos2::new(start_x, y), Vec2::new(toast_w, toast_h));
 
             // Make the toast clickable to dismiss
-            let response = ui.interact(rect, ui.id().with("toast").with(i), egui::Sense::click());
+            let response =
+                ui.interact(rect, ui.scope_id().with("toast").with(i), egui::Sense::click());
             if response.clicked() {
                 self.toasts.remove(i);
                 continue;

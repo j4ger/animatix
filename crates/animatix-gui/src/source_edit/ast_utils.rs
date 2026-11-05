@@ -53,10 +53,10 @@ pub fn find_keyframes_for_actor(stmts: &[Stmt], actor: &str) -> Vec<Stmt> {
     let mut result = Vec::new();
     for stmt in stmts {
         match stmt {
-            Stmt::Keyframe { .. } | Stmt::RelativeKeyframe { .. } => {
-                if keyframe_references_actor(stmt, actor) {
-                    result.push(stmt.clone());
-                }
+            Stmt::Keyframe { .. } | Stmt::RelativeKeyframe { .. }
+                if keyframe_references_actor(stmt, actor) =>
+            {
+                result.push(stmt.clone());
             },
             _ => {},
         }
@@ -68,10 +68,10 @@ pub fn find_keyframes_for_actor(stmts: &[Stmt], actor: &str) -> Vec<Stmt> {
 pub fn keyframe_references_actor(stmt: &Stmt, actor: &str) -> bool {
     let mut found = false;
     animatix_syntax::walk::walk_stmts(std::slice::from_ref(stmt), &mut |s| {
-        if let Stmt::Assignment { target, .. } = s {
-            if target.iter().any(|t| t.label_str() == actor) {
-                found = true;
-            }
+        if let Stmt::Assignment { target, .. } = s
+            && target.iter().any(|t| t.label_str() == actor)
+        {
+            found = true;
         }
     });
     found

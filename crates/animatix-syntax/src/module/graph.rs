@@ -108,27 +108,26 @@ impl ModuleGraph {
             .file_id_for_path(path)
             .and_then(|id| self.files.get(&id))
             .map(|module| module.path.clone())
+            && let Some(imports) = self.file_imports(&module_path)
         {
-            if let Some(imports) = self.file_imports(&module_path) {
-                for (import_path, alias) in imports {
-                    let import_path = Self::resolve_path(&module_path, import_path);
-                    let resolved = self.resolve_symbols_inner(&import_path, visited);
-                    if let Some(alias) = alias {
-                        // Aliased import: store only pub exports under the namespace.
-                        // Nested scenes are also exposed as `alias.SceneName`,
-                        // matching the runtime namespace scene registry.
-                        let exported = resolved.exported_namespace();
-                        for (scene_name, info) in &exported.scenes {
-                            merged
-                                .scenes
-                                .entry(format!("{alias}.{scene_name}"))
-                                .or_insert_with(|| info.clone());
-                        }
-                        merged.namespaces.insert(alias.clone(), exported);
-                    } else {
-                        // Direct import: merge all symbols (backward-compatible flatten).
-                        merged.merge(&resolved);
+            for (import_path, alias) in imports {
+                let import_path = Self::resolve_path(&module_path, import_path);
+                let resolved = self.resolve_symbols_inner(&import_path, visited);
+                if let Some(alias) = alias {
+                    // Aliased import: store only pub exports under the namespace.
+                    // Nested scenes are also exposed as `alias.SceneName`,
+                    // matching the runtime namespace scene registry.
+                    let exported = resolved.exported_namespace();
+                    for (scene_name, info) in &exported.scenes {
+                        merged
+                            .scenes
+                            .entry(format!("{alias}.{scene_name}"))
+                            .or_insert_with(|| info.clone());
                     }
+                    merged.namespaces.insert(alias.clone(), exported);
+                } else {
+                    // Direct import: merge all symbols (backward-compatible flatten).
+                    merged.merge(&resolved);
                 }
             }
         }

@@ -18,20 +18,20 @@ pub(super) fn set_config_property(
     // Find existing config block
     let config_idx = stmts.iter().position(|s| matches!(s, Stmt::Config { .. }));
 
-    if let Some(idx) = config_idx {
-        if let Stmt::Config { settings, .. } = &mut stmts[idx] {
-            if let Some(prop) = settings.iter_mut().find(|p| p.name == key) {
-                prop.value = preserve_quoting_style(&prop.value, value);
-                return Ok(());
-            }
-            settings.push(Property {
-                name: key.into(),
-                value,
-                value_span: None,
-                trailing_comment: None,
-            });
+    if let Some(idx) = config_idx
+        && let Stmt::Config { settings, .. } = &mut stmts[idx]
+    {
+        if let Some(prop) = settings.iter_mut().find(|p| p.name == key) {
+            prop.value = preserve_quoting_style(&prop.value, value);
             return Ok(());
         }
+        settings.push(Property {
+            name: key.into(),
+            value,
+            value_span: None,
+            trailing_comment: None,
+        });
+        return Ok(());
     }
 
     // No config block exists — create one at the top

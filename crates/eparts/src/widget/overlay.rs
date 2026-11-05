@@ -45,9 +45,9 @@ impl OverlayLayer {
     }
 }
 
-/// Registry key in `ctx.data`; `Id::new` is not const in egui 0.34.
+/// Registry key in `ctx.data`; `Id::unique` is computed per call because it is not const.
 fn overlay_registry_key() -> Id {
-    Id::new("eparts_overlay_registry")
+    Id::unique("eparts_overlay_registry")
 }
 
 /// Register `id` at `layer`; a re-push moves it to the end (newest wins).
@@ -151,14 +151,14 @@ mod tests {
     #[test]
     fn empty_registry_no_topmost() {
         let ctx = Context::default();
-        let id = Id::new("nonexistent");
+        let id = Id::unique("nonexistent");
         assert!(!is_topmost(&ctx, id));
     }
 
     #[test]
     fn single_overlay_is_topmost() {
         let ctx = Context::default();
-        let id = Id::new("d1");
+        let id = Id::unique("d1");
         push_overlay(&ctx, id, OverlayLayer::Dialog);
         assert!(is_topmost(&ctx, id));
     }
@@ -166,8 +166,8 @@ mod tests {
     #[test]
     fn higher_priority_layer_is_topmost() {
         let ctx = Context::default();
-        let dialog = Id::new("dialog");
-        let tooltip = Id::new("tooltip");
+        let dialog = Id::unique("dialog");
+        let tooltip = Id::unique("tooltip");
 
         push_overlay(&ctx, dialog, OverlayLayer::Dialog);
         push_overlay(&ctx, tooltip, OverlayLayer::Tooltip);
@@ -179,8 +179,8 @@ mod tests {
     #[test]
     fn higher_priority_wins_even_if_pushed_first() {
         let ctx = Context::default();
-        let tooltip = Id::new("tooltip");
-        let dialog = Id::new("dialog");
+        let tooltip = Id::unique("tooltip");
+        let dialog = Id::unique("dialog");
 
         push_overlay(&ctx, tooltip, OverlayLayer::Tooltip);
         push_overlay(&ctx, dialog, OverlayLayer::Dialog);
@@ -192,8 +192,8 @@ mod tests {
     #[test]
     fn popover_above_dialog() {
         let ctx = Context::default();
-        let dialog = Id::new("dialog");
-        let popover = Id::new("popover");
+        let dialog = Id::unique("dialog");
+        let popover = Id::unique("popover");
 
         push_overlay(&ctx, dialog, OverlayLayer::Dialog);
         push_overlay(&ctx, popover, OverlayLayer::Popover);
@@ -205,8 +205,8 @@ mod tests {
     #[test]
     fn remove_overlay_updates_topmost() {
         let ctx = Context::default();
-        let dialog = Id::new("dialog");
-        let tooltip = Id::new("tooltip");
+        let dialog = Id::unique("dialog");
+        let tooltip = Id::unique("tooltip");
 
         push_overlay(&ctx, dialog, OverlayLayer::Dialog);
         push_overlay(&ctx, tooltip, OverlayLayer::Tooltip);
@@ -220,17 +220,17 @@ mod tests {
     #[test]
     fn remove_overlay_unknown_id_is_noop() {
         let ctx = Context::default();
-        let id = Id::new("exists");
+        let id = Id::unique("exists");
         push_overlay(&ctx, id, OverlayLayer::Dialog);
-        remove_overlay(&ctx, Id::new("unknown"));
+        remove_overlay(&ctx, Id::unique("unknown"));
         assert!(is_topmost(&ctx, id));
     }
 
     #[test]
     fn re_push_overlay_moves_to_end() {
         let ctx = Context::default();
-        let d1 = Id::new("d1");
-        let d2 = Id::new("d2");
+        let d1 = Id::unique("d1");
+        let d2 = Id::unique("d2");
         push_overlay(&ctx, d1, OverlayLayer::Dialog);
         push_overlay(&ctx, d2, OverlayLayer::Dialog);
         assert!(is_topmost(&ctx, d2));
@@ -243,7 +243,7 @@ mod tests {
     #[test]
     fn escape_pressed_topmost_consumes() {
         let ctx = Context::default();
-        let id = Id::new("top");
+        let id = Id::unique("top");
         push_overlay(&ctx, id, OverlayLayer::Dialog);
 
         // Simulate an Escape key press (egui 0.34 Event::Key requires `repeat`).
@@ -264,8 +264,8 @@ mod tests {
     #[test]
     fn escape_pressed_non_topmost_does_not_consume() {
         let ctx = Context::default();
-        let low = Id::new("low");
-        let high = Id::new("high");
+        let low = Id::unique("low");
+        let high = Id::unique("high");
 
         push_overlay(&ctx, low, OverlayLayer::Dialog);
         push_overlay(&ctx, high, OverlayLayer::Tooltip);
@@ -296,7 +296,7 @@ mod tests {
                 modifiers: egui::Modifiers::default(),
             });
         });
-        let none_id = Id::new("none");
+        let none_id = Id::unique("none");
         assert!(!escape_pressed(&ctx, none_id));
     }
 
@@ -306,11 +306,11 @@ mod tests {
         let viewport_rect = egui::Rect::from_min_max(Pos2::ZERO, Pos2::new(200.0, 200.0));
         let ui = egui::Ui::new(
             ctx,
-            Id::new("overlay_test"),
+            Id::unique("overlay_test"),
             egui::UiBuilder::new().max_rect(viewport_rect),
         );
         let content_rect = Rect::from_min_max(Pos2::new(50.0, 50.0), Pos2::new(150.0, 150.0));
-        let response = ui.interact(content_rect, Id::new("content"), Sense::hover());
+        let response = ui.interact(content_rect, Id::unique("content"), Sense::hover());
 
         assert!(!clicked_outside(&ui, content_rect, &response));
     }

@@ -203,7 +203,7 @@ pub(super) fn render_text_input(
                         ui.add_sized(
                             Vec2::new(ui.available_width(), row_height - sp.base.space_2),
                             Select::new(
-                                ui.id().with(("enum", entry.name.as_str())),
+                                ui.scope_id().with(("enum", entry.name.as_str())),
                                 &mut sel_idx,
                                 &variants[..],
                             ),
@@ -230,7 +230,7 @@ pub(super) fn render_text_input(
                         ui.add_sized(
                             Vec2::new(ui.available_width(), row_height - sp.base.space_2),
                             Select::new(
-                                ui.id().with(("font", entry.name.as_str())),
+                                ui.scope_id().with(("font", entry.name.as_str())),
                                 &mut sel_idx,
                                 &families[..],
                             )

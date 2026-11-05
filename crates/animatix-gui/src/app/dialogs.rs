@@ -109,12 +109,11 @@ impl GuiShell {
                             Button::ghost("Open existing file")
                                 .with_icon(egui_phosphor::regular::FOLDER_OPEN),
                         );
-                        if open_resp.clicked() {
-                            if let Some(path) =
+                        if open_resp.clicked()
+                            && let Some(path) =
                                 rfd::FileDialog::new().add_filter("Animatix", &["amx"]).pick_file()
-                            {
-                                commands.push_back(Command::OpenFile(path).into());
-                            }
+                        {
+                            commands.push_back(Command::OpenFile(path).into());
                         }
 
                         ui.add_space(sp.base.space_3);
@@ -125,11 +124,11 @@ impl GuiShell {
                             Button::ghost("Open workspace")
                                 .with_icon(egui_phosphor::regular::FOLDER_NOTCH),
                         );
-                        if ws_resp.clicked() {
-                            if let Some(path) = rfd::FileDialog::new().pick_folder() {
-                                commands.push_back(Command::SwitchWorkspace(path).into());
-                                self.ui_store.view.welcome_open = false;
-                            }
+                        if ws_resp.clicked()
+                            && let Some(path) = rfd::FileDialog::new().pick_folder()
+                        {
+                            commands.push_back(Command::SwitchWorkspace(path).into());
+                            self.ui_store.view.welcome_open = false;
                         }
                     });
                 });
@@ -158,7 +157,7 @@ impl GuiShell {
         let mut close = false;
         let mut scroll_to: Option<(usize, usize)> = None;
 
-        let overlay = egui::Area::new(egui::Id::new("diagnostics_peek"))
+        let overlay = egui::Area::new(egui::Id::unique("diagnostics_peek"))
             .order(egui::Order::Foreground)
             .fixed_pos(egui::pos2(x, y))
             .show(ui.ctx(), |ui| {

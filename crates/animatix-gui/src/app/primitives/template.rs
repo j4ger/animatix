@@ -70,20 +70,17 @@ impl ActorTemplate {
                 .as_deref()
                 .and_then(|r| r.info_of(type_name))
                 .or_else(|| animatix::primitives::primitive_info_by_name(type_name));
-            if let Some(info) = info {
-                if let Some(stub) = &info.default_stub {
-                    let dummy_src = format!("_dummy: {type_name}, {stub}");
-                    if let Some(stmts) =
-                        animatix_syntax::parser::parse_source_complete(&dummy_src).ast
-                    {
-                        if let Some(animatix_syntax::ast::Stmt::ActorDecl {
-                            props: parsed_props,
-                            ..
-                        }) = stmts.first()
-                        {
-                            props = parsed_props.clone();
-                        }
-                    }
+            if let Some(info) = info
+                && let Some(stub) = &info.default_stub
+            {
+                let dummy_src = format!("_dummy: {type_name}, {stub}");
+                if let Some(stmts) = animatix_syntax::parser::parse_source_complete(&dummy_src).ast
+                    && let Some(animatix_syntax::ast::Stmt::ActorDecl {
+                        props: parsed_props,
+                        ..
+                    }) = stmts.first()
+                {
+                    props = parsed_props.clone();
                 }
             }
         }

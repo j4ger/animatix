@@ -302,27 +302,26 @@ fn attach_shape_shadow(
     use crate::timeline::ActorField;
     use crate::timeline::property_engine::PropertyValue;
     let shadow_val = ctx.read_property_value(ActorField::Tagged("shadow"), ctx.time_ms);
-    if let Some(PropertyValue::Vec4(params)) = shadow_val {
-        if params[2] > 0.0 || params[3] != 0.0 || params[0] != 0.0 || params[1] != 0.0 {
-            let color =
-                match ctx.read_property_value(ActorField::Tagged("shadow_color"), ctx.time_ms) {
-                    Some(PropertyValue::Vec4(c)) | Some(PropertyValue::Color(c)) => c,
-                    _ => [0.0, 0.0, 0.0, 0.25],
-                };
-            let (size, corner_radius) = match state {
-                VectorShapeState::Rect(r) => (r.size, r.corner_radius),
-                _ => ([50.0, 50.0], 0.0),
-            };
-            commands.insert(
-                0,
-                RenderCommand::Shadow {
-                    size,
-                    corner_radius,
-                    params,
-                    color,
-                },
-            );
-        }
+    if let Some(PropertyValue::Vec4(params)) = shadow_val
+        && (params[2] > 0.0 || params[3] != 0.0 || params[0] != 0.0 || params[1] != 0.0)
+    {
+        let color = match ctx.read_property_value(ActorField::Tagged("shadow_color"), ctx.time_ms) {
+            Some(PropertyValue::Vec4(c)) | Some(PropertyValue::Color(c)) => c,
+            _ => [0.0, 0.0, 0.0, 0.25],
+        };
+        let (size, corner_radius) = match state {
+            VectorShapeState::Rect(r) => (r.size, r.corner_radius),
+            _ => ([50.0, 50.0], 0.0),
+        };
+        commands.insert(
+            0,
+            RenderCommand::Shadow {
+                size,
+                corner_radius,
+                params,
+                color,
+            },
+        );
     }
 }
 

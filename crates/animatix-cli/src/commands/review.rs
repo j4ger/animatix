@@ -117,11 +117,11 @@ pub(crate) fn run(args: ReviewArgs, extensions: &CliExtensions) {
         OutputFormat::Text => report.print_text(options.detail),
     }
 
-    if let Some(path) = emit_verify {
-        if let Err(e) = write_verify_file(&path, &report) {
-            error!("{e}");
-            std::process::exit(2);
-        }
+    if let Some(path) = emit_verify
+        && let Err(e) = write_verify_file(&path, &report)
+    {
+        error!("{e}");
+        std::process::exit(2);
     }
 
     let code = report.exit_code(options.fail_on);

@@ -183,12 +183,12 @@ mod tests {
         let ctx = egui::Context::default();
 
         // Warm-up frame registers the allocation.
-        let _ = ctx.run_ui(base_input(), |ui| {
+        let _ = crate::run_ui(&ctx, base_input(), |ui| {
             let _ = ui.add(Spinner::new().set_size(20.0));
         });
 
         let mut spinner_rect = egui::Rect::NOTHING;
-        let output = ctx.run_ui(base_input(), |ui| {
+        let output = crate::run_ui(&ctx, base_input(), |ui| {
             spinner_rect = ui.add(Spinner::new().set_size(20.0)).rect;
         });
 
@@ -219,11 +219,11 @@ mod tests {
         let target =
             egui::Rect::from_center_size(egui::pos2(200.0, 100.0), egui::Vec2::splat(24.0));
 
-        let _ = ctx.run_ui(base_input(), |ui| {
+        let _ = crate::run_ui(&ctx, base_input(), |ui| {
             ui.put(target, Spinner::new().set_size(24.0));
         });
         let mut response = None;
-        let _ = ctx.run_ui(base_input(), |ui| {
+        let _ = crate::run_ui(&ctx, base_input(), |ui| {
             response = Some(ui.put(target, Spinner::new().set_size(24.0)));
         });
 

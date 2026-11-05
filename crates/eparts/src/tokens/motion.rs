@@ -165,7 +165,7 @@ pub enum MotionPreference {
 
 /// The egui Memory key used to store the motion preference.
 fn motion_preference_key() -> egui::Id {
-    egui::Id::new("eparts_motion_preference")
+    egui::Id::unique("eparts_motion_preference")
 }
 
 /// Read the current [`MotionPreference`] from an `egui::Context`.

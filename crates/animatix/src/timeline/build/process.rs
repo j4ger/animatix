@@ -130,7 +130,6 @@ impl Timeline {
                     value,
                     modifiers,
                     easing,
-                    value_span: _,
                     ..
                 } => {
                     if target.is_empty() {
@@ -556,10 +555,10 @@ fn parse_action_timing_simple(modifiers: &[Modifier]) -> (u64, Easing) {
         match modifier.name.as_deref() {
             // Named "ease" modifier: [ease: bounce]
             Some("ease") => {
-                if let Some(raw) = config_string_value(&modifier.value) {
-                    if let Some(parsed_easing) = parse_easing_name(&raw) {
-                        easing = parsed_easing;
-                    }
+                if let Some(raw) = config_string_value(&modifier.value)
+                    && let Some(parsed_easing) = parse_easing_name(&raw)
+                {
+                    easing = parsed_easing;
                 }
             },
             // Named "delay" modifier: only relevant for start_time, not duration
@@ -568,10 +567,10 @@ fn parse_action_timing_simple(modifiers: &[Modifier]) -> (u64, Easing) {
             Some(_) => {},
             // Bare (unnamed) modifiers: [2s] or [500ms]
             None => {
-                if let Some(raw) = config_string_value(&modifier.value) {
-                    if let Some(d) = parse_duration_literal(&raw) {
-                        duration_ms = d as u64;
-                    }
+                if let Some(raw) = config_string_value(&modifier.value)
+                    && let Some(d) = parse_duration_literal(&raw)
+                {
+                    duration_ms = d as u64;
                 }
             },
         }

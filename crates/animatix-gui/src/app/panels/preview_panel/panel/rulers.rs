@@ -185,73 +185,73 @@ pub(super) fn handle_ruler_drag(
     v_ruler_rect: egui::Rect,
 ) {
     // ── Ruler drag interaction ──
-    let ruler_drag_id = ui.id().with("guide_ruler_drag_v2");
+    let ruler_drag_id = ui.scope_id().with("guide_ruler_drag_v2");
     let raw_pointer_pos = ui.ctx().input(|i| i.pointer.latest_pos());
     let h_ruler_resp = ui.allocate_rect(h_ruler_rect, egui::Sense::drag());
     let v_ruler_resp = ui.allocate_rect(v_ruler_rect, egui::Sense::drag());
 
-    if h_ruler_resp.drag_started() {
-        if let Some(mouse) = raw_pointer_pos {
-            let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
-            ui.data_mut(|d| d.insert_temp(ruler_drag_id, Some((false, scene.y as f32, mouse))));
-        }
+    if h_ruler_resp.drag_started()
+        && let Some(mouse) = raw_pointer_pos
+    {
+        let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
+        ui.data_mut(|d| d.insert_temp(ruler_drag_id, Some((false, scene.y as f32, mouse))));
     }
-    if v_ruler_resp.drag_started() {
-        if let Some(mouse) = raw_pointer_pos {
-            let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
-            ui.data_mut(|d| d.insert_temp(ruler_drag_id, Some((true, scene.x as f32, mouse))));
-        }
+    if v_ruler_resp.drag_started()
+        && let Some(mouse) = raw_pointer_pos
+    {
+        let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
+        ui.data_mut(|d| d.insert_temp(ruler_drag_id, Some((true, scene.x as f32, mouse))));
     }
 
     let ruler_drag_active: Option<(bool, f32, egui::Pos2)> = ui.data(|d| d.get_temp(ruler_drag_id));
-    if let Some((is_vertical, _start_val, _start_pos)) = ruler_drag_active {
-        if let Some(mouse) = raw_pointer_pos {
-            let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
-            let guide_color = theme.palette.status.warning;
-            if is_vertical {
-                let ghost_screen =
-                    ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(scene.x, 0.0));
-                if ghost_screen.x >= preview_rect.min.x && ghost_screen.x <= preview_rect.max.x {
-                    ui.painter().line_segment(
-                        [
-                            egui::pos2(ghost_screen.x, preview_rect.min.y),
-                            egui::pos2(ghost_screen.x, preview_rect.max.y),
-                        ],
-                        egui::Stroke::new(STROKE_WIDTH, guide_color),
-                    );
-                }
-            } else {
-                let ghost_screen =
-                    ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(0.0, scene.y));
-                if ghost_screen.y >= preview_rect.min.y && ghost_screen.y <= preview_rect.max.y {
-                    ui.painter().line_segment(
-                        [
-                            egui::pos2(preview_rect.min.x, ghost_screen.y),
-                            egui::pos2(preview_rect.max.x, ghost_screen.y),
-                        ],
-                        egui::Stroke::new(STROKE_WIDTH, guide_color),
-                    );
-                }
+    if let Some((is_vertical, _start_val, _start_pos)) = ruler_drag_active
+        && let Some(mouse) = raw_pointer_pos
+    {
+        let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
+        let guide_color = theme.palette.status.warning;
+        if is_vertical {
+            let ghost_screen =
+                ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(scene.x, 0.0));
+            if ghost_screen.x >= preview_rect.min.x && ghost_screen.x <= preview_rect.max.x {
+                ui.painter().line_segment(
+                    [
+                        egui::pos2(ghost_screen.x, preview_rect.min.y),
+                        egui::pos2(ghost_screen.x, preview_rect.max.y),
+                    ],
+                    egui::Stroke::new(STROKE_WIDTH, guide_color),
+                );
+            }
+        } else {
+            let ghost_screen =
+                ctx.preview_scene_to_screen(preview_rect, kurbo::Point::new(0.0, scene.y));
+            if ghost_screen.y >= preview_rect.min.y && ghost_screen.y <= preview_rect.max.y {
+                ui.painter().line_segment(
+                    [
+                        egui::pos2(preview_rect.min.x, ghost_screen.y),
+                        egui::pos2(preview_rect.max.x, ghost_screen.y),
+                    ],
+                    egui::Stroke::new(STROKE_WIDTH, guide_color),
+                );
             }
         }
     }
 
     let pointer_released = ui.input(|i| i.pointer.any_released());
-    if let Some((is_vertical, _start_val, start_pos)) = ruler_drag_active {
-        if pointer_released || h_ruler_resp.drag_stopped() || v_ruler_resp.drag_stopped() {
-            if let Some(mouse) = raw_pointer_pos {
-                // Require at least 5 px of movement to avoid accidental clicks
-                let dragged_far_enough = (mouse - start_pos).length() >= 5.0;
-                if dragged_far_enough && preview_rect.contains(mouse) {
-                    let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
-                    if is_vertical {
-                        ctx.preview.guides.vertical_guides.push(scene.x as f32);
-                    } else {
-                        ctx.preview.guides.horizontal_guides.push(scene.y as f32);
-                    }
+    if let Some((is_vertical, _start_val, start_pos)) = ruler_drag_active
+        && (pointer_released || h_ruler_resp.drag_stopped() || v_ruler_resp.drag_stopped())
+    {
+        if let Some(mouse) = raw_pointer_pos {
+            // Require at least 5 px of movement to avoid accidental clicks
+            let dragged_far_enough = (mouse - start_pos).length() >= 5.0;
+            if dragged_far_enough && preview_rect.contains(mouse) {
+                let scene = ctx.preview_screen_to_scene(preview_rect, mouse);
+                if is_vertical {
+                    ctx.preview.guides.vertical_guides.push(scene.x as f32);
+                } else {
+                    ctx.preview.guides.horizontal_guides.push(scene.y as f32);
                 }
             }
-            ui.data_mut(|d| d.remove::<Option<(bool, f32, egui::Pos2)>>(ruler_drag_id));
         }
+        ui.data_mut(|d| d.remove::<Option<(bool, f32, egui::Pos2)>>(ruler_drag_id));
     }
 }

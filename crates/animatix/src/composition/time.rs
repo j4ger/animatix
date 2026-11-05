@@ -67,10 +67,10 @@ impl Composition {
             (name.to_string(), local, None)
         } else {
             // t is at or beyond the end — return last scene at final frame
-            if let Some(last_name) = self.declaration_order.last() {
-                if let Some(last_scene) = self.scenes.get(last_name) {
-                    return (last_name.clone(), last_scene.duration_s, None);
-                }
+            if let Some(last_name) = self.declaration_order.last()
+                && let Some(last_scene) = self.scenes.get(last_name)
+            {
+                return (last_name.clone(), last_scene.duration_s, None);
             }
             ("".to_string(), 0.0, None)
         }

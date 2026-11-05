@@ -135,7 +135,7 @@ mod tests {
         };
         let ctx = Context::default();
         set_motion_preference(&ctx, MotionPreference::Reduced);
-        let id = egui::Id::new("test_reduced");
+        let id = egui::Id::unique("test_reduced");
         let t = animate_toward(
             &ctx,
             id,
@@ -152,7 +152,7 @@ mod tests {
     fn animate_toward_full_motion_animates() {
         use crate::tokens::motion::{FAST, STANDARD, Transition};
         let ctx = Context::default();
-        let id = egui::Id::new("test_full");
+        let id = egui::Id::unique("test_full");
         // With default (Full) preference and a brand-new id, egui returns the
         // target immediately because there is no prior animation state to interpolate from.
         let result = animate_toward(
@@ -174,7 +174,7 @@ mod tests {
         };
         let ctx = Context::default();
         set_motion_preference(&ctx, MotionPreference::Reduced);
-        let id = egui::Id::new("test_eased_reduced");
+        let id = egui::Id::unique("test_eased_reduced");
         let t = animate_toward_eased(
             &ctx,
             id,

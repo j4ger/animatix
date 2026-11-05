@@ -119,83 +119,83 @@ pub fn evaluate_text_paths(
                 let eased = crate::easing::apply_easing(raw_progress, *easing);
                 (prev.clone(), found.clone(), eased)
             })
+            && source_text != target_text
         {
-            if source_text != target_text {
-                let mut request = TextCompileRequest {
-                    kind,
-                    content: &source_text,
-                    language: &language,
-                    palette: text_ctx.text_compiler.highlight_palette.as_ref(),
-                    allow_fast_path: text_ctx.text_compiler.text_fast_path,
-                    style: text_style.clone(),
-                    max_width,
-                    max_lines: None,
-                    text_align: &text_align,
-                    overflow: &overflow,
-                };
-                let source_paths =
-                    text_ctx.text_compiler.compile_request(&request, text_ctx.font_context)?;
-                request.content = &target_text;
-                let target_paths =
-                    text_ctx.text_compiler.compile_request(&request, text_ctx.font_context)?;
-                let source_half = crate::renderer::text::measure_text_paths(&source_paths);
-                let source_offset = match text_anchor.as_str() {
-                    "left" => source_half[0],
-                    "right" => -source_half[0],
-                    _ => 0.0,
-                };
-                let mut source_vec = source_paths.to_vec();
-                if source_offset != 0.0 {
-                    let affine = kurbo::Affine::translate((source_offset as f64, 0.0));
-                    let offset_vec = kurbo::Vec2::new(source_offset as f64, 0.0);
-                    for p in &mut source_vec {
-                        p.path.apply_affine(affine);
-                        p.glyph_center[0] += source_offset;
-                        p.bounds = p.bounds + offset_vec;
-                    }
+            let mut request = TextCompileRequest {
+                kind,
+                content: &source_text,
+                language: &language,
+                palette: text_ctx.text_compiler.highlight_palette.as_ref(),
+                allow_fast_path: text_ctx.text_compiler.text_fast_path,
+                style: text_style.clone(),
+                max_width,
+                max_lines: None,
+                text_align: &text_align,
+                overflow: &overflow,
+            };
+            let source_paths =
+                text_ctx.text_compiler.compile_request(&request, text_ctx.font_context)?;
+            request.content = &target_text;
+            let target_paths =
+                text_ctx.text_compiler.compile_request(&request, text_ctx.font_context)?;
+            let source_half = crate::renderer::text::measure_text_paths(&source_paths);
+            let source_offset = match text_anchor.as_str() {
+                "left" => source_half[0],
+                "right" => -source_half[0],
+                _ => 0.0,
+            };
+            let mut source_vec = source_paths.to_vec();
+            if source_offset != 0.0 {
+                let affine = kurbo::Affine::translate((source_offset as f64, 0.0));
+                let offset_vec = kurbo::Vec2::new(source_offset as f64, 0.0);
+                for p in &mut source_vec {
+                    p.path.apply_affine(affine);
+                    p.glyph_center[0] += source_offset;
+                    p.bounds = p.bounds + offset_vec;
                 }
-
-                let target_half = crate::renderer::text::measure_text_paths(&target_paths);
-                let target_offset = match text_anchor.as_str() {
-                    "left" => target_half[0],
-                    "right" => -target_half[0],
-                    _ => 0.0,
-                };
-                let mut target_vec = target_paths.to_vec();
-                if target_offset != 0.0 {
-                    let affine = kurbo::Affine::translate((target_offset as f64, 0.0));
-                    let offset_vec = kurbo::Vec2::new(target_offset as f64, 0.0);
-                    for p in &mut target_vec {
-                        p.path.apply_affine(affine);
-                        p.glyph_center[0] += target_offset;
-                        p.bounds = p.bounds + offset_vec;
-                    }
-                }
-
-                let mut crossfaded = crate::timeline::interpolate_text_paths(
-                    &source_vec,
-                    &target_vec,
-                    progress,
-                    crate::timeline::MorphOptions {
-                        strategy: crate::timeline::MorphStrategy::Fade,
-                        ..Default::default()
-                    },
-                );
-                let clip = crate::timeline::dispatch::apply_split_text_animation(
-                    &mut crossfaded,
-                    text,
-                    ctx.time_ms,
-                );
-                return Ok((std::sync::Arc::from(crossfaded), clip));
             }
+
+            let target_half = crate::renderer::text::measure_text_paths(&target_paths);
+            let target_offset = match text_anchor.as_str() {
+                "left" => target_half[0],
+                "right" => -target_half[0],
+                _ => 0.0,
+            };
+            let mut target_vec = target_paths.to_vec();
+            if target_offset != 0.0 {
+                let affine = kurbo::Affine::translate((target_offset as f64, 0.0));
+                let offset_vec = kurbo::Vec2::new(target_offset as f64, 0.0);
+                for p in &mut target_vec {
+                    p.path.apply_affine(affine);
+                    p.glyph_center[0] += target_offset;
+                    p.bounds = p.bounds + offset_vec;
+                }
+            }
+
+            let mut crossfaded = crate::timeline::interpolate_text_paths(
+                &source_vec,
+                &target_vec,
+                progress,
+                crate::timeline::MorphOptions {
+                    strategy: crate::timeline::MorphStrategy::Fade,
+                    ..Default::default()
+                },
+            );
+            let clip = crate::timeline::dispatch::apply_split_text_animation(
+                &mut crossfaded,
+                text,
+                ctx.time_ms,
+            );
+            return Ok((std::sync::Arc::from(crossfaded), clip));
         }
     }
-    if content_override.is_none() && text.char_progress.is_none() {
-        if let Some(static_paths) = &text.static_paths {
-            let track_anchor = text.text_anchor.get(ctx.time_ms, "center".to_string());
-            if text_anchor == track_anchor {
-                return Ok((std::sync::Arc::clone(static_paths), None));
-            }
+    if content_override.is_none()
+        && text.char_progress.is_none()
+        && let Some(static_paths) = &text.static_paths
+    {
+        let track_anchor = text.text_anchor.get(ctx.time_ms, "center".to_string());
+        if text_anchor == track_anchor {
+            return Ok((std::sync::Arc::clone(static_paths), None));
         }
     }
     if content_override.is_none() && text.text_paths.is_some() {

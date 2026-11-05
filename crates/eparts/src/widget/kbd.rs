@@ -116,7 +116,8 @@ mod tests {
         let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(320.0, 120.0));
         let mut prior_bottom = 0.0;
         let mut kbd_rect = None;
-        let _ = ctx.run_ui(
+        let _ = crate::run_ui(
+            &ctx,
             egui::RawInput {
                 screen_rect: Some(screen),
                 ..Default::default()
@@ -153,7 +154,7 @@ mod tests {
     fn format_shortcut_on_mac() {
         let shortcut = egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, egui::Key::S);
         let ctx = egui::Context::default();
-        let _ = ctx.run_ui(egui::RawInput::default(), |_| {});
+        let _ = crate::run_ui(&ctx, egui::RawInput::default(), |_| {});
         let formatted = format_shortcut(&shortcut, &ctx);
         assert!(formatted.contains('S') || formatted.contains('s'));
     }

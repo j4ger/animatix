@@ -94,7 +94,7 @@ pub fn modal(
     let ctx = ui.ctx();
     let screen_rect = ctx.viewport_rect();
 
-    let dialog_id = egui::Id::new(spec.id);
+    let dialog_id = egui::Id::unique(spec.id);
     let anim_id = dialog_id.with("anim");
     let closing_id = dialog_id.with("closing");
     let opened_id = dialog_id.with("opened");
@@ -116,7 +116,7 @@ pub fn modal(
         ctx.data_mut(|d| d.insert_temp(opened_id, true));
     }
 
-    let prev_focus_id = egui::Id::new(spec.id).with("prev_focus");
+    let prev_focus_id = egui::Id::unique(spec.id).with("prev_focus");
 
     // Opening steals focus; capture the previous widget so it can be restored
     // once the exit animation is done.
@@ -150,7 +150,7 @@ pub fn modal(
     ui.painter().rect_filled(screen_rect, 0.0, backdrop_color);
 
     // Close on backdrop click (gated until the dialog is visually established)
-    let backdrop_id = egui::Id::new(spec.id).with("backdrop");
+    let backdrop_id = egui::Id::unique(spec.id).with("backdrop");
     let backdrop = ui.interact(screen_rect, backdrop_id, egui::Sense::click());
     let backdrop_clicked = backdrop.clicked() && progress > 0.05;
 
@@ -336,7 +336,7 @@ mod tests {
 
     fn run_modal_frame(ctx: &egui::Context, id: &str) -> bool {
         let mut open = true;
-        let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+        let _ = crate::run_ui(ctx, egui::RawInput::default(), |ui| {
             let spec = DialogSpec::new(id, [200.0, 160.0]);
             open = modal(ui, &spec, |_, _| false);
         });
@@ -351,10 +351,10 @@ mod tests {
 
         let ctx = egui::Context::default();
         assert!(run_modal_frame(&ctx, "overlay_dialog"));
-        let dialog_id = egui::Id::new("overlay_dialog");
+        let dialog_id = egui::Id::unique("overlay_dialog");
         assert!(is_topmost(&ctx, dialog_id), "open dialog should be the topmost overlay");
 
-        let popover_id = egui::Id::new("on_top_popover");
+        let popover_id = egui::Id::unique("on_top_popover");
         push_overlay(&ctx, popover_id, OverlayLayer::Popover);
         assert!(!is_topmost(&ctx, dialog_id), "popover must outrank a dialog for Escape");
         assert!(is_topmost(&ctx, popover_id));
@@ -367,9 +367,9 @@ mod tests {
 
         let ctx = egui::Context::default();
         assert!(run_modal_frame(&ctx, "escape_dialog"));
-        let dialog_id = egui::Id::new("escape_dialog");
+        let dialog_id = egui::Id::unique("escape_dialog");
 
-        push_overlay(&ctx, egui::Id::new("escape_popover"), OverlayLayer::Popover);
+        push_overlay(&ctx, egui::Id::unique("escape_popover"), OverlayLayer::Popover);
         ctx.input_mut(|i| {
             i.events.push(egui::Event::Key {
                 key: egui::Key::Escape,

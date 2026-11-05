@@ -167,14 +167,14 @@ fn every_actor_row_covers_the_type_that_reads_it() {
         let ty = ty.as_str();
         audited += 1;
         for prop in read_properties(&source) {
-            if let Some(types) = rows.get(&prop) {
-                if !types.iter().any(|declared| declared == ty) {
-                    disagreements.push(format!(
-                        "{}: {ty} reads \"{prop}\" but the row lists {:?}",
-                        path.file_name().and_then(|n| n.to_str()).unwrap_or("?"),
-                        types
-                    ));
-                }
+            if let Some(types) = rows.get(&prop)
+                && !types.iter().any(|declared| declared == ty)
+            {
+                disagreements.push(format!(
+                    "{}: {ty} reads \"{prop}\" but the row lists {:?}",
+                    path.file_name().and_then(|n| n.to_str()).unwrap_or("?"),
+                    types
+                ));
             }
         }
     }

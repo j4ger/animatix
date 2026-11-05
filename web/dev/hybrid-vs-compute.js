@@ -31,6 +31,11 @@ async function detect() {
   window.__bench.webgl2 = webgl2Available();
   $("run-compute").disabled = !gpu;
   $("run-hybrid").disabled = !window.__bench.webgl2;
+  if ($("run-hybrid-wgpu")) {
+    // Only present in the `--features wgpu` build of the wasm module.
+    const hasWgpu = typeof bench.run_hybrid_wgpu === "function";
+    $("run-hybrid-wgpu").disabled = !(gpu && hasWgpu);
+  }
   if (!gpu) setStatus("WebGPU unavailable here — compute disabled (hybrid still runs).");
 }
 
@@ -70,7 +75,10 @@ function params(over) {
 
 async function runOne(backend, over) {
   const p = params(over);
-  const canvas = backend === "compute" ? $("c-compute") : $("c-hybrid");
+  const canvas =
+    backend === "compute" ? $("c-compute")
+    : backend === "hybrid_wgpu" ? $("c-hwgpu")
+    : $("c-hybrid");
   setStatus(`running ${backend} · ${p.scene} · ${p.width}×${p.height} …`);
   // Yield so the status paints before the synchronous wasm work starts.
   await new Promise((r) => requestAnimationFrame(() => r()));
@@ -78,6 +86,8 @@ async function runOne(backend, over) {
     let r;
     if (backend === "compute") {
       r = await bench.run_compute(canvas, p.scene, p.width, p.height, p.frames, p.warmup, p.reps);
+    } else if (backend === "hybrid_wgpu") {
+      r = await bench.run_hybrid_wgpu(canvas, p.scene, p.width, p.height, p.frames, p.warmup, p.reps);
     } else {
       r = bench.run_hybrid(canvas, p.scene, p.width, p.height, p.frames, p.warmup, p.reps);
     }

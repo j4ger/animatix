@@ -223,7 +223,8 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
         let tab_rect =
             egui::Rect::from_min_size(egui::pos2(x, bar_rect.min.y), Vec2::new(tab_w, tab_h));
 
-        let response = ui.interact(tab_rect, ui.id().with(("pill_tab", idx)), egui::Sense::click());
+        let response =
+            ui.interact(tab_rect, ui.scope_id().with(("pill_tab", idx)), egui::Sense::click());
 
         // Draw pill background
         let pill = tab_rect.shrink2(Vec2::new(2.0, 2.0));

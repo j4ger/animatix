@@ -158,7 +158,7 @@ mod tests {
 
         let ctx = egui::Context::default();
         install_fonts(&ctx);
-        let _ = ctx.run_ui(egui::RawInput::default(), |_| {});
+        ctx.run_ui(egui::RawInput::default(), |_| {}).drop_without_applying_deltas();
         assert!(ctx.fonts_mut(|fonts| fonts.has_glyphs(&egui::FontId::proportional(14.0), "中文")));
         assert!(ctx.fonts_mut(|fonts| fonts.has_glyphs(&egui::FontId::monospace(14.0), "中文")));
     }

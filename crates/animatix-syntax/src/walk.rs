@@ -238,10 +238,10 @@ pub fn recurse_stmt_bodies_mut(stmt: &mut Stmt, f: &mut dyn FnMut(&mut [Stmt])) 
 /// Find an ActorDecl with the given label anywhere in the statement tree.
 pub fn find_actor_decl<'a>(stmts: &'a [Stmt], label: &str) -> Option<&'a Stmt> {
     for stmt in stmts.iter() {
-        if let Stmt::ActorDecl { label: l, .. } = stmt {
-            if l == label {
-                return Some(stmt);
-            }
+        if let Stmt::ActorDecl { label: l, .. } = stmt
+            && l == label
+        {
+            return Some(stmt);
         }
         if let Some(found) = find_stmt_in_bodies(stmt, |body| find_actor_decl(body, label)) {
             return Some(found);
@@ -253,10 +253,10 @@ pub fn find_actor_decl<'a>(stmts: &'a [Stmt], label: &str) -> Option<&'a Stmt> {
 /// Mutable variant of find_actor_decl.
 pub fn find_actor_decl_mut<'a>(stmts: &'a mut [Stmt], label: &str) -> Option<&'a mut Stmt> {
     for stmt in stmts.iter_mut() {
-        if let Stmt::ActorDecl { label: l, .. } = stmt {
-            if l == label {
-                return Some(stmt);
-            }
+        if let Stmt::ActorDecl { label: l, .. } = stmt
+            && l == label
+        {
+            return Some(stmt);
         }
         if let Some(found) = find_stmt_in_bodies_mut(stmt, |body| find_actor_decl_mut(body, label))
         {
@@ -279,12 +279,10 @@ pub fn find_assignment_mut<'a>(
             property: prop,
             ..
         } = stmt
+            && target.last().and_then(|t| t.as_static_str()).is_some_and(|t| t == actor)
+            && prop == property
         {
-            if target.last().and_then(|t| t.as_static_str()).is_some_and(|t| t == actor)
-                && prop == property
-            {
-                return Some(stmt);
-            }
+            return Some(stmt);
         }
         if let Some(found) =
             find_stmt_in_bodies_mut(stmt, |body| find_assignment_mut(body, actor, property))
@@ -351,10 +349,10 @@ fn find_stmt_in_bodies<'a>(
             if let Some(found) = f(then_branch) {
                 return Some(found);
             }
-            if let Some(else_body) = else_branch {
-                if let Some(found) = f(else_body) {
-                    return Some(found);
-                }
+            if let Some(else_body) = else_branch
+                && let Some(found) = f(else_body)
+            {
+                return Some(found);
             }
             None
         },
@@ -387,10 +385,10 @@ fn find_stmt_in_bodies_mut<'a>(
             if let Some(found) = f(then_branch) {
                 return Some(found);
             }
-            if let Some(else_body) = else_branch {
-                if let Some(found) = f(else_body) {
-                    return Some(found);
-                }
+            if let Some(else_body) = else_branch
+                && let Some(found) = f(else_body)
+            {
+                return Some(found);
             }
             None
         },

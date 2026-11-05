@@ -164,32 +164,31 @@ impl Timeline {
                 .variable_tracks
                 .get(var_name)
                 .and_then(|track| track.evaluate(time_ms as u64))
+                && matches!(current, Value::Object(_, _))
             {
-                if matches!(current, Value::Object(_, _)) {
-                    // Evaluate the assignment value
-                    let eval_val = match evaluate_expr(value, eval_env) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            diagnostics.push(Diagnostic::error(
-                                DiagnosticCode::InvalidAssignmentTarget,
-                                DiagnosticPhase::Build,
-                                format!(
-                                    "Failed to evaluate value for '{}.{}': {}",
-                                    var_name, property, e
-                                ),
-                            ));
-                            return true;
-                        },
-                    };
-                    // Update the Object's field (immutable update via with_field)
-                    let new_obj = current.with_field(property, eval_val);
-                    self.variable_tracks
-                        .entry(var_name.to_string())
-                        .or_default()
-                        .keyframes
-                        .insert(time_ms as u64, new_obj);
-                    return true;
-                }
+                // Evaluate the assignment value
+                let eval_val = match evaluate_expr(value, eval_env) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        diagnostics.push(Diagnostic::error(
+                            DiagnosticCode::InvalidAssignmentTarget,
+                            DiagnosticPhase::Build,
+                            format!(
+                                "Failed to evaluate value for '{}.{}': {}",
+                                var_name, property, e
+                            ),
+                        ));
+                        return true;
+                    },
+                };
+                // Update the Object's field (immutable update via with_field)
+                let new_obj = current.with_field(property, eval_val);
+                self.variable_tracks
+                    .entry(var_name.to_string())
+                    .or_default()
+                    .keyframes
+                    .insert(time_ms as u64, new_obj);
+                return true;
             }
         }
 

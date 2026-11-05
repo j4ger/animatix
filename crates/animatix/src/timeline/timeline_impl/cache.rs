@@ -292,10 +292,10 @@ impl Timeline {
             return true;
         }
         for target in &self.modifier_written_targets {
-            if let Some(rest) = label.strip_prefix(target.as_str()) {
-                if rest.starts_with("__") || rest.starts_with('.') {
-                    return true;
-                }
+            if let Some(rest) = label.strip_prefix(target.as_str())
+                && (rest.starts_with("__") || rest.starts_with('.'))
+            {
+                return true;
             }
         }
         false

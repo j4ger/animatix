@@ -210,10 +210,10 @@ pub(super) fn find_actor_type_before_brace(
 ) -> Option<String> {
     let idx = tokens.iter().position(|t| t.span == brace.span)?;
     for t in tokens[..idx].iter().rev() {
-        if let TokenKind::Ident(name) = &t.kind {
-            if symbols.types.contains(name) {
-                return Some(name.clone());
-            }
+        if let TokenKind::Ident(name) = &t.kind
+            && symbols.types.contains(name)
+        {
+            return Some(name.clone());
         }
     }
     None

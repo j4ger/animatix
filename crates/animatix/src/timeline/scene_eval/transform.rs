@@ -109,10 +109,11 @@ impl Timeline {
         } else {
             self.world.geometry(id).position.get(time_ms, [0.0, 0.0])
         };
-        if let Some(layout_pos) = layout_position {
-            if placement_mode == PlacementMode::LayoutManaged && override_position.is_none() {
-                base_position = layout_pos;
-            }
+        if let Some(layout_pos) = layout_position
+            && placement_mode == PlacementMode::LayoutManaged
+            && override_position.is_none()
+        {
+            base_position = layout_pos;
         }
 
         // When an override position is set, always use Absolute binding

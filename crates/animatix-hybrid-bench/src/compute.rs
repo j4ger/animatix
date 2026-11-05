@@ -37,6 +37,7 @@ pub async fn init(
             power_preference: wgpu::PowerPreference::HighPerformance,
             compatible_surface: None,
             force_fallback_adapter: false,
+            apply_limit_buckets: false,
         })
         .await
         .map_err(|e| format!("no WebGPU adapter: {e}"))?;
@@ -73,6 +74,7 @@ pub async fn init(
     let config = wgpu::SurfaceConfiguration {
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
         format,
+        color_space: wgpu::SurfaceColorSpace::Auto,
         width,
         height,
         present_mode: wgpu::PresentMode::Fifo,
@@ -150,7 +152,7 @@ impl ComputeRunner {
             self.config.format,
         );
         drop(view);
-        frame.present();
+        self.queue.present(frame);
         Ok(())
     }
 

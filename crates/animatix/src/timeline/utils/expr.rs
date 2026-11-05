@@ -403,10 +403,10 @@ pub(crate) fn invoke_closure_value(
     // resolve to UndefinedVariable. Slots whose name collides with a
     // parameter are skipped — the parameter binding must win.
     for (dst, src) in child_env.bindings.iter_mut().zip(env.bindings.iter()) {
-        if let Some((name, _)) = src {
-            if params.contains(name) {
-                continue;
-            }
+        if let Some((name, _)) = src
+            && params.contains(name)
+        {
+            continue;
         }
         *dst = src.clone();
     }
@@ -433,12 +433,11 @@ pub(crate) fn eval_method_dispatch(
     }
 
     // Object field access support: obj.field() or obj.field
-    if let Value::Object(_type_name, fields) = &receiver {
-        if args.is_empty() {
-            if let Some(field_value) = fields.get(name) {
-                return Ok(field_value.clone());
-            }
-        }
+    if let Value::Object(_type_name, fields) = &receiver
+        && args.is_empty()
+        && let Some(field_value) = fields.get(name)
+    {
+        return Ok(field_value.clone());
     }
 
     match (receiver, name) {

@@ -3,6 +3,7 @@ use egui::{Id, Rect, Response, Sense, Vec2};
 use crate::spatial;
 use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::tokens::typography::TextRole;
+use crate::widget::IntoWidgetId;
 
 /// A stateful pill-style tab bar.
 ///
@@ -36,9 +37,9 @@ impl<'a> TabBar<'a> {
     /// * `id_source` — unique id source for the bar (egui `Id`).
     /// * `selected_index` — mutable reference to the currently selected tab index.
     /// * `tabs` — tab labels. The bar is empty if `tabs` is empty.
-    pub fn new(id: impl Into<Id>, selected_index: &'a mut usize, tabs: &[&'a str]) -> Self {
+    pub fn new(id: impl IntoWidgetId, selected_index: &'a mut usize, tabs: &[&'a str]) -> Self {
         Self {
-            id: id.into(),
+            id: id.into_widget_id(),
             selected_index,
             tabs: tabs.to_vec(),
             height: crate::tokens::spatial::component::PILL_TAB_HEIGHT,

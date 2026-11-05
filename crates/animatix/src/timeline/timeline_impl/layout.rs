@@ -153,38 +153,37 @@ impl Timeline {
                 (self.world.actor_type(id) == "Audio" && self.world.geometry(id).volume.is_some())
                     .then_some(id)
             });
-            if let Some(audio_id) = matching_id {
-                if let Some(vol_track) = &self.world.geometry(audio_id).volume {
-                    let mut envelope = Vec::new();
-                    let t_start_ms = (seg.start_time_s * 1000.0).round() as u64;
-                    let dur_ms =
-                        seg.duration_s.map(|d| (d * 1000.0).round() as u64).unwrap_or(30_000);
-                    let t_end_ms = t_start_ms + dur_ms;
+            if let Some(audio_id) = matching_id
+                && let Some(vol_track) = &self.world.geometry(audio_id).volume
+            {
+                let mut envelope = Vec::new();
+                let t_start_ms = (seg.start_time_s * 1000.0).round() as u64;
+                let dur_ms = seg.duration_s.map(|d| (d * 1000.0).round() as u64).unwrap_or(30_000);
+                let t_end_ms = t_start_ms + dur_ms;
 
-                    // Sample keyframes that fall in or near the segment span
-                    for (time_ms, _) in vol_track.keyframes() {
-                        let t_s = *time_ms as f64 / 1000.0;
-                        let val = vol_track.evaluate(*time_ms);
-                        envelope.push((t_s, val));
-                    }
-                    if envelope.is_empty() {
-                        let v = vol_track.evaluate(t_start_ms);
-                        envelope.push((seg.start_time_s, v));
-                    }
-                    if !envelope.iter().any(|(t, _)| (*t - seg.start_time_s).abs() < 1e-4) {
-                        let v = vol_track.evaluate(t_start_ms);
-                        envelope.insert(0, (seg.start_time_s, v));
-                    }
-                    let seg_end_s = t_end_ms as f64 / 1000.0;
-                    if !envelope.iter().any(|(t, _)| (*t - seg_end_s).abs() < 1e-4) {
-                        let v = vol_track.evaluate(t_end_ms);
-                        envelope.push((seg_end_s, v));
-                    }
-                    envelope.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-                    envelope.dedup_by(|a, b| (a.0 - b.0).abs() < 1e-4);
-                    seg.volume = vol_track.evaluate(t_start_ms);
-                    seg.volume_envelope = Some(envelope);
+                // Sample keyframes that fall in or near the segment span
+                for (time_ms, _) in vol_track.keyframes() {
+                    let t_s = *time_ms as f64 / 1000.0;
+                    let val = vol_track.evaluate(*time_ms);
+                    envelope.push((t_s, val));
                 }
+                if envelope.is_empty() {
+                    let v = vol_track.evaluate(t_start_ms);
+                    envelope.push((seg.start_time_s, v));
+                }
+                if !envelope.iter().any(|(t, _)| (*t - seg.start_time_s).abs() < 1e-4) {
+                    let v = vol_track.evaluate(t_start_ms);
+                    envelope.insert(0, (seg.start_time_s, v));
+                }
+                let seg_end_s = t_end_ms as f64 / 1000.0;
+                if !envelope.iter().any(|(t, _)| (*t - seg_end_s).abs() < 1e-4) {
+                    let v = vol_track.evaluate(t_end_ms);
+                    envelope.push((seg_end_s, v));
+                }
+                envelope.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+                envelope.dedup_by(|a, b| (a.0 - b.0).abs() < 1e-4);
+                seg.volume = vol_track.evaluate(t_start_ms);
+                seg.volume_envelope = Some(envelope);
             }
         }
     }

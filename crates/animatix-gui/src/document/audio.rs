@@ -29,10 +29,10 @@ impl DocumentSession {
             .into_iter()
             .map(|mut seg| {
                 let path = Path::new(&seg.source);
-                if path.is_relative() {
-                    if let Ok(resolved) = doc_dir.join(path).canonicalize() {
-                        seg.source = resolved.to_string_lossy().to_string();
-                    }
+                if path.is_relative()
+                    && let Ok(resolved) = doc_dir.join(path).canonicalize()
+                {
+                    seg.source = resolved.to_string_lossy().to_string();
                 }
                 seg
             })

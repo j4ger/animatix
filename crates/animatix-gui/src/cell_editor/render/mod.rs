@@ -95,8 +95,10 @@ fn apply_find_highlights(
     let old_sections = std::mem::take(&mut job.sections);
     let mut sections = Vec::with_capacity(old_sections.len());
     for section in old_sections {
-        let sec_start = section.byte_range.start;
-        let sec_end = section.byte_range.end;
+        // `LayoutSection::byte_range` is typed (`Range<ByteIndex>`) in egui 0.37;
+        // do the split arithmetic in `usize` and re-wrap at the boundary.
+        let sec_start = section.byte_range.start.0;
+        let sec_end = section.byte_range.end.0;
         if sec_start >= sec_end {
             continue;
         }
@@ -135,7 +137,7 @@ fn apply_find_highlights(
             }
             sections.push(egui::text::LayoutSection {
                 leading_space: section.leading_space,
-                byte_range: a..b,
+                byte_range: egui::text::ByteIndex(a)..egui::text::ByteIndex(b),
                 format,
             });
         }
@@ -146,26 +148,6 @@ fn apply_find_highlights(
 // ── Public API ───────────────────────────────────────────────────────────
 
 /// Render the cell editor UI.
-/// Some native IME integrations deliver only `ImeEvent::Commit` without first
-/// sending `ImeEvent::Enabled`. egui's TextEdit uses the Enabled event to record
-/// the composition cursor range; without it a Commit at a non-zero cursor is
-/// silently ignored. Insert the missing Enabled event before the Commit so
-/// existing-text cells accept input the same way newly created empty cells do.
-fn normalize_ime_input(ctx: &egui::Context) {
-    ctx.input_mut(|i| {
-        if i.events.iter().any(|e| matches!(e, egui::Event::Ime(egui::ImeEvent::Enabled))) {
-            return;
-        }
-        if let Some(pos) = i
-            .events
-            .iter()
-            .position(|e| matches!(e, egui::Event::Ime(egui::ImeEvent::Commit(_))))
-        {
-            i.events.insert(pos, egui::Event::Ime(egui::ImeEvent::Enabled));
-        }
-    });
-}
-
 pub fn render_cell_editor(
     ui: &mut egui::Ui,
     cells: &mut [Cell],
@@ -173,7 +155,6 @@ pub fn render_cell_editor(
     on_source_changed: &mut dyn FnMut(String),
     on_scrub_to_time: &mut dyn FnMut(f64),
 ) {
-    normalize_ime_input(ui.ctx());
     let style = ui.style().clone();
     let mut source_changed = false;
 

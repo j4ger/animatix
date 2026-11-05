@@ -184,10 +184,10 @@ impl DocumentController<'_> {
         if self.ui_store.clipboard.clipboard_actors.contains(&label.to_string()) {
             return true;
         }
-        if let Some(ref stmts) = self.document_store.source.document.raw_statements {
-            if source_edit::find_actor_decl(stmts, label).is_some() {
-                return true;
-            }
+        if let Some(ref stmts) = self.document_store.source.document.raw_statements
+            && source_edit::find_actor_decl(stmts, label).is_some()
+        {
+            return true;
         }
         false
     }

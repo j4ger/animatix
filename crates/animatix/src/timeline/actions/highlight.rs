@@ -213,12 +213,12 @@ impl BuiltinAction for Highlight {
                 action.targets.iter().cloned().collect();
             let mut siblings = Vec::new();
             for target in &action.targets {
-                if let Some(parent_label) = find_equation_parent(timeline, target) {
-                    if let Some(parent_id) = timeline.get_entity_id(&parent_label) {
-                        for child in timeline.world.child_labels(parent_id) {
-                            if !target_set.contains(child) {
-                                siblings.push((child.to_string(), t_start_ms, t_end_ms));
-                            }
+                if let Some(parent_label) = find_equation_parent(timeline, target)
+                    && let Some(parent_id) = timeline.get_entity_id(&parent_label)
+                {
+                    for child in timeline.world.child_labels(parent_id) {
+                        if !target_set.contains(child) {
+                            siblings.push((child.to_string(), t_start_ms, t_end_ms));
                         }
                     }
                 }

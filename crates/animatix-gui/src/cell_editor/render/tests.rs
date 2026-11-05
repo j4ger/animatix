@@ -10,9 +10,10 @@ fn input() -> egui::RawInput {
 }
 
 fn render_cells(ctx: &Context, cells: &mut [Cell], state: &mut CellEditorState) {
-    let _ = ctx.run_ui(input(), |ui| {
+    ctx.run_ui(input(), |ui| {
         render_cell_editor(ui, cells, state, &mut |_| {}, &mut |_| {});
-    });
+    })
+    .drop_without_applying_deltas();
 }
 
 fn click_cells(ctx: &Context, cells: &mut [Cell], state: &mut CellEditorState, pos: Pos2) {
@@ -32,21 +33,25 @@ fn click_cells(ctx: &Context, cells: &mut [Cell], state: &mut CellEditorState, p
             modifiers: Modifiers::NONE,
         },
     ]);
-    let _ = ctx.run_ui(raw, |ui| {
+    ctx.run_ui(raw, |ui| {
         render_cell_editor(ui, cells, state, &mut |_| {}, &mut |_| {});
-    });
+    })
+    .drop_without_applying_deltas();
 }
 
 fn send_ime(ctx: &Context, cells: &mut [Cell], state: &mut CellEditorState, commit: &str) {
     let mut raw = input();
     raw.events.extend([
-        Event::Ime(egui::ImeEvent::Enabled),
-        Event::Ime(egui::ImeEvent::Preedit("ni".to_string())),
+        Event::Ime(egui::ImeEvent::Preedit {
+            text: "ni".to_string(),
+            active_range_chars: None,
+        }),
         Event::Ime(egui::ImeEvent::Commit(commit.to_string())),
     ]);
-    let _ = ctx.run_ui(raw, |ui| {
+    ctx.run_ui(raw, |ui| {
         render_cell_editor(ui, cells, state, &mut |_| {}, &mut |_| {});
-    });
+    })
+    .drop_without_applying_deltas();
 }
 
 #[test]
@@ -81,13 +86,14 @@ fn commit_only_ime_reaches_existing_cell_without_stale_cursor() {
     click_cells(&ctx, &mut cells, &mut state, Pos2::new(200.0, 34.0));
     assert!(ctx.text_edit_focused(), "clicking the existing cell should focus its TextEdit");
 
-    // Some native IME integrations deliver only the final Commit without
-    // Preedit/Enabled. The focused TextEdit must still insert it.
+    // Some native IME integrations deliver only the final Commit without a
+    // preceding Preedit. The focused TextEdit must still insert it.
     let mut raw = input();
     raw.events.push(Event::Ime(egui::ImeEvent::Commit("你".to_string())));
-    let _ = ctx.run_ui(raw, |ui| {
+    ctx.run_ui(raw, |ui| {
         render_cell_editor(ui, &mut cells, &mut state, &mut |_| {}, &mut |_| {});
-    });
+    })
+    .drop_without_applying_deltas();
 
     assert!(cells[0].body().contains('你'));
 }
@@ -145,7 +151,7 @@ fn plain_job(text: &str) -> egui::text::LayoutJob {
 fn bg_for(job: &egui::text::LayoutJob, needle: &str) -> Option<Color32> {
     job.sections
         .iter()
-        .find(|s| &job.text[s.byte_range.clone()] == needle)
+        .find(|s| &job.text[s.byte_range.start.0..s.byte_range.end.0] == needle)
         .map(|s| s.format.background)
 }
 
@@ -153,7 +159,7 @@ fn bg_for(job: &egui::text::LayoutJob, needle: &str) -> Option<Color32> {
 fn bg_at(job: &egui::text::LayoutJob, byte_index: usize) -> Option<Color32> {
     job.sections
         .iter()
-        .find(|s| s.byte_range.contains(&byte_index))
+        .find(|s| s.byte_range.contains(&egui::text::ByteIndex(byte_index)))
         .map(|s| s.format.background)
 }
 
@@ -182,7 +188,7 @@ fn find_overlay_distinguishes_current_match() {
     let bg = |start: usize| {
         job.sections
             .iter()
-            .find(|s| s.byte_range == (start..start + 3))
+            .find(|s| s.byte_range.start.0 == start && s.byte_range.end.0 == start + 3)
             .map(|s| s.format.background)
     };
     assert_eq!(bg(0), Some(MATCH_BG));

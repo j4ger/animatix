@@ -71,16 +71,16 @@ impl Timeline {
             std::collections::HashMap<String, Value>,
         >,
     ) -> vello::Scene {
-        if transient_overrides.is_empty() {
-            if let Some(program) = self.restore_frame_cache(
+        if transient_overrides.is_empty()
+            && let Some(program) = self.restore_frame_cache(
                 time_s,
                 scene_dimensions,
                 debug_options,
                 filter_backend,
                 false,
-            ) {
-                return program.scene;
-            }
+            )
+        {
+            return program.scene;
         }
         self.evaluate_program_inner(
             time_s,
@@ -331,16 +331,17 @@ impl Timeline {
             std::collections::HashMap<String, Value>,
         >,
     ) -> crate::timeline::scene_program::SceneProgram {
-        if suppressed_actors.is_empty() && transient_overrides.is_empty() {
-            if let Some(program) = self.restore_frame_cache(
+        if suppressed_actors.is_empty()
+            && transient_overrides.is_empty()
+            && let Some(program) = self.restore_frame_cache(
                 time_s,
                 scene_dimensions,
                 debug_options,
                 filter_backend,
                 collect_items,
-            ) {
-                return program;
-            }
+            )
+        {
+            return program;
         }
         // The four phases below are the original monolithic body in order:
         // prepare (buffers, per-frame state, env) → modifiers → render →
@@ -557,10 +558,10 @@ impl Timeline {
             let labels = registry.as_ref().map(|r| r.labels.as_slice());
             let mut b = std::collections::HashMap::with_capacity(table.written.len());
             for &slot in &table.written {
-                if let Some(rect) = table.slots[slot as usize] {
-                    if let Some(label) = labels.and_then(|l| l.get(slot as usize)) {
-                        b.insert(label.clone(), rect);
-                    }
+                if let Some(rect) = table.slots[slot as usize]
+                    && let Some(label) = labels.and_then(|l| l.get(slot as usize))
+                {
+                    b.insert(label.clone(), rect);
                 }
             }
             (b, Vec::new())

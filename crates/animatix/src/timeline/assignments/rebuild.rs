@@ -201,10 +201,10 @@ pub(super) fn rebuild_vector_paths(
         VectorShapeState::Path(path_state) => {
             // Restore commands for Path actors
             let commands_svg = shape.commands.last(String::new());
-            if !commands_svg.is_empty() {
-                if let Ok(path) = kurbo::BezPath::from_svg(&commands_svg) {
-                    path_state.custom_path = Some(path);
-                }
+            if !commands_svg.is_empty()
+                && let Ok(path) = kurbo::BezPath::from_svg(&commands_svg)
+            {
+                path_state.custom_path = Some(path);
             }
         },
         _ => {},

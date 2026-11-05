@@ -268,14 +268,14 @@ fn document_extensions(
                 },
             }
         }
-        if let Some(ctx_mut) = std::sync::Arc::get_mut(&mut ctx) {
-            if let Err(err) = loader.install_all(ctx_mut) {
-                tracing::warn!(
-                    "Failed to install document plugins for {}: {}",
-                    file_path.display(),
-                    err
-                );
-            }
+        if let Some(ctx_mut) = std::sync::Arc::get_mut(&mut ctx)
+            && let Err(err) = loader.install_all(ctx_mut)
+        {
+            tracing::warn!(
+                "Failed to install document plugins for {}: {}",
+                file_path.display(),
+                err
+            );
         }
     }
 

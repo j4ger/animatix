@@ -11,7 +11,7 @@ pub(super) fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) 
     };
 
     // ── Filter input ──────────────────────────────────────────────────────
-    let filter_id = egui::Id::new(LAYERS_FILTER_ID);
+    let filter_id = egui::Id::unique(LAYERS_FILTER_ID);
     let mut filter = ui.data(|d| d.get_temp::<String>(filter_id)).unwrap_or_default();
 
     ui.horizontal(|ui| {
@@ -78,25 +78,21 @@ pub(super) fn layers_content_ui(ctx: &mut LayersContext<'_>, ui: &mut egui::Ui) 
     let has_filter = !filter_lower.is_empty();
 
     // Show which scene's actors are being displayed
-    if ctx.is_composition {
-        if let Some(scene_name) = ctx.active_scene.as_ref() {
-            ui.horizontal(|ui| {
-                ui.add_space(sp.base.space_4);
-                ui.add(
-                    egui::Label::new(
-                        RichText::new(format!(
-                            "{} {}",
-                            egui_phosphor::regular::FILM_STRIP,
-                            scene_name
-                        ))
+    if ctx.is_composition
+        && let Some(scene_name) = ctx.active_scene.as_ref()
+    {
+        ui.horizontal(|ui| {
+            ui.add_space(sp.base.space_4);
+            ui.add(
+                egui::Label::new(
+                    RichText::new(format!("{} {}", egui_phosphor::regular::FILM_STRIP, scene_name))
                         .size(TextRole::BodyS.size())
                         .color(t.palette.text.muted),
-                    )
-                    .selectable(false),
-                );
-            });
-            ui.add_space(sp.base.space_2);
-        }
+                )
+                .selectable(false),
+            );
+        });
+        ui.add_space(sp.base.space_2);
     }
 
     let root_ids = timeline.world().root_entities();
@@ -246,7 +242,7 @@ fn render_actor_tree(
         (icon, label, None)
     };
 
-    let row_id = ui.id().with(label);
+    let row_id = ui.scope_id().with(label);
     let label_owned = label.to_string();
 
     // Visibility toggle (eye icon) on the right
@@ -319,7 +315,7 @@ fn render_actor_tree(
     // ── Drag-and-drop reparenting ──
     // Disabled while a filter is active: the partial tree makes drop targets
     // ambiguous (hidden ancestors/descendants can't be valid drop destinations).
-    let drag_id = ui.id().with("layer_drag");
+    let drag_id = ui.scope_id().with("layer_drag");
     let drag_data_id = drag_id.with("data");
 
     if !has_filter && response.drag_started && !is_anonymous {
@@ -560,7 +556,7 @@ fn actor_matches_filter(timeline: &Timeline, label: &str, filter_lower: &str) ->
 
 /// Temp-data id for the inline layer rename bar.
 fn layer_rename_id() -> egui::Id {
-    egui::Id::new("layer_rename_target")
+    egui::Id::unique("layer_rename_target")
 }
 
 /// Begin renaming a layer: seed the edit buffer for the rename bar.

@@ -56,11 +56,11 @@ pub(crate) struct InspectorContext<'a> {
 pub(crate) fn inspector_panel_ui(ctx: &mut InspectorContext<'_>, ui: &mut egui::Ui) {
     panel_frame().show(ui, |ui| {
         // Scene-level inspector: when no actor is selected in a composition
-        if ctx.selected_actors.is_empty() {
-            if let (Some(comp), Some(active_scene)) = (ctx.composition, ctx.active_scene) {
-                render_scene_inspector(ui, comp, active_scene, ctx.commands, ctx.preview);
-                return;
-            }
+        if ctx.selected_actors.is_empty()
+            && let (Some(comp), Some(active_scene)) = (ctx.composition, ctx.active_scene)
+        {
+            render_scene_inspector(ui, comp, active_scene, ctx.commands, ctx.preview);
+            return;
         }
 
         let current_time_s = ctx.preview.playback.current_time_s();
@@ -100,7 +100,7 @@ fn render_property_stream(
             all_entries.push((group, entry));
         }
     }
-    all_entries.sort_by(|a, b| b.1.keyframe_count.cmp(&a.1.keyframe_count));
+    all_entries.sort_by_key(|a| std::cmp::Reverse(a.1.keyframe_count));
 
     // Find max keyframe count for bar scaling
     let max_kf = all_entries.iter().map(|(_, e)| e.keyframe_count).max().unwrap_or(1).max(1);
@@ -233,7 +233,7 @@ fn render_actor_header(
                 ui.add_space(sp.base.space_2);
 
                 // Actor label (click to rename)
-                let edit_id = ui.id().with("actor_name_edit");
+                let edit_id = ui.scope_id().with("actor_name_edit");
                 let is_editing: bool = ui.data(|d| d.get_temp(edit_id)).unwrap_or(false);
                 let mut edit_buffer: String = ui
                     .data(|d| d.get_temp(edit_id.with("buf")))
@@ -348,7 +348,7 @@ fn render_parent_card(
             };
 
             ui.add(
-                Select::new(ui.id().with("parent_dropdown"), &mut sel_idx, &options)
+                Select::new(ui.scope_id().with("parent_dropdown"), &mut sel_idx, &options)
                     .placeholder("Select parent…"),
             );
             if let Some(idx) = sel_idx {
@@ -384,7 +384,7 @@ fn render_container_children(
     let theme = eparts::theme(ui);
     ui.spacing_mut().item_spacing = Vec2::new(sp.base.space_2, sp.base.space_2);
     for (i, label) in order.iter().enumerate() {
-        let row_id = ui.id().with(format!("child_{}", i));
+        let row_id = ui.scope_id().with(format!("child_{}", i));
         let available = ui.available_width();
         let (row_rect, _) =
             ui.allocate_exact_size(Vec2::new(available, sp.base.row_m), egui::Sense::hover());

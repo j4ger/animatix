@@ -443,12 +443,12 @@ fade-in title [1s]
         let backdrop_color = job
             .sections
             .iter()
-            .find(|s| &job.text[s.byte_range.clone()] == "backdrop")
+            .find(|s| &job.text[s.byte_range.start.0..s.byte_range.end.0] == "backdrop")
             .map(|s| s.format.color);
         let rect_color = job
             .sections
             .iter()
-            .find(|s| &job.text[s.byte_range.clone()] == "Rect")
+            .find(|s| &job.text[s.byte_range.start.0..s.byte_range.end.0] == "Rect")
             .map(|s| s.format.color);
 
         assert!(
@@ -469,12 +469,12 @@ fade-in title [1s]
         let orb_color = job
             .sections
             .iter()
-            .find(|s| &job.text[s.byte_range.clone()] == "orb")
+            .find(|s| &job.text[s.byte_range.start.0..s.byte_range.end.0] == "orb")
             .map(|s| s.format.color);
         let size_color = job
             .sections
             .iter()
-            .find(|s| &job.text[s.byte_range.clone()] == "size")
+            .find(|s| &job.text[s.byte_range.start.0..s.byte_range.end.0] == "size")
             .map(|s| s.format.color);
 
         assert!(
@@ -504,12 +504,12 @@ fade-in title [1s]
         let backdrop_color = job
             .sections
             .iter()
-            .find(|s| &job.text[s.byte_range.clone()] == "backdrop")
+            .find(|s| &job.text[s.byte_range.start.0..s.byte_range.end.0] == "backdrop")
             .map(|s| s.format.color);
         let rect_color = job
             .sections
             .iter()
-            .find(|s| &job.text[s.byte_range.clone()] == "Rect")
+            .find(|s| &job.text[s.byte_range.start.0..s.byte_range.end.0] == "Rect")
             .map(|s| s.format.color);
 
         assert!(
@@ -530,7 +530,9 @@ fade-in title [1s]
     fn text_color(job: &egui::text::LayoutJob, needle: &str) -> Option<Color32> {
         job.sections
             .iter()
-            .find(|section| &job.text[section.byte_range.clone()] == needle)
+            .find(|section| {
+                &job.text[section.byte_range.start.0..section.byte_range.end.0] == needle
+            })
             .map(|section| section.format.color)
     }
 

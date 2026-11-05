@@ -46,12 +46,11 @@ pub fn handle_rename_actor(
         preview_store.preview.status = "Rename failed — label cannot be empty".to_string();
         return vec![];
     }
-    if let Some(timeline) = document_store.source.document.active_timeline() {
-        if timeline.has_actor(&new_label) {
-            preview_store.preview.status =
-                format!("Rename failed — '{}' already exists", new_label);
-            return vec![];
-        }
+    if let Some(timeline) = document_store.source.document.active_timeline()
+        && timeline.has_actor(&new_label)
+    {
+        preview_store.preview.status = format!("Rename failed — '{}' already exists", new_label);
+        return vec![];
     }
 
     begin_snapshot(

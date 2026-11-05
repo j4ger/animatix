@@ -33,18 +33,16 @@ impl GuiShell {
             self.preview_store.preview.playback.tick(delta);
             self.preview_store.preview_dirty = true;
 
-            if self.ui_store.editor_sync_enabled {
-                if let Some(line) = self
+            if self.ui_store.editor_sync_enabled
+                && let Some(line) = self
                     .document_store
                     .source
                     .document
                     .find_keyframe_line_at(self.preview_store.preview.playback.current_time_s())
-                {
-                    if self.document_store.source.editor.highlighted_line != Some(line) {
-                        self.document_store.source.editor.scroll_to_line(line);
-                        self.document_store.source.editor.set_highlighted_line(Some(line));
-                    }
-                }
+                && self.document_store.source.editor.highlighted_line != Some(line)
+            {
+                self.document_store.source.editor.scroll_to_line(line);
+                self.document_store.source.editor.set_highlighted_line(Some(line));
             }
         }
 
@@ -144,7 +142,7 @@ impl GuiShell {
         if !self.ui_store.view.welcome_open {
             egui::Panel::top("toolbar")
                 .resizable(false)
-                .show_inside(ui, |ui| self.toolbar_ui(ui, &mut commands));
+                .show(ui, |ui| self.toolbar_ui(ui, &mut commands));
         }
 
         let diagnostics = self.document_store.combined_diagnostics();
@@ -156,7 +154,7 @@ impl GuiShell {
                 .default_size(180.0)
                 .min_size(80.0)
                 .max_size(400.0)
-                .show_inside(ui, |ui| {
+                .show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     if diagnostics.is_empty() {
                         ui.add_space(SPACE_4);
@@ -206,7 +204,7 @@ impl GuiShell {
             )
             .resizable(false)
             .min_size(20.0)
-            .show_inside(ui, |ui| {
+            .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     let status = &self.preview_store.preview.status;
                     if !status.is_empty() {
@@ -243,7 +241,7 @@ impl GuiShell {
                         if is_error && self.preview_store.preview.error.is_some() {
                             text_tooltip(
                                 ui,
-                                ui.id().with("status_error_tooltip"),
+                                ui.scope_id().with("status_error_tooltip"),
                                 &label,
                                 self.preview_store.preview.error.as_deref().unwrap_or(""),
                             );
@@ -326,7 +324,7 @@ impl GuiShell {
         // When welcome screen is open, show it instead of the workspace.
         let workspace_rect = egui::CentralPanel::default()
             .frame(egui::Frame::new().inner_margin(egui::Margin::ZERO))
-            .show_inside(ui, |ui| {
+            .show(ui, |ui| {
                 if self.ui_store.view.welcome_open {
                     let mut welcome_cmds = ActionQueue::default();
                     self.welcome_screen_ui(ui, &mut welcome_cmds);

@@ -215,10 +215,9 @@ impl Timeline {
                     crate::timeline::ActorField::Tagged("shared_id"),
                     time_ms,
                 )
+                && !id.is_empty()
             {
-                if !id.is_empty() {
-                    map.insert(id, label.clone());
-                }
+                map.insert(id, label.clone());
             }
         }
         map

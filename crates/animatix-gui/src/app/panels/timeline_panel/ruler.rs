@@ -43,17 +43,18 @@ pub fn snap_to_speech_or_fps(
 pub(crate) fn bar_interaction(
     ui: &egui::Ui,
     bar_rect: Rect,
-    id_salt: impl Hash,
+    // egui 0.37's `Id::with` requires the salt to be `Hash + Debug` (`AsIdSalt`).
+    id_salt: impl Hash + std::fmt::Debug,
     cmds: &mut ActionQueue,
     x_to_time: impl Fn(f32) -> f64,
 ) {
-    let bar_id = ui.id().with(id_salt);
+    let bar_id = ui.scope_id().with(id_salt);
     let response = ui.interact(bar_rect, bar_id, Sense::click_and_drag());
-    if response.clicked() || response.dragged() {
-        if let Some(pos) = response.interact_pointer_pos() {
-            let new_time = x_to_time(pos.x);
-            cmds.push_back(Command::ScrubTo(new_time).into());
-        }
+    if (response.clicked() || response.dragged())
+        && let Some(pos) = response.interact_pointer_pos()
+    {
+        let new_time = x_to_time(pos.x);
+        cmds.push_back(Command::ScrubTo(new_time).into());
     }
 }
 
@@ -230,32 +231,32 @@ pub(crate) fn render_range_slider(
 
         let hs = Vec2::new(12.0, sp.timeline.range_height);
         let sh = Rect::from_center_size(Pos2::new(wx, range_bar.center().y), hs);
-        let sr = ui.interact(sh, ui.id().with("range_start_handle"), Sense::click_and_drag());
-        if sr.dragged() {
-            if let Some(pos) = sr.interact_pointer_pos() {
-                let end = preview.playback.loop_end_s.unwrap_or(duration_s);
-                preview.playback.loop_start_s = Some(coords.x_to_time(pos.x).min(end - 0.05));
-            }
+        let sr = ui.interact(sh, ui.scope_id().with("range_start_handle"), Sense::click_and_drag());
+        if sr.dragged()
+            && let Some(pos) = sr.interact_pointer_pos()
+        {
+            let end = preview.playback.loop_end_s.unwrap_or(duration_s);
+            preview.playback.loop_start_s = Some(coords.x_to_time(pos.x).min(end - 0.05));
         }
         painter.rect_filled(sh, RADIUS_S, theme.palette.accent.primary);
 
         let eh = Rect::from_center_size(Pos2::new(wy, range_bar.center().y), hs);
-        let er = ui.interact(eh, ui.id().with("range_end_handle"), Sense::click_and_drag());
-        if er.dragged() {
-            if let Some(pos) = er.interact_pointer_pos() {
-                let start = preview.playback.loop_start_s.unwrap_or(0.0);
-                preview.playback.loop_end_s = Some(coords.x_to_time(pos.x).max(start + 0.05));
-            }
+        let er = ui.interact(eh, ui.scope_id().with("range_end_handle"), Sense::click_and_drag());
+        if er.dragged()
+            && let Some(pos) = er.interact_pointer_pos()
+        {
+            let start = preview.playback.loop_start_s.unwrap_or(0.0);
+            preview.playback.loop_end_s = Some(coords.x_to_time(pos.x).max(start + 0.05));
         }
         painter.rect_filled(eh, RADIUS_S, theme.palette.accent.primary);
 
         // Reciprocal enforcement: ensure end > start + 0.05
-        if let (Some(ls), Some(le)) = (preview.playback.loop_start_s, preview.playback.loop_end_s) {
-            if le <= ls + 0.05 {
-                let mid = (ls + le) / 2.0;
-                preview.playback.loop_start_s = Some((mid - 0.025).max(0.0));
-                preview.playback.loop_end_s = Some((mid + 0.025).min(duration_s));
-            }
+        if let (Some(ls), Some(le)) = (preview.playback.loop_start_s, preview.playback.loop_end_s)
+            && le <= ls + 0.05
+        {
+            let mid = (ls + le) / 2.0;
+            preview.playback.loop_start_s = Some((mid - 0.025).max(0.0));
+            preview.playback.loop_end_s = Some((mid + 0.025).min(duration_s));
         }
     } else {
         // Loop is off — show full-duration static indicator

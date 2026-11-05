@@ -61,4 +61,7 @@ mod helpers;
 mod run;
 mod screenshot;
 
+#[cfg(feature = "dev-screenshots")]
+use screenshot::ScreenshotSession;
+
 pub use run::run_gui;

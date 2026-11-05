@@ -250,10 +250,9 @@ fn collect_assignment_target_names(stmts: &[Stmt]) -> HashSet<String> {
         if let Stmt::Assignment {
             target, property, ..
         } = stmt
+            && target.is_empty()
         {
-            if target.is_empty() {
-                bound.insert(property.clone());
-            }
+            bound.insert(property.clone());
         }
     });
     bound

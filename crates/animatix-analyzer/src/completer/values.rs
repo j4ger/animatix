@@ -166,72 +166,72 @@ pub(super) fn value_for_property(
     }
 
     // Property-name-specific completions (fallback when no type annotation)
-    if expected_type.is_none() {
-        if let Some(name) = property_name {
-            match name.as_str() {
-                "overflow" => {
-                    items.extend(["visible", "clip", "ellipsis"].iter().map(|v| CompletionItem {
+    if expected_type.is_none()
+        && let Some(name) = property_name
+    {
+        match name.as_str() {
+            "overflow" => {
+                items.extend(["visible", "clip", "ellipsis"].iter().map(|v| CompletionItem {
+                    label: v.to_string(),
+                    kind: CompletionKind::Value,
+                    detail: Some("Overflow".to_string()),
+                    documentation: None,
+                    insert_text: Some(format!("\"{}\"", v)),
+                }));
+            },
+            "text_align" => {
+                items.extend(["left", "center", "right", "justify"].iter().map(|v| {
+                    CompletionItem {
                         label: v.to_string(),
                         kind: CompletionKind::Value,
-                        detail: Some("Overflow".to_string()),
+                        detail: Some("Alignment".to_string()),
                         documentation: None,
                         insert_text: Some(format!("\"{}\"", v)),
-                    }));
-                },
-                "text_align" => {
-                    items.extend(["left", "center", "right", "justify"].iter().map(|v| {
-                        CompletionItem {
-                            label: v.to_string(),
-                            kind: CompletionKind::Value,
-                            detail: Some("Alignment".to_string()),
-                            documentation: None,
-                            insert_text: Some(format!("\"{}\"", v)),
-                        }
-                    }));
-                },
-                "text_anchor" => {
-                    items.extend(["left", "center", "right"].iter().map(|v| CompletionItem {
+                    }
+                }));
+            },
+            "text_anchor" => {
+                items.extend(["left", "center", "right"].iter().map(|v| CompletionItem {
+                    label: v.to_string(),
+                    kind: CompletionKind::Value,
+                    detail: Some("Anchor".to_string()),
+                    documentation: None,
+                    insert_text: Some(format!("\"{}\"", v)),
+                }));
+            },
+            "anchor" => {
+                items.extend(
+                    [
+                        "center",
+                        "top",
+                        "bottom",
+                        "left",
+                        "right",
+                        "top-left",
+                        "top-right",
+                        "bottom-left",
+                        "bottom-right",
+                    ]
+                    .iter()
+                    .map(|v| CompletionItem {
                         label: v.to_string(),
                         kind: CompletionKind::Value,
-                        detail: Some("Anchor".to_string()),
+                        detail: Some("Anchor point".to_string()),
                         documentation: None,
                         insert_text: Some(format!("\"{}\"", v)),
-                    }));
-                },
-                "anchor" => {
-                    items.extend(
-                        [
-                            "center",
-                            "top",
-                            "bottom",
-                            "left",
-                            "right",
-                            "top-left",
-                            "top-right",
-                            "bottom-left",
-                            "bottom-right",
-                        ]
-                        .iter()
-                        .map(|v| CompletionItem {
-                            label: v.to_string(),
-                            kind: CompletionKind::Value,
-                            detail: Some("Anchor point".to_string()),
-                            documentation: None,
-                            insert_text: Some(format!("\"{}\"", v)),
-                        }),
-                    );
-                },
-                "opacity" | "scale" => {
-                    items.extend([0.0, 0.25, 0.5, 0.75, 1.0].iter().map(|v| CompletionItem {
-                        label: format!("{}", v),
-                        kind: CompletionKind::Value,
-                        detail: Some("Number".to_string()),
-                        documentation: None,
-                        insert_text: None,
-                    }));
-                },
-                _ => {},
-            }
+                    }),
+                );
+            },
+            "opacity" | "scale" => {
+                items.extend([0.0, 0.25, 0.5, 0.75, 1.0].iter().map(|v| CompletionItem {
+                    label: format!("{}", v),
+                    kind: CompletionKind::Value,
+                    detail: Some("Number".to_string()),
+                    documentation: None,
+                    insert_text: None,
+                }));
+            },
+            _ => {},
         }
     }
 

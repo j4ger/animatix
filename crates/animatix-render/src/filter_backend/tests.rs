@@ -131,6 +131,7 @@ async fn create_headless_device() -> Option<(wgpu::Device, wgpu::Queue)> {
             power_preference: wgpu::PowerPreference::default(),
             compatible_surface: None,
             force_fallback_adapter: true,
+            apply_limit_buckets: false,
         })
         .await
         .ok()?;
@@ -704,7 +705,7 @@ fn grain_perturbs_flat_field_deterministically() {
 
     let image = render(&mut make_backend(), &scene, DIMS, &effect_chain("Grain", params.clone()));
     let raw = image.data.data.data();
-    let touched = raw.chunks_exact(4).filter(|px| px[0] != 128).count();
+    let touched = raw.as_chunks::<4>().0.iter().filter(|px| px[0] != 128).count();
     assert!(
         touched > 64,
         "grain should perturb most pixels of a flat field, only {touched} changed"

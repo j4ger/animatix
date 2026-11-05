@@ -103,10 +103,10 @@ pub fn missing_text_glyphs(
         // bundled face as the per-char fallback set.
         let resolved_family = resolve_font_family(family, font_ctx);
         let mut faces: Vec<ttf_parser::Face<'static>> = Vec::new();
-        if let Some(bf) = bundled_face(&resolved_family, weight, style) {
-            if let Ok(face) = ttf_parser::Face::parse(bf.data, 0) {
-                faces.push(face);
-            }
+        if let Some(bf) = bundled_face(&resolved_family, weight, style)
+            && let Ok(face) = ttf_parser::Face::parse(bf.data, 0)
+        {
+            faces.push(face);
         }
         if faces.is_empty() {
             match font_ctx.load_face(&resolved_family, weight, style) {

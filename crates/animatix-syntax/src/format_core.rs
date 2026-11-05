@@ -5,9 +5,9 @@
 //!
 //! # Relationship to other modules
 //!
-//! - [`to_source`](crate::to_source) wraps this module's functions with a convenient trait (fixed
+//! - [`to_source`] wraps this module's functions with a convenient trait (fixed
 //!   indent = 2).
-//! - [`formatter`](crate::formatter) wraps this module's functions with configurable indent and
+//! - [`formatter`] wraps this module's functions with configurable indent and
 //!   other formatting options.
 //!
 //! # Compatibility with shared walk primitives

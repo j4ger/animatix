@@ -120,7 +120,7 @@ fn solid_scene(color: &str, size: u32) -> Timeline {
 fn average(frame: &RenderedFrame) -> [f32; 3] {
     let pixels = frame.rgba.len() / 4;
     let mut sum = [0f64; 3];
-    for px in frame.rgba.chunks_exact(4) {
+    for px in frame.rgba.as_chunks::<4>().0 {
         sum[0] += px[0] as f64;
         sum[1] += px[1] as f64;
         sum[2] += px[2] as f64;
@@ -143,6 +143,7 @@ async fn headless_device() -> Option<(wgpu::Device, wgpu::Queue)> {
             power_preference: wgpu::PowerPreference::default(),
             compatible_surface: None,
             force_fallback_adapter: true,
+            apply_limit_buckets: false,
         })
         .await
         .ok()?;
@@ -303,7 +304,7 @@ fn readback_texture(
         Err(e) => panic!("poll failed: {e:?}"),
     }
     rx.recv().unwrap().expect("map failed");
-    slice.get_mapped_range().to_vec()
+    slice.get_mapped_range().expect("mapped range").to_vec()
 }
 
 fn pixel(data: &[u8], size: u32, x: u32, y: u32) -> [u8; 4] {
@@ -481,12 +482,13 @@ fade-in chip [300ms]
     // The t=0 frame renders both scopes fully transparent (fade-in hasn't
     // started) — exactly the history that used to poison the image atlas.
     let first = render(&mut renderer, &timeline, 0.0, dims);
-    let bright = first.rgba.chunks_exact(4).step_by(41).filter(|px| px[0] > 60).count();
+    let bright = first.rgba.as_chunks::<4>().0.iter().step_by(41).filter(|px| px[0] > 60).count();
     assert_eq!(bright, 0, "fade-in must leave the first frame empty");
 
     for i in 0..5 {
         let frame = render(&mut renderer, &timeline, 1.0, dims);
-        let bright = frame.rgba.chunks_exact(4).step_by(41).filter(|px| px[0] > 60).count();
+        let bright =
+            frame.rgba.as_chunks::<4>().0.iter().step_by(41).filter(|px| px[0] > 60).count();
         assert!(
             bright > 500,
             "iteration {i}: checker backdrop lost (bright={bright}; the pre-fix \
@@ -905,7 +907,7 @@ fn blits_into_bgra8_targets() {
     // Source: opaque red in the top half, transparent below — the blit must
     // land both, alpha-blended over the cleared destination.
     let mut pixels = vec![0u8; (SIZE * SIZE * 4) as usize];
-    for px in pixels.chunks_exact_mut(4).take((SIZE * SIZE / 2) as usize) {
+    for px in pixels.as_chunks_mut::<4>().0.iter_mut().take((SIZE * SIZE / 2) as usize) {
         px.copy_from_slice(&[220, 40, 40, 255]);
     }
     queue.write_texture(

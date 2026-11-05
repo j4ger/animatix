@@ -89,10 +89,10 @@ fn update_assignment_easing(
                 {
                     return Ok(());
                 }
-                if let Some(else_b) = else_branch {
-                    if let Ok(()) = update_assignment_easing(else_b, actor, property, easing_expr) {
-                        return Ok(());
-                    }
+                if let Some(else_b) = else_branch
+                    && let Ok(()) = update_assignment_easing(else_b, actor, property, easing_expr)
+                {
+                    return Ok(());
                 }
             },
             Stmt::ForLoop { body, .. } => {

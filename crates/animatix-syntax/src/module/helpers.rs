@@ -25,10 +25,10 @@ pub(super) fn collect_pub_type_aliases(statements: &[Stmt]) -> HashMap<String, T
 pub(super) fn collect_pub_components(statements: &[Stmt]) -> HashMap<String, ComponentDef> {
     let mut result = HashMap::new();
     for stmt in statements {
-        if let Stmt::ComponentDef(def, _) = stmt {
-            if def.is_pub {
-                result.insert(def.name.clone(), def.clone());
-            }
+        if let Stmt::ComponentDef(def, _) = stmt
+            && def.is_pub
+        {
+            result.insert(def.name.clone(), def.clone());
         }
     }
     result

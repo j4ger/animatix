@@ -69,7 +69,7 @@ pub(super) fn render_cell_body(
     let digits = format!("{max_line}").len().max(2);
     let gutter_w = digits as f32 * char_width + sp.editor.gutter_padding;
 
-    let text_edit_id = ui.id().with(("cell_body", index));
+    let text_edit_id = ui.scope_id().with(("cell_body", index));
 
     let edit_response = ui
         .horizontal(|ui| {
@@ -321,10 +321,11 @@ pub(super) fn track_cursor(response: &egui::Response, state: &mut CellEditorStat
         return;
     }
     state.focused_rect = Some(response.rect);
-    if let Some(te_state) = egui::text_edit::TextEditState::load(&response.ctx, response.id) {
-        if let Some(range) = te_state.cursor.char_range() {
-            state.focused_cursor_char = Some(range.primary.index);
-        }
+    if let Some(te_state) = egui::text_edit::TextEditState::load(&response.ctx, response.id)
+        && let Some(range) = te_state.cursor.char_range()
+    {
+        // `CCursor::index` is a typed `CharIndex` in egui 0.37.
+        state.focused_cursor_char = Some(range.primary.index.0);
     }
 }
 
@@ -406,7 +407,7 @@ pub(super) fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEdi
     // Smooth hover transition for the divider line
     let t = anim::animate_toward(
         ui.ctx(),
-        ui.id().with(("divider_line", after_index)),
+        ui.scope_id().with(("divider_line", after_index)),
         if response.hovered() { 1.0 } else { 0.0 },
         motion::HOVER,
     );
@@ -441,7 +442,7 @@ pub(super) fn divider(ui: &mut egui::Ui, after_index: usize, state: &mut CellEdi
     // it's always on screen.
     let btn_t = anim::animate_toward(
         ui.ctx(),
-        ui.id().with(("divider_btn", after_index)),
+        ui.scope_id().with(("divider_btn", after_index)),
         if response.hovered() || response.is_pointer_button_down_on() {
             1.0
         } else {

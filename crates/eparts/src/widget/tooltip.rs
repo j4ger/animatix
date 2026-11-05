@@ -5,7 +5,7 @@
 //! State is kept in `egui::Memory`, keyed by an `Id` derived from the trigger.
 //!
 //! ```ignore
-//! Tooltip::new(ui.id().with("my_tooltip"))
+//! Tooltip::new(ui.scope_id().with("my_tooltip"))
 //!     .open_delay(400.0)
 //!     .show(ui, &response, |ui| { ui.label("Rich content"); });
 //! ```
@@ -39,7 +39,7 @@ pub struct Tooltip {
 impl Tooltip {
     /// Create a tooltip builder. `id` namespaces transient state and is combined
     /// with the trigger's response id, so one `id` may serve several triggers
-    /// with independent hover/grace state. Typically `ui.id().with("tooltip")`.
+    /// with independent hover/grace state. Typically `ui.scope_id().with("tooltip")`.
     pub fn new(id: Id) -> Self {
         Self {
             id,
@@ -171,14 +171,14 @@ mod tests {
 
     #[test]
     fn builder_defaults() {
-        let t = Tooltip::new(Id::new("test"));
+        let t = Tooltip::new(Id::unique("test"));
         assert_eq!(t.open_delay, DEFAULT_OPEN_DELAY_MS);
         assert_eq!(t.close_delay, DEFAULT_CLOSE_DELAY_MS);
     }
 
     #[test]
     fn builder_overrides() {
-        let t = Tooltip::new(Id::new("test")).open_delay(100.0).close_delay(50.0);
+        let t = Tooltip::new(Id::unique("test")).open_delay(100.0).close_delay(50.0);
         assert_eq!(t.open_delay, 100.0);
         assert_eq!(t.close_delay, 50.0);
     }
@@ -187,9 +187,9 @@ mod tests {
     /// triggers sharing a constant tooltip id shared one hover state.
     #[test]
     fn state_key_is_per_trigger() {
-        let tooltip = Id::new("shared_tooltip");
-        let trigger_a = Id::new("trigger_a");
-        let trigger_b = Id::new("trigger_b");
+        let tooltip = Id::unique("shared_tooltip");
+        let trigger_a = Id::unique("trigger_a");
+        let trigger_b = Id::unique("trigger_b");
 
         assert_ne!(
             state_key(trigger_a, tooltip),
