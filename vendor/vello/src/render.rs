@@ -162,10 +162,11 @@ impl Render {
         // Animatix patch: an image-free render must not free or replace the
         // persistent image atlas. Upstream 0.11 resizes it to 1x1 here, which
         // drops the residency state and makes the next image render vanish
-        // (upstream #1558) for scenes that interleave image and non-image
-        // renders — exactly our multi-scope filter pipeline. Keep the atlas
-        // alive; a following image render with the same dimensions hits the
-        // `Reused` branch and uploads only what changed.
+        // (upstream issue #1948, the patchless-resolve variant of #1558) for
+        // scenes that interleave image and non-image renders — exactly our
+        // multi-scope filter pipeline. Keep the atlas alive; a following image
+        // render with the same dimensions hits the `Reused` branch and uploads
+        // only what changed. Upstream fix PR #1664 is approved but unmerged.
         let (image_atlas, atlas_proxy_action) = if images.images.is_empty() && images.evicted == 0 {
             match persistent_image_atlas {
                 Some(proxy) => (*proxy, AtlasProxyAction::Reused),

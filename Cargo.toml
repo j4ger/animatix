@@ -98,11 +98,14 @@ codegen-units = 1
 panic = "abort"
 strip = "symbols"
 
-# vello 0.11.0 still resizes the persistent image atlas to 1x1 on image-free
-# renders, which resurrects upstream #1558 for scenes that interleave image and
-# non-image renders — exactly our multi-scope filter pipeline. `vendor/vello` is
-# unmodified vello 0.11.0 except for `src/render.rs`: an image-free render keeps
-# the existing atlas alive instead of freeing/replacing it. Drop this patch (and
-# the vendored directory) when upstream ships the fix.
+# vello 0.11.0 still reproduces upstream issue #1948 (the patchless-resolve
+# variant of the persistent image-atlas bug first reported as #1558): a frame
+# with no late-bound resources (no images, gradients or glyphs) resizes the
+# persistent atlas to 1x1, and the next image frame samples a blank texture —
+# exactly our multi-scope filter pipeline. Upstream fix PR #1664 is approved but
+# still unmerged/conflicting. `vendor/vello` is unmodified 0.11.0 except for
+# `src/render.rs`: an image-free render keeps the existing atlas alive instead of
+# freeing/replacing it. Drop this patch (and the vendored directory) when a
+# release contains #1664.
 [patch.crates-io]
 vello = { path = "vendor/vello" }
