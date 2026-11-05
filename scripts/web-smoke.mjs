@@ -136,8 +136,11 @@ function pageProbe() {
     // drops a queued player that has already been scrolled past. Walk them one
     // at a time and wait for each: that is what a reader does, and it makes the
     // gate deterministic instead of a race with the scroll position.
+    // Full-engine scenes compile a second wasm module; on SwiftShader CI that
+    // can take minutes per player. Keep the 120 s per-player bound but allow
+    // the page 15 min overall instead of 10 so a slow upgrade is not a flake.
     const results = [];
-    const globalDeadline = Date.now() + 600000;
+    const globalDeadline = Date.now() + 900000;
     for (const player of players) {
       const src = player.getAttribute("src");
       const deadline = Math.min(globalDeadline, Date.now() + 120000);

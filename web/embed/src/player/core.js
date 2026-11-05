@@ -402,10 +402,15 @@ function allocateBudget() {
   // embed takes the same square-root factor. Uniform scaling keeps the page
   // looking consistent; a per-embed split would make the largest figure soft
   // while a small one stayed sharp.
+  // A page that is still fetching/building a figure must not be resized: the
+  // active set is partial, so a transient total would shrink everyone and the
+  // texture churn competes with wasm compile/upgrade on software WebGPU (it
+  // pushed `/tour/`'s full-engine `effects.amx` past the smoke timeout).
+  const anyLoading = [...instances].some((inst) => inst._visible && inst._state === "loading");
   const budget = pageRasterBudget();
   let totalDesired = 0;
   for (const inst of active) totalDesired += inst._desiredRasterPixels?.() ?? 0;
-  const pagePixelScale = totalDesired > budget * 1.05
+  const pagePixelScale = !anyLoading && totalDesired > budget * 1.05
     ? Math.max(0.25, Math.sqrt(budget / totalDesired))
     : 1;
   const pageTargetFps = CADENCE_STEPS[cadenceStep];
