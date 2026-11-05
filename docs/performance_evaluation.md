@@ -1148,6 +1148,26 @@ distribution into `target/perf/web-baseline.json` / `target/perf/pages/`; use it
 before and after a page-level change, and use `web/dev/perf-probe.html` for GPU
 frame cost.
 
+### GPU frame cost is fixed per embed, not area-bound (P1 gate, 2026-11-05)
+
+`web/dev/perf-probe.html` (`debug_bench_frames` + one `debug_gpu_drain`) on a
+real RTX 4060 / headed Chromium Vulkan measured `gpu_ms = per_embed_ms − cpu_ms`
+across a 16–27× raster-area range:
+
+| scene | raster range | fixed `a` | area `b` | R² | max/min `gpu_ms` |
+|---|---|---:|---:|---:|---:|
+| attention (1 player) | 57.6 k – 1.56 MP | 0.75 ms | 0.018 ms/MP | 0.32 | 1.06 |
+| plain-fill `scene_rect` (1 player) | 14.4 k – 389 k px | 1.34 ms | 0.23 ms/MP | 0.11 | 1.06 |
+
+The largest-vs-smallest raster changes `gpu_ms` by less than 0.1 ms; the fitted
+fixed term accounts for essentially all of it (performance.now is quantized at
+0.1 ms). **Dirty-rect/static-layer caching is therefore ruled out**: shrinking
+the raster cannot recover a per-frame/per-dispatch/Dawn-side cost. The remaining
+lever is reducing the number of per-embed frames/submissions/presents (cadence,
+shared device/queue across embeds), not pixel area. The page pixel budget still
+matters for memory, bandwidth and weak GPUs, but on a fast GPU it will not move
+frame time. Raw samples and fits: `target/perf/gpu-scaling.json`.
+
 ---
 
 ## 4. How regressions are caught (gates)
