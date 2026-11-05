@@ -70,6 +70,8 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
     const cost = this._costMs > 0 ? `${this._costMs.toFixed(2)}ms` : "—";
     return `frame ${this.frame}/${this.totalFrames} @${FRAME_RATE}fps, ` +
       `time ${this.time.toFixed(3)}s, render scale ${(this._renderScale ?? 1).toFixed(2)}, ` +
+      `display ${(this._displayScale ?? 1).toFixed(2)}, pixel ${(this._pixelScale ?? 1).toFixed(2)}, ` +
+      `raster ${Math.round(this.rasterPixels)}px, ` +
       `target ${this._targetFps ?? FRAME_RATE}fps, cost ${cost}, ` +
       `pressure ${(this._pressure ?? 0).toFixed(2)}, ${this._why || "ok"}`;
   }
@@ -83,6 +85,18 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
   }
   get qualityScale() {
     return this._qualityScale ?? 1;
+  }
+  /// Display-matched raster scale (canvas backing before the budget steps).
+  get displayScale() {
+    return this._displayScale ?? 1;
+  }
+  /// Page-wide raster-budget multiplier; 1 while the page fits its budget.
+  get pixelScale() {
+    return this._pixelScale ?? 1;
+  }
+  /// Raster pixels this embed currently asks the engine for.
+  get rasterPixels() {
+    return this._rasterPixels();
   }
   /// Fraction of committed 60 Hz steps that missed their vsync (0..1). This is
   /// the real frame-pressure signal; `costMs` is only a relative weight now.
@@ -154,9 +168,9 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
   /// as the target, capped at the scene's own resolution, gives one 1:1 blit
   /// with no second resample and the fewest possible raster pixels — which is
   /// where a browser frame's cost lives.
-  /// The `qualityStep` multiplier on top is the page-wide concession when even
-  /// that will not hold a frame; it lowers the raster below the backing store,
-  /// so the blit upscales.
+  /// The `qualityStep` / page pixel-scale multiplier on top is the concession
+  /// when even that will not hold a frame or fit the page's raster budget; it
+  /// lowers the raster below the backing store, so the blit upscales.
   ///
   /// Resizing is debounced (100 ms) during dynamic drag to eliminate WebGPU
   /// swapchain reconfigurations and texture reallocation churn while CSS stretches
@@ -177,6 +191,10 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
       this._resizeDebounceTimer = null;
       if (!this.isConnected || !this._player) return;
       const cur = this._displayGeometry(sceneW, sceneH);
+      // Cache the display match: the shared scheduler compares rasters across
+      // embeds every window, and re-reading layout from there would be a
+      // forced-synchronous-layout per player per window.
+      this._displayScale = cur;
       const bw = Math.max(1, Math.round(sceneW * cur));
       const bh = Math.max(1, Math.round(sceneH * cur));
       if (this._canvas.width !== bw || this._canvas.height !== bh) {
@@ -185,7 +203,7 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
         // A reallocation frame is not evidence of steady-state cost.
         this._costMs = 0;
       }
-      const wanted = Math.min(2.0, Math.max(0.25, cur * (this._qualityScale || 1)));
+      const wanted = Math.min(2.0, Math.max(0.25, cur * this._effectiveScale()));
       this._renderScale = player.set_render_scale(wanted);
       this._invalidateRestFrame();
       if (!this._playing && this._state === "ready") {
@@ -230,6 +248,37 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
     const cap = Math.min(MAX_SUPERSAMPLE, Math.sqrt(MAX_RASTER_PIXELS / (sceneW * sceneH)));
     const display = Math.min(cap, deviceW / sceneW, deviceH / sceneH);
     return display > 0 ? display : 1;
+  }
+
+  /// Display-matched raster pixels *before* the budget's quality multiplier:
+  /// what this embed would raster if one scene unit mapped to one displayed
+  /// device pixel. This is the area the page-wide budget is split across.
+  /// Zero until a scene exists: an element that never loaded has no raster, and
+  /// reporting its placeholder canvas as one would make a lazy page look over
+  /// budget.
+  _desiredRasterPixels() {
+    if (!this._player) return 0;
+    const sceneW = this._player.scene_width?.() || this._canvas?.width || 0;
+    const sceneH = this._player.scene_height?.() || this._canvas?.height || 0;
+    const display = this._displayScale ?? 1;
+    return sceneW * sceneH * display * display;
+  }
+
+  /// Raster pixels this embed actually asks the engine for, after both budget
+  /// controllers: display match × min(quality step, page pixel scale).
+  _rasterPixels() {
+    if (!this._player) return 0;
+    const sceneW = this._player.scene_width?.() || this._canvas?.width || 0;
+    const sceneH = this._player.scene_height?.() || this._canvas?.height || 0;
+    const scale = (this._displayScale ?? 1) * this._effectiveScale();
+    return sceneW * sceneH * scale * scale;
+  }
+
+  /// The raster multiplier the two budget controllers agree on: `_qualityScale`
+  /// is the per-embed pressure ladder, `_pixelScale` is the page-wide area
+  /// budget. Both are upper bounds on the display match.
+  _effectiveScale() {
+    return Math.min(this._qualityScale ?? 1, this._pixelScale ?? 1);
   }
 
   // ── per-instance cadence / phase ──────────────────────────────────
@@ -292,12 +341,27 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
   /// time (which barely changes with resolution, so the old check always
   /// declared every trial ineffective and then locked raster reduction out
   /// for the rest of the document's life).
-  _adaptBudget(pageTargetFps, perInstanceMsPerSec, index, n, pressure) {
+  /// `pagePixelScale` is the page-wide area budget from core.js: every embed
+  /// scales by the same factor so the *sum* of their rasters fits the page's
+  /// pixel budget. It is an upper bound like `_qualityScale`, not a multiplier
+  /// on top of it — the two budgets must not compound.
+  _adaptBudget(pageTargetFps, perInstanceMsPerSec, index, n, pressure, pagePixelScale = 1) {
     const MAX_FPS = 60;
     const FLOOR_FPS = 20;
     const now = performance.now();
     this._phaseOffset = (index / Math.max(1, n)) * (1000 / Math.max(1, pageTargetFps));
     this._pressure = pressure;
+
+    // The page budget is re-split every window (~500 ms). Committing the new
+    // scale each time would reconfigure the swapchain and reallocate the
+    // offscreen texture for changes too small to see, so only apply it when
+    // the effective raster actually moved by more than 2%.
+    const scaleBefore = this._effectiveScale();
+    this._pixelScale = Number.isFinite(pagePixelScale) && pagePixelScale > 0 ? pagePixelScale : 1;
+    const scaleAfter = this._effectiveScale();
+    if (Math.abs(scaleAfter - scaleBefore) > scaleBefore * 0.02) {
+      this._applyRenderScale(true);
+    }
 
     if (this._scaleTrial) {
       if (pressure >= this._scaleTrial.pressureBefore * 0.9) {
@@ -312,7 +376,12 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
 
     const desired = this._desiredFps || FRAME_RATE;
     const refreshCap = Math.min(MAX_FPS, Math.max(30, Math.round(1000 / core.refreshInterval)));
-    const target = Math.max(FLOOR_FPS, Math.min(desired, refreshCap, pageTargetFps));
+    // The 20 fps floor belongs to the page-wide ladder, not to the author's
+    // explicit per-embed cap: `data-fps="12"` must actually reach 12, or the
+    // 12..60 clamp would be a lie for the bottom of its range. With the default
+    // 60 this is identical to the old `max(FLOOR, min(desired, …))`.
+    const pageCap = Math.max(FLOOR_FPS, Math.min(refreshCap, pageTargetFps));
+    const target = Math.min(desired, pageCap);
     const floorReached = pageTargetFps <= FLOOR_FPS;
     const scaleBlocked = this._scaleIneffectiveUntil && now < this._scaleIneffectiveUntil;
     if (floorReached && pressure > 0.25 && !scaleBlocked) {
@@ -322,15 +391,26 @@ export class AmxPlayerPlayback extends AmxPlayerInput {
       if (this._qualityScale < 1 && pressure < 0.05) this._maybeRaiseScale();
       this._why = target < desired ? "budget:fps" : "ok";
     }
+    if (this._pixelScale < 0.999) {
+      this._why = this._why === "ok" ? "budget:pixel" : `${this._why}+pixel`;
+    }
     this._targetFps = target;
     void perInstanceMsPerSec; // kept for callers that log the split budget
   }
 
+  /// Step down the raster ladder under sustained pressure. Large embeds skip
+  /// rungs: a single 0.85 step on a 2 Mpx raster still asks the GPU for
+  /// ~1.45 Mpx, so the trial would burn a whole window to prove nothing. The
+  /// stride is in rungs and the ladder's values are untouched, so `indexOf`
+  /// still identifies the current step.
   _maybeReduceScale(pressure) {
     const i = QUALITY_STEPS.indexOf(this._qualityScale);
     if (this._scaleTrial || i < 0 || i >= QUALITY_STEPS.length - 1) return;
+    const desiredPixels = this._desiredRasterPixels();
+    const extraRungs = desiredPixels >= 1_500_000 ? 2 : desiredPixels >= 600_000 ? 1 : 0;
+    const next = Math.min(QUALITY_STEPS.length - 1, i + 1 + extraRungs);
     this._scaleTrial = { from: this._qualityScale, pressureBefore: pressure };
-    this._qualityScale = QUALITY_STEPS[i + 1];
+    this._qualityScale = QUALITY_STEPS[next];
     this._applyRenderScale(true);
   }
 

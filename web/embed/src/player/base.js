@@ -73,6 +73,8 @@ export class AmxPlayerBase extends HTMLElement {
     this._lastSnappedMarker = null;
     // Per-instance adaptive quality (see core.js tick / playback controller).
     this._qualityScale = 1; // budget-driven raster multiplier (1 = display match)
+    this._displayScale = 1; // display-matched scale cached by _applyRenderScale
+    this._pixelScale = 1; // page-wide raster-budget multiplier (1 = within budget)
     this._desiredFps = FRAME_RATE;
     this._targetFps = FRAME_RATE;
     this._costMs = 0; // EMA of this embed's own render time
@@ -93,6 +95,10 @@ export class AmxPlayerBase extends HTMLElement {
   }
 
   connectedCallback() {
+    // `data-fps` / `fps` caps this embed's cadence (12..60). Re-read on every
+    // attach so a DOM move cannot strand a stale value; `load.js` re-reads it
+    // once the document is built.
+    this._desiredFps = this._fpsCap();
     if (!this._initialized) {
       this._initialized = true;
       this._renderSkeleton();
@@ -251,6 +257,17 @@ export class AmxPlayerBase extends HTMLElement {
       return "draft";
     }
     return value;
+  }
+
+  /// `data-fps` / `fps` — the per-embed cadence cap, clamped to 12..60. Absent
+  /// (or unparseable) keeps the full 60 Hz timeline cadence. The page-wide
+  /// ladder in core.js can still lower it under pressure; this only caps.
+  _fpsCap() {
+    const raw = this.getAttribute("data-fps") ?? this.getAttribute("fps");
+    if (raw === null || raw === "") return FRAME_RATE;
+    const value = Number(raw);
+    if (!Number.isFinite(value)) return FRAME_RATE;
+    return Math.min(60, Math.max(12, Math.round(value)));
   }
 
   // ── skeleton / surfaces ─────────────────────────────────────────

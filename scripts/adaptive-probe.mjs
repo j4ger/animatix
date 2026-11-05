@@ -21,6 +21,12 @@
 //   AP_INJECT_GAP=<ms>    window.__amxInjectPressure(steps, gap) once, so the
 //                         controller's down-step path is exercised
 //                         deterministically in headless CI (default gap 40 ms).
+//   AP_PAGE_PIXELS=<n>    page-wide raster-pixel budget. Installed as
+//                         `window.__amxPageRasterPixels` in a
+//                         document-start script, i.e. before any player
+//                         initialises. The run asserts the measured page
+//                         raster stays within 10% of it and exits nonzero
+//                         otherwise.
 //   HB_HEADED=1           real window on a real GPU (Linux WebGPU needs
 //                         HB_UNSAFE_WEBGPU=1; run with the NVIDIA ICD env)
 //   HB_SOFTWARE=1         force SwiftShader (reproducible anywhere). Its fps is a
@@ -49,6 +55,9 @@ const scene = process.env.AP_SCENE || "./adaptive_probe.amx";
 const manual = process.env.AP_MANUAL === "0" ? "0" : "1";
 const inject = process.env.AP_INJECT || "";
 const injectGap = process.env.AP_INJECT_GAP || "40";
+const pagePixelsRaw = process.env.AP_PAGE_PIXELS ?? "";
+const pagePixels = Number(pagePixelsRaw);
+const pageBudget = Number.isFinite(pagePixels) && pagePixels > 0 ? pagePixels : null;
 // Only manual-tick mode installs the synthetic scheduler hook. real-rAF mode
 // must NOT carry amxmanualtick=1: that flag replaces the real scheduler AND
 // disables core.js's visibility guard, which would hide the very GPU-saturation
@@ -143,25 +152,115 @@ async function main() {
   try {
     await waitFor("site server", 20000, async () => (await fetch(`${base}/`)).ok);
     await waitFor("CDP", 30000, async () => (await fetch(`http://127.0.0.1:${cdpPort}/json/version`)).ok);
-    let resp = await fetch(`http://127.0.0.1:${cdpPort}/json/new?${encodeURIComponent(`${base}${PAGE}`)}`, { method: "PUT" });
-    if (!resp.ok) resp = await fetch(`http://127.0.0.1:${cdpPort}/json/new?${encodeURIComponent(`${base}${PAGE}`)}`);
+    // Create a blank target and navigate it ourselves: the page budget must be
+    // on `window` before the embed module runs, and `/json/new?<page>` would
+    // race the module's first `allocateBudget` call.
+    let resp = await fetch(`http://127.0.0.1:${cdpPort}/json/new?${encodeURIComponent("about:blank")}`, { method: "PUT" });
+    if (!resp.ok) resp = await fetch(`http://127.0.0.1:${cdpPort}/json/new?${encodeURIComponent("about:blank")}`);
     const target = await resp.json();
     cdp = new Cdp(target.webSocketDebuggerUrl);
     await cdp.open();
     await cdp.send("Runtime.enable");
+    await cdp.send("Page.enable");
+    if (pageBudget) {
+      await cdp.send("Page.addScriptToEvaluateOnNewDocument", {
+        source: `window.__amxPageRasterPixels = ${pageBudget};`,
+      });
+    }
+    await cdp.send("Page.navigate", { url: `${base}${PAGE}` });
     await waitFor("__adaptive", 120000, async () => {
       const { result } = await cdp.send("Runtime.evaluate", { expression: "!!window.__adaptive", returnByValue: true });
       return result.value === true;
     });
-    const { result } = await cdp.send("Runtime.evaluate", { expression: "JSON.stringify(window.__adaptive.summary)", returnByValue: true });
+    // The page publishes its own summary; page-raster accounting is added here
+    // from the live elements, because the probe page is not the only consumer
+    // of the embed and the budget belongs to the page, not to one figure.
+    // Tolerant reads: a pre-budget bundle has no `rasterPixels`/`_rasterPixels`,
+    // so fall back to the engine's own raster size rather than throwing.
+    const summaryExpr = `(() => {
+      const s = (window.__adaptive && window.__adaptive.summary) || {};
+      const els = Array.from(document.querySelectorAll("amx-player"));
+      let pageRasterPixels = 0;
+      let rasterPlayers = 0;
+      let pixelSum = 0;
+      let pixelCount = 0;
+      for (const el of els) {
+        // Mirror the controller's active set: an element that has not built a
+        // scene holds no raster, so its placeholder canvas must not be counted.
+        if (el._state !== "ready") continue;
+        let px = NaN;
+        try {
+          const v = el.rasterPixels;
+          if (typeof v === "number" && Number.isFinite(v)) px = v;
+        } catch { /* getter unavailable */ }
+        if (!Number.isFinite(px)) {
+          try { px = el._rasterPixels(); } catch { /* not this bundle */ }
+        }
+        if (!Number.isFinite(px)) {
+          try {
+            const p = el._player;
+            if (p && typeof p.raster_width === "function") {
+              px = p.raster_width() * p.raster_height();
+            }
+          } catch { /* player gone */ }
+        }
+        if (!Number.isFinite(px) || px <= 0) continue;
+        pageRasterPixels += px;
+        rasterPlayers += 1;
+        let ps = NaN;
+        try { ps = el.pixelScale; } catch { /* getter unavailable */ }
+        if (!Number.isFinite(ps)) { try { ps = el._pixelScale; } catch { /* ignore */ } }
+        if (Number.isFinite(ps)) { pixelSum += ps; pixelCount += 1; }
+      }
+      return JSON.stringify({
+        ...s,
+        pageRasterPixels: rasterPlayers ? pageRasterPixels : null,
+        avgPixelScale: pixelCount ? pixelSum / pixelCount : null,
+        rasterPlayers,
+      });
+    })()`;
+    const { result } = await cdp.send("Runtime.evaluate", { expression: summaryExpr, returnByValue: true });
     console.log(result.value);
+    let summary = {};
+    try { summary = JSON.parse(result.value); } catch { /* printed raw above */ }
     // Identify what actually ran so nobody mistakes SwiftShader fps for a
     // real-GPU number, or a synthetic manual-tick cadence for real display rAF.
     const mode = manual === "0" ? "real-rAF" : "manual-tick";
     const adapter = SOFTWARE ? "SOFTWARE SwiftShader (HB_SOFTWARE=1)" : "real GPU";
     let achieved = "";
-    try { const s = JSON.parse(result.value); if (typeof s?.achievedFps === "number") achieved = ` achievedFps=${s.achievedFps.toFixed(2)}`; } catch {}
+    if (typeof summary?.achievedFps === "number") achieved = ` achievedFps=${summary.achievedFps.toFixed(2)}`;
     console.error(`[adaptive-probe] mode=${mode} | adapter=${adapter}${achieved}${SOFTWARE ? " | NOTE: SwiftShader fps is NOT a real-GPU number" : ""}`);
+    if (pageBudget) {
+      // The assertion is the point of AP_PAGE_PIXELS: a run that prints a
+      // number but exits 0 regardless cannot gate anything. 10% slack covers
+      // the difference between the controller's model (scene px × display
+      // scale) and the engine's rounded raster size.
+      const actual = summary?.pageRasterPixels;
+      const limit = pageBudget * 1.1;
+      const scaleText = typeof summary?.avgPixelScale === "number"
+        ? summary.avgPixelScale.toFixed(3)
+        : "n/a";
+      if (typeof actual === "number" && Number.isFinite(actual)) {
+        if (actual <= limit) {
+          console.error(
+            `[adaptive-probe] page budget ok: pageRasterPixels=${Math.round(actual)} <= ${Math.round(limit)} ` +
+            `(AP_PAGE_PIXELS=${pageBudget}, avgPixelScale=${scaleText})`,
+          );
+        } else {
+          console.error(
+            `[adaptive-probe] FAIL: pageRasterPixels=${Math.round(actual)} > ${Math.round(limit)} ` +
+            `(AP_PAGE_PIXELS=${pageBudget}, avgPixelScale=${scaleText})`,
+          );
+          process.exitCode = 1;
+        }
+      } else {
+        console.error(
+          `[adaptive-probe] FAIL: pageRasterPixels unavailable (rasterPlayers=${summary?.rasterPlayers ?? 0}); ` +
+          `cannot verify AP_PAGE_PIXELS=${pageBudget}`,
+        );
+        process.exitCode = 1;
+      }
+    }
     if (mode === "real-rAF" && !HEADED) {
       console.error("[adaptive-probe] WARNING: real-rAF requires a headed window (HB_HEADED=1 / AP_HEADED=1); headless/backgrounded tabs deliver no rAF callbacks.");
     }

@@ -157,12 +157,14 @@ export class AmxPlayerLoad extends AmxPlayerView {
       setTimeout(() => {
         if (this._skeleton?.isConnected) this._skeleton.remove();
       }, 300);
-      // A fresh document starts sharp and at full cadence; the budget
+      // A fresh document starts sharp and at its authored cadence; the budget
       // controller steps down only if this machine cannot hold it, and never
       // inherits a degraded raster from the previous scene.
       this._qualityScale = 1;
-      this._desiredFps = FRAME_RATE;
-      this._targetFps = FRAME_RATE;
+      this._pixelScale = 1;
+      this._displayScale = 1;
+      this._desiredFps = this._fpsCap();
+      this._targetFps = this._desiredFps;
       this._costMs = 0;
       this._scaleTrial = null;
       this._scaleIneffective = false;

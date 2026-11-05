@@ -319,6 +319,17 @@ Behavior:
   to give, so 2× bought nothing but quadrupled GPU work). Plain `devicePixelRatio`
   is still honoured up to that cap. Layout is unaffected — the timeline still
   evaluates against the scene's `SceneDimensions`.
+- **Page raster budget** — the per-element cap above only bounds one figure. The
+  player sums every *playing and visible* embed's display-matched raster and, when
+  the total exceeds `MAX_PAGE_RASTER_PIXELS` (**4,000,000**), scales them all by
+  `sqrt(budget / total)` (uniform, so the page stays visually consistent). Read
+  `window.__amxPageRasterPixels` to override the budget for a page or a probe;
+  `player.displayScale` / `player.pixelScale` / `player.rasterPixels` expose the
+  split. The pressure ladder and the page budget are combined with **min**, never
+  multiplied, so they cannot compound. When pressure does bind, large embeds skip
+  extra raster rungs (≥1.5 MP: +2, ≥0.6 MP: +1).
+- **`data-fps` / `fps`** — per-element cadence cap, clamped to 12–60, default 60.
+  The page-wide pressure ladder can lower it further, never raise it.
 - **Adaptive quality** — the compensation for a page that cannot hold the frame
   rate is a page-wide **cadence ladder** (`CADENCE_STEPS = 60,50,40,30,24,20`),
   applied **fps before raster**: lowering a frame's *rate* costs no sharpness,

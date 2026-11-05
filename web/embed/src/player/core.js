@@ -201,6 +201,15 @@ const MANUAL_TICK = /(?:\?|&)amxmanualtick\b/.test(location.search);
 // with several figures at 60 fps instead of throttling them defensively.
 const PAGE_BUDGET_MS_PER_S = 900;
 const BUDGET_HEADROOM = 0.9;
+// Page-wide raster-pixel budget: the sum of every playing embed's
+// display-matched raster (CSS px × devicePixelRatio, before the quality ladder)
+// must fit here, or `allocateBudget` scales them all down together. The cadence
+// ladder in playback.js is a *frame-rate* concession; this is the *area* one,
+// and it applies even on a fast machine where no frame is ever missed — six
+// 1080p embeds are 12.4 Mpx of GPU raster per frame regardless of fps.
+// `window.__amxPageRasterPixels` (finite and > 0) overrides it for probes and
+// pages that know their own budget.
+const MAX_PAGE_RASTER_PIXELS = 4_000_000;
 // Learned from the first frames so a 120/144 Hz display renders the 60 fps
 // timeline at 60, rather than twice. Only short gaps are averaged: a 23–54 ms
 // synchronous wasm build during arrival scheduling must not pollute it.
@@ -366,6 +375,15 @@ function tick(t) {
   }
 }
 
+/// The page's raster-pixel ceiling: the override when a page or probe sets a
+/// finite positive `window.__amxPageRasterPixels`, else the built-in budget.
+/// Read at allocation time, not module init, so a driver can install it before
+/// the first player exists.
+function pageRasterBudget() {
+  const override = Number(window.__amxPageRasterPixels);
+  return Number.isFinite(override) && override > 0 ? override : MAX_PAGE_RASTER_PIXELS;
+}
+
 /// Re-split the work across the visible, playing embeds. The cadence ladder is
 /// page-wide; each embed gets a phase offset so N renders do not all land in the
 /// same rAF tick, plus a hard per-tick cap derived from the ladder. `_costMs`
@@ -379,11 +397,22 @@ function allocateBudget() {
   const n = active.length;
   if (!n) return;
   active.sort((a, b) => (b._costMs || 0) - (a._costMs || 0));
+  // Page-wide area budget: when the display-matched rasters together exceed it
+  // (with 5% slack so a hair over budget does not downscale everything), every
+  // embed takes the same square-root factor. Uniform scaling keeps the page
+  // looking consistent; a per-embed split would make the largest figure soft
+  // while a small one stayed sharp.
+  const budget = pageRasterBudget();
+  let totalDesired = 0;
+  for (const inst of active) totalDesired += inst._desiredRasterPixels?.() ?? 0;
+  const pagePixelScale = totalDesired > budget * 1.05
+    ? Math.max(0.25, Math.sqrt(budget / totalDesired))
+    : 1;
   const pageTargetFps = CADENCE_STEPS[cadenceStep];
   const perInstanceMsPerSec = (PAGE_BUDGET_MS_PER_S * BUDGET_HEADROOM) / n;
   maxRendersPerTick = Math.max(1, Math.ceil(n * pageTargetFps / FRAME_RATE));
   for (let i = 0; i < n; i += 1) {
-    active[i]._adaptBudget(pageTargetFps, perInstanceMsPerSec, i, n, pagePressure);
+    active[i]._adaptBudget(pageTargetFps, perInstanceMsPerSec, i, n, pagePressure, pagePixelScale);
   }
 }
 
