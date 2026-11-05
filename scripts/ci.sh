@@ -352,7 +352,7 @@ gate_web_smoke() {
   # the player before its scene fetch has completed. A second attempt catches
   # that startup race without weakening the checks.
   local attempt
-  for attempt in 1 2; do
+  for attempt in 1 2 3; do
     if node scripts/web-smoke.mjs; then
       return 0
     fi

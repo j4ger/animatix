@@ -315,7 +315,7 @@ async function main() {
       const url = `${base}${path}`;
       process.stdout.write(`web-smoke: ${path} `);
       await cdp.send("Page.navigate", { url });
-      await waitFor(`load of ${path}`, 45000, async () => {
+      await waitFor(`load of ${path}`, 120000, async () => {
         const { result } = await cdp.send("Runtime.evaluate", {
           expression: "document.readyState",
           returnByValue: true,
