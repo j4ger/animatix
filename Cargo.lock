@@ -1978,6 +1978,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tracing",
+ "windows-core 0.62.2",
 ]
 
 [[package]]

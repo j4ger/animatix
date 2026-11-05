@@ -19,6 +19,19 @@ tracing       = { workspace = true, optional = true }
 # Does not affect consumers of the library.
 eframe        = { workspace = true }
 
+# wgpu-hal 29 (pulled in by the eframe→wgpu dev-dependency above) requests
+# `windows-core` 0.62 with `default-features = false` and expects another crate
+# in the graph to turn on `std` — that feature is what provides
+# `impl core::error::Error for windows_core::Error`. `gpu-allocator` used to do
+# that via `windows` 0.62 with default features, but the resolver unified it onto
+# `windows` 0.54 (shared with `cpal`) when the hybrid-bench crate entered the
+# graph, so on Windows `wgpu-hal`'s WGL (gles) backend stopped compiling
+# (`windows_core::Error: core::error::Error` unsatisfied). Enabling `std`
+# explicitly makes this dev/test build independent of that unification. Remove
+# when wgpu-hal requests `windows-core/std` itself (29.0.2 still does not).
+[target.'cfg(windows)'.dev-dependencies]
+windows-core  = { version = "0.62", default-features = false, features = ["std"] }
+
 [features]
 # Default: tokens + traits + all current core widgets. These depend only on
 # egui + egui-phosphor, so the default build stays dependency-light.
