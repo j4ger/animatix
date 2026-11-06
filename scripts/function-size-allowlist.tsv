@@ -29,12 +29,9 @@ crates/animatix/src/timeline/build/plot/bars.rs	paths_for	209
 crates/animatix/src/timeline/build/plot/bars.rs	resolve_bar_chart_layout	286
 crates/animatix/src/timeline/build/plot/curves.rs	build_plot_curve_paths	284
 crates/animatix/src/timeline/build/plot/mod.rs	parse_plot_props	268
-crates/animatix/src/timeline/build/process.rs	process_body	380
-crates/animatix/src/timeline/builtins.rs	load_standard_library	385
 crates/animatix/src/timeline/persistence/inject.rs	inject_entry	221
 crates/animatix/src/timeline/property_engine/declaration.rs	write_property_fields	354
 crates/animatix/src/timeline/scene_eval/containers/captions.rs	render_captions_children	305
 crates/animatix/src/timeline/scene_eval/containers/equation.rs	render_equation_children	210
 crates/animatix/src/timeline/scene_eval/containers/filter.rs	render_filter_children	212
-crates/animatix/src/timeline/timing/parsing.rs	parse_timing_modifiers	355
 crates/animatix/src/timeline/value_parser.rs	parse_value	372

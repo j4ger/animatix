@@ -239,6 +239,22 @@ fn color_arg(name: &str, value: &Value) -> Result<[f64; 4], EvalError> {
 
 /// Register the built-in expression constants and functions into `env`.
 pub fn load_standard_library(env: &mut Environment) {
+    register_constants(env);
+    register_numeric_fns(env);
+    register_easing_fns(env);
+    register_interpolation_fns(env);
+    register_random_fn(env);
+    register_series_fn(env);
+    register_property_query_fn(env);
+    register_stochastic_fns(env);
+    register_named_color_constants(env);
+    register_rgb_constructors(env);
+    register_vector_constructors(env);
+    register_hsl_constructors(env);
+}
+
+/// Mathematical and time constants (`PI`, `TAU`, `E`, …).
+fn register_constants(env: &mut Environment) {
     env.set("PI", Value::Num(std::f64::consts::PI));
     env.set("E", Value::Num(std::f64::consts::E));
     env.set("TAU", Value::Num(std::f64::consts::TAU));
@@ -246,7 +262,10 @@ pub fn load_standard_library(env: &mut Environment) {
     env.set("tau", Value::Num(std::f64::consts::TAU));
     env.set("two_pi", Value::Num(std::f64::consts::TAU));
     env.set("e", Value::Num(std::f64::consts::E));
+}
 
+/// Elementary and numeric-combinator functions (`sin`, `min`, `clamp`, `lerp`, …).
+fn register_numeric_fns(env: &mut Environment) {
     register_num1!(env, "sin", f64::sin);
     register_num1!(env, "cos", f64::cos);
     register_num1!(env, "tan", f64::tan);
@@ -282,8 +301,10 @@ pub fn load_standard_library(env: &mut Environment) {
         t * t * (3.0 - 2.0 * t)
     });
     register_num3!(env, "lerp", |start, end, t| start + (end - start) * t);
+}
 
-    // Easing helper functions — each takes a progress t in [0,1] and returns eased t
+/// Easing helper functions — each takes a progress t in [0,1] and returns eased t.
+fn register_easing_fns(env: &mut Environment) {
     register_num1!(env, "ease_linear", |t| { apply_easing(t as f32, Easing::Linear) as f64 });
     register_num1!(env, "ease_in", |t| { apply_easing(t as f32, Easing::EaseIn) as f64 });
     register_num1!(env, "ease_out", |t| { apply_easing(t as f32, Easing::EaseOut) as f64 });
@@ -305,8 +326,10 @@ pub fn load_standard_library(env: &mut Environment) {
             },
         ) as f64
     });
+}
 
-    // Composable interpolation helpers
+/// Composable interpolation helpers.
+fn register_interpolation_fns(env: &mut Environment) {
     env.set(
         "lerp_vec2",
         Value::NativeFn(Arc::new(|args, _env| {
@@ -387,13 +410,18 @@ pub fn load_standard_library(env: &mut Environment) {
             Ok(Value::Color(srgb_from_oklab(mixed).map(|v| v.clamp(0.0, 1.0))))
         })),
     );
+}
 
+/// `rand()` — non-deterministic; prefer `seeded_rand`/`noise` in `always` blocks.
+fn register_random_fn(env: &mut Environment) {
     env.set("rand", Value::NativeFn(Arc::new(|_args, _env| Ok(Value::Num(fastrand::f64())))));
+}
 
-    // Σ_{k=lo}^{hi} f(k): invoke a single-parameter closure over an integer
-    // range and accumulate. Requires the caller env so the closure body can
-    // resolve the stdlib base (see docs/series_construction.md for why this
-    // is a NativeFn rather than an eval_shared fast-path builtin).
+/// Σ_{k=lo}^{hi} f(k): invoke a single-parameter closure over an integer
+/// range and accumulate. Requires the caller env so the closure body can
+/// resolve the stdlib base (see docs/series_construction.md for why this
+/// is a NativeFn rather than an eval_shared fast-path builtin).
+fn register_series_fn(env: &mut Environment) {
     env.set(
         "sum_range",
         Value::NativeFn(Arc::new(|args, env| {
@@ -462,11 +490,13 @@ pub fn load_standard_library(env: &mut Environment) {
             Ok(Value::Num(acc))
         })),
     );
+}
 
-    // Property-state query: is the referenced property currently between
-    // keyframes? Takes a property reference (`&actor.prop`) produced by the
-    // `&` operator. Reads the per-frame flag injected under the internal
-    // animating_flag key (see env_keys::animating_flag).
+/// Property-state query: is the referenced property currently between
+/// keyframes? Takes a property reference (`&actor.prop`) produced by the
+/// `&` operator. Reads the per-frame flag injected under the internal
+/// animating_flag key (see env_keys::animating_flag).
+fn register_property_query_fn(env: &mut Environment) {
     env.set(
         "is_animating",
         Value::NativeFn(Arc::new(|args, env| {
@@ -489,9 +519,11 @@ pub fn load_standard_library(env: &mut Environment) {
             Ok(Value::Bool(animating))
         })),
     );
+}
 
-    // Deterministic pseudo-random using splitmix64 hash.
-    // Same seed always produces the same value in [0, 1).
+/// Deterministic pseudo-random using splitmix64 hash.
+/// Same seed always produces the same value in [0, 1).
+fn register_stochastic_fns(env: &mut Environment) {
     env.set(
         "seeded_rand",
         Value::NativeFn(Arc::new(|args, _env| {
@@ -522,13 +554,20 @@ pub fn load_standard_library(env: &mut Environment) {
         0.0,
         octaves
     ));
+}
 
+/// Uppercase named-color constants (`RED`, `GREEN`, …).
+fn register_named_color_constants(env: &mut Environment) {
     for name in ["RED", "GREEN", "BLUE", "BLACK", "WHITE"] {
         if let Some(color) = animatix_syntax::typing::named_color_rgba(name) {
             env.set(name, Value::Color(color));
         }
     }
+}
 
+/// RGB color constructors: `rgb(r, g, b)` and `rgba(r, g, b, a)`, accepting
+/// either 0–1 or 0–255 channel values.
+fn register_rgb_constructors(env: &mut Environment) {
     env.set(
         "rgb",
         Value::NativeFn(Arc::new(|args, _env| {
@@ -564,7 +603,10 @@ pub fn load_standard_library(env: &mut Environment) {
             }
         })),
     );
+}
 
+/// Vector constructors: `vec2`, `vec3`, `vec4`.
+fn register_vector_constructors(env: &mut Environment) {
     env.set(
         "vec2",
         Value::NativeFn(Arc::new(|args, _env| {
@@ -597,7 +639,10 @@ pub fn load_standard_library(env: &mut Environment) {
             ]))
         })),
     );
+}
 
+/// HSL color constructors: `hsv(h, s, v)` and `hsla(h, s, l, a)`.
+fn register_hsl_constructors(env: &mut Environment) {
     env.set(
         "hsv",
         Value::NativeFn(Arc::new(|args, _env| {

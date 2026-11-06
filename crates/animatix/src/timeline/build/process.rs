@@ -4,7 +4,7 @@
 use tracing::instrument;
 
 use super::*;
-use crate::ast::{InlineItem, LoopPattern, MatchPattern};
+use crate::ast::{Action, InlineItem, LoopPattern, MatchPattern, Property, Span};
 
 pub(crate) fn bind_loop_var(
     env: &mut Environment,
@@ -69,61 +69,19 @@ impl Timeline {
                     children,
                     is_anonymous,
                     span,
-                } => {
-                    // Validate that user labels don't use the reserved `__` prefix.
-                    // Anonymous actors carry engine-generated `__anon_*` labels —
-                    // the generator's own output must not trip this check (it used
-                    // to make unlabeled Graph children unbuildable).
-                    if label.starts_with("__") && !*is_anonymous {
-                        diagnostics.push(Diagnostic::error(
-                            DiagnosticCode::ReservedLabelPrefix,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "Actor label '{}' uses reserved prefix '__' which is \
-                                     reserved for internally generated labels",
-                                label
-                            ),
-                        ));
-                    }
-                    // `camera` is the reserved target for the scene camera
-                    // (`timeline::camera`), so an actor with that label could be
-                    // drawn but never addressed: every `camera.<prop> = …` write
-                    // goes to the camera.
-                    if *label == crate::timeline::camera::CAMERA_TARGET {
-                        diagnostics.push(Diagnostic::warning(
-                            DiagnosticCode::ReservedLabelPrefix,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "Actor label '{label}' is reserved: `camera.at` / `camera.zoom` \
-                                     / `camera.rotation` address the scene camera, so this actor \
-                                     could be drawn but never assigned to"
-                            ),
-                        ));
-                    }
-                    let resolved_label = resolve_array_index(
-                        label,
-                        array_index,
-                        &self.env,
-                        diagnostics,
-                        time_ms as u64,
-                    );
-                    self.process_actor_decl(
-                        &resolved_label,
-                        ty,
-                        props,
-                        modifiers,
-                        children,
-                        time_ms,
-                        parent_label,
-                        diagnostics,
-                        *span,
-                    );
-                    // Every actor family passes through here with its props still
-                    // in hand, including the ones whose `process_*_decl` returns
-                    // before the generic property walk. See
-                    // `Timeline::apply_camera_follow_decl`.
-                    self.apply_camera_follow_decl(&resolved_label, props, diagnostics);
-                },
+                } => self.process_actor_decl_stmt(
+                    label,
+                    *is_anonymous,
+                    array_index,
+                    ty,
+                    props,
+                    modifiers,
+                    children,
+                    time_ms,
+                    parent_label,
+                    diagnostics,
+                    *span,
+                ),
                 Stmt::Assignment {
                     target,
                     property,
@@ -198,174 +156,14 @@ impl Timeline {
                     self.process_stagger(time_ms, modifiers, body, parent_label, diagnostics);
                 },
                 Stmt::Action(action, span) => {
-                    // Resolve `name[expr]` targets against the build
-                    // environment (loop variables, `let` bindings) before
-                    // dispatch, e.g. `swap bars[j], bars[j+1]` -> concrete keys.
-                    let needs_resolution = action.target_index.iter().any(Option::is_some);
-                    let resolved_action = if needs_resolution {
-                        let mut resolved = action.clone();
-                        resolved.targets = action
-                            .targets
-                            .iter()
-                            .zip(action.target_index.iter())
-                            .map(|(target, index)| {
-                                resolve_action_target_index(
-                                    target,
-                                    index.as_ref(),
-                                    &self.env,
-                                    diagnostics,
-                                    time_ms as u64,
-                                )
-                            })
-                            .collect();
-                        resolved.target_index = vec![None; resolved.targets.len()];
-                        resolved
-                    } else {
-                        action.clone()
-                    };
-                    let action = &resolved_action;
-
-                    // Record action metadata for GUI timeline visualization
-                    let (duration_ms, easing) = parse_action_timing_simple(&action.modifiers);
-                    let category = categorize_action(&action.verb);
-                    for target in &action.targets {
-                        self.action_events.push(ActionEvent {
-                            verb: action.verb.clone(),
-                            targets: vec![target.clone()],
-                            start_time_ms: time_ms as u64,
-                            duration_ms,
-                            easing,
-                            category,
-                        });
-                    }
-
-                    let extensions = self.extensions.clone();
-                    process_action_with_extensions(
-                        action,
-                        time_ms,
-                        self,
-                        diagnostics,
-                        *span,
-                        extensions.as_deref(),
-                    );
+                    self.process_action_stmt(action, *span, time_ms, diagnostics)
                 },
                 Stmt::LetDecl { name, value, .. } => {
-                    // A `--set NAME=…` override wins over the file's own
-                    // `let NAME = …`: the authored value is the template's
-                    // default, and the pre-walk injection already seeded the
-                    // override. Skipping the assignment is what makes the
-                    // override reach properties resolved during this walk.
-                    if self.cli_defines.contains(name) {
-                        tracing::debug!(
-                            "`let {name}` is overridden by --set; the authored default is ignored"
-                        );
-                        continue;
-                    }
-                    // G5/G6 guard: Anchor-point refs (`n0.right`) are
-                    // frame-time-resolved and cannot be used in build-time
-                    // `let` constants (transforms/bounds not resolved at build).
-                    if let crate::ast::Expr::Path(segments) = value
-                        && segments.len() == 2
-                        && SceneAnchor::from_str(&segments[1]).is_some()
-                    {
-                        let msg = format!(
-                            "'{}' references '{}' which is a frame-time anchor-point property; \
-                             cannot resolve at build time. Use in 'always' or assignment instead.",
-                            name,
-                            segments.join(".")
-                        );
-                        diagnostics.push(Diagnostic::warning(
-                            DiagnosticCode::InvalidPropertyValue,
-                            DiagnosticPhase::Build,
-                            msg,
-                        ));
-                        // Fall through to evaluate (will likely fail or produce (0,0)),
-                        // which gives the user a second diagnostic for the eval failure.
-                    }
-                    let eval_env = self.build_eval_env(time_ms as u64);
-                    match evaluate_expr(value, &eval_env) {
-                        Ok(val) => {
-                            if let Some(locals) = self.block_scope.last_mut() {
-                                // Function-local binding: visible within the
-                                // block, removed on exit, and never written to
-                                // the scene's variable tracks.
-                                locals.insert(name.clone());
-                                self.env.set(name, val);
-                            } else {
-                                self.variable_tracks
-                                    .entry(name.clone())
-                                    .or_default()
-                                    .keyframes
-                                    .insert(time_ms as u64, val.clone());
-                                // Make the shadowed value visible to subsequent statements
-                                // in the same build pass (algorithm precomputation).
-                                self.env.set(name, val);
-                            }
-                        },
-                        Err(e) => {
-                            diagnostics.push(
-                                Diagnostic::error(
-                                    DiagnosticCode::ModuleExportEvalError,
-                                    DiagnosticPhase::Build,
-                                    format!(
-                                        "Failed to evaluate variable '{}': {}; skipping.",
-                                        name, e
-                                    ),
-                                )
-                                .with_subject(name),
-                            );
-                        },
-                    }
+                    self.process_let_decl_stmt(name, value, time_ms, diagnostics)
                 },
                 Stmt::Match {
                     scrutinee, arms, ..
-                } => {
-                    // Evaluate the scrutinee at build time
-                    let eval_env = self.build_eval_env(time_ms as u64);
-                    let value = match evaluate_expr(scrutinee, &eval_env) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            diagnostics.push(Diagnostic::error(
-                                DiagnosticCode::ModuleExportEvalError,
-                                DiagnosticPhase::Build,
-                                format!(
-                                    "Failed to evaluate match scrutinee: {}; skipping match.",
-                                    e
-                                ),
-                            ));
-                            continue;
-                        },
-                    };
-                    // Find the first matching arm and process its body
-                    let mut matched = false;
-                    for (pat, body) in arms {
-                        if pattern_matches(pat, &value) {
-                            self.process_body(time_ms, body, parent_label, diagnostics);
-                            matched = true;
-                            break;
-                        }
-                    }
-                    if !matched {
-                        // Check if there's a wildcard arm (should be, but emit diagnostic if not)
-                        let has_wildcard =
-                            arms.iter().any(|(pat, _)| matches!(pat, MatchPattern::Wildcard));
-                        if !has_wildcard {
-                            diagnostics.push(
-                                Diagnostic::warning(
-                                    DiagnosticCode::InvalidPropertyValue,
-                                    DiagnosticPhase::Build,
-                                    format!(
-                                        "match scrutinee evaluated to {:?} but no arm matched and no `_` wildcard arm was provided",
-                                        value
-                                    ),
-                                )
-                            );
-                        }
-                        // If wildcard exists and no arm matched, the wildcard would have caught it
-                        // already. If no wildcard, we already warned; fall
-                        // through silently.
-                    }
-                },
+                } => self.process_match_stmt(scrutinee, arms, time_ms, parent_label, diagnostics),
                 Stmt::Conditional {
                     condition,
                     then_branch,
@@ -398,16 +196,7 @@ impl Timeline {
                 | Stmt::ComponentDef(..)
                 | Stmt::FnDecl { .. } => {},
                 Stmt::Block { body, .. } => {
-                    // Function-call expansion scope: `let` bindings inside
-                    // stay local and are removed when the block exits.
-                    self.block_scope.push(std::collections::HashSet::new());
-                    self.process_body(time_ms, body, parent_label, diagnostics);
-                    if let Some(locals) = self.block_scope.pop() {
-                        for name in locals {
-                            self.env.overrides.remove(&name);
-                            self.env.mark_mutated();
-                        }
-                    }
+                    self.process_block_stmt(body, time_ms, parent_label, diagnostics)
                 },
                 Stmt::Return { value, span, .. } => {
                     let _ = (value, span);
@@ -425,6 +214,280 @@ impl Timeline {
                             .to_string(),
                     ));
                 },
+            }
+        }
+    }
+
+    /// Lower one actor declaration: validate the label, resolve an array
+    /// index, and dispatch to the actor-declaration pipeline.
+    #[allow(clippy::too_many_arguments)] // one argument per authored decl field
+    fn process_actor_decl_stmt(
+        &mut self,
+        label: &str,
+        is_anonymous: bool,
+        array_index: &Option<Expr>,
+        ty: &str,
+        props: &[Property],
+        modifiers: &[Modifier],
+        children: &[InlineItem],
+        time_ms: f64,
+        parent_label: Option<&str>,
+        diagnostics: &mut Vec<Diagnostic>,
+        span: Option<Span>,
+    ) {
+        // Validate that user labels don't use the reserved `__` prefix.
+        // Anonymous actors carry engine-generated `__anon_*` labels —
+        // the generator's own output must not trip this check (it used
+        // to make unlabeled Graph children unbuildable).
+        if label.starts_with("__") && !is_anonymous {
+            diagnostics.push(Diagnostic::error(
+                DiagnosticCode::ReservedLabelPrefix,
+                DiagnosticPhase::Build,
+                format!(
+                    "Actor label '{}' uses reserved prefix '__' which is \
+                         reserved for internally generated labels",
+                    label
+                ),
+            ));
+        }
+        // `camera` is the reserved target for the scene camera
+        // (`timeline::camera`), so an actor with that label could be
+        // drawn but never addressed: every `camera.<prop> = …` write
+        // goes to the camera.
+        if label == crate::timeline::camera::CAMERA_TARGET {
+            diagnostics.push(Diagnostic::warning(
+                DiagnosticCode::ReservedLabelPrefix,
+                DiagnosticPhase::Build,
+                format!(
+                    "Actor label '{label}' is reserved: `camera.at` / `camera.zoom` \
+                         / `camera.rotation` address the scene camera, so this actor \
+                         could be drawn but never assigned to"
+                ),
+            ));
+        }
+        let resolved_label =
+            resolve_array_index(label, array_index, &self.env, diagnostics, time_ms as u64);
+        self.process_actor_decl(
+            &resolved_label,
+            ty,
+            props,
+            modifiers,
+            children,
+            time_ms,
+            parent_label,
+            diagnostics,
+            span,
+        );
+        // Every actor family passes through here with its props still
+        // in hand, including the ones whose `process_*_decl` returns
+        // before the generic property walk. See
+        // `Timeline::apply_camera_follow_decl`.
+        self.apply_camera_follow_decl(&resolved_label, props, diagnostics);
+    }
+
+    /// Lower one action statement: resolve `name[expr]` targets against the
+    /// build environment, record metadata for the GUI, and dispatch.
+    fn process_action_stmt(
+        &mut self,
+        action: &Action,
+        span: Option<Span>,
+        time_ms: f64,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        // Resolve `name[expr]` targets against the build
+        // environment (loop variables, `let` bindings) before
+        // dispatch, e.g. `swap bars[j], bars[j+1]` -> concrete keys.
+        let needs_resolution = action.target_index.iter().any(Option::is_some);
+        let resolved_action = if needs_resolution {
+            let mut resolved = action.clone();
+            resolved.targets = action
+                .targets
+                .iter()
+                .zip(action.target_index.iter())
+                .map(|(target, index)| {
+                    resolve_action_target_index(
+                        target,
+                        index.as_ref(),
+                        &self.env,
+                        diagnostics,
+                        time_ms as u64,
+                    )
+                })
+                .collect();
+            resolved.target_index = vec![None; resolved.targets.len()];
+            resolved
+        } else {
+            action.clone()
+        };
+        let action = &resolved_action;
+
+        // Record action metadata for GUI timeline visualization
+        let (duration_ms, easing) = parse_action_timing_simple(&action.modifiers);
+        let category = categorize_action(&action.verb);
+        for target in &action.targets {
+            self.action_events.push(ActionEvent {
+                verb: action.verb.clone(),
+                targets: vec![target.clone()],
+                start_time_ms: time_ms as u64,
+                duration_ms,
+                easing,
+                category,
+            });
+        }
+
+        let extensions = self.extensions.clone();
+        process_action_with_extensions(
+            action,
+            time_ms,
+            self,
+            diagnostics,
+            span,
+            extensions.as_deref(),
+        );
+    }
+
+    /// Lower one `let` declaration: a `--set` override, then a build-time
+    /// evaluated binding, either block-local or a scene variable track.
+    fn process_let_decl_stmt(
+        &mut self,
+        name: &str,
+        value: &Expr,
+        time_ms: f64,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        // A `--set NAME=…` override wins over the file's own
+        // `let NAME = …`: the authored value is the template's
+        // default, and the pre-walk injection already seeded the
+        // override. Skipping the assignment is what makes the
+        // override reach properties resolved during this walk.
+        if self.cli_defines.contains(name) {
+            tracing::debug!("`let {name}` is overridden by --set; the authored default is ignored");
+            return;
+        }
+        // G5/G6 guard: Anchor-point refs (`n0.right`) are
+        // frame-time-resolved and cannot be used in build-time
+        // `let` constants (transforms/bounds not resolved at build).
+        if let crate::ast::Expr::Path(segments) = value
+            && segments.len() == 2
+            && SceneAnchor::from_str(&segments[1]).is_some()
+        {
+            let msg = format!(
+                "'{}' references '{}' which is a frame-time anchor-point property; \
+                 cannot resolve at build time. Use in 'always' or assignment instead.",
+                name,
+                segments.join(".")
+            );
+            diagnostics.push(Diagnostic::warning(
+                DiagnosticCode::InvalidPropertyValue,
+                DiagnosticPhase::Build,
+                msg,
+            ));
+            // Fall through to evaluate (will likely fail or produce (0,0)),
+            // which gives the user a second diagnostic for the eval failure.
+        }
+        let eval_env = self.build_eval_env(time_ms as u64);
+        match evaluate_expr(value, &eval_env) {
+            Ok(val) => {
+                if let Some(locals) = self.block_scope.last_mut() {
+                    // Function-local binding: visible within the
+                    // block, removed on exit, and never written to
+                    // the scene's variable tracks.
+                    locals.insert(name.to_string());
+                    self.env.set(name, val);
+                } else {
+                    self.variable_tracks
+                        .entry(name.to_string())
+                        .or_default()
+                        .keyframes
+                        .insert(time_ms as u64, val.clone());
+                    // Make the shadowed value visible to subsequent statements
+                    // in the same build pass (algorithm precomputation).
+                    self.env.set(name, val);
+                }
+            },
+            Err(e) => {
+                diagnostics.push(
+                    Diagnostic::error(
+                        DiagnosticCode::ModuleExportEvalError,
+                        DiagnosticPhase::Build,
+                        format!("Failed to evaluate variable '{}': {}; skipping.", name, e),
+                    )
+                    .with_subject(name),
+                );
+            },
+        }
+    }
+
+    /// Lower one build-time `match`: evaluate the scrutinee, then process the
+    /// body of the first arm that matches.
+    fn process_match_stmt(
+        &mut self,
+        scrutinee: &Expr,
+        arms: &[(MatchPattern, Vec<Stmt>)],
+        time_ms: f64,
+        parent_label: Option<&str>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        // Evaluate the scrutinee at build time
+        let eval_env = self.build_eval_env(time_ms as u64);
+        let value = match evaluate_expr(scrutinee, &eval_env) {
+            Ok(v) => v,
+            Err(e) => {
+                diagnostics.push(Diagnostic::error(
+                    DiagnosticCode::ModuleExportEvalError,
+                    DiagnosticPhase::Build,
+                    format!("Failed to evaluate match scrutinee: {}; skipping match.", e),
+                ));
+                return;
+            },
+        };
+        // Find the first matching arm and process its body
+        let mut matched = false;
+        for (pat, body) in arms {
+            if pattern_matches(pat, &value) {
+                self.process_body(time_ms, body, parent_label, diagnostics);
+                matched = true;
+                break;
+            }
+        }
+        if !matched {
+            // Check if there's a wildcard arm (should be, but emit diagnostic if not)
+            let has_wildcard = arms.iter().any(|(pat, _)| matches!(pat, MatchPattern::Wildcard));
+            if !has_wildcard {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::InvalidPropertyValue,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "match scrutinee evaluated to {:?} but no arm matched and no `_` wildcard arm was provided",
+                            value
+                        ),
+                    )
+                );
+            }
+            // If wildcard exists and no arm matched, the wildcard would have caught it
+            // already. If no wildcard, we already warned; fall
+            // through silently.
+        }
+    }
+
+    /// Lower one block: `let` bindings inside stay local and are dropped when
+    /// the block exits.
+    fn process_block_stmt(
+        &mut self,
+        body: &[Stmt],
+        time_ms: f64,
+        parent_label: Option<&str>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        // Function-call expansion scope: `let` bindings inside
+        // stay local and are removed when the block exits.
+        self.block_scope.push(std::collections::HashSet::new());
+        self.process_body(time_ms, body, parent_label, diagnostics);
+        if let Some(locals) = self.block_scope.pop() {
+            for name in locals {
+                self.env.overrides.remove(&name);
+                self.env.mark_mutated();
             }
         }
     }
