@@ -24,12 +24,6 @@ pub enum NamespaceType {
     Namespace(HashMap<String, NamespaceType>),
 }
 
-impl Default for NamespaceType {
-    fn default() -> Self {
-        NamespaceType::Namespace(HashMap::new())
-    }
-}
-
 /// Internal inferred type for expressions.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
@@ -135,6 +129,7 @@ static STDLIB_CONSTRUCTS: LazyLock<HashMap<&'static str, Type>> = LazyLock::new(
 
 mod env;
 mod infer;
+mod namespace_type;
 mod tables;
 #[cfg(test)]
 mod tests;

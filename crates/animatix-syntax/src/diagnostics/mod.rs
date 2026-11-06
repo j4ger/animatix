@@ -1,4 +1,3 @@
-use std::fmt;
 use std::ops::Range;
 use std::path::PathBuf;
 
@@ -15,17 +14,6 @@ pub enum DiagnosticSeverity {
     Hint,
 }
 
-impl fmt::Display for DiagnosticSeverity {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DiagnosticSeverity::Warning => write!(f, "warning"),
-            DiagnosticSeverity::Error => write!(f, "error"),
-            DiagnosticSeverity::Info => write!(f, "info"),
-            DiagnosticSeverity::Hint => write!(f, "hint"),
-        }
-    }
-}
-
 /// Phase of the pipeline that produced a diagnostic.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DiagnosticPhase {
@@ -35,16 +23,6 @@ pub enum DiagnosticPhase {
     Build,
     /// The render phase.
     Render,
-}
-
-impl fmt::Display for DiagnosticPhase {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DiagnosticPhase::Parse => write!(f, "parse"),
-            DiagnosticPhase::Build => write!(f, "build"),
-            DiagnosticPhase::Render => write!(f, "render"),
-        }
-    }
 }
 
 /// Unique code identifying the kind of diagnostic.
@@ -203,6 +181,7 @@ pub enum DiagnosticCode {
 }
 
 mod code;
+mod display;
 mod format;
 mod model;
 #[cfg(test)]

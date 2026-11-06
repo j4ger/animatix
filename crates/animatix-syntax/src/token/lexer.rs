@@ -336,3 +336,13 @@ impl<'a> Lexer<'a> {
         self.src[self.pos..].chars().next()
     }
 }
+
+/// Tokenize `source` into a lossless token stream.
+///
+/// Whitespace is skipped. Tokens are emitted in source order; the slice's end
+/// serves as end-of-input, so no explicit EOF token is produced. Malformed
+/// input is recovered by emitting [`TokenKind::Ident`] for unrecognized runs
+/// instead of failing.
+pub fn tokenize(source: &str) -> Vec<Token> {
+    Lexer::new(source).run().0
+}

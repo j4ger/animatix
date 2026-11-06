@@ -15,40 +15,16 @@ use discovery::{
     collect_component_actions, collect_component_defs, collect_imports, collect_scenes_from_stmts,
     strip_imports,
 };
-use expand::expand_statements;
 
 use crate::ast::{
     Action, ComponentDef, Expr, InlineItem, MatchPattern, ParamDef, Property, Span, Stmt,
     TargetSegment, TypeAnnotation,
 };
 use crate::parser::{ParseError, parse_source_complete};
-use crate::walk::walk_stmts_mut;
-
-/// Walk the AST and convert `Action.byte_span` into `Stmt::Action` line/col spans.
-fn set_action_spans(stmts: &mut [Stmt], source: &str) {
-    walk_stmts_mut(stmts, &mut |stmt| {
-        if let Stmt::Action(action, span) = stmt
-            && let Some(byte_span) = action.byte_span
-        {
-            *span = Some(crate::ast::Span::from_byte_span(source, byte_span));
-        }
-    });
-}
 
 /// Unique identifier for a loaded source file.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct FileId(u32);
-
-impl FileId {
-    /// Create a new `FileId` from a raw index.
-    pub fn new(id: u32) -> Self {
-        FileId(id)
-    }
-    /// Return the underlying index.
-    pub fn index(&self) -> u32 {
-        self.0
-    }
-}
 
 /// Controls whether [`ModuleGraph`] may read a path from disk when no
 /// in-memory source override exists.
@@ -112,47 +88,6 @@ pub struct LoadedProgram {
     pub namespaces: HashMap<String, Namespace>,
 }
 
-impl LoadedProgram {
-    /// Run the gradual type checker on the program's statements.
-    ///
-    /// Validates component instantiation properties against parameter type
-    /// annotations. Returns diagnostics for any type mismatches found.
-    /// Unannotated parameters accept any value.
-    pub fn typecheck(&mut self) -> Vec<crate::diagnostics::Diagnostic> {
-        let strict_types = self.extract_strict_types();
-        let mut env = crate::typecheck::TypeEnv::new(&self.components, &self.module_fns)
-            .with_strict_types(strict_types);
-        env.register_module_aliases(&self.namespaces);
-        env.check_statements(&self.statements)
-    }
-
-    /// Extract `strict_types` config value from prelude config statements.
-    fn extract_strict_types(&self) -> bool {
-        for stmt in &self.statements {
-            if let Stmt::Config { settings, .. } = stmt {
-                for setting in settings {
-                    if setting.name == "strict_types" {
-                        return match &setting.value {
-                            crate::ast::Expr::Bool(b) => *b,
-                            crate::ast::Expr::Str(s) => s.parse().unwrap_or(false),
-                            _ => false,
-                        };
-                    }
-                }
-            }
-        }
-        false
-    }
-
-    /// Expand component instances into concrete statements and expand
-    /// timeline-function calls. Expansion diagnostics (recursion cycles,
-    /// statement-level pure-function calls) are appended to `diagnostics`.
-    pub fn expand_components(&self, diagnostics: &mut Vec<String>) -> Vec<Stmt> {
-        let (stmts, registry) = expand_statements(&self.statements, &self.components);
-        inline_actions::expand_fn_calls(stmts, &registry, &self.module_fns, diagnostics)
-    }
-}
-
 /// Raw scene data from an imported module, stored in a namespace.
 /// Used to build cross-file scene timelines at composition time.
 #[derive(Clone, Debug)]
@@ -190,9 +125,13 @@ pub struct Namespace {
 /// Keyframe, RelativeKeyframe, Sequence, and Stagger bodies.
 use helpers::ParsedModule;
 
+mod file_id;
 mod graph;
 mod helpers;
+mod program;
+mod spans;
 #[cfg(test)]
 mod tests;
 
 pub use helpers::ModuleError;
+use spans::set_action_spans;

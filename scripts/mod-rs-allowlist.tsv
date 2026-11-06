@@ -25,16 +25,6 @@ crates/animatix-gui/src/cell_editor/render/mod.rs	272
 crates/animatix-render/src/encode/mod.rs	575
 crates/animatix-render/src/filter_backend/mod.rs	181
 crates/animatix-render/src/offscreen/mod.rs	340
-crates/animatix-syntax/src/diagnostics/mod.rs	299
-crates/animatix-syntax/src/module/inline_actions/mod.rs	220
-crates/animatix-syntax/src/module/mod.rs	198
-crates/animatix-syntax/src/parser/mod.rs	180
-crates/animatix-syntax/src/schema/mod.rs	455
-crates/animatix-syntax/src/semantic_diagnostics/mod.rs	371
-crates/animatix-syntax/src/symbol_table/mod.rs	345
-crates/animatix-syntax/src/token/mod.rs	224
-crates/animatix-syntax/src/typecheck/mod.rs	132
-crates/animatix-syntax/src/typing/mod.rs	145
 crates/animatix-web/src/web/mod.rs	159
 crates/animatix/src/composition/mod.rs	395
 crates/animatix/src/extension_context/mod.rs	114
