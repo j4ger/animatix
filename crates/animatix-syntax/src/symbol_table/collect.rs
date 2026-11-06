@@ -88,21 +88,7 @@ impl SymbolTable {
                 span,
                 ..
             } => {
-                let inferred = self.infer_expr_type_snapshot(value);
-                self.labels.insert(
-                    name.clone(),
-                    LabelInfo {
-                        name: name.clone(),
-                        kind: LabelKind::Let,
-                        line: 0,
-                        col: 0,
-                        span: *span,
-                        ty: None,
-                        inferred_type: Some(inferred),
-                        is_pub: *is_pub,
-                        plot_params: Vec::new(),
-                    },
-                );
+                self.collect_let_decl(*is_pub, name, value, *span);
             },
 
             Stmt::ActorDecl {
@@ -115,116 +101,26 @@ impl SymbolTable {
                 props,
                 ..
             } => {
-                let plot_params = crate::semantic_diagnostics::plot_runtime_params(ty, props);
-                let inferred = if self.components.contains_key(ty) {
-                    typing::Type::Component(ty.clone())
-                } else {
-                    typing::Type::Actor(ty.clone())
-                };
-                self.register_actor_like(
-                    label,
-                    Some(ty.clone()),
-                    *span,
-                    Some(inferred),
+                self.collect_actor_decl(
                     *is_pub,
-                    plot_params,
+                    label,
+                    array_index.is_some(),
+                    ty,
+                    *span,
+                    children,
+                    props,
+                    component_depth,
                 );
-                if component_depth > 0 {
-                    // The actor is part of a component template, not a scene:
-                    // leave it out of unused-label reporting in the file that
-                    // instantiates the component.
-                    self.component_internal_labels.insert(label.clone());
-                }
-                if array_index.is_some() {
-                    self.array_labels.insert(label.clone());
-                }
-                for child in children {
-                    self.collect_inline_declarations(child, component_depth);
-                }
             },
 
             Stmt::ComponentDef(def, span) => {
-                self.types.insert(def.name.clone());
-                self.component_defs.insert(def.name.clone(), def.clone());
-                self.components.insert(
-                    def.name.clone(),
-                    ComponentInfo {
-                        name: def.name.clone(),
-                        params: def
-                            .params
-                            .iter()
-                            .map(|p| ParamInfo {
-                                name: p.name.clone(),
-                                param_type: p.param_type.clone(),
-                                default: p.default.as_ref().map(|e| e.to_source()),
-                            })
-                            .collect(),
-                        line: 0,
-                        col: 0,
-                        span: *span,
-                        is_pub: def.is_pub,
-                    },
-                );
-
-                // Recurse into the component body. Labels declared inside a
-                // template are internal to it, so tracking the depth here keeps
-                // the single declaration walk sufficient — no second pass over
-                // component bodies is needed.
-                for stmt in &def.body {
-                    self.collect_stmt(stmt, component_depth + 1);
-                }
+                self.collect_component_def(def, *span, component_depth);
             },
 
             Stmt::FnDecl {
                 name, params, body, ..
             } => {
-                self.actions.insert(name.clone());
-                // Function parameters and `self` are valid labels inside the
-                // function body.
-                for param in params {
-                    let param_ty = param
-                        .param_type
-                        .as_ref()
-                        .map(|annotation| self.typed_resolve_annotation(annotation))
-                        .or_else(|| {
-                            param.default.as_ref().map(|value| {
-                                typing::infer_expr_type(value, &typing::TypeEnv::with_stdlib())
-                            })
-                        });
-                    self.labels.insert(
-                        param.name.clone(),
-                        LabelInfo {
-                            name: param.name.clone(),
-                            kind: LabelKind::For,
-                            line: 0,
-                            col: 0,
-                            span: None,
-                            ty: None,
-                            inferred_type: param_ty,
-                            is_pub: false,
-                            plot_params: Vec::new(),
-                        },
-                    );
-                }
-                // `self` is implicitly available inside timeline functions
-                // when invoked target-style.
-                self.labels.insert(
-                    "self".to_string(),
-                    LabelInfo {
-                        name: "self".to_string(),
-                        kind: LabelKind::Actor,
-                        line: 0,
-                        col: 0,
-                        span: None,
-                        ty: None,
-                        inferred_type: None,
-                        is_pub: false,
-                        plot_params: Vec::new(),
-                    },
-                );
-                for stmt in body {
-                    self.collect_stmt(stmt, component_depth);
-                }
+                self.collect_fn_decl(name, params, body, component_depth);
             },
 
             Stmt::ForLoop {
@@ -235,116 +131,37 @@ impl SymbolTable {
                 span,
                 ..
             } => {
-                let var_names: Vec<String> = match var {
-                    LoopPattern::Single(name) => vec![name.clone()],
-                    LoopPattern::Tuple(names) => names.clone(),
-                };
-                // Infer loop-variable types from the iterable so destructured
-                // variables resolve (e.g. `for (x, y), i in {(900,320), ...}`).
-                let iterable_ty = self.infer_expr_type_snapshot(iterable);
-                let element_types: Vec<typing::Type> = match &iterable_ty {
-                    typing::Type::List(element) => match element.as_ref() {
-                        typing::Type::Vec2
-                        | typing::Type::Vec3
-                        | typing::Type::Vec4
-                        | typing::Type::Color => {
-                            vec![typing::Type::Num; var_names.len()]
-                        },
-                        typing::Type::Tuple(types) => types.clone(),
-                        other => vec![(*other).clone(); var_names.len()],
-                    },
-                    _ => vec![typing::Type::Any; var_names.len()],
-                };
-                for (index, name) in var_names.iter().enumerate() {
-                    self.labels.insert(
-                        name.clone(),
-                        LabelInfo {
-                            name: name.clone(),
-                            kind: LabelKind::For,
-                            line: 0,
-                            col: 0,
-                            span: *span,
-                            ty: None,
-                            inferred_type: element_types.get(index).cloned(),
-                            is_pub: false,
-                            plot_params: Vec::new(),
-                        },
-                    );
-                }
-
-                if let Some(iv) = index_var {
-                    self.labels.insert(
-                        iv.clone(),
-                        LabelInfo {
-                            name: iv.clone(),
-                            kind: LabelKind::For,
-                            line: 0,
-                            col: 0,
-                            span: *span,
-                            ty: None,
-                            inferred_type: None,
-                            is_pub: false,
-                            plot_params: Vec::new(),
-                        },
-                    );
-                }
-
-                for stmt in body {
-                    self.collect_stmt(stmt, component_depth);
-                }
+                self.collect_for_loop(var, index_var, iterable, body, *span, component_depth);
             },
 
             // Recurse into blocks
-            Stmt::Keyframe { body, .. } | Stmt::RelativeKeyframe { body, .. } => {
-                for stmt in body {
-                    self.collect_stmt(stmt, component_depth);
-                }
-            },
-            Stmt::Sequence { body, .. }
+            Stmt::Keyframe { body, .. }
+            | Stmt::RelativeKeyframe { body, .. }
+            | Stmt::Sequence { body, .. }
             | Stmt::Stagger { body, .. }
             | Stmt::Always { body, .. } => {
-                for stmt in body {
-                    self.collect_stmt(stmt, component_depth);
-                }
+                self.collect_body(body, component_depth);
             },
             Stmt::Conditional {
                 then_branch,
                 else_branch,
                 ..
             } => {
-                for stmt in then_branch {
-                    self.collect_stmt(stmt, component_depth);
-                }
+                self.collect_body(then_branch, component_depth);
                 if let Some(else_stmts) = else_branch {
-                    for stmt in else_stmts {
-                        self.collect_stmt(stmt, component_depth);
-                    }
+                    self.collect_body(else_stmts, component_depth);
                 }
             },
             Stmt::Match { arms, .. } => {
                 for (_, body) in arms {
-                    for stmt in body {
-                        self.collect_stmt(stmt, component_depth);
-                    }
+                    self.collect_body(body, component_depth);
                 }
             },
 
-            Stmt::Scene { name, span, .. } => {
-                self.scenes.insert(
-                    name.clone(),
-                    SceneInfo {
-                        name: name.clone(),
-                        line: 0,
-                        col: 0,
-                        span: *span,
-                    },
-                );
-                // Recurse into scene body
-                if let Stmt::Scene { body, .. } = stmt {
-                    for s in body {
-                        self.collect_stmt(s, component_depth);
-                    }
-                }
+            Stmt::Scene {
+                name, span, body, ..
+            } => {
+                self.collect_scene(name, *span, body, component_depth);
             },
 
             Stmt::Play { .. } => {
@@ -372,6 +189,260 @@ impl SymbolTable {
 
             // Actions, assignments, etc. — no symbols to extract
             _ => {},
+        }
+    }
+
+    /// Register a `let` binding with its inferred type.
+    fn collect_let_decl(&mut self, is_pub: bool, name: &str, value: &Expr, span: Option<Span>) {
+        let inferred = self.infer_expr_type_snapshot(value);
+        self.labels.insert(
+            name.to_string(),
+            LabelInfo {
+                name: name.to_string(),
+                kind: LabelKind::Let,
+                line: 0,
+                col: 0,
+                span,
+                ty: None,
+                inferred_type: Some(inferred),
+                is_pub,
+                plot_params: Vec::new(),
+            },
+        );
+    }
+
+    /// Register an actor declaration, its array/component membership, and children.
+    #[allow(clippy::too_many_arguments)]
+    fn collect_actor_decl(
+        &mut self,
+        is_pub: bool,
+        label: &str,
+        has_array_index: bool,
+        ty: &str,
+        span: Option<Span>,
+        children: &[InlineItem],
+        props: &[Property],
+        component_depth: usize,
+    ) {
+        let plot_params = crate::semantic_diagnostics::plot_runtime_params(ty, props);
+        let inferred = if self.components.contains_key(ty) {
+            typing::Type::Component(ty.to_string())
+        } else {
+            typing::Type::Actor(ty.to_string())
+        };
+        self.register_actor_like(
+            label,
+            Some(ty.to_string()),
+            span,
+            Some(inferred),
+            is_pub,
+            plot_params,
+        );
+        if component_depth > 0 {
+            // The actor is part of a component template, not a scene:
+            // leave it out of unused-label reporting in the file that
+            // instantiates the component.
+            self.component_internal_labels.insert(label.to_string());
+        }
+        if has_array_index {
+            self.array_labels.insert(label.to_string());
+        }
+        for child in children {
+            self.collect_inline_declarations(child, component_depth);
+        }
+    }
+
+    /// Register a component definition and recurse into its template body.
+    fn collect_component_def(
+        &mut self,
+        def: &ComponentDef,
+        span: Option<Span>,
+        component_depth: usize,
+    ) {
+        self.types.insert(def.name.clone());
+        self.component_defs.insert(def.name.clone(), def.clone());
+        self.components.insert(
+            def.name.clone(),
+            ComponentInfo {
+                name: def.name.clone(),
+                params: def
+                    .params
+                    .iter()
+                    .map(|p| ParamInfo {
+                        name: p.name.clone(),
+                        param_type: p.param_type.clone(),
+                        default: p.default.as_ref().map(|e| e.to_source()),
+                    })
+                    .collect(),
+                line: 0,
+                col: 0,
+                span,
+                is_pub: def.is_pub,
+            },
+        );
+
+        // Recurse into the component body. Labels declared inside a
+        // template are internal to it, so tracking the depth here keeps
+        // the single declaration walk sufficient — no second pass over
+        // component bodies is needed.
+        for stmt in &def.body {
+            self.collect_stmt(stmt, component_depth + 1);
+        }
+    }
+
+    /// Register a function name, its parameters, `self`, and its body labels.
+    fn collect_fn_decl(
+        &mut self,
+        name: &str,
+        params: &[ParamDef],
+        body: &[Stmt],
+        component_depth: usize,
+    ) {
+        self.actions.insert(name.to_string());
+        // Function parameters and `self` are valid labels inside the
+        // function body.
+        for param in params {
+            let param_ty = param
+                .param_type
+                .as_ref()
+                .map(|annotation| self.typed_resolve_annotation(annotation))
+                .or_else(|| {
+                    param.default.as_ref().map(|value| {
+                        typing::infer_expr_type(value, &typing::TypeEnv::with_stdlib())
+                    })
+                });
+            self.labels.insert(
+                param.name.clone(),
+                LabelInfo {
+                    name: param.name.clone(),
+                    kind: LabelKind::For,
+                    line: 0,
+                    col: 0,
+                    span: None,
+                    ty: None,
+                    inferred_type: param_ty,
+                    is_pub: false,
+                    plot_params: Vec::new(),
+                },
+            );
+        }
+        // `self` is implicitly available inside timeline functions
+        // when invoked target-style.
+        self.labels.insert(
+            "self".to_string(),
+            LabelInfo {
+                name: "self".to_string(),
+                kind: LabelKind::Actor,
+                line: 0,
+                col: 0,
+                span: None,
+                ty: None,
+                inferred_type: None,
+                is_pub: false,
+                plot_params: Vec::new(),
+            },
+        );
+        for stmt in body {
+            self.collect_stmt(stmt, component_depth);
+        }
+    }
+
+    /// Register a `for` loop's variables (with inferred element types) and body.
+    fn collect_for_loop(
+        &mut self,
+        var: &LoopPattern,
+        index_var: &Option<String>,
+        iterable: &Expr,
+        body: &[Stmt],
+        span: Option<Span>,
+        component_depth: usize,
+    ) {
+        let var_names: Vec<String> = match var {
+            LoopPattern::Single(name) => vec![name.clone()],
+            LoopPattern::Tuple(names) => names.clone(),
+        };
+        // Infer loop-variable types from the iterable so destructured
+        // variables resolve (e.g. `for (x, y), i in {(900,320), ...}`).
+        let iterable_ty = self.infer_expr_type_snapshot(iterable);
+        let element_types: Vec<typing::Type> = match &iterable_ty {
+            typing::Type::List(element) => match element.as_ref() {
+                typing::Type::Vec2
+                | typing::Type::Vec3
+                | typing::Type::Vec4
+                | typing::Type::Color => {
+                    vec![typing::Type::Num; var_names.len()]
+                },
+                typing::Type::Tuple(types) => types.clone(),
+                other => vec![(*other).clone(); var_names.len()],
+            },
+            _ => vec![typing::Type::Any; var_names.len()],
+        };
+        for (index, name) in var_names.iter().enumerate() {
+            self.labels.insert(
+                name.clone(),
+                LabelInfo {
+                    name: name.clone(),
+                    kind: LabelKind::For,
+                    line: 0,
+                    col: 0,
+                    span,
+                    ty: None,
+                    inferred_type: element_types.get(index).cloned(),
+                    is_pub: false,
+                    plot_params: Vec::new(),
+                },
+            );
+        }
+
+        if let Some(iv) = index_var {
+            self.labels.insert(
+                iv.clone(),
+                LabelInfo {
+                    name: iv.clone(),
+                    kind: LabelKind::For,
+                    line: 0,
+                    col: 0,
+                    span,
+                    ty: None,
+                    inferred_type: None,
+                    is_pub: false,
+                    plot_params: Vec::new(),
+                },
+            );
+        }
+
+        for stmt in body {
+            self.collect_stmt(stmt, component_depth);
+        }
+    }
+
+    /// Walk a body-bearing variant's statements in source order.
+    fn collect_body(&mut self, body: &[Stmt], component_depth: usize) {
+        for stmt in body {
+            self.collect_stmt(stmt, component_depth);
+        }
+    }
+
+    /// Register a scene and recurse into its body.
+    fn collect_scene(
+        &mut self,
+        name: &str,
+        span: Option<Span>,
+        body: &[Stmt],
+        component_depth: usize,
+    ) {
+        self.scenes.insert(
+            name.to_string(),
+            SceneInfo {
+                name: name.to_string(),
+                line: 0,
+                col: 0,
+                span,
+            },
+        );
+        // Recurse into scene body
+        for s in body {
+            self.collect_stmt(s, component_depth);
         }
     }
 

@@ -114,6 +114,33 @@ pub unsafe extern "C" fn animatix_plugin_install(
         return NATIVE_STATUS_TYPE_ERROR;
     }
 
+    // Registration order is observable: the host reports ids in call order and
+    // stops at the first failing group, so these calls stay sequential.
+    let status = register_properties(api, host);
+    if status != NATIVE_STATUS_OK {
+        return status;
+    }
+    let status = register_scale_function(api, host);
+    if status != NATIVE_STATUS_OK {
+        return status;
+    }
+    let status = register_pulse_primitive(api, host);
+    if status != NATIVE_STATUS_OK {
+        return status;
+    }
+    let status = register_throb_action(api, host);
+    if status != NATIVE_STATUS_OK {
+        return status;
+    }
+    let status = register_pixelate_effect(api, host);
+    if status != NATIVE_STATUS_OK {
+        return status;
+    }
+    provide_demo_service(api, host)
+}
+
+/// Register the five `Pulse` extension properties with full tooling metadata.
+fn register_properties(api: &NativePluginApi, host: *mut c_void) -> i32 {
     // ── Extension properties with full tooling metadata ────────────────────
     let mut ids = [0u32; 5];
     let property_descriptors = [
@@ -174,7 +201,11 @@ pub unsafe extern "C" fn animatix_plugin_install(
             return NATIVE_STATUS_TYPE_ERROR;
         }
     }
+    NATIVE_STATUS_OK
+}
 
+/// Register the `scale` native expression function.
+fn register_scale_function(api: &NativePluginApi, host: *mut c_void) -> i32 {
     // ── Native expression function ─────────────────────────────────────────
     let function_params = [
         NativeActionParam {
@@ -188,7 +219,7 @@ pub unsafe extern "C" fn animatix_plugin_install(
             type_info: c"Num".as_ptr(),
         },
     ];
-    let function_status = unsafe {
+    unsafe {
         (api.register_function)(
             host,
             NativeFunctionDescriptor {
@@ -200,11 +231,11 @@ pub unsafe extern "C" fn animatix_plugin_install(
                 callback: scale,
             },
         )
-    };
-    if function_status != NATIVE_STATUS_OK {
-        return function_status;
     }
+}
 
+/// Register the `Pulse` native primitive.
+fn register_pulse_primitive(api: &NativePluginApi, host: *mut c_void) -> i32 {
     // ── Native primitive ───────────────────────────────────────────────────
     let property_names = [
         c"glow".as_ptr(),
@@ -235,11 +266,11 @@ pub unsafe extern "C" fn animatix_plugin_install(
         clip_path: None,
         equation_fragment: None,
     };
-    let primitive_status = unsafe { (api.register_primitive)(host, primitive) };
-    if primitive_status != NATIVE_STATUS_OK {
-        return primitive_status;
-    }
+    unsafe { (api.register_primitive)(host, primitive) }
+}
 
+/// Register the `throb` native action with its one named modifier.
+fn register_throb_action(api: &NativePluginApi, host: *mut c_void) -> i32 {
     // ── Native action with one named modifier ──────────────────────────────
     let action_modifiers = [NativeActionParam {
         name: c"strength".as_ptr(),
@@ -256,11 +287,11 @@ pub unsafe extern "C" fn animatix_plugin_install(
         modifier_len: action_modifiers.len(),
         execute: throb,
     };
-    let action_status = unsafe { (api.register_action)(host, action) };
-    if action_status != NATIVE_STATUS_OK {
-        return action_status;
-    }
+    unsafe { (api.register_action)(host, action) }
+}
 
+/// Register the plugin-authored `Pixelate` post-processing effect.
+fn register_pixelate_effect(api: &NativePluginApi, host: *mut c_void) -> i32 {
     // ── Plugin-authored post-processing effect ─────────────────────────────
     //
     // The host copies every string and array out of the descriptor during the
@@ -278,7 +309,7 @@ pub unsafe extern "C" fn animatix_plugin_install(
         wgsl: pixelate_wgsl.as_ptr(),
         entry: c"main".as_ptr(),
     }];
-    let effect_status = unsafe {
+    unsafe {
         (api.register_effect)(
             host,
             NativeEffectDescriptor {
@@ -291,11 +322,11 @@ pub unsafe extern "C" fn animatix_plugin_install(
                 support_px: 0.0,
             },
         )
-    };
-    if effect_status != NATIVE_STATUS_OK {
-        return effect_status;
     }
+}
 
+/// Provide the typed `demo.pulse` service with its explicit destructor.
+fn provide_demo_service(api: &NativePluginApi, host: *mut c_void) -> i32 {
     // ── Typed service with an explicit destructor ──────────────────────────
     let service = NativeService {
         name: c"demo.pulse".as_ptr(),
@@ -349,7 +380,43 @@ unsafe extern "C" fn scale(
 /// `append_*` function pointers must be called with the matching `host`.
 unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32 {
     let ctx = unsafe { &*ctx };
+    let params = read_pulse_params(ctx);
+    let radius = 30.0 + 30.0 * params.glow;
 
+    let body_status = emit_body_path(ctx, params.mode.as_str(), params.origin, radius);
+    if body_status != NATIVE_STATUS_OK {
+        return body_status;
+    }
+    let text_status = emit_text_layers(ctx, &params, radius);
+    if text_status != NATIVE_STATUS_OK {
+        return text_status;
+    }
+    let highlight_status = emit_highlight_layer(ctx, params.origin);
+    if highlight_status != NATIVE_STATUS_OK {
+        return highlight_status;
+    }
+    emit_image_stamp(ctx, params.image_url.as_str(), params.origin, radius);
+
+    NATIVE_STATUS_OK
+}
+
+/// Accent color for the demo primitive's ring, dot, and highlight.
+const PULSE_CYAN: [f64; 4] = [0.2, 0.8, 1.0, 1.0];
+
+/// Text and inner-dot color for the demo primitive.
+const PULSE_WHITE: [f64; 4] = [1.0, 1.0, 1.0, 1.0];
+
+/// Keyframed `Pulse` inputs read once per evaluation.
+struct PulseParams {
+    glow: f64,
+    mode: String,
+    caption: String,
+    origin: [f64; 2],
+    image_url: String,
+}
+
+/// Read the actor's keyframed `Pulse` properties through the host API.
+fn read_pulse_params(ctx: &NativePrimitiveEvaluateCtx) -> PulseParams {
     // ── Read the actor's properties through the host API ───────────────────
     let mut glow = 0.25;
     let mut mode = String::from("ring");
@@ -385,17 +452,28 @@ unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32
             image_url = unsafe { read_c_string(native.string) }.unwrap_or_default();
         }
     }
+    PulseParams {
+        glow,
+        mode,
+        caption,
+        origin,
+        image_url,
+    }
+}
 
-    let radius = 30.0 + 30.0 * glow;
-    let (cx, cy) = (origin[0], origin[1]);
-    let cyan = [0.2, 0.8, 1.0, 1.0];
-    let white = [1.0, 1.0, 1.0, 1.0];
-
+/// Emit the body path for the selected `mode`.
+fn emit_body_path(
+    ctx: &NativePrimitiveEvaluateCtx,
+    mode: &str,
+    center: [f64; 2],
+    radius: f64,
+) -> i32 {
+    let (cx, cy) = (center[0], center[1]);
     // ── Emit the body path for the selected mode ───────────────────────────
     let Some(append_path) = ctx.append_path else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
-    let mode_status = match mode.as_str() {
+    let mode_status = match mode {
         "ring" => unsafe {
             (append_path)(
                 ctx.host,
@@ -406,7 +484,7 @@ unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32
                     width: radius,
                     height: radius,
                     fill: [0.0, 0.0, 0.0, 0.0],
-                    stroke: cyan,
+                    stroke: PULSE_CYAN,
                     stroke_width: 3.0,
                     ..empty_path_command()
                 },
@@ -422,8 +500,8 @@ unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32
                         y: cy,
                         width: radius,
                         height: radius,
-                        fill: cyan,
-                        stroke: white,
+                        fill: PULSE_CYAN,
+                        stroke: PULSE_WHITE,
                         stroke_width: 1.5,
                         ..empty_path_command()
                     },
@@ -441,7 +519,7 @@ unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32
                         y: cy,
                         width: radius * 0.35,
                         height: radius * 0.35,
-                        fill: white,
+                        fill: PULSE_WHITE,
                         stroke: [0.0, 0.0, 0.0, 0.0],
                         stroke_width: 0.0,
                         ..empty_path_command()
@@ -479,7 +557,7 @@ unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32
                         y1: cy,
                         x2: cx + radius,
                         y2: cy,
-                        stroke: white,
+                        stroke: PULSE_WHITE,
                         stroke_width: 2.0,
                         ..empty_path_command()
                     },
@@ -497,7 +575,7 @@ unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32
                         y1: cy - radius,
                         x2: cx,
                         y2: cy + radius,
-                        stroke: white,
+                        stroke: PULSE_WHITE,
                         stroke_width: 2.0,
                         ..empty_path_command()
                     },
@@ -505,10 +583,18 @@ unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32
             }
         },
     };
-    if mode_status != NATIVE_STATUS_OK {
-        return mode_status;
-    }
+    mode_status
+}
 
+/// Emit the caption label and the Code-kind status line.
+fn emit_text_layers(ctx: &NativePrimitiveEvaluateCtx, params: &PulseParams, radius: f64) -> i32 {
+    let PulseParams {
+        glow,
+        mode,
+        caption,
+        origin,
+        ..
+    } = params;
     // ── Text: caption label plus a Code-kind status line ───────────────────
     if let Some(append_text) = ctx.append_text {
         if !caption.is_empty() {
@@ -526,7 +612,7 @@ unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32
                         line_height: 1.2,
                         letter_spacing: 0.0,
                         word_spacing: 0.0,
-                        color: white,
+                        color: PULSE_WHITE,
                         max_width: 0.0,
                         text_align: c"center".as_ptr(),
                         overflow: c"visible".as_ptr(),
@@ -569,12 +655,17 @@ unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32
             return code_status;
         }
     }
+    NATIVE_STATUS_OK
+}
 
+/// Emit the highlight layer behind the pulse.
+fn emit_highlight_layer(ctx: &NativePrimitiveEvaluateCtx, center: [f64; 2]) -> i32 {
+    let (cx, cy) = (center[0], center[1]);
     // ── Highlight layer behind the pulse ───────────────────────────────────
     if let Some(append_highlight) = ctx.append_highlight {
         let highlight_command = NativeHighlightCommand {
             rect: [cx - 46.0, cy - 46.0, cx + 46.0, cy + 46.0],
-            color: cyan,
+            color: PULSE_CYAN,
             alpha: 0.12,
             corner_radius: 10.0,
             blend: 2,
@@ -584,12 +675,21 @@ unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32
             return highlight_status;
         }
     }
+    NATIVE_STATUS_OK
+}
 
+/// Stamp the optional cached image over the pulse, best effort.
+fn emit_image_stamp(
+    ctx: &NativePrimitiveEvaluateCtx,
+    image_url: &str,
+    origin: [f64; 2],
+    radius: f64,
+) {
     // ── Image: best-effort stamp resolved from the asset cache ─────────────
     if let Some(append_image) = ctx.append_image
         && !image_url.is_empty()
     {
-        let url_bytes = c_string(image_url.as_str());
+        let url_bytes = c_string(image_url);
         let image_command = NativeImageCommand {
             url: url_bytes.as_ptr().cast::<c_char>(),
             natural_size: [radius * 2.0, radius * 2.0],
@@ -600,8 +700,6 @@ unsafe extern "C" fn pulse_evaluate(ctx: *mut NativePrimitiveEvaluateCtx) -> i32
         // its paths so the failure is non-fatal for the frame.
         let _ = unsafe { (append_image)(ctx.host, image_command) };
     }
-
-    NATIVE_STATUS_OK
 }
 
 /// Execute callback for the `throb` demo action.

@@ -22,228 +22,232 @@ impl Theme {
     /// shared `super::seeds` so the brand identity matches dark mode; surfaces
     /// are near-white with subtle gray steps and text is dark for contrast.
     pub fn light() -> Self {
-        // Surfaces (light grays / near-white).
-        let base = Color32::from_rgb(248, 249, 250);
-        let panel = Color32::from_rgb(255, 255, 255);
-        let surf = Color32::from_rgb(250, 251, 252);
-        let widget = Color32::from_rgb(240, 241, 243);
-        let hover = Color32::from_rgb(227, 229, 233);
-        let active = Color32::from_rgb(210, 212, 216);
-        // Text (dark on light).
-        let primary = Color32::from_rgb(20, 24, 30);
-        let secondary = Color32::from_rgb(90, 97, 112);
-        let muted = Color32::from_rgb(103, 109, 123);
-        let disabled = Color32::from_rgb(180, 185, 192);
-        // Dark text on accent fills matches the dark theme's ON_ACCENT role and
-        // keeps primary/hover/accent button states within WCAG AA UI contrast.
-        let on_accent = Color32::from_rgb(10, 12, 16);
-        // Borders (mid grays).
-        let border_default = Color32::from_rgb(200, 204, 209);
-        let border_strong = Color32::from_rgb(160, 165, 172);
-        let border_focus = semantic::border::FOCUS;
-        // Danger active (shared with dark): a darkened error red.
-        let danger_active = Color32::from_rgb(200, 40, 40);
-        // Overlay fills (light variants); shared by the overlay tokens and the
-        // badge/kbd component slots below.
-        let badge_bg = Color32::from_rgba_unmultiplied(248, 249, 250, 235);
-        let tooltip_bg = Color32::from_rgba_unmultiplied(255, 255, 255, 245);
-        let slots = light_component_slots(LightComponentPaint {
-            base,
-            surface: surf,
-            widget,
-            hover,
-            primary,
-            secondary,
-            disabled,
-            on_accent,
-            border_default,
-            border_strong,
-            badge_bg,
-            tooltip_bg,
-        });
+        let paint = LightPaint {
+            // Surfaces (light grays / near-white).
+            base: Color32::from_rgb(248, 249, 250),
+            panel: Color32::from_rgb(255, 255, 255),
+            surface: Color32::from_rgb(250, 251, 252),
+            widget: Color32::from_rgb(240, 241, 243),
+            hover: Color32::from_rgb(227, 229, 233),
+            active: Color32::from_rgb(210, 212, 216),
+            // Text (dark on light).
+            primary: Color32::from_rgb(20, 24, 30),
+            secondary: Color32::from_rgb(90, 97, 112),
+            muted: Color32::from_rgb(103, 109, 123),
+            disabled: Color32::from_rgb(180, 185, 192),
+            // Dark text on accent fills matches the dark theme's ON_ACCENT role
+            // and keeps primary/hover/accent button states within WCAG AA UI
+            // contrast.
+            on_accent: Color32::from_rgb(10, 12, 16),
+            // Borders (mid grays).
+            border_default: Color32::from_rgb(200, 204, 209),
+            border_strong: Color32::from_rgb(160, 165, 172),
+            // Danger active (shared with dark): a darkened error red.
+            danger_active: Color32::from_rgb(200, 40, 40),
+            // Overlay fills (light variants); shared by the overlay tokens and
+            // the badge/kbd component slots below.
+            badge_bg: Color32::from_rgba_unmultiplied(248, 249, 250, 235),
+            tooltip_bg: Color32::from_rgba_unmultiplied(255, 255, 255, 245),
+        };
 
         Self {
-            palette: Palette {
-                surface: Surface {
-                    base,
-                    panel,
-                    surface: surf,
-                    widget,
-                    hover,
-                    active,
-                    floating_card_bg: Color32::from_rgba_unmultiplied(255, 255, 255, 245),
-                },
-                text: Text {
-                    primary,
-                    secondary,
-                    muted,
-                    disabled,
-                    on_accent,
-                    faint: Color32::from_rgba_unmultiplied(20, 24, 30, 80),
-                    subtle: Color32::from_rgba_unmultiplied(20, 24, 30, 140),
-                    hover: Color32::from_rgba_unmultiplied(20, 24, 30, 200),
-                    dim: Color32::from_rgba_unmultiplied(20, 24, 30, 150),
-                },
-                // Accent/status hues kept identical to dark for brand consistency.
-                accent: seeds::accent(),
-                status: seeds::status(),
-                border: Border {
-                    default: border_default,
-                    strong: border_strong,
-                    focus: border_focus,
-                    subtle: Color32::from_rgba_unmultiplied(0, 0, 0, 15),
-                    rim_highlight: Color32::from_rgba_unmultiplied(255, 255, 255, 80),
-                },
-                overlay: Overlay {
-                    backdrop: Color32::from_rgba_unmultiplied(0, 0, 0, 140),
-                    badge_bg,
-                    tooltip_bg,
-                    shadow_ambient: Color32::from_rgba_unmultiplied(0, 0, 0, 30),
-                    shadow_direct: Color32::from_rgba_unmultiplied(0, 0, 0, 50),
-                    floating_hud_bg: Color32::from_rgba_unmultiplied(255, 255, 255, 235),
-                },
-                // White-alpha lines are invisible on a near-white surface; light
-                // surfaces need dark ink instead.
-                lines: Lines {
-                    grid: semantic::lines::grid_line_light(),
-                    guide: semantic::lines::guide_line_light(),
-                },
-            },
-            components: Components {
-                button: light_button_slots(
-                    widget,
-                    hover,
-                    active,
-                    primary,
-                    disabled,
-                    on_accent,
-                    border_default,
-                    border_focus,
-                    secondary,
-                    danger_active,
-                ),
-                list: ListSlots {
-                    even: Fill {
-                        bg: surf,
-                        fg: primary,
-                    },
-                    odd: Fill {
-                        bg: widget,
-                        fg: primary,
-                    },
-                    selected: Fill {
-                        bg: Color32::from_rgba_unmultiplied(
-                            semantic::accent::PRIMARY.r(),
-                            semantic::accent::PRIMARY.g(),
-                            semantic::accent::PRIMARY.b(),
-                            60,
-                        ),
-                        fg: primary,
-                    },
-                    hover: Fill {
-                        bg: hover,
-                        fg: primary,
-                    },
-                },
-                tab: TabSlots {
-                    active: TabSlot {
-                        bg: surf,
-                        fg: primary,
-                        indicator: semantic::accent::PRIMARY,
-                    },
-                    inactive: TabSlot {
-                        bg: widget,
-                        fg: secondary,
-                        indicator: Color32::TRANSPARENT,
-                    },
-                    hover: TabSlot {
-                        bg: hover,
-                        fg: primary,
-                        indicator: Color32::TRANSPARENT,
-                    },
-                },
-                menu_item: MenuItemSlots {
-                    normal: Slot {
-                        bg: Color32::TRANSPARENT,
-                        fg: primary,
-                        border: Color32::TRANSPARENT,
-                    },
-                    hover: Slot {
-                        bg: hover,
-                        fg: primary,
-                        border: Color32::TRANSPARENT,
-                    },
-                    active: Slot {
-                        bg: active,
-                        fg: primary,
-                        border: Color32::TRANSPARENT,
-                    },
-                    disabled: Slot {
-                        bg: Color32::TRANSPARENT,
-                        fg: disabled,
-                        border: Color32::TRANSPARENT,
-                    },
-                },
-                input: InputSlots {
-                    normal: Slot {
-                        bg: widget,
-                        fg: primary,
-                        border: border_default,
-                    },
-                    hover: Slot {
-                        bg: widget,
-                        fg: primary,
-                        border: border_strong,
-                    },
-                    focus: Slot {
-                        bg: widget,
-                        fg: primary,
-                        border: border_focus,
-                    },
-                    invalid: Slot {
-                        bg: widget,
-                        fg: primary,
-                        border: semantic::status::ERROR,
-                    },
-                    disabled: Slot {
-                        bg: widget,
-                        fg: disabled,
-                        border: border_default,
-                    },
-                },
-                scrollbar: ScrollbarSlots {
-                    thumb: border_strong,
-                    thumb_hover: semantic::accent::PRIMARY,
-                },
-                toggle: slots.toggle,
-                progress: slots.progress,
-                badge: slots.badge,
-                tag: slots.tag,
-                kbd: slots.kbd,
-                tooltip: slots.tooltip,
-                alert: slots.alert,
-                toast: slots.toast,
-                skeleton: slots.skeleton,
-                color_picker: slots.color_picker,
-                easing_curve: slots.easing_curve,
-            },
-            elevation: Elevation {
-                // Light: raised shadow — slightly stronger offset/blur for light bg
-                raised: Shadow {
-                    offset: [0, 3],
-                    blur: 6,
-                    spread: 0,
-                    color: Color32::from_rgba_unmultiplied(0, 0, 0, 50),
-                },
-                // Light: overlay shadow — larger for dialog/modal
-                overlay: Shadow {
-                    offset: [0, 12],
-                    blur: 32,
-                    spread: 0,
-                    color: Color32::from_rgba_unmultiplied(0, 0, 0, 60),
-                },
-            },
+            palette: light_palette(&paint),
+            components: light_components(&paint),
+            elevation: light_elevation(),
         }
+    }
+}
+
+/// Build the light-mode palette from the authored paint colors.
+fn light_palette(p: &LightPaint) -> Palette {
+    Palette {
+        surface: Surface {
+            base: p.base,
+            panel: p.panel,
+            surface: p.surface,
+            widget: p.widget,
+            hover: p.hover,
+            active: p.active,
+            floating_card_bg: Color32::from_rgba_unmultiplied(255, 255, 255, 245),
+        },
+        text: Text {
+            primary: p.primary,
+            secondary: p.secondary,
+            muted: p.muted,
+            disabled: p.disabled,
+            on_accent: p.on_accent,
+            faint: Color32::from_rgba_unmultiplied(20, 24, 30, 80),
+            subtle: Color32::from_rgba_unmultiplied(20, 24, 30, 140),
+            hover: Color32::from_rgba_unmultiplied(20, 24, 30, 200),
+            dim: Color32::from_rgba_unmultiplied(20, 24, 30, 150),
+        },
+        // Accent/status hues kept identical to dark for brand consistency.
+        accent: seeds::accent(),
+        status: seeds::status(),
+        border: Border {
+            default: p.border_default,
+            strong: p.border_strong,
+            focus: semantic::border::FOCUS,
+            subtle: Color32::from_rgba_unmultiplied(0, 0, 0, 15),
+            rim_highlight: Color32::from_rgba_unmultiplied(255, 255, 255, 80),
+        },
+        overlay: Overlay {
+            backdrop: Color32::from_rgba_unmultiplied(0, 0, 0, 140),
+            badge_bg: p.badge_bg,
+            tooltip_bg: p.tooltip_bg,
+            shadow_ambient: Color32::from_rgba_unmultiplied(0, 0, 0, 30),
+            shadow_direct: Color32::from_rgba_unmultiplied(0, 0, 0, 50),
+            floating_hud_bg: Color32::from_rgba_unmultiplied(255, 255, 255, 235),
+        },
+        // White-alpha lines are invisible on a near-white surface; light
+        // surfaces need dark ink instead.
+        lines: Lines {
+            grid: semantic::lines::grid_line_light(),
+            guide: semantic::lines::guide_line_light(),
+        },
+    }
+}
+
+/// Build the light-mode component slots from the authored paint colors.
+fn light_components(p: &LightPaint) -> Components {
+    let slots = light_component_slots(p);
+    Components {
+        button: light_button_slots(
+            p.widget,
+            p.hover,
+            p.active,
+            p.primary,
+            p.disabled,
+            p.on_accent,
+            p.border_default,
+            semantic::border::FOCUS,
+            p.secondary,
+            p.danger_active,
+        ),
+        list: ListSlots {
+            even: Fill {
+                bg: p.surface,
+                fg: p.primary,
+            },
+            odd: Fill {
+                bg: p.widget,
+                fg: p.primary,
+            },
+            selected: Fill {
+                bg: Color32::from_rgba_unmultiplied(
+                    semantic::accent::PRIMARY.r(),
+                    semantic::accent::PRIMARY.g(),
+                    semantic::accent::PRIMARY.b(),
+                    60,
+                ),
+                fg: p.primary,
+            },
+            hover: Fill {
+                bg: p.hover,
+                fg: p.primary,
+            },
+        },
+        tab: TabSlots {
+            active: TabSlot {
+                bg: p.surface,
+                fg: p.primary,
+                indicator: semantic::accent::PRIMARY,
+            },
+            inactive: TabSlot {
+                bg: p.widget,
+                fg: p.secondary,
+                indicator: Color32::TRANSPARENT,
+            },
+            hover: TabSlot {
+                bg: p.hover,
+                fg: p.primary,
+                indicator: Color32::TRANSPARENT,
+            },
+        },
+        menu_item: MenuItemSlots {
+            normal: Slot {
+                bg: Color32::TRANSPARENT,
+                fg: p.primary,
+                border: Color32::TRANSPARENT,
+            },
+            hover: Slot {
+                bg: p.hover,
+                fg: p.primary,
+                border: Color32::TRANSPARENT,
+            },
+            active: Slot {
+                bg: p.active,
+                fg: p.primary,
+                border: Color32::TRANSPARENT,
+            },
+            disabled: Slot {
+                bg: Color32::TRANSPARENT,
+                fg: p.disabled,
+                border: Color32::TRANSPARENT,
+            },
+        },
+        input: InputSlots {
+            normal: Slot {
+                bg: p.widget,
+                fg: p.primary,
+                border: p.border_default,
+            },
+            hover: Slot {
+                bg: p.widget,
+                fg: p.primary,
+                border: p.border_strong,
+            },
+            focus: Slot {
+                bg: p.widget,
+                fg: p.primary,
+                border: semantic::border::FOCUS,
+            },
+            invalid: Slot {
+                bg: p.widget,
+                fg: p.primary,
+                border: semantic::status::ERROR,
+            },
+            disabled: Slot {
+                bg: p.widget,
+                fg: p.disabled,
+                border: p.border_default,
+            },
+        },
+        scrollbar: ScrollbarSlots {
+            thumb: p.border_strong,
+            thumb_hover: semantic::accent::PRIMARY,
+        },
+        toggle: slots.toggle,
+        progress: slots.progress,
+        badge: slots.badge,
+        tag: slots.tag,
+        kbd: slots.kbd,
+        tooltip: slots.tooltip,
+        alert: slots.alert,
+        toast: slots.toast,
+        skeleton: slots.skeleton,
+        color_picker: slots.color_picker,
+        easing_curve: slots.easing_curve,
+    }
+}
+
+/// Build the light-mode elevation shadows.
+fn light_elevation() -> Elevation {
+    Elevation {
+        // Light: raised shadow — slightly stronger offset/blur for light bg
+        raised: Shadow {
+            offset: [0, 3],
+            blur: 6,
+            spread: 0,
+            color: Color32::from_rgba_unmultiplied(0, 0, 0, 50),
+        },
+        // Light: overlay shadow — larger for dialog/modal
+        overlay: Shadow {
+            offset: [0, 12],
+            blur: 32,
+            spread: 0,
+            color: Color32::from_rgba_unmultiplied(0, 0, 0, 60),
+        },
     }
 }
 
@@ -413,25 +417,29 @@ fn light_button_slots(
     }
 }
 
-/// Light-mode inputs the component slots need. Threading these avoids
-/// re-deriving the light palette inside the seeding function (the palette is
-/// authored once in `Theme::light()`).
-struct LightComponentPaint {
+/// Light-mode inputs the palette and component slots need. Threading these
+/// avoids re-deriving the light palette inside the seeding functions (the
+/// palette is authored once in `Theme::light()`).
+struct LightPaint {
     base: Color32,
+    panel: Color32,
     surface: Color32,
     widget: Color32,
     hover: Color32,
+    active: Color32,
     primary: Color32,
     secondary: Color32,
+    muted: Color32,
     disabled: Color32,
     on_accent: Color32,
     border_default: Color32,
     border_strong: Color32,
     badge_bg: Color32,
     tooltip_bg: Color32,
+    danger_active: Color32,
 }
 
-fn light_component_slots(p: LightComponentPaint) -> ComponentSlots {
+fn light_component_slots(p: &LightPaint) -> ComponentSlots {
     let transparent = Color32::TRANSPARENT;
     ComponentSlots {
         toggle: ToggleSlots {

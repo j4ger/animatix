@@ -20,13 +20,8 @@ crates/animatix-gui/src/app/shell/frame.rs	ui	294
 crates/animatix-gui/src/app/shell/insertion_palette/shell_ui.rs	insertion_palette_ui	418
 crates/animatix-gui/src/app/shell/plugin_status.rs	plugin_status_ui	251
 crates/animatix-gui/src/source_edit/apply.rs	apply_edit	211
-crates/animatix-plugin-demo/src/lib.rs	animatix_plugin_install	203
-crates/animatix-plugin-demo/src/lib.rs	pulse_evaluate	256
-crates/animatix-syntax/src/module/expand/stmt.rs	expand_stmt_into	213
 crates/animatix-syntax/src/parser/expr.rs	parser	342
 crates/animatix-syntax/src/parser/stmt.rs	parser	758
-crates/animatix-syntax/src/symbol_table/collect.rs	collect_stmt	295
-crates/animatix-syntax/src/typecheck/stmt.rs	check_stmt	215
 crates/animatix/src/primitives/commands.rs	execute	298
 crates/animatix/src/primitives/trait.rs	evaluate_text_paths	264
 crates/animatix/src/timeline/build/actor/extensions.rs	process_plot_actor_dispatch	264
@@ -43,5 +38,3 @@ crates/animatix/src/timeline/scene_eval/containers/equation.rs	render_equation_c
 crates/animatix/src/timeline/scene_eval/containers/filter.rs	render_filter_children	212
 crates/animatix/src/timeline/timing/parsing.rs	parse_timing_modifiers	355
 crates/animatix/src/timeline/value_parser.rs	parse_value	372
-crates/eparts/src/tokens/theme/light.rs	light	224
-crates/eparts/src/widget/select/widget_impl.rs	ui	401
