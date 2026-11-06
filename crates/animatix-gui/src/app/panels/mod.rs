@@ -205,89 +205,34 @@ mod tests {
     }
 
     #[test]
-    fn nice_tick_interval_normal_range() {
-        // visible_range=100.0, target_ticks=10 → raw=10 → magnitude=10 → normalized=1 → nice_mul=1
-        // → 10.0
-        let interval = nice_tick_interval(100.0, 10.0);
-        assert!((interval - 10.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn nice_tick_interval_rounds_to_two() {
-        // visible_range=50.0, target_ticks=10 → raw=5 → magnitude=1 → normalized=5 → nice_mul=5 →
-        // 5.0
-        let interval = nice_tick_interval(50.0, 10.0);
-        assert!((interval - 5.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn nice_tick_interval_small_values() {
-        // visible_range=0.5, target_ticks=10 → raw=0.05 → magnitude=0.01 → normalized=5 →
-        // nice_mul=5 → 0.05
-        let interval = nice_tick_interval(0.5, 10.0);
-        assert!(interval > 0.0);
-        assert!((interval / 0.01 - 5.0).abs() < 0.001 || (interval / 0.05 - 1.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn nice_tick_interval_zero_range() {
-        // raw=0.0 → early return 1.0
-        assert_eq!(nice_tick_interval(0.0, 10.0), 1.0);
-    }
-
-    #[test]
-    fn nice_tick_interval_negative_range() {
-        // abs(visible_range) used
-        assert_eq!(nice_tick_interval(-100.0, 10.0), 10.0);
-    }
-
-    #[test]
-    fn nice_tick_interval_large_range_gives_round_numbers() {
-        // visible_range=10000.0, target_ticks=10 → raw=1000 → magnitude=100 → normalized=10 →
-        // nice_mul=10 → 1000.0
-        let interval = nice_tick_interval(10000.0, 10.0);
-        assert!((interval - 1000.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn nice_tick_interval_always_positive() {
-        for &range in &[0.1, 1.0, 10.0, 100.0, 1000.0] {
+    fn nice_tick_interval_covers_ranges_and_boundaries() {
+        let cases = [
+            // (visible_range, expected interval at 10 target ticks)
+            (100.0, 10.0),
+            (50.0, 5.0),
+            (0.5, 0.05),
+            (0.0, 1.0),
+            (-100.0, 10.0),
+            (10000.0, 1000.0),
+            (0.1, 0.01),
+            (1.0, 0.1),
+            (10.0, 1.0),
+            (1000.0, 100.0),
+            // Boundaries around the 1.5 / 3.5 / 7.5 nice-multiple cutoffs.
+            (14.9, 1.0),
+            (15.1, 2.0),
+            (34.9, 2.0),
+            (35.1, 5.0),
+            (74.9, 5.0),
+            (75.1, 10.0),
+        ];
+        for (range, expected) in cases {
             let interval = nice_tick_interval(range, 10.0);
-            assert!(interval > 0.0, "interval must be positive for range={}", range);
+            assert!(interval > 0.0, "interval must be positive for range={range}");
+            assert!(
+                (interval - expected).abs() < 0.001,
+                "range={range}: expected {expected}, got {interval}"
+            );
         }
-    }
-
-    #[test]
-    fn nice_tick_interval_boundary_near_one_point_five() {
-        // raw just below 1.5 → nice_mul=1
-        let interval = nice_tick_interval(14.9, 10.0);
-        assert!((interval - 1.0).abs() < 0.001);
-
-        // raw just above 1.5 → nice_mul=2
-        let interval = nice_tick_interval(15.1, 10.0);
-        // raw=1.51 → magnitude=1 → normalized=1.51 → nice_mul=2 → 2.0
-        assert!((interval - 2.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn nice_tick_interval_boundary_near_three_point_five() {
-        // raw just below 3.5 → nice_mul=2
-        let interval = nice_tick_interval(34.9, 10.0);
-        assert!((interval - 2.0).abs() < 0.001);
-
-        // raw just above 3.5 → nice_mul=5
-        let interval = nice_tick_interval(35.1, 10.0);
-        assert!((interval - 5.0).abs() < 0.001);
-    }
-
-    #[test]
-    fn nice_tick_interval_boundary_near_seven_point_five() {
-        // raw just below 7.5 → nice_mul=5
-        let interval = nice_tick_interval(74.9, 10.0);
-        assert!((interval - 5.0).abs() < 0.001);
-
-        // raw just above 7.5 → nice_mul=10
-        let interval = nice_tick_interval(75.1, 10.0);
-        assert!((interval - 10.0).abs() < 0.001);
     }
 }

@@ -1,8 +1,7 @@
 //! Background document-load worker.
 //!
-//! Opening a file used to read, parse, expand imports, typecheck, and build the
-//! timeline synchronously on the UI thread. The worker keeps that work out of
-//! frame handling while the shell remains responsive; only the finished
+//! Reads, parses, expands imports, typechecks, and builds the timeline off the
+//! UI thread so frame handling stays responsive. Only the finished
 //! `DocumentSession` is handed back for installation.
 
 use std::path::PathBuf;

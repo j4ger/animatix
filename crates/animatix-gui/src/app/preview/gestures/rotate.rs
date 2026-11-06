@@ -47,12 +47,10 @@ impl GestureHandler for RotateGesture {
                     return GestureResult::Claimed;
                 }
 
-                // Get first selected, unlocked actor and its props
                 let Some((actor, props)) = super::common::selected_actor_start(ctx) else {
                     return GestureResult::Ignored;
                 };
 
-                // Convert screen pos to scene space
                 let scene = ctx.preview_screen_to_scene(preview_rect, *pos);
 
                 // --- Hit test rotation handle first ---

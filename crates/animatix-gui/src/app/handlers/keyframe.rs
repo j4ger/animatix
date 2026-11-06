@@ -210,32 +210,16 @@ pub fn handle_resize_action(
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
     use super::*;
-    use crate::app::PreviewPaneState;
     use crate::app::document::timeline_diff::KeyframeId;
+    use crate::app::handlers::test_support::{make_document_store, preview_store};
     use crate::app::stores::UiStore;
-
-    fn make_document_store(source: &str) -> DocumentStore {
-        let path = PathBuf::from("test.amx");
-        let mut document =
-            crate::document::DocumentSession::from_source(path.clone(), source.to_string())
-                .expect("valid source");
-        document.rebuild().expect("valid source should rebuild");
-        let editor = crate::editor::EditorBuffer::new(&path, document.source_text.clone());
-        DocumentStore::new(document, editor)
-    }
-
-    fn preview_store(dimensions: animatix::timeline::SceneDimensions) -> PreviewStore {
-        PreviewStore::new(PreviewPaneState::new(5.0, dimensions))
-    }
 
     #[test]
     fn set_keyframe_value_replaces_value_with_one_undo_snapshot() {
         let mut document_store =
             make_document_store("#0s\nbox: Rect, size: (100, 100)\n#1s\nbox.opacity = 0.5\n");
-        let mut preview_store = preview_store(document_store.source.document.scene_dimensions);
+        let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
         let mut ui_store = UiStore::new(crate::app::persistence::default_tree());
 
         let effects = handle_set_keyframe_value(
@@ -260,7 +244,7 @@ mod tests {
     fn set_keyframe_value_missing_keyframe_aborts_snapshot() {
         let mut document_store =
             make_document_store("#0s\nbox: Rect, size: (100, 100)\n#1s\nbox.opacity = 0.5\n");
-        let mut preview_store = preview_store(document_store.source.document.scene_dimensions);
+        let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
         let mut ui_store = UiStore::new(crate::app::persistence::default_tree());
 
         let _ = handle_set_keyframe_value(
@@ -288,7 +272,7 @@ mod tests {
         let mut document_store = make_document_store(
             "#0s\nbox: Rect, size: (100, 100)\n#1s\nbox.opacity = 0.5\nbox.rotation = 1\n",
         );
-        let mut preview_store = preview_store(document_store.source.document.scene_dimensions);
+        let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
         let mut ui_store = UiStore::new(crate::app::persistence::default_tree());
 
         let effects = handle_move_keyframes(
@@ -331,7 +315,7 @@ mod tests {
         let mut document_store = make_document_store(
             "#0s\nbox: Rect, size: (100, 100)\n#1s\nbox.opacity = 0.5\n#2s\nbox.rotation = 1\n",
         );
-        let mut preview_store = preview_store(document_store.source.document.scene_dimensions);
+        let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
         let mut ui_store = UiStore::new(crate::app::persistence::default_tree());
 
         let effects = handle_move_keyframes(
@@ -368,7 +352,7 @@ mod tests {
     #[test]
     fn batch_move_with_empty_specs_does_not_snapshot() {
         let mut document_store = make_document_store("#0s\nbox: Rect, size: (100, 100)\n");
-        let mut preview_store = preview_store(document_store.source.document.scene_dimensions);
+        let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
         let mut ui_store = UiStore::new(crate::app::persistence::default_tree());
 
         let effects =
@@ -383,7 +367,7 @@ mod tests {
         let mut document_store = make_document_store(
             "#0s\nbox: Rect, size: (100, 100)\n#1s\nbox.opacity = 0.5\nbox.rotation = 1\n",
         );
-        let mut preview_store = preview_store(document_store.source.document.scene_dimensions);
+        let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
         let mut ui_store = UiStore::new(crate::app::persistence::default_tree());
 
         let ids = vec![
@@ -415,7 +399,7 @@ mod tests {
         let mut document_store = make_document_store(
             "# A\n#0s\nbox: Rect, size: (100, 100)\n# B\n#0s\nbox: Rect, size: (100, 100)\n#2s\nbox.color = red\n",
         );
-        let mut preview_store = preview_store(document_store.source.document.scene_dimensions);
+        let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
         let mut ui_store = UiStore::new(crate::app::persistence::default_tree());
         ui_store.selection.selected_keyframes.push(KeyframeId {
             scene: Some("B".to_string()),
@@ -454,7 +438,7 @@ mod tests {
     #[test]
     fn prune_drops_missing_scene_selection() {
         let mut document_store = make_document_store("# A\n#0s\nbox: Rect, size: (100, 100)\n");
-        let mut preview_store = preview_store(document_store.source.document.scene_dimensions);
+        let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
         let mut ui_store = UiStore::new(crate::app::persistence::default_tree());
         ui_store.selection.selected_keyframes.push(KeyframeId {
             scene: Some("B".to_string()),

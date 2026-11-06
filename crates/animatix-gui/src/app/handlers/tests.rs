@@ -4,7 +4,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use animatix::timeline::SceneDimensions;
 use animatix_syntax::ast::Stmt;
 
-use crate::app::PreviewPaneState;
 use crate::app::commands::Effect;
 use crate::app::document::plugins::DocumentPluginManager;
 use crate::app::handlers::*;
@@ -23,8 +22,7 @@ fn make_document_store() -> crate::app::stores::DocumentStore {
 }
 
 fn make_preview_store(duration_s: f64) -> crate::app::stores::PreviewStore {
-    let preview = PreviewPaneState::new(duration_s, SceneDimensions::default());
-    crate::app::stores::PreviewStore::new(preview)
+    super::test_support::preview_store(duration_s, SceneDimensions::default())
 }
 
 fn make_ui_store() -> crate::app::stores::UiStore {

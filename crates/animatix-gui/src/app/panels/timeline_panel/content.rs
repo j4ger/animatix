@@ -876,29 +876,3 @@ fn mirror_keyframe_selection(
         .collect();
     commands.push_back(ShellAction::Command(Command::SetSelectedKeyframes(canonical)));
 }
-
-#[cfg(test)]
-mod tests {
-    use super::super::ruler::snap_to_speech_or_fps;
-
-    #[test]
-    fn test_snap_to_speech_or_fps() {
-        let targets = vec![
-            (1.50, "@intro".to_string()),
-            (2.25, "\"hello\"".to_string()),
-        ];
-
-        let (snapped, label) = snap_to_speech_or_fps(1.52, 60.0, &targets);
-        assert!((snapped - 1.50).abs() < 1e-4);
-        assert_eq!(label.as_deref(), Some("@intro"));
-
-        let (snapped, label) = snap_to_speech_or_fps(2.22, 60.0, &targets);
-        assert!((snapped - 2.25).abs() < 1e-4);
-        assert_eq!(label.as_deref(), Some("\"hello\""));
-
-        let (snapped, label) = snap_to_speech_or_fps(3.821, 60.0, &targets);
-        let expected_fps_snap = (3.821 * 60.0_f64).round() / 60.0_f64;
-        assert!((snapped - expected_fps_snap).abs() < 1e-4);
-        assert_eq!(label, None);
-    }
-}

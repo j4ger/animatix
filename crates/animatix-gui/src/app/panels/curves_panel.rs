@@ -672,27 +672,9 @@ fn draw_ruler(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::panels::curve_plot::{CurveChannel, collect_curves_for_actor};
-
-    /// Two `Rect`s animating the same property — the multi-actor fixture.
-    fn two_actor_timeline() -> Timeline {
-        let source = r#"
-#0s
-a: Rect, at: (0, 0), size: (20, 20), color: (1, 1, 1, 1)
-b: Rect, at: (10, 10), size: (20, 20), color: (1, 1, 1, 1)
-
-#0.5s
-a.at = (100, 0)
-b.at = (0, 100)
-
-#1s
-a.at = (200, 0)
-b.at = (0, 200)
-"#;
-        let (ast, errors) = animatix_syntax::parser::parse_source(source);
-        assert!(errors.is_empty(), "parse errors: {errors:?}");
-        Timeline::build(&ast.expect("ast"))
-    }
+    use crate::app::panels::curve_plot::{
+        CurveChannel, collect_curves_for_actor, two_actor_timeline,
+    };
 
     fn id_at(curve: &CurveChannel, point: usize) -> KeyframeId {
         KeyframeId {

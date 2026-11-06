@@ -108,18 +108,6 @@ fn layout_presets_switch_detail_tab_and_focus_hides_regions() {
 }
 
 #[test]
-fn preview_fit_preserves_aspect_ratio() {
-    let fitted = fit_preview(
-        SceneDimensions {
-            width: 1920,
-            height: 1080,
-        },
-        Vec2::new(400.0, 400.0),
-    );
-    assert!((fitted.x / fitted.y - 16.0 / 9.0).abs() < 0.001);
-}
-
-#[test]
 fn preview_fit_uses_scene_dimensions_aspect_ratio() {
     let fitted = fit_preview(
         SceneDimensions {
@@ -278,8 +266,8 @@ fn clear_render_error_preserves_non_render_preview_failures() {
     assert_eq!(shell.preview_store.preview.status, "Open failed • missing.amx");
 }
 
-#[test]
-fn clamp_time_clamps_negative_to_zero() {
+/// A 5s preview at `time_s` with the standard 1920×1080 stage.
+fn preview_at(time_s: f64) -> super::PreviewPaneState {
     let mut preview = super::PreviewPaneState::new(
         5.0,
         SceneDimensions {
@@ -287,27 +275,26 @@ fn clamp_time_clamps_negative_to_zero() {
             height: 1080,
         },
     );
-    preview.playback.current_time_s = -1.0;
-    preview.playback.clamp_time();
-    assert_eq!(preview.playback.current_time_s, 0.0);
+    preview.playback.current_time_s = time_s;
+    preview
 }
 
 #[test]
-fn clamp_time_clamps_over_duration_to_max() {
-    let mut preview = super::PreviewPaneState::new(
-        5.0,
-        SceneDimensions {
-            width: 1920,
-            height: 1080,
-        },
-    );
-    preview.playback.current_time_s = 10.0;
-    preview.playback.clamp_time();
-    assert_eq!(preview.playback.current_time_s, 5.0);
-}
+fn clamp_time_keeps_time_within_bounds() {
+    let cases = [
+        (0.0, 0.0),  // zero boundary
+        (5.0, 5.0),  // max boundary
+        (3.5, 3.5),  // valid time preserved
+        (10.0, 5.0), // overshoot clamps to duration
+        (-1.0, 0.0), // negative clamps to zero
+    ];
+    for (time_s, expected) in cases {
+        let mut preview = preview_at(time_s);
+        preview.playback.clamp_time();
+        assert_eq!(preview.playback.current_time_s, expected, "clamp_time({time_s})");
+    }
 
-#[test]
-fn clamp_time_uses_minimum_duration_of_point_one() {
+    // A zero duration clamps to the 0.1s minimum.
     let mut preview = super::PreviewPaneState::new(
         0.0,
         SceneDimensions {
@@ -318,48 +305,6 @@ fn clamp_time_uses_minimum_duration_of_point_one() {
     preview.playback.current_time_s = 5.0;
     preview.playback.clamp_time();
     assert_eq!(preview.playback.current_time_s, 0.1);
-}
-
-#[test]
-fn clamp_time_preserves_valid_time() {
-    let mut preview = super::PreviewPaneState::new(
-        10.0,
-        SceneDimensions {
-            width: 1920,
-            height: 1080,
-        },
-    );
-    preview.playback.current_time_s = 3.5;
-    preview.playback.clamp_time();
-    assert_eq!(preview.playback.current_time_s, 3.5);
-}
-
-#[test]
-fn clamp_time_at_boundary_zero() {
-    let mut preview = super::PreviewPaneState::new(
-        5.0,
-        SceneDimensions {
-            width: 1920,
-            height: 1080,
-        },
-    );
-    preview.playback.current_time_s = 0.0;
-    preview.playback.clamp_time();
-    assert_eq!(preview.playback.current_time_s, 0.0);
-}
-
-#[test]
-fn clamp_time_at_boundary_max() {
-    let mut preview = super::PreviewPaneState::new(
-        5.0,
-        SceneDimensions {
-            width: 1920,
-            height: 1080,
-        },
-    );
-    preview.playback.current_time_s = 5.0;
-    preview.playback.clamp_time();
-    assert_eq!(preview.playback.current_time_s, 5.0);
 }
 
 #[test]

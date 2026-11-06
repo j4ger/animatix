@@ -56,14 +56,12 @@ impl GestureHandler for ScaleGesture {
                     return GestureResult::Claimed;
                 }
 
-                // Get first selected, unlocked actor and its props
                 let Some((actor, props)) = super::common::selected_actor_start(ctx) else {
                     return GestureResult::Ignored;
                 };
 
                 let scene = ctx.preview_screen_to_scene(preview_rect, *pos);
 
-                // Hit test 8 handles
                 let handle_world = preview::world_handle_positions(&props);
                 let handle_screen: [Pos2; 8] = std::array::from_fn(|i| {
                     ctx.preview_scene_to_screen(preview_rect, handle_world[i])

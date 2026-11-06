@@ -33,7 +33,6 @@ impl GestureHandler for VertexGesture {
                     PREVIEW_HANDLE_HIT_RADIUS
                 };
 
-                // Get first selected (unlocked) actor and its props
                 let Some((actor, props)) = super::common::selected_actor_start(ctx) else {
                     return GestureResult::Ignored;
                 };
@@ -51,7 +50,6 @@ impl GestureHandler for VertexGesture {
                     _ => return GestureResult::Ignored,
                 };
 
-                // Hit-test each vertex
                 let scene = ctx.preview_screen_to_scene(preview_rect, *pos);
                 if let Some(vidx) = crate::app::preview::hit_test_vertex(
                     *pos,

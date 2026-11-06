@@ -691,6 +691,7 @@ mod tests {
 
     use super::*;
     use crate::app::document::version::SourceHash;
+    use crate::app::handlers::test_support::make_document_store;
     use crate::editor::EditorBuffer;
 
     #[test]
@@ -769,15 +770,6 @@ mod tests {
             )),
             "expected a Save As failure toast, got {effects:?}"
         );
-    }
-
-    fn make_document_store(source: &str) -> DocumentStore {
-        let path = PathBuf::from("test.amx");
-        let mut document =
-            DocumentSession::from_source(path.clone(), source.to_string()).expect("valid source");
-        document.rebuild().expect("valid source should rebuild");
-        let editor = EditorBuffer::new(&path, document.source_text.clone());
-        DocumentStore::new(document, editor)
     }
 
     #[test]

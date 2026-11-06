@@ -24,12 +24,10 @@ impl GestureHandler for PivotGesture {
 
                 let hit_radius = PREVIEW_HANDLE_HIT_RADIUS;
 
-                // Get first selected, unlocked actor and its props
                 let Some((actor, props)) = super::common::selected_actor_start(ctx) else {
                     return GestureResult::Ignored;
                 };
 
-                // Hit-test the pivot crosshair
                 let pivot_world_pt = crate::app::preview::pivot_world(&props);
                 let pivot_screen = ctx.preview_scene_to_screen(
                     preview_rect,
@@ -40,7 +38,6 @@ impl GestureHandler for PivotGesture {
                     return GestureResult::Ignored;
                 }
 
-                // Convert screen pos to scene space for drag start reference
                 let scene = ctx.preview_screen_to_scene(preview_rect, *pos);
 
                 *ctx.drag_state = DragState::MovePivot {

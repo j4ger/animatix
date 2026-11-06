@@ -79,18 +79,15 @@ mod tests {
     }
 
     #[test]
-    fn test_truncate_chars_ascii() {
-        assert_eq!(truncate_chars("hello", 3), "hel");
-    }
-
-    #[test]
-    fn test_truncate_chars_multibyte() {
-        assert_eq!(truncate_chars("héllo", 3), "hél");
-    }
-
-    #[test]
-    fn test_truncate_chars_cjk() {
-        assert_eq!(truncate_chars("中文测试", 2), "中文");
+    fn test_truncate_chars_counts_characters_not_bytes() {
+        let cases = [
+            ("hello", 3, "hel"),
+            ("héllo", 3, "hél"),
+            ("中文测试", 2, "中文"),
+        ];
+        for (input, max, expected) in cases {
+            assert_eq!(truncate_chars(input, max), expected, "truncate_chars({input:?}, {max})");
+        }
     }
 
     #[test]

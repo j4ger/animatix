@@ -477,6 +477,27 @@ pub(crate) fn set_channel(
     }
 }
 
+/// Shared test fixture: two `Rect`s animating the same property.
+#[cfg(test)]
+pub(crate) fn two_actor_timeline() -> Timeline {
+    let source = r#"
+#0s
+a: Rect, at: (0, 0), size: (20, 20), color: (1, 1, 1, 1)
+b: Rect, at: (10, 10), size: (20, 20), color: (1, 1, 1, 1)
+
+#0.5s
+a.at = (100, 0)
+b.at = (0, 100)
+
+#1s
+a.at = (200, 0)
+b.at = (0, 200)
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    Timeline::build(&ast.expect("ast"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -586,26 +607,6 @@ a.to = (40, 20)
         let last = to_y.points.last().expect("points");
         assert!((last.0 - 1.0).abs() < 0.001, "last point time: {last:?}");
         assert!((last.1 - 20.0).abs() < 0.001, "last point value: {last:?}");
-    }
-
-    /// A `Rect` with two timed `at` assignments, shared by the multi-actor tests.
-    fn two_actor_timeline() -> animatix::timeline::Timeline {
-        let source = r#"
-#0s
-a: Rect, at: (0, 0), size: (20, 20), color: (1, 1, 1, 1)
-b: Rect, at: (10, 10), size: (20, 20), color: (1, 1, 1, 1)
-
-#0.5s
-a.at = (100, 0)
-b.at = (0, 100)
-
-#1s
-a.at = (200, 0)
-b.at = (0, 200)
-"#;
-        let (ast, errors) = animatix_syntax::parser::parse_source(source);
-        assert!(errors.is_empty(), "parse errors: {errors:?}");
-        animatix::timeline::Timeline::build(&ast.expect("ast"))
     }
 
     #[test]

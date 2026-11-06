@@ -111,82 +111,40 @@ fn test_handle_constrains_axis_edges_return_true() {
 }
 
 #[test]
-fn test_timeline_tick_times_short() {
-    // ≤2.0s → step 0.25s
-    // ticks: 0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75  (8 in loop) + push 2.0 = 9
-    let ticks = timeline_tick_times(2.0);
-    assert_eq!(ticks.len(), 9);
-    assert!((ticks[1] - 0.25).abs() < 1e-9);
-    assert!((ticks[4] - 1.0).abs() < 1e-9);
-    assert!((ticks[8] - 2.0).abs() < 1e-9);
-}
-
-#[test]
-fn test_timeline_tick_times_medium() {
-    // Between 2.0 and 5.0 → step 0.5s
-    // ticks: 0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5 (10) + push 5.0 = 11
-    let ticks = timeline_tick_times(5.0);
-    assert_eq!(ticks.len(), 11);
-    assert!((ticks[0] - 0.0).abs() < 1e-9);
-    assert!((ticks[2] - 1.0).abs() < 1e-9);
-    assert!((ticks[10] - 5.0).abs() < 1e-9);
-}
-
-#[test]
-fn test_timeline_tick_times_long() {
-    // Between 5.0 and 15.0 → step 1.0s
-    // ticks: 0..14 (15 ticks) + push 15.0 = 16
-    let ticks = timeline_tick_times(15.0);
-    assert_eq!(ticks.len(), 16);
-    assert!((ticks[5] - 5.0).abs() < 1e-9);
-    assert!((ticks[15] - 15.0).abs() < 1e-9);
-}
-
-#[test]
-fn test_timeline_tick_times_very_long() {
-    // Between 15.0 and 45.0 → step 5.0s
-    // ticks: 0,5,10,15,20,25,30,35,40 (9) + push 45.0 = 10
-    let ticks = timeline_tick_times(45.0);
-    assert_eq!(ticks.len(), 10);
-    assert!((ticks[3] - 15.0).abs() < 1e-9);
-    assert!((ticks[9] - 45.0).abs() < 1e-9);
-}
-
-#[test]
-fn test_timeline_tick_times_extreme() {
-    // >45.0s → step 10.0s
-    // ticks: 0,10,20,30,40,50,60,70,80,90 (10) + push 100.0 = 11
-    let ticks = timeline_tick_times(100.0);
-    assert_eq!(ticks.len(), 11);
-    assert!((ticks[5] - 50.0).abs() < 1e-9);
-    assert!((ticks[10] - 100.0).abs() < 1e-9);
-}
-
-#[test]
-fn test_timeline_tick_times_very_short() {
-    // 0.1s → clamped to min 0.1, step 0.25
-    let ticks = timeline_tick_times(0.1);
-    assert_eq!(ticks.len(), 2, "Only t=0 and t=0.1");
-    assert!((ticks[0] - 0.0).abs() < 1e-9);
-    assert!((ticks[1] - 0.1).abs() < 1e-9);
-}
-
-#[test]
-fn test_timeline_tick_times_ends_with_duration() {
-    let ticks = timeline_tick_times(3.7);
-    assert!((ticks.last().unwrap() - 3.7).abs() < 1e-9, "last tick must equal duration_s");
-}
-
-#[test]
-fn test_timeline_tick_times_strictly_increasing() {
-    let ticks = timeline_tick_times(42.0);
-    for pair in ticks.windows(2) {
+fn test_timeline_tick_times_scale_with_duration() {
+    // (duration, expected tick count, sampled (index, time) pairs)
+    let cases: &[(f64, usize, &[(usize, f64)])] = &[
+        (2.0, 9, &[(1, 0.25), (4, 1.0), (8, 2.0)]),
+        (5.0, 11, &[(0, 0.0), (2, 1.0), (10, 5.0)]),
+        (15.0, 16, &[(5, 5.0), (15, 15.0)]),
+        (45.0, 10, &[(3, 15.0), (9, 45.0)]),
+        (100.0, 11, &[(5, 50.0), (10, 100.0)]),
+        (0.1, 2, &[(0, 0.0), (1, 0.1)]),
+        (3.7, 9, &[]),
+        (42.0, 10, &[]),
+    ];
+    for (duration, expected_len, samples) in cases {
+        let ticks = timeline_tick_times(*duration);
+        assert_eq!(ticks.len(), *expected_len, "duration={duration}");
+        for (index, expected) in samples.iter() {
+            assert!(
+                (ticks[*index] - *expected).abs() < 1e-9,
+                "duration={duration} tick {index}: expected {expected}, got {}",
+                ticks[*index]
+            );
+        }
         assert!(
-            pair[0] < pair[1],
-            "ticks must be strictly increasing: {} >= {}",
-            pair[0],
-            pair[1]
+            (ticks.last().unwrap() - *duration).abs() < 1e-9,
+            "last tick must equal duration_s"
         );
+        for pair in ticks.windows(2) {
+            assert!(
+                pair[0] < pair[1],
+                "ticks must be strictly increasing: {} >= {}",
+                pair[0],
+                pair[1]
+            );
+        }
     }
 }
 
