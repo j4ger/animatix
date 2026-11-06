@@ -110,300 +110,50 @@ impl RenderCommand {
     /// Execute this command into a Vello scene with the given transform and opacity.
     pub fn execute(&self, scene: &mut vello::Scene, transform: &kurbo::Affine, opacity: f32) {
         match self {
-            RenderCommand::Paths { paths } => {
-                use kurbo::Shape as _;
-                for path in paths {
-                    match (&path.fill, &path.fill_gradient) {
-                        (Some(fc), Some(grad)) => {
-                            let g = grad
-                                .to_peniko(path.path.bounding_box(), fc.components[3] * opacity);
-                            scene.fill(
-                                vello::peniko::Fill::NonZero,
-                                *transform,
-                                &g,
-                                None,
-                                path.path.as_ref(),
-                            );
-                        },
-                        (Some(fc), None) => {
-                            let fc = fc.with_alpha(fc.components[3] * opacity);
-                            scene.fill(
-                                vello::peniko::Fill::NonZero,
-                                *transform,
-                                fc,
-                                None,
-                                path.path.as_ref(),
-                            );
-                        },
-                        // A ramp authored on a stroke-only shape paints no fill.
-                        (None, Some(_)) => {},
-                        (None, None) => {},
-                    }
-                    if let Some((mut sc, sw)) = path.stroke {
-                        sc = sc.with_alpha(sc.components[3] * opacity);
-                        let cap = match path.line_cap {
-                            1 => vello::kurbo::Cap::Round,
-                            2 => vello::kurbo::Cap::Square,
-                            _ => vello::kurbo::Cap::Butt,
-                        };
-                        let join = match path.line_join {
-                            1 => vello::kurbo::Join::Round,
-                            2 => vello::kurbo::Join::Bevel,
-                            _ => vello::kurbo::Join::Miter,
-                        };
-                        let dash: vello::kurbo::Dashes = path
-                            .dash_pattern
-                            .as_ref()
-                            .map(|p| p.iter().map(|f| f64::from(*f)).collect())
-                            .unwrap_or_default();
-                        let stroke = vello::kurbo::Stroke {
-                            width: sw as f64,
-                            join,
-                            miter_limit: 10.0,
-                            start_cap: cap,
-                            end_cap: cap,
-                            dash_pattern: dash,
-                            dash_offset: f64::from(path.dash_offset),
-                        };
-                        match &path.stroke_gradient {
-                            Some(grad) => {
-                                let g = grad.to_peniko(
-                                    path.path.bounding_box(),
-                                    sc.components[3] * opacity,
-                                );
-                                scene.stroke(&stroke, *transform, &g, None, path.path.as_ref());
-                            },
-                            None => scene.stroke(&stroke, *transform, sc, None, path.path.as_ref()),
-                        }
-                    }
-                }
-            },
+            RenderCommand::Paths { paths } => execute_paths(paths, scene, transform, opacity),
             RenderCommand::Text {
                 paths,
                 fill_gradient,
                 clip_path,
                 tint_color,
                 hardware_layout,
-            } => {
-                if let Some(clip) = clip_path {
-                    scene.push_layer(
-                        vello::peniko::Fill::NonZero,
-                        vello::peniko::BlendMode::default(),
-                        1.0,
-                        *transform,
-                        clip,
-                    );
-                }
-
-                if fill_gradient.is_none()
-                    && opacity > 0.0
-                    && let Some(hw) = hardware_layout
-                {
-                    let [r, g, b, a] = if let Some(tc) = tint_color {
-                        *tc
-                    } else if let Some(first) = paths.first() {
-                        first.color
-                    } else {
-                        [255, 255, 255, 255]
-                    };
-                    let brush =
-                        vello::peniko::Brush::Solid(vello::peniko::Color::from_rgba8(r, g, b, a));
-
-                    for run in &hw.runs {
-                        let font_data = vello::peniko::FontData {
-                            data: vello::peniko::Blob::new(std::sync::Arc::new(run.font_data)),
-                            index: run.font_index,
-                        };
-                        let glyphs_iter = run.glyphs.iter().map(|g| vello::Glyph {
-                            id: g.id,
-                            x: g.x,
-                            y: g.y,
-                        });
-                        let draw = scene.draw_glyphs(&font_data);
-                        draw.font_size(run.font_size)
-                            .transform(*transform)
-                            .brush(&brush)
-                            .brush_alpha(opacity)
-                            .draw(vello::peniko::Fill::NonZero, glyphs_iter);
-                    }
-
-                    if clip_path.is_some() {
-                        scene.pop_layer();
-                    }
-                    return;
-                }
-
-                let bounds = if fill_gradient.is_some() {
-                    let mut b: Option<kurbo::Rect> = None;
-                    for tp in paths.iter() {
-                        let tp_b = tp.bounds;
-                        b = Some(match b {
-                            Some(existing) => existing.union(tp_b),
-                            None => tp_b,
-                        });
-                    }
-                    b.unwrap_or_else(|| kurbo::Rect::new(0.0, 0.0, 1.0, 1.0))
-                } else {
-                    kurbo::Rect::ZERO
-                };
-
-                for text_path in paths.iter() {
-                    let glyph_alpha = opacity * text_path.opacity;
-                    if glyph_alpha <= 0.0 {
-                        continue;
-                    }
-                    if let Some(grad) = fill_gradient {
-                        let g = grad.to_peniko(bounds, glyph_alpha);
-                        scene.fill(
-                            vello::peniko::Fill::NonZero,
-                            *transform,
-                            &g,
-                            None,
-                            &text_path.path,
-                        );
-                    } else {
-                        let [r, g, b, a] = if let Some(tc) = tint_color {
-                            *tc
-                        } else {
-                            text_path.color
-                        };
-                        let color = vello::peniko::Color::from_rgba8(
-                            r,
-                            g,
-                            b,
-                            (a as f32 * glyph_alpha) as u8,
-                        );
-                        scene.fill(
-                            vello::peniko::Fill::NonZero,
-                            *transform,
-                            color,
-                            None,
-                            &text_path.path,
-                        );
-                    }
-                }
-
-                if clip_path.is_some() {
-                    scene.pop_layer();
-                }
-            },
+            } => execute_text(
+                paths,
+                fill_gradient,
+                clip_path,
+                tint_color,
+                hardware_layout,
+                scene,
+                transform,
+                opacity,
+            ),
             RenderCommand::Image {
                 image,
                 natural_size,
                 offset,
-            } => {
-                let image_transform = *transform
-                    * image_display_transform(*natural_size, image.natural_size, *offset);
-                let brush = vello::peniko::ImageBrush::new(image.data.clone())
-                    .with_extend(vello::peniko::Extend::Pad)
-                    .with_quality(vello::peniko::ImageQuality::Medium)
-                    .with_alpha(opacity);
-                scene.draw_image(&brush, image_transform);
-            },
+            } => execute_image(image, natural_size, offset, scene, transform, opacity),
             RenderCommand::HighlightLayer {
                 rect,
                 color,
                 blend,
                 alpha,
                 corner_radius,
-            } => {
-                let rounded = kurbo::RoundedRect::from_rect(*rect, *corner_radius);
-                scene.push_layer(
-                    vello::peniko::Fill::NonZero,
-                    vello::peniko::BlendMode::new(*blend, vello::peniko::Compose::SrcOver),
-                    *alpha * opacity,
-                    *transform,
-                    &rounded,
-                );
-                scene.fill(
-                    vello::peniko::Fill::NonZero,
-                    kurbo::Affine::IDENTITY,
-                    *color,
-                    None,
-                    &rounded,
-                );
-                scene.pop_layer();
-            },
+            } => execute_highlight_layer(
+                rect,
+                color,
+                blend,
+                alpha,
+                corner_radius,
+                scene,
+                transform,
+                opacity,
+            ),
             RenderCommand::Shadow {
                 size,
                 corner_radius,
                 params,
                 color,
-            } => {
-                let [dx, dy, blur, spread] = *params;
-                let [r, g, b, a] = *color;
-                let final_alpha = a * opacity;
-                if final_alpha <= 0.001 {
-                    return;
-                }
-                let half_w = size[0] + spread;
-                let half_h = size[1] + spread;
-                if blur <= 0.5 {
-                    let shadow_rect = kurbo::Rect::new(
-                        (dx - half_w) as f64,
-                        (dy - half_h) as f64,
-                        (dx + half_w) as f64,
-                        (dy + half_h) as f64,
-                    );
-                    let peniko_color = vello::peniko::Color::from_rgba8(
-                        (r * 255.0) as u8,
-                        (g * 255.0) as u8,
-                        (b * 255.0) as u8,
-                        (final_alpha * 255.0) as u8,
-                    );
-                    if *corner_radius > 0.0 {
-                        let rounded =
-                            kurbo::RoundedRect::from_rect(shadow_rect, *corner_radius as f64);
-                        scene.fill(
-                            vello::peniko::Fill::NonZero,
-                            *transform,
-                            peniko_color,
-                            None,
-                            &rounded,
-                        );
-                    } else {
-                        scene.fill(
-                            vello::peniko::Fill::NonZero,
-                            *transform,
-                            peniko_color,
-                            None,
-                            &shadow_rect,
-                        );
-                    }
-                } else {
-                    let sigma = blur * 0.5;
-                    let steps = 6;
-                    for i in 0..steps {
-                        let t0 = i as f32 / steps as f32;
-                        let t1 = (i + 1) as f32 / steps as f32;
-                        let erf0 = (1.2 * (t0 * 3.0)).tanh();
-                        let erf1 = (1.2 * (t1 * 3.0)).tanh();
-                        let slice_alpha = (erf1 - erf0) * final_alpha;
-                        let pad = t1 * 3.0 * sigma;
-                        let shadow_rect = kurbo::Rect::new(
-                            (dx - half_w - pad) as f64,
-                            (dy - half_h - pad) as f64,
-                            (dx + half_w + pad) as f64,
-                            (dy + half_h + pad) as f64,
-                        );
-                        let peniko_color = vello::peniko::Color::from_rgba8(
-                            (r * 255.0) as u8,
-                            (g * 255.0) as u8,
-                            (b * 255.0) as u8,
-                            (slice_alpha * 255.0).clamp(0.0, 255.0) as u8,
-                        );
-                        let cr = (*corner_radius + pad) as f64;
-                        let rounded = kurbo::RoundedRect::from_rect(shadow_rect, cr);
-                        scene.fill(
-                            vello::peniko::Fill::NonZero,
-                            *transform,
-                            peniko_color,
-                            None,
-                            &rounded,
-                        );
-                    }
-                }
-            },
+            } => execute_shadow(size, corner_radius, params, color, scene, transform, opacity),
         }
     }
 
@@ -467,5 +217,272 @@ impl RenderCommand {
             },
         }
         bounds
+    }
+}
+
+/// Execute one `RenderCommand::Paths` arm: the fill (solid or gradient) and,
+/// when present, the stroke of every path.
+fn execute_paths(
+    paths: &[VelloPath],
+    scene: &mut vello::Scene,
+    transform: &kurbo::Affine,
+    opacity: f32,
+) {
+    use kurbo::Shape as _;
+    for path in paths {
+        match (&path.fill, &path.fill_gradient) {
+            (Some(fc), Some(grad)) => {
+                let g = grad.to_peniko(path.path.bounding_box(), fc.components[3] * opacity);
+                scene.fill(vello::peniko::Fill::NonZero, *transform, &g, None, path.path.as_ref());
+            },
+            (Some(fc), None) => {
+                let fc = fc.with_alpha(fc.components[3] * opacity);
+                scene.fill(vello::peniko::Fill::NonZero, *transform, fc, None, path.path.as_ref());
+            },
+            // A ramp authored on a stroke-only shape paints no fill.
+            (None, Some(_)) => {},
+            (None, None) => {},
+        }
+        if let Some((mut sc, sw)) = path.stroke {
+            sc = sc.with_alpha(sc.components[3] * opacity);
+            let cap = match path.line_cap {
+                1 => vello::kurbo::Cap::Round,
+                2 => vello::kurbo::Cap::Square,
+                _ => vello::kurbo::Cap::Butt,
+            };
+            let join = match path.line_join {
+                1 => vello::kurbo::Join::Round,
+                2 => vello::kurbo::Join::Bevel,
+                _ => vello::kurbo::Join::Miter,
+            };
+            let dash: vello::kurbo::Dashes = path
+                .dash_pattern
+                .as_ref()
+                .map(|p| p.iter().map(|f| f64::from(*f)).collect())
+                .unwrap_or_default();
+            let stroke = vello::kurbo::Stroke {
+                width: sw as f64,
+                join,
+                miter_limit: 10.0,
+                start_cap: cap,
+                end_cap: cap,
+                dash_pattern: dash,
+                dash_offset: f64::from(path.dash_offset),
+            };
+            match &path.stroke_gradient {
+                Some(grad) => {
+                    let g = grad.to_peniko(path.path.bounding_box(), sc.components[3] * opacity);
+                    scene.stroke(&stroke, *transform, &g, None, path.path.as_ref());
+                },
+                None => scene.stroke(&stroke, *transform, sc, None, path.path.as_ref()),
+            }
+        }
+    }
+}
+
+/// Execute one `RenderCommand::Text` arm: the hardware-glyph fast path, then the
+/// per-glyph fill (gradient or tinted color), under an optional clip layer.
+fn execute_text(
+    paths: &std::sync::Arc<[TextPath]>,
+    fill_gradient: &Option<Box<crate::renderer::types::GradientSpec>>,
+    clip_path: &Option<kurbo::BezPath>,
+    tint_color: &Option<[u8; 4]>,
+    hardware_layout: &Option<std::sync::Arc<animatix_text::HardwareTextLayout>>,
+    scene: &mut vello::Scene,
+    transform: &kurbo::Affine,
+    opacity: f32,
+) {
+    if let Some(clip) = clip_path {
+        scene.push_layer(
+            vello::peniko::Fill::NonZero,
+            vello::peniko::BlendMode::default(),
+            1.0,
+            *transform,
+            clip,
+        );
+    }
+
+    if fill_gradient.is_none()
+        && opacity > 0.0
+        && let Some(hw) = hardware_layout
+    {
+        let [r, g, b, a] = if let Some(tc) = tint_color {
+            *tc
+        } else if let Some(first) = paths.first() {
+            first.color
+        } else {
+            [255, 255, 255, 255]
+        };
+        let brush = vello::peniko::Brush::Solid(vello::peniko::Color::from_rgba8(r, g, b, a));
+
+        for run in &hw.runs {
+            let font_data = vello::peniko::FontData {
+                data: vello::peniko::Blob::new(std::sync::Arc::new(run.font_data)),
+                index: run.font_index,
+            };
+            let glyphs_iter = run.glyphs.iter().map(|g| vello::Glyph {
+                id: g.id,
+                x: g.x,
+                y: g.y,
+            });
+            let draw = scene.draw_glyphs(&font_data);
+            draw.font_size(run.font_size)
+                .transform(*transform)
+                .brush(&brush)
+                .brush_alpha(opacity)
+                .draw(vello::peniko::Fill::NonZero, glyphs_iter);
+        }
+
+        if clip_path.is_some() {
+            scene.pop_layer();
+        }
+        return;
+    }
+
+    let bounds = if fill_gradient.is_some() {
+        let mut b: Option<kurbo::Rect> = None;
+        for tp in paths.iter() {
+            let tp_b = tp.bounds;
+            b = Some(match b {
+                Some(existing) => existing.union(tp_b),
+                None => tp_b,
+            });
+        }
+        b.unwrap_or_else(|| kurbo::Rect::new(0.0, 0.0, 1.0, 1.0))
+    } else {
+        kurbo::Rect::ZERO
+    };
+
+    for text_path in paths.iter() {
+        let glyph_alpha = opacity * text_path.opacity;
+        if glyph_alpha <= 0.0 {
+            continue;
+        }
+        if let Some(grad) = fill_gradient {
+            let g = grad.to_peniko(bounds, glyph_alpha);
+            scene.fill(vello::peniko::Fill::NonZero, *transform, &g, None, &text_path.path);
+        } else {
+            let [r, g, b, a] = if let Some(tc) = tint_color {
+                *tc
+            } else {
+                text_path.color
+            };
+            let color = vello::peniko::Color::from_rgba8(r, g, b, (a as f32 * glyph_alpha) as u8);
+            scene.fill(vello::peniko::Fill::NonZero, *transform, color, None, &text_path.path);
+        }
+    }
+
+    if clip_path.is_some() {
+        scene.pop_layer();
+    }
+}
+
+/// Execute one `RenderCommand::Image` arm: scale the texture's pixel rect onto
+/// its display box, then draw it with the command opacity.
+fn execute_image(
+    image: &crate::timeline::image::SceneImage,
+    natural_size: &[f32; 2],
+    offset: &[f64; 2],
+    scene: &mut vello::Scene,
+    transform: &kurbo::Affine,
+    opacity: f32,
+) {
+    let image_transform =
+        *transform * image_display_transform(*natural_size, image.natural_size, *offset);
+    let brush = vello::peniko::ImageBrush::new(image.data.clone())
+        .with_extend(vello::peniko::Extend::Pad)
+        .with_quality(vello::peniko::ImageQuality::Medium)
+        .with_alpha(opacity);
+    scene.draw_image(&brush, image_transform);
+}
+
+/// Execute one `RenderCommand::HighlightLayer` arm: push a blend-mode layer,
+/// fill the rounded rect, then pop the layer.
+fn execute_highlight_layer(
+    rect: &kurbo::Rect,
+    color: &vello::peniko::Color,
+    blend: &vello::peniko::Mix,
+    alpha: &f32,
+    corner_radius: &f64,
+    scene: &mut vello::Scene,
+    transform: &kurbo::Affine,
+    opacity: f32,
+) {
+    let rounded = kurbo::RoundedRect::from_rect(*rect, *corner_radius);
+    scene.push_layer(
+        vello::peniko::Fill::NonZero,
+        vello::peniko::BlendMode::new(*blend, vello::peniko::Compose::SrcOver),
+        *alpha * opacity,
+        *transform,
+        &rounded,
+    );
+    scene.fill(vello::peniko::Fill::NonZero, kurbo::Affine::IDENTITY, *color, None, &rounded);
+    scene.pop_layer();
+}
+
+/// Execute one `RenderCommand::Shadow` arm: a single rect for a sharp shadow, or
+/// six erf-approximated slices for a blurred one.
+fn execute_shadow(
+    size: &[f32; 2],
+    corner_radius: &f32,
+    params: &[f32; 4],
+    color: &[f32; 4],
+    scene: &mut vello::Scene,
+    transform: &kurbo::Affine,
+    opacity: f32,
+) {
+    let [dx, dy, blur, spread] = *params;
+    let [r, g, b, a] = *color;
+    let final_alpha = a * opacity;
+    if final_alpha <= 0.001 {
+        return;
+    }
+    let half_w = size[0] + spread;
+    let half_h = size[1] + spread;
+    if blur <= 0.5 {
+        let shadow_rect = kurbo::Rect::new(
+            (dx - half_w) as f64,
+            (dy - half_h) as f64,
+            (dx + half_w) as f64,
+            (dy + half_h) as f64,
+        );
+        let peniko_color = vello::peniko::Color::from_rgba8(
+            (r * 255.0) as u8,
+            (g * 255.0) as u8,
+            (b * 255.0) as u8,
+            (final_alpha * 255.0) as u8,
+        );
+        if *corner_radius > 0.0 {
+            let rounded = kurbo::RoundedRect::from_rect(shadow_rect, *corner_radius as f64);
+            scene.fill(vello::peniko::Fill::NonZero, *transform, peniko_color, None, &rounded);
+        } else {
+            scene.fill(vello::peniko::Fill::NonZero, *transform, peniko_color, None, &shadow_rect);
+        }
+    } else {
+        let sigma = blur * 0.5;
+        let steps = 6;
+        for i in 0..steps {
+            let t0 = i as f32 / steps as f32;
+            let t1 = (i + 1) as f32 / steps as f32;
+            let erf0 = (1.2 * (t0 * 3.0)).tanh();
+            let erf1 = (1.2 * (t1 * 3.0)).tanh();
+            let slice_alpha = (erf1 - erf0) * final_alpha;
+            let pad = t1 * 3.0 * sigma;
+            let shadow_rect = kurbo::Rect::new(
+                (dx - half_w - pad) as f64,
+                (dy - half_h - pad) as f64,
+                (dx + half_w + pad) as f64,
+                (dy + half_h + pad) as f64,
+            );
+            let peniko_color = vello::peniko::Color::from_rgba8(
+                (r * 255.0) as u8,
+                (g * 255.0) as u8,
+                (b * 255.0) as u8,
+                (slice_alpha * 255.0).clamp(0.0, 255.0) as u8,
+            );
+            let cr = (*corner_radius + pad) as f64;
+            let rounded = kurbo::RoundedRect::from_rect(shadow_rect, cr);
+            scene.fill(vello::peniko::Fill::NonZero, *transform, peniko_color, None, &rounded);
+        }
     }
 }

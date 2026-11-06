@@ -22,7 +22,6 @@ crates/animatix-gui/src/app/shell/plugin_status.rs	plugin_status_ui	251
 crates/animatix-gui/src/source_edit/apply.rs	apply_edit	211
 crates/animatix-syntax/src/parser/expr.rs	parser	342
 crates/animatix-syntax/src/parser/stmt.rs	parser	758
-crates/animatix/src/primitives/commands.rs	execute	298
 crates/animatix/src/primitives/trait.rs	evaluate_text_paths	264
 crates/animatix/src/timeline/build/actor/extensions.rs	process_plot_actor_dispatch	264
 crates/animatix/src/timeline/build/plot/bars.rs	paths_for	209
@@ -30,8 +29,6 @@ crates/animatix/src/timeline/build/plot/bars.rs	resolve_bar_chart_layout	286
 crates/animatix/src/timeline/build/plot/curves.rs	build_plot_curve_paths	284
 crates/animatix/src/timeline/build/plot/mod.rs	parse_plot_props	268
 crates/animatix/src/timeline/persistence/inject.rs	inject_entry	221
-crates/animatix/src/timeline/property_engine/declaration.rs	write_property_fields	354
 crates/animatix/src/timeline/scene_eval/containers/captions.rs	render_captions_children	305
 crates/animatix/src/timeline/scene_eval/containers/equation.rs	render_equation_children	210
 crates/animatix/src/timeline/scene_eval/containers/filter.rs	render_filter_children	212
-crates/animatix/src/timeline/value_parser.rs	parse_value	372

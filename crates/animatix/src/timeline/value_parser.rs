@@ -47,322 +47,22 @@ pub(crate) fn parse_value(
     subject: &str,
 ) -> Option<PropertyValue> {
     match value_type {
-        ValueType::Enum(variants) => {
-            let text = match expr {
-                Expr::Ident(name) | Expr::Str(name) => name.clone(),
-                _ => {
-                    evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?.as_str()
-                },
-            };
-            if variants.contains(&text.as_str()) {
-                Some(PropertyValue::Enum(text))
-            } else {
-                diagnostics.push(
-                    Diagnostic::warning(
-                        DiagnosticCode::InvalidPropertyValue,
-                        DiagnosticPhase::Build,
-                        format!(
-                            "'{}' expects one of {}, got '{}'",
-                            subject,
-                            variants.join(" | "),
-                            text
-                        ),
-                    )
-                    .with_subject(subject),
-                );
-                None
-            }
-        },
-        ValueType::Sum(variants) => {
-            for variant in variants {
-                if let Some(literal) = variant.literal {
-                    let value =
-                        evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject);
-                    let matches_literal = match (&literal, &value) {
-                        (
-                            super::property_registry::SumLiteral::Bool(expected),
-                            Some(Value::Bool(actual)),
-                        ) => expected == actual,
-                        (
-                            super::property_registry::SumLiteral::Str(expected),
-                            Some(Value::Str(actual)),
-                        ) => expected == actual,
-                        _ => false,
-                    };
-                    if matches_literal
-                        && let Some(payload) =
-                            parse_value(variant.value_type, expr, env, diagnostics, subject)
-                    {
-                        return Some(PropertyValue::Variant {
-                            name: variant.name.to_string(),
-                            value: Box::new(payload),
-                        });
-                    }
-                }
-            }
-            for variant in variants {
-                let mut branch_diagnostics = Vec::new();
-                if let Some(payload) =
-                    parse_value(variant.value_type, expr, env, &mut branch_diagnostics, subject)
-                {
-                    return Some(PropertyValue::Variant {
-                        name: variant.name.to_string(),
-                        value: Box::new(payload),
-                    });
-                }
-            }
-            diagnostics.push(
-                Diagnostic::warning(
-                    DiagnosticCode::InvalidPropertyValue,
-                    DiagnosticPhase::Build,
-                    format!("'{}' expects a supported choice, got an unsupported value", subject),
-                )
-                .with_subject(subject),
-            );
-            None
-        },
-        ValueType::Union(variants) => {
-            for variant in variants {
-                let mut branch_diagnostics = Vec::new();
-                if let Some(value) =
-                    parse_value(*variant, expr, env, &mut branch_diagnostics, subject)
-                {
-                    return Some(value);
-                }
-            }
-            diagnostics.push(
-                Diagnostic::warning(
-                    DiagnosticCode::InvalidPropertyValue,
-                    DiagnosticPhase::Build,
-                    format!(
-                        "'{}' expects {}, got an unsupported value",
-                        subject,
-                        union_type_name(variants)
-                    ),
-                )
-                .with_subject(subject),
-            );
-            None
-        },
-        ValueType::F32 => {
-            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
-            Some(PropertyValue::F32(v.as_num() as f32))
-        },
-        ValueType::U32 => {
-            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
-            let n = v.as_num();
-            Some(PropertyValue::U32(n.max(0.0) as u32))
-        },
-        ValueType::Vec2 => {
-            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
-            match v {
-                Value::Vec2([x, y]) => Some(PropertyValue::Vec2([x as f32, y as f32])),
-                // All-numeric 2-element brace lists are accepted at the
-                // property boundary, mirroring the paren form.
-                Value::List(items) if items.len() == 2 => {
-                    let nums: Option<Vec<f64>> = items
-                        .iter()
-                        .map(|item| match item {
-                            Value::Num(n) => Some(*n),
-                            _ => None,
-                        })
-                        .collect();
-                    nums.map(|n| PropertyValue::Vec2([n[0] as f32, n[1] as f32]))
-                },
-                _ => None,
-            }
-        },
-        ValueType::Vec4 => {
-            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
-            match v {
-                Value::Vec4([a, b, c, d]) => {
-                    Some(PropertyValue::Vec4([a as f32, b as f32, c as f32, d as f32]))
-                },
-                Value::Color([a, b, c, d]) => {
-                    Some(PropertyValue::Vec4([a as f32, b as f32, c as f32, d as f32]))
-                },
-                // All-numeric 4-element brace lists mirror the paren form.
-                Value::List(items) if items.len() == 4 => {
-                    let nums: Option<Vec<f64>> = items
-                        .iter()
-                        .map(|item| match item {
-                            Value::Num(n) => Some(*n),
-                            _ => None,
-                        })
-                        .collect();
-                    nums.map(|n| {
-                        PropertyValue::Vec4([n[0] as f32, n[1] as f32, n[2] as f32, n[3] as f32])
-                    })
-                },
-                _ => None,
-            }
-        },
-        ValueType::Color => {
-            parse_color_in_env_with_lookup_diagnostic("", "color", expr, env, diagnostics, subject)
-                .map(PropertyValue::Color)
-        },
-        ValueType::String => {
-            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
-            match v {
-                Value::Str(s) => Some(PropertyValue::String(s)),
-                _ => None,
-            }
-        },
-        ValueType::Bool => {
-            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
-            match v {
-                Value::Bool(b) => Some(PropertyValue::Bool(b)),
-                _ => None,
-            }
-        },
-        ValueType::F32List => {
-            let items = match expr {
-                Expr::List(items) => items,
-                _ => return None,
-            };
-            let mut values = Vec::with_capacity(items.len());
-            for item in items {
-                match evaluate_expr_with_lookup_diagnostic(item, env, diagnostics, subject) {
-                    Some(Value::Num(n)) => values.push(n as f32),
-                    _ => {
-                        diagnostics.push(
-                            Diagnostic::warning(
-                                DiagnosticCode::InvalidPropertyValue,
-                                DiagnosticPhase::Build,
-                                "dash_pattern expects a list of numbers".to_string(),
-                            )
-                            .with_subject(subject),
-                        );
-                    },
-                }
-            }
-            if values.is_empty() {
-                None
-            } else {
-                Some(PropertyValue::F32List(values))
-            }
-        },
-        ValueType::Gradient => {
-            let (kind_name, args) = match expr {
-                Expr::Call(name, args) => (name.as_str(), args.as_slice()),
-                _ => {
-                    diagnostics.push(
-                        Diagnostic::warning(
-                            DiagnosticCode::InvalidPropertyValue,
-                            DiagnosticPhase::Build,
-                            "expected linear(…), radial(…) or sweep(…), e.g. \
-                             fill_gradient: linear(135, {\"#ff2d55\", \"#5e5ce6\"})"
-                                .to_string(),
-                        )
-                        .with_subject(subject),
-                    );
-                    return None;
-                },
-            };
-            parse_gradient(kind_name, args, env, diagnostics, subject).map(PropertyValue::Gradient)
-        },
-        ValueType::PointList => {
-            let items = match expr {
-                Expr::List(items) => items,
-                _ => {
-                    // Allow a variable/expression that evaluates to List(Vec2)
-                    match evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject) {
-                        Some(Value::List(items)) => {
-                            let mut points = Vec::with_capacity(items.len());
-                            for item in items.iter() {
-                                if let Value::Vec2([x, y]) = item {
-                                    points.push([*x as f32, *y as f32]);
-                                } else {
-                                    diagnostics.push(
-                                        Diagnostic::warning(
-                                            DiagnosticCode::InvalidPropertyValue,
-                                            DiagnosticPhase::Build,
-                                            format!("PointList expected Vec2, got {:?}", item),
-                                        )
-                                        .with_subject(subject),
-                                    );
-                                }
-                            }
-                            return if points.is_empty() {
-                                None
-                            } else {
-                                Some(PropertyValue::PointList(points))
-                            };
-                        },
-                        _ => return None,
-                    }
-                },
-            };
-            let mut points = Vec::with_capacity(items.len());
-            for item in items {
-                let pair = match item {
-                    Expr::Tuple(t) if t.len() == 2 => {
-                        let x =
-                            evaluate_expr_with_lookup_diagnostic(&t[0], env, diagnostics, subject);
-                        let y =
-                            evaluate_expr_with_lookup_diagnostic(&t[1], env, diagnostics, subject);
-                        match (x, y) {
-                            (Some(Value::Num(xv)), Some(Value::Num(yv))) => [xv as f32, yv as f32],
-                            _ => {
-                                diagnostics.push(
-                                    Diagnostic::warning(
-                                        DiagnosticCode::InvalidPropertyValue,
-                                        DiagnosticPhase::Build,
-                                        "PointList point coordinates must be numbers".to_string(),
-                                    )
-                                    .with_subject(subject),
-                                );
-                                continue;
-                            },
-                        }
-                    },
-                    _ => {
-                        match evaluate_expr_with_lookup_diagnostic(item, env, diagnostics, subject)
-                        {
-                            Some(Value::Vec2([x, y])) => [x as f32, y as f32],
-                            _ => {
-                                diagnostics.push(
-                                    Diagnostic::warning(
-                                        DiagnosticCode::InvalidPropertyValue,
-                                        DiagnosticPhase::Build,
-                                        "PointList expected Vec2 point".to_string(),
-                                    )
-                                    .with_subject(subject),
-                                );
-                                continue;
-                            },
-                        }
-                    },
-                };
-                points.push(pair);
-            }
-            if points.is_empty() {
-                None
-            } else {
-                Some(PropertyValue::PointList(points))
-            }
-        },
+        ValueType::Enum(variants) => parse_enum_value(variants, expr, env, diagnostics, subject),
+        ValueType::Sum(variants) => parse_sum_value(variants, expr, env, diagnostics, subject),
+        ValueType::Union(variants) => parse_union_value(variants, expr, env, diagnostics, subject),
+        ValueType::F32 => parse_f32_value(expr, env, diagnostics, subject),
+        ValueType::U32 => parse_u32_value(expr, env, diagnostics, subject),
+        ValueType::Vec2 => parse_vec2_value(expr, env, diagnostics, subject),
+        ValueType::Vec4 => parse_vec4_value(expr, env, diagnostics, subject),
+        ValueType::Color => parse_color_value(expr, env, diagnostics, subject),
+        ValueType::String => parse_string_value(expr, env, diagnostics, subject),
+        ValueType::Bool => parse_bool_value(expr, env, diagnostics, subject),
+        ValueType::F32List => parse_f32_list_value(expr, env, diagnostics, subject),
+        ValueType::Gradient => parse_gradient_value(expr, env, diagnostics, subject),
+        ValueType::PointList => parse_point_list_value(expr, env, diagnostics, subject),
         ValueType::CommandList => crate::timeline::parse_path_commands_expr(expr, env)
             .map(|path| PropertyValue::CommandList(path.to_svg())),
-        ValueType::Transform => {
-            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
-            match v {
-                Value::Vec2([a, b]) => {
-                    Some(PropertyValue::Transform([a as f32, b as f32, 0.0, 1.0, 0.0, 0.0]))
-                },
-                Value::Vec4([a, b, c, d]) => Some(PropertyValue::Transform([
-                    a as f32, b as f32, c as f32, d as f32, 0.0, 0.0,
-                ])),
-                Value::List(items) if items.len() == 6 => {
-                    let mut arr = [0.0f32; 6];
-                    for (i, item) in items.iter().enumerate() {
-                        arr[i] = item.as_num() as f32;
-                    }
-                    Some(PropertyValue::Transform(arr))
-                },
-                _ => None,
-            }
-        },
+        ValueType::Transform => parse_transform_value(expr, env, diagnostics, subject),
         // These types require context-specific handling (group resolution,
         // auto-color, etc.) and cannot be parsed generically.
         ValueType::ShapeType
@@ -371,44 +71,455 @@ pub(crate) fn parse_value(
         | ValueType::PositionBinding
         | ValueType::MorphOptions
         | ValueType::BuildTimeOnly => None,
-        ValueType::CalloutPlace => {
-            use crate::timeline::animation_track::CalloutPlace;
-            let s = match expr {
-                Expr::Ident(s) | Expr::Str(s) => s.as_str(),
-                _ => {
-                    let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
-                    let owned = v.as_str();
-                    return if let Some(p) = CalloutPlace::from_str(&owned) {
-                        Some(PropertyValue::Enum(p.as_str().to_string()))
+        ValueType::CalloutPlace => parse_callout_place_value(expr, env, diagnostics, subject),
+    }
+}
+
+/// Parse a `ValueType::Enum` choice from an identifier, a string literal, or an
+/// expression that evaluates to one.
+fn parse_enum_value(
+    variants: &'static [&'static str],
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<PropertyValue> {
+    let text = match expr {
+        Expr::Ident(name) | Expr::Str(name) => name.clone(),
+        _ => evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?.as_str(),
+    };
+    if variants.contains(&text.as_str()) {
+        Some(PropertyValue::Enum(text))
+    } else {
+        diagnostics.push(
+            Diagnostic::warning(
+                DiagnosticCode::InvalidPropertyValue,
+                DiagnosticPhase::Build,
+                format!("'{}' expects one of {}, got '{}'", subject, variants.join(" | "), text),
+            )
+            .with_subject(subject),
+        );
+        None
+    }
+}
+
+/// Parse a `ValueType::Sum`: literal-tagged variants first, then each variant's
+/// payload type, warning when none of them accepts the value.
+fn parse_sum_value(
+    variants: &'static [super::property_registry::SumVariant],
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<PropertyValue> {
+    for variant in variants {
+        if let Some(literal) = variant.literal {
+            let value = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject);
+            let matches_literal = match (&literal, &value) {
+                (
+                    super::property_registry::SumLiteral::Bool(expected),
+                    Some(Value::Bool(actual)),
+                ) => expected == actual,
+                (super::property_registry::SumLiteral::Str(expected), Some(Value::Str(actual))) => {
+                    expected == actual
+                },
+                _ => false,
+            };
+            if matches_literal
+                && let Some(payload) =
+                    parse_value(variant.value_type, expr, env, diagnostics, subject)
+            {
+                return Some(PropertyValue::Variant {
+                    name: variant.name.to_string(),
+                    value: Box::new(payload),
+                });
+            }
+        }
+    }
+    for variant in variants {
+        let mut branch_diagnostics = Vec::new();
+        if let Some(payload) =
+            parse_value(variant.value_type, expr, env, &mut branch_diagnostics, subject)
+        {
+            return Some(PropertyValue::Variant {
+                name: variant.name.to_string(),
+                value: Box::new(payload),
+            });
+        }
+    }
+    diagnostics.push(
+        Diagnostic::warning(
+            DiagnosticCode::InvalidPropertyValue,
+            DiagnosticPhase::Build,
+            format!("'{}' expects a supported choice, got an unsupported value", subject),
+        )
+        .with_subject(subject),
+    );
+    None
+}
+
+/// Parse a `ValueType::Union` by trying each variant in order, warning when none
+/// of them accepts the value.
+fn parse_union_value(
+    variants: &'static [ValueType],
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<PropertyValue> {
+    for variant in variants {
+        let mut branch_diagnostics = Vec::new();
+        if let Some(value) = parse_value(*variant, expr, env, &mut branch_diagnostics, subject) {
+            return Some(value);
+        }
+    }
+    diagnostics.push(
+        Diagnostic::warning(
+            DiagnosticCode::InvalidPropertyValue,
+            DiagnosticPhase::Build,
+            format!(
+                "'{}' expects {}, got an unsupported value",
+                subject,
+                union_type_name(variants)
+            ),
+        )
+        .with_subject(subject),
+    );
+    None
+}
+
+/// Parse a `ValueType::F32` numeric value.
+fn parse_f32_value(
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<PropertyValue> {
+    let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
+    Some(PropertyValue::F32(v.as_num() as f32))
+}
+
+/// Parse a `ValueType::U32` integer value, clamping negatives to zero.
+fn parse_u32_value(
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<PropertyValue> {
+    let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
+    let n = v.as_num();
+    Some(PropertyValue::U32(n.max(0.0) as u32))
+}
+
+/// Parse a `ValueType::Vec2` from a `Vec2` or an all-numeric 2-element list.
+fn parse_vec2_value(
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<PropertyValue> {
+    let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
+    match v {
+        Value::Vec2([x, y]) => Some(PropertyValue::Vec2([x as f32, y as f32])),
+        // All-numeric 2-element brace lists are accepted at the
+        // property boundary, mirroring the paren form.
+        Value::List(items) if items.len() == 2 => {
+            let nums: Option<Vec<f64>> = items
+                .iter()
+                .map(|item| match item {
+                    Value::Num(n) => Some(*n),
+                    _ => None,
+                })
+                .collect();
+            nums.map(|n| PropertyValue::Vec2([n[0] as f32, n[1] as f32]))
+        },
+        _ => None,
+    }
+}
+
+/// Parse a `ValueType::Vec4` from a `Vec4`, a `Color`, or an all-numeric
+/// 4-element list.
+fn parse_vec4_value(
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<PropertyValue> {
+    let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
+    match v {
+        Value::Vec4([a, b, c, d]) => {
+            Some(PropertyValue::Vec4([a as f32, b as f32, c as f32, d as f32]))
+        },
+        Value::Color([a, b, c, d]) => {
+            Some(PropertyValue::Vec4([a as f32, b as f32, c as f32, d as f32]))
+        },
+        // All-numeric 4-element brace lists mirror the paren form.
+        Value::List(items) if items.len() == 4 => {
+            let nums: Option<Vec<f64>> = items
+                .iter()
+                .map(|item| match item {
+                    Value::Num(n) => Some(*n),
+                    _ => None,
+                })
+                .collect();
+            nums.map(|n| PropertyValue::Vec4([n[0] as f32, n[1] as f32, n[2] as f32, n[3] as f32]))
+        },
+        _ => None,
+    }
+}
+
+/// Parse a `ValueType::Color` through the shared color parser.
+fn parse_color_value(
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<PropertyValue> {
+    parse_color_in_env_with_lookup_diagnostic("", "color", expr, env, diagnostics, subject)
+        .map(PropertyValue::Color)
+}
+
+/// Parse a `ValueType::String` from a string value.
+fn parse_string_value(
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<PropertyValue> {
+    let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
+    match v {
+        Value::Str(s) => Some(PropertyValue::String(s)),
+        _ => None,
+    }
+}
+
+/// Parse a `ValueType::Bool` from a boolean value.
+fn parse_bool_value(
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<PropertyValue> {
+    let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
+    match v {
+        Value::Bool(b) => Some(PropertyValue::Bool(b)),
+        _ => None,
+    }
+}
+
+/// Parse a `ValueType::F32List` from a list expression, warning per non-numeric
+/// element and dropping an empty result.
+fn parse_f32_list_value(
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<PropertyValue> {
+    let items = match expr {
+        Expr::List(items) => items,
+        _ => return None,
+    };
+    let mut values = Vec::with_capacity(items.len());
+    for item in items {
+        match evaluate_expr_with_lookup_diagnostic(item, env, diagnostics, subject) {
+            Some(Value::Num(n)) => values.push(n as f32),
+            _ => {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::InvalidPropertyValue,
+                        DiagnosticPhase::Build,
+                        "dash_pattern expects a list of numbers".to_string(),
+                    )
+                    .with_subject(subject),
+                );
+            },
+        }
+    }
+    if values.is_empty() {
+        None
+    } else {
+        Some(PropertyValue::F32List(values))
+    }
+}
+
+/// Parse a `ValueType::Gradient` from a `linear(…)` / `radial(…)` / `sweep(…)`
+/// call.
+fn parse_gradient_value(
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<PropertyValue> {
+    let (kind_name, args) = match expr {
+        Expr::Call(name, args) => (name.as_str(), args.as_slice()),
+        _ => {
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::InvalidPropertyValue,
+                    DiagnosticPhase::Build,
+                    "expected linear(…), radial(…) or sweep(…), e.g. \
+                     fill_gradient: linear(135, {\"#ff2d55\", \"#5e5ce6\"})"
+                        .to_string(),
+                )
+                .with_subject(subject),
+            );
+            return None;
+        },
+    };
+    parse_gradient(kind_name, args, env, diagnostics, subject).map(PropertyValue::Gradient)
+}
+
+/// Parse a `ValueType::PointList` from a list expression or an expression that
+/// evaluates to a list of `Vec2` points, warning per bad element.
+fn parse_point_list_value(
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<PropertyValue> {
+    let items = match expr {
+        Expr::List(items) => items,
+        _ => {
+            // Allow a variable/expression that evaluates to List(Vec2)
+            match evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject) {
+                Some(Value::List(items)) => {
+                    let mut points = Vec::with_capacity(items.len());
+                    for item in items.iter() {
+                        if let Value::Vec2([x, y]) = item {
+                            points.push([*x as f32, *y as f32]);
+                        } else {
+                            diagnostics.push(
+                                Diagnostic::warning(
+                                    DiagnosticCode::InvalidPropertyValue,
+                                    DiagnosticPhase::Build,
+                                    format!("PointList expected Vec2, got {:?}", item),
+                                )
+                                .with_subject(subject),
+                            );
+                        }
+                    }
+                    return if points.is_empty() {
+                        None
                     } else {
+                        Some(PropertyValue::PointList(points))
+                    };
+                },
+                _ => return None,
+            }
+        },
+    };
+    let mut points = Vec::with_capacity(items.len());
+    for item in items {
+        let pair = match item {
+            Expr::Tuple(t) if t.len() == 2 => {
+                let x = evaluate_expr_with_lookup_diagnostic(&t[0], env, diagnostics, subject);
+                let y = evaluate_expr_with_lookup_diagnostic(&t[1], env, diagnostics, subject);
+                match (x, y) {
+                    (Some(Value::Num(xv)), Some(Value::Num(yv))) => [xv as f32, yv as f32],
+                    _ => {
                         diagnostics.push(
-                            crate::diagnostics::Diagnostic::warning(
-                                crate::diagnostics::DiagnosticCode::InvalidPropertyValue,
-                                crate::diagnostics::DiagnosticPhase::Build,
-                                format!(
-                                    "'place' expects right|left|top|bottom|auto, got '{owned}'"
-                                ),
+                            Diagnostic::warning(
+                                DiagnosticCode::InvalidPropertyValue,
+                                DiagnosticPhase::Build,
+                                "PointList point coordinates must be numbers".to_string(),
                             )
                             .with_subject(subject),
                         );
-                        None
-                    };
+                        continue;
+                    },
+                }
+            },
+            _ => match evaluate_expr_with_lookup_diagnostic(item, env, diagnostics, subject) {
+                Some(Value::Vec2([x, y])) => [x as f32, y as f32],
+                _ => {
+                    diagnostics.push(
+                        Diagnostic::warning(
+                            DiagnosticCode::InvalidPropertyValue,
+                            DiagnosticPhase::Build,
+                            "PointList expected Vec2 point".to_string(),
+                        )
+                        .with_subject(subject),
+                    );
+                    continue;
                 },
-            };
-            if let Some(p) = CalloutPlace::from_str(s) {
+            },
+        };
+        points.push(pair);
+    }
+    if points.is_empty() {
+        None
+    } else {
+        Some(PropertyValue::PointList(points))
+    }
+}
+
+/// Parse a `ValueType::Transform` from a `Vec2`, a `Vec4`, or a 6-element list.
+fn parse_transform_value(
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<PropertyValue> {
+    let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
+    match v {
+        Value::Vec2([a, b]) => {
+            Some(PropertyValue::Transform([a as f32, b as f32, 0.0, 1.0, 0.0, 0.0]))
+        },
+        Value::Vec4([a, b, c, d]) => {
+            Some(PropertyValue::Transform([a as f32, b as f32, c as f32, d as f32, 0.0, 0.0]))
+        },
+        Value::List(items) if items.len() == 6 => {
+            let mut arr = [0.0f32; 6];
+            for (i, item) in items.iter().enumerate() {
+                arr[i] = item.as_num() as f32;
+            }
+            Some(PropertyValue::Transform(arr))
+        },
+        _ => None,
+    }
+}
+
+/// Parse a `ValueType::CalloutPlace` from a placement name or an expression
+/// that evaluates to one.
+fn parse_callout_place_value(
+    expr: &Expr,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<PropertyValue> {
+    use crate::timeline::animation_track::CalloutPlace;
+    let s = match expr {
+        Expr::Ident(s) | Expr::Str(s) => s.as_str(),
+        _ => {
+            let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
+            let owned = v.as_str();
+            return if let Some(p) = CalloutPlace::from_str(&owned) {
                 Some(PropertyValue::Enum(p.as_str().to_string()))
             } else {
                 diagnostics.push(
                     crate::diagnostics::Diagnostic::warning(
                         crate::diagnostics::DiagnosticCode::InvalidPropertyValue,
                         crate::diagnostics::DiagnosticPhase::Build,
-                        format!("'place' expects right|left|top|bottom|auto, got '{s}'"),
+                        format!("'place' expects right|left|top|bottom|auto, got '{owned}'"),
                     )
                     .with_subject(subject),
                 );
                 None
-            }
+            };
         },
+    };
+    if let Some(p) = CalloutPlace::from_str(s) {
+        Some(PropertyValue::Enum(p.as_str().to_string()))
+    } else {
+        diagnostics.push(
+            crate::diagnostics::Diagnostic::warning(
+                crate::diagnostics::DiagnosticCode::InvalidPropertyValue,
+                crate::diagnostics::DiagnosticPhase::Build,
+                format!("'place' expects right|left|top|bottom|auto, got '{s}'"),
+            )
+            .with_subject(subject),
+        );
+        None
     }
 }
 

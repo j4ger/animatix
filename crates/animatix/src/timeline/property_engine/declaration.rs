@@ -4,6 +4,7 @@
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
 use crate::renderer::types::GradientSpec;
+use crate::timeline::dispatch::TrackFieldMut;
 use crate::timeline::preserve_instant_delayed_value;
 use crate::timeline::property_registry::ActorField;
 use crate::timeline::world::TrackFieldsMut;
@@ -57,12 +58,95 @@ pub fn write_property_fields(
     let has_delay = t_start_ms > 0 && !has_duration;
 
     // ── Tier 1: Special cases ──
+    if write_special_field(
+        fields,
+        field,
+        &value,
+        t_start_ms,
+        t_end_ms,
+        easing,
+        has_duration,
+        has_delay,
+        diagnostics,
+    ) {
+        return;
+    }
+
+    // A max-width write changes the wrap layout of already-compiled static
+    // text. Drop the build-time glyph caches so `evaluate_text_paths` compiles
+    // against the new wrap width instead of replaying the old static paths.
+    // Animated text (no `static_paths`) keeps its keyframed path track.
+    if field == ActorField::TextMaxWidth
+        && let Some(text) = fields.text.as_deref_mut()
+        && text.static_paths.is_some()
+    {
+        text.static_paths = None;
+        text.hardware_layout = None;
+        text.text_paths = None;
+    }
+
+    // ── Tier 2: Uniform dispatch via TrackFieldMut ──
+    let pv_default = ActorField::default_value(field);
+    let tagged_default = match field {
+        ActorField::Tagged(name) => crate::timeline::property_registry::lookup_property(name)
+            .map(|schema| (schema.default_value)(&fields.caps)),
+        _ => None,
+    };
+
+    if write_tagged_callout_place(
+        fields,
+        field,
+        &value,
+        t_start_ms,
+        t_end_ms,
+        easing,
+        has_duration,
+        has_delay,
+    ) {
+        return;
+    }
+
+    if write_tagged_plan_slot(fields, field, &value, t_start_ms, t_end_ms, easing) {
+        return;
+    }
+
+    if let Some(tf) = fields.field_mut(field) {
+        write_track_field(
+            tf,
+            value,
+            t_start_ms,
+            t_end_ms,
+            easing,
+            pv_default,
+            tagged_default,
+            has_duration,
+            has_delay,
+        );
+    }
+}
+
+/// Tier-1 dispatch: fields that need custom extraction/conversion or are
+/// intentional no-ops.
+///
+/// Returns `true` when the write was handled here (including a deliberate drop)
+/// and the caller must not fall through to the uniform tier.
+fn write_special_field(
+    fields: &mut TrackFieldsMut<'_>,
+    field: ActorField,
+    value: &PropertyValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+    has_duration: bool,
+    has_delay: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
     match field {
         // ShapeType needs U32/Enum -> ShapeType conversion
         ActorField::ShapeType => {
             let st = match value {
-                PropertyValue::U32(v) => Some(ShapeType::from(v)),
-                PropertyValue::Enum(name) => ShapeType::from_name(&name),
+                PropertyValue::U32(v) => Some(ShapeType::from(*v)),
+                PropertyValue::Enum(name) => ShapeType::from_name(name),
                 _ => None,
             };
             if let Some(st) = st {
@@ -72,7 +156,7 @@ pub fn write_property_fields(
                         "shape_type write for '{}' dropped: no shape tier in this field bundle",
                         fields.label
                     );
-                    return;
+                    return true;
                 };
                 write_shape_type(
                     &mut shape.shape_type,
@@ -85,7 +169,7 @@ pub fn write_property_fields(
                     has_delay,
                 );
             }
-            return;
+            true
         },
         // No-ops: set via other means, not keyframed directly
         ActorField::PlacementMode
@@ -94,7 +178,7 @@ pub fn write_property_fields(
         | ActorField::VectorPaths
         | ActorField::TextPaths
         | ActorField::ImageData
-        | ActorField::SvgPaths => return,
+        | ActorField::SvgPaths => true,
         // Audio source cannot be animated; volume can be animated via the volume fields.
         ActorField::AudioSource => {
             diagnostics.push(Diagnostic::warning(
@@ -107,7 +191,7 @@ pub fn write_property_fields(
                     fields.label
                 ),
             ));
-            return;
+            true
         },
         // Group fields: produce a diagnostic
         ActorField::PositionBindingGroup
@@ -129,71 +213,78 @@ pub fn write_property_fields(
                     field_name
                 ),
             ));
-            return;
+            true
         },
-        _ => {}, // Fall through to tier 2
+        _ => false, // Fall through to tier 2
     }
+}
 
-    // A max-width write changes the wrap layout of already-compiled static
-    // text. Drop the build-time glyph caches so `evaluate_text_paths` compiles
-    // against the new wrap width instead of replaying the old static paths.
-    // Animated text (no `static_paths`) keeps its keyframed path track.
-    if field == ActorField::TextMaxWidth
-        && let Some(text) = fields.text.as_deref_mut()
-        && text.static_paths.is_some()
-    {
-        text.static_paths = None;
-        text.hardware_layout = None;
-        text.text_paths = None;
+/// Write the tagged `callout_place` property to its typed geometry track.
+///
+/// Returns `true` when `field` names the tagged `callout_place` property, even
+/// when the write is dropped.
+fn write_tagged_callout_place(
+    fields: &mut TrackFieldsMut<'_>,
+    field: ActorField,
+    value: &PropertyValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+    has_duration: bool,
+    has_delay: bool,
+) -> bool {
+    if field != ActorField::Tagged("callout_place") {
+        return false;
     }
-
-    // ── Tier 2: Uniform dispatch via TrackFieldMut ──
-    use crate::timeline::dispatch::TrackFieldMut;
-    let pv_default = ActorField::default_value(field);
-    let tagged_default = match field {
-        ActorField::Tagged(name) => crate::timeline::property_registry::lookup_property(name)
-            .map(|schema| (schema.default_value)(&fields.caps)),
-        _ => None,
+    // Geometry tier may be absent in track-only test helpers.
+    let Some(geometry) = fields.geometry.as_deref_mut() else {
+        tracing::debug!(
+            "callout_place write for '{}' dropped: no geometry tier in this field bundle",
+            fields.label
+        );
+        return true;
     };
-
-    if field == ActorField::Tagged("callout_place") {
-        // Geometry tier may be absent in track-only test helpers.
-        let Some(geometry) = fields.geometry.as_deref_mut() else {
-            tracing::debug!(
-                "callout_place write for '{}' dropped: no geometry tier in this field bundle",
-                fields.label
-            );
-            return;
-        };
-        let Some(place) = (match &value {
-            PropertyValue::Enum(choice) => {
-                crate::timeline::animation_track::CalloutPlace::from_str(choice)
-            },
-            _ => None,
-        }) else {
-            tracing::warn!(
-                "callout_place write for '{}' dropped: expected a placement name, got {value:?}",
-                fields.label
-            );
-            return;
-        };
-        let callout_track = &mut geometry.callout_place;
-        if has_duration {
-            let start = callout_track
-                .get(t_start_ms, crate::timeline::animation_track::CalloutPlace::Right);
-            callout_track
-                .ensure(crate::timeline::animation_track::CalloutPlace::Right)
-                .add_keyframe(t_start_ms, start, Easing::Linear);
-        } else if has_delay {
-            preserve_instant_delayed_value(callout_track, t_start_ms);
-        }
+    let Some(place) = (match value {
+        PropertyValue::Enum(choice) => {
+            crate::timeline::animation_track::CalloutPlace::from_str(choice)
+        },
+        _ => None,
+    }) else {
+        tracing::warn!(
+            "callout_place write for '{}' dropped: expected a placement name, got {value:?}",
+            fields.label
+        );
+        return true;
+    };
+    let callout_track = &mut geometry.callout_place;
+    if has_duration {
+        let start =
+            callout_track.get(t_start_ms, crate::timeline::animation_track::CalloutPlace::Right);
         callout_track
             .ensure(crate::timeline::animation_track::CalloutPlace::Right)
-            .add_keyframe(t_end_ms, place, easing);
-        // Typed track is canonical; tagged is a legacy read-only fallback.
-        return;
+            .add_keyframe(t_start_ms, start, Easing::Linear);
+    } else if has_delay {
+        preserve_instant_delayed_value(callout_track, t_start_ms);
     }
+    callout_track
+        .ensure(crate::timeline::animation_track::CalloutPlace::Right)
+        .add_keyframe(t_end_ms, place, easing);
+    // Typed track is canonical; tagged is a legacy read-only fallback.
+    true
+}
 
+/// Route a tagged property through the actor plan.
+///
+/// Returns `true` when the plan accepted the write; `legend` (and
+/// `callout_place`, handled by the typed track) stay tagged and return `false`.
+fn write_tagged_plan_slot(
+    fields: &mut TrackFieldsMut<'_>,
+    field: ActorField,
+    value: &PropertyValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+) -> bool {
     // Route tagged properties through the actor plan; `legend` stays tagged.
     if let ActorField::Tagged(name) = field
         && name != "legend"
@@ -207,143 +298,105 @@ pub fn write_property_fields(
             .unwrap_or(crate::timeline::PropertyKind::Generic);
         if write_property_plan_slot_on(plan, id, kind, value.clone(), t_start_ms, t_end_ms, easing)
         {
-            return;
+            return true;
         }
     }
+    false
+}
 
-    if let Some(tf) = fields.field_mut(field) {
-        match tf {
-            TrackFieldMut::F32(f) => write_typed_field!(
-                write_f32,
-                f,
-                F32,
-                0.0,
-                pv = pv_default,
-                value = value,
-                start = t_start_ms,
-                end = t_end_ms,
-                easing = easing,
-                duration = has_duration,
-                delay = has_delay
-            ),
-            TrackFieldMut::Vec2(f) => write_typed_field!(
-                write_vec2,
-                f,
-                Vec2,
-                [0.0, 0.0],
-                pv = pv_default,
-                value = value,
-                start = t_start_ms,
-                end = t_end_ms,
-                easing = easing,
-                duration = has_duration,
-                delay = has_delay
-            ),
-            TrackFieldMut::Vec4(f) => write_typed_field!(
-                write_vec4,
-                f,
-                Vec4,
-                [1.0, 1.0, 1.0, 1.0],
-                pv = pv_default,
-                value = value,
-                start = t_start_ms,
-                end = t_end_ms,
-                easing = easing,
-                duration = has_duration,
-                delay = has_delay
-            ),
-            TrackFieldMut::Transform(f) => write_typed_field!(
-                write_transform,
-                f,
-                Transform,
-                [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
-                pv = pv_default,
-                value = value,
-                start = t_start_ms,
-                end = t_end_ms,
-                easing = easing,
-                duration = has_duration,
-                delay = has_delay
-            ),
-            TrackFieldMut::String(f) => write_typed_field!(
-                write_string,
-                f,
-                String,
-                String::new(),
-                pv = pv_default,
-                value = value,
-                start = t_start_ms,
-                end = t_end_ms,
-                easing = easing,
-                duration = has_duration,
-                delay = has_delay
-            ),
-            TrackFieldMut::U32(f) => {
-                let default = match pv_default {
-                    Some(PropertyValue::U32(d)) => d,
-                    _ => 0,
-                };
-                // U32 tracks accept F32 keyframes; clamp negatives.
-                let value = match value {
-                    PropertyValue::F32(v) => Some(v.max(0.0) as u32),
-                    PropertyValue::U32(v) => Some(v),
-                    _ => None,
-                };
-                if let Some(value) = value {
-                    write_track(
-                        f,
-                        value,
-                        t_start_ms,
-                        t_end_ms,
-                        easing,
-                        default,
-                        has_duration,
-                        has_delay,
-                    );
-                }
-            },
-            TrackFieldMut::PointList(f) => write_typed_field!(
-                write_point_list,
-                f,
-                PointList,
-                Vec::new(),
-                pv = pv_default,
-                value = value,
-                start = t_start_ms,
-                end = t_end_ms,
-                easing = easing,
-                duration = has_duration,
-                delay = has_delay
-            ),
-            TrackFieldMut::F32List(f) => write_typed_field!(
-                write_f32_list,
-                f,
-                F32List,
-                Vec::new(),
-                pv = pv_default,
-                value = value,
-                start = t_start_ms,
-                end = t_end_ms,
-                easing = easing,
-                duration = has_duration,
-                delay = has_delay
-            ),
-            TrackFieldMut::Gradient(f) => write_typed_field!(
-                write_gradient,
-                f,
-                Gradient,
-                GradientSpec::default(),
-                pv = pv_default,
-                value = value,
-                start = t_start_ms,
-                end = t_end_ms,
-                easing = easing,
-                duration = has_duration,
-                delay = has_delay
-            ),
-            TrackFieldMut::Tagged(_name, f) => {
-                let default = tagged_default.clone().unwrap_or(PropertyValue::Bool(true));
-                write_tagged(
+/// Tier-2 dispatch: write `value` into the track selected by `tf`, using the
+/// schema default (`pv_default`/`tagged_default`) when the typed payload does
+/// not match.
+fn write_track_field(
+    tf: TrackFieldMut<'_>,
+    value: PropertyValue,
+    t_start_ms: u64,
+    t_end_ms: u64,
+    easing: Easing,
+    pv_default: Option<PropertyValue>,
+    tagged_default: Option<PropertyValue>,
+    has_duration: bool,
+    has_delay: bool,
+) {
+    match tf {
+        TrackFieldMut::F32(f) => write_typed_field!(
+            write_f32,
+            f,
+            F32,
+            0.0,
+            pv = pv_default,
+            value = value,
+            start = t_start_ms,
+            end = t_end_ms,
+            easing = easing,
+            duration = has_duration,
+            delay = has_delay
+        ),
+        TrackFieldMut::Vec2(f) => write_typed_field!(
+            write_vec2,
+            f,
+            Vec2,
+            [0.0, 0.0],
+            pv = pv_default,
+            value = value,
+            start = t_start_ms,
+            end = t_end_ms,
+            easing = easing,
+            duration = has_duration,
+            delay = has_delay
+        ),
+        TrackFieldMut::Vec4(f) => write_typed_field!(
+            write_vec4,
+            f,
+            Vec4,
+            [1.0, 1.0, 1.0, 1.0],
+            pv = pv_default,
+            value = value,
+            start = t_start_ms,
+            end = t_end_ms,
+            easing = easing,
+            duration = has_duration,
+            delay = has_delay
+        ),
+        TrackFieldMut::Transform(f) => write_typed_field!(
+            write_transform,
+            f,
+            Transform,
+            [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            pv = pv_default,
+            value = value,
+            start = t_start_ms,
+            end = t_end_ms,
+            easing = easing,
+            duration = has_duration,
+            delay = has_delay
+        ),
+        TrackFieldMut::String(f) => write_typed_field!(
+            write_string,
+            f,
+            String,
+            String::new(),
+            pv = pv_default,
+            value = value,
+            start = t_start_ms,
+            end = t_end_ms,
+            easing = easing,
+            duration = has_duration,
+            delay = has_delay
+        ),
+        TrackFieldMut::U32(f) => {
+            let default = match pv_default {
+                Some(PropertyValue::U32(d)) => d,
+                _ => 0,
+            };
+            // U32 tracks accept F32 keyframes; clamp negatives.
+            let value = match value {
+                PropertyValue::F32(v) => Some(v.max(0.0) as u32),
+                PropertyValue::U32(v) => Some(v),
+                _ => None,
+            };
+            if let Some(value) = value {
+                write_track(
                     f,
                     value,
                     t_start_ms,
@@ -353,40 +406,83 @@ pub fn write_property_fields(
                     has_duration,
                     has_delay,
                 );
-            },
-            TrackFieldMut::CommandList(f) => write_typed_field!(
-                write_command_list,
-                f,
-                CommandList,
-                String::new(),
-                pv = pv_default,
-                value = value,
-                start = t_start_ms,
-                end = t_end_ms,
-                easing = easing,
-                duration = has_duration,
-                delay = has_delay
-            ),
-            // Handled in tier 1; arm keeps the match exhaustive.
-            TrackFieldMut::PlacementMode(_) | TrackFieldMut::MorphOptions(_) => {},
-            // Typed `callout_place`; the tagged name is handled above.
-            TrackFieldMut::CalloutPlace(f) => {
-                if let PropertyValue::Enum(choice) = &value
-                    && let Some(place) =
-                        crate::timeline::animation_track::CalloutPlace::from_str(choice)
-                {
-                    f.ensure(crate::timeline::animation_track::CalloutPlace::Right)
-                        .add_keyframe(t_end_ms, place, easing);
-                }
-            },
-            // ShapeType is handled in tier 1 above.
-            TrackFieldMut::ShapeType(_) => {},
-            // Generated/cached at build time; not keyframed.
-            TrackFieldMut::VectorPaths(_)
-            | TrackFieldMut::TextPaths(_)
-            | TrackFieldMut::PositionBinding(_) => {},
-            TrackFieldMut::Image(_) => {},
-        }
+            }
+        },
+        TrackFieldMut::PointList(f) => write_typed_field!(
+            write_point_list,
+            f,
+            PointList,
+            Vec::new(),
+            pv = pv_default,
+            value = value,
+            start = t_start_ms,
+            end = t_end_ms,
+            easing = easing,
+            duration = has_duration,
+            delay = has_delay
+        ),
+        TrackFieldMut::F32List(f) => write_typed_field!(
+            write_f32_list,
+            f,
+            F32List,
+            Vec::new(),
+            pv = pv_default,
+            value = value,
+            start = t_start_ms,
+            end = t_end_ms,
+            easing = easing,
+            duration = has_duration,
+            delay = has_delay
+        ),
+        TrackFieldMut::Gradient(f) => write_typed_field!(
+            write_gradient,
+            f,
+            Gradient,
+            GradientSpec::default(),
+            pv = pv_default,
+            value = value,
+            start = t_start_ms,
+            end = t_end_ms,
+            easing = easing,
+            duration = has_duration,
+            delay = has_delay
+        ),
+        TrackFieldMut::Tagged(_name, f) => {
+            let default = tagged_default.unwrap_or(PropertyValue::Bool(true));
+            write_tagged(f, value, t_start_ms, t_end_ms, easing, default, has_duration, has_delay);
+        },
+        TrackFieldMut::CommandList(f) => write_typed_field!(
+            write_command_list,
+            f,
+            CommandList,
+            String::new(),
+            pv = pv_default,
+            value = value,
+            start = t_start_ms,
+            end = t_end_ms,
+            easing = easing,
+            duration = has_duration,
+            delay = has_delay
+        ),
+        // Handled in tier 1; arm keeps the match exhaustive.
+        TrackFieldMut::PlacementMode(_) | TrackFieldMut::MorphOptions(_) => {},
+        // Typed `callout_place`; the tagged name is handled above.
+        TrackFieldMut::CalloutPlace(f) => {
+            if let PropertyValue::Enum(choice) = &value
+                && let Some(place) =
+                    crate::timeline::animation_track::CalloutPlace::from_str(choice)
+            {
+                f.ensure(crate::timeline::animation_track::CalloutPlace::Right)
+                    .add_keyframe(t_end_ms, place, easing);
+            }
+        },
+        // ShapeType is handled in tier 1 above.
+        TrackFieldMut::ShapeType(_) => {},
+        // Generated/cached at build time; not keyframed.
+        TrackFieldMut::VectorPaths(_)
+        | TrackFieldMut::TextPaths(_)
+        | TrackFieldMut::PositionBinding(_) => {},
+        TrackFieldMut::Image(_) => {},
     }
 }
 /// Write a parsed property value to the correct track field for `id`,
