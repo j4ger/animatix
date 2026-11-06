@@ -3,8 +3,6 @@ use egui::{Color32, Pos2, Shape, Ui, Widget};
 use crate::theme;
 use crate::widget::traits::{Sizable, Size};
 
-// ── Spinner ────────────────────────────────────────────────────────
-
 /// A small indeterminate spinner for loading states.
 ///
 /// Draws a ~300° rotating arc driven by `ui.input(|i| i.time)`. Size and color
@@ -103,11 +101,10 @@ impl Widget for Spinner {
     }
 }
 
-// ── Tests ────────────────────────────────────────────────────────────
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::widget::test_support::{base_input, screen};
 
     #[test]
     fn builder_defaults() {
@@ -165,17 +162,6 @@ mod tests {
 
         let s = Spinner::new().lg();
         assert!((s.pixel_size - 20.0).abs() < f32::EPSILON);
-    }
-
-    fn screen() -> egui::Rect {
-        egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 300.0))
-    }
-
-    fn base_input() -> egui::RawInput {
-        egui::RawInput {
-            screen_rect: Some(screen()),
-            ..Default::default()
-        }
     }
 
     #[test]

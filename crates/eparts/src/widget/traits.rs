@@ -4,10 +4,25 @@
 //! plus the `Size` enum they share.  These replace per-widget size/state enums and
 //! keep widget APIs chainable and consistent.
 
+use egui::{CursorIcon, Response};
+
 use crate::tokens::spatial::{Density, RADIUS_L, RADIUS_M, RADIUS_S, ROW_L, ROW_M, ROW_S, ROW_XS};
 use crate::tokens::typography::TextRole;
+use crate::widget::tooltip::text_tooltip;
 
-// ── Size ──────────────────────────────────────────────────────────────
+/// Apply the default arrow cursor and, when set, the grace-period eparts
+/// tooltip instead of egui's immediate hover text.
+///
+/// Every interactive widget funnels its response through here so buttons/rows
+/// keep the native-desktop arrow cursor (principle 3) and share one tooltip
+/// policy. An empty `tooltip` skips the tooltip entirely.
+pub(crate) fn finish_response(ui: &egui::Ui, response: Response, tooltip: &str) -> Response {
+    let response = response.on_hover_cursor(CursorIcon::Default);
+    if !tooltip.is_empty() {
+        text_tooltip(ui, response.id.with("tooltip"), &response, tooltip);
+    }
+    response
+}
 
 /// 4-tier size vocabulary with a custom escape hatch.
 ///
@@ -89,8 +104,6 @@ impl Size {
     }
 }
 
-// ── Builder traits ─────────────────────────────────────────────────────
-
 /// Builder trait for size-aware widgets.
 ///
 /// Allows `.xs()`, `.sm()`, `.lg()` shorthand chaining on any implementing widget.
@@ -125,8 +138,6 @@ pub trait Disableable: Sized {
     fn disabled(self, yes: bool) -> Self;
     fn is_disabled(&self) -> bool;
 }
-
-// ── Tests ──────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {

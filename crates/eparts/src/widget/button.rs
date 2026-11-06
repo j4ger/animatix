@@ -4,8 +4,7 @@ use crate::tokens::spatial::{RADIUS_S, ROW_M, SPACE_3, STROKE_WIDTH};
 use crate::tokens::theme;
 use crate::tokens::typography::TextRole;
 use crate::widget::spinner::Spinner;
-use crate::widget::tooltip::text_tooltip;
-use crate::widget::traits::{Sizable, Size};
+use crate::widget::traits::{Sizable, Size, finish_response};
 use crate::{density, spatial};
 
 // eparts principle 3: buttons use the default arrow cursor, pointer only for
@@ -192,16 +191,6 @@ impl Sizable for Button {
 /// reserve blank label space and push the icon off-center.
 fn effective_label(label: Option<&str>) -> Option<&str> {
     label.filter(|l| !l.trim().is_empty())
-}
-
-/// Apply the default arrow cursor and, when set, the grace-period `Tooltip`
-/// instead of egui's immediate hover text.
-fn finish_response(ui: &mut egui::Ui, response: Response, tooltip: &str) -> Response {
-    let response = response.on_hover_cursor(egui::CursorIcon::Default);
-    if !tooltip.is_empty() {
-        text_tooltip(ui, response.id.with("tooltip"), &response, tooltip);
-    }
-    response
 }
 
 impl ButtonVariant {

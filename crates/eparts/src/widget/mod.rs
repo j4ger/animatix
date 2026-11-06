@@ -31,6 +31,9 @@ pub mod toggle;
 pub mod tooltip;
 pub mod traits;
 
+#[cfg(test)]
+mod test_support;
+
 /// A source accepted wherever a widget takes an identifier.
 ///
 /// egui 0.37 removed `impl From<&str> for egui::Id`, so widget constructors

@@ -1,86 +1,16 @@
 //! Themed Checkbox and Switch widgets with animated transitions.
 //!
-//! Both widgets are theme-driven, app-owned state, and use `animate_bool_eased`
-//! / `animate_lerp` for crossfades and thumb motion.
+//! Both are thin aliases over one generic [`Toggle`]: they share field layout,
+//! label placement, interaction and accessibility, and differ only in the
+//! control they paint (a check box vs. a track and sliding thumb).
 
-use std::hash::Hash;
+mod checkbox;
+mod core;
+mod switch;
+#[cfg(test)]
+mod tests;
 
-use egui::{Color32, Pos2, Response, Role, Sense, Stroke, StrokeKind, Vec2, WidgetInfo};
-
-use crate::tokens::motion::{NORMAL, STANDARD, Transition};
-use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH, STROKE_WIDTH_THICK};
-use crate::tokens::theme;
-use crate::tokens::typography::TextRole;
-use crate::widget::anim::{animate_bool_eased, animate_lerp};
-use crate::widget::tooltip::text_tooltip;
-
-// ── Side ────────────────────────────────────────────────────────────
-
-/// Which side the label appears on relative to the control.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Side {
-    /// Label on the right (default).
-    #[default]
-    Right,
-    /// Label on the left.
-    Left,
-}
-
-fn non_empty_or(label: Option<&str>, fallback: &str) -> String {
-    match label {
-        Some(l) if !l.trim().is_empty() => l.to_string(),
-        _ => fallback.to_owned(),
-    }
-}
-
-/// Build the animation-state base id shared by `Checkbox`/`Switch`.
-///
-/// The salt is the address of the caller-owned value, but it is namespaced
-/// under the parent [`egui::Ui`]'s id: two controls can otherwise collide when
-/// their backing values happen to share a recycled stack address, and state
-/// would leak across panels.
-fn animation_id(ui: &egui::Ui, value: impl Hash + std::fmt::Debug) -> egui::Id {
-    ui.scope_id().with(value)
-}
-
-/// Apply the default arrow cursor and render tooltips with the grace-period
-/// eparts `Tooltip` instead of egui's immediate hover text.
-fn finish_response(ui: &mut egui::Ui, response: Response, tooltip: &str) -> Response {
-    let response = response.on_hover_cursor(egui::CursorIcon::Default);
-    if !tooltip.is_empty() {
-        text_tooltip(ui, response.id.with("tooltip"), &response, tooltip);
-    }
-    response
-}
-
-/// Pick the checkbox/radio/switch slot for the current interaction state.
-///
-/// Disabled wins over hover; hover applies only to the *unchecked* control
-/// (a checked control already reads as active, matching the previous
-/// `accent.primary` look).
-fn toggle_slot(t: &theme::Theme, value: bool, enabled: bool, hovered: bool) -> theme::Slot {
-    if !enabled {
-        t.components.toggle.disabled
-    } else if value {
-        t.components.toggle.checked
-    } else if hovered {
-        t.components.toggle.hover
-    } else {
-        t.components.toggle.unchecked
-    }
-}
-
-/// Mark colour for a checked toggle control: the dedicated `mark` slot when
-/// enabled, dimmed to the disabled slot's foreground when not.
-fn toggle_mark_color(t: &theme::Theme, enabled: bool) -> Color32 {
-    if enabled {
-        t.components.toggle.mark
-    } else {
-        t.components.toggle.disabled.fg
-    }
-}
-
-// ── Checkbox ────────────────────────────────────────────────────────
+pub use core::{Side, Toggle};
 
 /// A themed checkbox with an animated checkmark crossfade.
 ///
@@ -92,10 +22,16 @@ fn toggle_mark_color(t: &theme::Theme, enabled: bool) -> Color32 {
 /// let mut enabled = false;
 /// ui.add(Checkbox::new(&mut enabled).label("Enable feature"));
 /// ```
-mod checkbox;
-mod switch;
-#[cfg(test)]
-mod tests;
+pub type Checkbox<'a> = Toggle<'a, false>;
 
-pub use checkbox::Checkbox;
-pub use switch::Switch;
+/// A themed switch with an animated sliding thumb.
+///
+/// State is app-owned: the caller passes `&mut bool`. The thumb slides while the
+/// track crossfades between the off/on slot fills.
+///
+/// ## Examples
+/// ```ignore
+/// let mut enabled = false;
+/// ui.add(Switch::new(&mut enabled).label("Enable feature"));
+/// ```
+pub type Switch<'a> = Toggle<'a, true>;

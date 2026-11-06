@@ -329,6 +329,7 @@ impl Widget for Alert {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::widget::test_support::{base_input, screen};
 
     #[test]
     fn progress_bar_defaults() {
@@ -417,17 +418,6 @@ mod tests {
         for lvl in levels {
             let a = Alert::new("x", lvl);
             assert_eq!(a.level, lvl);
-        }
-    }
-
-    fn screen() -> egui::Rect {
-        egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(600.0, 400.0))
-    }
-
-    fn base_input() -> egui::RawInput {
-        egui::RawInput {
-            screen_rect: Some(screen()),
-            ..Default::default()
         }
     }
 

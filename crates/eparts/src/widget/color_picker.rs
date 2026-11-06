@@ -27,8 +27,6 @@ use crate::widget::IntoWidgetId;
 use crate::widget::input::TextField;
 use crate::widget::popover::Popover;
 
-// ── Hex helpers (pure, testable) ──────────────────────────────────────────────
-
 /// Format a `Color32` as `#RRGGBB` (ignoring alpha, values unmultiplied).
 pub fn color_to_hex_rgb(c: Color32) -> String {
     let [r, g, b, _] = c.to_srgba_unmultiplied();
@@ -63,8 +61,6 @@ pub fn parse_hex_color(s: &str) -> Option<Color32> {
     }
 }
 
-// ── Response ─────────────────────────────────────────────────────────────────
-
 /// Response returned by [`ColorPicker::show`].
 pub struct ColorPickerResponse {
     /// Whether the colour value changed this frame.
@@ -72,8 +68,6 @@ pub struct ColorPickerResponse {
     /// The underlying trigger button response.
     pub trigger: Response,
 }
-
-// ── Widget ────────────────────────────────────────────────────────────────────
 
 /// A themed colour picker: swatch trigger → Popover with HSV picker + hex + swatches.
 ///
@@ -262,13 +256,9 @@ impl<'a> ColorPicker<'a> {
     }
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // ── Hex helpers ──────────────────────────────────────────────────────────
 
     #[test]
     fn hex_rgb_round_trip() {
@@ -315,8 +305,6 @@ mod tests {
             "#FF008040"
         );
     }
-
-    // ── Builder fields ───────────────────────────────────────────────────────
 
     #[test]
     fn builder_alpha_default_true() {

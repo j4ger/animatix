@@ -3,6 +3,7 @@ use egui::{Color32, Id, Rect, Response, Role, Sense, Vec2, WidgetInfo};
 use crate::tokens::spatial::component::ICON_SLOT_WIDTH;
 use crate::tokens::spatial::{ROW_M, density, spatial};
 use crate::tokens::typography::TextRole;
+use crate::widget::traits::finish_response;
 
 /// Response from a `Row`.
 // eparts principle 3: default arrow cursor for buttons/rows, pointer only for links.
@@ -313,7 +314,7 @@ impl<'a> Row<'a> {
             row_rect: rect,
             // Principle 3: override egui's default PointingHand with Default arrow.
             response: {
-                let response = row_response.on_hover_cursor(egui::CursorIcon::Default);
+                let response = finish_response(ui, row_response, "");
                 response
                     .widget_info(|| WidgetInfo::labeled(Role::Button, ui.is_enabled(), self.label));
                 response

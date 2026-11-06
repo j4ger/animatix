@@ -456,29 +456,16 @@ impl StatusBar {
 
     /// Render the status bar into `ui`.
     pub fn show(self, ui: &mut Ui) {
-        let t = theme(ui);
-        let s = spatial(ui);
-        let h = s.row_s;
-
-        egui::Frame::new()
-            .fill(t.palette.surface.panel)
-            .corner_radius(CornerRadius::same(0))
-            .inner_margin(Margin::symmetric(s.space_3 as i8, 0))
-            .stroke(egui::Stroke::new(STROKE_WIDTH, t.palette.border.default))
-            .show(ui, |ui| {
-                ui.set_min_height(h);
-                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                    // Left items
-                    for item in &self.left_items {
-                        ui.label(item.as_str());
-                    }
-                    // Right items pushed to far right.
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        for item in self.right_items.iter().rev() {
-                            ui.label(item.as_str());
-                        }
-                    });
-                });
+        status_bar(ui, |ui| {
+            for item in &self.left_items {
+                ui.label(item.as_str());
+            }
+            // Right items pushed to far right.
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                for item in self.right_items.iter().rev() {
+                    ui.label(item.as_str());
+                }
             });
+        });
     }
 }

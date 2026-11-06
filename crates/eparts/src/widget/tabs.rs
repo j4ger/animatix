@@ -4,6 +4,7 @@ use crate::spatial;
 use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::tokens::typography::TextRole;
 use crate::widget::IntoWidgetId;
+use crate::widget::traits::finish_response;
 
 /// A stateful pill-style tab bar.
 ///
@@ -158,7 +159,7 @@ impl<'a> TabBar<'a> {
             *self.selected_index = idx;
         }
 
-        bar_response.on_hover_cursor(egui::CursorIcon::Default)
+        finish_response(ui, bar_response, "")
     }
 }
 

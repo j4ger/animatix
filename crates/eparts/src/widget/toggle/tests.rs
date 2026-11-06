@@ -1,13 +1,11 @@
+use super::core::{animation_id, toggle_slot};
 use super::*;
-
-// ── Side ────────────────────────────────────────────────────────
+use crate::tokens::theme;
 
 #[test]
 fn side_default_is_right() {
     assert_eq!(Side::default(), Side::Right);
 }
-
-// ── Checkbox builder ───────────────────────────────────────────
 
 #[test]
 fn checkbox_builder_roundtrip() {
@@ -27,8 +25,6 @@ fn checkbox_builder_roundtrip() {
     assert_eq!(cb.tooltip, "tip");
 }
 
-// ── Switch builder ─────────────────────────────────────────────
-
 #[test]
 fn switch_builder_roundtrip() {
     let mut val = false;
@@ -46,8 +42,6 @@ fn switch_builder_roundtrip() {
     assert_eq!(s.label_side, Side::Left);
     assert_eq!(s.tooltip, "tip");
 }
-
-// ── Animation id namespacing ───────────────────────────────────
 
 /// Collect `animation_id` results for the same value pointer under
 /// different parent `Ui` ids.

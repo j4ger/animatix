@@ -20,8 +20,6 @@ use egui::{CornerRadius, DragValue, Margin, Response, Stroke, TextEdit, Ui};
 use crate::tokens::spatial::{RADIUS_M, STROKE_WIDTH};
 use crate::tokens::theme;
 
-// ── TextField (C2) ─────────────────────────────────────────────────
-
 type ValidateFn<'a> = Box<dyn Fn(&str) -> bool + 'a>;
 
 /// A themed single-line text input.
@@ -239,8 +237,6 @@ impl std::ops::Deref for TextFieldResponse {
     }
 }
 
-// ── NumberField (C3) ───────────────────────────────────────────────
-
 /// A themed numeric input backed by [`egui::DragValue`].
 ///
 /// Supports drag-to-change, typing, clamping via `.range()`, step size, prefix and
@@ -380,8 +376,6 @@ impl<'a> NumberField<'a> {
         inner_resp.on_hover_cursor(egui::CursorIcon::ResizeHorizontal)
     }
 }
-
-// ── Tests ──────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {

@@ -32,10 +32,6 @@ use crate::tokens::spatial::{
 use crate::tokens::theme;
 use crate::tokens::typography::TextRole;
 
-// ─── Constants ──────────────────────────────────────────────────────────────
-
-// ─── Data Types ─────────────────────────────────────────────────────────────
-
 /// A single entry in a context menu.
 #[derive(Clone, Debug)]
 pub enum MenuEntry {
@@ -83,8 +79,6 @@ pub struct MenuItemResponse {
     pub clicked: bool,
 }
 
-// ─── Layout analysis ────────────────────────────────────────────────────────
-
 /// How much left padding a menu needs based on which columns are used.
 struct MenuLayout {
     check_col: bool,
@@ -120,8 +114,6 @@ impl MenuLayout {
         }
     }
 }
-
-// ─── Public API ─────────────────────────────────────────────────────────────
 
 /// Render a context menu inside an existing UI container (e.g. within
 /// `response.context_menu(|ui| { ... })`).
@@ -221,8 +213,6 @@ pub fn render_floating_menu(
 
     (inner.inner, inner.response.rect)
 }
-
-// ─── Internals ──────────────────────────────────────────────────────────────
 
 /// Resolve the color slot for a menu item.
 ///

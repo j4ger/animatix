@@ -17,8 +17,7 @@
 //! [`Area`]: egui::Area
 //! [`Order`]: egui::Order
 
-#[allow(unused_imports)]
-use egui::{Context, Id, Order, Pos2, Rect, Response, Sense, Ui};
+use egui::{Context, Id, Order, Rect, Response, Ui};
 
 /// An overlay type with an implicit priority ordering: `Dialog` < `Popover`
 /// < `Tooltip`. It decides which open overlay is "topmost", and therefore
@@ -133,6 +132,8 @@ pub fn clicked_outside(_ui: &Ui, content_rect: Rect, _response: &Response) -> bo
 
 #[cfg(test)]
 mod tests {
+    use egui::{Pos2, Sense};
+
     use super::*;
 
     #[test]

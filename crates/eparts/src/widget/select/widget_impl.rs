@@ -1,5 +1,6 @@
 use super::options::*;
 use super::*;
+use crate::widget::traits::finish_response;
 
 impl Widget for Select<'_> {
     fn ui(self, ui: &mut egui::Ui) -> Response {
@@ -391,7 +392,7 @@ impl Widget for Select<'_> {
         let still_open = Popover::is_open(ui.ctx(), popover_id);
         ui.ctx().data_mut(|dd| dd.insert_temp(was_open_key, still_open));
 
-        let response = response.on_hover_cursor(egui::CursorIcon::Default);
+        let response = finish_response(ui, response, "");
         let accessible = current_label.clone();
         response.widget_info(|| {
             WidgetInfo::selected(
@@ -404,5 +405,3 @@ impl Widget for Select<'_> {
         response
     }
 }
-
-// ── Helpers ─────────────────────────────────────────────────────────────

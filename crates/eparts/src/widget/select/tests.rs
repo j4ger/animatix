@@ -48,8 +48,6 @@ fn grouped_constructor() {
     assert_eq!(s.flat_options[4].index(), Some(2));
 }
 
-// ── Filtering ───────────────────────────────────────────────────────
-
 fn flat(labels: &[&str]) -> Vec<FlatOption> {
     labels
         .iter()
@@ -85,8 +83,6 @@ fn visible_positions_case_insensitive_substring() {
     assert_eq!(visible_positions(&opts, "TA"), vec![1, 3]);
 }
 
-// ── Highlight navigation ────────────────────────────────────────────
-
 #[test]
 fn step_highlight_starts_at_first() {
     assert_eq!(step_highlight(&[0, 1, 2], None, 1), Some(0));
@@ -117,8 +113,6 @@ fn step_highlight_empty_is_none() {
 fn step_highlight_stale_current_resets_to_first() {
     assert_eq!(step_highlight(&[2, 5], Some(0), 1), Some(2));
 }
-
-// ── Trigger rect / layout ───────────────────────────────────────────
 
 /// The trigger must fill the rect supplied by `ui.add_sized`.
 #[test]
@@ -152,13 +146,11 @@ fn trigger_fills_add_sized_rect() {
     );
 }
 
-// ── Keyboard navigation ─────────────────────────────────────────────
-
 fn base_input() -> egui::RawInput {
-    egui::RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(320.0, 240.0))),
-        ..Default::default()
-    }
+    crate::widget::test_support::base_input_with(egui::Rect::from_min_size(
+        egui::Pos2::ZERO,
+        egui::vec2(320.0, 240.0),
+    ))
 }
 
 fn key_event(key: Key) -> egui::Event {

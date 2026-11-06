@@ -8,7 +8,6 @@
 pub mod tokens;
 pub mod widget;
 
-// ── Motion preference (reduced-motion) ───────────────────────────────
 pub use tokens::motion::{
     MotionPreference, motion_preference, motion_preference_from_ctx, resolve_duration,
     set_motion_preference,
@@ -16,7 +15,6 @@ pub use tokens::motion::{
 pub use tokens::spatial::{
     Density, Spatial, density, density_from_ctx, set_density, spatial, spatial_from_ctx,
 };
-// ── Runtime theme (B1) ──────────────────────────────────────────────
 pub use tokens::theme::{AppThemeChoice, Theme, set_theme, theme, theme_from_ctx};
 #[cfg(feature = "theme-json")]
 pub use tokens::theme_json::ThemeFile;
@@ -27,9 +25,7 @@ pub use tokens::theme_registry_watcher::{ThemeRegistryWatcher, ThemeRegistryWatc
 pub use widget::button::{Button, ButtonAlign};
 pub use widget::color_picker::ColorPicker;
 pub use widget::diagnostics::DiagnosticEntry;
-// ── Feedback / status widgets ──────────────────────────────────────
 pub use widget::feedback::{Alert, AlertLevel, Badge, ProgressBar, Tag};
-// ── Input widgets (C2 + C3) ─────────────────────────────────────────
 pub use widget::input::{NumberField, TextField};
 pub use widget::kbd::{Kbd, format_shortcut};
 pub use widget::popover::Popover;
@@ -41,7 +37,6 @@ pub use widget::tabs::TabBar;
 pub use widget::toast::ToastQueue;
 pub use widget::toggle::{Checkbox, Side, Switch};
 pub use widget::tooltip::{Tooltip, text_tooltip};
-// ── Shared widget traits & Size (A1 + A2) ──────────────────────────
 pub use widget::traits::{Disableable, Selectable, Sizable, Size};
 
 /// Run one egui frame in tests without an integration painter.
