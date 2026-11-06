@@ -14,13 +14,18 @@ fn source_snippet_snaps_spans_onto_char_boundaries() {
 }
 
 #[test]
-fn source_load_failure_code_formats_honestly() {
-    assert_eq!(DiagnosticCode::SourceLoadFailure.to_string(), "source-load-failure");
-}
-
-#[test]
-fn render_failure_code_formats_honestly() {
-    assert_eq!(DiagnosticCode::RenderFailure.to_string(), "render-failure");
+fn diagnostic_codes_format_honestly() {
+    for (code, expected) in [
+        (DiagnosticCode::SourceLoadFailure, "source-load-failure"),
+        (DiagnosticCode::RenderFailure, "render-failure"),
+        (DiagnosticCode::PersistIgnoresDuration, "persist-ignores-duration"),
+        (DiagnosticCode::PersistLayoutManagedChild, "persist-layout-managed-child"),
+        (DiagnosticCode::PersistTargetNotCarried, "persist-target-not-carried"),
+        (DiagnosticCode::CarryAmbiguousPredecessor, "carry-ambiguous-predecessor"),
+        (DiagnosticCode::PersistAfterRemove, "persist-after-remove"),
+    ] {
+        assert_eq!(code.to_string(), expected, "diagnostic code drifted");
+    }
 }
 
 #[test]
@@ -157,88 +162,25 @@ fn build_report_keeps_different_subjects() {
 }
 
 #[test]
-fn persist_ignores_duration_code_formats_honestly() {
-    assert_eq!(DiagnosticCode::PersistIgnoresDuration.to_string(), "persist-ignores-duration");
-}
-
-#[test]
-fn persist_layout_managed_child_code_formats_honestly() {
-    assert_eq!(
-        DiagnosticCode::PersistLayoutManagedChild.to_string(),
-        "persist-layout-managed-child"
-    );
-}
-
-#[test]
-fn persist_target_not_carried_code_formats_honestly() {
-    assert_eq!(
-        DiagnosticCode::PersistTargetNotCarried.to_string(),
-        "persist-target-not-carried"
-    );
-}
-
-#[test]
-fn carry_ambiguous_predecessor_code_formats_honestly() {
-    assert_eq!(
-        DiagnosticCode::CarryAmbiguousPredecessor.to_string(),
-        "carry-ambiguous-predecessor"
-    );
-}
-
-#[test]
-fn persist_after_remove_code_formats_honestly() {
-    assert_eq!(DiagnosticCode::PersistAfterRemove.to_string(), "persist-after-remove");
-}
-
-#[test]
-fn persist_ignores_duration_diagnostic_is_warning() {
-    let diagnostic = Diagnostic::warning(
-        DiagnosticCode::PersistIgnoresDuration,
-        DiagnosticPhase::Build,
-        "Persist ignores duration; duration value will be ignored",
-    );
-    assert!(diagnostic.severity == DiagnosticSeverity::Warning);
-}
-
-#[test]
-fn persist_layout_managed_child_diagnostic_is_warning() {
-    let diagnostic = Diagnostic::warning(
-        DiagnosticCode::PersistLayoutManagedChild,
-        DiagnosticPhase::Build,
-        "Persist layout-managed leaf child",
-    );
-    assert!(diagnostic.severity == DiagnosticSeverity::Warning);
-}
-
-#[test]
-fn persist_target_not_carried_diagnostic_is_warning() {
-    let diagnostic = Diagnostic::warning(
-        DiagnosticCode::PersistTargetNotCarried,
-        DiagnosticPhase::Build,
-        "Persist target not carried to any scene",
-    );
-    assert!(diagnostic.severity == DiagnosticSeverity::Warning);
-    assert!(diagnostic.code == DiagnosticCode::PersistTargetNotCarried);
-}
-
-#[test]
-fn carry_ambiguous_predecessor_diagnostic_is_warning() {
-    let diagnostic = Diagnostic::warning(
-        DiagnosticCode::CarryAmbiguousPredecessor,
-        DiagnosticPhase::Build,
-        "Scene has multiple predecessors in play graph",
-    );
-    assert!(diagnostic.severity == DiagnosticSeverity::Warning);
-    assert!(diagnostic.code == DiagnosticCode::CarryAmbiguousPredecessor);
-}
-
-#[test]
-fn persist_after_remove_diagnostic_is_warning() {
-    let diagnostic = Diagnostic::warning(
-        DiagnosticCode::PersistAfterRemove,
-        DiagnosticPhase::Build,
-        "Persist follows remove in the same scene",
-    );
-    assert!(diagnostic.severity == DiagnosticSeverity::Warning);
-    assert!(diagnostic.code == DiagnosticCode::PersistAfterRemove);
+fn persist_and_carry_diagnostics_are_warnings() {
+    for (code, message) in [
+        (
+            DiagnosticCode::PersistIgnoresDuration,
+            "Persist ignores duration; duration value will be ignored",
+        ),
+        (DiagnosticCode::PersistLayoutManagedChild, "Persist layout-managed leaf child"),
+        (
+            DiagnosticCode::PersistTargetNotCarried,
+            "Persist target not carried to any scene",
+        ),
+        (
+            DiagnosticCode::CarryAmbiguousPredecessor,
+            "Scene has multiple predecessors in play graph",
+        ),
+        (DiagnosticCode::PersistAfterRemove, "Persist follows remove in the same scene"),
+    ] {
+        let diagnostic = Diagnostic::warning(code, DiagnosticPhase::Build, message);
+        assert_eq!(diagnostic.severity, DiagnosticSeverity::Warning);
+        assert_eq!(diagnostic.code, code);
+    }
 }

@@ -137,6 +137,7 @@ impl SourceIndex {
 mod tests {
     use super::*;
     use crate::ast::{Expr, Property, Time};
+    use crate::test_support::actor_with_props;
 
     fn make_byte_span(start: usize, end: usize) -> ByteSpan {
         ByteSpan { start, end }
@@ -144,13 +145,10 @@ mod tests {
 
     #[test]
     fn source_index_indexes_actor_decl_properties() {
-        let stmts = vec![Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "btn".to_string(),
-            array_index: None,
-            ty: "Button".to_string(),
-            props: vec![
+        let stmts = vec![actor_with_props(
+            "btn",
+            "Button",
+            vec![
                 Property {
                     name: "size".to_string(),
                     value: Expr::Num(100.0),
@@ -164,10 +162,7 @@ mod tests {
                     value_span: Some(make_byte_span(32, 42)),
                 },
             ],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        }];
+        )];
 
         let index = SourceIndex::build(&stmts);
         assert_eq!(index.find("btn", "size"), Some(make_byte_span(20, 30)));
@@ -193,22 +188,16 @@ mod tests {
 
     #[test]
     fn source_index_handles_at_position_aliasing() {
-        let stmts = vec![Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "icon".to_string(),
-            array_index: None,
-            ty: "Image".to_string(),
-            props: vec![Property {
+        let stmts = vec![actor_with_props(
+            "icon",
+            "Image",
+            vec![Property {
                 name: "at".to_string(),
                 value: Expr::Tuple(vec![Expr::Num(10.0), Expr::Num(20.0)]),
                 trailing_comment: None,
                 value_span: Some(make_byte_span(15, 35)),
             }],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        }];
+        )];
 
         let index = SourceIndex::build(&stmts);
         // Query with "at"
@@ -307,22 +296,16 @@ mod tests {
         // but our parser now populates it. This verifies the index works end-to-end.
         let stmts = vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
-            body: vec![Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "card".to_string(),
-                array_index: None,
-                ty: "Rect".to_string(),
-                props: vec![Property {
+            body: vec![actor_with_props(
+                "card",
+                "Rect",
+                vec![Property {
                     name: "size".to_string(),
                     value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(100.0)]),
                     trailing_comment: None,
                     value_span: Some(make_byte_span(40, 60)),
                 }],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            }],
+            )],
             span: None,
         }];
 

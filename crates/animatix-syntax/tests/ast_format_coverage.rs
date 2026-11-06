@@ -18,22 +18,15 @@
 //!    output. A field that is read but not printed, or printed in a form that comes back
 //!    differently, fails here.
 
+mod common;
+
 use animatix_syntax::ast::{
     BinaryOp, Expr, InlineItem, LoopPattern, MatchPattern, Property, Stmt, Transition, UnaryOp,
 };
 use animatix_syntax::format_core::{
     format_expr, format_inline_item, format_stmt_raw, format_stmts_raw,
 };
-
-fn parse(src: &str) -> Vec<Stmt> {
-    let (stmts, errors) = animatix_syntax::parser::parse_source(src);
-    assert!(
-        errors.is_empty(),
-        "parse errors {:?} for:\n{src}",
-        errors.iter().map(|e| &e.message).collect::<Vec<_>>()
-    );
-    stmts.expect("no statements")
-}
+use common::{COMMENT_FIXTURES, comment_texts, parse};
 
 // Layer 1 — exhaustive plumbing over `Stmt`
 
@@ -935,34 +928,14 @@ fn a_transition_prints_all_three_of_its_fields() {
 
 // Comment fidelity through the source-aware formatter
 
-fn comment_texts(source: &str) -> Vec<String> {
-    animatix_syntax::token::tokenize(source)
-        .into_iter()
-        .filter_map(|token| match token.kind {
-            animatix_syntax::token::TokenKind::Comment(text) => Some(text),
-            _ => None,
-        })
-        .collect()
-}
-
 /// `Formatter::format_source` must preserve every comment class and leave the
 /// parse tree unchanged. The AST comparison uses the same scrubbed structural
 /// equality as the rest of this file, so a lost property or changed expression
 /// cannot hide behind a matching statement count.
 #[test]
 fn format_source_preserves_comments_and_ast() {
-    let fixtures = [
-        "// file header one\n// file header two\n\nlet a = 1\n\n// about b\nlet b = 2\n",
-        "#0s\n// leading in keyframe\ntitle.opacity = 0 // trailing assignment\n// tail in keyframe\n",
-        "title: Text, text: \"Hello\" // trailing property\n",
-        "let a = 1 // trailing let\n#1s\nfade-in a [1s] // trailing action\n",
-        "// only a comment\n// second line\n",
-        "let x = foo(\n  1, // first arg\n  2\n)\n",
-        "row: Row, gap: 8 {\n  // child comment\n  a: Rect, size: (10, 10)\n}\n",
-    ];
-
     let formatter = animatix_syntax::formatter::Formatter::default();
-    for source in fixtures {
+    for source in COMMENT_FIXTURES {
         let original = parse(source);
         let formatted = formatter.format_source(source, &original);
         assert_eq!(
@@ -981,6 +954,41 @@ fn format_source_preserves_comments_and_ast() {
         let second = formatter.format_source(&formatted, &reparsed);
         assert_eq!(formatted, second, "format_source is not idempotent for:\n{source}");
     }
+}
+
+/// The inline-children fixture keeps its two-space indent, not just its text.
+#[test]
+fn an_inline_child_comment_keeps_its_indent() {
+    let source = COMMENT_FIXTURES
+        .iter()
+        .find(|fixture| fixture.contains("// child comment"))
+        .expect("the shared fixtures must cover an inline child comment");
+    let formatted =
+        animatix_syntax::formatter::Formatter::default().format_source(source, &parse(source));
+    assert!(
+        formatted.contains("  // child comment"),
+        "inline comment lost its indent:\n{formatted}"
+    );
+}
+
+/// A trailing property comment must not swallow the property that follows it on
+/// the same source line.
+#[test]
+fn a_property_comment_cannot_swallow_the_next_property() {
+    let source =
+        "row: Row, gap: 8 {\n  a: Rect, size: (10, 10), // half extents\n  color: red\n}\n";
+    let stmts = parse(source);
+    let formatted = animatix_syntax::formatter::Formatter::default().format_source(source, &stmts);
+    assert_eq!(comment_texts(source), comment_texts(&formatted));
+    // The `color` property must still be parsed after formatting.
+    let reparsed = parse(&formatted);
+    let Stmt::ActorDecl { children, .. } = &reparsed[0] else {
+        panic!("expected actor declaration, got {:?}", reparsed[0]);
+    };
+    let InlineItem::Labeled { props, .. } = &children[0] else {
+        panic!("expected labeled inline child");
+    };
+    assert_eq!(props.len(), 2, "formatted output lost a property:\n{formatted}");
 }
 
 #[test]

@@ -3,6 +3,7 @@
 use std::collections::HashMap;
 
 use super::{ComponentDef, Stmt};
+use crate::visit::{AstFolder, walk_fold_stmt};
 
 pub(super) fn collect_imports(statements: &[Stmt]) -> Vec<(String, Option<String>)> {
     let mut imports = Vec::new();
@@ -14,141 +15,72 @@ pub(super) fn collect_imports(statements: &[Stmt]) -> Vec<(String, Option<String
     imports
 }
 
-pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
-    match stmt {
-        Stmt::Import { .. } => None,
-        Stmt::Keyframe { time, body, .. } => {
-            let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
-            if body.is_empty() {
-                None
-            } else {
-                Some(Stmt::Keyframe {
-                    time: time.clone(),
-                    body,
-                    span: None,
-                })
-            }
-        },
-        Stmt::RelativeKeyframe { offset, body, .. } => {
-            let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
-            if body.is_empty() {
-                None
-            } else {
-                Some(Stmt::RelativeKeyframe {
-                    offset: offset.clone(),
-                    body,
-                    span: None,
-                })
-            }
-        },
-        Stmt::Sequence { body, .. } => {
-            let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
-            if body.is_empty() {
-                None
-            } else {
-                Some(Stmt::Sequence { body, span: None })
-            }
-        },
-        Stmt::Stagger {
-            modifiers, body, ..
-        } => {
-            let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
-            if body.is_empty() {
-                None
-            } else {
-                Some(Stmt::Stagger {
-                    modifiers: modifiers.clone(),
-                    body,
-                    span: None,
-                })
-            }
-        },
-        Stmt::Always { body, .. } => {
-            let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
-            Some(Stmt::Always { body, span: None })
-        },
-        Stmt::FnDecl {
-            is_pub,
-            name,
-            params,
-            return_type,
-            body,
-            ..
-        } => {
-            let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
-            Some(Stmt::FnDecl {
-                is_pub: *is_pub,
-                name: name.clone(),
-                params: params.clone(),
-                return_type: return_type.clone(),
-                body,
-                span: None,
+/// Drops `Stmt::Import` from a statement tree.
+struct ImportStripper;
+
+impl AstFolder for ImportStripper {
+    fn fold_stmts(&mut self, stmts: Vec<Stmt>) -> Vec<Stmt> {
+        stmts
+            .into_iter()
+            .filter(|stmt| !matches!(stmt, Stmt::Import { .. }))
+            .filter_map(|stmt| {
+                let folded = self.fold_stmt(stmt);
+                (!drops_when_empty(&folded)).then_some(folded)
             })
-        },
-        Stmt::ComponentDef(def, _) => {
-            let body = def.body.iter().filter_map(strip_imports).collect::<Vec<_>>();
-            Some(Stmt::ComponentDef(
-                ComponentDef {
-                    is_pub: def.is_pub,
-                    name: def.name.clone(),
-                    params: def.params.clone(),
-                    body,
-                },
-                None,
-            ))
-        },
-        Stmt::ForLoop {
-            var,
-            index_var,
-            iterable,
-            body,
-            modifiers,
-            ..
-        } => {
-            let body = body.iter().filter_map(strip_imports).collect::<Vec<_>>();
-            Some(Stmt::ForLoop {
-                var: var.clone(),
-                index_var: index_var.clone(),
-                iterable: iterable.clone(),
-                body,
-                modifiers: modifiers.clone(),
-                span: None,
-            })
-        },
-        Stmt::Conditional {
-            condition,
-            then_branch,
-            else_branch,
-            ..
-        } => {
-            let then_branch = then_branch.iter().filter_map(strip_imports).collect::<Vec<_>>();
-            let else_branch = else_branch
-                .as_ref()
-                .map(|b| b.iter().filter_map(strip_imports).collect::<Vec<_>>());
-            Some(Stmt::Conditional {
-                condition: condition.clone(),
-                then_branch,
-                else_branch,
-                span: None,
-            })
-        },
-        Stmt::Match {
-            scrutinee, arms, ..
-        } => {
-            let arms = arms
-                .iter()
-                .map(|(pat, body)| {
-                    (pat.clone(), body.iter().filter_map(strip_imports).collect::<Vec<_>>())
-                })
-                .collect();
-            Some(Stmt::Match {
-                scrutinee: scrutinee.clone(),
-                arms,
-                span: None,
-            })
-        },
-        _ => Some(stmt.clone()),
+            .collect()
     }
+
+    fn fold_stmt(&mut self, stmt: Stmt) -> Stmt {
+        match stmt {
+            // The prelude and flatten passes never rewrite scenes, and `Block`
+            // is synthesized after parsing, so neither is traversed.
+            Stmt::Scene { .. } | Stmt::Block { .. } => stmt,
+            other => {
+                let mut folded = walk_fold_stmt(self, other);
+                clear_span_for_rebuilt(&mut folded);
+                folded
+            },
+        }
+    }
+}
+
+/// An import-only body leaves nothing behind for these container variants.
+fn drops_when_empty(stmt: &Stmt) -> bool {
+    matches!(
+        stmt,
+        Stmt::Keyframe { body, .. }
+            | Stmt::RelativeKeyframe { body, .. }
+            | Stmt::Sequence { body, .. }
+            | Stmt::Stagger { body, .. }
+            if body.is_empty()
+    )
+}
+
+/// Rebuilt containers lose their position data, matching the previous
+/// hand-written rebuild so diagnostics never point at stale offsets.
+fn clear_span_for_rebuilt(stmt: &mut Stmt) {
+    match stmt {
+        Stmt::Keyframe { span, .. }
+        | Stmt::RelativeKeyframe { span, .. }
+        | Stmt::Sequence { span, .. }
+        | Stmt::Stagger { span, .. }
+        | Stmt::Always { span, .. }
+        | Stmt::ComponentDef(_, span)
+        | Stmt::FnDecl { span, .. }
+        | Stmt::ForLoop { span, .. }
+        | Stmt::Conditional { span, .. }
+        | Stmt::Match { span, .. } => *span = None,
+        _ => {},
+    }
+}
+
+/// Remove imports from a statement, dropping a container left empty.
+pub(super) fn strip_imports(stmt: &Stmt) -> Option<Stmt> {
+    if matches!(stmt, Stmt::Import { .. }) {
+        return None;
+    }
+    let folded = ImportStripper.fold_stmt(stmt.clone());
+    (!drops_when_empty(&folded)).then_some(folded)
 }
 
 /// Collect all component definitions from a slice of statements.

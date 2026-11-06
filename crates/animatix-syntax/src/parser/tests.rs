@@ -1,11 +1,5 @@
 use super::*;
-
-/// Parse a source that must be error-free, and return its statements.
-fn parse_ok(src: &str) -> Vec<Stmt> {
-    let (stmts, errors) = parse_source(src);
-    assert!(errors.is_empty(), "parse errors for {src:?}: {errors:?}");
-    stmts.expect("parsed AST")
-}
+use crate::test_support::parse as parse_ok;
 
 /// Parse a snippet that must succeed.
 fn snippet_stmts(snippet: &str) -> Vec<Stmt> {
@@ -419,8 +413,6 @@ fn test_parse_error_includes_context() {
         errors
     );
 }
-
-// ── Snippet tab-stop tests ──
 
 macro_rules! tabstop_case {
     ($name:ident, $input:expr, $expected:expr) => {

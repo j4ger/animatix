@@ -1,14 +1,13 @@
 use super::*;
 
+use crate::test_support::actor_with_props;
+
 #[test]
 fn rewrite_media_statement_position_expressions() {
-    let stmt = Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: "logo".to_string(),
-        array_index: None,
-        ty: "Svg".to_string(),
-        props: vec![
+    let stmt = actor_with_props(
+        "logo",
+        "Svg",
+        vec![
             Property {
                 name: "url".to_string(),
                 value: Expr::Str("examples/vector.svg".to_string()),
@@ -40,10 +39,7 @@ fn rewrite_media_statement_position_expressions() {
                 trailing_comment: None,
             },
         ],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    };
+    );
     let known_labels = HashSet::from(["logo".to_string(), "badge".to_string()]);
     let bindings = HashMap::from([("delta".to_string(), Expr::Num(48.0))]);
 

@@ -98,8 +98,6 @@ pub fn stmts_to_source(stmts: &[Stmt]) -> String {
     stmts.iter().map(|s| s.to_source()).collect::<Vec<_>>().join("\n\n")
 }
 
-// Tests
-
 #[cfg(test)]
 mod tests {
     use super::*;

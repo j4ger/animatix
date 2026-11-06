@@ -1,4 +1,5 @@
 use super::*;
+use crate::visit::{AstFolder, walk_fold_stmt};
 
 pub(super) fn rewrite_self_targets(body: Vec<Stmt>, target: &str) -> Vec<Stmt> {
     let known_labels = std::collections::HashSet::new();
@@ -26,152 +27,69 @@ pub(super) fn is_time_expr(expr: &Expr) -> bool {
     }
 }
 
-pub(super) fn substitute_params_in_stmt(stmt: &Stmt, bindings: &HashMap<String, Expr>) -> Stmt {
-    match stmt.clone() {
-        Stmt::LetDecl {
-            is_pub,
-            name,
-            value,
-            span,
-        } => Stmt::LetDecl {
-            is_pub,
-            name,
-            value: substitute_params_in_expr(&value, bindings),
-            span,
-        },
-        Stmt::Assignment {
-            target,
-            property,
-            value,
-            modifiers,
-            easing,
-            value_span,
-            span,
-        } => Stmt::Assignment {
-            target: substitute_params_in_target(&target, bindings),
-            property,
-            value: substitute_params_in_expr(&value, bindings),
-            modifiers: modifiers
-                .into_iter()
-                .map(|m| substitute_params_in_modifier(&m, bindings))
-                .collect(),
-            easing,
-            value_span,
-            span,
-        },
-        Stmt::Action(mut action, span) => {
-            action.targets = action
-                .targets
-                .into_iter()
-                .map(|target| substitute_label_in_target(&target, bindings))
-                .collect();
-            action.args = action
-                .args
-                .into_iter()
-                .map(|arg| substitute_params_in_expr(&arg, bindings))
-                .collect();
-            action.modifiers = action
-                .modifiers
-                .into_iter()
-                .map(|m| substitute_params_in_modifier(&m, bindings))
-                .collect();
-            Stmt::Action(action, span)
-        },
-        Stmt::Keyframe { time, body, span } => Stmt::Keyframe {
-            time,
-            body: body.iter().map(|s| substitute_params_in_stmt(s, bindings)).collect(),
-            span,
-        },
-        Stmt::RelativeKeyframe { offset, body, span } => Stmt::RelativeKeyframe {
-            offset,
-            body: body.iter().map(|s| substitute_params_in_stmt(s, bindings)).collect(),
-            span,
-        },
-        Stmt::Sequence { body, span } => Stmt::Sequence {
-            body: body.iter().map(|s| substitute_params_in_stmt(s, bindings)).collect(),
-            span,
-        },
-        Stmt::Stagger {
-            modifiers,
-            body,
-            span,
-        } => Stmt::Stagger {
-            modifiers: modifiers
-                .into_iter()
-                .map(|m| substitute_params_in_modifier(&m, bindings))
-                .collect(),
-            body: body.iter().map(|s| substitute_params_in_stmt(s, bindings)).collect(),
-            span,
-        },
-        Stmt::Always { body, span } => Stmt::Always {
-            body: body.iter().map(|s| substitute_params_in_stmt(s, bindings)).collect(),
-            span,
-        },
-        Stmt::ReactiveBinding {
-            target,
-            property,
-            value,
-            value_span,
-            span,
-        } => Stmt::ReactiveBinding {
-            target: substitute_params_in_target(&target, bindings),
-            property,
-            value: substitute_params_in_expr(&value, bindings),
-            value_span,
-            span,
-        },
-        Stmt::Conditional {
-            condition,
-            then_branch,
-            else_branch,
-            span,
-        } => Stmt::Conditional {
-            condition: substitute_params_in_expr(&condition, bindings),
-            then_branch: then_branch
-                .iter()
-                .map(|s| substitute_params_in_stmt(s, bindings))
-                .collect(),
-            else_branch: else_branch
-                .map(|b| b.iter().map(|s| substitute_params_in_stmt(s, bindings)).collect()),
-            span,
-        },
-        Stmt::Match {
-            scrutinee,
-            arms,
-            span,
-        } => Stmt::Match {
-            scrutinee: substitute_params_in_expr(&scrutinee, bindings),
-            arms: arms
-                .iter()
-                .map(|(pat, body)| {
-                    (
-                        pat.clone(),
-                        body.iter().map(|s| substitute_params_in_stmt(s, bindings)).collect(),
-                    )
-                })
-                .collect(),
-            span,
-        },
-        Stmt::ForLoop {
-            var,
-            index_var,
-            iterable,
-            body,
-            modifiers,
-            span,
-        } => Stmt::ForLoop {
-            var,
-            index_var,
-            iterable: substitute_params_in_expr(&iterable, bindings),
-            body: body.iter().map(|s| substitute_params_in_stmt(s, bindings)).collect(),
-            modifiers: modifiers
-                .iter()
-                .map(|m| substitute_params_in_modifier(m, bindings))
-                .collect(),
-            span,
-        },
-        other => other,
+/// Substitutes parameter bindings through the statement kinds that component
+/// templates can carry. Other statements are left untouched, matching the
+/// template expander's original scope.
+struct ParamSubstituter<'a> {
+    bindings: &'a HashMap<String, Expr>,
+}
+
+impl AstFolder for ParamSubstituter<'_> {
+    fn fold_expr(&mut self, expr: Expr) -> Expr {
+        substitute_params_in_expr(&expr, self.bindings)
     }
+
+    fn fold_action(&mut self, mut action: Action) -> Action {
+        action.targets = action
+            .targets
+            .into_iter()
+            .map(|target| substitute_label_in_target(&target, self.bindings))
+            .collect();
+        action.args = action.args.into_iter().map(|arg| self.fold_expr(arg)).collect();
+        action.modifiers = action.modifiers.into_iter().map(|m| self.fold_modifier(m)).collect();
+        action
+    }
+
+    fn fold_target_segment(&mut self, segment: TargetSegment) -> TargetSegment {
+        match segment {
+            TargetSegment::Static(_) => segment,
+            TargetSegment::Indexed { base, index } => {
+                let index = self.fold_expr(*index);
+                if let Expr::Num(n) = &index
+                    && n.trunc() == *n
+                    && *n >= 0.0
+                {
+                    return TargetSegment::Static(array_actor_label(&base, *n as usize));
+                }
+                TargetSegment::Indexed {
+                    base,
+                    index: Box::new(index),
+                }
+            },
+        }
+    }
+
+    fn fold_stmt(&mut self, stmt: Stmt) -> Stmt {
+        match stmt {
+            Stmt::LetDecl { .. }
+            | Stmt::Assignment { .. }
+            | Stmt::Action(..)
+            | Stmt::Keyframe { .. }
+            | Stmt::RelativeKeyframe { .. }
+            | Stmt::Sequence { .. }
+            | Stmt::Stagger { .. }
+            | Stmt::Always { .. }
+            | Stmt::ReactiveBinding { .. }
+            | Stmt::Conditional { .. }
+            | Stmt::Match { .. }
+            | Stmt::ForLoop { .. } => walk_fold_stmt(self, stmt),
+            other => other,
+        }
+    }
+}
+
+pub(super) fn substitute_params_in_stmt(stmt: &Stmt, bindings: &HashMap<String, Expr>) -> Stmt {
+    ParamSubstituter { bindings }.fold_stmt(stmt.clone())
 }
 
 /// Substitute a whole action target when it names a bound parameter.
@@ -194,31 +112,6 @@ pub(super) fn substitute_label_in_target(target: &str, bindings: &HashMap<String
     } else {
         format!("{substituted}.{rest}")
     }
-}
-
-pub(super) fn substitute_params_in_target(
-    target: &[TargetSegment],
-    bindings: &HashMap<String, Expr>,
-) -> Vec<TargetSegment> {
-    target
-        .iter()
-        .map(|seg| match seg {
-            TargetSegment::Static(s) => TargetSegment::Static(s.clone()),
-            TargetSegment::Indexed { base, index } => {
-                let index = substitute_params_in_expr(index, bindings);
-                if let Expr::Num(n) = &index
-                    && n.trunc() == *n
-                    && *n >= 0.0
-                {
-                    return TargetSegment::Static(array_actor_label(base, *n as usize));
-                }
-                TargetSegment::Indexed {
-                    base: base.clone(),
-                    index: Box::new(index),
-                }
-            },
-        })
-        .collect()
 }
 
 pub(super) fn substitute_params_in_expr(expr: &Expr, bindings: &HashMap<String, Expr>) -> Expr {
@@ -314,16 +207,6 @@ pub(super) fn substitute_params_in_expr(expr: &Expr, bindings: &HashMap<String, 
         Expr::Str(v) => Expr::Str(v.clone()),
         Expr::Bool(v) => Expr::Bool(*v),
         Expr::Null => Expr::Null,
-    }
-}
-
-pub(super) fn substitute_params_in_modifier(
-    modifier: &Modifier,
-    bindings: &HashMap<String, Expr>,
-) -> Modifier {
-    Modifier {
-        name: modifier.name.clone(),
-        value: substitute_params_in_expr(&modifier.value, bindings),
     }
 }
 

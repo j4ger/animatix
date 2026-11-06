@@ -4,6 +4,7 @@ use super::TypeEnv;
 use crate::ast::{ComponentDef, Expr, Modifier, ParamDef, Property, Stmt, TypeAnnotation};
 use crate::diagnostics::DiagnosticCode;
 use crate::module::{ComponentEntry, FnTemplate};
+use crate::test_support::{actor, actor_with_props};
 
 fn make_env() -> TypeEnv<'static> {
     let mut components = HashMap::new();
@@ -37,22 +38,16 @@ fn make_env() -> TypeEnv<'static> {
 #[test]
 fn typecheck_accepts_valid_props() {
     let env = make_env();
-    let stmts = vec![Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: "btn".to_string(),
-        array_index: None,
-        ty: "Button".to_string(),
-        props: vec![Property {
+    let stmts = vec![actor_with_props(
+        "btn",
+        "Button",
+        vec![Property {
             name: "size".to_string(),
             value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(60.0)]),
             value_span: None,
             trailing_comment: None,
         }],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    }];
+    )];
     let mut env = env;
     let diagnostics = env.check_statements(&stmts);
     assert!(diagnostics.is_empty(), "Expected no errors, got: {:?}", diagnostics);
@@ -61,22 +56,16 @@ fn typecheck_accepts_valid_props() {
 #[test]
 fn typecheck_rejects_mismatched_prop() {
     let env = make_env();
-    let stmts = vec![Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: "btn".to_string(),
-        array_index: None,
-        ty: "Button".to_string(),
-        props: vec![Property {
+    let stmts = vec![actor_with_props(
+        "btn",
+        "Button",
+        vec![Property {
             name: "size".to_string(),
             value: Expr::Str("too big".to_string()),
             value_span: None,
             trailing_comment: None,
         }],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    }];
+    )];
     let mut env = env;
     let diagnostics = env.check_statements(&stmts);
     assert_eq!(diagnostics.len(), 1);
@@ -163,17 +152,7 @@ fn typecheck_validates_action_param_types() {
         TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())));
 
     let stmts = vec![
-        Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "btn".to_string(),
-            array_index: None,
-            ty: "Button".to_string(),
-            props: vec![],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        },
+        actor("btn", "Button"),
         Stmt::Action(
             Action {
                 verb: "pulse".to_string(),
@@ -231,17 +210,7 @@ fn typecheck_accepts_valid_action_params() {
         TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())));
 
     let stmts = vec![
-        Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "btn".to_string(),
-            array_index: None,
-            ty: "Button".to_string(),
-            props: vec![],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        },
+        actor("btn", "Button"),
         Stmt::Action(
             Action {
                 verb: "pulse".to_string(),
@@ -292,22 +261,16 @@ fn type_alias_resolves_in_component_param() {
             span: None,
         },
         Stmt::ComponentDef(def.clone(), None),
-        Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "card".to_string(),
-            array_index: None,
-            ty: "Card".to_string(),
-            props: vec![Property {
+        actor_with_props(
+            "card",
+            "Card",
+            vec![Property {
                 name: "value".to_string(),
                 value: Expr::Str("Revenue".to_string()),
                 value_span: None,
                 trailing_comment: None,
             }],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        },
+        ),
     ];
     let diagnostics = env.check_statements(&stmts);
     assert!(diagnostics.is_empty(), "Expected no errors, got: {:?}", diagnostics);
@@ -379,13 +342,10 @@ fn named_color_list_accepted_for_list_color_param() {
     );
     let mut env =
         TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())));
-    let stmts = vec![Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: "s".to_string(),
-        array_index: None,
-        ty: "Swatches".to_string(),
-        props: vec![Property {
+    let stmts = vec![actor_with_props(
+        "s",
+        "Swatches",
+        vec![Property {
             name: "colors".to_string(),
             value: Expr::List(vec![
                 Expr::Ident("red".to_string()),
@@ -394,10 +354,7 @@ fn named_color_list_accepted_for_list_color_param() {
             value_span: None,
             trailing_comment: None,
         }],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    }];
+    )];
     let diagnostics = env.check_statements(&stmts);
     assert!(
         diagnostics.is_empty(),
@@ -446,13 +403,10 @@ fn rich_type_annotations_accept_matching_values() {
     );
     let mut env =
         TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())));
-    let stmts = vec![Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: "probe".to_string(),
-        array_index: None,
-        ty: "Probe".to_string(),
-        props: vec![
+    let stmts = vec![actor_with_props(
+        "probe",
+        "Probe",
+        vec![
             Property {
                 name: "p".to_string(),
                 value: Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0), Expr::Num(3.0)]),
@@ -472,10 +426,7 @@ fn rich_type_annotations_accept_matching_values() {
                 trailing_comment: None,
             },
         ],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    }];
+    )];
     let diagnostics = env.check_statements(&stmts);
     assert!(
         diagnostics.is_empty(),
@@ -524,13 +475,10 @@ fn rich_type_annotations_reject_mismatched_values() {
     );
     let mut env =
         TypeEnv::new(Box::leak(Box::new(components)), Box::leak(Box::new(HashMap::new())));
-    let stmts = vec![Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: "probe".to_string(),
-        array_index: None,
-        ty: "Probe".to_string(),
-        props: vec![
+    let stmts = vec![actor_with_props(
+        "probe",
+        "Probe",
+        vec![
             Property {
                 name: "p".to_string(),
                 value: Expr::Tuple(vec![Expr::Num(1.0), Expr::Num(2.0)]),
@@ -550,10 +498,7 @@ fn rich_type_annotations_reject_mismatched_values() {
                 trailing_comment: None,
             },
         ],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    }];
+    )];
     let diagnostics = env.check_statements(&stmts);
     assert_eq!(diagnostics.len(), 3, "expected three type mismatches, got: {:?}", diagnostics);
     assert!(diagnostics.iter().all(|d| d.code == DiagnosticCode::TypeMismatch));
@@ -563,22 +508,16 @@ fn rich_type_annotations_reject_mismatched_values() {
 fn colorscheme_path_accepted_for_color_param() {
     // accent.primary should be accepted where a Color param is expected
     let env = make_env(); // Button has a 'color: Color' param
-    let stmts = vec![Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: "btn".to_string(),
-        array_index: None,
-        ty: "Button".to_string(),
-        props: vec![Property {
+    let stmts = vec![actor_with_props(
+        "btn",
+        "Button",
+        vec![Property {
             name: "color".to_string(),
             value: Expr::Path(vec!["accent".to_string(), "primary".to_string()]),
             value_span: None,
             trailing_comment: None,
         }],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    }];
+    )];
     let mut env = env;
     let diagnostics = env.check_statements(&stmts);
     assert!(
@@ -619,22 +558,16 @@ fn type_alias_resolves_when_declared_after_component() {
             annotation: TypeAnnotation::Union(vec![TypeAnnotation::Bool, TypeAnnotation::Str]),
             span: None,
         },
-        Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "card".to_string(),
-            array_index: None,
-            ty: "Card".to_string(),
-            props: vec![Property {
+        actor_with_props(
+            "card",
+            "Card",
+            vec![Property {
                 name: "value".to_string(),
                 value: Expr::Str("Revenue".to_string()),
                 value_span: None,
                 trailing_comment: None,
             }],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        },
+        ),
     ];
     let diagnostics = env.check_statements(&stmts);
     assert!(

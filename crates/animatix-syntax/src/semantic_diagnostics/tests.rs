@@ -20,17 +20,7 @@ fn unused_label_severity(stmts: &[Stmt], name: &str) -> Option<DiagnosticSeverit
 }
 
 fn bare_actor(ty: &str, label: &str, props: Vec<crate::ast::Property>) -> Stmt {
-    Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: label.to_string(),
-        array_index: None,
-        ty: ty.to_string(),
-        props,
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    }
+    crate::test_support::actor_with_props(label, ty, props)
 }
 
 /// A standing caption is content, not a loose end: nothing animates it and

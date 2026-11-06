@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_support::{actor, actor_with_props};
 
 #[test]
 fn builtin_types_populated() {
@@ -11,17 +12,7 @@ fn builtin_types_populated() {
 
 #[test]
 fn extracts_actor_labels() {
-    let stmts = vec![Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: "btn".to_string(),
-        array_index: None,
-        ty: "Button".to_string(),
-        props: vec![],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    }];
+    let stmts = vec![actor("btn", "Button")];
     let table = SymbolTable::build_from_ast(&stmts);
     assert!(table.labels.contains_key("btn"));
     assert_eq!(table.labels["btn"].ty.as_deref(), Some("Button"));
@@ -62,13 +53,10 @@ fn extracts_component_definitions() {
 
 #[test]
 fn collects_properties_from_actors() {
-    let stmts = vec![Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: "title".to_string(),
-        array_index: None,
-        ty: "Text".to_string(),
-        props: vec![
+    let stmts = vec![actor_with_props(
+        "title",
+        "Text",
+        vec![
             Property {
                 name: "content".to_string(),
                 value: Expr::Str("Hello".to_string()),
@@ -82,10 +70,7 @@ fn collects_properties_from_actors() {
                 trailing_comment: None,
             },
         ],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    }];
+    )];
     let table = SymbolTable::build_from_ast(&stmts);
     let text_props = table.properties.get("Text").unwrap();
     assert!(text_props.contains(&"text".to_string()));
@@ -114,33 +99,16 @@ fn colorscheme_paths_infer_color() {
 
 #[test]
 fn callout_target_references_count_as_usage() {
-    let actor = |label: &str| Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: label.to_string(),
-        array_index: None,
-        ty: "Rect".to_string(),
-        props: vec![],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    };
-    let callout = Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: "note".to_string(),
-        array_index: None,
-        ty: "Callout".to_string(),
-        props: vec![Property {
+    let callout = actor_with_props(
+        "note",
+        "Callout",
+        vec![Property {
             name: "target".to_string(),
             value: Expr::Ident("box1".to_string()),
             value_span: None,
             trailing_comment: None,
         }],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    };
+    );
     let assignment = Stmt::Assignment {
         target: vec![TargetSegment::Static("note".to_string())],
         property: "target".to_string(),
@@ -150,7 +118,12 @@ fn callout_target_references_count_as_usage() {
         value_span: None,
         span: None,
     };
-    let stmts = vec![actor("box1"), actor("box2"), callout, assignment];
+    let stmts = vec![
+        actor("box1", "Rect"),
+        actor("box2", "Rect"),
+        callout,
+        assignment,
+    ];
     let mut table = SymbolTable::build_from_ast(&stmts);
     table.collect_references(&stmts);
     assert!(table.referenced_labels.contains("box1"));

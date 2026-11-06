@@ -122,13 +122,11 @@ pub fn is_array_member_label(s: &str) -> Option<&str> {
 
 /// Statement types for the Animatix language.
 ///
-/// # Adding a variant
-///
-/// `Stmt` has no single semantic visitor; when a variant is added or removed,
-/// update the hand-written matches in `symbol_table::collect`, `symbol_table::refs`,
-/// `typecheck::stmt`, `semantic_diagnostics::checks`, `format_core`/`to_source`,
-/// and `module::discovery::strip_imports`. Body-bearing variants must also be
-/// added to `walk::recurse_stmt_bodies` and `walk::collect_stmt_bodies_mut`.
+/// Traversal is centralized in [`crate::visit`]: implement
+/// [`AstVisitor`](crate::visit::AstVisitor) for read-only walks and
+/// [`AstFolder`](crate::visit::AstFolder) for rewrites instead of matching every
+/// variant by hand. [`crate::walk::recurse_stmt_bodies`] enumerates the
+/// body-bearing variants for non-visitor callers.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Stmt {
     /// Action invocation: `move btn to (100, 100) [2s]`

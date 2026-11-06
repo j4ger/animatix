@@ -45,3 +45,6 @@ pub mod typing;
 pub mod visit;
 pub use visit::{AstFolder, AstVisitor};
 pub mod walk;
+
+#[cfg(test)]
+mod test_support;

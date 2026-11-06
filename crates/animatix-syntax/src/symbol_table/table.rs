@@ -96,24 +96,12 @@ impl SymbolTable {
     /// Look up a label by namespace-qualified name (e.g., "lib.inner.value").
     /// Returns the label info if found in the specified namespace.
     pub fn resolve_namespaced_label(&self, qualified_name: &str) -> Option<&LabelInfo> {
-        let (namespace, rest) = qualified_name.split_once('.')?;
-        let ns = self.namespaces.get(namespace)?;
-        if rest.contains('.') {
-            ns.resolve_namespaced_label(rest)
-        } else {
-            ns.labels.get(rest)
-        }
+        resolve_namespaced(self, qualified_name, |table| &table.labels)
     }
 
     /// Look up a component by namespace-qualified name (e.g., "lib.inner.MyComponent").
     pub fn resolve_namespaced_component(&self, qualified_name: &str) -> Option<&ComponentInfo> {
-        let (namespace, rest) = qualified_name.split_once('.')?;
-        let ns = self.namespaces.get(namespace)?;
-        if rest.contains('.') {
-            ns.resolve_namespaced_component(rest)
-        } else {
-            ns.components.get(rest)
-        }
+        resolve_namespaced(self, qualified_name, |table| &table.components)
     }
 
     /// Get all labels in a specific namespace (for completions).
@@ -128,5 +116,23 @@ impl SymbolTable {
         self.namespace_table(namespace)
             .map(|ns| ns.components.keys().map(|s| s.as_str()).collect())
             .unwrap_or_default()
+    }
+}
+
+/// Resolve a dotted name through nested namespaces and read `map` from the
+/// namespace that owns its last segment.
+fn resolve_namespaced<'a, T>(
+    mut table: &'a SymbolTable,
+    qualified_name: &str,
+    map: fn(&SymbolTable) -> &HashMap<String, T>,
+) -> Option<&'a T> {
+    let mut rest = qualified_name;
+    loop {
+        let (namespace, tail) = rest.split_once('.')?;
+        table = table.namespaces.get(namespace)?;
+        if !tail.contains('.') {
+            return map(table).get(tail);
+        }
+        rest = tail;
     }
 }

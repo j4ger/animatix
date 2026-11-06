@@ -5,18 +5,11 @@
 //! so every `ease:` on a property assignment vanished the first time a file was
 //! formatted. Statement-count roundtrip tests cannot see that; this can.
 
+mod common;
+
 use animatix_syntax::ast::{Expr, Stmt};
 use animatix_syntax::easing::Easing;
-
-fn parse(src: &str) -> Vec<Stmt> {
-    let (stmts, errors) = animatix_syntax::parser::parse_source(src);
-    assert!(
-        errors.is_empty(),
-        "parse errors: {:?}",
-        errors.iter().map(|e| &e.message).collect::<Vec<_>>()
-    );
-    stmts.expect("no statements")
-}
+use common::parse;
 
 /// The easing carried by the first property assignment in the tree.
 fn first_easing(stmts: &[Stmt]) -> Option<Easing> {

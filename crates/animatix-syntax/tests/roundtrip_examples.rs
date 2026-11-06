@@ -1,13 +1,12 @@
-//! Roundtrip tests for all `.amx` example files.
+//! Serializer roundtrip tests over every `.amx` file in the repo.
 //!
-//! This integration test dynamically discovers every `.amx` file in the
-//! `examples/` directory, parses it, serializes the AST back to source, and
-//! re-parses the result — verifying that the parser roundtrip is lossless
-//! with respect to statement count.
+//! Both serializers are exercised against the real corpus: parse → serialize →
+//! re-parse, then serialization is repeated to prove the output is stable. The
+//! `to_source` pass additionally checks that a roundtrip preserves the
+//! statement count, so a serializer that silently drops a statement cannot hide
+//! behind a stable fixed point.
 
 use std::path::Path;
-
-use animatix_syntax::ast::Stmt;
 
 /// Recursively collect all `.amx` files under `dir`.
 fn collect_amx_files(dir: &Path) -> Vec<std::path::PathBuf> {
@@ -23,96 +22,6 @@ fn collect_amx_files(dir: &Path) -> Vec<std::path::PathBuf> {
         }
     }
     files
-}
-
-#[test]
-fn roundtrip_all_example_files() {
-    // CARGO_MANIFEST_DIR = crates/animatix-syntax/ — go up two levels to workspace root.
-    let examples_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples")
-        .canonicalize()
-        .expect("examples/ directory not found — is the workspace structure intact?");
-
-    assert!(
-        examples_dir.is_dir(),
-        "examples/ directory does not exist at: {}",
-        examples_dir.display()
-    );
-
-    let mut amx_files = collect_amx_files(&examples_dir);
-    // Also round-trip the dogfood projects so formatter regressions on
-    // real-content files (e.g. lost `[step: ...]` modifiers) are caught.
-    let dogfood_dir = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../dogfood/projects")
-        .canonicalize()
-        .expect("dogfood/projects directory not found");
-    amx_files.extend(collect_amx_files(&dogfood_dir));
-    assert!(!amx_files.is_empty(), "no .amx files found for roundtrip");
-
-    let mut failures: Vec<String> = Vec::new();
-
-    for file_path in &amx_files {
-        let source = match std::fs::read_to_string(file_path) {
-            Ok(s) => s,
-            Err(e) => {
-                failures.push(format!("{}: read error: {}", file_path.display(), e));
-                continue;
-            },
-        };
-
-        // Phase 1: parse the original source via parse_source (strips comments first)
-        let (parsed_opt, parse_errors) = animatix_syntax::parser::parse_source(&source);
-        let parsed: Vec<Stmt> = match parsed_opt {
-            Some(stmts) if parse_errors.is_empty() => stmts,
-            _ => {
-                let msg: Vec<String> =
-                    parse_errors.iter().map(|e| format!("  {}", e.message)).collect();
-                failures.push(format!(
-                    "{}: parse failed ({} error(s)):\n{}",
-                    file_path.display(),
-                    parse_errors.len(),
-                    msg.join("\n")
-                ));
-                continue;
-            },
-        };
-
-        let orig_count = parsed.len();
-
-        // Phase 2: serialize back to source
-        let serialized = animatix_syntax::to_source::stmts_to_source(&parsed);
-
-        // Phase 3: re-parse the serialized output
-        let (reparsed_opt, reparse_errors) = animatix_syntax::parser::parse_source(&serialized);
-        let reparsed: Vec<Stmt> = match reparsed_opt {
-            Some(stmts) if reparse_errors.is_empty() => stmts,
-            _ => {
-                let msg: Vec<String> =
-                    reparse_errors.iter().map(|e| format!("  {}", e.message)).collect();
-                failures.push(format!(
-                    "{}: re-parse failed after serialization ({} error(s)):\n{}",
-                    file_path.display(),
-                    reparse_errors.len(),
-                    msg.join("\n")
-                ));
-                continue;
-            },
-        };
-
-        // Phase 4: compare statement counts
-        if reparsed.len() != orig_count {
-            failures.push(format!(
-                "{}: statement count mismatch: original={}, after roundtrip={}",
-                file_path.display(),
-                orig_count,
-                reparsed.len()
-            ));
-        }
-    }
-
-    if !failures.is_empty() {
-        panic!("roundtrip failures for {} file(s):\n{}", failures.len(), failures.join("\n\n"));
-    }
 }
 
 // Serializer stability over the whole repo
@@ -193,6 +102,18 @@ fn both_serializers_are_stable_across_the_repo() {
                 ));
                 continue;
             };
+            // A stable fixed point can still have dropped a statement on the
+            // first pass, so `to_source` also has to preserve the count.
+            if serializer_name == "to_source"
+                && parse_errors.is_empty()
+                && again.len() != stmts.len()
+            {
+                failures.push(format!(
+                    "{label}: to_source changed the statement count: {} -> {}",
+                    stmts.len(),
+                    again.len()
+                ));
+            }
             let second = match serializer_name {
                 "to_source" => animatix_syntax::to_source::stmts_to_source(&again),
                 _ => formatter.format(&again),

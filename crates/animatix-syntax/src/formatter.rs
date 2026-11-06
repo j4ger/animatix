@@ -695,11 +695,7 @@ fn clear_stmt_comments(stmt: &mut Stmt) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::parse_source;
-
-    fn parse(source: &str) -> Vec<Stmt> {
-        parse_source(source).0.expect("failed to parse")
-    }
+    use crate::test_support::parse;
 
     #[test]
     fn format_empty_file() {
@@ -791,8 +787,6 @@ mod tests {
         assert!(!result.ends_with('\n'), "Expected no trailing newline");
     }
 
-    // ── Idempotency tests ──────────────────────────────────────────────
-
     fn assert_idempotent(source: &str) {
         let stmts = parse(source);
         let formatter = Formatter::default();
@@ -806,134 +800,19 @@ mod tests {
         );
     }
 
+    /// One leaf document (a single actor) and one container document keep the
+    /// formatter's idempotency covered here; `tests/ast_format_coverage.rs`
+    /// checks idempotency for every statement variant.
     #[test]
-    fn idempotent_single_actor() {
+    fn idempotent_leaf_and_container() {
         assert_idempotent(r#"title: Text, text: "Hello""#);
-    }
-
-    #[test]
-    fn idempotent_keyframe() {
-        assert_idempotent("#0s\ntitle: Text, text: \"Hello\"");
-    }
-
-    #[test]
-    fn idempotent_sequence() {
         assert_idempotent("sequence {\nfade-in btn [1s]\nfade-in title [500ms]\n}");
-    }
-
-    #[test]
-    fn idempotent_config() {
-        assert_idempotent("config { resolution: (1280, 720) }");
-    }
-
-    #[test]
-    fn idempotent_import() {
-        assert_idempotent(r#"import "theme.amx""#);
-    }
-
-    #[test]
-    fn idempotent_assignment() {
-        assert_idempotent("btn.color = red");
-    }
-
-    #[test]
-    fn idempotent_scene() {
-        assert_idempotent("# Intro\ntitle: Text, text: \"Hello\"");
-    }
-
-    #[test]
-    fn idempotent_play() {
-        assert_idempotent("# Intro\nplay Outro [fade, 300ms]");
-    }
-
-    // ── Comment preservation ────────────────────────────────────────────
-
-    fn format_source(source: &str) -> String {
-        let stmts = parse(source);
-        Formatter::default().format_source(source, &stmts)
-    }
-
-    fn comment_texts(source: &str) -> Vec<String> {
-        crate::token::tokenize(source)
-            .into_iter()
-            .filter_map(|token| match token.kind {
-                TokenKind::Comment(text) => Some(text),
-                _ => None,
-            })
-            .collect()
-    }
-
-    const COMMENT_FIXTURES: &[&str] = &[
-        // File header + leading/free-standing comments between top-level statements.
-        "// file header one\n// file header two\n\nlet a = 1\n\n// about b\nlet b = 2\n",
-        // Free-standing and trailing comments inside a keyframe block.
-        "#0s\n// leading in keyframe\ntitle.opacity = 0 // trailing assignment\n// tail in keyframe\n",
-        // Trailing comment after a property.
-        "title: Text, text: \"Hello\" // trailing property\n",
-        // Trailing comments after non-property statements.
-        "let a = 1 // trailing let\n#1s\nfade-in a [1s] // trailing action\n",
-        // Comment-only file.
-        "// only a comment\n// second line\n",
-        // Comment inside a multi-line expression that formatting collapses.
-        "let x = foo(\n  1, // first arg\n  2\n)\n",
-        // Comment inside a container's inline children block.
-        "row: Row, gap: 8 {\n  // child comment\n  a: Rect, size: (10, 10)\n}\n",
-        // Comments at both ends of a sequence block, plus a trailing action.
-        "sequence {\n  // before action\n  fade-in a [1s] // after action\n  // after action line\n}\n",
-        // Trailing comments inside a type constructor's property list.
-        "circ = Circle {\n  at: (0, 0), // center\n  radius: 100, // size\n}\n",
-    ];
-
-    #[test]
-    fn preserves_every_comment_class() {
-        for source in COMMENT_FIXTURES {
-            let formatted = format_source(source);
-            assert_eq!(
-                comment_texts(source),
-                comment_texts(&formatted),
-                "comments changed for source:\n{source}\nformatted:\n{formatted}"
-            );
-        }
-        let inline =
-            format_source("row: Row, gap: 8 {\n  // child comment\n  a: Rect, size: (10, 10)\n}\n");
-        assert!(
-            inline.contains("  // child comment"),
-            "inline comment lost its indent:\n{inline}"
-        );
     }
 
     #[test]
     fn comment_only_file_is_preserved_verbatim() {
         let source = "// first\n\n// second\n";
-        assert_eq!(format_source(source), source);
-    }
-
-    #[test]
-    fn property_comment_cannot_swallow_following_property() {
-        let source =
-            "row: Row, gap: 8 {\n  a: Rect, size: (10, 10), // half extents\n  color: red\n}\n";
-        let formatted = format_source(source);
-        assert_eq!(comment_texts(source), comment_texts(&formatted));
-        // The `color` property must still be parsed after formatting.
-        let reparsed = parse(&formatted);
-        let Stmt::ActorDecl { children, .. } = &reparsed[0] else {
-            panic!("expected actor declaration, got {:?}", reparsed[0]);
-        };
-        let InlineItem::Labeled { props, .. } = &children[0] else {
-            panic!("expected labeled inline child");
-        };
-        assert_eq!(props.len(), 2, "formatted output lost a property:\n{formatted}");
-    }
-
-    #[test]
-    fn comment_formatting_is_idempotent() {
-        for source in COMMENT_FIXTURES {
-            let first = format_source(source);
-            let second = format_source(&first);
-            assert_eq!(
-                first, second,
-                "comment formatting is not idempotent for:\n{source}\nfirst:\n{first}\nsecond:\n{second}"
-            );
-        }
+        let stmts = parse(source);
+        assert_eq!(Formatter::default().format_source(source, &stmts), source);
     }
 }

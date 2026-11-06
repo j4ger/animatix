@@ -326,6 +326,12 @@ pub fn walk_inline_item<'ast, V: AstVisitor<'ast> + ?Sized>(
 /// Override methods for node types you want to transform; other nodes recurse
 /// into children using the default fold implementations.
 pub trait AstFolder {
+    /// Transform a statement list. The default folds each statement; override
+    /// to drop or reorder statements in a body.
+    fn fold_stmts(&mut self, stmts: Vec<Stmt>) -> Vec<Stmt> {
+        stmts.into_iter().map(|stmt| self.fold_stmt(stmt)).collect()
+    }
+
     /// Transform a statement node.
     fn fold_stmt(&mut self, stmt: Stmt) -> Stmt {
         walk_fold_stmt(self, stmt)
@@ -426,12 +432,12 @@ pub fn walk_fold_stmt<F: AstFolder + ?Sized>(folder: &mut F, stmt: Stmt) -> Stmt
         Stmt::TypeAlias { .. } | Stmt::Import { .. } => stmt,
         Stmt::Keyframe { time, body, span } => Stmt::Keyframe {
             time,
-            body: body.into_iter().map(|s| folder.fold_stmt(s)).collect(),
+            body: folder.fold_stmts(body),
             span,
         },
         Stmt::RelativeKeyframe { offset, body, span } => Stmt::RelativeKeyframe {
             offset,
-            body: body.into_iter().map(|s| folder.fold_stmt(s)).collect(),
+            body: folder.fold_stmts(body),
             span,
         },
         Stmt::Assignment {
@@ -452,7 +458,7 @@ pub fn walk_fold_stmt<F: AstFolder + ?Sized>(folder: &mut F, stmt: Stmt) -> Stmt
             span,
         },
         Stmt::Sequence { body, span } => Stmt::Sequence {
-            body: body.into_iter().map(|s| folder.fold_stmt(s)).collect(),
+            body: folder.fold_stmts(body),
             span,
         },
         Stmt::Stagger {
@@ -461,11 +467,11 @@ pub fn walk_fold_stmt<F: AstFolder + ?Sized>(folder: &mut F, stmt: Stmt) -> Stmt
             span,
         } => Stmt::Stagger {
             modifiers: modifiers.into_iter().map(|m| folder.fold_modifier(m)).collect(),
-            body: body.into_iter().map(|s| folder.fold_stmt(s)).collect(),
+            body: folder.fold_stmts(body),
             span,
         },
         Stmt::Always { body, span } => Stmt::Always {
-            body: body.into_iter().map(|s| folder.fold_stmt(s)).collect(),
+            body: folder.fold_stmts(body),
             span,
         },
         Stmt::ReactiveBinding {
@@ -489,7 +495,7 @@ pub fn walk_fold_stmt<F: AstFolder + ?Sized>(folder: &mut F, stmt: Stmt) -> Stmt
         | Stmt::Config { .. }
         | Stmt::Scene { .. } => fold_stmt_compound(folder, stmt),
         Stmt::Block { body, span } => Stmt::Block {
-            body: body.into_iter().map(|s| folder.fold_stmt(s)).collect(),
+            body: folder.fold_stmts(body),
             span,
         },
         Stmt::Return { value, span } => Stmt::Return {
@@ -510,8 +516,8 @@ fn fold_stmt_compound<F: AstFolder + ?Sized>(folder: &mut F, stmt: Stmt) -> Stmt
             span,
         } => Stmt::Conditional {
             condition: folder.fold_expr(condition),
-            then_branch: then_branch.into_iter().map(|s| folder.fold_stmt(s)).collect(),
-            else_branch: else_branch.map(|b| b.into_iter().map(|s| folder.fold_stmt(s)).collect()),
+            then_branch: folder.fold_stmts(then_branch),
+            else_branch: else_branch.map(|b| folder.fold_stmts(b)),
             span,
         },
         Stmt::Match {
@@ -520,10 +526,7 @@ fn fold_stmt_compound<F: AstFolder + ?Sized>(folder: &mut F, stmt: Stmt) -> Stmt
             span,
         } => Stmt::Match {
             scrutinee: folder.fold_expr(scrutinee),
-            arms: arms
-                .into_iter()
-                .map(|(pat, body)| (pat, body.into_iter().map(|s| folder.fold_stmt(s)).collect()))
-                .collect(),
+            arms: arms.into_iter().map(|(pat, body)| (pat, folder.fold_stmts(body))).collect(),
             span,
         },
         Stmt::ForLoop {
@@ -537,7 +540,7 @@ fn fold_stmt_compound<F: AstFolder + ?Sized>(folder: &mut F, stmt: Stmt) -> Stmt
             var,
             index_var,
             iterable: folder.fold_expr(iterable),
-            body: body.into_iter().map(|s| folder.fold_stmt(s)).collect(),
+            body: folder.fold_stmts(body),
             modifiers: modifiers.into_iter().map(|m| folder.fold_modifier(m)).collect(),
             span,
         },
@@ -554,7 +557,7 @@ fn fold_stmt_compound<F: AstFolder + ?Sized>(folder: &mut F, stmt: Stmt) -> Stmt
                         default: p.default.map(|expr| folder.fold_expr(expr)),
                     })
                     .collect(),
-                body: comp.body.into_iter().map(|s| folder.fold_stmt(s)).collect(),
+                body: folder.fold_stmts(comp.body),
             },
             span,
         ),
@@ -570,7 +573,7 @@ fn fold_stmt_compound<F: AstFolder + ?Sized>(folder: &mut F, stmt: Stmt) -> Stmt
             name,
             params,
             return_type,
-            body: body.into_iter().map(|s| folder.fold_stmt(s)).collect(),
+            body: folder.fold_stmts(body),
             span,
         },
         Stmt::Config { settings, span } => Stmt::Config {
@@ -585,7 +588,7 @@ fn fold_stmt_compound<F: AstFolder + ?Sized>(folder: &mut F, stmt: Stmt) -> Stmt
         } => Stmt::Scene {
             name,
             config: config.into_iter().map(|p| folder.fold_property(p)).collect(),
-            body: body.into_iter().map(|s| folder.fold_stmt(s)).collect(),
+            body: folder.fold_stmts(body),
             span,
         },
         other => other,

@@ -8,17 +8,10 @@
 //! what made the web player's clock wrap at the wrong time for scenes that
 //! declare `duration:` longer than their last keyframe.
 
-use animatix_syntax::ast::{Expr, Stmt};
+mod common;
 
-fn parse(src: &str) -> Vec<Stmt> {
-    let (stmts, errors) = animatix_syntax::parser::parse_source(src);
-    assert!(
-        errors.is_empty(),
-        "parse errors: {:?}",
-        errors.iter().map(|e| &e.message).collect::<Vec<_>>()
-    );
-    stmts.expect("no statements")
-}
+use animatix_syntax::ast::{Expr, Stmt};
+use common::parse;
 
 fn scene_named<'a>(stmts: &'a [Stmt], name: &str) -> &'a Stmt {
     stmts
