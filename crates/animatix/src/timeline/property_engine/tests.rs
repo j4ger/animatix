@@ -124,9 +124,7 @@ fn world_write_read_roundtrip(
     timeline.world().read_property_value(id, field, time_ms)
 }
 
-// ────────────────────────────────────────────────
 // 4.2: write/read round-trip tests
-// ────────────────────────────────────────────────
 
 #[test]
 fn test_write_read_roundtrip_f32() {

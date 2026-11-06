@@ -3,9 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::timeline::property_track::PropertyTrack;
 
-// ─────────────────────────────────────────────────────────────
 // HighlightTracks
-// ─────────────────────────────────────────────────────────────
 
 /// Per-actor highlight property tracks (for equation fragment highlights).
 #[derive(Clone, Debug)]

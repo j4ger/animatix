@@ -41,9 +41,7 @@ pub use video::{
 
 use std::sync::atomic::{AtomicBool, AtomicU32};
 
-// ---------------------------------------------------------------------------
 // Error types
-// ---------------------------------------------------------------------------
 
 /// Unified error type for all export/encoding operations.
 #[derive(Debug)]
@@ -114,9 +112,7 @@ impl From<std::ffi::NulError> for ExportError {
     }
 }
 
-// ---------------------------------------------------------------------------
 // ffmpeg availability
-// ---------------------------------------------------------------------------
 
 use std::sync::OnceLock;
 
@@ -144,9 +140,7 @@ pub fn require_ffmpeg() -> Result<(), ExportError> {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Export settings
-// ---------------------------------------------------------------------------
 
 /// Export configuration settings.
 #[derive(Debug, Clone, Copy)]
@@ -423,9 +417,7 @@ impl std::str::FromStr for H264Preset {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Audio muxing via ffmpeg CLI
-// ---------------------------------------------------------------------------
 
 /// Mux audio segments into the rendered video using ffmpeg CLI.
 ///

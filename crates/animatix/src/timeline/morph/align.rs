@@ -693,6 +693,4 @@ pub(super) fn split_longest(curves: &mut Vec<PathEl>) -> bool {
     false
 }
 
-// ─────────────────────────────────────────────────────────────
 // Morph evaluation helpers (moved from track.rs)
-// ─────────────────────────────────────────────────────────────

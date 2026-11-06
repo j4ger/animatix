@@ -18,22 +18,6 @@ pub(super) fn rewrite_properties(
         .collect()
 }
 
-pub(super) fn rewrite_modifiers(
-    modifiers: &[Modifier],
-    prefix: &str,
-    root_label: Option<&str>,
-    known_labels: &HashSet<String>,
-    bindings: &HashMap<String, Expr>,
-) -> Vec<Modifier> {
-    modifiers
-        .iter()
-        .map(|modifier| Modifier {
-            name: modifier.name.clone(),
-            value: rewrite_expr(&modifier.value, prefix, root_label, known_labels, bindings),
-        })
-        .collect()
-}
-
 pub(super) fn rewrite_expr(
     expr: &Expr,
     prefix: &str,

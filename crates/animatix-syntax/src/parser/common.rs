@@ -11,9 +11,7 @@ use super::token_parser::{self, TokErr, TokInput};
 use crate::ast::*;
 use crate::easing::parse_easing_expr;
 
-// ---------------------------------------------------------------------------
 // Type aliases
-// ---------------------------------------------------------------------------
 
 pub(crate) type ParserExtra<'src> = TokErr<'src>;
 pub(crate) type StrInput<'src> = TokInput<'src>;
@@ -30,9 +28,7 @@ pub(crate) type InlineItemsParser<'src> =
     Boxed<'src, 'src, StrInput<'src>, Vec<InlineItem>, ParserExtra<'src>>;
 pub(crate) type StmtParser<'src> = Boxed<'src, 'src, StrInput<'src>, Stmt, ParserExtra<'src>>;
 
-// ---------------------------------------------------------------------------
 // Identifier parser
-// ---------------------------------------------------------------------------
 
 /// Parse an identifier. Reserved keywords are already classified as
 /// [`crate::token::TokenKind::Keyword`] by the tokenizer, so matching an
@@ -95,9 +91,7 @@ pub(crate) fn scoped<'src, T: 'src>(
         .boxed()
 }
 
-// ---------------------------------------------------------------------------
 // Dotted identifier parser
-// ---------------------------------------------------------------------------
 
 /// Parse a dotted identifier path and record every segment with `kind`.
 pub(crate) fn dotted_ident_occ<'src>(
@@ -109,9 +103,7 @@ pub(crate) fn dotted_ident_occ<'src>(
         .collect()
 }
 
-// ---------------------------------------------------------------------------
 // Indexed dotted identifier parser (for targets/assignments)
-// ---------------------------------------------------------------------------
 
 /// Parse a dotted path where each segment may carry a static integer array
 /// index or a runtime index expression.
@@ -164,9 +156,7 @@ pub(crate) fn indexed_dotted_ident_with_expr<'src>(
         })
 }
 
-// ---------------------------------------------------------------------------
 // Type identifier parser
-// ---------------------------------------------------------------------------
 
 /// Parse a type identifier: an identifier starting with an uppercase letter.
 pub(crate) fn type_ident<'src>() -> IdentParser<'src> {
@@ -184,9 +174,7 @@ pub(crate) fn type_ident<'src>() -> IdentParser<'src> {
         .boxed()
 }
 
-// ---------------------------------------------------------------------------
 // Label expression parser
-// ---------------------------------------------------------------------------
 
 /// Parse a label expression: `name` or `name[index_expr]`.
 pub(crate) fn label_expr<'src>(
@@ -204,9 +192,7 @@ pub(crate) fn label_expr<'src>(
         .boxed()
 }
 
-// ---------------------------------------------------------------------------
 // String literal parser
-// ---------------------------------------------------------------------------
 
 /// Parse a quoted string literal, returning `Expr::Str`.
 pub(crate) fn string_literal<'src>()
@@ -214,18 +200,14 @@ pub(crate) fn string_literal<'src>()
     token_parser::string().map(Expr::Str)
 }
 
-// ---------------------------------------------------------------------------
 // Time literal parser
-// ---------------------------------------------------------------------------
 
 /// Parse a time literal: `2s`, `500ms`, or `1.5s`.
 pub(crate) fn time<'src>() -> TimeParser<'src> {
     token_parser::time().boxed()
 }
 
-// ---------------------------------------------------------------------------
 // Expression with span helper
-// ---------------------------------------------------------------------------
 
 /// Wrap an expression parser to capture the byte span of the parsed value.
 pub(crate) fn expr_with_span<'src>(
@@ -237,9 +219,7 @@ pub(crate) fn expr_with_span<'src>(
     .boxed()
 }
 
-// ---------------------------------------------------------------------------
 // Property parser
-// ---------------------------------------------------------------------------
 
 /// Parse a property assignment: `name: value`.
 pub(crate) fn property<'src>(
@@ -261,9 +241,7 @@ pub(crate) fn property<'src>(
         .boxed()
 }
 
-// ---------------------------------------------------------------------------
 // Modifier parser
-// ---------------------------------------------------------------------------
 
 /// Parse a single modifier: `name: value`, `2s`, or any expression.
 pub(crate) fn modifier<'src>(
@@ -301,9 +279,7 @@ pub(crate) fn modifier<'src>(
     .boxed()
 }
 
-// ---------------------------------------------------------------------------
 // Modifiers list parser
-// ---------------------------------------------------------------------------
 
 /// Parse a bracketed modifier list: `[2s, ease: bounce]`.
 pub(crate) fn modifiers<'src>(
@@ -323,9 +299,7 @@ pub(crate) fn modifiers<'src>(
         .boxed()
 }
 
-// ---------------------------------------------------------------------------
 // Easing extraction
-// ---------------------------------------------------------------------------
 
 /// Scan modifiers for `ease: ...` and extract the easing value.
 ///

@@ -247,9 +247,7 @@ fn test_stretch_normalizes_morph_bounds() {
     assert!(stretched_bounds.width() >= unstretched_bounds.width());
 }
 
-// ────────────────────────────────────────────────────────
 // evaluate_paths_with_options tests (moved from track.rs)
-// ────────────────────────────────────────────────────────
 
 fn identity_interpolate<T: Interpolate>(
     source: &T,
@@ -321,34 +319,23 @@ fn test_evaluate_paths_with_options_uses_morph_at_second_keyframe() {
     assert_eq!(result, 50.0);
 }
 
-// ────────────────────────────────────────────────────────
 // Morph interpolation tests (moved from track.rs)
-// ────────────────────────────────────────────────────────
+
+fn sample_vello_path(color: vello::peniko::Color) -> VelloPath {
+    VelloPath {
+        fill: Some(color),
+        ..Default::default()
+    }
+}
 
 #[test]
 fn fade_vello_paths_at_start_returns_only_source() {
-    let source = vec![VelloPath {
-        path: std::sync::Arc::new(BezPath::new()),
-        fill: Some(vello::peniko::Color::from_rgba8(255, 0, 0, 255)),
-        stroke: None,
-        line_cap: 0,
-        line_join: 0,
-        dash_pattern: None,
-        dash_offset: 0.0,
-        fill_gradient: None,
-        stroke_gradient: None,
-    }];
-    let target = vec![VelloPath {
-        path: std::sync::Arc::new(BezPath::new()),
-        fill: Some(vello::peniko::Color::from_rgba8(0, 255, 0, 255)),
-        stroke: None,
-        line_cap: 0,
-        line_join: 0,
-        dash_pattern: None,
-        dash_offset: 0.0,
-        fill_gradient: None,
-        stroke_gradient: None,
-    }];
+    let source = vec![sample_vello_path(vello::peniko::Color::from_rgba8(
+        255, 0, 0, 255,
+    ))];
+    let target = vec![sample_vello_path(vello::peniko::Color::from_rgba8(
+        0, 255, 0, 255,
+    ))];
     let result = interpolate_vello_paths(
         &source,
         &target,
@@ -365,28 +352,12 @@ fn fade_vello_paths_at_start_returns_only_source() {
 
 #[test]
 fn fade_vello_paths_at_end_returns_only_target() {
-    let source = vec![VelloPath {
-        path: std::sync::Arc::new(BezPath::new()),
-        fill: Some(vello::peniko::Color::from_rgba8(255, 0, 0, 255)),
-        stroke: None,
-        line_cap: 0,
-        line_join: 0,
-        dash_pattern: None,
-        dash_offset: 0.0,
-        fill_gradient: None,
-        stroke_gradient: None,
-    }];
-    let target = vec![VelloPath {
-        path: std::sync::Arc::new(BezPath::new()),
-        fill: Some(vello::peniko::Color::from_rgba8(0, 255, 0, 255)),
-        stroke: None,
-        line_cap: 0,
-        line_join: 0,
-        dash_pattern: None,
-        dash_offset: 0.0,
-        fill_gradient: None,
-        stroke_gradient: None,
-    }];
+    let source = vec![sample_vello_path(vello::peniko::Color::from_rgba8(
+        255, 0, 0, 255,
+    ))];
+    let target = vec![sample_vello_path(vello::peniko::Color::from_rgba8(
+        0, 255, 0, 255,
+    ))];
     let result = interpolate_vello_paths(
         &source,
         &target,
@@ -468,17 +439,9 @@ fn fade_text_paths_at_midpoint_returns_both_halved() {
 #[test]
 fn fade_vello_paths_empty_source() {
     let source: Vec<VelloPath> = vec![];
-    let target = vec![VelloPath {
-        path: std::sync::Arc::new(BezPath::new()),
-        fill: Some(vello::peniko::Color::from_rgba8(0, 255, 0, 128)),
-        stroke: None,
-        line_cap: 0,
-        line_join: 0,
-        dash_pattern: None,
-        dash_offset: 0.0,
-        fill_gradient: None,
-        stroke_gradient: None,
-    }];
+    let target = vec![sample_vello_path(vello::peniko::Color::from_rgba8(
+        0, 255, 0, 128,
+    ))];
     let result = interpolate_vello_paths(
         &source,
         &target,
@@ -495,17 +458,9 @@ fn fade_vello_paths_empty_source() {
 
 #[test]
 fn fade_vello_paths_empty_target() {
-    let source = vec![VelloPath {
-        path: std::sync::Arc::new(BezPath::new()),
-        fill: Some(vello::peniko::Color::from_rgba8(255, 0, 0, 200)),
-        stroke: None,
-        line_cap: 0,
-        line_join: 0,
-        dash_pattern: None,
-        dash_offset: 0.0,
-        fill_gradient: None,
-        stroke_gradient: None,
-    }];
+    let source = vec![sample_vello_path(vello::peniko::Color::from_rgba8(
+        255, 0, 0, 200,
+    ))];
     let target: Vec<VelloPath> = vec![];
     let result = interpolate_vello_paths(
         &source,

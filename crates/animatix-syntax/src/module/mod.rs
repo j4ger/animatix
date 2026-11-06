@@ -18,7 +18,7 @@ use discovery::{
 use expand::expand_statements;
 
 use crate::ast::{
-    Action, ComponentDef, Expr, InlineItem, MatchPattern, Modifier, ParamDef, Property, Span, Stmt,
+    Action, ComponentDef, Expr, InlineItem, MatchPattern, ParamDef, Property, Span, Stmt,
     TargetSegment, TypeAnnotation,
 };
 use crate::parser::{ParseError, parse_source_complete};

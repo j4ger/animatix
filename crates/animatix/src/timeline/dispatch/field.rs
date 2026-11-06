@@ -86,9 +86,7 @@ pub enum TrackFieldMut<'a> {
     Tagged(&'static str, &'a mut Option<PropertyTrack<PropertyValue>>),
 }
 
-// ─────────────────────────────────────────────────────────────
 // TrackFieldRef convenience methods
-// ─────────────────────────────────────────────────────────────
 
 /// Expand a uniform per-track body over every [`TrackFieldRef`] variant.
 ///

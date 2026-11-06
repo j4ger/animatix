@@ -41,4 +41,7 @@ pub mod transition_registry;
 pub mod typecheck;
 /// Symbol-aware type inference shared by the typechecker and analyzer.
 pub mod typing;
+/// AST Visitor and Folder traits for uniform traversal and transformation.
+pub mod visit;
+pub use visit::{AstFolder, AstVisitor};
 pub mod walk;

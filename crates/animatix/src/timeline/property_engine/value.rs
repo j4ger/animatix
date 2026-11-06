@@ -8,9 +8,7 @@ use crate::timeline::env::{Environment, Value};
 use crate::timeline::property_registry::ValueType;
 use crate::timeline::{Interpolate, ShapeType};
 
-// ─────────────────────────────────────────────────────────────
 // Parsed property values
-// ─────────────────────────────────────────────────────────────
 
 /// A parsed property value, typed by the ValueType that produced it.
 #[derive(Clone, Debug, PartialEq)]
@@ -227,9 +225,7 @@ impl Interpolate for PropertyValue {
     }
 }
 
-// ─────────────────────────────────────────────────────────────
 // Parse: Expr → PropertyValue
-// ─────────────────────────────────────────────────────────────
 
 /// Parse an `Expr` into a `PropertyValue` based on the expected `ValueType`.
 /// Returns `None` when parsing fails (the caller should skip the property).

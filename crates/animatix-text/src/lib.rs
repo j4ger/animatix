@@ -118,9 +118,7 @@ pub struct CompiledText {
     pub hardware_layout: Option<fast_layout::HardwareTextLayout>,
 }
 
-// ─────────────────────────────────────────────────────────────
 // Tests
-// ─────────────────────────────────────────────────────────────
 
 #[path = "tests/text_tests.rs"]
 #[cfg(all(test, feature = "bundled-fonts"))]

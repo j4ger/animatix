@@ -35,9 +35,7 @@ fn parse(src: &str) -> Vec<Stmt> {
     stmts.expect("no statements")
 }
 
-// ---------------------------------------------------------------------------
 // Layer 1 — exhaustive plumbing over `Stmt`
-// ---------------------------------------------------------------------------
 
 /// The variant name of a statement, as used by the probe table.
 ///
@@ -247,9 +245,7 @@ fn collect_variants(stmts: &[Stmt], out: &mut Vec<&'static str>) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Layer 2 — the probe table
-// ---------------------------------------------------------------------------
 
 /// One document per `Stmt` variant. The probe's *first* statement must be the
 /// variant being covered; the rest of the document supplies whatever that
@@ -571,9 +567,7 @@ fn ast_only_variants_still_print_their_content() {
     assert!(printed.contains("// inside"), "a Block lost its body: {printed}");
 }
 
-// ---------------------------------------------------------------------------
 // Layer 3 — the same fidelity test for expressions
-// ---------------------------------------------------------------------------
 
 /// Expressions are compared exactly, because `Expr` carries no position data:
 /// anything `format_expr` fails to print comes back as a *different* AST node.
@@ -775,9 +769,7 @@ fn every_binary_and_unary_operator_round_trips() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Layer 3b — container items
-// ---------------------------------------------------------------------------
 
 #[test]
 fn every_inline_item_variant_round_trips() {
@@ -840,9 +832,7 @@ fn every_inline_item_variant_round_trips() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // The specific regressions this guard exists for
-// ---------------------------------------------------------------------------
 
 /// Action spellings that must survive formatting unchanged in structure.
 ///
@@ -943,9 +933,7 @@ fn a_transition_prints_all_three_of_its_fields() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Comment fidelity through the source-aware formatter
-// ---------------------------------------------------------------------------
 
 fn comment_texts(source: &str) -> Vec<String> {
     animatix_syntax::token::tokenize(source)

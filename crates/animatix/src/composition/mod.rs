@@ -21,9 +21,7 @@ use crate::diagnostics::{BuildReport, Diagnostic, DiagnosticCode, DiagnosticPhas
 use crate::module::Namespace;
 use crate::timeline::{BuildOptions, Timeline};
 
-// ---------------------------------------------------------------------------
 // Composition Data Structures
-// ---------------------------------------------------------------------------
 
 /// A compiled scene within a multi-scene composition.
 #[derive(Clone)]
@@ -162,9 +160,7 @@ pub struct TransitionBlend {
     pub easing: crate::easing::Easing,
 }
 
-// ---------------------------------------------------------------------------
 // Build Target — canonical entry point for callers
-// ---------------------------------------------------------------------------
 
 /// Result of building either a single-scene `Timeline` or a multi-scene `Composition`.
 #[allow(clippy::large_enum_variant)]
@@ -347,9 +343,7 @@ impl BuildTarget {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Queries
-// ---------------------------------------------------------------------------
 
 impl Composition {
     /// Returns true if the composition has at least one scene.

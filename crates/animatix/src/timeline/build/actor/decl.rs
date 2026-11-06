@@ -6,7 +6,6 @@ use super::*;
 use crate::ast::{InlineItem, Property};
 use props::DeclarationSeed;
 
-mod anchors;
 mod props;
 
 impl Timeline {
@@ -262,5 +261,41 @@ impl Timeline {
         self.write_extension_properties_for_decl(label, ty, props, modifiers, time_ms, diagnostics);
 
         self.finalize_actor_container(label, ty, props, time_ms, parent_label, diagnostics);
+    }
+
+    /// Record `from:`/`to:` actor-anchor refs (`pen.center`) in the track's
+    /// shape side channel for frame-time resolution.
+    pub(super) fn apply_pre_spawn_line_anchor_refs(
+        &mut self,
+        label: &str,
+        caps: &ActorCaps,
+        props: &[Property],
+    ) {
+        if !matches!(caps.shape, Some(ShapeKind::Line | ShapeKind::Arrow)) {
+            return;
+        }
+        let Some(id) = self.world.get_id(label) else {
+            return;
+        };
+        let shape = self.world.ensure_shape(id);
+        for prop in props {
+            if prop.name != "from" && prop.name != "to" {
+                continue;
+            }
+            let crate::ast::Expr::Path(segments) = &prop.value else {
+                continue;
+            };
+            if segments.len() != 2 {
+                continue;
+            }
+            let Some(anchor) = SceneAnchor::from_str(&segments[1]) else {
+                continue;
+            };
+            if prop.name == "from" {
+                shape.from_anchor = Some((segments[0].clone(), anchor));
+            } else {
+                shape.to_anchor = Some((segments[0].clone(), anchor));
+            }
+        }
     }
 }

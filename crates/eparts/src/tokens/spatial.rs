@@ -83,9 +83,7 @@ pub mod dialog {
     pub const SLIDE_PX: f32 = 12.0;
 }
 
-// ═══════════════════════════════════════════════════════════════════════
 // Density mode — runtime token-level scaling
-// ═══════════════════════════════════════════════════════════════════════
 
 use egui::Context;
 
@@ -269,9 +267,7 @@ pub fn spatial_from_ctx(ctx: &Context) -> Spatial {
     Spatial::for_density(density_from_ctx(ctx))
 }
 
-// ═══════════════════════════════════════════════════════════════════════
 // Unit tests (§6 of the density-refactor plan)
-// ═══════════════════════════════════════════════════════════════════════
 
 #[cfg(test)]
 mod tests {

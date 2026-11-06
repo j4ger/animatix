@@ -43,9 +43,7 @@ pub fn drain_adjust_flash_queue() -> Vec<f64> {
     ADJUST_FLASH_QUEUE.with(|q| q.borrow_mut().drain(..).collect())
 }
 
-// ---------------------------------------------------------------------------
 // Keyframe discovery
-// ---------------------------------------------------------------------------
 
 /// Find all top-level keyframe or relative-keyframe statements whose body
 /// contains an assignment targeting the given actor label.
@@ -77,9 +75,7 @@ pub fn keyframe_references_actor(stmt: &Stmt, actor: &str) -> bool {
     found
 }
 
-// ---------------------------------------------------------------------------
 // Keyframe insertion helpers (shared by keyframe_edits and action_edits)
-// ---------------------------------------------------------------------------
 
 /// Style of the keyframe immediately preceding a given time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

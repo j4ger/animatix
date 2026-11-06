@@ -6,9 +6,7 @@ use animatix_syntax::ast::{Expr, Property, Stmt, Transition};
 use super::SourceEditError;
 use super::apply::{find_scene_mut, walk_stmts_mut};
 
-// ---------------------------------------------------------------------------
 // Scene helpers
-// ---------------------------------------------------------------------------
 
 fn scene_names(stmts: &[Stmt]) -> Vec<String> {
     stmts
@@ -47,9 +45,7 @@ fn duplicate_name_in_order(order: &[String]) -> Option<String> {
     })
 }
 
-// ---------------------------------------------------------------------------
 // ReorderScenes
-// ---------------------------------------------------------------------------
 
 mod edit_ops;
 mod extract;

@@ -21,9 +21,7 @@ pub(super) fn update_object_path(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Serde for Value
-// ---------------------------------------------------------------------------
 //
 // `Value::NativeFn` holds a Rust `Arc<dyn Fn>` which is not serializable.
 // It is serialized as a unit variant `"NativeFn"` and deserialized back as an

@@ -21,9 +21,7 @@ use crate::render_pipeline::{
     fill_rgba_frame, render_frames_streaming, render_frames_streaming_composition,
 };
 
-// ---------------------------------------------------------------------------
 // Public API: single-timeline video
-// ---------------------------------------------------------------------------
 
 /// Render a single timeline to an MP4 video file with default debug options and
 /// export settings.
@@ -92,9 +90,7 @@ pub fn render_video_timeline_with_options(
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
 // Multi-scene composition video
-// ---------------------------------------------------------------------------
 
 /// Render a multi-scene composition to an MP4 video file with default debug
 /// options and export settings.
@@ -177,9 +173,7 @@ pub fn render_video_composition_with_options(
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
 // Shared encoder setup
-// ---------------------------------------------------------------------------
 
 /// Result of video encoder initialization.
 /// Caller owns these fields for the frame encoding loop.
@@ -385,9 +379,7 @@ fn mux_audio_if_present(
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
 // Adaptive parallelism
-// ---------------------------------------------------------------------------
 
 /// Compute an appropriate render thread count based on workload characteristics.
 pub(crate) fn adaptive_thread_count(
@@ -432,9 +424,7 @@ pub(crate) fn adaptive_thread_count(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Encoder selection
-// ---------------------------------------------------------------------------
 
 /// Select a video encoder based on settings. Returns the encoder and whether it
 /// is a hardware-accelerated encoder.

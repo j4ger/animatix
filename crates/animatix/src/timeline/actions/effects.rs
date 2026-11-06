@@ -2,8 +2,8 @@ use super::registry::{ActionParam, ActionSignature, BuiltinAction, base_timing_p
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
+use crate::timeline::Timeline;
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
 /// Timing modifiers shared by the effect actions that only take an intensity.
 fn intensity_timing_params() -> Vec<ActionParam> {
@@ -53,19 +53,11 @@ impl BuiltinAction for Shake {
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        // Parse timing modifiers
-        let parsed = parse_timing_modifiers(
-            &action.modifiers,
-            ModifierHost::Action,
-            Some(&action.verb),
-            diagnostics,
-        );
-        let duration_ms = parsed.duration_ms;
-        let delay_ms = parsed.delay_ms;
-        let easing = parsed.easing;
-
-        let t_start_ms = (time_ms + delay_ms) as u64;
-        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+        let timing = super::ActionTiming::parse(action, time_ms, diagnostics);
+        let duration_ms = timing.duration_ms;
+        let easing = timing.easing;
+        let t_start_ms = timing.t_start_ms;
+        let t_end_ms = timing.t_end_ms;
 
         // Parse intensity (amplitude) and frequency (number of shakes)
         let intensity = action
@@ -152,19 +144,12 @@ impl BuiltinAction for Pulse {
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let parsed = parse_timing_modifiers(
-            &action.modifiers,
-            ModifierHost::Action,
-            Some(&action.verb),
-            diagnostics,
-        );
-        let duration_ms = parsed.duration_ms;
-        let delay_ms = parsed.delay_ms;
-        let easing = parsed.easing;
-
-        let t_start_ms = (time_ms + delay_ms) as u64;
-        let t_mid_ms = (time_ms + delay_ms + duration_ms / 2.0) as u64;
-        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+        let timing = super::ActionTiming::parse(action, time_ms, diagnostics);
+        let duration_ms = timing.duration_ms;
+        let easing = timing.easing;
+        let t_start_ms = timing.t_start_ms;
+        let t_mid_ms = (time_ms + timing.delay_ms + duration_ms / 2.0) as u64;
+        let t_end_ms = timing.t_end_ms;
 
         let intensity = action
             .modifiers
@@ -266,18 +251,11 @@ impl BuiltinAction for Bounce {
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let parsed = parse_timing_modifiers(
-            &action.modifiers,
-            ModifierHost::Action,
-            Some(&action.verb),
-            diagnostics,
-        );
-        let duration_ms = parsed.duration_ms;
-        let delay_ms = parsed.delay_ms;
-        let easing = parsed.easing;
-
-        let t_start_ms = (time_ms + delay_ms) as u64;
-        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+        let timing = super::ActionTiming::parse(action, time_ms, diagnostics);
+        let duration_ms = timing.duration_ms;
+        let easing = timing.easing;
+        let t_start_ms = timing.t_start_ms;
+        let t_end_ms = timing.t_end_ms;
 
         // `intensity` is the first hop's height in pixels. `restitution` is the
         // fraction of the previous rebound's *velocity* each impact keeps, so a

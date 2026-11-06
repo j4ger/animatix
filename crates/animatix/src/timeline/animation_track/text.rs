@@ -8,9 +8,7 @@ use crate::timeline::property_track::{PropertyTrack, TrackAccessor};
 
 use super::style::StyleTracks;
 
-// ─────────────────────────────────────────────────────────────
 // TextTracks sub-struct
-// ─────────────────────────────────────────────────────────────
 
 /// Sub-struct holding all text-related property tracks.
 #[derive(Clone, Debug, Default)]

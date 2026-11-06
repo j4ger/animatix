@@ -34,10 +34,6 @@ fn build_timeline_from_source(test_name: &str, source: &str) -> Timeline {
     report.output
 }
 
-// ─────────────────────────────────────────────────────────────
-// Test 1: Top-level variable capture
-// ─────────────────────────────────────────────────────────────
-
 #[test]
 fn top_level_variable_captured_in_plot_curve() {
     let source = r#"
@@ -57,10 +53,6 @@ curve: PlotCurve, func: (x) => sin(freq * x), domain: (0, 6.28), samples: 100
     // Evaluate at t=0 should not panic and produce a scene
     let _scene = timeline.evaluate(0.0, DIMS);
 }
-
-// ─────────────────────────────────────────────────────────────
-// Test 2: always block drives parameter change
-// ─────────────────────────────────────────────────────────────
 
 #[test]
 fn always_block_drives_plot_parameter_change() {
@@ -86,10 +78,6 @@ always {
     let _scene_1 = timeline.evaluate(1.0, DIMS);
     let _scene_2 = timeline.evaluate(2.0, DIMS);
 }
-
-// ─────────────────────────────────────────────────────────────
-// Test 3: Actor-local parameter keyframe tracks
-// ─────────────────────────────────────────────────────────────
 
 #[test]
 fn actor_local_param_keyframes_interpolate() {
@@ -147,10 +135,6 @@ curve: PlotCurve, func: (x) => sin(freq * x), freq: 2, domain: (0, 6.28), sample
     let _scene_3 = timeline.evaluate(3.0, DIMS);
 }
 
-// ─────────────────────────────────────────────────────────────
-// Test 4: Parameter priority (always > build-time declaration)
-// ─────────────────────────────────────────────────────────────
-
 #[test]
 fn always_block_overrides_build_time_param() {
     // Test that always-block overrides take priority over build-time let values
@@ -203,10 +187,6 @@ always {
     // Evaluate should not panic
     let _scene = timeline.evaluate(1.0, DIMS);
 }
-
-// ─────────────────────────────────────────────────────────────
-// Test 5: Multiple parameters animating simultaneously
-// ─────────────────────────────────────────────────────────────
 
 #[test]
 fn multiple_params_keyframed_and_interpolated() {
@@ -279,10 +259,6 @@ curve: PlotCurve, func: (x) => amp * sin(freq * x), freq: 2, amp: 1.0, domain: (
     let _scene_1 = timeline.evaluate(1.0, DIMS);
     let _scene_2 = timeline.evaluate(2.0, DIMS);
 }
-
-// ─────────────────────────────────────────────────────────────
-// Test 6: a genuine undefined name still warns
-// ─────────────────────────────────────────────────────────────
 
 #[test]
 fn undefined_name_in_plot_func_still_warns_at_build_time() {

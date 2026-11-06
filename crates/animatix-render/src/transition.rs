@@ -410,9 +410,7 @@ impl TransitionCompositor {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Shared-element (FLIP) transition helpers
-// ---------------------------------------------------------------------------
 
 /// Labels matched by `shared_id` across the two scenes of a transition.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

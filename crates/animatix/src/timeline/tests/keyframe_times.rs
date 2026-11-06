@@ -1,8 +1,6 @@
 use super::*;
 
-// ────────────────────────────────────────────────────────
 // 4.7: keyframe_times_s tests
-// ────────────────────────────────────────────────────────
 
 fn keyframe_times_s_timeline() -> Timeline {
     let mut timeline = Timeline::new();

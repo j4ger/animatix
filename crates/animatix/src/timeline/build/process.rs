@@ -461,9 +461,7 @@ impl Timeline {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────
     // For-loop lowering helpers
-    // ─────────────────────────────────────────────────────────────
 
     /// Lower a for-loop by iterating values, binding the loop variable (and optional index),
     /// and calling the body processor for each iteration.

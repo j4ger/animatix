@@ -171,9 +171,7 @@ impl Command {
 /// Per-frame action queue consumed by the shell.
 pub type ActionQueue = VecDeque<ShellAction>;
 
-// =========================================================================
 // ── External command queue ──────────────────────────────────────────────
-// =========================================================================
 
 /// App-owned queue for commands submitted outside a frame's UI callbacks.
 ///

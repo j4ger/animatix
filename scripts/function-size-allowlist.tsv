@@ -29,7 +29,6 @@ crates/animatix-plugin-demo/src/lib.rs	animatix_plugin_install	203
 crates/animatix-plugin-demo/src/lib.rs	pulse_evaluate	256
 crates/animatix-syntax/src/format_core.rs	format_stmt_raw	259
 crates/animatix-syntax/src/module/expand/stmt.rs	expand_stmt_into	213
-crates/animatix-syntax/src/module/rewrite/stmt.rs	rewrite_stmt	368
 crates/animatix-syntax/src/parser/expr.rs	parser	342
 crates/animatix-syntax/src/parser/stmt.rs	parser	758
 crates/animatix-syntax/src/semantic_diagnostics/checks.rs	check_stmt	304
@@ -46,7 +45,6 @@ crates/animatix/src/timeline/build/plot/curves.rs	build_plot_curve_paths	284
 crates/animatix/src/timeline/build/plot/mod.rs	parse_plot_props	268
 crates/animatix/src/timeline/build/process.rs	process_body	380
 crates/animatix/src/timeline/builtins.rs	load_standard_library	385
-crates/animatix/src/timeline/declarations_text/text_impl.rs	process_text_declaration	685
 crates/animatix/src/timeline/eval_shared/binary.rs	eval_binary_op	229
 crates/animatix/src/timeline/path_data.rs	parse_svg_path_data	246
 crates/animatix/src/timeline/persistence/inject.rs	inject_entry	221

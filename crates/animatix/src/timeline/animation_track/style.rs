@@ -5,9 +5,7 @@ use crate::renderer::types::GradientSpec;
 use crate::timeline::morph::MorphOptions;
 use crate::timeline::property_track::PropertyTrack;
 
-// ─────────────────────────────────────────────────────────────
 // StyleTracks sub-struct
-// ─────────────────────────────────────────────────────────────
 
 /// Sub-struct holding all style-related property tracks.
 #[derive(Clone, Debug, Default)]

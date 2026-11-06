@@ -388,61 +388,69 @@ mod tests {
     use super::*;
 
     #[test]
-    fn text_field_builder_placeholder() {
-        let mut s = String::new();
-        let tf = TextField::new(&mut s).placeholder("hint");
+    fn text_field_builder_roundtrip() {
+        let mut s = String::from("hello");
+        {
+            let tf = TextField::new(&mut s);
+            assert!(tf.placeholder.is_none());
+            assert!(tf.prefix.is_none());
+            assert!(tf.suffix.is_none());
+            assert!(!tf.cleanable);
+            assert!(!tf.password);
+            assert!(tf.desired_width.is_none());
+            assert!(tf.validate.is_none());
+            assert!(tf.enabled);
+        }
+
+        let tf = TextField::new(&mut s)
+            .placeholder("hint")
+            .prefix("@")
+            .suffix(".com")
+            .cleanable(true)
+            .password(true)
+            .desired_width(180.0)
+            .validate(|t| !t.is_empty())
+            .enabled(false);
         assert_eq!(tf.placeholder.as_deref(), Some("hint"));
-    }
-
-    #[test]
-    fn text_field_builder_cleanable() {
-        let mut s = String::new();
-        let tf = TextField::new(&mut s).cleanable(true);
-        assert!(tf.cleanable);
-    }
-
-    #[test]
-    fn text_field_builder_password() {
-        let mut s = String::new();
-        let tf = TextField::new(&mut s).password(true);
-        assert!(tf.password);
-    }
-
-    #[test]
-    fn text_field_builder_prefix_suffix() {
-        let mut s = String::new();
-        let tf = TextField::new(&mut s).prefix("@").suffix(".com");
         assert_eq!(tf.prefix.as_deref(), Some("@"));
         assert_eq!(tf.suffix.as_deref(), Some(".com"));
+        assert!(tf.cleanable);
+        assert!(tf.password);
+        assert_eq!(tf.desired_width, Some(180.0));
+        assert!(tf.validate.is_some());
+        assert!(!tf.enabled);
     }
 
     #[test]
-    fn number_field_builder_range() {
+    fn number_field_builder_roundtrip() {
         let mut v = 0.0_f64;
-        let nf = NumberField::new(&mut v).range(0.0..=100.0);
+        {
+            let nf = NumberField::new(&mut v);
+            assert!(nf.range.is_none());
+            assert!(nf.step.is_none());
+            assert!(nf.speed.is_none());
+            assert!(nf.prefix.is_none());
+            assert!(nf.suffix.is_none());
+            assert!(nf.desired_width.is_none());
+            assert!(nf.enabled);
+        }
+
+        let nf = NumberField::new(&mut v)
+            .range(0.0..=100.0)
+            .step(0.5)
+            .speed(2.0)
+            .prefix("$")
+            .suffix(" px")
+            .desired_width(120.0)
+            .enabled(false);
         let r = nf.range.unwrap();
         assert_eq!(*r.start(), 0.0);
         assert_eq!(*r.end(), 100.0);
-    }
-
-    #[test]
-    fn number_field_builder_step() {
-        let mut v = 0.0_f64;
-        let nf = NumberField::new(&mut v).step(0.5);
         assert_eq!(nf.step, Some(0.5));
-    }
-
-    #[test]
-    fn number_field_builder_suffix() {
-        let mut v = 0.0_f64;
-        let nf = NumberField::new(&mut v).suffix(" px");
+        assert_eq!(nf.speed, Some(2.0));
+        assert_eq!(nf.prefix.as_deref(), Some("$"));
         assert_eq!(nf.suffix.as_deref(), Some(" px"));
-    }
-
-    #[test]
-    fn text_field_validate_predicate_stored() {
-        let mut s = String::from("hello");
-        let tf = TextField::new(&mut s).validate(|t| !t.is_empty());
-        assert!(tf.validate.is_some());
+        assert_eq!(nf.desired_width, Some(120.0));
+        assert!(!nf.enabled);
     }
 }

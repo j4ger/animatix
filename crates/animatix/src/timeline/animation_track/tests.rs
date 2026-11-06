@@ -94,9 +94,7 @@ fn test_property_track_evaluation() {
     assert_eq!(track.evaluate(2500), [100.0, 100.0]);
 }
 
-// ────────────────────────────────────────────────────────
 // 4.1: field_ref/field_mut coverage tests
-// ────────────────────────────────────────────────────────
 
 /// Helper: spawn a `Rect` entity with a keyframe added to a style `Vec4` field.
 fn create_world_vec4_keyframe(
@@ -335,9 +333,7 @@ fn test_field_mut_returns_correct_type_for_font_style() {
     assert!(matches!(f, TrackFieldMut::String(_)));
 }
 
-// ────────────────────────────────────────────────────────
 // 4.3: max_keyframe_time / has_any_keyframes regression tests
-// ────────────────────────────────────────────────────────
 
 #[test]
 fn test_max_keyframe_time_with_transform() {
@@ -458,9 +454,7 @@ fn test_has_any_keyframes_returns_true_for_multiple_keyframes() {
     assert!(timeline.world().has_any_keyframes(id));
 }
 
-// ────────────────────────────────────────────────────────
 // 4.4: is_currently_animating tests
-// ────────────────────────────────────────────────────────
 
 #[test]
 fn test_is_currently_animating_false_with_single_keyframe() {
@@ -516,9 +510,7 @@ fn test_is_currently_animating_works_with_linear_easing() {
     assert!(track.is_currently_animating(1000));
 }
 
-// ────────────────────────────────────────────────────────
 // 4.5: interpolation_segment tests
-// ────────────────────────────────────────────────────────
 
 #[test]
 fn test_interpolation_segment_none_for_empty_track() {
@@ -578,9 +570,7 @@ fn test_interpolation_segment_with_single_keyframe_returns_none() {
     assert!(track.interpolation_segment(1000).is_none());
 }
 
-// ────────────────────────────────────────────────────────
 // 4.8: Registry-driven iteration tests
-// ────────────────────────────────────────────────────────
 
 #[test]
 fn test_max_keyframe_time_iterates_through_all_registry_fields() {
@@ -656,9 +646,7 @@ fn test_registry_driven_has_any_keyframes_finds_word_spacing() {
     assert_eq!(fields.property_keyframe_times(ActorField::WordSpacing), vec![1000]);
 }
 
-// ────────────────────────────────────────────────────────
 // 4.9: TrackFieldRef helper methods
-// ────────────────────────────────────────────────────────
 
 #[test]
 fn test_track_field_ref_evaluate_value_f32() {
@@ -766,9 +754,7 @@ fn test_track_field_ref_evaluate_value_none_for_position_binding() {
     assert!(rf.evaluate_value(0).is_none());
 }
 
-// ────────────────────────────────────────────────────────
 // 4.10: Cache invalidation tests
-// ────────────────────────────────────────────────────────
 
 #[test]
 fn test_set_default_value_invalidates_cache() {
@@ -814,9 +800,7 @@ fn test_clone_resets_cache_to_none() {
     assert_eq!(cloned.evaluate(500), 50.0);
 }
 
-// ────────────────────────────────────────────────────────
 // 4.11: Accessor method tests
-// ────────────────────────────────────────────────────────
 
 #[test]
 fn test_default_value_returns_correct_reference() {

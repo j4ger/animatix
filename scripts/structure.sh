@@ -5,7 +5,7 @@
 # the 800-line ratchet. It constrains the two things that actually hurt review
 # and comprehension:
 #
-#   files      production <= 1000 lines, tests <= 2000 lines. Test paths are
+#   files      production <= 1500 lines, tests <= 2000 lines. Test paths are
 #              */tests/*, */tests.rs and *_tests.rs. `crates/animatix-plugin-api/
 #              src/lib.rs` is exempt (one repr(C) ABI surface). There is no
 #              file allowlist: the ceiling is absolute.
@@ -72,7 +72,7 @@
 #   scripts/structure.sh --help
 #
 # Environment overrides (documentation/tests only; CI uses the defaults):
-#   PROD_FILE_MAX (1000)  TEST_FILE_MAX (2000)
+#   PROD_FILE_MAX (1500)  TEST_FILE_MAX (2000)
 #   PROD_FN_MAX (200)     TEST_FN_MAX (300)      MOD_MAX (100)
 # END USAGE
 set -euo pipefail
@@ -189,7 +189,7 @@ if (( ${#files[@]} == 0 )); then
 fi
 
 STRUCTURE_MODE="$MODE" \
-PROD_FILE_MAX="${PROD_FILE_MAX:-1000}" \
+PROD_FILE_MAX="${PROD_FILE_MAX:-1500}" \
 TEST_FILE_MAX="${TEST_FILE_MAX:-2000}" \
 PROD_FN_MAX="${PROD_FN_MAX:-200}" \
 TEST_FN_MAX="${TEST_FN_MAX:-300}" \

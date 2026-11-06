@@ -280,9 +280,7 @@ pub fn pill_tab_bar<T: Copy + PartialEq>(
     clicked_tab
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
 // Separator  (F1)
-// ═══════════════════════════════════════════════════════════════════════════
 
 /// Horizontal rule drawn with `border::DEFAULT` and standard stroke width.
 pub fn separator(ui: &mut egui::Ui) {
@@ -350,9 +348,7 @@ pub fn separator_labeled(ui: &mut egui::Ui, label: impl Into<egui::WidgetText>) 
     });
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
 // GroupBox  (F2)
-// ═══════════════════════════════════════════════════════════════════════════
 
 /// A titled, bordered container for grouping related inspector sections.
 ///
@@ -392,9 +388,7 @@ pub fn group_box(
     });
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
 // StatusBar  (F5)
-// ═══════════════════════════════════════════════════════════════════════════
 
 /// A bottom status bar: themed `surface::PANEL` background with a top
 /// `border::DEFAULT` stroke.  Content is split into a left-aligned and a

@@ -24,9 +24,7 @@ pub enum Effect {
     EditorHighlight(usize),
 }
 
-// =========================================================================
 // ── Domain commands ─────────────────────────────────────────────────────
-// =========================================================================
 
 /// Domain commands that mutate the document, timeline, or file system.
 ///
@@ -229,9 +227,7 @@ pub enum Align {
     Middle,
 }
 
-// =========================================================================
 // ── View actions ────────────────────────────────────────────────────────
-// =========================================================================
 
 /// View actions that change UI visibility or panel state without affecting
 /// the document. These are not undoable.
@@ -259,9 +255,7 @@ pub enum ViewAction {
     DeselectActors,
 }
 
-// =========================================================================
 // ── Drag events ─────────────────────────────────────────────────────────
-// =========================================================================
 
 /// Drag lifecycle events that bookend inspector or canvas drag interactions.
 /// These are used for snapshot guards and cursor state, not for document
@@ -273,9 +267,7 @@ pub enum DragEvent {
     InspectorInputDragEnded,
 }
 
-// =========================================================================
 // ── Unified action wrapper ──────────────────────────────────────────────
-// =========================================================================
 
 /// The unified action type consumed by the shell dispatcher each frame.
 ///
@@ -295,9 +287,7 @@ impl From<Command> for ShellAction {
     }
 }
 
-// =========================================================================
 // ── Property edit types ─────────────────────────────────────────────────
-// =========================================================================
 
 /// Describes a property edit made in the inspector panel.
 pub type PropertyValue = animatix::timeline::PropertyValue;

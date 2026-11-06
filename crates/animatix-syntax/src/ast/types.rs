@@ -81,9 +81,7 @@ pub struct Action {
     pub byte_span: Option<ByteSpan>,
 }
 
-// ----------------------------------------------------------------------------
 // 2b. Transition Types (Multi-Scene Composition)
-// ----------------------------------------------------------------------------
 
 /// Scene transition descriptor for the `play` statement.
 #[derive(Clone, Debug, PartialEq)]
@@ -106,11 +104,8 @@ impl Default for Transition {
     }
 }
 
-// ----------------------------------------------------------------------------
 // 3. Supporting Types
-// ----------------------------------------------------------------------------
 // Enums and structs used throughout the AST for specific domains.
-// ----------------------------------------------------------------------------
 
 /// Time value used for keyframes and durations.
 #[derive(Clone, Debug, PartialEq)]
@@ -300,7 +295,5 @@ impl std::fmt::Display for LoopPattern {
     }
 }
 
-// ----------------------------------------------------------------------------
 // 4. Container Items (Inline Children)
-// ----------------------------------------------------------------------------
 // Represents items declared inside containers (Row, Col, Grid).

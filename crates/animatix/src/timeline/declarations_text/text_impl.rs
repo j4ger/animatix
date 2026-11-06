@@ -1,8 +1,62 @@
 use kurbo::Shape;
 
 use super::*;
-
 use crate::renderer::text::{TextCompileRequest, TextStyle};
+use crate::timeline::TextTracks;
+use crate::timeline::entity::EntityId;
+use crate::timeline::env::Environment;
+
+struct ParsedTextProperties {
+    text_content: String,
+    font_family: String,
+    font_size: f32,
+    font_weight: f32,
+    font_style: String,
+    line_height: f32,
+    letter_spacing: f32,
+    word_spacing: f32,
+    max_width: f32,
+    text_align: String,
+    text_anchor: String,
+    overflow: String,
+    color_rgba: [f32; 4],
+    initial_track_color: Option<[f32; 4]>,
+    at_expr: Option<Expr>,
+    anchor_expr: Option<Expr>,
+    offset_expr: Option<Expr>,
+    split_by: Option<String>,
+    split_stagger: Option<f32>,
+    split_offset_y: Option<f32>,
+    split_mask: Option<bool>,
+}
+
+impl ParsedTextProperties {
+    fn new(kind: TextDeclarationKind) -> Self {
+        Self {
+            text_content: String::new(),
+            font_family: String::new(),
+            font_size: kind.default_font_size(),
+            font_weight: 400.0,
+            font_style: "normal".to_string(),
+            line_height: 1.2,
+            letter_spacing: 0.0,
+            word_spacing: 0.0,
+            max_width: 0.0,
+            text_align: "left".to_string(),
+            text_anchor: "center".to_string(),
+            overflow: "visible".to_string(),
+            color_rgba: [1.0, 1.0, 1.0, 1.0],
+            initial_track_color: None,
+            at_expr: None,
+            anchor_expr: None,
+            offset_expr: None,
+            split_by: None,
+            split_stagger: None,
+            split_offset_y: None,
+            split_mask: None,
+        }
+    }
+}
 
 impl Timeline {
     pub(super) fn process_text_declaration(
@@ -46,239 +100,7 @@ impl Timeline {
             );
         }
 
-        let mut text_content = String::new();
-        let mut font_family = String::new();
-        let mut font_size = kind.default_font_size();
-        let mut font_weight = 400.0f32;
-        let mut font_style = "normal".to_string();
-        let mut line_height = 1.2f32;
-        let mut letter_spacing = 0.0f32;
-        let mut word_spacing = 0.0f32;
-        let mut max_width = 0.0f32;
-        let mut text_align = "left".to_string();
-        let mut text_anchor = "center".to_string();
-        let mut overflow = "visible".to_string();
-        let mut color_rgba: [f32; 4] = [1.0, 1.0, 1.0, 1.0];
-        let mut initial_track_color: Option<[f32; 4]> = None;
-        let mut at_expr: Option<Expr> = None;
-        let mut anchor_expr: Option<Expr> = None;
-        let mut offset_expr: Option<Expr> = None;
-        let mut split_by: Option<String> = None;
-        let mut split_stagger: Option<f32> = None;
-        let mut split_offset_y: Option<f32> = None;
-        let mut split_mask: Option<bool> = None;
-
-        for prop in props {
-            let prop_subject = format!("{}.{}", label_str, prop.name);
-            match prop.name.as_str() {
-                name if kind.content_matches(name) => {
-                    text_content = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .map(|v| v.as_str())
-                    .unwrap_or_default();
-                },
-                "font_family" => {
-                    font_family = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .map(|v| v.as_str().to_string())
-                    .unwrap_or_default();
-                },
-                "font_size" => {
-                    font_size = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .map_or(0.0, |v| v.as_num() as f32);
-                },
-                "font_weight" => {
-                    let value = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    );
-                    match value {
-                        Some(super::Value::Str(s)) => {
-                            font_weight = crate::renderer::text::parse_font_weight(&s);
-                        },
-                        Some(super::Value::Num(n)) => {
-                            font_weight = n as f32;
-                        },
-                        _ => {},
-                    }
-                },
-                "font_style" => {
-                    font_style = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .map(|v| v.as_str())
-                    .unwrap_or_else(|| "normal".to_string());
-                },
-                "line_height" => {
-                    line_height = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .map_or(1.2, |v| v.as_num() as f32);
-                },
-                "letter_spacing" => {
-                    letter_spacing = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .map_or(0.0, |v| v.as_num() as f32);
-                },
-                "word_spacing" => {
-                    word_spacing = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .map_or(0.0, |v| v.as_num() as f32);
-                },
-                // Canonical name per spec; `max_width` kept as a legacy alias.
-                "text_max_width" | "max_width" => {
-                    max_width = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .map_or(0.0, |v| v.as_num() as f32);
-                },
-                "text_align" => {
-                    text_align = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .map(|v| v.as_str())
-                    .unwrap_or_else(|| "left".to_string());
-                },
-                "text_anchor" => {
-                    text_anchor = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .map(|v| v.as_str())
-                    .unwrap_or_else(|| "center".to_string());
-                },
-                "overflow" => {
-                    overflow = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .map(|v| v.as_str())
-                    .unwrap_or_else(|| "visible".to_string());
-                },
-                "split_by" => {
-                    split_by = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .map(|v| v.as_str());
-                },
-                "split_stagger" => {
-                    split_stagger = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .map(|v| v.as_num() as f32);
-                },
-                "split_offset_y" => {
-                    split_offset_y = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        &eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .map(|v| v.as_num() as f32);
-                },
-                "split_mask" => {
-                    split_mask = match &prop.value {
-                        Expr::Bool(b) => Some(*b),
-                        Expr::Ident(s) => Some(s == "true" || s == "baseline"),
-                        _ => Some(false),
-                    };
-                },
-                "color" => {
-                    let resolved_color = if matches!(&prop.value, Expr::Ident(name) if name == "auto")
-                    {
-                        self.auto_color_for_label(&label_str).or_else(|| {
-                            diagnostics.push(Diagnostic::warning(
-                                DiagnosticCode::UnknownColorReference,
-                                DiagnosticPhase::Build,
-                                format!("Color value 'auto' on '{label_str}.color' requests automatic colorscheme assignment, but the selected colorscheme has no auto-assignment colors; using the default color instead."),
-                            ).with_subject(&prop_subject));
-                            None
-                        })
-                    } else {
-                        parse_color_in_env_with_lookup_diagnostic(
-                            &label_str,
-                            "color",
-                            &prop.value,
-                            &eval_env,
-                            diagnostics,
-                            &prop_subject,
-                        )
-                    };
-
-                    if let Some(resolved_color) = resolved_color {
-                        initial_track_color = Some(resolved_color);
-                        color_rgba = resolved_color;
-                    }
-                },
-                "at" => at_expr = Some(prop.value.clone()),
-                "anchor" => anchor_expr = Some(prop.value.clone()),
-                "offset" => offset_expr = Some(prop.value.clone()),
-                _ => {},
-            }
-        }
-
-        // Apply scheme-appropriate default color when no explicit color property is provided
-        if initial_track_color.is_none() {
-            let primitive_type = match kind {
-                TextDeclarationKind::Text => "Text",
-                TextDeclarationKind::Code => "Code",
-                TextDeclarationKind::Typst => "Typst",
-                TextDeclarationKind::Math => "Math",
-                TextDeclarationKind::Counter => "Counter",
-            };
-            if let Some(primitive) = self.primitive_registry.find(primitive_type) {
-                let caps = animatix_std::caps_for_type(primitive_type).unwrap_or_default();
-                if let Some(scheme_color) = self.get_default_color(primitive, &caps, "color") {
-                    initial_track_color = Some(scheme_color);
-                    color_rgba = scheme_color;
-                }
-            }
-        }
+        let parsed = self.parse_text_properties(kind, &label_str, props, &eval_env, diagnostics);
 
         // Pre-seed opacity for pre-keyframe first declarations without explicit opacity.
         let has_explicit_opacity = props.iter().any(|p| p.name == "opacity");
@@ -287,13 +109,11 @@ impl Timeline {
         let track_id = self.world.spawn(&label_str, kind.type_name());
         let style = self.world.style.get_mut(track_id);
 
-        // Ensure the track kind matches the declaration type for downstream dispatch.
         self.world
             .actor_types
             .get_mut(track_id)
             .clone_from(&kind.type_name().to_string());
 
-        // Record first declaration time for scene visibility.
         let meta = self
             .world
             .meta
@@ -310,7 +130,7 @@ impl Timeline {
             style.opacity.ensure(1.0).add_keyframe(0, self.default_opacity, Easing::Linear);
         }
 
-        if let Some(track_color) = initial_track_color {
+        if let Some(track_color) = parsed.initial_track_color {
             if delay_ms > 0.0 && duration_ms == 0.0 {
                 preserve_instant_delayed_value(&mut style.color, t_start_ms);
             }
@@ -321,9 +141,9 @@ impl Timeline {
         }
 
         if let Some((binding, position)) = resolve_position_binding_with_lookup_diagnostic(
-            at_expr.as_ref(),
-            anchor_expr.as_ref(),
-            offset_expr.as_ref(),
+            parsed.at_expr.as_ref(),
+            parsed.anchor_expr.as_ref(),
+            parsed.offset_expr.as_ref(),
             &eval_env,
             diagnostics,
             &label_str,
@@ -336,11 +156,344 @@ impl Timeline {
             apply_explicit_position_binding(geometry, t_start_ms, binding, position);
         }
 
+        self.apply_remaining_text_properties(
+            track_id,
+            kind,
+            &label_str,
+            props,
+            &eval_env,
+            t_start_ms,
+            t_end_ms,
+            easing,
+            diagnostics,
+        );
+
+        self.world.ensure_text(track_id);
+        let text = self.world.text.get_mut(track_id).expect("text component");
+        Self::apply_text_track_keyframes(text, &parsed, t_end_ms, easing, kind);
+
+        if kind == TextDeclarationKind::Counter {
+            return self.process_counter_declaration(
+                &label_str,
+                props,
+                &eval_env,
+                diagnostics,
+                &parsed,
+                t_end_ms,
+                easing,
+                track_id,
+            );
+        }
+
+        self.compile_and_apply_text_paths(
+            track_id,
+            kind,
+            label,
+            &label_str,
+            &parsed,
+            duration_ms,
+            delay_ms,
+            t_start_ms,
+            t_end_ms,
+            easing,
+            supports_morph_options,
+            morph_options,
+            diagnostics,
+        )
+    }
+
+    fn parse_text_split_prop(
+        &mut self,
+        prop: &Property,
+        eval_env: &Environment,
+        label_str: &str,
+        split_by: &mut Option<String>,
+        split_stagger: &mut Option<f32>,
+        split_offset_y: &mut Option<f32>,
+        split_mask: &mut Option<bool>,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> bool {
+        let prop_subject = format!("{}.{}", label_str, prop.name);
+        match prop.name.as_str() {
+            "split_by" => {
+                *split_by = evaluate_expr_with_lookup_diagnostic(
+                    &prop.value,
+                    eval_env,
+                    diagnostics,
+                    &prop_subject,
+                )
+                .map(|v| v.as_str());
+                true
+            },
+            "split_stagger" => {
+                *split_stagger = evaluate_expr_with_lookup_diagnostic(
+                    &prop.value,
+                    eval_env,
+                    diagnostics,
+                    &prop_subject,
+                )
+                .map(|v| v.as_num() as f32);
+                true
+            },
+            "split_offset_y" => {
+                *split_offset_y = evaluate_expr_with_lookup_diagnostic(
+                    &prop.value,
+                    eval_env,
+                    diagnostics,
+                    &prop_subject,
+                )
+                .map(|v| v.as_num() as f32);
+                true
+            },
+            "split_mask" => {
+                *split_mask = match &prop.value {
+                    Expr::Bool(b) => Some(*b),
+                    Expr::Ident(s) => Some(s == "true" || s == "baseline"),
+                    _ => Some(false),
+                };
+                true
+            },
+            _ => false,
+        }
+    }
+
+    fn resolve_text_color(
+        &mut self,
+        prop: &Property,
+        label_str: &str,
+        eval_env: &Environment,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Option<[f32; 4]> {
+        let prop_subject = format!("{}.{}", label_str, prop.name);
+        if matches!(&prop.value, Expr::Ident(name) if name == "auto") {
+            self.auto_color_for_label(label_str).or_else(|| {
+                diagnostics.push(
+                    Diagnostic::warning(
+                        DiagnosticCode::UnknownColorReference,
+                        DiagnosticPhase::Build,
+                        format!(
+                            "Color value 'auto' on '{label_str}.color' requests automatic colorscheme assignment, but the selected colorscheme has no auto-assignment colors; using the default color instead."
+                        ),
+                    )
+                    .with_subject(&prop_subject),
+                );
+                None
+            })
+        } else {
+            parse_color_in_env_with_lookup_diagnostic(
+                label_str,
+                "color",
+                &prop.value,
+                eval_env,
+                diagnostics,
+                &prop_subject,
+            )
+        }
+    }
+
+    fn resolve_default_text_color(&self, kind: TextDeclarationKind) -> Option<[f32; 4]> {
+        let primitive_type = match kind {
+            TextDeclarationKind::Text => "Text",
+            TextDeclarationKind::Code => "Code",
+            TextDeclarationKind::Typst => "Typst",
+            TextDeclarationKind::Math => "Math",
+            TextDeclarationKind::Counter => "Counter",
+        };
+        let primitive = self.primitive_registry.find(primitive_type)?;
+        let caps = animatix_std::caps_for_type(primitive_type).unwrap_or_default();
+        self.get_default_color(primitive, &caps, "color")
+    }
+
+    fn parse_text_properties(
+        &mut self,
+        kind: TextDeclarationKind,
+        label_str: &str,
+        props: &[Property],
+        eval_env: &Environment,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> ParsedTextProperties {
+        let mut parsed = ParsedTextProperties::new(kind);
+
+        for prop in props {
+            if self.parse_text_split_prop(
+                prop,
+                eval_env,
+                label_str,
+                &mut parsed.split_by,
+                &mut parsed.split_stagger,
+                &mut parsed.split_offset_y,
+                &mut parsed.split_mask,
+                diagnostics,
+            ) {
+                continue;
+            }
+
+            let prop_subject = format!("{}.{}", label_str, prop.name);
+            match prop.name.as_str() {
+                name if kind.content_matches(name) => {
+                    parsed.text_content = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map(|v| v.as_str())
+                    .unwrap_or_default();
+                },
+                "font_family" => {
+                    parsed.font_family = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map(|v| v.as_str().to_string())
+                    .unwrap_or_default();
+                },
+                "font_size" => {
+                    parsed.font_size = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map_or(0.0, |v| v.as_num() as f32);
+                },
+                "font_weight" => {
+                    if let Some(val) = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    ) {
+                        match val {
+                            super::Value::Str(s) => {
+                                parsed.font_weight = crate::renderer::text::parse_font_weight(&s);
+                            },
+                            super::Value::Num(n) => {
+                                parsed.font_weight = n as f32;
+                            },
+                            _ => {},
+                        }
+                    }
+                },
+                "font_style" => {
+                    parsed.font_style = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map(|v| v.as_str())
+                    .unwrap_or_else(|| "normal".to_string());
+                },
+                "line_height" => {
+                    parsed.line_height = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map_or(1.2, |v| v.as_num() as f32);
+                },
+                "letter_spacing" => {
+                    parsed.letter_spacing = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map_or(0.0, |v| v.as_num() as f32);
+                },
+                "word_spacing" => {
+                    parsed.word_spacing = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map_or(0.0, |v| v.as_num() as f32);
+                },
+                "text_max_width" | "max_width" => {
+                    parsed.max_width = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map_or(0.0, |v| v.as_num() as f32);
+                },
+                "text_align" => {
+                    parsed.text_align = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map(|v| v.as_str())
+                    .unwrap_or_else(|| "left".to_string());
+                },
+                "text_anchor" => {
+                    parsed.text_anchor = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map(|v| v.as_str())
+                    .unwrap_or_else(|| "center".to_string());
+                },
+                "overflow" => {
+                    parsed.overflow = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        eval_env,
+                        diagnostics,
+                        &prop_subject,
+                    )
+                    .map(|v| v.as_str())
+                    .unwrap_or_else(|| "visible".to_string());
+                },
+                "color" => {
+                    if let Some(resolved_color) =
+                        self.resolve_text_color(prop, label_str, eval_env, diagnostics)
+                    {
+                        parsed.initial_track_color = Some(resolved_color);
+                        parsed.color_rgba = resolved_color;
+                    }
+                },
+                "at" => parsed.at_expr = Some(prop.value.clone()),
+                "anchor" => parsed.anchor_expr = Some(prop.value.clone()),
+                "offset" => parsed.offset_expr = Some(prop.value.clone()),
+                _ => {},
+            }
+        }
+
+        if parsed.initial_track_color.is_none()
+            && let Some(scheme_color) = self.resolve_default_text_color(kind)
+        {
+            parsed.initial_track_color = Some(scheme_color);
+            parsed.color_rgba = scheme_color;
+        }
+
+        parsed
+    }
+
+    fn apply_remaining_text_properties(
+        &mut self,
+        track_id: EntityId,
+        kind: TextDeclarationKind,
+        label_str: &str,
+        props: &[Property],
+        eval_env: &Environment,
+        t_start_ms: u64,
+        t_end_ms: u64,
+        easing: Easing,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
         let mut pending_writes: Vec<(
             crate::timeline::property_registry::ActorField,
             crate::timeline::property_engine::PropertyValue,
         )> = Vec::new();
-        // Dispatch remaining properties through the generic engine.
         let actor_caps = self.world.caps(track_id);
         let actor_type = kind.type_name();
         for prop in props {
@@ -360,7 +513,7 @@ impl Timeline {
                 && let Some(pv) = parse_property_value(
                     schema.value_type,
                     &prop.value,
-                    &eval_env,
+                    eval_env,
                     diagnostics,
                     &prop_subject,
                 )
@@ -380,159 +533,204 @@ impl Timeline {
                 diagnostics,
             );
         }
-        self.world.ensure_text(track_id);
-        let style = self.world.style.get_mut(track_id);
-        let text = self.world.text.get_mut(track_id).expect("text component");
-        let geometry = self.world.geometry.get_mut(track_id);
+    }
 
-        // Store text_content, font_family and font_size for runtime recompilation.
+    fn apply_text_track_keyframes(
+        text: &mut TextTracks,
+        parsed: &ParsedTextProperties,
+        t_end_ms: u64,
+        easing: Easing,
+        kind: TextDeclarationKind,
+    ) {
         text.text_content.ensure(String::new()).add_keyframe(
             t_end_ms,
-            text_content.clone(),
+            parsed.text_content.clone(),
             easing,
         );
-        let font_family = if font_family.is_empty() {
+        let font_family = if parsed.font_family.is_empty() {
             crate::renderer::text::DEFAULT_FONT_FAMILY.to_string()
         } else {
-            font_family
+            parsed.font_family.clone()
         };
         text.font_family
             .ensure(crate::renderer::text::DEFAULT_FONT_FAMILY.to_string())
-            .add_keyframe(t_end_ms, font_family.clone(), easing);
-        text.font_size
-            .ensure(kind.default_font_size())
-            .add_keyframe(t_end_ms, font_size, easing);
-        text.font_weight.ensure(400.0).add_keyframe(t_end_ms, font_weight, easing);
-        text.font_style.ensure("normal".to_string()).add_keyframe(
+            .add_keyframe(t_end_ms, font_family, easing);
+        text.font_size.ensure(kind.default_font_size()).add_keyframe(
             t_end_ms,
-            font_style.clone(),
+            parsed.font_size,
             easing,
         );
-        text.line_height.ensure(1.2).add_keyframe(t_end_ms, line_height, easing);
-        text.letter_spacing.ensure(0.0).add_keyframe(t_end_ms, letter_spacing, easing);
-        text.word_spacing.ensure(0.0).add_keyframe(t_end_ms, word_spacing, easing);
-        text.text_max_width.ensure(0.0).add_keyframe(t_end_ms, max_width, easing);
+        text.font_weight
+            .ensure(400.0)
+            .add_keyframe(t_end_ms, parsed.font_weight, easing);
+        text.font_style.ensure("normal".to_string()).add_keyframe(
+            t_end_ms,
+            parsed.font_style.clone(),
+            easing,
+        );
+        text.line_height.ensure(1.2).add_keyframe(t_end_ms, parsed.line_height, easing);
+        text.letter_spacing
+            .ensure(0.0)
+            .add_keyframe(t_end_ms, parsed.letter_spacing, easing);
+        text.word_spacing
+            .ensure(0.0)
+            .add_keyframe(t_end_ms, parsed.word_spacing, easing);
+        text.text_max_width.ensure(0.0).add_keyframe(t_end_ms, parsed.max_width, easing);
         text.text_align.ensure("left".to_string()).add_keyframe(
             t_end_ms,
-            text_align.clone(),
+            parsed.text_align.clone(),
             easing,
         );
         text.text_anchor.ensure("center".to_string()).add_keyframe(
             t_end_ms,
-            text_anchor.clone(),
+            parsed.text_anchor.clone(),
             easing,
         );
         text.overflow.ensure("visible".to_string()).add_keyframe(
             t_end_ms,
-            overflow.clone(),
+            parsed.overflow.clone(),
             easing,
         );
-        if let Some(by) = split_by {
-            text.split_by.ensure("char".to_string()).add_keyframe(t_end_ms, by, easing);
+        if let Some(ref by) = parsed.split_by {
+            text.split_by
+                .ensure("char".to_string())
+                .add_keyframe(t_end_ms, by.clone(), easing);
         }
-        if let Some(stagger) = split_stagger {
+        if let Some(stagger) = parsed.split_stagger {
             text.split_stagger.ensure(0.0).add_keyframe(t_end_ms, stagger, easing);
         }
-        if let Some(offset_y) = split_offset_y {
+        if let Some(offset_y) = parsed.split_offset_y {
             text.split_offset_y.ensure(0.0).add_keyframe(t_end_ms, offset_y, easing);
         }
-        if let Some(mask) = split_mask {
+        if let Some(mask) = parsed.split_mask {
             text.split_mask.ensure(false).add_keyframe(t_end_ms, mask, easing);
         }
+    }
 
-        if kind == TextDeclarationKind::Counter {
-            let mut initial_val = 0.0f32;
-            let mut prefix_str = String::new();
-            let mut suffix_str = String::new();
-            let mut decimals_val = 0u32;
-            let mut use_comma_val = false;
+    fn process_counter_declaration(
+        &mut self,
+        label_str: &str,
+        props: &[Property],
+        eval_env: &Environment,
+        diagnostics: &mut Vec<Diagnostic>,
+        parsed: &ParsedTextProperties,
+        t_end_ms: u64,
+        easing: Easing,
+        track_id: EntityId,
+    ) -> Result<(), RenderError> {
+        let mut initial_val = 0.0f32;
+        let mut prefix_str = String::new();
+        let mut suffix_str = String::new();
+        let mut decimals_val = 0u32;
+        let mut use_comma_val = false;
 
-            for prop in props {
-                match prop.name.as_str() {
-                    "value" => {
-                        if let Some(v) = evaluate_expr_with_lookup_diagnostic(
-                            &prop.value,
-                            &eval_env,
-                            diagnostics,
-                            &format!("{}.value", label_str),
-                        ) {
-                            initial_val = v.as_num() as f32;
-                        }
-                    },
-                    "prefix" => {
-                        if let Some(v) = evaluate_expr_with_lookup_diagnostic(
-                            &prop.value,
-                            &eval_env,
-                            diagnostics,
-                            &format!("{}.prefix", label_str),
-                        ) {
-                            prefix_str = v.as_str();
-                        }
-                    },
-                    "suffix" => {
-                        if let Some(v) = evaluate_expr_with_lookup_diagnostic(
-                            &prop.value,
-                            &eval_env,
-                            diagnostics,
-                            &format!("{}.suffix", label_str),
-                        ) {
-                            suffix_str = v.as_str();
-                        }
-                    },
-                    "decimals" => {
-                        if let Some(v) = evaluate_expr_with_lookup_diagnostic(
-                            &prop.value,
-                            &eval_env,
-                            diagnostics,
-                            &format!("{}.decimals", label_str),
-                        ) {
-                            decimals_val = v.as_num() as u32;
-                        }
-                    },
-                    "comma" => {
-                        if let Expr::Bool(b) = &prop.value {
-                            use_comma_val = *b;
-                        }
-                    },
-                    _ => {},
-                }
+        for prop in props {
+            match prop.name.as_str() {
+                "value" => {
+                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        eval_env,
+                        diagnostics,
+                        &format!("{}.value", label_str),
+                    ) {
+                        initial_val = v.as_num() as f32;
+                    }
+                },
+                "prefix" => {
+                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        eval_env,
+                        diagnostics,
+                        &format!("{}.prefix", label_str),
+                    ) {
+                        prefix_str = v.as_str();
+                    }
+                },
+                "suffix" => {
+                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        eval_env,
+                        diagnostics,
+                        &format!("{}.suffix", label_str),
+                    ) {
+                        suffix_str = v.as_str();
+                    }
+                },
+                "decimals" => {
+                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(
+                        &prop.value,
+                        eval_env,
+                        diagnostics,
+                        &format!("{}.decimals", label_str),
+                    ) {
+                        decimals_val = v.as_num() as u32;
+                    }
+                },
+                "comma" => {
+                    if let Expr::Bool(b) = &prop.value {
+                        use_comma_val = *b;
+                    }
+                },
+                _ => {},
             }
-
-            let prebaked = crate::primitives::counter::prebake_counter(
-                &font_family,
-                font_size,
-                font_weight,
-                &font_style,
-                line_height,
-                color_rgba,
-                initial_val,
-                decimals_val,
-                use_comma_val,
-                &prefix_str,
-                &suffix_str,
-                self.font_context.as_ref(),
-            )?;
-
-            text.set_metrics(t_end_ms, prebaked.data.ascent, prebaked.data.descent, 0.0);
-            text.counter_data = Some(prebaked.data);
-            geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
-                t_end_ms,
-                prebaked.initial_half_size,
-                easing,
-            );
-            geometry.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
-                t_end_ms,
-                prebaked.initial_half_size,
-                easing,
-            );
-            return Ok(());
         }
 
-        // Compile through the process-wide memoized path so that unchanged
-        // declarations skip the Typst engine entirely on rebuild (the GUI
-        // rebuilds the whole Timeline per keystroke). The declaration build
-        // path has always used the Typst engine directly, so the plain-text
-        // fast path stays disabled here to preserve output-identical behavior.
+        let font_family = if parsed.font_family.is_empty() {
+            crate::renderer::text::DEFAULT_FONT_FAMILY.to_string()
+        } else {
+            parsed.font_family.clone()
+        };
+
+        let prebaked = crate::primitives::counter::prebake_counter(
+            &font_family,
+            parsed.font_size,
+            parsed.font_weight,
+            &parsed.font_style,
+            parsed.line_height,
+            parsed.color_rgba,
+            initial_val,
+            decimals_val,
+            use_comma_val,
+            &prefix_str,
+            &suffix_str,
+            self.font_context.as_ref(),
+        )?;
+
+        let text = self.world.text.get_mut(track_id).expect("text component");
+        let geometry = self.world.geometry.get_mut(track_id);
+
+        text.set_metrics(t_end_ms, prebaked.data.ascent, prebaked.data.descent, 0.0);
+        text.counter_data = Some(prebaked.data);
+        geometry.size.ensure(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+            t_end_ms,
+            prebaked.initial_half_size,
+            easing,
+        );
+        geometry.ensure_layout_size(DEFAULT_LAYOUT_HALF_SIZE).add_keyframe(
+            t_end_ms,
+            prebaked.initial_half_size,
+            easing,
+        );
+        Ok(())
+    }
+
+    fn compile_and_apply_text_paths(
+        &mut self,
+        track_id: EntityId,
+        kind: TextDeclarationKind,
+        label: Option<&str>,
+        _label_str: &str,
+        parsed: &ParsedTextProperties,
+        duration_ms: f64,
+        delay_ms: f64,
+        t_start_ms: u64,
+        t_end_ms: u64,
+        easing: Easing,
+        supports_morph_options: bool,
+        morph_options: MorphOptions,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Result<(), RenderError> {
+        let text = self.world.text.get_mut(track_id).expect("text component");
         let text_kind = match kind {
             TextDeclarationKind::Text | TextDeclarationKind::Counter => {
                 crate::renderer::text::TextKind::Text
@@ -541,46 +739,46 @@ impl Timeline {
             TextDeclarationKind::Typst => crate::renderer::text::TextKind::Typst,
             TextDeclarationKind::Math => crate::renderer::text::TextKind::Math,
         };
-        // The generic property loop above already wrote `language` into the
-        // track lane; read it back so the build-time precompile shares the
-        // render path's cache key (and highlights identically).
+
+        let font_family = if parsed.font_family.is_empty() {
+            crate::renderer::text::DEFAULT_FONT_FAMILY.to_string()
+        } else {
+            parsed.font_family.clone()
+        };
+
         let language = text.language.get(t_end_ms, String::new());
         let compiled = {
             let text_compiler = self.text_compiler.borrow();
             let request = TextCompileRequest {
                 kind: text_kind,
-                content: &text_content,
+                content: &parsed.text_content,
                 language: &language,
-                // Same palette the render path uses, so the precompile shares
-                // its cache entry and the build-time glyphs highlight
-                // identically.
                 palette: text_compiler.highlight_palette.as_ref(),
                 style: TextStyle {
                     font_family: &font_family,
-                    font_size,
-                    font_weight,
-                    font_style: &font_style,
-                    line_height,
-                    letter_spacing,
-                    word_spacing,
-                    color: color_rgba,
+                    font_size: parsed.font_size,
+                    font_weight: parsed.font_weight,
+                    font_style: &parsed.font_style,
+                    line_height: parsed.line_height,
+                    letter_spacing: parsed.letter_spacing,
+                    word_spacing: parsed.word_spacing,
+                    color: parsed.color_rgba,
                 },
-                max_width,
+                max_width: parsed.max_width,
                 max_lines: None,
-                text_align: &text_align,
-                overflow: &overflow,
+                text_align: &parsed.text_align,
+                overflow: &parsed.overflow,
                 allow_fast_path: text_compiler.text_fast_path,
             };
             crate::renderer::text::compile_text_cached(&request, self.font_context.as_ref())?
         };
 
-        // Warn when fast path face set cannot cover glyphs to avoid silent tofu.
         let missing_glyphs = crate::renderer::text::missing_text_glyphs(
             text_kind,
-            &text_content,
+            &parsed.text_content,
             &font_family,
-            font_weight,
-            &font_style,
+            parsed.font_weight,
+            &parsed.font_style,
             self.text_compiler.borrow().text_fast_path,
             self.font_context.as_ref(),
         );
@@ -603,7 +801,7 @@ impl Timeline {
 
         let mut new_paths = compiled.paths.to_vec();
         let new_half_size = compiled.half_size;
-        let anchor_offset_x = match text_anchor.as_str() {
+        let anchor_offset_x = match parsed.text_anchor.as_str() {
             "left" => new_half_size[0],
             "right" => -new_half_size[0],
             _ => 0.0,
@@ -616,7 +814,10 @@ impl Timeline {
             }
         }
 
-        // Store font metrics at t_end_ms for baseline alignment.
+        let text = self.world.text.get_mut(track_id).expect("text component");
+        let style = self.world.style.get_mut(track_id);
+        let geometry = self.world.geometry.get_mut(track_id);
+
         text.set_metrics(t_end_ms, compiled.ascent, compiled.descent, compiled.baseline_offset);
 
         if duration_ms > 0.0 {

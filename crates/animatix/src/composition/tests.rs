@@ -6,9 +6,7 @@ use animatix_syntax::parser::parse_source;
 use super::*;
 use crate::timeline::camera::CAMERA_TARGET;
 
-// ---------------------------------------------------------------------------
 // Fixtures
-// ---------------------------------------------------------------------------
 
 /// Parse `source` and build through the canonical composition path.
 fn build_composition(source: &str) -> BuildReport<Composition> {
@@ -98,9 +96,7 @@ fn blend_in_window(comp: &Composition, intro_dur: f64) -> TransitionBlend {
         .expect("a 500ms fade must open a blend window")
 }
 
-// ---------------------------------------------------------------------------
 // Scene graph
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_no_scenes_returns_empty_composition() {
@@ -512,9 +508,7 @@ fn test_cross_file_scene_duration_preserved() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-// ---------------------------------------------------------------------------
 // Scene persistence carry tests
-// ---------------------------------------------------------------------------
 
 /// Basic carry: `title` persisted from SceneA → SceneB, which gets it both as
 /// a track and as a root entity.

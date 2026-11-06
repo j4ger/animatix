@@ -181,9 +181,7 @@ fn snapshot_empty_track_has_no_keyframes() {
     );
 }
 
-// -----------------------------------------------------------------------
 // compute_carry_bag
-// -----------------------------------------------------------------------
 
 #[test]
 fn compute_carry_bag_returns_empty_for_no_persistent_flags() {
@@ -257,9 +255,7 @@ fn compute_carry_bag_skips_non_persistent_actors() {
     assert!(!bag.entries.contains_key("rect1"));
 }
 
-// -----------------------------------------------------------------------
 // auto_color_slot carry
-// -----------------------------------------------------------------------
 
 #[test]
 fn compute_carry_bag_carries_auto_color_slot() {
@@ -509,9 +505,7 @@ fn carry_remaps_container_child_order_ids() {
     assert!(!order.contains(&EntityId(9999)), "a stale source id must be dropped");
 }
 
-// -----------------------------------------------------------------------
 // Special actor kind carry (Svg, Image)
-// -----------------------------------------------------------------------
 
 #[test]
 fn snapshot_preserves_svg_actor_kind() {
@@ -653,9 +647,7 @@ fn carry_preserves_local_bounds() {
     assert_eq!(dest.world.local_bounds(dest_id), Some(bounds));
 }
 
-// -----------------------------------------------------------------------
 // Serde round-trip tests (feature-gated)
-// -----------------------------------------------------------------------
 
 #[cfg(feature = "serde")]
 #[test]

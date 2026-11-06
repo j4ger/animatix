@@ -154,9 +154,7 @@ fn comment_only_file(source: &str, trailing_newline: bool) -> String {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Comment reinsertion
-// ---------------------------------------------------------------------------
 
 /// One comment from the source, positioned relative to the code tokens.
 #[derive(Debug)]
@@ -483,9 +481,7 @@ fn leading_indent(text: &str, line_start: usize) -> &str {
     &rest[..length]
 }
 
-// ---------------------------------------------------------------------------
 // AST comment scrubbing
-// ---------------------------------------------------------------------------
 
 /// Clear every AST-carried comment so `format_source` can reinsert comments
 /// from the token stream without duplication.

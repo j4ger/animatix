@@ -11,9 +11,7 @@ use crate::encode::video::adaptive_thread_count;
 use crate::encode::{ExportError, ExportOptions};
 use crate::render_pipeline::{render_frames_streaming, render_frames_streaming_composition};
 
-// ---------------------------------------------------------------------------
 // Single-timeline GIF
-// ---------------------------------------------------------------------------
 
 /// Render a single timeline to a GIF file with default debug options and export
 /// settings.
@@ -86,9 +84,7 @@ pub fn render_gif_timeline_with_options(
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
 // Multi-scene composition GIF
-// ---------------------------------------------------------------------------
 
 /// Render a multi-scene composition to a GIF file with default debug options
 /// and export settings.

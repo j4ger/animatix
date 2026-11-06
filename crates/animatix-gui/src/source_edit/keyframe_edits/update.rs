@@ -53,9 +53,7 @@ fn with_keyframe_block<T>(
     })
 }
 
-// ---------------------------------------------------------------------------
 // SetKeyframeValue
-// ---------------------------------------------------------------------------
 
 /// Replace the RHS of `actor.property` inside the keyframe block at `time_s`.
 ///
@@ -144,9 +142,7 @@ fn update_assignment(
     })
 }
 
-// ---------------------------------------------------------------------------
 // SetKeyframeEasing
-// ---------------------------------------------------------------------------
 
 pub(crate) fn set_keyframe_easing(
     stmts: &mut [Stmt],

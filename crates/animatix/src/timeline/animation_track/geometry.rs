@@ -288,9 +288,7 @@ impl Interpolate for Option<Vec<crate::renderer::types::VelloPath>> {
     }
 }
 
-// ─────────────────────────────────────────────────────────────
 // GeometryTracks sub-struct
-// ─────────────────────────────────────────────────────────────
 
 /// Sub-struct holding all geometry-related property tracks.
 #[derive(Clone, Debug, Default)]

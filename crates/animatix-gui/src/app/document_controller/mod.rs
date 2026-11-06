@@ -13,9 +13,7 @@ use crate::app::preview::DragState;
 use crate::app::stores::*;
 use crate::source_edit;
 
-// ---------------------------------------------------------------------------
 // DocumentController
-// ---------------------------------------------------------------------------
 
 pub(crate) struct DocumentController<'a> {
     pub document_store: &'a mut DocumentStore,

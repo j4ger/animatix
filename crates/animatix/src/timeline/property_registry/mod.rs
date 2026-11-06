@@ -32,9 +32,7 @@
 //! The descriptor row index is the serialized `PropertyId`: append rows, never
 //! reorder or remove them.
 
-// ─────────────────────────────────────────────────────────────
 // Value types
-// ─────────────────────────────────────────────────────────────
 
 /// The set of all value types a property can carry.
 ///
@@ -518,9 +516,7 @@ static BINDINGS: &[PropertyBinding] = &[
     b!("y_scale", V::String, F::empty(), NoStorage, val!(str "linear")),
 ];
 
-// ─────────────────────────────────────────────────────────────
 // Lookup
-// ─────────────────────────────────────────────────────────────
 
 /// Return the index of a property in [`PROPERTY_REGISTRY`].
 ///

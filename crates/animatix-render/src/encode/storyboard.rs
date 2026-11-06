@@ -12,9 +12,7 @@ use tracing::info;
 use super::ExportError;
 use crate::offscreen::OffscreenRenderer;
 
-// ---------------------------------------------------------------------------
 // Embedded 5x7 ASCII Bitmap Font (ASCII 32 ' ' to 126 '~')
-// ---------------------------------------------------------------------------
 
 /// 5 bytes per glyph, 1 column per byte, LSB at top (bit 0 = row 0, bit 6 = row 6).
 #[rustfmt::skip]
@@ -150,9 +148,7 @@ fn draw_text_5x7(
     }
 }
 
-// ---------------------------------------------------------------------------
 // Storyboard Settings & Data Types
-// ---------------------------------------------------------------------------
 
 /// Configuration options for rendering a storyboard contact sheet.
 #[derive(Debug, Clone)]
@@ -226,9 +222,7 @@ fn normalize_frame_to_tile(
     })
 }
 
-// ---------------------------------------------------------------------------
 // Public Export Functions
-// ---------------------------------------------------------------------------
 
 /// Validate grid geometry before any GPU initialization.
 ///
@@ -385,9 +379,7 @@ pub fn render_storyboard_composition(
     Ok(panels.len())
 }
 
-// ---------------------------------------------------------------------------
 // Grid Assembly & Layout Helpers
-// ---------------------------------------------------------------------------
 
 fn build_panel_metadata(times: &[f64], duration_s: f64) -> Vec<PanelMeta> {
     times

@@ -11,9 +11,7 @@ use crate::timeline::morph::MorphOptions;
 use crate::timeline::property_track::PropertyTrack;
 use crate::timeline::shapes::ShapeType;
 
-// ─────────────────────────────────────────────────────────────
 // ShapeTracks sub-struct
-// ─────────────────────────────────────────────────────────────
 
 /// Sub-struct holding all shape-related property tracks.
 #[derive(Clone, Debug, Default)]

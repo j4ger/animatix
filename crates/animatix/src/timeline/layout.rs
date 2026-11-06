@@ -221,9 +221,8 @@ pub(crate) fn compute_container_size_with_specs(
         [0.0, 0.0]
     }
 }
-// ─────────────────────────────────────────────────────────────
+
 // Width propagation: container → text children
-// ─────────────────────────────────────────────────────────────
 
 /// Collected text child properties for width propagation (immutable read phase).
 #[derive(Clone, Debug)]

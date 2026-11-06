@@ -514,41 +514,61 @@ mod tests {
     use super::*;
 
     #[test]
-    fn icon_builder_defaults() {
-        let b = Button::icon("★");
-        assert_eq!(b.variant, ButtonVariant::Icon);
-        assert_eq!(b.icon, Some("★"));
-        assert!(!b.loading);
+    fn button_constructors_and_defaults() {
+        let b = Button::primary("Save");
+        assert_eq!(b.variant, ButtonVariant::Primary);
+        assert_eq!(b.label, Some("Save".to_string()));
+        assert_eq!(b.size, Size::Md);
+        assert_eq!(b.align, ButtonAlign::Center);
+        assert_eq!(b.icon, None);
+        assert_eq!(b.tooltip, "");
+        assert!(!b.disabled);
         assert!(!b.active);
+        assert!(!b.loading);
+        assert!(b.icon_color.is_none());
+        assert!(b.hover_icon_color.is_none());
         assert!(b.on_hover.is_none());
+
+        assert_eq!(Button::secondary("Cancel").variant, ButtonVariant::Secondary);
+        assert_eq!(Button::ghost("Toggle").variant, ButtonVariant::Ghost);
+        assert_eq!(Button::danger("Delete").variant, ButtonVariant::Danger);
+
+        let icon_btn = Button::icon("★");
+        assert_eq!(icon_btn.variant, ButtonVariant::Icon);
+        assert_eq!(icon_btn.icon, Some("★"));
+        assert!(icon_btn.label.is_none());
     }
 
     #[test]
-    fn ghost_builder() {
-        let b = Button::ghost("Hello").with_icon("★").active(true);
+    fn button_builder_options_roundtrip() {
+        let b = Button::ghost("Action")
+            .with_icon("★")
+            .with_tooltip("Hint")
+            .active(true)
+            .disabled(true)
+            .icon_color(Color32::RED)
+            .hover_icon_color(Color32::GREEN)
+            .loading(true)
+            .on_hover(Box::new(|| {}))
+            .left_aligned()
+            .sm();
+
         assert_eq!(b.variant, ButtonVariant::Ghost);
-        assert_eq!(b.label, Some("Hello".to_string()));
+        assert_eq!(b.label, Some("Action".to_string()));
         assert_eq!(b.icon, Some("★"));
+        assert_eq!(b.tooltip, "Hint");
         assert!(b.active);
-    }
-
-    #[test]
-    fn loading_flag() {
-        let b = Button::icon("★").loading(true);
+        assert!(b.disabled);
+        assert_eq!(b.icon_color, Some(Color32::RED));
+        assert_eq!(b.hover_icon_color, Some(Color32::GREEN));
         assert!(b.loading);
-    }
-
-    #[test]
-    fn active_flag() {
-        let b = Button::ghost("X").active(true);
-        assert_eq!(b.label, Some("X".to_string()));
-        assert!(b.active);
-    }
-
-    #[test]
-    fn on_hover_callback() {
-        let b = Button::icon("★").on_hover(Box::new(|| {}));
         assert!(b.on_hover.is_some());
+        assert_eq!(b.align, ButtonAlign::Left);
+        assert_eq!(b.size, Size::Sm);
+
+        let b_custom = Button::primary("Save").with_align(ButtonAlign::Left).with_size(Size::Lg);
+        assert_eq!(b_custom.align, ButtonAlign::Left);
+        assert_eq!(b_custom.size, Size::Lg);
     }
 
     #[test]
@@ -557,34 +577,5 @@ mod tests {
         assert_eq!(effective_label(Some("")), None);
         assert_eq!(effective_label(Some("   ")), None);
         assert_eq!(effective_label(Some("Hi")), Some("Hi"));
-    }
-
-    #[test]
-    fn danger_constructor() {
-        let b = Button::danger("Delete");
-        assert_eq!(b.variant, ButtonVariant::Danger);
-        assert_eq!(b.label, Some("Delete".to_string()));
-    }
-
-    #[test]
-    fn size_setter() {
-        let b = Button::primary("Save").sm();
-        assert_eq!(b.size, Size::Sm);
-    }
-
-    #[test]
-    fn size_default_is_md() {
-        let b = Button::primary("Save");
-        assert_eq!(b.size, Size::Md);
-    }
-
-    #[test]
-    fn align_defaults_to_center_and_supports_left() {
-        let b = Button::primary("Save");
-        assert_eq!(b.align, ButtonAlign::Center);
-        let b_left = Button::primary("Save").left_aligned();
-        assert_eq!(b_left.align, ButtonAlign::Left);
-        let b_custom = Button::ghost("Option").with_align(ButtonAlign::Left);
-        assert_eq!(b_custom.align, ButtonAlign::Left);
     }
 }

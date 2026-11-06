@@ -5,9 +5,7 @@
 
 use crate::ast::{ComponentDef, Expr, InlineItem, Property, Stmt, Time};
 
-// ---------------------------------------------------------------------------
 // Statement walkers
-// ---------------------------------------------------------------------------
 
 /// Walk over all statements, calling the visitor for each and recursing into block bodies.
 pub fn walk_stmts(stmts: &[Stmt], visitor: &mut dyn FnMut(&Stmt)) {
@@ -35,9 +33,7 @@ pub fn walk_stmt_mut(stmt: &mut Stmt, visitor: &mut dyn FnMut(&mut Stmt)) {
     recurse_stmt_bodies_mut(stmt, &mut |body| walk_stmts_mut(body, visitor));
 }
 
-// ---------------------------------------------------------------------------
 // Inline item walkers
-// ---------------------------------------------------------------------------
 
 /// Walk over inline items, calling the visitor for each and recursing into children.
 pub fn walk_inline_items(items: &[InlineItem], visitor: &mut dyn FnMut(&InlineItem)) {
@@ -87,9 +83,7 @@ pub fn walk_inline_item_mut(item: &mut InlineItem, visitor: &mut dyn FnMut(&mut 
     }
 }
 
-// ---------------------------------------------------------------------------
 // Expression walker
-// ---------------------------------------------------------------------------
 
 /// Walk over an expression, visiting it and all sub-expressions.
 pub fn walk_expr(expr: &Expr, visitor: &mut dyn FnMut(&Expr)) {
@@ -151,9 +145,7 @@ pub fn walk_expr(expr: &Expr, visitor: &mut dyn FnMut(&Expr)) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Body recursion helpers
-// ---------------------------------------------------------------------------
 
 /// Collect mutable body references from a statement (used internally).
 pub fn collect_stmt_bodies_mut(stmt: &mut Stmt) -> Vec<&mut Vec<Stmt>> {
@@ -231,9 +223,7 @@ pub fn recurse_stmt_bodies_mut(stmt: &mut Stmt, f: &mut dyn FnMut(&mut [Stmt])) 
     }
 }
 
-// ---------------------------------------------------------------------------
 // Find helpers
-// ---------------------------------------------------------------------------
 
 /// Find an ActorDecl with the given label anywhere in the statement tree.
 pub fn find_actor_decl<'a>(stmts: &'a [Stmt], label: &str) -> Option<&'a Stmt> {
@@ -323,9 +313,7 @@ pub fn time_to_seconds(t: &Time) -> f64 {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Internal helpers for find functions
-// ---------------------------------------------------------------------------
 
 /// Helper: search child bodies of a stmt (immutable), returning early if found.
 fn find_stmt_in_bodies<'a>(

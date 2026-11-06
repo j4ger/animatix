@@ -578,9 +578,7 @@ impl Timeline {
     }
 }
 
-// ─────────────────────────────────────────────────────────────
 // Helper: text / math / code assignments → text paths
-// ─────────────────────────────────────────────────────────────
 
 mod special;
 mod text;

@@ -5,9 +5,7 @@
 
 use animatix_syntax::ast::{Expr, Modifier, Property, Stmt, Transition};
 
-// ---------------------------------------------------------------------------
 // Property name mapping
-// ---------------------------------------------------------------------------
 
 /// Convert a canonical inspector property name to its source equivalent.
 pub fn canonical_to_source(name: &str) -> &str {
@@ -25,9 +23,7 @@ pub fn source_to_canonical(name: &str) -> &str {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Edit operations
-// ---------------------------------------------------------------------------
 
 /// A semantic edit description.
 #[derive(Debug, Clone)]

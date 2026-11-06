@@ -2,33 +2,20 @@ use super::options::*;
 use super::*;
 
 #[test]
-fn builder_defaults() {
+fn builder_options_roundtrip() {
     let mut sel = None;
     let s = Select::new("test", &mut sel, &["A", "B"]);
     assert_eq!(s.placeholder, "Select…");
     assert!(!s.searchable);
     assert!(!s.clearable);
     assert_eq!(s.flat_options.len(), 2);
-}
 
-#[test]
-fn builder_placeholder() {
-    let mut sel = None;
-    let s = Select::new("test", &mut sel, &["A"]).placeholder("Pick one");
+    let s = Select::new("test", &mut sel, &["A", "B"])
+        .placeholder("Pick one")
+        .searchable(true)
+        .clearable(true);
     assert_eq!(s.placeholder, "Pick one");
-}
-
-#[test]
-fn builder_searchable() {
-    let mut sel = None;
-    let s = Select::new("test", &mut sel, &["A"]).searchable(true);
     assert!(s.searchable);
-}
-
-#[test]
-fn builder_clearable() {
-    let mut sel = None;
-    let s = Select::new("test", &mut sel, &["A"]).clearable(true);
     assert!(s.clearable);
 }
 

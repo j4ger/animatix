@@ -46,9 +46,7 @@ pub(crate) use self::transform::Transform;
 use self::transform::{parse_numbers, parse_transform};
 use crate::ast::{Expr, Property, Stmt};
 
-// ---------------------------------------------------------------------------
 // Error type
-// ---------------------------------------------------------------------------
 
 /// Errors that can occur during SVG import.
 #[derive(Debug)]
@@ -73,9 +71,7 @@ impl std::fmt::Display for SvgImportError {
 
 impl std::error::Error for SvgImportError {}
 
-// ---------------------------------------------------------------------------
 // Public entry point
-// ---------------------------------------------------------------------------
 
 /// Read an SVG file and convert it into a `Vec<Stmt>` (Animatix AST statements).
 ///
@@ -114,9 +110,7 @@ pub fn import_svg(path: &Path) -> Result<Vec<Stmt>, SvgImportError> {
     Ok(stmts)
 }
 
-// ---------------------------------------------------------------------------
 // viewBox parsing
-// ---------------------------------------------------------------------------
 
 /// Parse the `viewBox` attribute on a root `<svg>` element and return an
 /// optional `@config { size: (width, height) }` statement.

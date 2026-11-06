@@ -2,8 +2,8 @@ use super::registry::{ActionSignature, BuiltinAction, base_timing_params};
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
+use crate::timeline::Timeline;
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
 /// Fades out the target by animating its overall opacity to 0.
 pub struct FadeOut;
@@ -26,41 +26,30 @@ impl BuiltinAction for FadeOut {
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let parsed = parse_timing_modifiers(
-            &action.modifiers,
-            ModifierHost::Action,
-            Some(&action.verb),
+        super::for_each_action_target(
+            action,
+            time_ms,
+            timeline,
             diagnostics,
+            |timeline, target, id, timing, diagnostics| {
+                if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics, None) {
+                    return;
+                }
+                let style = timeline.world.style_mut(id);
+                let start_opacity = style.opacity.get(timing.t_start_ms, 1.0);
+                if timing.duration_ms > 0.0 {
+                    style.opacity.ensure(1.0).add_keyframe(
+                        timing.t_start_ms,
+                        start_opacity,
+                        Easing::Linear,
+                    );
+                } else if timing.delay_ms > 0.0 && timing.t_start_ms > 0 {
+                    let guard_time = timing.t_start_ms.saturating_sub(1);
+                    super::ensure_guard_keyframe(&mut style.opacity, guard_time, 1.0);
+                }
+                style.opacity.ensure(1.0).add_keyframe(timing.t_end_ms, 0.0, timing.easing);
+            },
         );
-        let duration_ms = parsed.duration_ms;
-        let delay_ms = parsed.delay_ms;
-        let easing = parsed.easing;
-
-        let t_start_ms = (time_ms + delay_ms) as u64;
-        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
-
-        for target in &action.targets {
-            if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics, None) {
-                continue;
-            }
-
-            let Some(id) = timeline.world.get_id(target) else {
-                continue;
-            };
-            let style = timeline.world.style_mut(id);
-
-            let start_opacity = style.opacity.get(t_start_ms, 1.0);
-            if duration_ms > 0.0 {
-                style
-                    .opacity
-                    .ensure(1.0)
-                    .add_keyframe(t_start_ms, start_opacity, Easing::Linear);
-            } else if delay_ms > 0.0 && t_start_ms > 0 {
-                let guard_time = t_start_ms.saturating_sub(1);
-                super::ensure_guard_keyframe(&mut style.opacity, guard_time, 1.0);
-            }
-            style.opacity.ensure(1.0).add_keyframe(t_end_ms, 0.0, easing);
-        }
     }
 }
 

@@ -7,7 +7,7 @@ use super::*;
 use crate::ast::{Action, Modifier};
 use crate::diagnostics::DiagnosticCode;
 use crate::primitives::{BuildCtx, Primitive};
-use crate::timeline::{ActorCategory, ContainerMetadata, LayoutType, PropertyTrack};
+use crate::timeline::{ActorCategory, ContainerMetadata, EntityId, LayoutType, PropertyTrack};
 
 struct FlexContainer;
 
@@ -401,21 +401,21 @@ fn swap_action_sets_child_order_keyframe() {
     assert_eq!(end_order, &vec![child_b, child_a]);
 }
 
-#[test]
-fn swap_action_detects_overlapping_swaps() {
-    let mut timeline = Timeline::new();
+fn setup_container_with_children(
+    timeline: &mut Timeline,
+    container: &str,
+    children: &[&str],
+) -> EntityId {
+    let row_id = timeline.world.spawn(container, "Rect");
 
-    // Set up container with children
-    let row_id = timeline.world.spawn("row", "Rect");
-
-    for label in ["a", "b", "c"] {
+    for &label in children {
         let child_id = timeline.world.spawn(label, "Rect");
         timeline.world.geometry_mut(child_id).layout_size = Some(PropertyTrack::new([15.0, 20.0]));
         timeline.world.link(row_id, child_id);
     }
 
     timeline.set_container_layout(
-        "row",
+        container,
         ContainerMetadata {
             layout_type: LayoutType::Row,
             gap: [8.0, 8.0],
@@ -426,6 +426,14 @@ fn swap_action_detects_overlapping_swaps() {
             child_order: timeline.world.hierarchy(row_id).children.clone(),
         },
     );
+
+    row_id
+}
+
+#[test]
+fn swap_action_detects_overlapping_swaps() {
+    let mut timeline = Timeline::new();
+    setup_container_with_children(&mut timeline, "row", &["a", "b", "c"]);
 
     // First swap: a,b at 0s, completes at 500ms
     let action1 = Action {
@@ -510,28 +518,7 @@ fn reorder_action_requires_order_modifier() {
 #[test]
 fn reorder_action_sets_child_order_keyframe() {
     let mut timeline = Timeline::new();
-
-    // Set up container with children
-    let row_id = timeline.world.spawn("row", "Rect");
-
-    for label in ["a", "b", "c"] {
-        let child_id = timeline.world.spawn(label, "Rect");
-        timeline.world.geometry_mut(child_id).layout_size = Some(PropertyTrack::new([15.0, 20.0]));
-        timeline.world.link(row_id, child_id);
-    }
-
-    timeline.set_container_layout(
-        "row",
-        ContainerMetadata {
-            layout_type: LayoutType::Row,
-            gap: [8.0, 8.0],
-            padding: [0.0, 0.0, 0.0, 0.0],
-            align: "center".to_string(),
-            vertical_align: "center".to_string(),
-            cols: None,
-            child_order: timeline.world.hierarchy(row_id).children.clone(),
-        },
-    );
+    let row_id = setup_container_with_children(&mut timeline, "row", &["a", "b", "c"]);
 
     let action = Action {
         verb: "reorder".to_string(),
@@ -573,28 +560,7 @@ fn reorder_action_sets_child_order_keyframe() {
 #[test]
 fn reorder_action_detects_overlapping_reorders() {
     let mut timeline = Timeline::new();
-
-    // Set up container with children
-    let row_id = timeline.world.spawn("row", "Rect");
-
-    for label in ["a", "b"] {
-        let child_id = timeline.world.spawn(label, "Rect");
-        timeline.world.geometry_mut(child_id).layout_size = Some(PropertyTrack::new([15.0, 20.0]));
-        timeline.world.link(row_id, child_id);
-    }
-
-    timeline.set_container_layout(
-        "row",
-        ContainerMetadata {
-            layout_type: LayoutType::Row,
-            gap: [8.0, 8.0],
-            padding: [0.0, 0.0, 0.0, 0.0],
-            align: "center".to_string(),
-            vertical_align: "center".to_string(),
-            cols: None,
-            child_order: timeline.world.hierarchy(row_id).children.clone(),
-        },
-    );
+    setup_container_with_children(&mut timeline, "row", &["a", "b"]);
 
     // First reorder at 0s, completes at 500ms
     let action1 = Action {
@@ -656,27 +622,7 @@ fn swap_action_bounds_transition_to_duration() {
     // Regression test: consecutive swaps should not create a transition
     // that spans the gap between the end of swap N and the end of swap N+1.
     let mut timeline = Timeline::new();
-
-    let row_id = timeline.world.spawn("row", "Rect");
-
-    for label in ["a", "b", "c"] {
-        let child_id = timeline.world.spawn(label, "Rect");
-        timeline.world.geometry_mut(child_id).layout_size = Some(PropertyTrack::new([15.0, 20.0]));
-        timeline.world.link(row_id, child_id);
-    }
-
-    timeline.set_container_layout(
-        "row",
-        ContainerMetadata {
-            layout_type: LayoutType::Row,
-            gap: [8.0, 8.0],
-            padding: [0.0, 0.0, 0.0, 0.0],
-            align: "center".to_string(),
-            vertical_align: "center".to_string(),
-            cols: None,
-            child_order: timeline.world.hierarchy(row_id).children.clone(),
-        },
-    );
+    setup_container_with_children(&mut timeline, "row", &["a", "b", "c"]);
 
     // First swap at 0s, 500ms duration → keyframes at 0 and 500
     let action1 = Action {

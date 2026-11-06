@@ -7,9 +7,7 @@ use crate::timeline::env::{Environment, Value};
 use super::plan::read_property_plan_slot;
 use super::value::PropertyValue;
 
-// ─────────────────────────────────────────────────────────────
 // Environment injection
-// ─────────────────────────────────────────────────────────────
 
 /// Inject a property's value into the runtime Environment.
 ///
@@ -217,9 +215,7 @@ fn inject_value(
     key.truncate(restore);
 }
 
-// ─────────────────────────────────────────────────────────────
 // Override-aware property reads
-// ─────────────────────────────────────────────────────────────
 
 /// Read a property value using a pre-resolved schema / plan-slot pair.
 ///

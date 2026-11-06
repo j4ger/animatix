@@ -52,9 +52,7 @@ fn scene_body_mut<'a>(stmts: &'a mut [Stmt], scene_name: &str) -> Option<&'a mut
     None
 }
 
-// ---------------------------------------------------------------------------
 // MergeKeyframe
-// ---------------------------------------------------------------------------
 
 pub(super) fn merge_keyframe(
     stmts: &mut Vec<Stmt>,

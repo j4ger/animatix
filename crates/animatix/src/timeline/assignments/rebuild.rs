@@ -2,9 +2,7 @@ use super::*;
 use crate::ast::Expr;
 use crate::timeline::animation_track::{GeometryTracks, ShapeTracks, StyleTracks};
 
-// ─────────────────────────────────────────────────────────────
 // Helper: size-like assignments (also write to layout_size)
-// ─────────────────────────────────────────────────────────────
 
 pub(super) fn handle_size_assignment(
     actor_type: &str,
@@ -250,9 +248,7 @@ pub(super) fn rebuild_vector_paths(
         .add_keyframe(t_end_ms, vec![target_vello_path], easing);
 }
 
-// ─────────────────────────────────────────────────────────────
 // Helper: scale PlotCurve paths when parent Graph resizes
-// ─────────────────────────────────────────────────────────────
 
 pub(super) fn scale_plot_curve_paths(
     style: &StyleTracks,
@@ -300,9 +296,7 @@ pub(super) fn scale_plot_curve_paths(
         .add_keyframe(t_end_ms, scaled_paths, easing);
 }
 
-// ─────────────────────────────────────────────────────────────
 // Helper: does this property affect shape geometry?
-// ─────────────────────────────────────────────────────────────
 
 pub(super) fn affects_shape_geometry(property: &str) -> bool {
     lookup_property(property).is_some_and(|schema| schema.affects_vector_paths())

@@ -109,9 +109,7 @@ fn update_assignment_easing(
     })
 }
 
-// ---------------------------------------------------------------------------
 // DeleteKeyframe
-// ---------------------------------------------------------------------------
 
 pub(crate) fn delete_keyframe(
     stmts: &mut Vec<Stmt>,
@@ -192,9 +190,7 @@ fn remove_assignment_from_body(body: &mut Vec<Stmt>, actor: &str, property: &str
     });
 }
 
-// ---------------------------------------------------------------------------
 // InsertKeyframe
-// ---------------------------------------------------------------------------
 
 pub(crate) fn insert_keyframe(
     stmts: &mut Vec<Stmt>,

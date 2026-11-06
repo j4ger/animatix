@@ -115,9 +115,7 @@ fn roundtrip_all_example_files() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Serializer stability over the whole repo
-// ---------------------------------------------------------------------------
 
 /// Roots whose `.amx` files are real content, not fixtures.
 fn repo_amx_files() -> Vec<std::path::PathBuf> {
@@ -237,9 +235,7 @@ fn both_serializers_are_stable_across_the_repo() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Comment preservation over the whole repo
-// ---------------------------------------------------------------------------
 
 fn comment_texts(source: &str) -> Vec<String> {
     animatix_syntax::token::tokenize(source)

@@ -1,5 +1,8 @@
+/// Common action execution context and target processing utilities.
+pub mod base;
 /// Visual effect actions (bounce, pulse, shake).
 pub mod effects;
+pub use base::{ActionTiming, for_each_action_target};
 /// Entrance actions that bring actors into view (fade-in, wipe-in).
 pub mod entrance;
 /// Exit actions that remove actors from view (fade-out).

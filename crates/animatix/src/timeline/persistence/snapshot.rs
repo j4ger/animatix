@@ -2,9 +2,7 @@
 
 use super::*;
 
-// ---------------------------------------------------------------------------
 // snapshot_track_at
-// ---------------------------------------------------------------------------
 
 /// Snapshot a primitive payload at `time_ms` (plot params collapsed, live
 /// transitions dropped), mirroring the per-tier collapse helpers.
@@ -56,9 +54,7 @@ fn collapse_dyn_track(track: &mut crate::timeline::DynTrack, time_ms: u64) {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Per-tier collapse helpers
-// ---------------------------------------------------------------------------
 
 fn collapse_geometry_tracks(tracks: &mut GeometryTracks, time_ms: u64) {
     collapse_optional_track(&mut tracks.position, time_ms);
@@ -127,9 +123,7 @@ fn collapse_highlight_tracks(tracks: &mut HighlightTracks, time_ms: u64) {
     // highlight_blend is non-animated configuration, keep as-is
 }
 
-// ---------------------------------------------------------------------------
 // Generic collapse helper
-// ---------------------------------------------------------------------------
 
 /// Collapse an `Option<PropertyTrack<T>>` to a single keyframe at t=0
 /// holding the sampled value at `time_ms`.

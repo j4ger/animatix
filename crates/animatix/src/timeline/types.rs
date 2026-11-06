@@ -15,9 +15,7 @@ use crate::timeline::entity::EntityId;
 use crate::timeline::env::Value;
 use crate::timeline::property_track::TrackAccessor;
 
-// ─────────────────────────────────────────────────────────────
 // Build quality levels
-// ─────────────────────────────────────────────────────────────
 
 /// Controls plot sampling fidelity during timeline build.
 ///

@@ -10,9 +10,7 @@ use crate::timeline::env::{Environment, Value};
 
 use super::value::{PropertyValue, property_value_from_value};
 
-// ─────────────────────────────────────────────────────────────
 // Plan-backed property access
-// ─────────────────────────────────────────────────────────────
 
 /// Write a value through a plan, without an actor track.
 pub fn write_property_plan_slot_on(

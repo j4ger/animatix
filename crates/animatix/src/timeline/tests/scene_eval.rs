@@ -2,9 +2,7 @@ use std::collections::HashMap;
 
 use super::*;
 
-// ---------------------------------------------------------------------------
 // Fixtures
-// ---------------------------------------------------------------------------
 
 const HD: SceneDimensions = SceneDimensions {
     width: 1920,
@@ -112,9 +110,7 @@ fn timeline_from(source: &str) -> Timeline {
     build_source(source).output
 }
 
-// ---------------------------------------------------------------------------
 // Static subtree cache
-// ---------------------------------------------------------------------------
 
 #[test]
 fn static_scene_cache_populated_after_first_evaluate() {
@@ -326,9 +322,7 @@ fn time_dependent_caps_prevent_static_subtree_caching() {
     assert!(!timeline.is_static_subtree_id(cue_id), "Cue must not be a static subtree");
 }
 
-// ---------------------------------------------------------------------------
 // Text evaluation
-// ---------------------------------------------------------------------------
 
 #[test]
 fn test_runtime_text_recompilation() {
@@ -483,9 +477,7 @@ fn text_content_assignment_crossfades_paths_at_midpoint() {
     );
 }
 
-// ---------------------------------------------------------------------------
 // World structure and transient overrides
-// ---------------------------------------------------------------------------
 
 /// The root set and every hierarchy `children` list must keep authored
 /// declaration order — rendering order is the authored order, and the frame
@@ -644,9 +636,7 @@ subs: Captions, at: (960, 900), font_size: 32, text_max_width: 640 {
     );
 }
 
-// ---------------------------------------------------------------------------
 // Blend layer bounds (scene_eval/render.rs)
-// ---------------------------------------------------------------------------
 
 /// The historical unbounded blend layer is a ±1e9 `Rect`. Its clip-path
 /// coordinates are stored as f32 bit patterns in `Scene::encoding().path_data`

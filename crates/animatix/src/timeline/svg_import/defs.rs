@@ -9,9 +9,7 @@ use super::shapes::parse_svg_color;
 use crate::ast::{Expr, Property, Stmt};
 use crate::timeline::path_data::parse_svg_path_data;
 
-// ---------------------------------------------------------------------------
 // Gradient definition types (used for url(#id) fill/stroke fallback)
-// ---------------------------------------------------------------------------
 
 /// A single color stop in a gradient.
 #[derive(Clone, Debug)]
@@ -143,9 +141,7 @@ impl GradientDef {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Gradient collection from <defs>
-// ---------------------------------------------------------------------------
 
 /// Scan the entire SVG tree for `<defs>` elements and collect gradient
 /// definitions into a map keyed by their `id` attribute.

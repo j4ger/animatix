@@ -578,9 +578,7 @@ fn spawn_seen(timeline: &mut Timeline, label: &str, actor_type: &str) -> EntityI
     id
 }
 
-// ---------------------------------------------------------------------------
 // Per-subtree static-cache gating and the clone-free presentation path
-// ---------------------------------------------------------------------------
 
 fn build_timeline(src: &str) -> Timeline {
     let (ast, errors) = animatix_syntax::parser::parse_source(src);

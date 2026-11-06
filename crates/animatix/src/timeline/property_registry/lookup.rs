@@ -203,9 +203,7 @@ pub fn property_name(id: animatix_syntax::schema::PropertyId) -> Option<&'static
     property_schema_by_id(id).map(|schema| schema.name)
 }
 
-// ─────────────────────────────────────────────────────────────
 // Per-actor-kind allowed property indices
-// ─────────────────────────────────────────────────────────────
 
 /// Convenience: build a sorted set of allowed property indices for an actor.
 /// Returns indices into PROPERTY_REGISTRY.
@@ -218,9 +216,7 @@ pub fn allowed_property_indices(caps: &crate::timeline::ActorCaps, actor_type: &
         .collect()
 }
 
-// ─────────────────────────────────────────────────────────────
 // Tests
-// ─────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {

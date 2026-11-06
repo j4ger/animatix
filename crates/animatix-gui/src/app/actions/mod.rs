@@ -449,9 +449,7 @@ impl GuiShell {
     }
 }
 
-// ─────────────────────────────────────────────────────────────
 // Atomic source-edit helper
-// ─────────────────────────────────────────────────────────────
 
 /// Apply a source edit atomically using a trial clone.
 ///
@@ -514,7 +512,6 @@ fn set_or_insert_property(
     }
 }
 
-// ─────────────────────────────────────────────────────────────
 fn parse_gui_color(text: &str) -> Option<[f32; 4]> {
     if text == "auto" {
         return None;
@@ -562,7 +559,6 @@ fn parse_gui_color(text: &str) -> Option<[f32; 4]> {
 }
 
 // Track capability helpers (registry-driven)
-// ─────────────────────────────────────────────────────────────
 
 /// Whether the GUI may offer to nest a new actor inside `track`.
 ///

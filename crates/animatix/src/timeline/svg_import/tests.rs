@@ -333,9 +333,7 @@ fn test_compose_transforms() {
     assert!((c.sy - 2.0).abs() < 1e-6);
 }
 
-// -----------------------------------------------------------------------
 // New feature tests: viewBox, stroke-dasharray, gradients, polyline/polygon
-// -----------------------------------------------------------------------
 
 #[test]
 fn test_viewbox_config() {

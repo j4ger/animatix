@@ -44,9 +44,8 @@
 //!
 //! - [`crate::ast`] defines the AST nodes this parser produces.
 //! - The lossless tokenizer in [`crate::token`] is the single lexical definition.
-//! - The parser test corpus lives in `crates/animatix/tests/parser_tests/` and
-//!   `crates/animatix-syntax/src/parser/tests.rs`; it is the authority on
-//!   accepted syntax.
+//! - The parser test corpus lives in `crates/animatix-syntax/src/parser/tests.rs`;
+//!   it is the authority on accepted syntax.
 
 mod comments;
 pub(crate) mod common;

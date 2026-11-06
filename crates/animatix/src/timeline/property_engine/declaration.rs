@@ -12,9 +12,7 @@ use crate::timeline::{EntityId, PropertyTrack, ShapeType, TrackAccessor, World};
 use super::plan::write_property_plan_slot_on;
 use super::value::{EnumPropertyValue, PropertyValue};
 
-// ─────────────────────────────────────────────────────────────
 // Write: ActorField + PropertyValue + timing → keyframes
-// ─────────────────────────────────────────────────────────────
 
 /// Extract the schema default for a typed track and hand the value to its
 /// writer.
@@ -408,9 +406,7 @@ pub fn write_property_field(
     }
 }
 
-// ─────────────────────────────────────────────────────────────
 // Internal write helpers
-// ─────────────────────────────────────────────────────────────
 
 /// Write one typed track with the keyframe timing shared by every property
 /// writer: snapshot the value at `t_start_ms` when the write spans a duration,

@@ -3,9 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::easing::Easing;
 
-// ─────────────────────────────────────────────────────────────
 // Action event metadata (for GUI timeline visualization)
-// ─────────────────────────────────────────────────────────────
 
 /// A recorded action event in the timeline.
 ///

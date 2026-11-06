@@ -10,85 +10,41 @@ fn side_default_is_right() {
 // ── Checkbox builder ───────────────────────────────────────────
 
 #[test]
-fn checkbox_builder_defaults() {
+fn checkbox_builder_roundtrip() {
     let mut val = false;
     let ptr = &mut val as *mut _;
-    let cb = Checkbox::new(&mut val);
-    assert_eq!(cb.value as *const _, ptr as *const _);
-    assert!(cb.label.is_none());
-    assert_eq!(cb.label_side, Side::Right);
-    assert_eq!(cb.tooltip, "");
-}
+    {
+        let cb = Checkbox::new(&mut val);
+        assert_eq!(cb.value as *const _, ptr as *const _);
+        assert!(cb.label.is_none());
+        assert_eq!(cb.label_side, Side::Right);
+        assert_eq!(cb.tooltip, "");
+    }
 
-#[test]
-fn checkbox_builder_label() {
-    let mut val = false;
-    let cb = Checkbox::new(&mut val).label("Hello");
+    let cb = Checkbox::new(&mut val).label("Hello").label_side(Side::Left).tooltip("tip");
     assert_eq!(cb.label, Some("Hello"));
-}
-
-#[test]
-fn checkbox_builder_label_side() {
-    let mut val = false;
-    let cb = Checkbox::new(&mut val).label_side(Side::Left);
     assert_eq!(cb.label_side, Side::Left);
-}
-
-#[test]
-fn checkbox_builder_tooltip() {
-    let mut val = false;
-    let cb = Checkbox::new(&mut val).tooltip("tip");
     assert_eq!(cb.tooltip, "tip");
-}
-
-#[test]
-fn checkbox_builder_chaining() {
-    let mut val = true;
-    let cb = Checkbox::new(&mut val).label("L").label_side(Side::Left).tooltip("T");
-    assert_eq!(cb.label, Some("L"));
-    assert_eq!(cb.label_side, Side::Left);
-    assert_eq!(cb.tooltip, "T");
 }
 
 // ── Switch builder ─────────────────────────────────────────────
 
 #[test]
-fn switch_builder_defaults() {
+fn switch_builder_roundtrip() {
     let mut val = false;
-    let s = Switch::new(&mut val);
-    assert!(s.label.is_none());
-    assert_eq!(s.label_side, Side::Right);
-    assert_eq!(s.tooltip, "");
-}
+    let ptr = &mut val as *mut _;
+    {
+        let s = Switch::new(&mut val);
+        assert_eq!(s.value as *const _, ptr as *const _);
+        assert!(s.label.is_none());
+        assert_eq!(s.label_side, Side::Right);
+        assert_eq!(s.tooltip, "");
+    }
 
-#[test]
-fn switch_builder_label() {
-    let mut val = false;
-    let s = Switch::new(&mut val).label("On");
+    let s = Switch::new(&mut val).label("On").label_side(Side::Left).tooltip("tip");
     assert_eq!(s.label, Some("On"));
-}
-
-#[test]
-fn switch_builder_label_side() {
-    let mut val = false;
-    let s = Switch::new(&mut val).label_side(Side::Left);
     assert_eq!(s.label_side, Side::Left);
-}
-
-#[test]
-fn switch_builder_tooltip() {
-    let mut val = false;
-    let s = Switch::new(&mut val).tooltip("tip");
     assert_eq!(s.tooltip, "tip");
-}
-
-#[test]
-fn switch_builder_chaining() {
-    let mut val = true;
-    let s = Switch::new(&mut val).label("L").label_side(Side::Left).tooltip("T");
-    assert_eq!(s.label, Some("L"));
-    assert_eq!(s.label_side, Side::Left);
-    assert_eq!(s.tooltip, "T");
 }
 
 // ── Animation id namespacing ───────────────────────────────────
