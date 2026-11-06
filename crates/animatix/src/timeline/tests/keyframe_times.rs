@@ -1,7 +1,5 @@
 use super::*;
 
-// 4.7: keyframe_times_s tests
-
 fn keyframe_times_s_timeline() -> Timeline {
     let mut timeline = Timeline::new();
     // Remove the default background_color keyframe at 0 so it doesn't pollute results

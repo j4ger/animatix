@@ -41,7 +41,6 @@ pub struct FastImplicitEvaluator {
 }
 
 impl FastImplicitEvaluator {
-    #[allow(dead_code)] // Public fallback for callers without EvalCaches
     pub fn try_compile(source: &FuncSource, env: &Environment) -> Option<Self> {
         Self::try_compile_with_cache(source, env, None)
     }
@@ -129,7 +128,6 @@ impl FastImplicitEvaluator {
 /// Evaluate a `FuncSource` at (x, y) coordinates, returning a scalar value
 /// for implicit contour detection. Supports blended transitions via recursive
 /// evaluation of `Blend` nodes.
-#[allow(dead_code)] // Public plot sampling API without cache, exercised by tests
 pub fn eval_implicit_source(source: &FuncSource, env: &mut Environment, x: f64, y: f64) -> f64 {
     if let Some(mut fast) = FastImplicitEvaluator::try_compile(source, env) {
         return fast.eval(x, y);

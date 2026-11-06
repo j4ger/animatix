@@ -124,20 +124,24 @@ fn world_write_read_roundtrip(
     timeline.world().read_property_value(id, field, time_ms)
 }
 
-// 4.2: write/read round-trip tests
+// write/read round-trip
 
 #[test]
-fn test_write_read_roundtrip_f32() {
-    let mut timeline = crate::timeline::Timeline::new();
-    let id = timeline.world_mut().spawn("test", "Rect");
-    let result = world_write_read_roundtrip(
-        &mut timeline,
-        id,
-        ActorField::Opacity,
-        PropertyValue::F32(0.75),
-        500,
-    );
-    assert_eq!(result, Some(PropertyValue::F32(0.75)));
+fn test_write_read_roundtrip_f32_fields() {
+    let cases: &[(&str, ActorField, f32)] = &[
+        ("Rect", ActorField::Opacity, 0.75),
+        ("Rect", ActorField::MinWidth, 200.0),
+        ("Rect", ActorField::MaxHeight, 800.0),
+        ("Rect", ActorField::MinHeight, 300.0),
+        ("Text", ActorField::LetterSpacing, 2.5),
+    ];
+    for &(ty, field, value) in cases {
+        let mut timeline = crate::timeline::Timeline::new();
+        let id = timeline.world_mut().spawn("test", ty);
+        let result =
+            world_write_read_roundtrip(&mut timeline, id, field, PropertyValue::F32(value), 500);
+        assert_eq!(result, Some(PropertyValue::F32(value)), "{field:?}");
+    }
 }
 
 #[test]
@@ -319,34 +323,6 @@ fn test_tagged_auto_transition_snaps_cross_variant() {
 }
 
 #[test]
-fn test_write_read_roundtrip_min_width() {
-    let mut timeline = crate::timeline::Timeline::new();
-    let id = timeline.world_mut().spawn("test", "Rect");
-    let result = world_write_read_roundtrip(
-        &mut timeline,
-        id,
-        ActorField::MinWidth,
-        PropertyValue::F32(200.0),
-        500,
-    );
-    assert_eq!(result, Some(PropertyValue::F32(200.0)));
-}
-
-#[test]
-fn test_write_read_roundtrip_max_height() {
-    let mut timeline = crate::timeline::Timeline::new();
-    let id = timeline.world_mut().spawn("test", "Rect");
-    let result = world_write_read_roundtrip(
-        &mut timeline,
-        id,
-        ActorField::MaxHeight,
-        PropertyValue::F32(800.0),
-        500,
-    );
-    assert_eq!(result, Some(PropertyValue::F32(800.0)));
-}
-
-#[test]
 fn test_write_read_roundtrip_highlight_color() {
     let mut timeline = crate::timeline::Timeline::new();
     let id = timeline.world_mut().spawn("test", "Equation");
@@ -382,34 +358,6 @@ fn test_write_read_roundtrip_highlight_opacity() {
         timeline.world().read_property_value(id, ActorField::HighlightOpacity, 500),
         Some(PropertyValue::F32(0.5))
     );
-}
-
-#[test]
-fn test_write_read_roundtrip_min_height() {
-    let mut timeline = crate::timeline::Timeline::new();
-    let id = timeline.world_mut().spawn("test", "Rect");
-    let result = world_write_read_roundtrip(
-        &mut timeline,
-        id,
-        ActorField::MinHeight,
-        PropertyValue::F32(300.0),
-        500,
-    );
-    assert_eq!(result, Some(PropertyValue::F32(300.0)));
-}
-
-#[test]
-fn test_write_read_roundtrip_letter_spacing() {
-    let mut timeline = crate::timeline::Timeline::new();
-    let id = timeline.world_mut().spawn("test", "Text");
-    let result = world_write_read_roundtrip(
-        &mut timeline,
-        id,
-        ActorField::LetterSpacing,
-        PropertyValue::F32(2.5),
-        500,
-    );
-    assert_eq!(result, Some(PropertyValue::F32(2.5)));
 }
 
 #[test]

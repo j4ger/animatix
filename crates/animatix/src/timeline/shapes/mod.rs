@@ -17,6 +17,4 @@ pub use states::*;
 pub use vector::*;
 
 #[cfg(test)]
-mod primitives;
-#[cfg(test)]
 mod tests;

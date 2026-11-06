@@ -801,7 +801,6 @@ pub(crate) fn compile_fast_vec2<'a>(
     None
 }
 
-#[allow(dead_code)] // tested by eval unit tests
 pub(crate) fn resolve_slot_values(
     slot_names: &[&str],
     env: &Environment,

@@ -1,26 +1,8 @@
+use super::super::test_support::circle_decl;
 use super::*;
 
 use crate::ast::{Expr, Property, Stmt, Time};
 use crate::timeline::PlacementMode;
-
-fn circle_decl(label: &str) -> Stmt {
-    Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: label.to_string(),
-        array_index: None,
-        ty: "Ellipse".to_string(),
-        props: vec![Property {
-            name: "size".to_string(),
-            value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(40.0)]),
-            value_span: None,
-            trailing_comment: None,
-        }],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    }
-}
 
 fn shift_action(target: &str, by: Expr) -> Stmt {
     Stmt::Action(

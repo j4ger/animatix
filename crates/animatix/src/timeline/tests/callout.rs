@@ -1,5 +1,6 @@
 //! Tests for the Callout primitive
 
+use super::support::{actor, keyframe};
 use super::*;
 use crate::ast::Property;
 use crate::timeline::animation_track::{CalloutPlace, GeometryTracks};
@@ -17,28 +18,6 @@ fn prop(name: &str, value: Expr) -> Property {
 
 fn vec2(x: f32, y: f32) -> Expr {
     Expr::Tuple(vec![Expr::Num(x as f64), Expr::Num(y as f64)])
-}
-
-fn actor(label: &str, ty: &str, props: Vec<Property>) -> Stmt {
-    Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: label.to_string(),
-        array_index: None,
-        ty: ty.to_string(),
-        props,
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    }
-}
-
-fn keyframe(seconds: f64, body: Vec<Stmt>) -> Stmt {
-    Stmt::Keyframe {
-        time: crate::ast::Time::Seconds(seconds),
-        body,
-        span: None,
-    }
 }
 
 fn assign(label: &str, property: &str, value: Expr) -> Stmt {

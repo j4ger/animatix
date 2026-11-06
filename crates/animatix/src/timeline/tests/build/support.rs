@@ -4,28 +4,13 @@
 //! anything narrower stays next to its test.
 
 use super::super::tests::without_content_lints;
-use crate::ast::{Expr, Property, Stmt};
+use crate::ast::{Expr, Property};
 use crate::timeline::property_registry::lookup_property;
 use crate::timeline::{
     BuildReport, DebugRenderOptions, PropertyValue, SceneDimensions, Timeline, VelloPath,
 };
 
-/// Parse a fixture, returning its statements.
-pub(super) fn parse(source: &str) -> Vec<Stmt> {
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "Parse errors: {errors:?}");
-    ast.expect("parsed AST")
-}
-
-/// Parse and build a fixture, keeping every diagnostic.
-pub(super) fn build(source: &str) -> BuildReport<Timeline> {
-    build_ast(&parse(source))
-}
-
-/// Build statements that were assembled by hand.
-pub(super) fn build_ast(ast: &[Stmt]) -> BuildReport<Timeline> {
-    Timeline::build_with_diagnostics(ast, &std::collections::HashMap::new())
-}
+pub(super) use super::super::support::{actor, build, build_ast, build_timeline, keyframe, parse};
 
 /// Assert the build produced nothing but `never-revealed` content hints.
 pub(super) fn assert_clean(report: &BuildReport<Timeline>) {
@@ -43,17 +28,6 @@ pub(super) fn build_clean(source: &str) -> Timeline {
     report.output
 }
 
-/// Build a fixture and require that no diagnostic is error-level.
-pub(super) fn build_timeline(source: &str) -> Timeline {
-    let report = build(source);
-    assert!(
-        report.diagnostics.iter().all(|d| !d.is_error()),
-        "Unexpected build errors: {:?}",
-        report.diagnostics
-    );
-    report.output
-}
-
 pub(super) fn prop(name: &str, value: Expr) -> Property {
     Property {
         name: name.to_string(),
@@ -65,28 +39,6 @@ pub(super) fn prop(name: &str, value: Expr) -> Property {
 
 pub(super) fn vec2(x: f64, y: f64) -> Expr {
     Expr::Tuple(vec![Expr::Num(x), Expr::Num(y)])
-}
-
-pub(super) fn actor(label: &str, ty: &str, props: Vec<Property>) -> Stmt {
-    Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: label.to_string(),
-        array_index: None,
-        ty: ty.to_string(),
-        props,
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    }
-}
-
-pub(super) fn keyframe(seconds: f64, body: Vec<Stmt>) -> Stmt {
-    Stmt::Keyframe {
-        time: crate::ast::Time::Seconds(seconds),
-        body,
-        span: None,
-    }
 }
 
 /// The vector paths the frame at `time_s` actually draws.

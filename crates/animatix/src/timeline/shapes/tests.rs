@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn ellipse_default_size_is_standard() {
+    use crate::primitives::Primitive;
+    let mut state = VectorShapeState::Ellipse(EllipseState {
+        size: [50.0, 50.0],
+        arc_angles: [0.0, 0.0],
+        rotation: 0.0,
+    });
+    crate::primitives::ELLIPSE.apply_defaults(&mut state);
+    // Ellipse uses standard size defaults
+    assert_eq!(state.size(), [50.0, 50.0]);
+}
+
+#[test]
 fn line_reports_tip_lookup_support() {
     assert!(vector_shape_exposes_tip_size(ShapeType::Line));
     assert!(!vector_shape_exposes_tip_size(ShapeType::Rect));

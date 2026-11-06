@@ -13,6 +13,9 @@ pub(crate) fn without_content_lints(
 }
 
 #[cfg(test)]
+mod support;
+
+#[cfg(test)]
 mod bar_chart;
 #[cfg(test)]
 mod build;

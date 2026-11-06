@@ -29,8 +29,8 @@ pub use implicit::{
 pub(crate) use procedural::compile_fast_plot_program;
 #[allow(unused_imports)]
 pub use procedural::{
-    FastExprKind, FastPlotProgram, ProceduralPlot, ProceduralPlotKind, sample_plot_source,
-    sample_plot_source_cached, sample_procedural_plot_at, sample_procedural_plot_at_cached,
+    FastExprKind, FastPlotProgram, ProceduralPlot, ProceduralPlotKind, sample_plot_source_cached,
+    sample_procedural_plot_at, sample_procedural_plot_at_cached,
 };
 
 use std::collections::HashMap;

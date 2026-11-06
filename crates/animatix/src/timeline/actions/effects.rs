@@ -322,27 +322,9 @@ impl BuiltinAction for Bounce {
 
 #[cfg(test)]
 mod tests {
+    use super::super::test_support::circle_decl;
     use super::*;
-    use crate::ast::{Expr, Modifier, Property, Stmt, Time};
-
-    fn circle_decl(label: &str) -> Stmt {
-        Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: label.to_string(),
-            array_index: None,
-            ty: "Ellipse".to_string(),
-            props: vec![Property {
-                name: "size".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(40.0), Expr::Num(40.0)]),
-                value_span: None,
-                trailing_comment: None,
-            }],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        }
-    }
+    use crate::ast::{Expr, Modifier, Stmt, Time};
 
     fn shake_action(target: &str, intensity: f64) -> Stmt {
         Stmt::Action(

@@ -3,13 +3,11 @@
 //! registry lookup, survive repeat frames, and be bypassed while a
 //! cross-type morph picks a different primitive than the identity type.
 
+use super::support::{build_ast, parse};
 use super::*;
 
 fn build_timeline(source: &str) -> Timeline {
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {parse_errors:?}");
-    let ast = ast.expect("parsed AST");
-    Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new()).output
+    build_ast(&parse(source)).output
 }
 
 #[test]

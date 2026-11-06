@@ -51,8 +51,9 @@ mod targets;
 use dispatch::{BuiltinActionKind, execute_action};
 use guards::push_unknown_action_diagnostic;
 #[cfg(test)]
+mod test_support;
+#[cfg(test)]
 mod tests;
-
 pub(crate) use guards::{
     ensure_guard_keyframe, entrance_opacity_target, lift_hidden_by_default,
     lift_hidden_by_default_subtree, reveal_authored_zero_opacity,

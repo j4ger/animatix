@@ -1,3 +1,4 @@
+use super::support::{actor, keyframe};
 use super::*;
 use crate::ast::BinaryOp;
 
@@ -14,28 +15,6 @@ fn prop(name: &str, value: Expr) -> Property {
 
 fn vec2(x: f64, y: f64) -> Expr {
     Expr::Tuple(vec![Expr::Num(x), Expr::Num(y)])
-}
-
-fn actor(label: &str, ty: &str, props: Vec<Property>) -> Stmt {
-    Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: label.to_string(),
-        array_index: None,
-        ty: ty.to_string(),
-        props,
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    }
-}
-
-fn keyframe(seconds: f64, body: Vec<Stmt>) -> Stmt {
-    Stmt::Keyframe {
-        time: crate::ast::Time::Seconds(seconds),
-        body,
-        span: None,
-    }
 }
 
 fn let_decl(name: &str, value: Expr) -> Stmt {

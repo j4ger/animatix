@@ -216,8 +216,6 @@ pub fn allowed_property_indices(caps: &crate::timeline::ActorCaps, actor_type: &
         .collect()
 }
 
-// Tests
-
 #[cfg(test)]
 mod tests {
     use super::*;

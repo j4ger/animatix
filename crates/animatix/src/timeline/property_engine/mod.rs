@@ -41,7 +41,4 @@ pub(crate) use read::{
     effective_f32_resolved, effective_half_size_resolved, effective_transform,
     inject_extension_properties_into_env, inject_property_into_env,
 };
-// Kept crate-wide for the `effective_*` readers, which are its only caller.
-#[allow(unused_imports)]
-pub(crate) use read::read_property_value_resolved;
 pub(crate) use value::{parse_property_value, values_wrap};

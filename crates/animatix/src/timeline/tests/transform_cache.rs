@@ -3,13 +3,11 @@
 //! parent state + layout position instead of time, so playback skips their
 //! per-frame property sampling — while animated parents still move them.
 
+use super::support::{build_ast, parse};
 use super::*;
 
 fn build_timeline(source: &str) -> Timeline {
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {parse_errors:?}");
-    let ast = ast.expect("parsed AST");
-    Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new()).output
+    build_ast(&parse(source)).output
 }
 
 const DIMS: SceneDimensions = SceneDimensions {

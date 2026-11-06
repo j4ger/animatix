@@ -7,110 +7,42 @@ use super::*;
 use crate::timeline::path_data::{parse_svg_path_data, tokenize_path_data};
 
 #[test]
-fn test_parse_hex_color() {
-    let expr = parse_svg_color("#ff0000", None).unwrap();
-    assert_eq!(
-        expr,
-        Expr::Call("rgb".into(), vec![Expr::Num(255.0), Expr::Num(0.0), Expr::Num(0.0)])
-    );
+fn test_parse_color_family() {
+    let rgb = || Expr::Call("rgb".into(), vec![Expr::Num(255.0), Expr::Num(0.0), Expr::Num(0.0)]);
+    let cases: Vec<(&str, Option<Expr>)> = vec![
+        ("#ff0000", Some(rgb())),
+        ("#f00", Some(rgb())),
+        ("red", Some(Expr::Ident("red".into()))),
+        ("none", None),
+        ("rgb(255, 0, 0)", Some(rgb())),
+    ];
+    for (input, expected) in cases {
+        assert_eq!(parse_svg_color(input, None), expected, "color {input}");
+    }
 }
 
 #[test]
-fn test_parse_short_hex_color() {
-    let expr = parse_svg_color("#f00", None).unwrap();
-    assert_eq!(
-        expr,
-        Expr::Call("rgb".into(), vec![Expr::Num(255.0), Expr::Num(0.0), Expr::Num(0.0)])
-    );
-}
-
-#[test]
-fn test_parse_named_color() {
-    let expr = parse_svg_color("red", None).unwrap();
-    assert_eq!(expr, Expr::Ident("red".into()));
-}
-
-#[test]
-fn test_parse_none_color() {
-    let expr = parse_svg_color("none", None);
-    assert!(expr.is_none());
-}
-
-#[test]
-fn test_parse_rgb_color() {
-    let expr = parse_svg_color("rgb(255, 0, 0)", None).unwrap();
-    assert_eq!(
-        expr,
-        Expr::Call("rgb".into(), vec![Expr::Num(255.0), Expr::Num(0.0), Expr::Num(0.0)])
-    );
-}
-
-#[test]
-fn test_parse_transform_translate() {
-    let t = parse_transform("translate(10, 20)");
-    assert!((t.tx - 10.0).abs() < 1e-6);
-    assert!((t.ty - 20.0).abs() < 1e-6);
-}
-
-#[test]
-fn test_parse_transform_rotate() {
-    let t = parse_transform("rotate(45)");
-    assert!((t.rotation_deg - 45.0).abs() < 1e-6);
-}
-
-#[test]
-fn test_parse_transform_scale() {
-    let t = parse_transform("scale(2)");
-    assert!((t.sx - 2.0).abs() < 1e-6);
-    assert!((t.sy - 2.0).abs() < 1e-6);
-}
-
-#[test]
-fn test_parse_transform_combined() {
-    let t = parse_transform("translate(5, 10) rotate(30) scale(1.5)");
-    assert!((t.tx - 5.0).abs() < 1e-6);
-    assert!((t.ty - 10.0).abs() < 1e-6);
-    assert!((t.rotation_deg - 30.0).abs() < 1e-6);
-    assert!((t.sx - 1.5).abs() < 1e-6);
-    assert!((t.sy - 1.5).abs() < 1e-6);
+fn test_parse_transform_family() {
+    let cases: &[(&str, f64, f64, f64, f64, f64)] = &[
+        ("translate(10, 20)", 10.0, 20.0, 0.0, 1.0, 1.0),
+        ("rotate(45)", 0.0, 0.0, 45.0, 1.0, 1.0),
+        ("scale(2)", 0.0, 0.0, 0.0, 2.0, 2.0),
+        ("translate(5, 10) rotate(30) scale(1.5)", 5.0, 10.0, 30.0, 1.5, 1.5),
+    ];
+    for &(input, tx, ty, rotation_deg, sx, sy) in cases {
+        let t = parse_transform(input);
+        assert!((t.tx - tx).abs() < 1e-6, "{input}: tx");
+        assert!((t.ty - ty).abs() < 1e-6, "{input}: ty");
+        assert!((t.rotation_deg - rotation_deg).abs() < 1e-6, "{input}: rotation_deg");
+        assert!((t.sx - sx).abs() < 1e-6, "{input}: sx");
+        assert!((t.sy - sy).abs() < 1e-6, "{input}: sy");
+    }
 }
 
 #[test]
 fn test_tokenize_path_data() {
     let tokens = tokenize_path_data("M10 20 L30 40");
     assert_eq!(tokens, vec!["M", "10", "20", "L", "30", "40"]);
-}
-
-#[test]
-fn test_parse_svg_path_simple() {
-    let expr = parse_svg_path_data("M10 20 L30 40 Z");
-    let expected = Expr::List(vec![
-        Expr::Call("move_to".into(), vec![Expr::Num(10.0), Expr::Num(20.0)]),
-        Expr::Call("line_to".into(), vec![Expr::Num(30.0), Expr::Num(40.0)]),
-        Expr::Call("close".into(), vec![]),
-    ]);
-    assert_eq!(expr, expected);
-}
-
-#[test]
-fn test_parse_svg_path_curve() {
-    let expr = parse_svg_path_data("M0 0 C10 10 20 20 30 0 Z");
-    let expected = Expr::List(vec![
-        Expr::Call("move_to".into(), vec![Expr::Num(0.0), Expr::Num(0.0)]),
-        Expr::Call(
-            "curve_to".into(),
-            vec![
-                Expr::Num(10.0),
-                Expr::Num(10.0),
-                Expr::Num(20.0),
-                Expr::Num(20.0),
-                Expr::Num(30.0),
-                Expr::Num(0.0),
-            ],
-        ),
-        Expr::Call("close".into(), vec![]),
-    ]);
-    assert_eq!(expr, expected);
 }
 
 /// Compact path data glues a minus onto the following number, so `7-7` must
@@ -128,34 +60,54 @@ fn test_tokenize_splits_compact_numbers() {
     assert_eq!(tokenize_path_data("l-5-5"), vec!["l", "-5", "-5"]);
 }
 
-/// Only the first pair after a moveto opens a subpath; later pairs are an
-/// implicit lineto (SVG rule). This is what makes a diagonal such as
-/// `M17 7 7 17` render as a line instead of two disconnected dots.
 #[test]
-fn test_parse_svg_path_moveto_chains_to_lineto() {
-    let expr = parse_svg_path_data("M17 7 7 17");
-    assert_eq!(
-        expr,
-        Expr::List(vec![
-            Expr::Call("move_to".into(), vec![Expr::Num(17.0), Expr::Num(7.0)]),
-            Expr::Call("line_to".into(), vec![Expr::Num(7.0), Expr::Num(17.0)]),
-        ])
-    );
-}
-
-/// The exact shape produced from the `check` icon's path data — used by the
-/// `icon:` property to expand a bundled stroke icon into `Path` commands.
-#[test]
-fn test_parse_svg_path_check_icon_data() {
-    let expr = parse_svg_path_data("M20 6 9 17l-5-5");
-    assert_eq!(
-        expr,
-        Expr::List(vec![
-            Expr::Call("move_to".into(), vec![Expr::Num(20.0), Expr::Num(6.0)]),
-            Expr::Call("line_to".into(), vec![Expr::Num(9.0), Expr::Num(17.0)]),
-            Expr::Call("line_to".into(), vec![Expr::Num(4.0), Expr::Num(12.0)]),
-        ])
-    );
+fn test_parse_svg_path_family() {
+    let cases: Vec<(&str, Expr)> = vec![
+        (
+            "M10 20 L30 40 Z",
+            Expr::List(vec![
+                Expr::Call("move_to".into(), vec![Expr::Num(10.0), Expr::Num(20.0)]),
+                Expr::Call("line_to".into(), vec![Expr::Num(30.0), Expr::Num(40.0)]),
+                Expr::Call("close".into(), vec![]),
+            ]),
+        ),
+        (
+            "M0 0 C10 10 20 20 30 0 Z",
+            Expr::List(vec![
+                Expr::Call("move_to".into(), vec![Expr::Num(0.0), Expr::Num(0.0)]),
+                Expr::Call(
+                    "curve_to".into(),
+                    vec![
+                        Expr::Num(10.0),
+                        Expr::Num(10.0),
+                        Expr::Num(20.0),
+                        Expr::Num(20.0),
+                        Expr::Num(30.0),
+                        Expr::Num(0.0),
+                    ],
+                ),
+                Expr::Call("close".into(), vec![]),
+            ]),
+        ),
+        (
+            "M17 7 7 17",
+            Expr::List(vec![
+                Expr::Call("move_to".into(), vec![Expr::Num(17.0), Expr::Num(7.0)]),
+                Expr::Call("line_to".into(), vec![Expr::Num(7.0), Expr::Num(17.0)]),
+            ]),
+        ),
+        (
+            "M20 6 9 17l-5-5",
+            Expr::List(vec![
+                Expr::Call("move_to".into(), vec![Expr::Num(20.0), Expr::Num(6.0)]),
+                Expr::Call("line_to".into(), vec![Expr::Num(9.0), Expr::Num(17.0)]),
+                Expr::Call("line_to".into(), vec![Expr::Num(4.0), Expr::Num(12.0)]),
+            ]),
+        ),
+    ];
+    for (input, expected) in cases {
+        assert_eq!(parse_svg_path_data(input), expected, "path {input}");
+    }
 }
 
 #[test]

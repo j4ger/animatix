@@ -272,29 +272,6 @@ fn scaled_plot_quality(plot: &ProceduralPlot, quality_factor: f64) -> (usize, f6
     )
 }
 
-/// Re-sample one concrete `FuncSource` with the procedural renderer described
-/// by `plot`. Output-mode blending passes a [`FuncSource::Blend`] here;
-/// opacity-mode blending calls this separately for each endpoint.
-#[allow(dead_code)] // Public plot sampling API without cache, exercised by tests
-pub fn sample_plot_source(
-    plot: &ProceduralPlot,
-    env: &Environment,
-    func_ref: PlotFuncRef<'_>,
-    actual_max_depth: usize,
-    actual_tolerance: f64,
-    actual_resolution: usize,
-) -> Vec<VelloPath> {
-    sample_plot_source_cached(
-        plot,
-        env,
-        func_ref,
-        actual_max_depth,
-        actual_tolerance,
-        actual_resolution,
-        None,
-    )
-}
-
 /// Re-sample one concrete `FuncSource` with optional cache for compiled fast programs.
 pub fn sample_plot_source_cached(
     plot: &ProceduralPlot,

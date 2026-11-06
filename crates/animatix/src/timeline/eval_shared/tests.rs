@@ -7,45 +7,20 @@ use crate::timeline::Value;
 // ─── Binary op tests ─────────────────────────────────────────────────
 
 #[test]
-fn test_binary_op_num_add() {
-    let result = eval_binary_op(Value::Num(3.0), &BinaryOp::Add, Value::Num(4.0)).unwrap();
-    assert_eq!(result.as_num(), 7.0);
-}
-
-#[test]
-fn test_binary_op_num_sub() {
-    let result = eval_binary_op(Value::Num(10.0), &BinaryOp::Sub, Value::Num(3.0)).unwrap();
-    assert_eq!(result.as_num(), 7.0);
-}
-
-#[test]
-fn test_binary_op_num_mul() {
-    let result = eval_binary_op(Value::Num(6.0), &BinaryOp::Mul, Value::Num(7.0)).unwrap();
-    assert_eq!(result.as_num(), 42.0);
-}
-
-#[test]
-fn test_binary_op_num_div() {
-    let result = eval_binary_op(Value::Num(10.0), &BinaryOp::Div, Value::Num(2.0)).unwrap();
-    assert_eq!(result.as_num(), 5.0);
-}
-
-#[test]
-fn test_binary_op_num_div_by_zero() {
-    let result = eval_binary_op(Value::Num(10.0), &BinaryOp::Div, Value::Num(0.0)).unwrap();
-    assert_eq!(result.as_num(), 0.0);
-}
-
-#[test]
-fn test_binary_op_num_mod() {
-    let result = eval_binary_op(Value::Num(10.0), &BinaryOp::Mod, Value::Num(3.0)).unwrap();
-    assert_eq!(result.as_num(), 1.0);
-}
-
-#[test]
-fn test_binary_op_num_pow() {
-    let result = eval_binary_op(Value::Num(2.0), &BinaryOp::Pow, Value::Num(3.0)).unwrap();
-    assert_eq!(result.as_num(), 8.0);
+fn test_binary_op_num_arithmetic() {
+    let cases: &[(f64, BinaryOp, f64, f64)] = &[
+        (3.0, BinaryOp::Add, 4.0, 7.0),
+        (10.0, BinaryOp::Sub, 3.0, 7.0),
+        (6.0, BinaryOp::Mul, 7.0, 42.0),
+        (10.0, BinaryOp::Div, 2.0, 5.0),
+        (10.0, BinaryOp::Div, 0.0, 0.0),
+        (10.0, BinaryOp::Mod, 3.0, 1.0),
+        (2.0, BinaryOp::Pow, 3.0, 8.0),
+    ];
+    for (lhs, op, rhs, expected) in cases {
+        let result = eval_binary_op(Value::Num(*lhs), op, Value::Num(*rhs)).unwrap();
+        assert_eq!(result.as_num(), *expected, "lhs={lhs} op={op:?} rhs={rhs}");
+    }
 }
 
 #[test]

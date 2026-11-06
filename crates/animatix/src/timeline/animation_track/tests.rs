@@ -94,7 +94,7 @@ fn test_property_track_evaluation() {
     assert_eq!(track.evaluate(2500), [100.0, 100.0]);
 }
 
-// 4.1: field_ref/field_mut coverage tests
+// field_ref / field_mut coverage
 
 /// Helper: spawn a `Rect` entity with a keyframe added to a style `Vec4` field.
 fn create_world_vec4_keyframe(
@@ -184,39 +184,31 @@ fn create_world_string_keyframe(
 }
 
 #[test]
-fn test_field_ref_ascent_returns_f32() {
-    let (timeline, id) = create_world_f32_keyframe(ActorField::Ascent, 0, 10.0);
-    let fields = timeline.world().fields(id).expect("entity fields");
-    let rf = fields.field_ref(ActorField::Ascent).unwrap();
-    assert!(matches!(rf, TrackFieldRef::F32(_)));
-    assert_eq!(
-        rf.evaluate_value(0),
-        Some(super::super::property_engine::PropertyValue::F32(10.0))
-    );
-}
-
-#[test]
-fn test_field_ref_descent_returns_f32() {
-    let (timeline, id) = create_world_f32_keyframe(ActorField::Descent, 0, 5.0);
-    let fields = timeline.world().fields(id).expect("entity fields");
-    let rf = fields.field_ref(ActorField::Descent).unwrap();
-    assert!(matches!(rf, TrackFieldRef::F32(_)));
-}
-
-#[test]
-fn test_field_ref_baseline_returns_f32() {
-    let (timeline, id) = create_world_f32_keyframe(ActorField::Baseline, 0, 2.0);
-    let fields = timeline.world().fields(id).expect("entity fields");
-    let rf = fields.field_ref(ActorField::Baseline).unwrap();
-    assert!(matches!(rf, TrackFieldRef::F32(_)));
-}
-
-#[test]
-fn test_field_ref_font_weight_returns_f32() {
-    let (timeline, id) = create_world_f32_keyframe(ActorField::FontWeight, 0, 700.0);
-    let fields = timeline.world().fields(id).expect("entity fields");
-    let rf = fields.field_ref(ActorField::FontWeight).unwrap();
-    assert!(matches!(rf, TrackFieldRef::F32(_)));
+fn test_field_ref_f32_fields_return_f32() {
+    let cases: &[(ActorField, f32, Option<f32>)] = &[
+        (ActorField::Ascent, 10.0, Some(10.0)),
+        (ActorField::Descent, 5.0, None),
+        (ActorField::Baseline, 2.0, None),
+        (ActorField::FontWeight, 700.0, None),
+        (ActorField::LineHeight, 1.5, None),
+        (ActorField::LetterSpacing, 0.5, None),
+        (ActorField::WordSpacing, 2.0, None),
+        (ActorField::MinWidth, 100.0, None),
+        (ActorField::MinHeight, 200.0, None),
+        (ActorField::MaxHeight, 500.0, None),
+    ];
+    for &(field, value, expected) in cases {
+        let (timeline, id) = create_world_f32_keyframe(field, 0, value);
+        let fields = timeline.world().fields(id).expect("entity fields");
+        let rf = fields.field_ref(field).unwrap();
+        assert!(matches!(rf, TrackFieldRef::F32(_)), "{field:?} should be an F32 ref");
+        if let Some(expected) = expected {
+            assert_eq!(
+                rf.evaluate_value(0),
+                Some(super::super::property_engine::PropertyValue::F32(expected))
+            );
+        }
+    }
 }
 
 #[test]
@@ -225,54 +217,6 @@ fn test_field_ref_font_style_returns_string() {
     let fields = timeline.world().fields(id).expect("entity fields");
     let rf = fields.field_ref(ActorField::FontStyle).unwrap();
     assert!(matches!(rf, TrackFieldRef::String(_)));
-}
-
-#[test]
-fn test_field_ref_line_height_returns_f32() {
-    let (timeline, id) = create_world_f32_keyframe(ActorField::LineHeight, 0, 1.5);
-    let fields = timeline.world().fields(id).expect("entity fields");
-    let rf = fields.field_ref(ActorField::LineHeight).unwrap();
-    assert!(matches!(rf, TrackFieldRef::F32(_)));
-}
-
-#[test]
-fn test_field_ref_letter_spacing_returns_f32() {
-    let (timeline, id) = create_world_f32_keyframe(ActorField::LetterSpacing, 0, 0.5);
-    let fields = timeline.world().fields(id).expect("entity fields");
-    let rf = fields.field_ref(ActorField::LetterSpacing).unwrap();
-    assert!(matches!(rf, TrackFieldRef::F32(_)));
-}
-
-#[test]
-fn test_field_ref_word_spacing_returns_f32() {
-    let (timeline, id) = create_world_f32_keyframe(ActorField::WordSpacing, 0, 2.0);
-    let fields = timeline.world().fields(id).expect("entity fields");
-    let rf = fields.field_ref(ActorField::WordSpacing).unwrap();
-    assert!(matches!(rf, TrackFieldRef::F32(_)));
-}
-
-#[test]
-fn test_field_ref_min_width_returns_f32() {
-    let (timeline, id) = create_world_f32_keyframe(ActorField::MinWidth, 0, 100.0);
-    let fields = timeline.world().fields(id).expect("entity fields");
-    let rf = fields.field_ref(ActorField::MinWidth).unwrap();
-    assert!(matches!(rf, TrackFieldRef::F32(_)));
-}
-
-#[test]
-fn test_field_ref_min_height_returns_f32() {
-    let (timeline, id) = create_world_f32_keyframe(ActorField::MinHeight, 0, 200.0);
-    let fields = timeline.world().fields(id).expect("entity fields");
-    let rf = fields.field_ref(ActorField::MinHeight).unwrap();
-    assert!(matches!(rf, TrackFieldRef::F32(_)));
-}
-
-#[test]
-fn test_field_ref_max_height_returns_f32() {
-    let (timeline, id) = create_world_f32_keyframe(ActorField::MaxHeight, 0, 500.0);
-    let fields = timeline.world().fields(id).expect("entity fields");
-    let rf = fields.field_ref(ActorField::MaxHeight).unwrap();
-    assert!(matches!(rf, TrackFieldRef::F32(_)));
 }
 
 #[test]
@@ -333,7 +277,7 @@ fn test_field_mut_returns_correct_type_for_font_style() {
     assert!(matches!(f, TrackFieldMut::String(_)));
 }
 
-// 4.3: max_keyframe_time / has_any_keyframes regression tests
+// max_keyframe_time / has_any_keyframes regression
 
 #[test]
 fn test_max_keyframe_time_with_transform() {
@@ -454,7 +398,7 @@ fn test_has_any_keyframes_returns_true_for_multiple_keyframes() {
     assert!(timeline.world().has_any_keyframes(id));
 }
 
-// 4.4: is_currently_animating tests
+// is_currently_animating
 
 #[test]
 fn test_is_currently_animating_false_with_single_keyframe() {
@@ -510,7 +454,7 @@ fn test_is_currently_animating_works_with_linear_easing() {
     assert!(track.is_currently_animating(1000));
 }
 
-// 4.5: interpolation_segment tests
+// interpolation_segment
 
 #[test]
 fn test_interpolation_segment_none_for_empty_track() {
@@ -570,7 +514,7 @@ fn test_interpolation_segment_with_single_keyframe_returns_none() {
     assert!(track.interpolation_segment(1000).is_none());
 }
 
-// 4.8: Registry-driven iteration tests
+// Registry-driven iteration
 
 #[test]
 fn test_max_keyframe_time_iterates_through_all_registry_fields() {
@@ -646,7 +590,7 @@ fn test_registry_driven_has_any_keyframes_finds_word_spacing() {
     assert_eq!(fields.property_keyframe_times(ActorField::WordSpacing), vec![1000]);
 }
 
-// 4.9: TrackFieldRef helper methods
+// TrackFieldRef helper methods
 
 #[test]
 fn test_track_field_ref_evaluate_value_f32() {
@@ -754,7 +698,7 @@ fn test_track_field_ref_evaluate_value_none_for_position_binding() {
     assert!(rf.evaluate_value(0).is_none());
 }
 
-// 4.10: Cache invalidation tests
+// Cache invalidation
 
 #[test]
 fn test_set_default_value_invalidates_cache() {
@@ -800,7 +744,7 @@ fn test_clone_resets_cache_to_none() {
     assert_eq!(cloned.evaluate(500), 50.0);
 }
 
-// 4.11: Accessor method tests
+// Accessor methods
 
 #[test]
 fn test_default_value_returns_correct_reference() {

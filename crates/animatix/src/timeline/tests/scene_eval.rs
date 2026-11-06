@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use super::support::{actor, build_ast};
 use super::*;
 
 // Fixtures
@@ -24,20 +25,6 @@ fn pair(x: f64, y: f64) -> Expr {
 
 fn color4(r: f64, g: f64, b: f64, a: f64) -> Expr {
     Expr::Tuple(vec![Expr::Num(r), Expr::Num(g), Expr::Num(b), Expr::Num(a)])
-}
-
-fn actor(label: &str, ty: &str, props: Vec<Property>) -> Stmt {
-    Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: label.to_string(),
-        array_index: None,
-        ty: ty.to_string(),
-        props,
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    }
 }
 
 fn config_stmt(settings: Vec<Property>) -> Stmt {
@@ -94,10 +81,6 @@ fn text_actor(label: &str, text: &str) -> Stmt {
             property("font_family", Expr::Str("Open Sans".into())),
         ],
     )
-}
-
-fn build_ast(ast: &[Stmt]) -> BuildReport<Timeline> {
-    Timeline::build_with_diagnostics(ast, &HashMap::new())
 }
 
 fn build_source(source: &str) -> BuildReport<Timeline> {
