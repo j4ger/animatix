@@ -18,28 +18,9 @@ impl EditorBuffer {
             };
             let doc_line = doc_line.saturating_sub(1); // 0-indexed
 
-            let Some(cell_idx) = self.cell_index_for_source_line(doc_line) else {
+            let Some((cell_idx, body_start_line)) = self.cell_body_start(doc_line) else {
                 continue;
             };
-            let Some(cell_start_line) = self.source_line_for_cell(cell_idx) else {
-                continue;
-            };
-
-            let cell = &self.cells[cell_idx];
-
-            // How many header lines before the editable body?
-            let header_lines = match cell {
-                crate::cell_editor::Cell::Code { .. } => 0,
-                crate::cell_editor::Cell::Keyframe {
-                    attached_comment, ..
-                } => {
-                    let comment_lines =
-                        attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0);
-                    comment_lines + 1 // +1 for the #timestamp line
-                },
-            };
-
-            let body_start_line = cell_start_line + header_lines;
 
             // Track cell border color by severity.
             match d.severity {
@@ -81,6 +62,21 @@ impl EditorBuffer {
         self.refresh_semantic_highlights();
     }
 
+    /// Map a 0-indexed document line to its cell and the first line of that
+    /// cell's editable body. Keyframe cells carry their attached comment plus
+    /// the `#timestamp` line as a non-body header; code cells have none.
+    fn cell_body_start(&self, doc_line: usize) -> Option<(usize, usize)> {
+        let cell_idx = self.cell_index_for_source_line(doc_line)?;
+        let cell_start_line = self.source_line_for_cell(cell_idx)?;
+        let header_lines = match &self.cells[cell_idx] {
+            crate::cell_editor::Cell::Code { .. } => 0,
+            crate::cell_editor::Cell::Keyframe {
+                attached_comment, ..
+            } => attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0) + 1,
+        };
+        Some((cell_idx, cell_start_line + header_lines))
+    }
+
     /// Compute semantic highlights from the analyzer's symbol table and map
     /// them to cell-relative positions.
     fn refresh_semantic_highlights(&mut self) {
@@ -97,25 +93,9 @@ impl EditorBuffer {
             let doc_line = span.start_line.saturating_sub(1); // 0-indexed
             let doc_end_line = span.end_line.saturating_sub(1);
 
-            let Some(cell_idx) = self.cell_index_for_source_line(doc_line) else {
+            let Some((cell_idx, body_start_line)) = self.cell_body_start(doc_line) else {
                 continue;
             };
-            let Some(cell_start_line) = self.source_line_for_cell(cell_idx) else {
-                continue;
-            };
-
-            let cell = &self.cells[cell_idx];
-            let header_lines = match cell {
-                crate::cell_editor::Cell::Code { .. } => 0,
-                crate::cell_editor::Cell::Keyframe {
-                    attached_comment, ..
-                } => {
-                    let comment_lines =
-                        attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0);
-                    comment_lines + 1
-                },
-            };
-            let body_start_line = cell_start_line + header_lines;
 
             if doc_line < body_start_line {
                 continue;
@@ -137,25 +117,9 @@ impl EditorBuffer {
             let doc_line = span.start_line.saturating_sub(1);
             let doc_end_line = span.end_line.saturating_sub(1);
 
-            let Some(cell_idx) = self.cell_index_for_source_line(doc_line) else {
+            let Some((cell_idx, body_start_line)) = self.cell_body_start(doc_line) else {
                 continue;
             };
-            let Some(cell_start_line) = self.source_line_for_cell(cell_idx) else {
-                continue;
-            };
-
-            let cell = &self.cells[cell_idx];
-            let header_lines = match cell {
-                crate::cell_editor::Cell::Code { .. } => 0,
-                crate::cell_editor::Cell::Keyframe {
-                    attached_comment, ..
-                } => {
-                    let comment_lines =
-                        attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0);
-                    comment_lines + 1
-                },
-            };
-            let body_start_line = cell_start_line + header_lines;
 
             if doc_line < body_start_line {
                 continue;
@@ -176,20 +140,6 @@ impl EditorBuffer {
         if !symbols.scenes.is_empty() {
             for (cell_idx, cell) in self.cells.iter().enumerate() {
                 let cell_source = cell.to_source();
-                let Some(cell_start_line) = self.source_line_for_cell(cell_idx) else {
-                    continue;
-                };
-                let header_lines = match cell {
-                    crate::cell_editor::Cell::Code { .. } => 0,
-                    crate::cell_editor::Cell::Keyframe {
-                        attached_comment, ..
-                    } => {
-                        let comment_lines =
-                            attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0);
-                        comment_lines + 1
-                    },
-                };
-                let _body_start_line = cell_start_line + header_lines;
 
                 for line in cell_source.lines().enumerate() {
                     let (rel_line_idx, line_text) = line;
@@ -240,27 +190,9 @@ impl EditorBuffer {
             // Analyzer diagnostics use 0-based positions
             let doc_line = d.line;
 
-            let Some(cell_idx) = self.cell_index_for_source_line(doc_line) else {
+            let Some((cell_idx, body_start_line)) = self.cell_body_start(doc_line) else {
                 continue;
             };
-            let Some(cell_start_line) = self.source_line_for_cell(cell_idx) else {
-                continue;
-            };
-
-            let cell = &self.cells[cell_idx];
-
-            let header_lines = match cell {
-                crate::cell_editor::Cell::Code { .. } => 0,
-                crate::cell_editor::Cell::Keyframe {
-                    attached_comment, ..
-                } => {
-                    let comment_lines =
-                        attached_comment.as_ref().map(|c| c.lines().count()).unwrap_or(0);
-                    comment_lines + 1
-                },
-            };
-
-            let body_start_line = cell_start_line + header_lines;
 
             let severity = match d.severity {
                 animatix_analyzer::DiagnosticSeverity::Error => {

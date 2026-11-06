@@ -24,16 +24,9 @@ impl GestureHandler for MoveActorGesture {
                 }
 
                 // Get first selected actor
-                let actor = match ctx.selected_actors.iter().next().cloned() {
-                    Some(a) => a,
-                    None => return GestureResult::Ignored,
-                };
-
-                // Check if locked
-                let is_locked = ctx.timeline.is_some_and(|t| t.is_actor_locked(&actor));
-                if is_locked {
+                let Some(actor) = super::common::selected_unlocked_actor(ctx) else {
                     return GestureResult::Ignored;
-                }
+                };
 
                 // Get actor properties
                 let props = ctx.get_actor_props(&actor);
@@ -60,23 +53,23 @@ impl GestureHandler for MoveActorGesture {
                             .map(|p| p.position)
                             .unwrap_or([scene.x as f32, scene.y as f32]);
                         ctx.commands.push_back(
-                            Command::PropertyEdit(PropertyEdit {
-                                time_s: None,
-                                actor: actor.clone(),
-                                property: "placement_mode".into(),
-                                value: PropertyValue::String("manual".into()),
-                                create_keyframe: ctx.keyframe_mode,
-                            })
+                            Command::PropertyEdit(PropertyEdit::new(
+                                actor.clone(),
+                                "placement_mode",
+                                PropertyValue::String("manual".into()),
+                                ctx.keyframe_mode,
+                                None,
+                            ))
                             .into(),
                         );
                         ctx.commands.push_back(
-                            Command::PropertyEdit(PropertyEdit {
-                                time_s: None,
-                                actor: actor.clone(),
-                                property: "position".into(),
-                                value: PropertyValue::Vec2(current_pos),
-                                create_keyframe: ctx.keyframe_mode,
-                            })
+                            Command::PropertyEdit(PropertyEdit::new(
+                                actor.clone(),
+                                "position",
+                                PropertyValue::Vec2(current_pos),
+                                ctx.keyframe_mode,
+                                None,
+                            ))
                             .into(),
                         );
                     } else {

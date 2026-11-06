@@ -20,16 +20,9 @@ impl GestureHandler for MotionPathGesture {
         match gesture {
             Gesture::Start { pos, .. } => {
                 // Get first selected (unlocked) actor
-                let actor = match ctx.selected_actors.iter().next().cloned() {
-                    Some(a) => a,
-                    None => return GestureResult::Ignored,
-                };
-
-                // Check locked
-                let is_locked = ctx.timeline.is_some_and(|t| t.is_actor_locked(&actor));
-                if is_locked {
+                let Some(actor) = super::common::selected_unlocked_actor(ctx) else {
                     return GestureResult::Ignored;
-                }
+                };
 
                 // Get scene position for drag start reference
                 let scene = ctx.preview_screen_to_scene(preview_rect, *pos);
@@ -77,13 +70,13 @@ impl GestureHandler for MotionPathGesture {
                 let new_pos = [start_position[0] + dx, start_position[1] + dy];
 
                 ctx.commands.push_back(
-                    Command::PropertyEdit(PropertyEdit {
+                    Command::PropertyEdit(PropertyEdit::new(
                         actor,
-                        property: "position".into(),
-                        value: PropertyValue::Vec2(new_pos),
-                        time_s: Some(time_ms as f64 / 1000.0),
-                        create_keyframe: true,
-                    })
+                        "position",
+                        PropertyValue::Vec2(new_pos),
+                        true,
+                        Some(time_ms as f64 / 1000.0),
+                    ))
                     .into(),
                 );
 

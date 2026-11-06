@@ -159,13 +159,13 @@ impl GestureHandler for CalloutGesture {
                             ctx.selection.tapped_place_actor = Some(actor.clone());
                             let place_str = place.as_str();
                             ctx.commands.push_back(
-                                Command::PropertyEdit(PropertyEdit {
-                                    time_s: None,
+                                Command::PropertyEdit(PropertyEdit::new(
                                     actor,
-                                    property: "place".into(),
-                                    value: PropertyValue::String(place_str.to_string()),
-                                    create_keyframe: ctx.keyframe_mode,
-                                })
+                                    "place",
+                                    PropertyValue::String(place_str.to_string()),
+                                    ctx.keyframe_mode,
+                                    None,
+                                ))
                                 .into(),
                             );
                             return GestureResult::Claimed;
@@ -215,13 +215,13 @@ impl GestureHandler for CalloutGesture {
                         }
 
                         ctx.commands.push_back(
-                            Command::PropertyEdit(PropertyEdit {
-                                time_s: None,
+                            Command::PropertyEdit(PropertyEdit::new(
                                 actor,
-                                property: "label_at".into(),
-                                value: PropertyValue::Vec2(new_label_at),
-                                create_keyframe: ctx.keyframe_mode,
-                            })
+                                "label_at",
+                                PropertyValue::Vec2(new_label_at),
+                                ctx.keyframe_mode,
+                                None,
+                            ))
                             .into(),
                         );
                         GestureResult::Claimed
@@ -277,13 +277,13 @@ impl GestureHandler for CalloutGesture {
 
                         let property = if is_targeted { "to_offset" } else { "to" };
                         ctx.commands.push_back(
-                            Command::PropertyEdit(PropertyEdit {
-                                time_s: None,
+                            Command::PropertyEdit(PropertyEdit::new(
                                 actor,
-                                property: property.into(),
-                                value: PropertyValue::Vec2(new_value),
-                                create_keyframe: ctx.keyframe_mode,
-                            })
+                                property,
+                                PropertyValue::Vec2(new_value),
+                                ctx.keyframe_mode,
+                                None,
+                            ))
                             .into(),
                         );
                         GestureResult::Claimed
@@ -329,13 +329,13 @@ impl GestureHandler for CalloutGesture {
                         }
 
                         ctx.commands.push_back(
-                            Command::PropertyEdit(PropertyEdit {
-                                time_s: None,
+                            Command::PropertyEdit(PropertyEdit::new(
                                 actor,
-                                property: "standoff".into(),
-                                value: PropertyValue::F32(new_standoff),
-                                create_keyframe: ctx.keyframe_mode,
-                            })
+                                "standoff",
+                                PropertyValue::F32(new_standoff),
+                                ctx.keyframe_mode,
+                                None,
+                            ))
                             .into(),
                         );
                         GestureResult::Claimed

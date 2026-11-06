@@ -56,22 +56,9 @@ impl GestureHandler for ScaleGesture {
                     return GestureResult::Claimed;
                 }
 
-                // Get first selected actor
-                let actor = match ctx.selected_actors.iter().next().cloned() {
-                    Some(a) => a,
-                    None => return GestureResult::Ignored,
-                };
-
-                // Check if locked
-                let is_locked = ctx.timeline.is_some_and(|t| t.is_actor_locked(&actor));
-                if is_locked {
+                // Get first selected, unlocked actor and its props
+                let Some((actor, props)) = super::common::selected_actor_start(ctx) else {
                     return GestureResult::Ignored;
-                }
-
-                // Get actor properties
-                let props = match ctx.get_actor_props(&actor) {
-                    Some(p) => p,
-                    None => return GestureResult::Ignored,
                 };
 
                 let scene = ctx.preview_screen_to_scene(preview_rect, *pos);
@@ -166,15 +153,15 @@ impl GestureHandler for ScaleGesture {
                             preview::ResizeMode::Scale => {
                                 let ratio = sx.max(sy) as f32;
                                 ctx.commands.push_back(
-                                    Command::PropertyEdit(PropertyEdit {
-                                        time_s: None,
-                                        actor: a.label.clone(),
-                                        property: "scale".into(),
-                                        value: PropertyValue::F32(
+                                    Command::PropertyEdit(PropertyEdit::new(
+                                        a.label.clone(),
+                                        "scale",
+                                        PropertyValue::F32(
                                             (a.scale * ratio).max(PREVIEW_MIN_SCALE),
                                         ),
-                                        create_keyframe: ctx.keyframe_mode,
-                                    })
+                                        ctx.keyframe_mode,
+                                        None,
+                                    ))
                                     .into(),
                                 );
                             },
@@ -184,13 +171,13 @@ impl GestureHandler for ScaleGesture {
                                 let nh =
                                     ((a.size[1] as f64 * sy) as f32).max(PREVIEW_MIN_ACTOR_SIZE);
                                 ctx.commands.push_back(
-                                    Command::PropertyEdit(PropertyEdit {
-                                        time_s: None,
-                                        actor: a.label.clone(),
-                                        property: "size".into(),
-                                        value: PropertyValue::Vec2([nw, nh]),
-                                        create_keyframe: ctx.keyframe_mode,
-                                    })
+                                    Command::PropertyEdit(PropertyEdit::new(
+                                        a.label.clone(),
+                                        "size",
+                                        PropertyValue::Vec2([nw, nh]),
+                                        ctx.keyframe_mode,
+                                        None,
+                                    ))
                                     .into(),
                                 );
                             },
@@ -304,24 +291,24 @@ impl GestureHandler for ScaleGesture {
                 if resize_mode == preview::ResizeMode::Scale {
                     let ratio = new_w / start_size[0].max(1.0);
                     ctx.commands.push_back(
-                        Command::PropertyEdit(PropertyEdit {
-                            time_s: None,
-                            actor: actor.clone(),
-                            property: "scale".into(),
-                            value: PropertyValue::F32((start_scale * ratio).max(PREVIEW_MIN_SCALE)),
-                            create_keyframe: ctx.keyframe_mode,
-                        })
+                        Command::PropertyEdit(PropertyEdit::new(
+                            actor.clone(),
+                            "scale",
+                            PropertyValue::F32((start_scale * ratio).max(PREVIEW_MIN_SCALE)),
+                            ctx.keyframe_mode,
+                            None,
+                        ))
                         .into(),
                     );
                 } else {
                     ctx.commands.push_back(
-                        Command::PropertyEdit(PropertyEdit {
-                            time_s: None,
-                            actor: actor.clone(),
-                            property: "size".into(),
-                            value: PropertyValue::Vec2([new_w, new_h]),
-                            create_keyframe: ctx.keyframe_mode,
-                        })
+                        Command::PropertyEdit(PropertyEdit::new(
+                            actor.clone(),
+                            "size",
+                            PropertyValue::Vec2([new_w, new_h]),
+                            ctx.keyframe_mode,
+                            None,
+                        ))
                         .into(),
                     );
                 }

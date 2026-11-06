@@ -66,34 +66,32 @@ pub fn handle_rename_actor(
     let old_label_for_edit = old_label.clone();
     let new_label_for_edit = new_label.clone();
 
-    if let Some(ref mut stmts) = document_store.source.document.raw_statements {
-        let edit = crate::source_edit::SourceEdit::RenameActor {
-            old_label: old_label_for_edit,
-            new_label: new_label_for_edit,
-        };
-        if crate::source_edit::apply_edit(stmts, edit).is_err() {
-            document_store.abort_snapshot();
-            preview_store.preview.status =
-                format!("Rename failed — could not rename '{}' to '{}'", old_label, new_label);
-            return vec![];
-        }
-        let (new_source, source_index) = (
-            animatix_syntax::to_source::stmts_to_source(stmts),
-            animatix_syntax::source_index::SourceIndex::build(stmts),
-        );
-        document_store.commit_source(
-            new_source,
-            source_index,
-            ui_store.snapshot_with_preview(preview_store),
-        );
-        preview_store.pending_rebuild_at =
-            Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
-        preview_store.preview.status = format!("Renamed {} → {}", old_label, new_label);
-    } else {
+    let Some(mut stmts) = document_store.source.document.raw_statements.take() else {
         document_store.abort_snapshot();
         preview_store.preview.status = "Rename failed — no AST available".to_string();
         return vec![];
+    };
+    let edit = crate::source_edit::SourceEdit::RenameActor {
+        old_label: old_label_for_edit,
+        new_label: new_label_for_edit,
+    };
+    if crate::source_edit::apply_edit(&mut stmts, edit).is_err() {
+        document_store.source.document.raw_statements = Some(stmts);
+        document_store.abort_snapshot();
+        preview_store.preview.status =
+            format!("Rename failed — could not rename '{}' to '{}'", old_label, new_label);
+        return vec![];
     }
+    // Handler predates the configurable debounce; keep its 100ms rebuild delay.
+    crate::app::document_controller::commit_ast_with_debounce(
+        document_store,
+        preview_store,
+        ui_store,
+        stmts,
+        Vec::new(),
+        100,
+    );
+    preview_store.preview.status = format!("Renamed {} → {}", old_label, new_label);
 
     if ui_store.selection.selected_actors.contains(&old_label) {
         ui_store.selection.selected_actors.remove(&old_label);
@@ -350,13 +348,13 @@ pub fn handle_align_actors(
                         ref_value as f32 + (pos[1] - ((rect.y0 + rect.y1) / 2.0) as f32),
                     ],
                 };
-                edits.push(crate::app::commands::PropertyEdit {
-                    actor: actor.clone(),
-                    property: "position".into(),
-                    value: crate::app::commands::PropertyValue::Vec2(new_pos),
-                    create_keyframe: keyframe_mode,
-                    time_s: None,
-                });
+                edits.push(crate::app::commands::PropertyEdit::new(
+                    actor.clone(),
+                    "position",
+                    crate::app::commands::PropertyValue::Vec2(new_pos),
+                    keyframe_mode,
+                    None,
+                ));
             }
         }
     }
@@ -367,46 +365,43 @@ pub fn handle_align_actors(
     }
 
     begin_snapshot(document_store, preview_store, ui_store, Command::AlignActors(alignment));
-    if let Some(ref mut stmts) = document_store.source.document.raw_statements {
-        let snapshot = stmts.clone();
-        for edit in &edits {
-            let expr = match crate::app::commands::property_value_to_expr(edit.value.clone()) {
-                Ok(e) => e,
-                Err(e) => {
-                    *stmts = snapshot;
-                    document_store.abort_snapshot();
-                    preview_store.preview.status =
-                        format!("Alignment failed: expression error for '{}': {}", edit.actor, e);
-                    return vec![];
-                },
-            };
-            let source_edit = crate::source_edit::SourceEdit::SetProperty {
-                actor: edit.actor.clone(),
-                property: "at".into(),
-                value: expr,
-            };
-            if let Err(e) = crate::source_edit::apply_edit(stmts, source_edit) {
-                *stmts = snapshot;
-                document_store.abort_snapshot();
-                preview_store.preview.status = format!("Alignment failed: {}", e);
-                return vec![];
-            }
-        }
-        let (new_source, source_index) = (
-            animatix_syntax::to_source::stmts_to_source(stmts),
-            animatix_syntax::source_index::SourceIndex::build(stmts),
-        );
-        document_store.commit_source(
-            new_source,
-            source_index,
-            ui_store.snapshot_with_preview(preview_store),
-        );
-        preview_store.pending_rebuild_at =
-            Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
-    } else {
+    let Some(mut stmts) = document_store.source.document.raw_statements.take() else {
         document_store.abort_snapshot();
         return vec![];
+    };
+    let snapshot = stmts.clone();
+    for edit in &edits {
+        let expr = match crate::app::commands::property_value_to_expr(edit.value.clone()) {
+            Ok(e) => e,
+            Err(e) => {
+                document_store.source.document.raw_statements = Some(snapshot.clone());
+                document_store.abort_snapshot();
+                preview_store.preview.status =
+                    format!("Alignment failed: expression error for '{}': {}", edit.actor, e);
+                return vec![];
+            },
+        };
+        let source_edit = crate::source_edit::SourceEdit::SetProperty {
+            actor: edit.actor.clone(),
+            property: "at".into(),
+            value: expr,
+        };
+        if let Err(e) = crate::source_edit::apply_edit(&mut stmts, source_edit) {
+            document_store.source.document.raw_statements = Some(snapshot.clone());
+            document_store.abort_snapshot();
+            preview_store.preview.status = format!("Alignment failed: {}", e);
+            return vec![];
+        }
     }
+    // Handler predates the configurable debounce; keep its 100ms rebuild delay.
+    crate::app::document_controller::commit_ast_with_debounce(
+        document_store,
+        preview_store,
+        ui_store,
+        stmts,
+        Vec::new(),
+        100,
+    );
     preview_store.preview.status = format!("Aligned {} actors", rects.len());
     vec![]
 }
@@ -470,13 +465,13 @@ pub fn handle_distribute_actors(
                     Axis::Horizontal => [target as f32 + (pos[0] - rect.x0 as f32), pos[1]],
                     Axis::Vertical => [pos[0], target as f32 + (pos[1] - rect.y0 as f32)],
                 };
-                edits.push(crate::app::commands::PropertyEdit {
-                    actor: actor.clone(),
-                    property: "position".into(),
-                    value: crate::app::commands::PropertyValue::Vec2(new_pos),
-                    create_keyframe: keyframe_mode,
-                    time_s: None,
-                });
+                edits.push(crate::app::commands::PropertyEdit::new(
+                    actor.clone(),
+                    "position",
+                    crate::app::commands::PropertyValue::Vec2(new_pos),
+                    keyframe_mode,
+                    None,
+                ));
             }
         }
     }
@@ -487,48 +482,43 @@ pub fn handle_distribute_actors(
     }
 
     begin_snapshot(document_store, preview_store, ui_store, Command::DistributeActors(axis));
-    if let Some(ref mut stmts) = document_store.source.document.raw_statements {
-        let snapshot = stmts.clone();
-        for edit in &edits {
-            let expr = match crate::app::commands::property_value_to_expr(edit.value.clone()) {
-                Ok(e) => e,
-                Err(e) => {
-                    *stmts = snapshot;
-                    document_store.abort_snapshot();
-                    preview_store.preview.status = format!(
-                        "Distribution failed: expression error for '{}': {}",
-                        edit.actor, e
-                    );
-                    return vec![];
-                },
-            };
-            let source_edit = crate::source_edit::SourceEdit::SetProperty {
-                actor: edit.actor.clone(),
-                property: "at".into(),
-                value: expr,
-            };
-            if let Err(e) = crate::source_edit::apply_edit(stmts, source_edit) {
-                *stmts = snapshot;
-                document_store.abort_snapshot();
-                preview_store.preview.status = format!("Distribution failed: {}", e);
-                return vec![];
-            }
-        }
-        let (new_source, source_index) = (
-            animatix_syntax::to_source::stmts_to_source(stmts),
-            animatix_syntax::source_index::SourceIndex::build(stmts),
-        );
-        document_store.commit_source(
-            new_source,
-            source_index,
-            ui_store.snapshot_with_preview(preview_store),
-        );
-        preview_store.pending_rebuild_at =
-            Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
-    } else {
+    let Some(mut stmts) = document_store.source.document.raw_statements.take() else {
         document_store.abort_snapshot();
         return vec![];
+    };
+    let snapshot = stmts.clone();
+    for edit in &edits {
+        let expr = match crate::app::commands::property_value_to_expr(edit.value.clone()) {
+            Ok(e) => e,
+            Err(e) => {
+                document_store.source.document.raw_statements = Some(snapshot.clone());
+                document_store.abort_snapshot();
+                preview_store.preview.status =
+                    format!("Distribution failed: expression error for '{}': {}", edit.actor, e);
+                return vec![];
+            },
+        };
+        let source_edit = crate::source_edit::SourceEdit::SetProperty {
+            actor: edit.actor.clone(),
+            property: "at".into(),
+            value: expr,
+        };
+        if let Err(e) = crate::source_edit::apply_edit(&mut stmts, source_edit) {
+            document_store.source.document.raw_statements = Some(snapshot.clone());
+            document_store.abort_snapshot();
+            preview_store.preview.status = format!("Distribution failed: {}", e);
+            return vec![];
+        }
     }
+    // Handler predates the configurable debounce; keep its 100ms rebuild delay.
+    crate::app::document_controller::commit_ast_with_debounce(
+        document_store,
+        preview_store,
+        ui_store,
+        stmts,
+        Vec::new(),
+        100,
+    );
     preview_store.preview.status = format!("Distributed {} actors", rects.len());
     vec![]
 }
@@ -578,64 +568,60 @@ pub fn handle_group_selected_actors(
     begin_snapshot(document_store, preview_store, ui_store, Command::GroupSelectedActors);
 
     // Insert Group actor
-    if let Some(ref mut stmts) = document_store.source.document.raw_statements {
-        let group_props = vec![animatix_syntax::ast::Property {
-            name: "at".into(),
-            value: animatix_syntax::ast::Expr::Tuple(vec![
-                animatix_syntax::ast::Expr::Num(center[0] as f64),
-                animatix_syntax::ast::Expr::Num(center[1] as f64),
-            ]),
-            value_span: None,
-            trailing_comment: None,
-        }];
-        let edit = crate::source_edit::SourceEdit::InsertActor {
-            ty: "Group".into(),
-            label: group_label.clone(),
-            props: group_props,
-            container: None,
-            time_s: 0.0,
-        };
-        // Take snapshot for rollback
-        let snapshot = stmts.clone();
-        if let Err(e) = crate::source_edit::apply_edit(stmts, edit) {
-            *stmts = snapshot;
-            document_store.abort_snapshot();
-            preview_store.preview.status = format!("Group failed: {}", e);
-            return vec![];
-        }
-        // Reparent each selected actor into the group
-        for actor in &labels {
-            let reparent = crate::source_edit::SourceEdit::Reparent {
-                actor: actor.clone(),
-                new_parent: Some(group_label.clone()),
-            };
-            if let Err(e) = crate::source_edit::apply_edit(stmts, reparent) {
-                *stmts = snapshot;
-                document_store.abort_snapshot();
-                preview_store.preview.status =
-                    format!("Group failed while reparenting '{}': {}", actor, e);
-                return vec![];
-            }
-        }
-        let (new_source, source_index) = (
-            animatix_syntax::to_source::stmts_to_source(stmts),
-            animatix_syntax::source_index::SourceIndex::build(stmts),
-        );
-        document_store.commit_source(
-            new_source,
-            source_index,
-            ui_store.snapshot_with_preview(preview_store),
-        );
-        preview_store.pending_rebuild_at =
-            Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
-        ui_store.selection.selected_actors.clear();
-        ui_store.selection.selected_actors.insert(group_label.clone());
-        preview_store.preview.status =
-            format!("Grouped {} actors into {}", labels.len(), group_label);
-    } else {
+    let Some(mut stmts) = document_store.source.document.raw_statements.take() else {
         document_store.abort_snapshot();
         return vec![];
+    };
+    let group_props = vec![animatix_syntax::ast::Property {
+        name: "at".into(),
+        value: animatix_syntax::ast::Expr::Tuple(vec![
+            animatix_syntax::ast::Expr::Num(center[0] as f64),
+            animatix_syntax::ast::Expr::Num(center[1] as f64),
+        ]),
+        value_span: None,
+        trailing_comment: None,
+    }];
+    let edit = crate::source_edit::SourceEdit::InsertActor {
+        ty: "Group".into(),
+        label: group_label.clone(),
+        props: group_props,
+        container: None,
+        time_s: 0.0,
+    };
+    // Take snapshot for rollback
+    let snapshot = stmts.clone();
+    if let Err(e) = crate::source_edit::apply_edit(&mut stmts, edit) {
+        document_store.source.document.raw_statements = Some(snapshot.clone());
+        document_store.abort_snapshot();
+        preview_store.preview.status = format!("Group failed: {}", e);
+        return vec![];
     }
+    // Reparent each selected actor into the group
+    for actor in &labels {
+        let reparent = crate::source_edit::SourceEdit::Reparent {
+            actor: actor.clone(),
+            new_parent: Some(group_label.clone()),
+        };
+        if let Err(e) = crate::source_edit::apply_edit(&mut stmts, reparent) {
+            document_store.source.document.raw_statements = Some(snapshot.clone());
+            document_store.abort_snapshot();
+            preview_store.preview.status =
+                format!("Group failed while reparenting '{}': {}", actor, e);
+            return vec![];
+        }
+    }
+    // Handler predates the configurable debounce; keep its 100ms rebuild delay.
+    crate::app::document_controller::commit_ast_with_debounce(
+        document_store,
+        preview_store,
+        ui_store,
+        stmts,
+        Vec::new(),
+        100,
+    );
+    ui_store.selection.selected_actors.clear();
+    ui_store.selection.selected_actors.insert(group_label.clone());
+    preview_store.preview.status = format!("Grouped {} actors into {}", labels.len(), group_label);
     vec![]
 }
 
@@ -675,54 +661,51 @@ pub fn handle_ungroup_selected_actors(
         }
     }
 
-    if let Some(ref mut stmts) = document_store.source.document.raw_statements {
-        let snapshot = stmts.clone();
-        let mut ungrouped = 0;
-        for (group, children) in &group_children {
-            for child in children {
-                let reparent = crate::source_edit::SourceEdit::Reparent {
-                    actor: child.clone(),
-                    new_parent: None,
-                };
-                if let Err(e) = crate::source_edit::apply_edit(stmts, reparent) {
-                    *stmts = snapshot;
-                    document_store.abort_snapshot();
-                    preview_store.preview.status = format!("Ungroup failed: {}", e);
-                    return vec![];
-                }
-                ungrouped += 1;
-            }
-
-            // Remove the group actor
-            let delete = crate::source_edit::SourceEdit::DeleteActor {
-                label: group.clone(),
+    let Some(mut stmts) = document_store.source.document.raw_statements.take() else {
+        document_store.abort_snapshot();
+        return vec![];
+    };
+    let snapshot = stmts.clone();
+    let mut ungrouped = 0;
+    for (group, children) in &group_children {
+        for child in children {
+            let reparent = crate::source_edit::SourceEdit::Reparent {
+                actor: child.clone(),
+                new_parent: None,
             };
-            if let Err(e) = crate::source_edit::apply_edit(stmts, delete) {
-                *stmts = snapshot;
+            if let Err(e) = crate::source_edit::apply_edit(&mut stmts, reparent) {
+                document_store.source.document.raw_statements = Some(snapshot.clone());
                 document_store.abort_snapshot();
                 preview_store.preview.status = format!("Ungroup failed: {}", e);
                 return vec![];
             }
+            ungrouped += 1;
         }
 
-        let (new_source, source_index) = (
-            animatix_syntax::to_source::stmts_to_source(stmts),
-            animatix_syntax::source_index::SourceIndex::build(stmts),
-        );
-        document_store.commit_source(
-            new_source,
-            source_index,
-            ui_store.snapshot_with_preview(preview_store),
-        );
-        preview_store.pending_rebuild_at =
-            Some(std::time::Instant::now() + std::time::Duration::from_millis(100));
-        for group in &groups {
-            ui_store.selection.selected_actors.remove(group);
+        // Remove the group actor
+        let delete = crate::source_edit::SourceEdit::DeleteActor {
+            label: group.clone(),
+        };
+        if let Err(e) = crate::source_edit::apply_edit(&mut stmts, delete) {
+            document_store.source.document.raw_statements = Some(snapshot.clone());
+            document_store.abort_snapshot();
+            preview_store.preview.status = format!("Ungroup failed: {}", e);
+            return vec![];
         }
-        preview_store.preview.status = format!("Ungrouped {} children", ungrouped);
-    } else {
-        document_store.abort_snapshot();
-        return vec![];
     }
+
+    // Handler predates the configurable debounce; keep its 100ms rebuild delay.
+    crate::app::document_controller::commit_ast_with_debounce(
+        document_store,
+        preview_store,
+        ui_store,
+        stmts,
+        Vec::new(),
+        100,
+    );
+    for group in &groups {
+        ui_store.selection.selected_actors.remove(group);
+    }
+    preview_store.preview.status = format!("Ungrouped {} children", ungrouped);
     vec![]
 }

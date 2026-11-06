@@ -249,23 +249,20 @@ impl GuiShell {
                     // Snapshot for undo before palette mutation
                     let ui_before = self.ui_store.snapshot_with_preview(&self.preview_store);
                     self.document_store.snapshot(Command::InsertionFromPalette, ui_before);
-                    if let Some(ref mut stmts) = self.document_store.source.document.raw_statements
+                    if let Some(mut stmts) =
+                        self.document_store.source.document.raw_statements.take()
                     {
-                        if crate::source_edit::apply_edit(stmts, edit).is_ok() {
-                            let (new_source, source_index) = (
-                                animatix_syntax::to_source::stmts_to_source(stmts),
-                                animatix_syntax::source_index::SourceIndex::build(stmts),
-                            );
-                            let ui_after = self.ui_store.snapshot_with_preview(&self.preview_store);
-                            self.document_store.commit_source(new_source, source_index, ui_after);
-                            self.preview_store.pending_rebuild_at = Some(
-                                std::time::Instant::now()
-                                    + std::time::Duration::from_millis(
-                                        self.ui_store.rebuild_debounce_ms,
-                                    ),
+                        if crate::source_edit::apply_edit(&mut stmts, edit).is_ok() {
+                            crate::app::document_controller::commit_ast(
+                                &mut self.document_store,
+                                &mut self.preview_store,
+                                &self.ui_store,
+                                stmts,
+                                Vec::new(),
                             );
                             self.preview_store.preview.status = format!("Inserted {}", type_name);
                         } else {
+                            self.document_store.source.document.raw_statements = Some(stmts);
                             self.document_store.abort_snapshot();
                             self.preview_store.preview.status =
                                 format!("Failed to insert {}", type_name);
@@ -529,24 +526,21 @@ impl GuiShell {
                         time_s,
                         container,
                     };
-                    if let Some(ref mut stmts) = self.document_store.source.document.raw_statements
+                    if let Some(mut stmts) =
+                        self.document_store.source.document.raw_statements.take()
                     {
-                        if crate::source_edit::apply_edit(stmts, edit).is_ok() {
-                            let (new_source, source_index) = (
-                                animatix_syntax::to_source::stmts_to_source(stmts),
-                                animatix_syntax::source_index::SourceIndex::build(stmts),
-                            );
-                            let ui_after = self.ui_store.snapshot_with_preview(&self.preview_store);
-                            self.document_store.commit_source(new_source, source_index, ui_after);
-                            self.preview_store.pending_rebuild_at = Some(
-                                std::time::Instant::now()
-                                    + std::time::Duration::from_millis(
-                                        self.ui_store.rebuild_debounce_ms,
-                                    ),
+                        if crate::source_edit::apply_edit(&mut stmts, edit).is_ok() {
+                            crate::app::document_controller::commit_ast(
+                                &mut self.document_store,
+                                &mut self.preview_store,
+                                &self.ui_store,
+                                stmts,
+                                Vec::new(),
                             );
                             self.preview_store.preview.status =
                                 format!("Inserted snippet: {}", item.label);
                         } else {
+                            self.document_store.source.document.raw_statements = Some(stmts);
                             self.document_store.abort_snapshot();
                             self.preview_store.preview.status =
                                 format!("Failed to insert snippet: {}", item.label);
@@ -581,21 +575,19 @@ impl GuiShell {
             // Snapshot for undo before palette mutation
             let ui_before = self.ui_store.snapshot_with_preview(&self.preview_store);
             self.document_store.snapshot(Command::InsertionFromPalette, ui_before);
-            if let Some(ref mut stmts) = self.document_store.source.document.raw_statements {
-                if crate::source_edit::apply_edit(stmts, edit).is_ok() {
-                    let (new_source, source_index) = (
-                        animatix_syntax::to_source::stmts_to_source(stmts),
-                        animatix_syntax::source_index::SourceIndex::build(stmts),
-                    );
-                    let ui_after = self.ui_store.snapshot_with_preview(&self.preview_store);
-                    self.document_store.commit_source(new_source, source_index, ui_after);
-                    self.preview_store.pending_rebuild_at = Some(
-                        std::time::Instant::now()
-                            + std::time::Duration::from_millis(self.ui_store.rebuild_debounce_ms),
+            if let Some(mut stmts) = self.document_store.source.document.raw_statements.take() {
+                if crate::source_edit::apply_edit(&mut stmts, edit).is_ok() {
+                    crate::app::document_controller::commit_ast(
+                        &mut self.document_store,
+                        &mut self.preview_store,
+                        &self.ui_store,
+                        stmts,
+                        Vec::new(),
                     );
                     self.preview_store.preview.status = format!("Inserted {}", item.label);
                 } else {
                     tracing::warn!("apply_edit failed for insertion: {}", item.label);
+                    self.document_store.source.document.raw_statements = Some(stmts);
                     self.document_store.abort_snapshot();
                     self.preview_store.preview.status = format!("Failed to insert {}", item.label);
                 }

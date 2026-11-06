@@ -349,13 +349,13 @@ fn render_actor_state_controls(
     );
     if solo_resp.clicked() {
         commands.push_back(
-            Command::PropertyEdit(PropertyEdit {
-                time_s: None,
-                actor: actor_label.to_string(),
-                property: "solo".to_string(),
-                value: PropertyValue::Bool(!solo),
-                create_keyframe: false,
-            })
+            Command::PropertyEdit(PropertyEdit::new(
+                actor_label.to_string(),
+                "solo".to_string(),
+                PropertyValue::Bool(!solo),
+                false,
+                None,
+            ))
             .into(),
         );
     }

@@ -4,4 +4,5 @@
 //! the bounded `widget-screenshot` binary so GUI changes can be reviewed as
 //! artifacts instead of requiring a long-lived interactive session.
 
+pub mod png;
 pub mod screenshot_harness;

@@ -468,13 +468,13 @@ fn render_container_children(
             let mut new_order = order.to_vec();
             new_order.swap(i, i - 1);
             commands.push_back(
-                Command::PropertyEdit(PropertyEdit {
-                    time_s: None,
-                    actor: container.to_string(),
-                    property: "child_order".into(),
-                    value: GuiPropertyValue::StringList(new_order),
-                    create_keyframe: keyframe_mode,
-                })
+                Command::PropertyEdit(PropertyEdit::new(
+                    container.to_string(),
+                    "child_order",
+                    GuiPropertyValue::StringList(new_order),
+                    keyframe_mode,
+                    None,
+                ))
                 .into(),
             );
         }
@@ -482,13 +482,13 @@ fn render_container_children(
             let mut new_order = order.to_vec();
             new_order.swap(i, i + 1);
             commands.push_back(
-                Command::PropertyEdit(PropertyEdit {
-                    time_s: None,
-                    actor: container.to_string(),
-                    property: "child_order".into(),
-                    value: GuiPropertyValue::StringList(new_order),
-                    create_keyframe: keyframe_mode,
-                })
+                Command::PropertyEdit(PropertyEdit::new(
+                    container.to_string(),
+                    "child_order",
+                    GuiPropertyValue::StringList(new_order),
+                    keyframe_mode,
+                    None,
+                ))
                 .into(),
             );
         }

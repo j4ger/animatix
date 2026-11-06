@@ -55,26 +55,14 @@ pub(super) fn insert_keyframe_inner(
 // MoveKeyframeTime
 
 pub(crate) fn move_keyframe_time(
-    stmts: &mut [Stmt],
+    stmts: &mut Vec<Stmt>,
     scene: Option<&str>,
     actor: &str,
     property: &str,
     old_time_s: f64,
     new_time_s: f64,
 ) -> Result<(), SourceEditError> {
-    let target = match scene {
-        Some(name) => match scene_body_mut(stmts, name) {
-            Some(body) => body,
-            None => {
-                return Err(SourceEditError::KeyframeNotFound {
-                    actor: actor.to_string(),
-                    property: property.to_string(),
-                    time_s: old_time_s,
-                });
-            },
-        },
-        None => stmts,
-    };
+    let target = resolve_body(stmts, scene, actor, property, old_time_s)?;
     move_keyframe_time_inner(target, actor, property, old_time_s, new_time_s)
 }
 
@@ -118,11 +106,7 @@ fn move_keyframe_time_inner(
     let idx = match found_idx {
         Some(i) => i,
         None => {
-            return Err(SourceEditError::KeyframeNotFound {
-                actor: actor.to_string(),
-                property: property.to_string(),
-                time_s: old_time_s,
-            });
+            return Err(keyframe_not_found(actor, property, old_time_s));
         },
     };
 

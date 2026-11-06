@@ -34,11 +34,7 @@ pub(super) fn set_keyframe_easing_inner(
         }
     }
 
-    Err(SourceEditError::KeyframeNotFound {
-        actor: actor.to_string(),
-        property: property.to_string(),
-        time_s,
-    })
+    Err(keyframe_not_found(actor, property, time_s))
 }
 
 /// Walk into an assignment at the given time and set its easing modifier.
@@ -118,19 +114,7 @@ pub(crate) fn delete_keyframe(
     property: &str,
     time_s: f64,
 ) -> Result<(), SourceEditError> {
-    let target = match scene {
-        Some(name) => match scene_body_mut(stmts, name) {
-            Some(body) => body,
-            None => {
-                return Err(SourceEditError::KeyframeNotFound {
-                    actor: actor.to_string(),
-                    property: property.to_string(),
-                    time_s,
-                });
-            },
-        },
-        None => stmts,
-    };
+    let target = resolve_body(stmts, scene, actor, property, time_s)?;
     delete_keyframe_inner(target, actor, property, time_s)
 }
 
@@ -174,11 +158,7 @@ fn delete_keyframe_inner(
         }
     }
 
-    Err(SourceEditError::KeyframeNotFound {
-        actor: actor.to_string(),
-        property: property.to_string(),
-        time_s,
-    })
+    Err(keyframe_not_found(actor, property, time_s))
 }
 
 fn remove_assignment_from_body(body: &mut Vec<Stmt>, actor: &str, property: &str) {
@@ -201,18 +181,6 @@ pub(crate) fn insert_keyframe(
     time_s: f64,
     prev_time_s: f64,
 ) -> Result<(), SourceEditError> {
-    let target = match scene {
-        Some(name) => match scene_body_mut(stmts, name) {
-            Some(body) => body,
-            None => {
-                return Err(SourceEditError::KeyframeNotFound {
-                    actor: actor.to_string(),
-                    property: property.to_string(),
-                    time_s,
-                });
-            },
-        },
-        None => stmts,
-    };
+    let target = resolve_body(stmts, scene, actor, property, time_s)?;
     insert_keyframe_inner(target, actor, property, value, time_s, prev_time_s)
 }

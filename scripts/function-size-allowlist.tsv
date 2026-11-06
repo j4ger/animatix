@@ -13,13 +13,11 @@ crates/animatix-gui/src/app/panels/sidebar/layers.rs	render_actor_tree	363
 crates/animatix-gui/src/app/panels/sidebar/scenes.rs	scenes_content_ui	203
 crates/animatix-gui/src/app/preview/context/selection.rs	handle_preview_selection	221
 crates/animatix-gui/src/app/preview/gestures/callout.rs	handle	353
-crates/animatix-gui/src/app/preview/gestures/rotate.rs	handle	213
 crates/animatix-gui/src/app/preview/gestures/scale.rs	handle	334
 crates/animatix-gui/src/app/preview/property_popup.rs	popup_property_row	213
 crates/animatix-gui/src/app/preview/property_popup.rs	show_property_popup	206
 crates/animatix-gui/src/app/runtime/app_impl.rs	handle_keyboard_shortcuts	322
 crates/animatix-gui/src/app/shell/command_palette.rs	build_palette_items	247
-crates/animatix-gui/src/app/shell/export_dialog/actions.rs	start_export	458
 crates/animatix-gui/src/app/shell/export_dialog/settings.rs	render_export_settings	324
 crates/animatix-gui/src/app/shell/frame.rs	ui	294
 crates/animatix-gui/src/app/shell/insertion_palette/shell_ui.rs	insertion_palette_ui	418

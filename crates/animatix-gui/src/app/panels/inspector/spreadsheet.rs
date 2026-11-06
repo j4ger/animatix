@@ -329,13 +329,13 @@ pub(crate) fn render_property_spreadsheet(
                                     get_property_gui_value(timeline, id, prop_name, time_ms)
                                 {
                                     commands.push_back(
-                                        Command::PropertyEdit(PropertyEdit {
-                                            time_s: None,
-                                            actor: actor_label.to_string(),
-                                            property: prop_name.to_string(),
-                                            value: gui_val,
-                                            create_keyframe: true,
-                                        })
+                                        Command::PropertyEdit(PropertyEdit::new(
+                                            actor_label.to_string(),
+                                            prop_name.to_string(),
+                                            gui_val,
+                                            true,
+                                            None,
+                                        ))
                                         .into(),
                                     );
                                 }

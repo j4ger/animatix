@@ -46,11 +46,7 @@ fn with_keyframe_block<T>(
         }
     }
 
-    Err(SourceEditError::KeyframeNotFound {
-        actor: actor.to_string(),
-        property: property.to_string(),
-        time_s,
-    })
+    Err(keyframe_not_found(actor, property, time_s))
 }
 
 // SetKeyframeValue
@@ -60,26 +56,14 @@ fn with_keyframe_block<T>(
 /// This is an exact edit: it does not insert, move, or merge any keyframe. It
 /// is the graph editor's vertical-drag write-back.
 pub(crate) fn set_keyframe_value(
-    stmts: &mut [Stmt],
+    stmts: &mut Vec<Stmt>,
     scene: Option<&str>,
     actor: &str,
     property: &str,
     value: Expr,
     time_s: f64,
 ) -> Result<(), SourceEditError> {
-    let target = match scene {
-        Some(name) => match scene_body_mut(stmts, name) {
-            Some(body) => body,
-            None => {
-                return Err(SourceEditError::KeyframeNotFound {
-                    actor: actor.to_string(),
-                    property: property.to_string(),
-                    time_s,
-                });
-            },
-        },
-        None => stmts,
-    };
+    let target = resolve_body(stmts, scene, actor, property, time_s)?;
     with_keyframe_block(target, actor, property, time_s, move |body| {
         update_assignment(body, actor, canonical_to_source(property), value)
     })
@@ -145,25 +129,13 @@ fn update_assignment(
 // SetKeyframeEasing
 
 pub(crate) fn set_keyframe_easing(
-    stmts: &mut [Stmt],
+    stmts: &mut Vec<Stmt>,
     scene: Option<&str>,
     actor: &str,
     property: &str,
     time_s: f64,
     easing: animatix_syntax::easing::Easing,
 ) -> Result<(), SourceEditError> {
-    let target = match scene {
-        Some(name) => match scene_body_mut(stmts, name) {
-            Some(body) => body,
-            None => {
-                return Err(SourceEditError::KeyframeNotFound {
-                    actor: actor.to_string(),
-                    property: property.to_string(),
-                    time_s,
-                });
-            },
-        },
-        None => stmts,
-    };
+    let target = resolve_body(stmts, scene, actor, property, time_s)?;
     set_keyframe_easing_inner(target, actor, property, time_s, easing)
 }

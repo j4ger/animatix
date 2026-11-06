@@ -162,13 +162,13 @@ impl GestureHandler for ReorderGesture {
                             let insert_at = target_index.min(new_order.len());
                             new_order.insert(insert_at, item);
                             ctx.commands.push_back(
-                                Command::PropertyEdit(PropertyEdit {
-                                    time_s: None,
-                                    actor: container,
-                                    property: "child_order".into(),
-                                    value: PropertyValue::StringList(new_order),
-                                    create_keyframe: ctx.keyframe_mode,
-                                })
+                                Command::PropertyEdit(PropertyEdit::new(
+                                    container,
+                                    "child_order",
+                                    PropertyValue::StringList(new_order),
+                                    ctx.keyframe_mode,
+                                    None,
+                                ))
                                 .into(),
                             );
                         }

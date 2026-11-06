@@ -54,13 +54,13 @@ pub(crate) fn render_empty_property_lane(
                 .and_then(|effects| effects.sample_lane(prop_name, (playhead_s * 1000.0) as u64))
                 .unwrap_or(animatix::timeline::PropertyValue::F32(0.0));
             commands.push_back(
-                Command::PropertyEdit(PropertyEdit {
-                    actor: actor_label.to_string(),
-                    property: prop_name.to_string(),
+                Command::PropertyEdit(PropertyEdit::new(
+                    actor_label.to_string(),
+                    prop_name.to_string(),
                     value,
-                    create_keyframe: true,
-                    time_s: Some(playhead_s),
-                })
+                    true,
+                    Some(playhead_s),
+                ))
                 .into(),
             );
         } else if let Some(schema) = lane_schema(&caps, actor_type, prop_name) {
@@ -72,13 +72,13 @@ pub(crate) fn render_empty_property_lane(
                 .read_property_value(id, schema.field, (playhead_s * 1000.0) as u64)
                 .unwrap_or_else(|| (schema.default_value)(&caps));
             commands.push_back(
-                Command::PropertyEdit(PropertyEdit {
-                    actor: actor_label.to_string(),
-                    property: schema.name.to_string(),
+                Command::PropertyEdit(PropertyEdit::new(
+                    actor_label.to_string(),
+                    schema.name.to_string(),
                     value,
-                    create_keyframe: true,
-                    time_s: Some(playhead_s),
-                })
+                    true,
+                    Some(playhead_s),
+                ))
                 .into(),
             );
         } else {

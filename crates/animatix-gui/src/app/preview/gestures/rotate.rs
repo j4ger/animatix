@@ -47,22 +47,9 @@ impl GestureHandler for RotateGesture {
                     return GestureResult::Claimed;
                 }
 
-                // Get first selected actor
-                let actor = match ctx.selected_actors.iter().next().cloned() {
-                    Some(a) => a,
-                    None => return GestureResult::Ignored,
-                };
-
-                // Check if locked
-                let is_locked = ctx.timeline.is_some_and(|t| t.is_actor_locked(&actor));
-                if is_locked {
+                // Get first selected, unlocked actor and its props
+                let Some((actor, props)) = super::common::selected_actor_start(ctx) else {
                     return GestureResult::Ignored;
-                }
-
-                // Get actor properties
-                let props = match ctx.get_actor_props(&actor) {
-                    Some(p) => p,
-                    None => return GestureResult::Ignored,
                 };
 
                 // Convert screen pos to scene space
@@ -150,13 +137,13 @@ impl GestureHandler for RotateGesture {
                         let nx = center[0] + dx * cos_d - dy * sin_d;
                         let ny = center[1] + dx * sin_d + dy * cos_d;
                         ctx.commands.push_back(
-                            Command::PropertyEdit(PropertyEdit {
-                                time_s: None,
-                                actor: a.label.clone(),
-                                property: "rotation".into(),
-                                value: PropertyValue::F32(new_rot),
-                                create_keyframe: ctx.keyframe_mode,
-                            })
+                            Command::PropertyEdit(PropertyEdit::new(
+                                a.label.clone(),
+                                "rotation",
+                                PropertyValue::F32(new_rot),
+                                ctx.keyframe_mode,
+                                None,
+                            ))
                             .into(),
                         );
                         drag_utils::emit_position_edit(a.label.clone(), nx, ny, ctx);
@@ -192,13 +179,13 @@ impl GestureHandler for RotateGesture {
                         * ctx.rotation_snap_degrees.to_radians();
                 }
                 ctx.commands.push_back(
-                    Command::PropertyEdit(PropertyEdit {
-                        time_s: None,
+                    Command::PropertyEdit(PropertyEdit::new(
                         actor,
-                        property: "rotation".into(),
-                        value: PropertyValue::F32(new_rot),
-                        create_keyframe: ctx.keyframe_mode,
-                    })
+                        "rotation",
+                        PropertyValue::F32(new_rot),
+                        ctx.keyframe_mode,
+                        None,
+                    ))
                     .into(),
                 );
 

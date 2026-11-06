@@ -66,7 +66,7 @@ impl AnimatixApp {
             let pixels_per_point = ctx.pixels_per_point();
             let callback_ctx = ctx.clone();
             ctx.request_screenshot(move |image| {
-                match save_window_screenshot(&image, pixels_per_point, &path) {
+                match crate::dev::png::save_screenshot(&image, pixels_per_point, &path) {
                     Ok(()) => {
                         tracing::info!("workspace screenshot saved to {}", path.display());
                         callback_ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -80,32 +80,4 @@ impl AnimatixApp {
 
         ui.ctx().request_repaint();
     }
-}
-
-#[cfg(feature = "dev-screenshots")]
-fn save_window_screenshot(
-    image: &egui::ColorImage,
-    pixels_per_point: f32,
-    path: &std::path::Path,
-) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("create dir: {e}"))?;
-    }
-
-    let [img_w, img_h] = image.size;
-    let logical_w = (img_w as f32 / pixels_per_point).round() as u32;
-    let logical_h = (img_h as f32 / pixels_per_point).round() as u32;
-
-    let raw: Vec<u8> = image.pixels.iter().flat_map(|c| c.to_array()).collect();
-    let src = image::RgbaImage::from_raw(img_w as u32, img_h as u32, raw)
-        .ok_or("invalid screenshot buffer")?;
-    let resized = image::imageops::resize(
-        &src,
-        logical_w.max(1),
-        logical_h.max(1),
-        image::imageops::FilterType::Lanczos3,
-    );
-
-    resized.save(path).map_err(|e| format!("save png: {e}"))?;
-    Ok(())
 }

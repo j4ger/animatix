@@ -6,12 +6,12 @@
 //! responsible for calling `snapshot()` before delegating to a controller
 //! method.
 
-use std::time::Duration;
-
 use crate::app::document::timeline_diff::KeyframeId;
 use crate::app::preview::DragState;
 use crate::app::stores::*;
 use crate::source_edit;
+
+pub(crate) use commit::{commit_ast, commit_ast_with_debounce};
 
 // DocumentController
 
@@ -19,36 +19,6 @@ pub(crate) struct DocumentController<'a> {
     pub document_store: &'a mut DocumentStore,
     pub preview_store: &'a mut PreviewStore,
     pub ui_store: &'a mut UiStore,
-}
-
-/// Commit a mutated AST back to source text through the single edit-commit
-/// path.
-///
-/// Serializes `stmts`, rebuilds the source index, installs the AST, commits the
-/// source text with the post-edit UI snapshot, rescans keyframe lines, records
-/// adjustment flashes, and schedules the debounced rebuild.
-pub(crate) fn commit_ast(
-    document_store: &mut DocumentStore,
-    preview_store: &mut PreviewStore,
-    ui_store: &UiStore,
-    stmts: Vec<animatix_syntax::ast::Stmt>,
-    flashes: Vec<f64>,
-) {
-    let new_source = animatix_syntax::to_source::stmts_to_source(&stmts);
-    let source_index = animatix_syntax::source_index::SourceIndex::build(&stmts);
-    document_store.source.document.raw_statements = Some(stmts);
-
-    let ui_after = ui_store.snapshot_with_preview(preview_store);
-    document_store.commit_source(new_source, source_index, ui_after);
-    document_store.source.document.rescan_keyframe_lines();
-    for time in flashes {
-        preview_store
-            .preview
-            .flashed_keyframe_times
-            .push((time, std::time::Instant::now()));
-    }
-    preview_store.pending_rebuild_at =
-        Some(std::time::Instant::now() + Duration::from_millis(ui_store.rebuild_debounce_ms));
 }
 
 impl DocumentController<'_> {
@@ -351,5 +321,6 @@ fn resolve_timeline_for_scene<'a>(
     }
 }
 
+mod commit;
 mod keyframes;
 mod scenes;

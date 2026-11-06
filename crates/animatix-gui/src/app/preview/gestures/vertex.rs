@@ -33,22 +33,9 @@ impl GestureHandler for VertexGesture {
                     PREVIEW_HANDLE_HIT_RADIUS
                 };
 
-                // Get first selected (unlocked) actor
-                let actor = match ctx.selected_actors.iter().next().cloned() {
-                    Some(a) => a,
-                    None => return GestureResult::Ignored,
-                };
-
-                // Check locked
-                let is_locked = ctx.timeline.is_some_and(|t| t.is_actor_locked(&actor));
-                if is_locked {
+                // Get first selected (unlocked) actor and its props
+                let Some((actor, props)) = super::common::selected_actor_start(ctx) else {
                     return GestureResult::Ignored;
-                }
-
-                // Get actor properties
-                let props = match ctx.get_actor_props(&actor) {
-                    Some(p) => p,
-                    None => return GestureResult::Ignored,
                 };
 
                 // Evaluate points at current time
@@ -116,13 +103,13 @@ impl GestureHandler for VertexGesture {
                 }
 
                 ctx.commands.push_back(
-                    Command::PropertyEdit(PropertyEdit {
-                        time_s: None,
+                    Command::PropertyEdit(PropertyEdit::new(
                         actor,
-                        property: "points".into(),
-                        value: PropertyValue::PointList(new_points),
-                        create_keyframe: ctx.keyframe_mode,
-                    })
+                        "points",
+                        PropertyValue::PointList(new_points),
+                        ctx.keyframe_mode,
+                        None,
+                    ))
                     .into(),
                 );
 

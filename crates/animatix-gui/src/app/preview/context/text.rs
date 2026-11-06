@@ -141,13 +141,13 @@ impl PreviewContext<'_> {
             let actor = edit.actor.clone();
             let property = edit.property.clone();
             self.commands.push_back(
-                Command::PropertyEdit(PropertyEdit {
-                    time_s: None,
+                Command::PropertyEdit(PropertyEdit::new(
                     actor,
                     property,
-                    value: GuiPropertyValue::String(new_value),
-                    create_keyframe: false,
-                })
+                    GuiPropertyValue::String(new_value),
+                    false,
+                    None,
+                ))
                 .into(),
             );
             self.preview.inline_edit = None;

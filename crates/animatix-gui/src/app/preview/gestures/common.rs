@@ -2,6 +2,24 @@
 
 use super::super::context::PreviewContext;
 use crate::app::commands::{DragEvent, ShellAction};
+use crate::app::preview::ActorProps;
+
+/// First selected actor, unless it is locked.
+pub(crate) fn selected_unlocked_actor(ctx: &PreviewContext) -> Option<String> {
+    let actor = ctx.selected_actors.iter().next().cloned()?;
+    if ctx.timeline.is_some_and(|t| t.is_actor_locked(&actor)) {
+        return None;
+    }
+    Some(actor)
+}
+
+/// First selected actor plus its evaluated props; `None` when nothing is
+/// selected, the actor is locked, or its props cannot be evaluated.
+pub(crate) fn selected_actor_start(ctx: &PreviewContext) -> Option<(String, ActorProps)> {
+    let actor = selected_unlocked_actor(ctx)?;
+    let props = ctx.get_actor_props(&actor)?;
+    Some((actor, props))
+}
 
 /// Per-frame snapshot of pointer state for gesture dispatch.
 #[derive(Clone, Debug)]

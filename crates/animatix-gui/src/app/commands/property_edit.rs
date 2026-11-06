@@ -17,6 +17,27 @@ pub struct PropertyEdit {
 /// edits, inspector display, and engine evaluation do not need a parallel enum.
 pub type PropertyValue = animatix::timeline::PropertyValue;
 
+impl PropertyEdit {
+    /// Build a property edit. `create_keyframe` selects whether the edit lands
+    /// on a keyframe at `time_s` (or the current playback time when `None`)
+    /// rather than the default value.
+    pub fn new(
+        actor: impl Into<String>,
+        property: impl Into<String>,
+        value: PropertyValue,
+        create_keyframe: bool,
+        time_s: Option<f64>,
+    ) -> Self {
+        Self {
+            actor: actor.into(),
+            property: property.into(),
+            value,
+            create_keyframe,
+            time_s,
+        }
+    }
+}
+
 pub(crate) fn property_value_to_expr(
     pv: PropertyValue,
 ) -> Result<animatix_syntax::ast::Expr, String> {

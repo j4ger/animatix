@@ -24,22 +24,9 @@ impl GestureHandler for PivotGesture {
 
                 let hit_radius = PREVIEW_HANDLE_HIT_RADIUS;
 
-                // Get first selected actor
-                let actor = match ctx.selected_actors.iter().next().cloned() {
-                    Some(a) => a,
-                    None => return GestureResult::Ignored,
-                };
-
-                // Check if locked
-                let is_locked = ctx.timeline.is_some_and(|t| t.is_actor_locked(&actor));
-                if is_locked {
+                // Get first selected, unlocked actor and its props
+                let Some((actor, props)) = super::common::selected_actor_start(ctx) else {
                     return GestureResult::Ignored;
-                }
-
-                // Get actor properties
-                let props = match ctx.get_actor_props(&actor) {
-                    Some(p) => p,
-                    None => return GestureResult::Ignored,
                 };
 
                 // Hit-test the pivot crosshair

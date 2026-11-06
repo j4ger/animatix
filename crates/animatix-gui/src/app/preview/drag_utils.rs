@@ -385,13 +385,13 @@ pub(crate) fn emit_position_edit(actor: String, nx: f32, ny: f32, ctx: &mut Prev
         PositionBinding::SceneAnchor { anchor, .. } => {
             let anchor_pt = animatix::timeline::scene_anchor_point(anchor, ctx.scene_dimensions);
             ctx.commands.push_back(
-                Command::PropertyEdit(PropertyEdit {
-                    time_s: None,
+                Command::PropertyEdit(PropertyEdit::new(
                     actor,
-                    property: "offset".into(),
-                    value: PropertyValue::Vec2([nx - anchor_pt.x as f32, ny - anchor_pt.y as f32]),
-                    create_keyframe: ctx.keyframe_mode,
-                })
+                    "offset",
+                    PropertyValue::Vec2([nx - anchor_pt.x as f32, ny - anchor_pt.y as f32]),
+                    ctx.keyframe_mode,
+                    None,
+                ))
                 .into(),
             );
         },
@@ -399,25 +399,25 @@ pub(crate) fn emit_position_edit(actor: String, nx: f32, ny: f32, ctx: &mut Prev
             let w = ctx.scene_dimensions.width.max(1) as f32;
             let h = ctx.scene_dimensions.height.max(1) as f32;
             ctx.commands.push_back(
-                Command::PropertyEdit(PropertyEdit {
-                    time_s: None,
+                Command::PropertyEdit(PropertyEdit::new(
                     actor,
-                    property: "at".into(),
-                    value: PropertyValue::Vec2([nx / w, ny / h]),
-                    create_keyframe: ctx.keyframe_mode,
-                })
+                    "at",
+                    PropertyValue::Vec2([nx / w, ny / h]),
+                    ctx.keyframe_mode,
+                    None,
+                ))
                 .into(),
             );
         },
         _ => {
             ctx.commands.push_back(
-                Command::PropertyEdit(PropertyEdit {
-                    time_s: None,
+                Command::PropertyEdit(PropertyEdit::new(
                     actor,
-                    property: "position".into(),
-                    value: PropertyValue::Vec2([nx, ny]),
-                    create_keyframe: ctx.keyframe_mode,
-                })
+                    "position",
+                    PropertyValue::Vec2([nx, ny]),
+                    ctx.keyframe_mode,
+                    None,
+                ))
                 .into(),
             );
         },
@@ -442,13 +442,13 @@ pub(crate) fn finalize_drag_keyframes(old_drag_state: &DragState, ctx: &mut Prev
                     && current_props.position != start_pos
                 {
                     ctx.commands.push_back(
-                        Command::PropertyEdit(PropertyEdit {
-                            time_s: None,
-                            actor: primary.clone(),
-                            property: "position".into(),
-                            value: PropertyValue::Vec2(current_props.position),
-                            create_keyframe: true,
-                        })
+                        Command::PropertyEdit(PropertyEdit::new(
+                            primary.clone(),
+                            "position",
+                            PropertyValue::Vec2(current_props.position),
+                            true,
+                            None,
+                        ))
                         .into(),
                     );
                 }
@@ -464,13 +464,13 @@ pub(crate) fn finalize_drag_keyframes(old_drag_state: &DragState, ctx: &mut Prev
                         && current_props.size != *start_size
                     {
                         ctx.commands.push_back(
-                            Command::PropertyEdit(PropertyEdit {
-                                time_s: None,
-                                actor: actor.clone(),
-                                property: "size".into(),
-                                value: PropertyValue::Vec2(current_props.size),
-                                create_keyframe: true,
-                            })
+                            Command::PropertyEdit(PropertyEdit::new(
+                                actor.clone(),
+                                "size",
+                                PropertyValue::Vec2(current_props.size),
+                                true,
+                                None,
+                            ))
                             .into(),
                         );
                     }
@@ -478,13 +478,13 @@ pub(crate) fn finalize_drag_keyframes(old_drag_state: &DragState, ctx: &mut Prev
                         && current_props.position != *start_position
                     {
                         ctx.commands.push_back(
-                            Command::PropertyEdit(PropertyEdit {
-                                time_s: None,
-                                actor: actor.clone(),
-                                property: "position".into(),
-                                value: PropertyValue::Vec2(current_props.position),
-                                create_keyframe: true,
-                            })
+                            Command::PropertyEdit(PropertyEdit::new(
+                                actor.clone(),
+                                "position",
+                                PropertyValue::Vec2(current_props.position),
+                                true,
+                                None,
+                            ))
                             .into(),
                         );
                     }
@@ -500,13 +500,13 @@ pub(crate) fn finalize_drag_keyframes(old_drag_state: &DragState, ctx: &mut Prev
                     && current_props.rotation != *start_rotation
                 {
                     ctx.commands.push_back(
-                        Command::PropertyEdit(PropertyEdit {
-                            time_s: None,
-                            actor: actor.clone(),
-                            property: "rotation".into(),
-                            value: PropertyValue::F32(current_props.rotation),
-                            create_keyframe: true,
-                        })
+                        Command::PropertyEdit(PropertyEdit::new(
+                            actor.clone(),
+                            "rotation",
+                            PropertyValue::F32(current_props.rotation),
+                            true,
+                            None,
+                        ))
                         .into(),
                     );
                 }

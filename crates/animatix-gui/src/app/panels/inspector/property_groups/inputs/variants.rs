@@ -52,24 +52,24 @@ pub(super) fn render_sum_input(
     if selected != previous {
         let edit_value = gui_value_for_sum_variant(&variants[selected], buf.clone());
         commands.push_back(
-            Command::PropertyEdit(PropertyEdit {
-                time_s: None,
-                actor: actor_label.to_string(),
-                property: entry.name.to_string(),
-                value: edit_value,
-                create_keyframe: keyframe_mode,
-            })
+            Command::PropertyEdit(PropertyEdit::new(
+                actor_label.to_string(),
+                entry.name.to_string(),
+                edit_value,
+                keyframe_mode,
+                None,
+            ))
             .into(),
         );
     } else if label_changed {
         commands.push_back(
-            Command::PropertyEdit(PropertyEdit {
-                time_s: None,
-                actor: actor_label.to_string(),
-                property: entry.name.to_string(),
-                value: GuiPropertyValue::String(buf),
-                create_keyframe: keyframe_mode,
-            })
+            Command::PropertyEdit(PropertyEdit::new(
+                actor_label.to_string(),
+                entry.name.to_string(),
+                GuiPropertyValue::String(buf),
+                keyframe_mode,
+                None,
+            ))
             .into(),
         );
     }
@@ -125,24 +125,24 @@ pub(super) fn render_union_input(
                 _ => GuiPropertyValue::String(buf.clone()),
             };
             commands.push_back(
-                Command::PropertyEdit(PropertyEdit {
-                    time_s: None,
-                    actor: actor_label.to_string(),
-                    property: entry.name.to_string(),
-                    value: edit_value,
-                    create_keyframe: keyframe_mode,
-                })
+                Command::PropertyEdit(PropertyEdit::new(
+                    actor_label.to_string(),
+                    entry.name.to_string(),
+                    edit_value,
+                    keyframe_mode,
+                    None,
+                ))
                 .into(),
             );
         } else if label_changed {
             commands.push_back(
-                Command::PropertyEdit(PropertyEdit {
-                    time_s: None,
-                    actor: actor_label.to_string(),
-                    property: entry.name.to_string(),
-                    value: GuiPropertyValue::String(buf),
-                    create_keyframe: keyframe_mode,
-                })
+                Command::PropertyEdit(PropertyEdit::new(
+                    actor_label.to_string(),
+                    entry.name.to_string(),
+                    GuiPropertyValue::String(buf),
+                    keyframe_mode,
+                    None,
+                ))
                 .into(),
             );
         }
@@ -212,13 +212,13 @@ pub(super) fn render_text_input(
                             let chosen = variants[idx];
                             if chosen != text {
                                 commands.push_back(
-                                    Command::PropertyEdit(PropertyEdit {
-                                        time_s: None,
-                                        actor: actor_label.to_string(),
-                                        property: entry.name.to_string(),
-                                        value: GuiPropertyValue::String(chosen.to_string()),
-                                        create_keyframe: keyframe_mode,
-                                    })
+                                    Command::PropertyEdit(PropertyEdit::new(
+                                        actor_label.to_string(),
+                                        entry.name.to_string(),
+                                        GuiPropertyValue::String(chosen.to_string()),
+                                        keyframe_mode,
+                                        None,
+                                    ))
                                     .into(),
                                 );
                             }
@@ -241,13 +241,13 @@ pub(super) fn render_text_input(
                             let chosen = &families[idx];
                             if chosen != text {
                                 commands.push_back(
-                                    Command::PropertyEdit(PropertyEdit {
-                                        time_s: None,
-                                        actor: actor_label.to_string(),
-                                        property: entry.name.to_string(),
-                                        value: GuiPropertyValue::String(chosen.clone()),
-                                        create_keyframe: keyframe_mode,
-                                    })
+                                    Command::PropertyEdit(PropertyEdit::new(
+                                        actor_label.to_string(),
+                                        entry.name.to_string(),
+                                        GuiPropertyValue::String(chosen.clone()),
+                                        keyframe_mode,
+                                        None,
+                                    ))
                                     .into(),
                                 );
                             }
@@ -260,13 +260,13 @@ pub(super) fn render_text_input(
                             TextField::new(&mut buf).desired_width(ui.available_width()).show(ui);
                         if tf_resp.changed {
                             commands.push_back(
-                                Command::PropertyEdit(PropertyEdit {
-                                    time_s: None,
-                                    actor: actor_label.to_string(),
-                                    property: entry.name.to_string(),
-                                    value: GuiPropertyValue::String(buf),
-                                    create_keyframe: keyframe_mode,
-                                })
+                                Command::PropertyEdit(PropertyEdit::new(
+                                    actor_label.to_string(),
+                                    entry.name.to_string(),
+                                    GuiPropertyValue::String(buf),
+                                    keyframe_mode,
+                                    None,
+                                ))
                                 .into(),
                             );
                         }

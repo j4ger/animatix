@@ -235,13 +235,13 @@ pub(crate) fn render_property_row(
             );
         } else if let Some(value) = entry_to_gui_value(entry) {
             commands.push_back(
-                Command::PropertyEdit(PropertyEdit {
-                    time_s: None,
-                    actor: actor_label.to_string(),
-                    property: entry.name.to_string(),
+                Command::PropertyEdit(PropertyEdit::new(
+                    actor_label.to_string(),
+                    entry.name.to_string(),
                     value,
-                    create_keyframe: true,
-                })
+                    true,
+                    None,
+                ))
                 .into(),
             );
         }

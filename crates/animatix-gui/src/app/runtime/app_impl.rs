@@ -417,13 +417,13 @@ impl AnimatixApp {
                             })
                             .unwrap_or_default();
                         for (actor, new_pos) in &nudge_data {
-                            self.shell.handle_property_edit(crate::app::panels::PropertyEdit {
-                                time_s: None,
-                                actor: actor.clone(),
-                                property: "position".into(),
-                                value: crate::app::panels::PropertyValue::Vec2(*new_pos),
-                                create_keyframe: keyframe_mode,
-                            });
+                            self.shell.handle_property_edit(crate::app::panels::PropertyEdit::new(
+                                actor.clone(),
+                                "position",
+                                crate::app::panels::PropertyValue::Vec2(*new_pos),
+                                keyframe_mode,
+                                None,
+                            ));
                         }
                     } else {
                         // No selection: left/right arrows become frame stepping

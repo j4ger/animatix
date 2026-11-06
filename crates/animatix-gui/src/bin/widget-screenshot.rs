@@ -12,6 +12,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use animatix_gui::dev::png::save_screenshot;
 use animatix_gui::dev::screenshot_harness::{WIDGET_REGISTRY, install_theme, render_widget};
 use eframe::egui;
 use eparts::Theme;
@@ -131,33 +132,6 @@ impl eframe::App for ScreenshotApp {
             ui.ctx().request_repaint();
         }
     }
-}
-
-fn save_screenshot(
-    image: &egui::ColorImage,
-    pixels_per_point: f32,
-    path: &PathBuf,
-) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("create dir: {e}"))?;
-    }
-
-    let [img_w, img_h] = image.size;
-    let logical_w = (img_w as f32 / pixels_per_point).round() as u32;
-    let logical_h = (img_h as f32 / pixels_per_point).round() as u32;
-
-    let raw: Vec<u8> = image.pixels.iter().flat_map(|c| c.to_array()).collect();
-    let src = image::RgbaImage::from_raw(img_w as u32, img_h as u32, raw)
-        .ok_or("invalid screenshot buffer")?;
-    let resized = image::imageops::resize(
-        &src,
-        logical_w.max(1),
-        logical_h.max(1),
-        image::imageops::FilterType::Lanczos3,
-    );
-
-    resized.save(path).map_err(|e| format!("save png: {e}"))?;
-    Ok(())
 }
 
 fn main() {

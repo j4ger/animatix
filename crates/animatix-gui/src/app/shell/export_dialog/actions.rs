@@ -182,13 +182,7 @@ impl GuiShell {
                         ExportStatus::Failed("FPS must be > 0".into());
                     return;
                 }
-                let duration = if state.auto_duration {
-                    let d = effective_duration_s as f32 + state.hold_s.max(0.0);
-                    d.max(0.5)
-                } else {
-                    state.duration_s
-                };
-                if duration <= 0.0 {
+                if state.motion_duration_s(effective_duration_s) <= 0.0 {
                     self.export_store.export_status =
                         ExportStatus::Failed("Duration must be > 0".into());
                     return;
@@ -227,12 +221,7 @@ impl GuiShell {
         self.export_store.export_total_frames = match state.format {
             ExportFormat::Image | ExportFormat::WebP => 1,
             ExportFormat::Video | ExportFormat::Gif | ExportFormat::WebM | ExportFormat::Mov => {
-                let duration = if state.auto_duration {
-                    let d = effective_duration_s as f32 + state.hold_s.max(0.0);
-                    d.max(0.5)
-                } else {
-                    state.duration_s
-                };
+                let duration = state.motion_duration_s(effective_duration_s);
                 (duration * state.fps as f32).ceil() as u32
             },
         };
@@ -292,271 +281,19 @@ impl GuiShell {
                     }
                 },
                 #[cfg(feature = "video")]
-                ExportFormat::Video => {
-                    let duration = if state.auto_duration {
-                        let d = effective_duration_s as f32 + state.hold_s.max(0.0);
-                        d.max(0.5)
-                    } else {
-                        state.duration_s
-                    };
-                    if has_composition {
-                        match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Composition(
-                                comp,
-                            ) => animatix_render::encode::render_video_composition_with_options(
-                                comp,
-                                state.width,
-                                state.height,
-                                state.fps,
-                                duration,
-                                &output_path,
-                                debug,
-                                animatix_render::encode::ExportOptions {
-                                    settings: animatix_render::encode::ExportSettings {
-                                        video_codec: state.video_codec,
-                                        h264_preset: state.h264_preset,
-                                        ..Default::default()
-                                    },
-                                    progress: progress_ref,
-                                    cancel: cancel_ref,
-                                },
-                            ),
-                            _ => Err(animatix_render::encode::ExportError::Internal(format!(
-                                "export worker: format {:?} expected a composition target",
-                                state.format
-                            ))),
-                        }
-                    } else {
-                        match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Timeline(
-                                tl,
-                            ) => {
-                                let timeline = tl.as_ref().clone();
-                                animatix_render::encode::render_video_timeline_with_options(
-                                    timeline,
-                                    state.width,
-                                    state.height,
-                                    state.fps,
-                                    duration,
-                                    &output_path,
-                                    debug,
-                                    animatix_render::encode::ExportOptions {
-                                        settings: animatix_render::encode::ExportSettings {
-                                            video_codec: state.video_codec,
-                                            h264_preset: state.h264_preset,
-                                            ..Default::default()
-                                        },
-                                        progress: progress_ref,
-                                        cancel: cancel_ref,
-                                    },
-                                )
-                            },
-                            _ => Err(animatix_render::encode::ExportError::Internal(format!(
-                                "export worker: format {:?} expected a timeline target",
-                                state.format
-                            ))),
-                        }
-                    }
-                },
-                #[cfg(feature = "video")]
-                ExportFormat::WebM => {
-                    let duration = if state.auto_duration {
-                        let d = effective_duration_s as f32 + state.hold_s.max(0.0);
-                        d.max(0.5)
-                    } else {
-                        state.duration_s
-                    };
-                    if has_composition {
-                        match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Composition(
-                                comp,
-                            ) => animatix_render::encode::render_video_composition_with_options(
-                                comp,
-                                state.width,
-                                state.height,
-                                state.fps,
-                                duration,
-                                &output_path,
-                                debug,
-                                animatix_render::encode::ExportOptions {
-                                    settings: animatix_render::encode::ExportSettings {
-                                        video_codec: animatix_render::encode::VideoCodec::Vp9,
-                                        ..Default::default()
-                                    },
-                                    progress: progress_ref,
-                                    cancel: cancel_ref,
-                                },
-                            ),
-                            _ => Err(animatix_render::encode::ExportError::Internal(format!(
-                                "export worker: format {:?} expected a composition target",
-                                state.format
-                            ))),
-                        }
-                    } else {
-                        match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Timeline(
-                                tl,
-                            ) => {
-                                let timeline = tl.as_ref().clone();
-                                animatix_render::encode::render_video_timeline_with_options(
-                                    timeline,
-                                    state.width,
-                                    state.height,
-                                    state.fps,
-                                    duration,
-                                    &output_path,
-                                    debug,
-                                    animatix_render::encode::ExportOptions {
-                                        settings: animatix_render::encode::ExportSettings {
-                                            video_codec: animatix_render::encode::VideoCodec::Vp9,
-                                            ..Default::default()
-                                        },
-                                        progress: progress_ref,
-                                        cancel: cancel_ref,
-                                    },
-                                )
-                            },
-                            _ => Err(animatix_render::encode::ExportError::Internal(format!(
-                                "export worker: format {:?} expected a timeline target",
-                                state.format
-                            ))),
-                        }
-                    }
-                },
-                #[cfg(feature = "video")]
-                ExportFormat::Mov => {
-                    let duration = if state.auto_duration {
-                        let d = effective_duration_s as f32 + state.hold_s.max(0.0);
-                        d.max(0.5)
-                    } else {
-                        state.duration_s
-                    };
-                    if has_composition {
-                        match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Composition(
-                                comp,
-                            ) => animatix_render::encode::render_video_composition_with_options(
-                                comp,
-                                state.width,
-                                state.height,
-                                state.fps,
-                                duration,
-                                &output_path,
-                                debug,
-                                animatix_render::encode::ExportOptions {
-                                    settings: animatix_render::encode::ExportSettings {
-                                        video_codec: state.video_codec,
-                                        h264_preset: state.h264_preset,
-                                        ..Default::default()
-                                    },
-                                    progress: progress_ref,
-                                    cancel: cancel_ref,
-                                },
-                            ),
-                            _ => Err(animatix_render::encode::ExportError::Internal(format!(
-                                "export worker: format {:?} expected a composition target",
-                                state.format
-                            ))),
-                        }
-                    } else {
-                        match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Timeline(
-                                tl,
-                            ) => {
-                                let timeline = tl.as_ref().clone();
-                                animatix_render::encode::render_video_timeline_with_options(
-                                    timeline,
-                                    state.width,
-                                    state.height,
-                                    state.fps,
-                                    duration,
-                                    &output_path,
-                                    debug,
-                                    animatix_render::encode::ExportOptions {
-                                        settings: animatix_render::encode::ExportSettings {
-                                            video_codec: state.video_codec,
-                                            h264_preset: state.h264_preset,
-                                            ..Default::default()
-                                        },
-                                        progress: progress_ref,
-                                        cancel: cancel_ref,
-                                    },
-                                )
-                            },
-                            _ => Err(animatix_render::encode::ExportError::Internal(format!(
-                                "export worker: format {:?} expected a timeline target",
-                                state.format
-                            ))),
-                        }
-                    }
-                },
-                #[cfg(feature = "video")]
-                ExportFormat::Gif => {
-                    let duration = if state.auto_duration {
-                        let d = effective_duration_s as f32 + state.hold_s.max(0.0);
-                        d.max(0.5)
-                    } else {
-                        state.duration_s
-                    };
-                    if has_composition {
-                        match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Composition(
-                                comp,
-                            ) => animatix_render::encode::render_gif_composition_with_options(
-                                comp,
-                                state.width,
-                                state.height,
-                                state.fps,
-                                duration,
-                                &output_path,
-                                debug,
-                                animatix_render::encode::ExportOptions {
-                                    settings: animatix_render::encode::ExportSettings {
-                                        video_codec: state.video_codec,
-                                        h264_preset: state.h264_preset,
-                                        ..Default::default()
-                                    },
-                                    progress: progress_ref,
-                                    cancel: cancel_ref,
-                                },
-                            ),
-                            _ => Err(animatix_render::encode::ExportError::Internal(format!(
-                                "export worker: format {:?} expected a composition target",
-                                state.format
-                            ))),
-                        }
-                    } else {
-                        match &cloned_target {
-                            crate::app::document::export_target::ExportTargetOwned::Timeline(
-                                tl,
-                            ) => {
-                                let timeline = tl.as_ref().clone();
-                                animatix_render::encode::render_gif_timeline_with_options(
-                                    timeline,
-                                    state.width,
-                                    state.height,
-                                    state.fps,
-                                    duration,
-                                    &output_path,
-                                    debug,
-                                    animatix_render::encode::ExportOptions {
-                                        settings: animatix_render::encode::ExportSettings {
-                                            video_codec: state.video_codec,
-                                            h264_preset: state.h264_preset,
-                                            ..Default::default()
-                                        },
-                                        progress: progress_ref,
-                                        cancel: cancel_ref,
-                                    },
-                                )
-                            },
-                            _ => Err(animatix_render::encode::ExportError::Internal(format!(
-                                "export worker: format {:?} expected a timeline target",
-                                state.format
-                            ))),
-                        }
-                    }
-                },
+                ExportFormat::Video
+                | ExportFormat::WebM
+                | ExportFormat::Mov
+                | ExportFormat::Gif => render_motion_export(
+                    state.format,
+                    &cloned_target,
+                    &state,
+                    state.motion_duration_s(effective_duration_s),
+                    &output_path,
+                    debug,
+                    progress_ref,
+                    cancel_ref,
+                ),
                 // FFmpeg-only formats without the video feature:
                 #[cfg(not(feature = "video"))]
                 ExportFormat::Video
@@ -569,5 +306,109 @@ impl GuiShell {
             (result, result_path)
         });
         self.export_store.export_thread = Some(handle);
+    }
+}
+
+impl ExportDialogState {
+    /// Effective export duration for motion formats: the timeline length plus
+    /// the configured hold, or the manual override. Never below half a second.
+    fn motion_duration_s(&self, effective_duration_s: f64) -> f32 {
+        if self.auto_duration {
+            (effective_duration_s as f32 + self.hold_s.max(0.0)).max(0.5)
+        } else {
+            self.duration_s
+        }
+    }
+}
+
+/// Encoder settings for a motion format: WebM is always VP9; H.264 formats
+/// (MP4/MOV/GIF) carry the dialog's codec and preset selections unchanged.
+#[cfg(feature = "video")]
+fn export_settings_for(
+    state: &ExportDialogState,
+    format: ExportFormat,
+) -> animatix_render::encode::ExportSettings {
+    use animatix_render::encode::{ExportSettings, VideoCodec};
+    match format {
+        ExportFormat::WebM => ExportSettings {
+            video_codec: VideoCodec::Vp9,
+            ..Default::default()
+        },
+        _ => ExportSettings {
+            video_codec: state.video_codec,
+            h264_preset: state.h264_preset,
+            ..Default::default()
+        },
+    }
+}
+
+/// Run the motion encoder for `format` against whichever export target the
+/// dialog resolved. Selection is only the encode function: Video/Mov/Gif use
+/// the video encoders (GIF has its own), and WebM differs solely in settings.
+#[cfg(feature = "video")]
+fn render_motion_export(
+    format: ExportFormat,
+    target: &crate::app::document::export_target::ExportTargetOwned,
+    state: &ExportDialogState,
+    duration: f32,
+    output_path: &std::path::Path,
+    debug: animatix::timeline::DebugRenderOptions,
+    progress: Option<&std::sync::atomic::AtomicU32>,
+    cancel: Option<&std::sync::atomic::AtomicBool>,
+) -> Result<(), animatix_render::encode::ExportError> {
+    use crate::app::document::export_target::ExportTargetOwned;
+    use animatix_render::encode;
+
+    let options = encode::ExportOptions {
+        settings: export_settings_for(state, format),
+        progress,
+        cancel,
+    };
+    let (width, height, fps) = (state.width, state.height, state.fps);
+    match (format, target) {
+        (ExportFormat::Gif, ExportTargetOwned::Composition(comp)) => {
+            encode::render_gif_composition_with_options(
+                comp,
+                width,
+                height,
+                fps,
+                duration,
+                output_path,
+                debug,
+                options,
+            )
+        },
+        (_, ExportTargetOwned::Composition(comp)) => encode::render_video_composition_with_options(
+            comp,
+            width,
+            height,
+            fps,
+            duration,
+            output_path,
+            debug,
+            options,
+        ),
+        (ExportFormat::Gif, ExportTargetOwned::Timeline(tl)) => {
+            encode::render_gif_timeline_with_options(
+                tl.as_ref().clone(),
+                width,
+                height,
+                fps,
+                duration,
+                output_path,
+                debug,
+                options,
+            )
+        },
+        (_, ExportTargetOwned::Timeline(tl)) => encode::render_video_timeline_with_options(
+            tl.as_ref().clone(),
+            width,
+            height,
+            fps,
+            duration,
+            output_path,
+            debug,
+            options,
+        ),
     }
 }

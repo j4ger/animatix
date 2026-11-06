@@ -297,13 +297,13 @@ fn popup_property_row(
                 _ => PropertyValue::F32(values[0]),
             };
             commands.push_back(
-                Command::PropertyEdit(PropertyEdit {
-                    time_s: None,
-                    actor: actor.to_string(),
-                    property: property.to_string(),
+                Command::PropertyEdit(PropertyEdit::new(
+                    actor.to_string(),
+                    property.to_string(),
                     value,
-                    create_keyframe: true,
-                })
+                    true,
+                    None,
+                ))
                 .into(),
             );
         }
@@ -367,13 +367,13 @@ fn popup_property_row(
         match property {
             "position" => {
                 commands.push_back(
-                    Command::PropertyEdit(PropertyEdit {
-                        time_s: None,
-                        actor: actor.to_string(),
-                        property: "position".into(),
-                        value: PropertyValue::Vec2([values[0] + scene_dx, values[1] + scene_dy]),
-                        create_keyframe: false,
-                    })
+                    Command::PropertyEdit(PropertyEdit::new(
+                        actor.to_string(),
+                        "position",
+                        PropertyValue::Vec2([values[0] + scene_dx, values[1] + scene_dy]),
+                        false,
+                        None,
+                    ))
                     .into(),
                 );
             },
@@ -381,39 +381,39 @@ fn popup_property_row(
                 let new_w = (values[0] + scene_dx).max(1.0);
                 let new_h = (values[1] + scene_dy).max(1.0);
                 commands.push_back(
-                    Command::PropertyEdit(PropertyEdit {
-                        time_s: None,
-                        actor: actor.to_string(),
-                        property: "size".into(),
-                        value: PropertyValue::Vec2([new_w, new_h]),
-                        create_keyframe: false,
-                    })
+                    Command::PropertyEdit(PropertyEdit::new(
+                        actor.to_string(),
+                        "size",
+                        PropertyValue::Vec2([new_w, new_h]),
+                        false,
+                        None,
+                    ))
                     .into(),
                 );
             },
             "rotation" => {
                 let new_deg = (values[0] + delta.x * 0.5).rem_euclid(360.0);
                 commands.push_back(
-                    Command::PropertyEdit(PropertyEdit {
-                        time_s: None,
-                        actor: actor.to_string(),
-                        property: "rotation".into(),
-                        value: PropertyValue::F32(new_deg.to_radians()),
-                        create_keyframe: false,
-                    })
+                    Command::PropertyEdit(PropertyEdit::new(
+                        actor.to_string(),
+                        "rotation",
+                        PropertyValue::F32(new_deg.to_radians()),
+                        false,
+                        None,
+                    ))
                     .into(),
                 );
             },
             "opacity" => {
                 let new_opac = (values[0] + delta.x * 0.5).clamp(0.0, 100.0);
                 commands.push_back(
-                    Command::PropertyEdit(PropertyEdit {
-                        time_s: None,
-                        actor: actor.to_string(),
-                        property: "opacity".into(),
-                        value: PropertyValue::F32(new_opac / 100.0),
-                        create_keyframe: false,
-                    })
+                    Command::PropertyEdit(PropertyEdit::new(
+                        actor.to_string(),
+                        "opacity",
+                        PropertyValue::F32(new_opac / 100.0),
+                        false,
+                        None,
+                    ))
                     .into(),
                 );
             },
