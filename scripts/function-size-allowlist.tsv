@@ -4,8 +4,6 @@
 # a row for new code and never raise an existing maximum. See docs/ecs.md §8.
 crates/animatix-gui/src/app/interaction/keyboard/registry.rs	register_defaults	388
 crates/animatix-gui/src/app/panels/curves_panel.rs	curves_panel_ui	401
-crates/animatix-gui/src/app/panels/inspector/property_groups/mod.rs	build_property_groups	347
-crates/animatix-gui/src/app/panels/inspector/property_groups/render.rs	render_property_row	240
 crates/animatix-gui/src/app/panels/inspector/scene.rs	render_scene_inspector	366
 crates/animatix-gui/src/app/panels/inspector/spreadsheet.rs	render_property_spreadsheet	315
 crates/animatix-gui/src/app/panels/sidebar/layers.rs	render_actor_tree	363
