@@ -2,5 +2,4 @@
 # Frozen at the Phase 3 baseline. This is a ratchet: delete a row when the
 # function is split, shortened below its threshold, renamed or moved; never add
 # a row for new code and never raise an existing maximum. See docs/ecs.md §8.
-crates/animatix-syntax/src/parser/expr.rs	parser	342
 crates/animatix-syntax/src/parser/stmt.rs	parser	758
