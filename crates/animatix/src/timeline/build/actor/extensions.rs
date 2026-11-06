@@ -345,7 +345,44 @@ impl Timeline {
         let frame = self.begin_actor_decl(label, ty, props, None);
         let existing_track_id = frame.track_id;
 
-        if let Some(ProcessedPlotActor {
+        if let Some(processed) = self.process_plot_actor(
+            label,
+            ty,
+            props,
+            time_ms,
+            parent_label,
+            children,
+            diagnostics,
+            existing_track_id,
+        ) {
+            self.finish_plot_actor_dispatch(
+                label,
+                props,
+                modifiers,
+                time_ms,
+                parent_label,
+                diagnostics,
+                frame,
+                existing_track_id,
+                processed,
+            );
+        }
+    }
+
+    /// Keyframe a resolved plot declaration onto the track the prologue spawned.
+    fn finish_plot_actor_dispatch(
+        &mut self,
+        label: &str,
+        props: &[Property],
+        modifiers: &[Modifier],
+        time_ms: f64,
+        parent_label: Option<&str>,
+        diagnostics: &mut Vec<Diagnostic>,
+        frame: super::helpers::ActorDeclFrame,
+        existing_track_id: crate::timeline::EntityId,
+        processed: ProcessedPlotActor,
+    ) {
+        let ProcessedPlotActor {
             initial_size,
             line_from,
             line_to,
@@ -361,219 +398,229 @@ impl Timeline {
             tick_label_data,
             bar_layout,
             bar_data,
-        }) = self.process_plot_actor(
-            label,
-            ty,
-            props,
-            time_ms,
-            parent_label,
-            children,
+        } = processed;
+
+        // Use returned values for keyframe insertion
+        let mut position = self.world.geometry(existing_track_id).position.last([0.0, 0.0]);
+        let eval_env = self.build_eval_env(time_ms as u64);
+        for prop in props {
+            if (prop.name == "at" || prop.name == "position")
+                && let Ok(super::Value::Vec2(pos)) = super::evaluate_expr(&prop.value, &eval_env)
+            {
+                position = [pos[0] as f32, pos[1] as f32];
+            }
+        }
+
+        // Resolve `anchor`/`offset` (and scene-relative `at`) exactly like
+        // the generic actor path below. The plot builder only consumed
+        // absolute `at`/`position`, which silently dropped scene anchoring
+        // on plot actors even though the registry marks anchor/offset
+        // applicable to them.
+        let position_binding = plot_dispatch_position_binding(props, &eval_env, diagnostics, label);
+        let size = initial_size;
+        // Unified declaration rule (shared with the generic actor path):
+        // an explicit `opacity` wins; otherwise a first declaration starts
+        // at `default_opacity` and a re-declaration keeps its last authored
+        // value. Falling back to 1.0 on re-declaration would silently reset
+        // an authored `opacity: 0.05` on the next beat — the render layer
+        // already multiplies fill/stroke alpha by node opacity, so the
+        // retained value is what should apply.
+        let existing_opacity = self.world.style(frame.track_id).opacity.last(1.0);
+        let mut opacity = self.declaration_opacity(
+            frame.is_first_decl,
+            frame.has_explicit_opacity,
+            existing_opacity,
+        );
+        if let Some(prop) = props.iter().find(|p| p.name == "opacity") {
+            let subject = format!("{}.{}", label, prop.name);
+            opacity =
+                evaluate_expr_with_lookup_diagnostic(&prop.value, &eval_env, diagnostics, &subject)
+                    .unwrap_or(Value::Num(1.0))
+                    .as_num() as f32;
+        }
+
+        let ParsedTimingModifiers {
+            duration_ms,
+            delay_ms,
+            easing,
+            ..
+        } = parse_timing_modifiers(
+            modifiers,
+            ModifierHost::ActorDeclaration,
+            Some(label),
             diagnostics,
-            existing_track_id,
-        ) {
-            // Use returned values for keyframe insertion
-            let mut position = self.world.geometry(existing_track_id).position.last([0.0, 0.0]);
-            let eval_env = self.build_eval_env(time_ms as u64);
-            for prop in props {
-                if (prop.name == "at" || prop.name == "position")
-                    && let Ok(super::Value::Vec2(pos)) =
-                        super::evaluate_expr(&prop.value, &eval_env)
-                {
-                    position = [pos[0] as f32, pos[1] as f32];
-                }
-            }
+        );
+        let t_start_ms = (time_ms + delay_ms) as u64;
+        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
-            // Resolve `anchor`/`offset` (and scene-relative `at`) exactly like
-            // the generic actor path below. The plot builder only consumed
-            // absolute `at`/`position`, which silently dropped scene anchoring
-            // on plot actors even though the registry marks anchor/offset
-            // applicable to them.
-            let mut at_expr: Option<&Expr> = None;
-            let mut anchor_expr: Option<&Expr> = None;
-            let mut offset_expr: Option<&Expr> = None;
-            for prop in props {
-                match prop.name.as_str() {
-                    "at" | "position" => at_expr = Some(&prop.value),
-                    "anchor" => anchor_expr = Some(&prop.value),
-                    "offset" => offset_expr = Some(&prop.value),
-                    _ => {}, // Not a position property.
-                }
-            }
-            let position_binding = resolve_position_binding_with_lookup_diagnostic(
-                at_expr,
-                anchor_expr,
-                offset_expr,
-                &eval_env,
-                diagnostics,
-                label,
-            );
-            let size = initial_size;
-            // Unified declaration rule (shared with the generic actor path):
-            // an explicit `opacity` wins; otherwise a first declaration starts
-            // at `default_opacity` and a re-declaration keeps its last authored
-            // value. Falling back to 1.0 on re-declaration would silently reset
-            // an authored `opacity: 0.05` on the next beat — the render layer
-            // already multiplies fill/stroke alpha by node opacity, so the
-            // retained value is what should apply.
-            let existing_opacity = self.world.style(frame.track_id).opacity.last(1.0);
-            let mut opacity = self.declaration_opacity(
-                frame.is_first_decl,
-                frame.has_explicit_opacity,
-                existing_opacity,
-            );
-            if let Some(prop) = props.iter().find(|p| p.name == "opacity") {
-                let subject = format!("{}.{}", label, prop.name);
-                opacity = evaluate_expr_with_lookup_diagnostic(
-                    &prop.value,
-                    &eval_env,
-                    diagnostics,
-                    &subject,
-                )
-                .unwrap_or(Value::Num(1.0))
-                .as_num() as f32;
-            }
+        // The prologue above already spawned the track and rebuilt its
+        // plan; keep the same entity so a re-declaration writes onto it.
+        let track_id = existing_track_id;
+        // Plot-family build path only (this dispatch serves Graph,
+        // PlotCurve, VectorField, Heatmap, ContourSet, NumberPlane and
+        // BarChart), so it owns the plot payload outright: assigning all
+        // three fields mirrors the old flat-field overwrite, including the
+        // clear on a re-declaration that resolves no plot.
+        let payload = self.world.ensure_plot_payload(track_id);
+        payload.procedural_plot = procedural_plot;
+        payload.bar_layout = bar_layout;
+        payload.bar_data = bar_data;
 
-            let ParsedTimingModifiers {
-                duration_ms,
-                delay_ms,
-                easing,
-                ..
-            } = parse_timing_modifiers(
-                modifiers,
-                ModifierHost::ActorDeclaration,
-                Some(label),
-                diagnostics,
-            );
-            let t_start_ms = (time_ms + delay_ms) as u64;
-            let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+        // Seed plot_param_tracks with initial declaration values. Only create
+        // tracks that don't already exist so re-declarations preserve existing
+        // keyframes.
+        self.seed_plot_param_tracks(track_id);
 
-            // The prologue above already spawned the track and rebuilt its
-            // plan; keep the same entity so a re-declaration writes onto it.
-            let track_id = existing_track_id;
-            // Plot-family build path only (this dispatch serves Graph,
-            // PlotCurve, VectorField, Heatmap, ContourSet, NumberPlane and
-            // BarChart), so it owns the plot payload outright: assigning all
-            // three fields mirrors the old flat-field overwrite, including the
-            // clear on a re-declaration that resolves no plot.
-            let payload = self.world.ensure_plot_payload(track_id);
-            payload.procedural_plot = procedural_plot;
-            payload.bar_layout = bar_layout;
-            payload.bar_data = bar_data;
+        // Shared tail: first-seen metadata, position binding, start/end
+        // keyframes and shape bounds. Plot hosts are never layout
+        // containers, so the container-default binding does not apply, and
+        // they are never `Rect`, so corner/dash carry the track values.
+        let corner_radius = self.world.shape_or_default(track_id).corner_radius.last(0.0);
+        let dash_pattern = self.world.style(track_id).dash_pattern.last(Vec::new());
+        let dash_offset = self.world.style(track_id).dash_offset.last(0.0);
+        let timing =
+            ActorKeyframeTiming::plain(t_start_ms, t_end_ms, easing, duration_ms, delay_ms);
+        let values = ActorKeyframeValues {
+            position,
+            size,
+            line_from,
+            line_to,
+            arc_angles,
+            corner_radius,
+            color,
+            shape_type,
+            opacity,
+            stroke_width,
+            stroke_color,
+            stroke_progress,
+            fill_opacity,
+            dash_pattern,
+            dash_offset,
+            vello_paths,
+        };
+        self.finish_actor_decl(
+            &frame,
+            false, // plot hosts are never layout containers
+            position_binding,
+            parent_label,
+            &timing,
+            values,
+        );
 
-            // Seed plot_param_tracks with initial declaration values.
-            // Only create tracks that don't already exist so re-declarations
-            // preserve existing keyframes.
-            let param_names: Vec<(String, f64)> = self
-                .world
-                .procedural_plot(track_id)
-                .map(|plot| plot.params.iter().map(|(n, v)| (n.clone(), *v)).collect())
-                .unwrap_or_default();
-            if !param_names.is_empty() {
-                let param_tracks = &mut self.world.ensure_plot_payload(track_id).plot_param_tracks;
-                for (name, default_val) in param_names {
-                    param_tracks.entry(name).or_insert_with(|| {
-                        let mut t = super::PropertyTrack::new(default_val);
-                        t.add_keyframe(0, default_val, super::Easing::Linear);
-                        t
-                    });
-                }
-            }
+        Self::insert_plot_decoration_keyframes(
+            self.world.style.get_mut(track_id),
+            props,
+            &eval_env,
+            label,
+            t_start_ms,
+            t_end_ms,
+            easing,
+            diagnostics,
+        );
 
-            // Shared tail: first-seen metadata, position binding, start/end
-            // keyframes and shape bounds. Plot hosts are never layout
-            // containers, so the container-default binding does not apply, and
-            // they are never `Rect`, so corner/dash carry the track values.
-            let corner_radius = self.world.shape_or_default(track_id).corner_radius.last(0.0);
-            let dash_pattern = self.world.style(track_id).dash_pattern.last(Vec::new());
-            let dash_offset = self.world.style(track_id).dash_offset.last(0.0);
-            let timing =
-                ActorKeyframeTiming::plain(t_start_ms, t_end_ms, easing, duration_ms, delay_ms);
-            let values = ActorKeyframeValues {
-                position,
-                size,
-                line_from,
-                line_to,
-                arc_angles,
-                corner_radius,
-                color,
-                shape_type,
-                opacity,
-                stroke_width,
-                stroke_color,
-                stroke_progress,
-                fill_opacity,
-                dash_pattern,
-                dash_offset,
-                vello_paths,
-            };
-            self.finish_actor_decl(
-                &frame,
-                false, // plot hosts are never layout containers
-                position_binding,
-                parent_label,
-                &timing,
-                values,
-            );
+        // === Tick Labels ===
+        // Axis x, axis y and bar labels differ only in suffix, position and
+        // text; build the three families once and lower them through one
+        // property construction.
+        if let Some(ref tick_data) = tick_label_data {
+            self.spawn_plot_tick_labels(label, tick_data, time_ms, diagnostics);
+        }
+    }
 
-            Self::insert_plot_decoration_keyframes(
-                self.world.style.get_mut(track_id),
-                props,
-                &eval_env,
-                label,
-                t_start_ms,
-                t_end_ms,
-                easing,
-                diagnostics,
-            );
-
-            // === Tick Labels ===
-            // Axis x, axis y and bar labels differ only in suffix, position and
-            // text; build the three families once and lower them through one
-            // property construction.
-            if let Some(ref tick_data) = tick_label_data {
-                let mut tick_actors: Vec<(String, f64, f64, String)> = Vec::new();
-                for (i, &(sx, sy, val)) in tick_data.x_labels.iter().enumerate() {
-                    tick_actors.push((
-                        format!("{}_tick_x_{}", label, i),
-                        sx,
-                        sy,
-                        crate::timeline::build::plot::format_axis_tick_label(val),
-                    ));
-                }
-                for (i, &(sx, sy, val)) in tick_data.y_labels.iter().enumerate() {
-                    tick_actors.push((
-                        format!("{}_tick_y_{}", label, i),
-                        sx,
-                        sy,
-                        crate::timeline::build::plot::format_axis_tick_label(val),
-                    ));
-                }
-                for (i, &(sx, sy, ref text)) in tick_data.bar_labels.iter().enumerate() {
-                    tick_actors.push((format!("{}_bar_label_{}", label, i), sx, sy, text.clone()));
-                }
-
-                for (child_label, sx, sy, text) in tick_actors {
-                    let tick_props = vec![
-                        Property::new("text", Expr::Str(text)),
-                        Property::new("at", Expr::Tuple(vec![Expr::Num(sx), Expr::Num(sy)])),
-                        Property::new("font_size", Expr::Num(10.0)),
-                        Property::new(
-                            "color",
-                            Expr::Path(vec!["text".to_string(), "muted".to_string()]),
-                        ),
-                    ];
-                    self.process_text_actor_decl(
-                        "Text",
-                        &child_label,
-                        &tick_props,
-                        &[], // no modifiers
-                        time_ms,
-                        Some(label),
-                        diagnostics,
-                    )
-                    .ok();
-                }
+    /// Seed `plot_param_tracks` from a procedural plot's initial parameters.
+    fn seed_plot_param_tracks(&mut self, track_id: crate::timeline::EntityId) {
+        let param_names: Vec<(String, f64)> = self
+            .world
+            .procedural_plot(track_id)
+            .map(|plot| plot.params.iter().map(|(n, v)| (n.clone(), *v)).collect())
+            .unwrap_or_default();
+        if !param_names.is_empty() {
+            let param_tracks = &mut self.world.ensure_plot_payload(track_id).plot_param_tracks;
+            for (name, default_val) in param_names {
+                param_tracks.entry(name).or_insert_with(|| {
+                    let mut t = super::PropertyTrack::new(default_val);
+                    t.add_keyframe(0, default_val, super::Easing::Linear);
+                    t
+                });
             }
         }
     }
+
+    /// Lower a plot declaration's axis and bar labels into `Text` children.
+    fn spawn_plot_tick_labels(
+        &mut self,
+        label: &str,
+        tick_data: &super::super::plot::TickLabelData,
+        time_ms: f64,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) {
+        let mut tick_actors: Vec<(String, f64, f64, String)> = Vec::new();
+        for (i, &(sx, sy, val)) in tick_data.x_labels.iter().enumerate() {
+            tick_actors.push((
+                format!("{}_tick_x_{}", label, i),
+                sx,
+                sy,
+                crate::timeline::build::plot::format_axis_tick_label(val),
+            ));
+        }
+        for (i, &(sx, sy, val)) in tick_data.y_labels.iter().enumerate() {
+            tick_actors.push((
+                format!("{}_tick_y_{}", label, i),
+                sx,
+                sy,
+                crate::timeline::build::plot::format_axis_tick_label(val),
+            ));
+        }
+        for (i, &(sx, sy, ref text)) in tick_data.bar_labels.iter().enumerate() {
+            tick_actors.push((format!("{}_bar_label_{}", label, i), sx, sy, text.clone()));
+        }
+
+        for (child_label, sx, sy, text) in tick_actors {
+            let tick_props = vec![
+                Property::new("text", Expr::Str(text)),
+                Property::new("at", Expr::Tuple(vec![Expr::Num(sx), Expr::Num(sy)])),
+                Property::new("font_size", Expr::Num(10.0)),
+                Property::new("color", Expr::Path(vec!["text".to_string(), "muted".to_string()])),
+            ];
+            self.process_text_actor_decl(
+                "Text",
+                &child_label,
+                &tick_props,
+                &[], // no modifiers
+                time_ms,
+                Some(label),
+                diagnostics,
+            )
+            .ok();
+        }
+    }
+}
+
+/// Collect a plot declaration's `at`/`position`, `anchor` and `offset`
+/// expressions and resolve the shared position binding.
+fn plot_dispatch_position_binding(
+    props: &[Property],
+    eval_env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    label: &str,
+) -> Option<(crate::timeline::PositionBinding, Option<[f32; 2]>)> {
+    let mut at_expr: Option<&Expr> = None;
+    let mut anchor_expr: Option<&Expr> = None;
+    let mut offset_expr: Option<&Expr> = None;
+    for prop in props {
+        match prop.name.as_str() {
+            "at" | "position" => at_expr = Some(&prop.value),
+            "anchor" => anchor_expr = Some(&prop.value),
+            "offset" => offset_expr = Some(&prop.value),
+            _ => {}, // Not a position property.
+        }
+    }
+    resolve_position_binding_with_lookup_diagnostic(
+        at_expr,
+        anchor_expr,
+        offset_expr,
+        eval_env,
+        diagnostics,
+        label,
+    )
 }

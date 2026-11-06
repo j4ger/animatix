@@ -1,6 +1,16 @@
 use crate::renderer::types::TextPath;
 use crate::timeline::{DEFAULT_WHITE, EntityId, Timeline, TrackAccessor};
 
+/// A Fragment child's content and highlight state, collected for one Equation.
+struct FragInfo {
+    content: String,
+    hl_color: [f32; 4],
+    hl_opacity: f32,
+    hl_padding: f32,
+    hl_radius: f32,
+    hl_blend: vello::peniko::Mix,
+}
+
 /// Escape a Fragment's content for embedding in one #box() markup block.
 ///
 /// Typst parses a leading '+' as an enum item and a leading '-' as a bullet,
@@ -31,8 +41,6 @@ impl Timeline {
         out: &mut crate::primitives::RenderOutputs<'_, '_>,
     ) {
         let time_ms = frame.time_ms;
-        let scene_dimensions = frame.scene_dimensions;
-        let overrides = frame.overrides;
         // Resolve the scope's entity id: trust `node_id`, fall back to the label.
         let node_id = if self.world.exists(node_id) {
             node_id
@@ -48,14 +56,42 @@ impl Timeline {
             crate::timeline::layout::empty_layout_positions()
         };
         // Collect Fragment children with their content and highlight state.
-        struct FragInfo {
-            content: String,
-            hl_color: [f32; 4],
-            hl_opacity: f32,
-            hl_padding: f32,
-            hl_radius: f32,
-            hl_blend: vello::peniko::Mix,
+        let frags = self.collect_equation_fragments(node_id, frame);
+        self.render_equation_document(
+            node_id,
+            time_ms,
+            &frags,
+            global_transform,
+            global_opacity,
+            out,
+        );
+
+        // Render Fragment children. They return `None` from evaluate (no
+        // visual output of their own), so they draw nothing here and
+        // record no hit region; the parent Equation aggregates their
+        // content into one document.
+        for &child_id in &self.world.hierarchy(node_id).children {
+            self.evaluate_node_by_id(
+                child_id,
+                global_transform,
+                global_opacity,
+                &child_layout_positions,
+                allow_pending_composites,
+                frame,
+                out,
+            );
         }
+    }
+
+    /// Collect the scope's Fragment children through `equation_fragment`.
+    fn collect_equation_fragments(
+        &self,
+        node_id: EntityId,
+        frame: &crate::primitives::RenderFrame<'_>,
+    ) -> Vec<FragInfo> {
+        let time_ms = frame.time_ms;
+        let scene_dimensions = frame.scene_dimensions;
+        let overrides = frame.overrides;
         let mut frags: Vec<FragInfo> = Vec::new();
 
         let child_ids: Vec<EntityId> = self.world.hierarchy(node_id).children.to_vec();
@@ -102,132 +138,90 @@ impl Timeline {
             }
         }
 
-        if !frags.is_empty() {
-            // Build Typst string: each fragment wrapped in #box() so they
-            // produce separate Groups in the output frame.
-            let typst_body: String = frags
-                .iter()
-                .map(|f| format!("#box()[{}]", equation_markup_escaped(&f.content)))
-                .collect::<Vec<_>>()
-                .join(" ");
+        frags
+    }
 
-            // Use equation-level font_size and color from the Equation track.
-            let text = self.world.text_or_default(node_id);
-            let font_size = text.font_size.get(time_ms, 48.0);
-            let eq_color = self.world.style(node_id).color.get(time_ms, DEFAULT_WHITE);
-            let font_family = text.font_family.get(time_ms, String::new());
-            let font_weight = text.font_weight.get(time_ms, 400.0);
-            let font_style = text.font_style.get(time_ms, "normal".to_string());
-            let line_height = text.line_height.get(time_ms, 1.2);
-            let letter_spacing = text.letter_spacing.get(time_ms, 0.0);
-            let word_spacing = text.word_spacing.get(time_ms, 0.0);
-
-            // Compile the Typst markup. Memoized process-wide: fragment
-            // content and font properties rarely change between frames, so
-            // scrubbing an equation-heavy out.scene reuses one compilation
-            // instead of re-running Typst every frame.
-            match crate::renderer::text::compile_typst_grouped_cached(
-                &typst_body,
-                font_size,
-                eq_color,
-                &font_family,
-                self.font_context.as_ref(),
-                font_weight,
-                &font_style,
-                line_height,
-                letter_spacing,
-                word_spacing,
-            ) {
-                Ok(compiled) => {
-                    // One glyph group per #box() wrapper, resolved at
-                    // compile time and shared through the memo.
-                    let all_glyphs: &[TextPath] = &compiled.glyphs;
-                    let ranges: &[std::ops::Range<usize>] = &compiled.ranges;
-
-                    // Compute highlight bounding boxes from the shared
-                    // glyph groups before drawing them.
-                    let mut highlight_cmds: Vec<crate::primitives::RenderCommand> = Vec::new();
-                    for (frag_idx, frag) in frags.iter().enumerate() {
-                        if frag.hl_opacity > 0.001 && frag_idx < ranges.len() {
-                            let range = &ranges[frag_idx];
-                            let mut min_x = f64::INFINITY;
-                            let mut max_x = f64::NEG_INFINITY;
-                            let mut min_y = f64::INFINITY;
-                            let mut max_y = f64::NEG_INFINITY;
-                            for tp in &all_glyphs[range.start..range.end] {
-                                use kurbo::Shape;
-                                let b = tp.path.bounding_box();
-                                min_x = min_x.min(b.x0);
-                                max_x = max_x.max(b.x1);
-                                min_y = min_y.min(b.y0);
-                                max_y = max_y.max(b.y1);
-                            }
-                            if min_x.is_finite() && max_x.is_finite() {
-                                let pad = frag.hl_padding as f64;
-                                let hl_rect = kurbo::Rect::new(
-                                    min_x - pad,
-                                    min_y - pad,
-                                    max_x + pad,
-                                    max_y + pad,
-                                );
-                                let hl_color = vello::peniko::Color::from_rgba8(
-                                    (frag.hl_color[0] * 255.0) as u8,
-                                    (frag.hl_color[1] * 255.0) as u8,
-                                    (frag.hl_color[2] * 255.0) as u8,
-                                    255,
-                                );
-                                highlight_cmds.push(
-                                    crate::primitives::RenderCommand::HighlightLayer {
-                                        rect: hl_rect,
-                                        color: hl_color,
-                                        blend: frag.hl_blend,
-                                        alpha: frag.hl_opacity,
-                                        corner_radius: frag.hl_radius as f64,
-                                    },
-                                );
-                            }
-                        }
-                    }
-
-                    // Render all glyphs as a single text command. The memo
-                    // owns the glyph slice, so share it by refcount instead
-                    // of re-wrapping a freshly built Vec.
-                    if !all_glyphs.is_empty() {
-                        let cmd = crate::primitives::RenderCommand::Text {
-                            paths: std::sync::Arc::clone(&compiled.glyphs),
-                            fill_gradient: None,
-                            clip_path: None,
-                            tint_color: None,
-                            hardware_layout: None,
-                        };
-                        cmd.execute(out.scene, &global_transform, global_opacity);
-                    }
-
-                    // Render highlight overlays.
-                    for cmd in &highlight_cmds {
-                        cmd.execute(out.scene, &global_transform, global_opacity);
-                    }
-                },
-                Err(e) => {
-                    tracing::warn!("Equation Typst compilation failed: {e}");
-                },
-            }
+    /// Compile and draw the aggregated Typst document for `frags`.
+    fn render_equation_document(
+        &self,
+        node_id: EntityId,
+        time_ms: u64,
+        frags: &[FragInfo],
+        global_transform: kurbo::Affine,
+        global_opacity: f32,
+        out: &mut crate::primitives::RenderOutputs<'_, '_>,
+    ) {
+        if frags.is_empty() {
+            return;
         }
 
-        // Render Fragment children. They return `None` from evaluate (no
-        // visual output of their own), so they draw nothing here and
-        // record no hit region; the parent Equation aggregates their
-        // content into one document.
-        for &child_id in &self.world.hierarchy(node_id).children {
-            self.evaluate_node_by_id(
-                child_id,
-                global_transform,
-                global_opacity,
-                &child_layout_positions,
-                allow_pending_composites,
-                frame,
-                out,
-            );
+        // Build Typst string: each fragment wrapped in #box() so they
+        // produce separate Groups in the output frame.
+        let typst_body: String = frags
+            .iter()
+            .map(|f| format!("#box()[{}]", equation_markup_escaped(&f.content)))
+            .collect::<Vec<_>>()
+            .join(" ");
+
+        // Use equation-level font_size and color from the Equation track.
+        let text = self.world.text_or_default(node_id);
+        let font_size = text.font_size.get(time_ms, 48.0);
+        let eq_color = self.world.style(node_id).color.get(time_ms, DEFAULT_WHITE);
+        let font_family = text.font_family.get(time_ms, String::new());
+        let font_weight = text.font_weight.get(time_ms, 400.0);
+        let font_style = text.font_style.get(time_ms, "normal".to_string());
+        let line_height = text.line_height.get(time_ms, 1.2);
+        let letter_spacing = text.letter_spacing.get(time_ms, 0.0);
+        let word_spacing = text.word_spacing.get(time_ms, 0.0);
+
+        // Compile the Typst markup. Memoized process-wide: fragment
+        // content and font properties rarely change between frames, so
+        // scrubbing an equation-heavy out.scene reuses one compilation
+        // instead of re-running Typst every frame.
+        match crate::renderer::text::compile_typst_grouped_cached(
+            &typst_body,
+            font_size,
+            eq_color,
+            &font_family,
+            self.font_context.as_ref(),
+            font_weight,
+            &font_style,
+            line_height,
+            letter_spacing,
+            word_spacing,
+        ) {
+            Ok(compiled) => {
+                // One glyph group per #box() wrapper, resolved at
+                // compile time and shared through the memo.
+                let all_glyphs: &[TextPath] = &compiled.glyphs;
+                let ranges: &[std::ops::Range<usize>] = &compiled.ranges;
+
+                // Compute highlight bounding boxes from the shared
+                // glyph groups before drawing them.
+                let highlight_cmds = equation_highlight_commands(frags, all_glyphs, ranges);
+
+                // Render all glyphs as a single text command. The memo
+                // owns the glyph slice, so share it by refcount instead
+                // of re-wrapping a freshly built Vec.
+                if !all_glyphs.is_empty() {
+                    let cmd = crate::primitives::RenderCommand::Text {
+                        paths: std::sync::Arc::clone(&compiled.glyphs),
+                        fill_gradient: None,
+                        clip_path: None,
+                        tint_color: None,
+                        hardware_layout: None,
+                    };
+                    cmd.execute(out.scene, &global_transform, global_opacity);
+                }
+
+                // Render highlight overlays.
+                for cmd in &highlight_cmds {
+                    cmd.execute(out.scene, &global_transform, global_opacity);
+                }
+            },
+            Err(e) => {
+                tracing::warn!("Equation Typst compilation failed: {e}");
+            },
         }
     }
 
@@ -262,4 +256,49 @@ impl Timeline {
             &mut out,
         );
     }
+}
+
+/// Highlight-layer commands for the fragments that declare one, clipped to the
+/// glyph runs the grouped compile resolved per `#box()` wrapper.
+fn equation_highlight_commands(
+    frags: &[FragInfo],
+    all_glyphs: &[TextPath],
+    ranges: &[std::ops::Range<usize>],
+) -> Vec<crate::primitives::RenderCommand> {
+    let mut highlight_cmds: Vec<crate::primitives::RenderCommand> = Vec::new();
+    for (frag_idx, frag) in frags.iter().enumerate() {
+        if frag.hl_opacity > 0.001 && frag_idx < ranges.len() {
+            let range = &ranges[frag_idx];
+            let mut min_x = f64::INFINITY;
+            let mut max_x = f64::NEG_INFINITY;
+            let mut min_y = f64::INFINITY;
+            let mut max_y = f64::NEG_INFINITY;
+            for tp in &all_glyphs[range.start..range.end] {
+                use kurbo::Shape;
+                let b = tp.path.bounding_box();
+                min_x = min_x.min(b.x0);
+                max_x = max_x.max(b.x1);
+                min_y = min_y.min(b.y0);
+                max_y = max_y.max(b.y1);
+            }
+            if min_x.is_finite() && max_x.is_finite() {
+                let pad = frag.hl_padding as f64;
+                let hl_rect = kurbo::Rect::new(min_x - pad, min_y - pad, max_x + pad, max_y + pad);
+                let hl_color = vello::peniko::Color::from_rgba8(
+                    (frag.hl_color[0] * 255.0) as u8,
+                    (frag.hl_color[1] * 255.0) as u8,
+                    (frag.hl_color[2] * 255.0) as u8,
+                    255,
+                );
+                highlight_cmds.push(crate::primitives::RenderCommand::HighlightLayer {
+                    rect: hl_rect,
+                    color: hl_color,
+                    blend: frag.hl_blend,
+                    alpha: frag.hl_opacity,
+                    corner_radius: frag.hl_radius as f64,
+                });
+            }
+        }
+    }
+    highlight_cmds
 }

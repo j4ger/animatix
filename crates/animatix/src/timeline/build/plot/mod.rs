@@ -87,6 +87,147 @@ pub(super) struct PlotActorProps {
     stroke_progress: f32,
 }
 
+/// Apply the declaration's non-bag plot property overrides onto `result`, whose
+/// fields already hold the declaration and track defaults.
+fn apply_plot_props(
+    primitive: &PrimitiveFamilyDescriptor,
+    props: &[Property],
+    initial_eval_env: &Environment,
+    label: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+    result: &mut PlotActorProps,
+) {
+    for prop in props {
+        if PlotPropBag::handles(&prop.name) {
+            continue; // parsed once above into the bag
+        }
+        let prop_subject = format!("{}.{}", label, prop.name);
+        match prop.name.as_str() {
+            "color" => {
+                // resolve_color_in_env handles colorscheme tokens (Vec4),
+                // named colors, and tuples — the old `if let Value::Color`
+                // match silently rejected every token reference.
+                if let Ok(Some(c)) = resolve_color_in_env(&prop.value, initial_eval_env) {
+                    result.color = c;
+                    // Plot curves draw with their stroke: an authored
+                    // `color:` drives the stroke too (mirrors the generic
+                    // actor pipeline's plot-curve linkage).
+                    if primitive.is_plot_curve() {
+                        result.stroke_color = c;
+                    }
+                }
+            },
+            "stroke" | "stroke_color" => {
+                if let Ok(Some(c)) = resolve_color_in_env(&prop.value, initial_eval_env) {
+                    result.stroke_color = c;
+                }
+            },
+            "stroke_width" | "width" => {
+                let v = plot_prop_value(prop, initial_eval_env, diagnostics, &prop_subject)
+                    .unwrap_or(Value::Num(0.0));
+                result.stroke_width = v.as_num() as f32;
+            },
+            "stroke_progress" => {
+                let v = plot_prop_value(prop, initial_eval_env, diagnostics, &prop_subject)
+                    .unwrap_or(Value::Num(1.0));
+                if let Value::Num(n) = v {
+                    result.stroke_progress = n.clamp(0.0, 1.0) as f32;
+                }
+            },
+            "density" => {
+                let v = plot_prop_value(prop, initial_eval_env, diagnostics, &prop_subject)
+                    .unwrap_or(Value::Num(16.0));
+                result.density = v.as_num().max(2.0).round();
+            },
+            "levels" => {
+                let v = plot_prop_value(prop, initial_eval_env, diagnostics, &prop_subject)
+                    .unwrap_or(Value::Num(0.0));
+                match v {
+                    Value::List(items) => {
+                        result.levels = items.iter().map(|item| item.as_num()).collect();
+                    },
+                    Value::Num(n) => {
+                        result.levels.push(n);
+                    },
+                    _ => {
+                        tracing::warn!(
+                            "{}: 'levels' expects a number or list of numbers, got {:?}",
+                            prop_subject,
+                            v
+                        );
+                    },
+                }
+            },
+            "grid" => {
+                let v = plot_prop_value(prop, initial_eval_env, diagnostics, &prop_subject)
+                    .unwrap_or(Value::Num(0.0));
+                result.grid = v.as_bool();
+            },
+            "ticks" => {
+                let v = plot_prop_value(prop, initial_eval_env, diagnostics, &prop_subject)
+                    .unwrap_or(Value::Num(0.0));
+                result.ticks = v.as_bool();
+            },
+            "tick_labels" => {
+                let v = plot_prop_value(prop, initial_eval_env, diagnostics, &prop_subject)
+                    .unwrap_or(Value::Str("auto".to_string()));
+                result.tick_labels = v.as_str().to_lowercase();
+            },
+            "x_range" => {
+                match plot_prop_value(prop, initial_eval_env, diagnostics, &prop_subject) {
+                    Some(Value::Vec3([min, max, step])) => result.x_range = [min, max, step],
+                    Some(v) => tracing::warn!(
+                        "{}: 'x_range' expects a (min, max, step) triple, got {:?}",
+                        prop_subject,
+                        v
+                    ),
+                    None => {}, // eval error already reported as a diagnostic
+                }
+            },
+            "y_range" => {
+                match plot_prop_value(prop, initial_eval_env, diagnostics, &prop_subject) {
+                    Some(Value::Vec3([min, max, step])) => result.y_range = [min, max, step],
+                    Some(v) => tracing::warn!(
+                        "{}: 'y_range' expects a (min, max, step) triple, got {:?}",
+                        prop_subject,
+                        v
+                    ),
+                    None => {}, // eval error already reported as a diagnostic
+                }
+            },
+            "padding" if primitive.is_graph_host() => {
+                // Graph padding is pre-computed above; skip here to prevent
+                // falling through to the custom plot-param collector.
+            },
+            "x_scale" if primitive.is_graph_host() => {
+                if let Some(v) = plot_prop_value(prop, initial_eval_env, diagnostics, &prop_subject)
+                {
+                    result.x_scale = super::utils::ScaleType::from_str(&v.as_str());
+                }
+            },
+            "y_scale" if primitive.is_graph_host() => {
+                if let Some(v) = plot_prop_value(prop, initial_eval_env, diagnostics, &prop_subject)
+                {
+                    result.y_scale = super::utils::ScaleType::from_str(&v.as_str());
+                }
+            },
+            // Plot-builder-specific keys only: the shared bag and the generic
+            // actor pipeline own everything else.
+            _ => {},
+        }
+    }
+}
+
+/// Evaluate a plot declaration property, keeping the lookup diagnostic internal.
+fn plot_prop_value(
+    prop: &Property,
+    env: &Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+    subject: &str,
+) -> Option<Value> {
+    evaluate_expr_with_lookup_diagnostic(&prop.value, env, diagnostics, subject)
+}
+
 impl Timeline {
     /// Parse the declaration's plot properties into [`PlotActorProps`].
     #[allow(clippy::too_many_arguments)]
@@ -112,15 +253,6 @@ impl Timeline {
             kind,
         } = PlotPropBag::from_props(props, label, initial_eval_env, diagnostics);
         let kind = kind.unwrap_or(PlotCurveKind::Cartesian);
-        let mut density = 16.0;
-        let mut levels: Vec<f64> = vec![];
-        let mut grid = false;
-        let mut ticks = false;
-        let mut tick_labels = String::from("auto");
-        let mut x_scale = super::utils::ScaleType::Linear;
-        let mut y_scale = super::utils::ScaleType::Linear;
-        let mut x_range = [-10.0, 10.0, 2.0];
-        let mut y_range = [-10.0, 10.0, 2.0];
 
         // Graph plot-area padding [left, right, top, bottom] in pixels.
         // Pre-scan props for padding so it's available before the main match loop.
@@ -143,11 +275,11 @@ impl Timeline {
         // Start with track defaults, override from props.
         let caps = self.world.caps(existing_track_id);
         let style = self.world.style(existing_track_id);
-        let mut color = style.color.last(DEFAULT_WHITE);
+        let color = style.color.last(DEFAULT_WHITE);
         let default_stroke = caps.default_stroke_width();
-        let mut stroke_width = style.stroke_width.last(default_stroke);
+        let stroke_width = style.stroke_width.last(default_stroke);
         let mut stroke_color = style.stroke_color.last(DEFAULT_WHITE);
-        let mut stroke_progress = style.stroke_progress.last(1.0);
+        let stroke_progress = style.stroke_progress.last(1.0);
 
         // If stroke_color was not explicitly set on track, check colorscheme's default stroke
         if stroke_color == DEFAULT_WHITE
@@ -157,180 +289,7 @@ impl Timeline {
             stroke_color = scheme_stroke;
         }
 
-        for prop in props {
-            if PlotPropBag::handles(&prop.name) {
-                continue; // parsed once above into the bag
-            }
-            let prop_subject = format!("{}.{}", label, prop.name);
-            match prop.name.as_str() {
-                "color" => {
-                    // resolve_color_in_env handles colorscheme tokens (Vec4),
-                    // named colors, and tuples — the old `if let Value::Color`
-                    // match silently rejected every token reference.
-                    if let Ok(Some(c)) = resolve_color_in_env(&prop.value, initial_eval_env) {
-                        color = c;
-                        // Plot curves draw with their stroke: an authored
-                        // `color:` drives the stroke too (mirrors the generic
-                        // actor pipeline's plot-curve linkage).
-                        if primitive.is_plot_curve() {
-                            stroke_color = c;
-                        }
-                    }
-                },
-                "stroke" | "stroke_color" => {
-                    if let Ok(Some(c)) = resolve_color_in_env(&prop.value, initial_eval_env) {
-                        stroke_color = c;
-                    }
-                },
-                "stroke_width" | "width" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    stroke_width = v.as_num() as f32;
-                },
-                "stroke_progress" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(1.0));
-                    if let Value::Num(n) = v {
-                        stroke_progress = n.clamp(0.0, 1.0) as f32;
-                    }
-                },
-                "density" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(16.0));
-                    density = v.as_num().max(2.0).round();
-                },
-                "levels" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    match v {
-                        Value::List(items) => {
-                            levels = items.iter().map(|item| item.as_num()).collect();
-                        },
-                        Value::Num(n) => {
-                            levels.push(n);
-                        },
-                        _ => {
-                            tracing::warn!(
-                                "{}: 'levels' expects a number or list of numbers, got {:?}",
-                                prop_subject,
-                                v
-                            );
-                        },
-                    }
-                },
-                "grid" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    grid = v.as_bool();
-                },
-                "ticks" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .unwrap_or(Value::Num(0.0));
-                    ticks = v.as_bool();
-                },
-                "tick_labels" => {
-                    let v = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    )
-                    .unwrap_or(Value::Str("auto".to_string()));
-                    tick_labels = v.as_str().to_lowercase();
-                },
-                "x_range" => {
-                    match evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    ) {
-                        Some(Value::Vec3([min, max, step])) => x_range = [min, max, step],
-                        Some(v) => tracing::warn!(
-                            "{}: 'x_range' expects a (min, max, step) triple, got {:?}",
-                            prop_subject,
-                            v
-                        ),
-                        None => {}, // eval error already reported as a diagnostic
-                    }
-                },
-                "y_range" => {
-                    match evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    ) {
-                        Some(Value::Vec3([min, max, step])) => y_range = [min, max, step],
-                        Some(v) => tracing::warn!(
-                            "{}: 'y_range' expects a (min, max, step) triple, got {:?}",
-                            prop_subject,
-                            v
-                        ),
-                        None => {}, // eval error already reported as a diagnostic
-                    }
-                },
-                "padding" if primitive.is_graph_host() => {
-                    // Graph padding is pre-computed above; skip here to prevent
-                    // falling through to the custom plot-param collector.
-                },
-                "x_scale" if primitive.is_graph_host() => {
-                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    ) {
-                        x_scale = super::utils::ScaleType::from_str(&v.as_str());
-                    }
-                },
-                "y_scale" if primitive.is_graph_host() => {
-                    if let Some(v) = evaluate_expr_with_lookup_diagnostic(
-                        &prop.value,
-                        initial_eval_env,
-                        diagnostics,
-                        &prop_subject,
-                    ) {
-                        y_scale = super::utils::ScaleType::from_str(&v.as_str());
-                    }
-                },
-                // Plot-builder-specific keys only: the shared bag and the generic
-                // actor pipeline own everything else.
-                _ => {},
-            }
-        }
-
-        PlotActorProps {
+        let mut result = PlotActorProps {
             x_domain,
             y_domain,
             t_domain,
@@ -340,21 +299,25 @@ impl Timeline {
             max_depth,
             resolution,
             kind,
-            density,
-            levels,
-            grid,
-            ticks,
-            tick_labels,
-            x_scale,
-            y_scale,
-            x_range,
-            y_range,
+            density: 16.0,
+            levels: vec![],
+            grid: false,
+            ticks: false,
+            tick_labels: String::from("auto"),
+            x_scale: super::utils::ScaleType::Linear,
+            y_scale: super::utils::ScaleType::Linear,
+            x_range: [-10.0, 10.0, 2.0],
+            y_range: [-10.0, 10.0, 2.0],
             graph_padding,
             color,
             stroke_width,
             stroke_color,
             stroke_progress,
-        }
+        };
+
+        apply_plot_props(primitive, props, initial_eval_env, label, diagnostics, &mut result);
+
+        result
     }
 
     /// Collect custom numeric properties as frame-time plot parameters.

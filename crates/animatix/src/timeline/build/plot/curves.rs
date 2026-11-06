@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use super::PlotActorProps;
 use super::*;
-use crate::timeline::modifier_runtime::ir::evaluate_compiled_expr;
+use crate::timeline::modifier_runtime::ir::{CompiledExpr, evaluate_compiled_expr};
 use crate::timeline::plot::{
     FuncSource, PlotCurveKind, PlotFuncRef, ProceduralPlot, build_implicit_plot_path_from_source,
 };
@@ -74,84 +74,11 @@ pub(crate) fn build_plot_curve_paths(
         };
 
         if params.kind == PlotCurveKind::Implicit {
-            let source = FuncSource::Compiled(
-                args.to_vec(),
-                Box::new((**body).clone()),
-                CapturedEnv::default(),
-            );
-            let path = build_implicit_plot_path_from_source(
-                &mut env_copy,
-                &source,
-                &params.p_x_domain,
-                &params.p_y_domain,
-                &params.p_size,
-                resolution.max(8),
-                &params.p_padding,
-            );
-            vello_paths.push(VelloPath {
-                path: std::sync::Arc::new(path),
-                fill: None,
-                stroke: if params.stroke_width > 0.0 {
-                    Some((
-                        vello::peniko::Color::from_rgba8(
-                            (params.stroke_color[0] * 255.0) as u8,
-                            (params.stroke_color[1] * 255.0) as u8,
-                            (params.stroke_color[2] * 255.0) as u8,
-                            (params.stroke_color[3] * 255.0) as u8,
-                        ),
-                        params.stroke_width,
-                    ))
-                } else {
-                    None
-                },
-                line_cap: 0,
-                line_join: 0,
-                dash_pattern: None,
-                dash_offset: 0.0,
-                fill_gradient: None,
-                stroke_gradient: None,
-            });
+            vello_paths.push(build_implicit_curve_path(params, args, body, resolution));
         } else {
-            env_copy.set_binding(&arg_name, Value::Num(min_t));
-            let start_eval = match evaluate_compiled_expr(body, &env_copy) {
-                Ok(v) => v,
-                // `t`, the plot argument, and declared plot params are
-                // frame-time names; their absence at build time is the designed
-                // handoff to per-frame resampling, not an error.
-                Err(EvalError::UndefinedVariable(name))
-                    if name == "t"
-                        || name == arg_name
-                        || params.param_names.iter().any(|param| param == &name) =>
-                {
-                    Value::Num(f64::NAN)
-                },
-                Err(e) => {
-                    diagnostics.push(
-                        Diagnostic::warning(
-                            DiagnosticCode::InvalidPropertyValue,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "plot '{}': func evaluation failed at x={min_t}: {e}",
-                                params.label
-                            ),
-                        )
-                        .with_subject(params.label),
-                    );
-                    Value::Num(f64::NAN)
-                },
-            };
-            env_copy.clear_bindings();
-            let (start_math_x, start_math_y) = if params.kind == PlotCurveKind::Cartesian {
-                (min_t, start_eval.as_num())
-            } else if params.kind == PlotCurveKind::Parametric {
-                match start_eval {
-                    Value::Vec2([x, y]) => (x, y),
-                    _ => (f64::NAN, f64::NAN),
-                }
-            } else {
-                let start_val = start_eval.as_num();
-                (start_val * min_t.cos(), start_val * min_t.sin())
-            };
+            let start_eval =
+                eval_curve_arg(body, &arg_name, min_t, params, &mut env_copy, diagnostics);
+            let (start_math_x, start_math_y) = curve_math_point(params.kind, min_t, &start_eval);
             let (start_screen_x, start_screen_y) = crate::timeline::plot::math_to_screen_padded(
                 start_math_x,
                 start_math_y,
@@ -161,43 +88,9 @@ pub(crate) fn build_plot_curve_paths(
                 &params.p_padding,
             );
 
-            env_copy.set_binding(&arg_name, Value::Num(max_t));
-            let end_eval = match evaluate_compiled_expr(body, &env_copy) {
-                Ok(v) => v,
-                Err(EvalError::UndefinedVariable(name))
-                    if name == "t"
-                        || name == arg_name
-                        || params.param_names.iter().any(|param| param == &name) =>
-                {
-                    Value::Num(f64::NAN)
-                },
-                Err(e) => {
-                    diagnostics.push(
-                        Diagnostic::warning(
-                            DiagnosticCode::InvalidPropertyValue,
-                            DiagnosticPhase::Build,
-                            format!(
-                                "plot '{}': func evaluation failed at x={max_t}: {e}",
-                                params.label
-                            ),
-                        )
-                        .with_subject(params.label),
-                    );
-                    Value::Num(f64::NAN)
-                },
-            };
-            env_copy.clear_bindings();
-            let (end_math_x, end_math_y) = if params.kind == PlotCurveKind::Cartesian {
-                (max_t, end_eval.as_num())
-            } else if params.kind == PlotCurveKind::Parametric {
-                match end_eval {
-                    Value::Vec2([x, y]) => (x, y),
-                    _ => (f64::NAN, f64::NAN),
-                }
-            } else {
-                let end_val = end_eval.as_num();
-                (end_val * max_t.cos(), end_val * max_t.sin())
-            };
+            let end_eval =
+                eval_curve_arg(body, &arg_name, max_t, params, &mut env_copy, diagnostics);
+            let (end_math_x, end_math_y) = curve_math_point(params.kind, max_t, &end_eval);
             let (end_screen_x, end_screen_y) = crate::timeline::plot::math_to_screen_padded(
                 end_math_x,
                 end_math_y,
@@ -222,70 +115,22 @@ pub(crate) fn build_plot_curve_paths(
             let mut from_cache = HashMap::<u64, Value>::new();
             let mut to_cache = HashMap::<u64, Value>::new();
 
-            if params.kind == PlotCurveKind::Cartesian {
-                sample_recursive_cartesian(
-                    min_t,
-                    max_t,
-                    p0,
-                    p1,
-                    0,
-                    max_depth,
-                    crate::timeline::plot::base_subdivision_depth(resolution, max_depth),
-                    tolerance,
-                    &mut env_copy,
-                    &arg_name,
-                    &plot_func,
-                    &params.p_x_domain,
-                    &params.p_y_domain,
-                    &params.p_size,
-                    &params.p_padding,
-                    &mut from_cache,
-                    &mut to_cache,
-                    &mut pts,
-                );
-            } else if params.kind == PlotCurveKind::Polar {
-                sample_recursive_polar(
-                    min_t,
-                    max_t,
-                    p0,
-                    p1,
-                    0,
-                    max_depth,
-                    crate::timeline::plot::base_subdivision_depth(resolution, max_depth),
-                    tolerance,
-                    &mut env_copy,
-                    &arg_name,
-                    &plot_func,
-                    &params.p_x_domain,
-                    &params.p_y_domain,
-                    &params.p_size,
-                    &params.p_padding,
-                    &mut from_cache,
-                    &mut to_cache,
-                    &mut pts,
-                );
-            } else {
-                sample_recursive_parametric(
-                    min_t,
-                    max_t,
-                    p0,
-                    p1,
-                    0,
-                    max_depth,
-                    crate::timeline::plot::base_subdivision_depth(resolution, max_depth),
-                    tolerance,
-                    &mut env_copy,
-                    &arg_name,
-                    &plot_func,
-                    &params.p_x_domain,
-                    &params.p_y_domain,
-                    &params.p_size,
-                    &params.p_padding,
-                    &mut from_cache,
-                    &mut to_cache,
-                    &mut pts,
-                );
-            }
+            sample_curve(
+                params,
+                min_t,
+                max_t,
+                p0,
+                p1,
+                max_depth,
+                resolution,
+                tolerance,
+                &mut env_copy,
+                &arg_name,
+                &plot_func,
+                &mut from_cache,
+                &mut to_cache,
+                &mut pts,
+            );
 
             let mut path = kurbo::BezPath::new();
             let mut first = true;
@@ -302,19 +147,7 @@ pub(crate) fn build_plot_curve_paths(
             vello_paths.push(VelloPath {
                 path: std::sync::Arc::new(path),
                 fill: None,
-                stroke: if params.stroke_width > 0.0 {
-                    Some((
-                        vello::peniko::Color::from_rgba8(
-                            (params.stroke_color[0] * 255.0) as u8,
-                            (params.stroke_color[1] * 255.0) as u8,
-                            (params.stroke_color[2] * 255.0) as u8,
-                            (params.stroke_color[3] * 255.0) as u8,
-                        ),
-                        params.stroke_width,
-                    ))
-                } else {
-                    None
-                },
+                stroke: curve_stroke(params),
                 line_cap: 0,
                 line_join: 0,
                 dash_pattern: None,
@@ -326,6 +159,192 @@ pub(crate) fn build_plot_curve_paths(
     }
 
     vello_paths
+}
+
+/// The implicit-plot path (`f(x, y) = 0`) sampled from the compiled body.
+fn build_implicit_curve_path(
+    params: &PlotCurveParams<'_>,
+    args: &[String],
+    body: &CompiledExpr,
+    resolution: usize,
+) -> VelloPath {
+    let mut env_copy = params.eval_env.clone();
+    let source =
+        FuncSource::Compiled(args.to_vec(), Box::new(body.clone()), CapturedEnv::default());
+    let path = build_implicit_plot_path_from_source(
+        &mut env_copy,
+        &source,
+        &params.p_x_domain,
+        &params.p_y_domain,
+        &params.p_size,
+        resolution.max(8),
+        &params.p_padding,
+    );
+    VelloPath {
+        path: std::sync::Arc::new(path),
+        fill: None,
+        stroke: curve_stroke(params),
+        line_cap: 0,
+        line_join: 0,
+        dash_pattern: None,
+        dash_offset: 0.0,
+        fill_gradient: None,
+        stroke_gradient: None,
+    }
+}
+
+/// Evaluate the func body at `t`. `t`, the plot argument and declared plot
+/// params are frame-time names; their absence at build time is the designed
+/// handoff to per-frame resampling, not an error.
+fn eval_curve_arg(
+    body: &CompiledExpr,
+    arg_name: &str,
+    t: f64,
+    params: &PlotCurveParams<'_>,
+    env: &mut Environment,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Value {
+    env.set_binding(arg_name, Value::Num(t));
+    let value = match evaluate_compiled_expr(body, env) {
+        Ok(v) => v,
+        Err(EvalError::UndefinedVariable(name))
+            if name == "t"
+                || name == arg_name
+                || params.param_names.iter().any(|param| param == &name) =>
+        {
+            Value::Num(f64::NAN)
+        },
+        Err(e) => {
+            diagnostics.push(
+                Diagnostic::warning(
+                    DiagnosticCode::InvalidPropertyValue,
+                    DiagnosticPhase::Build,
+                    format!("plot '{}': func evaluation failed at x={t}: {e}", params.label),
+                )
+                .with_subject(params.label),
+            );
+            Value::Num(f64::NAN)
+        },
+    };
+    env.clear_bindings();
+    value
+}
+
+/// Map a sampled value at `t` to math coordinates for `kind`.
+fn curve_math_point(kind: PlotCurveKind, t: f64, value: &Value) -> (f64, f64) {
+    if kind == PlotCurveKind::Cartesian {
+        (t, value.as_num())
+    } else if kind == PlotCurveKind::Parametric {
+        match value {
+            Value::Vec2([x, y]) => (*x, *y),
+            _ => (f64::NAN, f64::NAN),
+        }
+    } else {
+        let val = value.as_num();
+        (val * t.cos(), val * t.sin())
+    }
+}
+
+/// The plot's stroke paint for a path, or `None` when the width is 0.
+fn curve_stroke(params: &PlotCurveParams<'_>) -> Option<(vello::peniko::Color, f32)> {
+    if params.stroke_width > 0.0 {
+        Some((
+            vello::peniko::Color::from_rgba8(
+                (params.stroke_color[0] * 255.0) as u8,
+                (params.stroke_color[1] * 255.0) as u8,
+                (params.stroke_color[2] * 255.0) as u8,
+                (params.stroke_color[3] * 255.0) as u8,
+            ),
+            params.stroke_width,
+        ))
+    } else {
+        None
+    }
+}
+
+/// Dispatch to the adaptive sampler for this curve kind.
+#[allow(clippy::too_many_arguments)] // mirrors the sampler entry-point parameter sets
+fn sample_curve(
+    params: &PlotCurveParams<'_>,
+    min_t: f64,
+    max_t: f64,
+    p0: kurbo::Point,
+    p1: kurbo::Point,
+    max_depth: usize,
+    resolution: usize,
+    tolerance: f64,
+    env: &mut Environment,
+    arg_name: &str,
+    plot_func: &PlotFuncRef<'_>,
+    from_cache: &mut HashMap<u64, Value>,
+    to_cache: &mut HashMap<u64, Value>,
+    pts: &mut Vec<kurbo::Point>,
+) {
+    let min_depth = crate::timeline::plot::base_subdivision_depth(resolution, max_depth);
+    if params.kind == PlotCurveKind::Cartesian {
+        sample_recursive_cartesian(
+            min_t,
+            max_t,
+            p0,
+            p1,
+            0,
+            max_depth,
+            min_depth,
+            tolerance,
+            env,
+            arg_name,
+            plot_func,
+            &params.p_x_domain,
+            &params.p_y_domain,
+            &params.p_size,
+            &params.p_padding,
+            from_cache,
+            to_cache,
+            pts,
+        );
+    } else if params.kind == PlotCurveKind::Polar {
+        sample_recursive_polar(
+            min_t,
+            max_t,
+            p0,
+            p1,
+            0,
+            max_depth,
+            min_depth,
+            tolerance,
+            env,
+            arg_name,
+            plot_func,
+            &params.p_x_domain,
+            &params.p_y_domain,
+            &params.p_size,
+            &params.p_padding,
+            from_cache,
+            to_cache,
+            pts,
+        );
+    } else {
+        sample_recursive_parametric(
+            min_t,
+            max_t,
+            p0,
+            p1,
+            0,
+            max_depth,
+            min_depth,
+            tolerance,
+            env,
+            arg_name,
+            plot_func,
+            &params.p_x_domain,
+            &params.p_y_domain,
+            &params.p_size,
+            &params.p_padding,
+            from_cache,
+            to_cache,
+            pts,
+        );
+    }
 }
 
 /// Validate the plot func's arity and return type for this actor kind.

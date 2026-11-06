@@ -15,21 +15,54 @@ use super::{
     RenderCtx, TextCompileCtx,
 };
 
-/// Evaluate text paths for a text primitive at frame time: the single frame-time
-/// text compile path for every text-like primitive (Text, Math, Code, Typst).
-pub fn evaluate_text_paths(
+/// One frame's compiled text geometry and its optional clip path.
+type TextPathOutcome = (std::sync::Arc<[crate::renderer::types::TextPath]>, Option<kurbo::BezPath>);
+
+/// Frame-sampled text inputs shared by the compile paths below.
+struct TextFrameValues {
+    content: String,
+    font_family: String,
+    font_size: f32,
+    font_weight: f32,
+    font_style: String,
+    line_height: f32,
+    letter_spacing: f32,
+    word_spacing: f32,
+    max_width: f32,
+    text_align: String,
+    text_anchor: String,
+    overflow: String,
+    color: [f32; 4],
+    language: String,
+    content_override: Option<String>,
+}
+
+impl TextFrameValues {
+    /// One style for every compile in a frame; the content and wrapping policy
+    /// differ per call, typography does not.
+    fn text_style(&self) -> TextStyle<'_> {
+        TextStyle {
+            font_family: &self.font_family,
+            font_size: self.font_size,
+            font_weight: self.font_weight,
+            font_style: &self.font_style,
+            line_height: self.line_height,
+            letter_spacing: self.letter_spacing,
+            word_spacing: self.word_spacing,
+            color: self.color,
+        }
+    }
+}
+
+/// Sample the text tracks and modifier overrides for this frame.
+fn text_frame_values(
     ctx: &EvaluateCtx,
-    text_ctx: &mut TextCompileCtx,
-    kind: crate::renderer::text::TextKind,
+    text: &crate::timeline::animation_track::TextTracks,
     default_font_size: f32,
-) -> Result<
-    (std::sync::Arc<[crate::renderer::types::TextPath]>, Option<kurbo::BezPath>),
-    crate::renderer::error::RenderError,
-> {
+) -> TextFrameValues {
     use crate::timeline::TrackAccessor;
 
     let style = ctx.style;
-    let text = ctx.text.expect("text primitive requires text component");
     let mut content = text.text_content.get(ctx.time_ms, String::new());
     let mut font_family = text.font_family.get(ctx.time_ms, String::new());
     let mut font_size = text.font_size.get(ctx.time_ms, default_font_size);
@@ -94,121 +127,145 @@ pub fn evaluate_text_paths(
             language = s.clone();
         }
     }
-    // One style for every compile below; the content and wrapping policy differ
-    // per call, typography does not.
-    let text_style = TextStyle {
-        font_family: &font_family,
+
+    TextFrameValues {
+        content,
+        font_family,
         font_size,
         font_weight,
-        font_style: &font_style,
+        font_style,
         line_height,
         letter_spacing,
         word_spacing,
+        max_width,
+        text_align,
+        text_anchor,
+        overflow,
         color,
-    };
+        language,
+        content_override,
+    }
+}
+
+/// Cross-fade keyframed content by compiling both endpoint strings.
+///
+/// Returns `None` when the frame has an explicit content override or is not
+/// inside a content-segment transition.
+fn crossfade_text_paths(
+    ctx: &EvaluateCtx,
+    text_ctx: &mut TextCompileCtx,
+    kind: crate::renderer::text::TextKind,
+    text: &crate::timeline::animation_track::TextTracks,
+    values: &TextFrameValues,
+) -> Result<Option<TextPathOutcome>, crate::renderer::error::RenderError> {
     // An explicit empty-string override means "no visible content", not "keep the
     // cached build-time glyphs", so `always { box.text = "" }` is deterministic.
-    if content_override.is_none() {
-        // Keyframed content swaps cross-fade by compiling both endpoint strings;
-        // without this the String track snaps at the midpoint.
-        if let Some((source_text, target_text, progress)) = text
-            .text_content
-            .as_ref()
-            .and_then(|track| track.interpolation_segment(ctx.time_ms))
-            .map(|(_, prev, found, raw_progress, easing)| {
-                let eased = crate::easing::apply_easing(raw_progress, *easing);
-                (prev.clone(), found.clone(), eased)
-            })
-            && source_text != target_text
-        {
-            let mut request = TextCompileRequest {
-                kind,
-                content: &source_text,
-                language: &language,
-                palette: text_ctx.text_compiler.highlight_palette.as_ref(),
-                allow_fast_path: text_ctx.text_compiler.text_fast_path,
-                style: text_style.clone(),
-                max_width,
-                max_lines: None,
-                text_align: &text_align,
-                overflow: &overflow,
-            };
-            let source_paths =
-                text_ctx.text_compiler.compile_request(&request, text_ctx.font_context)?;
-            request.content = &target_text;
-            let target_paths =
-                text_ctx.text_compiler.compile_request(&request, text_ctx.font_context)?;
-            let source_half = crate::renderer::text::measure_text_paths(&source_paths);
-            let source_offset = match text_anchor.as_str() {
-                "left" => source_half[0],
-                "right" => -source_half[0],
-                _ => 0.0,
-            };
-            let mut source_vec = source_paths.to_vec();
-            if source_offset != 0.0 {
-                let affine = kurbo::Affine::translate((source_offset as f64, 0.0));
-                let offset_vec = kurbo::Vec2::new(source_offset as f64, 0.0);
-                for p in &mut source_vec {
-                    p.path.apply_affine(affine);
-                    p.glyph_center[0] += source_offset;
-                    p.bounds = p.bounds + offset_vec;
-                }
-            }
+    if values.content_override.is_some() {
+        return Ok(None);
+    }
+    // Keyframed content swaps cross-fade by compiling both endpoint strings;
+    // without this the String track snaps at the midpoint.
+    let Some((source_text, target_text, progress)) = text
+        .text_content
+        .as_ref()
+        .and_then(|track| track.interpolation_segment(ctx.time_ms))
+        .map(|(_, prev, found, raw_progress, easing)| {
+            let eased = crate::easing::apply_easing(raw_progress, *easing);
+            (prev.clone(), found.clone(), eased)
+        })
+    else {
+        return Ok(None);
+    };
+    if source_text == target_text {
+        return Ok(None);
+    }
 
-            let target_half = crate::renderer::text::measure_text_paths(&target_paths);
-            let target_offset = match text_anchor.as_str() {
-                "left" => target_half[0],
-                "right" => -target_half[0],
-                _ => 0.0,
-            };
-            let mut target_vec = target_paths.to_vec();
-            if target_offset != 0.0 {
-                let affine = kurbo::Affine::translate((target_offset as f64, 0.0));
-                let offset_vec = kurbo::Vec2::new(target_offset as f64, 0.0);
-                for p in &mut target_vec {
-                    p.path.apply_affine(affine);
-                    p.glyph_center[0] += target_offset;
-                    p.bounds = p.bounds + offset_vec;
-                }
-            }
-
-            let mut crossfaded = crate::timeline::interpolate_text_paths(
-                &source_vec,
-                &target_vec,
-                progress,
-                crate::timeline::MorphOptions {
-                    strategy: crate::timeline::MorphStrategy::Fade,
-                    ..Default::default()
-                },
-            );
-            let clip = crate::timeline::dispatch::apply_split_text_animation(
-                &mut crossfaded,
-                text,
-                ctx.time_ms,
-            );
-            return Ok((std::sync::Arc::from(crossfaded), clip));
+    let mut request = TextCompileRequest {
+        kind,
+        content: &source_text,
+        language: &values.language,
+        palette: text_ctx.text_compiler.highlight_palette.as_ref(),
+        allow_fast_path: text_ctx.text_compiler.text_fast_path,
+        style: values.text_style(),
+        max_width: values.max_width,
+        max_lines: None,
+        text_align: &values.text_align,
+        overflow: &values.overflow,
+    };
+    let source_paths = text_ctx.text_compiler.compile_request(&request, text_ctx.font_context)?;
+    request.content = &target_text;
+    let target_paths = text_ctx.text_compiler.compile_request(&request, text_ctx.font_context)?;
+    let source_half = crate::renderer::text::measure_text_paths(&source_paths);
+    let source_offset = match values.text_anchor.as_str() {
+        "left" => source_half[0],
+        "right" => -source_half[0],
+        _ => 0.0,
+    };
+    let mut source_vec = source_paths.to_vec();
+    if source_offset != 0.0 {
+        let affine = kurbo::Affine::translate((source_offset as f64, 0.0));
+        let offset_vec = kurbo::Vec2::new(source_offset as f64, 0.0);
+        for p in &mut source_vec {
+            p.path.apply_affine(affine);
+            p.glyph_center[0] += source_offset;
+            p.bounds = p.bounds + offset_vec;
         }
     }
-    if content_override.is_none()
-        && text.char_progress.is_none()
-        && let Some(static_paths) = &text.static_paths
-    {
-        let track_anchor = text.text_anchor.get(ctx.time_ms, "center".to_string());
-        if text_anchor == track_anchor {
-            return Ok((std::sync::Arc::clone(static_paths), None));
+
+    let target_half = crate::renderer::text::measure_text_paths(&target_paths);
+    let target_offset = match values.text_anchor.as_str() {
+        "left" => target_half[0],
+        "right" => -target_half[0],
+        _ => 0.0,
+    };
+    let mut target_vec = target_paths.to_vec();
+    if target_offset != 0.0 {
+        let affine = kurbo::Affine::translate((target_offset as f64, 0.0));
+        let offset_vec = kurbo::Vec2::new(target_offset as f64, 0.0);
+        for p in &mut target_vec {
+            p.path.apply_affine(affine);
+            p.glyph_center[0] += target_offset;
+            p.bounds = p.bounds + offset_vec;
         }
     }
-    if content_override.is_none() && text.text_paths.is_some() {
+
+    let mut crossfaded = crate::timeline::interpolate_text_paths(
+        &source_vec,
+        &target_vec,
+        progress,
+        crate::timeline::MorphOptions {
+            strategy: crate::timeline::MorphStrategy::Fade,
+            ..Default::default()
+        },
+    );
+    let clip =
+        crate::timeline::dispatch::apply_split_text_animation(&mut crossfaded, text, ctx.time_ms);
+    Ok(Some((std::sync::Arc::from(crossfaded), clip)))
+}
+
+/// Remaining frame-time compile paths, in the original priority order: cached
+/// glyphs, a fresh compile from the sampled content, then the track fallback.
+fn evaluate_uncached_text_paths(
+    ctx: &EvaluateCtx,
+    text_ctx: &mut TextCompileCtx,
+    kind: crate::renderer::text::TextKind,
+    text: &crate::timeline::animation_track::TextTracks,
+    values: &TextFrameValues,
+) -> Result<TextPathOutcome, crate::renderer::error::RenderError> {
+    use crate::timeline::TrackAccessor;
+
+    let style = ctx.style;
+    if values.content_override.is_none() && text.text_paths.is_some() {
         let (paths, clip) = text.evaluate_paths_and_clip(style, ctx.time_ms);
         let track_anchor = text.text_anchor.get(ctx.time_ms, "center".to_string());
-        if text_anchor != track_anchor && !paths.is_empty() {
+        if values.text_anchor != track_anchor && !paths.is_empty() {
             let half_size = crate::renderer::text::measure_text_paths(&paths);
             let old_offset = match track_anchor.as_str() {
                 "left" => half_size[0],
                 "right" => -half_size[0],
                 _ => 0.0,
             };
-            let new_offset = match text_anchor.as_str() {
+            let new_offset = match values.text_anchor.as_str() {
                 "left" => half_size[0],
                 "right" => -half_size[0],
                 _ => 0.0,
@@ -227,23 +284,23 @@ pub fn evaluate_text_paths(
             }
         }
         Ok((std::sync::Arc::from(paths), clip))
-    } else if content_override.is_some() || !content.is_empty() {
+    } else if values.content_override.is_some() || !values.content.is_empty() {
         let request = TextCompileRequest {
             kind,
-            content: &content,
-            language: &language,
+            content: &values.content,
+            language: &values.language,
             palette: text_ctx.text_compiler.highlight_palette.as_ref(),
             allow_fast_path: text_ctx.text_compiler.text_fast_path,
-            style: text_style,
-            max_width,
+            style: values.text_style(),
+            max_width: values.max_width,
             max_lines: None,
-            text_align: &text_align,
-            overflow: &overflow,
+            text_align: &values.text_align,
+            overflow: &values.overflow,
         };
         let compiled = text_ctx.text_compiler.compile_request(&request, text_ctx.font_context)?;
         let mut paths_vec = compiled.to_vec();
         let half_size = crate::renderer::text::measure_text_paths(&paths_vec);
-        let anchor_offset_x = match text_anchor.as_str() {
+        let anchor_offset_x = match values.text_anchor.as_str() {
             "left" => half_size[0],
             "right" => -half_size[0],
             _ => 0.0,
@@ -267,6 +324,37 @@ pub fn evaluate_text_paths(
         let (paths, clip) = text.evaluate_paths_and_clip(style, ctx.time_ms);
         Ok((std::sync::Arc::from(paths), clip))
     }
+}
+
+/// Evaluate text paths for a text primitive at frame time: the single frame-time
+/// text compile path for every text-like primitive (Text, Math, Code, Typst).
+pub fn evaluate_text_paths(
+    ctx: &EvaluateCtx,
+    text_ctx: &mut TextCompileCtx,
+    kind: crate::renderer::text::TextKind,
+    default_font_size: f32,
+) -> Result<
+    (std::sync::Arc<[crate::renderer::types::TextPath]>, Option<kurbo::BezPath>),
+    crate::renderer::error::RenderError,
+> {
+    use crate::timeline::TrackAccessor;
+
+    let text = ctx.text.expect("text primitive requires text component");
+    let values = text_frame_values(ctx, text, default_font_size);
+
+    if let Some(result) = crossfade_text_paths(ctx, text_ctx, kind, text, &values)? {
+        return Ok(result);
+    }
+    if values.content_override.is_none()
+        && text.char_progress.is_none()
+        && let Some(static_paths) = &text.static_paths
+    {
+        let track_anchor = text.text_anchor.get(ctx.time_ms, "center".to_string());
+        if values.text_anchor == track_anchor {
+            return Ok((std::sync::Arc::clone(static_paths), None));
+        }
+    }
+    evaluate_uncached_text_paths(ctx, text_ctx, kind, text, &values)
 }
 
 /// Resolve a shape's half-size (radius) for this frame.

@@ -1,4 +1,5 @@
-use crate::timeline::{EntityId, Timeline};
+use crate::timeline::effects::{EffectChain, EffectRegion};
+use crate::timeline::{EntityId, SceneDimensions, Timeline};
 
 impl Timeline {
     /// Adapter used by the [`crate::primitives::Primitive::render_children_by_id`]
@@ -36,32 +37,17 @@ impl Timeline {
         }
 
         // Check if a filter backend is available
-        let has_backend = out.filter_backend.is_some();
-        if !has_backend {
-            // Surface the fallback: authored filter effects are silently
-            // dropped without it.
-            self.eval_caches.runtime_diagnostics.borrow_mut().push(
-                crate::diagnostics::Diagnostic::warning(
-                    crate::diagnostics::DiagnosticCode::RenderFailure,
-                    crate::diagnostics::DiagnosticPhase::Render,
-                    format!(
-                        "Filter '{node_label}' has no filter backend available; \
-                             rendering children unfiltered"
-                    ),
-                ),
+        if out.filter_backend.is_none() {
+            self.render_filter_unfiltered(
+                node_id,
+                node_label,
+                global_transform,
+                global_opacity,
+                allow_pending_composites,
+                &child_layout_positions,
+                frame,
+                out,
             );
-            // Fallback: render children directly (no filtering)
-            for &child_id in &self.world.hierarchy(node_id).children {
-                self.evaluate_node_by_id(
-                    child_id,
-                    global_transform,
-                    global_opacity,
-                    &child_layout_positions,
-                    allow_pending_composites,
-                    frame,
-                    out,
-                );
-            }
             return;
         }
 
@@ -94,46 +80,7 @@ impl Timeline {
             return;
         }
 
-        // Region of interest, in priority order:
-        // 1. an authored `bounds: (x, y, w, h)`;
-        // 2. derived from the content bounds the sub-scene evaluation just recorded
-        //    (`docs/effects.md` §3), expanded by worst-case support;
-        // 3. `None` — the full-scene path.
-        // The GPU textures stay at full scene capacity in every case, so
-        // varying regions never reallocate.
-        // Authored bounds are scene coordinates, and the camera moves the
-        // picture under them. Recompute the same affine the root subtrees were
-        // wrapped in (see the camera application in `evaluate_scene`) rather
-        // than the scope's own world transform: the authored numbers already
-        // account for the scope's placement.
-        let camera = if self.camera_used.get() {
-            self.camera.affine(
-                time_ms,
-                scene_dimensions,
-                frame.overrides.get(crate::timeline::camera::CAMERA_TARGET),
-            )
-        } else {
-            kurbo::Affine::IDENTITY
-        };
-        let region = match self.effect_scope_region(node_id, scene_dimensions, time_ms, camera) {
-            Some(region) => Some(region),
-            None => {
-                let mut content: Option<kurbo::Rect> = None;
-                for child in self.world.child_labels(node_id) {
-                    self.subtree_bounds_union(child, &mut content);
-                }
-                content.and_then(|rect| {
-                    Self::region_from_rect(
-                        rect,
-                        self.world
-                            .effects(node_id)
-                            .map(|effects| effects.worst_case_support())
-                            .unwrap_or(0.0),
-                        scene_dimensions,
-                    )
-                })
-            },
-        };
+        let region = self.filter_effect_region(node_id, scene_dimensions, time_ms, frame);
 
         if let Some(r) = region
             && (r.origin[0] >= scene_dimensions.width as f32
@@ -171,13 +118,123 @@ impl Timeline {
             }
         }
 
-        // Render sub-scene to image via backend, apply GPU filters, draw result
+        self.composite_filtered_scene(
+            out,
+            &sub_scene,
+            scene_dimensions,
+            region,
+            &chain,
+            global_opacity,
+            node_label,
+        );
+    }
+
+    /// No-backend fallback: surface the dropped effects and render the children
+    /// directly, unfiltered.
+    fn render_filter_unfiltered(
+        &self,
+        node_id: EntityId,
+        node_label: &str,
+        global_transform: kurbo::Affine,
+        global_opacity: f32,
+        allow_pending_composites: bool,
+        child_layout_positions: &std::sync::Arc<crate::timeline::layout::LayoutPositions>,
+        frame: &crate::primitives::RenderFrame<'_>,
+        out: &mut crate::primitives::RenderOutputs<'_, '_>,
+    ) {
+        // Surface the fallback: authored filter effects are silently
+        // dropped without it.
+        self.eval_caches.runtime_diagnostics.borrow_mut().push(
+            crate::diagnostics::Diagnostic::warning(
+                crate::diagnostics::DiagnosticCode::RenderFailure,
+                crate::diagnostics::DiagnosticPhase::Render,
+                format!(
+                    "Filter '{node_label}' has no filter backend available; \
+                         rendering children unfiltered"
+                ),
+            ),
+        );
+        // Fallback: render children directly (no filtering)
+        for &child_id in &self.world.hierarchy(node_id).children {
+            self.evaluate_node_by_id(
+                child_id,
+                global_transform,
+                global_opacity,
+                child_layout_positions,
+                allow_pending_composites,
+                frame,
+                out,
+            );
+        }
+    }
+
+    /// Region of interest for this effect scope, in priority order:
+    /// 1. an authored `bounds: (x, y, w, h)`;
+    /// 2. derived from the content bounds the sub-scene evaluation just recorded
+    ///    (`docs/effects.md` §3), expanded by worst-case support;
+    /// 3. `None` — the full-scene path.
+    ///
+    /// The GPU textures stay at full scene capacity in every case, so
+    /// varying regions never reallocate.
+    /// Authored bounds are scene coordinates, and the camera moves the
+    /// picture under them. Recompute the same affine the root subtrees were
+    /// wrapped in (see the camera application in `evaluate_scene`) rather
+    /// than the scope's own world transform: the authored numbers already
+    /// account for the scope's placement.
+    fn filter_effect_region(
+        &self,
+        node_id: EntityId,
+        scene_dimensions: SceneDimensions,
+        time_ms: u64,
+        frame: &crate::primitives::RenderFrame<'_>,
+    ) -> Option<EffectRegion> {
+        let camera = if self.camera_used.get() {
+            self.camera.affine(
+                time_ms,
+                scene_dimensions,
+                frame.overrides.get(crate::timeline::camera::CAMERA_TARGET),
+            )
+        } else {
+            kurbo::Affine::IDENTITY
+        };
+        match self.effect_scope_region(node_id, scene_dimensions, time_ms, camera) {
+            Some(region) => Some(region),
+            None => {
+                let mut content: Option<kurbo::Rect> = None;
+                for child in self.world.child_labels(node_id) {
+                    self.subtree_bounds_union(child, &mut content);
+                }
+                content.and_then(|rect| {
+                    Self::region_from_rect(
+                        rect,
+                        self.world
+                            .effects(node_id)
+                            .map(|effects| effects.worst_case_support())
+                            .unwrap_or(0.0),
+                        scene_dimensions,
+                    )
+                })
+            },
+        }
+    }
+
+    /// Render sub-scene to image via backend, apply GPU filters, draw result.
+    fn composite_filtered_scene(
+        &self,
+        out: &mut crate::primitives::RenderOutputs<'_, '_>,
+        sub_scene: &vello::Scene,
+        scene_dimensions: SceneDimensions,
+        region: Option<EffectRegion>,
+        chain: &EffectChain,
+        global_opacity: f32,
+        node_label: &str,
+    ) {
         if let Some(backend) = out.filter_backend.as_mut() {
             match backend.render_scene_to_image_gpu_filtered(
-                &sub_scene,
+                sub_scene,
                 scene_dimensions,
                 region,
-                &chain,
+                chain,
             ) {
                 Ok(filtered) => {
                     // A region-scoped result is composited back at its origin;

@@ -30,49 +30,7 @@ fn inject_entry(
 
     // ── Re-root layout-managed entries to absolute world position ──
     if is_root {
-        let placement_mode = geometry
-            .placement_mode
-            .as_ref()
-            .map(|pt| pt.evaluate(0))
-            .unwrap_or(PlacementMode::Manual);
-
-        let binding = geometry
-            .position_binding
-            .as_ref()
-            .map(|pt| pt.evaluate(0))
-            .unwrap_or(PositionBinding::Absolute);
-
-        let needs_reroot = placement_mode == PlacementMode::LayoutManaged
-            || matches!(
-                binding,
-                PositionBinding::ContainerDefault { .. } | PositionBinding::ContainerPercent { .. }
-            );
-
-        if needs_reroot {
-            let scene_dims = SceneDimensions {
-                width: dims[0] as u32,
-                height: dims[1] as u32,
-            };
-            if let Some(world_affine) =
-                source_timeline.actor_world_affine(label, source_duration_ms, scene_dims)
-            {
-                let t = world_affine.translation();
-                let world_pos = [t.x as f32, t.y as f32];
-
-                // Rewrite snapshot position to the resolved world coordinate.
-                let pos_track = geometry.position.ensure([0.0, 0.0]);
-                pos_track.keyframes.clear();
-                pos_track.add_keyframe(0, world_pos, Easing::Linear);
-
-                let bind_track = geometry.position_binding.ensure(PositionBinding::Absolute);
-                bind_track.keyframes.clear();
-                bind_track.add_keyframe(0, PositionBinding::Absolute, Easing::Linear);
-
-                let mode_track = geometry.placement_mode.ensure(PlacementMode::Manual);
-                mode_track.keyframes.clear();
-                mode_track.add_keyframe(0, PlacementMode::Manual, Easing::Linear);
-            }
-        }
+        reroot_carried_geometry(&mut geometry, label, source_timeline, source_duration_ms, dims);
     }
 
     // ── Recursively inject children first, then insert this entity and link
@@ -91,6 +49,74 @@ fn inject_entry(
         );
     }
 
+    restore_carried_entity(dest, label, entry, &geometry, is_root, source_timeline);
+    carry_auxiliary_state(dest, label, entry, source_timeline);
+}
+
+/// Resolve a root entry's layout-managed or container-relative position binding
+/// from the source timeline and rewrite it to `Absolute`.
+fn reroot_carried_geometry(
+    geometry: &mut crate::timeline::animation_track::GeometryTracks,
+    label: &str,
+    source_timeline: &Timeline,
+    source_duration_ms: u64,
+    dims: [f64; 2],
+) {
+    let placement_mode = geometry
+        .placement_mode
+        .as_ref()
+        .map(|pt| pt.evaluate(0))
+        .unwrap_or(PlacementMode::Manual);
+
+    let binding = geometry
+        .position_binding
+        .as_ref()
+        .map(|pt| pt.evaluate(0))
+        .unwrap_or(PositionBinding::Absolute);
+
+    let needs_reroot = placement_mode == PlacementMode::LayoutManaged
+        || matches!(
+            binding,
+            PositionBinding::ContainerDefault { .. } | PositionBinding::ContainerPercent { .. }
+        );
+
+    if needs_reroot {
+        let scene_dims = SceneDimensions {
+            width: dims[0] as u32,
+            height: dims[1] as u32,
+        };
+        if let Some(world_affine) =
+            source_timeline.actor_world_affine(label, source_duration_ms, scene_dims)
+        {
+            let t = world_affine.translation();
+            let world_pos = [t.x as f32, t.y as f32];
+
+            // Rewrite snapshot position to the resolved world coordinate.
+            let pos_track = geometry.position.ensure([0.0, 0.0]);
+            pos_track.keyframes.clear();
+            pos_track.add_keyframe(0, world_pos, Easing::Linear);
+
+            let bind_track = geometry.position_binding.ensure(PositionBinding::Absolute);
+            bind_track.keyframes.clear();
+            bind_track.add_keyframe(0, PositionBinding::Absolute, Easing::Linear);
+
+            let mode_track = geometry.placement_mode.ensure(PlacementMode::Manual);
+            mode_track.keyframes.clear();
+            mode_track.add_keyframe(0, PlacementMode::Manual, Easing::Linear);
+        }
+    }
+}
+
+/// (Re-)create the entity from the snapshot's per-tier data and relink its
+/// children.
+fn restore_carried_entity(
+    dest: &mut Timeline,
+    label: &str,
+    entry: &CarryEntry,
+    geometry: &crate::timeline::animation_track::GeometryTracks,
+    is_root: bool,
+    source_timeline: &Timeline,
+) {
     // (Re-)create the entity from the snapshot's per-tier data. `spawn_replacing`
     // keeps the label's entity id and resets its components, matching the old
     // insert-replacement semantics. Every component write goes through one
@@ -181,16 +207,33 @@ fn inject_entry(
     // through this scene's entities (a label that was not carried drops out,
     // matching the layout admission's missing-child behaviour).
     if let Some(carried) = &entry.child_order {
-        let resolve = |labels: &[String]| -> Vec<EntityId> {
-            labels.iter().filter_map(|l| world.get_id(l)).collect()
-        };
-        let mut track = PropertyTrack::new(resolve(&carried.default_order));
-        for (time, labels, easing) in &carried.keyframes {
-            track.add_keyframe(*time, resolve(labels), *easing);
-        }
-        world.child_order.insert(id, ChildOrderComponent { track });
+        remap_carried_child_order(world, id, carried);
     }
+}
 
+/// Remap a carried child-order track's labels to this scene's entities.
+fn remap_carried_child_order(
+    world: &mut crate::timeline::World,
+    id: EntityId,
+    carried: &CarriedChildOrder,
+) {
+    let resolve = |labels: &[String]| -> Vec<EntityId> {
+        labels.iter().filter_map(|l| world.get_id(l)).collect()
+    };
+    let mut track = PropertyTrack::new(resolve(&carried.default_order));
+    for (time, labels, easing) in &carried.keyframes {
+        track.add_keyframe(*time, resolve(labels), *easing);
+    }
+    world.child_order.insert(id, ChildOrderComponent { track });
+}
+
+/// Carry the entity-level side data that lives outside `World` components.
+fn carry_auxiliary_state(
+    dest: &mut Timeline,
+    label: &str,
+    entry: &CarryEntry,
+    source_timeline: &Timeline,
+) {
     // Seed the persistence flag so chain-persistence works automatically.
     dest.set_persistence_flag(label, entry.persistent);
 
