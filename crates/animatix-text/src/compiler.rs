@@ -130,12 +130,17 @@ pub fn grouped_text_compile_cache_len() -> usize {
     lock_grouped_cache().len()
 }
 
-/// Compile text into glyph paths plus metrics, memoized process-wide. All text
-/// kinds funnel through here; identical requests pay the Typst cost once.
-pub fn compile_text_cached(
+/// Look up a memoized compilation for `key`, cloning the cached entry.
+fn lookup_cached_text(key: &TextCacheKey) -> Option<std::sync::Arc<CachedText>> {
+    lock_compile_cache().get(key).cloned()
+}
+
+/// Compile a request that missed the memo table: pick the fast or Typst route
+/// and produce centered glyph paths plus metrics. The caller memoizes the result.
+fn compile_uncached(
     request: &TextCompileRequest<'_>,
     font_ctx: &FontContext,
-) -> Result<std::sync::Arc<CachedText>, RenderError> {
+) -> Result<CompiledText, RenderError> {
     let kind = request.kind;
     let content = request.content;
     let style = &request.style;
@@ -151,14 +156,6 @@ pub fn compile_text_cached(
     let max_lines = request.max_lines;
     let text_align = request.text_align;
     let overflow = request.overflow;
-    let key = request.cache_key(font_ctx);
-    #[cfg(feature = "rich-text")]
-    let key_color = request.solid_rgba();
-
-    if let Some(hit) = lock_compile_cache().get(&key) {
-        return Ok(std::sync::Arc::clone(hit));
-    }
-
     // Slim playback profile: Typst is compiled out, so every kind degrades to
     // the fast path (Code loses highlighting, Math renders its source literally).
     #[cfg(feature = "rich-text")]
@@ -229,6 +226,7 @@ pub fn compile_text_cached(
                     kind
                 );
             }
+            let key_color = request.solid_rgba();
             let typst_color = typst::visualize::Color::from_u8(
                 key_color[0],
                 key_color[1],
@@ -336,7 +334,12 @@ pub fn compile_text_cached(
             }
         }
     };
+    Ok(compiled)
+}
 
+/// Measure a fresh compilation and memoize it under `key`, evicting when the
+/// table is full. Returns the stored entry.
+fn store_cached_text(key: TextCacheKey, compiled: CompiledText) -> std::sync::Arc<CachedText> {
     let half_size = measure_text_paths(&compiled.glyphs);
     let entry = std::sync::Arc::new(CachedText {
         paths: compiled.glyphs.into(),
@@ -347,12 +350,25 @@ pub fn compile_text_cached(
         hardware_layout: compiled.hardware_layout.map(std::sync::Arc::new),
     });
 
-    {
-        let mut cache = lock_compile_cache();
-        cache.insert(key, std::sync::Arc::clone(&entry));
-        evict_text_compile_cache(&mut cache);
+    let mut cache = lock_compile_cache();
+    cache.insert(key, std::sync::Arc::clone(&entry));
+    evict_text_compile_cache(&mut cache);
+    entry
+}
+
+/// Compile text into glyph paths plus metrics, memoized process-wide. All text
+/// kinds funnel through here; identical requests pay the Typst cost once.
+pub fn compile_text_cached(
+    request: &TextCompileRequest<'_>,
+    font_ctx: &FontContext,
+) -> Result<std::sync::Arc<CachedText>, RenderError> {
+    let key = request.cache_key(font_ctx);
+
+    if let Some(hit) = lookup_cached_text(&key) {
+        return Ok(hit);
     }
-    Ok(entry)
+
+    Ok(store_cached_text(key, compile_uncached(request, font_ctx)?))
 }
 
 /// Resolve the slim grouped path's typography. Only valid CSS font-style names

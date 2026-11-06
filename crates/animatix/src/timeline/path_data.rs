@@ -36,228 +36,30 @@ pub(crate) fn parse_svg_path_data(d: &str) -> Expr {
 
         match cmd {
             "M" | "m" => {
-                let abs = cmd == "M";
-                // SVG rule: only the *first* coordinate pair after a moveto is a
-                // new subpath; every following pair is an implicit lineto. The
-                // old code emitted `move_to` for all of them, which silently
-                // dropped the connecting segment (a diagonal `M17 7 7 17`
-                // rendered as two invisible dots). Track the first pair so the
-                // rest lower to `line_to`.
-                let mut first_pair = true;
-                while i + 1 < tokens.len() && is_number(&tokens[i]) {
-                    let x = parse_token_num(&tokens[i]);
-                    let y = parse_token_num(&tokens[i + 1]);
-                    i += 2;
-                    let (abs_x, abs_y) = if abs {
-                        (x, y)
-                    } else {
-                        (current_pos.0 + x, current_pos.1 + y)
-                    };
-                    let name = if first_pair { "move_to" } else { "line_to" };
-                    first_pair = false;
-                    commands
-                        .push(Expr::Call(name.into(), vec![Expr::Num(abs_x), Expr::Num(abs_y)]));
-                    current_pos = (abs_x, abs_y);
-                }
+                parse_move_to(&tokens, &mut i, &mut current_pos, cmd == "M", &mut commands)
             },
             "L" | "l" => {
-                let abs = cmd == "L";
-                while i + 1 < tokens.len() && is_number(&tokens[i]) {
-                    let x = parse_token_num(&tokens[i]);
-                    let y = parse_token_num(&tokens[i + 1]);
-                    i += 2;
-                    let (abs_x, abs_y) = if abs {
-                        (x, y)
-                    } else {
-                        (current_pos.0 + x, current_pos.1 + y)
-                    };
-                    commands.push(Expr::Call(
-                        "line_to".into(),
-                        vec![Expr::Num(abs_x), Expr::Num(abs_y)],
-                    ));
-                    current_pos = (abs_x, abs_y);
-                }
+                parse_line_to(&tokens, &mut i, &mut current_pos, cmd == "L", &mut commands)
             },
             "Q" | "q" => {
-                let abs = cmd == "Q";
-                while i + 3 < tokens.len() && is_number(&tokens[i]) {
-                    let x1 = parse_token_num(&tokens[i]);
-                    let y1 = parse_token_num(&tokens[i + 1]);
-                    let x = parse_token_num(&tokens[i + 2]);
-                    let y = parse_token_num(&tokens[i + 3]);
-                    i += 4;
-                    let (abs_x1, abs_y1, abs_x, abs_y) = if abs {
-                        (x1, y1, x, y)
-                    } else {
-                        (
-                            current_pos.0 + x1,
-                            current_pos.1 + y1,
-                            current_pos.0 + x,
-                            current_pos.1 + y,
-                        )
-                    };
-                    commands.push(Expr::Call(
-                        "quad_to".into(),
-                        vec![
-                            Expr::Num(abs_x1),
-                            Expr::Num(abs_y1),
-                            Expr::Num(abs_x),
-                            Expr::Num(abs_y),
-                        ],
-                    ));
-                    current_pos = (abs_x, abs_y);
-                }
+                parse_quad_to(&tokens, &mut i, &mut current_pos, cmd == "Q", &mut commands)
             },
             "C" | "c" => {
-                let abs = cmd == "C";
-                while i + 5 < tokens.len() && is_number(&tokens[i]) {
-                    let x1 = parse_token_num(&tokens[i]);
-                    let y1 = parse_token_num(&tokens[i + 1]);
-                    let x2 = parse_token_num(&tokens[i + 2]);
-                    let y2 = parse_token_num(&tokens[i + 3]);
-                    let x = parse_token_num(&tokens[i + 4]);
-                    let y = parse_token_num(&tokens[i + 5]);
-                    i += 6;
-                    let (abs_x1, abs_y1, abs_x2, abs_y2, abs_x, abs_y) = if abs {
-                        (x1, y1, x2, y2, x, y)
-                    } else {
-                        (
-                            current_pos.0 + x1,
-                            current_pos.1 + y1,
-                            current_pos.0 + x2,
-                            current_pos.1 + y2,
-                            current_pos.0 + x,
-                            current_pos.1 + y,
-                        )
-                    };
-                    commands.push(Expr::Call(
-                        "curve_to".into(),
-                        vec![
-                            Expr::Num(abs_x1),
-                            Expr::Num(abs_y1),
-                            Expr::Num(abs_x2),
-                            Expr::Num(abs_y2),
-                            Expr::Num(abs_x),
-                            Expr::Num(abs_y),
-                        ],
-                    ));
-                    current_pos = (abs_x, abs_y);
-                }
+                parse_curve_to(&tokens, &mut i, &mut current_pos, cmd == "C", &mut commands)
             },
             "H" | "h" => {
-                let abs = cmd == "H";
-                while i < tokens.len() && is_number(&tokens[i]) {
-                    let x = parse_token_num(&tokens[i]);
-                    i += 1;
-                    let abs_x = if abs { x } else { current_pos.0 + x };
-                    commands.push(Expr::Call(
-                        "line_to".into(),
-                        vec![Expr::Num(abs_x), Expr::Num(current_pos.1)],
-                    ));
-                    current_pos = (abs_x, current_pos.1);
-                }
+                parse_horizontal_to(&tokens, &mut i, &mut current_pos, cmd == "H", &mut commands)
             },
             "V" | "v" => {
-                let abs = cmd == "V";
-                while i < tokens.len() && is_number(&tokens[i]) {
-                    let y = parse_token_num(&tokens[i]);
-                    i += 1;
-                    let abs_y = if abs { y } else { current_pos.1 + y };
-                    commands.push(Expr::Call(
-                        "line_to".into(),
-                        vec![Expr::Num(current_pos.0), Expr::Num(abs_y)],
-                    ));
-                    current_pos = (current_pos.0, abs_y);
-                }
+                parse_vertical_to(&tokens, &mut i, &mut current_pos, cmd == "V", &mut commands)
             },
             "S" | "s" => {
-                // Smooth cubic bezier: control point is reflection of previous control point
-                let abs = cmd == "S";
-                while i + 3 < tokens.len() && is_number(&tokens[i]) {
-                    let x2 = parse_token_num(&tokens[i]);
-                    let y2 = parse_token_num(&tokens[i + 1]);
-                    let x = parse_token_num(&tokens[i + 2]);
-                    let y = parse_token_num(&tokens[i + 3]);
-                    i += 4;
-                    // For simplicity, use current_pos as first control point
-                    // (proper implementation would reflect previous control point)
-                    let (abs_x1, abs_y1, abs_x2, abs_y2, abs_x, abs_y) = if abs {
-                        (current_pos.0, current_pos.1, x2, y2, x, y)
-                    } else {
-                        (
-                            current_pos.0,
-                            current_pos.1,
-                            current_pos.0 + x2,
-                            current_pos.1 + y2,
-                            current_pos.0 + x,
-                            current_pos.1 + y,
-                        )
-                    };
-                    commands.push(Expr::Call(
-                        "curve_to".into(),
-                        vec![
-                            Expr::Num(abs_x1),
-                            Expr::Num(abs_y1),
-                            Expr::Num(abs_x2),
-                            Expr::Num(abs_y2),
-                            Expr::Num(abs_x),
-                            Expr::Num(abs_y),
-                        ],
-                    ));
-                    current_pos = (abs_x, abs_y);
-                }
+                parse_smooth_curve_to(&tokens, &mut i, &mut current_pos, cmd == "S", &mut commands)
             },
             "T" | "t" => {
-                // Smooth quadratic bezier: control point is reflection of previous control point
-                let abs = cmd == "T";
-                while i + 1 < tokens.len() && is_number(&tokens[i]) {
-                    let x = parse_token_num(&tokens[i]);
-                    let y = parse_token_num(&tokens[i + 1]);
-                    i += 2;
-                    // For simplicity, use current_pos as control point
-                    let (abs_x1, abs_y1, abs_x, abs_y) = if abs {
-                        (current_pos.0, current_pos.1, x, y)
-                    } else {
-                        (current_pos.0, current_pos.1, current_pos.0 + x, current_pos.1 + y)
-                    };
-                    commands.push(Expr::Call(
-                        "quad_to".into(),
-                        vec![
-                            Expr::Num(abs_x1),
-                            Expr::Num(abs_y1),
-                            Expr::Num(abs_x),
-                            Expr::Num(abs_y),
-                        ],
-                    ));
-                    current_pos = (abs_x, abs_y);
-                }
+                parse_smooth_quad_to(&tokens, &mut i, &mut current_pos, cmd == "T", &mut commands)
             },
-            "A" | "a" => {
-                // Arc: A rx x-rotation large-arc-flag sweep-flag x y
-                let abs = cmd == "A";
-                while i + 6 < tokens.len() && is_number(&tokens[i]) {
-                    let _rx = parse_token_num(&tokens[i]);
-                    let _ry = parse_token_num(&tokens[i + 1]);
-                    let _x_rotation = parse_token_num(&tokens[i + 2]);
-                    let _large_arc = parse_token_num(&tokens[i + 3]) as i32;
-                    let _sweep = parse_token_num(&tokens[i + 4]) as i32;
-                    let x = parse_token_num(&tokens[i + 5]);
-                    let y = parse_token_num(&tokens[i + 6]);
-                    i += 7;
-                    let (abs_x, abs_y) = if abs {
-                        (x, y)
-                    } else {
-                        (current_pos.0 + x, current_pos.1 + y)
-                    };
-                    // Arcs are complex — approximate as line_to for now
-                    // Full arc support requires calculating arc segment points
-                    commands.push(Expr::Call(
-                        "line_to".into(),
-                        vec![Expr::Num(abs_x), Expr::Num(abs_y)],
-                    ));
-                    current_pos = (abs_x, abs_y);
-                }
-            },
+            "A" | "a" => parse_arc_to(&tokens, &mut i, &mut current_pos, cmd == "A", &mut commands),
             "Z" | "z" => {
                 commands.push(Expr::Call("close".into(), vec![]));
             },
@@ -269,6 +71,273 @@ pub(crate) fn parse_svg_path_data(d: &str) -> Expr {
     }
 
     Expr::List(commands)
+}
+
+/// `M`/`m`: a moveto followed by any number of implicit lineto pairs.
+///
+/// SVG rule: only the *first* coordinate pair after a moveto is a new subpath;
+/// every following pair is an implicit lineto. The old code emitted `move_to`
+/// for all of them, which silently dropped the connecting segment (a diagonal
+/// `M17 7 7 17` rendered as two invisible dots). Track the first pair so the
+/// rest lower to `line_to`.
+fn parse_move_to(
+    tokens: &[String],
+    i: &mut usize,
+    current_pos: &mut (f64, f64),
+    abs: bool,
+    commands: &mut Vec<Expr>,
+) {
+    let mut first_pair = true;
+    while *i + 1 < tokens.len() && is_number(&tokens[*i]) {
+        let x = parse_token_num(&tokens[*i]);
+        let y = parse_token_num(&tokens[*i + 1]);
+        *i += 2;
+        let (abs_x, abs_y) = if abs {
+            (x, y)
+        } else {
+            (current_pos.0 + x, current_pos.1 + y)
+        };
+        let name = if first_pair { "move_to" } else { "line_to" };
+        first_pair = false;
+        commands.push(Expr::Call(name.into(), vec![Expr::Num(abs_x), Expr::Num(abs_y)]));
+        *current_pos = (abs_x, abs_y);
+    }
+}
+
+/// `L`/`l`: straight line segments.
+fn parse_line_to(
+    tokens: &[String],
+    i: &mut usize,
+    current_pos: &mut (f64, f64),
+    abs: bool,
+    commands: &mut Vec<Expr>,
+) {
+    while *i + 1 < tokens.len() && is_number(&tokens[*i]) {
+        let x = parse_token_num(&tokens[*i]);
+        let y = parse_token_num(&tokens[*i + 1]);
+        *i += 2;
+        let (abs_x, abs_y) = if abs {
+            (x, y)
+        } else {
+            (current_pos.0 + x, current_pos.1 + y)
+        };
+        commands.push(Expr::Call("line_to".into(), vec![Expr::Num(abs_x), Expr::Num(abs_y)]));
+        *current_pos = (abs_x, abs_y);
+    }
+}
+
+/// `Q`/`q`: quadratic bezier segments with an explicit control point.
+fn parse_quad_to(
+    tokens: &[String],
+    i: &mut usize,
+    current_pos: &mut (f64, f64),
+    abs: bool,
+    commands: &mut Vec<Expr>,
+) {
+    while *i + 3 < tokens.len() && is_number(&tokens[*i]) {
+        let x1 = parse_token_num(&tokens[*i]);
+        let y1 = parse_token_num(&tokens[*i + 1]);
+        let x = parse_token_num(&tokens[*i + 2]);
+        let y = parse_token_num(&tokens[*i + 3]);
+        *i += 4;
+        let (abs_x1, abs_y1, abs_x, abs_y) = if abs {
+            (x1, y1, x, y)
+        } else {
+            (current_pos.0 + x1, current_pos.1 + y1, current_pos.0 + x, current_pos.1 + y)
+        };
+        commands.push(Expr::Call(
+            "quad_to".into(),
+            vec![
+                Expr::Num(abs_x1),
+                Expr::Num(abs_y1),
+                Expr::Num(abs_x),
+                Expr::Num(abs_y),
+            ],
+        ));
+        *current_pos = (abs_x, abs_y);
+    }
+}
+
+/// `C`/`c`: cubic bezier segments with two explicit control points.
+fn parse_curve_to(
+    tokens: &[String],
+    i: &mut usize,
+    current_pos: &mut (f64, f64),
+    abs: bool,
+    commands: &mut Vec<Expr>,
+) {
+    while *i + 5 < tokens.len() && is_number(&tokens[*i]) {
+        let x1 = parse_token_num(&tokens[*i]);
+        let y1 = parse_token_num(&tokens[*i + 1]);
+        let x2 = parse_token_num(&tokens[*i + 2]);
+        let y2 = parse_token_num(&tokens[*i + 3]);
+        let x = parse_token_num(&tokens[*i + 4]);
+        let y = parse_token_num(&tokens[*i + 5]);
+        *i += 6;
+        let (abs_x1, abs_y1, abs_x2, abs_y2, abs_x, abs_y) = if abs {
+            (x1, y1, x2, y2, x, y)
+        } else {
+            (
+                current_pos.0 + x1,
+                current_pos.1 + y1,
+                current_pos.0 + x2,
+                current_pos.1 + y2,
+                current_pos.0 + x,
+                current_pos.1 + y,
+            )
+        };
+        commands.push(Expr::Call(
+            "curve_to".into(),
+            vec![
+                Expr::Num(abs_x1),
+                Expr::Num(abs_y1),
+                Expr::Num(abs_x2),
+                Expr::Num(abs_y2),
+                Expr::Num(abs_x),
+                Expr::Num(abs_y),
+            ],
+        ));
+        *current_pos = (abs_x, abs_y);
+    }
+}
+
+/// `H`/`h`: horizontal line segments (y is unchanged).
+fn parse_horizontal_to(
+    tokens: &[String],
+    i: &mut usize,
+    current_pos: &mut (f64, f64),
+    abs: bool,
+    commands: &mut Vec<Expr>,
+) {
+    while *i < tokens.len() && is_number(&tokens[*i]) {
+        let x = parse_token_num(&tokens[*i]);
+        *i += 1;
+        let abs_x = if abs { x } else { current_pos.0 + x };
+        commands
+            .push(Expr::Call("line_to".into(), vec![Expr::Num(abs_x), Expr::Num(current_pos.1)]));
+        *current_pos = (abs_x, current_pos.1);
+    }
+}
+
+/// `V`/`v`: vertical line segments (x is unchanged).
+fn parse_vertical_to(
+    tokens: &[String],
+    i: &mut usize,
+    current_pos: &mut (f64, f64),
+    abs: bool,
+    commands: &mut Vec<Expr>,
+) {
+    while *i < tokens.len() && is_number(&tokens[*i]) {
+        let y = parse_token_num(&tokens[*i]);
+        *i += 1;
+        let abs_y = if abs { y } else { current_pos.1 + y };
+        commands
+            .push(Expr::Call("line_to".into(), vec![Expr::Num(current_pos.0), Expr::Num(abs_y)]));
+        *current_pos = (current_pos.0, abs_y);
+    }
+}
+
+/// `S`/`s`: smooth cubic bezier — control point is reflection of previous control point.
+fn parse_smooth_curve_to(
+    tokens: &[String],
+    i: &mut usize,
+    current_pos: &mut (f64, f64),
+    abs: bool,
+    commands: &mut Vec<Expr>,
+) {
+    while *i + 3 < tokens.len() && is_number(&tokens[*i]) {
+        let x2 = parse_token_num(&tokens[*i]);
+        let y2 = parse_token_num(&tokens[*i + 1]);
+        let x = parse_token_num(&tokens[*i + 2]);
+        let y = parse_token_num(&tokens[*i + 3]);
+        *i += 4;
+        // For simplicity, use current_pos as first control point
+        // (proper implementation would reflect previous control point)
+        let (abs_x1, abs_y1, abs_x2, abs_y2, abs_x, abs_y) = if abs {
+            (current_pos.0, current_pos.1, x2, y2, x, y)
+        } else {
+            (
+                current_pos.0,
+                current_pos.1,
+                current_pos.0 + x2,
+                current_pos.1 + y2,
+                current_pos.0 + x,
+                current_pos.1 + y,
+            )
+        };
+        commands.push(Expr::Call(
+            "curve_to".into(),
+            vec![
+                Expr::Num(abs_x1),
+                Expr::Num(abs_y1),
+                Expr::Num(abs_x2),
+                Expr::Num(abs_y2),
+                Expr::Num(abs_x),
+                Expr::Num(abs_y),
+            ],
+        ));
+        *current_pos = (abs_x, abs_y);
+    }
+}
+
+/// `T`/`t`: smooth quadratic bezier — control point is reflection of previous control point.
+fn parse_smooth_quad_to(
+    tokens: &[String],
+    i: &mut usize,
+    current_pos: &mut (f64, f64),
+    abs: bool,
+    commands: &mut Vec<Expr>,
+) {
+    while *i + 1 < tokens.len() && is_number(&tokens[*i]) {
+        let x = parse_token_num(&tokens[*i]);
+        let y = parse_token_num(&tokens[*i + 1]);
+        *i += 2;
+        // For simplicity, use current_pos as control point
+        let (abs_x1, abs_y1, abs_x, abs_y) = if abs {
+            (current_pos.0, current_pos.1, x, y)
+        } else {
+            (current_pos.0, current_pos.1, current_pos.0 + x, current_pos.1 + y)
+        };
+        commands.push(Expr::Call(
+            "quad_to".into(),
+            vec![
+                Expr::Num(abs_x1),
+                Expr::Num(abs_y1),
+                Expr::Num(abs_x),
+                Expr::Num(abs_y),
+            ],
+        ));
+        *current_pos = (abs_x, abs_y);
+    }
+}
+
+/// `A`/`a`: arc — `A rx ry x-rotation large-arc-flag sweep-flag x y`.
+fn parse_arc_to(
+    tokens: &[String],
+    i: &mut usize,
+    current_pos: &mut (f64, f64),
+    abs: bool,
+    commands: &mut Vec<Expr>,
+) {
+    while *i + 6 < tokens.len() && is_number(&tokens[*i]) {
+        let _rx = parse_token_num(&tokens[*i]);
+        let _ry = parse_token_num(&tokens[*i + 1]);
+        let _x_rotation = parse_token_num(&tokens[*i + 2]);
+        let _large_arc = parse_token_num(&tokens[*i + 3]) as i32;
+        let _sweep = parse_token_num(&tokens[*i + 4]) as i32;
+        let x = parse_token_num(&tokens[*i + 5]);
+        let y = parse_token_num(&tokens[*i + 6]);
+        *i += 7;
+        let (abs_x, abs_y) = if abs {
+            (x, y)
+        } else {
+            (current_pos.0 + x, current_pos.1 + y)
+        };
+        // Arcs are complex — approximate as line_to for now
+        // Full arc support requires calculating arc segment points
+        commands.push(Expr::Call("line_to".into(), vec![Expr::Num(abs_x), Expr::Num(abs_y)]));
+        *current_pos = (abs_x, abs_y);
+    }
 }
 
 /// Tokenize an SVG path `d` attribute into command letters and numbers.

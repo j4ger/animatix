@@ -2,7 +2,6 @@
 # Frozen at the Phase 3 baseline. This is a ratchet: delete a row when the
 # function is split, shortened below its threshold, renamed or moved; never add
 # a row for new code and never raise an existing maximum. See docs/ecs.md §8.
-crates/animatix-analyzer/src/completer/values.rs	value_for_property	239
 crates/animatix-gui/src/app/interaction/keyboard/registry.rs	register_defaults	388
 crates/animatix-gui/src/app/panels/curves_panel.rs	curves_panel_ui	401
 crates/animatix-gui/src/app/panels/inspector/property_groups/mod.rs	build_property_groups	347
@@ -30,8 +29,6 @@ crates/animatix-syntax/src/parser/expr.rs	parser	342
 crates/animatix-syntax/src/parser/stmt.rs	parser	758
 crates/animatix-syntax/src/symbol_table/collect.rs	collect_stmt	295
 crates/animatix-syntax/src/typecheck/stmt.rs	check_stmt	215
-crates/animatix-text/src/compiler.rs	compile_text_cached	228
-crates/animatix-text/src/fast_layout/wrapped.rs	compile_text_fast_wrapped	240
 crates/animatix/src/primitives/commands.rs	execute	298
 crates/animatix/src/primitives/trait.rs	evaluate_text_paths	264
 crates/animatix/src/timeline/build/actor/extensions.rs	process_plot_actor_dispatch	264
@@ -41,8 +38,6 @@ crates/animatix/src/timeline/build/plot/curves.rs	build_plot_curve_paths	284
 crates/animatix/src/timeline/build/plot/mod.rs	parse_plot_props	268
 crates/animatix/src/timeline/build/process.rs	process_body	380
 crates/animatix/src/timeline/builtins.rs	load_standard_library	385
-crates/animatix/src/timeline/eval_shared/binary.rs	eval_binary_op	229
-crates/animatix/src/timeline/path_data.rs	parse_svg_path_data	246
 crates/animatix/src/timeline/persistence/inject.rs	inject_entry	221
 crates/animatix/src/timeline/property_engine/declaration.rs	write_property_fields	354
 crates/animatix/src/timeline/scene_eval/containers/captions.rs	render_captions_children	305
