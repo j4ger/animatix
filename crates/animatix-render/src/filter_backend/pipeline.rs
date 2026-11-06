@@ -1,7 +1,5 @@
 use animatix::timeline::effects::Effect;
 
-// ── Uniform structs ─────────────────────────────────────────────────────────
-
 /// Host-owned per-pass context (bind group 0, binding 3).
 ///
 /// Layout must match the `EffectContext` WGSL struct in `timeline/filter.rs`.
@@ -43,8 +41,6 @@ pub(super) fn validate_pass_count(pass_count: usize) -> Result<(), String> {
     }
     Ok(())
 }
-
-// ── Backend struct ──────────────────────────────────────────────────────────
 
 /// GPU-backed effect backend that owns its own temporary targets and a
 /// dedicated [`crate::core::RendererCore`] so it never contends with the main renderer.

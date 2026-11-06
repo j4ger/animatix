@@ -11,8 +11,6 @@ use crate::encode::video::adaptive_thread_count;
 use crate::encode::{ExportError, ExportOptions};
 use crate::render_pipeline::{render_frames_streaming, render_frames_streaming_composition};
 
-// Single-timeline GIF
-
 /// Render a single timeline to a GIF file with default debug options and export
 /// settings.
 pub fn render_gif_timeline(
@@ -46,45 +44,17 @@ pub fn render_gif_timeline_with_options(
     debug_options: DebugRenderOptions,
     options: ExportOptions<'_>,
 ) -> Result<(), ExportError> {
-    let ExportOptions {
-        settings,
-        progress,
-        cancel,
-    } = options;
-    let total_frames = (duration * fps as f32).ceil() as u32;
-    let frame_duration_ms = ((1000.0 / fps as f64).round() as u16).max(1);
-
-    info!("Encoding {} frames to GIF...", total_frames);
-
-    let output = std::fs::File::create(output_file)?;
-    let mut encoder = image::codecs::gif::GifEncoder::new(output);
-    encoder
-        .set_repeat(image::codecs::gif::Repeat::Infinite)
-        .map_err(|e| ExportError::GifEncode(format!("{e:?}")))?;
-
-    let num_threads = adaptive_thread_count(width, height, total_frames, true, false, &settings);
-    info!("Using {num_threads} render thread(s) (adaptive).");
-
-    render_frames_streaming(
-        &timeline,
+    encode_gif(
+        GifSource::Timeline(&timeline),
         width,
         height,
         fps,
-        total_frames,
-        num_threads,
+        duration,
+        output_file,
         debug_options,
-        progress,
-        cancel,
-        |frame, scene_frame| {
-            encode_gif_frame(&mut encoder, frame, total_frames, frame_duration_ms, scene_frame)
-        },
-    )?;
-
-    info!("GIF render complete!");
-    Ok(())
+        options,
+    )
 }
-
-// Multi-scene composition GIF
 
 /// Render a multi-scene composition to a GIF file with default debug options
 /// and export settings.
@@ -119,6 +89,38 @@ pub fn render_gif_composition_with_options(
     debug_options: DebugRenderOptions,
     options: ExportOptions<'_>,
 ) -> Result<(), ExportError> {
+    encode_gif(
+        GifSource::Composition(composition),
+        width,
+        height,
+        fps,
+        duration,
+        output_file,
+        debug_options,
+        options,
+    )
+}
+
+/// Where a GIF's frames come from.
+///
+/// The two entry points differ only in the renderer they stream from; the
+/// encoder prologue, thread budget, and epilogue live in [`encode_gif`].
+enum GifSource<'a> {
+    Timeline(&'a Timeline),
+    Composition(&'a Composition),
+}
+
+/// Encode `source` into one GIF file.
+fn encode_gif(
+    source: GifSource<'_>,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
+    options: ExportOptions<'_>,
+) -> Result<(), ExportError> {
     let ExportOptions {
         settings,
         progress,
@@ -138,20 +140,36 @@ pub fn render_gif_composition_with_options(
     let num_threads = adaptive_thread_count(width, height, total_frames, true, false, &settings);
     info!("Using {num_threads} render thread(s) (adaptive).");
 
-    render_frames_streaming_composition(
-        composition,
-        width,
-        height,
-        fps,
-        total_frames,
-        num_threads,
-        debug_options,
-        progress,
-        cancel,
-        |frame, scene_frame| {
-            encode_gif_frame(&mut encoder, frame, total_frames, frame_duration_ms, scene_frame)
-        },
-    )?;
+    let encode_frame = |frame, scene_frame| {
+        encode_gif_frame(&mut encoder, frame, total_frames, frame_duration_ms, scene_frame)
+    };
+
+    match source {
+        GifSource::Timeline(timeline) => render_frames_streaming(
+            timeline,
+            width,
+            height,
+            fps,
+            total_frames,
+            num_threads,
+            debug_options,
+            progress,
+            cancel,
+            encode_frame,
+        )?,
+        GifSource::Composition(composition) => render_frames_streaming_composition(
+            composition,
+            width,
+            height,
+            fps,
+            total_frames,
+            num_threads,
+            debug_options,
+            progress,
+            cancel,
+            encode_frame,
+        )?,
+    }
 
     info!("GIF render complete!");
     Ok(())

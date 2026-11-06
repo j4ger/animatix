@@ -16,5 +16,7 @@ pub mod instanced_line;
 pub mod offscreen;
 #[cfg(feature = "video")]
 pub mod render_pipeline;
+#[cfg(test)]
+pub(crate) mod test_support;
 pub mod testing;
 pub mod transition;

@@ -33,8 +33,6 @@ pub fn fill_rgba_frame(
     unsafe { frame.fill_arrays(data_ptr, rsmpeg::ffi::AV_PIX_FMT_RGBA, width, height) }
 }
 
-// Streaming parallel frame rendering helper
-
 /// Renders frames in parallel using up to `num_threads` workers, but feeds them
 /// to `process_frame` in strict sequential order.  A small bounded channel per
 /// chunk limits in-flight frames so memory stays O(num_threads × frame_size)
@@ -156,8 +154,6 @@ where
 
     Ok(())
 }
-
-// Multi-Scene Composition Streaming Renderer
 
 /// Like `render_frames_streaming` but evaluates a `Composition` instead of a
 /// single `Timeline`. At each global time step, resolves the active scene and

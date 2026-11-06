@@ -278,35 +278,11 @@ impl RendererCore {
 mod tests {
     use super::*;
 
-    /// Helper to create a wgpu device in headless mode.
-    async fn create_headless_device() -> Option<(wgpu::Device, wgpu::Queue)> {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::default(),
-                compatible_surface: None,
-                force_fallback_adapter: true,
-                apply_limit_buckets: false,
-            })
-            .await
-            .ok()?;
-        let needed_limits = wgpu::Limits::default().using_resolution(adapter.limits());
-        let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor {
-                label: Some("Animatix Test Device"),
-                required_features: wgpu::Features::empty(),
-                required_limits: needed_limits,
-                memory_hints: Default::default(),
-                ..Default::default()
-            })
-            .await
-            .ok()?;
-        Some((device, queue))
-    }
+    use crate::test_support::create_headless_device;
 
     #[test]
     fn renderer_core_can_be_initialized() {
-        let maybe_device = pollster::block_on(create_headless_device());
+        let maybe_device = pollster::block_on(create_headless_device("Animatix Test Device"));
         if let Some((device, queue)) = maybe_device {
             let result = RendererCore::new(&device, &queue);
             assert!(result.is_ok(), "RendererCore::new should succeed with a valid device");
@@ -316,7 +292,7 @@ mod tests {
 
     #[test]
     fn renderer_core_has_renderer_after_init() {
-        let maybe_device = pollster::block_on(create_headless_device());
+        let maybe_device = pollster::block_on(create_headless_device("Animatix Test Device"));
         if let Some((device, queue)) = maybe_device
             && let Ok(_core) = RendererCore::new(&device, &queue)
         {
@@ -329,7 +305,7 @@ mod tests {
     #[test]
     #[ignore = "SIGSEGV during GPU teardown on headless/software adapters (Vello/WGPU driver issue, not Animatix code)"]
     fn renderer_core_render_empty_scene() {
-        let maybe_device = pollster::block_on(create_headless_device());
+        let maybe_device = pollster::block_on(create_headless_device("Animatix Test Device"));
         if let Some((device, queue)) = maybe_device {
             let mut core = match RendererCore::new(&device, &queue) {
                 Ok(c) => c,

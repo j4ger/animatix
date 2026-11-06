@@ -7,6 +7,8 @@ use super::pipeline::{MAX_CHAIN_PASSES, validate_pass_count};
 use super::readback::scale_pixel_params;
 use super::*;
 
+use crate::test_support::create_headless_device;
+
 const DIMS: SceneDimensions = SceneDimensions {
     width: 64,
     height: 64,
@@ -124,34 +126,10 @@ fn white_half_scene(height: f64) -> vello::Scene {
     filled_scene(vello::peniko::Color::WHITE, kurbo::Rect::new(0.0, 0.0, 32.0, height))
 }
 
-async fn create_headless_device() -> Option<(wgpu::Device, wgpu::Queue)> {
-    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
-    let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::default(),
-            compatible_surface: None,
-            force_fallback_adapter: true,
-            apply_limit_buckets: false,
-        })
-        .await
-        .ok()?;
-    let needed_limits = wgpu::Limits::default().using_resolution(adapter.limits());
-    let (device, queue) = adapter
-        .request_device(&wgpu::DeviceDescriptor {
-            label: Some("Animatix Filter Test Device"),
-            required_features: wgpu::Features::empty(),
-            required_limits: needed_limits,
-            memory_hints: Default::default(),
-            ..Default::default()
-        })
-        .await
-        .ok()?;
-    Some((device, queue))
-}
-
 /// Headless backend at `dims`, or `None` where the suite skips GPU tests.
 fn gpu_backend(dims: SceneDimensions) -> Option<GpuFilterBackend> {
-    let (device, queue) = pollster::block_on(create_headless_device())?;
+    let (device, queue) =
+        pollster::block_on(create_headless_device("Animatix Filter Test Device"))?;
     Some(GpuFilterBackend::new(device, queue, dims).expect("GpuFilterBackend should initialise"))
 }
 
@@ -292,10 +270,6 @@ fn soft_width(raw: &[u8], w: usize, y: usize, span: usize) -> usize {
         .count()
 }
 
-/// The point of `set_raster_scale`: a blur radius is a distance in scene
-/// pixels, so drawing at half the raster has to halve it too. Measured as the
-/// width of the edge ramp in *scene* pixels, the two must agree — and the
-/// naive alternative (shrink the texture, keep the radius) visibly doubles it.
 /// What the composite hands the drain, at a reduced raster: a texture that is
 /// already in target pixels, an origin in the same space, and the factor that
 /// tells the drain not to scale it twice. Getting `origin` wrong here puts a
@@ -339,9 +313,15 @@ fn a_reduced_raster_composite_is_emitted_in_target_pixels() {
     assert_eq!(composite.texel_scale, 0.5);
 }
 
+/// The point of `set_raster_scale`: a blur radius is a distance in scene
+/// pixels, so drawing at half the raster has to halve it too. Measured as the
+/// width of the edge ramp in *scene* pixels, the two must agree — and the
+/// naive alternative (shrink the texture, keep the radius) visibly doubles it.
 #[test]
 fn a_reduced_raster_keeps_the_blur_the_same_size_in_scene_pixels() {
-    let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+    let Some((device, queue)) =
+        pollster::block_on(create_headless_device("Animatix Filter Test Device"))
+    else {
         return;
     };
     let scene = white_half_scene(64.0);
@@ -685,7 +665,9 @@ fn sharpen_overshoots_at_hard_edges() {
 /// given (params, time) pair (§6 determinism contract).
 #[test]
 fn grain_perturbs_flat_field_deterministically() {
-    let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+    let Some((device, queue)) =
+        pollster::block_on(create_headless_device("Animatix Filter Test Device"))
+    else {
         return;
     };
     let make_backend = || {
@@ -877,7 +859,9 @@ fn lens_distortion_displaces_samples_toward_the_centre() {
 /// far in scene pixels.
 #[test]
 fn lens_distortion_keeps_the_same_scene_pixel_displacement_at_half_raster() {
-    let Some((device, queue)) = pollster::block_on(create_headless_device()) else {
+    let Some((device, queue)) =
+        pollster::block_on(create_headless_device("Animatix Filter Test Device"))
+    else {
         return;
     };
     let scene = filled_scene(vello::peniko::Color::WHITE, kurbo::Rect::new(0.0, 0.0, 16.0, 64.0));

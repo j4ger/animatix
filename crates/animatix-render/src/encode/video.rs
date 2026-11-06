@@ -21,8 +21,6 @@ use crate::render_pipeline::{
     fill_rgba_frame, render_frames_streaming, render_frames_streaming_composition,
 };
 
-// Public API: single-timeline video
-
 /// Render a single timeline to an MP4 video file with default debug options and
 /// export settings.
 pub fn render_video_timeline(
@@ -56,41 +54,17 @@ pub fn render_video_timeline_with_options(
     debug_options: DebugRenderOptions,
     options: ExportOptions<'_>,
 ) -> Result<(), ExportError> {
-    let ExportOptions {
-        settings,
-        progress,
-        cancel,
-    } = options;
-    let total_frames = (duration * fps as f32).ceil() as u32;
-    info!("Encoding {} frames to video...", total_frames);
-
-    let mut encoder = setup_video_encoder(output_file, width, height, fps, &settings)?;
-
-    let num_threads =
-        adaptive_thread_count(width, height, total_frames, false, encoder.is_hw_encoder, &settings);
-    info!("Using {num_threads} render thread(s) (adaptive).");
-
-    render_frames_streaming(
-        &timeline,
+    encode_video(
+        VideoSource::Timeline(&timeline),
         width,
         height,
         fps,
-        total_frames,
-        num_threads,
+        duration,
+        output_file,
         debug_options,
-        progress,
-        cancel,
-        |frame, scene_frame| encoder.push_frame(frame, total_frames, width, height, scene_frame),
-    )?;
-
-    encoder.finish()?;
-    mux_audio_if_present(timeline.audio_segments(), output_file)?;
-
-    info!("Render complete!");
-    Ok(())
+        options,
+    )
 }
-
-// Multi-scene composition video
 
 /// Render a multi-scene composition to an MP4 video file with default debug
 /// options and export settings.
@@ -125,6 +99,39 @@ pub fn render_video_composition_with_options(
     debug_options: DebugRenderOptions,
     options: ExportOptions<'_>,
 ) -> Result<(), ExportError> {
+    encode_video(
+        VideoSource::Composition(composition),
+        width,
+        height,
+        fps,
+        duration,
+        output_file,
+        debug_options,
+        options,
+    )
+}
+
+/// Where a video's frames come from.
+///
+/// The two entry points differ only in the renderer they stream from and in
+/// how their audio segments are gathered; everything else lives in
+/// [`encode_video`].
+enum VideoSource<'a> {
+    Timeline(&'a Timeline),
+    Composition(&'a Composition),
+}
+
+/// Encode `source` into one video file.
+fn encode_video(
+    source: VideoSource<'_>,
+    width: u32,
+    height: u32,
+    fps: u32,
+    duration: f32,
+    output_file: &std::path::Path,
+    debug_options: DebugRenderOptions,
+    options: ExportOptions<'_>,
+) -> Result<(), ExportError> {
     let ExportOptions {
         settings,
         progress,
@@ -139,41 +146,65 @@ pub fn render_video_composition_with_options(
         adaptive_thread_count(width, height, total_frames, false, encoder.is_hw_encoder, &settings);
     info!("Using {num_threads} render thread(s) (adaptive).");
 
-    render_frames_streaming_composition(
-        composition,
-        width,
-        height,
-        fps,
-        total_frames,
-        num_threads,
-        debug_options,
-        progress,
-        cancel,
-        |frame, scene_frame| encoder.push_frame(frame, total_frames, width, height, scene_frame),
-    )?;
+    let push_frame =
+        |frame, scene_frame| encoder.push_frame(frame, total_frames, width, height, scene_frame);
+
+    let audio_segments = match source {
+        VideoSource::Timeline(timeline) => {
+            render_frames_streaming(
+                timeline,
+                width,
+                height,
+                fps,
+                total_frames,
+                num_threads,
+                debug_options,
+                progress,
+                cancel,
+                push_frame,
+            )?;
+            timeline.audio_segments().to_vec()
+        },
+        VideoSource::Composition(composition) => {
+            render_frames_streaming_composition(
+                composition,
+                width,
+                height,
+                fps,
+                total_frames,
+                num_threads,
+                debug_options,
+                progress,
+                cancel,
+                push_frame,
+            )?;
+            composition_audio_segments(composition)
+        },
+    };
 
     encoder.finish()?;
-
-    // Mux audio segments from all scenes in the composition, offset by scene start times
-    let audio_segments: Vec<AudioSegment> = composition
-        .scenes
-        .iter()
-        .flat_map(|(name, s)| {
-            let start_offset = composition.scene_start_times.get(name).copied().unwrap_or(0.0);
-            let mut segments: Vec<AudioSegment> = s.timeline.audio_segments().to_vec();
-            for seg in &mut segments {
-                seg.start_time_s += start_offset;
-            }
-            segments
-        })
-        .collect();
     mux_audio_if_present(&audio_segments, output_file)?;
 
     info!("Render complete!");
     Ok(())
 }
 
-// Shared encoder setup
+/// Audio segments from every scene in `composition`, offset by that scene's
+/// start time.
+fn composition_audio_segments(composition: &Composition) -> Vec<AudioSegment> {
+    composition
+        .scenes
+        .iter()
+        .flat_map(|(name, scene)| {
+            let start_offset = composition.scene_start_times.get(name).copied().unwrap_or(0.0);
+            let mut segments = scene.timeline.audio_segments().to_vec();
+            for seg in &mut segments {
+                seg.start_time_s += start_offset;
+            }
+            segments
+        })
+        .collect()
+}
 
 /// Result of video encoder initialization.
 /// Caller owns these fields for the frame encoding loop.
@@ -379,8 +410,6 @@ fn mux_audio_if_present(
     Ok(())
 }
 
-// Adaptive parallelism
-
 /// Compute an appropriate render thread count based on workload characteristics.
 pub(crate) fn adaptive_thread_count(
     width: u32,
@@ -423,8 +452,6 @@ pub(crate) fn adaptive_thread_count(
         },
     }
 }
-
-// Encoder selection
 
 /// Select a video encoder based on settings. Returns the encoder and whether it
 /// is a hardware-accelerated encoder.

@@ -26,8 +26,6 @@ use animatix_core::effect::EffectParamSpec;
 
 use crate::core::RendererCore;
 
-// ── `ANIMATIX_FILTER_TIMING` probe clock ────────────────────────────────────
-
 /// Whether this process asked for the probe. Read once: these calls sit on the
 /// per-scope render path, and `std::env::var_os` locks the environment on every
 /// lookup, so deciding per frame would put a mutex on the hot path for a knob

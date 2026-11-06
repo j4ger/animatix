@@ -10,8 +10,6 @@ use tracing::info;
 use crate::encode::{ExportError, ExportOptions};
 use crate::offscreen::OffscreenRenderer;
 
-// Single-timeline image
-
 /// Render a single timeline to a PNG image at the given time with default debug
 /// options.
 pub fn render_image_timeline(
@@ -78,8 +76,6 @@ pub fn render_image_timeline_with_options(
     }
     Ok(())
 }
-
-// Multi-scene composition image
 
 /// Render a multi-scene composition to a PNG image at the given time.
 ///

@@ -132,8 +132,6 @@ fn average(frame: &RenderedFrame) -> [f32; 3] {
     ]
 }
 
-// ── raw wgpu helpers (core-level tests) ───────────────────────────────
-
 /// Headless device for the core-level tests (fallible — callers decide the
 /// skip policy via [`animatix_render::testing::skip_if_no_gpu`]).
 async fn headless_device() -> Option<(wgpu::Device, wgpu::Queue)> {
