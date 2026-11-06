@@ -25,7 +25,6 @@ crates/animatix-gui/src/cell_editor/render/mod.rs	272
 crates/animatix-render/src/encode/mod.rs	575
 crates/animatix-render/src/filter_backend/mod.rs	181
 crates/animatix-render/src/offscreen/mod.rs	340
-crates/animatix-std/src/catalog/mod.rs	156
 crates/animatix-syntax/src/diagnostics/mod.rs	299
 crates/animatix-syntax/src/module/inline_actions/mod.rs	220
 crates/animatix-syntax/src/module/mod.rs	198
@@ -36,7 +35,6 @@ crates/animatix-syntax/src/symbol_table/mod.rs	345
 crates/animatix-syntax/src/token/mod.rs	224
 crates/animatix-syntax/src/typecheck/mod.rs	132
 crates/animatix-syntax/src/typing/mod.rs	145
-crates/animatix-text/src/fast_layout/mod.rs	421
 crates/animatix-web/src/web/mod.rs	159
 crates/animatix/src/composition/mod.rs	395
 crates/animatix/src/extension_context/mod.rs	114
@@ -55,4 +53,3 @@ crates/animatix/src/timeline/svg_import/mod.rs	284
 crates/animatix/src/timeline/tests/mod.rs	290
 crates/animatix/src/timeline/timing/mod.rs	251
 crates/animatix/src/timeline/world/mod.rs	514
-crates/eparts/src/widget/select/mod.rs	160

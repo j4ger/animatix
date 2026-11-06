@@ -74,3 +74,21 @@ fn plot_cards_declare_their_plot_kind() {
         "Graph hosts plot children and must not declare a PlotKind"
     );
 }
+
+#[test]
+fn none_is_all_false() {
+    assert_eq!(PrimitiveCapabilities::NONE, PrimitiveCapabilities::default());
+}
+
+#[test]
+fn shape_caps_use_only_their_named_fields() {
+    assert_eq!(
+        SHAPE_CAPS,
+        PrimitiveCapabilities {
+            vector_paths: true,
+            is_shape: true,
+            has_visual_content: true,
+            ..PrimitiveCapabilities::NONE
+        }
+    );
+}

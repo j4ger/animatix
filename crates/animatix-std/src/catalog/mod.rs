@@ -121,26 +121,3 @@ mod tests;
 
 pub use info_impl::*;
 pub use lookup::{caps_for_type, caps_from_info, catalog_lookup};
-
-#[cfg(test)]
-mod caps_tests {
-    use super::*;
-
-    #[test]
-    fn none_is_all_false() {
-        assert_eq!(PrimitiveCapabilities::NONE, PrimitiveCapabilities::default());
-    }
-
-    #[test]
-    fn shape_caps_use_only_their_named_fields() {
-        assert_eq!(
-            SHAPE_CAPS,
-            PrimitiveCapabilities {
-                vector_paths: true,
-                is_shape: true,
-                has_visual_content: true,
-                ..PrimitiveCapabilities::NONE
-            }
-        );
-    }
-}
