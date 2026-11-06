@@ -2,9 +2,10 @@
 
 use crate::ast::{Expr, Property};
 use crate::diagnostics::Diagnostic;
+use crate::primitives::container_props::parse_container_props;
 use crate::primitives::{BuildCtx, Primitive};
+use crate::timeline::SceneDimensions;
 use crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic;
-use crate::timeline::{SceneDimensions, Value};
 
 /// The `Row` primitive.
 pub struct RowPrimitive;
@@ -28,85 +29,21 @@ impl LayoutKind {
     }
 }
 
-/// Parse the `gap` / `padding` / `align` / `vertical_align` properties shared
-/// by `Row` and `Col` and register the resulting container metadata.
+/// Register `Row` / `Col` container metadata from the shared container-property
+/// parser plus the linear-only `vertical_align` property.
 ///
 /// `Row` and `Col` differ only in their type name and layout axis; keeping one
-/// parser here means their tuple handling and diagnostics cannot drift.
+/// entry point here means their tuple handling and diagnostics cannot drift.
+/// `gap` / `padding` / `align` themselves are parsed by
+/// [`parse_container_props`], which every layout container shares.
 pub(crate) fn finalize_container_build(
     kind: LayoutKind,
     ctx: &mut BuildCtx,
     label: &str,
     props: &[Property],
 ) -> Result<(), Vec<Diagnostic>> {
-    let mut gap = [0.0f32; 2];
-    let mut padding = [0.0f32; 4];
-    let mut align: Option<String> = None;
-
     let env = ctx.timeline.env();
-    for prop in props {
-        match prop.name.as_str() {
-            "gap" => match &prop.value {
-                Expr::Tuple(items) if items.len() == 2 => {
-                    match (
-                        crate::timeline::utils::evaluate_expr(&items[0], env),
-                        crate::timeline::utils::evaluate_expr(&items[1], env),
-                    ) {
-                        (Ok(Value::Num(a)), Ok(Value::Num(b))) => gap = [a as f32, b as f32],
-                        _ => ctx.diagnostics.push(super::unreadable_layout_value(label, "gap")),
-                    }
-                },
-                _ => match crate::timeline::utils::evaluate_expr(&prop.value, env) {
-                    Ok(Value::Num(n)) => gap = [n as f32, n as f32],
-                    _ => ctx.diagnostics.push(super::unreadable_layout_value(label, "gap")),
-                },
-            },
-            "padding" => {
-                match &prop.value {
-                    Expr::Tuple(items) if items.len() == 4 => {
-                        if let (
-                            Ok(Value::Num(a)),
-                            Ok(Value::Num(b)),
-                            Ok(Value::Num(c)),
-                            Ok(Value::Num(d)),
-                        ) = (
-                            crate::timeline::utils::evaluate_expr(&items[0], env),
-                            crate::timeline::utils::evaluate_expr(&items[1], env),
-                            crate::timeline::utils::evaluate_expr(&items[2], env),
-                            crate::timeline::utils::evaluate_expr(&items[3], env),
-                        ) {
-                            padding = [a as f32, b as f32, c as f32, d as f32];
-                        }
-                    },
-                    Expr::Tuple(items) if items.len() == 2 => {
-                        // (horizontal, vertical) → [h, v, h, v]
-                        if let (Ok(Value::Num(h)), Ok(Value::Num(v))) = (
-                            crate::timeline::utils::evaluate_expr(&items[0], env),
-                            crate::timeline::utils::evaluate_expr(&items[1], env),
-                        ) {
-                            padding = [h as f32, v as f32, h as f32, v as f32];
-                        }
-                    },
-                    _ => {
-                        if let Ok(Value::Num(n)) =
-                            crate::timeline::utils::evaluate_expr(&prop.value, env)
-                        {
-                            let v = n as f32;
-                            padding = [v, v, v, v];
-                        }
-                    },
-                }
-            },
-            "align" => {
-                if let Some(v) =
-                    evaluate_expr_with_lookup_diagnostic(&prop.value, env, ctx.diagnostics, label)
-                {
-                    align = Some(v.as_str().to_string());
-                }
-            },
-            _ => {},
-        }
-    }
+    let container = parse_container_props(props, env, label, ctx.diagnostics, true);
 
     // Parse vertical_align property
     let mut vertical_align: Option<String> = None;
@@ -123,9 +60,9 @@ pub(crate) fn finalize_container_build(
         label,
         kind.type_name(),
         ctx.time_ms as u64,
-        gap,
-        padding,
-        align.as_deref(),
+        container.gap,
+        container.padding,
+        container.align.as_deref(),
         None,
         ctx.diagnostics,
         vertical_align.as_deref(),

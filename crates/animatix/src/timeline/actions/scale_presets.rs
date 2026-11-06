@@ -19,7 +19,7 @@ use crate::ast::{Action, Expr};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::{Easing, apply_easing};
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::{DEFAULT_LAYOUT_HALF_SIZE, ModifierHost, Timeline, parse_timing_modifiers};
+use crate::timeline::{DEFAULT_LAYOUT_HALF_SIZE, Timeline};
 
 /// Number of sampled knots used by a non-centre pivot ramp. The specification
 /// asks for 12–16 samples; sixteen keeps the linearly interpolated offset well
@@ -318,19 +318,13 @@ fn run_scale_preset(
     timeline: &mut Timeline,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let parsed = parse_timing_modifiers(
-        &action.modifiers,
-        ModifierHost::Action,
-        Some(&action.verb),
-        diagnostics,
-    );
-    let duration_ms = parsed.duration_ms;
-    let delay_ms = parsed.delay_ms;
-    let easing = parsed.easing;
+    let timing = super::ActionTiming::parse(action, time_ms, diagnostics);
+    let duration_ms = timing.duration_ms;
+    let easing = timing.easing;
     let origin = parse_origin(&action.modifiers, origin_key, action, timeline, diagnostics);
 
-    let t_start_ms = (time_ms + delay_ms) as u64;
-    let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+    let t_start_ms = timing.t_start_ms;
+    let t_end_ms = timing.t_end_ms;
 
     for target in &action.targets {
         if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics, None) {

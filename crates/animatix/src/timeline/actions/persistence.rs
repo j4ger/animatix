@@ -10,8 +10,8 @@ use super::registry::{ActionSignature, BuiltinAction, base_timing_params};
 use crate::ast::Action;
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
+use crate::timeline::Timeline;
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
 /// Helper: apply a fade-out to the target track at the given time range.
 ///
@@ -77,12 +77,7 @@ impl BuiltinAction for Persist {
         // Warn if any timing modifier is present (persist ignores duration)
         if !action.modifiers.is_empty() {
             // Check if there are any timing-related modifiers (bare duration, delay, ease)
-            let parsed = parse_timing_modifiers(
-                &action.modifiers,
-                ModifierHost::Action,
-                Some(&action.verb),
-                diagnostics,
-            );
+            let parsed = super::ActionTiming::parse(action, _time_ms, diagnostics);
             if parsed.duration_ms > 0.0 || parsed.delay_ms > 0.0 {
                 diagnostics.push(
                     Diagnostic::warning(
@@ -168,18 +163,13 @@ impl BuiltinAction for Remove {
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let parsed = parse_timing_modifiers(
-            &action.modifiers,
-            ModifierHost::Action,
-            Some(&action.verb),
-            diagnostics,
-        );
-        let duration_ms = parsed.duration_ms;
-        let delay_ms = parsed.delay_ms;
-        let easing = parsed.easing;
+        let timing = super::ActionTiming::parse(action, time_ms, diagnostics);
+        let duration_ms = timing.duration_ms;
+        let delay_ms = timing.delay_ms;
+        let easing = timing.easing;
 
-        let t_start_ms = (time_ms + delay_ms) as u64;
-        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+        let t_start_ms = timing.t_start_ms;
+        let t_end_ms = timing.t_end_ms;
 
         for target in &action.targets {
             // `remove camera` is the escape hatch for a sticky camera carry. The

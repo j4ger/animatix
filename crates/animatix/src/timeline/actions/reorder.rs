@@ -1,7 +1,7 @@
 use super::registry::{ActionParam, ActionSignature, BuiltinAction, base_timing_params};
-use crate::ast::{Action, Expr, Modifier};
+use crate::ast::{Action, Expr};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
-use crate::timeline::{Easing, ModifierHost, Timeline, parse_timing_modifiers};
+use crate::timeline::{Easing, Timeline};
 
 /// Swaps the layout positions of two children in their parent container.
 pub struct Swap;
@@ -95,18 +95,11 @@ impl BuiltinAction for Swap {
         };
 
         // Parse timing modifiers
-        let parsed = parse_timing_modifiers(
-            &action.modifiers,
-            ModifierHost::Action,
-            Some(&action.verb),
-            diagnostics,
-        );
-        let duration_ms = parsed.duration_ms;
-        let delay_ms = parsed.delay_ms;
-        let easing = parsed.easing;
+        let timing = super::ActionTiming::parse(action, time_ms, diagnostics);
+        let easing = timing.easing;
 
-        let t_start_ms = (time_ms + delay_ms) as u64;
-        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+        let t_start_ms = timing.t_start_ms;
+        let t_end_ms = timing.t_end_ms;
 
         // Check for overlapping swap on same container. A keyframe strictly
         // after `t_start_ms` means a previous swap is still in flight; a
@@ -326,25 +319,11 @@ impl BuiltinAction for Reorder {
             new_order.iter().filter_map(|label| timeline.get_entity_id(label)).collect();
 
         // Parse timing modifiers (excluding 'order')
-        let timing_modifiers: Vec<Modifier> = action
-            .modifiers
-            .iter()
-            .filter(|m| m.name.as_deref() != Some("order"))
-            .cloned()
-            .collect();
+        let timing = super::ActionTiming::parse_excluding(action, &["order"], time_ms, diagnostics);
+        let easing = timing.easing;
 
-        let parsed = parse_timing_modifiers(
-            &timing_modifiers,
-            ModifierHost::Action,
-            Some(&action.verb),
-            diagnostics,
-        );
-        let duration_ms = parsed.duration_ms;
-        let delay_ms = parsed.delay_ms;
-        let easing = parsed.easing;
-
-        let t_start_ms = (time_ms + delay_ms) as u64;
-        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+        let t_start_ms = timing.t_start_ms;
+        let t_end_ms = timing.t_end_ms;
 
         // Check for overlapping reorder on same container
         if let Some(component) = timeline.child_order(container)

@@ -34,19 +34,14 @@ impl BuiltinAction for Shift {
             return;
         };
 
-        let timing_modifiers = timing_modifiers_without_keys(&action.modifiers, &["by"]);
-        let parsed = parse_timing_modifiers(
-            &timing_modifiers,
-            ModifierHost::Action,
-            Some(&action.verb),
-            diagnostics,
-        );
-        let duration_ms = parsed.duration_ms;
-        let delay_ms = parsed.delay_ms;
-        let easing = parsed.easing;
+        let timing =
+            super::super::ActionTiming::parse_excluding(action, &["by"], time_ms, diagnostics);
+        let duration_ms = timing.duration_ms;
+        let delay_ms = timing.delay_ms;
+        let easing = timing.easing;
 
-        let t_start_ms = (time_ms + delay_ms) as u64;
-        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+        let t_start_ms = timing.t_start_ms;
+        let t_end_ms = timing.t_end_ms;
 
         for target in &action.targets {
             if !crate::timeline::actions::ensure_target_exists(
@@ -94,7 +89,7 @@ impl BuiltinAction for Shift {
 
             let from_offset = anticipation_start(
                 geometry,
-                parsed.anticipate_ms,
+                timing.anticipate_ms,
                 t_start_ms,
                 start_offset,
                 shift_by,
@@ -170,19 +165,14 @@ impl BuiltinAction for Rotate {
             return;
         };
 
-        let timing_modifiers = timing_modifiers_without_keys(&action.modifiers, &["by"]);
-        let parsed = parse_timing_modifiers(
-            &timing_modifiers,
-            ModifierHost::Action,
-            Some(&action.verb),
-            diagnostics,
-        );
-        let duration_ms = parsed.duration_ms;
-        let delay_ms = parsed.delay_ms;
-        let easing = parsed.easing;
+        let timing =
+            super::super::ActionTiming::parse_excluding(action, &["by"], time_ms, diagnostics);
+        let duration_ms = timing.duration_ms;
+        let delay_ms = timing.delay_ms;
+        let easing = timing.easing;
 
-        let t_start_ms = (time_ms + delay_ms) as u64;
-        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+        let t_start_ms = timing.t_start_ms;
+        let t_end_ms = timing.t_end_ms;
 
         for target in &action.targets {
             if !crate::timeline::actions::ensure_target_exists(
@@ -264,19 +254,14 @@ impl BuiltinAction for Scale {
             return;
         };
 
-        let timing_modifiers = timing_modifiers_without_keys(&action.modifiers, &["by"]);
-        let parsed = parse_timing_modifiers(
-            &timing_modifiers,
-            ModifierHost::Action,
-            Some(&action.verb),
-            diagnostics,
-        );
-        let duration_ms = parsed.duration_ms;
-        let delay_ms = parsed.delay_ms;
-        let easing = parsed.easing;
+        let timing =
+            super::super::ActionTiming::parse_excluding(action, &["by"], time_ms, diagnostics);
+        let duration_ms = timing.duration_ms;
+        let delay_ms = timing.delay_ms;
+        let easing = timing.easing;
 
-        let t_start_ms = (time_ms + delay_ms) as u64;
-        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+        let t_start_ms = timing.t_start_ms;
+        let t_end_ms = timing.t_end_ms;
 
         for target in &action.targets {
             if !crate::timeline::actions::ensure_target_exists(

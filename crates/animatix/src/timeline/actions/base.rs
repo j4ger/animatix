@@ -1,6 +1,6 @@
 //! Common action execution context and target processing utilities.
 
-use crate::ast::Action;
+use crate::ast::{Action, Modifier};
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::timeline::entity::EntityId;
@@ -15,6 +15,11 @@ pub struct ActionTiming {
     pub delay_ms: f64,
     /// Interpolation easing curve.
     pub easing: Easing,
+    /// Whether the author spelled out an `ease`/`easing` modifier (presets use
+    /// their own arrival curve when the author did not).
+    pub ease_authored: bool,
+    /// Anticipation lead-in in milliseconds for motion actions.
+    pub anticipate_ms: f64,
     /// Absolute start timestamp in milliseconds.
     pub t_start_ms: u64,
     /// Absolute end timestamp in milliseconds.
@@ -24,22 +29,64 @@ pub struct ActionTiming {
 impl ActionTiming {
     /// Parse timing modifiers for an action.
     pub fn parse(action: &Action, time_ms: f64, diagnostics: &mut Vec<Diagnostic>) -> Self {
-        let parsed = parse_timing_modifiers(
-            &action.modifiers,
-            ModifierHost::Action,
-            Some(&action.verb),
-            diagnostics,
-        );
+        Self::from_parsed(
+            &parse_timing_modifiers(
+                &action.modifiers,
+                ModifierHost::Action,
+                Some(&action.verb),
+                diagnostics,
+            ),
+            time_ms,
+        )
+    }
+
+    /// Parse timing modifiers for an action while excluding action-specific
+    /// modifier keys (for example `to`, `by`, `along`) from the timing
+    /// vocabulary, so a parameter passed on the same action is not misread as a
+    /// timing modifier.
+    ///
+    /// This is the single implementation of the hand-rolled
+    /// "filter the modifiers, then parse" blocks action files used to repeat.
+    pub fn parse_excluding(
+        action: &Action,
+        excluded_keys: &[&str],
+        time_ms: f64,
+        diagnostics: &mut Vec<Diagnostic>,
+    ) -> Self {
+        if excluded_keys.is_empty() {
+            return Self::parse(action, time_ms, diagnostics);
+        }
+        let modifiers: Vec<Modifier> = action
+            .modifiers
+            .iter()
+            .filter(|modifier| {
+                modifier.name.as_deref().is_none_or(|name| !excluded_keys.contains(&name))
+            })
+            .cloned()
+            .collect();
+        Self::from_parsed(
+            &parse_timing_modifiers(
+                &modifiers,
+                ModifierHost::Action,
+                Some(&action.verb),
+                diagnostics,
+            ),
+            time_ms,
+        )
+    }
+
+    fn from_parsed(parsed: &crate::timeline::timing::ParsedTimingModifiers, time_ms: f64) -> Self {
         let duration_ms = parsed.duration_ms;
         let delay_ms = parsed.delay_ms;
-        let easing = parsed.easing;
         let t_start_ms = (time_ms + delay_ms) as u64;
         let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
 
         Self {
             duration_ms,
             delay_ms,
-            easing,
+            easing: parsed.easing,
+            ease_authored: parsed.ease_authored,
+            anticipate_ms: parsed.anticipate_ms,
             t_start_ms,
             t_end_ms,
         }

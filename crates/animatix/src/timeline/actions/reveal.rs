@@ -1,10 +1,9 @@
-use super::motion::timing_modifiers_without_keys;
 use super::registry::{ActionParam, ActionSignature, BuiltinAction, base_timing_params};
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::{DEFAULT_WHITE, ModifierHost, Timeline, parse_timing_modifiers};
+use crate::timeline::{DEFAULT_WHITE, Timeline};
 
 /// Ensure a filled shape without a visible authored stroke has an outline for
 /// draw/reveal actions. The outline uses the actor's fill color so the default
@@ -177,21 +176,18 @@ impl BuiltinAction for DrawIn {
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let parsed = parse_timing_modifiers(
-            &timing_modifiers_without_keys(
-                &action.modifiers,
-                &["by", "stagger", "offset_y", "mask"],
-            ),
-            ModifierHost::Action,
-            Some(&action.verb),
+        let timing = super::ActionTiming::parse_excluding(
+            action,
+            &["by", "stagger", "offset_y", "mask"],
+            time_ms,
             diagnostics,
         );
-        let duration_ms = parsed.duration_ms;
-        let delay_ms = parsed.delay_ms;
-        let easing = parsed.easing;
+        let duration_ms = timing.duration_ms;
+        let delay_ms = timing.delay_ms;
+        let easing = timing.easing;
 
-        let t_start_ms = (time_ms + delay_ms) as u64;
-        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+        let t_start_ms = timing.t_start_ms;
+        let t_end_ms = timing.t_end_ms;
 
         for target in &action.targets {
             if !super::ensure_vector_reveal_target(
@@ -378,21 +374,18 @@ impl BuiltinAction for RevealIn {
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let parsed = parse_timing_modifiers(
-            &timing_modifiers_without_keys(
-                &action.modifiers,
-                &["by", "stagger", "offset_y", "mask"],
-            ),
-            ModifierHost::Action,
-            Some(&action.verb),
+        let timing = super::ActionTiming::parse_excluding(
+            action,
+            &["by", "stagger", "offset_y", "mask"],
+            time_ms,
             diagnostics,
         );
-        let duration_ms = parsed.duration_ms;
-        let delay_ms = parsed.delay_ms;
-        let easing = parsed.easing;
+        let duration_ms = timing.duration_ms;
+        let delay_ms = timing.delay_ms;
+        let easing = timing.easing;
 
-        let t_start_ms = (time_ms + delay_ms) as u64;
-        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+        let t_start_ms = timing.t_start_ms;
+        let t_end_ms = timing.t_end_ms;
 
         for target in &action.targets {
             if !super::ensure_vector_reveal_target(
@@ -544,18 +537,13 @@ impl BuiltinAction for WipeOut {
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let parsed = parse_timing_modifiers(
-            &action.modifiers,
-            ModifierHost::Action,
-            Some(&action.verb),
-            diagnostics,
-        );
-        let duration_ms = parsed.duration_ms;
-        let delay_ms = parsed.delay_ms;
-        let easing = parsed.easing;
+        let timing = super::ActionTiming::parse(action, time_ms, diagnostics);
+        let duration_ms = timing.duration_ms;
+        let delay_ms = timing.delay_ms;
+        let easing = timing.easing;
 
-        let t_start_ms = (time_ms + delay_ms) as u64;
-        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+        let t_start_ms = timing.t_start_ms;
+        let t_end_ms = timing.t_end_ms;
 
         for target in &action.targets {
             if !super::ensure_vector_reveal_target(
@@ -621,18 +609,13 @@ impl BuiltinAction for RevealOut {
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let parsed = parse_timing_modifiers(
-            &action.modifiers,
-            ModifierHost::Action,
-            Some(&action.verb),
-            diagnostics,
-        );
-        let duration_ms = parsed.duration_ms;
-        let delay_ms = parsed.delay_ms;
-        let easing = parsed.easing;
+        let timing = super::ActionTiming::parse(action, time_ms, diagnostics);
+        let duration_ms = timing.duration_ms;
+        let delay_ms = timing.delay_ms;
+        let easing = timing.easing;
 
-        let t_start_ms = (time_ms + delay_ms) as u64;
-        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+        let t_start_ms = timing.t_start_ms;
+        let t_end_ms = timing.t_end_ms;
 
         for target in &action.targets {
             if !super::ensure_vector_reveal_target(
@@ -693,18 +676,13 @@ impl BuiltinAction for DrawOut {
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let parsed = parse_timing_modifiers(
-            &action.modifiers,
-            ModifierHost::Action,
-            Some(&action.verb),
-            diagnostics,
-        );
-        let duration_ms = parsed.duration_ms;
-        let delay_ms = parsed.delay_ms;
-        let easing = parsed.easing;
+        let timing = super::ActionTiming::parse(action, time_ms, diagnostics);
+        let duration_ms = timing.duration_ms;
+        let delay_ms = timing.delay_ms;
+        let easing = timing.easing;
 
-        let t_start_ms = (time_ms + delay_ms) as u64;
-        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+        let t_start_ms = timing.t_start_ms;
+        let t_end_ms = timing.t_end_ms;
 
         for target in &action.targets {
             if !super::ensure_vector_reveal_target(

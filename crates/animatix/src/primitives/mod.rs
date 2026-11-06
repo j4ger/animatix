@@ -71,7 +71,6 @@ pub(crate) use r#trait::{resolve_half_size, unreadable_layout_value};
 
 /// Child-rendering strategy selected by a primitive.
 pub use animatix_syntax::schema::ChildProcessingKind as ChildProcessing;
-
 // ── Re-export all primitive modules ──────────────────────────────────────
 
 mod rect;
@@ -104,6 +103,7 @@ pub use bar_chart::BAR_CHART;
 pub(crate) mod plot;
 pub(crate) mod plot_assignment;
 pub use plot::{CONTOUR_SET, GRAPH, HEATMAP, NUMBER_PLANE, PLOT_CURVE, VECTOR_FIELD};
+mod container_props;
 mod row;
 pub use row::ROW;
 mod col;

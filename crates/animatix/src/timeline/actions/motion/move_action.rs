@@ -43,19 +43,14 @@ impl BuiltinAction for Move {
             return;
         };
 
-        let timing_modifiers = timing_modifiers_without_keys(&action.modifiers, &["to"]);
-        let parsed = parse_timing_modifiers(
-            &timing_modifiers,
-            ModifierHost::Action,
-            Some(&action.verb),
-            diagnostics,
-        );
-        let duration_ms = parsed.duration_ms;
-        let delay_ms = parsed.delay_ms;
-        let easing = parsed.easing;
+        let timing =
+            super::super::ActionTiming::parse_excluding(action, &["to"], time_ms, diagnostics);
+        let duration_ms = timing.duration_ms;
+        let delay_ms = timing.delay_ms;
+        let easing = timing.easing;
 
-        let t_start_ms = (time_ms + delay_ms) as u64;
-        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+        let t_start_ms = timing.t_start_ms;
+        let t_end_ms = timing.t_end_ms;
 
         for target in &action.targets {
             if !crate::timeline::actions::ensure_target_exists(
@@ -106,7 +101,7 @@ impl BuiltinAction for Move {
 
             let from_offset = anticipation_start(
                 geometry,
-                parsed.anticipate_ms,
+                timing.anticipate_ms,
                 t_start_ms,
                 start_offset,
                 travel,
@@ -157,14 +152,13 @@ fn run_move_along(
     timeline: &mut Timeline,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let timing_modifiers = timing_modifiers_without_keys(&action.modifiers, &["along", "orient"]);
-    let parsed = parse_timing_modifiers(
-        &timing_modifiers,
-        ModifierHost::Action,
-        Some(&action.verb),
+    let timing = super::super::ActionTiming::parse_excluding(
+        action,
+        &["along", "orient"],
+        time_ms,
         diagnostics,
     );
-    if parsed.duration_ms <= 0.0 {
+    if timing.duration_ms <= 0.0 {
         diagnostics.push(Diagnostic::warning(
             DiagnosticCode::InvalidModifierValue,
             DiagnosticPhase::Build,
@@ -178,8 +172,8 @@ fn run_move_along(
         .find(|m| m.name.as_deref() == Some("orient"))
         .is_some_and(|m| matches!(m.value, crate::ast::Expr::Bool(true)));
 
-    let t_start_ms = (time_ms + parsed.delay_ms) as u64;
-    let t_end_ms = (time_ms + parsed.delay_ms + parsed.duration_ms) as u64;
+    let t_start_ms = timing.t_start_ms;
+    let t_end_ms = timing.t_end_ms;
     let span = t_end_ms.saturating_sub(t_start_ms);
     let samples = (span / 40).clamp(8, 48) as usize;
 
@@ -241,7 +235,7 @@ fn run_move_along(
         for (i, (point, angle)) in points.iter().enumerate() {
             let at = t_start_ms + (span as f64 * (i as f64 / samples as f64)) as u64;
             let easing = if i == samples {
-                parsed.easing
+                timing.easing
             } else {
                 Easing::Linear
             };

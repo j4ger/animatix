@@ -192,15 +192,10 @@ pub(super) fn execute_action<H: BuiltinAction + ?Sized>(
 
     if signature.category == "Entrance" {
         use crate::timeline::property_track::TrackAccessor;
-        let parsed = crate::timeline::parse_timing_modifiers(
-            &action.modifiers,
-            crate::timeline::ModifierHost::Action,
-            Some(&action.verb),
-            diagnostics,
-        );
-        let t_start_ms = (time_ms + parsed.delay_ms) as u64;
-        let t_end_ms = (time_ms + parsed.delay_ms + parsed.duration_ms) as u64;
-        let easing = parsed.easing;
+        let timing = super::ActionTiming::parse(action, time_ms, diagnostics);
+        let t_start_ms = timing.t_start_ms;
+        let t_end_ms = timing.t_end_ms;
+        let easing = timing.easing;
 
         for orig_target in &action.targets {
             lift_container_and_intermediate_containers(

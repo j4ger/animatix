@@ -11,8 +11,8 @@ use super::registry::{ActionSignature, BuiltinAction, base_timing_params};
 use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
+use crate::timeline::Timeline;
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
 /// How far below its final size a `settle-in` starts.
 const SETTLE_START_FACTOR: f32 = 0.92;
@@ -55,23 +55,16 @@ fn run_preset(
     timeline: &mut Timeline,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    let parsed = parse_timing_modifiers(
-        &action.modifiers,
-        ModifierHost::Action,
-        Some(&action.verb),
-        diagnostics,
-    );
-    let duration_ms = parsed.duration_ms;
-    let delay_ms = parsed.delay_ms;
+    let timing = super::ActionTiming::parse(action, time_ms, diagnostics);
     // An explicit `ease:` wins; otherwise the preset picks its own arrival.
-    let easing = if parsed.easing == Easing::Linear && !parsed.ease_authored {
+    let easing = if timing.easing == Easing::Linear && !timing.ease_authored {
         preset.arrival
     } else {
-        parsed.easing
+        timing.easing
     };
 
-    let t_start_ms = (time_ms + delay_ms) as u64;
-    let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+    let t_start_ms = timing.t_start_ms;
+    let t_end_ms = timing.t_end_ms;
 
     for target in &action.targets {
         if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics, None) {

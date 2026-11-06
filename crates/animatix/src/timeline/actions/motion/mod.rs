@@ -3,7 +3,7 @@ use crate::ast::{Action, Modifier};
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticPhase};
 use crate::easing::Easing;
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::{ModifierHost, Timeline, Value, evaluate_expr, parse_timing_modifiers};
+use crate::timeline::{Timeline, Value, evaluate_expr};
 
 fn motion_timing_params() -> Vec<ActionParam> {
     let mut params = vec![
@@ -176,19 +176,6 @@ fn parse_positive_num_modifier(
         return None;
     }
     Some(value)
-}
-
-pub(crate) fn timing_modifiers_without_keys(
-    modifiers: &[Modifier],
-    excluded_keys: &[&str],
-) -> Vec<Modifier> {
-    modifiers
-        .iter()
-        .filter(|modifier| {
-            modifier.name.as_deref().is_none_or(|name| !excluded_keys.contains(&name))
-        })
-        .cloned()
-        .collect()
 }
 
 /// Moves the target to an absolute local translation offset.

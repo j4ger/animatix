@@ -3,8 +3,8 @@ use crate::ast::Action;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
 use crate::primitives::ChildProcessing;
+use crate::timeline::Timeline;
 use crate::timeline::property_track::TrackAccessor;
-use crate::timeline::{ModifierHost, Timeline, parse_timing_modifiers};
 
 fn highlight_timing_params() -> Vec<ActionParam> {
     let mut params = vec![
@@ -97,18 +97,11 @@ impl BuiltinAction for Highlight {
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let parsed = parse_timing_modifiers(
-            &action.modifiers,
-            ModifierHost::Action,
-            Some(&action.verb),
-            diagnostics,
-        );
-        let duration_ms = parsed.duration_ms;
-        let delay_ms = parsed.delay_ms;
-        let easing = parsed.easing;
+        let timing = super::ActionTiming::parse(action, time_ms, diagnostics);
+        let easing = timing.easing;
 
-        let t_start_ms = (time_ms + delay_ms) as u64;
-        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+        let t_start_ms = timing.t_start_ms;
+        let t_end_ms = timing.t_end_ms;
 
         // Parse optional color modifier (default: white [1,1,1,1])
         let color =
@@ -261,18 +254,11 @@ impl BuiltinAction for Unhighlight {
         timeline: &mut Timeline,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        let parsed = parse_timing_modifiers(
-            &action.modifiers,
-            ModifierHost::Action,
-            Some(&action.verb),
-            diagnostics,
-        );
-        let duration_ms = parsed.duration_ms;
-        let delay_ms = parsed.delay_ms;
-        let easing = parsed.easing;
+        let timing = super::ActionTiming::parse(action, time_ms, diagnostics);
+        let easing = timing.easing;
 
-        let t_start_ms = (time_ms + delay_ms) as u64;
-        let t_end_ms = (time_ms + delay_ms + duration_ms) as u64;
+        let t_start_ms = timing.t_start_ms;
+        let t_end_ms = timing.t_end_ms;
 
         for target in &action.targets {
             if !super::ensure_target_exists(timeline, target, &action.verb, diagnostics, None) {
