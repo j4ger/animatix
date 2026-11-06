@@ -1,3 +1,5 @@
+use egui::Key;
+
 use super::saved::shortcut_hint_text;
 use super::*;
 
@@ -88,9 +90,23 @@ impl ShortcutRegistry {
     }
 
     fn register_defaults(&mut self) {
-        use egui::Key;
+        self.register_file_shortcuts();
+        self.register_edit_shortcuts();
+        self.register_playback_shortcuts();
+        self.register_selection_shortcuts();
+        self.register_view_shortcuts();
+        self.register_scene_shortcuts();
+        self.register_clipboard_shortcuts();
+        self.register_editor_sync_shortcuts();
+        self.register_insertion_shortcuts();
+        self.register_escape_shortcut();
+        self.register_nudge_shortcuts();
+        self.register_tool_shortcuts();
+        self.register_global_shortcuts();
+    }
 
-        // File operations (TextSafe)
+    /// File operations (TextSafe).
+    fn register_file_shortcuts(&mut self) {
         self.register(
             KeyboardShortcut::new(Modifiers::COMMAND, Key::S),
             Shortcut {
@@ -115,8 +131,10 @@ impl ShortcutRegistry {
                 action: KeyboardAction::Reload,
             },
         );
+    }
 
-        // Undo/Redo (TextSafe)
+    /// Undo/Redo (TextSafe).
+    fn register_edit_shortcuts(&mut self) {
         self.register(
             KeyboardShortcut::new(Modifiers::COMMAND, Key::Z),
             Shortcut {
@@ -141,8 +159,10 @@ impl ShortcutRegistry {
                 action: KeyboardAction::Redo,
             },
         );
+    }
 
-        // Playback (Canvas)
+    /// Playback (Canvas).
+    fn register_playback_shortcuts(&mut self) {
         self.register(
             KeyboardShortcut::new(Modifiers::NONE, Key::Space),
             Shortcut {
@@ -207,7 +227,10 @@ impl ShortcutRegistry {
                 action: KeyboardAction::TogglePresentationMode,
             },
         );
-        // Selection editing (Canvas)
+    }
+
+    /// Selection editing (Canvas).
+    fn register_selection_shortcuts(&mut self) {
         self.register(
             KeyboardShortcut::new(Modifiers::COMMAND, Key::D),
             Shortcut {
@@ -248,8 +271,10 @@ impl ShortcutRegistry {
                 action: KeyboardAction::UngroupSelection,
             },
         );
+    }
 
-        // View (Canvas)
+    /// View (Canvas).
+    fn register_view_shortcuts(&mut self) {
         self.register(
             KeyboardShortcut::new(Modifiers::NONE, Key::F),
             Shortcut {
@@ -266,8 +291,10 @@ impl ShortcutRegistry {
                 action: KeyboardAction::ZoomToAll,
             },
         );
+    }
 
-        // Scene switching (Canvas)
+    /// Scene switching (Canvas).
+    fn register_scene_shortcuts(&mut self) {
         self.register(
             KeyboardShortcut::new(Modifiers::NONE, Key::Num1),
             Shortcut {
@@ -292,8 +319,10 @@ impl ShortcutRegistry {
                 action: KeyboardAction::SelectScene(2),
             },
         );
+    }
 
-        // Clipboard (Canvas)
+    /// Clipboard (Canvas).
+    fn register_clipboard_shortcuts(&mut self) {
         self.register(
             KeyboardShortcut::new(Modifiers::COMMAND, Key::C),
             Shortcut {
@@ -310,8 +339,10 @@ impl ShortcutRegistry {
                 action: KeyboardAction::PasteClipboard,
             },
         );
+    }
 
-        // Editor sync (Canvas)
+    /// Editor sync (Canvas).
+    fn register_editor_sync_shortcuts(&mut self) {
         self.register(
             KeyboardShortcut::new(Modifiers::NONE, Key::Y),
             Shortcut {
@@ -320,8 +351,10 @@ impl ShortcutRegistry {
                 action: KeyboardAction::EditSync,
             },
         );
+    }
 
-        // Insertion palette (Canvas)
+    /// Insertion palette (Canvas).
+    fn register_insertion_shortcuts(&mut self) {
         self.register(
             KeyboardShortcut::new(Modifiers::SHIFT, Key::A),
             Shortcut {
@@ -338,8 +371,10 @@ impl ShortcutRegistry {
                 action: KeyboardAction::OpenInsertionPalette,
             },
         );
+    }
 
-        // Escape (Canvas)
+    /// Escape (Canvas).
+    fn register_escape_shortcut(&mut self) {
         self.register(
             KeyboardShortcut::new(Modifiers::NONE, Key::Escape),
             Shortcut {
@@ -348,8 +383,10 @@ impl ShortcutRegistry {
                 action: KeyboardAction::Escape,
             },
         );
+    }
 
-        // Nudge arrow keys (Canvas)
+    /// Nudge arrow keys (Canvas).
+    fn register_nudge_shortcuts(&mut self) {
         self.register(
             KeyboardShortcut::new(Modifiers::NONE, Key::ArrowLeft),
             Shortcut {
@@ -382,12 +419,14 @@ impl ShortcutRegistry {
                 action: KeyboardAction::NudgeSelected { dx: 0.0, dy: 1.0 },
             },
         );
+    }
 
-        // Tool switching (Canvas).
-        //
-        // V/A follow the Adobe convention (select / direct-select) and the rest
-        // are mnemonics: R rotate, S scale, G grab/move, P pivot. These are
-        // secondary to the visible tool switcher in the preview header.
+    /// Tool switching (Canvas).
+    ///
+    /// V/A follow the Adobe convention (select / direct-select) and the rest
+    /// are mnemonics: R rotate, S scale, G grab/move, P pivot. These are
+    /// secondary to the visible tool switcher in the preview header.
+    fn register_tool_shortcuts(&mut self) {
         self.register(
             KeyboardShortcut::new(Modifiers::NONE, Key::V),
             Shortcut {
@@ -436,8 +475,10 @@ impl ShortcutRegistry {
                 action: KeyboardAction::SetPivotTool,
             },
         );
+    }
 
-        // Toggle Inspector (Global)
+    /// Global toggles (Global).
+    fn register_global_shortcuts(&mut self) {
         self.register(
             KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::I),
             Shortcut {
@@ -446,8 +487,6 @@ impl ShortcutRegistry {
                 action: KeyboardAction::ToggleInspector,
             },
         );
-
-        // Toggle Code (Global) — the Inspector and Code share one detail region.
         self.register(
             KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::E),
             Shortcut {
@@ -456,8 +495,6 @@ impl ShortcutRegistry {
                 action: KeyboardAction::ToggleCode,
             },
         );
-
-        // Palettes (Global — they check their own open state)
         self.register(
             KeyboardShortcut::new(Modifiers::COMMAND.plus(Modifiers::SHIFT), Key::P),
             Shortcut {

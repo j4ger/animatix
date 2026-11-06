@@ -1,5 +1,8 @@
 use super::*;
 
+use crate::app::design_tokens::spatial::Spatial;
+use eparts::Theme;
+
 impl GuiShell {
     /// The selected actor, when it is a `Filter` compositing scope — the only
     /// container that can own effect stages.
@@ -98,90 +101,116 @@ impl GuiShell {
         content.add_space(sp.base.space_3);
 
         // ── Component parameter form ──────────────────────────────
-        if let Some(ref mut form) = self.insertion_palette.param_form {
-            let type_name = form.type_name.clone();
-            content.label(
-                RichText::new(format!("Configure {}", type_name))
-                    .size(TextRole::Title.size())
-                    .color(theme.palette.text.primary)
-                    .strong(),
-            );
-            content.add_space(sp.base.space_3);
-            for (param_name, param_type, param_value) in &mut form.params {
-                content.horizontal(|ui| {
-                    // Parameter name + type hint
-                    let label = if let Some(t) = param_type {
-                        format!("{}: {}:", param_name, t)
-                    } else {
-                        format!("{}:", param_name)
-                    };
-                    ui.label(
-                        RichText::new(label)
-                            .size(TextRole::BodyS.size())
-                            .color(theme.palette.text.secondary),
-                    );
+        if self.insertion_palette.param_form.is_some() {
+            self.palette_param_form_ui(&mut content, theme, sp);
+            return;
+        }
 
-                    // Type-specific widget
-                    match param_type.as_deref() {
-                        Some("Num") => {
-                            let mut val = param_value.parse::<f64>().unwrap_or(0.0);
-                            let resp =
-                                NumberField::new(&mut val).speed(1.0).desired_width(120.0).show(ui);
-                            if resp.changed() || resp.lost_focus() {
-                                *param_value = format_num(val);
-                            }
-                        },
-                        Some("Bool") => {
-                            let mut bool_val = param_value == "true" || param_value == "1";
-                            if ui.add(Checkbox::new(&mut bool_val)).changed() {
-                                *param_value = if bool_val {
-                                    "true".to_string()
-                                } else {
-                                    "false".to_string()
-                                };
-                            }
-                        },
-                        Some("Vec2") => {
-                            // Parse existing value or show field pair
-                            let (mut x, mut y) = parse_vec2_value(param_value);
-                            ui.add_space(2.0);
-                            let rx = NumberField::new(&mut x)
-                                .prefix("X")
-                                .speed(1.0)
-                                .desired_width(70.0)
-                                .show(ui);
-                            let ry = NumberField::new(&mut y)
-                                .prefix("Y")
-                                .speed(1.0)
-                                .desired_width(70.0)
-                                .show(ui);
-                            if rx.changed() || rx.lost_focus() || ry.changed() || ry.lost_focus() {
-                                *param_value = format!("({}, {})", format_num(x), format_num(y));
-                            }
-                        },
-                        _ => {
-                            // Default: text field
-                            let field_w = ui.available_width().max(60.0);
-                            TextField::new(param_value).desired_width(field_w).show(ui);
-                        },
-                    }
-                });
-                content.add_space(sp.base.space_2);
-            }
-            content.add_space(sp.base.space_3);
-            let mut should_insert = false;
-            let mut should_back = false;
+        self.palette_browser_ui(ui, &mut content, palette_rect, theme, sp);
+    }
+
+    /// The parameter form shown when the chosen component takes arguments.
+    fn palette_param_form_ui(&mut self, content: &mut egui::Ui, theme: Theme, sp: Spatial) {
+        let Some(form) = self.insertion_palette.param_form.as_mut() else {
+            return;
+        };
+        let type_name = form.type_name.clone();
+        content.label(
+            RichText::new(format!("Configure {}", type_name))
+                .size(TextRole::Title.size())
+                .color(theme.palette.text.primary)
+                .strong(),
+        );
+        content.add_space(sp.base.space_3);
+        for (param_name, param_type, param_value) in &mut form.params {
             content.horizontal(|ui| {
-                if ui.add(Button::primary("Insert")).clicked() {
-                    should_insert = true;
-                }
-                if ui.add(Button::secondary("Back")).clicked() {
-                    should_back = true;
+                // Parameter name + type hint
+                let label = if let Some(t) = param_type {
+                    format!("{}: {}:", param_name, t)
+                } else {
+                    format!("{}:", param_name)
+                };
+                ui.label(
+                    RichText::new(label)
+                        .size(TextRole::BodyS.size())
+                        .color(theme.palette.text.secondary),
+                );
+
+                // Type-specific widget
+                match param_type.as_deref() {
+                    Some("Num") => {
+                        let mut val = param_value.parse::<f64>().unwrap_or(0.0);
+                        let resp =
+                            NumberField::new(&mut val).speed(1.0).desired_width(120.0).show(ui);
+                        if resp.changed() || resp.lost_focus() {
+                            *param_value = format_num(val);
+                        }
+                    },
+                    Some("Bool") => {
+                        let mut bool_val = param_value == "true" || param_value == "1";
+                        if ui.add(Checkbox::new(&mut bool_val)).changed() {
+                            *param_value = if bool_val {
+                                "true".to_string()
+                            } else {
+                                "false".to_string()
+                            };
+                        }
+                    },
+                    Some("Vec2") => {
+                        // Parse existing value or show field pair
+                        let (mut x, mut y) = parse_vec2_value(param_value);
+                        ui.add_space(2.0);
+                        let rx = NumberField::new(&mut x)
+                            .prefix("X")
+                            .speed(1.0)
+                            .desired_width(70.0)
+                            .show(ui);
+                        let ry = NumberField::new(&mut y)
+                            .prefix("Y")
+                            .speed(1.0)
+                            .desired_width(70.0)
+                            .show(ui);
+                        if rx.changed() || rx.lost_focus() || ry.changed() || ry.lost_focus() {
+                            *param_value = format!("({}, {})", format_num(x), format_num(y));
+                        }
+                    },
+                    _ => {
+                        // Default: text field
+                        let field_w = ui.available_width().max(60.0);
+                        TextField::new(param_value).desired_width(field_w).show(ui);
+                    },
                 }
             });
-            if should_insert {
-                let props: Vec<animatix_syntax::ast::Property> = form
-                    .params
+            content.add_space(sp.base.space_2);
+        }
+        content.add_space(sp.base.space_3);
+        let mut should_insert = false;
+        let mut should_back = false;
+        content.horizontal(|ui| {
+            if ui.add(Button::primary("Insert")).clicked() {
+                should_insert = true;
+            }
+            if ui.add(Button::secondary("Back")).clicked() {
+                should_back = true;
+            }
+        });
+        if should_insert {
+            self.palette_param_form_insert(&type_name);
+            return;
+        }
+        if should_back {
+            self.insertion_palette.param_form = None;
+        }
+    }
+
+    /// Insert the configured component and close the palette.
+    fn palette_param_form_insert(&mut self, type_name: &str) {
+        let props: Vec<animatix_syntax::ast::Property> = self
+            .insertion_palette
+            .param_form
+            .as_ref()
+            .map(|form| {
+                form.params
                     .iter()
                     .filter_map(|(name, _type, value)| {
                         if value.trim().is_empty() {
@@ -211,84 +240,96 @@ impl GuiShell {
                             trailing_comment: None,
                         })
                     })
-                    .collect();
-                self.insertion_palette.param_form = None;
-                let ctx = InsertionContext {
-                    current_time_s: self.preview_store.preview.playback.current_time_s(),
-                    selected_actors: self.ui_store.selection.selected_actors.clone(),
-                    cursor_cell_time_s: self.ui_store.cursor_time_s,
-                    selected_container: self
-                        .ui_store
-                        .selection
-                        .selected_actors
-                        .iter()
-                        .next()
-                        .cloned()
-                        .filter(|sel| {
-                            self.document_store.source.document.active_timeline().is_some_and(|t| {
-                                t.get_entity_id(sel).is_some_and(|id| {
-                                    crate::app::actions::track_is_nestable_container(t, id)
-                                })
-                            })
-                        }),
-                };
-                let template = crate::app::primitives::ActorTemplate::with_suggested_label(
-                    &type_name,
-                    None,
-                    None,
-                    self.document_store.source.document.scene_dimensions,
-                    self.document_store.source.document.active_timeline(),
-                    props,
-                );
-                let request = InsertionRequest::Primitive {
-                    type_name: type_name.clone(),
-                    suggested_label: Some(template.label),
-                    props: template.props,
-                };
-                if let Some(edit) = request.into_source_edit(&ctx) {
-                    // Snapshot for undo before palette mutation
-                    let ui_before = self.ui_store.snapshot_with_preview(&self.preview_store);
-                    self.document_store.snapshot(Command::InsertionFromPalette, ui_before);
-                    if let Some(mut stmts) =
-                        self.document_store.source.document.raw_statements.take()
-                    {
-                        if crate::source_edit::apply_edit(&mut stmts, edit).is_ok() {
-                            crate::app::document_controller::commit_ast(
-                                &mut self.document_store,
-                                &mut self.preview_store,
-                                &self.ui_store,
-                                stmts,
-                                Vec::new(),
-                            );
-                            self.preview_store.preview.status = format!("Inserted {}", type_name);
-                        } else {
-                            self.document_store.source.document.raw_statements = Some(stmts);
-                            self.document_store.abort_snapshot();
-                            self.preview_store.preview.status =
-                                format!("Failed to insert {}", type_name);
-                        }
-                    } else {
-                        self.document_store.abort_snapshot();
-                        self.preview_store.preview.status =
-                            format!("Failed to insert {}", type_name);
-                    }
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        self.insertion_palette.param_form = None;
+        let ctx = InsertionContext {
+            current_time_s: self.preview_store.preview.playback.current_time_s(),
+            selected_actors: self.ui_store.selection.selected_actors.clone(),
+            cursor_cell_time_s: self.ui_store.cursor_time_s,
+            selected_container: self
+                .ui_store
+                .selection
+                .selected_actors
+                .iter()
+                .next()
+                .cloned()
+                .filter(|sel| {
+                    self.document_store.source.document.active_timeline().is_some_and(|t| {
+                        t.get_entity_id(sel).is_some_and(|id| {
+                            crate::app::actions::track_is_nestable_container(t, id)
+                        })
+                    })
+                }),
+        };
+        let template = crate::app::primitives::ActorTemplate::with_suggested_label(
+            type_name,
+            None,
+            None,
+            self.document_store.source.document.scene_dimensions,
+            self.document_store.source.document.active_timeline(),
+            props,
+        );
+        let request = InsertionRequest::Primitive {
+            type_name: type_name.to_string(),
+            suggested_label: Some(template.label),
+            props: template.props,
+        };
+        if let Some(edit) = request.into_source_edit(&ctx) {
+            // Snapshot for undo before palette mutation
+            let ui_before = self.ui_store.snapshot_with_preview(&self.preview_store);
+            self.document_store.snapshot(Command::InsertionFromPalette, ui_before);
+            if let Some(mut stmts) = self.document_store.source.document.raw_statements.take() {
+                if crate::source_edit::apply_edit(&mut stmts, edit).is_ok() {
+                    crate::app::document_controller::commit_ast(
+                        &mut self.document_store,
+                        &mut self.preview_store,
+                        &self.ui_store,
+                        stmts,
+                        Vec::new(),
+                    );
+                    self.preview_store.preview.status = format!("Inserted {}", type_name);
+                } else {
+                    self.document_store.source.document.raw_statements = Some(stmts);
+                    self.document_store.abort_snapshot();
+                    self.preview_store.preview.status = format!("Failed to insert {}", type_name);
                 }
-                self.insertion_palette.close();
-                return;
+            } else {
+                self.document_store.abort_snapshot();
+                self.preview_store.preview.status = format!("Failed to insert {}", type_name);
             }
-            if should_back {
-                self.insertion_palette.param_form = None;
-                return;
-            }
+        }
+        self.insertion_palette.close();
+    }
+
+    /// Search, mode tabs, keyboard navigation and the filtered item list.
+    fn palette_browser_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        content: &mut egui::Ui,
+        palette_rect: Rect,
+        theme: Theme,
+        sp: Spatial,
+    ) {
+        self.palette_search_and_tabs(content, sp);
+
+        // Keyboard navigation
+        if self.palette_keyboard_nav(ui) {
             return;
         }
 
+        self.palette_item_list(content, palette_rect, theme, sp);
+    }
+
+    /// Query field plus the mode tab bar; both rebuild the filter on change.
+    fn palette_search_and_tabs(&mut self, content: &mut egui::Ui, sp: Spatial) {
         // Query input
         let query_response = TextField::new(&mut self.insertion_palette.query)
             .placeholder("Type to filter…")
             .cleanable(true)
             .desired_width(content.available_width())
-            .show(&mut content);
+            .show(content);
         if query_response.changed {
             self.insertion_palette.rebuild_filter();
         }
@@ -313,7 +354,7 @@ impl GuiShell {
         ];
         let mut selected =
             modes.iter().position(|&mode| mode == self.insertion_palette.mode).unwrap_or(0);
-        TabBar::new("insertion_mode_tabs", &mut selected, &labels).show(&mut content);
+        TabBar::new("insertion_mode_tabs", &mut selected, &labels).show(content);
         if let Some(mode) = modes.get(selected).copied()
             && mode != self.insertion_palette.mode
         {
@@ -321,8 +362,10 @@ impl GuiShell {
             self.insertion_palette.rebuild_filter();
         }
         content.add_space(sp.base.space_3);
+    }
 
-        // Keyboard navigation
+    /// Arrow/Tab/Enter handling; returns `true` when Enter executed an item.
+    fn palette_keyboard_nav(&mut self, ui: &mut egui::Ui) -> bool {
         let mut enter_pressed = false;
         ui.input(|i| {
             if i.key_pressed(egui::Key::ArrowDown) {
@@ -358,16 +401,26 @@ impl GuiShell {
         });
         if enter_pressed && let Some(item) = self.insertion_palette.selected_item().cloned() {
             self.execute_palette_item(item);
-            return;
+            return true;
         }
+        false
+    }
 
+    /// The scrollable list of filtered items; a click executes the item.
+    fn palette_item_list(
+        &mut self,
+        content: &mut egui::Ui,
+        palette_rect: Rect,
+        theme: Theme,
+        sp: Spatial,
+    ) {
         // Item list
         let available_h = palette_rect.max.y - content.cursor().min.y - sp.base.space_4;
         let item_h = 36.0f32;
 
         let mut clicked_item: Option<PaletteItem> = None;
 
-        egui::ScrollArea::vertical().max_height(available_h).show(&mut content, |ui| {
+        egui::ScrollArea::vertical().max_height(available_h).show(content, |ui| {
             for (vis_idx, &item_idx) in self.insertion_palette.filtered.iter().enumerate() {
                 let item = &self.insertion_palette.items[item_idx];
                 let is_selected = vis_idx == self.insertion_palette.selected_index;

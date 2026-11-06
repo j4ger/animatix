@@ -13,7 +13,7 @@
 //! Sampling and axis mapping are shared with the Inspector through
 //! [`crate::app::panels::curve_plot`]; this module owns only the interaction.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use animatix::timeline::{ActorField, EntityId, Timeline};
 use egui::{Pos2, Response, Sense, Stroke, Vec2};
@@ -99,21 +99,8 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
     let theme = eparts::theme(ui);
     let sp = spatial(ui);
     let outer = ui.available_rect_before_wrap();
-    // Focus the panel on click, not hover (mirrors the timeline): clicking the
-    // curves editor focuses it and clicking elsewhere releases it.
-    if ui.input(|i| i.pointer.primary_pressed()) {
-        *ctx.timeline_focused = ui.rect_contains_pointer(outer);
-    }
-    if *ctx.timeline_focused {
-        let layer =
-            egui::LayerId::new(egui::Order::Foreground, ui.scope_id().with("curves_focus_ring"));
-        ui.ctx().layer_painter(layer).rect_stroke(
-            outer.shrink(1.0),
-            egui::CornerRadius::ZERO,
-            Stroke::new(STROKE_WIDTH, theme.palette.border.focus),
-            egui::StrokeKind::Inside,
-        );
-    }
+    draw_focus_ring(ctx, ui, outer, theme);
+
     let Some(timeline) = ctx.timeline else {
         layout::empty_state(
             ui,
@@ -163,19 +150,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
     painter.rect_filled(outer, 0.0, theme.palette.surface.base);
 
     let scene = ctx.active_scene.map(ToOwned::to_owned);
-    let mut curves: Vec<CurveChannel> = Vec::new();
-    for (index, (label, id)) in tracks.iter().enumerate() {
-        // The first actor keeps the canonical channel colours; the rest get a
-        // deterministic shade so two actors' `position.X` stay told apart.
-        let shade = if index == 0 {
-            1.0
-        } else {
-            curve_plot::actor_shade_factor(label)
-        };
-        curves.extend(curve_plot::collect_curves_for_actor(
-            timeline, label, *id, theme, qualify, shade,
-        ));
-    }
+    let curves = collect_actor_curves(timeline, &tracks, theme, qualify);
 
     // The shared keyframe selection is the single source of truth, so a
     // timeline selection carries over when switching tabs and vice versa.
@@ -184,19 +159,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
 
     // ── Header ──────────────────────────────────────────────────────────
     let header_rect = egui::Rect::from_min_size(outer.min, Vec2::new(outer.width(), HEADER_HEIGHT));
-    let header = if tracks.len() > 1 {
-        let names: Vec<&str> = tracks.iter().map(|(label, _)| *label).collect();
-        format!("Editing: {}  ({} actors)", names.join(", "), tracks.len())
-    } else {
-        format!("Editing: {actor}")
-    };
-    painter.text(
-        Pos2::new(header_rect.left() + PLOT_PADDING, header_rect.center().y),
-        egui::Align2::LEFT_CENTER,
-        header,
-        TextRole::BodyS.font_id(),
-        theme.palette.text.secondary,
-    );
+    draw_header(&painter, header_rect, actor, &tracks, theme);
     if curves.is_empty() {
         painter.text(
             egui::Rect::from_min_max(Pos2::new(outer.left(), header_rect.bottom()), outer.max)
@@ -210,14 +173,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
     }
 
     // ── Legend ──────────────────────────────────────────────────────────
-    let visibility_id = ui.scope_id().with("curves_visibility");
-    let mut visibility = curve_plot::legend_visibility(ui, visibility_id, &curves);
-    let legend_rect = egui::Rect::from_min_size(
-        Pos2::new(outer.left() + PLOT_PADDING, header_rect.bottom()),
-        Vec2::new(outer.width() - PLOT_PADDING * 2.0, LEGEND_HEIGHT),
-    );
-    curve_plot::draw_legend(ui, legend_rect, &curves, &mut visibility, theme);
-    ui.data_mut(|d| d.insert_temp(visibility_id, visibility.clone()));
+    let (visibility, legend_rect) = draw_legend_row(ui, outer, header_rect, &curves, theme);
 
     // ── Ruler (scrub) ───────────────────────────────────────────────────
     let ruler_rect = egui::Rect::from_min_size(
@@ -264,11 +220,178 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
     let shift_held = ui.input(|i| i.modifiers.shift);
     let mut new_drag = drag.clone();
 
+    let hits = draw_curve_keyframes(
+        ui,
+        &painter,
+        &axis,
+        &visible_curves,
+        &scene,
+        &selection,
+        new_drag.as_ref(),
+        current_time_s,
+        theme,
+    );
+
+    // ── Playhead ────────────────────────────────────────────────────────
+    curve_plot::draw_playhead(&painter, &axis, current_time_s, theme);
+
+    // ── Ruler interaction ───────────────────────────────────────────────
+    handle_ruler_interaction(
+        ui,
+        &painter,
+        &axis,
+        ruler_rect,
+        duration_s,
+        shift_held,
+        ctx.snap_fps,
+        ctx.commands,
+        theme,
+    );
+
+    // ── Keyframe interactions ───────────────────────────────────────────
+    handle_keyframe_interactions(
+        ui,
+        &hits,
+        &mut selection,
+        &mut new_drag,
+        &axis,
+        shift_held,
+        ctx.snap_fps,
+        &tracks,
+        &scene,
+        timeline,
+        ctx.commands,
+    );
+
+    // ── Persist drag state and mirror selection into the shared store ───
+    persist_drag_and_selection(
+        ui,
+        ctx,
+        drag_id,
+        new_drag,
+        selection,
+        selection_before,
+        &curves,
+        &scene,
+    );
+}
+
+/// Focus the panel on click and paint the ring while the bottom region is active.
+fn draw_focus_ring(
+    ctx: &mut CurvesContext<'_>,
+    ui: &mut egui::Ui,
+    outer: egui::Rect,
+    theme: Theme,
+) {
+    // Focus the panel on click, not hover (mirrors the timeline): clicking the
+    // curves editor focuses it and clicking elsewhere releases it.
+    if ui.input(|i| i.pointer.primary_pressed()) {
+        *ctx.timeline_focused = ui.rect_contains_pointer(outer);
+    }
+    if *ctx.timeline_focused {
+        let layer =
+            egui::LayerId::new(egui::Order::Foreground, ui.scope_id().with("curves_focus_ring"));
+        ui.ctx().layer_painter(layer).rect_stroke(
+            outer.shrink(1.0),
+            egui::CornerRadius::ZERO,
+            Stroke::new(STROKE_WIDTH, theme.palette.border.focus),
+            egui::StrokeKind::Inside,
+        );
+    }
+}
+
+/// Collect every graphed actor's channels, shading additional actors apart.
+fn collect_actor_curves(
+    timeline: &Timeline,
+    tracks: &[(&str, EntityId)],
+    theme: Theme,
+    qualify: bool,
+) -> Vec<CurveChannel> {
+    let mut curves: Vec<CurveChannel> = Vec::new();
+    for (index, (label, id)) in tracks.iter().enumerate() {
+        // The first actor keeps the canonical channel colours; the rest get a
+        // deterministic shade so two actors' `position.X` stay told apart.
+        let shade = if index == 0 {
+            1.0
+        } else {
+            curve_plot::actor_shade_factor(label)
+        };
+        curves.extend(curve_plot::collect_curves_for_actor(
+            timeline, label, *id, theme, qualify, shade,
+        ));
+    }
+    curves
+}
+
+/// Paint the "Editing: …" header line for the graphed actors.
+fn draw_header(
+    painter: &egui::Painter,
+    header_rect: egui::Rect,
+    actor: &str,
+    tracks: &[(&str, EntityId)],
+    theme: Theme,
+) {
+    let header = if tracks.len() > 1 {
+        let names: Vec<&str> = tracks.iter().map(|(label, _)| *label).collect();
+        format!("Editing: {}  ({} actors)", names.join(", "), tracks.len())
+    } else {
+        format!("Editing: {actor}")
+    };
+    painter.text(
+        Pos2::new(header_rect.left() + PLOT_PADDING, header_rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        header,
+        TextRole::BodyS.font_id(),
+        theme.palette.text.secondary,
+    );
+}
+
+/// Draw the legend row and persist the resulting per-curve visibility map.
+fn draw_legend_row(
+    ui: &mut egui::Ui,
+    outer: egui::Rect,
+    header_rect: egui::Rect,
+    curves: &[CurveChannel],
+    theme: Theme,
+) -> (HashMap<String, bool>, egui::Rect) {
+    let visibility_id = ui.scope_id().with("curves_visibility");
+    let mut visibility = curve_plot::legend_visibility(ui, visibility_id, curves);
+    let legend_rect = egui::Rect::from_min_size(
+        Pos2::new(outer.left() + PLOT_PADDING, header_rect.bottom()),
+        Vec2::new(outer.width() - PLOT_PADDING * 2.0, LEGEND_HEIGHT),
+    );
+    curve_plot::draw_legend(ui, legend_rect, curves, &mut visibility, theme);
+    ui.data_mut(|d| d.insert_temp(visibility_id, visibility.clone()));
+    (visibility, legend_rect)
+}
+
+/// One graphed keyframe dot: identity, channel and the interaction response.
+struct KeyframeHit {
+    id: KeyframeId,
+    field: ActorField,
+    channel: usize,
+    point_value: f32,
+    response: Response,
+}
+
+/// Draw the curves and their keyframe dots, returning one hit per dot.
+#[allow(clippy::too_many_arguments)]
+fn draw_curve_keyframes(
+    ui: &mut egui::Ui,
+    painter: &egui::Painter,
+    axis: &Axis,
+    visible_curves: &[&CurveChannel],
+    scene: &Option<String>,
+    selection: &[KeyframeId],
+    new_drag: Option<&CurveDrag>,
+    current_time_s: f64,
+    theme: Theme,
+) -> Vec<KeyframeHit> {
     // Draw curves and collect keyframe hit responses in one pass over each
     // channel so the dots sit above the lines.
-    let mut hit_responses: Vec<(KeyframeId, ActorField, usize, f32, Response, Pos2)> = Vec::new();
-    for curve in &visible_curves {
-        curve_plot::draw_curve(&painter, &axis, curve, current_time_s, theme);
+    let mut hit_responses: Vec<KeyframeHit> = Vec::new();
+    for curve in visible_curves {
+        curve_plot::draw_curve(painter, axis, curve, current_time_s, theme);
 
         for (i, (time_s, val)) in curve.points.iter().enumerate() {
             let time_ms = (*time_s * 1000.0).round() as u64;
@@ -280,23 +403,20 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
             };
 
             // Ghost the in-flight drag so the point tracks the pointer.
-            let is_time_dragged = new_drag
-                .as_ref()
-                .is_some_and(|d| d.mode == Some(DragMode::Time) && d.ids.contains(&id));
-            let value_dragged = new_drag.as_ref().is_some_and(|d| {
+            let is_time_dragged =
+                new_drag.is_some_and(|d| d.mode == Some(DragMode::Time) && d.ids.contains(&id));
+            let value_dragged = new_drag.is_some_and(|d| {
                 d.mode == Some(DragMode::Value)
                     && d.value_edit
                         .as_ref()
                         .is_some_and(|v| v.id == id && v.channel == curve.channel)
             });
             let draw_pos = if is_time_dragged {
-                let delta = new_drag.as_ref().map_or(0.0, CurveDrag::time_delta_s);
+                let delta = new_drag.map_or(0.0, CurveDrag::time_delta_s);
                 axis.point(*time_s + delta, *val)
             } else if value_dragged {
-                let v = new_drag
-                    .as_ref()
-                    .and_then(|d| d.value_edit.as_ref())
-                    .map_or(*val, |v| v.current_value);
+                let v =
+                    new_drag.and_then(|d| d.value_edit.as_ref()).map_or(*val, |v| v.current_value);
                 axis.point(*time_s, v)
             } else {
                 axis.point(*time_s, *val)
@@ -325,15 +445,32 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
                 );
             }
 
-            hit_responses.push((id, curve.field, curve.channel, *val, resp, draw_pos));
+            hit_responses.push(KeyframeHit {
+                id,
+                field: curve.field,
+                channel: curve.channel,
+                point_value: *val,
+                response: resp,
+            });
         }
     }
+    hit_responses
+}
 
-    // ── Playhead ────────────────────────────────────────────────────────
-    curve_plot::draw_playhead(&painter, &axis, current_time_s, theme);
-
-    // ── Ruler interaction ───────────────────────────────────────────────
-    draw_ruler(&painter, ruler_rect, &axis, duration_s, theme);
+/// Paint the scrub ruler and emit a `ScrubTo` when it is clicked or dragged.
+#[allow(clippy::too_many_arguments)]
+fn handle_ruler_interaction(
+    ui: &mut egui::Ui,
+    painter: &egui::Painter,
+    axis: &Axis,
+    ruler_rect: egui::Rect,
+    duration_s: f64,
+    shift_held: bool,
+    snap_fps: f32,
+    commands: &mut ActionQueue,
+    theme: Theme,
+) {
+    draw_ruler(painter, ruler_rect, axis, duration_s, theme);
     let ruler_resp =
         ui.interact(ruler_rect, ui.scope_id().with("curves_ruler"), Sense::click_and_drag());
     if (ruler_resp.clicked() || ruler_resp.dragged())
@@ -341,13 +478,35 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
     {
         let mut t = axis.time_at_x(pos.x);
         if !shift_held {
-            t = snap_time(t, ctx.snap_fps);
+            t = snap_time(t, snap_fps);
         }
-        ctx.commands.push_back(Command::ScrubTo(t).into());
+        commands.push_back(Command::ScrubTo(t).into());
     }
+}
 
-    // ── Keyframe interactions ───────────────────────────────────────────
-    for (id, field, channel, point_value, resp, _draw_pos) in &hit_responses {
+/// Hover tooltips, context menus, selection and drag handling for each dot.
+#[allow(clippy::too_many_arguments)]
+fn handle_keyframe_interactions(
+    ui: &mut egui::Ui,
+    hits: &[KeyframeHit],
+    selection: &mut Vec<KeyframeId>,
+    new_drag: &mut Option<CurveDrag>,
+    axis: &Axis,
+    shift_held: bool,
+    snap_fps: f32,
+    tracks: &[(&str, EntityId)],
+    scene: &Option<String>,
+    timeline: &Timeline,
+    commands: &mut ActionQueue,
+) {
+    for hit in hits {
+        let KeyframeHit {
+            id,
+            field,
+            channel,
+            point_value,
+            response: resp,
+        } = hit;
         let is_dragged = new_drag.as_ref().is_some_and(|d| {
             d.mode.is_some()
                 && (d.ids.contains(id) || d.value_edit.as_ref().is_some_and(|v| v.id == *id))
@@ -380,15 +539,13 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
                         let variant = animatix_syntax::easing::parse_easing_name(id_str)
                             .unwrap_or(animatix_syntax::easing::Easing::Linear);
                         for target in &targets {
-                            ctx.commands.push_back(ShellAction::Command(
-                                Command::SetKeyframeEasing {
-                                    scene: target.scene.clone(),
-                                    actor: target.actor.clone(),
-                                    property: target.property.clone(),
-                                    time_s: target.time_ms as f64 / 1000.0,
-                                    easing: variant,
-                                },
-                            ));
+                            commands.push_back(ShellAction::Command(Command::SetKeyframeEasing {
+                                scene: target.scene.clone(),
+                                actor: target.actor.clone(),
+                                property: target.property.clone(),
+                                time_s: target.time_ms as f64 / 1000.0,
+                                easing: variant,
+                            }));
                         }
                         ui.close();
                     }
@@ -399,8 +556,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
                 .button(format!("{} Delete keyframe", egui_phosphor::regular::TRASH))
                 .clicked()
             {
-                ctx.commands
-                    .push_back(ShellAction::Command(Command::DeleteKeyframes(targets.clone())));
+                commands.push_back(ShellAction::Command(Command::DeleteKeyframes(targets.clone())));
                 ui.close();
             }
         });
@@ -413,7 +569,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
                     selection.push(id.clone());
                 }
             } else {
-                selection = vec![id.clone()];
+                *selection = vec![id.clone()];
             }
         }
 
@@ -421,7 +577,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
             // Dragging a selected keyframe moves the whole selection;
             // dragging an unselected one starts a fresh single selection.
             if !shift_held && !selection.contains(id) {
-                selection = vec![id.clone()];
+                *selection = vec![id.clone()];
             }
             let ids = if selection.contains(id) {
                 selection.clone()
@@ -429,7 +585,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
                 vec![id.clone()]
             };
             let time_s = id.time_ms as f64 / 1000.0;
-            new_drag = Some(CurveDrag {
+            *new_drag = Some(CurveDrag {
                 ids,
                 anchor_time_s: time_s,
                 target_time_s: time_s,
@@ -462,7 +618,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
                     d.target_time_s = if shift_held {
                         t
                     } else {
-                        snap_time(t, ctx.snap_fps)
+                        snap_time(t, snap_fps)
                     };
                 },
                 Some(DragMode::Value) => {
@@ -477,11 +633,23 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
         if resp.drag_stopped()
             && let Some(d) = new_drag.take()
         {
-            emit_drag_commands(ctx.commands, &d, &tracks, &scene, timeline);
+            emit_drag_commands(commands, &d, tracks, scene, timeline);
         }
     }
+}
 
-    // ── Persist drag state and mirror selection into the shared store ───
+/// Persist the in-flight drag and mirror a changed selection into the store.
+#[allow(clippy::too_many_arguments)]
+fn persist_drag_and_selection(
+    ui: &mut egui::Ui,
+    ctx: &mut CurvesContext<'_>,
+    drag_id: egui::Id,
+    new_drag: Option<CurveDrag>,
+    selection: Vec<KeyframeId>,
+    selection_before: Vec<KeyframeId>,
+    curves: &[CurveChannel],
+    scene: &Option<String>,
+) {
     ui.data_mut(|d| {
         if let Some(drag) = new_drag.clone() {
             d.insert_temp(drag_id, drag);
@@ -490,7 +658,7 @@ pub(crate) fn curves_panel_ui(ctx: &mut CurvesContext<'_>, ui: &mut egui::Ui) {
         }
     });
     if selection != selection_before {
-        let canonical = prune_selection(&selection, &curves, &scene);
+        let canonical = prune_selection(&selection, curves, scene);
         *ctx.selected_keyframes = canonical.clone();
         ctx.commands
             .push_back(ShellAction::Command(Command::SetSelectedKeyframes(canonical)));
