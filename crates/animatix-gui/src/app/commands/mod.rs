@@ -281,17 +281,12 @@ pub enum ShellAction {
     Drag(DragEvent),
 }
 
-impl From<Command> for ShellAction {
-    fn from(c: Command) -> Self {
-        ShellAction::Command(c)
-    }
-}
-
 // ── Property edit types ─────────────────────────────────────────────────
 
 /// Describes a property edit made in the inspector panel.
 pub type PropertyValue = animatix::timeline::PropertyValue;
 
+mod api;
 mod property_edit;
 mod queue;
 #[cfg(test)]

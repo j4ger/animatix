@@ -15,10 +15,19 @@ use animatix_render::transition::{
 use wasm_bindgen::prelude::*;
 use wgpu::CurrentSurfaceTexture;
 
+use super::context::with_engine;
 use super::{
     AmxPlayer, EngineContext, FrameTarget, MAX_RENDER_SCALE, MIN_RENDER_SCALE, OffscreenTarget,
-    raster_dims, with_engine,
 };
+
+/// Raster target size for `scale`, rounded to whole pixels and clamped to
+/// `MIN_RENDER_SCALE..=MAX_RENDER_SCALE`.
+pub(super) fn raster_dims(dims: SceneDimensions, scale: f32) -> (u32, u32) {
+    let s = scale.clamp(MIN_RENDER_SCALE, MAX_RENDER_SCALE);
+    let w = ((dims.width as f32 * s).round() as u32).max(1);
+    let h = ((dims.height as f32 * s).round() as u32).max(1);
+    (w, h)
+}
 
 #[wasm_bindgen]
 impl AmxPlayer {

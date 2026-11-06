@@ -5,8 +5,9 @@ use animatix_render::filter_backend::GpuFilterBackend;
 use animatix_render::transition::TransitionCompositor;
 use wasm_bindgen::prelude::*;
 
+use super::context::with_engine;
 use super::frame::{FrameCtx, Targets, render_document};
-use super::{AmxPlayer, EngineContext, OffscreenTarget, with_engine};
+use super::{AmxPlayer, EngineContext, OffscreenTarget};
 
 /// Everything the map_async callback needs to own: the mapped buffer plus
 /// the geometry to interpret its bytes.

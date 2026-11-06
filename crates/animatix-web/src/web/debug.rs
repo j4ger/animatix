@@ -5,7 +5,8 @@ use animatix::timeline::DebugRenderOptions;
 use wasm_bindgen::prelude::*;
 use wgpu::CurrentSurfaceTexture;
 
-use super::{AmxPlayer, EngineContext, with_engine};
+use super::context::with_engine;
+use super::{AmxPlayer, EngineContext};
 
 /// One asset-cache entry of [`AmxPlayer::debug_svg_stats`].
 #[derive(serde::Serialize)]

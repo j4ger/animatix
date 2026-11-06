@@ -8,7 +8,8 @@ use animatix_render::core::RendererCore;
 use wasm_bindgen::prelude::*;
 use web_sys::HtmlCanvasElement;
 
-use super::{AmxPlayer, CONTEXT, EngineContext, with_engine};
+use super::context::{CONTEXT, with_engine};
+use super::{AmxPlayer, EngineContext};
 
 /// Create the shared context if it does not exist yet. Idempotent; the JS
 /// shell additionally funnels concurrent first calls through one promise.

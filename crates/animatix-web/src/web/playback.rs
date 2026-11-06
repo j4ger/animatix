@@ -3,7 +3,8 @@
 
 use wasm_bindgen::prelude::*;
 
-use super::{AmxPlayer, MAX_RENDER_SCALE, MIN_RENDER_SCALE, raster_dims};
+use super::frame::raster_dims;
+use super::{AmxPlayer, MAX_RENDER_SCALE, MIN_RENDER_SCALE};
 
 #[wasm_bindgen]
 impl AmxPlayer {

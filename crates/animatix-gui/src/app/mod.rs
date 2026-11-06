@@ -12,10 +12,13 @@ pub(crate) mod handlers;
 pub(crate) mod icons;
 pub(crate) mod insertion;
 pub(crate) mod interaction;
+mod layout_preset;
 pub(crate) mod panels;
 mod perf_log;
 mod persistence;
+mod playback;
 pub(crate) mod preview;
+mod preview_pane;
 pub(crate) mod primitives;
 mod runtime;
 pub(crate) mod shell;
@@ -99,19 +102,6 @@ pub enum LayoutPreset {
     Focus,
 }
 
-impl LayoutPreset {
-    pub const ALL: [Self; 4] = [Self::Animate, Self::Code, Self::Inspect, Self::Focus];
-
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Animate => "Animate",
-            Self::Code => "Code",
-            Self::Inspect => "Inspect",
-            Self::Focus => "Focus",
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub(crate) struct FileTreeEntry {
     path: PathBuf,
@@ -135,207 +125,6 @@ pub(crate) struct PlaybackController {
     pub presentation_mode: bool,
     pub pause_points_s: Vec<f64>,
     pub paused_at_step: bool,
-}
-
-impl PlaybackController {
-    /// Read the current playback time in seconds.
-    pub(crate) fn current_time_s(&self) -> f64 {
-        self.current_time_s
-    }
-
-    /// Jump to an absolute time (clamped to [0, duration]).
-    pub(crate) fn scrub_to(&mut self, time_s: f64) {
-        self.current_time_s = time_s.clamp(0.0, self.duration_s.max(0.1));
-        self.is_playing = false;
-    }
-
-    /// Restore playback state captured by an undo/redo snapshot.
-    pub(crate) fn restore_snapshot_state(
-        &mut self,
-        time_s: f64,
-        loop_start_s: Option<f64>,
-        loop_end_s: Option<f64>,
-    ) {
-        self.current_time_s = time_s.clamp(0.0, self.duration_s.max(0.1));
-        self.loop_start_s = loop_start_s;
-        self.loop_end_s = loop_end_s;
-        self.is_playing = false;
-    }
-
-    fn clamp_time(&mut self) {
-        let max_duration = self.duration_s.max(0.1);
-        self.current_time_s = self.current_time_s.clamp(0.0, max_duration);
-    }
-
-    /// Advance by one frame at the given fps. Stops playback.
-    pub(crate) fn frame_step_forward(&mut self, fps: f32) {
-        let step = 1.0 / fps.max(1.0) as f64;
-        self.current_time_s = (self.current_time_s + step).min(self.duration_s);
-        self.is_playing = false;
-    }
-
-    /// Rewind by one frame at the given fps. Stops playback.
-    pub(crate) fn frame_step_backward(&mut self, fps: f32) {
-        let step = 1.0 / fps.max(1.0) as f64;
-        self.current_time_s = (self.current_time_s - step).max(0.0);
-        self.is_playing = false;
-    }
-
-    /// Return the current time formatted as HH:MM:SS:FF at the stored fps.
-    pub(crate) fn timecode_string(&self) -> String {
-        let total_seconds = self.current_time_s.max(0.0);
-        let hours = (total_seconds / 3600.0).floor() as u32;
-        let minutes = ((total_seconds % 3600.0) / 60.0).floor() as u32;
-        let seconds = (total_seconds % 60.0).floor() as u32;
-        let frame = ((total_seconds % 1.0) * self.fps as f64).floor() as u32;
-        format!("{:02}:{:02}:{:02}:{:02}", hours, minutes, seconds, frame)
-    }
-
-    fn go_to_next_keyframe(&mut self, keyframes: &[f64]) {
-        if keyframes.is_empty() {
-            return;
-        }
-        let next = keyframes
-            .iter()
-            .find(|&&t| t > self.current_time_s)
-            .copied()
-            .unwrap_or(self.duration_s);
-        self.current_time_s = next;
-        self.clamp_time();
-        self.is_playing = false;
-    }
-
-    fn go_to_previous_keyframe(&mut self, keyframes: &[f64]) {
-        if keyframes.is_empty() {
-            return;
-        }
-        let prev = keyframes
-            .iter()
-            .rev()
-            .find(|&&t| t < self.current_time_s)
-            .copied()
-            .unwrap_or(0.0);
-        self.current_time_s = prev;
-        self.clamp_time();
-        self.is_playing = false;
-    }
-
-    fn toggle_playback(&mut self) {
-        if self.current_time_s >= self.duration_s {
-            self.current_time_s = 0.0;
-        }
-        self.is_playing = !self.is_playing;
-    }
-
-    fn tick(&mut self, delta: std::time::Duration) {
-        if !self.is_playing {
-            return;
-        }
-
-        let dt = delta.as_secs_f64() * self.playback_speed as f64 * self.ping_pong_direction as f64;
-        let old_time = self.current_time_s;
-        let next_time = old_time + dt;
-
-        if self.presentation_mode
-            && dt > 0.0
-            && let Some(&p) = self
-                .pause_points_s
-                .iter()
-                .find(|&&p| p > old_time + 0.0001 && p <= next_time + 0.0001)
-        {
-            self.current_time_s = p;
-            self.is_playing = false;
-            self.paused_at_step = true;
-            return;
-        }
-
-        self.current_time_s = next_time;
-
-        // Loop region: if A and B are set, handle boundaries.
-        if let (Some(start), Some(end)) = (self.loop_start_s, self.loop_end_s)
-            && end > start
-        {
-            if self.ping_pong {
-                if self.current_time_s >= end && self.ping_pong_direction > 0 {
-                    self.ping_pong_direction = -1;
-                    self.current_time_s = end;
-                    return;
-                }
-                if self.current_time_s <= start && self.ping_pong_direction < 0 {
-                    self.ping_pong_direction = 1;
-                    self.current_time_s = start;
-                    return;
-                }
-            } else if self.current_time_s >= end {
-                self.current_time_s = start;
-                // Looping takes priority over end-of-timeline stop.
-                return;
-            }
-        }
-
-        // Natural boundaries (0 and duration_s)
-        if self.current_time_s >= self.duration_s {
-            if self.ping_pong {
-                self.ping_pong_direction = -1;
-                self.current_time_s = self.duration_s;
-            } else {
-                self.current_time_s = self.duration_s;
-                self.is_playing = false;
-            }
-        } else if self.current_time_s <= 0.0 {
-            if self.ping_pong {
-                self.ping_pong_direction = 1;
-                self.current_time_s = 0.0;
-            } else {
-                self.current_time_s = 0.0;
-                self.is_playing = false;
-            }
-        }
-    }
-
-    pub(crate) fn presentation_step_next(&mut self) {
-        if let Some(&next_p) =
-            self.pause_points_s.iter().find(|&&p| p > self.current_time_s + 0.001)
-        {
-            if self.is_playing {
-                self.current_time_s = next_p;
-                self.is_playing = false;
-                self.paused_at_step = true;
-            } else {
-                self.is_playing = true;
-                self.paused_at_step = false;
-            }
-        } else if self.current_time_s >= self.duration_s {
-            self.current_time_s = 0.0;
-            self.is_playing = true;
-            self.paused_at_step = false;
-        } else {
-            self.is_playing = true;
-            self.paused_at_step = false;
-        }
-    }
-
-    pub(crate) fn presentation_step_prev(&mut self) {
-        if let Some(&prev_p) =
-            self.pause_points_s.iter().rev().find(|&&p| p < self.current_time_s - 0.001)
-        {
-            self.current_time_s = prev_p;
-            self.is_playing = false;
-            self.paused_at_step = true;
-        } else {
-            self.current_time_s = 0.0;
-            self.is_playing = false;
-            self.paused_at_step = true;
-        }
-    }
-
-    pub(crate) fn toggle_presentation_mode(&mut self) {
-        self.presentation_mode = !self.presentation_mode;
-        if self.presentation_mode {
-            self.is_playing = false;
-            self.paused_at_step = true;
-        }
-    }
 }
 
 /// Viewport state: zoom and pan for the preview canvas.
@@ -406,65 +195,6 @@ pub(crate) struct PreviewPaneState {
     pub inline_edit: Option<InlineTextEditState>,
 }
 
-impl PreviewPaneState {
-    fn new(duration_s: f64, dimensions: SceneDimensions) -> Self {
-        Self {
-            playback: PlaybackController {
-                current_time_s: 0.0,
-                duration_s,
-                is_playing: false,
-                playback_speed: 1.0,
-                loop_start_s: None,
-                loop_end_s: None,
-                ping_pong: false,
-                ping_pong_direction: 1,
-                fps: 60.0,
-                presentation_mode: false,
-                pause_points_s: Vec::new(),
-                paused_at_step: false,
-            },
-            viewport: ViewportState {
-                preview_zoom: 1.0,
-                preview_pan: Vec2::new(
-                    dimensions.width as f32 / 2.0,
-                    dimensions.height as f32 / 2.0,
-                ),
-            },
-            guides: GuideState {
-                horizontal_guides: vec![],
-                vertical_guides: vec![],
-            },
-            snap: SnapState {
-                snap_lines_h: vec![],
-                snap_lines_v: vec![],
-                snap_line_color: None,
-                snap_enabled: true,
-                snap_threshold: 10.0,
-                snap_hud_label: None,
-            },
-            status: "Loaded file".to_string(),
-            status_severity: StatusSeverity::Info,
-            error: None,
-            dimensions,
-            time_lens: crate::app::preview::time_lens::TimeLens::default(),
-            overlay: crate::app::preview::overlay::PreviewOverlay::default(),
-            timeline_zoom: 1.0,
-            timeline_scroll_offset: 0.0,
-            fit_zoom_requested: false,
-            flashed_keyframe_times: Vec::new(),
-            inline_edit: None,
-        }
-    }
-
-    pub fn set_status_info(&mut self, msg: impl Into<String>) {
-        self.status = msg.into();
-        self.status_severity = StatusSeverity::Info;
-    }
-    pub fn set_status_error(&mut self, msg: impl Into<String>) {
-        self.status = msg.into();
-        self.status_severity = StatusSeverity::Error;
-    }
-}
 struct GuiShell {
     document_store: DocumentStore,
     workspace_store: WorkspaceStore,

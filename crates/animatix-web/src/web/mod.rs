@@ -8,6 +8,7 @@
 
 mod api;
 mod assets;
+mod context;
 mod debug;
 mod engine;
 mod frame;
@@ -41,21 +42,6 @@ struct EngineContext {
     /// ticked sequentially on the single wasm thread, so a `RefCell` is
     /// enough; a second player rendering concurrently is impossible.
     core: RefCell<RendererCore>,
-}
-
-thread_local! {
-    /// wasm runs single-threaded, so a `thread_local` slot is the safe home
-    /// for the non-`Sync` vello renderer; every player method reaches the
-    /// context through [`with_engine`].
-    static CONTEXT: RefCell<Option<EngineContext>> = const { RefCell::new(None) };
-}
-
-/// Run `f` with the shared context (or the reason it is missing).
-fn with_engine<R>(f: impl FnOnce(Result<&EngineContext, String>) -> R) -> R {
-    CONTEXT.with(|cell| {
-        let ctx = cell.borrow();
-        f(ctx.as_ref().ok_or_else(|| "engine not initialized".to_string()))
-    })
 }
 
 /// Player + editor backend bound to one canvas; shares the process-wide
@@ -131,15 +117,6 @@ pub const MIN_RENDER_SCALE: f32 = 0.25;
 /// Largest raster scale [`AmxPlayer::set_render_scale`] accepts (supports up to
 /// 2x Retina rendering for crisp vector display).
 pub const MAX_RENDER_SCALE: f32 = 2.0;
-
-/// Raster target size for `scale`, rounded to whole pixels and clamped to
-/// `MIN_RENDER_SCALE..=MAX_RENDER_SCALE`.
-fn raster_dims(dims: SceneDimensions, scale: f32) -> (u32, u32) {
-    let s = scale.clamp(MIN_RENDER_SCALE, MAX_RENDER_SCALE);
-    let w = ((dims.width as f32 * s).round() as u32).max(1);
-    let h = ((dims.height as f32 * s).round() as u32).max(1);
-    (w, h)
-}
 
 /// One offscreen render target, kept as texture+view so the view never
 /// outlives the texture.

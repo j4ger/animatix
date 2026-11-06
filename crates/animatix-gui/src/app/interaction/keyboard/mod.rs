@@ -92,28 +92,13 @@ pub struct FocusContext {
     pub unsaved_dialog_open: bool,
 }
 
-impl FocusContext {
-    pub fn can_handle(&self, scope: ShortcutScope) -> bool {
-        match scope {
-            ShortcutScope::Global => true,
-            ShortcutScope::TextSafe => !self.inline_edit_active && !self.unsaved_dialog_open,
-            ShortcutScope::Canvas => {
-                !self.text_edit_focused
-                    && !self.inline_edit_active
-                    && !self.command_palette_open
-                    && !self.find_replace_open
-                    && !self.unsaved_dialog_open
-            },
-        }
-    }
-}
-
 /// The shortcut registry.
 #[derive(Debug, Clone)]
 pub struct ShortcutRegistry {
     shortcuts: Vec<(KeyboardShortcut, Shortcut)>,
 }
 
+mod api;
 mod hints;
 mod registry;
 mod saved;
