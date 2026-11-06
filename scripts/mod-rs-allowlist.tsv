@@ -21,7 +21,4 @@ crates/animatix-gui/src/app/shell/insertion_palette/mod.rs	147
 crates/animatix-gui/src/app/shell/mod.rs	137
 crates/animatix-gui/src/cell_editor/mod.rs	167
 crates/animatix-gui/src/cell_editor/render/mod.rs	272
-crates/animatix-render/src/encode/mod.rs	575
-crates/animatix-render/src/filter_backend/mod.rs	181
-crates/animatix-render/src/offscreen/mod.rs	340
 crates/animatix-web/src/web/mod.rs	159

@@ -9,6 +9,10 @@
 //! Sub-modules contain the actual encoding implementations for each format.
 //! Each format exposes one `*_with_options` entry point per target shape plus a
 //! convenience wrapper that defaults the debug options and [`ExportOptions`].
+//!
+//! The error type's trait implementations live in `export_error`, the config
+//! types' implementations in `impls`, and `ffmpeg` discovery plus audio muxing
+//! in `ffmpeg`; this file only declares them and holds the type definitions.
 
 #[cfg(feature = "video")]
 pub mod gif;
@@ -18,6 +22,12 @@ pub mod image;
 pub mod storyboard;
 #[cfg(feature = "video")]
 pub mod video;
+
+mod export_error;
+mod ffmpeg;
+mod impls;
+#[cfg(test)]
+mod tests;
 
 #[cfg(feature = "video")]
 pub use gif::{
@@ -39,102 +49,10 @@ pub use video::{
     render_video_timeline_with_options,
 };
 
+pub use export_error::ExportError;
+pub use ffmpeg::{is_ffmpeg_available, mux_audio_segments, require_ffmpeg};
+
 use std::sync::atomic::{AtomicBool, AtomicU32};
-
-/// Unified error type for all export/encoding operations.
-#[derive(Debug)]
-pub enum ExportError {
-    /// Renderer initialization failed.
-    RendererCreation(String),
-    /// A specific frame failed to render.
-    FrameRender {
-        /// Frame index that failed.
-        frame: usize,
-        /// Error message describing the failure.
-        message: String,
-    },
-    /// Image encoding failed (e.g. buffer creation).
-    ImageEncode(String),
-    /// Failed to write image file to disk.
-    ImageSave(std::io::Error),
-    /// Video encoding failed (ffmpeg/rsmpeg error).
-    VideoEncode(String),
-    /// GIF encoding failed.
-    GifEncode(String),
-    /// Output path contains invalid characters (null bytes).
-    InvalidPath(std::ffi::NulError),
-    /// A render thread panicked during export.
-    ThreadPanicked,
-    /// Export was cancelled by the user.
-    Cancelled,
-    /// ffmpeg binary not found on PATH.
-    FfmpegNotFound,
-    /// Internal export error (e.g. target/format mismatch).
-    Internal(String),
-}
-
-impl std::fmt::Display for ExportError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::RendererCreation(msg) => write!(f, "Failed to create renderer: {msg}"),
-            Self::FrameRender { frame, message } => {
-                write!(f, "Failed to render frame {frame}: {message}")
-            },
-            Self::ImageEncode(msg) => write!(f, "Image encoding error: {msg}"),
-            Self::ImageSave(err) => write!(f, "Failed to save image: {err}"),
-            Self::VideoEncode(msg) => write!(f, "Video encoding error: {msg}"),
-            Self::GifEncode(msg) => write!(f, "GIF encoding error: {msg}"),
-            Self::InvalidPath(_) => write!(f, "Output path contains null bytes"),
-            Self::ThreadPanicked => write!(f, "Render thread panicked"),
-            Self::Cancelled => write!(f, "Export cancelled by user"),
-            Self::FfmpegNotFound => write!(
-                f,
-                "ffmpeg is required for audio muxing. Install it from https://ffmpeg.org or via your package manager (e.g. `apt install ffmpeg`, `brew install ffmpeg`)."
-            ),
-            Self::Internal(msg) => write!(f, "Internal export error: {msg}"),
-        }
-    }
-}
-
-impl std::error::Error for ExportError {}
-
-impl From<std::io::Error> for ExportError {
-    fn from(err: std::io::Error) -> Self {
-        Self::ImageSave(err)
-    }
-}
-
-impl From<std::ffi::NulError> for ExportError {
-    fn from(err: std::ffi::NulError) -> Self {
-        Self::InvalidPath(err)
-    }
-}
-
-use std::sync::OnceLock;
-
-static FFMPEG_AVAILABLE: OnceLock<bool> = OnceLock::new();
-
-/// Check whether `ffmpeg` is available on PATH. Result is cached after first call.
-pub fn is_ffmpeg_available() -> bool {
-    *FFMPEG_AVAILABLE.get_or_init(|| {
-        std::process::Command::new("ffmpeg")
-            .arg("-version")
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
-    })
-}
-
-/// Returns `Ok(())` if ffmpeg is available, `Err(ExportError::FfmpegNotFound)` otherwise.
-pub fn require_ffmpeg() -> Result<(), ExportError> {
-    if is_ffmpeg_available() {
-        Ok(())
-    } else {
-        Err(ExportError::FfmpegNotFound)
-    }
-}
 
 /// Export configuration settings.
 #[derive(Debug, Clone, Copy)]
@@ -145,16 +63,6 @@ pub struct ExportSettings {
     pub video_codec: VideoCodec,
     /// libx264 quality-speed preset. Ignored for hardware encoders.
     pub h264_preset: H264Preset,
-}
-
-impl Default for ExportSettings {
-    fn default() -> Self {
-        Self {
-            max_render_threads: MaxRenderThreads::Auto,
-            video_codec: VideoCodec::Auto,
-            h264_preset: H264Preset::Medium,
-        }
-    }
 }
 
 /// Everything an export needs besides the source, geometry and output path.
@@ -170,16 +78,6 @@ pub struct ExportOptions<'a> {
     pub progress: Option<&'a AtomicU32>,
     /// Set by the caller to stop the export; the frame loop checks it per frame.
     pub cancel: Option<&'a AtomicBool>,
-}
-
-impl<'a> ExportOptions<'a> {
-    /// Options for a settings-only export (no progress or cancellation).
-    pub fn with_settings(settings: ExportSettings) -> Self {
-        Self {
-            settings,
-            ..Self::default()
-        }
-    }
 }
 
 /// A named resolution/fps/codec preset shared by CLI and GUI export paths.
@@ -199,49 +97,6 @@ pub struct ExportPreset {
     pub h264_preset: H264Preset,
 }
 
-impl ExportPreset {
-    /// All named presets available to CLI and GUI.
-    pub const ALL: &'static [ExportPreset] = &[
-        ExportPreset {
-            name: "720p30",
-            width: 1280,
-            height: 720,
-            fps: 30,
-            video_codec: VideoCodec::Auto,
-            h264_preset: H264Preset::Medium,
-        },
-        ExportPreset {
-            name: "1080p30",
-            width: 1920,
-            height: 1080,
-            fps: 30,
-            video_codec: VideoCodec::Auto,
-            h264_preset: H264Preset::Medium,
-        },
-        ExportPreset {
-            name: "1080p60",
-            width: 1920,
-            height: 1080,
-            fps: 60,
-            video_codec: VideoCodec::Auto,
-            h264_preset: H264Preset::Fast,
-        },
-        ExportPreset {
-            name: "4k30",
-            width: 3840,
-            height: 2160,
-            fps: 30,
-            video_codec: VideoCodec::Auto,
-            h264_preset: H264Preset::Slow,
-        },
-    ];
-
-    /// Look up a named export preset.
-    pub fn by_name(name: &str) -> Option<&'static ExportPreset> {
-        Self::ALL.iter().find(|preset| preset.name == name)
-    }
-}
-
 /// Render thread limit for exports.
 #[derive(Debug, Clone, Copy)]
 pub enum MaxRenderThreads {
@@ -249,27 +104,6 @@ pub enum MaxRenderThreads {
     Auto,
     /// Use a fixed number of threads.
     Fixed(usize),
-}
-
-impl std::fmt::Display for MaxRenderThreads {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Auto => write!(f, "auto"),
-            Self::Fixed(n) => write!(f, "{n}"),
-        }
-    }
-}
-
-impl std::str::FromStr for MaxRenderThreads {
-    type Err = String;
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        if s.eq_ignore_ascii_case("auto") {
-            Ok(Self::Auto)
-        } else {
-            let n = s.parse::<usize>().map_err(|e| format!("Invalid thread count: {e}"))?;
-            Ok(Self::Fixed(n))
-        }
-    }
 }
 
 /// Video encoder selection for MP4/WebM exports.
@@ -288,45 +122,6 @@ pub enum VideoCodec {
     H264Vaapi,
     /// Software VP9 encoder (libvpx-vp9) for WebM.
     Vp9,
-}
-
-impl VideoCodec {
-    /// Every encoder choice, in the order the GUI lists them.
-    pub const ALL: &[VideoCodec] = &[
-        Self::Auto,
-        Self::Libx264,
-        Self::H264Nvenc,
-        Self::H264Vaapi,
-        Self::Vp9,
-    ];
-}
-
-impl std::fmt::Display for VideoCodec {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Auto => write!(f, "auto"),
-            Self::Libx264 => write!(f, "libx264"),
-            Self::H264Nvenc => write!(f, "h264_nvenc"),
-            Self::H264Vaapi => write!(f, "h264_vaapi"),
-            Self::Vp9 => write!(f, "libvpx-vp9"),
-        }
-    }
-}
-
-impl std::str::FromStr for VideoCodec {
-    type Err = String;
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "auto" => Ok(Self::Auto),
-            "libx264" => Ok(Self::Libx264),
-            "h264_nvenc" | "nvenc" => Ok(Self::H264Nvenc),
-            "h264_vaapi" | "vaapi" => Ok(Self::H264Vaapi),
-            "vp9" | "libvpx-vp9" => Ok(Self::Vp9),
-            _ => Err(format!(
-                "Unknown codec: {s}. Expected: auto, libx264, h264_nvenc, h264_vaapi, vp9"
-            )),
-        }
-    }
 }
 
 /// libx264 quality-speed preset.
@@ -353,207 +148,4 @@ pub enum H264Preset {
     Slower,
     /// Slowest, best compression.
     Veryslow,
-}
-
-impl H264Preset {
-    /// Every preset, fastest first — the order the GUI and CLI list them in.
-    pub const ALL: &[H264Preset] = &[
-        Self::Ultrafast,
-        Self::Superfast,
-        Self::Veryfast,
-        Self::Faster,
-        Self::Fast,
-        Self::Medium,
-        Self::Slow,
-        Self::Slower,
-        Self::Veryslow,
-    ];
-
-    /// Returns the ffmpeg preset name.
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Ultrafast => "ultrafast",
-            Self::Superfast => "superfast",
-            Self::Veryfast => "veryfast",
-            Self::Faster => "faster",
-            Self::Fast => "fast",
-            Self::Medium => "medium",
-            Self::Slow => "slow",
-            Self::Slower => "slower",
-            Self::Veryslow => "veryslow",
-        }
-    }
-}
-
-impl std::fmt::Display for H264Preset {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
-    }
-}
-
-impl std::str::FromStr for H264Preset {
-    type Err = String;
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "ultrafast" => Ok(Self::Ultrafast),
-            "superfast" => Ok(Self::Superfast),
-            "veryfast" => Ok(Self::Veryfast),
-            "faster" => Ok(Self::Faster),
-            "fast" => Ok(Self::Fast),
-            "medium" => Ok(Self::Medium),
-            "slow" => Ok(Self::Slow),
-            "slower" => Ok(Self::Slower),
-            "veryslow" => Ok(Self::Veryslow),
-            _ => Err(format!(
-                "Unknown preset: {s}. Expected: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow"
-            )),
-        }
-    }
-}
-
-/// Mux audio segments into the rendered video using ffmpeg CLI.
-///
-/// Each segment is positioned on the global timeline via `adelay`, optionally
-/// trimmed to `duration_s` via `atrim`, and its volume scaled.  All segments
-/// are then mixed together with `amix` so overlapping audio (e.g. background
-/// music + voiceover) blends correctly.
-///
-/// Creates a temporary file and renames it on success.
-pub fn mux_audio_segments(
-    video_path: &std::path::Path,
-    segments: &[animatix::timeline::AudioSegment],
-    output_path: &std::path::Path,
-) -> Result<(), ExportError> {
-    if segments.is_empty() {
-        return Ok(());
-    }
-
-    require_ffmpeg()?;
-
-    let is_webm = output_path.extension().map(|e| e == "webm").unwrap_or(false);
-
-    let temp_ext = if is_webm {
-        "tmp_muxed.webm"
-    } else {
-        "tmp_muxed.mp4"
-    };
-    let temp_path = output_path.with_extension(temp_ext);
-    let audio_codec = if is_webm { "libopus" } else { "aac" };
-
-    // Build a filter_complex that positions, trims, and volumes each segment,
-    // then mixes them all together.
-    let mut filter_chains: Vec<String> = Vec::with_capacity(segments.len());
-    let mut mix_labels: Vec<String> = Vec::with_capacity(segments.len());
-
-    for (i, seg) in segments.iter().enumerate() {
-        let input_idx = i + 1; // 0 is the video file
-        let label = format!("[a{i}]");
-        let delay_ms = (seg.start_time_s * 1000.0).round() as i64;
-        let delay_ms = delay_ms.max(0);
-
-        let mut chain = format!("[{input_idx}:a:0]");
-
-        // Trim to declared duration if specified.
-        if let Some(dur) = seg.duration_s {
-            chain.push_str(&format!("atrim=end={:.3},", dur));
-        }
-
-        // Apply per-segment volume: if an animated envelope exists, render an ffmpeg volume expression
-        if let Some(env) = &seg.volume_envelope {
-            if env.len() >= 2 {
-                // ffmpeg volume filter supports expression: 'volume=...:eval=frame'
-                // where 't' is time in seconds relative to the audio stream.
-                // We construct an if(between(t,...), ...) linear interpolation expression.
-                let mut expr = format!("{:.3}", env.last().map(|(_, v)| *v).unwrap_or(seg.volume));
-                for i in (0..env.len() - 1).rev() {
-                    let (t0_glob, v0) = env[i];
-                    let (t1_glob, v1) = env[i + 1];
-                    let t0 = (t0_glob - seg.start_time_s).max(0.0);
-                    let t1 = (t1_glob - seg.start_time_s).max(0.0);
-                    if (t1 - t0) > 1e-4 {
-                        let lerp = format!(
-                            "({:.3}+({:.3}-{:.3})*(t-{:.3})/{:.3})",
-                            v0,
-                            v1,
-                            v0,
-                            t0,
-                            t1 - t0
-                        );
-                        expr = format!("if(between(t,{:.3},{:.3}),{},{})", t0, t1, lerp, expr);
-                    }
-                }
-                chain.push_str(&format!("volume='{}':eval=frame,", expr));
-            } else {
-                chain.push_str(&format!("volume={:.3},", seg.volume));
-            }
-        } else {
-            chain.push_str(&format!("volume={:.3},", seg.volume));
-        }
-
-        // Delay to global timeline position.
-        chain.push_str(&format!("adelay=delays={delay_ms}"));
-
-        chain.push_str(&label);
-        filter_chains.push(chain);
-        mix_labels.push(label);
-    }
-
-    let mix_filter = format!(
-        "{}amix=inputs={}:duration=longest:normalize=0[outa]",
-        mix_labels.join(""),
-        segments.len()
-    );
-    filter_chains.push(mix_filter);
-    let filter_complex = filter_chains.join(";");
-
-    let mut cmd = std::process::Command::new("ffmpeg");
-    cmd.arg("-y");
-    cmd.arg("-i").arg(video_path);
-    for seg in segments {
-        cmd.arg("-i").arg(&seg.source);
-    }
-    cmd.arg("-filter_complex").arg(&filter_complex);
-    cmd.arg("-map").arg("0:v:0");
-    cmd.arg("-map").arg("[outa]");
-    cmd.arg("-c:v").arg("copy");
-    cmd.arg("-c:a").arg(audio_codec);
-    cmd.arg("-shortest");
-    cmd.arg(&temp_path);
-
-    tracing::debug!("ffmpeg audio mux command: {:?}", cmd);
-
-    let status = cmd.status().map_err(|e| {
-        ExportError::VideoEncode(format!("Failed to run ffmpeg for audio muxing: {e}"))
-    })?;
-
-    if !status.success() {
-        std::fs::remove_file(&temp_path).ok();
-        return Err(ExportError::VideoEncode("ffmpeg audio muxing failed".into()));
-    }
-
-    // Replace original with muxed version
-    if let Err(e) = std::fs::rename(&temp_path, output_path) {
-        std::fs::remove_file(&temp_path).ok();
-        return Err(ExportError::VideoEncode(format!(
-            "Failed to replace video with muxed version: {e}"
-        )));
-    }
-
-    tracing::info!("Audio muxed {} segment(s) into {}", segments.len(), output_path.display());
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn export_presets_are_named_and_resolvable() {
-        assert_eq!(ExportPreset::ALL.len(), 4);
-        let preset = ExportPreset::by_name("1080p30").expect("1080p30 should exist");
-        assert_eq!(preset.width, 1920);
-        assert_eq!(preset.height, 1080);
-        assert_eq!(preset.fps, 30);
-        assert!(ExportPreset::by_name("missing").is_none());
-    }
 }
