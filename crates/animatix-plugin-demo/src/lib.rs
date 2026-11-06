@@ -473,7 +473,7 @@ fn emit_body_path(
     let Some(append_path) = ctx.append_path else {
         return NATIVE_STATUS_TYPE_ERROR;
     };
-    let mode_status = match mode {
+    match mode {
         "ring" => unsafe {
             (append_path)(
                 ctx.host,
@@ -582,8 +582,7 @@ fn emit_body_path(
                 )
             }
         },
-    };
-    mode_status
+    }
 }
 
 /// Emit the caption label and the Code-kind status line.

@@ -113,7 +113,8 @@ fn test_handle_constrains_axis_edges_return_true() {
 #[test]
 fn test_timeline_tick_times_scale_with_duration() {
     // (duration, expected tick count, sampled (index, time) pairs)
-    let cases: &[(f64, usize, &[(usize, f64)])] = &[
+    type TickCase = (f64, usize, &'static [(usize, f64)]);
+    let cases: &[TickCase] = &[
         (2.0, 9, &[(1, 0.25), (4, 1.0), (8, 2.0)]),
         (5.0, 11, &[(0, 0.0), (2, 1.0), (10, 5.0)]),
         (15.0, 16, &[(5, 5.0), (15, 15.0)]),
