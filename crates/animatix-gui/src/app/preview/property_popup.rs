@@ -8,7 +8,7 @@ use crate::app::commands::{
 };
 use crate::app::components::button::Button;
 use crate::app::components::text_tooltip;
-use crate::app::design_tokens::spatial::{RADIUS_L, RADIUS_S, STROKE_WIDTH, spatial};
+use crate::app::design_tokens::spatial::{RADIUS_L, RADIUS_S, STROKE_WIDTH, Spatial, spatial};
 use crate::app::design_tokens::typography::TextRole;
 use crate::app::preview::{ActorProps, PreviewTransform};
 /// Show the property popup attached to a selected actor.
@@ -52,6 +52,45 @@ pub fn show_property_popup(
     );
     let popup_rect = Rect::from_min_size(clamped_pos, Vec2::new(popup_w, popup_h));
     // Background
+    paint_popup_frame(ui, popup_rect, theme);
+    // Build child UI for content
+    let sp = spatial(ui);
+    let mut content =
+        ui.new_child(egui::UiBuilder::new().max_rect(popup_rect.shrink(sp.base.space_3)));
+    content.set_clip_rect(popup_rect);
+    let header_h =
+        popup_header_ui(ui, &mut content, theme, sp, actor, drag_offset, drag_offset_id, commands);
+    content.add_space(header_h + sp.base.space_2);
+    // ── Property rows ──
+    let time_ms = (current_time_s * 1000.0) as u64;
+    let opacity = popup_actor_opacity(timeline, actor, time_ms);
+    let content_rect = Rect::from_min_max(
+        content.cursor().min,
+        Pos2::new(popup_rect.max.x - sp.base.space_3, popup_rect.max.y - sp.base.space_3),
+    );
+    let mut rows_ui = ui.new_child(egui::UiBuilder::new().max_rect(content_rect));
+    rows_ui.set_clip_rect(content_rect);
+    // Compute scale factor for converting screen delta to scene delta
+    let scale = PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan).scale();
+    let scale_x = scale.0 as f32;
+    let scale_y = scale.1 as f32;
+    popup_property_rows(
+        &mut rows_ui,
+        theme,
+        actor,
+        props,
+        commands,
+        timeline,
+        time_ms,
+        current_time_s,
+        scale_x,
+        scale_y,
+        active_scene,
+        opacity,
+    );
+}
+/// Paint the popup background and border.
+fn paint_popup_frame(ui: &mut egui::Ui, popup_rect: Rect, theme: eparts::Theme) {
     ui.painter()
         .rect_filled(popup_rect, RADIUS_L as u8, theme.palette.surface.surface);
     ui.painter().rect_stroke(
@@ -60,12 +99,21 @@ pub fn show_property_popup(
         Stroke::new(STROKE_WIDTH, theme.palette.border.default),
         egui::StrokeKind::Outside,
     );
-    // Build child UI for content
-    let sp = spatial(ui);
-    let mut content =
-        ui.new_child(egui::UiBuilder::new().max_rect(popup_rect.shrink(sp.base.space_3)));
-    content.set_clip_rect(popup_rect);
-    // ── Header: actor name + close (draggable) ──
+}
+
+/// Draggable header: name label, close button, and drag affordance.
+///
+/// Returns the header height so the caller can advance the content cursor.
+fn popup_header_ui(
+    ui: &mut egui::Ui,
+    content: &mut egui::Ui,
+    theme: eparts::Theme,
+    sp: Spatial,
+    actor: &str,
+    drag_offset: Vec2,
+    drag_offset_id: egui::Id,
+    commands: &mut ActionQueue,
+) -> f32 {
     let header_h = sp.base.row_l; // 28px - comfortable height for header
     let header_rect =
         Rect::from_min_size(content.cursor().min, Vec2::new(content.available_width(), header_h));
@@ -119,13 +167,15 @@ pub fn show_property_popup(
             }
         });
     });
-    content.add_space(header_h + sp.base.space_2);
-    // ── Property rows ──
-    let time_ms = (current_time_s * 1000.0) as u64;
+    header_h
+}
+
+/// Read the actor's opacity from the timeline at the given time, defaulting to 1.0.
+fn popup_actor_opacity(timeline: Option<&Timeline>, actor: &str, time_ms: u64) -> f32 {
     // Read opacity from timeline. The World field bundle is the shape-aware
     // view; this row is tier-agnostic so it must not go through the track-only
     // helper.
-    let opacity = timeline
+    timeline
         .and_then(|tl| {
             tl.get_entity_id(actor).map(|id| {
                 let Some(schema) = lookup_property("opacity") else {
@@ -138,23 +188,30 @@ pub fn show_property_popup(
                 }
             })
         })
-        .unwrap_or(1.0);
-    let content_rect = Rect::from_min_max(
-        content.cursor().min,
-        Pos2::new(popup_rect.max.x - sp.base.space_3, popup_rect.max.y - sp.base.space_3),
-    );
-    let mut rows_ui = ui.new_child(egui::UiBuilder::new().max_rect(content_rect));
-    rows_ui.set_clip_rect(content_rect);
-    // Compute scale factor for converting screen delta to scene delta
-    let scale = PreviewTransform::new(scene_dimensions, preview_rect, zoom, pan).scale();
-    let scale_x = scale.0 as f32;
-    let scale_y = scale.1 as f32;
+        .unwrap_or(1.0)
+}
+
+/// Position, size, rotation, and opacity rows for the popup.
+fn popup_property_rows(
+    ui: &mut egui::Ui,
+    theme: eparts::Theme,
+    actor: &str,
+    props: &ActorProps,
+    commands: &mut ActionQueue,
+    timeline: Option<&Timeline>,
+    time_ms: u64,
+    current_time_s: f64,
+    scale_x: f32,
+    scale_y: f32,
+    active_scene: Option<&str>,
+    opacity: f32,
+) {
     // Position row
     let has_kf_pos = timeline
         .map(|tl| tl.has_keyframe_at(actor, "position", time_ms))
         .unwrap_or(false);
     popup_property_row(
-        &mut rows_ui,
+        ui,
         theme,
         actor,
         "position",
@@ -171,7 +228,7 @@ pub fn show_property_popup(
     let has_kf_size =
         timeline.map(|tl| tl.has_keyframe_at(actor, "size", time_ms)).unwrap_or(false);
     popup_property_row(
-        &mut rows_ui,
+        ui,
         theme,
         actor,
         "size",
@@ -189,7 +246,7 @@ pub fn show_property_popup(
         .map(|tl| tl.has_keyframe_at(actor, "rotation", time_ms))
         .unwrap_or(false);
     popup_property_row(
-        &mut rows_ui,
+        ui,
         theme,
         actor,
         "rotation",
@@ -207,7 +264,7 @@ pub fn show_property_popup(
         .map(|tl| tl.has_keyframe_at(actor, "opacity", time_ms))
         .unwrap_or(false);
     popup_property_row(
-        &mut rows_ui,
+        ui,
         theme,
         actor,
         "opacity",
@@ -221,31 +278,17 @@ pub fn show_property_popup(
         active_scene,
     );
 }
-/// Render a property row with a diamond keyframe toggle and inline value editing.
-fn popup_property_row(
+
+/// Diamond keyframe toggle for one property row; draws the diamond and returns
+/// its interaction response.
+fn popup_diamond(
     ui: &mut egui::Ui,
+    row_rect: Rect,
     theme: eparts::Theme,
     actor: &str,
     property: &str,
-    label: &str,
-    values: [f32; 2],
-    commands: &mut ActionQueue,
     has_keyframe: bool,
-    current_time_s: f64,
-    scale_x: f32,
-    scale_y: f32,
-    active_scene: Option<&str>,
-) {
-    let sp = spatial(ui);
-    let row_h = 24.0;
-    let row_rect = Rect::from_min_size(ui.cursor().min, Vec2::new(ui.available_width(), row_h));
-    let response =
-        ui.interact(row_rect, ui.scope_id().with((actor, property, "row")), Sense::click());
-    // Hover background
-    if response.hovered() {
-        ui.painter().rect_filled(row_rect, RADIUS_S as u8, theme.palette.surface.hover);
-    }
-    // Diamond keyframe toggle (clickable)
+) -> egui::Response {
     let diamond_size = 8.0;
     let diamond_rect = Rect::from_center_size(
         Pos2::new(row_rect.min.x + 10.0, row_rect.center().y),
@@ -274,39 +317,181 @@ fn popup_property_row(
         fill_color,
         Stroke::new(STROKE_WIDTH, diamond_color),
     ));
-    // Diamond click: create or delete keyframe
-    if diamond_resp.clicked() {
-        if has_keyframe {
-            // Delete keyframe
-            commands.push_back(
-                Command::DeleteKeyframe {
-                    scene: active_scene.map(ToOwned::to_owned),
-                    actor: actor.to_string(),
-                    property: property.to_string(),
-                    time_s: current_time_s,
-                }
-                .into(),
-            );
-        } else {
-            // Create keyframe with current value
-            let value = match property {
-                "position" => PropertyValue::Vec2(values),
-                "size" => PropertyValue::Vec2(values),
-                "rotation" => PropertyValue::F32(values[0].to_radians()),
-                "opacity" => PropertyValue::F32(values[0] / 100.0),
-                _ => PropertyValue::F32(values[0]),
-            };
+    diamond_resp
+}
+
+/// Create or delete the keyframe behind a clicked diamond.
+fn popup_diamond_click(
+    commands: &mut ActionQueue,
+    has_keyframe: bool,
+    property: &str,
+    values: [f32; 2],
+    actor: &str,
+    active_scene: Option<&str>,
+    current_time_s: f64,
+) {
+    if has_keyframe {
+        // Delete keyframe
+        commands.push_back(
+            Command::DeleteKeyframe {
+                scene: active_scene.map(ToOwned::to_owned),
+                actor: actor.to_string(),
+                property: property.to_string(),
+                time_s: current_time_s,
+            }
+            .into(),
+        );
+    } else {
+        // Create keyframe with current value
+        let value = match property {
+            "position" => PropertyValue::Vec2(values),
+            "size" => PropertyValue::Vec2(values),
+            "rotation" => PropertyValue::F32(values[0].to_radians()),
+            "opacity" => PropertyValue::F32(values[0] / 100.0),
+            _ => PropertyValue::F32(values[0]),
+        };
+        commands.push_back(
+            Command::PropertyEdit(PropertyEdit::new(
+                actor.to_string(),
+                property.to_string(),
+                value,
+                true,
+                None,
+            ))
+            .into(),
+        );
+    }
+}
+
+/// Draw the row label left of the value area.
+fn popup_row_label(ui: &mut egui::Ui, row_rect: Rect, theme: eparts::Theme, label: &str) {
+    let label_x = row_rect.min.x + 22.0;
+    ui.painter().text(
+        Pos2::new(label_x, row_rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        label,
+        TextRole::BodyS.font_id(),
+        theme.palette.text.secondary,
+    );
+}
+
+/// Human-readable value string for a property row.
+fn popup_value_string(property: &str, values: [f32; 2]) -> String {
+    match property {
+        "position" => format!("{:.1}, {:.1}", values[0], values[1]),
+        "size" => format!("{:.1} × {:.1}", values[0], values[1]),
+        "rotation" => format!("{:.1}°", values[0]),
+        "opacity" => format!("{:.0}%", values[0]),
+        _ => format!("{:.1}", values[0]),
+    }
+}
+
+/// Apply a value-area drag as a property edit.
+fn popup_value_drag(
+    commands: &mut ActionQueue,
+    property: &str,
+    values: [f32; 2],
+    delta: Vec2,
+    scale_x: f32,
+    scale_y: f32,
+    actor: &str,
+) {
+    // Convert screen delta to scene delta
+    let scene_dx = delta.x * scale_x;
+    let scene_dy = delta.y * scale_y;
+    match property {
+        "position" => {
             commands.push_back(
                 Command::PropertyEdit(PropertyEdit::new(
                     actor.to_string(),
-                    property.to_string(),
-                    value,
-                    true,
+                    "position",
+                    PropertyValue::Vec2([values[0] + scene_dx, values[1] + scene_dy]),
+                    false,
                     None,
                 ))
                 .into(),
             );
-        }
+        },
+        "size" => {
+            let new_w = (values[0] + scene_dx).max(1.0);
+            let new_h = (values[1] + scene_dy).max(1.0);
+            commands.push_back(
+                Command::PropertyEdit(PropertyEdit::new(
+                    actor.to_string(),
+                    "size",
+                    PropertyValue::Vec2([new_w, new_h]),
+                    false,
+                    None,
+                ))
+                .into(),
+            );
+        },
+        "rotation" => {
+            let new_deg = (values[0] + delta.x * 0.5).rem_euclid(360.0);
+            commands.push_back(
+                Command::PropertyEdit(PropertyEdit::new(
+                    actor.to_string(),
+                    "rotation",
+                    PropertyValue::F32(new_deg.to_radians()),
+                    false,
+                    None,
+                ))
+                .into(),
+            );
+        },
+        "opacity" => {
+            let new_opac = (values[0] + delta.x * 0.5).clamp(0.0, 100.0);
+            commands.push_back(
+                Command::PropertyEdit(PropertyEdit::new(
+                    actor.to_string(),
+                    "opacity",
+                    PropertyValue::F32(new_opac / 100.0),
+                    false,
+                    None,
+                ))
+                .into(),
+            );
+        },
+        _ => {},
+    }
+}
+
+/// Render a property row with a diamond keyframe toggle and inline value editing.
+fn popup_property_row(
+    ui: &mut egui::Ui,
+    theme: eparts::Theme,
+    actor: &str,
+    property: &str,
+    label: &str,
+    values: [f32; 2],
+    commands: &mut ActionQueue,
+    has_keyframe: bool,
+    current_time_s: f64,
+    scale_x: f32,
+    scale_y: f32,
+    active_scene: Option<&str>,
+) {
+    let sp = spatial(ui);
+    let row_h = 24.0;
+    let row_rect = Rect::from_min_size(ui.cursor().min, Vec2::new(ui.available_width(), row_h));
+    let response =
+        ui.interact(row_rect, ui.scope_id().with((actor, property, "row")), Sense::click());
+    // Hover background
+    if response.hovered() {
+        ui.painter().rect_filled(row_rect, RADIUS_S as u8, theme.palette.surface.hover);
+    }
+    let diamond_resp = popup_diamond(ui, row_rect, theme, actor, property, has_keyframe);
+    // Diamond click: create or delete keyframe
+    if diamond_resp.clicked() {
+        popup_diamond_click(
+            commands,
+            has_keyframe,
+            property,
+            values,
+            actor,
+            active_scene,
+            current_time_s,
+        );
     }
     // Diamond tooltip
     if diamond_resp.hovered() {
@@ -318,14 +503,7 @@ fn popup_property_row(
         text_tooltip(ui, diamond_resp.id.with("tooltip"), &diamond_resp, &tooltip);
     }
     // Label
-    let label_x = row_rect.min.x + 22.0;
-    ui.painter().text(
-        Pos2::new(label_x, row_rect.center().y),
-        egui::Align2::LEFT_CENTER,
-        label,
-        TextRole::BodyS.font_id(),
-        theme.palette.text.secondary,
-    );
+    popup_row_label(ui, row_rect, theme, label);
     // Value area (right-aligned, interactive)
     let value_area_width = 100.0;
     let value_rect = Rect::from_min_size(
@@ -333,13 +511,7 @@ fn popup_property_row(
         Vec2::new(value_area_width, row_h),
     );
     // Format value string
-    let value_str = match property {
-        "position" => format!("{:.1}, {:.1}", values[0], values[1]),
-        "size" => format!("{:.1} × {:.1}", values[0], values[1]),
-        "rotation" => format!("{:.1}°", values[0]),
-        "opacity" => format!("{:.0}%", values[0]),
-        _ => format!("{:.1}", values[0]),
-    };
+    let value_str = popup_value_string(property, values);
     // Interactive value: drag to change
     let value_id = ui.scope_id().with((actor, property, "value"));
     let value_resp = ui.interact(value_rect, value_id, Sense::click_and_drag());
@@ -360,65 +532,15 @@ fn popup_property_row(
     );
     // Drag on value to change
     if value_resp.dragged() {
-        let delta = value_resp.drag_delta();
-        // Convert screen delta to scene delta
-        let scene_dx = delta.x * scale_x;
-        let scene_dy = delta.y * scale_y;
-        match property {
-            "position" => {
-                commands.push_back(
-                    Command::PropertyEdit(PropertyEdit::new(
-                        actor.to_string(),
-                        "position",
-                        PropertyValue::Vec2([values[0] + scene_dx, values[1] + scene_dy]),
-                        false,
-                        None,
-                    ))
-                    .into(),
-                );
-            },
-            "size" => {
-                let new_w = (values[0] + scene_dx).max(1.0);
-                let new_h = (values[1] + scene_dy).max(1.0);
-                commands.push_back(
-                    Command::PropertyEdit(PropertyEdit::new(
-                        actor.to_string(),
-                        "size",
-                        PropertyValue::Vec2([new_w, new_h]),
-                        false,
-                        None,
-                    ))
-                    .into(),
-                );
-            },
-            "rotation" => {
-                let new_deg = (values[0] + delta.x * 0.5).rem_euclid(360.0);
-                commands.push_back(
-                    Command::PropertyEdit(PropertyEdit::new(
-                        actor.to_string(),
-                        "rotation",
-                        PropertyValue::F32(new_deg.to_radians()),
-                        false,
-                        None,
-                    ))
-                    .into(),
-                );
-            },
-            "opacity" => {
-                let new_opac = (values[0] + delta.x * 0.5).clamp(0.0, 100.0);
-                commands.push_back(
-                    Command::PropertyEdit(PropertyEdit::new(
-                        actor.to_string(),
-                        "opacity",
-                        PropertyValue::F32(new_opac / 100.0),
-                        false,
-                        None,
-                    ))
-                    .into(),
-                );
-            },
-            _ => {},
-        }
+        popup_value_drag(
+            commands,
+            property,
+            values,
+            value_resp.drag_delta(),
+            scale_x,
+            scale_y,
+            actor,
+        );
     }
     // Drag tooltip
     if value_resp.hovered() && !value_resp.dragged() {

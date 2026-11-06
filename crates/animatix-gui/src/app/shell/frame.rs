@@ -149,51 +149,175 @@ impl GuiShell {
 
         // Diagnostics panel (collapsible)
         if self.ui_store.view.diagnostics_panel_visible {
-            egui::Panel::bottom("diagnostics_panel")
-                .resizable(true)
-                .default_size(180.0)
-                .min_size(80.0)
-                .max_size(400.0)
-                .show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    if diagnostics.is_empty() {
-                        ui.add_space(SPACE_4);
-                        ui.add(Alert::new(
-                            format!(
-                                "No diagnostics — all clear {}",
-                                egui_phosphor::regular::CHECK_CIRCLE
-                            ),
-                            AlertLevel::Success,
-                        ));
-                    } else {
-                        let has_error = diagnostics.iter().any(|d| d.is_error());
-                        if let Some(message) = diagnostics_banner_message(&diagnostics) {
-                            ui.add_space(SPACE_2);
-                            ui.add(Alert::new(
-                                message,
-                                if has_error {
-                                    AlertLevel::Error
-                                } else {
-                                    AlertLevel::Warning
-                                },
-                            ));
-                            ui.add_space(SPACE_2);
-                        }
-                        if let Some(target) = components::diagnostics::diagnostics_list(
-                            ui,
-                            &diagnostics,
-                            &mut self.ui_store.view.diagnostics_panel_visible,
-                        ) {
-                            self.ui_store.pending_actions.push_back(
-                                Command::ScrollToLine(target.line, target.column).into(),
-                            );
-                        }
-                    }
-                });
+            self.diagnostics_panel_ui(ui, &diagnostics);
         }
 
         // Status bar — thin bar at the bottom showing preview status and scene dimensions
         // Filled by the diagnostics chip below; the peek overlay anchors to it.
+        let diagnostics_chip_rect = self.status_bar_ui(ui, &diagnostics, &theme);
+
+        if self.ui_store.view.diagnostics_peek_open {
+            match diagnostics_chip_rect {
+                Some(chip_rect) => self.diagnostics_peek_ui(ui, chip_rect, &diagnostics),
+                // The chip is not drawn while the welcome screen owns the
+                // workspace; a stranded overlay would outlive its anchor.
+                None => self.ui_store.view.diagnostics_peek_open = false,
+            }
+        }
+
+        // Central workspace — edge-to-edge tiles, no outer margin
+        // When welcome screen is open, show it instead of the workspace.
+        let workspace_rect = egui::CentralPanel::default()
+            .frame(egui::Frame::new().inner_margin(egui::Margin::ZERO))
+            .show(ui, |ui| {
+                if self.ui_store.view.welcome_open {
+                    let mut welcome_cmds = ActionQueue::default();
+                    self.welcome_screen_ui(ui, &mut welcome_cmds);
+                    for cmd in welcome_cmds {
+                        let effects = self.handle_action(cmd);
+                        self.apply_effects(effects);
+                    }
+                } else {
+                    self.workspace_ui(ui, preview_texture_id, &mut commands);
+                }
+            })
+            .response
+            .rect;
+
+        // Update cursor time from editor position (bi-directional sync)
+        self.ui_store.cursor_time_s =
+            self.document_store.source.editor.cursor_line.and_then(|line| {
+                self.document_store.source.document.timeline_index.time_s_for_line(line)
+            });
+
+        self.handle_actions(commands);
+
+        // Compact-mode overlay drawers (icon-rail sidebar and detail region).
+        // Rendered below the modals and skipped while one is open, so a modal
+        // always owns the screen (and the Escape key). Anchored to the central
+        // workspace rect so they do not cover the toolbar or status bar.
+        if !self.ui_store.view.welcome_open && !self.modal_open() {
+            let mut drawer_cmds = ActionQueue::default();
+            self.compact_sidebar_drawer_ui(ui, workspace_rect, &mut drawer_cmds);
+            self.compact_detail_drawer_ui(ui, workspace_rect, &mut drawer_cmds);
+            self.handle_actions(drawer_cmds);
+        }
+
+        // Safety net: the preview panel clears the Library drag payload on
+        // release, but it does not render on the welcome screen (or if the
+        // preview pane is ever hidden). Drop any leftover payload once the
+        // pointer is up so a stale drag cannot drop on a later frame.
+        if ui.input(|i| i.pointer.any_released()) {
+            panels::clear_library_drag(ui.ctx());
+        }
+
+        // Settings modal overlay (rendered on top of everything)
+        if self.ui_store.view.settings_open {
+            self.settings_dialog_ui(ui);
+        }
+
+        // Workspace switcher dialog overlay
+        if self.ui_store.view.workspace_switcher_open {
+            self.workspace_switcher_ui(ui);
+        }
+
+        // Export dialog overlay
+        if self.export_store.export_dialog_open {
+            self.export_dialog_ui(ui);
+        }
+
+        // Insertion palette overlay
+        self.insertion_palette_ui(ui);
+
+        // Shortcut cheat sheet overlay
+        if self.ui_store.view.shortcuts_open {
+            self.shortcut_cheat_sheet_ui(ui);
+        }
+
+        // Plugin status overlay
+        if self.ui_store.view.plugin_status_open {
+            self.plugin_status_ui(ui);
+        }
+
+        // Command palette overlay
+        if self.ui_store.view.command_palette_open {
+            self.command_palette_ui(ui);
+        }
+
+        // Find / Replace overlay
+        if self.ui_store.view.find_replace_open {
+            self.find_replace_ui(ui);
+        }
+
+        // Unsaved changes dialog
+        if self.ui_store.unsaved_changes.is_open {
+            self.unsaved_changes_dialog_ui(ui);
+        }
+
+        // Crash-recovery prompt (startup, when a newer sidecar exists)
+        if self.ui_store.recovery_prompt.is_open {
+            self.recovery_prompt_ui(ui);
+        }
+
+        // Toast notifications
+        let now = Instant::now();
+        self.ui_store.toasts.show(ui, now);
+    }
+
+    /// Collapsible diagnostics panel (or a success banner when clean).
+    fn diagnostics_panel_ui(&mut self, ui: &mut egui::Ui, diagnostics: &[Diagnostic]) {
+        egui::Panel::bottom("diagnostics_panel")
+            .resizable(true)
+            .default_size(180.0)
+            .min_size(80.0)
+            .max_size(400.0)
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                if diagnostics.is_empty() {
+                    ui.add_space(SPACE_4);
+                    ui.add(Alert::new(
+                        format!(
+                            "No diagnostics — all clear {}",
+                            egui_phosphor::regular::CHECK_CIRCLE
+                        ),
+                        AlertLevel::Success,
+                    ));
+                } else {
+                    let has_error = diagnostics.iter().any(|d| d.is_error());
+                    if let Some(message) = diagnostics_banner_message(diagnostics) {
+                        ui.add_space(SPACE_2);
+                        ui.add(Alert::new(
+                            message,
+                            if has_error {
+                                AlertLevel::Error
+                            } else {
+                                AlertLevel::Warning
+                            },
+                        ));
+                        ui.add_space(SPACE_2);
+                    }
+                    if let Some(target) = components::diagnostics::diagnostics_list(
+                        ui,
+                        diagnostics,
+                        &mut self.ui_store.view.diagnostics_panel_visible,
+                    ) {
+                        self.ui_store
+                            .pending_actions
+                            .push_back(Command::ScrollToLine(target.line, target.column).into());
+                    }
+                }
+            });
+    }
+
+    /// Status bar showing preview status, diagnostics chip and scene dimensions.
+    ///
+    /// Returns the diagnostics chip rect so the peek overlay can anchor to it.
+    fn status_bar_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        diagnostics: &[Diagnostic],
+        theme: &eparts::Theme,
+    ) -> Option<egui::Rect> {
         let mut diagnostics_chip_rect: Option<egui::Rect> = None;
 
         egui::Panel::bottom("status_bar")
@@ -311,112 +435,7 @@ impl GuiShell {
                 });
             });
 
-        if self.ui_store.view.diagnostics_peek_open {
-            match diagnostics_chip_rect {
-                Some(chip_rect) => self.diagnostics_peek_ui(ui, chip_rect, &diagnostics),
-                // The chip is not drawn while the welcome screen owns the
-                // workspace; a stranded overlay would outlive its anchor.
-                None => self.ui_store.view.diagnostics_peek_open = false,
-            }
-        }
-
-        // Central workspace — edge-to-edge tiles, no outer margin
-        // When welcome screen is open, show it instead of the workspace.
-        let workspace_rect = egui::CentralPanel::default()
-            .frame(egui::Frame::new().inner_margin(egui::Margin::ZERO))
-            .show(ui, |ui| {
-                if self.ui_store.view.welcome_open {
-                    let mut welcome_cmds = ActionQueue::default();
-                    self.welcome_screen_ui(ui, &mut welcome_cmds);
-                    for cmd in welcome_cmds {
-                        let effects = self.handle_action(cmd);
-                        self.apply_effects(effects);
-                    }
-                } else {
-                    self.workspace_ui(ui, preview_texture_id, &mut commands);
-                }
-            })
-            .response
-            .rect;
-
-        // Update cursor time from editor position (bi-directional sync)
-        self.ui_store.cursor_time_s =
-            self.document_store.source.editor.cursor_line.and_then(|line| {
-                self.document_store.source.document.timeline_index.time_s_for_line(line)
-            });
-
-        self.handle_actions(commands);
-
-        // Compact-mode overlay drawers (icon-rail sidebar and detail region).
-        // Rendered below the modals and skipped while one is open, so a modal
-        // always owns the screen (and the Escape key). Anchored to the central
-        // workspace rect so they do not cover the toolbar or status bar.
-        if !self.ui_store.view.welcome_open && !self.modal_open() {
-            let mut drawer_cmds = ActionQueue::default();
-            self.compact_sidebar_drawer_ui(ui, workspace_rect, &mut drawer_cmds);
-            self.compact_detail_drawer_ui(ui, workspace_rect, &mut drawer_cmds);
-            self.handle_actions(drawer_cmds);
-        }
-
-        // Safety net: the preview panel clears the Library drag payload on
-        // release, but it does not render on the welcome screen (or if the
-        // preview pane is ever hidden). Drop any leftover payload once the
-        // pointer is up so a stale drag cannot drop on a later frame.
-        if ui.input(|i| i.pointer.any_released()) {
-            panels::clear_library_drag(ui.ctx());
-        }
-
-        // Settings modal overlay (rendered on top of everything)
-        if self.ui_store.view.settings_open {
-            self.settings_dialog_ui(ui);
-        }
-
-        // Workspace switcher dialog overlay
-        if self.ui_store.view.workspace_switcher_open {
-            self.workspace_switcher_ui(ui);
-        }
-
-        // Export dialog overlay
-        if self.export_store.export_dialog_open {
-            self.export_dialog_ui(ui);
-        }
-
-        // Insertion palette overlay
-        self.insertion_palette_ui(ui);
-
-        // Shortcut cheat sheet overlay
-        if self.ui_store.view.shortcuts_open {
-            self.shortcut_cheat_sheet_ui(ui);
-        }
-
-        // Plugin status overlay
-        if self.ui_store.view.plugin_status_open {
-            self.plugin_status_ui(ui);
-        }
-
-        // Command palette overlay
-        if self.ui_store.view.command_palette_open {
-            self.command_palette_ui(ui);
-        }
-
-        // Find / Replace overlay
-        if self.ui_store.view.find_replace_open {
-            self.find_replace_ui(ui);
-        }
-
-        // Unsaved changes dialog
-        if self.ui_store.unsaved_changes.is_open {
-            self.unsaved_changes_dialog_ui(ui);
-        }
-
-        // Crash-recovery prompt (startup, when a newer sidecar exists)
-        if self.ui_store.recovery_prompt.is_open {
-            self.recovery_prompt_ui(ui);
-        }
-
-        // Toast notifications
-        let now = Instant::now();
-        self.ui_store.toasts.show(ui, now);
+        diagnostics_chip_rect
     }
 
     pub(crate) fn workspace_ui(

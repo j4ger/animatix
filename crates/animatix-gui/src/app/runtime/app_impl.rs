@@ -169,7 +169,7 @@ impl AnimatixApp {
 
     pub(super) fn handle_keyboard_shortcuts(&mut self, ctx: &egui::Context) {
         use crate::app::interaction::keyboard::{FocusContext, KeyboardAction};
-        use crate::app::preview::{DragState, ToolMode};
+        use crate::app::preview::ToolMode;
         use crate::app::shell::insertion_palette::PaletteMode;
 
         let has_selection = !self.shell.ui_store.selection.selected_actors.is_empty();
@@ -244,36 +244,7 @@ impl AnimatixApp {
                     }
                 },
                 KeyboardAction::DeleteSelection => {
-                    // When the timeline panel is focused, delete selected keyframes
-                    // instead of selected actors. The Canvas scope already guards
-                    // against firing while text fields/inspector inputs are active.
-                    if self.shell.ui_store.view.timeline_focused
-                        && !self.shell.ui_store.selection.selected_keyframes.is_empty()
-                    {
-                        for keyframe in self.shell.ui_store.selection.selected_keyframes.clone() {
-                            let crate::app::document::timeline_diff::KeyframeId {
-                                scene,
-                                actor,
-                                property,
-                                time_ms,
-                            } = keyframe;
-                            self.shell.ui_store.pending_actions.push_back(
-                                Command::DeleteKeyframe {
-                                    scene,
-                                    actor,
-                                    property,
-                                    time_s: time_ms as f64 / 1000.0,
-                                }
-                                .into(),
-                            );
-                        }
-                        self.shell.ui_store.selection.selected_keyframes.clear();
-                    } else {
-                        self.shell
-                            .ui_store
-                            .pending_actions
-                            .push_back(Command::DeleteSelectedActors.into());
-                    }
+                    self.handle_delete_selection_shortcut();
                 },
                 KeyboardAction::GroupSelection => {
                     self.shell
@@ -330,19 +301,7 @@ impl AnimatixApp {
                     self.shell.preview_store.preview.status = "Tool: Pivot".to_string();
                 },
                 KeyboardAction::Escape => {
-                    if self.shell.preview_store.preview.playback.presentation_mode {
-                        self.shell
-                            .ui_store
-                            .pending_actions
-                            .push_back(Command::TogglePresentationMode.into());
-                    } else if !matches!(self.shell.ui_store.interaction.drag_state, DragState::None)
-                    {
-                        self.shell.ui_store.interaction.drag_state = DragState::None;
-                        self.shell.preview_store.preview.status = "Drag cancelled".to_string();
-                    } else if self.shell.ui_store.view.tool_mode != ToolMode::Select {
-                        self.shell.ui_store.view.tool_mode = ToolMode::Select;
-                        self.shell.preview_store.preview.status = "Tool: Select".to_string();
-                    }
+                    self.handle_escape_shortcut();
                 },
                 KeyboardAction::EditSync => {
                     self.shell.ui_store.pending_actions.push_back(Command::ToggleEditorSync.into());
@@ -369,83 +328,7 @@ impl AnimatixApp {
                     }
                 },
                 KeyboardAction::NudgeSelected { dx, dy } => {
-                    let scrub_step_s = self.shell.ui_store.scrub_step_s;
-                    if self.shell.preview_store.preview.playback.presentation_mode {
-                        if *dx > 0.0 {
-                            self.shell.ui_store.pending_actions.push_back(Command::StepNext.into());
-                        } else if *dx < 0.0 {
-                            self.shell
-                                .ui_store
-                                .pending_actions
-                                .push_back(Command::StepPrevious.into());
-                        }
-                    } else if has_selection {
-                        let shift_pressed = ctx.input(|i| i.modifiers.shift);
-                        let nudge_step = if shift_pressed {
-                            self.shell.ui_store.nudge_step_shift_px
-                        } else if self.shell.preview_store.preview.overlay.show_grid {
-                            self.shell.preview_store.preview.overlay.grid_size
-                        } else {
-                            self.shell.ui_store.nudge_step_px
-                        };
-                        let dx = *dx * nudge_step;
-                        let dy = *dy * nudge_step;
-
-                        let time_ms = (self.shell.preview_store.preview.playback.current_time_s()
-                            * 1000.0) as u64;
-                        let keyframe_mode = self.shell.ui_store.keyframe_mode;
-                        let selected: Vec<String> =
-                            self.shell.ui_store.selection.selected_actors.iter().cloned().collect();
-                        let nudge_data: Vec<(String, [f32; 2])> = self
-                            .shell
-                            .document_store
-                            .source
-                            .document
-                            .active_timeline()
-                            .map(|t| {
-                                selected
-                                    .iter()
-                                    .filter_map(|actor| {
-                                        t.get_entity_id(actor).and_then(|id| {
-                                            t.world().geometry(id).position.as_ref().map(|p| {
-                                                let pos = p.evaluate(time_ms);
-                                                (actor.clone(), [pos[0] + dx, pos[1] + dy])
-                                            })
-                                        })
-                                    })
-                                    .collect()
-                            })
-                            .unwrap_or_default();
-                        for (actor, new_pos) in &nudge_data {
-                            self.shell.handle_property_edit(crate::app::panels::PropertyEdit::new(
-                                actor.clone(),
-                                "position",
-                                crate::app::panels::PropertyValue::Vec2(*new_pos),
-                                keyframe_mode,
-                                None,
-                            ));
-                        }
-                    } else {
-                        // No selection: left/right arrows become frame stepping
-                        if *dx < 0.0 {
-                            let new_time =
-                                self.shell.preview_store.preview.playback.current_time_s()
-                                    - scrub_step_s;
-                            self.shell
-                                .ui_store
-                                .pending_actions
-                                .push_back(Command::ScrubTo(new_time).into());
-                        } else if *dx > 0.0 {
-                            let new_time =
-                                self.shell.preview_store.preview.playback.current_time_s()
-                                    + scrub_step_s;
-                            self.shell
-                                .ui_store
-                                .pending_actions
-                                .push_back(Command::ScrubTo(new_time).into());
-                        }
-                        // Up/down arrows without selection are intentionally ignored
-                    }
+                    self.handle_nudge_shortcut(ctx, has_selection, *dx, *dy);
                 },
                 KeyboardAction::ToggleInspector => {
                     self.shell
@@ -460,6 +343,134 @@ impl AnimatixApp {
                         .push_back(ShellAction::View(ViewAction::ShowCode));
                 },
             }
+        }
+    }
+
+    /// Apply an arrow-key nudge: presentation step, selection move, or scrub.
+    fn handle_nudge_shortcut(
+        &mut self,
+        ctx: &egui::Context,
+        has_selection: bool,
+        dx: f32,
+        dy: f32,
+    ) {
+        let scrub_step_s = self.shell.ui_store.scrub_step_s;
+        if self.shell.preview_store.preview.playback.presentation_mode {
+            if dx > 0.0 {
+                self.shell.ui_store.pending_actions.push_back(Command::StepNext.into());
+            } else if dx < 0.0 {
+                self.shell.ui_store.pending_actions.push_back(Command::StepPrevious.into());
+            }
+        } else if has_selection {
+            let shift_pressed = ctx.input(|i| i.modifiers.shift);
+            let nudge_step = if shift_pressed {
+                self.shell.ui_store.nudge_step_shift_px
+            } else if self.shell.preview_store.preview.overlay.show_grid {
+                self.shell.preview_store.preview.overlay.grid_size
+            } else {
+                self.shell.ui_store.nudge_step_px
+            };
+            let dx = dx * nudge_step;
+            let dy = dy * nudge_step;
+
+            let time_ms =
+                (self.shell.preview_store.preview.playback.current_time_s() * 1000.0) as u64;
+            let keyframe_mode = self.shell.ui_store.keyframe_mode;
+            let selected: Vec<String> =
+                self.shell.ui_store.selection.selected_actors.iter().cloned().collect();
+            let nudge_data: Vec<(String, [f32; 2])> = self
+                .shell
+                .document_store
+                .source
+                .document
+                .active_timeline()
+                .map(|t| {
+                    selected
+                        .iter()
+                        .filter_map(|actor| {
+                            t.get_entity_id(actor).and_then(|id| {
+                                t.world().geometry(id).position.as_ref().map(|p| {
+                                    let pos = p.evaluate(time_ms);
+                                    (actor.clone(), [pos[0] + dx, pos[1] + dy])
+                                })
+                            })
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            for (actor, new_pos) in &nudge_data {
+                self.shell.handle_property_edit(crate::app::panels::PropertyEdit::new(
+                    actor.clone(),
+                    "position",
+                    crate::app::panels::PropertyValue::Vec2(*new_pos),
+                    keyframe_mode,
+                    None,
+                ));
+            }
+        } else {
+            // No selection: left/right arrows become frame stepping
+            if dx < 0.0 {
+                let new_time =
+                    self.shell.preview_store.preview.playback.current_time_s() - scrub_step_s;
+                self.shell.ui_store.pending_actions.push_back(Command::ScrubTo(new_time).into());
+            } else if dx > 0.0 {
+                let new_time =
+                    self.shell.preview_store.preview.playback.current_time_s() + scrub_step_s;
+                self.shell.ui_store.pending_actions.push_back(Command::ScrubTo(new_time).into());
+            }
+            // Up/down arrows without selection are intentionally ignored
+        }
+    }
+
+    /// Delete selected keyframes when the timeline is focused, else selected actors.
+    fn handle_delete_selection_shortcut(&mut self) {
+        // When the timeline panel is focused, delete selected keyframes
+        // instead of selected actors. The Canvas scope already guards
+        // against firing while text fields/inspector inputs are active.
+        if self.shell.ui_store.view.timeline_focused
+            && !self.shell.ui_store.selection.selected_keyframes.is_empty()
+        {
+            for keyframe in self.shell.ui_store.selection.selected_keyframes.clone() {
+                let crate::app::document::timeline_diff::KeyframeId {
+                    scene,
+                    actor,
+                    property,
+                    time_ms,
+                } = keyframe;
+                self.shell.ui_store.pending_actions.push_back(
+                    Command::DeleteKeyframe {
+                        scene,
+                        actor,
+                        property,
+                        time_s: time_ms as f64 / 1000.0,
+                    }
+                    .into(),
+                );
+            }
+            self.shell.ui_store.selection.selected_keyframes.clear();
+        } else {
+            self.shell
+                .ui_store
+                .pending_actions
+                .push_back(Command::DeleteSelectedActors.into());
+        }
+    }
+
+    /// Escape: leave presentation mode, cancel a drag, or return to the select tool.
+    fn handle_escape_shortcut(&mut self) {
+        use crate::app::preview::{DragState, ToolMode};
+
+        if self.shell.preview_store.preview.playback.presentation_mode {
+            self.shell
+                .ui_store
+                .pending_actions
+                .push_back(Command::TogglePresentationMode.into());
+        } else if !matches!(self.shell.ui_store.interaction.drag_state, DragState::None) {
+            self.shell.ui_store.interaction.drag_state = DragState::None;
+            self.shell.preview_store.preview.status = "Drag cancelled".to_string();
+        } else if self.shell.ui_store.view.tool_mode != ToolMode::Select {
+            self.shell.ui_store.view.tool_mode = ToolMode::Select;
+            self.shell.preview_store.preview.status = "Tool: Select".to_string();
         }
     }
 

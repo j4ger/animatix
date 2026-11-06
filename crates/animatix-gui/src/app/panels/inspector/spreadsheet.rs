@@ -177,187 +177,212 @@ pub(crate) fn render_property_spreadsheet(
             .min_col_width(label_col_width)
             .spacing(Vec2::new(sp.base.space_2, 0.0))
             .show(ui, |ui| {
-                // ── Column headers (top-left corner + property names) ──
-                // Top-left corner header
-                let corner_rect = ui
-                    .allocate_exact_size(
-                        Vec2::new(label_col_width, row_height),
-                        egui::Sense::hover(),
-                    )
-                    .0;
-                ui.painter().rect_filled(corner_rect, 0.0, theme.palette.surface.surface);
-                ui.painter().text(
-                    corner_rect.center(),
-                    egui::Align2::CENTER_CENTER,
-                    egui_phosphor::regular::TABLE,
-                    TextRole::BodyS.font_id(),
-                    theme.palette.text.muted,
-                );
-
-                // Property name headers
-                for &prop_name in SPREADSHEET_PROPERTIES {
-                    let header_rect = ui
-                        .allocate_exact_size(
-                            Vec2::new(value_col_width, row_height),
-                            egui::Sense::hover(),
-                        )
-                        .0;
-                    ui.painter().rect_filled(header_rect, 0.0, theme.palette.surface.surface);
-                    ui.painter().text(
-                        header_rect.center(),
-                        egui::Align2::CENTER_CENTER,
-                        prop_name,
-                        TextRole::Micro.font_id(),
-                        theme.palette.text.secondary,
-                    );
-                }
-                ui.end_row();
+                spreadsheet_header_row(ui, &theme, label_col_width, value_col_width, row_height);
 
                 // ── Data rows ──
                 for &actor_label in &actors {
-                    let Some(id) = timeline.get_entity_id(actor_label) else {
-                        continue;
-                    };
-
-                    let is_selected = selected_actors.contains(actor_label);
-
-                    // ── Actor label cell ──
-                    let (label_rect, label_response) = ui.allocate_exact_size(
-                        Vec2::new(label_col_width, row_height),
-                        egui::Sense::click(),
+                    spreadsheet_actor_row(
+                        ui,
+                        timeline,
+                        actor_label,
+                        selected_actors,
+                        commands,
+                        time_ms,
+                        &theme,
+                        sp,
+                        label_col_width,
+                        value_col_width,
+                        row_height,
                     );
-
-                    // Background for selected or hovered row
-                    let label_bg = if is_selected {
-                        theme.palette.accent.selection
-                    } else if label_response.hovered() {
-                        theme.palette.surface.hover
-                    } else {
-                        Color32::TRANSPARENT
-                    };
-                    if label_bg != Color32::TRANSPARENT {
-                        ui.painter().rect_filled(label_rect, 0.0, label_bg);
-                    }
-
-                    // Actor icon + label text
-                    let icon = crate::app::icons::actor_icon_for_track(id, timeline);
-                    let label_color = if is_selected {
-                        theme.palette.accent.primary
-                    } else {
-                        theme.palette.text.primary
-                    };
-                    ui.painter().text(
-                        Pos2::new(label_rect.min.x + sp.base.space_2, label_rect.center().y),
-                        egui::Align2::LEFT_CENTER,
-                        format!("{} {}", icon, actor_label),
-                        TextRole::BodyS.font_id(),
-                        label_color,
-                    );
-
-                    // Click to select
-                    if label_response.clicked() {
-                        let multi = ui.input(|i| i.modifiers.ctrl || i.modifiers.command);
-                        if multi {
-                            // Toggle selection
-                            if is_selected {
-                                selected_actors.remove(actor_label);
-                            } else {
-                                selected_actors.insert(actor_label.clone());
-                            }
-                        } else {
-                            selected_actors.clear();
-                            selected_actors.insert(actor_label.clone());
-                        }
-                    }
-
-                    // ── Value cells ──
-                    for &prop_name in SPREADSHEET_PROPERTIES {
-                        let (cell_rect, cell_response) = ui.allocate_exact_size(
-                            Vec2::new(value_col_width, row_height),
-                            egui::Sense::click(),
-                        );
-
-                        // Subtle hover
-                        if cell_response.hovered() {
-                            ui.painter().rect_filled(cell_rect, 0.0, theme.palette.surface.hover);
-                        }
-
-                        // Get the value at current time
-                        let value_text = get_property_value_display(
-                            timeline.world().geometry(id),
-                            timeline.world().style(id),
-                            prop_name,
-                            time_ms,
-                        );
-                        let has_animated_track = has_property_track(timeline, id, prop_name);
-                        let has_keyframes = lookup_property(prop_name)
-                            .is_some_and(|s| timeline.world().property_has_keyframes(id, s.field));
-
-                        let value_color = if has_keyframes {
-                            theme.palette.status.warning
-                        } else if !has_animated_track || value_text == "—" {
-                            theme.palette.text.muted
-                        } else {
-                            theme.palette.text.secondary
-                        };
-
-                        ui.painter().text(
-                            cell_rect.center(),
-                            egui::Align2::CENTER_CENTER,
-                            &value_text,
-                            egui::FontId::monospace(TextRole::Micro.size()),
-                            value_color,
-                        );
-
-                        // Context menu on right-click
-                        cell_response.context_menu(|ui| {
-                            ui.set_min_width(160.0);
-                            ui.strong(format!("{} / {}", actor_label, prop_name));
-                            ui.separator();
-                            let kf_btn = ui.button(format!(
-                                "{} Add keyframe",
-                                egui_phosphor::regular::DIAMOND
-                            ));
-                            text_tooltip(
-                                ui,
-                                kf_btn.id.with("kf_tip"),
-                                &kf_btn,
-                                "Add a keyframe at current time with current value",
-                            );
-                            if kf_btn.clicked() {
-                                if let Some(gui_val) =
-                                    get_property_gui_value(timeline, id, prop_name, time_ms)
-                                {
-                                    commands.push_back(
-                                        Command::PropertyEdit(PropertyEdit::new(
-                                            actor_label.to_string(),
-                                            prop_name.to_string(),
-                                            gui_val,
-                                            true,
-                                            None,
-                                        ))
-                                        .into(),
-                                    );
-                                }
-                                ui.close();
-                            }
-                            if ui
-                                .button(format!(
-                                    "{} Open in Inspector",
-                                    egui_phosphor::regular::ARROW_RIGHT
-                                ))
-                                .clicked()
-                            {
-                                selected_actors.clear();
-                                selected_actors.insert(actor_label.clone());
-                                ui.close();
-                            }
-                        });
-                    }
-                    ui.end_row();
                 }
             });
     });
+}
+
+// ─── Spreadsheet body pieces ─────────────────────────────────────────────
+
+/// Column headers: sticky top-left corner plus one label per property.
+fn spreadsheet_header_row(
+    ui: &mut egui::Ui,
+    theme: &eparts::Theme,
+    label_col_width: f32,
+    value_col_width: f32,
+    row_height: f32,
+) {
+    // ── Column headers (top-left corner + property names) ──
+    // Top-left corner header
+    let corner_rect = ui
+        .allocate_exact_size(Vec2::new(label_col_width, row_height), egui::Sense::hover())
+        .0;
+    ui.painter().rect_filled(corner_rect, 0.0, theme.palette.surface.surface);
+    ui.painter().text(
+        corner_rect.center(),
+        egui::Align2::CENTER_CENTER,
+        egui_phosphor::regular::TABLE,
+        TextRole::BodyS.font_id(),
+        theme.palette.text.muted,
+    );
+
+    // Property name headers
+    for &prop_name in SPREADSHEET_PROPERTIES {
+        let header_rect = ui
+            .allocate_exact_size(Vec2::new(value_col_width, row_height), egui::Sense::hover())
+            .0;
+        ui.painter().rect_filled(header_rect, 0.0, theme.palette.surface.surface);
+        ui.painter().text(
+            header_rect.center(),
+            egui::Align2::CENTER_CENTER,
+            prop_name,
+            TextRole::Micro.font_id(),
+            theme.palette.text.secondary,
+        );
+    }
+    ui.end_row();
+}
+
+/// One actor row: selectable label cell followed by one value cell per property.
+#[allow(clippy::too_many_arguments)]
+fn spreadsheet_actor_row(
+    ui: &mut egui::Ui,
+    timeline: &Timeline,
+    actor_label: &str,
+    selected_actors: &mut HashSet<String>,
+    commands: &mut ActionQueue,
+    time_ms: u64,
+    theme: &eparts::Theme,
+    sp: crate::app::design_tokens::spatial::Spatial,
+    label_col_width: f32,
+    value_col_width: f32,
+    row_height: f32,
+) {
+    let Some(id) = timeline.get_entity_id(actor_label) else {
+        return;
+    };
+
+    let is_selected = selected_actors.contains(actor_label);
+
+    // ── Actor label cell ──
+    let (label_rect, label_response) =
+        ui.allocate_exact_size(Vec2::new(label_col_width, row_height), egui::Sense::click());
+
+    // Background for selected or hovered row
+    let label_bg = if is_selected {
+        theme.palette.accent.selection
+    } else if label_response.hovered() {
+        theme.palette.surface.hover
+    } else {
+        Color32::TRANSPARENT
+    };
+    if label_bg != Color32::TRANSPARENT {
+        ui.painter().rect_filled(label_rect, 0.0, label_bg);
+    }
+
+    // Actor icon + label text
+    let icon = crate::app::icons::actor_icon_for_track(id, timeline);
+    let label_color = if is_selected {
+        theme.palette.accent.primary
+    } else {
+        theme.palette.text.primary
+    };
+    ui.painter().text(
+        Pos2::new(label_rect.min.x + sp.base.space_2, label_rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        format!("{} {}", icon, actor_label),
+        TextRole::BodyS.font_id(),
+        label_color,
+    );
+
+    // Click to select
+    if label_response.clicked() {
+        let multi = ui.input(|i| i.modifiers.ctrl || i.modifiers.command);
+        if multi {
+            // Toggle selection
+            if is_selected {
+                selected_actors.remove(actor_label);
+            } else {
+                selected_actors.insert(actor_label.to_string());
+            }
+        } else {
+            selected_actors.clear();
+            selected_actors.insert(actor_label.to_string());
+        }
+    }
+
+    // ── Value cells ──
+    for &prop_name in SPREADSHEET_PROPERTIES {
+        let (cell_rect, cell_response) =
+            ui.allocate_exact_size(Vec2::new(value_col_width, row_height), egui::Sense::click());
+
+        // Subtle hover
+        if cell_response.hovered() {
+            ui.painter().rect_filled(cell_rect, 0.0, theme.palette.surface.hover);
+        }
+
+        // Get the value at current time
+        let value_text = get_property_value_display(
+            timeline.world().geometry(id),
+            timeline.world().style(id),
+            prop_name,
+            time_ms,
+        );
+        let has_animated_track = has_property_track(timeline, id, prop_name);
+        let has_keyframes = lookup_property(prop_name)
+            .is_some_and(|s| timeline.world().property_has_keyframes(id, s.field));
+
+        let value_color = if has_keyframes {
+            theme.palette.status.warning
+        } else if !has_animated_track || value_text == "—" {
+            theme.palette.text.muted
+        } else {
+            theme.palette.text.secondary
+        };
+
+        ui.painter().text(
+            cell_rect.center(),
+            egui::Align2::CENTER_CENTER,
+            &value_text,
+            egui::FontId::monospace(TextRole::Micro.size()),
+            value_color,
+        );
+
+        // Context menu on right-click
+        cell_response.context_menu(|ui| {
+            ui.set_min_width(160.0);
+            ui.strong(format!("{} / {}", actor_label, prop_name));
+            ui.separator();
+            let kf_btn = ui.button(format!("{} Add keyframe", egui_phosphor::regular::DIAMOND));
+            text_tooltip(
+                ui,
+                kf_btn.id.with("kf_tip"),
+                &kf_btn,
+                "Add a keyframe at current time with current value",
+            );
+            if kf_btn.clicked() {
+                if let Some(gui_val) = get_property_gui_value(timeline, id, prop_name, time_ms) {
+                    commands.push_back(
+                        Command::PropertyEdit(PropertyEdit::new(
+                            actor_label.to_string(),
+                            prop_name.to_string(),
+                            gui_val,
+                            true,
+                            None,
+                        ))
+                        .into(),
+                    );
+                }
+                ui.close();
+            }
+            if ui
+                .button(format!("{} Open in Inspector", egui_phosphor::regular::ARROW_RIGHT))
+                .clicked()
+            {
+                selected_actors.clear();
+                selected_actors.insert(actor_label.to_string());
+                ui.close();
+            }
+        });
+    }
+    ui.end_row();
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────

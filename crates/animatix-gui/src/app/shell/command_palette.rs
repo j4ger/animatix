@@ -141,237 +141,16 @@ impl GuiShell {
         let mut items = Vec::new();
         let has_selection = !self.ui_store.selection.selected_actors.is_empty();
 
-        items.push(PaletteItem {
-            label: "Open File…".into(),
-            icon: egui_phosphor::regular::FOLDER_OPEN,
-            action: ShellAction::View(ViewAction::OpenFileDialog),
-            keywords: "open file load amx document",
-        });
-        items.push(PaletteItem {
-            label: "New Scene".into(),
-            icon: egui_phosphor::regular::FILE_PLUS,
-            action: ShellAction::View(ViewAction::NewFile),
-            keywords: "new create file scene document",
-        });
-        items.push(PaletteItem {
-            label: "Save As…".into(),
-            icon: egui_phosphor::regular::FLOPPY_DISK,
-            action: ShellAction::View(ViewAction::SaveAsDialog),
-            keywords: "save as file copy document",
-        });
-        items.push(PaletteItem {
-            label: "Insert…".into(),
-            icon: egui_phosphor::regular::PLUS,
-            action: ShellAction::View(ViewAction::OpenInsertionPalette),
-            keywords: "insert add actor primitive component action snippet",
-        });
-        items.push(PaletteItem {
-            label: "Settings…".into(),
-            icon: egui_phosphor::regular::GEAR,
-            action: ShellAction::View(ViewAction::OpenSettings),
-            keywords: "settings preferences options theme density",
-        });
-        items.push(PaletteItem {
-            label: "Keyboard Shortcuts…".into(),
-            icon: egui_phosphor::regular::KEYBOARD,
-            action: ShellAction::View(ViewAction::OpenShortcuts),
-            keywords: "shortcuts keys help cheatsheet",
-        });
-        items.push(PaletteItem {
-            label: "Find / Replace…".into(),
-            icon: egui_phosphor::regular::MAGNIFYING_GLASS,
-            action: ShellAction::View(ViewAction::OpenFindReplace),
-            keywords: "find replace search text",
-        });
-        items.push(PaletteItem {
-            label: "Toggle Inspector".into(),
-            icon: egui_phosphor::regular::SLIDERS,
-            action: ShellAction::View(ViewAction::ShowInspector),
-            keywords: "inspector properties panel detail",
-        });
-        items.push(PaletteItem {
-            label: "Toggle Code".into(),
-            icon: egui_phosphor::regular::CODE,
-            action: ShellAction::View(ViewAction::ShowCode),
-            keywords: "code source editor panel detail",
-        });
-        items.push(PaletteItem {
-            label: "Toggle Curves Editor".into(),
-            icon: egui_phosphor::regular::CHART_LINE,
-            action: ShellAction::View(ViewAction::ShowCurves),
-            keywords: "curves graph fcurve keyframe easing panel bottom",
-        });
-        items.push(PaletteItem {
-            label: "Show Timeline".into(),
-            icon: egui_phosphor::regular::FILM_STRIP,
-            action: ShellAction::View(ViewAction::ShowTimeline),
-            keywords: "timeline keyframes panel bottom",
-        });
-        for preset in crate::app::LayoutPreset::ALL {
-            items.push(PaletteItem {
-                label: format!("Layout: {}", preset.label()),
-                icon: egui_phosphor::regular::LAYOUT,
-                action: ShellAction::View(ViewAction::ApplyLayout(preset)),
-                keywords: "layout preset workspace panels",
-            });
-        }
-        items.push(PaletteItem {
-            label: "Reset Layout".into(),
-            icon: egui_phosphor::regular::ARROW_CLOCKWISE,
-            action: ShellAction::View(ViewAction::ResetLayout),
-            keywords: "layout reset workspace default panels",
-        });
-
-        items.push(PaletteItem {
-            label: "Save".into(),
-            icon: egui_phosphor::regular::FLOPPY_DISK,
-            action: Command::Save.into(),
-            keywords: "save file disk",
-        });
-        items.push(PaletteItem {
-            label: "Reload".into(),
-            icon: egui_phosphor::regular::ARROW_CLOCKWISE,
-            action: Command::Reload.into(),
-            keywords: "reload refresh",
-        });
-        items.push(PaletteItem {
-            label: "Reload Plugins".into(),
-            icon: egui_phosphor::regular::PLUG,
-            action: Command::ReloadPlugins.into(),
-            keywords: "plugins reload extension manifest",
-        });
-        items.push(PaletteItem {
-            label: "Rebuild".into(),
-            icon: egui_phosphor::regular::ARROWS_CLOCKWISE,
-            action: Command::Rebuild.into(),
-            keywords: "rebuild compile",
-        });
-        items.push(PaletteItem {
-            label: "Export…".into(),
-            icon: egui_phosphor::regular::DOWNLOAD,
-            action: ShellAction::View(ViewAction::OpenExportDialog),
-            keywords: "export render video gif image",
-        });
-        items.push(PaletteItem {
-            label: "Plugins…".into(),
-            icon: egui_phosphor::regular::PLUG,
-            action: ShellAction::View(ViewAction::OpenPluginStatus),
-            keywords: "plugin extensions status reload manifest",
-        });
-        items.push(PaletteItem {
-            label: "Toggle Playback".into(),
-            icon: egui_phosphor::regular::PLAY,
-            action: Command::TogglePlayback.into(),
-            keywords: "play pause playback",
-        });
-        items.push(PaletteItem {
-            label: "Toggle Presentation Mode".into(),
-            icon: egui_phosphor::regular::PROJECTOR_SCREEN,
-            action: Command::TogglePresentationMode.into(),
-            keywords: "presentation mode slideshow powerpoint f5 full screen",
-        });
-        items.push(PaletteItem {
-            label: "Step Next".into(),
-            icon: egui_phosphor::regular::CARET_RIGHT,
-            action: Command::StepNext.into(),
-            keywords: "step next slide pause point pagedown",
-        });
-        items.push(PaletteItem {
-            label: "Step Previous".into(),
-            icon: egui_phosphor::regular::CARET_LEFT,
-            action: Command::StepPrevious.into(),
-            keywords: "step previous slide pause point pageup",
-        });
-        items.push(PaletteItem {
-            label: "Undo".into(),
-            icon: egui_phosphor::regular::ARROW_U_UP_LEFT,
-            action: Command::Undo.into(),
-            keywords: "undo revert",
-        });
-        items.push(PaletteItem {
-            label: "Redo".into(),
-            icon: egui_phosphor::regular::ARROW_U_UP_RIGHT,
-            action: Command::Redo.into(),
-            keywords: "redo forward",
-        });
+        push_palette_view_items(&mut items);
+        push_palette_command_items(&mut items);
 
         if has_selection {
-            items.push(PaletteItem {
-                label: "Delete Selected Actors".into(),
-                icon: egui_phosphor::regular::TRASH,
-                action: Command::DeleteSelectedActors.into(),
-                keywords: "delete remove actors",
-            });
-            items.push(PaletteItem {
-                label: "Duplicate Selected Actors".into(),
-                icon: egui_phosphor::regular::COPY,
-                action: Command::DuplicateSelectedActors.into(),
-                keywords: "duplicate copy actors",
-            });
-            items.push(PaletteItem {
-                label: "Group Selected Actors".into(),
-                icon: egui_phosphor::regular::SQUARES_FOUR,
-                action: Command::GroupSelectedActors.into(),
-                keywords: "group container",
-            });
-            items.push(PaletteItem {
-                label: "Zoom to Selection".into(),
-                icon: egui_phosphor::regular::MAGNIFYING_GLASS_PLUS,
-                action: Command::ZoomToSelection.into(),
-                keywords: "zoom fit selection",
-            });
+            push_palette_selection_items(&mut items);
         }
 
         // Align / Distribute commands (requires selection)
         if has_selection {
-            items.push(PaletteItem {
-                label: "Align Left".into(),
-                icon: egui_phosphor::regular::ALIGN_LEFT,
-                action: Command::AlignActors(crate::app::commands::Align::Left).into(),
-                keywords: "align left actors selection",
-            });
-            items.push(PaletteItem {
-                label: "Align Center".into(),
-                icon: egui_phosphor::regular::ALIGN_CENTER_HORIZONTAL_SIMPLE,
-                action: Command::AlignActors(crate::app::commands::Align::Center).into(),
-                keywords: "align center horizontal actors",
-            });
-            items.push(PaletteItem {
-                label: "Align Right".into(),
-                icon: egui_phosphor::regular::ALIGN_RIGHT,
-                action: Command::AlignActors(crate::app::commands::Align::Right).into(),
-                keywords: "align right actors",
-            });
-            items.push(PaletteItem {
-                label: "Align Top".into(),
-                icon: egui_phosphor::regular::ALIGN_TOP,
-                action: Command::AlignActors(crate::app::commands::Align::Top).into(),
-                keywords: "align top actors",
-            });
-            items.push(PaletteItem {
-                label: "Align Middle".into(),
-                icon: egui_phosphor::regular::ALIGN_CENTER_VERTICAL_SIMPLE,
-                action: Command::AlignActors(crate::app::commands::Align::Middle).into(),
-                keywords: "align middle vertical actors",
-            });
-            items.push(PaletteItem {
-                label: "Align Bottom".into(),
-                icon: egui_phosphor::regular::ALIGN_BOTTOM,
-                action: Command::AlignActors(crate::app::commands::Align::Bottom).into(),
-                keywords: "align bottom actors",
-            });
-            items.push(PaletteItem {
-                label: "Distribute Horizontally".into(),
-                icon: egui_phosphor::regular::ARROWS_OUT_LINE_HORIZONTAL,
-                action: Command::DistributeActors(crate::app::commands::Axis::Horizontal).into(),
-                keywords: "distribute horizontal evenly space actors",
-            });
-            items.push(PaletteItem {
-                label: "Distribute Vertically".into(),
-                icon: egui_phosphor::regular::ARROWS_OUT_LINE_VERTICAL,
-                action: Command::DistributeActors(crate::app::commands::Axis::Vertical).into(),
-                keywords: "distribute vertical evenly space actors",
-            });
+            push_palette_align_items(&mut items);
         }
 
         items.push(PaletteItem {
@@ -383,6 +162,246 @@ impl GuiShell {
 
         items
     }
+}
+
+/// File, view, and layout palette entries.
+fn push_palette_view_items(items: &mut Vec<PaletteItem>) {
+    items.push(PaletteItem {
+        label: "Open File…".into(),
+        icon: egui_phosphor::regular::FOLDER_OPEN,
+        action: ShellAction::View(ViewAction::OpenFileDialog),
+        keywords: "open file load amx document",
+    });
+    items.push(PaletteItem {
+        label: "New Scene".into(),
+        icon: egui_phosphor::regular::FILE_PLUS,
+        action: ShellAction::View(ViewAction::NewFile),
+        keywords: "new create file scene document",
+    });
+    items.push(PaletteItem {
+        label: "Save As…".into(),
+        icon: egui_phosphor::regular::FLOPPY_DISK,
+        action: ShellAction::View(ViewAction::SaveAsDialog),
+        keywords: "save as file copy document",
+    });
+    items.push(PaletteItem {
+        label: "Insert…".into(),
+        icon: egui_phosphor::regular::PLUS,
+        action: ShellAction::View(ViewAction::OpenInsertionPalette),
+        keywords: "insert add actor primitive component action snippet",
+    });
+    items.push(PaletteItem {
+        label: "Settings…".into(),
+        icon: egui_phosphor::regular::GEAR,
+        action: ShellAction::View(ViewAction::OpenSettings),
+        keywords: "settings preferences options theme density",
+    });
+    items.push(PaletteItem {
+        label: "Keyboard Shortcuts…".into(),
+        icon: egui_phosphor::regular::KEYBOARD,
+        action: ShellAction::View(ViewAction::OpenShortcuts),
+        keywords: "shortcuts keys help cheatsheet",
+    });
+    items.push(PaletteItem {
+        label: "Find / Replace…".into(),
+        icon: egui_phosphor::regular::MAGNIFYING_GLASS,
+        action: ShellAction::View(ViewAction::OpenFindReplace),
+        keywords: "find replace search text",
+    });
+    items.push(PaletteItem {
+        label: "Toggle Inspector".into(),
+        icon: egui_phosphor::regular::SLIDERS,
+        action: ShellAction::View(ViewAction::ShowInspector),
+        keywords: "inspector properties panel detail",
+    });
+    items.push(PaletteItem {
+        label: "Toggle Code".into(),
+        icon: egui_phosphor::regular::CODE,
+        action: ShellAction::View(ViewAction::ShowCode),
+        keywords: "code source editor panel detail",
+    });
+    items.push(PaletteItem {
+        label: "Toggle Curves Editor".into(),
+        icon: egui_phosphor::regular::CHART_LINE,
+        action: ShellAction::View(ViewAction::ShowCurves),
+        keywords: "curves graph fcurve keyframe easing panel bottom",
+    });
+    items.push(PaletteItem {
+        label: "Show Timeline".into(),
+        icon: egui_phosphor::regular::FILM_STRIP,
+        action: ShellAction::View(ViewAction::ShowTimeline),
+        keywords: "timeline keyframes panel bottom",
+    });
+    for preset in crate::app::LayoutPreset::ALL {
+        items.push(PaletteItem {
+            label: format!("Layout: {}", preset.label()),
+            icon: egui_phosphor::regular::LAYOUT,
+            action: ShellAction::View(ViewAction::ApplyLayout(preset)),
+            keywords: "layout preset workspace panels",
+        });
+    }
+    items.push(PaletteItem {
+        label: "Reset Layout".into(),
+        icon: egui_phosphor::regular::ARROW_CLOCKWISE,
+        action: ShellAction::View(ViewAction::ResetLayout),
+        keywords: "layout reset workspace default panels",
+    });
+}
+
+/// Document, playback, and zoom command entries.
+fn push_palette_command_items(items: &mut Vec<PaletteItem>) {
+    items.push(PaletteItem {
+        label: "Save".into(),
+        icon: egui_phosphor::regular::FLOPPY_DISK,
+        action: Command::Save.into(),
+        keywords: "save file disk",
+    });
+    items.push(PaletteItem {
+        label: "Reload".into(),
+        icon: egui_phosphor::regular::ARROW_CLOCKWISE,
+        action: Command::Reload.into(),
+        keywords: "reload refresh",
+    });
+    items.push(PaletteItem {
+        label: "Reload Plugins".into(),
+        icon: egui_phosphor::regular::PLUG,
+        action: Command::ReloadPlugins.into(),
+        keywords: "plugins reload extension manifest",
+    });
+    items.push(PaletteItem {
+        label: "Rebuild".into(),
+        icon: egui_phosphor::regular::ARROWS_CLOCKWISE,
+        action: Command::Rebuild.into(),
+        keywords: "rebuild compile",
+    });
+    items.push(PaletteItem {
+        label: "Export…".into(),
+        icon: egui_phosphor::regular::DOWNLOAD,
+        action: ShellAction::View(ViewAction::OpenExportDialog),
+        keywords: "export render video gif image",
+    });
+    items.push(PaletteItem {
+        label: "Plugins…".into(),
+        icon: egui_phosphor::regular::PLUG,
+        action: ShellAction::View(ViewAction::OpenPluginStatus),
+        keywords: "plugin extensions status reload manifest",
+    });
+    items.push(PaletteItem {
+        label: "Toggle Playback".into(),
+        icon: egui_phosphor::regular::PLAY,
+        action: Command::TogglePlayback.into(),
+        keywords: "play pause playback",
+    });
+    items.push(PaletteItem {
+        label: "Toggle Presentation Mode".into(),
+        icon: egui_phosphor::regular::PROJECTOR_SCREEN,
+        action: Command::TogglePresentationMode.into(),
+        keywords: "presentation mode slideshow powerpoint f5 full screen",
+    });
+    items.push(PaletteItem {
+        label: "Step Next".into(),
+        icon: egui_phosphor::regular::CARET_RIGHT,
+        action: Command::StepNext.into(),
+        keywords: "step next slide pause point pagedown",
+    });
+    items.push(PaletteItem {
+        label: "Step Previous".into(),
+        icon: egui_phosphor::regular::CARET_LEFT,
+        action: Command::StepPrevious.into(),
+        keywords: "step previous slide pause point pageup",
+    });
+    items.push(PaletteItem {
+        label: "Undo".into(),
+        icon: egui_phosphor::regular::ARROW_U_UP_LEFT,
+        action: Command::Undo.into(),
+        keywords: "undo revert",
+    });
+    items.push(PaletteItem {
+        label: "Redo".into(),
+        icon: egui_phosphor::regular::ARROW_U_UP_RIGHT,
+        action: Command::Redo.into(),
+        keywords: "redo forward",
+    });
+}
+
+/// Selection-dependent actor commands.
+fn push_palette_selection_items(items: &mut Vec<PaletteItem>) {
+    items.push(PaletteItem {
+        label: "Delete Selected Actors".into(),
+        icon: egui_phosphor::regular::TRASH,
+        action: Command::DeleteSelectedActors.into(),
+        keywords: "delete remove actors",
+    });
+    items.push(PaletteItem {
+        label: "Duplicate Selected Actors".into(),
+        icon: egui_phosphor::regular::COPY,
+        action: Command::DuplicateSelectedActors.into(),
+        keywords: "duplicate copy actors",
+    });
+    items.push(PaletteItem {
+        label: "Group Selected Actors".into(),
+        icon: egui_phosphor::regular::SQUARES_FOUR,
+        action: Command::GroupSelectedActors.into(),
+        keywords: "group container",
+    });
+    items.push(PaletteItem {
+        label: "Zoom to Selection".into(),
+        icon: egui_phosphor::regular::MAGNIFYING_GLASS_PLUS,
+        action: Command::ZoomToSelection.into(),
+        keywords: "zoom fit selection",
+    });
+}
+
+/// Align and distribute commands, which require a selection.
+fn push_palette_align_items(items: &mut Vec<PaletteItem>) {
+    items.push(PaletteItem {
+        label: "Align Left".into(),
+        icon: egui_phosphor::regular::ALIGN_LEFT,
+        action: Command::AlignActors(crate::app::commands::Align::Left).into(),
+        keywords: "align left actors selection",
+    });
+    items.push(PaletteItem {
+        label: "Align Center".into(),
+        icon: egui_phosphor::regular::ALIGN_CENTER_HORIZONTAL_SIMPLE,
+        action: Command::AlignActors(crate::app::commands::Align::Center).into(),
+        keywords: "align center horizontal actors",
+    });
+    items.push(PaletteItem {
+        label: "Align Right".into(),
+        icon: egui_phosphor::regular::ALIGN_RIGHT,
+        action: Command::AlignActors(crate::app::commands::Align::Right).into(),
+        keywords: "align right actors",
+    });
+    items.push(PaletteItem {
+        label: "Align Top".into(),
+        icon: egui_phosphor::regular::ALIGN_TOP,
+        action: Command::AlignActors(crate::app::commands::Align::Top).into(),
+        keywords: "align top actors",
+    });
+    items.push(PaletteItem {
+        label: "Align Middle".into(),
+        icon: egui_phosphor::regular::ALIGN_CENTER_VERTICAL_SIMPLE,
+        action: Command::AlignActors(crate::app::commands::Align::Middle).into(),
+        keywords: "align middle vertical actors",
+    });
+    items.push(PaletteItem {
+        label: "Align Bottom".into(),
+        icon: egui_phosphor::regular::ALIGN_BOTTOM,
+        action: Command::AlignActors(crate::app::commands::Align::Bottom).into(),
+        keywords: "align bottom actors",
+    });
+    items.push(PaletteItem {
+        label: "Distribute Horizontally".into(),
+        icon: egui_phosphor::regular::ARROWS_OUT_LINE_HORIZONTAL,
+        action: Command::DistributeActors(crate::app::commands::Axis::Horizontal).into(),
+        keywords: "distribute horizontal evenly space actors",
+    });
+    items.push(PaletteItem {
+        label: "Distribute Vertically".into(),
+        icon: egui_phosphor::regular::ARROWS_OUT_LINE_VERTICAL,
+        action: Command::DistributeActors(crate::app::commands::Axis::Vertical).into(),
+        keywords: "distribute vertical evenly space actors",
+    });
 }
 
 /// Subsequence fuzzy match with a relevance score (higher is better).

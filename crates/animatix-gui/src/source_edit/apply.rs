@@ -238,6 +238,67 @@ pub enum SourceEdit {
 /// Returns `Ok(())` if the edit was applied successfully, or a structured
 /// [`crate::source_edit::SourceEditError`] describing why it failed.
 pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::SourceEditError> {
+    match edit_target(&edit) {
+        EditTarget::Actor => apply_actor_edit(stmts, edit),
+        EditTarget::Keyframe => apply_keyframe_edit(stmts, edit),
+        EditTarget::Scene => apply_scene_edit(stmts, edit),
+        EditTarget::Action => apply_action_edit(stmts, edit),
+    }
+}
+
+/// The handler module a [`SourceEdit`] belongs to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EditTarget {
+    Actor,
+    Keyframe,
+    Scene,
+    Action,
+}
+
+/// Classify an edit by its handler module.
+///
+/// This match is exhaustive so a new [`SourceEdit`] variant fails compilation
+/// here until it is assigned a group.
+fn edit_target(edit: &SourceEdit) -> EditTarget {
+    match edit {
+        SourceEdit::SetProperty { .. }
+        | SourceEdit::InsertProperty { .. }
+        | SourceEdit::SetEffectParam { .. }
+        | SourceEdit::InsertEffectParam { .. }
+        | SourceEdit::InsertEffect { .. }
+        | SourceEdit::ReorderContainerChildren { .. }
+        | SourceEdit::InsertActor { .. }
+        | SourceEdit::RenameActor { .. }
+        | SourceEdit::DeleteActor { .. }
+        | SourceEdit::DuplicateActor { .. }
+        | SourceEdit::PasteActors { .. }
+        | SourceEdit::RemoveProperty { .. }
+        | SourceEdit::Reparent { .. }
+        | SourceEdit::InsertSnippet { .. } => EditTarget::Actor,
+        SourceEdit::InsertKeyframe { .. }
+        | SourceEdit::MergeKeyframe { .. }
+        | SourceEdit::SetKeyframeValue { .. }
+        | SourceEdit::SetKeyframeEasing { .. }
+        | SourceEdit::DeleteKeyframe { .. }
+        | SourceEdit::MoveKeyframeTime { .. } => EditTarget::Keyframe,
+        SourceEdit::ReorderScenes { .. }
+        | SourceEdit::SetPlayTarget { .. }
+        | SourceEdit::SetTransition { .. }
+        | SourceEdit::SetSceneDuration { .. }
+        | SourceEdit::RenameScene { .. }
+        | SourceEdit::AddScene { .. }
+        | SourceEdit::DeleteScene { .. }
+        | SourceEdit::DuplicateScene { .. }
+        | SourceEdit::ExtractScene { .. }
+        | SourceEdit::MoveToScene { .. } => EditTarget::Scene,
+        SourceEdit::InsertAction { .. }
+        | SourceEdit::ResizeAction { .. }
+        | SourceEdit::SetConfigProperty { .. } => EditTarget::Action,
+    }
+}
+
+/// Actor declaration, property, effect, and container edits.
+fn apply_actor_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::SourceEditError> {
     match edit {
         SourceEdit::SetProperty {
             actor,
@@ -267,6 +328,62 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
             label,
             props,
         } => super::actor_edits::insert_effect(stmts, &scope, &ty, &label, props),
+        SourceEdit::ReorderContainerChildren {
+            container,
+            new_order,
+        } => super::actor_edits::reorder_container_children(stmts, &container, new_order),
+        SourceEdit::InsertActor {
+            ty,
+            label,
+            props,
+            container,
+            time_s,
+        } => super::actor_edits::insert_actor(
+            stmts,
+            &ty,
+            &label,
+            props,
+            container.as_deref(),
+            time_s,
+        ),
+        SourceEdit::RenameActor {
+            old_label,
+            new_label,
+        } => {
+            super::actor_edits::rename_all_references(stmts, &old_label, &new_label);
+            Ok(())
+        },
+        SourceEdit::DeleteActor { label } => super::actor_edits::delete_actor(stmts, &label),
+        SourceEdit::DuplicateActor {
+            original_label,
+            new_label,
+        } => super::actor_edits::duplicate_actor(stmts, &original_label, &new_label),
+        SourceEdit::PasteActors { clipboard, time_s } => {
+            super::actor_edits::paste_actors(stmts, &clipboard, time_s)
+        },
+        SourceEdit::RemoveProperty { actor, property } => {
+            super::actor_edits::remove_property(stmts, &actor, &property)
+        },
+        SourceEdit::Reparent { actor, new_parent } => {
+            super::actor_edits::reparent_actor(stmts, &actor, new_parent.as_deref())
+        },
+        SourceEdit::InsertSnippet {
+            stmts: fragment,
+            time_s,
+            container,
+        } => super::actor_edits::insert_snippet(stmts, fragment, time_s, container.as_deref()),
+        _ => Err(super::SourceEditError::Generic(
+            "apply_actor_edit received a non-actor edit".to_string(),
+        )),
+    }
+}
+
+/// Keyframe insertion, merge, value, easing, deletion, and move edits.
+fn apply_keyframe_edit(
+    stmts: &mut Vec<Stmt>,
+    edit: SourceEdit,
+) -> Result<(), super::SourceEditError> {
+    match edit {
         SourceEdit::InsertKeyframe {
             scene,
             actor,
@@ -311,61 +428,6 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
             value,
             time_s,
         ),
-        SourceEdit::ReorderContainerChildren {
-            container,
-            new_order,
-        } => super::actor_edits::reorder_container_children(stmts, &container, new_order),
-        SourceEdit::InsertActor {
-            ty,
-            label,
-            props,
-            container,
-            time_s,
-        } => super::actor_edits::insert_actor(
-            stmts,
-            &ty,
-            &label,
-            props,
-            container.as_deref(),
-            time_s,
-        ),
-        SourceEdit::RenameActor {
-            old_label,
-            new_label,
-        } => {
-            super::actor_edits::rename_all_references(stmts, &old_label, &new_label);
-            Ok(())
-        },
-        SourceEdit::DeleteActor { label } => super::actor_edits::delete_actor(stmts, &label),
-        SourceEdit::DuplicateActor {
-            original_label,
-            new_label,
-        } => super::actor_edits::duplicate_actor(stmts, &original_label, &new_label),
-        SourceEdit::PasteActors { clipboard, time_s } => {
-            super::actor_edits::paste_actors(stmts, &clipboard, time_s)
-        },
-        SourceEdit::RemoveProperty { actor, property } => {
-            super::actor_edits::remove_property(stmts, &actor, &property)
-        },
-        SourceEdit::ReorderScenes { new_order } => {
-            super::scene_edits::reorder_scenes(stmts, new_order)
-        },
-        SourceEdit::SetPlayTarget { scene, target } => {
-            super::scene_edits::set_play_target(stmts, &scene, target.as_deref())
-        },
-        SourceEdit::SetTransition {
-            from_scene,
-            transition,
-        } => super::scene_edits::set_transition(stmts, &from_scene, transition),
-        SourceEdit::SetSceneDuration { scene, duration_s } => {
-            super::scene_edits::set_scene_duration(stmts, &scene, duration_s)
-        },
-        SourceEdit::RenameScene { old_name, new_name } => {
-            super::scene_edits::rename_scene(stmts, &old_name, &new_name)
-        },
-        SourceEdit::AddScene { name } => super::scene_edits::add_scene(stmts, &name),
-        SourceEdit::DeleteScene { name } => super::scene_edits::delete_scene(stmts, &name),
-        SourceEdit::DuplicateScene { name } => super::scene_edits::duplicate_scene(stmts, &name),
         SourceEdit::SetKeyframeEasing {
             scene,
             actor,
@@ -392,17 +454,6 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
             &property,
             time_s,
         ),
-        SourceEdit::Reparent { actor, new_parent } => {
-            super::actor_edits::reparent_actor(stmts, &actor, new_parent.as_deref())
-        },
-        SourceEdit::ExtractScene {
-            actor_labels,
-            new_scene_name,
-        } => super::scene_edits::extract_scene(stmts, actor_labels, &new_scene_name),
-        SourceEdit::MoveToScene {
-            actor_labels,
-            target_scene,
-        } => super::scene_edits::move_to_scene(stmts, actor_labels, &target_scene),
         SourceEdit::MoveKeyframeTime {
             scene,
             actor,
@@ -417,6 +468,54 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
             old_time_s,
             new_time_s,
         ),
+        _ => Err(super::SourceEditError::Generic(
+            "apply_keyframe_edit received a non-keyframe edit".to_string(),
+        )),
+    }
+}
+
+/// Scene declaration, ordering, play-target, transition, and duration edits.
+fn apply_scene_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::SourceEditError> {
+    match edit {
+        SourceEdit::ReorderScenes { new_order } => {
+            super::scene_edits::reorder_scenes(stmts, new_order)
+        },
+        SourceEdit::SetPlayTarget { scene, target } => {
+            super::scene_edits::set_play_target(stmts, &scene, target.as_deref())
+        },
+        SourceEdit::SetTransition {
+            from_scene,
+            transition,
+        } => super::scene_edits::set_transition(stmts, &from_scene, transition),
+        SourceEdit::SetSceneDuration { scene, duration_s } => {
+            super::scene_edits::set_scene_duration(stmts, &scene, duration_s)
+        },
+        SourceEdit::RenameScene { old_name, new_name } => {
+            super::scene_edits::rename_scene(stmts, &old_name, &new_name)
+        },
+        SourceEdit::AddScene { name } => super::scene_edits::add_scene(stmts, &name),
+        SourceEdit::DeleteScene { name } => super::scene_edits::delete_scene(stmts, &name),
+        SourceEdit::DuplicateScene { name } => super::scene_edits::duplicate_scene(stmts, &name),
+        SourceEdit::ExtractScene {
+            actor_labels,
+            new_scene_name,
+        } => super::scene_edits::extract_scene(stmts, actor_labels, &new_scene_name),
+        SourceEdit::MoveToScene {
+            actor_labels,
+            target_scene,
+        } => super::scene_edits::move_to_scene(stmts, actor_labels, &target_scene),
+        _ => Err(super::SourceEditError::Generic(
+            "apply_scene_edit received a non-scene edit".to_string(),
+        )),
+    }
+}
+
+/// Action-block and config property edits.
+fn apply_action_edit(
+    stmts: &mut Vec<Stmt>,
+    edit: SourceEdit,
+) -> Result<(), super::SourceEditError> {
+    match edit {
         SourceEdit::InsertAction {
             verb,
             targets,
@@ -424,9 +523,6 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
             modifiers,
             time_s,
         } => super::action_edits::insert_action(stmts, &verb, &targets, &args, &modifiers, time_s),
-        SourceEdit::SetConfigProperty { key, value } => {
-            super::config_edits::set_config_property(stmts, &key, value)
-        },
         SourceEdit::ResizeAction {
             verb,
             targets,
@@ -441,11 +537,12 @@ pub fn apply_edit(stmts: &mut Vec<Stmt>, edit: SourceEdit) -> Result<(), super::
             new_start_s,
             new_duration_s,
         ),
-        SourceEdit::InsertSnippet {
-            stmts: fragment,
-            time_s,
-            container,
-        } => super::actor_edits::insert_snippet(stmts, fragment, time_s, container.as_deref()),
+        SourceEdit::SetConfigProperty { key, value } => {
+            super::config_edits::set_config_property(stmts, &key, value)
+        },
+        _ => Err(super::SourceEditError::Generic(
+            "apply_action_edit received a non-action edit".to_string(),
+        )),
     }
 }
 

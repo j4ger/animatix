@@ -7,8 +7,9 @@ use crate::app::GuiShell;
 use crate::app::components::button::Button;
 use crate::app::components::dialog::{self, DialogSpec};
 use crate::app::components::{Badge, Tag};
-use crate::app::design_tokens::spatial::{RADIUS_S, spatial};
+use crate::app::design_tokens::spatial::{RADIUS_S, Spatial, spatial};
 use crate::app::design_tokens::typography::TextRole;
+use crate::app::document::plugins::PluginSnapshot;
 
 impl GuiShell {
     pub(crate) fn plugin_status_ui(&mut self, ui: &mut egui::Ui) {
@@ -28,189 +29,17 @@ impl GuiShell {
             let title_close = dialog::title_row(ui, "Plugins");
             ui.add_space(sp.base.space_3);
 
-            ui.horizontal(|ui| {
-                ui.label(
-                    egui::RichText::new("Loaded plugins")
-                        .size(TextRole::Title.size())
-                        .color(theme.palette.text.primary)
-                        .strong(),
-                );
-                ui.add(Badge::new(snapshot.plugin_names.len().to_string()));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui
-                        .add(
-                            Button::ghost("Reload")
-                                .with_icon(egui_phosphor::regular::ARROW_CLOCKWISE),
-                        )
-                        .clicked()
-                    {
-                        reload = true;
-                    }
-                });
-            });
-            ui.add_space(sp.base.space_2);
-
-            if snapshot.plugin_names.is_empty() {
-                ui.label(
-                    egui::RichText::new("No native or in-process plugins are installed.")
-                        .size(TextRole::BodyS.size())
-                        .color(theme.palette.text.muted),
-                );
-            } else {
-                egui::ScrollArea::horizontal().show(ui, |ui| {
-                    ui.horizontal_wrapped(|ui| {
-                        for name in &snapshot.plugin_names {
-                            ui.add(Tag::new(name.clone()).color(theme.palette.accent.cyan));
-                        }
-                    });
-                });
-            }
-            ui.add_space(sp.base.space_4);
-
-            ui.label(
-                egui::RichText::new("Manifests")
-                    .size(TextRole::Title.size())
-                    .color(theme.palette.text.primary)
-                    .strong(),
+            plugin_status_loaded_ui(ui, &snapshot, theme, sp, &mut reload);
+            plugin_status_manifests_ui(ui, &snapshot, theme, sp);
+            plugin_status_issues_ui(ui, &snapshot, theme, sp);
+            self.plugin_status_paths_ui(
+                ui,
+                theme,
+                sp,
+                &mut add_path,
+                &mut remove_path,
+                &mut describe_library,
             );
-            ui.add_space(sp.base.space_2);
-            egui::ScrollArea::vertical().max_height(220.0).show(ui, |ui| {
-                if snapshot.sources.is_empty() {
-                    ui.label(
-                        egui::RichText::new("No `.amx-plugin.toml` manifests found.")
-                            .size(TextRole::BodyS.size())
-                            .color(theme.palette.text.muted),
-                    );
-                }
-                for source in &snapshot.sources {
-                    let primitives = source.manifest.primitives.len();
-                    let properties = source.manifest.properties.len();
-                    let actions = source.manifest.actions.len();
-                    let functions = source.manifest.functions.len();
-                    let services = source.manifest.services.len();
-                    egui::Frame::new()
-                        .fill(theme.palette.surface.widget)
-                        .stroke(egui::Stroke::new(1.0, theme.palette.border.default))
-                        .corner_radius(RADIUS_S)
-                        .inner_margin(egui::Margin::symmetric(8, 6))
-                        .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    egui::RichText::new(source.path.display().to_string())
-                                        .size(TextRole::BodyS.size())
-                                        .color(theme.palette.text.primary)
-                                        .strong(),
-                                );
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        if let Some(library) = source.manifest.library.as_deref() {
-                                            ui.label(
-                                                egui::RichText::new(library)
-                                                    .size(TextRole::Micro.size())
-                                                    .color(theme.palette.text.muted),
-                                            );
-                                        }
-                                    },
-                                );
-                            });
-                            ui.add_space(sp.base.space_1);
-                            ui.horizontal_wrapped(|ui| {
-                                capability_badge(ui, "P", primitives, theme);
-                                capability_badge(ui, "Props", properties, theme);
-                                capability_badge(ui, "Actions", actions, theme);
-                                capability_badge(ui, "Fns", functions, theme);
-                                capability_badge(ui, "Svcs", services, theme);
-                            });
-                        });
-                    ui.add_space(sp.base.space_2);
-                }
-            });
-            ui.add_space(sp.base.space_4);
-
-            ui.label(
-                egui::RichText::new("Issues")
-                    .size(TextRole::Title.size())
-                    .color(theme.palette.text.primary)
-                    .strong(),
-            );
-            ui.add_space(sp.base.space_2);
-            if snapshot.issues.is_empty() {
-                ui.label(
-                    egui::RichText::new("No plugin load or install issues.")
-                        .size(TextRole::BodyS.size())
-                        .color(theme.palette.text.muted),
-                );
-            } else {
-                for issue in &snapshot.issues {
-                    let message = issue
-                        .path
-                        .as_ref()
-                        .map(|path| format!("{}: {}", path.display(), issue.message))
-                        .unwrap_or_else(|| issue.message.clone());
-                    ui.label(
-                        egui::RichText::new(message)
-                            .size(TextRole::BodyS.size())
-                            .color(theme.palette.status.error),
-                    );
-                }
-            }
-            ui.add_space(sp.base.space_4);
-
-            ui.label(
-                egui::RichText::new("Explicit plugin paths")
-                    .size(TextRole::Title.size())
-                    .color(theme.palette.text.primary)
-                    .strong(),
-            );
-            ui.add_space(sp.base.space_2);
-            let explicit = self.plugin_manager.explicit_plugin_paths();
-            for path in &explicit {
-                ui.horizontal(|ui| {
-                    ui.label(
-                        egui::RichText::new(path.display().to_string())
-                            .size(TextRole::Micro.size())
-                            .color(theme.palette.text.secondary),
-                    );
-                    if ui
-                        .add(
-                            Button::icon(egui_phosphor::regular::X)
-                                .with_tooltip("Remove explicit plugin path"),
-                        )
-                        .clicked()
-                    {
-                        remove_path = Some(path.clone());
-                    }
-                });
-            }
-            ui.horizontal(|ui| {
-                eparts::TextField::new(&mut self.ui_store.plugin_path_input)
-                    .placeholder("/path/to/plugin.amx-plugin.toml")
-                    .desired_width(ui.available_width() - 96.0)
-                    .show(ui);
-                if ui.add(Button::ghost("Add").with_icon(egui_phosphor::regular::PLUS)).clicked() {
-                    let trimmed = self.ui_store.plugin_path_input.trim();
-                    if !trimmed.is_empty() {
-                        add_path = Some(PathBuf::from(trimmed));
-                        self.ui_store.plugin_path_input.clear();
-                    }
-                }
-            });
-            #[cfg(feature = "plugin-loading")]
-            ui.add_space(sp.base.space_2);
-            #[cfg(feature = "plugin-loading")]
-            if ui
-                .add(
-                    Button::ghost("Generate manifest from library…")
-                        .with_icon(egui_phosphor::regular::FILE_CODE),
-                )
-                .clicked()
-                && let Some(path) = rfd::FileDialog::new()
-                    .add_filter("Native plugin", &["so", "dylib", "dll"])
-                    .pick_file()
-            {
-                describe_library = Some(path);
-            }
 
             title_close
         });
@@ -260,6 +89,220 @@ impl GuiShell {
             self.ui_store.view.plugin_status_open = false;
         }
     }
+
+    /// Explicit plugin path list plus the add/remove/describe controls.
+    fn plugin_status_paths_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        theme: eparts::Theme,
+        sp: Spatial,
+        add_path: &mut Option<PathBuf>,
+        remove_path: &mut Option<PathBuf>,
+        describe_library: &mut Option<PathBuf>,
+    ) {
+        ui.label(
+            egui::RichText::new("Explicit plugin paths")
+                .size(TextRole::Title.size())
+                .color(theme.palette.text.primary)
+                .strong(),
+        );
+        ui.add_space(sp.base.space_2);
+        let explicit = self.plugin_manager.explicit_plugin_paths();
+        for path in &explicit {
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(path.display().to_string())
+                        .size(TextRole::Micro.size())
+                        .color(theme.palette.text.secondary),
+                );
+                if ui
+                    .add(
+                        Button::icon(egui_phosphor::regular::X)
+                            .with_tooltip("Remove explicit plugin path"),
+                    )
+                    .clicked()
+                {
+                    *remove_path = Some(path.clone());
+                }
+            });
+        }
+        ui.horizontal(|ui| {
+            eparts::TextField::new(&mut self.ui_store.plugin_path_input)
+                .placeholder("/path/to/plugin.amx-plugin.toml")
+                .desired_width(ui.available_width() - 96.0)
+                .show(ui);
+            if ui.add(Button::ghost("Add").with_icon(egui_phosphor::regular::PLUS)).clicked() {
+                let trimmed = self.ui_store.plugin_path_input.trim();
+                if !trimmed.is_empty() {
+                    *add_path = Some(PathBuf::from(trimmed));
+                    self.ui_store.plugin_path_input.clear();
+                }
+            }
+        });
+        #[cfg(feature = "plugin-loading")]
+        ui.add_space(sp.base.space_2);
+        #[cfg(feature = "plugin-loading")]
+        if ui
+            .add(
+                Button::ghost("Generate manifest from library…")
+                    .with_icon(egui_phosphor::regular::FILE_CODE),
+            )
+            .clicked()
+            && let Some(path) = rfd::FileDialog::new()
+                .add_filter("Native plugin", &["so", "dylib", "dll"])
+                .pick_file()
+        {
+            *describe_library = Some(path);
+        }
+    }
+}
+
+/// "Loaded plugins" header with the reload control and the plugin name tags.
+fn plugin_status_loaded_ui(
+    ui: &mut egui::Ui,
+    snapshot: &PluginSnapshot,
+    theme: eparts::Theme,
+    sp: Spatial,
+    reload: &mut bool,
+) {
+    ui.horizontal(|ui| {
+        ui.label(
+            egui::RichText::new("Loaded plugins")
+                .size(TextRole::Title.size())
+                .color(theme.palette.text.primary)
+                .strong(),
+        );
+        ui.add(Badge::new(snapshot.plugin_names.len().to_string()));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if ui
+                .add(Button::ghost("Reload").with_icon(egui_phosphor::regular::ARROW_CLOCKWISE))
+                .clicked()
+            {
+                *reload = true;
+            }
+        });
+    });
+    ui.add_space(sp.base.space_2);
+
+    if snapshot.plugin_names.is_empty() {
+        ui.label(
+            egui::RichText::new("No native or in-process plugins are installed.")
+                .size(TextRole::BodyS.size())
+                .color(theme.palette.text.muted),
+        );
+    } else {
+        egui::ScrollArea::horizontal().show(ui, |ui| {
+            ui.horizontal_wrapped(|ui| {
+                for name in &snapshot.plugin_names {
+                    ui.add(Tag::new(name.clone()).color(theme.palette.accent.cyan));
+                }
+            });
+        });
+    }
+    ui.add_space(sp.base.space_4);
+}
+
+/// Manifests section: every discovered manifest with its capability counts.
+fn plugin_status_manifests_ui(
+    ui: &mut egui::Ui,
+    snapshot: &PluginSnapshot,
+    theme: eparts::Theme,
+    sp: Spatial,
+) {
+    ui.label(
+        egui::RichText::new("Manifests")
+            .size(TextRole::Title.size())
+            .color(theme.palette.text.primary)
+            .strong(),
+    );
+    ui.add_space(sp.base.space_2);
+    egui::ScrollArea::vertical().max_height(220.0).show(ui, |ui| {
+        if snapshot.sources.is_empty() {
+            ui.label(
+                egui::RichText::new("No `.amx-plugin.toml` manifests found.")
+                    .size(TextRole::BodyS.size())
+                    .color(theme.palette.text.muted),
+            );
+        }
+        for source in &snapshot.sources {
+            let primitives = source.manifest.primitives.len();
+            let properties = source.manifest.properties.len();
+            let actions = source.manifest.actions.len();
+            let functions = source.manifest.functions.len();
+            let services = source.manifest.services.len();
+            egui::Frame::new()
+                .fill(theme.palette.surface.widget)
+                .stroke(egui::Stroke::new(1.0, theme.palette.border.default))
+                .corner_radius(RADIUS_S)
+                .inner_margin(egui::Margin::symmetric(8, 6))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            egui::RichText::new(source.path.display().to_string())
+                                .size(TextRole::BodyS.size())
+                                .color(theme.palette.text.primary)
+                                .strong(),
+                        );
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if let Some(library) = source.manifest.library.as_deref() {
+                                ui.label(
+                                    egui::RichText::new(library)
+                                        .size(TextRole::Micro.size())
+                                        .color(theme.palette.text.muted),
+                                );
+                            }
+                        });
+                    });
+                    ui.add_space(sp.base.space_1);
+                    ui.horizontal_wrapped(|ui| {
+                        capability_badge(ui, "P", primitives, theme);
+                        capability_badge(ui, "Props", properties, theme);
+                        capability_badge(ui, "Actions", actions, theme);
+                        capability_badge(ui, "Fns", functions, theme);
+                        capability_badge(ui, "Svcs", services, theme);
+                    });
+                });
+            ui.add_space(sp.base.space_2);
+        }
+    });
+    ui.add_space(sp.base.space_4);
+}
+
+/// Issues section: any plugin load or install failure.
+fn plugin_status_issues_ui(
+    ui: &mut egui::Ui,
+    snapshot: &PluginSnapshot,
+    theme: eparts::Theme,
+    sp: Spatial,
+) {
+    ui.label(
+        egui::RichText::new("Issues")
+            .size(TextRole::Title.size())
+            .color(theme.palette.text.primary)
+            .strong(),
+    );
+    ui.add_space(sp.base.space_2);
+    if snapshot.issues.is_empty() {
+        ui.label(
+            egui::RichText::new("No plugin load or install issues.")
+                .size(TextRole::BodyS.size())
+                .color(theme.palette.text.muted),
+        );
+    } else {
+        for issue in &snapshot.issues {
+            let message = issue
+                .path
+                .as_ref()
+                .map(|path| format!("{}: {}", path.display(), issue.message))
+                .unwrap_or_else(|| issue.message.clone());
+            ui.label(
+                egui::RichText::new(message)
+                    .size(TextRole::BodyS.size())
+                    .color(theme.palette.status.error),
+            );
+        }
+    }
+    ui.add_space(sp.base.space_4);
 }
 
 fn capability_badge(ui: &mut egui::Ui, label: &str, count: usize, theme: eparts::Theme) {
