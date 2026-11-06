@@ -2,13 +2,9 @@
 # Frozen at the Phase 3 baseline. This is a ratchet: delete a row when the
 # function is split, shortened below its threshold, renamed or moved; never add
 # a row for new code and never raise an existing maximum. See docs/ecs.md §8.
-crates/animatix-gui/src/app/panels/inspector/scene.rs	render_scene_inspector	366
 crates/animatix-gui/src/app/panels/inspector/spreadsheet.rs	render_property_spreadsheet	315
-crates/animatix-gui/src/app/panels/sidebar/layers.rs	render_actor_tree	363
 crates/animatix-gui/src/app/panels/sidebar/scenes.rs	scenes_content_ui	203
 crates/animatix-gui/src/app/preview/context/selection.rs	handle_preview_selection	221
-crates/animatix-gui/src/app/preview/gestures/callout.rs	handle	353
-crates/animatix-gui/src/app/preview/gestures/scale.rs	handle	334
 crates/animatix-gui/src/app/preview/property_popup.rs	popup_property_row	213
 crates/animatix-gui/src/app/preview/property_popup.rs	show_property_popup	206
 crates/animatix-gui/src/app/runtime/app_impl.rs	handle_keyboard_shortcuts	322

@@ -311,7 +311,74 @@ fn render_actor_tree(
             }
         })
         .show(ui, row_id);
+    handle_actor_row_drag(ui, label, &response, has_filter, is_anonymous, depth, commands);
 
+    // Right-click context menu for layer rows (use row response so we don't steal left-clicks)
+    response.response.context_menu(|ui| {
+        render_actor_context_menu(ui, label, selected_actors, commands);
+    });
+
+    // Double-click a layer name to rename it inline in the panel header bar.
+    if response.response.double_clicked() && !is_anonymous {
+        start_layer_rename(ui, label);
+    }
+
+    if response.chevron_clicked {
+        if collapsed_actors.contains(&label_owned) {
+            collapsed_actors.remove(&label_owned);
+        } else {
+            collapsed_actors.insert(label_owned.clone());
+        }
+    }
+
+    if response.row_clicked || response.drag_started {
+        let modifiers = ui.ctx().input(|i| i.modifiers);
+        let multi = modifiers.shift || modifiers.ctrl || modifiers.command;
+        if multi {
+            if selected_actors.contains(label) {
+                selected_actors.remove(label);
+            } else {
+                selected_actors.insert(label.to_string());
+            }
+        } else {
+            selected_actors.clear();
+            selected_actors.insert(label.to_string());
+        }
+    }
+
+    // Children
+    if is_expanded {
+        for child_label in timeline.child_labels(label) {
+            render_actor_tree(
+                ui,
+                timeline,
+                child_label,
+                selected_actors,
+                collapsed_actors,
+                commands,
+                _time_ms,
+                depth + 1,
+                filter_lower,
+                has_filter,
+            );
+        }
+    }
+}
+
+/// Drag-and-drop reparenting for a layer row.
+///
+/// Disabled while a filter is active: the partial tree makes drop targets
+/// ambiguous (hidden ancestors/descendants can't be valid drop destinations).
+fn handle_actor_row_drag(
+    ui: &mut egui::Ui,
+    label: &str,
+    response: &row::RowResponse,
+    has_filter: bool,
+    is_anonymous: bool,
+    depth: usize,
+    commands: &mut ActionQueue,
+) {
+    let t = eparts::theme(ui);
     // ── Drag-and-drop reparenting ──
     // Disabled while a filter is active: the partial tree makes drop targets
     // ambiguous (hidden ancestors/descendants can't be valid drop destinations).
@@ -378,163 +445,115 @@ fn render_actor_tree(
         }
         ui.data_mut(|d| d.remove::<String>(drag_data_id));
     }
+}
 
-    // Right-click context menu for layer rows (use row response so we don't steal left-clicks)
-    response.response.context_menu(|ui| {
-        let has_multi = selected_actors.len() >= 2;
+/// Right-click context menu for a layer row.
+fn render_actor_context_menu(
+    ui: &mut egui::Ui,
+    label: &str,
+    selected_actors: &mut HashSet<String>,
+    commands: &mut ActionQueue,
+) {
+    let has_multi = selected_actors.len() >= 2;
 
-        // Each row carries an explicit action identity, so a click can never
-        // fall through to a destructive action when the menu layout changes.
-        #[derive(Clone, Copy)]
-        enum LayerMenuAction {
-            Duplicate,
-            Rename,
-            Align(crate::app::commands::Align),
-            Distribute(crate::app::commands::Axis),
-            Group,
-            Ungroup,
-            Delete,
-        }
+    // Each row carries an explicit action identity, so a click can never
+    // fall through to a destructive action when the menu layout changes.
+    #[derive(Clone, Copy)]
+    enum LayerMenuAction {
+        Duplicate,
+        Rename,
+        Align(crate::app::commands::Align),
+        Distribute(crate::app::commands::Axis),
+        Group,
+        Ungroup,
+        Delete,
+    }
 
-        use egui_phosphor::regular as icons;
+    use egui_phosphor::regular as icons;
 
-        let mut menu: Vec<(MenuEntry, Option<LayerMenuAction>)> = Vec::new();
-        menu.push((
-            MenuEntry::item_with_icon(icons::COPY, "Duplicate"),
-            Some(LayerMenuAction::Duplicate),
-        ));
-        menu.push((
-            MenuEntry::item_with_icon(icons::PENCIL_SIMPLE, "Rename…"),
-            Some(LayerMenuAction::Rename),
-        ));
-        if has_multi {
-            use crate::app::commands::{Align, Axis};
-            menu.push((MenuEntry::separator(), None));
-            menu.push((
-                MenuEntry::item_with_icon(icons::ALIGN_LEFT, "Align Left"),
-                Some(LayerMenuAction::Align(Align::Left)),
-            ));
-            menu.push((
-                MenuEntry::item_with_icon(icons::ALIGN_CENTER_HORIZONTAL_SIMPLE, "Align Center"),
-                Some(LayerMenuAction::Align(Align::Center)),
-            ));
-            menu.push((
-                MenuEntry::item_with_icon(icons::ALIGN_RIGHT, "Align Right"),
-                Some(LayerMenuAction::Align(Align::Right)),
-            ));
-            menu.push((
-                MenuEntry::item_with_icon(icons::ALIGN_TOP, "Align Top"),
-                Some(LayerMenuAction::Align(Align::Top)),
-            ));
-            menu.push((
-                MenuEntry::item_with_icon(icons::ALIGN_CENTER_VERTICAL_SIMPLE, "Align Middle"),
-                Some(LayerMenuAction::Align(Align::Middle)),
-            ));
-            menu.push((
-                MenuEntry::item_with_icon(icons::ALIGN_BOTTOM, "Align Bottom"),
-                Some(LayerMenuAction::Align(Align::Bottom)),
-            ));
-            menu.push((MenuEntry::separator(), None));
-            menu.push((
-                MenuEntry::item_with_icon(
-                    icons::ARROWS_OUT_LINE_HORIZONTAL,
-                    "Distribute Horizontally",
-                ),
-                Some(LayerMenuAction::Distribute(Axis::Horizontal)),
-            ));
-            menu.push((
-                MenuEntry::item_with_icon(icons::ARROWS_OUT_LINE_VERTICAL, "Distribute Vertically"),
-                Some(LayerMenuAction::Distribute(Axis::Vertical)),
-            ));
-        }
+    let mut menu: Vec<(MenuEntry, Option<LayerMenuAction>)> = Vec::new();
+    menu.push((
+        MenuEntry::item_with_icon(icons::COPY, "Duplicate"),
+        Some(LayerMenuAction::Duplicate),
+    ));
+    menu.push((
+        MenuEntry::item_with_icon(icons::PENCIL_SIMPLE, "Rename…"),
+        Some(LayerMenuAction::Rename),
+    ));
+    if has_multi {
+        use crate::app::commands::{Align, Axis};
         menu.push((MenuEntry::separator(), None));
         menu.push((
-            MenuEntry::item_with_icon(icons::SELECTION_PLUS, "Group"),
-            Some(LayerMenuAction::Group),
+            MenuEntry::item_with_icon(icons::ALIGN_LEFT, "Align Left"),
+            Some(LayerMenuAction::Align(Align::Left)),
         ));
         menu.push((
-            MenuEntry::item_with_icon(icons::SQUARES_FOUR, "Ungroup"),
-            Some(LayerMenuAction::Ungroup),
+            MenuEntry::item_with_icon(icons::ALIGN_CENTER_HORIZONTAL_SIMPLE, "Align Center"),
+            Some(LayerMenuAction::Align(Align::Center)),
+        ));
+        menu.push((
+            MenuEntry::item_with_icon(icons::ALIGN_RIGHT, "Align Right"),
+            Some(LayerMenuAction::Align(Align::Right)),
+        ));
+        menu.push((
+            MenuEntry::item_with_icon(icons::ALIGN_TOP, "Align Top"),
+            Some(LayerMenuAction::Align(Align::Top)),
+        ));
+        menu.push((
+            MenuEntry::item_with_icon(icons::ALIGN_CENTER_VERTICAL_SIMPLE, "Align Middle"),
+            Some(LayerMenuAction::Align(Align::Middle)),
+        ));
+        menu.push((
+            MenuEntry::item_with_icon(icons::ALIGN_BOTTOM, "Align Bottom"),
+            Some(LayerMenuAction::Align(Align::Bottom)),
         ));
         menu.push((MenuEntry::separator(), None));
         menu.push((
-            MenuEntry::item_with_icon(icons::TRASH, "Delete"),
-            Some(LayerMenuAction::Delete),
+            MenuEntry::item_with_icon(icons::ARROWS_OUT_LINE_HORIZONTAL, "Distribute Horizontally"),
+            Some(LayerMenuAction::Distribute(Axis::Horizontal)),
         ));
-
-        let entries: Vec<MenuEntry> = menu.iter().map(|(entry, _)| entry.clone()).collect();
-        if let Some(idx) = render_menu(ui, &entries) {
-            match menu.get(idx).and_then(|(_, action)| *action) {
-                Some(LayerMenuAction::Duplicate) => commands
-                    .push_back(ShellAction::Command(Command::DuplicateActor(label.to_string()))),
-                Some(LayerMenuAction::Rename) => start_layer_rename(ui, label),
-                Some(LayerMenuAction::Align(align)) => {
-                    commands.push_back(ShellAction::Command(Command::AlignActors(align)))
-                },
-                Some(LayerMenuAction::Distribute(axis)) => {
-                    commands.push_back(ShellAction::Command(Command::DistributeActors(axis)))
-                },
-                Some(LayerMenuAction::Group) => {
-                    commands.push_back(Command::GroupSelectedActors.into())
-                },
-                Some(LayerMenuAction::Ungroup) => {
-                    commands.push_back(Command::UngroupSelectedActors.into())
-                },
-                Some(LayerMenuAction::Delete) => {
-                    selected_actors.clear();
-                    selected_actors.insert(label.to_string());
-                    commands.push_back(Command::DeleteSelectedActors.into());
-                },
-                None => {}, // Separator or out-of-range index: no action.
-            }
-            ui.close();
-        }
-    });
-
-    // Double-click a layer name to rename it inline in the panel header bar.
-    if response.response.double_clicked() && !is_anonymous {
-        start_layer_rename(ui, label);
+        menu.push((
+            MenuEntry::item_with_icon(icons::ARROWS_OUT_LINE_VERTICAL, "Distribute Vertically"),
+            Some(LayerMenuAction::Distribute(Axis::Vertical)),
+        ));
     }
+    menu.push((MenuEntry::separator(), None));
+    menu.push((
+        MenuEntry::item_with_icon(icons::SELECTION_PLUS, "Group"),
+        Some(LayerMenuAction::Group),
+    ));
+    menu.push((
+        MenuEntry::item_with_icon(icons::SQUARES_FOUR, "Ungroup"),
+        Some(LayerMenuAction::Ungroup),
+    ));
+    menu.push((MenuEntry::separator(), None));
+    menu.push((MenuEntry::item_with_icon(icons::TRASH, "Delete"), Some(LayerMenuAction::Delete)));
 
-    if response.chevron_clicked {
-        if collapsed_actors.contains(&label_owned) {
-            collapsed_actors.remove(&label_owned);
-        } else {
-            collapsed_actors.insert(label_owned.clone());
-        }
-    }
-
-    if response.row_clicked || response.drag_started {
-        let modifiers = ui.ctx().input(|i| i.modifiers);
-        let multi = modifiers.shift || modifiers.ctrl || modifiers.command;
-        if multi {
-            if selected_actors.contains(label) {
-                selected_actors.remove(label);
-            } else {
+    let entries: Vec<MenuEntry> = menu.iter().map(|(entry, _)| entry.clone()).collect();
+    if let Some(idx) = render_menu(ui, &entries) {
+        match menu.get(idx).and_then(|(_, action)| *action) {
+            Some(LayerMenuAction::Duplicate) => {
+                commands.push_back(ShellAction::Command(Command::DuplicateActor(label.to_string())))
+            },
+            Some(LayerMenuAction::Rename) => start_layer_rename(ui, label),
+            Some(LayerMenuAction::Align(align)) => {
+                commands.push_back(ShellAction::Command(Command::AlignActors(align)))
+            },
+            Some(LayerMenuAction::Distribute(axis)) => {
+                commands.push_back(ShellAction::Command(Command::DistributeActors(axis)))
+            },
+            Some(LayerMenuAction::Group) => commands.push_back(Command::GroupSelectedActors.into()),
+            Some(LayerMenuAction::Ungroup) => {
+                commands.push_back(Command::UngroupSelectedActors.into())
+            },
+            Some(LayerMenuAction::Delete) => {
+                selected_actors.clear();
                 selected_actors.insert(label.to_string());
-            }
-        } else {
-            selected_actors.clear();
-            selected_actors.insert(label.to_string());
+                commands.push_back(Command::DeleteSelectedActors.into());
+            },
+            None => {}, // Separator or out-of-range index: no action.
         }
-    }
-
-    // Children
-    if is_expanded {
-        for child_label in timeline.child_labels(label) {
-            render_actor_tree(
-                ui,
-                timeline,
-                child_label,
-                selected_actors,
-                collapsed_actors,
-                commands,
-                _time_ms,
-                depth + 1,
-                filter_lower,
-                has_filter,
-            );
-        }
+        ui.close();
     }
 }
 
