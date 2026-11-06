@@ -545,31 +545,25 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             modifiers,
             children,
             ..
-        } => {
-            let s = format_actor_like(
-                Some(label),
-                array_index.as_ref(),
-                *is_anonymous,
-                ty,
-                props,
-                modifiers,
-                children,
-                depth,
-                indent_size,
-            );
-            if *is_pub { format!("pub {}", s) } else { s }
-        },
+        } => format_actor_decl(
+            *is_pub,
+            *is_anonymous,
+            label,
+            array_index.as_ref(),
+            ty,
+            props,
+            modifiers,
+            children,
+            depth,
+            indent_size,
+        ),
         Stmt::Import { path, alias, .. } => match alias {
             Some(a) => format!(r#"import "{}" as {}"#, path, a),
             None => format!(r#"import "{}""#, path),
         },
-        Stmt::Keyframe { time, body, .. } => {
-            let body_str = format_stmts_raw(body, depth + 1, indent_size);
-            format!("#{}\n{}", format_time(time), body_str)
-        },
+        Stmt::Keyframe { time, body, .. } => format_keyframe(time, body, depth, indent_size),
         Stmt::RelativeKeyframe { offset, body, .. } => {
-            let body_str = format_stmts_raw(body, depth + 1, indent_size);
-            format!("#+{}\n{}", format_time(offset), body_str)
+            format_relative_keyframe(offset, body, depth, indent_size)
         },
         Stmt::Assignment {
             target,
@@ -578,107 +572,27 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             modifiers,
             easing,
             ..
-        } => {
-            let assignment_str = if target.is_empty() {
-                format!("{} = {}", property, format_expr(value))
-            } else {
-                format!(
-                    "{}.{} = {}",
-                    format_target_segments(target, format_expr),
-                    property,
-                    format_expr(value)
-                )
-            };
-            // The parser lifts `ease:` out of `modifiers` into the typed field,
-            // so printing only the modifier list silently deletes the easing.
-            let mut mods = modifiers.iter().map(format_modifier).collect::<Vec<_>>();
-            if let Some(easing) = easing {
-                mods.push(format!("ease: {}", crate::easing::easing_source_form(*easing)));
-            }
-            let mut parts = vec![assignment_str];
-            if !mods.is_empty() {
-                parts.push(format!(" [{}]", mods.join(", ")));
-            }
-            parts.join("")
-        },
-        Stmt::Sequence { body, .. } => {
-            let body_str = format_stmts_raw(body, depth + 1, indent_size);
-            format!("sequence {{\n{}\n{}}}", body_str, " ".repeat(indent_size * depth))
-        },
+        } => format_assignment(target, property, value, modifiers, easing.as_ref()),
+        Stmt::Sequence { body, .. } => format_body_block("sequence", body, depth, indent_size),
         Stmt::Stagger {
             modifiers, body, ..
-        } => {
-            let mut header = "stagger".to_string();
-            if !modifiers.is_empty() {
-                let mods = modifiers.iter().map(format_modifier).collect::<Vec<_>>().join(", ");
-                header.push_str(&format!(" [{}]", mods));
-            }
-            let body_str = format_stmts_raw(body, depth + 1, indent_size);
-            format!("{} {{\n{}\n{}}}", header, body_str, " ".repeat(indent_size * depth))
-        },
+        } => format_stagger(modifiers, body, depth, indent_size),
         Stmt::Match {
             scrutinee, arms, ..
-        } => {
-            let arms_str = arms
-                .iter()
-                .map(|(pat, stmts)| {
-                    let body_str = format_stmts_raw(stmts, depth + 1, indent_size);
-                    format!(
-                        "{} => {{\n{}\n{}}}",
-                        format_match_pat(pat),
-                        body_str,
-                        " ".repeat(indent_size * (depth + 1))
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join(",\n");
-            format!(
-                "match {} {{\n{}\n{}}}",
-                format_expr(scrutinee),
-                arms_str,
-                " ".repeat(indent_size * depth)
-            )
-        },
-        Stmt::Always { body, .. } => {
-            let body_str = format_stmts_raw(body, depth + 1, indent_size);
-            format!("always {{\n{}\n{}}}", body_str, " ".repeat(indent_size * depth))
-        },
+        } => format_match(scrutinee, arms, depth, indent_size),
+        Stmt::Always { body, .. } => format_body_block("always", body, depth, indent_size),
         Stmt::ReactiveBinding {
             target,
             property,
             value,
             ..
-        } => {
-            format!(
-                "{}.{} := {}",
-                format_target_segments(target, format_expr),
-                property,
-                format_expr(value)
-            )
-        },
+        } => format_reactive_binding(target, property, value),
         Stmt::Conditional {
             condition,
             then_branch,
             else_branch,
             ..
-        } => {
-            let then_str = format_stmts_raw(then_branch, depth + 1, indent_size);
-            let mut result = format!(
-                "if {} {{\n{}\n{}}}",
-                format_expr(condition),
-                then_str,
-                " ".repeat(indent_size * depth)
-            );
-            if let Some(else_body) = else_branch {
-                let else_str = format_stmts_raw(else_body, depth + 1, indent_size);
-                result.push_str(&format!(
-                    " else {{\n{}\n{}}}",
-                    else_str,
-                    " ".repeat(indent_size * depth)
-                ));
-            }
-            result
-        },
+        } => format_conditional(condition, then_branch, else_branch.as_deref(), depth, indent_size),
         Stmt::ForLoop {
             var,
             index_var,
@@ -686,24 +600,15 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             body,
             modifiers,
             ..
-        } => {
-            let body_str = format_stmts_raw(body, depth + 1, indent_size);
-            let index_str = index_var.as_ref().map(|iv| format!(", {}", iv)).unwrap_or_default();
-            let mods = if modifiers.is_empty() {
-                String::new()
-            } else {
-                let inner = modifiers.iter().map(format_modifier).collect::<Vec<_>>().join(", ");
-                format!(" [{inner}]")
-            };
-            format!(
-                "for {}{} in {}{mods} {{\n{}\n{}}}",
-                var,
-                index_str,
-                format_expr(iterable),
-                body_str,
-                " ".repeat(indent_size * depth)
-            )
-        },
+        } => format_for_loop(
+            var,
+            index_var.as_deref(),
+            iterable,
+            body,
+            modifiers,
+            depth,
+            indent_size,
+        ),
         Stmt::ComponentDef(def, ..) => format_component_def(def, depth, indent_size),
         Stmt::FnDecl {
             is_pub,
@@ -712,23 +617,8 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
             return_type,
             body,
             ..
-        } => {
-            let is_pub = if *is_pub { "pub " } else { "" };
-            let params_str = params.iter().map(format_param_def).collect::<Vec<_>>().join(", ");
-            let ret = match return_type {
-                Some(ty) => format!(" -> {}", ty),
-                None => String::new(),
-            };
-            let body_str = format_stmts_raw(body, depth + 1, indent_size);
-            format!(
-                "{is_pub}fn {name}({params_str}){ret} {{\n{body_str}\n{indent}}}",
-                indent = " ".repeat(indent_size * depth)
-            )
-        },
-        Stmt::Block { body, .. } => {
-            let body_str = format_stmts_raw(body, depth + 1, indent_size);
-            format!("{{\n{body_str}\n{indent}}}", indent = " ".repeat(indent_size * depth))
-        },
+        } => format_fn_decl(*is_pub, name, params, return_type.as_ref(), body, depth, indent_size),
+        Stmt::Block { body, .. } => format_body_block("", body, depth, indent_size),
         Stmt::Return { value, .. } => match value {
             Some(expr) => format!("return {}", format_expr(expr)),
             None => "return".to_string(),
@@ -740,29 +630,12 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
         },
         Stmt::Scene {
             name, config, body, ..
-        } => {
-            let mut parts = vec![format!("# {}", name)];
-            if !config.is_empty() {
-                let inner = config.iter().map(format_property).collect::<Vec<_>>().join(", ");
-                parts.push(format!("config {{ {} }}", inner));
-            }
-            if !body.is_empty() {
-                let body_str = format_stmts_raw(body, depth, indent_size);
-                parts.push(body_str);
-            }
-            parts.join("\n")
-        },
+        } => format_scene(name, config, body, depth, indent_size),
         Stmt::Play {
             scene_name,
             transition,
             ..
-        } => {
-            let mut s = format!("play {}", scene_name);
-            if let Some(t) = transition {
-                s.push_str(&format!(" [{}]", format_transition(t)));
-            }
-            s
-        },
+        } => format_play(scene_name, transition.as_ref()),
         Stmt::Step { index, .. } => {
             if let Some(i) = index {
                 format!("#step {i}")
@@ -772,4 +645,244 @@ pub fn format_stmt_raw(stmt: &Stmt, depth: usize, indent_size: usize) -> String 
         },
         Stmt::Comment(text, ..) => format!("//{}", text),
     }
+}
+
+/// Serialize an actor declaration (shared `format_actor_like` plus `pub`).
+fn format_actor_decl(
+    is_pub: bool,
+    is_anonymous: bool,
+    label: &str,
+    array_index: Option<&Expr>,
+    ty: &str,
+    props: &[Property],
+    modifiers: &[Modifier],
+    children: &[InlineItem],
+    depth: usize,
+    indent_size: usize,
+) -> String {
+    let s = format_actor_like(
+        Some(label),
+        array_index,
+        is_anonymous,
+        ty,
+        props,
+        modifiers,
+        children,
+        depth,
+        indent_size,
+    );
+    if is_pub { format!("pub {}", s) } else { s }
+}
+
+/// Serialize an absolute keyframe header and its body.
+fn format_keyframe(time: &Time, body: &[Stmt], depth: usize, indent_size: usize) -> String {
+    let body_str = format_stmts_raw(body, depth + 1, indent_size);
+    format!("#{}\n{}", format_time(time), body_str)
+}
+
+/// Serialize a relative keyframe header and its body.
+fn format_relative_keyframe(
+    offset: &Time,
+    body: &[Stmt],
+    depth: usize,
+    indent_size: usize,
+) -> String {
+    let body_str = format_stmts_raw(body, depth + 1, indent_size);
+    format!("#+{}\n{}", format_time(offset), body_str)
+}
+
+/// Serialize a property assignment, its modifiers and any lifted easing.
+fn format_assignment(
+    target: &[TargetSegment],
+    property: &str,
+    value: &Expr,
+    modifiers: &[Modifier],
+    easing: Option<&crate::easing::Easing>,
+) -> String {
+    let assignment_str = if target.is_empty() {
+        format!("{} = {}", property, format_expr(value))
+    } else {
+        format!(
+            "{}.{} = {}",
+            format_target_segments(target, format_expr),
+            property,
+            format_expr(value)
+        )
+    };
+    // The parser lifts `ease:` out of `modifiers` into the typed field,
+    // so printing only the modifier list silently deletes the easing.
+    let mut mods = modifiers.iter().map(format_modifier).collect::<Vec<_>>();
+    if let Some(easing) = easing {
+        mods.push(format!("ease: {}", crate::easing::easing_source_form(*easing)));
+    }
+    let mut parts = vec![assignment_str];
+    if !mods.is_empty() {
+        parts.push(format!(" [{}]", mods.join(", ")));
+    }
+    parts.join("")
+}
+
+/// Serialize a keyword-prefixed block body (`sequence { … }`, `always { … }`
+/// or `stagger […] { … }`). An empty `header` emits a bare statement block
+/// (`Stmt::Block`), which has no keyword and no space before its brace.
+fn format_body_block(header: &str, body: &[Stmt], depth: usize, indent_size: usize) -> String {
+    let body_str = format_stmts_raw(body, depth + 1, indent_size);
+    let indent = " ".repeat(indent_size * depth);
+    let separator = if header.is_empty() { "" } else { " " };
+    format!("{header}{separator}{{\n{body_str}\n{indent}}}")
+}
+
+/// Serialize a staggered block, folding its interval modifiers into the header.
+fn format_stagger(
+    modifiers: &[Modifier],
+    body: &[Stmt],
+    depth: usize,
+    indent_size: usize,
+) -> String {
+    let mut header = "stagger".to_string();
+    if !modifiers.is_empty() {
+        let mods = modifiers.iter().map(format_modifier).collect::<Vec<_>>().join(", ");
+        header.push_str(&format!(" [{}]", mods));
+    }
+    format_body_block(&header, body, depth, indent_size)
+}
+
+/// Serialize a `match` statement and every arm body.
+fn format_match(
+    scrutinee: &Expr,
+    arms: &[(MatchPattern, Vec<Stmt>)],
+    depth: usize,
+    indent_size: usize,
+) -> String {
+    let arms_str = arms
+        .iter()
+        .map(|(pat, stmts)| {
+            let body_str = format_stmts_raw(stmts, depth + 1, indent_size);
+            format!(
+                "{} => {{\n{}\n{}}}",
+                format_match_pat(pat),
+                body_str,
+                " ".repeat(indent_size * (depth + 1))
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(",\n");
+    format!(
+        "match {} {{\n{}\n{}}}",
+        format_expr(scrutinee),
+        arms_str,
+        " ".repeat(indent_size * depth)
+    )
+}
+
+/// Serialize a reactive binding (`actor.prop := expr`).
+fn format_reactive_binding(target: &[TargetSegment], property: &str, value: &Expr) -> String {
+    format!(
+        "{}.{} := {}",
+        format_target_segments(target, format_expr),
+        property,
+        format_expr(value)
+    )
+}
+
+/// Serialize a conditional block, including its optional `else` branch.
+fn format_conditional(
+    condition: &Expr,
+    then_branch: &[Stmt],
+    else_branch: Option<&[Stmt]>,
+    depth: usize,
+    indent_size: usize,
+) -> String {
+    let then_str = format_stmts_raw(then_branch, depth + 1, indent_size);
+    let mut result = format!(
+        "if {} {{\n{}\n{}}}",
+        format_expr(condition),
+        then_str,
+        " ".repeat(indent_size * depth)
+    );
+    if let Some(else_body) = else_branch {
+        let else_str = format_stmts_raw(else_body, depth + 1, indent_size);
+        result.push_str(&format!(" else {{\n{}\n{}}}", else_str, " ".repeat(indent_size * depth)));
+    }
+    result
+}
+
+/// Serialize a `for` loop header and its body.
+fn format_for_loop(
+    var: &LoopPattern,
+    index_var: Option<&str>,
+    iterable: &Expr,
+    body: &[Stmt],
+    modifiers: &[Modifier],
+    depth: usize,
+    indent_size: usize,
+) -> String {
+    let body_str = format_stmts_raw(body, depth + 1, indent_size);
+    let index_str = index_var.map(|iv| format!(", {}", iv)).unwrap_or_default();
+    let mods = if modifiers.is_empty() {
+        String::new()
+    } else {
+        let inner = modifiers.iter().map(format_modifier).collect::<Vec<_>>().join(", ");
+        format!(" [{inner}]")
+    };
+    format!(
+        "for {}{} in {}{mods} {{\n{}\n{}}}",
+        var,
+        index_str,
+        format_expr(iterable),
+        body_str,
+        " ".repeat(indent_size * depth)
+    )
+}
+
+/// Serialize a function declaration and its body.
+fn format_fn_decl(
+    is_pub: bool,
+    name: &str,
+    params: &[ParamDef],
+    return_type: Option<&TypeAnnotation>,
+    body: &[Stmt],
+    depth: usize,
+    indent_size: usize,
+) -> String {
+    let is_pub = if is_pub { "pub " } else { "" };
+    let params_str = params.iter().map(format_param_def).collect::<Vec<_>>().join(", ");
+    let ret = match return_type {
+        Some(ty) => format!(" -> {}", ty),
+        None => String::new(),
+    };
+    let body_str = format_stmts_raw(body, depth + 1, indent_size);
+    format!(
+        "{is_pub}fn {name}({params_str}){ret} {{\n{body_str}\n{indent}}}",
+        indent = " ".repeat(indent_size * depth)
+    )
+}
+
+/// Serialize a scene declaration: its name, config block and body.
+fn format_scene(
+    name: &str,
+    config: &[Property],
+    body: &[Stmt],
+    depth: usize,
+    indent_size: usize,
+) -> String {
+    let mut parts = vec![format!("# {}", name)];
+    if !config.is_empty() {
+        let inner = config.iter().map(format_property).collect::<Vec<_>>().join(", ");
+        parts.push(format!("config {{ {} }}", inner));
+    }
+    if !body.is_empty() {
+        let body_str = format_stmts_raw(body, depth, indent_size);
+        parts.push(body_str);
+    }
+    parts.join("\n")
+}
+
+/// Serialize a `play` statement with its optional transition.
+fn format_play(scene_name: &str, transition: Option<&Transition>) -> String {
+    let mut s = format!("play {}", scene_name);
+    if let Some(t) = transition {
+        s.push_str(&format!(" [{}]", format_transition(t)));
+    }
+    s
 }

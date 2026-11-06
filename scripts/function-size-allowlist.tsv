@@ -25,11 +25,9 @@ crates/animatix-gui/src/app/shell/plugin_status.rs	plugin_status_ui	251
 crates/animatix-gui/src/source_edit/apply.rs	apply_edit	211
 crates/animatix-plugin-demo/src/lib.rs	animatix_plugin_install	203
 crates/animatix-plugin-demo/src/lib.rs	pulse_evaluate	256
-crates/animatix-syntax/src/format_core.rs	format_stmt_raw	259
 crates/animatix-syntax/src/module/expand/stmt.rs	expand_stmt_into	213
 crates/animatix-syntax/src/parser/expr.rs	parser	342
 crates/animatix-syntax/src/parser/stmt.rs	parser	758
-crates/animatix-syntax/src/semantic_diagnostics/checks.rs	check_stmt	304
 crates/animatix-syntax/src/symbol_table/collect.rs	collect_stmt	295
 crates/animatix-syntax/src/typecheck/stmt.rs	check_stmt	215
 crates/animatix-text/src/compiler.rs	compile_text_cached	228
