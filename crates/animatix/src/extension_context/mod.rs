@@ -53,32 +53,12 @@ pub enum PropertyRegistrationError {
     Duplicate(String),
 }
 
-impl std::fmt::Display for PropertyRegistrationError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Duplicate(name) => write!(f, "property '{name}' is already registered"),
-        }
-    }
-}
-
-impl std::error::Error for PropertyRegistrationError {}
-
 /// Error returned when an action, function, or service name is already taken.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExtensionRegistrationError {
     /// The name is already registered in this context.
     Duplicate(String),
 }
-
-impl std::fmt::Display for ExtensionRegistrationError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Duplicate(name) => write!(f, "extension '{name}' is already registered"),
-        }
-    }
-}
-
-impl std::error::Error for ExtensionRegistrationError {}
 
 /// Registry of extension-registered properties.
 ///
@@ -92,6 +72,7 @@ pub struct PropertyRegistry {
     next_property_id: u32,
 }
 
+mod impls;
 mod property;
 mod registry;
 #[cfg(test)]

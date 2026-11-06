@@ -430,22 +430,6 @@ pub(crate) struct SoloState {
     soloed: Option<std::collections::HashSet<EntityId>>,
 }
 
-impl SoloState {
-    pub(crate) fn is_active(&self) -> bool {
-        self.visible.is_some()
-    }
-
-    /// `true` when `id` is a soloed actor itself.
-    pub(crate) fn is_soloed(&self, id: EntityId) -> bool {
-        self.soloed.as_ref().is_some_and(|set| set.contains(&id))
-    }
-
-    /// `true` when `id` is a soloed actor or an ancestor of one.
-    pub(crate) fn is_reachable(&self, id: EntityId) -> bool {
-        self.visible.as_ref().is_some_and(|set| set.contains(&id))
-    }
-}
-
 /// Dense per-frame precise-bounds storage (slot-id design).
 ///
 /// `slots` is indexed by `World::bounds_slots` ids stamped once per rebuild in
@@ -457,42 +441,6 @@ struct BoundsTable {
     written: Vec<u32>,
 }
 
-impl BoundsTable {
-    /// Record bounds for `slot`, appending to [`Self::written`] on first write.
-    fn write(&mut self, slot: u32, rect: kurbo::Rect) {
-        let index = slot as usize;
-        if index >= self.slots.len() {
-            // Only reachable if tracks changed without `invalidate_frame_cache`
-            // (every public mutator funnels through it). Log rather than panic.
-            tracing::warn!("bounds slot {slot} outside registry; bounds dropped for this frame");
-            return;
-        }
-        if self.slots[index].is_none() {
-            self.written.push(slot);
-        }
-        self.slots[index] = Some(rect);
-    }
-
-    /// Clear the current frame's entries. Sparse: touches only written slots.
-    fn clear_frame(&mut self) {
-        for &slot in &self.written {
-            self.slots[slot as usize] = None;
-        }
-        self.written.clear();
-    }
-
-    /// `(slot, bounds)` pairs for recorded entries from `written[from..]`. Pre-sized
-    /// so the frame-end stash is one allocation.
-    fn pairs_from(&self, from: usize) -> Vec<(u32, kurbo::Rect)> {
-        let mut pairs = Vec::with_capacity(self.written.len() - from);
-        pairs.extend(self.written[from..].iter().filter_map(|&slot| {
-            let rect = self.slots[slot as usize]?;
-            Some((slot, rect))
-        }));
-        pairs
-    }
-}
-
 /// Sorted entity labels giving `World::bounds_slots` values their meaning; rebuilt on invalidation.
 #[derive(Clone)]
 struct BoundsRegistry {
@@ -500,59 +448,9 @@ struct BoundsRegistry {
     labels: Vec<String>,
 }
 
-impl EvalCaches {
-    /// Build the label registry and stamp each track's bounds slot. No-op while
-    /// valid; invalidated by `invalidate_frame_cache` and `Clone`.
-    fn ensure_bounds_registry(&self, world: &crate::timeline::World) {
-        if self.bounds_registry.borrow().is_some() {
-            return;
-        }
-        let labels: Vec<String> = world.tracks.keys().cloned().collect();
-        {
-            let mut table = self.precise_bounds.borrow_mut();
-            table.clear_frame();
-            table.slots.clear();
-            table.slots.resize(labels.len(), None);
-        }
-        for (slot, (_, id)) in world.tracks.iter().enumerate() {
-            world.set_bounds_slot(id, slot as u32);
-        }
-        *self.bounds_registry.borrow_mut() = Some(BoundsRegistry { labels });
-    }
-
-    /// Clear the fast plot programs cache if the timeline mutation epoch has advanced.
-    pub(crate) fn clear_fast_plot_programs_if_stale(&self) {
-        if self.fast_plot_epoch.get() != self.content_epoch.get() {
-            self.fast_plot_programs.borrow_mut().clear();
-            self.fast_plot_epoch.set(self.content_epoch.get());
-        }
-    }
-
-    /// Retrieve or compile a fast plot program for `key = (body_pointer, kind_or_arity)`.
-    pub(crate) fn get_or_compile_fast_plot<F>(
-        &self,
-        key: (usize, usize),
-        compile: F,
-    ) -> Option<std::sync::Arc<crate::timeline::plot::FastPlotProgram>>
-    where
-        F: FnOnce() -> Option<crate::timeline::plot::FastPlotProgram>,
-    {
-        self.clear_fast_plot_programs_if_stale();
-        if let Some(entry) = self.fast_plot_programs.borrow().get(&key) {
-            return entry.clone();
-        }
-        let compiled = compile().map(std::sync::Arc::new);
-        self.fast_plot_programs.borrow_mut().insert(key, compiled.clone());
-        compiled
-    }
-}
-
-impl Clone for EvalCaches {
-    fn clone(&self) -> Self {
-        Self::default()
-    }
-}
-
+mod bounds;
+mod caches;
+mod solo;
 mod timeline_impl;
 
 #[cfg(test)]

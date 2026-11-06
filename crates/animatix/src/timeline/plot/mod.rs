@@ -33,16 +33,24 @@ pub use procedural::{
     sample_procedural_plot_at, sample_procedural_plot_at_cached,
 };
 
-use std::collections::HashMap;
+mod api;
+
+// The frame-time evaluation helpers keep their `timeline::plot::*` paths; this
+// module is the façade over them and the sibling sampling modules.
+#[cfg(test)]
+pub use api::resolve_func_source;
+#[allow(unused_imports)]
+pub use api::{
+    bar_data_at, blend_depth, eval_compiled_parts_scalar, eval_compiled_parts_vec2, eval_scalar,
+    eval_source_scalar, eval_source_vec2, eval_vec2, flatten_blend, interpolate_bar_data,
+};
+
+use super::modifier_runtime::ir::CompiledExpr;
+use super::{CapturedEnv, Environment, Value};
+use crate::easing::Easing;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-
-use super::modifier_runtime::ir::{CompiledExpr, compile_expr, evaluate_compiled_expr};
-use super::{CapturedEnv, Environment, Value};
-use crate::ast::Expr;
-use crate::easing::{Easing, apply_easing};
-
 /// Discriminant for the four sampling strategies of `PlotCurve`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -51,19 +59,6 @@ pub enum PlotCurveKind {
     Polar,
     Parametric,
     Implicit,
-}
-
-impl PlotCurveKind {
-    /// Parse a `kind` property value.
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s {
-            "cartesian" => Some(Self::Cartesian),
-            "polar" => Some(Self::Polar),
-            "parametric" => Some(Self::Parametric),
-            "implicit" => Some(Self::Implicit),
-            _ => None,
-        }
-    }
 }
 
 /// Source of a function for a `PlotCurve` `func` transition.
@@ -84,28 +79,6 @@ pub enum FuncSource {
         to: Box<FuncSource>,
         frozen_progress: f64,
     },
-}
-
-impl FuncSource {
-    /// Compile an AST closure body into a function source.
-    pub fn from_expr(args: Vec<String>, body: Expr, captures: CapturedEnv) -> Self {
-        match compile_expr(&body) {
-            Ok(compiled) => FuncSource::Compiled(args, Box::new(compiled), captures),
-            Err(e) => {
-                tracing::warn!("Failed to compile plot function body: {e}");
-                FuncSource::Compiled(args, Box::new(CompiledExpr::Const(Value::Num(0.0))), captures)
-            },
-        }
-    }
-
-    /// Return the number of arguments this function source expects; `Blend`
-    /// delegates to the inner `to` source (which has the target arity).
-    pub fn arity(&self) -> usize {
-        match self {
-            FuncSource::Compiled(args, _, _) => args.len(),
-            FuncSource::Blend { to, .. } => to.arity(),
-        }
-    }
 }
 
 /// How a `FuncTransition` combines its two function sources.
@@ -139,48 +112,6 @@ pub struct FuncTransition {
     pub blend_mode: FuncBlendMode,
 }
 
-impl FuncTransition {
-    pub fn new(
-        start_ms: u64,
-        end_ms: u64,
-        easing: Easing,
-        from: FuncSource,
-        to: FuncSource,
-        blend_mode: FuncBlendMode,
-    ) -> Self {
-        Self {
-            start_ms,
-            end_ms,
-            easing,
-            from,
-            to,
-            blend_mode,
-        }
-    }
-
-    /// Evaluates progress at `time_ms`
-    /// (`Some((eased progress ∈ \[0, 1\], from, to, easing))`, or `None` outside
-    /// `[start_ms, end_ms]`).
-    pub fn active_at(&self, time_ms: u64) -> Option<(f64, &FuncSource, &FuncSource, &Easing)> {
-        if time_ms < self.start_ms || time_ms > self.end_ms {
-            return None;
-        }
-        let duration = (self.end_ms - self.start_ms) as f64;
-        let raw_progress = if duration <= 0.0 {
-            1.0_f64
-        } else {
-            (time_ms - self.start_ms) as f64 / duration
-        };
-        let eased = apply_easing(raw_progress as f32, self.easing) as f64;
-        Some((eased, &self.from, &self.to, &self.easing))
-    }
-
-    /// Returns `true` if this transition completed before `time_ms`.
-    pub fn is_complete_at(&self, time_ms: u64) -> bool {
-        time_ms > self.end_ms
-    }
-}
-
 /// One `data = {…}` assignment on a `BarChart`: datasets before/after, the
 /// window, and easing. Bars match by label, so the blend happens on each bar's
 /// height (the outputs), not on the property.
@@ -192,100 +123,6 @@ pub struct BarDataTransition {
     pub easing: Easing,
     pub from: Vec<(String, f32)>,
     pub to: Vec<(String, f32)>,
-}
-
-impl BarDataTransition {
-    /// Eased progress through the transition at `time_ms`, `None` outside it.
-    pub fn progress_at(&self, time_ms: u64) -> Option<f64> {
-        if time_ms < self.start_ms || time_ms > self.end_ms {
-            return None;
-        }
-        let duration = self.end_ms.saturating_sub(self.start_ms);
-        let raw = if duration == 0 {
-            1.0
-        } else {
-            (time_ms - self.start_ms) as f64 / duration as f64
-        };
-        Some(apply_easing(raw as f32, self.easing) as f64)
-    }
-}
-
-/// The dataset a chart shows at `time_ms`: the declaration's, advanced through
-/// every started transition. Past the last one it reports that transition's
-/// `to`, not the declaration, or the bars snap back.
-pub fn bar_data_at(
-    base: &[(String, f32)],
-    transitions: &[BarDataTransition],
-    time_ms: u64,
-) -> Vec<(String, f32)> {
-    let mut current: Vec<(String, f32)> = base.to_vec();
-    for transition in transitions {
-        if time_ms < transition.start_ms {
-            break;
-        }
-        current = match transition.progress_at(time_ms) {
-            Some(progress) => interpolate_bar_data(&transition.from, &transition.to, progress),
-            None => transition.to.clone(),
-        };
-    }
-    current
-}
-
-/// Interpolate two bar datasets, matching bars by label. Order follows `to`; a
-/// label only in `to` enters at height 0, one only in `from` falls to 0 in place
-/// (a shrinking chart reads as bars falling away). At `progress` 1 the result is
-/// exactly `to`.
-pub fn interpolate_bar_data(
-    from: &[(String, f32)],
-    to: &[(String, f32)],
-    progress: f64,
-) -> Vec<(String, f32)> {
-    let p = progress.clamp(0.0, 1.0) as f32;
-    let lerp = |a: f32, b: f32| a + (b - a) * p;
-    let mut out: Vec<(String, f32)> = Vec::with_capacity(to.len() + from.len());
-    for (label, value) in to {
-        let start = from
-            .iter()
-            .find(|(from_label, _)| from_label == label)
-            .map_or(0.0, |(_, from_value)| *from_value);
-        out.push((label.clone(), lerp(start, *value)));
-    }
-    if p < 1.0 {
-        for (label, value) in from {
-            if !to.iter().any(|(kept, _)| kept == label) {
-                out.push((label.clone(), lerp(*value, 0.0)));
-            }
-        }
-    }
-    out
-}
-
-/// Evaluate a `FuncSource` at a single scalar argument, returning the scalar
-/// result. Clones `env`; test-only (production goes through `eval_source_scalar`).
-#[cfg(test)]
-pub fn resolve_func_source(
-    source: &FuncSource,
-    env: &Environment,
-    arg_name: &str,
-    arg_val: f64,
-) -> Result<f64, super::EvalError> {
-    match source {
-        FuncSource::Compiled(args, body, captures) => {
-            let name = args.first().map(String::as_str).unwrap_or(arg_name);
-            let mut local_env = env.clone();
-            captures.merge_missing_into(&mut local_env);
-            local_env.set_binding(name, Value::Num(arg_val));
-            evaluate_compiled_expr(body, &local_env).map(|v| v.as_num())
-        },
-        FuncSource::Blend { .. } => {
-            let flat = flatten_blend(source);
-            let mut sum = 0.0;
-            for (weight, src) in flat {
-                sum += weight * resolve_func_source(src, env, arg_name, arg_val)?;
-            }
-            Ok(sum)
-        },
-    }
 }
 
 /// Function reference used during per-frame adaptive sampling. `Single` reuses
@@ -301,200 +138,4 @@ pub enum PlotFuncRef<'a> {
         to: &'a FuncSource,
         progress: f64,
     },
-}
-
-impl<'a> PlotFuncRef<'a> {
-    pub fn to_func_source(&self) -> FuncSource {
-        match self {
-            PlotFuncRef::Declaration(args, body, captures) => {
-                FuncSource::Compiled(args.to_vec(), Box::new((*body).clone()), (*captures).clone())
-            },
-            PlotFuncRef::Single(src) => (*src).clone(),
-            PlotFuncRef::Blended { from, to, progress } => FuncSource::Blend {
-                from: Box::new((*from).clone()),
-                to: Box::new((*to).clone()),
-                frozen_progress: *progress,
-            },
-        }
-    }
-}
-
-pub fn eval_compiled_parts_scalar(
-    args: &[String],
-    body: &CompiledExpr,
-    captures: &CapturedEnv,
-    env: &mut Environment,
-    arg_name: &str,
-    x: f64,
-    cache: &mut HashMap<u64, Value>,
-) -> f64 {
-    let name = args.first().map(String::as_str).unwrap_or(arg_name);
-    let key = x.to_bits();
-    let val = cache.get(&key).cloned().unwrap_or_else(|| {
-        let inserted = captures.merge_missing_into(env);
-        env.set_binding(name, Value::Num(x));
-        let result = evaluate_compiled_expr(body, env).unwrap_or(Value::Num(f64::NAN));
-        env.clear_bindings();
-        for key in inserted {
-            env.overrides.remove(&key);
-            env.mark_mutated();
-        }
-        cache.insert(key, result.clone());
-        result
-    });
-    val.as_num()
-}
-
-pub fn eval_compiled_parts_vec2(
-    args: &[String],
-    body: &CompiledExpr,
-    captures: &CapturedEnv,
-    env: &mut Environment,
-    arg_name: &str,
-    t: f64,
-    cache: &mut HashMap<u64, Value>,
-) -> [f64; 2] {
-    let name = args.first().map(String::as_str).unwrap_or(arg_name);
-    let key = t.to_bits();
-    let val = cache.get(&key).cloned().unwrap_or_else(|| {
-        let inserted = captures.merge_missing_into(env);
-        env.set_binding(name, Value::Num(t));
-        let result = evaluate_compiled_expr(body, env).unwrap_or(Value::Vec2([f64::NAN, f64::NAN]));
-        env.clear_bindings();
-        for key in inserted {
-            env.overrides.remove(&key);
-            env.mark_mutated();
-        }
-        cache.insert(key, result.clone());
-        result
-    });
-    match val {
-        Value::Vec2(arr) => arr,
-        _ => [f64::NAN, f64::NAN],
-    }
-}
-
-/// Evaluate `source` at scalar `x`, using `cache` to avoid redundant evaluations.
-pub fn eval_source_scalar(
-    source: &FuncSource,
-    env: &mut Environment,
-    arg_name: &str,
-    x: f64,
-    cache: &mut HashMap<u64, Value>,
-) -> f64 {
-    match source {
-        FuncSource::Compiled(args, body, captures) => {
-            eval_compiled_parts_scalar(args, body, captures, env, arg_name, x, cache)
-        },
-        FuncSource::Blend { .. } => {
-            let flat = flatten_blend(source);
-            let mut sum = 0.0;
-            for (weight, src) in flat {
-                let mut cache = HashMap::new();
-                sum += weight * eval_source_scalar(src, env, arg_name, x, &mut cache);
-            }
-            sum
-        },
-    }
-}
-
-/// Evaluate `source` at `t` returning a Vec2, using `cache` to avoid redundant evaluations.
-pub fn eval_source_vec2(
-    source: &FuncSource,
-    env: &mut Environment,
-    arg_name: &str,
-    t: f64,
-    cache: &mut HashMap<u64, Value>,
-) -> [f64; 2] {
-    match source {
-        FuncSource::Compiled(args, body, captures) => {
-            eval_compiled_parts_vec2(args, body, captures, env, arg_name, t, cache)
-        },
-        FuncSource::Blend { .. } => {
-            let flat = flatten_blend(source);
-            let mut sum_x = 0.0;
-            let mut sum_y = 0.0;
-            for (weight, src) in flat {
-                let mut cache = HashMap::new();
-                let [vx, vy] = eval_source_vec2(src, env, arg_name, t, &mut cache);
-                sum_x += weight * vx;
-                sum_y += weight * vy;
-            }
-            [sum_x, sum_y]
-        },
-    }
-}
-
-/// Evaluate a [`PlotFuncRef`] at scalar `x`, lerping if blended.
-pub fn eval_scalar(
-    func: &PlotFuncRef<'_>,
-    env: &mut Environment,
-    arg_name: &str,
-    x: f64,
-    from_cache: &mut HashMap<u64, Value>,
-    to_cache: &mut HashMap<u64, Value>,
-) -> f64 {
-    match func {
-        PlotFuncRef::Declaration(args, body, captures) => {
-            eval_compiled_parts_scalar(args, body, captures, env, arg_name, x, from_cache)
-        },
-        PlotFuncRef::Single(src) => eval_source_scalar(src, env, arg_name, x, from_cache),
-        PlotFuncRef::Blended { from, to, progress } => {
-            let fv = eval_source_scalar(from, env, arg_name, x, from_cache);
-            let tv = eval_source_scalar(to, env, arg_name, x, to_cache);
-            fv + (tv - fv) * progress
-        },
-    }
-}
-
-/// Evaluate a [`PlotFuncRef`] at `t` returning a Vec2, lerping if blended.
-pub fn eval_vec2(
-    func: &PlotFuncRef<'_>,
-    env: &mut Environment,
-    arg_name: &str,
-    t: f64,
-    from_cache: &mut HashMap<u64, Value>,
-    to_cache: &mut HashMap<u64, Value>,
-) -> [f64; 2] {
-    match func {
-        PlotFuncRef::Declaration(args, body, captures) => {
-            eval_compiled_parts_vec2(args, body, captures, env, arg_name, t, from_cache)
-        },
-        PlotFuncRef::Single(src) => eval_source_vec2(src, env, arg_name, t, from_cache),
-        PlotFuncRef::Blended { from, to, progress } => {
-            let [fx, fy] = eval_source_vec2(from, env, arg_name, t, from_cache);
-            let [tx, ty] = eval_source_vec2(to, env, arg_name, t, to_cache);
-            [fx + (tx - fx) * progress, fy + (ty - fy) * progress]
-        },
-    }
-}
-
-/// Compute the depth of nested [`FuncSource::Blend`] trees.
-pub fn blend_depth(source: &FuncSource) -> usize {
-    match source {
-        FuncSource::Compiled(..) => 0,
-        FuncSource::Blend { from, to, .. } => 1 + blend_depth(from).max(blend_depth(to)),
-    }
-}
-
-/// Flatten nested [`FuncSource::Blend`] trees into `(weight, base_source)` pairs
-/// for O(N) weighted-sum evaluation.
-pub fn flatten_blend(source: &FuncSource) -> Vec<(f64, &FuncSource)> {
-    match source {
-        FuncSource::Compiled(..) => vec![(1.0, source)],
-        FuncSource::Blend {
-            from,
-            to,
-            frozen_progress,
-        } => {
-            let mut result = Vec::new();
-            for (w, s) in flatten_blend(from) {
-                result.push((w * (1.0 - frozen_progress), s));
-            }
-            for (w, s) in flatten_blend(to) {
-                result.push((w * frozen_progress, s));
-            }
-            result
-        },
-    }
 }
