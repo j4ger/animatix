@@ -691,7 +691,7 @@ mod tests {
 
     use super::*;
     use crate::app::document::version::SourceHash;
-    use crate::app::test_support::make_document_store;
+    use crate::app::test_support::{make_document_store, preview_store, ui_store};
     use crate::editor::EditorBuffer;
 
     #[test]
@@ -741,10 +741,7 @@ mod tests {
             None,
             None,
         );
-        let mut preview_store = PreviewStore::new(crate::app::PreviewPaneState::new(
-            1.0,
-            store.source.document.scene_dimensions,
-        ));
+        let mut preview_store = preview_store(1.0, store.source.document.scene_dimensions);
         let mut plugin_manager = DocumentPluginManager::new(original.clone(), dir.clone());
 
         // A directory at the target path makes `save_to_disk` fail after the
@@ -777,13 +774,8 @@ mod tests {
         let mut document_store = make_document_store(
             "# Intro\n#0s\nbox: Rect, size: (100, 100)\n#2s\nbox.color = red\n",
         );
-        let preview = PreviewStore::new(crate::app::PreviewPaneState::new(
-            5.0,
-            document_store.source.document.scene_dimensions,
-        ));
-        let mut preview_store = preview;
-        let mut ui_store =
-            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
+        let mut ui_store = ui_store();
 
         preview_store.preview.playback.current_time_s = 1.5;
         document_store.source.document.active_scene = Some("Intro".to_string());
@@ -801,13 +793,8 @@ mod tests {
     fn rebuild_preserves_playhead_when_unrelated_actor_is_added() {
         let mut document_store =
             make_document_store("#0s\nbox: Rect, size: (100, 100)\n#2s\nbox.color = red\n");
-        let preview = PreviewStore::new(crate::app::PreviewPaneState::new(
-            5.0,
-            document_store.source.document.scene_dimensions,
-        ));
-        let mut preview_store = preview;
-        let mut ui_store =
-            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
+        let mut ui_store = ui_store();
         preview_store.preview.playback.current_time_s = 1.5;
         ui_store.selection.selected_actors.insert("box".to_string());
 
@@ -826,13 +813,8 @@ mod tests {
     fn rebuild_moves_playhead_to_nearest_keyframe_when_duration_shrinks() {
         let mut document_store =
             make_document_store("#0s\nbox: Rect, size: (100, 100)\n#2s\nbox.color = red\n");
-        let preview = PreviewStore::new(crate::app::PreviewPaneState::new(
-            5.0,
-            document_store.source.document.scene_dimensions,
-        ));
-        let mut preview_store = preview;
-        let mut ui_store =
-            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
+        let mut ui_store = ui_store();
         preview_store.preview.playback.current_time_s = 3.5;
 
         document_store
@@ -850,13 +832,8 @@ mod tests {
         let mut document_store = make_document_store(
             "# Intro\n#0s\ntitle: Text, text: \"Hi\"\n# Diagram\n#0s\ngraph: Rect, size: (100, 100)\n",
         );
-        let preview = PreviewStore::new(crate::app::PreviewPaneState::new(
-            5.0,
-            document_store.source.document.scene_dimensions,
-        ));
-        let mut preview_store = preview;
-        let mut ui_store =
-            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
+        let mut ui_store = ui_store();
         preview_store.preview.playback.current_time_s = 3.5;
         document_store.source.document.active_scene = Some("Diagram".to_string());
         ui_store.selection.selected_actors.insert("graph".to_string());
@@ -887,13 +864,8 @@ mod tests {
     fn stale_plugin_epoch_rebuild_response_is_discarded() {
         let mut document_store = make_document_store("#0s\nbox: Rect, size: (100, 100)\n");
         document_store.source.document.plugin_epoch = 4;
-        let preview = PreviewStore::new(crate::app::PreviewPaneState::new(
-            1.0,
-            document_store.source.document.scene_dimensions,
-        ));
-        let mut preview_store = preview;
-        let mut ui_store =
-            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        let mut preview_store = preview_store(1.0, document_store.source.document.scene_dimensions);
+        let mut ui_store = ui_store();
 
         let response = RebuildResponse {
             token: RebuildToken(99),

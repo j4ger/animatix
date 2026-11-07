@@ -1,21 +1,8 @@
-use super::support::{actor, keyframe};
+use super::support::{actor, assert_clean, build_ast, build_clean, keyframe, parse, prop, vec2};
 use super::*;
 use crate::ast::BinaryOp;
 
 // ── Fixtures ──────────────────────────────────────────────────────────────
-
-fn prop(name: &str, value: Expr) -> Property {
-    Property {
-        name: name.to_string(),
-        value,
-        value_span: None,
-        trailing_comment: None,
-    }
-}
-
-fn vec2(x: f64, y: f64) -> Expr {
-    Expr::Tuple(vec![Expr::Num(x), Expr::Num(y)])
-}
 
 fn let_decl(name: &str, value: Expr) -> Stmt {
     Stmt::LetDecl {
@@ -50,25 +37,10 @@ fn call(name: &str, args: Vec<Expr>) -> Expr {
     Expr::Call(name.to_string(), args)
 }
 
-fn build_ast(ast: Vec<Stmt>) -> crate::timeline::BuildReport<Timeline> {
-    Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new())
-}
-
 fn clean_ast(ast: Vec<Stmt>) -> Timeline {
-    let report = build_ast(ast);
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "expected no diagnostics, got: {:?}",
-        report.diagnostics
-    );
+    let report = build_ast(&ast);
+    assert_clean(&report);
     report.output
-}
-
-/// Parse a scene, build it, and require no diagnostics beyond content hints.
-fn build_source(source: &str) -> Timeline {
-    let parsed = animatix_syntax::parser::parse_source_complete(source);
-    assert!(parsed.errors.is_empty(), "parse errors: {:?}", parsed.errors);
-    clean_ast(parsed.ast.expect("statements"))
 }
 
 /// Expand a source loaded through the module graph, then build it.
@@ -255,7 +227,7 @@ fn always_object_field_writes_update_frame_environment() {
 
 #[test]
 fn build_time_for_loop_let_shadowing_carries_algorithm_state() {
-    let timeline = build_source(
+    let timeline = build_clean(
         r#"
 #0s
 let arr = {2, 1}
@@ -287,7 +259,7 @@ fn build_time_for_loop_step_sequences_swap_actions() {
     // A `[step: 300ms]` for loop advances the build-time clock per iteration,
     // so variable-index swap actions land on distinct keyframe times instead
     // of colliding at the loop start.
-    let timeline = build_source(
+    let timeline = build_clean(
         r#"
 config { dynamic_layout: true }
 row: Row, at: (640, 440), gap: 16 {
@@ -330,7 +302,7 @@ for i in {0, 1} [step: 300ms] {
 fn build_time_indexed_assignment_resolves_against_loop_variables() {
     // `row.b[j].color = red` inside a for loop resolves `j` against the build
     // environment into the concrete `b__N` track.
-    let timeline = build_source(
+    let timeline = build_clean(
         r#"
 config { dynamic_layout: true }
 row: Row, at: (640, 440), gap: 16 {
@@ -417,7 +389,7 @@ fn always_nested_object_field_writes_update_frame_environment() {
 fn pure_fn_calls_evaluate_in_expressions() {
     // `fn` declarations with `-> Type` are evaluated at build time when their
     // calls appear in `let` expressions; `return` unwinds the body.
-    let timeline = build_source(
+    let timeline = build_clean(
         r#"
 fn dnf(arr: List<Num>) -> List<Num> {
   let arr = list_swap(arr, 0, 2)
@@ -633,7 +605,7 @@ bubble_sort(bars, vals)
 fn pure_fn_tail_expression_returns_value() {
     // A pure function's final expression is its return value (Rust style);
     // `return` statements still work for early unwinding.
-    let timeline = build_source(
+    let timeline = build_clean(
         r#"
 fn sum2(xs: List<Num>) -> Num {
   let a = xs[0]
@@ -664,7 +636,7 @@ let h = guard(21)
 fn always_block_calls_pure_fn_at_frame_time() {
     // Pure functions are callable from `always` bodies: the IR executor
     // resolves the UserFn through the frame environment.
-    let timeline = build_source(
+    let timeline = build_clean(
         r#"
 fn double(n: Num) -> Num {
   n * 2
@@ -768,8 +740,7 @@ fn extension_actor_at_position_regression() {
 config { colorscheme: "editorial-dark" }
 p: StubPulse, at: (100, 100), size: (50, 50)
 "#;
-    let parsed = animatix_syntax::parser::parse_source_complete(source);
-    assert!(parsed.errors.is_empty(), "{:?}", parsed.errors);
+    let ast = parse(source);
     let mut ctx = crate::extension_context::ExtensionContext::new();
     ctx.register_primitive(
         std::sync::Arc::new(StubPrim),
@@ -780,7 +751,7 @@ p: StubPulse, at: (100, 100), size: (50, 50)
     )
     .expect("register");
     let report = crate::composition::BuildTarget::build_with_options(
-        parsed.ast.as_ref().expect("stmts"),
+        &ast,
         &std::collections::HashMap::new(),
         None,
         crate::timeline::BuildOptions::default().with_context(std::sync::Arc::new(ctx)),

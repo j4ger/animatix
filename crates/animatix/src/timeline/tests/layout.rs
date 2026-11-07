@@ -1,3 +1,4 @@
+use super::support::build_output;
 use super::*;
 
 #[test]
@@ -146,13 +147,9 @@ panel:
     label: Text, text: "中文测试", text_max_width: 10000, font_size: 24
   }
 "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report =
-        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let track = report.output.world.tracks.get_id("label").expect("label track exists");
-    let width = report.output.world.text_or_default(track).text_max_width.get(0, 0.0);
+    let timeline = build_output(source);
+    let track = timeline.world.tracks.get_id("label").expect("label track exists");
+    let width = timeline.world.text_or_default(track).text_max_width.get(0, 0.0);
     assert!(
         (width - 10000.0).abs() < 0.01,
         "explicit text_max_width should be preserved by width propagation, got {width}, want 10000"
@@ -229,14 +226,9 @@ stack: Stack, at: (320, 180), size: (400, 200), align: "start" {
   a: Rect, size: (100, 50)
 }
 "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {parse_errors:?}");
-    let report = crate::timeline::Timeline::build_with_diagnostics(
-        &ast.expect("AST"),
-        &std::collections::HashMap::new(),
-    );
-    let id = report.output.world.get_id("a").expect("child track");
-    let position = report.output.world.geometry(id).position.last([0.0, 0.0]);
+    let timeline = build_output(source);
+    let id = timeline.world.get_id("a").expect("child track");
+    let position = timeline.world.geometry(id).position.last([0.0, 0.0]);
     // Box top-left is (-200, -100) in the Stack's centre-relative frame.
     assert_eq!(position, [-150.0, -75.0]);
 }
@@ -255,15 +247,9 @@ panel: Stack, at: (320, 180) {
   dot: Ellipse, size: (40, 40)
 }
 "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {parse_errors:?}");
-    let report = crate::timeline::Timeline::build_with_diagnostics(
-        &ast.expect("AST"),
-        &std::collections::HashMap::new(),
-    );
-    let id = report.output.world.get_id("panel").expect("panel track");
-    let half = report
-        .output
+    let timeline = build_output(source);
+    let id = timeline.world.get_id("panel").expect("panel track");
+    let half = timeline
         .world
         .geometry(id)
         .layout_size_last()
@@ -287,15 +273,9 @@ row: Row, at: (320, 180), gap: 10 {
   tail: Rect, size: (40, 40)
 }
 "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {parse_errors:?}");
-    let report = crate::timeline::Timeline::build_with_diagnostics(
-        &ast.expect("AST"),
-        &std::collections::HashMap::new(),
-    );
-    let wrap = report.output.world.get_id("wrap").expect("group track");
-    let half = report
-        .output
+    let timeline = build_output(source);
+    let wrap = timeline.world.get_id("wrap").expect("group track");
+    let half = timeline
         .world
         .geometry(wrap)
         .layout_size_last()
@@ -318,15 +298,9 @@ row: Row, at: (320, 180), gap: 0, align: "center" {
   m: Rect, size: (20, 20)
 }
 "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {parse_errors:?}");
-    let report = crate::timeline::Timeline::build_with_diagnostics(
-        &ast.expect("AST"),
-        &std::collections::HashMap::new(),
-    );
-    let col = report.output.world.get_id("c").expect("col track");
-    let half = report
-        .output
+    let timeline = build_output(source);
+    let col = timeline.world.get_id("c").expect("col track");
+    let half = timeline
         .world
         .geometry(col)
         .layout_size_last()

@@ -1,6 +1,6 @@
 //! Tests for text properties, split-text actions, counters, and hardware glyph runs.
 
-use animatix_syntax::parser::parse_source;
+use super::support::build_output;
 
 use super::*;
 use crate::timeline::TrackAccessor;
@@ -11,16 +11,11 @@ fn test_text_fill_gradient_build() {
 #0s
 heading: Text, text: "Delightful", fill_gradient: linear(135, {"#ff0000", "#0000ff"}), at: (100, 100)
 "##;
-    let (stmts, errors) = parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report = Timeline::build_with_diagnostics(
-        &stmts.expect("parsed AST"),
-        &std::collections::HashMap::new(),
-    );
-    assert!(!report.output.world.tracks.is_empty());
-    let track = report.output.world.tracks.get_id("heading").expect("heading track");
+    let timeline = build_output(source);
+    assert!(!timeline.world.tracks.is_empty());
+    let track = timeline.world.tracks.get_id("heading").expect("heading track");
     assert!(
-        report.output.world.style(track).fill_gradient.is_some(),
+        timeline.world.style(track).fill_gradient.is_some(),
         "Text actor should accept fill_gradient"
     );
 }
@@ -31,14 +26,9 @@ fn test_split_text_declaration_properties() {
 #0s
 title: Text, text: "Hello World", at: (100, 100), split_by: "word", split_stagger: 0.05, split_offset_y: 24.0, split_mask: true
 "#;
-    let (stmts, errors) = parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report = Timeline::build_with_diagnostics(
-        &stmts.expect("parsed AST"),
-        &std::collections::HashMap::new(),
-    );
-    let track = report.output.world.tracks.get_id("title").expect("title track");
-    let text = report.output.world.text_or_default(track);
+    let timeline = build_output(source);
+    let track = timeline.world.tracks.get_id("title").expect("title track");
+    let text = timeline.world.text_or_default(track);
     assert_eq!(text.split_by.as_ref().map(|t| t.evaluate(0)), Some("word".to_string()));
     assert_eq!(text.split_stagger.as_ref().map(|t| t.evaluate(0)), Some(0.05));
     assert_eq!(text.split_offset_y.as_ref().map(|t| t.evaluate(0)), Some(24.0));
@@ -54,9 +44,7 @@ title: Text, text: "Hello Beautiful World", at: (200, 200)
 #1s
 draw-in title [1s, by: word, offset_y: 30, mask: baseline, stagger: 0.1s]
 "#;
-    let (stmts, errors) = parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let timeline = Timeline::build(&stmts.expect("parsed AST"));
+    let timeline = build_output(source);
     let track = timeline.world.tracks.get_id("title").expect("title track");
     let text = timeline.world.text_or_default(track);
     let style = timeline.world.style(track);
@@ -104,9 +92,7 @@ sub: Text, text: "Split line reveal", at: (100, 150)
 #0.5s
 reveal-in sub [500ms, by: line, offset_y: 15, mask: baseline]
 "#;
-    let (stmts, errors) = parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let timeline = Timeline::build(&stmts.expect("parsed AST"));
+    let timeline = build_output(source);
     let track = timeline.world.tracks.get_id("sub").expect("sub track");
     let text = timeline.world.text_or_default(track);
     let style = timeline.world.style(track);
@@ -126,15 +112,10 @@ fn test_counter_declaration_and_prebaked_data() {
 #0s
 c: Counter, value: 1234, prefix: "$", suffix: " /mo", decimals: 2, comma: true, at: (300, 200)
 "#;
-    let (stmts, errors) = parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report = Timeline::build_with_diagnostics(
-        &stmts.expect("parsed AST"),
-        &std::collections::HashMap::new(),
-    );
-    let track = report.output.world.tracks.get_id("c").expect("counter track");
-    let text = report.output.world.text_or_default(track);
-    let geometry = report.output.world.geometry(track);
+    let timeline = build_output(source);
+    let track = timeline.world.tracks.get_id("c").expect("counter track");
+    let text = timeline.world.text_or_default(track);
+    let geometry = timeline.world.geometry(track);
 
     let data = text.counter_data.as_ref().expect("prebaked counter data");
     assert_eq!(data.digits.len(), 10, "Should prebake digits 0..=9");
@@ -158,9 +139,7 @@ cnt: Counter, value: 0, prefix: "$", suffix: "k", at: (400, 300)
 #1s
 cnt.value = 100 [1s]
 "#;
-    let (stmts, errors) = parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let timeline = Timeline::build(&stmts.expect("parsed AST"));
+    let timeline = build_output(source);
     let track = timeline.world.tracks.get_id("cnt").expect("cnt track");
 
     use crate::primitives::Primitive;
@@ -194,7 +173,7 @@ cnt.value = 100 [1s]
         target_resolver: None,
         legend: None,
     };
-
+    // ... rest of the test remains the same
     let ctx0 = make_ctx(0);
     let cmds0 = primitive.evaluate(&ctx0, None).expect("eval success").expect("render commands");
     assert_eq!(cmds0.len(), 1);
@@ -242,9 +221,7 @@ label: Text, text: "Dynamic Color Text", color: (1.0, 0.0, 0.0, 1.0), at: (100, 
 #1s
 label.color = (0.0, 1.0, 0.0, 1.0) [1s]
 "#;
-    let (stmts, errors) = parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let timeline = Timeline::build(&stmts.expect("parsed AST"));
+    let timeline = build_output(source);
     let track = timeline.world.tracks.get_id("label").expect("label track");
     let text = timeline.world.text_or_default(track);
     assert!(text.static_paths.is_some(), "Static text paths should be pre-cached");
@@ -310,9 +287,7 @@ title: Text, text: "你好 世界 动效", at: (200, 200)
 #1s
 draw-in title [1s, by: word, offset_y: 30, mask: baseline, stagger: 0.1s]
 "#;
-    let (stmts, errors) = parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let timeline = Timeline::build(&stmts.expect("parsed AST"));
+    let timeline = build_output(source);
     let track = timeline.world.tracks.get_id("title").expect("title track");
     let text = timeline.world.text_or_default(track);
     let style = timeline.world.style(track);
@@ -337,9 +312,7 @@ fn test_hardware_glyph_run_execution() {
 #0s
 t: Text, text: "Hardware Stream", at: (300, 200), font_size: 32
 "#;
-    let (stmts, errors) = parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let timeline = Timeline::build(&stmts.expect("parsed AST"));
+    let timeline = build_output(source);
     let track = timeline.world.tracks.get_id("t").expect("track t exists");
 
     let text = timeline.world.text_or_default(track);

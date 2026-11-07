@@ -5,9 +5,6 @@ use super::*;
 /// Mutable state threaded through the frame-evaluation phases
 /// (`prepare_frame` → `run_frame_modifiers` → `render_frame_roots` →
 /// `store_frame`).
-///
-/// These are the same locals the monolithic evaluation used, in the same
-/// order; the split is mechanical.
 pub(super) struct FrameEvaluation<'a> {
     pub(super) time_ms: u64,
     pub(super) scene_dimensions: SceneDimensions,
@@ -343,7 +340,7 @@ impl Timeline {
         {
             return program;
         }
-        // The four phases below are the original monolithic body in order:
+        // Four phases in order:
         // prepare (buffers, per-frame state, env) → modifiers → render →
         // store (program + frame cache).
         let mut state = self.prepare_frame(

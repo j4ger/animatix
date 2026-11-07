@@ -364,9 +364,8 @@ impl Timeline {
             tracing::debug!("`let {name}` is overridden by --set; the authored default is ignored");
             return;
         }
-        // G5/G6 guard: Anchor-point refs (`n0.right`) are
-        // frame-time-resolved and cannot be used in build-time
-        // `let` constants (transforms/bounds not resolved at build).
+        // Anchor-point refs (`n0.right`) are frame-time-resolved and cannot be
+        // used in build-time `let` constants (transforms/bounds not resolved at build).
         if let crate::ast::Expr::Path(segments) = value
             && segments.len() == 2
             && SceneAnchor::from_str(&segments[1]).is_some()
@@ -581,7 +580,7 @@ impl Timeline {
 }
 
 /// Remove loop variables from the environment after the loop exits.
-/// Closures captured them at creation time (#11/#10), so it's safe to clean up.
+/// Closures captured them at creation time, so it's safe to clean up.
 pub(crate) fn remove_loop_vars(
     env: &mut Environment,
     var: &LoopPattern,

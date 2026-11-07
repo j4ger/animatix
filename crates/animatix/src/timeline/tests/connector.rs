@@ -1,6 +1,4 @@
-use animatix_syntax::parser::parse_source;
-
-use super::*;
+use super::support::build;
 use crate::primitives::connector::{build_connector_path, route_connector};
 use crate::timeline::{ConnectorRouting, SceneDimensions};
 
@@ -60,12 +58,7 @@ box1: Rect, size: (100, 60), at: (200, 300)
 box2: Rect, size: (100, 60), at: (500, 300)
 wire: Connector, from: (box1, right), to: (box2, left), routing: "elbow", arrow: true, corner_radius: 8
 "#;
-    let (stmts, errors) = parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report = Timeline::build_with_diagnostics(
-        &stmts.expect("parsed AST"),
-        &std::collections::HashMap::new(),
-    );
+    let report = build(source);
     if !report.output.world.tracks.contains_key("wire") {
         panic!("Connector wire track missing! Diagnostics: {:#?}", report.diagnostics);
     }

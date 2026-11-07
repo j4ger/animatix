@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
+use super::support::build_ignoring_warnings;
 use super::*;
-use crate::diagnostics::{Diagnostic, DiagnosticCode};
+use crate::diagnostics::DiagnosticCode;
 
 fn write_test_svg(name: &str, width: u32, rect_width: u32) -> PathBuf {
     let dir = std::env::temp_dir().join("animatix_svg_url_tests");
@@ -28,14 +29,6 @@ fn write_test_png(name: &str) -> PathBuf {
     path
 }
 
-fn build_svg_timeline(source: &str) -> (Timeline, Vec<Diagnostic>) {
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    (report.output, report.diagnostics)
-}
-
 #[test]
 fn timed_svg_url_assignment_keyframes_paths_and_size() {
     let svg_a = write_test_svg("svg_url_a.svg", 40, 10);
@@ -52,7 +45,7 @@ icon.url = "{}" [1s]
         svg_b.display(),
     );
 
-    let (timeline, diagnostics) = build_svg_timeline(&source);
+    let (timeline, diagnostics) = build_ignoring_warnings(&source);
     assert!(diagnostics.is_empty(), "Expected no build diagnostics, got: {:?}", diagnostics);
 
     let track = timeline.world.tracks.get_id("icon").expect("icon track should exist");
@@ -112,7 +105,7 @@ icon.url = "{}" [500ms]
         svg_a.display(),
     );
 
-    let (timeline, diagnostics) = build_svg_timeline(&source);
+    let (timeline, diagnostics) = build_ignoring_warnings(&source);
     assert!(diagnostics.is_empty(), "Expected no build diagnostics, got: {:?}", diagnostics);
 
     let track = timeline.world.tracks.get_id("icon").expect("icon track should exist");
@@ -138,7 +131,7 @@ icon.url = "/nonexistent/animatix-missing.svg"
         svg_a.display(),
     );
 
-    let (timeline, diagnostics) = build_svg_timeline(&source);
+    let (timeline, diagnostics) = build_ignoring_warnings(&source);
     assert!(
         diagnostics.iter().any(|d| d.code == DiagnosticCode::MediaLoadFailure),
         "Expected MediaLoadFailure diagnostic, got: {:?}",
@@ -172,7 +165,7 @@ music: Audio, source: "{}"
         audio.display(),
     );
 
-    let (timeline, diagnostics) = build_svg_timeline(&source);
+    let (timeline, diagnostics) = build_ignoring_warnings(&source);
     assert!(diagnostics.is_empty(), "Expected no build diagnostics, got: {:?}", diagnostics);
 
     let svg_path = svg.display().to_string();

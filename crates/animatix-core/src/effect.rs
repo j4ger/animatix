@@ -63,15 +63,10 @@ pub enum EffectParamKind {
 /// One resolved parameter value for a frame.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum EffectParamValue {
-    /// `f32`
     F32(f32),
-    /// `u32`
     U32(u32),
-    /// `[f32; 2]`
     Vec2([f32; 2]),
-    /// `[f32; 4]`
     Vec4([f32; 4]),
-    /// `bool`
     Bool(bool),
 }
 
@@ -98,13 +93,11 @@ pub enum EffectParamUnit {
 pub struct EffectParamSpec {
     /// Parameter name as authored in `.amx`.
     pub name: Cow<'static, str>,
-    /// Value type.
     pub kind: EffectParamKind,
     /// Value at which this parameter contributes nothing.
     pub identity: EffectParamValue,
     /// Byte offset in the author uniform buffer (generic packing).
     pub offset: u32,
-    /// Byte size in the author uniform buffer.
     pub size: u32,
     /// Whether the number is a scene-pixel distance. See [`EffectParamUnit`].
     pub unit: EffectParamUnit,
@@ -167,7 +160,6 @@ pub struct EffectPassSpec {
     pub label: Cow<'static, str>,
     /// WGSL source. May be shared between passes (blur uses one shader twice).
     pub wgsl: Cow<'static, str>,
-    /// Entry point name.
     pub entry: Cow<'static, str>,
 }
 

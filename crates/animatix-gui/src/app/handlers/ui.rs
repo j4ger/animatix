@@ -354,6 +354,7 @@ pub fn handle_set_selected_keyframes(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::test_support::ui_store;
 
     fn keyframe_id(scene: Option<&str>, actor: &str, property: &str, time_ms: u64) -> KeyframeId {
         KeyframeId {
@@ -366,8 +367,7 @@ mod tests {
 
     #[test]
     fn handle_set_selected_keyframes_populates_store() {
-        let mut ui_store =
-            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        let mut ui_store = ui_store();
         let keyframes = vec![
             keyframe_id(Some("Intro"), "Actor1", "position", 1000),
             keyframe_id(None, "Actor2", "rotation", 2000),
@@ -378,8 +378,7 @@ mod tests {
 
     #[test]
     fn handle_set_selected_keyframes_replaces_previous() {
-        let mut ui_store =
-            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        let mut ui_store = ui_store();
         let first = vec![keyframe_id(None, "A", "p", 1)];
         let _ = handle_set_selected_keyframes(&mut ui_store, first);
         let second = vec![keyframe_id(Some("Intro"), "B", "q", 2)];
@@ -389,8 +388,7 @@ mod tests {
 
     #[test]
     fn show_curves_activates_the_bottom_tab_and_toggles_off_on_repeat() {
-        let mut ui_store =
-            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        let mut ui_store = ui_store();
         assert_eq!(
             crate::app::persistence::active_bottom_tab(&ui_store.view.tree),
             Some(WorkspaceTab::Timeline)
@@ -418,8 +416,7 @@ mod tests {
 
     #[test]
     fn show_curves_migrates_a_layout_missing_the_curves_pane() {
-        let mut ui_store =
-            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        let mut ui_store = ui_store();
         // Simulate a pre-Curves persisted tree: drop the Curves pane and make
         // the Timeline a direct root child.
         let curves = ui_store.view.tree.tiles.find_pane(&WorkspaceTab::Curves).unwrap();
@@ -436,8 +433,7 @@ mod tests {
 
     #[test]
     fn compact_inspector_toggle_opens_and_closes_the_drawer_without_docking() {
-        let mut ui_store =
-            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        let mut ui_store = ui_store();
         ui_store.set_compact(true);
         crate::app::persistence::apply_compact_entry(&mut ui_store.view.tree);
 
@@ -464,8 +460,7 @@ mod tests {
 
     #[test]
     fn compact_layout_preset_does_not_unhide_the_detail_dock() {
-        let mut ui_store =
-            crate::app::stores::UiStore::new(crate::app::persistence::default_tree());
+        let mut ui_store = ui_store();
         ui_store.set_compact(true);
         crate::app::persistence::apply_compact_entry(&mut ui_store.view.tree);
 

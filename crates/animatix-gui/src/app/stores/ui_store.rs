@@ -453,12 +453,11 @@ impl UnsavedChangesDialog {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::persistence::default_tree;
+    use crate::app::test_support::ui_store;
 
     #[test]
     fn ui_store_new_creates_valid_store() {
-        let tree = default_tree();
-        let store = UiStore::new(tree);
+        let store = ui_store();
 
         assert!(store.editor_sync_enabled);
         assert!(!store.keyframe_mode);
@@ -474,8 +473,7 @@ mod tests {
 
     #[test]
     fn selection_store_select_actor_adds_to_selected_actors() {
-        let tree = default_tree();
-        let mut store = UiStore::new(tree);
+        let mut store = ui_store();
 
         store.selection.selected_actors.insert("box".to_string());
         store.selection.selected_actors.insert("circle".to_string());
@@ -487,8 +485,7 @@ mod tests {
 
     #[test]
     fn selection_store_clear_selection_empties_selected_actors() {
-        let tree = default_tree();
-        let mut store = UiStore::new(tree);
+        let mut store = ui_store();
 
         store.selection.selected_actors.insert("box".to_string());
         store.selection.selected_actors.insert("circle".to_string());
@@ -501,8 +498,7 @@ mod tests {
 
     #[test]
     fn view_store_defaults() {
-        let tree = default_tree();
-        let store = UiStore::new(tree);
+        let store = ui_store();
 
         assert!(store.view.collapsed_actors.is_empty());
         assert!(!store.view.diagnostics_panel_visible);
@@ -520,7 +516,7 @@ mod tests {
 
     #[test]
     fn set_compact_tracks_flag_and_clears_drawer() {
-        let mut store = UiStore::new(default_tree());
+        let mut store = ui_store();
         store.view.compact_drawer = Some(crate::app::panels::CompactDrawer::Detail);
 
         store.set_compact(true);
@@ -535,7 +531,7 @@ mod tests {
 
     #[test]
     fn autosave_defaults_to_enabled_twenty_seconds() {
-        let store = UiStore::new(default_tree());
+        let store = ui_store();
 
         assert!(store.view.autosave.enabled);
         assert_eq!(store.view.autosave.interval.as_secs_f64(), DEFAULT_AUTOSAVE_INTERVAL_S);

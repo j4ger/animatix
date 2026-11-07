@@ -110,8 +110,7 @@ impl Timeline {
             return;
         }
         let Some(mix) = self.track_blend_mode(node_id, frame.time_ms) else {
-            // No blend: draw the subtree straight into the current scene. This
-            // fast path is byte-for-byte the pre-change behaviour.
+            // No blend: draw the subtree straight into the current scene.
             self.render_node_subtree(
                 node_id,
                 parent_transform,
@@ -590,8 +589,6 @@ impl Timeline {
         (local_transform, opacity)
     }
 
-    /// Resolve the primitive an entity renders with at `time_ms` as an owned
-    /// handle (cheap clone). The entity's `actor_type` is the registry key —
     /// Local-space clip geometry for a Mask's `clip_shape` child, obtained from
     /// the child's own behavior evaluation. Placed at the child's declared position
     /// (the default clip geometry is origin-centered) to match the previous Rect/Ellipse behavior.

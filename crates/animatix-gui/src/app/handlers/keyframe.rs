@@ -212,15 +212,14 @@ pub fn handle_resize_action(
 mod tests {
     use super::*;
     use crate::app::document::timeline_diff::KeyframeId;
-    use crate::app::stores::UiStore;
-    use crate::app::test_support::{make_document_store, preview_store};
+    use crate::app::test_support::{make_document_store, preview_store, ui_store};
 
     #[test]
     fn set_keyframe_value_replaces_value_with_one_undo_snapshot() {
         let mut document_store =
             make_document_store("#0s\nbox: Rect, size: (100, 100)\n#1s\nbox.opacity = 0.5\n");
         let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
-        let mut ui_store = UiStore::new(crate::app::persistence::default_tree());
+        let mut ui_store = ui_store();
 
         let effects = handle_set_keyframe_value(
             &mut document_store,
@@ -245,7 +244,7 @@ mod tests {
         let mut document_store =
             make_document_store("#0s\nbox: Rect, size: (100, 100)\n#1s\nbox.opacity = 0.5\n");
         let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
-        let mut ui_store = UiStore::new(crate::app::persistence::default_tree());
+        let mut ui_store = ui_store();
 
         let _ = handle_set_keyframe_value(
             &mut document_store,
@@ -273,7 +272,7 @@ mod tests {
             "#0s\nbox: Rect, size: (100, 100)\n#1s\nbox.opacity = 0.5\nbox.rotation = 1\n",
         );
         let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
-        let mut ui_store = UiStore::new(crate::app::persistence::default_tree());
+        let mut ui_store = ui_store();
 
         let effects = handle_move_keyframes(
             &mut document_store,
@@ -316,7 +315,7 @@ mod tests {
             "#0s\nbox: Rect, size: (100, 100)\n#1s\nbox.opacity = 0.5\n#2s\nbox.rotation = 1\n",
         );
         let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
-        let mut ui_store = UiStore::new(crate::app::persistence::default_tree());
+        let mut ui_store = ui_store();
 
         let effects = handle_move_keyframes(
             &mut document_store,
@@ -353,7 +352,7 @@ mod tests {
     fn batch_move_with_empty_specs_does_not_snapshot() {
         let mut document_store = make_document_store("#0s\nbox: Rect, size: (100, 100)\n");
         let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
-        let mut ui_store = UiStore::new(crate::app::persistence::default_tree());
+        let mut ui_store = ui_store();
 
         let effects =
             handle_move_keyframes(&mut document_store, &mut preview_store, &mut ui_store, vec![]);
@@ -368,7 +367,7 @@ mod tests {
             "#0s\nbox: Rect, size: (100, 100)\n#1s\nbox.opacity = 0.5\nbox.rotation = 1\n",
         );
         let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
-        let mut ui_store = UiStore::new(crate::app::persistence::default_tree());
+        let mut ui_store = ui_store();
 
         let ids = vec![
             KeyframeId {
@@ -400,7 +399,7 @@ mod tests {
             "# A\n#0s\nbox: Rect, size: (100, 100)\n# B\n#0s\nbox: Rect, size: (100, 100)\n#2s\nbox.color = red\n",
         );
         let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
-        let mut ui_store = UiStore::new(crate::app::persistence::default_tree());
+        let mut ui_store = ui_store();
         ui_store.selection.selected_keyframes.push(KeyframeId {
             scene: Some("B".to_string()),
             actor: "box".to_string(),
@@ -439,7 +438,7 @@ mod tests {
     fn prune_drops_missing_scene_selection() {
         let mut document_store = make_document_store("# A\n#0s\nbox: Rect, size: (100, 100)\n");
         let mut preview_store = preview_store(5.0, document_store.source.document.scene_dimensions);
-        let mut ui_store = UiStore::new(crate::app::persistence::default_tree());
+        let mut ui_store = ui_store();
         ui_store.selection.selected_keyframes.push(KeyframeId {
             scene: Some("B".to_string()),
             actor: "box".to_string(),

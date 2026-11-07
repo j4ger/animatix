@@ -36,6 +36,15 @@ pub(crate) fn build_ast(ast: &[Stmt]) -> BuildReport<Timeline> {
     Timeline::build_with_diagnostics(ast, &std::collections::HashMap::new())
 }
 
+/// Build a fixture and return only the timeline, without judging diagnostics.
+///
+/// Use this when the test only reads timeline state; use [`build`] when it
+/// inspects the diagnostics, and [`build_clean`]/[`build_timeline`] when it
+/// asserts on them.
+pub(crate) fn build_output(source: &str) -> Timeline {
+    build(source).output
+}
+
 /// Build a fixture and require that no diagnostic is error-level.
 pub(crate) fn build_timeline(source: &str) -> Timeline {
     let report = build(source);

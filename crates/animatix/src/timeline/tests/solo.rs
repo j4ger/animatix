@@ -3,6 +3,7 @@
 //! subtree is pruned whole — while ancestors of a soloed actor stay
 //! traversable so a soloed descendant of a container still renders.
 
+use super::support::build;
 use super::*;
 
 /// Evaluate one frame on the observable path and return the labels that drew.
@@ -184,12 +185,7 @@ always {
   a.solo = true
 }
 "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {parse_errors:?}");
-    let report = Timeline::build_with_diagnostics(
-        &ast.expect("parsed AST"),
-        &std::collections::HashMap::new(),
-    );
+    let report = build(source);
     assert!(
         report.diagnostics.iter().any(|d| matches!(
             d.code,

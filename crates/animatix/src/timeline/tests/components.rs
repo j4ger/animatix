@@ -1,5 +1,6 @@
 //! Round-trip tests for the non-layout components.
 
+use super::support::build_output;
 use animatix_text::transcript::SpeechTranscript;
 
 use crate::timeline::Timeline;
@@ -406,15 +407,13 @@ fn spawn_replacing_resets_every_authored_required_store() {
 
 #[test]
 fn static_actors_precompute_local_bounds() {
-    let (stmts, errors) = animatix_syntax::parser::parse_source(
+    let timeline = build_output(
         r#"
 #0s
 box: Rect, size: (100, 60), color: accent.primary
 title: Text, text: "Hello World"
 "#,
     );
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let timeline = Timeline::build(&stmts.expect("parsed AST"));
 
     let box_id = timeline.world().get_id("box").expect("box exists");
     let box_bounds = timeline.world().local_bounds(box_id).expect("box local bounds");
@@ -425,7 +424,7 @@ title: Text, text: "Hello World"
     assert!(title_bounds.width() > 0.0);
     assert!(title_bounds.height() > 0.0);
 
-    let (stmts, errors) = animatix_syntax::parser::parse_source(
+    let timeline_anim = build_output(
         r#"
 #0s
 anim_box: Rect, size: (100, 60), color: accent.primary
@@ -433,8 +432,6 @@ anim_box: Rect, size: (100, 60), color: accent.primary
 anim_box.size = (200, 120) [500ms]
 "#,
     );
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let timeline_anim = Timeline::build(&stmts.expect("parsed AST"));
     let anim_id = timeline_anim.world().get_id("anim_box").expect("anim_box exists");
     assert_eq!(
         timeline_anim.world().local_bounds(anim_id),
@@ -450,16 +447,11 @@ fn test_parallax_property_build() {
 bg: Rect, size: (200, 200), parallax: 0.3, at: (0, 0)
 fg: Rect, size: (100, 100), parallax: 1.0, at: (50, 50)
 "#;
-    let (stmts, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report = Timeline::build_with_diagnostics(
-        &stmts.expect("parsed AST"),
-        &std::collections::HashMap::new(),
-    );
-    let bg_track = report.output.world.tracks.get_id("bg").expect("bg track");
-    let fg_track = report.output.world.tracks.get_id("fg").expect("fg track");
-    assert_eq!(report.output.world.meta(bg_track).parallax, 0.3);
-    assert_eq!(report.output.world.meta(fg_track).parallax, 1.0);
+    let timeline = build_output(source);
+    let bg_track = timeline.world.tracks.get_id("bg").expect("bg track");
+    let fg_track = timeline.world.tracks.get_id("fg").expect("fg track");
+    assert_eq!(timeline.world.meta(bg_track).parallax, 0.3);
+    assert_eq!(timeline.world.meta(fg_track).parallax, 1.0);
 }
 
 #[test]
@@ -468,13 +460,7 @@ fn idle_float_synthesizes_seamless_motion_offset() {
 #0s
 box: Rect, size: (100, 100), at: (200, 200), idle: "float"
 "#;
-    let (stmts, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let timeline = Timeline::build_with_diagnostics(
-        &stmts.expect("parsed AST"),
-        &std::collections::HashMap::new(),
-    )
-    .output;
+    let timeline = build_output(source);
     let track = timeline.world.tracks.get_id("box").expect("box track exists");
     let geometry = timeline.world.geometry(track);
 
@@ -500,13 +486,7 @@ fn idle_breath_synthesizes_seamless_scale() {
 #0s
 box: Rect, size: (100, 100), at: (200, 200), idle: "breath"
 "#;
-    let (stmts, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let timeline = Timeline::build_with_diagnostics(
-        &stmts.expect("parsed AST"),
-        &std::collections::HashMap::new(),
-    )
-    .output;
+    let timeline = build_output(source);
     let track = timeline.world.tracks.get_id("box").expect("box track exists");
     let geometry = timeline.world.geometry(track);
 

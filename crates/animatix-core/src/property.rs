@@ -33,7 +33,6 @@ pub enum PropertyValueKind {
     Vec2,
     /// 4D vector or color.
     Vec4,
-    /// String.
     String,
     /// List of 2D points.
     PointList,

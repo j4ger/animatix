@@ -326,18 +326,7 @@ mod tests {
     use crate::app::document::snapshot::{BuildTargetSnapshot, SnapshotStatus};
     use crate::app::document::version::{DocumentGeneration, SourceEpoch, SourceHash};
     use crate::app::preview::ToolMode;
-
-    /// Create a minimal DocumentStore.  `publish_first_good` is a helper that
-    /// publishes a basic Timeline snapshot (via publish_snapshot directly, not
-    /// publish_rebuild_result) so that last_good is populated even when the
-    /// session rebuild produces BuildTargetSnapshot::Empty.
-    fn make_store() -> DocumentStore {
-        let doc =
-            DocumentSession::from_source(std::path::PathBuf::from("test.amx"), "#0s\n".to_string())
-                .expect("create session");
-        let editor = EditorBuffer::new(&doc.file_path, doc.source_text.clone());
-        DocumentStore::new(doc, editor)
-    }
+    use crate::app::test_support::document_store_empty;
 
     fn snapshot_with_timeline(
         g: DocumentGeneration,
@@ -377,7 +366,7 @@ mod tests {
 
     #[test]
     fn test_snapshot_finalizes_after_commit_source() {
-        let mut store = make_store();
+        let mut store = document_store_empty();
         let before = store.source.text().to_string();
         let ui = UiSnapshot {
             active_scene: None,
@@ -405,7 +394,7 @@ mod tests {
 
     #[test]
     fn test_commit_source_invalidates_hit_region_cache() {
-        let mut store = make_store();
+        let mut store = document_store_empty();
         store.source.cache_valid = true;
         store.source.cached_hit_regions.push(("box".to_string(), kurbo::Rect::ZERO));
 
@@ -421,7 +410,7 @@ mod tests {
 
     #[test]
     fn test_abort_snapshot_does_not_push_history() {
-        let mut store = make_store();
+        let mut store = document_store_empty();
         store.snapshot(Command::FindReplaceAll, UiSnapshot::default_with_tool(ToolMode::Move));
         store.abort_snapshot();
         store.replace_text("changed\n".to_string());
@@ -430,7 +419,7 @@ mod tests {
 
     #[test]
     fn test_with_mutation_finalizes_on_changed_source() {
-        let mut store = make_store();
+        let mut store = document_store_empty();
         let result = store.with_mutation(
             Command::FindReplaceAll,
             UiSnapshot::default_with_tool(ToolMode::Move),
@@ -448,7 +437,7 @@ mod tests {
 
     #[test]
     fn test_with_mutation_aborts_on_error() {
-        let mut store = make_store();
+        let mut store = document_store_empty();
         let result = store.with_mutation(
             Command::FindReplaceAll,
             UiSnapshot::default_with_tool(ToolMode::Move),
@@ -463,7 +452,7 @@ mod tests {
 
     #[test]
     fn test_with_mutation_aborts_without_source_change() {
-        let mut store = make_store();
+        let mut store = document_store_empty();
         let result = store.with_mutation(
             Command::FindReplaceAll,
             UiSnapshot::default_with_tool(ToolMode::Move),
@@ -478,7 +467,7 @@ mod tests {
 
     #[test]
     fn test_replace_text_finalizes_pending_snapshot() {
-        let mut store = make_store();
+        let mut store = document_store_empty();
         let before = store.source.text().to_string();
         store.snapshot(Command::FindReplaceAll, UiSnapshot::default_with_tool(ToolMode::Move));
         let after = "changed\n".to_string();
@@ -492,7 +481,7 @@ mod tests {
 
     #[test]
     fn test_failed_publish_keeps_last_good() {
-        let mut store = make_store();
+        let mut store = document_store_empty();
         let e0 = store.source.epoch();
 
         // Manually set a good snapshot so last_good is populated
@@ -527,7 +516,7 @@ mod tests {
 
     #[test]
     fn test_replace_text_marks_stale() {
-        let mut store = make_store();
+        let mut store = document_store_empty();
         let e0 = store.source.epoch();
 
         // Publish a clean snapshot
@@ -543,7 +532,7 @@ mod tests {
 
     #[test]
     fn test_successful_publish_restores_clean() {
-        let mut store = make_store();
+        let mut store = document_store_empty();
         let e0 = store.source.epoch();
 
         // Publish Clean
@@ -562,7 +551,7 @@ mod tests {
 
     #[test]
     fn test_clear_snapshots() {
-        let mut store = make_store();
+        let mut store = document_store_empty();
         let e0 = store.source.epoch();
 
         // Publish a snapshot with renderable target so both slots are set
@@ -579,7 +568,7 @@ mod tests {
 
     #[test]
     fn test_snapshot_is_stale_after_mark_stale() {
-        let mut store = make_store();
+        let mut store = document_store_empty();
         let e0 = store.source.epoch();
 
         // Publish a clean snapshot
@@ -595,7 +584,7 @@ mod tests {
 
     #[test]
     fn test_showing_last_good() {
-        let mut store = make_store();
+        let mut store = document_store_empty();
         let e0 = store.source.epoch();
 
         // Initially, no snapshots

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use super::support::{assert_clean, build, parse};
 use super::*;
 use crate::ast::{BinaryOp, Expr};
 use crate::easing::Easing;
@@ -13,21 +14,6 @@ use crate::timeline::plot::{
 };
 
 // Helpers
-
-fn build_from_source(source: &str) -> crate::diagnostics::BuildReport<crate::timeline::Timeline> {
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new())
-}
-
-fn assert_clean(report: &crate::diagnostics::BuildReport<crate::timeline::Timeline>) {
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Unexpected diagnostics: {:?}",
-        report.diagnostics
-    );
-}
 
 fn assert_sampled(paths: &[crate::timeline::VelloPath], context: &str) {
     assert!(!paths.is_empty(), "Expected output paths {context}");
@@ -128,7 +114,7 @@ fn assert_flatten_weights(source: &FuncSource, expected_weights: &[f64]) {
 }
 
 fn assert_mode_transition(source: &str, kind: PlotCurveKind, label: &str) {
-    let report = build_from_source(source);
+    let report = build(source);
     assert_clean(&report);
     let timeline = report.output;
     let track = timeline.get_entity_id("curve").expect("curve track should exist");
@@ -176,7 +162,7 @@ fn assert_2d_plot_transition(
     expected_kind: ProceduralPlotKind,
     check_paths: impl FnOnce(&[crate::timeline::VelloPath]),
 ) {
-    let report = build_from_source(source);
+    let report = build(source);
     assert_clean(&report);
 
     let track = report
@@ -301,7 +287,7 @@ fn basic_func_transition_cartesian() {
         #2s
         curve.func = (x) => cos(x) [1s]
     "#;
-    let report = build_from_source(source);
+    let report = build(source);
     assert_clean(&report);
 
     let track = report.output.get_entity_id("curve").expect("curve track should exist");
@@ -436,7 +422,7 @@ fn record_and_chain_overlapping_transitions() {
         #2s
         curve.func = (x) => x^2 [1s]
     "#;
-    let report = build_from_source(source);
+    let report = build(source);
     assert_clean(&report);
 
     let track = report.output.get_entity_id("curve").expect("curve track should exist");
@@ -455,7 +441,7 @@ fn record_and_chain_overlapping_transitions() {
 
 #[test]
 fn cascading_transitions() {
-    let report = build_from_source(CASCADING_SOURCE);
+    let report = build(CASCADING_SOURCE);
     assert_clean(&report);
 
     let track = report.output.get_entity_id("curve").expect("curve track should exist");
@@ -528,7 +514,7 @@ fn invalid_arity_emits_diagnostic() {
         #2s
         curve.func = (x, y) => x + y [1s]
     "#;
-    let report = build_from_source(source);
+    let report = build(source);
     assert!(
         report.diagnostics.iter().any(|d| d.code == DiagnosticCode::InvalidPlotFunc),
         "Expected InvalidPlotFunc diagnostic for arity mismatch"
@@ -550,7 +536,7 @@ fn static_plot_no_transitions() {
           curve: PlotCurve, kind: "cartesian", func: (x) => sin(x), stroke_width: 2
         }
     "#;
-    let report = build_from_source(source);
+    let report = build(source);
     assert_clean(&report);
 
     let track = report.output.get_entity_id("curve").expect("curve track should exist");
@@ -572,7 +558,7 @@ fn always_bare_variable_assignment_updates_plot_closure() {
           freq = 2 + 3 * sin(t * 0.5)
         }
     "#;
-    let report = build_from_source(source);
+    let report = build(source);
     assert_clean(&report);
     let timeline = report.output;
 
@@ -625,7 +611,7 @@ fn for_loop_closure_captures_loop_variable() {
         }
     "#;
 
-    let report = build_from_source(source);
+    let report = build(source);
     let errors: Vec<_> = report
         .diagnostics
         .iter()
@@ -656,7 +642,7 @@ fn for_loop_closure_captures_loop_variable() {
 
 #[test]
 fn adaptive_quality_reduces_depth_for_blends() {
-    let report = build_from_source(CASCADING_SOURCE);
+    let report = build(CASCADING_SOURCE);
     assert_clean(&report);
 
     let track = report.output.get_entity_id("curve").expect("curve track should exist");
@@ -725,7 +711,7 @@ fn implicit_transition_simple() {
         #2s
         curve.func = (x,y) => y - x [1s]
     "#;
-    let report = build_from_source(source);
+    let report = build(source);
     assert_clean(&report);
 
     let track = report.output.get_entity_id("curve").expect("curve track should exist");
@@ -793,7 +779,7 @@ fn implicit_cascading() {
         #2.5s
         curve.func = (x,y) => x - y [0.5s]
     "#;
-    let report = build_from_source(source);
+    let report = build(source);
     assert_clean(&report);
 
     let track = report.output.get_entity_id("curve").expect("curve track should exist");
@@ -891,7 +877,7 @@ fn opacity_crossfade_blend_mode() {
         #1s
         curve.func = (x) => cos(x) [1s, blend: opacity]
     "#;
-    let report = build_from_source(source);
+    let report = build(source);
     assert_clean(&report);
 
     let track = report.output.get_entity_id("curve").expect("curve track should exist");
@@ -1067,9 +1053,7 @@ fn eval_implicit_source_nested_blend() {
 
 #[test]
 fn extension_plot_capability_enables_func_assignments() {
-    let (ast, errors) = animatix_syntax::parser::parse_source("p: PlotExt\np.func = (x) => x [1s]");
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let ast = ast.expect("parsed AST");
+    let ast = parse("p: PlotExt\np.func = (x) => x [1s]");
 
     let mut registry = PrimitiveRegistry::new();
     let mut plot_info = animatix_std::PrimitiveInfo::extension("PlotExt", ActorCategory::Plot);
@@ -1101,11 +1085,8 @@ card: Rect, at: (100, 100), size: (50, 50), color: (1, 0, 0, 1), shared_id: "her
 card_large: Rect, at: (400, 300), size: (150, 150), color: (1, 0, 0, 1), shared_id: "hero"
 "#;
 
-    let (ast_a, _) = animatix_syntax::parser::parse_source(source_a);
-    let (ast_b, _) = animatix_syntax::parser::parse_source(source_b);
-
-    let report_a = Timeline::build_with_diagnostics(&ast_a.unwrap(), &Default::default());
-    let report_b = Timeline::build_with_diagnostics(&ast_b.unwrap(), &Default::default());
+    let report_a = build(source_a);
+    let report_b = build(source_b);
 
     let timeline_a = report_a.output;
     let timeline_b = report_b.output;

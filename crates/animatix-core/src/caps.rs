@@ -328,7 +328,6 @@ pub enum Applicable {
 }
 
 impl Applicable {
-    /// Returns `true` if this applicability includes the given actor.
     pub fn includes(self, caps: &ActorCaps, actor_type: &str) -> bool {
         match self {
             Applicable::Everything => true,

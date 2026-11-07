@@ -321,13 +321,8 @@ impl Timeline {
     ) {
         use crate::timeline::TrackAccessor;
 
-        // An explicitly set max_width is authoritative: never override it with
-        // the container's propagated width. The previous guard only honored an
-        // explicit value when it was tighter than (or equal to) available_width,
-        // so a value looser than a collapsed container width (the CJK "wraps
-        // after 2-3 chars" case) was overwritten. Honoring any explicit value
-        // matches the roadmap's intent ("width propagation should not override
-        // an explicitly set text_max_width"); overflow is the author's choice.
+        // An explicitly set max_width is authoritative and never overridden by
+        // container width, or looser values (e.g. CJK text) would wrap prematurely.
         if props.existing_max_width > 0.0 {
             tracing::debug!(
                 "Width propagation: child '{}' has explicit max_width={}, not overriding with available_width={}",
@@ -553,9 +548,7 @@ impl Timeline {
 /// Holds all data needed to recompile a text child, gathered during the
 /// immutable-read phase to avoid borrow conflicts.
 pub(crate) struct TextChildRecompile {
-    /// Child label.
     pub label: String,
-    /// Text child properties.
     pub props: TextChildProps,
     /// Available width for text wrapping.
     pub available_width: f32,

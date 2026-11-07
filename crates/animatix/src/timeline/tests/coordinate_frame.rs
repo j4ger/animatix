@@ -1,18 +1,15 @@
 //! Plot-host coordinate frames live on the entity, carry across
 //! scenes, and are the only source for hosted-child coordinate resolution.
 
+use super::support::{build_timeline, parse};
 use crate::ast::{Expr, TargetSegment};
 use crate::diagnostics::DiagnosticSeverity;
-use crate::timeline::{BuildOptions, Timeline, Value};
+use crate::timeline::{BuildOptions, Value};
 use kurbo::Shape as _;
-
-fn build(source: &str) -> Timeline {
-    super::support::build_timeline(source)
-}
 
 #[test]
 fn plot_child_uses_component_domain() {
-    let timeline = build(
+    let timeline = build_timeline(
         r#"
         g: Graph, size: (400, 200), x_domain: (0, 4), y_domain: (0, 4) {
             c: PlotCurve, kind: "cartesian", func: (x) => x
@@ -65,8 +62,9 @@ fn plot_child_uses_component_domain() {
 
 #[test]
 fn assignment_rebuild_uses_coordinate_frame() {
-    let mut timeline =
-        build(r#"g: Graph, size: (400, 300), x_domain: (-3, 3), y_domain: (-3, 3), ticks: true"#);
+    let mut timeline = build_timeline(
+        r#"g: Graph, size: (400, 300), x_domain: (-3, 3), y_domain: (-3, 3), ticks: true"#,
+    );
 
     // Change the domain through the component and leave the now-stale env
     // values the build derived. A rebuild that consulted env would draw the
@@ -138,9 +136,7 @@ fn carried_graph_keeps_coordinate_frame() {
         "# SceneB\n",
         "#0s\n",
     );
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {parse_errors:?}");
-    let ast = ast.expect("parsed AST");
+    let ast = parse(source);
     let report = crate::composition::Composition::build_with_options(
         &ast,
         &std::collections::HashMap::new(),
@@ -182,7 +178,7 @@ fn carried_graph_keeps_coordinate_frame() {
 
 #[test]
 fn every_plot_host_has_coordinate_frame() {
-    let timeline = build(
+    let timeline = build_timeline(
         r#"
         g: Graph, size: (300, 200), x_domain: (0, 6), y_domain: (-1, 1) {
             c: PlotCurve, kind: "cartesian", func: (x) => sin(x)
@@ -220,7 +216,7 @@ fn tilt_affine_applied_from_rotate_x_and_rotate_y() {
 #0s
 box: Rect, size: (100, 100), at: (200, 200), rotate_x: 0.1, rotate_y: 0.2
 "#;
-    let timeline = build(source);
+    let timeline = build_timeline(source);
     let track = timeline.world.tracks.get_id("box").expect("box track exists");
     let dims = crate::timeline::SceneDimensions {
         width: 1920,
