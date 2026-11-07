@@ -216,6 +216,28 @@ procedure.
 - **animatix-lsp**: Compiles, manual testing with editors
 - **animatix-gui**: Integrated with workspace tests
 
+**Use the shared fixtures; do not re-derive them in the test module.**
+`crates/animatix/src/timeline/tests/support.rs` is the single home for timeline
+fixture construction and reads (`parse`, `build`, `build_output`, `build_ast`,
+`build_timeline`, `build_clean`, `build_ignoring_warnings`, `assert_clean`,
+`render_paths`, `assert_finite_samples`, `baked_paths`, `path_bounds`,
+`text_at`, the `property_value`/`f32_property`/`vec2_property`/
+`property_or_default` readers, and the `actor`/`keyframe`/`prop`/`vec2` AST
+builders); `timeline/tests/build/support.rs` re-exports them for that
+submodule. Pick the helper whose assertion matches what the test checks:
+`build` hands back the `BuildReport` (read `.output` for the timeline,
+`.diagnostics` for the diagnostics), `build_output` returns it unjudged,
+`build_timeline` asserts no error-level diagnostics, `build_clean` asserts
+nothing beyond `never-revealed` hints. GUI test modules use
+`crate::app::test_support` (`document_store_empty`, `make_document_store`,
+`document_store_loaded`, `preview_store`, `ui_store`, `workspace_store`)
+instead of hand-rolling store prologues.
+
+Doc comments on public items are load-bearing: `animatix`, `animatix-syntax`
+and `animatix-analyzer` set `#![warn(missing_docs)]` and `gate lint` runs with
+`-D warnings`, so deleting one fails the build rather than merely losing
+information.
+
 `scripts/ci.sh gate structure` enforces the structure contract.
 The thresholds and allowlists live in [`scripts/structure.sh`](../scripts/structure.sh)
 (with the contract in `docs/ecs.md` §8 and the short rule in `AGENTS.md`); they
