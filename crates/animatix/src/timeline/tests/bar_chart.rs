@@ -1,63 +1,12 @@
+use super::support::{baked_paths, build_clean, build_ignoring_warnings, path_bounds};
 use super::*;
-
-/// Build a source fixture and require that only content lints
-/// (`never-revealed`) fire.
-fn built(source: &str) -> crate::timeline::Timeline {
-    let (timeline, diagnostics) = build_ignoring_warnings(source);
-    if let Some(d) = without_content_lints(&diagnostics).next() {
-        panic!("unexpected diagnostic: {} ({})", d.message, d.code);
-    }
-    timeline
-}
-
-/// [`built`] without its no-warnings assertion, for scenes whose point is the
-/// warning: hands back the timeline and every diagnostic the build produced.
-fn build_ignoring_warnings(
-    source: &str,
-) -> (crate::timeline::Timeline, Vec<animatix_syntax::diagnostics::Diagnostic>) {
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {parse_errors:?}");
-    let report = Timeline::build_with_diagnostics(
-        &ast.expect("parsed AST"),
-        &std::collections::HashMap::new(),
-    );
-    (report.output, report.diagnostics)
-}
-
-/// The vector paths a chart bakes at t=0.
-fn baked_paths(
-    timeline: &crate::timeline::Timeline,
-    label: &str,
-) -> Vec<crate::timeline::VelloPath> {
-    let track = timeline.world.get_id(label).unwrap_or_else(|| panic!("no {label} track"));
-    timeline
-        .world
-        .shape_or_default(track)
-        .evaluate_vector_paths(timeline.world.style(track), 0)
-        .to_vec()
-}
-
-/// Overall bounds of a set of baked paths.
-fn path_bounds(paths: &[crate::timeline::VelloPath]) -> ([f64; 2], [f64; 2]) {
-    use kurbo::Shape as _;
-    let mut min = [f64::INFINITY; 2];
-    let mut max = [f64::NEG_INFINITY; 2];
-    for path in paths {
-        let bbox = path.path.bounding_box();
-        min[0] = min[0].min(bbox.x0);
-        min[1] = min[1].min(bbox.y0);
-        max[0] = max[0].max(bbox.x1);
-        max[1] = max[1].max(bbox.y1);
-    }
-    (min, max)
-}
 
 /// Property-variant fixtures whose only expectation is a clean build.
 macro_rules! clean_build {
     ($name:ident, $source:expr) => {
         #[test]
         fn $name() {
-            let _ = built($source);
+            let _ = build_clean($source);
         }
     };
 }
@@ -115,7 +64,7 @@ clean_build!(
 
 #[test]
 fn bar_colors_scheme_token_single() {
-    let timeline = built(
+    let timeline = build_clean(
         r#"
         chart: BarChart, data: {("A", 10), ("B", 20), ("C", 30)}, bar_colors: accent.danger
     "#,
@@ -164,7 +113,7 @@ fn bar_colors_registry_is_build_time_only() {
 
 #[test]
 fn show_labels_bool_creates_child_label_tracks() {
-    let timeline = built(
+    let timeline = build_clean(
         r#"
         chart: BarChart, data: {("A", 10), ("B", 20)}, show_labels: true
     "#,
@@ -181,7 +130,7 @@ fn show_labels_bool_creates_child_label_tracks() {
 
 #[test]
 fn show_labels_string() {
-    let timeline = built(
+    let timeline = build_clean(
         r#"
         chart: BarChart, data: {("A", 10), ("B", 20)}, show_labels: "false"
     "#,
@@ -275,7 +224,7 @@ fn flat_number_list_single_value() {
 
 #[test]
 fn tuple_list_still_works_with_no_diagnostics() {
-    let timeline = built(
+    let timeline = build_clean(
         r#"
         chart: BarChart, data: {("X", 10), ("Y", 20)}
     "#,
@@ -289,7 +238,7 @@ fn tuple_list_still_works_with_no_diagnostics() {
 /// half of the axis.)
 #[test]
 fn hosted_bar_chart_spans_graph_axis() {
-    let timeline = built(
+    let timeline = build_clean(
         r#"
         g: Graph, size: (800, 360), x_domain: (0, 3), y_domain: (0, 50) {
           chart: BarChart, data: {("A", 10), ("B", 40), ("C", 25)}
@@ -547,7 +496,7 @@ pulse_twice p
 /// the default white.)
 #[test]
 fn plot_curve_color_drives_stroke() {
-    let timeline = built(
+    let timeline = build_clean(
         r#"
         g: Graph, size: (800, 360), x_domain: (0, 3), y_domain: (0, 50) {
           curve: PlotCurve, kind: "cartesian", func: (x) => x * 10,
@@ -573,7 +522,7 @@ fn plot_curve_color_drives_stroke() {
 /// actor default color, contradicting the documented uniform-color intent.)
 #[test]
 fn single_bar_colors_value_is_uniform() {
-    let timeline = built(
+    let timeline = build_clean(
         r#"
         chart: BarChart,
           data: {("A", 10), ("B", 40), ("C", 25)},
@@ -596,7 +545,7 @@ fn single_bar_colors_value_is_uniform() {
 /// laid bars out in the default ~40x40 box regardless of `size:`.)
 #[test]
 fn size_property_drives_bar_chart_geometry() {
-    let timeline = built(
+    let timeline = build_clean(
         r#"
         chart: BarChart,
           data: {("A", 10), ("B", 40), ("C", 25)},
@@ -626,7 +575,7 @@ fn size_property_drives_bar_chart_geometry() {
 /// binding like on any other actor, instead of being silently dropped.
 #[test]
 fn bar_chart_anchor_offset_produce_scene_binding() {
-    let timeline = built(
+    let timeline = build_clean(
         r#"
         chart: BarChart,
           data: {("A", 10), ("B", 20)},
@@ -649,7 +598,7 @@ fn bar_chart_anchor_offset_produce_scene_binding() {
 /// now a recorded transition carrying the dataset it replaces.
 #[test]
 fn a_data_assignment_records_a_transition() {
-    let timeline = built(
+    let timeline = build_clean(
         r#"
 config { resolution: (640, 360), duration: 3 }
 chart: BarChart, data: {("A", 10), ("B", 20)}, at: (320, 180), size: (400, 220), opacity: 1.0
@@ -722,7 +671,7 @@ fn bar_data_at_walks_the_transition_list() {
 #[test]
 fn bar_geometry_follows_the_data_transition() {
     use kurbo::Shape;
-    let timeline = built(
+    let timeline = build_clean(
         r#"
 config { resolution: (640, 360), duration: 3 }
 chart: BarChart, data: {("A", 10), ("B", 20)}, max_value: 40, at: (320, 180), size: (400, 220), opacity: 1.0
@@ -828,7 +777,7 @@ chart.data = {("A", 30), ("C", 5)} [800ms]
 /// (`show_labels: false`) may re-order its categories without a word.
 #[test]
 fn a_chart_without_captions_may_reorder_silently() {
-    let timeline = built(
+    let timeline = build_clean(
         r#"
 config { resolution: (640, 360), duration: 3 }
 chart: BarChart, data: {("A", 10), ("B", 20)}, show_labels: false, at: (320, 180), size: (400, 220), opacity: 1.0

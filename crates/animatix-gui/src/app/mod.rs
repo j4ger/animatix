@@ -23,6 +23,8 @@ pub(crate) mod primitives;
 mod runtime;
 pub(crate) mod shell;
 pub(crate) mod stores;
+#[cfg(test)]
+pub(crate) mod test_support;
 mod utils;
 
 use std::collections::HashSet;

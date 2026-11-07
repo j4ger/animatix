@@ -691,7 +691,7 @@ mod tests {
 
     use super::*;
     use crate::app::document::version::SourceHash;
-    use crate::app::handlers::test_support::make_document_store;
+    use crate::app::test_support::make_document_store;
     use crate::editor::EditorBuffer;
 
     #[test]

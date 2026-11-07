@@ -212,8 +212,8 @@ pub fn handle_resize_action(
 mod tests {
     use super::*;
     use crate::app::document::timeline_diff::KeyframeId;
-    use crate::app::handlers::test_support::{make_document_store, preview_store};
     use crate::app::stores::UiStore;
+    use crate::app::test_support::{make_document_store, preview_store};
 
     #[test]
     fn set_keyframe_value_replaces_value_with_one_undo_snapshot() {

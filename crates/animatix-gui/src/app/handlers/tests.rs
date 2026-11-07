@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use animatix::timeline::SceneDimensions;
@@ -7,39 +6,12 @@ use animatix_syntax::ast::Stmt;
 use crate::app::commands::Effect;
 use crate::app::document::plugins::DocumentPluginManager;
 use crate::app::handlers::*;
-use crate::app::persistence::default_tree;
 use crate::app::preview::DragState;
-use crate::document::DocumentSession;
-use crate::editor::EditorBuffer;
+use crate::app::test_support::{
+    document_store_empty, document_store_loaded, preview_store, ui_store, workspace_store,
+};
 
-// ── Test helpers (no filesystem needed) ────────────────────────────
-
-fn make_document_store() -> crate::app::stores::DocumentStore {
-    let document = DocumentSession::from_error(std::path::PathBuf::from("test.amx"));
-    let editor =
-        EditorBuffer::new(&std::path::PathBuf::from("test.amx"), document.source_text.clone());
-    crate::app::stores::DocumentStore::new(document, editor)
-}
-
-fn make_preview_store(duration_s: f64) -> crate::app::stores::PreviewStore {
-    super::test_support::preview_store(duration_s, SceneDimensions::default())
-}
-
-fn make_ui_store() -> crate::app::stores::UiStore {
-    let tree = default_tree();
-    crate::app::stores::UiStore::new(tree)
-}
-
-fn make_workspace_store() -> crate::app::stores::WorkspaceStore {
-    crate::app::stores::WorkspaceStore::new(
-        std::path::PathBuf::from("/tmp/test"),
-        HashSet::new(),
-        vec![],
-        std::path::PathBuf::from(".test_persistence.ron"),
-        None,
-        None,
-    )
-}
+// ── Test helpers ───────────────────────────────────────────────────
 
 type Stores = (
     crate::app::stores::DocumentStore,
@@ -49,19 +21,27 @@ type Stores = (
 
 /// The standard empty `(document, preview, ui)` triple.
 fn stores() -> Stores {
-    (make_document_store(), make_preview_store(5.0), make_ui_store())
+    (
+        document_store_empty(),
+        preview_store(5.0, SceneDimensions::default()),
+        ui_store(),
+    )
 }
 
 /// Same triple over a fully parsed document.
 fn parsed_stores(source: &str) -> Stores {
-    (make_parsed_document_store(source), make_preview_store(5.0), make_ui_store())
+    (
+        document_store_loaded(source),
+        preview_store(5.0, SceneDimensions::default()),
+        ui_store(),
+    )
 }
 
 // ── TogglePlayback ───────────────────────────────────────────────
 
 #[test]
 fn toggle_playback_returns_repaint_effect() {
-    let mut preview_store = make_preview_store(5.0);
+    let mut preview_store = preview_store(5.0, SceneDimensions::default());
     let effects = playback::handle_toggle_playback(&mut preview_store);
     assert_eq!(effects.len(), 1, "expected exactly 1 effect");
     assert!(matches!(&effects[0], Effect::Repaint), "expected Repaint effect");
@@ -69,7 +49,7 @@ fn toggle_playback_returns_repaint_effect() {
 
 #[test]
 fn toggle_playback_toggles_playing_flag() {
-    let mut preview_store = make_preview_store(5.0);
+    let mut preview_store = preview_store(5.0, SceneDimensions::default());
     assert!(!preview_store.preview.playback.is_playing);
     playback::handle_toggle_playback(&mut preview_store);
     assert!(preview_store.preview.playback.is_playing);
@@ -79,7 +59,7 @@ fn toggle_playback_toggles_playing_flag() {
 
 #[test]
 fn toggle_playback_resets_time_when_at_end() {
-    let mut preview_store = make_preview_store(5.0);
+    let mut preview_store = preview_store(5.0, SceneDimensions::default());
     preview_store.preview.playback.current_time_s = preview_store.preview.playback.duration_s;
     playback::handle_toggle_playback(&mut preview_store);
     assert_eq!(preview_store.preview.playback.current_time_s, 0.0);
@@ -122,7 +102,7 @@ fn scrub_to_clamps_overshoot_time() {
 
 #[test]
 fn toggle_editor_sync_turns_off_when_on() {
-    let mut ui_store = make_ui_store();
+    let mut ui_store = ui_store();
     ui_store.editor_sync_enabled = true;
     let effects = playback::handle_toggle_editor_sync(&mut ui_store);
     assert!(!ui_store.editor_sync_enabled);
@@ -136,7 +116,7 @@ fn toggle_editor_sync_turns_off_when_on() {
 
 #[test]
 fn toggle_editor_sync_turns_on_when_off() {
-    let mut ui_store = make_ui_store();
+    let mut ui_store = ui_store();
     ui_store.editor_sync_enabled = false;
     let effects = playback::handle_toggle_editor_sync(&mut ui_store);
     assert!(ui_store.editor_sync_enabled);
@@ -152,7 +132,7 @@ fn toggle_editor_sync_turns_on_when_off() {
 
 #[test]
 fn show_inspector_returns_empty() {
-    let mut ui_store = make_ui_store();
+    let mut ui_store = ui_store();
     let effects = ui::handle_show_inspector(&mut ui_store);
     assert!(effects.is_empty());
 }
@@ -161,7 +141,7 @@ fn show_inspector_returns_empty() {
 
 #[test]
 fn drag_ended_resets_drag_state() {
-    let mut ui_store = make_ui_store();
+    let mut ui_store = ui_store();
     ui_store.interaction.drag_snapshot_taken = true;
     ui_store.interaction.inspector_input_drag_active = true;
 
@@ -200,7 +180,7 @@ fn redo_with_empty_stack_does_nothing() {
 
 #[test]
 fn inspector_input_drag_started_sets_flag() {
-    let mut ui_store = make_ui_store();
+    let mut ui_store = ui_store();
     ui_store.interaction.inspector_input_drag_active = false;
     let effects = ui::handle_inspector_input_drag_started(&mut ui_store);
     assert!(ui_store.interaction.inspector_input_drag_active);
@@ -209,7 +189,7 @@ fn inspector_input_drag_started_sets_flag() {
 
 #[test]
 fn inspector_input_drag_ended_resets_flags() {
-    let mut ui_store = make_ui_store();
+    let mut ui_store = ui_store();
     ui_store.interaction.inspector_input_drag_active = true;
     ui_store.interaction.drag_snapshot_taken = true;
     let effects = ui::handle_inspector_input_drag_ended(&mut ui_store);
@@ -226,8 +206,8 @@ fn inspector_input_drag_ended_resets_flags() {
 
 #[test]
 fn toggle_expand_dir_toggles_path_in_set() {
-    let workspace_store = &mut make_workspace_store();
-    let document_store = make_document_store();
+    let workspace_store = &mut workspace_store();
+    let document_store = document_store_empty();
     let path = std::path::PathBuf::from("/tmp/test/subdir");
 
     assert!(!workspace_store.expanded_dirs.contains(&path));
@@ -241,7 +221,7 @@ fn toggle_expand_dir_toggles_path_in_set() {
 
 #[test]
 fn scroll_to_line_focuses_diagnostic() {
-    let mut document_store = make_document_store();
+    let mut document_store = document_store_empty();
     let effects = ui::handle_scroll_to_line(&mut document_store, 5, 0);
     assert!(effects.is_empty());
     // focus_diagnostic requires cell_index coverage; with from_error()
@@ -256,28 +236,6 @@ const TEST_SOURCE: &str = r#"config { resolution: (1280, 720) }
 box: Rect, at: (100, 100), size: (100, 100), color: blue
 circle: Ellipse, at: (200, 200), radius: 50, color: red
 "#;
-
-/// Create a DocumentStore from source text. Writes source to a unique temp
-/// file and loads via DocumentSession::load() to produce a fully parsed
-/// AST + timeline.  The temp dir is NOT cleaned up (same convention as
-/// document.rs tests).
-fn make_parsed_document_store(source: &str) -> crate::app::stores::DocumentStore {
-    let unique = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system time should be after unix epoch")
-        .as_nanos();
-    let dir = std::env::temp_dir().join(format!(
-        "animatix_test_domain_{}_{}",
-        std::process::id(),
-        unique
-    ));
-    std::fs::create_dir_all(&dir).expect("create temp test dir");
-    let path = dir.join("test.amx");
-    std::fs::write(&path, source).expect("write test source");
-    let document = DocumentSession::load(path).expect("load parsed document");
-    let editor = EditorBuffer::new(&document.file_path, document.source_text.clone());
-    crate::app::stores::DocumentStore::new(document, editor)
-}
 
 #[test]
 fn set_transition_without_ast_aborts_pending_snapshot() {
@@ -631,7 +589,7 @@ fn delete_selected_actors_removes_multiple() {
 // ── handle_save (filesystem) ───────────────────────────────────────
 //
 // NOTE: handle_save writes to the document's file_path on disk.
-//       These tests use temp files created by make_parsed_document_store.
+//       These tests use the temp files `document_store_loaded` writes.
 
 #[test]
 fn save_writes_editor_text_to_disk() {
@@ -680,7 +638,7 @@ fn save_unchanged_text_does_not_lose_data() {
 #[test]
 fn open_file_populates_document_state() {
     let (mut document_store, mut preview_store, mut ui_store) = stores();
-    let mut workspace_store = make_workspace_store();
+    let mut workspace_store = workspace_store();
 
     // Create a temp file with known content
     let unique = SystemTime::now()
