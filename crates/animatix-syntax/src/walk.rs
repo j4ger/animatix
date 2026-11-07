@@ -4,13 +4,24 @@
 //! plus utility find functions used across the crate and by `animatix-gui`.
 
 use crate::ast::{ComponentDef, Expr, InlineItem, Property, Stmt, Time};
+use crate::visit::AstVisitor;
 
 // Statement walkers
 
+struct FnStmtVisitor<'f>(&'f mut dyn FnMut(&Stmt));
+
+impl<'ast> crate::visit::AstVisitor<'ast> for FnStmtVisitor<'_> {
+    fn visit_stmt(&mut self, stmt: &'ast Stmt) {
+        (self.0)(stmt);
+        crate::visit::walk_stmt(self, stmt);
+    }
+}
+
 /// Walk over all statements, calling the visitor for each and recursing into block bodies.
 pub fn walk_stmts(stmts: &[Stmt], visitor: &mut dyn FnMut(&Stmt)) {
+    let mut v = FnStmtVisitor(visitor);
     for stmt in stmts {
-        walk_stmt(stmt, visitor);
+        v.visit_stmt(stmt);
     }
 }
 
@@ -23,8 +34,8 @@ pub fn walk_stmts_mut(stmts: &mut [Stmt], visitor: &mut dyn FnMut(&mut Stmt)) {
 
 /// Visit a single statement and recurse into its children (block bodies).
 pub fn walk_stmt(stmt: &Stmt, visitor: &mut dyn FnMut(&Stmt)) {
-    visitor(stmt);
-    recurse_stmt_bodies(stmt, &mut |body| walk_stmts(body, visitor));
+    let mut v = FnStmtVisitor(visitor);
+    v.visit_stmt(stmt);
 }
 
 /// Mutable variant of walk_stmt.
@@ -46,7 +57,6 @@ impl<'ast> crate::visit::AstVisitor<'ast> for FnInlineVisitor<'_> {
 
 /// Walk over inline items, calling the visitor for each and recursing into children.
 pub fn walk_inline_items(items: &[InlineItem], visitor: &mut dyn FnMut(&InlineItem)) {
-    use crate::visit::AstVisitor;
     let mut v = FnInlineVisitor(visitor);
     for item in items {
         v.visit_inline_item(item);
@@ -62,7 +72,6 @@ pub fn walk_inline_items_mut(items: &mut [InlineItem], visitor: &mut dyn FnMut(&
 
 /// Visit a single inline item and recurse into its children.
 pub fn walk_inline_item(item: &InlineItem, visitor: &mut dyn FnMut(&InlineItem)) {
-    use crate::visit::AstVisitor;
     let mut v = FnInlineVisitor(visitor);
     v.visit_inline_item(item);
 }
@@ -97,7 +106,6 @@ impl<'ast> crate::visit::AstVisitor<'ast> for FnExprVisitor<'_> {
 
 /// Walk over an expression, visiting it and all sub-expressions.
 pub fn walk_expr(expr: &Expr, visitor: &mut dyn FnMut(&Expr)) {
-    use crate::visit::AstVisitor;
     let mut v = FnExprVisitor(visitor);
     v.visit_expr(expr);
 }
@@ -147,7 +155,8 @@ pub fn recurse_stmt_bodies(stmt: &Stmt, f: &mut dyn FnMut(&[Stmt])) {
         | Stmt::Always { body, .. }
         | Stmt::ComponentDef(crate::ast::ComponentDef { body, .. }, _)
         | Stmt::FnDecl { body, .. }
-        | Stmt::Scene { body, .. } => {
+        | Stmt::Scene { body, .. }
+        | Stmt::Block { body, .. } => {
             f(body);
         },
         Stmt::Conditional {
@@ -285,7 +294,8 @@ fn find_stmt_in_bodies<'a>(
         | Stmt::Always { body, .. }
         | Stmt::ComponentDef(ComponentDef { body, .. }, _)
         | Stmt::FnDecl { body, .. }
-        | Stmt::Scene { body, .. } => f(body),
+        | Stmt::Scene { body, .. }
+        | Stmt::Block { body, .. } => f(body),
         Stmt::Conditional {
             then_branch,
             else_branch,
@@ -322,6 +332,7 @@ fn find_stmt_in_bodies_mut<'a>(
         Stmt::ComponentDef(ComponentDef { body, .. }, _) => f(body),
         Stmt::FnDecl { body, .. } => f(body),
         Stmt::Scene { body, .. } => f(body),
+        Stmt::Block { body, .. } => f(body),
         Stmt::Conditional {
             then_branch,
             else_branch,
@@ -330,8 +341,8 @@ fn find_stmt_in_bodies_mut<'a>(
             if let Some(found) = f(then_branch) {
                 return Some(found);
             }
-            if let Some(else_body) = else_branch
-                && let Some(found) = f(else_body)
+            if let Some(else_branch_bodies) = else_branch.as_mut()
+                && let Some(found) = f(else_branch_bodies)
             {
                 return Some(found);
             }

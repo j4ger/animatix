@@ -597,8 +597,8 @@ subs: Captions, at: (960, 900), font_size: 32, text_max_width: 640 {
         target_resolver: None,
         legend: None,
     };
-    let handle = timeline.cached_primitive_for(cue_id, 1000).expect("cue primitive");
-    let cue = handle.as_dyn().caption_cue(&ctx).expect("caption cue");
+    let def = timeline.behavior_for_node(cue_id, 1000).expect("cue behavior");
+    let cue = def.caption_cue(&ctx).expect("caption cue");
     assert_eq!(cue.text, "Hello captions");
     assert_eq!(cue.start_ms, 500);
     assert_eq!(cue.end_ms, 1500);

@@ -592,22 +592,10 @@ impl Timeline {
 
     /// Resolve the primitive an entity renders with at `time_ms` as an owned
     /// handle (cheap clone). The entity's `actor_type` is the registry key —
-    /// except across a cross-type morph, where the per-frame `shape_type`
-    /// value picks the primitive; see `ShapeTracks::render_type_name`.
-    /// Served from the per-entity cache (`timeline_impl::primitive_cache`).
-    pub(crate) fn track_primitive_at(
-        &self,
-        node_id: EntityId,
-        time_ms: u64,
-    ) -> Option<crate::primitives::PrimitiveHandle> {
-        self.cached_primitive_for(node_id, time_ms)
-    }
-
     /// Local-space clip geometry for a Mask's `clip_shape` child, obtained from
-    /// the child's own primitive via [`Primitive::clip_path`]. Placed at the
-    /// child's declared position (the default clip geometry is origin-centered)
-    /// to match the previous Rect/Ellipse behavior. `None` means the primitive
-    /// has no clip geometry — the caller warns and falls back to a rectangle.
+    /// the child's own behavior evaluation. Placed at the child's declared position
+    /// (the default clip geometry is origin-centered) to match the previous Rect/Ellipse behavior.
+    /// `None` means the actor has no clip geometry — the caller warns and falls back to a rectangle.
     pub(crate) fn clip_path_for_child(
         &self,
         child_id: EntityId,
@@ -615,8 +603,10 @@ impl Timeline {
         scene_dimensions: SceneDimensions,
         overrides: &std::collections::HashMap<String, std::collections::HashMap<String, Value>>,
     ) -> Option<kurbo::BezPath> {
-        let handle = self.cached_primitive_for(child_id, time_ms)?;
-        let primitive = handle.as_dyn();
+        let def = self.behavior_for_node(child_id, time_ms)?;
+        if !def.caps.is_shape {
+            return None;
+        }
         let vector_paths = self
             .world
             .shape_or_default(child_id)
@@ -646,7 +636,20 @@ impl Timeline {
             caps: self.world.caps(child_id),
             payload: payload.as_ref(),
         };
-        let path = primitive.clip_path(&ctx, &ctx.caps);
+        let commands = def.evaluate(&ctx, None).ok()??;
+        let mut combined = kurbo::BezPath::new();
+        for cmd in &commands {
+            if let crate::primitives::RenderCommand::Paths { paths } = cmd {
+                for vp in paths {
+                    combined.extend(vp.path.elements().iter().copied());
+                }
+            }
+        }
+        let path = if combined.elements().is_empty() {
+            None
+        } else {
+            Some(combined)
+        };
         // Consume the memo-bounds handoff so it can't leak into the next node.
         let _ = self.world.take_shape_command_bounds(child_id);
         // Place the (origin-centered) clip geometry with the child's fully

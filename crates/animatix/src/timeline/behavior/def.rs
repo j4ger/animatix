@@ -1,5 +1,7 @@
 //! BehaviorId, BehaviorSource, and BehaviorDef.
 
+use crate::primitives::{CaptionCue, EquationFragment};
+use crate::timeline::TrackAccessor as _;
 use animatix_core::caps::ActorCaps;
 
 /// Compact identifier for an actor behavior in the behavior table.
@@ -115,6 +117,67 @@ impl BehaviorDef {
         match &self.source {
             BehaviorSource::Family(_) => None,
             BehaviorSource::Extension(ext) => Some(ext.as_ref()),
+        }
+    }
+
+    /// Return the subtitle cue data if this behavior represents a caption cue.
+    pub fn caption_cue(&self, ctx: &crate::primitives::EvaluateCtx) -> Option<CaptionCue> {
+        match &self.source {
+            BehaviorSource::Family(_) => {
+                if self.name.as_ref() == "Cue" {
+                    let text = ctx
+                        .text
+                        .map(|t| t.text_content.get(ctx.time_ms, String::new()))
+                        .unwrap_or_default();
+                    let start_s = ctx.sample_f32_prop("start", ctx.time_ms, 0.0);
+                    let end_s = ctx.sample_f32_prop("end", ctx.time_ms, 0.0);
+                    let start_ms = (start_s * 1000.0).round() as u64;
+                    let end_ms = (end_s * 1000.0).round() as u64;
+                    let active_color = ctx
+                        .sample_property_named("active_color", ctx.time_ms)
+                        .and_then(|pv| match pv {
+                            crate::timeline::PropertyValue::Color(c)
+                            | crate::timeline::PropertyValue::Vec4(c) => Some(c),
+                            _ => None,
+                        });
+
+                    Some(CaptionCue {
+                        text,
+                        start_ms,
+                        end_ms,
+                        active_color,
+                    })
+                } else {
+                    None
+                }
+            },
+            BehaviorSource::Extension(ext) => ext.caption_cue(ctx),
+        }
+    }
+
+    /// Return the equation fragment data if this behavior contributes equation fragments.
+    pub fn equation_fragment(
+        &self,
+        ctx: &crate::primitives::EvaluateCtx,
+    ) -> Option<EquationFragment> {
+        match &self.source {
+            BehaviorSource::Family(_) => {
+                if let (Some(text), Some(highlight)) = (ctx.text, ctx.highlight) {
+                    Some(EquationFragment {
+                        content: text.text_content.get(ctx.time_ms, String::new()),
+                        highlight_color: highlight
+                            .highlight_color
+                            .get(ctx.time_ms, [0.3, 0.5, 1.0, 1.0]),
+                        highlight_opacity: highlight.highlight_opacity.get(ctx.time_ms, 0.0),
+                        highlight_padding: highlight.highlight_padding.get(ctx.time_ms, 4.0),
+                        highlight_radius: highlight.highlight_radius.get(ctx.time_ms, 3.0),
+                        highlight_blend: highlight.highlight_blend,
+                    })
+                } else {
+                    None
+                }
+            },
+            BehaviorSource::Extension(ext) => ext.equation_fragment(ctx),
         }
     }
 }

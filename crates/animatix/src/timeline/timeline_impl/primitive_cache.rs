@@ -37,6 +37,7 @@ impl Timeline {
     /// While a cross-type morph is active, `render_type_name` returns a name
     /// other than the identity type and the per-frame name picks the
     /// primitive; those lookups deliberately bypass the cache.
+    #[allow(dead_code)] // Unused in favor of BehaviorDef/PrimitiveRegistry refactor
     pub(crate) fn cached_primitive_for(
         &self,
         node_id: EntityId,

@@ -39,12 +39,14 @@ impl RegisteredPrimitive {
 /// per-entity render-path cache so the hot loop stops re-scanning the
 /// registry's type-name list once per node per frame.
 #[derive(Clone)]
+#[allow(dead_code)] // Unused in favor of BehaviorDef/PrimitiveRegistry refactor
 pub(crate) enum PrimitiveHandle {
     Registered(RegisteredPrimitive),
     Extension(Arc<dyn Primitive>),
 }
 
 impl PrimitiveHandle {
+    #[allow(dead_code)] // Unused in favor of BehaviorDef/PrimitiveRegistry refactor
     pub(crate) fn as_dyn(&self) -> &dyn Primitive {
         match self {
             Self::Registered(reg) => reg.as_ref(),
@@ -52,6 +54,7 @@ impl PrimitiveHandle {
         }
     }
 
+    #[allow(dead_code)] // Unused in favor of BehaviorDef/PrimitiveRegistry refactor
     pub(crate) fn from_behavior(def: &crate::timeline::behavior::BehaviorDef) -> Option<Self> {
         match &def.source {
             crate::timeline::behavior::BehaviorSource::Family(_) => super::BUILT_INS

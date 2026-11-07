@@ -97,12 +97,11 @@ impl Timeline {
         let child_ids: Vec<EntityId> = self.world.hierarchy(node_id).children.to_vec();
 
         for &child_id in &child_ids {
-            // A fragment is any child whose primitive opts into
+            // A fragment is any child whose behavior opts into
             // `equation_fragment` — never a hard-coded type name.
-            let Some(handle) = self.track_primitive_at(child_id, time_ms) else {
+            let Some(def) = self.behavior_for_node(child_id, time_ms) else {
                 continue;
             };
-            let primitive = handle.as_dyn();
             let ctx = crate::primitives::EvaluateCtx {
                 id: child_id,
                 label: self.world.label(child_id).unwrap_or(""),
@@ -126,7 +125,7 @@ impl Timeline {
                 caps: self.world.caps(child_id),
                 payload: None,
             };
-            if let Some(fragment) = primitive.equation_fragment(&ctx) {
+            if let Some(fragment) = def.equation_fragment(&ctx) {
                 frags.push(FragInfo {
                     content: fragment.content,
                     hl_color: fragment.highlight_color,

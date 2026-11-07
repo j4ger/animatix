@@ -128,10 +128,9 @@ impl Timeline {
         let child_ids: Vec<EntityId> = self.world.hierarchy(node_id).children.to_vec();
 
         for &child_id in &child_ids {
-            let Some(handle) = self.track_primitive_at(child_id, time_ms) else {
+            let Some(def) = self.behavior_for_node(child_id, time_ms) else {
                 continue;
             };
-            let primitive = handle.as_dyn();
             let ctx = crate::primitives::EvaluateCtx {
                 id: child_id,
                 label: self.world.label(child_id).unwrap_or(""),
@@ -155,7 +154,7 @@ impl Timeline {
                 caps: self.world.caps(child_id),
                 payload: None,
             };
-            if let Some(cue) = primitive.caption_cue(&ctx) {
+            if let Some(cue) = def.caption_cue(&ctx) {
                 let start_s = cue.start_ms as f64 / 1000.0;
                 let end_s = cue.end_ms as f64 / 1000.0;
                 let words_vec: Vec<&str> = cue.text.split_whitespace().collect();
