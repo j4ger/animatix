@@ -258,23 +258,11 @@ fn test_font_ctx() -> FontContext {
     }
 }
 
-/// Serialize the tests that assert on the process-wide compile cache
-/// (clearing it, pointer identity, or cache length). The cache is a
-/// process singleton, so these tests cannot run concurrently with each
-/// other; they previously relied on the workspace's serial `--test-threads=1`
-/// checklist, which a parallel `cargo test -p animatix-text` does not
-/// guarantee.
-fn cache_test_guard() -> std::sync::MutexGuard<'static, ()> {
-    static CACHE_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    CACHE_TEST_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
-}
-
 /// `max_lines` must cap the number of wrapped lines the fast text path
 /// emits, and must be part of the cache key (so a capped compile is not
 /// served the uncapped entry).
 #[test]
 fn max_lines_caps_wrapped_lines() {
-    let _guard = cache_test_guard();
     let font_ctx = test_font_ctx();
     let text = "the quick brown fox jumps over the lazy dog and keeps running";
 
@@ -434,7 +422,6 @@ fn highlight_preserves_spacing() {
 
 #[test]
 fn language_is_part_of_text_cache_key() {
-    let _cache = cache_test_guard();
     let font_ctx = test_font_ctx();
     let compile = |lang: &str| {
         compile_text_cached(&code_request("def f(x): return x", lang, None), &font_ctx)
@@ -492,7 +479,6 @@ fn glyph_hexes(cached: &CachedText) -> Vec<String> {
 fn highlight_palette_recolours_tokens() {
     // Shares this snippet's cache key with `palette_is_part_of_text_cache_key`;
     // hold the guard so neither test observes the other's insert mid-assertion.
-    let _cache = cache_test_guard();
     let font_ctx = test_font_ctx();
     // `fn` is a keyword; the sentinel palette maps keyword → pure green.
     let with =
@@ -511,7 +497,6 @@ fn highlight_palette_recolours_tokens() {
 
 #[test]
 fn palette_is_part_of_text_cache_key() {
-    let _cache = cache_test_guard();
     let font_ctx = test_font_ctx();
     let code = "fn main() {}";
     let a = sentinel_palette();
@@ -686,7 +671,6 @@ fn fast_path_vs_typst_visually_equivalent() {
 
 #[test]
 fn fast_path_caches_results() {
-    let _guard = cache_test_guard();
     let font_ctx = test_font_ctx();
     let mut compiler = TextCompiler::new();
     compiler.text_fast_path = true;

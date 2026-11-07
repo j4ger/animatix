@@ -172,32 +172,39 @@ fn cjk_text_renders_with_default_family() {
 /// Regression: without an explicit page rule Typst applied its default A4
 /// page geometry and wrapped any line wider than ~453pt.
 #[test]
-fn long_cjk_line_stays_single_line_without_max_width() {
+fn long_line_stays_single_line_without_max_width() {
     let font_ctx = test_font_ctx();
-    let frame = compile_text(
-        "布局优先的动画描述语言中文长句样例",
-        40.0,
-        typst::visualize::Color::from_u8(255, 255, 255, 255),
-        "",
-        &font_ctx,
-        400.0,
-        "normal",
-        1.2,
-        0.0,
-        0.0,
-        0.0,
-        "left",
-        "visible",
-    )
-    .unwrap();
-    let compiled = extract_glyphs_with_metrics(&frame);
-    assert!(!compiled.glyphs.is_empty());
-    let [_, half_h] = measure_text_paths(&compiled.glyphs);
-    assert!(
-        half_h * 2.0 < 40.0 * 2.0,
-        "expected one line without max_width, got ink height {:.1}",
-        half_h * 2.0
-    );
+    let cases = [
+        ("cjk", "布局优先的动画描述语言中文长句样例", 40.0),
+        ("latin", "The quick brown fox jumps over the lazy dog again and again", 24.0),
+    ];
+
+    for (case, text, font_size) in cases {
+        let frame = compile_text(
+            text,
+            font_size,
+            typst::visualize::Color::from_u8(255, 255, 255, 255),
+            "",
+            &font_ctx,
+            400.0,
+            "normal",
+            1.2,
+            0.0,
+            0.0,
+            0.0,
+            "left",
+            "visible",
+        )
+        .unwrap();
+        let compiled = extract_glyphs_with_metrics(&frame);
+        assert!(!compiled.glyphs.is_empty(), "{case}: glyphs must not be empty");
+        let [_, half_h] = measure_text_paths(&compiled.glyphs);
+        assert!(
+            half_h * 2.0 < font_size * 2.0,
+            "{case}: expected one line without max_width, got ink height {:.1}",
+            half_h * 2.0
+        );
+    }
 }
 
 #[cfg(feature = "rich-text")]
@@ -226,36 +233,6 @@ fn text_max_width_wraps_long_cjk_line() {
     assert!(
         half_h * 2.0 >= 40.0 * 2.0,
         "expected wrapping at max_width=160, got ink height {:.1}",
-        half_h * 2.0
-    );
-}
-
-#[cfg(feature = "rich-text")]
-#[test]
-fn long_latin_line_stays_single_line_without_max_width() {
-    let font_ctx = test_font_ctx();
-    let frame = compile_text(
-        "The quick brown fox jumps over the lazy dog again and again",
-        24.0,
-        typst::visualize::Color::from_u8(255, 255, 255, 255),
-        "",
-        &font_ctx,
-        400.0,
-        "normal",
-        1.2,
-        0.0,
-        0.0,
-        0.0,
-        "left",
-        "visible",
-    )
-    .unwrap();
-    let compiled = extract_glyphs_with_metrics(&frame);
-    assert!(!compiled.glyphs.is_empty());
-    let [_, half_h] = measure_text_paths(&compiled.glyphs);
-    assert!(
-        half_h * 2.0 < 24.0 * 2.0,
-        "Latin single-line behavior changed: ink height {:.1}",
         half_h * 2.0
     );
 }

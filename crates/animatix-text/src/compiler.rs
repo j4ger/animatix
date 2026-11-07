@@ -67,32 +67,68 @@ pub struct CachedGroupedText {
 /// an unchanged actor cost one hash lookup instead of a full Typst pass.
 type TextCompileCache = std::collections::HashMap<TextCacheKey, std::sync::Arc<CachedText>>;
 
+#[cfg(not(test))]
 fn compile_cache() -> &'static std::sync::Mutex<TextCompileCache> {
     use std::sync::OnceLock;
     static CACHE: OnceLock<std::sync::Mutex<TextCompileCache>> = OnceLock::new();
     CACHE.get_or_init(|| std::sync::Mutex::new(TextCompileCache::new()))
 }
 
-/// Lock the compile cache, recovering the map if a panic poisoned it.
-fn lock_compile_cache() -> std::sync::MutexGuard<'static, TextCompileCache> {
-    compile_cache().lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+/// Run `f` against the process-wide compile memo table, recovering the map if a
+/// panic poisoned it.
+#[cfg(not(test))]
+fn with_compile_cache<R>(f: impl FnOnce(&mut TextCompileCache) -> R) -> R {
+    let mut cache = compile_cache().lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    f(&mut cache)
+}
+
+// Test builds get a **thread-local** memo table.
+//
+// The unit-test binary runs many tests in parallel in one process. A shared
+// table let one test's `clear_text_compile_cache` (or the cap eviction) drop an
+// entry another test was still asserting on — `compile_cache_keys_on_wrapping_params`
+// compared `Arc` pointers and flaked three runs in eight. Per-thread storage
+// gives every test the same isolation it would get from its own process, with no
+// test-order discipline to maintain.
+#[cfg(test)]
+thread_local! {
+    static TEST_COMPILE_CACHE: std::cell::RefCell<TextCompileCache> =
+        std::cell::RefCell::new(TextCompileCache::new());
+}
+
+#[cfg(test)]
+fn with_compile_cache<R>(f: impl FnOnce(&mut TextCompileCache) -> R) -> R {
+    TEST_COMPILE_CACHE.with(|cache| f(&mut cache.borrow_mut()))
 }
 
 /// Process-wide memo for grouped (Equation) compilations, keyed by the same
 /// [`TextCacheKey`] so font-epoch invalidation applies to both tables.
 type GroupedTextCache = std::collections::HashMap<TextCacheKey, std::sync::Arc<CachedGroupedText>>;
 
+#[cfg(not(test))]
 fn grouped_compile_cache() -> &'static std::sync::Mutex<GroupedTextCache> {
     use std::sync::OnceLock;
     static CACHE: OnceLock<std::sync::Mutex<GroupedTextCache>> = OnceLock::new();
     CACHE.get_or_init(|| std::sync::Mutex::new(GroupedTextCache::new()))
 }
 
-/// Lock the grouped compile cache, recovering the map if a panic poisoned it.
-fn lock_grouped_cache() -> std::sync::MutexGuard<'static, GroupedTextCache> {
-    grouped_compile_cache()
+#[cfg(not(test))]
+fn with_grouped_cache<R>(f: impl FnOnce(&mut GroupedTextCache) -> R) -> R {
+    let mut cache = grouped_compile_cache()
         .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    f(&mut cache)
+}
+
+#[cfg(test)]
+thread_local! {
+    static TEST_GROUPED_CACHE: std::cell::RefCell<GroupedTextCache> =
+        std::cell::RefCell::new(GroupedTextCache::new());
+}
+
+#[cfg(test)]
+fn with_grouped_cache<R>(f: impl FnOnce(&mut GroupedTextCache) -> R) -> R {
+    TEST_GROUPED_CACHE.with(|cache| f(&mut cache.borrow_mut()))
 }
 
 /// Upper bound on memoized compilations; exceeding it drops roughly half to
@@ -116,23 +152,23 @@ where
 /// for cold-build benchmarks). Clears the grouped table too: it is keyed on the
 /// same font-epoch-guarded inputs.
 pub fn clear_text_compile_cache() {
-    lock_compile_cache().clear();
-    lock_grouped_cache().clear();
+    with_compile_cache(|cache| cache.clear());
+    with_grouped_cache(|cache| cache.clear());
 }
 
 /// Number of memoized text compilations (for tests and diagnostics).
 pub fn text_compile_cache_len() -> usize {
-    lock_compile_cache().len()
+    with_compile_cache(|cache| cache.len())
 }
 
 /// Number of memoized grouped (Equation) compilations (for tests and diagnostics).
 pub fn grouped_text_compile_cache_len() -> usize {
-    lock_grouped_cache().len()
+    with_grouped_cache(|cache| cache.len())
 }
 
 /// Look up a memoized compilation for `key`, cloning the cached entry.
 fn lookup_cached_text(key: &TextCacheKey) -> Option<std::sync::Arc<CachedText>> {
-    lock_compile_cache().get(key).cloned()
+    with_compile_cache(|cache| cache.get(key).cloned())
 }
 
 /// Compile a request that missed the memo table: pick the fast or Typst route
@@ -350,9 +386,10 @@ fn store_cached_text(key: TextCacheKey, compiled: CompiledText) -> std::sync::Ar
         hardware_layout: compiled.hardware_layout.map(std::sync::Arc::new),
     });
 
-    let mut cache = lock_compile_cache();
-    cache.insert(key, std::sync::Arc::clone(&entry));
-    evict_text_compile_cache(&mut cache);
+    with_compile_cache(|cache| {
+        cache.insert(key, std::sync::Arc::clone(&entry));
+        evict_text_compile_cache(cache);
+    });
     entry
 }
 
@@ -430,8 +467,8 @@ pub fn compile_typst_grouped_cached(
     };
     let key = request.cache_key(font_ctx);
 
-    if let Some(hit) = lock_grouped_cache().get(&key) {
-        return Ok(std::sync::Arc::clone(hit));
+    if let Some(hit) = with_grouped_cache(|cache| cache.get(&key).cloned()) {
+        return Ok(hit);
     }
 
     #[cfg(feature = "rich-text")]
@@ -459,11 +496,10 @@ pub fn compile_typst_grouped_cached(
             ranges: ranges.into(),
         });
 
-        {
-            let mut cache = lock_grouped_cache();
+        with_grouped_cache(|cache| {
             cache.insert(key, std::sync::Arc::clone(&entry));
-            evict_text_compile_cache(&mut cache);
-        }
+            evict_text_compile_cache(cache);
+        });
         Ok(entry)
     }
 
@@ -496,11 +532,10 @@ pub fn compile_typst_grouped_cached(
             glyphs: compiled.glyphs.into(),
             ranges: ranges.into(),
         });
-        {
-            let mut cache = lock_grouped_cache();
+        with_grouped_cache(|cache| {
             cache.insert(key, std::sync::Arc::clone(&entry));
-            evict_text_compile_cache(&mut cache);
-        }
+            evict_text_compile_cache(cache);
+        });
         Ok(entry)
     }
 }

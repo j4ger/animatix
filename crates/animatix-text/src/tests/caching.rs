@@ -50,7 +50,6 @@ fn code_kind_uses_typst_not_fast_path() {
 
 #[test]
 fn compile_cache_keys_on_wrapping_params() {
-    let _cache = cache_test_guard();
     let font_ctx = test_font_ctx();
     clear_text_compile_cache();
 
@@ -88,7 +87,6 @@ fn compile_cache_keys_on_wrapping_params() {
 /// compiler compile is a cache hit on the same complete request a caller builds.
 #[test]
 fn request_and_compiler_share_the_cache_entry() {
-    let _cache = cache_test_guard();
     let font_ctx = test_font_ctx();
     clear_text_compile_cache();
 
@@ -126,7 +124,6 @@ fn request_and_compiler_share_the_cache_entry() {
 /// effective cache keys (and therefore all layout inputs) are identical.
 #[test]
 fn compile_request_preserves_adjacent_typography_and_wrapping_fields() {
-    let _cache = cache_test_guard();
     let font_ctx = test_font_ctx();
     clear_text_compile_cache();
 
@@ -170,7 +167,6 @@ fn compile_request_preserves_adjacent_typography_and_wrapping_fields() {
 #[cfg(feature = "rich-text")]
 #[test]
 fn typst_wrapping_supports_overflow_modes() {
-    let _cache = cache_test_guard();
     let font_ctx = test_font_ctx();
 
     // Ensure compile_text with overflow: ellipsis and overflow: clip succeed via Typst path
@@ -212,7 +208,6 @@ fn typst_wrapping_supports_overflow_modes() {
 
 #[test]
 fn grouped_typst_compile_is_memoized() {
-    let _cache = cache_test_guard();
     let font_ctx = test_font_ctx();
     clear_text_compile_cache();
 
@@ -285,7 +280,6 @@ fn slim_grouped_typography_passes_valid_values_and_falls_back() {
 #[cfg(not(feature = "rich-text"))]
 #[test]
 fn slim_grouped_text_uses_requested_line_height() {
-    let _cache = cache_test_guard();
     let font_ctx = test_font_ctx();
 
     let ink_height = |line_height: f32| {
@@ -316,7 +310,6 @@ fn slim_grouped_text_uses_requested_line_height() {
 
 #[test]
 fn font_epoch_invalidates_cache() {
-    let _cache = cache_test_guard();
     clear_text_compile_cache();
     let compile_at_current_epoch = |font_ctx: &FontContext| {
         let request = TextCompileRequest::new(
@@ -347,7 +340,6 @@ fn font_epoch_invalidates_cache() {
 
 #[test]
 fn compile_cache_survives_new_compiler_instances() {
-    let _cache = cache_test_guard();
     let font_ctx = test_font_ctx();
     clear_text_compile_cache();
 
