@@ -1,14 +1,9 @@
 //! Scene-camera (`camera.at` / `camera.zoom` / `camera.rotation`) build and
 //! sampling behaviour.
 
+use super::support::{build_ignoring_warnings, build_timeline};
+use crate::timeline::{SceneDimensions, Timeline, Value};
 use kurbo::{Affine, Point};
-
-use super::*;
-use crate::timeline::SceneDimensions;
-
-fn build(source: &str) -> Timeline {
-    support::build_timeline(source)
-}
 
 fn scene() -> SceneDimensions {
     SceneDimensions {
@@ -25,7 +20,7 @@ a: Rect, size: (100, 100), at: (200, 100), color: accent.primary
 
 #[test]
 fn a_scene_that_never_addresses_the_camera_stays_untransformed() {
-    let timeline = build(PLAIN);
+    let timeline = build_timeline(PLAIN);
     assert!(
         !timeline.camera_used.get(),
         "an untouched camera must not engage the frame path"
@@ -36,7 +31,7 @@ fn a_scene_that_never_addresses_the_camera_stays_untransformed() {
 
 #[test]
 fn camera_zoom_magnifies_about_the_scene_center() {
-    let timeline = build(
+    let timeline = build_timeline(
         r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
@@ -58,7 +53,7 @@ camera.zoom = 2.0
 /// every frame before the stamp.
 #[test]
 fn a_delayed_camera_write_holds_its_identity_until_its_stamp() {
-    let timeline = build(
+    let timeline = build_timeline(
         r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
@@ -77,7 +72,7 @@ camera.zoom = 2.0
 
 #[test]
 fn camera_pan_shifts_in_screen_pixels_after_the_zoom() {
-    let timeline = build(
+    let timeline = build_timeline(
         r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
@@ -92,7 +87,7 @@ camera.at = (10.0, -20.0)
 
 #[test]
 fn camera_axes_interpolate_over_their_authored_duration() {
-    let timeline = build(
+    let timeline = build_timeline(
         r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
@@ -117,7 +112,7 @@ camera.zoom = 3.0 [1000ms, ease: linear]
 fn an_always_block_camera_write_engages_the_frame_path() {
     // `always` never touches the camera tracks — it writes the frame override
     // map — so `refresh_camera_used` has to read the modifier statements.
-    let timeline = build(
+    let timeline = build_timeline(
         r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 always { camera.at = (4.0, 4.0) }
@@ -133,16 +128,9 @@ a: Rect, size: (100, 100), at: (200, 100), color: accent.primary
     assert_eq!(affine * Point::new(320.0, 180.0), Point::new(327.0, 173.0));
 }
 
-fn build_report(source: &str) -> Vec<animatix_syntax::diagnostics::Diagnostic> {
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new()).diagnostics
-}
-
 #[test]
 fn an_unknown_camera_axis_is_reported() {
-    let diagnostics = build_report(
+    let (_, diagnostics) = build_ignoring_warnings(
         r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
@@ -163,7 +151,7 @@ camera.tilt = 0.4
 
 #[test]
 fn a_wrongly_shaped_camera_value_is_reported() {
-    let diagnostics = build_report(
+    let (_, diagnostics) = build_ignoring_warnings(
         r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
@@ -180,7 +168,7 @@ camera.zoom = (1.0, 2.0)
 
 #[test]
 fn the_camera_label_is_reserved_for_the_camera() {
-    let diagnostics = build_report(
+    let (_, diagnostics) = build_ignoring_warnings(
         r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
@@ -206,7 +194,7 @@ fn bounds_centre(timeline: &Timeline, time_s: f64, label: &str) -> Point {
     let program = timeline.evaluate_program_with_debug(
         time_s,
         dims,
-        DebugRenderOptions::default(),
+        crate::timeline::DebugRenderOptions::default(),
         &mut backend,
     );
     let rect = *program
@@ -221,7 +209,7 @@ fn bounds_centre(timeline: &Timeline, time_s: f64, label: &str) -> Point {
 /// scene, so the control cannot drift.
 #[test]
 fn a_camera_follow_false_root_stays_put_under_a_push_in() {
-    let timeline = build(
+    let timeline = build_timeline(
         r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
@@ -248,7 +236,7 @@ camera.zoom = 2.0
 /// assignment that quietly does nothing.
 #[test]
 fn camera_follow_cannot_be_assigned_at_frame_time() {
-    let diagnostics = build_report(
+    let (_, diagnostics) = build_ignoring_warnings(
         r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
@@ -276,7 +264,7 @@ hud.camera_follow = true [300ms]
 /// the flag keeps its default and the actor stays camera'd.
 #[test]
 fn a_non_bool_camera_follow_declaration_keeps_the_default() {
-    let timeline = build(
+    let timeline = build_timeline(
         r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
@@ -295,7 +283,7 @@ hud: Rect, size: (40, 40), at: (420, 180), camera_follow: "no"
 /// reported instead of left to be discovered in a render.
 #[test]
 fn a_nested_camera_follow_false_warns() {
-    let diagnostics = build_report(
+    let (_, diagnostics) = build_ignoring_warnings(
         r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
@@ -316,7 +304,7 @@ deck: Col, at: (320, 180) {
 /// track it is given), so it is pinned here instead of through a render.
 #[test]
 fn a_camera_follow_false_scope_keeps_its_authored_region() {
-    let timeline = build(
+    let timeline = build_timeline(
         r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
@@ -354,7 +342,7 @@ camera.zoom = 2.0
 /// moved (and was then culled off-screen by the camera it should not have seen).
 #[test]
 fn camera_follow_reaches_the_actor_families_that_build_their_own_declaration() {
-    let timeline = build(
+    let timeline = build_timeline(
         r#"
 config { colorscheme: "editorial-dark", resolution: (1280, 720) }
 #0s
@@ -385,7 +373,7 @@ camera.zoom = 1.45
     let program = timeline.evaluate_program_with_debug(
         2.6,
         dims,
-        DebugRenderOptions::default(),
+        crate::timeline::DebugRenderOptions::default(),
         &mut backend,
     );
     // 1.45x about (640, 360): the plate's own width grows from 300 to 435 and

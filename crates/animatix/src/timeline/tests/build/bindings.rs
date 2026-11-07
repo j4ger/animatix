@@ -243,11 +243,8 @@ a: Rect, size: (100, 100), color: accent.primary, stroke: red, stroke_width: 4, 
 
 #[test]
 fn plot_actor_declarations_seed_dash_and_gradient() {
-    // The plot pipeline consumes its own children's declarations, so the dash
-    // pair and the gradient properties — both declared for every
-    // `AllStrokePaths` actor, which includes `PlotCurve` — need an explicit
-    // route onto the track. Without it the frame-time stamp samples an empty
-    // ramp and the curve silently draws its default solid stroke.
+    // Plot children must route declared dash patterns and stroke gradients
+    // onto their tracks rather than silently defaulting to a solid stroke.
     let timeline = build_timeline(
         r##"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
@@ -411,11 +408,8 @@ bg: Filter, bounds: (40, 30, 120, 80) {
     assert_eq!(region.size.height, 100);
 }
 
-/// Authored bounds are scene coordinates, but the scope's sub-scene is rendered
-/// in world space, so a camera move has to carry the bounds with it — otherwise
-/// the scope filters the rectangle the author pointed at *before* the move.
-/// `dogfood/probe_camera_scopes.amx` measured the gap this test guards: 9
-/// differing pixels at camera identity, 73,512 after a 2x push.
+/// Filter scope bounds authored in scene coordinates must transform with camera
+/// motion to keep the filtered region aligned in world space.
 #[test]
 fn filter_bounds_follow_the_camera() {
     let timeline = build_timeline(
@@ -541,9 +535,8 @@ r: Rect, size: (100, 100), at: (480, 270)
     assert_eq!(build_clean(source).resolution(), Some((960, 540)));
 }
 
-/// A stroke-only Path (explicit `stroke:`, no `color:`) must not emit the
-/// default scheme fill: vello implicitly closes open paths, so the fill
-/// rendered a hand-drawn line as a dark dome. (Regression test.)
+/// A stroke-only Path with no declared fill color must default to zero fill
+/// opacity so open paths are not implicitly filled by the rasterizer.
 #[test]
 fn stroke_only_path_suppresses_default_fill() {
     let source = "p: Path, commands: {move_to(-50, 0), line_to(50, 0)}, stroke: accent.primary, stroke_width: 4";
@@ -565,17 +558,13 @@ fn stroke_only_path_keeps_authored_fill_opacity() {
     assert_eq!(timeline.world.style(track).fill_opacity.get(0, 1.0), 0.5);
 }
 
-/// An invalid easing name on an assignment must produce a diagnostic.
-/// (Regression: the parser consumed `ease:` modifiers unconditionally, so
-/// unknown names were silently replaced by the default easing.)
+/// Invalid easing names on property assignments must be reported as diagnostics.
 #[test]
 fn typst_and_code_accept_uniform_text_content_property() {
     use crate::timeline::TrackAccessor;
 
-    // Regression: the uniform `text:` content property should feed the content
-    // track for the non-`Text` text kinds too. Previously `Typst`/`Code` only
-    // read `content`/`code` at build time, so `Typst, text: "..."` was accepted
-    // (no error) yet rendered blank.
+    // Uniform `text:` property declarations must populate the text content
+    // track for Typst and Code actors.
     let source = r#"
 a: Typst, text: "hello typst"
 b: Code, text: "hello code"
@@ -631,11 +620,8 @@ r.at = (320, 180) [500ms, ease: bounce-out]
     );
 }
 
-/// A multi-segment property expression that fails to resolve must produce a
-/// diagnostic naming the full dotted path. (Regression: only the base segment
-/// was reported as the undefined variable, which slipped through the
-/// dotless-key filter — `font_size: theme.text_md` without an aliased import
-/// rendered invisibly with a clean `check`.)
+/// Unresolved multi-segment property paths must produce a diagnostic naming the
+/// full dotted path rather than only the base segment.
 #[test]
 fn unresolved_path_property_warns_with_full_dotted_path() {
     let source = r#"
@@ -810,10 +796,8 @@ label.text = format("{}", is_animating(5))
 
 #[test]
 fn letchain_closure_captures_let_binding() {
-    // A closure created inside a block body must capture the let-bound
-    // variable (CapturedEnv::snapshot includes LetChain scopes). Before the
-    // fix this invoked as UndefinedVariable — the inner closure's captures
-    // silently missed the scoped `a`.
+    // Nested closures inside block bodies must capture outer let-bound variables
+    // from enclosing LetChain scopes.
     let source = r#"
 config { colorscheme: "editorial-dark", resolution: (480, 270) }
 
@@ -916,10 +900,8 @@ fn prop_ref_to_non_injectable_property_warns() {
 
 #[test]
 fn brace_list_assignment_to_vector_properties_works() {
-    // All-numeric brace lists are accepted at the property boundary with
-    // the same semantics as the paren form (`at` moves, `size` applies).
-    // This used to be three separate silent no-ops: at re-keyframed the old
-    // position, size re-keyframed the old size.
+    // Numeric brace lists must bind directly to vector properties with the
+    // same semantics as parenthesized coordinate tuples.
     let source = r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 

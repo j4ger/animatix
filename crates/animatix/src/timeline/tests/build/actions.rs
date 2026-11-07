@@ -33,10 +33,8 @@ box.at = {280, "x"} [300ms]
     );
 }
 
-/// The layout readers take a number or a `(x, y)` tuple and used to leave
-/// anything else alone with no output at all. `gap`'s type row now admits a
-/// string (BarChart reads `"auto"` as the same name), so the drop has to be
-/// reported by the reader instead of relying on the type check.
+/// Container layout readers must report unreadable property values (such as
+/// string `gap`) with an InvalidPropertyValue diagnostic.
 #[test]
 fn container_layout_value_it_cannot_read_is_reported() {
     for (label, source) in [
@@ -59,10 +57,8 @@ fn container_layout_value_it_cannot_read_is_reported() {
     }
 }
 
-/// A timed declaration seeds a start snapshot *and* an end keyframe for every
-/// shape value it carries. `corner_radius` was missing from the start list
-/// while being present in the end list, which made a timed radius declaration
-/// jump straight to its final value instead of animating from the current one.
+/// A timed declaration must snapshot `corner_radius` at the start stamp so the
+/// animation transitions smoothly from the prior value to the declared target.
 #[test]
 fn timed_declaration_snapshots_the_corner_radius() {
     let source = r#"
@@ -253,11 +249,8 @@ fade-in r [500ms]
 
 #[test]
 fn rect_to_ellipse_redeclaration_keeps_rect_geometry_before_the_morph() {
-    // A same-label re-declaration that changes the actor type (the morph
-    // syntax) must not reach back before its own beat: the actor renders as
-    // its declared type until the morph starts. Regression: `box: Ellipse`
-    // at #1.5s made the Rect draw as a circle from frame 0 (the morph target
-    // leaked into the pre-morph span).
+    // A type-morphing re-declaration must render as the declared type until
+    // the morph beat without leaking target geometry into the pre-morph span.
     let source = r#"
 config { resolution: (640, 360), duration: 3 }
 box: Rect, size: (140, 140), color: accent.primary, at: (320, 180)
@@ -354,9 +347,8 @@ bounce a [1s, intensity: 100, restitution: 0.9]
     );
 }
 
-/// The timing parser used to keep its own list of effect modifier keys, so an
-/// action gaining a parameter (`bounce [restitution: …]`) produced a warning
-/// about a key its own signature declares.
+/// Action modifier validation must permit parameters declared by the action's
+/// signature rather than rejecting them against a fixed modifier list.
 #[test]
 fn action_modifiers_are_tolerated_from_the_signature_not_a_literal_list() {
     let report = build(
@@ -392,9 +384,8 @@ bounce a [1s, intensy: 40]
     );
 }
 
-/// `Arrow` paints both its shaft and its head from `stroke_color`, so an
-/// authored `color:` had nowhere to go: the actor built, rendered grey, and
-/// warned about nothing.
+/// Stroke-only shapes route an authored `color:` into `stroke_color` so the
+/// rendered stroke reflects the authored color.
 #[test]
 fn stroke_only_shapes_inherit_an_authored_color_into_their_stroke() {
     for (ty, label) in [("Arrow", "arrow"), ("Line", "line")] {
@@ -416,9 +407,8 @@ fn stroke_only_shapes_inherit_an_authored_color_into_their_stroke() {
     }
 }
 
-/// The plot dispatch detected an authored `opacity:` and then overwrote it
-/// with 1.0, so dimmed backdrops were impossible on Graph/BarChart/ContourSet/
-/// VectorField without a warning to say so.
+/// Plot actors must preserve an authored `opacity:` on their style track
+/// rather than resetting opacity to 1.0.
 #[test]
 fn plot_actors_honour_an_authored_opacity() {
     for ty in ["Graph", "BarChart"] {
@@ -437,16 +427,8 @@ fn plot_actors_honour_an_authored_opacity() {
     }
 }
 
-/// A re-declaration at a shared timestamp must not steal its own target as its
-/// starting value.
-///
-/// `insert_start_keyframes` captures what the track currently holds and writes
-/// it at the declaration's timestamp, so a sibling that had already written a
-/// keyframe at that same stamp could in principle become the "start" — the
-/// animation would then run from its destination and the frame before the stamp
-/// would show the new shape instead of the old one. Four orderings are checked
-/// here because the interesting one is the combination: a statement sharing the
-/// `#1s` stamp with the morph, written before it.
+/// A morph re-declaration at a shared timestamp must sample prior state as its
+/// starting value rather than adopting its own target value before the beat.
 #[test]
 fn a_redeclaration_starts_from_what_it_replaces_not_from_its_target() {
     let prelude = "config { resolution: (400, 300), duration: 3 }\n\
@@ -504,14 +486,8 @@ fn a_redeclaration_starts_from_what_it_replaces_not_from_its_target() {
     }
 }
 
-/// An undated `.text =` swap must not begin before its own stamp.
-///
-/// The track model reads any two consecutive keyframes as an interpolation
-/// segment, so unless the change is fenced the previously declared string
-/// interpolates all the way into the new one — and the cross-fade branch in
-/// `primitives` then compiles and draws *both* strings across the whole
-/// preceding gap. That is the roadmap's "static keyframe `.text =` assignments
-/// overprint", which forced `web/demos/hash/scene.amx` onto one actor per string.
+/// An undated `.text =` assignment must fence the preceding interval so the
+/// prior string does not cross-fade before its timestamp.
 #[test]
 fn an_undated_text_swap_holds_the_old_string_until_its_own_stamp() {
     let source = "\
@@ -550,12 +526,8 @@ t.text = \"second\"
     );
 }
 
-/// The numeric half of the same rule: a bare assignment is a step at its stamp.
-///
-/// `docs/spec.md` calls this an "Instant Change". The track model has no step
-/// keyframe, so the value has to be fenced one millisecond before the stamp or
-/// the previous keyframe eases into it across the whole gap — which is what
-/// happened until `write_property_plan_slot` learned to fence undated writes.
+/// Undated numeric assignments must act as instant step changes at their
+/// timestamp rather than interpolating backward across the preceding gap.
 #[test]
 fn an_undated_numeric_assignment_is_a_step_not_a_backwards_ramp() {
     let source = "\

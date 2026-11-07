@@ -234,7 +234,6 @@ where
                 let (scene_name, local_time_s, transition_blend) =
                     composition.evaluate(global_time);
                 if let Some(blend) = transition_blend {
-                    // Transition: render both scenes and blend them.
                     let from_scene =
                         composition.scenes.get(&blend.from_scene).ok_or_else(|| {
                             ExportError::FrameRender {
@@ -268,7 +267,6 @@ where
                         )
                         .map_err(|e| ExportError::FrameRender { frame, message: e })
                 } else {
-                    // Single active scene — no transition
                     let scene_timeline = composition.scenes.get(&scene_name).ok_or_else(|| {
                         ExportError::FrameRender {
                             frame,

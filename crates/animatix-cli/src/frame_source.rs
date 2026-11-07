@@ -1,22 +1,8 @@
 //! Shared frame-source helpers for `verify` and `review`.
 //!
-//! The dogfood loop's blind spot is *silent* visual failure: an actor that
-//! should be on screen is not drawn, or an animation that should move is
-//! static, and nothing errors. `check`/`lint` operate on the build model and a
-//! whole-frame "is this blank?" smoke test stays green while one actor among
-//! many silently disappears — `examples/data/07_plots.amx` shipped with an
-//! invisible headline curve through both gates for that reason.
-//!
-//! These helpers turn rendered RGBA pixels plus evaluated actor bounds into
-//! explicit facts, so a `verify.txt` beside a dogfood project can assert "the
-//! curve is actually visible at t=5.0" instead of relying on a human to notice
-//! its absence in one frame. `review` reuses the exact same pixel math and
-//! frame-resolution logic, so the two commands cannot drift apart.
-//!
-//! The reference color for "inks differs from background" checks is the frame's
-//! own modal color (`FrameView::modal_color`); comparing pixels to pixels
-//! sidesteps any sRGB/linear mismatch between the render target and the
-//! declared scene background.
+//! Evaluates rendered RGBA pixels and actor bounds into visibility facts shared
+//! between `verify` and `review`. The reference color is the frame's own modal
+//! color to avoid sRGB/linear mismatches with the declared scene background.
 
 use std::collections::HashMap;
 
@@ -125,7 +111,6 @@ pub(crate) struct Box2 {
 }
 
 impl Box2 {
-    /// Construct a box from its edges.
     pub(crate) fn new(x0: f64, y0: f64, x1: f64, y1: f64) -> Self {
         Self { x0, y0, x1, y1 }
     }
@@ -180,21 +165,17 @@ pub(crate) fn verify_time_key(time_s: f64) -> u64 {
 pub(crate) enum FrameTarget<'a> {
     /// A single-scene file.
     Single {
-        /// The scene timeline.
         timeline: &'a animatix::timeline::Timeline,
     },
     /// A multi-scene file outside a transition.
     Scene {
-        /// The active scene.
         scene: &'a CompositionScene,
         /// Time within that scene.
         local_time_s: f64,
     },
     /// A multi-scene file inside a transition blend.
     Transition {
-        /// Outgoing scene.
         from: &'a CompositionScene,
-        /// Incoming scene.
         to: &'a CompositionScene,
         /// Transition blend parameters, including local times.
         blend: TransitionBlend,
@@ -210,7 +191,6 @@ pub(crate) struct TransitionFact {
     pub(crate) to_scene: String,
     /// Raw (linear) progress in `0..=1`.
     pub(crate) progress: f64,
-    /// Transition identifier.
     pub(crate) id: String,
 }
 
@@ -258,7 +238,6 @@ pub(crate) fn resolve_frame_target<'a>(
 /// One rendered frame plus the bounds and scene identity from the same
 /// evaluation.
 pub(crate) struct ObservableFrame {
-    /// RGBA pixels.
     pub(crate) frame: animatix_render::offscreen::RenderedFrame,
     /// World-space actor bounds keyed by `(scene, label)`.
     pub(crate) bounds: HashMap<(String, String), Box2>,
@@ -355,7 +334,6 @@ pub(crate) struct ProgramPart<'a> {
     pub(crate) scene: String,
     /// Timeline the program was evaluated from (for actor track lookups).
     pub(crate) timeline: &'a animatix::timeline::Timeline,
-    /// The observable program itself.
     pub(crate) program: SceneProgram,
 }
 

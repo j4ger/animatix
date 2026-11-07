@@ -331,7 +331,6 @@ impl TransitionCompositor {
         transition_id: &str,
         easing: animatix::easing::Easing,
     ) -> Result<(), String> {
-        // Apply easing to progress
         let eased_progress = animatix::easing::apply_easing(progress, easing);
         // Update uniform buffer. `height.max(1)` keeps the aspect finite even
         // for a degenerate surface; the offscreen path rejects zero sizes

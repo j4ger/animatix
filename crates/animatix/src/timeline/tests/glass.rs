@@ -5,7 +5,7 @@
 //! the composite that carries its own children, because queue order is what
 //! becomes z-order once the frame is split.
 
-use super::*;
+use super::support::{build_ignoring_warnings, build_timeline};
 use crate::timeline::SceneDimensions;
 use crate::timeline::effects::{
     EffectChain, EffectRegion, FilterBackend, PendingBackdrop, PendingLayer,
@@ -52,11 +52,7 @@ impl FilterBackend for SpyBackend {
     }
 }
 
-fn build(source: &str) -> Timeline {
-    support::build_timeline(source)
-}
-
-fn scene() -> SceneDimensions {
+fn scene_dims() -> SceneDimensions {
     SceneDimensions {
         width: 640,
         height: 360,
@@ -75,12 +71,12 @@ card: Glass, at: (320, 180), size: (200, 100), corner_radius: 12 {
 
 #[test]
 fn a_glass_scope_queues_one_backdrop_and_one_overlay() {
-    let timeline = build(GLASS_SCENE);
+    let timeline = build_timeline(GLASS_SCENE);
     let mut spy = SpyBackend::default();
     let mut backend: Option<&mut dyn FilterBackend> = Some(&mut spy);
     timeline.evaluate_program_with_debug(
         0.0,
-        scene(),
+        scene_dims(),
         crate::timeline::DebugRenderOptions::default(),
         &mut backend,
     );
@@ -99,12 +95,12 @@ fn a_glass_scope_queues_one_backdrop_and_one_overlay() {
 
 #[test]
 fn the_backdrop_region_pads_beyond_the_panel_it_clips_to() {
-    let timeline = build(GLASS_SCENE);
+    let timeline = build_timeline(GLASS_SCENE);
     let mut spy = SpyBackend::default();
     let mut backend: Option<&mut dyn FilterBackend> = Some(&mut spy);
     timeline.evaluate_program_with_debug(
         0.0,
-        scene(),
+        scene_dims(),
         crate::timeline::DebugRenderOptions::default(),
         &mut backend,
     );
@@ -149,7 +145,7 @@ fn the_backdrop_region_pads_beyond_the_panel_it_clips_to() {
 /// it — the frost is defined as the finished frame under the panel's rect.
 #[test]
 fn a_glass_scope_still_frosts_when_something_renders_after_it() {
-    let timeline = build(
+    let timeline = build_timeline(
         r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
@@ -175,7 +171,7 @@ hud: Rect, size: (80, 20), at: (60, 40), color: accent.warning
     let mut backend: Option<&mut dyn FilterBackend> = Some(&mut spy);
     timeline.evaluate_program_with_debug(
         0.0,
-        scene(),
+        scene_dims(),
         crate::timeline::DebugRenderOptions::default(),
         &mut backend,
     );
@@ -186,7 +182,7 @@ hud: Rect, size: (80, 20), at: (60, 40), color: accent.warning
 
 #[test]
 fn a_glass_scope_without_stages_costs_no_backdrop() {
-    let timeline = build(
+    let timeline = build_timeline(
         r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
@@ -199,7 +195,7 @@ plain: Glass, at: (320, 180), size: (200, 100) {
     let mut backend: Option<&mut dyn FilterBackend> = Some(&mut spy);
     timeline.evaluate_program_with_debug(
         0.0,
-        scene(),
+        scene_dims(),
         crate::timeline::DebugRenderOptions::default(),
         &mut backend,
     );
@@ -225,12 +221,9 @@ c: Glass, at: (160, 100), size: (120, 60), color: rgb(255, 0, 0), fill_opacity: 
     f: Blur, radius: 10
 }
 "#;
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report =
-        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+    let report = build_ignoring_warnings(source);
     let named: Vec<String> = report
-        .diagnostics
+        .1
         .iter()
         .filter(|d| d.code == crate::diagnostics::DiagnosticCode::InapplicableProperty)
         .map(|d| d.message.clone())
@@ -248,15 +241,12 @@ c: Glass, at: (160, 100), size: (120, 60), color: rgb(255, 0, 0), fill_opacity: 
     // frost's clip, not a paint.
     let rounded = source
         .replace("color: rgb(255, 0, 0), fill_opacity: 0.5, stroke_width: 3", "corner_radius: 12");
-    let (rast, rerr) = animatix_syntax::parser::parse_source(&rounded);
-    assert!(rerr.is_empty(), "parse errors: {rerr:?}");
-    let rrep =
-        Timeline::build_with_diagnostics(&rast.expect("AST"), &std::collections::HashMap::new());
+    let rrep = build_ignoring_warnings(&rounded);
     assert!(
-        rrep.diagnostics
+        rrep.1
             .iter()
             .all(|d| d.code != crate::diagnostics::DiagnosticCode::InapplicableProperty),
         "corner_radius is consumed by the frost clip: {:?}",
-        rrep.diagnostics
+        rrep.1
     );
 }

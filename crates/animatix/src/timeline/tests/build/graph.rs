@@ -174,11 +174,8 @@ fn graph_axes_invisible_before_fadein() {
 
 #[test]
 fn container_fadein_reveals_graph_hosted_children() {
-    // A Graph-hosted PlotCurve declared before the first keyframe carries its
-    // own hidden-by-default seed. A container-level `fade-in g` must cascade
-    // the reveal into the subtree — opacity multiplies down the scene graph,
-    // so without the cascade the curve stays invisible forever (probe 010;
-    // 07_plots.amx shipped with an invisible headline curve).
+    // Container entrance actions must cascade reveal state to hosted children
+    // so pre-keyframe children become visible when the container fades in.
     let source = r#"
         g: Graph, x_domain: (-pi, pi), y_domain: (-1.8, 1.8), size: (400, 300), at: (320, 180) {
             c: PlotCurve, kind: "cartesian", func: (x) => sin(x), color: accent.primary, stroke_width: 4
@@ -210,14 +207,8 @@ fn container_fadein_reveals_graph_hosted_children() {
 
 #[test]
 fn pre_keyframe_graph_container_is_hidden_until_its_entrance() {
-    // A container declared before the first keyframe must be seeded invisible
-    // like any other actor. The Graph paints its own axes, so without the seed
-    // those axes showed before `fade-in g` ever ran (07_plots shipped a
-    // floating crosshair for the first second of the scene). Root cause:
-    // `add_node` creates the parent's track while registering children, so a
-    // first declaration *with children* looked like a re-declaration and never
-    // received the hidden-by-default seed — it also gave the container a
-    // nonsensical 1 → 0 → 1 opacity dip instead of a clean reveal.
+    // Pre-keyframe containers declared with children must receive the hidden-by-default
+    // seed so their contents and painted chrome stay hidden until their entrance.
     let source = r#"
         g: Graph, x_domain: (-pi, pi), y_domain: (-1.8, 1.8), size: (400, 300), at: (320, 180) {
             c: PlotCurve, kind: "cartesian", func: (x) => sin(x), color: accent.primary, stroke_width: 4
@@ -285,10 +276,8 @@ fn every_built_track_identity_is_consistent() {
 
 #[test]
 fn unrevealed_graph_child_still_warns_never_revealed() {
-    // Without any entrance action the hosted child stays invisible, and the
-    // build must say so. The graph itself is visible-by-default (its
-    // declaration-time opacity keyframe is a constant 1.0), so the ancestor
-    // check must not treat that constant as a reveal (probe 010).
+    // Pre-keyframe hosted children without entrance actions must emit NeverRevealed;
+    // a parent's constant declaration opacity must not count as an entrance reveal.
     let source = r#"
         g: Graph, x_domain: (-pi, pi), y_domain: (-1.8, 1.8), size: (400, 300), at: (320, 180) {
             c: PlotCurve, kind: "cartesian", func: (x) => sin(x), color: accent.primary, stroke_width: 4
@@ -308,11 +297,8 @@ fn unrevealed_graph_child_still_warns_never_revealed() {
 
 #[test]
 fn plot_capture_of_always_written_var_is_dynamic() {
-    // spec §14 "Runtime parameters": a plot closure capturing a `let` that an
-    // `always` block rewrites must resample per frame — the frame value
-    // shadows the build-time capture. The dynamic gate used to classify
-    // capture-only plots as static, so the documented pattern rendered inert
-    // (probe 011; identical frames at t=0.3 and t=5.0).
+    // A plot closure capturing variables updated in an `always` block must be
+    // marked dynamic so it resamples every frame.
     let source = r#"
         config { colorscheme: "editorial-dark", resolution: (640, 360) }
 
@@ -385,11 +371,8 @@ fade-in c [100ms]
 
 #[test]
 fn draw_in_trims_stroke_only_path_geometry_mid_draw() {
-    // `draw-in` writes `stroke_progress`, but only the plot primitive used to
-    // read it — a stroke-only `Path` faded in at full width instead of drawing
-    // (the hero underline/brackets defect). Mid-draw the shape's commands must
-    // carry a partial path, and the settled frames must serve the full path
-    // again (the shape-command memo must never hand back trimmed geometry).
+    // `draw-in` must trim stroke geometry along path commands mid-draw,
+    // restoring the full path once the animation settles.
     let source = r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 
@@ -666,9 +649,8 @@ config {{ colorscheme: "editorial-dark", resolution: (480, 270) }}
 
 #[test]
 fn anonymous_graph_child_builds_without_reserved_prefix_error() {
-    // An unlabeled actor inside a Graph gets an engine-generated `__anon_*`
-    // label; the reserved-prefix check must not reject the engine's own
-    // names (it used to make unlabeled Graph children unbuildable).
+    // Engine-generated `__anon_*` labels on anonymous container children
+    // must not be rejected by the reserved-prefix check.
     let source = r#"
         config { colorscheme: "editorial-dark", resolution: (640, 360) }
 
@@ -689,9 +671,8 @@ fn anonymous_graph_child_builds_without_reserved_prefix_error() {
 
 #[test]
 fn undeclared_action_modifier_warns() {
-    // LG-4: `highlight` does not declare `intensity` — the value used to be
-    // silently ignored (the shipped gradient_descent example carried one).
-    // The action-modifier validation must surface it.
+    // Modifiers not declared in an action's signature must trigger an
+    // UnsupportedModifierKey diagnostic.
     let source = r#"
         config { colorscheme: "editorial-dark", resolution: (640, 360) }
 
@@ -738,12 +719,8 @@ fn declared_action_modifier_does_not_warn() {
 
 #[test]
 fn high_frequency_curve_meets_resolution_floor() {
-    // sin(5x) over (-10, 10) is ~16 periods; the adaptive samplers used to
-    // subdivide at most 3 levels (8 samples), whose values are nearly
-    // collinear for this function — the curve rendered as a single straight
-    // chord (probe 012). `resolution` is now honored as a minimum sample
-    // count, so the sampled polyline must contain materially more points than
-    // the old floor.
+    // High-frequency curves must respect the resolution sample floor so
+    // oscillatory functions produce detailed polylines instead of under-sampled chords.
     let source = r#"
         config { colorscheme: "editorial-dark", resolution: (640, 360) }
 

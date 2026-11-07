@@ -1,49 +1,26 @@
-use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use animatix::composition::BuildTarget;
 use animatix::timeline::{BuildOptions, DebugRenderOptions, SceneDimensions, Timeline};
 use animatix_syntax::ast::{Expr, Stmt};
-use animatix_syntax::module::{LoadedProgram, ModuleError, ModuleGraph};
+use animatix_syntax::module::{LoadedProgram, ModuleError, ModuleGraph, SourceAccess};
 
-fn temp_project_dir(name: &str) -> PathBuf {
-    let unique = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
-    let dir =
-        std::env::temp_dir().join(format!("animatix_{}_{}_{}", name, std::process::id(), unique));
-    fs::create_dir_all(&dir).unwrap();
-    dir
+fn load(entry: &Path, graph: &mut ModuleGraph) -> LoadedProgram {
+    graph.load_program(entry).unwrap()
 }
 
-fn write_file(path: &Path, contents: &str) {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).unwrap();
+/// Load the `scene.amx` of a virtual project.
+fn load_scene(files: &[(&str, &str)]) -> LoadedProgram {
+    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+    for (path, contents) in files {
+        graph.upsert_source(PathBuf::from(format!("virtual:///{}", path)), contents.to_string());
     }
-    fs::write(path, contents).unwrap();
-}
-
-/// Write a throwaway project from `(relative_path, source)` pairs and return
-/// its root directory.
-fn project(name: &str, files: &[(&str, &str)]) -> PathBuf {
-    let dir = temp_project_dir(name);
-    for (relative, contents) in files {
-        write_file(&dir.join(relative), contents);
-    }
-    dir
-}
-
-fn load(entry: &Path) -> LoadedProgram {
-    ModuleGraph::new().load_program(entry).unwrap()
-}
-
-/// Load the `scene.amx` of a freshly written project.
-fn load_scene(name: &str, files: &[(&str, &str)]) -> LoadedProgram {
-    load(&project(name, files).join("scene.amx"))
+    load(Path::new("virtual:///scene.amx"), &mut graph)
 }
 
 /// Load a project whose only file is the entry scene.
-fn load_entry(name: &str, source: &str) -> LoadedProgram {
-    load_scene(name, &[("scene.amx", source)])
+fn load_entry(source: &str) -> LoadedProgram {
+    load_scene(&[("scene.amx", source)])
 }
 
 /// Component expansion, with the expander's diagnostics discarded so the
@@ -90,12 +67,10 @@ pub component Button(text: "OK") {
 
 #[test]
 fn load_program_collects_public_imported_components_only() {
-    let program = load_scene(
-        "public_components",
-        &[
-            (
-                "components.amx",
-                r#"
+    let program = load_scene(&[
+        (
+            "components.amx",
+            r#"
 pub component MetricCard(title: "Throughput") {
     label: Text, text: title
 }
@@ -104,17 +79,16 @@ component InternalCard(title: "Private") {
     private_label: Text, text: title
 }
 "#,
-            ),
-            (
-                "scene.amx",
-                r#"
+        ),
+        (
+            "scene.amx",
+            r#"
 import "./components.amx"
 
 dashboard: MetricCard, title: "Latency"
 "#,
-            ),
-        ],
-    );
+        ),
+    ]);
 
     assert!(program.components.contains_key("MetricCard"));
     assert!(!program.components.contains_key("InternalCard"));
@@ -123,38 +97,34 @@ dashboard: MetricCard, title: "Latency"
 
 #[test]
 fn load_program_rejects_duplicate_component_exports() {
-    let dir = project(
-        "duplicate_components",
-        &[
-            (
-                "first.amx",
-                r#"
+    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+    graph.upsert_source(
+        PathBuf::from("virtual:///first.amx"),
+        r#"
 pub component MetricCard(title: "One") {
     label: Text, text: title
 }
 "#,
-            ),
-            (
-                "second.amx",
-                r#"
+    );
+    graph.upsert_source(
+        PathBuf::from("virtual:///second.amx"),
+        r#"
 pub component MetricCard(title: "Two") {
     label: Text, text: title
 }
 "#,
-            ),
-            (
-                "scene.amx",
-                r#"
+    );
+    graph.upsert_source(
+        PathBuf::from("virtual:///scene.amx"),
+        r#"
 import "./first.amx"
 import "./second.amx"
 
 dashboard: MetricCard
 "#,
-            ),
-        ],
     );
 
-    let error = ModuleGraph::new().load_program(&dir.join("scene.amx")).unwrap_err();
+    let error = graph.load_program(Path::new("virtual:///scene.amx")).unwrap_err();
     match error {
         ModuleError::DuplicateComponent { name, .. } => assert_eq!(name, "MetricCard"),
         other => panic!("expected duplicate component error, got {other:?}"),
@@ -163,27 +133,24 @@ dashboard: MetricCard
 
 #[test]
 fn load_program_expand_components_produces_build_input() {
-    let program = load_scene(
-        "compile_boundary",
-        &[
-            (
-                "components.amx",
-                r#"
+    let program = load_scene(&[
+        (
+            "components.amx",
+            r#"
 pub component MetricCard(title: "Throughput") {
     title_text: Text, text: title
 }
 "#,
-            ),
-            (
-                "scene.amx",
-                r#"
+        ),
+        (
+            "scene.amx",
+            r#"
 import "./components.amx"
 
 card: MetricCard, title: "Latency"
 "#,
-            ),
-        ],
-    );
+        ),
+    ]);
 
     assert_contents(&program, &["card", "Latency"], &["MetricCard"]);
 
@@ -193,27 +160,24 @@ card: MetricCard, title: "Latency"
 
 #[test]
 fn load_program_collects_namespaced_pub_let_exports() {
-    let program = load_scene(
-        "namespaced_exports",
-        &[
-            (
-                "theme.amx",
-                r#"
+    let program = load_scene(&[
+        (
+            "theme.amx",
+            r#"
 pub let accent = (0.38, 0.78, 1.0, 1.0)
 pub let background = (0.04, 0.06, 0.09, 1.0)
 let private = (1.0, 0.0, 0.0, 1.0)
 "#,
-            ),
-            (
-                "scene.amx",
-                r#"
+        ),
+        (
+            "scene.amx",
+            r#"
 import "./theme.amx" as theme
 
 panel: Rect, size: (200, 100), color: theme.accent
 "#,
-            ),
-        ],
-    );
+        ),
+    ]);
 
     assert!(program.namespaces.contains_key("theme"));
     let theme_ns = program.namespaces.get("theme").unwrap();
@@ -227,20 +191,18 @@ panel: Rect, size: (200, 100), color: theme.accent
 
 #[test]
 fn load_program_collects_and_typechecks_namespaced_type_aliases() {
-    let dir = project(
-        "namespaced_type_aliases",
-        &[(
-            "types.amx",
-            r#"
+    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+    graph.upsert_source(
+        PathBuf::from("virtual:///types.amx"),
+        r#"
 pub type Metric = Bool | Str
 let private = 1
 "#,
-        )],
     );
-    let entry = dir.join("scene.amx");
+    let entry = PathBuf::from("virtual:///scene.amx");
 
-    write_file(
-        &entry,
+    graph.upsert_source(
+        entry.clone(),
         r#"
 import "./types.amx" as types
 
@@ -248,12 +210,12 @@ pub component Card(value: types::Metric) {}
 card: Card, value: "Revenue"
 "#,
     );
-    let mut program = load(&entry);
+    let mut program = graph.load_program(&entry).unwrap();
     assert!(program.namespaces.get("types").unwrap().type_exports.contains_key("Metric"));
     assert!(program.typecheck().is_empty(), "imported type alias should typecheck");
 
-    write_file(
-        &entry,
+    graph.upsert_source(
+        entry.clone(),
         r#"
 import "./types.amx" as types
 
@@ -261,7 +223,7 @@ pub component Card(value: types::Metric) {}
 bad: Card, value: 42
 "#,
     );
-    let mut bad_program = load(&entry);
+    let mut bad_program = graph.load_program(&entry).unwrap();
     assert!(
         !bad_program.typecheck().is_empty(),
         "namespaced alias should reject a non-matching value"
@@ -270,14 +232,11 @@ bad: Card, value: 42
 
 #[test]
 fn load_program_nested_aliased_namespace_depth() {
-    let program = load_scene(
-        "nested_namespace",
-        &[
-            ("inner.amx", "pub let accent = (1.0, 0.0, 0.0, 1.0)\n"),
-            ("lib.amx", "import \"./inner.amx\" as inner\n"),
-            ("scene.amx", "import \"./lib.amx\" as lib\n"),
-        ],
-    );
+    let program = load_scene(&[
+        ("inner.amx", "pub let accent = (1.0, 0.0, 0.0, 1.0)\n"),
+        ("lib.amx", "import \"./inner.amx\" as inner\n"),
+        ("scene.amx", "import \"./lib.amx\" as lib\n"),
+    ]);
 
     let inner_ns = program.namespaces.get("lib").unwrap().namespaces.get("inner").unwrap();
     assert!(inner_ns.exports.contains_key("accent"));
@@ -285,26 +244,23 @@ fn load_program_nested_aliased_namespace_depth() {
 
 #[test]
 fn load_program_aliased_import_does_not_flatten() {
-    let program = load_scene(
-        "aliased_no_flatten",
-        &[
-            (
-                "helper.amx",
-                r#"
+    let program = load_scene(&[
+        (
+            "helper.amx",
+            r#"
 pub let offset = 120
 hidden: Ellipse, radius: 50
 "#,
-            ),
-            (
-                "scene.amx",
-                r#"
+        ),
+        (
+            "scene.amx",
+            r#"
 import "./helper.amx" as helper
 
 visible: Rect, size: (100, 100)
 "#,
-            ),
-        ],
-    );
+        ),
+    ]);
 
     // The aliased helper's hidden circle must not leak into the entry program.
     assert_contents(&program, &["visible"], &["hidden"]);
@@ -312,34 +268,31 @@ visible: Rect, size: (100, 100)
 
 #[test]
 fn load_program_resolves_reexports() {
-    let program = load_scene(
-        "reexports",
-        &[
-            (
-                "colors.amx",
-                r#"
+    let program = load_scene(&[
+        (
+            "colors.amx",
+            r#"
  pub let primary = (0.38, 0.78, 1.0, 1.0)
  pub let danger = (1.0, 0.2, 0.2, 1.0)
   "#,
-            ),
-            (
-                "theme.amx",
-                r#"
+        ),
+        (
+            "theme.amx",
+            r#"
  import "./colors.amx" as c
  pub let accent = c.primary
  pub let warning = c.danger
   "#,
-            ),
-            (
-                "scene.amx",
-                r#"
+        ),
+        (
+            "scene.amx",
+            r#"
  import "./theme.amx" as theme
 
  panel: Rect, size: (200, 100), color: theme.accent
   "#,
-            ),
-        ],
-    );
+        ),
+    ]);
 
     let theme_ns = program.namespaces.get("theme").unwrap();
     assert!(theme_ns.exports.contains_key("accent"));
@@ -352,13 +305,11 @@ fn load_program_resolves_reexports() {
 
 #[test]
 fn load_program_custom_component_action_basic() {
-    let program = load_scene(
-        "custom_action",
-        &[
-            ("button.amx", BUTTON_COMPONENT),
-            (
-                "scene.amx",
-                r#"
+    let program = load_scene(&[
+        ("button.amx", BUTTON_COMPONENT),
+        (
+            "scene.amx",
+            r#"
 import "./button.amx"
 
 btn: Button, text: "Click"
@@ -366,9 +317,8 @@ btn: Button, text: "Click"
 #0s
 pulse btn [200ms]
 "#,
-            ),
-        ],
-    );
+        ),
+    ]);
 
     // The custom action is inlined onto the instance: btn.scale assignments.
     let debug = expanded_debug(&program);
@@ -392,13 +342,11 @@ pulse btn [200ms]
 
 #[test]
 fn load_program_custom_component_action_multi_target() {
-    let program = load_scene(
-        "custom_action_multi_target",
-        &[
-            ("button.amx", BUTTON_COMPONENT),
-            (
-                "scene.amx",
-                r#"
+    let program = load_scene(&[
+        ("button.amx", BUTTON_COMPONENT),
+        (
+            "scene.amx",
+            r#"
 import "./button.amx"
 
 btn1: Button, text: "One"
@@ -408,9 +356,8 @@ rect: Rect
 #0s
 pulse btn1, btn2, rect [200ms]
 "#,
-            ),
-        ],
-    );
+        ),
+    ]);
 
     let debug = expanded_debug(&program);
     let scale_count = debug.matches("\"scale\"").count();
@@ -430,12 +377,10 @@ pulse btn1, btn2, rect [200ms]
 
 #[test]
 fn load_program_expands_component_for_loop_array_actors() {
-    let program = load_scene(
-        "component_for_loop_actors",
-        &[
-            (
-                "bars.amx",
-                r#"
+    let program = load_scene(&[
+        (
+            "bars.amx",
+            r#"
 pub component Bars(values: List<Num>) {
     row: Row, anchor: scene.center, gap: 24 {
         for v, i in values {
@@ -444,17 +389,16 @@ pub component Bars(values: List<Num>) {
     }
 }
 "#,
-            ),
-            (
-                "scene.amx",
-                r#"
+        ),
+        (
+            "scene.amx",
+            r#"
 import "./bars.amx"
 
 deck: Bars, values: {10, 20, 30}
 "#,
-            ),
-        ],
-    );
+        ),
+    ]);
 
     let timeline = Timeline::build(&expanded(&program));
     assert!(timeline.tracks().contains_key("deck.bar__0"));
@@ -463,12 +407,10 @@ deck: Bars, values: {10, 20, 30}
 
 #[test]
 fn load_program_custom_component_action_indexed_array_target() {
-    let program = load_scene(
-        "component_indexed_action",
-        &[
-            (
-                "bars.amx",
-                r#"
+    let program = load_scene(&[
+        (
+            "bars.amx",
+            r#"
 pub component Bars(values: List<Num>) {
     row: Row, anchor: scene.center, gap: 24 {
         for v, i in values {
@@ -482,10 +424,10 @@ pub component Bars(values: List<Num>) {
     }
 }
 "#,
-            ),
-            (
-                "scene.amx",
-                r#"
+        ),
+        (
+            "scene.amx",
+            r#"
 import "./bars.amx"
 
 deck: Bars, values: {10, 20, 30}
@@ -493,9 +435,8 @@ deck: Bars, values: {10, 20, 30}
 #0s
 pulseAt deck [index: 1]
 "#,
-            ),
-        ],
-    );
+        ),
+    ]);
 
     let timeline = Timeline::build(&expanded(&program));
     assert!(
@@ -506,12 +447,10 @@ pulseAt deck [index: 1]
 
 #[test]
 fn load_program_custom_component_action_self_keyword() {
-    let program = load_scene(
-        "custom_action_self",
-        &[
-            (
-                "card.amx",
-                r#"
+    let program = load_scene(&[
+        (
+            "card.amx",
+            r#"
 pub component Card {
     fn glow {
         self.frame.color = accent.primary [300ms]
@@ -520,10 +459,10 @@ pub component Card {
     frame: Rect, size: (200, 120)
 }
 "#,
-            ),
-            (
-                "scene.amx",
-                r#"
+        ),
+        (
+            "scene.amx",
+            r#"
 import "./card.amx"
 
 card1: Card
@@ -531,9 +470,8 @@ card1: Card
 #0s
 glow card1 [500ms]
 "#,
-            ),
-        ],
-    );
+        ),
+    ]);
 
     let debug = expanded_debug(&program);
     // self rewrites to the instance label; self.frame collapses to just card1
@@ -548,12 +486,10 @@ glow card1 [500ms]
 
 #[test]
 fn load_program_custom_component_action_inside_sequence() {
-    let program = load_scene(
-        "custom_action_sequence",
-        &[
-            (
-                "badge.amx",
-                r#"
+    let program = load_scene(&[
+        (
+            "badge.amx",
+            r#"
 pub component Badge {
     fn bounce {
         self.scale = 1.5 [100ms]
@@ -562,10 +498,10 @@ pub component Badge {
     icon: Ellipse, radius: 12
 }
 "#,
-            ),
-            (
-                "scene.amx",
-                r#"
+        ),
+        (
+            "scene.amx",
+            r#"
 import "./badge.amx"
 
 badge1: Badge
@@ -576,9 +512,8 @@ sequence {
     fade-in badge1 [300ms]
 }
 "#,
-            ),
-        ],
-    );
+        ),
+    ]);
 
     // Build a timeline to verify sequence timing works with inlined actions.
     let timeline = Timeline::build(&expanded(&program));
@@ -617,22 +552,20 @@ sequence {
 
 #[test]
 fn load_program_expands_component_with_slots() {
-    let program = load_scene(
-        "slots_basic",
-        &[
-            (
-                "slides.amx",
-                r#"
+    let program = load_scene(&[
+        (
+            "slides.amx",
+            r#"
  pub component SlideLayout {
      header: Col {
          @slot
      }
  }
  "#,
-            ),
-            (
-                "scene.amx",
-                r#"
+        ),
+        (
+            "scene.amx",
+            r#"
  import "./slides.amx"
 
  slide: SlideLayout {
@@ -641,21 +574,18 @@ fn load_program_expands_component_with_slots() {
      }
  }
  "#,
-            ),
-        ],
-    );
+        ),
+    ]);
 
     assert_contents(&program, &["slide", "\"title\"", "Hello"], &["SlideLayout"]);
 }
 
 #[test]
 fn load_program_slot_defaults_fallback() {
-    let program = load_scene(
-        "slots_defaults",
-        &[
-            (
-                "slides.amx",
-                r#"
+    let program = load_scene(&[
+        (
+            "slides.amx",
+            r#"
  pub component SlideLayout {
      footer: Col {
          @slot
@@ -663,29 +593,26 @@ fn load_program_slot_defaults_fallback() {
      }
  }
  "#,
-            ),
-            (
-                "scene.amx",
-                r#"
+        ),
+        (
+            "scene.amx",
+            r#"
  import "./slides.amx"
 
   slide: SlideLayout {}
  "#,
-            ),
-        ],
-    );
+        ),
+    ]);
 
     assert_contents(&program, &["slide", "Default Footer"], &["SlideLayout"]);
 }
 
 #[test]
 fn load_program_slot_mixed_filled_and_unfilled() {
-    let program = load_scene(
-        "slots_mixed",
-        &[
-            (
-                "slides.amx",
-                r#"
+    let program = load_scene(&[
+        (
+            "slides.amx",
+            r#"
  pub component SlideLayout {
      header: Col {
          @slot
@@ -700,10 +627,10 @@ fn load_program_slot_mixed_filled_and_unfilled() {
      }
  }
  "#,
-            ),
-            (
-                "scene.amx",
-                r#"
+        ),
+        (
+            "scene.amx",
+            r#"
  import "./slides.amx"
 
   slide: SlideLayout {
@@ -713,9 +640,8 @@ fn load_program_slot_mixed_filled_and_unfilled() {
   }
  // header and footer not filled — should use defaults
  "#,
-            ),
-        ],
-    );
+        ),
+    ]);
 
     assert_contents(
         &program,
@@ -726,29 +652,26 @@ fn load_program_slot_mixed_filled_and_unfilled() {
 
 #[test]
 fn load_program_slot_unfilled_required_becomes_empty() {
-    let program = load_scene(
-        "slots_unfilled",
-        &[
-            (
-                "slides.amx",
-                r#"
+    let program = load_scene(&[
+        (
+            "slides.amx",
+            r#"
  pub component SlideLayout {
      body: Group {
          @slot
      }
  }
  "#,
-            ),
-            (
-                "scene.amx",
-                r#"
+        ),
+        (
+            "scene.amx",
+            r#"
  import "./slides.amx"
 
   slide: SlideLayout {}
  "#,
-            ),
-        ],
-    );
+        ),
+    ]);
 
     // The container still exists, just empty.
     assert_contents(&program, &["slide", "children: []"], &["SlideLayout"]);
@@ -756,12 +679,10 @@ fn load_program_slot_unfilled_required_becomes_empty() {
 
 #[test]
 fn load_program_slot_multiple_instances_different_fills() {
-    let program = load_scene(
-        "slot_multi_instance",
-        &[
-            (
-                "slides.amx",
-                r#"
+    let program = load_scene(&[
+        (
+            "slides.amx",
+            r#"
  pub component Card {
      header: Col {
          @slot
@@ -771,10 +692,10 @@ fn load_program_slot_multiple_instances_different_fills() {
      }
  }
  "#,
-            ),
-            (
-                "scene.amx",
-                r#"
+        ),
+        (
+            "scene.amx",
+            r#"
  import "./slides.amx"
 
  first: Card {
@@ -795,9 +716,8 @@ fn load_program_slot_multiple_instances_different_fills() {
      }
  }
  "#,
-            ),
-        ],
-    );
+        ),
+    ]);
 
     assert_contents(
         &program,
@@ -814,12 +734,10 @@ fn load_program_slot_multiple_instances_different_fills() {
 
 #[test]
 fn load_program_slot_empty_fill() {
-    let program = load_scene(
-        "slot_empty_fill",
-        &[
-            (
-                "slides.amx",
-                r#"
+    let program = load_scene(&[
+        (
+            "slides.amx",
+            r#"
  pub component Slide {
      header: Col {
          @slot
@@ -827,41 +745,38 @@ fn load_program_slot_empty_fill() {
      }
  }
  "#,
-            ),
-            (
-                "scene.amx",
-                r#"
+        ),
+        (
+            "scene.amx",
+            r#"
  import "./slides.amx"
 
  slide: Slide {
      @header {}
  }
  "#,
-            ),
-        ],
-    );
+        ),
+    ]);
 
     assert_contents(&program, &["slide"], &["Default Header", "Slide"]);
 }
 
 #[test]
 fn load_program_slot_with_component_as_fill() {
-    let program = load_scene(
-        "slot_component_fill",
-        &[
-            (
-                "slides.amx",
-                r#"
+    let program = load_scene(&[
+        (
+            "slides.amx",
+            r#"
  pub component Slide {
      header: Col {
          @slot
      }
  }
  "#,
-            ),
-            (
-                "scene.amx",
-                r#"
+        ),
+        (
+            "scene.amx",
+            r#"
  import "./slides.amx"
 
  slide: Slide {
@@ -870,21 +785,18 @@ fn load_program_slot_with_component_as_fill() {
      }
  }
  "#,
-            ),
-        ],
-    );
+        ),
+    ]);
 
     assert_contents(&program, &["slide", "My Title"], &["Slide"]);
 }
 
 #[test]
 fn load_program_slot_fill_nonexistent_slot() {
-    let program = load_scene(
-        "slot_nonexistent",
-        &[
-            (
-                "slides.amx",
-                r#"
+    let program = load_scene(&[
+        (
+            "slides.amx",
+            r#"
  pub component Card {
      header: Col {
          @slot
@@ -892,10 +804,10 @@ fn load_program_slot_fill_nonexistent_slot() {
      }
  }
  "#,
-            ),
-            (
-                "scene.amx",
-                r#"
+        ),
+        (
+            "scene.amx",
+            r#"
  import "./slides.amx"
 
  card: Card {
@@ -904,21 +816,18 @@ fn load_program_slot_fill_nonexistent_slot() {
      }
  }
  "#,
-            ),
-        ],
-    );
+        ),
+    ]);
 
     assert_contents(&program, &["card", "Default Header"], &["This should be ignored", "Card"]);
 }
 
 #[test]
 fn load_program_slot_all_filled_no_defaults_used() {
-    let program = load_scene(
-        "slot_all_filled",
-        &[
-            (
-                "slides.amx",
-                r#"
+    let program = load_scene(&[
+        (
+            "slides.amx",
+            r#"
  pub component Card {
      header: Col {
          @slot
@@ -930,10 +839,10 @@ fn load_program_slot_all_filled_no_defaults_used() {
      }
  }
  "#,
-            ),
-            (
-                "scene.amx",
-                r#"
+        ),
+        (
+            "scene.amx",
+            r#"
  import "./slides.amx"
 
  card: Card {
@@ -945,9 +854,8 @@ fn load_program_slot_all_filled_no_defaults_used() {
      }
  }
  "#,
-            ),
-        ],
-    );
+        ),
+    ]);
 
     assert_contents(
         &program,
@@ -959,7 +867,6 @@ fn load_program_slot_all_filled_no_defaults_used() {
 #[test]
 fn load_program_three_slot_fills() {
     let program = load_entry(
-        "three_slot_fills",
         r##"
 config { colorscheme: "editorial-dark", resolution: (800, 500) }
 
@@ -1006,7 +913,6 @@ card_c: Card, title: "Test", anchor: scene.center, offset: (0, 0) {
 #[test]
 fn load_program_custom_component_action_self_nested_path() {
     let program = load_entry(
-        "self_nested_path",
         r##"
 config { colorscheme: "editorial-dark", resolution: (800, 500) }
 
@@ -1042,7 +948,6 @@ highlight card_a
 #[test]
 fn load_program_comments_in_always_block() {
     let program = load_entry(
-        "comments_always",
         r##"
 config { colorscheme: "editorial-dark", resolution: (800, 500) }
 
@@ -1064,20 +969,17 @@ always {
 
 #[test]
 fn load_program_from_memory_sources_resolves_imports() {
-    let dir = temp_project_dir("memory_sources");
-    let entry = dir.join("scene.amx");
-
-    let mut graph = ModuleGraph::new();
-    graph.add_source(
-        dir.join("components.amx"),
+    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+    graph.upsert_source(
+        PathBuf::from("virtual:///components.amx"),
         r#"
 pub component MetricCard(title: "Throughput") {
     label: Text, text: title
 }
 "#,
     );
-    graph.add_source(
-        entry.clone(),
+    graph.upsert_source(
+        PathBuf::from("virtual:///scene.amx"),
         r#"
 import "./components.amx"
 
@@ -1085,35 +987,16 @@ dashboard: MetricCard, title: "Latency"
 "#,
     );
 
-    let program = graph.load_program(&entry).unwrap();
+    let program = graph.load_program(Path::new("virtual:///scene.amx")).unwrap();
     assert!(program.components.contains_key("MetricCard"));
     assert!(!program.components.contains_key("InternalCard"));
     assert_contents(&program, &["dashboard", "Latency"], &["MetricCard"]);
 }
 
 #[test]
-fn load_program_with_source_override_does_not_leak_source_map() {
-    let dir = project("source_override_cleanup", &[("scene.amx", "box: Rect, size: (100, 100)\n")]);
-    let entry = dir.join("scene.amx");
-
-    let mut graph = ModuleGraph::new();
-    let first = graph
-        .load_program_with_source(&entry, Some("#0s\ntitle: Text, text: \"Override\"\n"))
-        .unwrap();
-    assert!(contains_actor(&first.statements, "title", "Text"));
-
-    let second = graph.load_program(&entry).unwrap();
-    assert!(contains_actor(&second.statements, "box", "Rect"));
-    assert!(!contains_actor(&second.statements, "title", "Text"));
-}
-
-#[test]
 fn transform_property_builds_without_diagnostics() {
-    let dir = project(
-        "transform_property",
-        &[(
-            "scene.amx",
-            r#"
+    let mut program = load_entry(
+        r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 
 a: Rect, size: (100, 100), transform: (1, 0.5, 0, 1, 0, 0), color: accent.primary, at: (200, 150)
@@ -1121,11 +1004,9 @@ a: Rect, size: (100, 100), transform: (1, 0.5, 0, 1, 0, 0), color: accent.primar
 #0s
 fade-in a [0ms]
 "#,
-        )],
     );
-    let entry = dir.join("scene.amx");
 
-    let mut program = load(&entry);
+    let entry = Path::new("virtual:///scene.amx");
     let type_diagnostics = program.typecheck();
     assert!(
         type_diagnostics.is_empty(),
@@ -1133,7 +1014,7 @@ fade-in a [0ms]
     );
     let ast = expanded(&program);
     let options = BuildOptions::default();
-    let report = BuildTarget::build_with_options(&ast, &program.namespaces, Some(&entry), options);
+    let report = BuildTarget::build_with_options(&ast, &program.namespaces, Some(entry), options);
     assert!(
         report.diagnostics.is_empty(),
         "transform declaration should build: {:?}",
@@ -1141,41 +1022,13 @@ fade-in a [0ms]
     );
 }
 
-fn contains_actor(stmts: &[Stmt], label: &str, ty: &str) -> bool {
-    stmts.iter().any(|stmt| match stmt {
-        Stmt::ActorDecl {
-            label: stmt_label,
-            ty: stmt_ty,
-            ..
-        } => stmt_label == label && stmt_ty == ty,
-        Stmt::Keyframe { body, .. }
-        | Stmt::RelativeKeyframe { body, .. }
-        | Stmt::Always { body, .. }
-        | Stmt::ForLoop { body, .. }
-        | Stmt::Sequence { body, .. }
-        | Stmt::Stagger { body, .. } => contains_actor(body, label, ty),
-        Stmt::Conditional {
-            then_branch,
-            else_branch,
-            ..
-        } => {
-            contains_actor(then_branch, label, ty)
-                || else_branch.as_ref().is_some_and(|body| contains_actor(body, label, ty))
-        },
-        _ => false,
-    })
-}
-
 #[test]
 fn component_instance_opacity_multiplies_with_root_opacity() {
     // A component instance behaves like a group: instance `opacity: 0.5` on a
     // root actor already authored `opacity: 0.5` must render at 0.25, not let
     // the instance value replace the root's own value.
-    let program = load_scene(
-        "instance_opacity_multiplies",
-        &[(
-            "scene.amx",
-            r#"
+    let program = load_entry(
+        r#"
 pub component Box() {
     box: Stack, size: (100, 100), opacity: 0.5 {
         r: Rect, size: (100, 100), color: (1.0, 0.0, 0.0, 1.0), opacity: 1
@@ -1185,7 +1038,6 @@ pub component Box() {
 #0s
 b: Box, at: (320, 180), opacity: 0.5
 "#,
-        )],
     );
     let timeline = Timeline::build(&expanded(&program));
     let mut filter_backend = None;
@@ -1220,18 +1072,68 @@ b: Box, at: (320, 180), opacity: 0.5
     );
 }
 
+/// `load_program_with_source` installs a temporary override; the graph must not
+/// keep it for the next load.
+#[test]
+fn load_program_with_source_override_does_not_leak_source_map() {
+    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+    graph.upsert_source(
+        PathBuf::from("virtual:///scene.amx"),
+        "box: Rect, size: (100, 100)\n".to_string(),
+    );
+    let entry = Path::new("virtual:///scene.amx");
+
+    let first = graph
+        .load_program_with_source(entry, Some("#0s\ntitle: Text, text: \"Override\"\n"))
+        .unwrap();
+    assert!(contains_actor(&first.statements, "title", "Text"));
+
+    let second = graph.load_program(entry).unwrap();
+    assert!(contains_actor(&second.statements, "box", "Rect"));
+    assert!(!contains_actor(&second.statements, "title", "Text"));
+}
+
+/// A failed override still restores the previous source, so the next load sees
+/// the original program rather than the broken override.
 #[test]
 fn with_source_restores_previous_source_after_error() {
-    let dir = project("with_source_error", &[("scene.amx", "box: Rect, size: (100, 100)\n")]);
-    let entry = dir.join("scene.amx");
+    let mut graph = ModuleGraph::new().with_source_access(SourceAccess::SourcesOnly);
+    graph.upsert_source(
+        PathBuf::from("virtual:///scene.amx"),
+        "box: Rect, size: (100, 100)\n".to_string(),
+    );
+    let entry = Path::new("virtual:///scene.amx");
 
-    let mut graph = ModuleGraph::new();
-    let result = graph
-        .with_source(&entry, "this is not valid @@@ syntax", |graph| graph.load_program(&entry));
-
+    let result =
+        graph.with_source(entry, "this is not valid @@@ syntax", |graph| graph.load_program(entry));
     assert!(result.is_err(), "invalid override should fail");
 
-    let restored = graph.load_program(&entry).unwrap();
+    let restored = graph.load_program(entry).unwrap();
     assert!(contains_actor(&restored.statements, "box", "Rect"));
     assert!(!contains_actor(&restored.statements, "title", "Text"));
+}
+
+fn contains_actor(stmts: &[Stmt], label: &str, ty: &str) -> bool {
+    stmts.iter().any(|stmt| match stmt {
+        Stmt::ActorDecl {
+            label: stmt_label,
+            ty: stmt_ty,
+            ..
+        } => stmt_label == label && stmt_ty == ty,
+        Stmt::Keyframe { body, .. }
+        | Stmt::RelativeKeyframe { body, .. }
+        | Stmt::Always { body, .. }
+        | Stmt::ForLoop { body, .. }
+        | Stmt::Sequence { body, .. }
+        | Stmt::Stagger { body, .. } => contains_actor(body, label, ty),
+        Stmt::Conditional {
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            contains_actor(then_branch, label, ty)
+                || else_branch.as_ref().is_some_and(|body| contains_actor(body, label, ty))
+        },
+        _ => false,
+    })
 }

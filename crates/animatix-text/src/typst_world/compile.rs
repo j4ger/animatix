@@ -31,7 +31,6 @@ fn typst_text_set_rules(
         parts.push(format!("weight: {}", font_weight.round() as i32));
     }
 
-    // Style
     if font_style == "italic" {
         parts.push("style: \"italic\"".to_string());
     }
@@ -41,7 +40,6 @@ fn typst_text_set_rules(
         parts.push(format!("tracking: {}pt", letter_spacing));
     }
 
-    // Word spacing
     if word_spacing != 0.0 {
         parts.push(format!("spacing: {}pt", word_spacing));
     }
@@ -69,12 +67,9 @@ fn typst_par_leading_rule(line_height: f32) -> String {
 #[cfg(feature = "rich-text")]
 /// Build a `#set page` rule sized to the content.
 ///
-/// Without an explicit page rule Typst lays text out on its default A4 page
-/// (~453pt of usable width after margins), which silently wraps any line
-/// wider than that regardless of scene resolution. When `max_width` is set
-/// the page matches it so the wrapping preamble controls line breaks;
-/// otherwise the page is sized generously enough to keep the whole content on
-/// one line (worst case one em of advance per character).
+/// Without an explicit page rule, Typst defaults to an A4 page (~453pt usable width)
+/// and wraps lines. Sized to `max_width` when set, otherwise sized generously to
+/// keep content on one line.
 fn typst_page_preamble(
     max_width: f32,
     content: &str,
@@ -99,7 +94,6 @@ fn typst_wrapping_preamble(
 ) -> String {
     let mut inner = String::new();
 
-    // Text alignment
     match text_align {
         "center" => inner.push_str("#set align(center); "),
         "right" => inner.push_str("#set align(right); "),
@@ -115,7 +109,6 @@ fn typst_wrapping_preamble(
         } else {
             ""
         };
-        // Wrap in a block with the given width
         format!("#block(width: {}pt, inset: 0pt{})[\n{}]", max_width, clip_arg, inner)
     } else {
         inner
@@ -135,10 +128,7 @@ pub fn parse_font_weight(value: &str) -> f32 {
         "bold" => 700.0,
         "extrabold" => 800.0,
         "black" => 900.0,
-        _ => {
-            // Try to parse as number
-            value.parse::<f32>().unwrap_or(400.0)
-        },
+        _ => value.parse::<f32>().unwrap_or(400.0),
     }
 }
 
@@ -317,15 +307,8 @@ fn plain_code_fence(code: &str) -> String {
     format!("````\n{escaped}````")
 }
 
-/// A role → RGBA palette that recolours syntax-highlighted `Code` tokens so
-/// they follow the active colorscheme instead of Typst's fixed raw theme.
-///
-/// Each field corresponds to a role in Typst's built-in `RAW_THEME`;
-/// [`HighlightPalette::resolve`] maps a syntect foreground colour back to its
-/// role. The engine builds one per colorscheme at build time (see
-/// `ResolvedColorscheme::highlight_palette`) and hands it to the compiler, so
-/// — like every other primitive's colour — the highlight path only ever sees
-/// concrete RGBA, never the scheme.
+/// Recolours syntax-highlighted `Code` tokens to follow the active colorscheme
+/// by mapping Typst's built-in `RAW_THEME` roles to concrete RGBA values.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct HighlightPalette {
     /// Keywords and storage modifiers (Typst theme `#d73948`).
@@ -530,13 +513,8 @@ pub fn compile_code(
     let fallback = collect_fallback_fonts(font_ctx, code, &font, font_weight, font_style);
     let extra_rules = typst_text_set_rules(font_weight, font_style, letter_spacing, word_spacing);
     let leading_rule = typst_par_leading_rule(line_height);
-    // Highlighted code is emitted as `#text` spans (see `highlighted_code_markup`);
-    // plain code uses a Typst raw block (4 backticks) to avoid markup
-    // interpretation of the code text.
-    //
-    // Typst's `raw` show rule renders at `0.8em` of the set text size. The span
-    // path has no such show rule, so it sets the size to the same `0.8em`
-    // effective value — otherwise toggling `language` would resize the block.
+    // Typst's `raw` show rule renders at 0.8em; match that scale for the span
+    // path so toggling `language` does not resize the block.
     let highlighted_markup = if language.is_empty() {
         None
     } else {

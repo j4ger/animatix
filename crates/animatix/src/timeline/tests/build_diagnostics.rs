@@ -2,16 +2,8 @@ use super::*;
 
 #[test]
 fn always_overrides_keyframes_warning() {
-    // A keyframe assignment for box1.opacity = 0.8 puts an authored value in
-    // the opacity track; the always block then writes 0.5 every frame, which
-    // must be reported.
-    //
-    // The authored values have to differ from each other. A single keyframe is
-    // bit-for-bit what declaration seeding leaves behind — the seeder writes the
-    // *declared* value, not the registry default, so even a value that is not
-    // any default looks exactly like a seed — and `is_property_animated` cannot
-    // tell the two apart. One keyframe here would silently stop testing
-    // anything.
+    // A single keyframe is bit-for-bit a declaration seed, so this test needs
+    // two differing authored values to be meaningful.
     let source = r#"
         #0s
         box1: Rect, size: (100, 100), opacity: 0.8
@@ -269,11 +261,8 @@ t: Text, text: "caption", font_size: 20, stroke_width: 6, at: (160, 90)
     );
 }
 
-/// The exemption that must hold, because 94 shipped scenes depend on it:
-/// `text_max_width` is Text's wrap width. Its descriptor row used to list only
-/// `Legend`, which made the property look inapplicable on every text actor —
-/// the same disagreement between table and consumption that this lint exists to
-/// surface, on the false-positive side.
+/// `text_max_width` applies to Text and Legend actors and must not emit
+/// an InapplicableProperty warning on either host.
 #[test]
 fn a_wrap_width_on_a_text_actor_is_silent() {
     let warnings = inapplicable_warnings(
@@ -295,11 +284,8 @@ fn trips_always_override(source: &str) -> bool {
         .any(|d| d.code == animatix_syntax::diagnostics::DiagnosticCode::AlwaysOverridesKeyframes)
 }
 
-/// The shape that made the lint lie: a *declaration* seeds a constant keyframe,
-/// and an `always` writing the same property was reported as overriding keyframe
-/// animation the author never wrote. `MarchingRail` in `examples/lib/light.amx`
-/// is the real instance — `dash_pattern: {10, gap}` seeds `dash_offset` at its
-/// default, and the component's `always` owns it by design.
+/// Properties seeded only by declaration defaults must not trigger
+/// AlwaysOverridesKeyframes when an `always` block writes to them.
 #[test]
 fn a_seeded_dash_offset_declaration_does_not_trip_the_lint() {
     assert!(!trips_always_override(
@@ -314,9 +300,8 @@ always {
     ));
 }
 
-/// The same bug in its other guise, noted in batch 2: writing a property the
-/// primitive merely *defaults* from `always`. The declaration seeds the same
-/// value at both ends of the scene, so nothing moves and nothing is overridden.
+/// Unanimated declared properties that remain constant across the timeline
+/// must not trigger AlwaysOverridesKeyframes when rewritten in `always`.
 #[test]
 fn a_constant_declared_size_does_not_trip_the_lint() {
     assert!(!trips_always_override(
@@ -509,9 +494,8 @@ b: Filter, at: (240, 90) {
     );
 }
 
-/// Regression: a layout-managed child's bare `offset` used to die silently —
-/// only `at`/`position` were reported. The warning must name the child and the
-/// ignored property so the author can find the dropped value.
+/// Layout-managed children specifying an `offset` must emit an IgnoredOffset
+/// warning identifying the child, container, and property.
 #[test]
 fn layout_managed_child_offset_warns() {
     let source = r#"

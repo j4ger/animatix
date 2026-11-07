@@ -357,15 +357,8 @@ round: Rect, at: (150, 50), size: (60, 60), color: (1, 1, 1, 1), corner_radius: 
     assert!(red_at(150, 50) > 200, "the interior must be painted");
 }
 
-/// Regression: an `always { actor.text = ... }` write must replace the declared
-/// string in an offline frame. The declaration seeds `text.static_paths` and a
-/// precompiled hardware glyph run; before the fix the renderer replayed that
-/// declared run and ignored the frame-time string (and could draw both when the
-/// CPU paths were also emitted).
-///
-/// The declared string is much wider than either frame string, so a stale run —
-/// or a ghost of both strings — leaves far more ink in the text box than the
-/// frame value alone. At 0.5s the frame string is "50"; at 1.5s it is "150".
+/// Frame-time `always` text assignments must replace declared static glyphs
+/// during offline rendering rather than replaying or ghosting the declared string.
 #[test]
 fn frame_time_text_override_replaces_declared_glyphs_offline() {
     let Some(mut renderer) = new_renderer() else {
@@ -437,17 +430,8 @@ fn offscreen_renderer_render_timeline_produces_frame() {
     assert_eq!(frame.rgba.len(), (dimensions.width * dimensions.height * 4) as usize);
 }
 
-/// Regression guard for the video backdrop loss (see `docs/roadmap.md`
-/// history): vello's image-atlas residency change (upstream #1558, between
-/// revs d8686d52 and 17166312) made any image-bearing vello render draw
-/// nothing when a non-image render ran between two image renders. With two
-/// GPU filter scopes — an image backdrop and a rect chip — every frame after
-/// an invisible (opacity-0) first frame lost the backdrop. The workspace pins
-/// vello to `d8686d52` (pre-residency) until upstream regains a fix; this
-/// test fails if the pin is moved forward without that fix.
-///
-/// Five repeated renders must all keep the checker visible (bright samples
-/// stay above 500; the failure mode sampled 160 — the red plate alone).
+/// Multiple GPU filter scopes must preserve image backdrops across repeated
+/// renders even when preceded by an initial fully-transparent frame.
 #[test]
 fn two_filter_scopes_keep_backdrop_visible_across_repeated_renders() {
     let Some(mut renderer) = new_renderer() else {
@@ -743,11 +727,8 @@ fn transition_flip_suppresses_shared_actors_and_repaints_at_midpoint() {
     );
 }
 
-/// A transition frame at progress 0 must equal the single-scene render of the
-/// outgoing scene *including its GPU filter scopes*. The transition path used
-/// to evaluate both scenes with `filter_backend = None`, so a scene whose
-/// content sat inside a `Filter` scope lost its effects in every exported
-/// transition frame while the preview kept them.
+/// Transition frames at progress 0 must evaluate with GPU filter scopes active
+/// to match the single-scene render of the outgoing scene.
 #[test]
 fn transition_frames_keep_gpu_filter_scopes() {
     let Some(mut renderer) = new_renderer() else {
@@ -864,12 +845,8 @@ fade-in g [100ms]
     }
 }
 
-/// A blit into a `Bgra8Unorm` target must work: browser canvas surfaces
-/// report their own format (Firefox's wgpu backend orders Bgra8Unorm first),
-/// and WebGPU requires the blit pipeline's color-target format to match the
-/// attachment exactly — the old fixed-Rgba8Unorm pipeline tripped Firefox's
-/// validation on every present. The per-format variant must validate cleanly
-/// and actually write the pixels (channel-swizzled on readback).
+/// Blitting into a `Bgra8Unorm` target must configure color-target formats to
+/// match the attachment and swizzle channels accurately on readback.
 #[test]
 fn blits_into_bgra8_targets() {
     use animatix_render::core::RendererCore;

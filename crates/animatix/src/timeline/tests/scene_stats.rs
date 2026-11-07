@@ -1,15 +1,6 @@
-use animatix_syntax::parser::parse_source;
-
-use super::*;
-
-fn build_source(source: &str) -> (Timeline, Vec<animatix_syntax::diagnostics::Diagnostic>) {
-    let (ast, _errors) = parse_source(source);
-    let report = Timeline::build_with_diagnostics(
-        &ast.expect("fixture should parse"),
-        &std::collections::HashMap::new(),
-    );
-    (report.output, report.diagnostics)
-}
+use super::support::{build_clean, build_output};
+use crate::timeline::eval_shared::eval_builtin_fn;
+use crate::timeline::{SceneDimensions, Timeline, Value};
 
 #[test]
 fn scene_stats_are_baked_when_referenced() {
@@ -29,9 +20,7 @@ always {
 }
 "#;
 
-    let (timeline, diags) = build_source(source);
-    let real_diags = without_content_lints(&diags).collect::<Vec<_>>();
-    assert!(real_diags.is_empty(), "unexpected diagnostics: {real_diags:?}");
+    let timeline = build_clean(source);
 
     assert!(timeline.stats_used, "stats_used flag must be true");
 
@@ -59,14 +48,8 @@ always {
 
     // Verify focus_x is near 200 at t=0 and near 800 at t=2
     let fx = timeline.env_base.get("scene.stats.focus_x").unwrap();
-    let fx0 =
-        crate::timeline::eval_shared::eval_builtin_fn("curve_at", &[fx.clone(), Value::Num(0.0)])
-            .unwrap()
-            .as_num();
-    let fx2 =
-        crate::timeline::eval_shared::eval_builtin_fn("curve_at", &[fx.clone(), Value::Num(2.0)])
-            .unwrap()
-            .as_num();
+    let fx0 = eval_builtin_fn("curve_at", &[fx.clone(), Value::Num(0.0)]).unwrap().as_num();
+    let fx2 = eval_builtin_fn("curve_at", &[fx.clone(), Value::Num(2.0)]).unwrap().as_num();
     assert!((fx0 - 200.0).abs() < 5.0, "focus_x at t=0 should be ~200, got {fx0}");
     assert!((fx2 - 800.0).abs() < 5.0, "focus_x at t=2 should be ~800, got {fx2}");
 }
@@ -84,7 +67,7 @@ dot.at = (200, 300)
 dot.at = (800, 300)
 "#;
 
-    let (timeline, _) = build_source(source);
+    let timeline = build_output(source);
     assert!(!timeline.stats_used, "stats_used must be false when unreferenced");
     assert!(
         !timeline.env_base.contains_key("scene.stats.motion"),
@@ -110,8 +93,8 @@ always {
 }
 "#;
 
-    let (t1, _) = build_source(source);
-    let (t2, _) = build_source(source);
+    let t1 = build_output(source);
+    let t2 = build_output(source);
 
     for key in [
         "scene.stats.motion",
@@ -147,12 +130,7 @@ always {
 }
 "#;
 
-    let (timeline, diags) = build_source(source);
-    let real_diags = without_content_lints(&diags).collect::<Vec<_>>();
-    assert!(
-        real_diags.is_empty(),
-        "seamless loop should pass without warnings: {real_diags:?}"
-    );
+    let timeline = build_clean(source);
 
     for key in [
         "scene.stats.motion",
@@ -164,18 +142,8 @@ always {
         "scene.stats.cast",
     ] {
         let val = timeline.env_base.get(key).unwrap();
-        let first = crate::timeline::eval_shared::eval_builtin_fn(
-            "curve_at",
-            &[val.clone(), Value::Num(0.0)],
-        )
-        .unwrap()
-        .as_num();
-        let last = crate::timeline::eval_shared::eval_builtin_fn(
-            "curve_at",
-            &[val.clone(), Value::Num(4.0)],
-        )
-        .unwrap()
-        .as_num();
+        let first = eval_builtin_fn("curve_at", &[val.clone(), Value::Num(0.0)]).unwrap().as_num();
+        let last = eval_builtin_fn("curve_at", &[val.clone(), Value::Num(4.0)]).unwrap().as_num();
         assert!(
             (first - last).abs() < 1e-3,
             "seamless loop must pin endpoints for '{key}': first={first}, last={last}"
@@ -197,17 +165,11 @@ always {
 }
 "#;
 
-    let (timeline, _) = build_source(source);
+    let timeline = build_output(source);
     let fx = timeline.env_base.get("scene.stats.focus_x").unwrap();
     let fy = timeline.env_base.get("scene.stats.focus_y").unwrap();
-    let fx_val =
-        crate::timeline::eval_shared::eval_builtin_fn("curve_at", &[fx.clone(), Value::Num(1.0)])
-            .unwrap()
-            .as_num();
-    let fy_val =
-        crate::timeline::eval_shared::eval_builtin_fn("curve_at", &[fy.clone(), Value::Num(1.0)])
-            .unwrap()
-            .as_num();
+    let fx_val = eval_builtin_fn("curve_at", &[fx.clone(), Value::Num(1.0)]).unwrap().as_num();
+    let fy_val = eval_builtin_fn("curve_at", &[fy.clone(), Value::Num(1.0)]).unwrap().as_num();
 
     // If bg were included, it would have area 1,000,000 at (500, 500) swamping the subject (area
     // 10,000 at 200, 200)
@@ -321,24 +283,18 @@ always {
 }
 "#;
 
-    let (timeline, _) = build_source(source);
+    let timeline = build_output(source);
     let fx = timeline.env_base.get("scene.stats.focus_x").unwrap();
-    let fx_start =
-        crate::timeline::eval_shared::eval_builtin_fn("curve_at", &[fx.clone(), Value::Num(0.0)])
-            .unwrap()
-            .as_num();
+    let fx_start = eval_builtin_fn("curve_at", &[fx.clone(), Value::Num(0.0)]).unwrap().as_num();
     assert!(
         (fx_start - 200.0).abs() < 10.0,
         "hero must NOT be excluded from stats just because its color is animated in always: got {fx_start}"
     );
 
     let motion = timeline.env_base.get("scene.stats.motion").unwrap();
-    let motion_val = crate::timeline::eval_shared::eval_builtin_fn(
-        "curve_at",
-        &[motion.clone(), Value::Num(1.0)],
-    )
-    .unwrap()
-    .as_num();
+    let motion_val = eval_builtin_fn("curve_at", &[motion.clone(), Value::Num(1.0)])
+        .unwrap()
+        .as_num();
     assert!(
         motion_val > 0.0,
         "hero motion must be captured even when color is animated in always: got {motion_val}"
@@ -362,23 +318,14 @@ always {
 }
 "#;
 
-    let (timeline, _) = build_source(source);
+    let timeline = build_output(source);
     let fx = timeline.env_base.get("scene.stats.focus_x").unwrap();
     let fy = timeline.env_base.get("scene.stats.focus_y").unwrap();
     let cast = timeline.env_base.get("scene.stats.cast").unwrap();
 
-    let fx_val =
-        crate::timeline::eval_shared::eval_builtin_fn("curve_at", &[fx.clone(), Value::Num(1.0)])
-            .unwrap()
-            .as_num();
-    let fy_val =
-        crate::timeline::eval_shared::eval_builtin_fn("curve_at", &[fy.clone(), Value::Num(1.0)])
-            .unwrap()
-            .as_num();
-    let cast_val =
-        crate::timeline::eval_shared::eval_builtin_fn("curve_at", &[cast.clone(), Value::Num(1.0)])
-            .unwrap()
-            .as_num();
+    let fx_val = eval_builtin_fn("curve_at", &[fx.clone(), Value::Num(1.0)]).unwrap().as_num();
+    let fy_val = eval_builtin_fn("curve_at", &[fy.clone(), Value::Num(1.0)]).unwrap().as_num();
+    let cast_val = eval_builtin_fn("curve_at", &[cast.clone(), Value::Num(1.0)]).unwrap().as_num();
 
     // Only hero should count: cast must be 1.0, and focus must be on hero (600, 600)
     assert_eq!(cast_val, 1.0, "cast count must only include visual leaf actor (hero)");

@@ -1,5 +1,4 @@
 use super::*;
-use crate::ast::Property;
 
 #[cfg(test)]
 mod support;

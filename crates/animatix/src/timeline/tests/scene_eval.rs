@@ -1,10 +1,8 @@
-use std::collections::HashMap;
-
-use super::support::{actor, build_ast};
+use super::support::{actor, build_ast, build_timeline};
 use super::*;
+use animatix_syntax::ast::{Expr, Property, Stmt};
 
 // Fixtures
-
 const HD: SceneDimensions = SceneDimensions {
     width: 1920,
     height: 1080,
@@ -83,21 +81,12 @@ fn text_actor(label: &str, text: &str) -> Stmt {
     )
 }
 
-fn build_source(source: &str) -> BuildReport<Timeline> {
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "Parse errors: {errors:?}");
-    build_ast(&ast.expect("parsed AST"))
-}
-
-fn timeline_from(source: &str) -> Timeline {
-    build_source(source).output
-}
-
 // Static subtree cache
 
 #[test]
 fn static_scene_cache_populated_after_first_evaluate() {
-    let timeline = build_ast(&static_box_ast("accent.primary", true, Some((100.0, 100.0)))).output;
+    let report = build_ast(&static_box_ast("accent.primary", true, Some((100.0, 100.0))));
+    let timeline = report.output;
     let dims = HD;
 
     let _scene1 = timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default(), &mut None);
@@ -120,7 +109,8 @@ fn static_scene_cache_populated_after_first_evaluate() {
 
 #[test]
 fn static_scene_cache_is_keyed_by_debug_options() {
-    let timeline = build_ast(&static_box_ast("accent.primary", true, None)).output;
+    let report = build_ast(&static_box_ast("accent.primary", true, None));
+    let timeline = report.output;
     let dims = HD;
 
     let _default =
@@ -140,7 +130,8 @@ fn static_scene_cache_is_keyed_by_debug_options() {
 
 #[test]
 fn static_scene_cache_is_bypassed_for_hit_regions() {
-    let timeline = build_ast(&static_box_ast("accent.primary", true, None)).output;
+    let report = build_ast(&static_box_ast("accent.primary", true, None));
+    let timeline = report.output;
     let dims = HD;
 
     let _default =
@@ -159,7 +150,8 @@ fn static_scene_cache_is_bypassed_for_hit_regions() {
 
 #[test]
 fn static_scene_only_cache_does_not_collect_items() {
-    let timeline = build_ast(&static_box_ast("red", false, None)).output;
+    let report = build_ast(&static_box_ast("red", false, None));
+    let timeline = report.output;
     let dims = HD;
 
     let _scene = timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default(), &mut None);
@@ -177,7 +169,8 @@ fn static_scene_only_cache_does_not_collect_items() {
 
 #[test]
 fn static_program_after_scene_only_still_collects_items() {
-    let timeline = build_ast(&static_box_ast("red", false, None)).output;
+    let report = build_ast(&static_box_ast("red", false, None));
+    let timeline = report.output;
     let dims = HD;
 
     let _scene = timeline.evaluate_with_debug(0.0, dims, DebugRenderOptions::default(), &mut None);
@@ -199,7 +192,8 @@ fn static_program_after_scene_only_still_collects_items() {
 
 #[test]
 fn static_program_entries_are_stable_on_repeat_hits() {
-    let timeline = build_ast(&static_box_ast("red", false, None)).output;
+    let report = build_ast(&static_box_ast("red", false, None));
+    let timeline = report.output;
     let dims = HD;
 
     let first =
@@ -213,7 +207,8 @@ fn static_program_entries_are_stable_on_repeat_hits() {
 
 #[test]
 fn static_scene_cache_is_keyed_by_dimensions() {
-    let timeline = build_ast(&static_box_ast("red", false, None)).output;
+    let report = build_ast(&static_box_ast("red", false, None));
+    let timeline = report.output;
     let dims_1 = HD;
     let dims_2 = SceneDimensions {
         width: 1280,
@@ -234,7 +229,8 @@ fn static_scene_cache_is_keyed_by_dimensions() {
 
 #[test]
 fn static_scene_skips_frame_env() {
-    let timeline = build_ast(&static_box_ast("accent.primary", true, Some((100.0, 100.0)))).output;
+    let report = build_ast(&static_box_ast("accent.primary", true, Some((100.0, 100.0))));
+    let timeline = report.output;
 
     // A static scene with no modifiers or procedural plots needs no frame env.
     let msg = format!(
@@ -248,7 +244,7 @@ fn static_scene_skips_frame_env() {
 
 #[test]
 fn static_subtree_cache_works_alongside_modifiers() {
-    let timeline = timeline_from(
+    let timeline = build_timeline(
         r##"
         config { colorscheme: "editorial-dark" }
 
@@ -280,7 +276,7 @@ fn static_subtree_cache_works_alongside_modifiers() {
 
 #[test]
 fn time_dependent_caps_prevent_static_subtree_caching() {
-    let timeline = timeline_from(
+    let timeline = build_timeline(
         r##"
         subs: Captions, style: "karaoke", at: (640, 600) {
             c1: Cue, start: 0.5, end: 1.5, text: "Hello"
@@ -380,9 +376,7 @@ always {
   eq.at = (960 + 40 * sin(t), 540)
 }
 "##;
-    let (stmts, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let timeline = Timeline::build(&stmts.expect("parsed AST"));
+    let timeline = build_timeline(source);
 
     crate::renderer::text::clear_text_compile_cache();
 
@@ -432,19 +426,13 @@ fn text_content_assignment_crossfades_paths_at_midpoint() {
         #1s
         label.text = "World" [1s]
     "##;
-    let report = build_source(source);
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Unexpected diagnostics: {:?}",
-        report.diagnostics
-    );
+    let timeline = build_timeline(source);
 
-    let track = report.output.get_entity_id("label").expect("label track should exist");
-    let paths_mid = report
-        .output
+    let track = timeline.get_entity_id("label").expect("label track should exist");
+    let paths_mid = timeline
         .world()
         .text_or_default(track)
-        .evaluate_paths(report.output.world().style(track), 1500);
+        .evaluate_paths(timeline.world().style(track), 1500);
 
     // The default path-track morph would return one set of glyphs at the
     // midpoint. The content-assignment path stores a Fade morph so both
@@ -468,7 +456,7 @@ fn text_content_assignment_crossfades_paths_at_midpoint() {
 /// directly.
 #[test]
 fn hierarchy_preserves_authored_order() {
-    let report = build_source(
+    let timeline = build_timeline(
         r##"
         root1: Group {
             child1: Rect, size: (10, 10)
@@ -479,12 +467,7 @@ fn hierarchy_preserves_authored_order() {
         root2: Rect, size: (20, 20)
     "##,
     );
-    assert!(
-        !report.diagnostics.iter().any(|d| d.is_error()),
-        "unexpected build errors: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
+    let timeline = timeline;
 
     let root_labels: Vec<&str> = timeline
         .world
@@ -505,7 +488,7 @@ fn hierarchy_preserves_authored_order() {
 
 #[test]
 fn transient_property_overrides_bypass_cache_and_override_evaluation() {
-    let timeline = timeline_from(
+    let timeline = build_timeline(
         r##"
         r: Rect, size: (100, 100), color: "#ff0000", opacity: 0.5
     "##,
@@ -525,8 +508,8 @@ fn transient_property_overrides_bypass_cache_and_override_evaluation() {
     assert!((p1.items[0].opacity - 0.5).abs() < 1e-4);
 
     // 2. Evaluation with a transient override: opacity -> 0.95.
-    let mut transient = HashMap::new();
-    let mut r_overrides = HashMap::new();
+    let mut transient = std::collections::HashMap::new();
+    let mut r_overrides = std::collections::HashMap::new();
     r_overrides.insert("opacity".to_string(), Value::Num(0.95));
     transient.insert("r".to_string(), r_overrides);
 
@@ -556,19 +539,13 @@ fn transient_property_overrides_bypass_cache_and_override_evaluation() {
 
 #[test]
 fn captions_cue_start_end_and_active_color_reach_the_primitive() {
-    let report = build_source(
+    let timeline = build_timeline(
         r##"
 subs: Captions, at: (960, 900), font_size: 32, text_max_width: 640 {
     cue: Cue, text: "Hello captions", start: 0.5, end: 1.5, active_color: "#ff8800"
 }
 "##,
     );
-    assert!(
-        super::without_content_lints(&report.diagnostics).next().is_none(),
-        "unexpected diagnostics: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
     let cue_id = timeline.world.get_id("cue").expect("cue track");
 
     // The primitive samples start/end/active_color from the cue's property
@@ -641,7 +618,7 @@ fn encoded_blend_clip_is_unbounded(scene: &vello::Scene) -> bool {
 /// composites. Structural assertions on the encoded scene, not a pixel A/B.
 #[test]
 fn blend_screen_child_outside_parent_keeps_unbounded_layer() {
-    let timeline = timeline_from(
+    let timeline = build_timeline(
         r##"
         outer: Rect, size: (100, 100), color: "#ff0000", blend: "screen", at: (400, 300), opacity: 1 {
             inner: Rect, size: (400, 400), color: "#0000ff", at: (300, 300), opacity: 1
@@ -676,7 +653,7 @@ fn blend_screen_child_outside_parent_keeps_unbounded_layer() {
 /// moves the picture under the layer, so keep the historical unbounded layer.
 #[test]
 fn blend_layer_falls_back_when_camera_is_active() {
-    let timeline = timeline_from(
+    let timeline = build_timeline(
         r##"
         glow: Rect, size: (200, 200), color: "#ff8800", blend: "screen", at: (400, 300), opacity: 1
         always { camera.at = (4.0, 4.0) }
@@ -694,7 +671,7 @@ fn blend_layer_falls_back_when_camera_is_active() {
 /// conservative gate must keep the unbounded layer (no wrong nested clip).
 #[test]
 fn blend_layer_falls_back_when_mask_or_clip_is_present() {
-    let timeline = timeline_from(
+    let timeline = build_timeline(
         r##"
         plane: Mask, size: (300, 300), at: (400, 300), opacity: 1 {
             clip_shape: Rect, size: (300, 300), opacity: 1
@@ -716,7 +693,7 @@ fn blend_layer_falls_back_when_mask_or_clip_is_present() {
 /// is untouched (docs/roadmap.md:111 — prefer structural over pixel A/B).
 #[test]
 fn static_blend_scene_uses_bounded_clip_with_stable_structure() {
-    let timeline = timeline_from(
+    let timeline = build_timeline(
         r##"
         glow: Rect, size: (200, 200), color: "#ff8800", blend: "screen", at: (400, 300), opacity: 1
         "##,
@@ -731,7 +708,7 @@ fn static_blend_scene_uses_bounded_clip_with_stable_structure() {
     assert_eq!(first.encoding().n_clips, second.encoding().n_clips);
     assert_eq!(first.encoding().n_paths, second.encoding().n_paths);
 
-    let control = timeline_from(
+    let control = build_timeline(
         r##"
         glow: Rect, size: (200, 200), color: "#ff8800", at: (400, 300), opacity: 1
         "##,
@@ -751,17 +728,12 @@ fn static_blend_scene_uses_bounded_clip_with_stable_structure() {
 
 #[test]
 fn rect_with_shadow_generates_shadow_render_command_and_bounds() {
-    let source = r#"
+    let timeline = build_timeline(
+        r#"
 #0s
 box: Rect, size: (100, 100), at: (200, 200), shadow: (0, 8, 16, 2), shadow_color: (0, 0, 0, 0.25)
-"#;
-    let (stmts, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report = Timeline::build_with_diagnostics(
-        &stmts.expect("parsed AST"),
-        &std::collections::HashMap::new(),
+"#,
     );
-    let timeline = report.output;
     let track = timeline.world.tracks.get_id("box").expect("box track exists");
     use crate::primitives::Primitive;
     let primitive = crate::primitives::RECT;
@@ -773,10 +745,7 @@ box: Rect, size: (100, 100), at: (200, 200), shadow: (0, 8, 16, 2), shadow_color
         time_ms: 0,
         local_transform: kurbo::Affine::IDENTITY,
         opacity: 1.0,
-        scene_dimensions: SceneDimensions {
-            width: 1920,
-            height: 1080,
-        },
+        scene_dimensions: HD,
         background_color: [0.0, 0.0, 0.0, 1.0],
         overrides: None,
         vector_paths: &[],
