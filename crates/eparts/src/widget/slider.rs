@@ -114,29 +114,22 @@ mod tests {
 
     #[test]
     fn builder_fields() {
-        let mut v = 0.0f64;
-        let s = Slider::new(&mut v, 0.0..=1.0)
-            .step(0.25)
-            .logarithmic(true)
-            .suffix("px")
-            .show_value(true);
-        assert_eq!(s.step, Some(0.25));
-        assert!(s.logarithmic);
-        assert_eq!(s.suffix, "px");
-        assert!(s.show_value);
-    }
+        let cases = [
+            ("builder_fields", 0.25, true, "px", true),
+            ("chaining_works", 0.1, true, "x", true),
+        ];
 
-    #[test]
-    fn chaining_works() {
-        let mut v = 0.0f64;
-        let s = Slider::new(&mut v, 0.0..=1.0)
-            .step(0.1)
-            .logarithmic(true)
-            .suffix("x")
-            .show_value(true);
-        assert_eq!(s.step, Some(0.1));
-        assert!(s.logarithmic);
-        assert_eq!(s.suffix, "x");
-        assert!(s.show_value);
+        for (case, step, logarithmic, suffix, show_value) in cases {
+            let mut v = 0.0f64;
+            let s = Slider::new(&mut v, 0.0..=1.0)
+                .step(step)
+                .logarithmic(logarithmic)
+                .suffix(suffix)
+                .show_value(show_value);
+            assert_eq!(s.step, Some(step), "{case}: step mismatch");
+            assert!(s.logarithmic, "{case}: logarithmic should be true");
+            assert_eq!(s.suffix, suffix, "{case}: suffix mismatch");
+            assert!(s.show_value, "{case}: show_value should be true");
+        }
     }
 }

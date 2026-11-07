@@ -740,21 +740,14 @@ fn completion_after_emoji_uses_utf16_columns() {
 // ── Symbol at position tests ──
 
 #[test]
-fn symbol_at_returns_label_name() {
+fn symbol_at_returns_label_and_type_names() {
     let analyzer = Analyzer::new(TITLE_SOURCE);
+    let cases = [("label_name", 2, 0, "title"), ("type_name", 2, 7, "Text")];
 
-    // "title" at line 2, col 0
-    let sym = analyzer.symbol_at(2, 0);
-    assert_eq!(sym.as_deref(), Some("title"));
-}
-
-#[test]
-fn symbol_at_returns_type_name() {
-    let analyzer = Analyzer::new(TITLE_SOURCE);
-
-    // "Text" at line 2, col 7
-    let sym = analyzer.symbol_at(2, 7);
-    assert_eq!(sym.as_deref(), Some("Text"));
+    for (case, line, col, expected) in cases {
+        let sym = analyzer.symbol_at(line, col);
+        assert_eq!(sym.as_deref(), Some(expected), "{case}");
+    }
 }
 
 #[test]

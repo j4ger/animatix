@@ -193,33 +193,29 @@ fn max_value_invalid_type_emits_diagnostic() {
 }
 
 #[test]
-fn flat_number_list_auto_labeling() {
-    let (timeline, diagnostics) = build_ignoring_warnings(
-        r#"
-        chart: BarChart, data: {10, 20, 30}
-    "#,
-    );
-    assert!(
-        diagnostics.iter().any(|d| d.code == DiagnosticCode::InvalidPropertyValue
-            && d.message.contains("flat number list detected")),
-        "Expected InvalidPropertyValue diagnostic about auto-labeling, got: {diagnostics:?}"
-    );
-    assert!(timeline.world.tracks.contains_key("chart"), "chart track should exist");
-}
+fn test_flat_number_list_diagnostic() {
+    let cases = vec![("auto_labeling", "{10, 20, 30}"), ("single_value", "{42}")];
 
-#[test]
-fn flat_number_list_single_value() {
-    let (timeline, diagnostics) = build_ignoring_warnings(
-        r#"
-        chart: BarChart, data: {42}
+    for (case_name, data) in cases {
+        let (timeline, diagnostics) = build_ignoring_warnings(&format!(
+            r#"
+        chart: BarChart, data: {}
     "#,
-    );
-    assert!(
-        diagnostics.iter().any(|d| d.code == DiagnosticCode::InvalidPropertyValue
-            && d.message.contains("flat number list detected")),
-        "Expected auto-labeling diagnostic, got: {diagnostics:?}"
-    );
-    assert!(timeline.world.tracks.contains_key("chart"), "chart track should exist");
+            data
+        ));
+        assert!(
+            diagnostics.iter().any(|d| d.code == DiagnosticCode::InvalidPropertyValue
+                && d.message.contains("flat number list detected")),
+            "failed case: {}. Expected auto-labeling diagnostic, got: {:?}",
+            case_name,
+            diagnostics
+        );
+        assert!(
+            timeline.world.tracks.contains_key("chart"),
+            "chart track should exist for {}",
+            case_name
+        );
+    }
 }
 
 #[test]

@@ -278,22 +278,31 @@ fn test_evaluate_paths_with_options_before_first_keyframe() {
 
 #[test]
 fn test_evaluate_paths_with_options_after_last_keyframe() {
-    let mut paths = PropertyTrack::new(0.0);
-    paths.add_keyframe(0, 10.0, Easing::Linear);
-    paths.add_keyframe(1000, 100.0, Easing::Linear);
-    let morph = PropertyTrack::new(MorphOptions::default());
-    let result = evaluate_paths_with_options(&paths, &morph, 2000, identity_interpolate);
-    assert_eq!(result, 100.0);
-}
+    type Keyframes = [(u64, f32, Easing)];
+    let cases: &[(&str, &Keyframes, u64, f32)] = &[
+        (
+            "after_last_keyframe",
+            &[(0, 10.0, Easing::Linear), (1000, 100.0, Easing::Linear)],
+            2000,
+            100.0,
+        ),
+        (
+            "between_two_keyframes",
+            &[(0, 0.0, Easing::Linear), (1000, 100.0, Easing::Linear)],
+            500,
+            50.0,
+        ),
+    ];
 
-#[test]
-fn test_evaluate_paths_with_options_between_two_keyframes() {
-    let mut paths = PropertyTrack::new(0.0);
-    paths.add_keyframe(0, 0.0, Easing::Linear);
-    paths.add_keyframe(1000, 100.0, Easing::Linear);
-    let morph = PropertyTrack::new(MorphOptions::default());
-    let result = evaluate_paths_with_options(&paths, &morph, 500, identity_interpolate);
-    assert_eq!(result, 50.0);
+    for &(case, keyframes, time, expected) in cases {
+        let mut paths = PropertyTrack::new(0.0);
+        for &(t, v, e) in keyframes {
+            paths.add_keyframe(t, v, e);
+        }
+        let morph = PropertyTrack::new(MorphOptions::default());
+        let result = evaluate_paths_with_options(&paths, &morph, time, identity_interpolate);
+        assert_eq!(result, expected, "{case}: evaluate_paths_with_options at {time}");
+    }
 }
 
 #[test]
@@ -330,46 +339,32 @@ fn sample_vello_path(color: vello::peniko::Color) -> VelloPath {
 
 #[test]
 fn fade_vello_paths_at_start_returns_only_source() {
-    let source = vec![sample_vello_path(vello::peniko::Color::from_rgba8(
-        255, 0, 0, 255,
-    ))];
-    let target = vec![sample_vello_path(vello::peniko::Color::from_rgba8(
-        0, 255, 0, 255,
-    ))];
-    let result = interpolate_vello_paths(
-        &source,
-        &target,
-        0.0,
-        MorphOptions {
-            strategy: MorphStrategy::Fade,
-            path_arc: 0.0,
-            stretch: false,
-        },
-    );
-    assert_eq!(result.len(), 1);
-    assert_eq!(result[0].fill.unwrap().to_rgba8().a, 255);
-}
+    let cases: &[(&str, f32, usize, u8)] = &[("at_start", 0.0, 1, 255), ("at_end", 1.0, 1, 255)];
 
-#[test]
-fn fade_vello_paths_at_end_returns_only_target() {
-    let source = vec![sample_vello_path(vello::peniko::Color::from_rgba8(
-        255, 0, 0, 255,
-    ))];
-    let target = vec![sample_vello_path(vello::peniko::Color::from_rgba8(
-        0, 255, 0, 255,
-    ))];
-    let result = interpolate_vello_paths(
-        &source,
-        &target,
-        1.0,
-        MorphOptions {
-            strategy: MorphStrategy::Fade,
-            path_arc: 0.0,
-            stretch: false,
-        },
-    );
-    assert_eq!(result.len(), 1);
-    assert_eq!(result[0].fill.unwrap().to_rgba8().a, 255);
+    for &(case, t, expected_len, expected_alpha) in cases {
+        let source = vec![sample_vello_path(vello::peniko::Color::from_rgba8(
+            255, 0, 0, 255,
+        ))];
+        let target = vec![sample_vello_path(vello::peniko::Color::from_rgba8(
+            0, 255, 0, 255,
+        ))];
+        let result = interpolate_vello_paths(
+            &source,
+            &target,
+            t,
+            MorphOptions {
+                strategy: MorphStrategy::Fade,
+                path_arc: 0.0,
+                stretch: false,
+            },
+        );
+        assert_eq!(result.len(), expected_len, "{case}: expected result len");
+        assert_eq!(
+            result[0].fill.unwrap().to_rgba8().a,
+            expected_alpha,
+            "{case}: expected fill alpha"
+        );
+    }
 }
 
 #[test]

@@ -537,28 +537,25 @@ callout: Callout, target: box1, place: right"#,
 
 #[test]
 fn remove_property_actor_not_found() {
-    let mut stmts = parse(
-        r#"#0s
-box1: Rect, size: (100, 100)"#,
-    );
-    let edit = SourceEdit::RemoveProperty {
-        actor: "missing".into(),
-        property: "size".into(),
-    };
-    assert!(apply_edit(&mut stmts, edit).is_err());
-}
+    let cases = [
+        ("remove_property_actor_not_found", "missing", "size"),
+        ("remove_property_not_found_on_actor", "box1", "color"),
+    ];
 
-#[test]
-fn remove_property_not_found_on_actor() {
-    let mut stmts = parse(
-        r#"#0s
+    for (case, actor, property) in cases {
+        let mut stmts = parse(
+            r#"#0s
 box1: Rect, size: (100, 100)"#,
-    );
-    let edit = SourceEdit::RemoveProperty {
-        actor: "box1".into(),
-        property: "color".into(),
-    };
-    assert!(apply_edit(&mut stmts, edit).is_err());
+        );
+        let edit = SourceEdit::RemoveProperty {
+            actor: actor.into(),
+            property: property.into(),
+        };
+        assert!(
+            apply_edit(&mut stmts, edit).is_err(),
+            "{case}: expected error for missing actor or property"
+        );
+    }
 }
 
 #[test]
