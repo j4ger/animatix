@@ -55,7 +55,7 @@ pub(super) fn synthesize_idle_tracks(timeline: &mut Timeline) {
                         sc.add_keyframe(t0 + 3000, base_scale, crate::timeline::Easing::EaseInOut);
                     }
                 },
-                _ => {},
+                _ => {}, // Unknown or non-looping idle modes are ignored by post-build synthesis.
             }
         }
     }

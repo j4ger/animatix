@@ -172,6 +172,47 @@ impl Value {
         }
     }
 
+    /// Safe extraction to `[f64; 2]` without fallback.
+    pub fn to_vec2(&self) -> Option<[f64; 2]> {
+        match self {
+            Value::Vec2(v) => Some(*v),
+            _ => None,
+        }
+    }
+
+    /// Safe extraction to `[f32; 2]` without fallback.
+    pub fn to_f32_vec2(&self) -> Option<[f32; 2]> {
+        match self {
+            Value::Vec2([x, y]) => Some([*x as f32, *y as f32]),
+            _ => None,
+        }
+    }
+
+    /// Safe extraction to `[f32; 4]` without fallback (from `Vec4` or `Color`).
+    pub fn to_f32_vec4(&self) -> Option<[f32; 4]> {
+        match self {
+            Value::Vec4([r, g, b, a]) | Value::Color([r, g, b, a]) => {
+                Some([*r as f32, *g as f32, *b as f32, *a as f32])
+            },
+            _ => None,
+        }
+    }
+
+    /// Extract a typed numeric vector if this value is a `List` of `Num`s,
+    /// returning `None` if this is not a list or any element is not a number.
+    pub fn to_f64_vec(&self) -> Option<Vec<f64>> {
+        match self {
+            Value::List(items) => items
+                .iter()
+                .map(|item| match item {
+                    Value::Num(n) => Some(*n),
+                    _ => None,
+                })
+                .collect(),
+            _ => None,
+        }
+    }
+
     /// Get a field value from an Object, or None if this is not an Object or field doesn't exist.
     pub fn get_field(&self, name: &str) -> Option<&Value> {
         match self {

@@ -51,20 +51,16 @@ mod scene_stats;
 #[cfg(test)]
 mod solo;
 #[cfg(test)]
+mod stagger;
+#[cfg(test)]
 mod taffy_layout;
+#[cfg(test)]
+mod text;
 #[cfg(test)]
 mod timeline_core;
 #[cfg(test)]
 mod transform_cache;
 #[cfg(test)]
 mod variable_tracks;
-#[cfg(test)]
-mod wave1;
-#[cfg(test)]
-mod wave2;
-#[cfg(test)]
-mod wave3;
-#[cfg(test)]
-mod wave4;
 
 pub(crate) use timeline_core::without_content_lints;

@@ -58,7 +58,7 @@ impl Timeline {
             VectorShapeState::Rect(rect) => {
                 rect.corner_radius = corner_radius;
             },
-            _ => {},
+            _ => {}, // Shapes without seeded custom geometry parameters.
         }
         apply_vector_shape_defaults(ty, &mut vector_shape_state);
 

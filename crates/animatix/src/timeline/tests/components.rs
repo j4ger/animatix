@@ -3,6 +3,7 @@
 use animatix_text::transcript::SpeechTranscript;
 
 use crate::timeline::Timeline;
+use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{ContainerMetadata, Easing, EntityId, LayoutType, PropertyTrack};
 
 fn sample_transcript() -> SpeechTranscript {
@@ -290,7 +291,7 @@ fn effects_component_roundtrip() {
 
 // The ECS storage contract (`docs/ecs.md` §2.1, "Required means present"): an
 // entity that exists has every `RequiredStore` entry. This is the rebuilt
-// pin for the invariant the `TrackStore` test suite used to carry.
+// pin for the invariant that every spawned entity carries all required component stores.
 #[test]
 fn every_entity_has_required_components() {
     let mut timeline = Timeline::new();
@@ -440,4 +441,81 @@ anim_box.size = (200, 120) [500ms]
         None,
         "animated size should not have precomputed local bounds"
     );
+}
+
+#[test]
+fn test_parallax_property_build() {
+    let source = r#"
+#0s
+bg: Rect, size: (200, 200), parallax: 0.3, at: (0, 0)
+fg: Rect, size: (100, 100), parallax: 1.0, at: (50, 50)
+"#;
+    let (stmts, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report = Timeline::build_with_diagnostics(
+        &stmts.expect("parsed AST"),
+        &std::collections::HashMap::new(),
+    );
+    let bg_track = report.output.world.tracks.get_id("bg").expect("bg track");
+    let fg_track = report.output.world.tracks.get_id("fg").expect("fg track");
+    assert_eq!(report.output.world.meta(bg_track).parallax, 0.3);
+    assert_eq!(report.output.world.meta(fg_track).parallax, 1.0);
+}
+
+#[test]
+fn idle_float_synthesizes_seamless_motion_offset() {
+    let source = r#"
+#0s
+box: Rect, size: (100, 100), at: (200, 200), idle: "float"
+"#;
+    let (stmts, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let timeline = Timeline::build_with_diagnostics(
+        &stmts.expect("parsed AST"),
+        &std::collections::HashMap::new(),
+    )
+    .output;
+    let track = timeline.world.tracks.get_id("box").expect("box track exists");
+    let geometry = timeline.world.geometry(track);
+
+    let y0 = geometry.motion_offset.get(0, [0.0, 0.0])[1];
+    assert!((y0 - 0.0).abs() < 1e-4, "y0 was {y0}");
+
+    let y750 = geometry.motion_offset.get(750, [0.0, 0.0])[1];
+    assert!((y750 - (-6.0)).abs() < 1e-4, "y750 was {y750}");
+
+    let y1500 = geometry.motion_offset.get(1500, [0.0, 0.0])[1];
+    assert!((y1500 - 0.0).abs() < 1e-4, "y1500 was {y1500}");
+
+    let y2250 = geometry.motion_offset.get(2250, [0.0, 0.0])[1];
+    assert!((y2250 - 6.0).abs() < 1e-4, "y2250 was {y2250}");
+
+    let y3000 = geometry.motion_offset.get(3000, [0.0, 0.0])[1];
+    assert!((y3000 - 0.0).abs() < 1e-4, "y3000 was {y3000}");
+}
+
+#[test]
+fn idle_breath_synthesizes_seamless_scale() {
+    let source = r#"
+#0s
+box: Rect, size: (100, 100), at: (200, 200), idle: "breath"
+"#;
+    let (stmts, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let timeline = Timeline::build_with_diagnostics(
+        &stmts.expect("parsed AST"),
+        &std::collections::HashMap::new(),
+    )
+    .output;
+    let track = timeline.world.tracks.get_id("box").expect("box track exists");
+    let geometry = timeline.world.geometry(track);
+
+    let s0 = geometry.scale.get(0, 1.0);
+    assert!((s0 - 1.0).abs() < 1e-4, "s0 was {s0}");
+
+    let s1500 = geometry.scale.get(1500, 1.0);
+    assert!((s1500 - 1.03).abs() < 1e-4, "s1500 was {s1500}");
+
+    let s3000 = geometry.scale.get(3000, 1.0);
+    assert!((s3000 - 1.0).abs() < 1e-4, "s3000 was {s3000}");
 }

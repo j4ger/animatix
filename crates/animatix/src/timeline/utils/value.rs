@@ -46,26 +46,18 @@ fn color_from_value(value: Value) -> Option<[f32; 4]> {
     // Vec3/Vec4/Color so `color = {1, 0, 0, 1}` works like the paren form;
     // heterogeneous or wrong-arity lists stay None (fallback color) — the
     // position/size paths warn on those instead.
-    fn all_nums(items: &[Value]) -> Option<Vec<f64>> {
-        items
-            .iter()
-            .map(|item| match item {
-                Value::Num(n) => Some(*n),
-                _ => None,
-            })
-            .collect()
+    if let Some(c) = value.to_f32_vec4() {
+        return Some(c);
     }
-    match value {
-        Value::Color([r, g, b, a]) => Some([r as f32, g as f32, b as f32, a as f32]),
-        Value::Vec4([r, g, b, a]) => Some([r as f32, g as f32, b as f32, a as f32]),
-        Value::Vec3([r, g, b]) => Some([r as f32, g as f32, b as f32, 1.0]),
+    match &value {
+        Value::Vec3([r, g, b]) => Some([*r as f32, *g as f32, *b as f32, 1.0]),
         Value::List(items) if items.len() == 4 => {
-            all_nums(&items).map(|n| [n[0] as f32, n[1] as f32, n[2] as f32, n[3] as f32])
+            value.to_f64_vec().map(|n| [n[0] as f32, n[1] as f32, n[2] as f32, n[3] as f32])
         },
         Value::List(items) if items.len() == 3 => {
-            all_nums(&items).map(|n| [n[0] as f32, n[1] as f32, n[2] as f32, 1.0])
+            value.to_f64_vec().map(|n| [n[0] as f32, n[1] as f32, n[2] as f32, 1.0])
         },
-        Value::Str(text) => color_from_text(&text),
+        Value::Str(text) => color_from_text(text),
         _ => None,
     }
 }

@@ -373,7 +373,7 @@ impl Timeline {
                             super::Value::Num(n) => {
                                 parsed.font_weight = n as f32;
                             },
-                            _ => {},
+                            _ => {}, // Unrecognized font weight value kinds fall back to default.
                         }
                     }
                 },
@@ -464,7 +464,7 @@ impl Timeline {
                 "at" => parsed.at_expr = Some(prop.value.clone()),
                 "anchor" => parsed.anchor_expr = Some(prop.value.clone()),
                 "offset" => parsed.offset_expr = Some(prop.value.clone()),
-                _ => {},
+                _ => {}, // Non-position properties are parsed by apply_remaining_text_properties.
             }
         }
 
@@ -671,7 +671,7 @@ impl Timeline {
                         use_comma_val = *b;
                     }
                 },
-                _ => {},
+                _ => {}, // Remaining Counter properties are handled by general text/style pipeline.
             }
         }
 

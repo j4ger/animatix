@@ -1126,3 +1126,53 @@ fn extension_plot_capability_enables_func_assignments() {
         "plot_geometry capability should enable func transitions"
     );
 }
+
+#[test]
+fn test_flip_transition_shared_id() {
+    let source_a = r#"
+#0s
+card: Rect, at: (100, 100), size: (50, 50), color: (1, 0, 0, 1), shared_id: "hero"
+"#;
+    let source_b = r#"
+#0s
+card_large: Rect, at: (400, 300), size: (150, 150), color: (1, 0, 0, 1), shared_id: "hero"
+"#;
+
+    let (ast_a, _) = animatix_syntax::parser::parse_source(source_a);
+    let (ast_b, _) = animatix_syntax::parser::parse_source(source_b);
+
+    let report_a = Timeline::build_with_diagnostics(&ast_a.unwrap(), &Default::default());
+    let report_b = Timeline::build_with_diagnostics(&ast_b.unwrap(), &Default::default());
+
+    let timeline_a = report_a.output;
+    let timeline_b = report_b.output;
+
+    let shared_a = timeline_a.shared_id_actors(0);
+    let shared_b = timeline_b.shared_id_actors(0);
+
+    assert_eq!(shared_a.get("hero"), Some(&"card".to_string()));
+    assert_eq!(shared_b.get("hero"), Some(&"card_large".to_string()));
+
+    let dims = SceneDimensions {
+        width: 800,
+        height: 600,
+    };
+    let debug_options = Default::default();
+
+    // Verify unsuppressed evaluation has the item
+    let unsuppressed = timeline_a.evaluate_program_with_debug(0.0, dims, debug_options, &mut None);
+    assert_eq!(unsuppressed.items.len(), 1);
+    assert_eq!(unsuppressed.items[0].label, "card");
+
+    // Verify suppressed evaluation suppresses the actor
+    let suppressed = timeline_a.evaluate_program_with_suppressed(
+        0.0,
+        dims,
+        debug_options,
+        &mut None,
+        &["card".to_string()],
+    );
+    // Suppressed actor has opacity 0 so its draw commands evaluate to opacity 0 and are omitted from scene
+    assert_eq!(suppressed.items.len(), 1);
+    assert_eq!(suppressed.items[0].opacity, 0.0);
+}

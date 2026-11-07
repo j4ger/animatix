@@ -18,17 +18,12 @@ pub(crate) fn parse_numeric_vec2(expr: &Expr, env: &Environment) -> Option<[f32;
 /// like `{280, 220}`) as a Vec2. Heterogeneous or wrong-arity lists are
 /// rejected so type errors surface upstream.
 pub(crate) fn list_as_vec2(value: &Value) -> Option<[f32; 2]> {
+    if let Some(v) = value.to_f32_vec2() {
+        return Some(v);
+    }
     match value {
-        Value::Vec2([x, y]) => Some([*x as f32, *y as f32]),
         Value::List(items) if items.len() == 2 => {
-            let xs: Option<Vec<f64>> = items
-                .iter()
-                .map(|item| match item {
-                    Value::Num(n) => Some(*n),
-                    _ => None,
-                })
-                .collect();
-            xs.map(|xs| [xs[0] as f32, xs[1] as f32])
+            value.to_f64_vec().map(|xs| [xs[0] as f32, xs[1] as f32])
         },
         _ => None,
     }

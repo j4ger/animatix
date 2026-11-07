@@ -117,3 +117,35 @@ pub fn all_ids() -> &'static [&'static str] {
     static IDS: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
     IDS.get_or_init(|| REGISTRY.iter().map(|def| def.id).collect())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_push_transitions_in_registry() {
+        for name in ["push-left", "push-right", "push-up", "push-down"] {
+            let def = find(name);
+            assert!(def.is_some(), "Expected transition '{name}' to be recognized");
+        }
+    }
+
+    #[test]
+    fn test_iris_clock_wipe_and_zoom_through_transitions_in_registry() {
+        for (name, shader_case) in [("iris", 10), ("clock-wipe", 11), ("zoom-through", 12)] {
+            let def = find(name)
+                .unwrap_or_else(|| panic!("Expected transition '{name}' to be recognized"));
+            assert_eq!(def.shader_case, shader_case, "'{name}' must use its own shader arm");
+            assert!(
+                (500..=700).contains(&def.default_duration_ms),
+                "'{name}' default duration should be in the 500-700ms band, got {}",
+                def.default_duration_ms
+            );
+            assert!(!def.display_name.is_empty(), "'{name}' needs a display name");
+            assert!(all_ids().contains(&name), "'{name}' must be part of the generated id list");
+        }
+
+        // FLIP is a `shared_id` overlay, not a transition id.
+        assert!(find("flip").is_none(), "FLIP must not be registered as a `play` transition");
+    }
+}

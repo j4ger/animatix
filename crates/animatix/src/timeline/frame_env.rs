@@ -53,7 +53,7 @@ pub(crate) fn apply_override_incremental(
                     key.truncate(base_len);
                 }
             },
-            _ => {},
+            _ => {}, // Non-composite values have no sub-channel suffixes to expose.
         }
 
         // Recalculate derived values when size changes, but don't overwrite
@@ -306,7 +306,7 @@ impl Timeline {
                                     key.push_str(".a");
                                     env.set(&key, Value::Num(*a));
                                 },
-                                _ => {},
+                                _ => {}, // Non-composite values have no sub-channel suffixes to expose.
                             }
                         }
                     }
@@ -374,7 +374,7 @@ impl Timeline {
                             key.push_str(".a");
                             env.set(&key, Value::Num(*a));
                         },
-                        _ => {},
+                        _ => {}, // Non-composite values have no sub-channel suffixes to expose.
                     }
                 }
             }

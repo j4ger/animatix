@@ -58,7 +58,7 @@ impl Timeline {
                     .with_ast_span(decl_span),
                 );
             },
-            _ => {},
+            _ => {}, // Same-parent or un-parented redeclarations do not emit reparenting warnings.
         }
     }
 

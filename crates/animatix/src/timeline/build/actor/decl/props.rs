@@ -362,7 +362,7 @@ impl Timeline {
                         state.corner_radius,
                     ) = extract_shape_state_values(&state.vector_shape_state);
                 },
-                _ => {},
+                _ => {}, // Non-style, non-shape properties are handled by general declaration passes.
             }
         }
     }
@@ -553,7 +553,7 @@ impl Timeline {
                         shape.head_size.ensure(n as f32).add_keyframe(t_start_ms, n as f32, easing);
                     }
                 },
-                _ => {},
+                _ => {}, // Properties other than shape geometry are keyframed through the plan.
             }
         }
     }

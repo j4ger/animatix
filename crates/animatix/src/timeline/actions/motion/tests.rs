@@ -296,3 +296,46 @@ fn shift_preserves_layout_managed_targets() {
     );
     assert_eq!(geometry.motion_offset.get(1000, [0.0, 0.0]), [25.0, 0.0]);
 }
+
+#[test]
+fn test_motion_interruption_velocity_continuity() {
+    let source = r#"
+#0s
+b: Rect, at: (0, 0), size: (20, 20), color: (1, 1, 1, 1)
+
+#1s
+move b [to: (200, 100), 1s, ease: spring(15, 20)]
+
+#1.5s
+move b [to: (400, 200), 1s, ease: spring(15, 20)]
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report = Timeline::build_with_diagnostics(&ast.unwrap(), &Default::default());
+    let non_lints: Vec<_> =
+        crate::timeline::tests::without_content_lints(&report.diagnostics).collect();
+    assert!(non_lints.is_empty(), "unexpected diagnostics: {non_lints:?}");
+
+    let timeline = report.output;
+    let track = timeline.world.tracks.get_id("b").expect("actor track b");
+    let geometry = timeline.world.geometry(track);
+
+    // Sample positions before and after the 1.5s interruption
+    let pos_1490 = geometry.position.get(1490, [0.0, 0.0]);
+    let pos_1500 = geometry.position.get(1500, [0.0, 0.0]);
+    let pos_1510 = geometry.position.get(1510, [0.0, 0.0]);
+
+    // Positional continuity: no teleportation at 1500ms
+    let step_before = [pos_1500[0] - pos_1490[0], pos_1500[1] - pos_1490[1]];
+    let step_after = [pos_1510[0] - pos_1500[0], pos_1510[1] - pos_1500[1]];
+
+    // The velocity vector must not abruptly flip sign or jump discontinuously
+    assert!(
+        (step_before[0] - step_after[0]).abs() < 5.0,
+        "X velocity discontinuity: {step_before:?} vs {step_after:?}"
+    );
+    assert!(
+        (step_before[1] - step_after[1]).abs() < 5.0,
+        "Y velocity discontinuity: {step_before:?} vs {step_after:?}"
+    );
+}

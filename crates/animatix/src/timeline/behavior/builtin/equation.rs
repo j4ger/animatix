@@ -97,7 +97,7 @@ pub fn build_extra_fragment(
                         .add_keyframe(time_ms as u64, color, Easing::Linear);
                 }
             },
-            _ => {},
+            _ => {}, // Properties other than text content and highlight color are handled by plan slots.
         }
     }
 

@@ -25,7 +25,7 @@ impl Timeline {
                 "at" => at_expr = Some(prop.value.clone()),
                 "anchor" => anchor_expr = Some(prop.value.clone()),
                 "offset" => offset_expr = Some(prop.value.clone()),
-                _ => {},
+                _ => {}, // Non-position properties are handled by plan slots and style passes.
             }
         }
         if let Some((binding, bound_position)) = resolve_position_binding_with_lookup_diagnostic(
@@ -83,7 +83,7 @@ impl Timeline {
                             );
                     }
                 },
-                _ => {},
+                _ => {}, // Remaining properties write through property plan slots.
             }
         }
     }
@@ -305,7 +305,7 @@ impl Timeline {
                         has_duration,
                         has_delay,
                     ),
-                    _ => {},
+                    _ => {}, // Fields not bound to style are written by their dedicated component stores.
                 }
             }
         }

@@ -1,7 +1,29 @@
+//! Tests for text properties, split-text actions, counters, and hardware glyph runs.
+
 use animatix_syntax::parser::parse_source;
 
 use super::*;
 use crate::timeline::TrackAccessor;
+
+#[test]
+fn test_text_fill_gradient_build() {
+    let source = r##"
+#0s
+heading: Text, text: "Delightful", fill_gradient: linear(135, {"#ff0000", "#0000ff"}), at: (100, 100)
+"##;
+    let (stmts, errors) = parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report = Timeline::build_with_diagnostics(
+        &stmts.expect("parsed AST"),
+        &std::collections::HashMap::new(),
+    );
+    assert!(!report.output.world.tracks.is_empty());
+    let track = report.output.world.tracks.get_id("heading").expect("heading track");
+    assert!(
+        report.output.world.style(track).fill_gradient.is_some(),
+        "Text actor should accept fill_gradient"
+    );
+}
 
 #[test]
 fn test_split_text_declaration_properties() {

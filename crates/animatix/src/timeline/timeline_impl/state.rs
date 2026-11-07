@@ -96,8 +96,8 @@ impl Timeline {
 
     /// Create an entity with a blank track, or return the existing one.
     ///
-    /// Build code, tests and plugins use this instead of inserting into
-    /// `TrackStore` by hand. Invalidates the frame cache first.
+    /// Build code, tests and plugins use this to spawn an entity in the
+    /// ECS `World`. Invalidates the frame cache first.
     pub fn spawn_entity(&mut self, label: &str, actor_type: impl Into<String>) -> EntityId {
         self.invalidate_frame_cache();
         self.world.spawn(label, actor_type)

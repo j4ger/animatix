@@ -224,3 +224,37 @@ fn test_animated_scene_has_keyframes() {
         "opacity should have at least 2 keyframes"
     );
 }
+
+#[test]
+fn test_step_pause_points_and_navigation() {
+    let source = r#"
+#0s
+b: Rect, at: (0, 0), size: (10, 10), color: (1, 1, 1, 1)
+#step 1
+
+#500ms
+#pause
+
+#1s
+#step 2
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report = Timeline::build_with_diagnostics(&ast.unwrap(), &Default::default());
+    let non_lints: Vec<_> = without_content_lints(&report.diagnostics).collect();
+    assert!(non_lints.is_empty(), "unexpected diagnostics: {non_lints:?}");
+
+    let timeline = report.output;
+    assert_eq!(timeline.pause_points(), &[0, 500, 1000]);
+
+    // Navigation checks
+    assert_eq!(timeline.step_next(0), Some(500));
+    assert_eq!(timeline.step_next(250), Some(500));
+    assert_eq!(timeline.step_next(500), Some(1000));
+    assert_eq!(timeline.step_next(1000), None);
+
+    assert_eq!(timeline.step_prev(1000), Some(500));
+    assert_eq!(timeline.step_prev(750), Some(500));
+    assert_eq!(timeline.step_prev(500), Some(0));
+    assert_eq!(timeline.step_prev(0), None);
+}

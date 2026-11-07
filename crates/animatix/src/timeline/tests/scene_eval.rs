@@ -748,3 +748,67 @@ fn static_blend_scene_uses_bounded_clip_with_stable_structure() {
         "well-defined static bounds must use the tight rect, not the unbounded fallback"
     );
 }
+
+#[test]
+fn rect_with_shadow_generates_shadow_render_command_and_bounds() {
+    let source = r#"
+#0s
+box: Rect, size: (100, 100), at: (200, 200), shadow: (0, 8, 16, 2), shadow_color: (0, 0, 0, 0.25)
+"#;
+    let (stmts, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report = Timeline::build_with_diagnostics(
+        &stmts.expect("parsed AST"),
+        &std::collections::HashMap::new(),
+    );
+    let timeline = report.output;
+    let track = timeline.world.tracks.get_id("box").expect("box track exists");
+    use crate::primitives::Primitive;
+    let primitive = crate::primitives::RECT;
+    let asset_cache = crate::timeline::assets::AssetCache::default();
+    let ctx = crate::primitives::EvaluateCtx {
+        id: track,
+        label: "box",
+        caps: timeline.world.caps(track),
+        time_ms: 0,
+        local_transform: kurbo::Affine::IDENTITY,
+        opacity: 1.0,
+        scene_dimensions: SceneDimensions {
+            width: 1920,
+            height: 1080,
+        },
+        background_color: [0.0, 0.0, 0.0, 1.0],
+        overrides: None,
+        vector_paths: &[],
+        asset_cache: &asset_cache,
+        highlight: timeline.world.highlight(track),
+        property_plan: timeline.world.property_plan(track),
+        world: Some(&timeline.world),
+        shape: timeline.world.shape(track),
+        text: timeline.world.text(track),
+        geometry: timeline.world.geometry(track),
+        style: timeline.world.style(track),
+        payload: None,
+        target_resolver: None,
+        legend: None,
+    };
+    let cmds = primitive.evaluate(&ctx, None).expect("eval success").expect("render commands");
+    assert_eq!(cmds.len(), 2, "Expected shadow + rect fill commands");
+    match cmds[0].clone() {
+        crate::primitives::RenderCommand::Shadow {
+            size,
+            corner_radius,
+            params,
+            color,
+        } => {
+            assert_eq!(size, [50.0, 50.0]);
+            assert_eq!(corner_radius, 0.0);
+            assert_eq!(params, [0.0, 8.0, 16.0, 2.0]);
+            assert_eq!(color, [0.0, 0.0, 0.0, 0.25]);
+            let bounds = cmds[0].local_bounds(None).expect("shadow has local bounds");
+            assert!(bounds.x0 < -52.0);
+            assert!(bounds.y1 > 52.0 + 8.0);
+        },
+        other => panic!("Expected RenderCommand::Shadow as first command, got {other:?}"),
+    }
+}

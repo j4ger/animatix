@@ -27,22 +27,10 @@ pub(super) fn handle_size_assignment(
         "size" => {
             // Accept a Vec2 or an all-numeric 2-element brace list
             // (`size = {40, 80}`); anything else keeps the previous size.
-            match evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject) {
-                Some(Value::Vec2([w, h])) => [w as f32 / 2.0, h as f32 / 2.0],
-                Some(Value::List(items)) if items.len() == 2 => {
-                    let dims: Option<Vec<f64>> = items
-                        .iter()
-                        .map(|item| match item {
-                            Value::Num(n) => Some(*n),
-                            _ => None,
-                        })
-                        .collect();
-                    match dims {
-                        Some(dims) => [dims[0] as f32 / 2.0, dims[1] as f32 / 2.0],
-                        None => geometry.size.last(default_size),
-                    }
-                },
-                _ => geometry.size.last(default_size),
+            let val = evaluate_expr_with_lookup_diagnostic(value, env, diagnostics, subject);
+            match val.as_ref().and_then(crate::timeline::lookup::list_as_vec2) {
+                Some([w, h]) => [w / 2.0, h / 2.0],
+                None => geometry.size.last(default_size),
             }
         },
         "radius_x" => {
@@ -205,7 +193,7 @@ pub(super) fn rebuild_vector_paths(
                 path_state.custom_path = Some(path);
             }
         },
-        _ => {},
+        _ => {}, // Non-custom-path vector shapes (e.g. Rect, Ellipse) need no path points restore.
     }
     let target_vello_path = build_vector_shape_vello_path(
         shape_type,

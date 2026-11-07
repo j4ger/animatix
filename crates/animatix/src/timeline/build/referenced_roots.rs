@@ -70,7 +70,7 @@ fn collect_expr_roots(expr: &Expr, scan: &mut ReferenceScan) {
                     "r" | "g" | "b" | "a" => {
                         entry.insert("color".to_string());
                     },
-                    _ => {},
+                    _ => {}, // Non-compound scalar properties do not need aggregate parent injection.
                 }
             } else {
                 scan.roots.insert(name.clone());
@@ -97,7 +97,7 @@ fn collect_expr_roots(expr: &Expr, scan: &mut ReferenceScan) {
                     "r" | "g" | "b" | "a" => {
                         entry.insert("color".to_string());
                     },
-                    _ => {},
+                    _ => {}, // Non-compound scalar properties do not need aggregate parent injection.
                 }
             } else if let Some(first) = parts.first() {
                 let root = normalize_root(first);

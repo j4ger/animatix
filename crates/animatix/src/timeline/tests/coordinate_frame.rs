@@ -7,10 +7,7 @@ use crate::timeline::{BuildOptions, Timeline, Value};
 use kurbo::Shape as _;
 
 fn build(source: &str) -> Timeline {
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {parse_errors:?}");
-    let ast = ast.expect("parsed AST");
-    Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new()).output
+    super::support::build_timeline(source)
 }
 
 #[test]
@@ -215,4 +212,27 @@ fn every_plot_host_has_coordinate_frame() {
     assert!(!timeline.world().caps(number_plane.id()).plot_host);
     assert!(number_plane.coordinate_frame().is_none());
     assert!(timeline.entity("c").expect("curve entity").coordinate_frame().is_none());
+}
+
+#[test]
+fn tilt_affine_applied_from_rotate_x_and_rotate_y() {
+    let source = r#"
+#0s
+box: Rect, size: (100, 100), at: (200, 200), rotate_x: 0.1, rotate_y: 0.2
+"#;
+    let timeline = build(source);
+    let track = timeline.world.tracks.get_id("box").expect("box track exists");
+    let dims = crate::timeline::SceneDimensions {
+        width: 1920,
+        height: 1080,
+    };
+    let node =
+        timeline.evaluate_node_transform(track, 0, 1.0, kurbo::Affine::IDENTITY, dims, None, None);
+    let coeffs = node.local_transform.as_coeffs();
+    let rx: f64 = 0.1;
+    let ry: f64 = 0.2;
+    assert!((coeffs[0] - ry.cos()).abs() < 1e-4);
+    assert!((coeffs[1] - rx.sin() * ry.sin()).abs() < 1e-4);
+    assert!((coeffs[2] - 0.0).abs() < 1e-4);
+    assert!((coeffs[3] - rx.cos()).abs() < 1e-4);
 }

@@ -53,10 +53,7 @@ impl FilterBackend for SpyBackend {
 }
 
 fn build(source: &str) -> Timeline {
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new()).output
+    support::build_timeline(source)
 }
 
 fn scene() -> SceneDimensions {

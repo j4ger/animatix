@@ -553,4 +553,21 @@ mod tests {
             Some(Easing::CubicBezier([0.16, 1.0, 0.3, 1.0]))
         );
     }
+
+    #[test]
+    fn test_spring_v0_derivative_formula() {
+        let v0 = 8.5;
+        let spring = Easing::SpringV0 {
+            damping: 12.0,
+            frequency: 18.0,
+            v0,
+        };
+
+        assert_eq!(apply_easing(0.0, spring), 0.0);
+        let initial_derivative = easing_derivative(0.0, spring);
+        assert!(
+            (initial_derivative - v0).abs() < 1e-4,
+            "Expected initial derivative {v0}, got {initial_derivative}"
+        );
+    }
 }

@@ -238,7 +238,7 @@ impl Timeline {
                 "at" => at_expr = Some(prop.value.clone()),
                 "anchor" => anchor_expr = Some(prop.value.clone()),
                 "offset" => offset_expr = Some(prop.value.clone()),
-                _ => {},
+                _ => {}, // Non-position properties on media actors are handled by property plan.
             }
         }
 
@@ -323,7 +323,7 @@ impl Timeline {
                 authored_size,
                 seed_time_ms,
             ),
-            _ => {},
+            _ => {}, // Non-visual media types (e.g. Audio) are dispatched separately.
         }
     }
 
@@ -396,7 +396,7 @@ impl Timeline {
                         }
                     }
                 },
-                _ => {},
+                _ => {}, // Audio declarations only consume source, volume, and transcript.
             }
         }
 

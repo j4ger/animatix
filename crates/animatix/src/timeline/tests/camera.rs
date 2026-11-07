@@ -7,10 +7,7 @@ use super::*;
 use crate::timeline::SceneDimensions;
 
 fn build(source: &str) -> Timeline {
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new()).output
+    support::build_timeline(source)
 }
 
 fn scene() -> SceneDimensions {
@@ -405,4 +402,39 @@ camera.zoom = 1.45
         (centre.x - 1088.0).abs() < 1.0 && (centre.y - 84.0).abs() < 1.0,
         "a pinned Text overlay must stay at its authored position, got {hud:?}"
     );
+}
+
+#[test]
+fn test_camera_focus_target_and_padding() {
+    let source = r#"
+#0s
+card: Rect, at: (300, 200), size: (100, 80), color: (1, 1, 1, 1)
+
+#1s
+camera.focus = card [padding: 40]
+"#;
+    let (ast, errors) = animatix_syntax::parser::parse_source(source);
+    assert!(errors.is_empty(), "parse errors: {errors:?}");
+    let report = Timeline::build_with_diagnostics(&ast.unwrap(), &Default::default());
+    let non_lints: Vec<_> =
+        crate::timeline::tests::without_content_lints(&report.diagnostics).collect();
+    assert!(non_lints.is_empty(), "unexpected diagnostics: {non_lints:?}");
+
+    let timeline = report.output;
+
+    // Verify camera keyframes generated at 1000ms
+    assert!(
+        timeline.camera.pan().unwrap().keyframes.contains_key(&1000),
+        "Camera pan keyframe expected at 1000ms"
+    );
+    assert!(
+        timeline.camera.zoom().unwrap().keyframes.contains_key(&1000),
+        "Camera zoom keyframe expected at 1000ms"
+    );
+
+    let (pan_target, _) = timeline.camera.pan().unwrap().keyframes[&1000];
+    let (zoom_target, _) = timeline.camera.zoom().unwrap().keyframes[&1000];
+
+    assert_eq!(pan_target, [6600.0, 3400.0]);
+    assert_eq!(zoom_target, 10.0);
 }

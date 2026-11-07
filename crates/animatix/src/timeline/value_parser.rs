@@ -219,19 +219,14 @@ fn parse_vec2_value(
     subject: &str,
 ) -> Option<PropertyValue> {
     let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
-    match v {
-        Value::Vec2([x, y]) => Some(PropertyValue::Vec2([x as f32, y as f32])),
-        // All-numeric 2-element brace lists are accepted at the
-        // property boundary, mirroring the paren form.
+    if let Some(v2) = v.to_f32_vec2() {
+        return Some(PropertyValue::Vec2(v2));
+    }
+    // All-numeric 2-element brace lists are accepted at the
+    // property boundary, mirroring the paren form.
+    match &v {
         Value::List(items) if items.len() == 2 => {
-            let nums: Option<Vec<f64>> = items
-                .iter()
-                .map(|item| match item {
-                    Value::Num(n) => Some(*n),
-                    _ => None,
-                })
-                .collect();
-            nums.map(|n| PropertyValue::Vec2([n[0] as f32, n[1] as f32]))
+            v.to_f64_vec().map(|n| PropertyValue::Vec2([n[0] as f32, n[1] as f32]))
         },
         _ => None,
     }
@@ -246,24 +241,14 @@ fn parse_vec4_value(
     subject: &str,
 ) -> Option<PropertyValue> {
     let v = evaluate_expr_with_lookup_diagnostic(expr, env, diagnostics, subject)?;
-    match v {
-        Value::Vec4([a, b, c, d]) => {
-            Some(PropertyValue::Vec4([a as f32, b as f32, c as f32, d as f32]))
-        },
-        Value::Color([a, b, c, d]) => {
-            Some(PropertyValue::Vec4([a as f32, b as f32, c as f32, d as f32]))
-        },
-        // All-numeric 4-element brace lists mirror the paren form.
-        Value::List(items) if items.len() == 4 => {
-            let nums: Option<Vec<f64>> = items
-                .iter()
-                .map(|item| match item {
-                    Value::Num(n) => Some(*n),
-                    _ => None,
-                })
-                .collect();
-            nums.map(|n| PropertyValue::Vec4([n[0] as f32, n[1] as f32, n[2] as f32, n[3] as f32]))
-        },
+    if let Some(v4) = v.to_f32_vec4() {
+        return Some(PropertyValue::Vec4(v4));
+    }
+    // All-numeric 4-element brace lists mirror the paren form.
+    match &v {
+        Value::List(items) if items.len() == 4 => v
+            .to_f64_vec()
+            .map(|n| PropertyValue::Vec4([n[0] as f32, n[1] as f32, n[2] as f32, n[3] as f32])),
         _ => None,
     }
 }

@@ -77,15 +77,11 @@ pub(crate) const CAMERA_PROPERTIES: &str =
 
 fn override_vec2(overrides: Option<&HashMap<String, Value>>, keys: &[&str]) -> Option<[f32; 2]> {
     let value = keys.iter().find_map(|key| overrides?.get(*key))?;
-    match value {
-        Value::Vec2([x, y]) => Some([*x as f32, *y as f32]),
-        // A frame-time expression can produce anything; keeping the keyframed
-        // value is the useful half of that contract, so only a wrong *shape*
-        // is worth a line of log.
-        other => {
-            tracing::debug!("camera: override is not a (x, y) pair: {other:?}");
-            None
-        },
+    if let Some(v) = value.to_f32_vec2() {
+        Some(v)
+    } else {
+        tracing::debug!("camera: override is not a (x, y) pair: {value:?}");
+        None
     }
 }
 

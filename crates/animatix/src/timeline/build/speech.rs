@@ -77,7 +77,7 @@ pub fn collect_transcripts_from_ast(
             | Stmt::Stagger { body, .. } => {
                 collect_transcripts_from_ast(body, asset_cache, transcripts, diagnostics);
             },
-            _ => {},
+            _ => {}, // Non-actor non-container statements cannot introduce transcripts.
         }
     }
 }
