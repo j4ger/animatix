@@ -26,6 +26,8 @@ pub struct LoadedProgramResult {
 }
 
 impl DocumentSession {
+    /// Test-only: the GUI loads through [`RebuildWorker`](super::rebuild::RebuildWorker) instead.
+    #[cfg(test)]
     pub fn load(file_path: PathBuf) -> Result<Self, GuiError> {
         let source_text = fs::read_to_string(&file_path).map_err(|err| GuiError::Io {
             path: file_path.clone(),
@@ -99,7 +101,8 @@ impl DocumentSession {
     }
 
     /// Create a session from in-memory source text without loading from disk.
-    /// This is used by the background rebuild worker.
+    /// Test-only: the GUI builds through the rebuild worker instead.
+    #[cfg(test)]
     pub fn from_source(file_path: PathBuf, source_text: String) -> Result<Self, GuiError> {
         let (extension_context, extension_manifest) = document_extensions(&file_path);
         Ok(Self::from_parts(file_path, source_text, extension_context, extension_manifest))

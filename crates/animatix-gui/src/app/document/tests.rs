@@ -8,11 +8,11 @@ use animatix_syntax::diagnostics::{DiagnosticCode, DiagnosticPhase};
 
 use super::DocumentSession;
 use super::load::extension_manifest_for_path;
-use super::rebuild::document_scene_dimensions;
 use super::save::{
     atomic_write, clear_recovery, recovery_is_newer, recovery_is_newer_than, recovery_path,
     write_recovery,
 };
+use super::session_rebuild::document_scene_dimensions;
 use super::timing::{timeline_duration_seconds, timeline_keyframe_times_s};
 use crate::error::GuiError;
 

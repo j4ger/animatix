@@ -29,6 +29,9 @@ impl std::fmt::Display for ActiveSceneId {
 /// This is the single source of truth for "which timeline should I read from?"
 /// Used by preview overlays, inspector, timeline panel, drag handlers, etc.
 #[derive(Clone)]
+// `id`, `composition` and `scene_name` are the scene-resolution context this
+// type exists to carry; the call sites today read `timeline` and `duration_s`.
+#[allow(dead_code)]
 pub struct ActiveTimelineRef<'a> {
     pub id: ActiveSceneId,
     pub timeline: &'a Timeline,
@@ -42,6 +45,7 @@ pub struct ActiveTimelineRef<'a> {
 ///
 /// Used by mutation paths that need to modify the active scene's timeline
 /// (e.g., in-memory preview during drag, layout reorder).
+#[allow(dead_code)] // `id`/`scene_name` are filled in by the resolver; readers use `timeline`.
 pub struct ActiveTimelineMut<'a> {
     pub id: ActiveSceneId,
     pub timeline: &'a mut Timeline,

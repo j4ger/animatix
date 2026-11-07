@@ -18,8 +18,8 @@ use crate::app::design_tokens::spatial::{
     RADIUS_L, ROW_L, SPACE_2, SPACE_3, SPACE_5, STROKE_WIDTH, spatial,
 };
 use crate::app::design_tokens::typography::TextRole;
+use crate::app::document::default_file_path;
 use crate::app::handlers::file;
-use crate::document::default_file_path;
 
 impl GuiShell {
     /// Welcome / onboarding screen shown when no document is loaded.

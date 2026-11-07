@@ -4,7 +4,7 @@
 //! view when the new build is structurally compatible; this reports what changed
 //! so handlers can keep time, scene and selection that still exist.
 
-use crate::document::DocumentSession;
+use super::DocumentSession;
 use animatix::timeline::ActorField;
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 /// Stable identity of a keyframe selection.
@@ -440,7 +440,7 @@ pub fn preserved_time_s(previous_time_s: f64, document: &DocumentSession) -> f64
     }
 
     let times = if document.is_composition() {
-        crate::document::timeline_keyframe_times_s(
+        super::timeline_keyframe_times_s(
             None,
             document.composition.as_ref(),
             document.active_scene.as_deref(),
@@ -462,8 +462,8 @@ pub fn preserved_time_s(previous_time_s: f64, document: &DocumentSession) -> f64
 mod tests {
     use std::path::PathBuf;
 
+    use super::DocumentSession;
     use super::*;
-    use crate::document::DocumentSession;
 
     fn load_session(source: &str) -> DocumentSession {
         let mut session =

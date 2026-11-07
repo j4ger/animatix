@@ -3,11 +3,11 @@ use std::sync::Arc;
 use animatix_syntax::diagnostics::{Diagnostic, diagnostics_phase_summary};
 
 use crate::app::commands::Command;
+use crate::app::document::DocumentSession;
 use crate::app::document::history::UiSnapshot;
 use crate::app::document::snapshot::{DocumentSnapshot, SnapshotStatus};
 use crate::app::document::version::DocumentGeneration;
 use crate::app::stores::{HistoryStore, SourceStore};
-use crate::document::DocumentSession;
 use crate::editor::EditorBuffer;
 
 /// Pending undo snapshot state, captured before a mutation.

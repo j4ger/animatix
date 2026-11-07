@@ -8,6 +8,8 @@ use super::DocumentSession;
 use crate::error::GuiError;
 
 impl DocumentSession {
+    /// Test-only: the GUI edits through `EditorBuffer`, not the session.
+    #[cfg(test)]
     pub fn set_source_text(&mut self, source_text: String) {
         self.source_text = source_text;
         self.is_dirty = true;

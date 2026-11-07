@@ -3,6 +3,9 @@
 use animatix::composition::Composition;
 use animatix::timeline::Timeline;
 
+/// Test-only: `DocumentSession::rebuild` computes `duration_s` from the built
+/// program directly; this helper exists for the duration tests.
+#[cfg(test)]
 pub fn timeline_duration_seconds(
     timeline: Option<&Timeline>,
     composition: Option<&Composition>,

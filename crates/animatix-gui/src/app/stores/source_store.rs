@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use kurbo::Rect;
 
+use crate::app::document::DocumentSession;
 use crate::app::document::source_change::SourceChange;
 use crate::app::document::version::SourceEpoch;
-use crate::document::DocumentSession;
 use crate::editor::EditorBuffer;
 
 /// Owns the canonical document text (via EditorBuffer) and the compiled
@@ -135,7 +135,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::document::DocumentSession;
+    use crate::app::document::DocumentSession;
     use crate::editor::EditorBuffer;
 
     #[test]

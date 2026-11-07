@@ -12,7 +12,7 @@ use animatix::extension_context::ExtensionContext;
 use animatix_analyzer::ExtensionManifest;
 use crossbeam_channel::{Receiver, Sender};
 
-use crate::document::DocumentSession;
+use super::DocumentSession;
 use crate::error::GuiError;
 
 /// Token identifying one load request so stale completions can be ignored.

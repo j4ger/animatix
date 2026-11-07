@@ -2,7 +2,7 @@
 //! the restore prompt.
 //!
 //! The recovery file is a sibling of the source (`<path>.autosave`) written
-//! atomically through [`crate::document::write_recovery`]. It is only ever
+//! atomically through [`crate::app::document::write_recovery`]. It is only ever
 //! written while the document is dirty, so it always holds edits that are not
 //! on disk, and it is removed on a successful real save or on a clean exit.
 
@@ -14,7 +14,7 @@ use crate::app::components::dialog;
 use crate::app::components::toast::Toast;
 use crate::app::design_tokens::spatial::{ROW_L, SPACE_3, SPACE_5};
 use crate::app::design_tokens::typography::TextRole;
-use crate::document::{clear_recovery, recovery_is_newer, recovery_path, write_recovery};
+use crate::app::document::{clear_recovery, recovery_is_newer, recovery_path, write_recovery};
 
 impl GuiShell {
     /// Persist the current autosave preferences into `app_state.ron`.

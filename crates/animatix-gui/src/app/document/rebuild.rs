@@ -9,11 +9,11 @@ use std::time::Instant;
 
 use crossbeam_channel::{Receiver, Sender};
 
+use super::DocumentSession;
 use crate::app::document::rebuild_output::{RebuildFailure, RebuildOutput};
 use crate::app::document::version::{
     CancellationSource, CancellationToken, SourceEpoch, SourceHash,
 };
-use crate::document::DocumentSession;
 
 /// Token identifying a specific rebuild request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -300,9 +300,9 @@ impl Drop for RebuildWorker {
 
 #[cfg(test)]
 mod tests {
+    use super::DocumentSession;
     use super::*;
     use crate::app::stores::SourceStore;
-    use crate::document::DocumentSession;
     use crate::editor::EditorBuffer;
 
     #[test]

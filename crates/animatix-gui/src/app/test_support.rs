@@ -11,9 +11,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use animatix::timeline::SceneDimensions;
 
 use crate::app::PreviewPaneState;
+use crate::app::document::DocumentSession;
 use crate::app::persistence::default_tree;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore, WorkspaceStore};
-use crate::document::DocumentSession;
 use crate::editor::EditorBuffer;
 
 /// A `DocumentStore` over a placeholder source that does not parse.

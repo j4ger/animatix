@@ -1,8 +1,8 @@
 use std::time::{Duration, Instant};
 
 use crate::app::commands::Effect;
+use crate::app::document::timeline_keyframe_times_s;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore};
-use crate::document::timeline_keyframe_times_s;
 
 pub fn handle_scrub_to(
     document_store: &mut DocumentStore,

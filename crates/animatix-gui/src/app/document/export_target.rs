@@ -8,6 +8,9 @@ use animatix::timeline::{SceneDimensions, Timeline};
 
 /// Which part of the document to export.
 #[derive(Debug, Clone, PartialEq)]
+// `Scene(_)` is resolved by `active_timeline`/`export_target` and matched in the
+// resolver; the export dialog only constructs the other two scopes today.
+#[allow(dead_code)]
 pub enum ExportScope {
     ActiveScene,
     WholeComposition,
@@ -16,6 +19,9 @@ pub enum ExportScope {
 
 /// Borrowed export target with duration/dimensions.
 #[derive(Clone, Copy)]
+// `dimensions` is carried so renderer sizing needs no second lookup; the current
+// call sites read `duration_s()` only.
+#[allow(dead_code)]
 pub enum ExportTargetRef<'a> {
     Timeline {
         timeline: &'a Timeline,

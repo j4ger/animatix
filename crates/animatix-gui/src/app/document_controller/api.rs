@@ -287,7 +287,7 @@ impl DocumentController<'_> {
 }
 
 pub(super) fn resolve_timeline_for_scene<'a>(
-    document: &'a crate::document::DocumentSession,
+    document: &'a crate::app::document::DocumentSession,
     scene: Option<&str>,
 ) -> Option<&'a animatix::timeline::Timeline> {
     match scene {

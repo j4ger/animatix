@@ -5,6 +5,7 @@ use animatix_syntax::diagnostics::diagnostics_phase_summary;
 
 use crate::app::commands::Effect;
 use crate::app::components::toast::Toast;
+use crate::app::document::DocumentSession;
 use crate::app::document::load_worker::{LoadResponse, LoadToken, LoadWorker};
 use crate::app::document::plugins::DocumentPluginManager;
 use crate::app::document::rebuild::{RebuildResponse, RebuildToken, RebuildWorker};
@@ -16,7 +17,6 @@ use crate::app::file_tree::build_file_tree;
 use crate::app::persistence::save_app_state;
 use crate::app::stores::{DocumentStore, PreviewStore, UiStore, WorkspaceStore};
 use crate::app::utils::has_source_load_failure;
-use crate::document::DocumentSession;
 
 /// Sync preview playback state from document metadata.
 pub(crate) fn sync_preview_from_document(
@@ -286,7 +286,7 @@ pub fn handle_toggle_expand_dir(
 pub(crate) fn save_document(document_store: &mut DocumentStore) -> Result<(), String> {
     document_store.source.document.save_to_disk().map_err(|err| err.to_string())?;
     document_store.source.mark_saved();
-    crate::document::clear_recovery(document_store.source.file_path());
+    crate::app::document::clear_recovery(document_store.source.file_path());
     Ok(())
 }
 
@@ -329,7 +329,7 @@ pub fn handle_save_as(
             // from the old document no longer belongs to the current source and
             // would otherwise be offered as recovery for a stale file.
             if previous_path != path {
-                crate::document::clear_recovery(&previous_path);
+                crate::app::document::clear_recovery(&previous_path);
             }
             rebind_workspace_to_saved_document(
                 document_store,
@@ -415,7 +415,7 @@ pub fn handle_reload(
             document_store.replace_text(text);
             document_store.source.document.is_dirty = false;
             // A deliberate reload from disk supersedes any recovery copy.
-            crate::document::clear_recovery(&path);
+            crate::app::document::clear_recovery(&path);
             preview_store.pending_rebuild_at = Some(
                 std::time::Instant::now()
                     + std::time::Duration::from_millis(ui_store.rebuild_debounce_ms),

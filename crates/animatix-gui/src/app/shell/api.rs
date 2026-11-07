@@ -25,7 +25,7 @@ impl GuiShell {
                 }
             },
             ViewAction::NewFile => {
-                let path = crate::document::default_file_path();
+                let path = crate::app::document::default_file_path();
                 match std::fs::write(&path, "#0s\n") {
                     Ok(()) => self.handle_command(Command::OpenFile(path)),
                     Err(err) => vec![Effect::Toast(crate::app::components::toast::Toast::error(
