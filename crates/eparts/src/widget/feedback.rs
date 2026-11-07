@@ -340,26 +340,17 @@ mod tests {
     }
 
     #[test]
-    fn progress_bar_clamp_negative() {
-        let p = ProgressBar::new(-0.5);
-        assert_eq!(p.fraction, 0.0);
+    fn progress_bar_clamp() {
+        for (name, input, expected) in [("negative", -0.5, 0.0), ("over_one", 1.5, 1.0)] {
+            let p = ProgressBar::new(input);
+            assert_eq!(p.fraction, expected, "case: {name}");
+        }
     }
 
     #[test]
-    fn progress_bar_clamp_over_one() {
-        let p = ProgressBar::new(1.5);
-        assert_eq!(p.fraction, 1.0);
-    }
-
-    #[test]
-    fn progress_bar_text() {
-        let p = ProgressBar::new(0.3).text(Some("Loading".into()));
+    fn progress_bar_builder_fields() {
+        let p = ProgressBar::new(0.3).text(Some("Loading".into())).show_percentage(true);
         assert_eq!(p.text, Some("Loading".into()));
-    }
-
-    #[test]
-    fn progress_bar_show_percentage() {
-        let p = ProgressBar::new(0.7).show_percentage(true);
         assert!(p.show_percentage);
     }
 

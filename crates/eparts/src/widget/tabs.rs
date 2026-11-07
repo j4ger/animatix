@@ -169,16 +169,12 @@ mod tests {
     use crate::widget::traits::Sizable;
 
     #[test]
-    fn builder_sets_height_and_gap() {
+    fn builder_fields() {
         let mut idx = 0;
         let bar = TabBar::new("test", &mut idx, &["A", "B"]).height(48.0).gap(8.0);
         assert_eq!(bar.height, 48.0);
         assert_eq!(bar.gap, 8.0);
-    }
 
-    #[test]
-    fn builder_sets_sense() {
-        let mut idx = 0;
         let bar = TabBar::new("test", &mut idx, &["A"]).sense(Sense::drag());
         assert_eq!(bar.sense, Sense::drag());
     }

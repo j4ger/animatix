@@ -170,14 +170,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn builder_defaults() {
+    fn builder_fields() {
         let t = Tooltip::new(Id::unique("test"));
         assert_eq!(t.open_delay, DEFAULT_OPEN_DELAY_MS);
         assert_eq!(t.close_delay, DEFAULT_CLOSE_DELAY_MS);
-    }
 
-    #[test]
-    fn builder_overrides() {
         let t = Tooltip::new(Id::unique("test")).open_delay(100.0).close_delay(50.0);
         assert_eq!(t.open_delay, 100.0);
         assert_eq!(t.close_delay, 50.0);

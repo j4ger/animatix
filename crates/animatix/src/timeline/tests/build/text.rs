@@ -1,6 +1,6 @@
 //! Timeline build acceptance tests for entrance opacity and text anchoring.
 
-use super::super::tests::without_content_lints;
+use super::support::build_clean;
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{Timeline, Value};
 
@@ -51,15 +51,7 @@ box: Rect, size: (100, 100), opacity: 0.0
 #1s
 wipe-in box [500ms]
 "##;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(SRC);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "wipe-in lifts authored 0.0 on rect so no warning expected, got: {:?}",
-        report.diagnostics
-    );
+    build_clean(SRC);
 }
 
 #[test]
@@ -69,16 +61,7 @@ t_center: Text, text: "Animatix", at: (300, 200)
 t_left: Text, text: "Animatix", text_anchor: "left", at: (300, 200)
 t_right: Text, text: "Animatix", text_anchor: "right", at: (300, 200)
 "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "diagnostics: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
+    let timeline = build_clean(source);
 
     fn x_bounds(paths: &[crate::renderer::text::TextPath]) -> (f64, f64) {
         use kurbo::Shape as _;
@@ -146,16 +129,7 @@ t: Text, text: "AnchorTest", text_anchor: "left", at: (300, 200)
 #1s
 t.text_anchor = "right"
 "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "diagnostics: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
+    let timeline = build_clean(source);
 
     fn x_bounds(paths: &[crate::renderer::text::TextPath]) -> (f64, f64) {
         use kurbo::Shape as _;
@@ -197,16 +171,7 @@ always {
   t.text_anchor = "left"
 }
 "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {:?}", parse_errors);
-    let ast = ast.expect("AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "diagnostics: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
+    let timeline = build_clean(source);
     let mut overrides = std::collections::HashMap::new();
     overrides.insert("text_anchor".to_string(), Value::Str("left".to_string()));
 

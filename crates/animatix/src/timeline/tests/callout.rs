@@ -1,6 +1,6 @@
 //! Tests for the Callout primitive
 
-use super::support::{actor, keyframe};
+use super::support::{actor, build, build_ast, keyframe};
 use super::*;
 use crate::ast::Property;
 use crate::timeline::animation_track::{CalloutPlace, GeometryTracks};
@@ -39,18 +39,9 @@ fn make_config() -> Stmt {
     }
 }
 
-fn build_report(ast: Vec<Stmt>) -> crate::timeline::BuildReport<Timeline> {
-    Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new())
-}
-
 /// A note actor with the authored `Callout` properties.
 fn note(props: Vec<Property>) -> Stmt {
     actor("note", "Callout", props)
-}
-
-/// One `Callout` at t=0, which is what most property tests need.
-fn callout(props: Vec<Property>) -> Vec<Stmt> {
-    vec![make_config(), keyframe(0.0, vec![note(props)])]
 }
 
 /// A plain Rect target (half-size) for target-mode callouts.
@@ -83,7 +74,7 @@ fn targeted(actors: Vec<Stmt>, target: Expr, retarget: Option<Expr>) -> Timeline
     if let Some(value) = retarget {
         ast.push(keyframe(1.0, vec![assign("note", "target", value)]));
     }
-    build_report(ast).output
+    build_ast(&ast).output
 }
 
 /// Build a minimal timeline with a single Callout actor.
@@ -94,24 +85,14 @@ fn build_callout_timeline(
     label_at: [f32; 2],
     head_size: f32,
 ) -> Timeline {
-    build_report(vec![
-        make_config(),
-        keyframe(
-            0.0,
-            vec![actor(
-                "callout",
-                "Callout",
-                vec![
-                    prop("from", vec2(from[0], from[1])),
-                    prop("to", vec2(to[0], to[1])),
-                    prop("label", Expr::Str(label.to_string())),
-                    prop("label_at", vec2(label_at[0], label_at[1])),
-                    prop("head_size", Expr::Num(head_size as f64)),
-                    prop("color", Expr::Ident("accent.primary".to_string())),
-                ],
-            )],
-        ),
-    ])
+    build(&format!(
+        r#"
+config {{ colorscheme: "editorial-dark" }}
+#0s
+callout: Callout, from: ({}, {}), to: ({}, {}), label: "{label}", label_at: ({}, {}), head_size: {head_size}, color: accent.primary
+"#,
+        from[0], from[1], to[0], to[1], label_at[0], label_at[1]
+    ))
     .output
 }
 
@@ -241,34 +222,16 @@ fn test_callout_label_positioning() {
 #[test]
 fn test_callout_animation() {
     // An assignment at 2s adds keyframes to the `to` track.
-    let ast = vec![
-        make_config(),
-        keyframe(
-            0.0,
-            vec![actor(
-                "anim_callout",
-                "Callout",
-                vec![
-                    prop("from", vec2(0.0, 0.0)),
-                    prop("to", vec2(100.0, 100.0)),
-                    prop("label", Expr::Str("Animated".to_string())),
-                    prop("head_size", Expr::Num(10.0)),
-                ],
-            )],
-        ),
-        keyframe(
-            2.0,
-            vec![{
-                let mut stmt = assign("anim_callout", "to", vec2(300.0, 200.0));
-                if let Stmt::Assignment { easing, .. } = &mut stmt {
-                    *easing = Some(crate::easing::Easing::EaseInOut);
-                }
-                stmt
-            }],
-        ),
-    ];
+    let report = build(
+        r#"
+config { colorscheme: "editorial-dark" }
+#0s
+anim_callout: Callout, from: (0, 0), to: (100, 100), label: "Animated", head_size: 10
 
-    let report = build_report(ast);
+#2s
+anim_callout.to = (300, 200) [ease: ease-in-out]
+"#,
+    );
     assert!(
         report.diagnostics.is_empty(),
         "Expected no build diagnostics, got: {:?}",
@@ -323,18 +286,14 @@ fn test_callout_arrowhead_size() {
 
 #[test]
 fn test_callout_no_label_does_not_set_text_content() {
-    let ast = vec![
-        make_config(),
-        keyframe(
-            0.0,
-            vec![actor(
-                "no_label",
-                "Callout",
-                vec![prop("from", vec2(0.0, 0.0)), prop("to", vec2(100.0, 0.0))],
-            )],
-        ),
-    ];
-    let timeline = build_report(ast).output;
+    let timeline = build(
+        r#"
+config { colorscheme: "editorial-dark" }
+#0s
+no_label: Callout, from: (0, 0), to: (100, 0)
+"#,
+    )
+    .output;
 
     let track = timeline.get_entity_id("no_label").expect("no_label track should exist");
     assert_eq!(timeline.world.actor_type(track), "Callout");
@@ -351,11 +310,19 @@ fn test_callout_no_label_does_not_set_text_content() {
 
 #[test]
 fn test_callout_target_assignment_accepts_bare_actor_label() {
-    let timeline = targeted(
-        vec![rect("box1"), rect("box2")],
-        Expr::Ident("box1".to_string()),
-        Some(Expr::Ident("box2".to_string())),
-    );
+    let timeline = build(
+        r#"
+config { colorscheme: "editorial-dark" }
+#0s
+box1: Rect, at: (200, 100), size: (80, 40)
+box2: Rect, at: (200, 100), size: (80, 40)
+note: Callout, target: box1, place: right, standoff: 40, label: "key"
+
+#1s
+note.target = box2
+"#,
+    )
+    .output;
     let note = timeline.get_entity_id("note").expect("note track should exist");
     let geometry = timeline.world.geometry(note);
     assert_eq!(geometry.callout_target.get(0, String::new()), "box1");
@@ -364,11 +331,19 @@ fn test_callout_target_assignment_accepts_bare_actor_label() {
 
 #[test]
 fn test_callout_target_accepts_array_actor_refs() {
-    let timeline = targeted(
-        vec![rect("bar__0"), rect("bar__2")],
-        Expr::Index(Box::new(Expr::Ident("bar".to_string())), Box::new(Expr::Num(0.0))),
-        Some(Expr::Index(Box::new(Expr::Ident("bar".to_string())), Box::new(Expr::Num(2.0)))),
-    );
+    let timeline = build(
+        r#"
+config { colorscheme: "editorial-dark" }
+#0s
+bar__0: Rect, at: (200, 100), size: (80, 40)
+bar__2: Rect, at: (200, 100), size: (80, 40)
+note: Callout, target: bar[0], place: right, standoff: 40, label: "key"
+
+#1s
+note.target = bar[2]
+"#,
+    )
+    .output;
     let note = timeline.get_entity_id("note").expect("note track should exist");
     let geometry = timeline.world.geometry(note);
     assert_eq!(geometry.callout_target.get(0, String::new()), "bar__0");
@@ -397,31 +372,14 @@ fn test_callout_target_accepts_namespaced_array_actor_refs() {
 fn test_callout_target_mode_seeds_tracks() {
     // Verify that target/place/standoff/to_offset are seeded into tracks
     // when a targeted Callout is declared.
-    let ast = vec![
-        make_config(),
-        keyframe(
-            0.0,
-            vec![
-                actor(
-                    "box",
-                    "Rect",
-                    vec![
-                        prop("position", vec2(200.0, 100.0)),
-                        prop("size", vec2(80.0, 40.0)),
-                    ],
-                ),
-                note(vec![
-                    prop("target", Expr::Ident("box".to_string())),
-                    prop("place", Expr::Ident("right".to_string())),
-                    prop("standoff", Expr::Num(40.0)),
-                    prop("to_offset", vec2(0.0, 0.0)),
-                    prop("label", Expr::Str("Look here".to_string())),
-                ]),
-            ],
-        ),
-    ];
-
-    let report = build_report(ast);
+    let report = build(
+        r#"
+config { colorscheme: "editorial-dark" }
+#0s
+box: Rect, at: (200, 100), size: (80, 40)
+note: Callout, target: box, place: right, standoff: 40, to_offset: (0, 0), label: "Look here"
+"#,
+    );
     assert!(
         report.diagnostics.is_empty(),
         "Expected no build diagnostics, got: {:?}",
@@ -463,29 +421,15 @@ fn test_callout_target_mode_derives_positions() {
     // When target mode is active, evaluate() derives `to` at the right edge
     // of the target actor and `from` = to + [standoff, 0]. Exact arrow
     // positions are internal to the render path, so this checks no panic.
-    let ast = vec![
-        make_config(),
-        keyframe(
-            0.0,
-            vec![
-                actor(
-                    "box",
-                    "Rect",
-                    vec![
-                        prop("position", vec2(200.0, 100.0)),
-                        prop("size", vec2(80.0, 40.0)),
-                    ],
-                ),
-                note(vec![
-                    prop("target", Expr::Ident("box".to_string())),
-                    prop("place", Expr::Ident("right".to_string())),
-                    prop("standoff", Expr::Num(40.0)),
-                    prop("label", Expr::Str("Note".to_string())),
-                ]),
-            ],
-        ),
-    ];
-    let timeline = build_report(ast).output;
+    let timeline = build(
+        r#"
+config { colorscheme: "editorial-dark" }
+#0s
+box: Rect, at: (200, 100), size: (80, 40)
+note: Callout, target: box, place: right, standoff: 40, label: "Note"
+"#,
+    )
+    .output;
     let dims = SceneDimensions {
         width: 1920,
         height: 1080,
@@ -505,7 +449,13 @@ fn test_callout_place_variants_accepted() {
         ("below", CalloutPlace::Bottom),
         ("auto", CalloutPlace::Auto),
     ] {
-        let report = build_report(callout(vec![prop("place", Expr::Ident(ident.to_string()))]));
+        let report = build(&format!(
+            r#"
+config {{ colorscheme: "editorial-dark" }}
+#0s
+note: Callout, place: {ident}
+"#
+        ));
         assert!(
             report.diagnostics.is_empty(),
             "place={ident} produced unexpected diagnostics: {:?}",
@@ -523,7 +473,13 @@ fn test_callout_place_variants_accepted() {
 
 #[test]
 fn test_callout_place_invalid_produces_diagnostic() {
-    let report = build_report(callout(vec![prop("place", Expr::Ident("sideways".to_string()))]));
+    let report = build(
+        r#"
+config { colorscheme: "editorial-dark" }
+#0s
+note: Callout, place: sideways
+"#,
+    );
     assert!(
         !report.diagnostics.is_empty(),
         "invalid place 'sideways' should produce a diagnostic"
@@ -532,7 +488,13 @@ fn test_callout_place_invalid_produces_diagnostic() {
 
 #[test]
 fn test_callout_place_default_is_right() {
-    let report = build_report(callout(vec![]));
+    let report = build(
+        r#"
+config { colorscheme: "editorial-dark" }
+#0s
+note: Callout
+"#,
+    );
     let track = report.output.get_entity_id("note").unwrap();
     let geometry = report.output.world.geometry(track);
     assert_eq!(
@@ -636,7 +598,13 @@ fn test_callout_target_nested_child_world_bounds() {
 
 #[test]
 fn test_callout_missing_target_produces_diagnostic() {
-    let report = build_report(callout(vec![prop("target", Expr::Str("nonexistent".to_string()))]));
+    let report = build(
+        r#"
+config { colorscheme: "editorial-dark" }
+#0s
+note: Callout, target: "nonexistent"
+"#,
+    );
     use crate::diagnostics::DiagnosticCode;
     let found = report
         .diagnostics

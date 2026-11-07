@@ -1,7 +1,7 @@
 //! Tests for the Legend primitive
 
+use super::support::{build, build_clean};
 use super::*;
-use crate::ast::Property;
 use crate::primitives::{EvaluateCtx, LEGEND, Primitive, RenderCommand, TextCompileCtx};
 
 fn legend_component<'a>(timeline: &'a Timeline, label: &str) -> &'a crate::timeline::LegendTracks {
@@ -11,41 +11,15 @@ fn legend_component<'a>(timeline: &'a Timeline, label: &str) -> &'a crate::timel
         .expect("legend component")
 }
 
-fn make_config() -> Stmt {
-    Stmt::Config {
-        settings: vec![Property {
-            name: "colorscheme".to_string(),
-            value: Expr::Str("editorial-dark".to_string()),
-            value_span: None,
-            trailing_comment: None,
-        }],
-        span: None,
-    }
-}
-
 /// Build a minimal timeline with a single Legend actor.
 fn build_legend_timeline() -> Timeline {
-    let ast = vec![
-        make_config(),
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "legend".to_string(),
-                array_index: None,
-                ty: "Legend".to_string(),
-                props: vec![],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            }],
-            span: None,
-        },
-    ];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    report.output
+    build_clean(
+        r#"
+config { colorscheme: "editorial-dark" }
+#0s
+legend: Legend
+"#,
+    )
 }
 
 #[test]
@@ -123,49 +97,14 @@ fn test_legend_wrapped_label_respects_max_width() {
 
 #[test]
 fn test_legend_union_property_sets_actor_mode() {
-    let ast = vec![
-        make_config(),
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![
-                Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "hidden_series".to_string(),
-                    array_index: None,
-                    ty: "Line".to_string(),
-                    props: vec![Property {
-                        name: "legend".to_string(),
-                        value: Expr::Bool(false),
-                        value_span: None,
-                        trailing_comment: None,
-                    }],
-                    modifiers: vec![],
-                    children: vec![],
-                    span: None,
-                },
-                Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "named_series".to_string(),
-                    array_index: None,
-                    ty: "Line".to_string(),
-                    props: vec![Property {
-                        name: "legend".to_string(),
-                        value: Expr::Str("Revenue".to_string()),
-                        value_span: None,
-                        trailing_comment: None,
-                    }],
-                    modifiers: vec![],
-                    children: vec![],
-                    span: None,
-                },
-            ],
-            span: None,
-        },
-    ];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(
+        r#"
+config { colorscheme: "editorial-dark" }
+#0s
+hidden_series: Line, legend: false
+named_series: Line, legend: "Revenue"
+"#,
+    );
     assert!(
         report.diagnostics.is_empty(),
         "Expected no diagnostics, got: {:?}",
@@ -277,56 +216,16 @@ fn test_legend_empty() {
 
 #[test]
 fn test_legend_auto_extraction_from_colored_actors() {
-    let actor = |label: &str, color: &str, legend: Expr| Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: label.to_string(),
-        array_index: None,
-        ty: "Line".to_string(),
-        props: vec![
-            Property {
-                name: "color".to_string(),
-                value: Expr::Ident(color.to_string()),
-                value_span: None,
-                trailing_comment: None,
-            },
-            Property {
-                name: "legend".to_string(),
-                value: legend,
-                value_span: None,
-                trailing_comment: None,
-            },
-        ],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    };
-
-    let ast = vec![
-        make_config(),
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![
-                actor("line_a", "red", Expr::Str("Revenue".to_string())),
-                actor("line_b", "green", Expr::Bool(false)),
-                actor("line_c", "blue", Expr::Bool(true)),
-                Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "legend".to_string(),
-                    array_index: None,
-                    ty: "Legend".to_string(),
-                    props: vec![],
-                    modifiers: vec![],
-                    children: vec![],
-                    span: None,
-                },
-            ],
-            span: None,
-        },
-    ];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(
+        r#"
+config { colorscheme: "editorial-dark" }
+#0s
+line_a: Line, color: red, legend: "Revenue"
+line_b: Line, color: green, legend: false
+line_c: Line, color: blue, legend: true
+legend: Legend
+"#,
+    );
     assert!(
         report.diagnostics.is_empty(),
         "Expected no diagnostics, got: {:?}",
@@ -345,63 +244,13 @@ fn test_legend_auto_extraction_from_colored_actors() {
 
 #[test]
 fn test_legend_style_properties_are_parsed() {
-    let ast = vec![
-        make_config(),
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "legend".to_string(),
-                array_index: None,
-                ty: "Legend".to_string(),
-                props: vec![
-                    Property {
-                        name: "title".to_string(),
-                        value: Expr::Str("Metrics".to_string()),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                    Property {
-                        name: "font_size".to_string(),
-                        value: Expr::Num(18.0),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                    Property {
-                        name: "label_color".to_string(),
-                        value: Expr::Ident("white".to_string()),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                    Property {
-                        name: "swatch_size".to_string(),
-                        value: Expr::Num(20.0),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                    Property {
-                        name: "gap".to_string(),
-                        value: Expr::Num(12.0),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                    Property {
-                        name: "text_max_width".to_string(),
-                        value: Expr::Num(180.0),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                ],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            }],
-            span: None,
-        },
-    ];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(
+        r#"
+config { colorscheme: "editorial-dark" }
+#0s
+legend: Legend, title: "Metrics", font_size: 18, label_color: white, swatch_size: 20, gap: 12, text_max_width: 180
+"#,
+    );
     assert!(
         report.diagnostics.is_empty(),
         "Expected no diagnostics, got: {:?}",
@@ -430,55 +279,14 @@ fn test_legend_style_properties_are_parsed() {
 
 #[test]
 fn test_legend_excludes_full_viewport_background() {
-    let ast = vec![
-        make_config(),
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![
-                Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "backdrop".to_string(),
-                    array_index: None,
-                    ty: "Rect".to_string(),
-                    props: vec![
-                        Property {
-                            name: "size".to_string(),
-                            value: Expr::Tuple(vec![
-                                Expr::Str("100%".to_string()),
-                                Expr::Str("100%".to_string()),
-                            ]),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "color".to_string(),
-                            value: Expr::Ident("white".to_string()),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                    ],
-                    modifiers: vec![],
-                    children: vec![],
-                    span: None,
-                },
-                Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "legend".to_string(),
-                    array_index: None,
-                    ty: "Legend".to_string(),
-                    props: vec![],
-                    modifiers: vec![],
-                    children: vec![],
-                    span: None,
-                },
-            ],
-            span: None,
-        },
-    ];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(
+        r#"
+config { colorscheme: "editorial-dark" }
+#0s
+backdrop: Rect, size: ("100%", "100%"), color: white
+legend: Legend
+"#,
+    );
     assert!(
         report.diagnostics.is_empty(),
         "Expected no diagnostics, got: {:?}",
@@ -493,61 +301,14 @@ fn test_legend_excludes_full_viewport_background() {
 
 #[test]
 fn test_legend_true_force_includes_background() {
-    let ast = vec![
-        make_config(),
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![
-                Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "backdrop".to_string(),
-                    array_index: None,
-                    ty: "Rect".to_string(),
-                    props: vec![
-                        Property {
-                            name: "size".to_string(),
-                            value: Expr::Tuple(vec![
-                                Expr::Str("100%".to_string()),
-                                Expr::Str("100%".to_string()),
-                            ]),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "color".to_string(),
-                            value: Expr::Ident("white".to_string()),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                        Property {
-                            name: "legend".to_string(),
-                            value: Expr::Bool(true),
-                            value_span: None,
-                            trailing_comment: None,
-                        },
-                    ],
-                    modifiers: vec![],
-                    children: vec![],
-                    span: None,
-                },
-                Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "legend".to_string(),
-                    array_index: None,
-                    ty: "Legend".to_string(),
-                    props: vec![],
-                    modifiers: vec![],
-                    children: vec![],
-                    span: None,
-                },
-            ],
-            span: None,
-        },
-    ];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(
+        r#"
+config { colorscheme: "editorial-dark" }
+#0s
+backdrop: Rect, size: ("100%", "100%"), color: white, legend: true
+legend: Legend
+"#,
+    );
     assert!(
         report.diagnostics.is_empty(),
         "Expected no diagnostics, got: {:?}",
@@ -563,46 +324,15 @@ fn test_legend_true_force_includes_background() {
 
 #[test]
 fn test_legend_source_order_is_preserved() {
-    let actor = |label: &str, color: &str| Stmt::ActorDecl {
-        is_pub: false,
-        is_anonymous: false,
-        label: label.to_string(),
-        array_index: None,
-        ty: "Line".to_string(),
-        props: vec![Property {
-            name: "color".to_string(),
-            value: Expr::Ident(color.to_string()),
-            value_span: None,
-            trailing_comment: None,
-        }],
-        modifiers: vec![],
-        children: vec![],
-        span: None,
-    };
-    let ast = vec![
-        make_config(),
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![
-                actor("line_z", "red"),
-                actor("line_a", "green"),
-                Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "legend".to_string(),
-                    array_index: None,
-                    ty: "Legend".to_string(),
-                    props: vec![],
-                    modifiers: vec![],
-                    children: vec![],
-                    span: None,
-                },
-            ],
-            span: None,
-        },
-    ];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(
+        r#"
+config { colorscheme: "editorial-dark" }
+#0s
+line_z: Line, color: red
+line_a: Line, color: green
+legend: Legend
+"#,
+    );
     assert!(
         report.diagnostics.is_empty(),
         "Expected no diagnostics, got: {:?}",
@@ -626,8 +356,7 @@ fn example_legend_entries_are_scanned() {
         "/../../examples/projects/legend_example.amx"
     ))
     .expect("legend example should exist");
-    let ast = animatix_syntax::parser::parse_source(&source).0.expect("example should parse");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(&source);
     assert!(
         report.diagnostics.is_empty(),
         "Expected no diagnostics, got: {:?}",
@@ -733,16 +462,7 @@ legend: Legend, at: (320, 100), title: "Series", text_max_width: 200
 #1s
 legend.text_max_width = 120
 "#;
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report =
-        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
-    assert!(
-        super::without_content_lints(&report.diagnostics).next().is_none(),
-        "unexpected diagnostics: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
+    let timeline = build_clean(source);
     let track = timeline.get_entity_id("legend").expect("legend track");
     let read = |time_ms| {
         timeline.world.read_property_value(

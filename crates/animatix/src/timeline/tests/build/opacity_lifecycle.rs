@@ -6,21 +6,7 @@
 //! declaration with no explicit opacity keeps the last authored value; an
 //! explicit opacity always wins.
 
-use super::super::tests::without_content_lints;
-
-fn build(source: &str) -> crate::timeline::Timeline {
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report =
-        crate::timeline::Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no build diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    report.output
-}
+use super::support::build_clean;
 
 fn opacity_at(timeline: &crate::timeline::Timeline, label: &str, time_ms: u64) -> f32 {
     let id = timeline.world.tracks.get_id(label).expect("track should exist");
@@ -35,13 +21,14 @@ fn opacity_at(timeline: &crate::timeline::Timeline, label: &str, time_ms: u64) -
 
 #[test]
 fn generic_first_declaration_without_opacity_is_hidden_by_default() {
-    let timeline = build(r#"box: Rect, size: (100, 100), color: accent.primary, at: (200, 150)"#);
+    let timeline =
+        build_clean(r#"box: Rect, size: (100, 100), color: accent.primary, at: (200, 150)"#);
     assert_eq!(opacity_at(&timeline, "box", 0), 0.0);
 }
 
 #[test]
 fn generic_redeclaration_without_opacity_keeps_the_last_value() {
-    let timeline = build(
+    let timeline = build_clean(
         r#"
         box: Rect, size: (100, 100), opacity: 0.4, at: (200, 150)
         #1s
@@ -58,7 +45,7 @@ fn generic_redeclaration_without_opacity_keeps_the_last_value() {
 
 #[test]
 fn generic_redeclaration_with_explicit_opacity_uses_the_authored_value() {
-    let timeline = build(
+    let timeline = build_clean(
         r#"
         box: Rect, size: (100, 100), opacity: 0.4, at: (200, 150)
         #1s
@@ -71,7 +58,7 @@ fn generic_redeclaration_with_explicit_opacity_uses_the_authored_value() {
 
 #[test]
 fn plot_first_declaration_without_opacity_is_hidden_by_default() {
-    let timeline = build(
+    let timeline = build_clean(
         r#"g: Graph, x_domain: (-4, 4), y_domain: (-2, 18), size: (380, 280), at: (280, 200)"#,
     );
     assert_eq!(opacity_at(&timeline, "g", 0), 0.0);
@@ -79,7 +66,7 @@ fn plot_first_declaration_without_opacity_is_hidden_by_default() {
 
 #[test]
 fn plot_redeclaration_without_opacity_keeps_the_last_value() {
-    let timeline = build(
+    let timeline = build_clean(
         r#"
         g: Graph, x_domain: (-4, 4), y_domain: (-2, 18), size: (380, 280), opacity: 0.35, at: (280, 200)
         #1s
@@ -96,7 +83,7 @@ fn plot_redeclaration_without_opacity_keeps_the_last_value() {
 
 #[test]
 fn plot_redeclaration_with_explicit_opacity_uses_the_authored_value() {
-    let timeline = build(
+    let timeline = build_clean(
         r#"
         g: Graph, x_domain: (-4, 4), y_domain: (-2, 18), size: (380, 280), opacity: 0.35, at: (280, 200)
         #1s

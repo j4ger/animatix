@@ -125,20 +125,10 @@ mod tests {
     }
 
     #[test]
-    fn builder_role() {
-        let l = Label::new("hello").role(TextRole::Title);
+    fn builder_fields() {
+        let l = Label::new("hello").role(TextRole::Title).required(true).color(Color32::RED);
         assert_eq!(l.role, TextRole::Title);
-    }
-
-    #[test]
-    fn builder_required() {
-        let l = Label::new("hello").required(true);
         assert!(l.required);
-    }
-
-    #[test]
-    fn builder_color() {
-        let l = Label::new("hello").color(Color32::RED);
         assert_eq!(l.color, Some(Color32::RED));
     }
 

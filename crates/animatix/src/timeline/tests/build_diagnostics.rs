@@ -12,69 +12,16 @@ fn always_overrides_keyframes_warning() {
     // any default looks exactly like a seed — and `is_property_animated` cannot
     // tell the two apart. One keyframe here would silently stop testing
     // anything.
-    let ast = vec![
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![
-                Stmt::ActorDecl {
-                    is_pub: false,
-                    is_anonymous: false,
-                    label: "box1".to_string(),
-                    array_index: None,
-                    ty: "Rect".to_string(),
-                    props: vec![Property {
-                        name: "size".to_string(),
-                        value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
-                        value_span: None,
-                        trailing_comment: None,
-                    }],
-                    modifiers: vec![],
-                    children: vec![],
-                    span: None,
-                },
-                Stmt::Assignment {
-                    target: vec![crate::ast::TargetSegment::Static("box1".to_string())],
-                    property: "opacity".to_string(),
-                    value: Expr::Num(0.8),
-                    modifiers: vec![],
-                    easing: None,
-                    value_span: None,
-                    span: None,
-                },
-            ],
-            span: None,
-        },
-        // A second beat at a different value: one keyframe alone is what the
-        // build's declaration seeding also produces, and the two cannot be told
-        // apart by looking at the track.
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(2.0),
-            body: vec![Stmt::Assignment {
-                target: vec![crate::ast::TargetSegment::Static("box1".to_string())],
-                property: "opacity".to_string(),
-                value: Expr::Num(0.3),
-                modifiers: vec![],
-                easing: None,
-                value_span: None,
-                span: None,
-            }],
-            span: None,
-        },
-        Stmt::Always {
-            body: vec![Stmt::Assignment {
-                target: vec![crate::ast::TargetSegment::Static("box1".to_string())],
-                property: "opacity".to_string(),
-                value: Expr::Num(0.5),
-                modifiers: vec![],
-                easing: None,
-                value_span: None,
-                span: None,
-            }],
-            span: None,
-        },
-    ];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let source = r#"
+        #0s
+        box1: Rect, size: (100, 100), opacity: 0.8
+        #2s
+        box1.opacity = 0.3
+        always {
+            box1.opacity = 0.5
+        }
+    "#;
+    let report = support::build(source);
 
     let has_warning = report
         .diagnostics
@@ -90,20 +37,12 @@ fn always_overrides_keyframes_warning() {
 fn always_overrides_keyframes_no_warning_without_track() {
     // No keyframe at all, just an always block.  The target actor doesn't
     // exist in tracks, so no warning should be emitted.
-    let ast = vec![Stmt::Always {
-        body: vec![Stmt::Assignment {
-            target: vec![crate::ast::TargetSegment::Static("box1".to_string())],
-            property: "opacity".to_string(),
-            value: Expr::Num(0.5),
-            modifiers: vec![],
-            easing: None,
-            value_span: None,
-            span: None,
-        }],
-        span: None,
-    }];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let source = r#"
+        always {
+            box1.opacity = 0.5
+        }
+    "#;
+    let report = support::build(source);
 
     let has_warning = report
         .diagnostics
@@ -120,33 +59,13 @@ fn always_overrides_keyframes_no_warning_without_conflict() {
     // ActorDecl creates a track but the always block writes to a property
     // that has no keyframes (e.g., rotation is not set by insert_end_keyframes).
     // No warning should be emitted.
-    let ast = vec![
-        Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "box1".to_string(),
-            array_index: None,
-            ty: "Rect".to_string(),
-            props: vec![],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        },
-        Stmt::Always {
-            body: vec![Stmt::Assignment {
-                target: vec![crate::ast::TargetSegment::Static("box1".to_string())],
-                property: "rotation".to_string(),
-                value: Expr::Num(0.5),
-                modifiers: vec![],
-                easing: None,
-                value_span: None,
-                span: None,
-            }],
-            span: None,
-        },
-    ];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let source = r#"
+        box1: Rect, size: (100, 100)
+        always {
+            box1.rotation = 0.5
+        }
+    "#;
+    let report = support::build(source);
 
     let has_warning = report
         .diagnostics
@@ -161,48 +80,13 @@ fn always_overrides_keyframes_no_warning_without_conflict() {
 #[test]
 fn absolute_position_on_layout_managed_child_warning() {
     // A child of a Row with explicit `at` should emit a warning.
-    let ast = vec![Stmt::Keyframe {
-        time: crate::ast::Time::Seconds(0.0),
-        body: vec![Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "row1".to_string(),
-            array_index: None,
-            ty: "Row".to_string(),
-            props: vec![Property {
-                name: "size".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(400.0), Expr::Num(100.0)]),
-                value_span: None,
-                trailing_comment: None,
-            }],
-            modifiers: vec![],
-            children: vec![crate::ast::InlineItem::Labeled {
-                label: "child1".to_string(),
-                array_index: None,
-                ty: "Rect".to_string(),
-                props: vec![
-                    Property {
-                        name: "size".to_string(),
-                        value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                    Property {
-                        name: "at".to_string(),
-                        value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(200.0)]),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                ],
-                modifiers: vec![],
-                children: vec![],
-            }],
-            span: None,
-        }],
-        span: None,
-    }];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let source = r#"
+        #0s
+        row1: Row, size: (400, 100) {
+            child1: Rect, size: (50, 50), at: (100, 200)
+        }
+    "#;
+    let report = support::build(source);
 
     let has_warning = report.diagnostics.iter().any(|d| {
         d.code == animatix_syntax::diagnostics::DiagnosticCode::AbsolutePositionOnLayoutManagedChild
@@ -276,40 +160,13 @@ stack0: Stack, size: (200, 200) {
 #[test]
 fn absolute_position_on_layout_managed_child_no_warning_without_at() {
     // A child of a Row WITHOUT `at` should NOT emit the warning.
-    let ast = vec![Stmt::Keyframe {
-        time: crate::ast::Time::Seconds(0.0),
-        body: vec![Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "row1".to_string(),
-            array_index: None,
-            ty: "Row".to_string(),
-            props: vec![Property {
-                name: "size".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(400.0), Expr::Num(100.0)]),
-                value_span: None,
-                trailing_comment: None,
-            }],
-            modifiers: vec![],
-            children: vec![crate::ast::InlineItem::Labeled {
-                label: "child1".to_string(),
-                array_index: None,
-                ty: "Rect".to_string(),
-                props: vec![Property {
-                    name: "size".to_string(),
-                    value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
-                    value_span: None,
-                    trailing_comment: None,
-                }],
-                modifiers: vec![],
-                children: vec![],
-            }],
-            span: None,
-        }],
-        span: None,
-    }];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let source = r#"
+        #0s
+        row1: Row, size: (400, 100) {
+            child1: Rect, size: (50, 50)
+        }
+    "#;
+    let report = support::build(source);
 
     let has_warning = report.diagnostics.iter().any(|d| {
         d.code == animatix_syntax::diagnostics::DiagnosticCode::AbsolutePositionOnLayoutManagedChild
@@ -325,10 +182,7 @@ fn conflicting_at_and_anchor_warning() {
     let source = r#"
         box0: Rect, size: (50, 50), at: (100, 100), anchor: scene.center
     "#;
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = support::build(source);
     let has_warning = report.diagnostics.iter().any(|d| {
         d.code == animatix_syntax::diagnostics::DiagnosticCode::ConflictingPositionBinding
     });
@@ -353,10 +207,7 @@ t: Text, text: "a{}b", at: (160, 90)
 "#,
         '\u{2065}'
     );
-    let (ast, errors) = animatix_syntax::parser::parse_source(&source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report =
-        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+    let report = support::build(&source);
     assert!(
         report
             .diagnostics
@@ -376,10 +227,7 @@ fn unknown_declaration_property_warns() {
 config { resolution: (320, 180) }
 r: Rect, size: (100, 80), colour: (1, 0, 0, 1), at: (160, 90)
 "#;
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report =
-        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+    let report = support::build(source);
     let warned = report
         .diagnostics
         .iter()
@@ -389,10 +237,7 @@ r: Rect, size: (100, 80), colour: (1, 0, 0, 1), at: (160, 90)
 }
 
 fn inapplicable_warnings(source: &str) -> Vec<String> {
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report =
-        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+    let report = support::build(source);
     report
         .diagnostics
         .iter()
@@ -443,12 +288,7 @@ l: Legend, at: (160, 150), title: "Series", text_max_width: 200
 
 /// Build `source` and report whether the always/keyframe conflict fired.
 fn trips_always_override(source: &str) -> bool {
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report = Timeline::build_with_diagnostics(
-        &ast.expect("parsed AST"),
-        &std::collections::HashMap::new(),
-    );
+    let report = support::build(source);
     report
         .diagnostics
         .iter()
@@ -559,10 +399,7 @@ fn perspective_warns_as_unimplemented() {
 config { resolution: (320, 180) }
 card: Rect, size: (100, 60), at: (160, 90), perspective: 800.0
 "#;
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report =
-        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+    let report = support::build(source);
 
     let warning = report
         .diagnostics
@@ -582,11 +419,7 @@ card: Rect, size: (100, 60), at: (160, 90), perspective: 800.0
 config { resolution: (320, 180) }
 card: Rect, size: (100, 60), at: (160, 90)
 "#;
-    let (quiet_ast, _) = animatix_syntax::parser::parse_source(quiet_source);
-    let quiet = Timeline::build_with_diagnostics(
-        &quiet_ast.expect("AST"),
-        &std::collections::HashMap::new(),
-    );
+    let quiet = support::build(quiet_source);
     assert!(
         quiet
             .diagnostics
@@ -606,10 +439,7 @@ voice: Audio, source: "voice.wav"
 #1s
 voice.source = "voice2.wav" [1s]
 "#;
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report =
-        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+    let report = support::build(source);
 
     let warning = report
         .diagnostics
@@ -633,9 +463,7 @@ voice: Audio, source: "voice.wav", volume: 1.0
 #1s
 voice.volume = 0.2 [1s]
 "#;
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let timeline = Timeline::build(&ast.expect("AST"));
+    let timeline = support::build_timeline(source);
     let segs = timeline.audio_segments();
     assert_eq!(segs.len(), 1);
     let seg = &segs[0];
@@ -666,10 +494,7 @@ b: Filter, at: (240, 90) {
   art: Rect, size: (40, 40)
 }
 "#;
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report =
-        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+    let report = support::build(source);
 
     let warnings: Vec<_> = report
         .diagnostics
@@ -696,10 +521,7 @@ row: Row, size: (300, 60), gap: 8 {
   a: Rect, size: (40, 40), offset: (0, 10)
 }
 "#;
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report =
-        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+    let report = support::build(source);
 
     let warnings: Vec<_> = report
         .diagnostics
@@ -728,10 +550,7 @@ row: Row, size: (300, 60) {
   a: Rect, size: (40, 40), at: (10, 10), offset: (0, 10)
 }
 "#;
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report =
-        Timeline::build_with_diagnostics(&ast.expect("AST"), &std::collections::HashMap::new());
+    let report = support::build(source);
 
     let offset_warnings = report
         .diagnostics

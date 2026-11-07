@@ -165,14 +165,9 @@ mod tests {
     }
 
     #[test]
-    fn builder_label_width() {
-        let f = Form::new("test").label_width(150.0);
+    fn builder_fields() {
+        let f = Form::new("test").label_width(150.0).num_columns(3);
         assert_eq!(f.label_width, 150.0);
-    }
-
-    #[test]
-    fn builder_num_columns() {
-        let f = Form::new("test").num_columns(3);
         assert_eq!(f.num_columns, 3);
     }
 }

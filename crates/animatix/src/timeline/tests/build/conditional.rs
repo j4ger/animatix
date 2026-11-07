@@ -4,11 +4,11 @@
 //! selects. Before the walk handled `Stmt::Conditional`, these declarations
 //! parsed, checked clean, and produced no actors at all.
 
-use super::support::build;
+use super::support::{build, build_timeline};
 
 #[test]
 fn conditional_actor_declaration_instantiates_the_taken_branch() {
-    let report = build(
+    let timeline = build_timeline(
         r#"
 let n = 2
 config { resolution: (640, 360) }
@@ -18,12 +18,7 @@ if n == 2 {
 }
 "#,
     );
-    assert!(
-        report.diagnostics.iter().all(|d| !d.is_error()),
-        "unexpected build errors: {:?}",
-        report.diagnostics
-    );
-    assert!(report.output.has_actor("a"), "the taken `if` branch must declare `a`");
+    assert!(timeline.has_actor("a"), "the taken `if` branch must declare `a`");
 }
 
 #[test]

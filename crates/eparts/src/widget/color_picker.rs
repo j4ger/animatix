@@ -307,32 +307,22 @@ mod tests {
     }
 
     #[test]
-    fn builder_alpha_default_true() {
+    fn builder_fields() {
         let mut c = Color32::WHITE;
         let cp = ColorPicker::new("test", &mut c);
-        assert!(cp.show_alpha);
-    }
+        assert!(cp.show_alpha, "defaults: show_alpha");
+        assert!(cp.swatches.is_empty(), "defaults: swatches");
 
-    #[test]
-    fn builder_alpha_false() {
         let mut c = Color32::WHITE;
-        let cp = ColorPicker::new("test", &mut c).alpha(false);
-        assert!(!cp.show_alpha);
-    }
+        assert!(!ColorPicker::new("test", &mut c).alpha(false).show_alpha, "alpha false");
 
-    #[test]
-    fn builder_swatches_set() {
         let mut c = Color32::WHITE;
         let palette = [Color32::RED, Color32::GREEN, Color32::BLUE];
-        let cp = ColorPicker::new("test", &mut c).swatches(&palette);
-        assert_eq!(cp.swatches, palette);
-    }
-
-    #[test]
-    fn builder_swatches_default_empty() {
-        let mut c = Color32::WHITE;
-        let cp = ColorPicker::new("test", &mut c);
-        assert!(cp.swatches.is_empty());
+        assert_eq!(
+            ColorPicker::new("test", &mut c).swatches(&palette).swatches,
+            palette,
+            "swatches"
+        );
     }
 
     /// Representative slot-resolution test: the swatch outline reads the

@@ -107,27 +107,18 @@ mod tests {
     use crate::widget::test_support::{base_input, screen};
 
     #[test]
-    fn builder_defaults() {
+    fn builder_fields() {
         let s = Spinner::new();
         assert!((s.pixel_size - 16.0).abs() < f32::EPSILON);
         assert!(s.color.is_none());
-    }
 
-    #[test]
-    fn builder_set_size() {
         let s = Spinner::new().set_size(24.0);
         assert!((s.pixel_size - 24.0).abs() < f32::EPSILON);
-    }
 
-    #[test]
-    fn builder_with_color() {
         let c = Color32::from_rgb(255, 128, 0);
         let s = Spinner::new().with_color(c);
         assert_eq!(s.color, Some(c));
-    }
 
-    #[test]
-    fn builder_chaining() {
         let c = Color32::RED;
         let s = Spinner::new().set_size(32.0).with_color(c);
         assert!((s.pixel_size - 32.0).abs() < f32::EPSILON);

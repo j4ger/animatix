@@ -2,15 +2,9 @@
 //! `from`/`to` actor-anchor side channel.
 
 use super::super::tests::without_content_lints;
+use super::support::{build, build_clean};
 use crate::timeline::taffy_layout::{ChildSizeSpec, SizeSpec};
 use crate::timeline::{SceneAnchor, Timeline};
-
-fn build(source: &str) -> crate::diagnostics::BuildReport<Timeline> {
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "Parse errors: {:?}", parse_errors);
-    let ast = ast.expect("parsed AST");
-    Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new())
-}
 
 fn size_spec(timeline: &Timeline, label: &str) -> ChildSizeSpec {
     let id = timeline.world.tracks.get_id(label).expect("track should exist");
@@ -26,18 +20,12 @@ fn size_spec(timeline: &Timeline, label: &str) -> ChildSizeSpec {
 /// keep the matching half-size.
 #[test]
 fn prepared_size_decl_keeps_fixed_percent_and_numeric_semantics() {
-    let report = build(
+    let timeline = build_clean(
         r#"
         fixed: Rect, size: (120, 80)
         percent: Rect, size: (50%, 40)
         "#,
     );
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no build diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
 
     assert_eq!(
         size_spec(&timeline, "fixed"),
@@ -110,25 +98,19 @@ fn size_keyword_warns_once_and_keeps_keyword_semantics() {
 /// write it.
 #[test]
 fn line_anchor_refs_are_pre_spawn_and_need_an_existing_track() {
-    let report = build(
+    let timeline = build_clean(
         r#"
         a: Rect, size: (40, 40), at: (100, 100)
         first: Line, from: a.top, to: a.bottom
         "#,
     );
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no build diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
     let first_id = timeline.world.tracks.get_id("first").expect("first id");
     let shape = timeline.world.shape.get(first_id).expect("first shape");
     assert!(
         shape.from_anchor.is_none() && shape.to_anchor.is_none(),
         "a first declaration has no pre-spawn track to write anchor refs to"
     );
-    let report = build(
+    let timeline = build_clean(
         r#"
         a: Rect, size: (40, 40), at: (100, 100)
         link: Line, from: (0, 0), to: (100, 0)
@@ -136,12 +118,6 @@ fn line_anchor_refs_are_pre_spawn_and_need_an_existing_track() {
         link: Line, from: a.top, to: a.bottom
         "#,
     );
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "Expected no build diagnostics, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
     let link_id = timeline.world.tracks.get_id("link").expect("link id");
     let shape = timeline.world.shape.get(link_id).expect("link shape");
     assert_eq!(

@@ -340,13 +340,6 @@ mod tests {
     use crate::widget::traits::Selectable;
 
     #[test]
-    fn builder_secondary_selected_and_confirmed() {
-        let row = Row::new("test").secondary_selected(true).confirmed(true);
-        assert!(row.secondary_selected);
-        assert!(row.confirmed);
-    }
-
-    #[test]
     fn selectable_trait_for_row() {
         let mut row = Row::new("test");
         assert!(!row.is_selected());
@@ -355,68 +348,26 @@ mod tests {
     }
 
     #[test]
-    fn builder_height() {
-        let row = Row::new("test").height(48.0);
-        assert_eq!(row.height, 48.0);
-    }
-
-    #[test]
-    fn builder_indent() {
-        let row = Row::new("test").indent(16.0);
-        assert_eq!(row.indent, 16.0);
-    }
-
-    #[test]
-    fn builder_has_children() {
-        let row = Row::new("test").has_children(true);
-        assert!(row.has_children);
-    }
-
-    #[test]
-    fn builder_is_expanded() {
-        let row = Row::new("test").expanded(true);
-        assert!(row.is_expanded);
-    }
-
-    #[test]
-    fn builder_icon() {
-        let row = Row::new("test").icon(Some("GEAR"));
-        assert_eq!(row.icon, Some("GEAR"));
-    }
-
-    #[test]
-    fn builder_icon_none() {
-        let row = Row::new("test").icon(None);
-        assert!(row.icon.is_none());
-    }
-
-    #[test]
-    fn builder_label_color() {
-        let color = egui::Color32::RED;
-        let row = Row::new("test").label_color(color);
-        assert_eq!(row.label_color, Some(color));
-    }
-
-    #[test]
-    fn builder_right_set() {
-        let row = Row::new("test").right(|_| {});
-        assert!(row.right.is_some());
-    }
-
-    #[test]
-    fn builder_sense() {
-        let row = Row::new("test").sense(egui::Sense::drag());
-        assert_eq!(row.sense, egui::Sense::drag());
-    }
-
-    #[test]
-    fn builder_zebra() {
-        let row = Row::new("test").zebra(true);
-        assert_eq!(row.zebra, Some(true));
-        let row = Row::new("test").zebra(false);
-        assert_eq!(row.zebra, Some(false));
+    fn builder_fields() {
         // Default: no zebra fill.
-        assert_eq!(Row::new("test").zebra, None);
+        assert_eq!(Row::new("test").zebra, None, "default: zebra");
+
+        let row = Row::new("test").secondary_selected(true).confirmed(true);
+        assert!(row.secondary_selected, "secondary_selected");
+        assert!(row.confirmed, "confirmed");
+
+        assert_eq!(Row::new("test").height(48.0).height, 48.0, "height");
+        assert_eq!(Row::new("test").indent(16.0).indent, 16.0, "indent");
+        assert!(Row::new("test").has_children(true).has_children, "has_children");
+        assert!(Row::new("test").expanded(true).is_expanded, "expanded");
+        assert_eq!(Row::new("test").icon(Some("GEAR")).icon, Some("GEAR"), "icon");
+        assert!(Row::new("test").icon(None).icon.is_none(), "icon_none");
+        let color = egui::Color32::RED;
+        assert_eq!(Row::new("test").label_color(color).label_color, Some(color), "label_color");
+        assert!(Row::new("test").right(|_| {}).right.is_some(), "right");
+        assert_eq!(Row::new("test").sense(egui::Sense::drag()).sense, egui::Sense::drag(), "sense");
+        assert_eq!(Row::new("test").zebra(true).zebra, Some(true), "zebra true");
+        assert_eq!(Row::new("test").zebra(false).zebra, Some(false), "zebra false");
     }
 
     /// The row fill resolution must read the `theme.components.list.*` slots rather than

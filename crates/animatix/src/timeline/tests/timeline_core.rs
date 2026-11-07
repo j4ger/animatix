@@ -1,5 +1,6 @@
 //! Core timeline build, cache-invalidation, and content-lint tests.
 
+use super::support::build;
 use super::*;
 
 /// Content-lint warnings (`never-revealed`) fire on minimal fixtures whose
@@ -15,7 +16,7 @@ pub(crate) fn without_content_lints(
 
 #[test]
 fn property_descriptors_include_shared_builtin_schema() {
-    let report = Timeline::build_with_diagnostics(&[], &std::collections::HashMap::new());
+    let report = build("");
     let descriptors = report.output.property_descriptors();
     assert!(
         descriptors.iter().any(|descriptor| descriptor.name == "size"),
@@ -31,28 +32,13 @@ fn property_descriptors_include_shared_builtin_schema() {
 
 #[test]
 fn entity_mut_invalidates_frame_cache() {
-    let ast = vec![Stmt::Keyframe {
-        time: crate::ast::Time::Seconds(0.0),
-        body: vec![Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "box0".to_string(),
-            array_index: None,
-            ty: "Rect".to_string(),
-            props: vec![Property {
-                name: "size".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
-                value_span: None,
-                trailing_comment: None,
-            }],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        }],
-        span: None,
-    }];
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let mut timeline = report.output;
+    let mut timeline = build(
+        r#"
+#0s
+box0: Rect, size: (50, 50)
+"#,
+    )
+    .output;
     let dims = SceneDimensions {
         width: 100,
         height: 100,
@@ -68,28 +54,13 @@ fn entity_mut_invalidates_frame_cache() {
 
 #[test]
 fn invalidation_clears_hit_regions() {
-    let ast = vec![Stmt::Keyframe {
-        time: crate::ast::Time::Seconds(0.0),
-        body: vec![Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: "box0".to_string(),
-            array_index: None,
-            ty: "Rect".to_string(),
-            props: vec![Property {
-                name: "size".to_string(),
-                value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
-                value_span: None,
-                trailing_comment: None,
-            }],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        }],
-        span: None,
-    }];
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    let mut timeline = report.output;
+    let mut timeline = build(
+        r#"
+#0s
+box0: Rect, size: (50, 50)
+"#,
+    )
+    .output;
     let dims = SceneDimensions {
         width: 100,
         height: 100,
@@ -114,86 +85,17 @@ fn invalidation_clears_hit_regions() {
 
 #[test]
 fn test_animated_scene_has_keyframes() {
-    let ast = vec![
-        Stmt::Config {
-            settings: vec![Property {
-                name: "colorscheme".to_string(),
-                value: Expr::Str("editorial-dark".to_string()),
-                value_span: None,
-                trailing_comment: None,
-            }],
-            span: None,
-        },
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(0.0),
-            body: vec![Stmt::ActorDecl {
-                is_pub: false,
-                is_anonymous: false,
-                label: "box0".to_string(),
-                array_index: None,
-                ty: "Rect".to_string(),
-                props: vec![
-                    Property {
-                        name: "size".to_string(),
-                        value: Expr::Tuple(vec![Expr::Num(50.0), Expr::Num(50.0)]),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                    Property {
-                        name: "color".to_string(),
-                        value: Expr::Ident("accent.primary".to_string()),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                    Property {
-                        name: "at".to_string(),
-                        value: Expr::Tuple(vec![Expr::Num(100.0), Expr::Num(100.0)]),
-                        value_span: None,
-                        trailing_comment: None,
-                    },
-                ],
-                modifiers: vec![],
-                children: vec![],
-                span: None,
-            }],
-            span: None,
-        },
-        Stmt::Keyframe {
-            time: crate::ast::Time::Seconds(5.0),
-            body: vec![
-                Stmt::Assignment {
-                    target: vec![crate::ast::TargetSegment::Static("box0".to_string())],
-                    property: "position".to_string(),
-                    value: Expr::Tuple(vec![Expr::Num(200.0), Expr::Num(200.0)]),
-                    modifiers: vec![],
-                    easing: None,
-                    value_span: None,
-                    span: None,
-                },
-                Stmt::Assignment {
-                    target: vec![crate::ast::TargetSegment::Static("box0".to_string())],
-                    property: "color".to_string(),
-                    value: Expr::Ident("accent.success".to_string()),
-                    modifiers: vec![],
-                    easing: None,
-                    value_span: None,
-                    span: None,
-                },
-                Stmt::Assignment {
-                    target: vec![crate::ast::TargetSegment::Static("box0".to_string())],
-                    property: "opacity".to_string(),
-                    value: Expr::Num(0.5),
-                    modifiers: vec![],
-                    easing: None,
-                    value_span: None,
-                    span: None,
-                },
-            ],
-            span: None,
-        },
-    ];
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
+    let report = build(
+        r#"
+config { colorscheme: "editorial-dark" }
+#0s
+box0: Rect, size: (50, 50), color: accent.primary, at: (100, 100)
+#5s
+box0.position = (200, 200)
+box0.color = accent.success
+box0.opacity = 0.5
+"#,
+    );
     assert!(
         report.diagnostics.is_empty(),
         "Expected no diagnostics, got: {:?}",
@@ -238,9 +140,7 @@ b: Rect, at: (0, 0), size: (10, 10), color: (1, 1, 1, 1)
 #1s
 #step 2
 "#;
-    let (ast, errors) = animatix_syntax::parser::parse_source(source);
-    assert!(errors.is_empty(), "parse errors: {errors:?}");
-    let report = Timeline::build_with_diagnostics(&ast.unwrap(), &Default::default());
+    let report = build(source);
     let non_lints: Vec<_> = without_content_lints(&report.diagnostics).collect();
     assert!(non_lints.is_empty(), "unexpected diagnostics: {non_lints:?}");
 

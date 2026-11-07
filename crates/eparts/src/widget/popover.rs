@@ -356,54 +356,20 @@ mod tests {
     use crate::widget::overlay::{OverlayLayer, is_topmost, push_overlay, remove_overlay};
 
     #[test]
-    fn builder_defaults() {
+    fn builder_fields() {
         let p = Popover::new("test");
-        assert_eq!(p.direction, PopoverDirection::Below);
-        assert!((p.gap - 8.0).abs() < f32::EPSILON);
-        assert!(p.max_width.is_none());
-        assert!(!p.arrow);
-    }
+        assert_eq!(p.direction, PopoverDirection::Below, "defaults: direction");
+        assert!((p.gap - 8.0).abs() < f32::EPSILON, "defaults: gap");
+        assert!(p.max_width.is_none(), "defaults: max_width");
+        assert!(!p.arrow, "defaults: arrow");
 
-    #[test]
-    fn builder_below() {
-        let p = Popover::new("test").below();
-        assert_eq!(p.direction, PopoverDirection::Below);
-    }
-
-    #[test]
-    fn builder_above() {
-        let p = Popover::new("test").above();
-        assert_eq!(p.direction, PopoverDirection::Above);
-    }
-
-    #[test]
-    fn builder_right() {
-        let p = Popover::new("test").right();
-        assert_eq!(p.direction, PopoverDirection::Right);
-    }
-
-    #[test]
-    fn builder_left() {
-        let p = Popover::new("test").left();
-        assert_eq!(p.direction, PopoverDirection::Left);
-    }
-
-    #[test]
-    fn builder_gap() {
-        let p = Popover::new("test").gap(16.0);
-        assert!((p.gap - 16.0).abs() < f32::EPSILON);
-    }
-
-    #[test]
-    fn builder_max_width() {
-        let p = Popover::new("test").max_width(200.0);
-        assert_eq!(p.max_width, Some(200.0));
-    }
-
-    #[test]
-    fn builder_with_arrow() {
-        let p = Popover::new("test").with_arrow(true);
-        assert!(p.arrow);
+        assert_eq!(Popover::new("test").below().direction, PopoverDirection::Below, "below");
+        assert_eq!(Popover::new("test").above().direction, PopoverDirection::Above, "above");
+        assert_eq!(Popover::new("test").right().direction, PopoverDirection::Right, "right");
+        assert_eq!(Popover::new("test").left().direction, PopoverDirection::Left, "left");
+        assert!((Popover::new("test").gap(16.0).gap - 16.0).abs() < f32::EPSILON, "gap");
+        assert_eq!(Popover::new("test").max_width(200.0).max_width, Some(200.0), "max_width");
+        assert!(Popover::new("test").with_arrow(true).arrow, "with_arrow");
     }
 
     #[test]

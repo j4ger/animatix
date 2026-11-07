@@ -1,7 +1,7 @@
 use super::super::tests::without_content_lints;
 use super::support::{
-    build, build_ast, build_timeline, f32_property, parse, property_or_default, render_paths,
-    vec2_property,
+    build, build_ast, build_clean, build_timeline, f32_property, parse, property_or_default,
+    render_paths, vec2_property,
 };
 use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{Timeline, Value};
@@ -601,16 +601,7 @@ r.fill_gradient = radial((0.5, 0.5), 0.6, {(0%, "#ff0000"), (100%, "#0000ff")})
 #1s
 r.fill_gradient = radial((0.5, 0.5), 0.2, {(0%, "#ff0000"), (100%, "#0000ff")}) [1s]
     "##;
-    let report = build(source);
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .all(|d| d.code == crate::diagnostics::DiagnosticCode::NeverRevealed),
-        "expected only never-revealed hints, got: {:?}",
-        report.diagnostics
-    );
-    let timeline = report.output;
+    let timeline = build_clean(source);
 
     let paints_at = |time: f64| -> (
         Option<crate::timeline::GradientSpec>,
@@ -1099,14 +1090,7 @@ dot.at = (100, 100)
 #0.5s
 move dot [along: {move_to(100, 100), line_to(500, 100)}, 2s]
 "#;
-    let report = build(source);
-    let offenders: Vec<_> = report
-        .diagnostics
-        .iter()
-        .filter(|d| d.code != crate::diagnostics::DiagnosticCode::NeverRevealed)
-        .collect();
-    assert!(offenders.is_empty(), "unexpected diagnostics: {offenders:?}");
-    let timeline = report.output;
+    let timeline = build_clean(source);
 
     let track = timeline.world.tracks.get_id("dot").unwrap();
     let at = |ms: u64| vec2_property(&timeline, "dot", "position", ms).expect("position");
@@ -1152,14 +1136,7 @@ line: Text, text: "aa bb cc dd", at: (320, 180), font_size: 40
 draw-in line [4s{extra}]
 "#
         );
-        let report = build(&source);
-        let offenders: Vec<_> = report
-            .diagnostics
-            .iter()
-            .filter(|d| d.code != crate::diagnostics::DiagnosticCode::NeverRevealed)
-            .collect();
-        assert!(offenders.is_empty(), "unexpected diagnostics: {offenders:?}");
-        report.output
+        build_clean(&source)
     };
     let progress_at = |timeline: &crate::timeline::Timeline, ms: u64| -> f32 {
         let track = timeline.world.tracks.get_id("line").unwrap();
@@ -1265,13 +1242,8 @@ fn pre_keyframe_actor_with_explicit_opacity_assignment_does_not_warn_never_revea
 #[test]
 fn unary_minus_on_dotted_path_resolves_in_graph_domain() {
     let source = "let geo = Geo { y_hi: 1.75 }\ng: Graph, size: (400, 300), x_domain: (-5, 5), y_domain: (-geo.y_hi, geo.y_hi)";
-    let report = build(source);
-    assert!(
-        without_content_lints(&report.diagnostics).next().is_none(),
-        "diagnostics: {:?}",
-        report.diagnostics
-    );
-    match report.output.env().get("g_y_domain") {
+    let timeline = build_clean(source);
+    match timeline.env().get("g_y_domain") {
         Some(Value::Vec2([min, max])) => {
             assert_eq!([min, max], [-1.75, 1.75]);
         },

@@ -113,30 +113,16 @@ mod tests {
     }
 
     #[test]
-    fn builder_step() {
+    fn builder_fields() {
         let mut v = 0.0f64;
-        let s = Slider::new(&mut v, 0.0..=1.0).step(0.25);
+        let s = Slider::new(&mut v, 0.0..=1.0)
+            .step(0.25)
+            .logarithmic(true)
+            .suffix("px")
+            .show_value(true);
         assert_eq!(s.step, Some(0.25));
-    }
-
-    #[test]
-    fn builder_logarithmic() {
-        let mut v = 0.0f64;
-        let s = Slider::new(&mut v, 0.0..=1.0).logarithmic(true);
         assert!(s.logarithmic);
-    }
-
-    #[test]
-    fn builder_suffix() {
-        let mut v = 0.0f64;
-        let s = Slider::new(&mut v, 0.0..=1.0).suffix("px");
         assert_eq!(s.suffix, "px");
-    }
-
-    #[test]
-    fn builder_show_value() {
-        let mut v = 0.0f64;
-        let s = Slider::new(&mut v, 0.0..=1.0).show_value(true);
         assert!(s.show_value);
     }
 
