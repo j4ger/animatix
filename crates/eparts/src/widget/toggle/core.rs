@@ -70,10 +70,10 @@ pub(super) fn toggle_mark_color(t: &theme::Theme, enabled: bool) -> Color32 {
     }
 }
 
-/// A boolean toggle control — the shared engine behind [`Checkbox`] and [`Switch`].
+/// A boolean toggle control — the shared engine behind [`super::Checkbox`] and [`super::Switch`].
 ///
 /// The `SWITCH` flag selects the painted control: `false` draws a check box and
-/// `true` draws a track with a sliding thumb. Prefer the [`Checkbox`] / [`Switch`]
+/// `true` draws a track with a sliding thumb. Prefer the [`super::Checkbox`] / [`super::Switch`]
 /// aliases; this type is public only so those aliases can name it.
 ///
 /// State is app-owned: the caller passes `&mut bool`.

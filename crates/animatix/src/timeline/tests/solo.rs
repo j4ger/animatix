@@ -5,19 +5,9 @@
 
 use super::*;
 
-/// Parse an `.amx` snippet, build the timeline, and panic on parse errors.
-fn build_from_source(source: &str) -> Timeline {
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {parse_errors:?}");
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(report.diagnostics.is_empty(), "build diagnostics: {:?}", report.diagnostics);
-    report.output
-}
-
 /// Evaluate one frame on the observable path and return the labels that drew.
 fn drew(source: &str, time_s: f64) -> std::collections::BTreeSet<String> {
-    let timeline = build_from_source(source);
+    let timeline = build_timeline(source);
     let dimensions = SceneDimensions {
         width: 320,
         height: 180,
@@ -126,7 +116,7 @@ fn hidden_actor_neither_draws_nor_suppresses_others() {
 a: Rect, at: (60, 90), size: (40, 40), color: (1, 0, 0, 1)
 b: Rect, at: (160, 90), size: (40, 40), color: (0, 1, 0, 1), solo: true
 "#;
-    let mut timeline = build_from_source(source);
+    let mut timeline = build_timeline(source);
     let b_id = timeline.world.tracks.get_id("b").expect("track b");
     timeline.world.meta_mut(b_id).visible = false;
     let dimensions = SceneDimensions {

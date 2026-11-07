@@ -89,7 +89,7 @@ pub(super) fn apply_property_edit_to_entity(
 /// properties (`decimals`, `max_lines`), and colours as `Color` even though
 /// the plan stores every `Color`/`Vec4` descriptor in a `Vec4` slot. A plan
 /// slot rejects a value of another kind, so an uncoerced write would fall
-/// back to the legacy map and be shadowed by the plan the engine reads.
+/// back to tagged tracks and be shadowed by the plan the engine reads.
 fn coerce_for_value_type(pv: PropertyValue, value_type: ValueType) -> PropertyValue {
     match (value_type, pv) {
         (ValueType::U32, PropertyValue::F32(v)) => PropertyValue::U32(v.max(0.0).round() as u32),
@@ -107,7 +107,7 @@ fn coerce_for_value_type(pv: PropertyValue, value_type: ValueType) -> PropertyVa
 /// — the same store `read_property_value` and the renderer consult first.
 /// Writing only `tagged_tracks` would leave the edit invisible behind the
 /// plan (the reported `solo`/`shadow` drift). Keys with no descriptor
-/// (`legend_title`, `legend_gap`, ...) keep the legacy map, which is where
+/// (`legend_title`, `legend_gap`, ...) keep tagged tracks, which is where
 /// their readers look.
 fn write_tagged_value(
     key: &str,
@@ -128,7 +128,7 @@ fn write_tagged_value(
     legacy_tagged.push((key.to_string(), pv));
 }
 
-/// `place` writes both the typed `CalloutPlace` track and the legacy enum map.
+/// `place` writes both the typed `CalloutPlace` track and tagged tracks.
 fn apply_place_edit(
     world: &mut animatix::timeline::World,
     id: animatix::timeline::EntityId,
@@ -374,7 +374,7 @@ fn apply_registry_edit(
     };
 
     // Tagged properties have no `TrackFieldMut` arm below — `field_mut`
-    // hands back the legacy map entry, which this path never wrote. Route
+    // hands back the tagged tracks entry, which this path never wrote. Route
     // them through the one tagged writer instead.
     if let ActorField::Tagged(tag) = schema.field {
         write_tagged_value(tag, value.clone(), time_ms, linear, legacy_tagged, field_writes);

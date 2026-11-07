@@ -10,7 +10,7 @@ use crate::app::commands::{Command, PropertyEdit, PropertyValue};
 use crate::app::preview::context::PreviewContext;
 use crate::app::preview::{ActorProps, DragState};
 
-// ─── Helper 1: Body hit testing ─────────────────────────────────────────────
+// ─── Body hit testing ─────────────────────────────────────────────
 
 /// Check whether a scene-space point falls within the rotated bounding box of an actor.
 pub(crate) fn hit_test_actor_body(scene: kurbo::Point, props: Option<&ActorProps>) -> bool {
@@ -31,7 +31,7 @@ pub(crate) fn hit_test_actor_body(scene: kurbo::Point, props: Option<&ActorProps
         .unwrap_or(false)
 }
 
-// ─── Helper 2: Handle hit testing ───────────────────────────────────────────
+// ─── Handle hit testing ───────────────────────────────────────────
 
 /// Find the scale handle nearest to the mouse (within hit radius), using distance tie-breaking.
 /// Returns `Some(index)` for handles 0‑7, or `None`.
@@ -59,7 +59,7 @@ pub(crate) fn is_over_actor_hit_region(
         .any(|(label, bounds)| label == actor && bounds.contains(scene))
 }
 
-// ─── Helper 3: Snap resolution ──────────────────────────────────────────────
+// ─── Snap resolution ──────────────────────────────────────────────
 
 /// Result of snap resolution, containing updated coordinates and snap metadata.
 pub(crate) struct SnapResult {
@@ -366,7 +366,7 @@ pub(crate) fn resolve_snap(
     SnapResult { nx, ny }
 }
 
-// ─── Helper 4: Position-binding edit selection ──────────────────────────────
+// ─── Position-binding edit selection ──────────────────────────────
 
 /// Emit the correct `PropertyEdit` for an actor's position based on its
 /// `PositionBinding` at the current time.
@@ -424,7 +424,7 @@ pub(crate) fn emit_position_edit(actor: String, nx: f32, ny: f32, ctx: &mut Prev
     }
 }
 
-// ─── Helper 5: Drag-end keyframe creation ───────────────────────────────────
+// ─── Drag-end keyframe creation ───────────────────────────────────
 
 /// At the end of a drag, create keyframes for properties that were modified
 /// if the timeline does not already have a keyframe at the current time.
@@ -516,7 +516,7 @@ pub(crate) fn finalize_drag_keyframes(old_drag_state: &DragState, ctx: &mut Prev
     }
 }
 
-// ─── Helper 6: Selected-actor start positions cache ─────────────────────────
+// ─── Selected-actor start positions cache ─────────────────────────
 
 /// Capture the initial scene-space positions of all selected actors before a
 /// drag begins.  Falls back to hit-region centre when explicit props are

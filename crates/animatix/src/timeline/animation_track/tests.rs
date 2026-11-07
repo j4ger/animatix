@@ -232,55 +232,40 @@ fn test_field_ref_text_paths_returns_text_paths() {
 }
 
 #[test]
-fn test_field_ref_position_binding_returns_position_binding() {
+fn test_field_ref_and_mut_type_mappings() {
     let mut timeline = Timeline::new();
-    let id = timeline.world_mut().spawn("test", "Rect");
-    let fields = timeline.world().fields(id).expect("entity fields");
-    let rf = fields.field_ref(ActorField::PositionBinding);
-    assert!(rf.is_some());
-    assert!(matches!(rf.unwrap(), TrackFieldRef::PositionBinding(_)));
-}
+    let rect_id = timeline.world_mut().spawn("rect", "Rect");
+    let text_id = timeline.world_mut().spawn("text", "Text");
 
-#[test]
-fn test_field_ref_returns_correct_type_for_position() {
-    let mut timeline = Timeline::new();
-    let id = timeline.world_mut().spawn("test", "Rect");
-    let fields = timeline.world().fields(id).expect("entity fields");
-    let rf = fields.field_ref(ActorField::Position).unwrap();
-    assert!(matches!(rf, TrackFieldRef::Vec2(_)));
-}
+    let rect_fields = timeline.world().fields(rect_id).expect("rect fields");
+    assert!(matches!(
+        rect_fields.field_ref(ActorField::PositionBinding).unwrap(),
+        TrackFieldRef::PositionBinding(_)
+    ));
+    assert!(matches!(
+        rect_fields.field_ref(ActorField::Position).unwrap(),
+        TrackFieldRef::Vec2(_)
+    ));
+    assert!(matches!(
+        rect_fields.field_ref(ActorField::Transform).unwrap(),
+        TrackFieldRef::Transform(_)
+    ));
 
-#[test]
-fn test_field_ref_returns_correct_type_for_transform() {
-    let mut timeline = Timeline::new();
-    let id = timeline.world_mut().spawn("test", "Rect");
-    let fields = timeline.world().fields(id).expect("entity fields");
-    let rf = fields.field_ref(ActorField::Transform).unwrap();
-    assert!(matches!(rf, TrackFieldRef::Transform(_)));
-}
-
-#[test]
-fn test_field_mut_returns_correct_type_for_font_weight() {
-    let mut timeline = Timeline::new();
-    let id = timeline.world_mut().spawn("test", "Text");
-    let mut fields = timeline.world_mut().fields_mut(id).expect("entity fields");
-    let f = fields.field_mut(ActorField::FontWeight).unwrap();
-    assert!(matches!(f, TrackFieldMut::F32(_)));
-}
-
-#[test]
-fn test_field_mut_returns_correct_type_for_font_style() {
-    let mut timeline = Timeline::new();
-    let id = timeline.world_mut().spawn("test", "Text");
-    let mut fields = timeline.world_mut().fields_mut(id).expect("entity fields");
-    let f = fields.field_mut(ActorField::FontStyle).unwrap();
-    assert!(matches!(f, TrackFieldMut::String(_)));
+    let mut text_fields = timeline.world_mut().fields_mut(text_id).expect("text fields");
+    assert!(matches!(
+        text_fields.field_mut(ActorField::FontWeight).unwrap(),
+        TrackFieldMut::F32(_)
+    ));
+    assert!(matches!(
+        text_fields.field_mut(ActorField::FontStyle).unwrap(),
+        TrackFieldMut::String(_)
+    ));
 }
 
 // max_keyframe_time / has_any_keyframes regression
 
 #[test]
-fn test_max_keyframe_time_with_transform() {
+fn test_max_keyframe_time_per_tier_field() {
     let mut timeline = Timeline::new();
     let id = timeline.world_mut().spawn("test", "Rect");
     timeline
@@ -290,19 +275,14 @@ fn test_max_keyframe_time_with_transform() {
         .ensure([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])
         .add_keyframe(5000, [2.0, 0.0, 0.0, 2.0, 100.0, 200.0], Easing::Linear);
     assert_eq!(timeline.world().max_keyframe_time(id), Some(5000));
-}
 
-#[test]
-fn test_max_keyframe_time_with_highlight_color() {
-    let mut timeline = Timeline::new();
-    let id = timeline.world_mut().spawn("test", "Rect");
     timeline
         .world_mut()
         .ensure_highlight(id)
         .highlight_color
         .ensure([0.3, 0.5, 1.0, 1.0])
-        .add_keyframe(3000, [1.0, 0.0, 0.0, 0.5], Easing::Linear);
-    assert_eq!(timeline.world().max_keyframe_time(id), Some(3000));
+        .add_keyframe(7000, [1.0, 0.0, 0.0, 0.5], Easing::Linear);
+    assert_eq!(timeline.world().max_keyframe_time(id), Some(7000));
 }
 
 #[test]

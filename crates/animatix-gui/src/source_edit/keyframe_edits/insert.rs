@@ -52,8 +52,6 @@ pub(super) fn insert_keyframe_inner(
     Ok(())
 }
 
-// MoveKeyframeTime
-
 pub(crate) fn move_keyframe_time(
     stmts: &mut Vec<Stmt>,
     scene: Option<&str>,
@@ -248,5 +246,3 @@ fn contains_assignment(body: &[Stmt], actor: &str, property: &str) -> bool {
     }
     false
 }
-
-// Tests

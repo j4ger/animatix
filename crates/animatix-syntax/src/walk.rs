@@ -35,10 +35,21 @@ pub fn walk_stmt_mut(stmt: &mut Stmt, visitor: &mut dyn FnMut(&mut Stmt)) {
 
 // Inline item walkers
 
+struct FnInlineVisitor<'f>(&'f mut dyn FnMut(&InlineItem));
+
+impl<'ast> crate::visit::AstVisitor<'ast> for FnInlineVisitor<'_> {
+    fn visit_inline_item(&mut self, item: &'ast InlineItem) {
+        (self.0)(item);
+        crate::visit::walk_inline_item(self, item);
+    }
+}
+
 /// Walk over inline items, calling the visitor for each and recursing into children.
 pub fn walk_inline_items(items: &[InlineItem], visitor: &mut dyn FnMut(&InlineItem)) {
+    use crate::visit::AstVisitor;
+    let mut v = FnInlineVisitor(visitor);
     for item in items {
-        walk_inline_item(item, visitor);
+        v.visit_inline_item(item);
     }
 }
 
@@ -51,19 +62,9 @@ pub fn walk_inline_items_mut(items: &mut [InlineItem], visitor: &mut dyn FnMut(&
 
 /// Visit a single inline item and recurse into its children.
 pub fn walk_inline_item(item: &InlineItem, visitor: &mut dyn FnMut(&InlineItem)) {
-    visitor(item);
-    match item {
-        InlineItem::Labeled { children, .. } | InlineItem::Anonymous { children, .. } => {
-            walk_inline_items(children, visitor);
-        },
-        InlineItem::ForLoop { body, .. } => {
-            walk_inline_items(body, visitor);
-        },
-        InlineItem::SlotFill { items, .. } => {
-            walk_inline_items(items, visitor);
-        },
-        InlineItem::SlotMarker => {},
-    }
+    use crate::visit::AstVisitor;
+    let mut v = FnInlineVisitor(visitor);
+    v.visit_inline_item(item);
 }
 
 /// Mutable variant of walk_inline_item.
@@ -85,64 +86,20 @@ pub fn walk_inline_item_mut(item: &mut InlineItem, visitor: &mut dyn FnMut(&mut 
 
 // Expression walker
 
+struct FnExprVisitor<'f>(&'f mut dyn FnMut(&Expr));
+
+impl<'ast> crate::visit::AstVisitor<'ast> for FnExprVisitor<'_> {
+    fn visit_expr(&mut self, expr: &'ast Expr) {
+        (self.0)(expr);
+        crate::visit::walk_expr(self, expr);
+    }
+}
+
 /// Walk over an expression, visiting it and all sub-expressions.
 pub fn walk_expr(expr: &Expr, visitor: &mut dyn FnMut(&Expr)) {
-    visitor(expr);
-    match expr {
-        Expr::Index(target, index) => {
-            walk_expr(target, visitor);
-            walk_expr(index, visitor);
-        },
-        Expr::Tuple(items) => {
-            for item in items {
-                walk_expr(item, visitor);
-            }
-        },
-        Expr::List(items) => {
-            for item in items {
-                walk_expr(item, visitor);
-            }
-        },
-        Expr::Binary(left, _, right) => {
-            walk_expr(left, visitor);
-            walk_expr(right, visitor);
-        },
-        Expr::Unary(_, expr) => {
-            walk_expr(expr, visitor);
-        },
-        Expr::Call(_, args) => {
-            for arg in args {
-                walk_expr(arg, visitor);
-            }
-        },
-        Expr::Method(receiver, _, args) => {
-            walk_expr(receiver, visitor);
-            for arg in args {
-                walk_expr(arg, visitor);
-            }
-        },
-        Expr::Closure(_, body) => {
-            walk_expr(body, visitor);
-        },
-        Expr::Conditional(cond, then, else_) => {
-            walk_expr(cond, visitor);
-            walk_expr(then, visitor);
-            walk_expr(else_, visitor);
-        },
-        Expr::Match(scrutinee, arms) => {
-            walk_expr(scrutinee, visitor);
-            for (_pat, arm_expr) in arms {
-                walk_expr(arm_expr, visitor);
-            }
-        },
-        Expr::Construct(_, props) => {
-            for prop in props {
-                walk_expr(&prop.value, visitor);
-            }
-        },
-        // Literals, Ident, Path, Bool, Null, Percent have no sub-expressions
-        _ => {},
-    }
+    use crate::visit::AstVisitor;
+    let mut v = FnExprVisitor(visitor);
+    v.visit_expr(expr);
 }
 
 // Body recursion helpers

@@ -3,22 +3,6 @@
 
 use super::*;
 
-fn build_from_source(source: &str) -> Timeline {
-    let (ast, parse_errors) = animatix_syntax::parser::parse_source(source);
-    assert!(parse_errors.is_empty(), "parse errors: {parse_errors:?}");
-    let ast = ast.expect("parsed AST");
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-    assert!(
-        !report
-            .diagnostics
-            .iter()
-            .any(|d| d.severity == animatix_syntax::diagnostics::DiagnosticSeverity::Error),
-        "build errors: {:?}",
-        report.diagnostics
-    );
-    report.output
-}
-
 const SCENE: &str = r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s
@@ -27,13 +11,13 @@ box: Rect, size: (200, 100), at: (320, 180), color: accent.primary
 
 #[test]
 fn reading_the_epoch_does_not_move_it() {
-    let timeline = build_from_source(SCENE);
+    let timeline = build_timeline(SCENE);
     assert_eq!(timeline.content_epoch(), timeline.content_epoch());
 }
 
 #[test]
 fn mutable_access_to_a_track_moves_the_epoch() {
-    let mut timeline = build_from_source(SCENE);
+    let mut timeline = build_timeline(SCENE);
     let before = timeline.content_epoch();
     // Every public mutable accessor funnels through `invalidate_frame_cache`,
     // which is the single point the epoch is bumped from — so an edit made in
@@ -52,8 +36,8 @@ fn a_fresh_document_restarts_the_epoch_at_zero() {
     // `FrameSignature` carries a driver-side document generation beside it — a
     // driver that swaps documents without bumping that would dedup a frame it
     // no longer has.
-    let first = build_from_source(SCENE);
-    let second = build_from_source(
+    let first = build_timeline(SCENE);
+    let second = build_timeline(
         r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 #0s

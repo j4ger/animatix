@@ -1060,11 +1060,7 @@ fn unknown_icon_warns() {
 
 #[test]
 fn an_authored_scale_reaches_the_transform() {
-    // `scale:` on a declaration was dropped on the floor for every actor kind:
-    // it is not in the legacy per-primitive loop and was not routed through the
-    // generic engine, so `scale: 4.0` rendered at 1.0 while the keyframed
-    // `x.scale = 4.0` worked. Bundled icons made it visible — a 24 px mark that
-    // could not be enlarged was otherwise unusable.
+    // `scale:` on an actor declaration must reach the initial transform keyframe.
     let source = r#"
 config { colorscheme: "editorial-dark", resolution: (640, 360) }
 

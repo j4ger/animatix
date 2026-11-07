@@ -3,12 +3,7 @@
 //! parent state + layout position instead of time, so playback skips their
 //! per-frame property sampling — while animated parents still move them.
 
-use super::support::{build_ast, parse};
 use super::*;
-
-fn build_timeline(source: &str) -> Timeline {
-    build_ast(&parse(source)).output
-}
 
 const DIMS: SceneDimensions = SceneDimensions {
     width: 640,

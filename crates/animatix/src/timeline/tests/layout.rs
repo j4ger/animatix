@@ -184,7 +184,7 @@ fn test_fixed_size_layout_still_works() {
         child_order: vec![EntityId(0), EntityId(1)],
     };
 
-    // Legacy path (no specs/constraints)
+    // Direct layout path without layout specs/constraints
     let positions = crate::timeline::LayoutEngine::compute_positions(&metadata, &children);
 
     assert_eq!(positions.len(), 2);

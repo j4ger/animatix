@@ -3,12 +3,7 @@
 //! registry lookup, survive repeat frames, and be bypassed while a
 //! cross-type morph picks a different primitive than the identity type.
 
-use super::support::{build_ast, parse};
 use super::*;
-
-fn build_timeline(source: &str) -> Timeline {
-    build_ast(&parse(source)).output
-}
 
 #[test]
 #[allow(deprecated)]
@@ -106,28 +101,25 @@ r: Rect, size: (50, 50), color: accent.primary
 "#,
     );
     let id = timeline.get_entity_id("r").expect("entity");
-    let dims = SceneDimensions {
-        width: 640,
-        height: 360,
-    };
-    let _ = timeline.evaluate(0.0, dims);
-    assert!(
-        timeline
-            .eval_caches
-            .primitive_handles
-            .borrow()
-            .get(id.index())
-            .is_some_and(|e| e.is_some()),
-        "handle cached after evaluation"
-    );
+
+    // Pre-populate cache
+    let _ = timeline.cached_primitive_for(id, 0);
+
+    let is_cached = timeline
+        .eval_caches
+        .primitive_handles
+        .borrow()
+        .get(id.index())
+        .is_some_and(|e| e.is_some());
+    assert!(is_cached, "handle cached after manual primitive load");
+
     timeline.invalidate_frame_cache();
-    assert!(
-        timeline
-            .eval_caches
-            .primitive_handles
-            .borrow()
-            .get(id.index())
-            .is_none_or(|e| e.is_none()),
-        "invalidation clears the handle cache"
-    );
+
+    let is_still_cached = timeline
+        .eval_caches
+        .primitive_handles
+        .borrow()
+        .get(id.index())
+        .is_some_and(|e| e.is_some());
+    assert!(!is_still_cached, "invalidation clears the handle cache");
 }

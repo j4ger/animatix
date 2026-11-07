@@ -162,5 +162,3 @@ fn scene_body_has_any_label(stmts: &[Stmt], labels: &[String]) -> bool {
     });
     found
 }
-
-// Tests

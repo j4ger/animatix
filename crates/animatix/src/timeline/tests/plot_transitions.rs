@@ -150,6 +150,55 @@ fn assert_mode_transition(source: &str, kind: PlotCurveKind, label: &str) {
     assert_sampled(&paths, &format!("for {label} mid-transition"));
 }
 
+fn func_source_1d(expr: Expr) -> FuncSource {
+    FuncSource::from_expr(vec!["x".to_string()], expr, CapturedEnv::default())
+}
+
+fn func_source_2d(expr: Expr) -> FuncSource {
+    FuncSource::from_expr(vec!["x".to_string(), "y".to_string()], expr, CapturedEnv::default())
+}
+
+fn func_source_num(val: f64) -> FuncSource {
+    func_source_1d(Expr::Num(val))
+}
+
+fn blend_source(from: FuncSource, to: FuncSource, frozen_progress: f64) -> FuncSource {
+    FuncSource::Blend {
+        from: Box::new(from),
+        to: Box::new(to),
+        frozen_progress,
+    }
+}
+
+fn assert_2d_plot_transition(
+    source: &str,
+    actor_label: &str,
+    expected_kind: ProceduralPlotKind,
+    check_paths: impl FnOnce(&[crate::timeline::VelloPath]),
+) {
+    let report = build_from_source(source);
+    assert_clean(&report);
+
+    let track = report
+        .output
+        .get_entity_id(actor_label)
+        .unwrap_or_else(|| panic!("{actor_label} track should exist"));
+    let transitions = report.output.world.func_transitions(track);
+    assert_eq!(transitions.len(), 1);
+    assert_eq!(transitions[0].blend_mode, FuncBlendMode::Output);
+
+    let plot = report
+        .output
+        .world
+        .procedural_plot(track)
+        .unwrap_or_else(|| panic!("{actor_label} procedural_plot"));
+    assert_eq!(plot.plot_type, expected_kind);
+
+    let env = stdlib_env();
+    let paths = sample_procedural_plot_at(plot, &env, 1500, transitions);
+    check_paths(&paths);
+}
+
 const CASCADING_SOURCE: &str = r#"
         config { colorscheme: "editorial-dark" }
 
@@ -340,19 +389,7 @@ fn coarser_resolution_leaves_longer_straight_spans() {
 #[test]
 fn blend_at_half_progress() {
     let env = stdlib_env();
-    let blend = FuncSource::Blend {
-        from: Box::new(FuncSource::from_expr(
-            vec!["x".to_string()],
-            sin_x_expr(),
-            CapturedEnv::default(),
-        )),
-        to: Box::new(FuncSource::from_expr(
-            vec!["x".to_string()],
-            cos_x_expr(),
-            CapturedEnv::default(),
-        )),
-        frozen_progress: 0.5,
-    };
+    let blend = blend_source(func_source_1d(sin_x_expr()), func_source_1d(cos_x_expr()), 0.5);
 
     for x in [0.0_f64, 0.5, 1.0, std::f64::consts::PI / 4.0, 2.0] {
         let result = resolve_func_source(&blend, &env, "x", x).expect("resolve blend");
@@ -368,8 +405,8 @@ fn blend_at_half_progress() {
         start_ms: 2000,
         end_ms: 3000,
         easing: Easing::Linear,
-        from: FuncSource::from_expr(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default()),
-        to: FuncSource::from_expr(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default()),
+        from: func_source_1d(sin_x_expr()),
+        to: func_source_1d(cos_x_expr()),
         blend_mode: FuncBlendMode::Output,
     };
 
@@ -647,7 +684,7 @@ fn quality_factor_calculation() {
     }
 
     fn raw() -> FuncSource {
-        FuncSource::from_expr(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default())
+        func_source_1d(sin_x_expr())
     }
 
     fn blend_of_depth(d: usize) -> FuncSource {
@@ -655,11 +692,7 @@ fn quality_factor_calculation() {
             return raw();
         }
         let inner = blend_of_depth(d - 1);
-        FuncSource::Blend {
-            from: Box::new(inner.clone()),
-            to: Box::new(inner),
-            frozen_progress: 0.5,
-        }
+        blend_source(inner.clone(), inner, 0.5)
     }
 
     for d in 0..=4 {
@@ -718,25 +751,13 @@ fn implicit_transition_simple() {
 #[test]
 fn implicit_blend_at_half() {
     let mut env = stdlib_env();
-    let circle = FuncSource::from_expr(
-        vec!["x".to_string(), "y".to_string()],
-        circle_expr(),
-        CapturedEnv::default(),
-    );
-    let line = FuncSource::from_expr(
-        vec!["x".to_string(), "y".to_string()],
-        line_yx_expr(),
-        CapturedEnv::default(),
-    );
+    let circle = func_source_2d(circle_expr());
+    let line = func_source_2d(line_yx_expr());
 
     assert!((eval_implicit_source(&circle, &mut env, 0.0, 0.0) - (-1.0)).abs() < 1e-9);
     assert!((eval_implicit_source(&line, &mut env, 0.0, 0.0) - 0.0).abs() < 1e-9);
 
-    let blended = FuncSource::Blend {
-        from: Box::new(circle),
-        to: Box::new(line),
-        frozen_progress: 0.5,
-    };
+    let blended = blend_source(circle, line, 0.5);
     assert!((eval_implicit_source(&blended, &mut env, 0.0, 0.0) - (-0.5)).abs() < 1e-9);
 
     let path = build_implicit_plot_path_from_source(
@@ -803,7 +824,8 @@ fn implicit_cascading() {
 
 #[test]
 fn vector_field_func_transition() {
-    let source = r#"
+    assert_2d_plot_transition(
+        r#"
         config { colorscheme: "editorial-dark" }
 
         field: VectorField, func: (x, y) => (y, -x), density: 6,
@@ -811,26 +833,17 @@ fn vector_field_func_transition() {
 
         #1s
         field.func = (x, y) => (-y, x) [1s]
-    "#;
-    let report = build_from_source(source);
-    assert_clean(&report);
-
-    let track = report.output.get_entity_id("field").expect("field track should exist");
-    let transitions = report.output.world.func_transitions(track);
-    assert_eq!(transitions.len(), 1);
-    assert_eq!(transitions[0].blend_mode, FuncBlendMode::Output);
-
-    let plot = report.output.world.procedural_plot(track).expect("VectorField procedural_plot");
-    assert_eq!(plot.plot_type, ProceduralPlotKind::VectorField);
-
-    let env = stdlib_env();
-    let paths = sample_procedural_plot_at(plot, &env, 1500, transitions);
-    assert_sampled(&paths, "at mid-transition");
+        "#,
+        "field",
+        ProceduralPlotKind::VectorField,
+        |paths| assert_sampled(paths, "at mid-transition"),
+    );
 }
 
 #[test]
 fn heatmap_func_transition() {
-    let source = r#"
+    assert_2d_plot_transition(
+        r#"
         config { colorscheme: "editorial-dark" }
 
         heat: Heatmap, func: (x, y) => sin(x) * cos(y), resolution: 8,
@@ -838,26 +851,20 @@ fn heatmap_func_transition() {
 
         #1s
         heat.func = (x, y) => x + y [1s]
-    "#;
-    let report = build_from_source(source);
-    assert_clean(&report);
-
-    let track = report.output.get_entity_id("heat").expect("heat track should exist");
-    let transitions = report.output.world.func_transitions(track);
-    assert_eq!(transitions.len(), 1);
-
-    let plot = report.output.world.procedural_plot(track).expect("Heatmap procedural_plot");
-    assert_eq!(plot.plot_type, ProceduralPlotKind::Heatmap);
-
-    let env = stdlib_env();
-    let paths = sample_procedural_plot_at(plot, &env, 1500, transitions);
-    assert!(!paths.is_empty(), "Expected output paths during Heatmap transition");
-    assert!(paths.iter().any(|p| p.fill.is_some()), "Expected filled heat cells");
+        "#,
+        "heat",
+        ProceduralPlotKind::Heatmap,
+        |paths| {
+            assert!(!paths.is_empty(), "Expected output paths during Heatmap transition");
+            assert!(paths.iter().any(|p| p.fill.is_some()), "Expected filled heat cells");
+        },
+    );
 }
 
 #[test]
 fn contour_set_func_transition() {
-    let source = r#"
+    assert_2d_plot_transition(
+        r#"
         config { colorscheme: "editorial-dark" }
 
         cont: ContourSet, func: (x, y) => x^2 + y^2, levels: {1, 2},
@@ -865,20 +872,11 @@ fn contour_set_func_transition() {
 
         #1s
         cont.func = (x, y) => x * y [1s]
-    "#;
-    let report = build_from_source(source);
-    assert_clean(&report);
-
-    let track = report.output.get_entity_id("cont").expect("cont track should exist");
-    let transitions = report.output.world.func_transitions(track);
-    assert_eq!(transitions.len(), 1);
-
-    let plot = report.output.world.procedural_plot(track).expect("ContourSet procedural_plot");
-    assert_eq!(plot.plot_type, ProceduralPlotKind::ContourSet);
-
-    let env = stdlib_env();
-    let paths = sample_procedural_plot_at(plot, &env, 1500, transitions);
-    assert_sampled(&paths, "during ContourSet transition");
+        "#,
+        "cont",
+        ProceduralPlotKind::ContourSet,
+        |paths| assert_sampled(paths, "during ContourSet transition"),
+    );
 }
 
 #[test]
@@ -914,81 +912,113 @@ fn opacity_crossfade_blend_mode() {
 // Tests: Blend Flattening & Multi-depth Evaluation
 
 #[test]
-fn flatten_blend_basic() {
-    let raw = FuncSource::from_expr(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
+fn test_flatten_blend_nested_depths() {
+    // Depth 0: non-blend source references original with weight 1.0
+    let raw = func_source_1d(sin_x_expr());
+    assert_eq!(blend_depth(&raw), 0);
     let flat = flatten_blend(&raw);
     assert_eq!(flat.len(), 1, "Expected 1 entry for non-blend source");
     assert!((flat[0].0 - 1.0).abs() < 1e-12);
     assert!(std::ptr::eq(flat[0].1, &raw), "Should reference the original source");
-}
 
-#[test]
-fn flatten_blend_single_level() {
-    let a = FuncSource::from_expr(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
-    let b = FuncSource::from_expr(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default());
-    let blend = FuncSource::Blend {
-        from: Box::new(a),
-        to: Box::new(b),
-        frozen_progress: 0.4,
-    };
-    assert_flatten_weights(&blend, &[0.6, 0.4]);
-}
+    let x = 1.0_f64;
+    let sin_val = x.sin();
+    let cos_val = x.cos();
 
-#[test]
-fn flatten_blend_nested_depth_2() {
-    let a = FuncSource::from_expr(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
-    let b = FuncSource::from_expr(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default());
-    let c = FuncSource::from_expr(vec!["x".to_string()], Expr::Num(0.5), CapturedEnv::default());
-    let outer = FuncSource::Blend {
-        from: Box::new(a),
-        to: Box::new(FuncSource::Blend {
-            from: Box::new(b),
-            to: Box::new(c),
-            frozen_progress: 0.3,
-        }),
-        frozen_progress: 0.6,
-    };
-    assert_flatten_weights(&outer, &[0.4, 0.42, 0.18]);
-}
+    struct DepthCase {
+        depth: usize,
+        source: FuncSource,
+        expected_weights: Vec<f64>,
+        expected_val: f64,
+    }
 
-#[test]
-fn flatten_blend_nested_depth_3() {
-    let a = FuncSource::from_expr(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
-    let b = FuncSource::from_expr(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default());
-    let c = FuncSource::from_expr(vec!["x".to_string()], Expr::Num(0.5), CapturedEnv::default());
-    let d = FuncSource::from_expr(vec!["x".to_string()], Expr::Num(1.0), CapturedEnv::default());
-    let outer = FuncSource::Blend {
-        from: Box::new(a),
-        to: Box::new(FuncSource::Blend {
-            from: Box::new(b),
-            to: Box::new(FuncSource::Blend {
-                from: Box::new(c),
-                to: Box::new(d),
-                frozen_progress: 0.2,
+    let cases = [
+        // Depth 1: single-level blend
+        DepthCase {
+            depth: 1,
+            source: blend_source(func_source_1d(sin_x_expr()), func_source_1d(cos_x_expr()), 0.4),
+            expected_weights: vec![0.6, 0.4],
+            expected_val: 0.6 * sin_val + 0.4 * cos_val,
+        },
+        // Depth 2: nested right-leaning blend
+        DepthCase {
+            depth: 2,
+            source: blend_source(
+                func_source_1d(sin_x_expr()),
+                blend_source(func_source_1d(cos_x_expr()), func_source_num(0.5), 0.3),
+                0.6,
+            ),
+            expected_weights: vec![0.4, 0.42, 0.18],
+            expected_val: 0.4 * sin_val + 0.42 * cos_val + 0.18 * 0.5,
+        },
+        // Depth 3: nested right-leaning blend
+        DepthCase {
+            depth: 3,
+            source: blend_source(
+                func_source_1d(sin_x_expr()),
+                blend_source(
+                    func_source_1d(cos_x_expr()),
+                    blend_source(func_source_num(0.5), func_source_num(1.0), 0.2),
+                    0.4,
+                ),
+                0.6,
+            ),
+            expected_weights: vec![0.4, 0.36, 0.192, 0.048],
+            expected_val: 0.4 * sin_val + 0.36 * cos_val + 0.192 * 0.5 + 0.048 * 1.0,
+        },
+        // Depth 4: bottom-up nested left-leaning blend (parity case)
+        DepthCase {
+            depth: 4,
+            source: [
+                (func_source_1d(cos_x_expr()), 0.9),
+                (func_source_num(1.0), 0.7),
+                (func_source_num(2.0), 0.5),
+                (func_source_num(-1.5), 0.3),
+            ]
+            .into_iter()
+            .fold(func_source_1d(sin_x_expr()), |acc, (to, progress)| {
+                blend_source(acc, to, progress)
             }),
-            frozen_progress: 0.4,
-        }),
-        frozen_progress: 0.6,
-    };
-    assert_flatten_weights(&outer, &[0.4, 0.36, 0.192, 0.048]);
+            expected_weights: vec![0.0105, 0.0945, 0.245, 0.35, 0.3],
+            expected_val: 0.0105 * sin_val + 0.0945 * cos_val + 0.495,
+        },
+    ];
+
+    let mut env = stdlib_env();
+    for case in cases {
+        assert_eq!(blend_depth(&case.source), case.depth, "depth mismatch at depth {}", case.depth);
+        assert_flatten_weights(&case.source, &case.expected_weights);
+
+        let resolved = resolve_func_source(&case.source, &env, "x", x)
+            .unwrap_or_else(|e| panic!("resolve_func_source failed at depth {}: {e}", case.depth));
+        assert!(
+            (resolved - case.expected_val).abs() < 1e-9,
+            "resolve_func_source at depth {}: expected {}, got {}",
+            case.depth,
+            case.expected_val,
+            resolved
+        );
+
+        let mut cache = std::collections::HashMap::new();
+        let eval_scalar = eval_source_scalar(&case.source, &mut env, "x", x, &mut cache);
+        assert!(
+            (eval_scalar - case.expected_val).abs() < 1e-9,
+            "eval_source_scalar at depth {}: expected {}, got {}",
+            case.depth,
+            case.expected_val,
+            eval_scalar
+        );
+    }
 }
 
 #[test]
 fn resolve_func_source_nested_blend() {
     let env = stdlib_env();
-    let a = FuncSource::from_expr(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
-    let b = FuncSource::from_expr(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default());
-    let c = FuncSource::from_expr(vec!["x".to_string()], Expr::Num(0.5), CapturedEnv::default());
-
-    let outer = FuncSource::Blend {
-        from: Box::new(a),
-        to: Box::new(FuncSource::Blend {
-            from: Box::new(b),
-            to: Box::new(c),
-            frozen_progress: 0.3,
-        }),
-        frozen_progress: 0.6,
-    };
+    let outer = blend_source(
+        func_source_1d(sin_x_expr()),
+        blend_source(func_source_1d(cos_x_expr()), func_source_num(0.5), 0.3),
+        0.6,
+    );
 
     for x in [0.0, 0.5, 1.0, 1.5, 2.0] {
         let result = resolve_func_source(&outer, &env, "x", x)
@@ -1001,19 +1031,11 @@ fn resolve_func_source_nested_blend() {
 #[test]
 fn eval_source_scalar_nested_blend() {
     let mut env = stdlib_env();
-    let a = FuncSource::from_expr(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
-    let b = FuncSource::from_expr(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default());
-    let c = FuncSource::from_expr(vec!["x".to_string()], Expr::Num(42.0), CapturedEnv::default());
-
-    let outer = FuncSource::Blend {
-        from: Box::new(a),
-        to: Box::new(FuncSource::Blend {
-            from: Box::new(b),
-            to: Box::new(c),
-            frozen_progress: 0.25,
-        }),
-        frozen_progress: 0.8,
-    };
+    let outer = blend_source(
+        func_source_1d(sin_x_expr()),
+        blend_source(func_source_1d(cos_x_expr()), func_source_num(42.0), 0.25),
+        0.8,
+    );
 
     for x in [0.0, 0.5, 1.0, std::f64::consts::PI / 4.0] {
         let mut cache = std::collections::HashMap::new();
@@ -1026,80 +1048,21 @@ fn eval_source_scalar_nested_blend() {
 #[test]
 fn eval_implicit_source_nested_blend() {
     let mut env = stdlib_env();
-    let circle = FuncSource::from_expr(
-        vec!["x".to_string(), "y".to_string()],
-        circle_expr(),
-        CapturedEnv::default(),
-    );
-    let line = FuncSource::from_expr(
-        vec!["x".to_string(), "y".to_string()],
-        line_yx_expr(),
-        CapturedEnv::default(),
-    );
-    let sum_src = FuncSource::from_expr(
-        vec!["x".to_string(), "y".to_string()],
-        Expr::Binary(
-            Box::new(Expr::Ident("x".to_string())),
-            BinaryOp::Add,
-            Box::new(Expr::Ident("y".to_string())),
-        ),
-        CapturedEnv::default(),
-    );
+    let circle = func_source_2d(circle_expr());
+    let line = func_source_2d(line_yx_expr());
+    let sum_src = func_source_2d(bin(
+        BinaryOp::Add,
+        Expr::Ident("x".to_string()),
+        Expr::Ident("y".to_string()),
+    ));
 
-    let outer = FuncSource::Blend {
-        from: Box::new(FuncSource::Blend {
-            from: Box::new(circle),
-            to: Box::new(line),
-            frozen_progress: 0.4,
-        }),
-        to: Box::new(sum_src),
-        frozen_progress: 0.7,
-    };
+    let outer = blend_source(blend_source(circle, line, 0.4), sum_src, 0.7);
 
     let result = eval_implicit_source(&outer, &mut env, 0.0, 0.0);
     assert!((result - (-0.18)).abs() < 1e-9, "At (0,0): expected -0.18, got {result}");
 
     let result = eval_implicit_source(&outer, &mut env, 1.0, 1.0);
     assert!((result - 1.58).abs() < 1e-9, "At (1,1): expected 1.58, got {result}");
-}
-
-#[test]
-fn depth_4_nested_blend_parity() {
-    let env = stdlib_env();
-    let raw_const = |val: f64| {
-        FuncSource::from_expr(vec!["x".to_string()], Expr::Num(val), CapturedEnv::default())
-    };
-
-    // Build bottom-up: blend(blend(blend(blend(A, B, 0.9), C, 0.7), D, 0.5), E, 0.3)
-    let a = FuncSource::from_expr(vec!["x".to_string()], sin_x_expr(), CapturedEnv::default());
-    let stages = [
-        (
-            FuncSource::from_expr(vec!["x".to_string()], cos_x_expr(), CapturedEnv::default()),
-            0.9,
-        ),
-        (raw_const(1.0), 0.7),
-        (raw_const(2.0), 0.5),
-        (raw_const(-1.5), 0.3),
-    ];
-    let l4 = stages.into_iter().fold(a, |acc, (to, progress)| FuncSource::Blend {
-        from: Box::new(acc),
-        to: Box::new(to),
-        frozen_progress: progress,
-    });
-
-    let x = 1.0_f64;
-    let expected = 0.0105 * x.sin() + 0.0945 * x.cos() + 0.495;
-
-    let result = resolve_func_source(&l4, &env, "x", x).expect("depth-4 blend should resolve");
-    assert!((result - expected).abs() < 1e-9, "At x={x}: expected {expected}, got {result}");
-
-    let mut local_env = stdlib_env();
-    let mut cache = std::collections::HashMap::new();
-    let result2 = eval_source_scalar(&l4, &mut local_env, "x", x, &mut cache);
-    assert!(
-        (result2 - expected).abs() < 1e-9,
-        "eval_source_scalar at x={x}: expected {expected}, got {result2}"
-    );
 }
 
 #[test]

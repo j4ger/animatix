@@ -224,8 +224,6 @@ pub(crate) fn draw_vertex_handles(
     }
 }
 
-// ─── Callout Helpers ──────────────────────────────────────────────────────
-
 // ─── Callout Handles ───────────────────────────────────────────────────────
 
 /// Draw the tip and label handles for a selected Callout actor.

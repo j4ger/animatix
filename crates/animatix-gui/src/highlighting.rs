@@ -135,7 +135,6 @@ pub fn highlight_source(
         highlight_spans.push((last_end, source.len(), colors.default));
     }
 
-    // Build decoration ranges
     let mut deco_ranges: Vec<(usize, usize, Color32)> = Vec::new();
 
     // Highlighted line (timeline sync) — blue background

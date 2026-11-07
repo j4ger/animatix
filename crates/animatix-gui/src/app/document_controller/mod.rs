@@ -14,8 +14,6 @@ use crate::source_edit;
 use api::resolve_timeline_for_scene;
 pub(crate) use commit::{commit_ast, commit_ast_with_debounce};
 
-// DocumentController
-
 pub(crate) struct DocumentController<'a> {
     pub document_store: &'a mut DocumentStore,
     pub preview_store: &'a mut PreviewStore,

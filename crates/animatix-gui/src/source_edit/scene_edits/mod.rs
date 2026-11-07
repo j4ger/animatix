@@ -45,8 +45,6 @@ fn duplicate_name_in_order(order: &[String]) -> Option<String> {
     })
 }
 
-// ReorderScenes
-
 mod edit_ops;
 mod extract;
 #[cfg(test)]

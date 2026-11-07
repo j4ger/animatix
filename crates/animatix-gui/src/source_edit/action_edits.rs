@@ -227,8 +227,6 @@ fn time_to_seconds(time: &Time) -> f64 {
     }
 }
 
-// Tests
-
 #[cfg(test)]
 mod tests {
     use animatix_syntax::ast::{Expr, Modifier, Stmt, Time};

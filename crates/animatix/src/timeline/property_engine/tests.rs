@@ -238,9 +238,8 @@ fn test_write_read_roundtrip_tagged_bool() {
     );
 }
 
-/// `callout_place` used to be written twice: into the typed geometry track and
-/// into the legacy tagged map. Frame reads only consult the typed track, so the
-/// tagged copy was a second, unread track that could drift.
+/// `callout_place` writes to the typed geometry track; it must not create
+/// a duplicate untyped tagged entry that could drift.
 #[test]
 fn callout_place_writes_only_the_typed_geometry_track() {
     let mut timeline = crate::timeline::Timeline::new();

@@ -113,7 +113,7 @@ pub fn handle_open_file(
     plugin_manager: &mut DocumentPluginManager,
     path: PathBuf,
 ) -> Vec<Effect> {
-    // P0.3: Refuse to open if there are unsaved changes.
+    // Refuse to open if there are unsaved changes.
     if document_store.source.is_dirty() {
         preview_store.preview.status = "Save changes before opening another file".to_string();
         return vec![Effect::Toast(Toast::warning(

@@ -46,8 +46,6 @@ pub(crate) fn reorder_scenes(
     Ok(())
 }
 
-// SetPlayTarget
-
 pub(crate) fn set_play_target(
     stmts: &mut [Stmt],
     scene: &str,
@@ -113,8 +111,6 @@ pub(crate) fn set_play_target(
     }
 }
 
-// SetTransition
-
 pub(crate) fn set_transition(
     stmts: &mut [Stmt],
     from_scene: &str,
@@ -145,8 +141,6 @@ pub(crate) fn set_transition(
 
     Err(SourceEditError::Generic("No play statement to set transition on".to_string()))
 }
-
-// SetSceneDuration
 
 pub(crate) fn set_scene_duration(
     stmts: &mut [Stmt],
@@ -199,8 +193,6 @@ pub(crate) fn set_scene_duration(
     }
 }
 
-// RenameScene
-
 pub(crate) fn rename_scene(
     stmts: &mut [Stmt],
     old_name: &str,
@@ -249,8 +241,6 @@ fn rename_scene_in_stmt(stmt: &mut Stmt, old_name: &str, new_name: &str) -> bool
     }
     renamed
 }
-
-// AddScene / DeleteScene
 
 pub(crate) fn add_scene(stmts: &mut Vec<Stmt>, name: &str) -> Result<(), SourceEditError> {
     if stmts
@@ -360,5 +350,3 @@ pub(crate) fn delete_scene(stmts: &mut Vec<Stmt>, name: &str) -> Result<(), Sour
         })
     }
 }
-
-// Scene Refactorings

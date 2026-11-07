@@ -705,14 +705,6 @@ impl Timeline {
         let debug_options = frame.debug_options;
         let overrides = frame.overrides;
         let frame_env = frame.frame_env;
-        // The primitive is the single child-rendering entry point; the pipeline
-        // does not branch on the child-processing strategy. A primitive without
-        // a registered type renders nothing (validated at build time).
-        let Some(handle) = self.cached_primitive_for(node_id, time_ms) else {
-            return;
-        };
-        let primitive = handle.as_dyn();
-
         let child_layout_positions = if self.dynamic_layout {
             self.compute_animated_layout(node_id, time_ms)
         } else {
@@ -736,17 +728,28 @@ impl Timeline {
             program_items: &mut *out.program_items,
             filter_backend: &mut *out.filter_backend,
         };
-        let res =
-            primitive.render_children_by_id(&mut ctx, &self.world.hierarchy(node_id).children);
-        if let Err(e) = res {
-            let label = node_label.to_string();
-            self.eval_caches.runtime_diagnostics.borrow_mut().push(
-                crate::diagnostics::Diagnostic::warning(
-                    crate::diagnostics::DiagnosticCode::RenderFailure,
-                    crate::diagnostics::DiagnosticPhase::Render,
-                    format!("failed to render children of '{label}': {e}"),
-                ),
-            );
+
+        let caps = self.world.caps(node_id);
+        match caps.child_processing {
+            animatix_core::caps::ChildProcessingKind::Filter => {
+                self.render_filter_children_ctx(&mut ctx);
+            },
+            animatix_core::caps::ChildProcessingKind::Glass => {
+                self.render_glass_children_ctx(&mut ctx);
+            },
+            animatix_core::caps::ChildProcessingKind::Mask => {
+                self.render_mask_children_ctx(&mut ctx);
+            },
+            animatix_core::caps::ChildProcessingKind::Equation => {
+                self.render_equation_children_ctx(&mut ctx);
+            },
+            animatix_core::caps::ChildProcessingKind::Captions => {
+                self.render_captions_children_ctx(&mut ctx);
+            },
+            animatix_core::caps::ChildProcessingKind::Generic => {
+                let children: Vec<EntityId> = self.world.hierarchy(node_id).children.to_vec();
+                ctx.render_children_ids(&children);
+            },
         }
     }
 }

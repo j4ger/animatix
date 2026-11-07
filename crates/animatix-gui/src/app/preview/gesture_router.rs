@@ -67,7 +67,6 @@ impl GestureRouter {
             matches!(ctx.drag_state, DragState::CalloutLabel { .. } | DragState::CalloutTip { .. });
         let is_drag_started = response.drag_started();
 
-        // Build per-frame gesture frame
         let frame = GestureFrame {
             screen_pos: ui.ctx().input(|i| i.pointer.latest_pos()),
             modifiers: ui.ctx().input(|i| i.modifiers),
@@ -76,7 +75,7 @@ impl GestureRouter {
             any_released: ui.ctx().input(|i| i.pointer.any_released()),
         };
 
-        // ── Active extracted drags: route to handler ──
+        // ── Active drags: route to handler ──
         let build_drag_end = || -> Gesture {
             Gesture::End {
                 modifiers: frame.modifiers,
@@ -141,7 +140,7 @@ impl GestureRouter {
             return;
         }
 
-        // ── Drag start: try extracted start handlers in priority order ──
+        // ── Drag start: try start handlers in priority order ──
         if is_drag_started {
             ctx.selection.clear_tapped_place();
             if let Some(pos) = frame.screen_pos {

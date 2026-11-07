@@ -73,7 +73,7 @@ impl GestureHandler for MoveActorGesture {
                             .into(),
                         );
                     } else {
-                        // Layout-managed without Shift: let legacy handler handle Reorder
+                        // Layout-managed without Shift: delegate to Reorder handler
                         return GestureResult::Ignored;
                     }
                 }

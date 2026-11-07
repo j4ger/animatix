@@ -447,8 +447,6 @@ impl GuiShell {
     }
 }
 
-// Atomic source-edit helper
-
 /// Apply a source edit atomically using a trial clone.
 ///
 /// 1. Clones `stmts`.
@@ -555,8 +553,6 @@ pub(super) fn parse_gui_color(text: &str) -> Option<[f32; 4]> {
         text.to_string(),
     )))
 }
-
-// Track capability helpers (registry-driven)
 
 /// Whether the GUI may offer to nest a new actor inside `track`.
 ///

@@ -162,7 +162,7 @@ impl World {
     }
 
     /// Labels of `id`'s direct children, in authored order; the label boundary
-    /// for label-based APIs (frame paths iterate [`SceneHierarchyComponent::children`]).
+    /// for label-based APIs (frame paths iterate [`crate::timeline::world::hierarchy::SceneHierarchyComponent::children`]).
     pub fn child_labels(&self, id: EntityId) -> impl Iterator<Item = &str> {
         self.hierarchy(id).children.iter().filter_map(|child| self.label(*child))
     }

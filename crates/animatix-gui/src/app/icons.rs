@@ -24,8 +24,6 @@ pub fn actor_icon_for_track(id: EntityId, timeline: &Timeline) -> std::borrow::C
     }
 }
 
-// ── Tests ───────────────────────────────────────────────────────────────
-
 #[cfg(test)]
 mod tests {
     use animatix::primitives::primitive_catalog;

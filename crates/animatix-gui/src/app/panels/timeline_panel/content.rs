@@ -51,7 +51,7 @@ impl TimelineCoords {
     }
 }
 
-/// Helper: draw loop region overlay across the given vertical bounds.
+/// Draw loop region overlay across the given vertical bounds.
 pub(crate) fn draw_loop_region(
     p: &egui::Painter,
     y_top: f32,

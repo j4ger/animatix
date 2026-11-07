@@ -19,7 +19,6 @@ mod error;
 mod keyframe_edits;
 mod scene_edits;
 
-// Re-export public API
 pub use apply::{
     SourceEdit, apply_edit, canonical_to_source, find_actor_decl, source_to_canonical,
 };

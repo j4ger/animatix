@@ -84,7 +84,6 @@ pub fn render_performance_hud(
     let x = hud_rect.left() + 8.0;
     let line_h = 16.0;
 
-    // Helper to draw a metric row
     let draw_row =
         |painter: &egui::Painter, y: f32, label: &str, value: &str, color: egui::Color32| {
             painter.text(

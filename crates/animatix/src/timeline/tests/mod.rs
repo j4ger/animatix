@@ -3,6 +3,8 @@ use crate::ast::Property;
 
 #[cfg(test)]
 mod support;
+#[cfg(test)]
+pub(crate) use support::build_timeline;
 
 #[cfg(test)]
 mod bar_chart;

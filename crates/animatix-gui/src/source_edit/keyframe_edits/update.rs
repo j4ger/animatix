@@ -49,8 +49,6 @@ fn with_keyframe_block<T>(
     Err(keyframe_not_found(actor, property, time_s))
 }
 
-// SetKeyframeValue
-
 /// Replace the RHS of `actor.property` inside the keyframe block at `time_s`.
 ///
 /// This is an exact edit: it does not insert, move, or merge any keyframe. It
@@ -125,8 +123,6 @@ fn update_assignment(
         property: property.to_string(),
     })
 }
-
-// SetKeyframeEasing
 
 pub(crate) fn set_keyframe_easing(
     stmts: &mut Vec<Stmt>,
