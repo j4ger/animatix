@@ -23,6 +23,16 @@ pub use diagnostics::OutputFormat;
 use extensions::{CliExtensions, load_cli_extensions};
 use review::types::{Detail, FailOn, RenderMode};
 
+#[derive(clap::Args, Debug, Clone)]
+struct SetArgs {
+    /// Override a build-time variable: `--set NAME=VALUE` (repeatable).
+    ///
+    /// The value is parsed as an Animatix expression, so a template's own
+    /// `let` is a default and the command line wins.
+    #[arg(long = "set", value_parser = parse_set_pair)]
+    set: Vec<(String, String)>,
+}
+
 #[derive(ClapParser, Debug)]
 #[command(author, version, about, long_about = "Animatix CLI Tool")]
 struct Args {
@@ -73,12 +83,8 @@ enum Commands {
     Image {
         /// The input Animatix scene file (.amx)
         input: PathBuf,
-        /// Override a build-time variable: `--set NAME=VALUE` (repeatable).
-        ///
-        /// The value is parsed as an Animatix expression, so a template's own
-        /// `let` is a default and the command line wins.
-        #[arg(long = "set", value_parser = parse_set_pair)]
-        set: Vec<(String, String)>,
+        #[command(flatten)]
+        set: SetArgs,
 
         /// Output image width (defaults to the file's `config { resolution: .. }`, else 1280)
         #[arg(long)]
@@ -105,9 +111,8 @@ enum Commands {
     Storyboard {
         /// The input Animatix scene file (.amx)
         input: PathBuf,
-        /// Override a build-time variable: `--set NAME=VALUE` (repeatable).
-        #[arg(long = "set", value_parser = parse_set_pair)]
-        set: Vec<(String, String)>,
+        #[command(flatten)]
+        set: SetArgs,
         /// Number of columns in the grid (default: auto, up to 4)
         #[arg(short = 'c', long)]
         cols: Option<usize>,
@@ -135,12 +140,8 @@ enum Commands {
     Video {
         /// The input Animatix scene file (.amx)
         input: PathBuf,
-        /// Override a build-time variable: `--set NAME=VALUE` (repeatable).
-        ///
-        /// The value is parsed as an Animatix expression, so a template's own
-        /// `let` is a default and the command line wins.
-        #[arg(long = "set", value_parser = parse_set_pair)]
-        set: Vec<(String, String)>,
+        #[command(flatten)]
+        set: SetArgs,
 
         /// Output video width (defaults to the file's `config { resolution: .. }`, else 1280)
         #[arg(long)]
@@ -194,12 +195,8 @@ enum Commands {
     Gif {
         /// The input Animatix scene file (.amx)
         input: PathBuf,
-        /// Override a build-time variable: `--set NAME=VALUE` (repeatable).
-        ///
-        /// The value is parsed as an Animatix expression, so a template's own
-        /// `let` is a default and the command line wins.
-        #[arg(long = "set", value_parser = parse_set_pair)]
-        set: Vec<(String, String)>,
+        #[command(flatten)]
+        set: SetArgs,
 
         /// Output GIF width (defaults to the file's `config { resolution: .. }`, else 640)
         #[arg(long)]
@@ -242,12 +239,8 @@ enum Commands {
     Check {
         /// Path to the .amx file (use "-" for stdin)
         file: String,
-        /// Override a build-time variable: `--set NAME=VALUE` (repeatable).
-        ///
-        /// The value is parsed as an Animatix expression, so a template's own
-        /// `let` is a default and the command line wins.
-        #[arg(long = "set", value_parser = parse_set_pair)]
-        set: Vec<(String, String)>,
+        #[command(flatten)]
+        set: SetArgs,
 
         /// Render one frame at time=0 to catch renderer bugs
         #[arg(long)]
@@ -266,12 +259,8 @@ enum Commands {
     Verify {
         /// Path to the .amx file
         input: PathBuf,
-        /// Override a build-time variable: `--set NAME=VALUE` (repeatable).
-        ///
-        /// The value is parsed as an Animatix expression, so a template's own
-        /// `let` is a default and the command line wins.
-        #[arg(long = "set", value_parser = parse_set_pair)]
-        set: Vec<(String, String)>,
+        #[command(flatten)]
+        set: SetArgs,
 
         /// Checks file (default: `verify.txt` in the input's directory)
         #[arg(long)]
@@ -446,7 +435,7 @@ fn dispatch(command: Commands, extensions: &CliExtensions) {
                 time,
                 output,
                 debug_bounds,
-                &set,
+                &set.set,
                 extensions,
             );
         },
@@ -480,7 +469,7 @@ fn dispatch(command: Commands, extensions: &CliExtensions) {
                 codec,
                 preset,
                 export_preset.as_deref(),
-                &set,
+                &set.set,
                 extensions,
             );
         },
@@ -510,7 +499,7 @@ fn dispatch(command: Commands, extensions: &CliExtensions) {
                 debug_bounds,
                 threads,
                 export_preset.as_deref(),
-                &set,
+                &set.set,
                 extensions,
             );
         },
@@ -528,7 +517,7 @@ fn dispatch(command: Commands, extensions: &CliExtensions) {
         } => {
             commands::storyboard::run(
                 &input,
-                &set,
+                &set.set,
                 cols,
                 tile_width,
                 tile_height,
@@ -546,7 +535,7 @@ fn dispatch(command: Commands, extensions: &CliExtensions) {
             format,
             set,
         } => {
-            commands::check::run(&file, render_smoke, &format, &set, extensions);
+            commands::check::run(&file, render_smoke, &format, &set.set, extensions);
         },
 
         Commands::Verify {
@@ -578,7 +567,7 @@ fn dispatch(command: Commands, extensions: &CliExtensions) {
                 frames_dir.as_ref(),
                 width,
                 height,
-                &set,
+                &set.set,
                 &format,
                 extensions,
             );

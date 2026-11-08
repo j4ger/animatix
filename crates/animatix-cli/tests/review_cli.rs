@@ -4,23 +4,11 @@
 use std::path::PathBuf;
 use std::process::Command;
 
+mod common;
+use common::temp_project;
+
 fn target_bin() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_animatix"))
-}
-
-fn temp_project(name: &str, source: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!(
-        "animatix-review-{name}-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|duration| duration.as_nanos())
-            .unwrap_or(0)
-    ));
-    std::fs::create_dir_all(&dir).expect("create temp project");
-    let input = dir.join("scene.amx");
-    std::fs::write(&input, source).expect("write scene");
-    input
 }
 
 fn parse_stdout_json(output: &std::process::Output) -> serde_json::Value {
