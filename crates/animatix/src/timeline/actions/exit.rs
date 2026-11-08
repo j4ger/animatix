@@ -55,48 +55,16 @@ impl BuiltinAction for FadeOut {
 
 #[cfg(test)]
 mod tests {
+    use super::super::test_support::text_decl_with;
     use super::*;
-    use crate::ast::{Action, Expr, Modifier, Property, Stmt, Time};
-
-    fn text_decl(label: &str) -> Stmt {
-        Stmt::ActorDecl {
-            is_pub: false,
-            is_anonymous: false,
-            label: label.to_string(),
-            array_index: None,
-            ty: "Text".to_string(),
-            props: vec![
-                Property {
-                    name: "text".to_string(),
-                    value: Expr::Str("Bye".to_string()),
-                    value_span: None,
-                    trailing_comment: None,
-                },
-                Property {
-                    name: "font_size".to_string(),
-                    value: Expr::Num(32.0),
-                    value_span: None,
-                    trailing_comment: None,
-                },
-                Property {
-                    name: "at".to_string(),
-                    value: Expr::Tuple(vec![Expr::Num(320.0), Expr::Num(180.0)]),
-                    value_span: None,
-                    trailing_comment: None,
-                },
-            ],
-            modifiers: vec![],
-            children: vec![],
-            span: None,
-        }
-    }
+    use crate::ast::{Action, Expr, Modifier, Stmt, Time};
 
     #[test]
     fn fade_out_animates_opacity_to_zero() {
         let ast = vec![Stmt::Keyframe {
             time: Time::Seconds(0.0),
             body: vec![
-                text_decl("headline"),
+                text_decl_with("headline", "Bye"),
                 Stmt::Action(
                     Action {
                         verb: "fade-out".to_string(),

@@ -3,6 +3,11 @@
 use crate::ast::{Expr, Property, Stmt};
 
 pub(crate) fn text_decl(label: &str) -> Stmt {
+    text_decl_with(label, "Hello")
+}
+
+/// A `Text` declaration with caller-chosen sample content (same geometry).
+pub(crate) fn text_decl_with(label: &str, text: &str) -> Stmt {
     Stmt::ActorDecl {
         is_pub: false,
         is_anonymous: false,
@@ -12,7 +17,7 @@ pub(crate) fn text_decl(label: &str) -> Stmt {
         props: vec![
             Property {
                 name: "text".to_string(),
-                value: Expr::Str("Hello".to_string()),
+                value: Expr::Str(text.to_string()),
                 value_span: None,
                 trailing_comment: None,
             },
