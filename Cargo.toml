@@ -72,15 +72,16 @@ debug = true
 # one target whose frame cost is dominated by GPU work and whose CPU share is
 # paid inside a wasm sandbox.
 #
-# `opt-level = "s"` keeps the served bundle small: it takes pkg-slim from
-# 5.42 MB to 4.73 MB. The CPU share it can slow is 0.3–0.8 ms of a 3.5–4.1 ms
-# browser frame, which is GPU-bound (docs/performance_evaluation.md §3.7).
+# `opt-level = "z"` keeps the served bundle small: pkg-slim 5.42 -> 4.18 MB,
+# pkg-assets 6.54 -> 4.99 MB, pkg-full 27.96 -> 22.36 MB. The CPU share it can
+# slow is 0.3–0.8 ms of a 3.5–4.1 ms browser frame, which is GPU-bound
+# (docs/performance_evaluation.md §3.7).
 # `lto = "fat"` + one codegen unit is what buys cross-crate inlining for the
 # engine's evaluate/encode path; an A/B of those two settings could not separate
 # frame time either, only artifact size.
 [profile.wasm-release]
 inherits = "release"
-opt-level = "s"
+opt-level = "z"
 lto = "fat"
 codegen-units = 1
 # Already the default for this target — `rustc --print cfg --target
@@ -91,10 +92,11 @@ panic = "abort"
 
 # Ship-only native profile. Kept separate from `release` so `perf-bench.sh` and
 # the profiling drivers keep an unstripped, unwind-capable binary. Measured on
-# the CLI: 54.79 MB -> 44.62 MB stripped, 21.55 MB -> 18.9 MB tar.gz.
+# the CLI: 54.79 MB unstripped -> 33.92 MB stripped at opt-level "z" (44.62 MB
+# at opt-level 3); `panic = "abort"` + symbol stripping + fat LTO.
 [profile.dist]
 inherits = "release"
-opt-level = 3
+opt-level = "z"
 lto = "fat"
 codegen-units = 1
 panic = "abort"

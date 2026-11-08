@@ -86,9 +86,9 @@ The demo pages serve the playback-only profile; build all three packages (or jus
 scripts/ensure-web-pkg.sh             # release build (or --dev for ~20s debug rebuild)
 
 # Or manual profile builds:
-scripts/build-web.sh --slim          # playback-only (~4.51 MB raw / ~1.16 MB q11 wasm)
-scripts/build-web.sh --assets        # image/SVG, no Typst (~5.36 MB raw / ~1.41 MB q11)
-scripts/build-web.sh                 # full profile  (~23.56 MB raw / ~6.61 MB q11)
+scripts/build-web.sh --slim          # playback-only (~3.99 MB raw / ~1.06 MB q11 wasm)
+scripts/build-web.sh --assets        # image/SVG, no Typst (~4.75 MB raw / ~1.29 MB q11)
+scripts/build-web.sh                 # full profile  (~21.32 MB raw / ~6.21 MB q11)
 python3 scripts/serve-web.py 8124    # serves web/ with live-reload no-cache headers
 # open http://127.0.0.1:8124/
 ```
@@ -607,8 +607,8 @@ The default build carries the full feature set (Typst rich text, raster
 decoding, SVG). `--slim` compiles those out — Text falls back to the plain fast
 path (no markup/Code highlighting/Math), image/SVG assets report diagnostics —
 and `--assets` keeps raster/SVG while dropping Typst. Current sizes are printed
-by the build script; q11 release measurements are about **23.56 MB full → 6.61 MB
-wasm brotli**, **5.36 MB assets → 1.41 MB q11**, and **4.51 MB slim → 1.16 MB
+by the build script; q11 release measurements are about **21.32 MB full → 6.21 MB
+wasm brotli**, **4.75 MB assets → 1.29 MB q11**, and **3.99 MB slim → 1.06 MB
 q11**, before the external font pack (2.06 MB gzip across all profiles).
 
 ```bash
