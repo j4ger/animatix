@@ -73,74 +73,43 @@ impl SavedShortcut {
     }
 }
 
+const SAVED_KEYS: &[(egui::Key, &str)] = &[
+    (egui::Key::A, "A"),
+    (egui::Key::C, "C"),
+    (egui::Key::D, "D"),
+    (egui::Key::E, "E"),
+    (egui::Key::F, "F"),
+    (egui::Key::G, "G"),
+    (egui::Key::I, "I"),
+    (egui::Key::M, "M"),
+    (egui::Key::P, "P"),
+    (egui::Key::R, "R"),
+    (egui::Key::S, "S"),
+    (egui::Key::V, "V"),
+    (egui::Key::Y, "Y"),
+    (egui::Key::Z, "Z"),
+    (egui::Key::Num1, "1"),
+    (egui::Key::Num2, "2"),
+    (egui::Key::Num3, "3"),
+    (egui::Key::Space, "Space"),
+    (egui::Key::Comma, ","),
+    (egui::Key::Period, "."),
+    (egui::Key::Slash, "/"),
+    (egui::Key::Delete, "Delete"),
+    (egui::Key::Backspace, "Backspace"),
+    (egui::Key::Escape, "Escape"),
+    (egui::Key::ArrowLeft, "ArrowLeft"),
+    (egui::Key::ArrowRight, "ArrowRight"),
+    (egui::Key::ArrowUp, "ArrowUp"),
+    (egui::Key::ArrowDown, "ArrowDown"),
+];
+
 fn saved_key_name(key: &egui::Key) -> Option<&'static str> {
-    use egui::Key::*;
-    Some(match key {
-        A => "A",
-        C => "C",
-        D => "D",
-        E => "E",
-        F => "F",
-        G => "G",
-        I => "I",
-        M => "M",
-        P => "P",
-        R => "R",
-        S => "S",
-        V => "V",
-        Y => "Y",
-        Z => "Z",
-        Num1 => "1",
-        Num2 => "2",
-        Num3 => "3",
-        Space => "Space",
-        Comma => ",",
-        Period => ".",
-        Slash => "/",
-        Delete => "Delete",
-        Backspace => "Backspace",
-        Escape => "Escape",
-        ArrowLeft => "ArrowLeft",
-        ArrowRight => "ArrowRight",
-        ArrowUp => "ArrowUp",
-        ArrowDown => "ArrowDown",
-        _ => return None,
-    })
+    SAVED_KEYS.iter().find_map(|(k, name)| (k == key).then_some(*name))
 }
 
 fn parse_saved_key(key: &str) -> Option<egui::Key> {
-    use egui::Key::*;
-    Some(match key {
-        "A" => A,
-        "C" => C,
-        "D" => D,
-        "E" => E,
-        "F" => F,
-        "G" => G,
-        "I" => I,
-        "M" => M,
-        "P" => P,
-        "R" => R,
-        "S" => S,
-        "V" => V,
-        "Y" => Y,
-        "Z" => Z,
-        "1" => Num1,
-        "2" => Num2,
-        "3" => Num3,
-        "Space" => Space,
-        "," => Comma,
-        "." => Period,
-        "/" => Slash,
-        "Delete" => Delete,
-        "Backspace" => Backspace,
-        "Escape" => Escape,
-        "ArrowLeft" => ArrowLeft,
-        "ArrowRight" => ArrowRight,
-        "ArrowUp" => ArrowUp,
-        "ArrowDown" => ArrowDown,
-        _ => return None,
-    })
+    SAVED_KEYS.iter().find_map(|(k, name)| (*name == key).then_some(*k))
 }
 
 pub(super) fn shortcut_hint_text(shortcut: &KeyboardShortcut) -> String {

@@ -230,36 +230,7 @@ impl PreviewSurface {
             .render_texture
             .as_ref()
             .ok_or_else(|| "Preview render texture is not initialized".to_string())?;
-        let sample_texture = self
-            .sample_texture
-            .as_ref()
-            .ok_or_else(|| "Preview sample texture is not initialized".to_string())?;
-
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("Animatix Egui Preview Copy Encoder"),
-        });
-        encoder.copy_texture_to_texture(
-            wgpu::TexelCopyTextureInfo {
-                texture: render_texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::TexelCopyTextureInfo {
-                texture: sample_texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-                aspect: wgpu::TextureAspect::All,
-            },
-            wgpu::Extent3d {
-                width: self.dimensions.width,
-                height: self.dimensions.height,
-                depth_or_array_layers: 1,
-            },
-        );
-        queue.submit(std::iter::once(encoder.finish()));
-
-        Ok(())
+        self.copy_texture_to_sample(device, queue, render_texture)
     }
 
     fn copy_texture_to_sample(
