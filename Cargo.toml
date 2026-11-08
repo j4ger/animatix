@@ -72,13 +72,15 @@ debug = true
 # one target whose frame cost is dominated by GPU work and whose CPU share is
 # paid inside a wasm sandbox.
 #
+# `opt-level = "s"` keeps the served bundle small: it takes pkg-slim from
+# 5.42 MB to 4.73 MB. The CPU share it can slow is 0.3–0.8 ms of a 3.5–4.1 ms
+# browser frame, which is GPU-bound (docs/performance_evaluation.md §3.7).
 # `lto = "fat"` + one codegen unit is what buys cross-crate inlining for the
-# engine's evaluate/encode path. Measured effect is on artifact size, not frame
-# time: the browser frame is GPU-bound and an A/B of the two builds could not
-# separate them (docs/performance_evaluation.md §3.7).
+# engine's evaluate/encode path; an A/B of those two settings could not separate
+# frame time either, only artifact size.
 [profile.wasm-release]
 inherits = "release"
-opt-level = 3
+opt-level = "s"
 lto = "fat"
 codegen-units = 1
 # Already the default for this target — `rustc --print cfg --target
