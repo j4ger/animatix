@@ -53,20 +53,13 @@ fn edit_distance(a: &str, b: &str, cap: usize) -> usize {
     prev[b.len()]
 }
 
-/// Suggest declared label names close to `misspelled`.
-///
-/// Only names present in the symbol table are considered, so every suggestion
-/// is a name that actually exists in this file (or its imports). Results are
-/// sorted by distance then name, and capped at `limit`.
-pub fn suggest_label_names(
-    symbols: &SymbolTable,
+fn suggest<'a>(
+    names: impl Iterator<Item = &'a String>,
     misspelled: &str,
     limit: usize,
 ) -> Vec<SpellingCandidate> {
     let cap = max_distance_for(misspelled.chars().count());
-    let mut candidates: Vec<SpellingCandidate> = symbols
-        .labels
-        .keys()
+    let mut candidates: Vec<SpellingCandidate> = names
         .filter(|name| name.as_str() != misspelled)
         .filter_map(|name| {
             let distance = edit_distance(misspelled, name, cap);
@@ -81,28 +74,26 @@ pub fn suggest_label_names(
     candidates
 }
 
+/// Suggest declared label names close to `misspelled`.
+///
+/// Only names present in the symbol table are considered, so every suggestion
+/// is a name that actually exists in this file (or its imports). Results are
+/// sorted by distance then name, and capped at `limit`.
+pub fn suggest_label_names(
+    symbols: &SymbolTable,
+    misspelled: &str,
+    limit: usize,
+) -> Vec<SpellingCandidate> {
+    suggest(symbols.labels.keys(), misspelled, limit)
+}
+
 /// Suggest action verbs close to `misspelled`.
 pub fn suggest_action_names(
     symbols: &SymbolTable,
     misspelled: &str,
     limit: usize,
 ) -> Vec<SpellingCandidate> {
-    let cap = max_distance_for(misspelled.chars().count());
-    let mut candidates: Vec<SpellingCandidate> = symbols
-        .actions
-        .iter()
-        .filter(|name| name.as_str() != misspelled)
-        .filter_map(|name| {
-            let distance = edit_distance(misspelled, name, cap);
-            (distance <= cap).then(|| SpellingCandidate {
-                name: name.clone(),
-                distance,
-            })
-        })
-        .collect();
-    candidates.sort_by(|a, b| a.distance.cmp(&b.distance).then_with(|| a.name.cmp(&b.name)));
-    candidates.truncate(limit);
-    candidates
+    suggest(symbols.actions.iter(), misspelled, limit)
 }
 
 /// True when `byte` sits at top level (outside every brace/paren block).

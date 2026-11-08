@@ -10,10 +10,8 @@ pub struct SceneImage {
     pub natural_size: [f32; 2],
 }
 
-/// Load an image from disk into a `SceneImage`.
 #[cfg(feature = "image-decode")]
-pub fn load_image(path: &str) -> Result<SceneImage, String> {
-    let image = image::open(path).map_err(|error| error.to_string())?;
+fn scene_image(image: image::DynamicImage) -> SceneImage {
     let (width, height) = image.dimensions();
     let rgba = image.to_rgba8();
     let raw = rgba.into_raw();
@@ -26,10 +24,17 @@ pub fn load_image(path: &str) -> Result<SceneImage, String> {
         height,
     };
 
-    Ok(SceneImage {
+    SceneImage {
         data,
         natural_size: [width as f32, height as f32],
-    })
+    }
+}
+
+/// Load an image from disk into a `SceneImage`.
+#[cfg(feature = "image-decode")]
+pub fn load_image(path: &str) -> Result<SceneImage, String> {
+    let image = image::open(path).map_err(|error| error.to_string())?;
+    Ok(scene_image(image))
 }
 
 /// Alias for load_image to match the naming convention used in assets.rs
@@ -43,20 +48,5 @@ pub fn load_image_file(path: &str) -> Result<SceneImage, String> {
 #[cfg(feature = "image-decode")]
 pub fn load_image_from_bytes(bytes: &[u8]) -> Result<SceneImage, String> {
     let image = image::load_from_memory(bytes).map_err(|error| error.to_string())?;
-    let (width, height) = image.dimensions();
-    let rgba = image.to_rgba8();
-    let raw = rgba.into_raw();
-
-    let data = vello::peniko::ImageData {
-        data: raw.into(),
-        format: vello::peniko::ImageFormat::Rgba8,
-        alpha_type: vello::peniko::ImageAlphaType::Alpha,
-        width,
-        height,
-    };
-
-    Ok(SceneImage {
-        data,
-        natural_size: [width as f32, height as f32],
-    })
+    Ok(scene_image(image))
 }

@@ -343,33 +343,8 @@ impl<T: Clone> Keyframes<T> {
     /// - Two: direct single-condition check (no search loop or tree traversal)
     /// - Many: binary search partition_point
     pub fn interpolation_segment(&self, time_ms: u64) -> Option<(u64, &T, &T, f32, &Easing)> {
-        match self {
-            Self::Empty | Self::One(_) => None,
-            Self::Two([k0, k1]) => {
-                if time_ms <= k0.time_ms || time_ms > k1.time_ms {
-                    return None;
-                }
-                let duration = (k1.time_ms - k0.time_ms) as f32;
-                let elapsed = (time_ms - k0.time_ms) as f32;
-                let progress = elapsed / duration;
-                Some((k1.time_ms, &k0.payload.0, &k1.payload.0, progress, &k1.payload.1))
-            },
-            Self::Many(v) => {
-                if v.is_empty() || time_ms <= v[0].time_ms {
-                    return None;
-                }
-                let idx = v.partition_point(|k| k.time_ms < time_ms);
-                if idx >= v.len() {
-                    return None;
-                }
-                let prev = &v[idx - 1];
-                let found = &v[idx];
-                let duration = (found.time_ms - prev.time_ms) as f32;
-                let elapsed = (time_ms - prev.time_ms) as f32;
-                let progress = elapsed / duration;
-                Some((found.time_ms, &prev.payload.0, &found.payload.0, progress, &found.payload.1))
-            },
-        }
+        self.interpolation_segment_with_duration(time_ms)
+            .map(|(time, v0, v1, prog, _dur, easing)| (time, v0, v1, prog, easing))
     }
 
     /// Returns the interpolation segment along with the segment duration.

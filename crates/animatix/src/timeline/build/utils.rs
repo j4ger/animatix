@@ -34,7 +34,7 @@ impl ScaleType {
 /// * `Log` — logarithmic normalization; returns `0.5` if any input is ≤ 0.
 /// * `Linear` — linear normalization.
 #[inline]
-fn normalize(v: f64, min: f64, max: f64, scale: ScaleType) -> f64 {
+pub(crate) fn normalize(v: f64, min: f64, max: f64, scale: ScaleType) -> f64 {
     if scale.is_log() {
         if v <= 0.0 || min <= 0.0 || max <= 0.0 {
             return 0.5;

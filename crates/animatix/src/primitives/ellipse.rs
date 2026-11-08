@@ -24,11 +24,7 @@ impl Primitive for EllipsePrimitive {
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {
-        vec![
-            Property::new("at", Expr::Tuple(vec![Expr::Num(960.0), Expr::Num(540.0)])),
-            Property::new("size", Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(80.0)])),
-            Property::new("color", Expr::Ident("accent.primary".into())),
-        ]
+        crate::primitives::shape_default_props()
     }
 
     fn apply_defaults(&self, _state: &mut VectorShapeState) {

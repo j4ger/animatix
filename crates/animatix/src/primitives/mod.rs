@@ -356,5 +356,7 @@ pub static BUILT_INS: &[BuiltIn] = &[
 
 pub use animatix_std::PrimitiveInfo;
 
+pub(crate) use impls::{media_default_props, shape_default_props, text_default_props};
+
 #[cfg(test)]
 mod tests;

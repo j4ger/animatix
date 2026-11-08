@@ -35,15 +35,7 @@ pub(super) fn normalize_axis(
     max: f64,
     scale: super::super::utils::ScaleType,
 ) -> f64 {
-    if scale.is_log() {
-        if v <= 0.0 || min <= 0.0 || max <= 0.0 {
-            return 0.5;
-        }
-        (v.ln() - min.ln()) / (max.ln() - min.ln())
-    } else {
-        let range = max - min;
-        if range != 0.0 { (v - min) / range } else { 0.5 }
-    }
+    crate::timeline::build::utils::normalize(v, min, max, scale)
 }
 
 /// Helper to compute "nice numbers" for linear axis tick intervals (Wilkinson/Heckbert style).

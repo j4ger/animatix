@@ -47,16 +47,6 @@ impl Primitive for TypstPrimitive {
     }
 
     fn default_props(&self, scene: &SceneDimensions) -> Vec<Property> {
-        vec![
-            Property::new(
-                "at",
-                Expr::Tuple(vec![
-                    Expr::Num(scene.width as f64 / 2.0),
-                    Expr::Num(scene.height as f64 / 2.0),
-                ]),
-            ),
-            Property::new("text", Expr::Str("*bold* and _italic_".into())),
-            Property::new("font_size", Expr::Num(48.0)),
-        ]
+        crate::primitives::text_default_props(scene, "*bold* and _italic_")
     }
 }

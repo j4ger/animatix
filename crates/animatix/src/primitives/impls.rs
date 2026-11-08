@@ -78,3 +78,51 @@ fn builtin_primitive_registry() -> &'static PrimitiveRegistry {
     static REGISTRY: OnceLock<PrimitiveRegistry> = OnceLock::new();
     REGISTRY.get_or_init(PrimitiveRegistry::new)
 }
+
+/// Default properties shared by path-referencing media primitives (`Image`, `Svg`).
+pub(crate) fn media_default_props(
+    scene: &crate::timeline::SceneDimensions,
+) -> Vec<crate::ast::Property> {
+    use crate::ast::{Expr, Property};
+    vec![
+        Property::new(
+            "at",
+            Expr::Tuple(vec![
+                Expr::Num(scene.width as f64 / 2.0),
+                Expr::Num(scene.height as f64 / 2.0),
+            ]),
+        ),
+        Property::new("url", Expr::Str(String::new())),
+        Property::new("size", Expr::Tuple(vec![Expr::Num(240.0), Expr::Num(160.0)])),
+    ]
+}
+
+/// Default properties shared by the basic vector shapes (`Rect`, `Ellipse`).
+pub(crate) fn shape_default_props() -> Vec<crate::ast::Property> {
+    use crate::ast::{Expr, Property};
+    vec![
+        Property::new("at", Expr::Tuple(vec![Expr::Num(960.0), Expr::Num(540.0)])),
+        Property::new("size", Expr::Tuple(vec![Expr::Num(120.0), Expr::Num(80.0)])),
+        Property::new("color", Expr::Ident("accent.primary".into())),
+    ]
+}
+
+/// Default properties shared by the text-rendering primitives; `text` is the
+/// per-kind sample content (`Text`, `Math` and `Typst` differ only in it).
+pub(crate) fn text_default_props(
+    scene: &crate::timeline::SceneDimensions,
+    text: &str,
+) -> Vec<crate::ast::Property> {
+    use crate::ast::{Expr, Property};
+    vec![
+        Property::new(
+            "at",
+            Expr::Tuple(vec![
+                Expr::Num(scene.width as f64 / 2.0),
+                Expr::Num(scene.height as f64 / 2.0),
+            ]),
+        ),
+        Property::new("text", Expr::Str(text.into())),
+        Property::new("font_size", Expr::Num(48.0)),
+    ]
+}

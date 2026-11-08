@@ -88,6 +88,27 @@ fn eval_vec2_field_source(source: &FuncSource, env: &mut Environment, x: f64, y:
     }
 }
 
+fn resolve_slots(
+    names: &[&str],
+    y_slot: Option<usize>,
+    env: &Environment,
+    captures: &crate::timeline::env::CapturedEnv,
+) -> Option<Vec<f64>> {
+    let mut slots = Vec::with_capacity(names.len());
+    for (idx, name) in names.iter().enumerate() {
+        if Some(idx) == y_slot {
+            slots.push(0.0);
+        } else if let Some(Value::Num(n)) = env.get_path(name) {
+            slots.push(n);
+        } else if let Some(Value::Num(n)) = captures.0.get(*name) {
+            slots.push(*n);
+        } else {
+            return None;
+        }
+    }
+    Some(slots)
+}
+
 /// A blend-flattened scalar field compiled to unboxed `FastScalarExpr` leaves.
 struct FastScalarField {
     leaves: Vec<FastScalarLeaf>,
@@ -112,18 +133,7 @@ impl FastScalarField {
             let mut names = Vec::new();
             let expr = compile_fast_scalar(body, x_name, &mut names)?;
             let y_slot = names.iter().position(|n| *n == y_name);
-            let mut slots = Vec::with_capacity(names.len());
-            for (idx, name) in names.iter().enumerate() {
-                if Some(idx) == y_slot {
-                    slots.push(0.0);
-                } else if let Some(Value::Num(n)) = env.get_path(name) {
-                    slots.push(n);
-                } else if let Some(Value::Num(n)) = captures.0.get(*name) {
-                    slots.push(*n);
-                } else {
-                    return None;
-                }
-            }
+            let slots = resolve_slots(&names, y_slot, env, captures)?;
             leaves.push(FastScalarLeaf {
                 weight,
                 expr,
@@ -171,18 +181,7 @@ impl FastVectorField {
             let mut names = Vec::new();
             let (x_expr, y_expr) = compile_fast_vec2(body, x_name, &mut names)?;
             let y_slot = names.iter().position(|n| *n == y_name);
-            let mut slots = Vec::with_capacity(names.len());
-            for (idx, name) in names.iter().enumerate() {
-                if Some(idx) == y_slot {
-                    slots.push(0.0);
-                } else if let Some(Value::Num(n)) = env.get_path(name) {
-                    slots.push(n);
-                } else if let Some(Value::Num(n)) = captures.0.get(*name) {
-                    slots.push(*n);
-                } else {
-                    return None;
-                }
-            }
+            let slots = resolve_slots(&names, y_slot, env, captures)?;
             leaves.push(FastVectorLeaf {
                 weight,
                 x_expr,

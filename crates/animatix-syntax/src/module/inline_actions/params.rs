@@ -9,6 +9,37 @@ pub(super) fn let_stmt(name: &str, value: Expr) -> Stmt {
     }
 }
 
+pub(super) fn for_each_child_body(stmt: &Stmt, mut f: impl FnMut(&[Stmt])) {
+    match stmt {
+        Stmt::Conditional {
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            f(then_branch);
+            if let Some(eb) = else_branch {
+                f(eb);
+            }
+        },
+        Stmt::Match { arms, .. } => {
+            for (_, body) in arms {
+                f(body);
+            }
+        },
+        Stmt::Keyframe { body, .. }
+        | Stmt::RelativeKeyframe { body, .. }
+        | Stmt::Sequence { body, .. }
+        | Stmt::Stagger { body, .. }
+        | Stmt::Always { body, .. }
+        | Stmt::ForLoop { body, .. }
+        | Stmt::Block { body, .. }
+        | Stmt::FnDecl { body, .. } => {
+            f(body);
+        },
+        _ => {},
+    }
+}
+
 /// Find parameters used as whole action/assignment targets (actor labels).
 pub(super) fn collect_label_params(
     body: &[Stmt],
@@ -75,31 +106,18 @@ pub(super) fn forwards_to_label_param(
                 }
                 false
             },
-            Stmt::Conditional {
-                then_branch,
-                else_branch,
-                ..
-            } => {
-                then_branch.iter().any(|s| walk(s, param, callee_label_positions))
-                    || else_branch
-                        .as_ref()
-                        .is_some_and(|eb| eb.iter().any(|s| walk(s, param, callee_label_positions)))
+            // `direct_label_params` deliberately does not descend into scenes,
+            // so `Scene` stays explicit here rather than in the shared walker.
+            Stmt::Scene { body, .. } => body.iter().any(|s| walk(s, param, callee_label_positions)),
+            _ => {
+                let mut found = false;
+                for_each_child_body(stmt, |body| {
+                    if body.iter().any(|s| walk(s, param, callee_label_positions)) {
+                        found = true;
+                    }
+                });
+                found
             },
-            Stmt::Match { arms, .. } => arms
-                .iter()
-                .any(|(_, arm)| arm.iter().any(|s| walk(s, param, callee_label_positions))),
-            Stmt::ForLoop { body, .. }
-            | Stmt::Block { body, .. }
-            | Stmt::Keyframe { body, .. }
-            | Stmt::RelativeKeyframe { body, .. }
-            | Stmt::Sequence { body, .. }
-            | Stmt::Stagger { body, .. }
-            | Stmt::Always { body, .. }
-            | Stmt::FnDecl { body, .. }
-            | Stmt::Scene { body, .. } => {
-                body.iter().any(|s| walk(s, param, callee_label_positions))
-            },
-            _ => false,
         }
     }
     body.iter().any(|s| walk(s, param, callee_label_positions))
@@ -135,40 +153,13 @@ pub(super) fn direct_label_params(
                     }
                 }
             },
-            Stmt::Keyframe { body, .. }
-            | Stmt::RelativeKeyframe { body, .. }
-            | Stmt::Sequence { body, .. }
-            | Stmt::Stagger { body, .. }
-            | Stmt::Always { body, .. }
-            | Stmt::ForLoop { body, .. }
-            | Stmt::Block { body, .. }
-            | Stmt::FnDecl { body, .. } => {
-                for s in body {
-                    walk(s, labels, values);
-                }
-            },
-            Stmt::Conditional {
-                then_branch,
-                else_branch,
-                ..
-            } => {
-                for s in then_branch {
-                    walk(s, labels, values);
-                }
-                if let Some(eb) = else_branch {
-                    for s in eb {
-                        walk(s, labels, values);
-                    }
-                }
-            },
-            Stmt::Match { arms, .. } => {
-                for (_, body) in arms {
+            _ => {
+                for_each_child_body(stmt, |body| {
                     for s in body {
                         walk(s, labels, values);
                     }
-                }
+                });
             },
-            _ => {},
         }
     }
     for stmt in body {

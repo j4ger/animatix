@@ -11,6 +11,7 @@ use animatix_plugin_api::{
     NativePrimitive, NativePropertyDescriptor, NativeValue,
 };
 
+use super::hosts::define_native_get_service;
 use super::{
     NativeActionAdapter, NativePrimitiveAdapter, NativeValueArena, native_property_kind,
     native_to_value, parse_native_type, read_c_string, value_to_native,
@@ -88,26 +89,7 @@ pub(crate) unsafe extern "C" fn native_function_get_env(
     NATIVE_STATUS_OK
 }
 
-pub(crate) unsafe extern "C" fn native_function_get_service(
-    host: *mut c_void,
-    name: *const c_char,
-    out: *mut usize,
-) -> i32 {
-    let Some(host) = (unsafe { (host as *mut NativeFunctionHost).as_ref() }) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(name) = (unsafe { read_c_string(name) }) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(value) = host.service_values.get(&name) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    if out.is_null() {
-        return NATIVE_STATUS_TYPE_ERROR;
-    }
-    unsafe { *out = *value };
-    NATIVE_STATUS_OK
-}
+define_native_get_service!(native_function_get_service, NativeFunctionHost);
 
 pub(crate) unsafe extern "C" fn native_register_property(
     host: *mut c_void,

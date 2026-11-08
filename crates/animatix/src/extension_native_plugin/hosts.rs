@@ -108,26 +108,35 @@ pub(crate) unsafe extern "C" fn native_get_property(
     NATIVE_STATUS_OK
 }
 
-pub(crate) unsafe extern "C" fn native_get_service(
-    host: *mut c_void,
-    name: *const c_char,
-    out: *mut usize,
-) -> i32 {
-    let Some(host) = (unsafe { (host as *mut NativePrimitiveEvaluateHost).as_ref() }) else {
-        return NATIVE_STATUS_TYPE_ERROR;
+macro_rules! define_native_get_service {
+    ($name:ident, $host_type:ty) => {
+        pub(crate) unsafe extern "C" fn $name(
+            host: *mut std::ffi::c_void,
+            name: *const std::ffi::c_char,
+            out: *mut usize,
+        ) -> i32 {
+            let Some(host) = (unsafe { (host as *mut $host_type).as_ref() }) else {
+                return NATIVE_STATUS_TYPE_ERROR;
+            };
+            let Some(name) = (unsafe { read_c_string(name) }) else {
+                return NATIVE_STATUS_TYPE_ERROR;
+            };
+            let Some(value) = host.service_values.get(&name) else {
+                return NATIVE_STATUS_TYPE_ERROR;
+            };
+            if out.is_null() {
+                return NATIVE_STATUS_TYPE_ERROR;
+            }
+            unsafe { *out = *value };
+            NATIVE_STATUS_OK
+        }
     };
-    let Some(name) = (unsafe { read_c_string(name) }) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(value) = host.service_values.get(&name) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    if out.is_null() {
-        return NATIVE_STATUS_TYPE_ERROR;
-    }
-    unsafe { *out = *value };
-    NATIVE_STATUS_OK
 }
+
+// Shared with `registration.rs` so the host pointer/null/string protocol has one definition.
+pub(crate) use define_native_get_service;
+
+define_native_get_service!(native_get_service, NativePrimitiveEvaluateHost);
 
 pub(crate) unsafe extern "C" fn native_append_path(
     host: *mut c_void,
@@ -687,23 +696,4 @@ pub(crate) unsafe extern "C" fn native_action_write_keyframe(
     NATIVE_STATUS_OK
 }
 
-pub(crate) unsafe extern "C" fn native_action_get_service(
-    host: *mut c_void,
-    name: *const c_char,
-    out: *mut usize,
-) -> i32 {
-    let Some(host) = (unsafe { (host as *mut NativeActionHost).as_ref() }) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(name) = (unsafe { read_c_string(name) }) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    let Some(value) = host.service_values.get(&name) else {
-        return NATIVE_STATUS_TYPE_ERROR;
-    };
-    if out.is_null() {
-        return NATIVE_STATUS_TYPE_ERROR;
-    }
-    unsafe { *out = *value };
-    NATIVE_STATUS_OK
-}
+define_native_get_service!(native_action_get_service, NativeActionHost);
