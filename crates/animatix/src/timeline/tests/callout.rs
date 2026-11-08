@@ -297,10 +297,19 @@ no_label: Callout, from: (0, 0), to: (100, 0)
     let _scene = timeline.evaluate(0.0, dims);
 }
 
+fn assert_target_assignment(source: &str, start: &str, end: &str) {
+    let timeline = build(source).output;
+    let note = timeline.get_entity_id("note").expect("note track should exist");
+    let geometry = timeline.world.geometry(note);
+    assert_eq!(geometry.callout_target.get(0, String::new()), start);
+    assert_eq!(geometry.callout_target.get(1000, String::new()), end);
+}
+
 #[test]
-fn test_callout_target_assignment_accepts_bare_actor_label() {
-    let timeline = build(
-        r#"
+fn test_callout_target_assignment() {
+    for (source, start, end) in [
+        (
+            r#"
 config { colorscheme: "editorial-dark" }
 #0s
 box1: Rect, at: (200, 100), size: (80, 40)
@@ -310,18 +319,11 @@ note: Callout, target: box1, place: right, standoff: 40, label: "key"
 #1s
 note.target = box2
 "#,
-    )
-    .output;
-    let note = timeline.get_entity_id("note").expect("note track should exist");
-    let geometry = timeline.world.geometry(note);
-    assert_eq!(geometry.callout_target.get(0, String::new()), "box1");
-    assert_eq!(geometry.callout_target.get(1000, String::new()), "box2");
-}
-
-#[test]
-fn test_callout_target_accepts_array_actor_refs() {
-    let timeline = build(
-        r#"
+            "box1",
+            "box2",
+        ),
+        (
+            r#"
 config { colorscheme: "editorial-dark" }
 #0s
 bar__0: Rect, at: (200, 100), size: (80, 40)
@@ -331,12 +333,12 @@ note: Callout, target: bar[0], place: right, standoff: 40, label: "key"
 #1s
 note.target = bar[2]
 "#,
-    )
-    .output;
-    let note = timeline.get_entity_id("note").expect("note track should exist");
-    let geometry = timeline.world.geometry(note);
-    assert_eq!(geometry.callout_target.get(0, String::new()), "bar__0");
-    assert_eq!(geometry.callout_target.get(1000, String::new()), "bar__2");
+            "bar__0",
+            "bar__2",
+        ),
+    ] {
+        assert_target_assignment(source, start, end);
+    }
 }
 
 #[test]

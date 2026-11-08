@@ -285,6 +285,7 @@ fn test_evaluate_closure_captures_variable_at_creation_time() {
 
 #[test]
 fn test_evaluate_path_uses_flat_dotted_lookup_key() {
+    // Direct dotted lookup must still work for injected sub-keys (backward compatibility).
     let mut env = Environment::new();
     env.set("node.at.x", Value::Num(320.0));
 
@@ -852,17 +853,6 @@ fn test_object_field_read_non_object_intermediate() {
     let expr = Expr::Path(vec!["x".to_string(), "y".to_string()]);
     let result = evaluate_expr(&expr, &env);
     assert!(result.is_err(), "expected error for non-object intermediate");
-}
-
-#[test]
-fn test_path_dotted_backward_compat() {
-    // Direct dotted lookup must still work for injected sub-keys
-    let mut env = Environment::new();
-    env.set("node.at.x", Value::Num(320.0));
-
-    let expr = Expr::Path(vec!["node".to_string(), "at".to_string(), "x".to_string()]);
-    let result = evaluate_expr(&expr, &env).expect("path lookup should succeed");
-    assert_eq!(result, Value::Num(320.0));
 }
 
 #[test]

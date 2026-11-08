@@ -424,15 +424,21 @@ fn modifier_ir_executes_let_and_if() {
     assert_eq!(overrides["pulse"]["opacity"], Value::Num(0.0));
 }
 
-#[test]
-fn ir_supports_runtime_object_field_writes() {
+fn assert_object_write(target: &[&str], property: &str, mut env: Environment, read_path: &[&str]) {
     let program = always(vec![
-        assignment(static_target(&["p"]), "x", num(30.0)),
-        let_decl("q", bin(path(&["p", "x"]), BinaryOp::Add, num(1.0))),
+        assignment(static_target(target), property, num(30.0)),
+        let_decl("q", bin(path(read_path), BinaryOp::Add, num(1.0))),
     ]);
 
     let ir = lower_modifier_ir(&program).expect("lowering should succeed");
+    let mut overrides = ModifierOverrides::default();
+    execute_modifier_ir(&ir, &mut env, &mut overrides).expect("IR execution should succeed");
+    assert_eq!(env.get("q"), Some(Value::Num(31.0)));
+    assert!(overrides.is_empty(), "object writes should not create actor overrides");
+}
 
+#[test]
+fn ir_supports_runtime_object_field_writes() {
     let make_env = || {
         let mut env = Environment::new();
         env.set(
@@ -448,22 +454,11 @@ fn ir_supports_runtime_object_field_writes() {
         env
     };
 
-    let mut env = make_env();
-    let mut overrides = ModifierOverrides::default();
-    execute_modifier_ir(&ir, &mut env, &mut overrides).expect("IR execution should succeed");
-    assert_eq!(env.get("q"), Some(Value::Num(31.0)));
-    assert!(overrides.is_empty(), "object writes should not create actor overrides");
+    assert_object_write(&["p"], "x", make_env(), &["p", "x"]);
 }
 
 #[test]
 fn ir_supports_nested_object_field_writes() {
-    let program = always(vec![
-        assignment(static_target(&["p", "a"]), "b", num(30.0)),
-        let_decl("q", bin(path(&["p", "a", "b"]), BinaryOp::Add, num(1.0))),
-    ]);
-
-    let ir = lower_modifier_ir(&program).expect("lowering should succeed");
-
     let make_env = || {
         let mut env = Environment::new();
         env.set(
@@ -485,11 +480,7 @@ fn ir_supports_nested_object_field_writes() {
         env
     };
 
-    let mut env = make_env();
-    let mut overrides = ModifierOverrides::default();
-    execute_modifier_ir(&ir, &mut env, &mut overrides).expect("IR execution should succeed");
-    assert_eq!(env.get("q"), Some(Value::Num(31.0)));
-    assert!(overrides.is_empty());
+    assert_object_write(&["p", "a"], "b", make_env(), &["p", "a", "b"]);
 }
 
 #[test]

@@ -256,36 +256,21 @@ fn unhighlight_adds_opacity_keyframes() {
     );
 }
 
-#[test]
-fn exclusive_highlight_unhighlights_siblings() {
-    // Equation with f1, f2, f3 — highlight f2, check siblings get unhighlighted
+fn assert_exclusive_highlight(highlighted: &[&str]) {
     let mut ast = make_equation_with_fragments(&["f1", "f2", "f3"]);
     if let Stmt::Keyframe { body, .. } = &mut ast[0] {
-        body.push(highlight_action("highlight", &["f2"], "800ms"));
+        body.push(highlight_action("highlight", highlighted, "800ms"));
     }
 
     let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
 
-    // f2 should have 2 keyframes (0 → 1)
-    assert_eq!(
-        opacity_keyframe_count(&report, "f2"),
-        2,
-        "f2 should have 2 opacity keyframes (highlight in)"
-    );
-
-    // f1 should have 2 keyframes (current opacity at t_start → 0)
-    assert_eq!(
-        opacity_keyframe_count(&report, "f1"),
-        2,
-        "f1 should have 2 opacity keyframes (unhighlight sibling)"
-    );
-
-    // f3 should have 2 keyframes (current opacity at t_start → 0)
-    assert_eq!(
-        opacity_keyframe_count(&report, "f3"),
-        2,
-        "f3 should have 2 opacity keyframes (unhighlight sibling)"
-    );
+    for fragment in ["f1", "f2", "f3"] {
+        assert_eq!(
+            opacity_keyframe_count(&report, fragment),
+            2,
+            "{fragment} should have 2 opacity keyframes"
+        );
+    }
 
     assert!(
         report
@@ -298,43 +283,13 @@ fn exclusive_highlight_unhighlights_siblings() {
 }
 
 #[test]
+fn exclusive_highlight_unhighlights_siblings() {
+    assert_exclusive_highlight(&["f2"]);
+}
+
+#[test]
 fn multi_target_highlight_exclusive() {
-    // Equation with f1, f2, f3 — highlight f1, f2 together
-    // Both should be highlighted, f3 should be unhighlighted
-    let mut ast = make_equation_with_fragments(&["f1", "f2", "f3"]);
-    if let Stmt::Keyframe { body, .. } = &mut ast[0] {
-        body.push(highlight_action("highlight", &["f1", "f2"], "800ms"));
-    }
-
-    let report = Timeline::build_with_diagnostics(&ast, &std::collections::HashMap::new());
-
-    // f1 and f2 should be highlighted (2 keyframes each: 0 → 1)
-    assert_eq!(
-        opacity_keyframe_count(&report, "f1"),
-        2,
-        "f1 should have 2 opacity keyframes (highlight in)"
-    );
-    assert_eq!(
-        opacity_keyframe_count(&report, "f2"),
-        2,
-        "f2 should have 2 opacity keyframes (highlight in)"
-    );
-
-    // f3 should be unhighlighted (2 keyframes: current → 0)
-    assert_eq!(
-        opacity_keyframe_count(&report, "f3"),
-        2,
-        "f3 should have 2 opacity keyframes (unhighlight sibling)"
-    );
-
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .all(|d| d.severity != crate::diagnostics::DiagnosticSeverity::Error),
-        "unexpected errors: {:?}",
-        report.diagnostics
-    );
+    assert_exclusive_highlight(&["f1", "f2"]);
 }
 
 #[test]

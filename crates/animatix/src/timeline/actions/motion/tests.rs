@@ -4,16 +4,16 @@ use super::*;
 use crate::ast::{Expr, Property, Stmt, Time};
 use crate::timeline::PlacementMode;
 
-fn shift_action(target: &str, by: Expr) -> Stmt {
+fn motion_action(verb: &str, modifier: &str, target: &str, value: Expr) -> Stmt {
     Stmt::Action(
         Action {
-            verb: "shift".to_string(),
+            verb: verb.to_string(),
             targets: vec![target.to_string()],
             args: vec![],
             modifiers: vec![
                 Modifier {
-                    name: Some("by".to_string()),
-                    value: by,
+                    name: Some(modifier.to_string()),
+                    value,
                 },
                 Modifier {
                     name: None,
@@ -25,75 +25,22 @@ fn shift_action(target: &str, by: Expr) -> Stmt {
         },
         None,
     )
+}
+
+fn shift_action(target: &str, by: Expr) -> Stmt {
+    motion_action("shift", "by", target, by)
 }
 
 fn move_action(target: &str, to: Expr) -> Stmt {
-    Stmt::Action(
-        Action {
-            verb: "move".to_string(),
-            targets: vec![target.to_string()],
-            args: vec![],
-            modifiers: vec![
-                Modifier {
-                    name: Some("to".to_string()),
-                    value: to,
-                },
-                Modifier {
-                    name: None,
-                    value: Expr::Ident("1s".to_string()),
-                },
-            ],
-            byte_span: None,
-            target_index: vec![],
-        },
-        None,
-    )
+    motion_action("move", "to", target, to)
 }
 
 fn rotate_action(target: &str, by: Expr) -> Stmt {
-    Stmt::Action(
-        Action {
-            verb: "rotate".to_string(),
-            targets: vec![target.to_string()],
-            args: vec![],
-            modifiers: vec![
-                Modifier {
-                    name: Some("by".to_string()),
-                    value: by,
-                },
-                Modifier {
-                    name: None,
-                    value: Expr::Ident("1s".to_string()),
-                },
-            ],
-            byte_span: None,
-            target_index: vec![],
-        },
-        None,
-    )
+    motion_action("rotate", "by", target, by)
 }
 
 fn scale_action(target: &str, by: Expr) -> Stmt {
-    Stmt::Action(
-        Action {
-            verb: "scale".to_string(),
-            targets: vec![target.to_string()],
-            args: vec![],
-            modifiers: vec![
-                Modifier {
-                    name: Some("by".to_string()),
-                    value: by,
-                },
-                Modifier {
-                    name: None,
-                    value: Expr::Ident("1s".to_string()),
-                },
-            ],
-            byte_span: None,
-            target_index: vec![],
-        },
-        None,
-    )
+    motion_action("scale", "by", target, by)
 }
 
 #[test]

@@ -952,23 +952,16 @@ fn graph_map_inverse_registered_as_native_fn() {
 ///
 /// Assert against the environment the build actually produced: `g.size` carries
 /// the half-size track while `g_size` carries the declared full size, and the
-/// pair must agree for the round-trip to mean anything.
+/// pair must agree for the round-trip to mean anything. Includes non-zero Graph
+/// position `at: (400, 300)`.
 #[test]
-fn graph_map_inverse_round_trip() {
-    assert_map_round_trip(
-        &build("g: Graph, size: (800, 600), x_domain: (-10, 10), y_domain: (-5, 5)").output,
-    );
-}
-
-/// Round-trip with non-zero Graph position `at: (400, 300)`.
-#[test]
-fn graph_map_inverse_round_trip_with_non_zero_at() {
-    assert_map_round_trip(
-        &build(
-            "g: Graph, at: (400, 300), size: (800, 600), x_domain: (-10, 10), y_domain: (-5, 5)",
-        )
-        .output,
-    );
+fn graph_map_inverse_round_trips() {
+    for src in [
+        "g: Graph, size: (800, 600), x_domain: (-10, 10), y_domain: (-5, 5)",
+        "g: Graph, at: (400, 300), size: (800, 600), x_domain: (-10, 10), y_domain: (-5, 5)",
+    ] {
+        assert_map_round_trip(&build(src).output);
+    }
 }
 
 /// Both round-trip scenes assert against the build's real environment.
