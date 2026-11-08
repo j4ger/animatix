@@ -276,7 +276,7 @@ if let Some(mut e) = timeline.entity_mut("card") {
 | System | Location | Input |
 |---|---|---|
 | Build | `timeline/build/*` | `&mut World`, build resources, diagnostics |
-| Property write | `timeline/property_engine.rs`, `assignments/*` | `&mut World` + `EntityId` |
+| Property write | `timeline/property_engine/`, `assignments/*` | `&mut World` + `EntityId` |
 | Frame evaluation | `timeline/scene_eval/*`, `primitives/*` | `&World` + `EvalCaches` |
 | Layout | `timeline/layout.rs`, `taffy_layout.rs` | `&World` (hierarchy + container + geometry) |
 | Persistence | `timeline/persistence.rs`, `snapshot/*` | `&World` → `EntitySnapshot` |

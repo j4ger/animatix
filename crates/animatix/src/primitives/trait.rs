@@ -587,7 +587,8 @@ pub trait Primitive: Send + Sync {
 
     /// Evaluate this primitive at frame time and return render commands.
     ///
-    /// The only scene-evaluation render path (no per-type dispatch table).
+    /// Built-in primitives dispatch through `BehaviorDef` family function pointers;
+    /// this method is the extension-adapter surface for runtime-registered primitives.
     /// `Ok(Some)` is executed with the actor's local transform and inherited opacity,
     /// and records a hit region from local bounds; `Ok(None)` draws nothing and records
     /// no hit region or bounds (empty-content actors stay un-pickable, pinned by

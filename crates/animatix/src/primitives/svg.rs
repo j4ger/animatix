@@ -130,19 +130,10 @@ impl Primitive for SvgPrimitive {
     fn evaluate(
         &self,
         ctx: &crate::primitives::EvaluateCtx,
-        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+        text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
     {
-        use crate::primitives::RenderCommand;
-
-        let Some(paths) = ctx.svg_paths_at(ctx.time_ms) else {
-            return Ok(None);
-        };
-        if paths.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(vec![RenderCommand::Paths { paths }]))
-        }
+        crate::timeline::behavior::builtin::media::evaluate_svg(ctx, text_ctx)
     }
 
     fn default_props(&self, scene: &SceneDimensions) -> Vec<Property> {

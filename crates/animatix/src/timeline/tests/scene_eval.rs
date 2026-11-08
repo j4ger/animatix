@@ -735,8 +735,6 @@ box: Rect, size: (100, 100), at: (200, 200), shadow: (0, 8, 16, 2), shadow_color
 "#,
     );
     let track = timeline.world.tracks.get_id("box").expect("box track exists");
-    use crate::primitives::Primitive;
-    let primitive = crate::primitives::RECT;
     let asset_cache = crate::timeline::assets::AssetCache::default();
     let ctx = crate::primitives::EvaluateCtx {
         id: track,
@@ -761,7 +759,12 @@ box: Rect, size: (100, 100), at: (200, 200), shadow: (0, 8, 16, 2), shadow_color
         target_resolver: None,
         legend: None,
     };
-    let cmds = primitive.evaluate(&ctx, None).expect("eval success").expect("render commands");
+    let cmds = timeline
+        .behavior_for_node(track, 0)
+        .expect("rect behavior")
+        .evaluate(&ctx, None)
+        .expect("eval success")
+        .expect("render commands");
     assert_eq!(cmds.len(), 2, "Expected shadow + rect fill commands");
     match cmds[0].clone() {
         crate::primitives::RenderCommand::Shadow {

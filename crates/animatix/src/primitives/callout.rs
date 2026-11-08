@@ -1,18 +1,10 @@
 use crate::ast::{Expr, Property, array_actor_label};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::arrow::build_arrow_path;
-use crate::primitives::{
-    AssignmentCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx, evaluate_text_paths,
-    sample_shape_style,
-};
+use crate::primitives::{AssignmentCtx, EvaluateCtx, Primitive, RenderCommand, TextCompileCtx};
 use crate::renderer::error::RenderError;
-use crate::renderer::text::TextKind;
-use crate::timeline::callout_geometry::derive_callout_geometry;
 use crate::timeline::property_engine::parse_property_value;
 use crate::timeline::property_registry::ValueType;
-use crate::timeline::{
-    ActorCaps, Environment, SceneDimensions, TrackAccessor, Value, VectorShapeState, VelloPath,
-};
+use crate::timeline::{ActorCaps, Environment, SceneDimensions, Value, VectorShapeState};
 
 /// Resolve an actor reference at assignment time, including runtime indices
 /// such as `bar[i]` where `i` is bound in the evaluation environment.
@@ -106,133 +98,7 @@ impl Primitive for CalloutPrimitive {
         ctx: &EvaluateCtx,
         text_ctx: Option<&mut TextCompileCtx>,
     ) -> Result<Option<Vec<RenderCommand>>, RenderError> {
-        use crate::timeline::Value;
-
-        // Derive geometry using the shared helper (handles both manual and targeted mode).
-        let geometry = ctx.geometry;
-        let shape = ctx.shape.expect("callout has shape");
-        let geom = derive_callout_geometry(
-            geometry,
-            shape,
-            ctx.time_ms,
-            ctx.target_resolver,
-            ctx.scene_dimensions,
-        );
-        let mut from = geom.from;
-        let mut to = geom.to;
-        let mut head_size = shape.head_size.get(ctx.time_ms, 10.0);
-
-        // Warn when targeted but resolver didn't find the target.
-        let target_name = geometry.callout_target.get(ctx.time_ms, String::new());
-        if !target_name.is_empty() && ctx.target_resolver.is_none() {
-            // Build-time diagnostic (CalloutTargetNotFound) already covers this; debug only to
-            // avoid per-frame spam.
-            tracing::debug!(
-                "callout '{}': target actor '{}' not found in timeline",
-                ctx.label,
-                target_name
-            );
-        }
-
-        if let Some(overrides) = ctx.overrides {
-            if let Some(Value::Vec2(f)) = overrides.get("from") {
-                from = [f[0] as f32, f[1] as f32];
-            }
-            if let Some(Value::Vec2(t)) = overrides.get("to") {
-                to = [t[0] as f32, t[1] as f32];
-            }
-            if let Some(Value::Num(n)) = overrides.get("head_size") {
-                head_size = *n as f32;
-            }
-        }
-        let path = build_arrow_path(from, to, head_size);
-
-        // Sample style
-        let style = sample_shape_style(ctx.style, ctx.caps, ctx.time_ms, ctx.overrides);
-
-        let arrow_vello = VelloPath {
-            path: std::sync::Arc::new(path),
-            fill: Some(vello::peniko::Color::from_rgba8(
-                (style.stroke_color[0] * 255.0) as u8,
-                (style.stroke_color[1] * 255.0) as u8,
-                (style.stroke_color[2] * 255.0) as u8,
-                (style.stroke_color[3] * 255.0) as u8,
-            )),
-            stroke: crate::timeline::shapes::shape_stroke(style.stroke_color, style.stroke_width)
-                .or_else(|| {
-                    Some((
-                        vello::peniko::Color::from_rgba8(
-                            (style.stroke_color[0] * 255.0) as u8,
-                            (style.stroke_color[1] * 255.0) as u8,
-                            (style.stroke_color[2] * 255.0) as u8,
-                            (style.stroke_color[3] * 255.0) as u8,
-                        ),
-                        1.0,
-                    ))
-                }),
-            line_cap: 0,
-            line_join: 0,
-            dash_pattern: None,
-            dash_offset: 0.0,
-            fill_gradient: None,
-            stroke_gradient: None,
-        };
-
-        let mut commands = vec![RenderCommand::Paths {
-            paths: vec![arrow_vello],
-        }];
-
-        // Sample label text and position
-        let mut label_text = ctx
-            .text
-            .map(|t| t.text_content.get(ctx.time_ms, String::new()))
-            .unwrap_or_default();
-        let mut label_at = geometry.label_at.get(ctx.time_ms, [0.0, 50.0]);
-
-        if let Some(overrides) = ctx.overrides {
-            if let Some(Value::Str(s)) = overrides.get("label") {
-                label_text = s.clone();
-            }
-            if let Some(Value::Vec2(la)) = overrides.get("label_at") {
-                label_at = [la[0] as f32, la[1] as f32];
-            }
-        }
-
-        // Render label text if non-empty
-        if !label_text.is_empty() {
-            let offset_x = (to[0] + label_at[0]) as f64;
-            let offset_y = (to[1] + label_at[1]) as f64;
-
-            if let Some(text_ctx) = text_ctx {
-                // Callout labels intentionally default smaller (24pt) than the
-                // shared prose default (`renderer::text::default_font_size`),
-                // so keep the explicit size here.
-                let (paths, _) = evaluate_text_paths(ctx, text_ctx, TextKind::Text, 24.0)?;
-
-                // Translate text paths to the label position using kurbo Affine
-                let translate = kurbo::Affine::translate((offset_x, offset_y));
-                let translated_paths: Vec<crate::renderer::types::TextPath> = paths
-                    .iter()
-                    .map(|tp| {
-                        let mut p = tp.clone();
-                        p.path.apply_affine(translate);
-                        p
-                    })
-                    .collect();
-
-                if !translated_paths.is_empty() {
-                    commands.push(RenderCommand::Text {
-                        paths: std::sync::Arc::from(translated_paths.into_boxed_slice()),
-                        fill_gradient: None,
-                        clip_path: None,
-                        tint_color: None,
-                        hardware_layout: None,
-                    });
-                }
-            }
-        }
-
-        Ok(Some(commands))
+        crate::timeline::behavior::builtin::annotation::evaluate_callout(ctx, text_ctx)
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {

@@ -626,9 +626,5 @@ fn build_with_context_registers_extension_behavior_for_render_dispatch() {
         def.id,
         "entity behavior id must match the registry"
     );
-    assert!(
-        timeline.cached_primitive_for(id, 0).is_some(),
-        "the render-path primitive cache must resolve the extension actor"
-    );
     let _ = timeline.evaluate(0.0, crate::timeline::SceneDimensions::default());
 }

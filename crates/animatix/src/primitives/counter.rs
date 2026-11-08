@@ -5,17 +5,15 @@
 //! fonts do not jitter horizontally, and renders vertical rolling digits
 //! with baseline/slot clipping.
 
-use std::sync::Arc;
-
-use kurbo::{Affine, Shape as _};
+use kurbo::Affine;
 
 use crate::ast::{Expr, Property};
 use crate::diagnostics::Diagnostic;
 use crate::primitives::{AssignmentCtx, EvaluateCtx, Primitive, RenderCommand};
 use crate::renderer::error::RenderError;
 use crate::renderer::text::{TextCompileRequest, TextKind, TextStyle};
-use crate::renderer::types::{GradientSpec, TextPath};
-use crate::timeline::{ActorField, Environment, SceneDimensions, TrackAccessor};
+use crate::renderer::types::TextPath;
+use crate::timeline::{Environment, SceneDimensions};
 
 /// Prebaked data for rolling counter glyphs.
 #[derive(Clone, Debug)]
@@ -338,56 +336,9 @@ impl Primitive for CounterPrimitive {
     fn evaluate(
         &self,
         ctx: &EvaluateCtx,
-        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+        text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<RenderCommand>>, RenderError> {
-        let style = ctx.style;
-        let Some(data) = ctx.text.and_then(|t| t.counter_data.as_ref()) else {
-            return Ok(None);
-        };
-
-        let value = match ctx.read_property_value(ActorField::Tagged("value"), ctx.time_ms) {
-            Some(crate::timeline::property_engine::PropertyValue::F32(n)) => n,
-            _ => data.initial_value,
-        };
-
-        let decimals = match ctx.read_property_value(ActorField::Tagged("decimals"), ctx.time_ms) {
-            Some(crate::timeline::property_engine::PropertyValue::U32(n)) => n,
-            _ => data.decimals,
-        };
-
-        let use_comma = match ctx.read_property_value(ActorField::Tagged("comma"), ctx.time_ms) {
-            Some(crate::timeline::property_engine::PropertyValue::Bool(b)) => b,
-            _ => data.use_comma,
-        };
-
-        let (paths, clip_rect) = render_counter_columns(data, value, decimals, use_comma);
-
-        // Apply animated color if present on the track
-        let tint_color = style.color.as_ref().map(|color_track| {
-            let col = color_track.evaluate(ctx.time_ms);
-            [
-                (col[0] * 255.0) as u8,
-                (col[1] * 255.0) as u8,
-                (col[2] * 255.0) as u8,
-                (col[3] * 255.0) as u8,
-            ]
-        });
-
-        let fill_gradient = if style.fill_gradient.is_some() {
-            Some(Box::new(style.fill_gradient.get(ctx.time_ms, GradientSpec::default())))
-        } else {
-            None
-        };
-
-        let clip_path = Some(clip_rect.to_path(0.1));
-
-        Ok(Some(vec![RenderCommand::Text {
-            paths: Arc::from(paths),
-            fill_gradient,
-            clip_path,
-            tint_color,
-            hardware_layout: None,
-        }]))
+        crate::timeline::behavior::builtin::text::evaluate_counter(ctx, text_ctx)
     }
 
     fn default_props(&self, scene: &SceneDimensions) -> Vec<Property> {

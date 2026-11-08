@@ -35,11 +35,11 @@ impl Timeline {
         let half_size = self.world.geometry(node_id).size.get(time_ms, DEFAULT_LAYOUT_HALF_SIZE);
 
         // Resolve the clip geometry. A child labelled `clip_shape` defines
-        // the clip and is NOT rendered itself; its primitive supplies the
-        // geometry via `Primitive::clip_path`, so any shape (built-in or
-        // extension) works. Without one — or when the primitive has no clip
-        // geometry — the clip falls back to a rect covering the Mask's own
-        // size; the latter case warns instead of silently clipping wrong.
+        // the clip and is NOT rendered itself; its behavior supplies the
+        // geometry via `BehaviorDef::evaluate` (through `clip_path_for_child`), so
+        // any shape (built-in or extension) works. Without one — or when the
+        // behavior has no clip geometry — the clip falls back to a rect covering the
+        // Mask's own size; the latter case warns instead of silently clipping wrong.
         let clip_child_id = self
             .world
             .hierarchy(node_id)

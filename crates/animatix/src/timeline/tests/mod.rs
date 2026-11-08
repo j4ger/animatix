@@ -44,8 +44,6 @@ mod media;
 #[cfg(test)]
 mod plot_transitions;
 #[cfg(test)]
-mod primitive_handle_cache;
-#[cfg(test)]
 mod scene_eval;
 #[cfg(test)]
 mod scene_stats;

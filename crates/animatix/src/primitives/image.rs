@@ -73,30 +73,10 @@ impl Primitive for ImagePrimitive {
     fn evaluate(
         &self,
         ctx: &crate::primitives::EvaluateCtx,
-        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+        text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<crate::primitives::RenderCommand>>, crate::renderer::error::RenderError>
     {
-        use crate::primitives::RenderCommand;
-        use crate::timeline::DEFAULT_LAYOUT_HALF_SIZE;
-
-        if let Some(image) = ctx.image_track().and_then(|t| t.evaluate(ctx.time_ms)) {
-            let half_size = crate::primitives::resolve_half_size(
-                ctx.geometry.size.get(ctx.time_ms, DEFAULT_LAYOUT_HALF_SIZE),
-                ctx.overrides,
-            );
-            let natural_size = [half_size[0] * 2.0, half_size[1] * 2.0];
-            // Actor local space is centered on the position (every geometry
-            // track stores half-sizes), so shift the box back by half its
-            // display size to keep `at`/`anchor` meaning "the image is here",
-            // not "the image's top-left is here".
-            Ok(Some(vec![RenderCommand::Image {
-                image,
-                natural_size,
-                offset: [(-half_size[0]) as f64, (-half_size[1]) as f64],
-            }]))
-        } else {
-            Ok(None)
-        }
+        crate::timeline::behavior::builtin::media::evaluate_image(ctx, text_ctx)
     }
 
     fn default_props(&self, scene: &SceneDimensions) -> Vec<Property> {

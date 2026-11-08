@@ -408,8 +408,6 @@ pub(crate) struct EvalCaches {
     needs_frame_env: std::cell::Cell<Option<bool>>,
     /// Precomputed frame-env injection plan; see `timeline_impl::cache`.
     env_injection_plan: std::cell::RefCell<Option<std::sync::Arc<timeline_impl::EnvInjectionPlan>>>,
-    /// Resolved primitive handles per entity; see `timeline_impl::primitive_cache`.
-    primitive_handles: std::cell::RefCell<Vec<crate::primitives::PrimitiveCacheEntry>>,
     /// The scene's background color for this frame, sampled once and read by the
     /// primitive `EvaluateCtx` (legend label contrast).
     background_color: std::cell::Cell<[f32; 4]>,

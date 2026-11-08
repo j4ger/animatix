@@ -20,15 +20,9 @@ impl Primitive for BarChartPrimitive {
     fn evaluate(
         &self,
         ctx: &EvaluateCtx,
-        _text_ctx: Option<&mut TextCompileCtx>,
+        text_ctx: Option<&mut TextCompileCtx>,
     ) -> Result<Option<Vec<RenderCommand>>, RenderError> {
-        if ctx.vector_paths.is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(vec![RenderCommand::Paths {
-                paths: ctx.vector_paths.to_vec(),
-            }]))
-        }
+        crate::timeline::behavior::builtin::plot::evaluate_plot(ctx, text_ctx)
     }
 
     /// `data = {…}` on a `BarChart`: record the dataset pair as a transition

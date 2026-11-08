@@ -9,7 +9,7 @@
 use crate::ast::Expr;
 use crate::diagnostics::Diagnostic;
 use crate::easing::Easing;
-use crate::primitives::{AssignmentCtx, EquationFragment, EvaluateCtx, Primitive, RenderCommand};
+use crate::primitives::{AssignmentCtx, Primitive, RenderCommand};
 use crate::timeline::lookup::evaluate_expr_with_lookup_diagnostic;
 use crate::timeline::{Environment, TrackAccessor};
 
@@ -22,21 +22,6 @@ pub const FRAGMENT: FragmentPrimitive = FragmentPrimitive;
 impl Primitive for FragmentPrimitive {
     fn type_name(&self) -> &str {
         "Fragment"
-    }
-    /// A Fragment is the one built-in equation fragment: it contributes its
-    /// content and highlight state to the parent `Equation`'s document. Any
-    /// other primitive (including an extension) can opt in by overriding this.
-    fn equation_fragment(&self, ctx: &EvaluateCtx) -> Option<EquationFragment> {
-        let text = ctx.text.expect("fragment has text");
-        let highlight = ctx.highlight.expect("fragment has highlight");
-        Some(EquationFragment {
-            content: text.text_content.get(ctx.time_ms, String::new()),
-            highlight_color: highlight.highlight_color.get(ctx.time_ms, [0.3, 0.5, 1.0, 1.0]),
-            highlight_opacity: highlight.highlight_opacity.get(ctx.time_ms, 0.0),
-            highlight_padding: highlight.highlight_padding.get(ctx.time_ms, 4.0),
-            highlight_radius: highlight.highlight_radius.get(ctx.time_ms, 3.0),
-            highlight_blend: highlight.highlight_blend,
-        })
     }
 
     fn handle_assignment(

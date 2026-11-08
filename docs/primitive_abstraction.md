@@ -18,11 +18,11 @@ per-type branching in the pipeline:
 
 | Concern | Entry point | Notes |
 |---|---|---|
-| Per-actor drawing | `Primitive::evaluate()` | `scene_eval::evaluate_node` is the only draw path; the legacy manual `ActorKindId` match is gone. |
+| Per-actor drawing | `BehaviorDef` family dispatch | `scene_eval::evaluate_node` dispatches; `Primitive::evaluate` serves as the extension-adapter surface. |
 | Child rendering | `Primitive::render_children_by_id(&mut RenderChildrenCtx, &[EntityId])` | `scene_eval::render_node_children` contains no `ChildProcessing` branch; `Filter`/`Mask`/`Equation` override it. |
-| Mask clip geometry | `Primitive::clip_path(&EvaluateCtx)` | Plot geometry is excluded (`plot_geometry`); the Mask warns and falls back to a rect. |
-| Equation fragments | `Primitive::equation_fragment(&EvaluateCtx)` | No `ActorKindId::Fragment` check. |
-| Identity | `AnimationTrack::actor_type: String` | Required and registry-resolved; `kind` is derived by `set_identity` (extensions may override via `kind_id()`), with a build-time drift warning. |
+| Mask clip geometry | `BehaviorDef` family dispatch | Plot geometry excluded (`plot_geometry`); `Primitive::clip_path` serves as extension-adapter surface. |
+| Equation fragments | `BehaviorDef` family dispatch | No `ActorKindId::Fragment` check; `Primitive::equation_fragment` serves as extension-adapter surface. |
+| Identity | `AnimationTrack::actor_type: String` | Required and registry-resolved; `kind` derived by `set_identity` (extensions may override via `kind_id()`), with a build-time drift warning. |
 | Native extensions | `crates/animatix-plugin-api` + `extension_native_plugin.rs` | `repr(C)` callbacks: `build`, `evaluate`, `handle_assignment`, `finalize_container_build`, `default_props`, `default_color_key`, `clip_path`, `equation_fragment` (ABI snapshot 9). |
 
 Invariants are pinned by tests: `every_built_track_identity_is_consistent`
@@ -74,9 +74,9 @@ them without a concrete driver.
 
 | # | Gap | Evidence | Ideal |
 |---|---|---|---|
-| G1 | **Build side is not unified** — biggest asymmetry | `find_actor_kind` returns `None` for `Shape`/`Container`, so those are built inline by `process_actor_decl` (`Rect::build` is a no-op); `Text::build` delegates to `timeline::declarations_text`, plot/media similarly (`timeline/actor_kind.rs:28`, `primitives/text.rs:40`) | Each primitive's `build()` owns its logic; no central kind dispatch; shapes/containers also go through the trait. |
-| G2 | **Property system is kind-centric** | `PropertyPlan::for_actor_kind(kind)`, `Applicable::includes(kind)`, `allowed_property_indices(kind)`, `(schema.default_value)(track.kind)` (`timeline/plan.rs:108`, `property_registry.rs:1872`, `property_engine.rs:305`) | Built-in property applicability/defaults declared on the primitive; `kind` reduced to an internal cache key. |
-| G3 | **Identity is dual and not pre-resolved** | `actor_type: String` + `kind: ActorKindId` (the latter independently writable by extensions); the frame path hashes the registry per node per frame (`scene_eval.rs:740`, `primitive_registry.find(&track.actor_type)`) | One identity; build resolves the primitive handle (or an interned id) onto the track so the frame path does no lookup. |
+| G1 | **Build side is not unified** — biggest asymmetry | `find_actor_kind` returns `None` for `Shape`/`Container`, so those are built inline by `process_actor_decl` (`Rect::build` is a no-op); `Text::build` delegates to `timeline::declarations_text`, plot/media similarly (`timeline/actor_kind.rs`, `primitives/text.rs`) | Each primitive's `build()` owns its logic; no central kind dispatch; shapes/containers also go through the trait. |
+| G2 | **Property system is kind-centric** | `PropertyPlan::for_actor_kind(kind)`, `Applicable::includes(kind)`, `allowed_property_indices(kind)`, `(schema.default_value)(track.kind)` (`timeline/plan.rs`, `property_registry.rs`, `property_engine.rs`) | Built-in property applicability/defaults declared on the primitive; `kind` reduced to an internal cache key. |
+| G3 | **Identity is dual and not pre-resolved** | `actor_type: String` + `kind: ActorKindId` (the latter independently writable by extensions); the frame path resolves primitive behavior using the registry. | One identity; build resolves the behavior definition onto the track so the frame path does no lookup. The "pre-resolved primitive handle" direction was tried (old `PrimitiveHandle` cache) and removed — do not recommend re-adding it. |
 | G4 | **Overlapping taxonomies** | `ActorKindId`, `ShapeKind`, `ActorCategory`, `PrimitiveCategory` (schema), `ChildProcessing`, `PrimitiveFamily` mutually mapped and drift-pinned | One capability description per primitive; the rest derived views. |
 | G5 | **Shape semantics partly outside the trait** | `vector_shape_uses_custom_path` / `exposes_tip_size` are `ShapeType` free functions for the GUI edit-vertices layer (`timeline/shapes/mod.rs`) | Shape behaviour on the primitive (or `ShapeType` as a primitive view). |
 | G6 | **Child strategy is a closed enum** (declaration, not dispatch) | `ChildProcessing::{Generic,Filter,Mask,Equation}` is a shared-schema/ABI enum; a native plugin cannot author a fifth strategy (ABI 9 deferred) | Open strategy surface. Accepted as-is pending a real plugin need. |

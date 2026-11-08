@@ -1,15 +1,14 @@
 //! Smart orthogonal connector primitive.
 
-use std::sync::Arc;
-
 use crate::ast::{Expr, Property};
 use crate::diagnostics::Diagnostic;
-use crate::primitives::{AssignmentCtx, EvaluateCtx, Primitive, RenderCommand, sample_shape_style};
+use crate::primitives::{AssignmentCtx, EvaluateCtx, Primitive, RenderCommand};
 use crate::renderer::error::RenderError;
 use crate::timeline::callout_geometry::TargetResolver;
+use crate::timeline::property_track::TrackAccessor;
 use crate::timeline::{
     ActorCaps, ConnectorEndpoint, ConnectorRouting, Environment, SceneAnchor, SceneDimensions,
-    TrackAccessor, Value, VelloPath,
+    Value,
 };
 
 /// Helper to parse a `ConnectorEndpoint` from an expression in the build environment.
@@ -411,107 +410,9 @@ impl Primitive for ConnectorPrimitive {
     fn evaluate(
         &self,
         ctx: &EvaluateCtx,
-        _text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
+        text_ctx: Option<&mut crate::primitives::TextCompileCtx>,
     ) -> Result<Option<Vec<RenderCommand>>, RenderError> {
-        let geometry = ctx.geometry;
-        let ep_from =
-            geometry.connector_from.get(ctx.time_ms, ConnectorEndpoint::Point([0.0, 0.0]));
-        let ep_to =
-            geometry.connector_to.get(ctx.time_ms, ConnectorEndpoint::Point([100.0, 100.0]));
-        let routing = geometry.connector_routing.get(ctx.time_ms, ConnectorRouting::Elbow);
-        let mut arrow = geometry.connector_arrow.get(ctx.time_ms, true);
-        let shape = ctx.shape.expect("connector has shape");
-        let mut corner_radius = shape.corner_radius.get(ctx.time_ms, 8.0);
-        let mut head_size = shape.head_size.get(ctx.time_ms, 10.0);
-
-        if let Some(overrides) = ctx.overrides {
-            if let Some(Value::Bool(b)) = overrides.get("arrow") {
-                arrow = *b;
-            }
-            if let Some(Value::Num(n)) = overrides.get("corner_radius") {
-                corner_radius = *n as f32;
-            }
-            if let Some(Value::Num(n)) = overrides.get("head_size") {
-                head_size = *n as f32;
-            }
-        }
-
-        // Two-pass resolve: resolve start with rough target hint, then resolve end, then refine
-        // start
-        let (pos_from_init, _) = resolve_connector_endpoint(
-            &ep_from,
-            ctx.target_resolver,
-            ctx.time_ms,
-            ctx.scene_dimensions,
-            None,
-        );
-        let (pos_to, norm_to) = resolve_connector_endpoint(
-            &ep_to,
-            ctx.target_resolver,
-            ctx.time_ms,
-            ctx.scene_dimensions,
-            Some(pos_from_init),
-        );
-        let (pos_from, norm_from) = resolve_connector_endpoint(
-            &ep_from,
-            ctx.target_resolver,
-            ctx.time_ms,
-            ctx.scene_dimensions,
-            Some(pos_to),
-        );
-
-        let waypoints = route_connector(pos_from, norm_from, pos_to, norm_to, routing, 20.0);
-        let (shaft_path, arrowhead_path) =
-            build_connector_path(&waypoints, corner_radius, arrow, head_size);
-
-        let style = sample_shape_style(ctx.style, ctx.caps, ctx.time_ms, ctx.overrides);
-        let mut paths = Vec::new();
-
-        let shaft_vello = VelloPath {
-            path: Arc::new(shaft_path),
-            fill: None,
-            stroke: crate::timeline::shapes::shape_stroke(style.stroke_color, style.stroke_width)
-                .or_else(|| {
-                    Some((
-                        vello::peniko::Color::from_rgba8(
-                            (style.stroke_color[0] * 255.0) as u8,
-                            (style.stroke_color[1] * 255.0) as u8,
-                            (style.stroke_color[2] * 255.0) as u8,
-                            (style.stroke_color[3] * 255.0) as u8,
-                        ),
-                        1.5,
-                    ))
-                }),
-            line_cap: 0,
-            line_join: 0,
-            dash_pattern: None,
-            dash_offset: 0.0,
-            fill_gradient: None,
-            stroke_gradient: None,
-        };
-        paths.push(shaft_vello);
-
-        if let Some(arrow_p) = arrowhead_path {
-            let arrow_vello = VelloPath {
-                path: Arc::new(arrow_p),
-                fill: Some(vello::peniko::Color::from_rgba8(
-                    (style.stroke_color[0] * 255.0) as u8,
-                    (style.stroke_color[1] * 255.0) as u8,
-                    (style.stroke_color[2] * 255.0) as u8,
-                    (style.stroke_color[3] * 255.0) as u8,
-                )),
-                stroke: None,
-                line_cap: 0,
-                line_join: 0,
-                dash_pattern: None,
-                dash_offset: 0.0,
-                fill_gradient: None,
-                stroke_gradient: None,
-            };
-            paths.push(arrow_vello);
-        }
-
-        Ok(Some(vec![RenderCommand::Paths { paths }]))
+        crate::timeline::behavior::builtin::annotation::evaluate_connector(ctx, text_ctx)
     }
 
     fn default_props(&self, _scene: &SceneDimensions) -> Vec<Property> {

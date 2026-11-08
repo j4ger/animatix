@@ -34,44 +34,6 @@ impl RegisteredPrimitive {
     }
 }
 
-/// A resolved, cheaply-clonable handle to a registered primitive: built-ins
-/// hold a `&'static` reference, extensions an `Arc` bump. Used by the
-/// per-entity render-path cache so the hot loop stops re-scanning the
-/// registry's type-name list once per node per frame.
-#[derive(Clone)]
-#[allow(dead_code)] // Unused in favor of BehaviorDef/PrimitiveRegistry refactor
-pub(crate) enum PrimitiveHandle {
-    Registered(RegisteredPrimitive),
-    Extension(Arc<dyn Primitive>),
-}
-
-impl PrimitiveHandle {
-    #[allow(dead_code)] // Unused in favor of BehaviorDef/PrimitiveRegistry refactor
-    pub(crate) fn as_dyn(&self) -> &dyn Primitive {
-        match self {
-            Self::Registered(reg) => reg.as_ref(),
-            Self::Extension(ext) => ext.as_ref(),
-        }
-    }
-
-    #[allow(dead_code)] // Unused in favor of BehaviorDef/PrimitiveRegistry refactor
-    pub(crate) fn from_behavior(def: &crate::timeline::behavior::BehaviorDef) -> Option<Self> {
-        match &def.source {
-            crate::timeline::behavior::BehaviorSource::Family(_) => super::BUILT_INS
-                .get(def.id.index())
-                .map(|builtin| PrimitiveHandle::Registered(RegisteredPrimitive::Builtin(builtin))),
-            crate::timeline::behavior::BehaviorSource::Extension(ext) => {
-                Some(Self::Extension(ext.clone()))
-            },
-        }
-    }
-}
-
-/// One per-entity render-path cache entry: the actor type the handle was
-/// resolved from (so a re-typed entity is detected even without an
-/// invalidation) and the handle itself.
-pub(crate) type PrimitiveCacheEntry = Option<(Box<str>, PrimitiveHandle)>;
-
 /// A registry that stores built-in and extension primitives in one list.
 #[derive(Clone, Default)]
 pub struct PrimitiveRegistry {
@@ -160,15 +122,6 @@ impl PrimitiveRegistry {
             .iter()
             .find(|registered| registered.as_ref().type_name() == name)
             .map(RegisteredPrimitive::as_ref)
-    }
-
-    /// [`Self::find`] returning a clonable handle instead of a borrow, for
-    /// callers that cache the resolution across frames.
-    pub(crate) fn find_handle(&self, name: &str) -> Option<PrimitiveHandle> {
-        self.primitives
-            .iter()
-            .find(|registered| registered.as_ref().type_name() == name)
-            .map(|registered| PrimitiveHandle::Registered(registered.clone()))
     }
 
     /// Return whether `name` belongs to the built-in prefix of this registry.

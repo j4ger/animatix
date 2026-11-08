@@ -379,7 +379,6 @@ impl EvalCaches {
         *self.env_injection_plan.borrow_mut() = None;
         // Mutations can add or remove `solo` (and modifiers), so the scan answer is stale.
         self.solo_scan_needed.set(None);
-        self.primitive_handles.borrow_mut().clear();
     }
 
     /// Memoized `is_static_subtree_id` answer for `id`, when computed.
