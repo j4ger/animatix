@@ -240,10 +240,10 @@ maps to a named scheme colour, resolved at build like any other `color`).
 
 | Property | Type | Animated | Assignable | Applies to |
 |----------|------|----------|------------|------------|
-| `highlight_color` | Color | ✓ | — | Equation, Fragment |
-| `highlight_opacity` | F32 | ✓ | — | Equation, Fragment |
-| `highlight_padding` | F32 | ✓ | — | Equation, Fragment |
-| `highlight_radius` | F32 | ✓ | — | Equation, Fragment |
+| `highlight_color` | Color | ✓ | — | Equation, Fragment, Typst |
+| `highlight_opacity` | F32 | ✓ | — | Equation, Fragment, Typst |
+| `highlight_padding` | F32 | ✓ | — | Equation, Fragment, Typst |
+| `highlight_radius` | F32 | ✓ | — | Equation, Fragment, Typst |
 
 ### Text metrics (internal)
 
