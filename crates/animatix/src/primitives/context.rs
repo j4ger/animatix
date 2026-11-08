@@ -246,6 +246,21 @@ impl<'a, 'b, 'c> RenderChildrenCtx<'a, 'b, 'c> {
         }
     }
 
+    /// Run `f` with bundled [`RenderFrame`] and mutable [`RenderOutputs`].
+    pub(crate) fn with_frame_outputs<R>(
+        &mut self,
+        f: impl FnOnce(&Timeline, &RenderFrame<'_>, &mut RenderOutputs<'_, '_>) -> R,
+    ) -> R {
+        let frame = self.render_frame();
+        let mut out = RenderOutputs {
+            scene: &mut *self.scene,
+            hit_regions: &mut *self.hit_regions,
+            program_items: &mut *self.program_items,
+            filter_backend: &mut *self.filter_backend,
+        };
+        f(self.timeline, &frame, &mut out)
+    }
+
     /// Render one child by its label, forwarding `allow_pending_composites`.
     pub fn render_child(&mut self, child: &str) {
         if let Some(child_id) = self.timeline.world.tracks.get_id(child) {

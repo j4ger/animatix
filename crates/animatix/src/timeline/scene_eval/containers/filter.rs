@@ -277,30 +277,21 @@ impl Timeline {
         &self,
         ctx: &mut crate::primitives::RenderChildrenCtx<'_, '_, '_>,
     ) {
-        // The container primitives drive their own recursion through
-        // `RenderChildrenCtx` (the documented extension surface); the render
-        // recursion itself takes the bundled frame/outputs.
-        let frame = crate::primitives::RenderFrame {
-            time_ms: ctx.time_ms,
-            scene_dimensions: ctx.scene_dimensions,
-            debug_options: ctx.debug_options,
-            overrides: ctx.overrides,
-            frame_env: ctx.frame_env,
-        };
-        let mut out = crate::primitives::RenderOutputs {
-            scene: &mut *ctx.scene,
-            hit_regions: &mut *ctx.hit_regions,
-            program_items: &mut *ctx.program_items,
-            filter_backend: &mut *ctx.filter_backend,
-        };
-        self.render_filter_children(
-            ctx.host_id,
-            ctx.node_label,
-            ctx.global_transform,
-            ctx.global_opacity,
-            ctx.allow_pending_composites,
-            &frame,
-            &mut out,
-        );
+        let host_id = ctx.host_id;
+        let node_label = ctx.node_label;
+        let global_transform = ctx.global_transform;
+        let global_opacity = ctx.global_opacity;
+        let allow_pending_composites = ctx.allow_pending_composites;
+        ctx.with_frame_outputs(|timeline, frame, out| {
+            timeline.render_filter_children(
+                host_id,
+                node_label,
+                global_transform,
+                global_opacity,
+                allow_pending_composites,
+                frame,
+                out,
+            );
+        });
     }
 }
